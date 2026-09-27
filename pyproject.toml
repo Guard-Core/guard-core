@@ -1,6 +1,6 @@
 [project]
 name = "guard-core"
-version = "4.1.0"
+version = "4.2.0"
 description = "Framework-agnostic security engine for the Guard ecosystem."
 authors = [
     {name = "Renzo Franceschini", email = "rennf93@users.noreply.github.com"}
@@ -303,6 +303,9 @@ per_rule_ignores = { "DEP002" = [
     "types-requests",
     "vulture",
     "xenon",
+], "DEP001" = [
+    "pipeline_cases",
+    "pipeline_harness",
 ], "DEP003" = [
     "guard-agent",
 ] }
