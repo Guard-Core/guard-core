@@ -1,0 +1,463 @@
+{
+  "suite": "inclusion_sensitive_recon",
+  "kind": "detect",
+  "spec_version": "4.1.0",
+  "engine_version": "4.1.0",
+  "cases": [
+    {
+      "id": "incl_php_filter",
+      "input": {
+        "content": "php://filter/convert.base64-encode/resource=index",
+        "context": "query_param"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?:php|data|zip|rar|file|glob|expect|input|phpinfo|zlib|phar|ssh2|rar|ogg|expect)://[^\\s]+",
+            "match": "php://filter/convert.base64-encode/resource=index",
+            "position": 0,
+            "category": "file_inclusion",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 49,
+        "processed_length": 49,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "incl_data_uri",
+      "input": {
+        "content": "data://text/plain,<?php system($_GET['c'])?>",
+        "context": "query_param"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "\\b(?:eval|system|exec|shell_exec|passthru|popen|proc_open|create_function)\\s*\\(",
+            "match": "system(",
+            "position": 24,
+            "category": "cmd_injection",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "(?:php|data|zip|rar|file|glob|expect|input|phpinfo|zlib|phar|ssh2|rar|ogg|expect)://[^\\s]+",
+            "match": "data://text/plain,<?php",
+            "position": 0,
+            "category": "file_inclusion",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 44,
+        "processed_length": 44,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "incl_expect_scheme",
+      "input": {
+        "content": "expect://id",
+        "context": "query_param"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?:php|data|zip|rar|file|glob|expect|input|phpinfo|zlib|phar|ssh2|rar|ogg|expect)://[^\\s]+",
+            "match": "expect://id",
+            "position": 0,
+            "category": "file_inclusion",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 11,
+        "processed_length": 11,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "incl_phar_stream",
+      "input": {
+        "content": "phar://archive.phar/test.txt",
+        "context": "query_param"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?:php|data|zip|rar|file|glob|expect|input|phpinfo|zlib|phar|ssh2|rar|ogg|expect)://[^\\s]+",
+            "match": "phar://archive.phar/test.txt",
+            "position": 0,
+            "category": "file_inclusion",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 28,
+        "processed_length": 28,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "incl_zip_stream",
+      "input": {
+        "content": "zip://upload.zip#shell.php",
+        "context": "query_param"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?:php|data|zip|rar|file|glob|expect|input|phpinfo|zlib|phar|ssh2|rar|ogg|expect)://[^\\s]+",
+            "match": "zip://upload.zip",
+            "position": 0,
+            "category": "file_inclusion",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 26,
+        "processed_length": 26,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "incl_remote_http",
+      "input": {
+        "content": "http://10.0.0.1/shell.txt",
+        "context": "query_param"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?:^|\\s|/)(?:(?<=://)[^\\s/@]*@)?(?:localhost\\.?|127\\.0\\.0\\.1|0\\.0\\.0\\.0|\\[::(?:\\d*)\\]|\\[::ffff:127\\.0\\.0\\.1\\]|169\\.254(?:\\.\\d{1,3}){2}|192\\.168(?:\\.\\d{1,3}){2}|10(?:\\.\\d{1,3}){3}|172\\.(?:1[6-9]|2[0-9]|3[01])(?:\\.\\d{1,3}){2}|metadata\\.google\\.internal|metadata\\.goog|100\\.100\\.100\\.200)(?::\\d+)?(?:\\s|$|/)",
+            "match": "/10.0.0.1/",
+            "position": 6,
+            "category": "ssrf",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "://(?:[^/@\\s]*@)?((?:0[xX][0-9a-fA-F]+|0[0-7]+|[1-9]\\d*|0)(?:\\.(?:0[xX][0-9a-fA-F]+|0[0-7]+|[1-9]\\d*|0)){0,3})(?=[:/\\s]|$)",
+            "match": "://10.0.0.1",
+            "position": 4,
+            "category": "ssrf",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 25,
+        "processed_length": 25,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "sensitive_env_file",
+      "input": {
+        "content": "/.env",
+        "context": "url_path"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "\\A[/\\\\]?(?:(?!\\.env(?:\\.\\w+)?(?:[/\\\\]|\\Z))[\\w.\\-~%]+[/\\\\])*\\.env(?:\\.\\w+)?(?:[/\\\\][\\w.\\-~%]*)*(?:\\?\\S*)?\\s*\\Z",
+            "match": "/.env",
+            "position": 0,
+            "category": "sensitive_file",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 5,
+        "processed_length": 5,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "sensitive_git_config",
+      "input": {
+        "content": "/.git/config",
+        "context": "url_path"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "\\A[/\\\\]?(?:(?!\\.(?:git|svn|hg|bzr)(?:[/\\\\]|\\Z))[\\w.\\-~%]+[/\\\\])*\\.(?:git|svn|hg|bzr)(?:[/\\\\][\\w.\\-~%]*)*(?:\\?\\S*)?\\s*\\Z",
+            "match": "/.git/config",
+            "position": 0,
+            "category": "sensitive_file",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 12,
+        "processed_length": 12,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "sensitive_aws_credentials",
+      "input": {
+        "content": "/.aws/credentials",
+        "context": "url_path"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "\\A[/\\\\](?:(?!(?:management|config_dump|credentials|system[/\\\\]version|version[/\\\\]system)(?:[/\\\\]|\\Z))[\\w.\\-~%]+[/\\\\])*(?:management|config_dump|credentials|system[/\\\\]version|version[/\\\\]system)(?:[/\\\\][\\w.\\-~%]*)*(?:\\?\\S*)?\\s*\\Z",
+            "match": "/.aws/credentials",
+            "position": 0,
+            "category": "recon",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 17,
+        "processed_length": 17,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "sensitive_htpasswd",
+      "input": {
+        "content": "/.htpasswd",
+        "context": "url_path"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "\\A[/\\\\]?(?:(?!(?:\\.htaccess|\\.htpasswd|\\.DS_Store|Thumbs\\.db|\\.npmrc|\\.dockerenv|web\\.config)(?:[/\\\\]|\\Z))[\\w.\\-~%]+[/\\\\])*(?:\\.htaccess|\\.htpasswd|\\.DS_Store|Thumbs\\.db|\\.npmrc|\\.dockerenv|web\\.config)(?:[/\\\\][\\w.\\-~%]*)*(?:\\?\\S*)?\\s*\\Z",
+            "match": "/.htpasswd",
+            "position": 0,
+            "category": "cms_probing",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 10,
+        "processed_length": 10,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "sensitive_config_bak",
+      "input": {
+        "content": "/config.php.bak",
+        "context": "url_path"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "\\A[/\\\\]?(?:(?![\\w.\\-~%]*\\.(?:bak|backup|old|orig|save|swp|swo|tmp|temp)(?:[/\\\\]|\\Z))[\\w.\\-~%]+[/\\\\])*[\\w.\\-~%]*\\.(?:bak|backup|old|orig|save|swp|swo|tmp|temp)(?:[/\\\\][\\w.\\-~%]*)*(?:\\?\\S*)?\\s*\\Z",
+            "match": "/config.php.bak",
+            "position": 0,
+            "category": "cms_probing",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 15,
+        "processed_length": 15,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "recon_wp_login",
+      "input": {
+        "content": "/wp-login.php",
+        "context": "url_path"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "\\A[/\\\\]?(?:(?!(?:wp-(?:admin|login|content|includes|config)|administrator|xmlrpc)\\.?(?:php)?(?:[/\\\\]|\\Z))[\\w.\\-~%]+[/\\\\])*(?:wp-(?:admin|login|content|includes|config)|administrator|xmlrpc)\\.?(?:php)?(?:[/\\\\][\\w.\\-~%]*)*(?:\\?\\S*)?\\s*\\Z",
+            "match": "/wp-login.php",
+            "position": 0,
+            "category": "cms_probing",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "\\A[/\\\\]?(?:[\\w.\\-~%]+[/\\\\])*[\\w.\\-~%]*\\.(?:ts|tsx|jsx|py|rb|java|go|rs|php|pl|sh|sql)(?:[/\\\\][\\w.\\-~%]*)*(?:\\?\\S*)?\\s*\\Z",
+            "match": "/wp-login.php",
+            "position": 0,
+            "category": "sensitive_file",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 13,
+        "processed_length": 13,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "recon_wp_admin",
+      "input": {
+        "content": "/wp-admin/setup-config.php",
+        "context": "url_path"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "\\A[/\\\\]?(?:(?!(?:wp-(?:admin|login|content|includes|config)|administrator|xmlrpc)\\.?(?:php)?(?:[/\\\\]|\\Z))[\\w.\\-~%]+[/\\\\])*(?:wp-(?:admin|login|content|includes|config)|administrator|xmlrpc)\\.?(?:php)?(?:[/\\\\][\\w.\\-~%]*)*(?:\\?\\S*)?\\s*\\Z",
+            "match": "/wp-admin/setup-config.php",
+            "position": 0,
+            "category": "cms_probing",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "\\A[/\\\\]?(?:[\\w.\\-~%]+[/\\\\])*[\\w.\\-~%]*\\.(?:ts|tsx|jsx|py|rb|java|go|rs|php|pl|sh|sql)(?:[/\\\\][\\w.\\-~%]*)*(?:\\?\\S*)?\\s*\\Z",
+            "match": "/wp-admin/setup-config.php",
+            "position": 0,
+            "category": "sensitive_file",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 26,
+        "processed_length": 26,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "recon_phpmyadmin",
+      "input": {
+        "content": "/phpmyadmin/index.php",
+        "context": "url_path"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "\\A[/\\\\]?(?:[\\w.\\-~%]+[/\\\\])*[\\w.\\-~%]*\\.(?:ts|tsx|jsx|py|rb|java|go|rs|php|pl|sh|sql)(?:[/\\\\][\\w.\\-~%]*)*(?:\\?\\S*)?\\s*\\Z",
+            "match": "/phpmyadmin/index.php",
+            "position": 0,
+            "category": "sensitive_file",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 21,
+        "processed_length": 21,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "recon_joomla_installer",
+      "input": {
+        "content": "/installation/index.php",
+        "context": "url_path"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "\\A[/\\\\]?(?:[\\w.\\-~%]+[/\\\\])*[\\w.\\-~%]*\\.(?:ts|tsx|jsx|py|rb|java|go|rs|php|pl|sh|sql)(?:[/\\\\][\\w.\\-~%]*)*(?:\\?\\S*)?\\s*\\Z",
+            "match": "/installation/index.php",
+            "position": 0,
+            "category": "sensitive_file",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 23,
+        "processed_length": 23,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "recon_server_status",
+      "input": {
+        "content": "/server-status",
+        "context": "url_path"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "\\A[/\\\\]?(?:(?!(?:actuator|server-status|telescope)(?:[/\\\\]|\\Z))[\\w.\\-~%]+[/\\\\])*(?:actuator|server-status|telescope)(?:[/\\\\][\\w.\\-~%]*)*(?:\\?\\S*)?\\s*\\Z",
+            "match": "/server-status",
+            "position": 0,
+            "category": "recon",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 14,
+        "processed_length": 14,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "recon_actuator",
+      "input": {
+        "content": "/actuator/env",
+        "context": "url_path"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "\\A[/\\\\]?(?:(?!(?:actuator|server-status|telescope)(?:[/\\\\]|\\Z))[\\w.\\-~%]+[/\\\\])*(?:actuator|server-status|telescope)(?:[/\\\\][\\w.\\-~%]*)*(?:\\?\\S*)?\\s*\\Z",
+            "match": "/actuator/env",
+            "position": 0,
+            "category": "recon",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 13,
+        "processed_length": 13,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "recon_django_debug",
+      "input": {
+        "content": "/admin/login/?next=/admin/",
+        "context": "url_path"
+      },
+      "expected": {
+        "is_threat": false,
+        "threat_score": 0.0,
+        "threats": [],
+        "original_length": 26,
+        "processed_length": 26,
+        "detection_method": "enhanced"
+      }
+    }
+  ]
+}

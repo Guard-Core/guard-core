@@ -1,0 +1,304 @@
+{
+  "suite": "path_traversal",
+  "kind": "detect",
+  "spec_version": "4.1.0",
+  "engine_version": "4.1.0",
+  "cases": [
+    {
+      "id": "trav_double_dot_slash",
+      "input": {
+        "content": "/download?file=../../etc/passwd",
+        "context": "url_path"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?:\\.\\.\\/|\\.\\.\\\\)(?:\\.\\.\\/|\\.\\.\\\\)+",
+            "match": "../../",
+            "position": 15,
+            "category": "dir_traversal",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "\\A(?:(?!\\n).)*etc/(?:passwd|shadow|group|hosts|motd|issue|mysql/my\\.cnf|ssh/ssh_config)(?:[&#;,\\\"'<>]|\\s*\\Z)",
+            "match": "/download?file=../../etc/passwd",
+            "position": 0,
+            "category": "dir_traversal",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 31,
+        "processed_length": 31,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "trav_double_backslash",
+      "input": {
+        "content": "..\\..\\windows\\win.ini",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?:\\.\\.\\/|\\.\\.\\\\)(?:\\.\\.\\/|\\.\\.\\\\)+",
+            "match": "..\\..\\",
+            "position": 0,
+            "category": "dir_traversal",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "\\A(?:(?!\\n).)*(?:boot\\.ini|win\\.ini|system\\.ini|config\\.sys)(?:[&#;,\\\"'<>]|\\s*\\Z)",
+            "match": "..\\..\\windows\\win.ini",
+            "position": 0,
+            "category": "dir_traversal",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 21,
+        "processed_length": 21,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "trav_url_encoded",
+      "input": {
+        "content": "%2e%2e%2fetc%2fpasswd",
+        "context": "query_param"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "\\A(?:(?!\\n).)*etc/(?:passwd|shadow|group|hosts|motd|issue|mysql/my\\.cnf|ssh/ssh_config)(?:[&#;,\\\"'<>]|\\s*\\Z)",
+            "match": "../etc/passwd",
+            "position": 0,
+            "category": "dir_traversal",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "\\.\\.[\\\\/]",
+            "match": "../",
+            "position": 0,
+            "category": "path_traversal",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 21,
+        "processed_length": 13,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "trav_double_encoded",
+      "input": {
+        "content": "%252e%252e%252fetc%252fpasswd",
+        "context": "query_param"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "\\A(?:(?!\\n).)*etc/(?:passwd|shadow|group|hosts|motd|issue|mysql/my\\.cnf|ssh/ssh_config)(?:[&#;,\\\"'<>]|\\s*\\Z)",
+            "match": "../etc/passwd",
+            "position": 0,
+            "category": "dir_traversal",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "\\.\\.[\\\\/]",
+            "match": "../",
+            "position": 0,
+            "category": "path_traversal",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 29,
+        "processed_length": 13,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "trav_dots_repetition",
+      "input": {
+        "content": "/static/....//....//etc/passwd",
+        "context": "url_path"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "\\A(?:(?!\\n).)*etc/(?:passwd|shadow|group|hosts|motd|issue|mysql/my\\.cnf|ssh/ssh_config)(?:[&#;,\\\"'<>]|\\s*\\Z)",
+            "match": "/static/....//....//etc/passwd",
+            "position": 0,
+            "category": "dir_traversal",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 30,
+        "processed_length": 30,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "trav_absolute_etc",
+      "input": {
+        "content": "/preview?tpl=/etc/passwd",
+        "context": "url_path"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "\\A(?:(?!\\n).)*etc/(?:passwd|shadow|group|hosts|motd|issue|mysql/my\\.cnf|ssh/ssh_config)(?:[&#;,\\\"'<>]|\\s*\\Z)",
+            "match": "/preview?tpl=/etc/passwd",
+            "position": 0,
+            "category": "dir_traversal",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 24,
+        "processed_length": 24,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "trav_windows_ini",
+      "input": {
+        "content": "c:\\windows\\win.ini",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "\\A(?:(?!\\n).)*(?:boot\\.ini|win\\.ini|system\\.ini|config\\.sys)(?:[&#;,\\\"'<>]|\\s*\\Z)",
+            "match": "c:\\windows\\win.ini",
+            "position": 0,
+            "category": "dir_traversal",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 18,
+        "processed_length": 18,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "trav_etc_shadow",
+      "input": {
+        "content": "/../../../etc/shadow",
+        "context": "url_path"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?:\\.\\.\\/|\\.\\.\\\\)(?:\\.\\.\\/|\\.\\.\\\\)+",
+            "match": "../../../",
+            "position": 1,
+            "category": "dir_traversal",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "\\A(?:(?!\\n).)*etc/(?:passwd|shadow|group|hosts|motd|issue|mysql/my\\.cnf|ssh/ssh_config)(?:[&#;,\\\"'<>]|\\s*\\Z)",
+            "match": "/../../../etc/shadow",
+            "position": 0,
+            "category": "dir_traversal",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 20,
+        "processed_length": 20,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "trav_proc_self_env",
+      "input": {
+        "content": "/../../proc/self/environ",
+        "context": "url_path"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?:\\.\\.\\/|\\.\\.\\\\)(?:\\.\\.\\/|\\.\\.\\\\)+",
+            "match": "../../",
+            "position": 1,
+            "category": "dir_traversal",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "\\A(?:(?!\\n).)*proc/self/environ(?:[&#;,\\\"'<>]|\\s*\\Z)",
+            "match": "/../../proc/self/environ",
+            "position": 0,
+            "category": "dir_traversal",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 24,
+        "processed_length": 24,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "trav_deep_padding",
+      "input": {
+        "content": "/a/../../a/../../a/../../a/../../a/../../a/../../a/../../a/../../a/../../a/../../a/../../a/../../a/../../a/../../a/../../a/../../a/../../a/../../a/../../a/../../etc/passwd",
+        "context": "url_path"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?:\\.\\.\\/|\\.\\.\\\\)(?:\\.\\.\\/|\\.\\.\\\\)+",
+            "match": "../../",
+            "position": 3,
+            "category": "dir_traversal",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "\\A(?:(?!\\n).)*etc/(?:passwd|shadow|group|hosts|motd|issue|mysql/my\\.cnf|ssh/ssh_config)(?:[&#;,\\\"'<>]|\\s*\\Z)",
+            "match": "/a/../../a/../../a/../../a/../../a/../../a/../../a/../../a/../../a/../../a/../../a/../../a/../../a/../../a/../../a/../../a/../../a/../../a/../../a/../../a/../../etc/passwd",
+            "position": 0,
+            "category": "dir_traversal",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 171,
+        "processed_length": 171,
+        "detection_method": "enhanced"
+      }
+    }
+  ]
+}

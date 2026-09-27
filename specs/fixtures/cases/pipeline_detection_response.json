@@ -1,0 +1,544 @@
+{
+  "suite": "pipeline_detection_response",
+  "kind": "pipeline",
+  "spec_version": "4.1.0",
+  "engine_version": "4.1.0",
+  "cases": [
+    {
+      "id": "attack_blocked_400_contract_body",
+      "config": {},
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api",
+          "body": "<script>alert(1)</script>"
+        }
+      ],
+      "expected": [
+        {
+          "status": 400,
+          "body": "Suspicious activity detected",
+          "headers": {
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "SAMEORIGIN",
+            "X-XSS-Protection": "1; mode=block",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+            "X-Permitted-Cross-Domain-Policies": "none",
+            "X-Download-Options": "noopen",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Resource-Policy": "same-origin",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains"
+          },
+          "is_exempt": false,
+          "is_whitelisted": false,
+          "events": [
+            [
+              "penetration_attempt",
+              "request_blocked"
+            ]
+          ],
+          "on_block": [
+            {
+              "check_name": "suspicious_activity",
+              "reason": "Suspicious activity detected for IP: 192.0.2.10 - Request body: Value matched pattern '<script[^>]*>[^<]*<\\/script\\s*>'",
+              "trigger_info": "",
+              "passive_mode": false,
+              "client_ip": "192.0.2.10",
+              "path": "/api",
+              "method": "GET",
+              "status_code": 400
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "attack_custom_error_response_overrides_body",
+      "config": {
+        "custom_error_responses": {
+          "400": "custom detection body"
+        }
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api",
+          "body": "<script>alert(1)</script>"
+        }
+      ],
+      "expected": [
+        {
+          "status": 400,
+          "body": "custom detection body",
+          "headers": {
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "SAMEORIGIN",
+            "X-XSS-Protection": "1; mode=block",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+            "X-Permitted-Cross-Domain-Policies": "none",
+            "X-Download-Options": "noopen",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Resource-Policy": "same-origin",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains"
+          },
+          "is_exempt": false,
+          "is_whitelisted": false,
+          "events": [
+            [
+              "penetration_attempt",
+              "request_blocked"
+            ]
+          ],
+          "on_block": [
+            {
+              "check_name": "suspicious_activity",
+              "reason": "Suspicious activity detected for IP: 192.0.2.10 - Request body: Value matched pattern '<script[^>]*>[^<]*<\\/script\\s*>'",
+              "trigger_info": "",
+              "passive_mode": false,
+              "client_ip": "192.0.2.10",
+              "path": "/api",
+              "method": "GET",
+              "status_code": 400
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "attack_passive_mode_logs_only",
+      "config": {
+        "passive_mode": true
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api",
+          "body": "<script>alert(1)</script>"
+        },
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api",
+          "body": "<script>alert(1)</script>"
+        }
+      ],
+      "expected": [
+        {
+          "status": null,
+          "is_exempt": false,
+          "is_whitelisted": false,
+          "events": [
+            [
+              "penetration_attempt",
+              "logged_only"
+            ]
+          ],
+          "on_block": [
+            {
+              "check_name": "suspicious_activity",
+              "reason": "Suspicious activity detected: 192.0.2.10",
+              "trigger_info": "Request body: Value matched pattern '<script[^>]*>[^<]*<\\/script\\s*>'",
+              "passive_mode": true,
+              "client_ip": "192.0.2.10",
+              "path": "/api",
+              "method": "GET",
+              "status_code": null
+            }
+          ]
+        },
+        {
+          "status": null,
+          "is_exempt": false,
+          "is_whitelisted": false,
+          "events": [
+            [
+              "penetration_attempt",
+              "logged_only"
+            ]
+          ],
+          "on_block": [
+            {
+              "check_name": "suspicious_activity",
+              "reason": "Suspicious activity detected: 192.0.2.10",
+              "trigger_info": "Request body: Value matched pattern '<script[^>]*>[^<]*<\\/script\\s*>'",
+              "passive_mode": true,
+              "client_ip": "192.0.2.10",
+              "path": "/api",
+              "method": "GET",
+              "status_code": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "attack_passive_mode_on_block_payload",
+      "config": {
+        "passive_mode": true
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api",
+          "body": "<script>alert(1)</script>"
+        }
+      ],
+      "expected": [
+        {
+          "status": null,
+          "is_exempt": false,
+          "is_whitelisted": false,
+          "events": [
+            [
+              "penetration_attempt",
+              "logged_only"
+            ]
+          ],
+          "on_block": [
+            {
+              "check_name": "suspicious_activity",
+              "reason": "Suspicious activity detected: 192.0.2.10",
+              "trigger_info": "Request body: Value matched pattern '<script[^>]*>[^<]*<\\/script\\s*>'",
+              "passive_mode": true,
+              "client_ip": "192.0.2.10",
+              "path": "/api",
+              "method": "GET",
+              "status_code": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "attack_on_block_payload_active",
+      "config": {},
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api",
+          "body": "<script>alert(1)</script>"
+        }
+      ],
+      "expected": [
+        {
+          "status": 400,
+          "body": "Suspicious activity detected",
+          "headers": {
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "SAMEORIGIN",
+            "X-XSS-Protection": "1; mode=block",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+            "X-Permitted-Cross-Domain-Policies": "none",
+            "X-Download-Options": "noopen",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Resource-Policy": "same-origin",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains"
+          },
+          "is_exempt": false,
+          "is_whitelisted": false,
+          "events": [
+            [
+              "penetration_attempt",
+              "request_blocked"
+            ]
+          ],
+          "on_block": [
+            {
+              "check_name": "suspicious_activity",
+              "reason": "Suspicious activity detected for IP: 192.0.2.10 - Request body: Value matched pattern '<script[^>]*>[^<]*<\\/script\\s*>'",
+              "trigger_info": "",
+              "passive_mode": false,
+              "client_ip": "192.0.2.10",
+              "path": "/api",
+              "method": "GET",
+              "status_code": 400
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "route_detection_exclusion_allows_attack",
+      "config": {},
+      "geo_countries": {},
+      "routes": {
+        "/api/open": {
+          "enable_suspicious_detection": false
+        }
+      },
+      "drives": [
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api/open",
+          "body": "<script>alert(1)</script>"
+        },
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api",
+          "body": "<script>alert(1)</script>"
+        }
+      ],
+      "expected": [
+        {
+          "status": null,
+          "is_exempt": false,
+          "is_whitelisted": false,
+          "events": [
+            [
+              "decorator_violation",
+              "detection_disabled"
+            ]
+          ]
+        },
+        {
+          "status": 400,
+          "body": "Suspicious activity detected",
+          "headers": {
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "SAMEORIGIN",
+            "X-XSS-Protection": "1; mode=block",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+            "X-Permitted-Cross-Domain-Policies": "none",
+            "X-Download-Options": "noopen",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Resource-Policy": "same-origin",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains"
+          },
+          "is_exempt": false,
+          "is_whitelisted": false,
+          "events": [
+            [
+              "penetration_attempt",
+              "request_blocked"
+            ]
+          ],
+          "on_block": [
+            {
+              "check_name": "suspicious_activity",
+              "reason": "Suspicious activity detected for IP: 192.0.2.10 - Request body: Value matched pattern '<script[^>]*>[^<]*<\\/script\\s*>'",
+              "trigger_info": "",
+              "passive_mode": false,
+              "client_ip": "192.0.2.10",
+              "path": "/api",
+              "method": "GET",
+              "status_code": 400
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "route_excluded_detection_header",
+      "config": {},
+      "geo_countries": {},
+      "routes": {
+        "/api/probe": {
+          "excluded_detection_headers": [
+            "X-Skip-Scan"
+          ]
+        }
+      },
+      "drives": [
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api/probe",
+          "headers": {
+            "X-Skip-Scan": "<script>alert(1)</script>"
+          }
+        }
+      ],
+      "expected": [
+        {
+          "status": 400,
+          "body": "Suspicious activity detected",
+          "headers": {
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "SAMEORIGIN",
+            "X-XSS-Protection": "1; mode=block",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+            "X-Permitted-Cross-Domain-Policies": "none",
+            "X-Download-Options": "noopen",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Resource-Policy": "same-origin",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains"
+          },
+          "is_exempt": false,
+          "is_whitelisted": false,
+          "events": [
+            [
+              "penetration_attempt",
+              "request_blocked"
+            ]
+          ],
+          "on_block": [
+            {
+              "check_name": "suspicious_activity",
+              "reason": "Suspicious activity detected for IP: 192.0.2.10 - Header 'x-skip-scan': Value matched pattern '<script[^>]*>[^<]*<\\/script\\s*>'",
+              "trigger_info": "",
+              "passive_mode": false,
+              "client_ip": "192.0.2.10",
+              "path": "/api/probe",
+              "method": "GET",
+              "status_code": 400
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "second_attack_hits_400_without_ban",
+      "config": {},
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api",
+          "body": "<script>alert(1)</script>"
+        },
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api",
+          "body": "<script>alert(1)</script>"
+        },
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api",
+          "body": "<script>alert(1)</script>"
+        }
+      ],
+      "expected": [
+        {
+          "status": 400,
+          "body": "Suspicious activity detected",
+          "headers": {
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "SAMEORIGIN",
+            "X-XSS-Protection": "1; mode=block",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+            "X-Permitted-Cross-Domain-Policies": "none",
+            "X-Download-Options": "noopen",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Resource-Policy": "same-origin",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains"
+          },
+          "is_exempt": false,
+          "is_whitelisted": false,
+          "events": [
+            [
+              "penetration_attempt",
+              "request_blocked"
+            ]
+          ],
+          "on_block": [
+            {
+              "check_name": "suspicious_activity",
+              "reason": "Suspicious activity detected for IP: 192.0.2.10 - Request body: Value matched pattern '<script[^>]*>[^<]*<\\/script\\s*>'",
+              "trigger_info": "",
+              "passive_mode": false,
+              "client_ip": "192.0.2.10",
+              "path": "/api",
+              "method": "GET",
+              "status_code": 400
+            }
+          ]
+        },
+        {
+          "status": 400,
+          "body": "Suspicious activity detected",
+          "headers": {
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "SAMEORIGIN",
+            "X-XSS-Protection": "1; mode=block",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+            "X-Permitted-Cross-Domain-Policies": "none",
+            "X-Download-Options": "noopen",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Resource-Policy": "same-origin",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains"
+          },
+          "is_exempt": false,
+          "is_whitelisted": false,
+          "events": [
+            [
+              "penetration_attempt",
+              "request_blocked"
+            ]
+          ],
+          "on_block": [
+            {
+              "check_name": "suspicious_activity",
+              "reason": "Suspicious activity detected for IP: 192.0.2.10 - Request body: Value matched pattern '<script[^>]*>[^<]*<\\/script\\s*>'",
+              "trigger_info": "",
+              "passive_mode": false,
+              "client_ip": "192.0.2.10",
+              "path": "/api",
+              "method": "GET",
+              "status_code": 400
+            }
+          ]
+        },
+        {
+          "status": 400,
+          "body": "Suspicious activity detected",
+          "headers": {
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "SAMEORIGIN",
+            "X-XSS-Protection": "1; mode=block",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+            "X-Permitted-Cross-Domain-Policies": "none",
+            "X-Download-Options": "noopen",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Resource-Policy": "same-origin",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains"
+          },
+          "is_exempt": false,
+          "is_whitelisted": false,
+          "events": [
+            [
+              "penetration_attempt",
+              "request_blocked"
+            ]
+          ],
+          "on_block": [
+            {
+              "check_name": "suspicious_activity",
+              "reason": "Suspicious activity detected for IP: 192.0.2.10 - Request body: Value matched pattern '<script[^>]*>[^<]*<\\/script\\s*>'",
+              "trigger_info": "",
+              "passive_mode": false,
+              "client_ip": "192.0.2.10",
+              "path": "/api",
+              "method": "GET",
+              "status_code": 400
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
