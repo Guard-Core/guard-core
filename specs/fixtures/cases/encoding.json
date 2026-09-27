@@ -1,0 +1,173 @@
+{
+  "suite": "encoding",
+  "kind": "detect",
+  "spec_version": "4.1.0",
+  "engine_version": "4.1.0",
+  "cases": [
+    {
+      "id": "enc_base64_xss_payload",
+      "input": {
+        "content": "PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "<script[^>]*>[^<]*<\\/script\\s*>",
+            "match": "<script>alert(1)</script>",
+            "position": 0,
+            "category": "xss",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 36,
+        "processed_length": 25,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "enc_base64_cmd_payload",
+      "input": {
+        "content": "Y2F0IC9ldGMvcGFzc3dk",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "\\A(?:(?!\\n).)*etc/(?:passwd|shadow|group|hosts|motd|issue|mysql/my\\.cnf|ssh/ssh_config)(?:[&#;,\\\"'<>]|\\s*\\Z)",
+            "match": "cat /etc/passwd",
+            "position": 0,
+            "category": "dir_traversal",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 20,
+        "processed_length": 15,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "enc_base64_long_padding",
+      "input": {
+        "content": "aGVsbG8gd29ybGQgaGVsbG8gd29ybGQgaGVsbG8gd29ybGQgaGVsbG8gd29ybGQ=",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": false,
+        "threat_score": 0.0,
+        "threats": [],
+        "original_length": 64,
+        "processed_length": 47,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "enc_double_url_sqli",
+      "input": {
+        "content": "%2527%2520OR%2520%25271%2527%253D%25271",
+        "context": "query_param"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?i)(?:OR|AND)\\s+(?:'[\\w\\d]*'='[\\w\\d]*'?|[@:$][A-Za-z_]\\w*\\s*=\\s*[@:$][A-Za-z_]\\w*)",
+            "match": "OR '1'='1",
+            "position": 2,
+            "category": "sqli",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 39,
+        "processed_length": 11,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "enc_mixed_encoding",
+      "input": {
+        "content": "%253Cscript%253Ealert(1)%253C%2Fscript%253E",
+        "context": "query_param"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "<script[^>]*>[^<]*<\\/script\\s*>",
+            "match": "<script>alert(1)</script>",
+            "position": 0,
+            "category": "xss",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 43,
+        "processed_length": 25,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "enc_unicode_escape",
+      "input": {
+        "content": "\\u003cscript\\u003ealert(1)\\u003c/script\\u003e",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "<script[^>]*>[^<]*<\\/script\\s*>",
+            "match": "<script>alert(1)</script>",
+            "position": 0,
+            "category": "xss",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 45,
+        "processed_length": 25,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "enc_benign_short_base64",
+      "input": {
+        "content": "aGVsbG8=",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": false,
+        "threat_score": 0.0,
+        "threats": [],
+        "original_length": 8,
+        "processed_length": 8,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "enc_benign_uuid",
+      "input": {
+        "content": "550e8400-e29b-41d4-a716-446655440000",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": false,
+        "threat_score": 0.0,
+        "threats": [],
+        "original_length": 36,
+        "processed_length": 36,
+        "detection_method": "enhanced"
+      }
+    }
+  ]
+}

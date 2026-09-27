@@ -1,0 +1,213 @@
+{
+  "spec_version": "4.1.0",
+  "engine_version": "4.1.0",
+  "engine_commit": "0122af0223a6c0d88299ccd528f4c551ae2d762b",
+  "generated_at": "2026-09-27T03:15:23.691432+00:00",
+  "fixed_ip": "203.0.113.7",
+  "config_knobs": {
+    "detection_compiler_timeout": 2.0,
+    "detection_max_tracked_patterns": 1000,
+    "detection_max_content_length": 10000,
+    "detection_preserve_attack_patterns": true,
+    "detection_max_body_inspect_bytes": 262144,
+    "detection_anomaly_threshold": 3.0,
+    "detection_slow_pattern_threshold": 0.1,
+    "detection_monitor_history_size": 1000,
+    "detection_anomaly_emission_cooldown": 60.0,
+    "detection_min_samples_for_anomaly": 30,
+    "detection_semantic_threshold": 0.7,
+    "detection_threat_score_threshold": 1.0
+  },
+  "suites": {
+    "xss": {
+      "case_count": 22,
+      "kind": "detect",
+      "consumers": [
+        "python",
+        "go",
+        "php",
+        "ts",
+        "rust"
+      ]
+    },
+    "sqli": {
+      "case_count": 22,
+      "kind": "detect",
+      "consumers": [
+        "python",
+        "go",
+        "php",
+        "ts",
+        "rust"
+      ]
+    },
+    "cmd_injection": {
+      "case_count": 18,
+      "kind": "detect",
+      "consumers": [
+        "python",
+        "go",
+        "php",
+        "ts",
+        "rust"
+      ]
+    },
+    "path_traversal": {
+      "case_count": 10,
+      "kind": "detect",
+      "consumers": [
+        "python",
+        "go",
+        "php",
+        "ts",
+        "rust"
+      ]
+    },
+    "inclusion_sensitive_recon": {
+      "case_count": 18,
+      "kind": "detect",
+      "consumers": [
+        "python",
+        "go",
+        "php",
+        "ts",
+        "rust"
+      ]
+    },
+    "misc_injection": {
+      "case_count": 29,
+      "kind": "detect",
+      "consumers": [
+        "python",
+        "go",
+        "php",
+        "ts",
+        "rust"
+      ]
+    },
+    "encoding": {
+      "case_count": 8,
+      "kind": "detect",
+      "consumers": [
+        "python",
+        "go",
+        "php",
+        "ts",
+        "rust"
+      ]
+    },
+    "semantic": {
+      "case_count": 6,
+      "kind": "detect",
+      "consumers": [
+        "python",
+        "go",
+        "php",
+        "ts",
+        "rust"
+      ]
+    },
+    "benign": {
+      "case_count": 15,
+      "kind": "detect",
+      "consumers": [
+        "python",
+        "go",
+        "php",
+        "ts",
+        "rust"
+      ]
+    },
+    "context_matrix": {
+      "case_count": 9,
+      "kind": "detect",
+      "consumers": [
+        "python",
+        "go",
+        "php",
+        "ts",
+        "rust"
+      ]
+    },
+    "boundaries": {
+      "case_count": 8,
+      "kind": "detect",
+      "consumers": [
+        "python",
+        "go",
+        "php",
+        "ts",
+        "rust"
+      ]
+    },
+    "binary_bodies": {
+      "case_count": 19,
+      "kind": "detect",
+      "consumers": [
+        "python",
+        "go",
+        "php",
+        "ts",
+        "rust"
+      ]
+    },
+    "pipeline_ip_control": {
+      "case_count": 12,
+      "kind": "pipeline",
+      "consumers": [
+        "python",
+        "go",
+        "php",
+        "ts"
+      ]
+    },
+    "pipeline_rate_limits": {
+      "case_count": 5,
+      "kind": "pipeline",
+      "consumers": [
+        "python",
+        "go",
+        "php",
+        "ts"
+      ]
+    },
+    "pipeline_detection_response": {
+      "case_count": 8,
+      "kind": "pipeline",
+      "consumers": [
+        "python",
+        "go",
+        "php",
+        "ts"
+      ]
+    },
+    "pipeline_headers_cors": {
+      "case_count": 7,
+      "kind": "pipeline",
+      "consumers": [
+        "python",
+        "go",
+        "php",
+        "ts"
+      ]
+    },
+    "pipeline_behavior_rules": {
+      "case_count": 3,
+      "kind": "pipeline",
+      "consumers": [
+        "python",
+        "go",
+        "php",
+        "ts"
+      ]
+    }
+  },
+  "comparison": {
+    "threat_order": "sorted-canonical, compare order-insensitively",
+    "excluded_fields": [
+      "execution_time"
+    ],
+    "float_precision": 6,
+    "pipeline_records": "compare only the keys present in each expected record; a runner that cannot observe the engine event bus skips the events key instead of failing it"
+  }
+}

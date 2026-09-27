@@ -1,0 +1,391 @@
+{
+  "suite": "pipeline_rate_limits",
+  "kind": "pipeline",
+  "spec_version": "4.1.0",
+  "engine_version": "4.1.0",
+  "cases": [
+    {
+      "id": "global_limit_429_with_retry_after",
+      "config": {
+        "rate_limit": 2,
+        "rate_limit_window": 60
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api"
+        },
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api"
+        },
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api"
+        },
+        {
+          "client_ip": "192.0.2.11",
+          "url_path": "/api"
+        }
+      ],
+      "expected": [
+        {
+          "status": null,
+          "is_exempt": false,
+          "is_whitelisted": false
+        },
+        {
+          "status": null,
+          "is_exempt": false,
+          "is_whitelisted": false
+        },
+        {
+          "status": 429,
+          "body": "Too many requests",
+          "headers": {
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "SAMEORIGIN",
+            "X-XSS-Protection": "1; mode=block",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+            "X-Permitted-Cross-Domain-Policies": "none",
+            "X-Download-Options": "noopen",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Resource-Policy": "same-origin",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+            "Retry-After": "60"
+          },
+          "is_exempt": false,
+          "is_whitelisted": false,
+          "on_block": [
+            {
+              "check_name": "rate_limit",
+              "reason": "Rate limit exceeded for IP: 192.0.2.10 (3 requests in 60s window)",
+              "trigger_info": "",
+              "passive_mode": false,
+              "client_ip": "192.0.2.10",
+              "path": "/api",
+              "method": "GET",
+              "status_code": 429
+            }
+          ]
+        },
+        {
+          "status": null,
+          "is_exempt": false,
+          "is_whitelisted": false
+        }
+      ]
+    },
+    {
+      "id": "endpoint_tier_independent_of_global",
+      "config": {
+        "rate_limit": 5,
+        "rate_limit_window": 60,
+        "endpoint_rate_limits": {
+          "/api/heavy": [
+            2,
+            60
+          ]
+        }
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api/heavy"
+        },
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api/heavy"
+        },
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api/heavy"
+        },
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api"
+        },
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api"
+        },
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api"
+        },
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api"
+        }
+      ],
+      "expected": [
+        {
+          "status": null,
+          "is_exempt": false,
+          "is_whitelisted": false
+        },
+        {
+          "status": null,
+          "is_exempt": false,
+          "is_whitelisted": false
+        },
+        {
+          "status": 429,
+          "body": "Too many requests",
+          "headers": {
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "SAMEORIGIN",
+            "X-XSS-Protection": "1; mode=block",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+            "X-Permitted-Cross-Domain-Policies": "none",
+            "X-Download-Options": "noopen",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Resource-Policy": "same-origin",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+            "Retry-After": "60"
+          },
+          "is_exempt": false,
+          "is_whitelisted": false,
+          "events": [
+            [
+              "dynamic_rule_violation",
+              "request_blocked"
+            ]
+          ],
+          "on_block": [
+            {
+              "check_name": "rate_limit",
+              "reason": "Rate limit exceeded for IP: 192.0.2.10 (3 requests in 60s window)",
+              "trigger_info": "",
+              "passive_mode": false,
+              "client_ip": "192.0.2.10",
+              "path": "/api/heavy",
+              "method": "GET",
+              "status_code": 429
+            }
+          ]
+        },
+        {
+          "status": null,
+          "is_exempt": false,
+          "is_whitelisted": false
+        },
+        {
+          "status": null,
+          "is_exempt": false,
+          "is_whitelisted": false
+        },
+        {
+          "status": null,
+          "is_exempt": false,
+          "is_whitelisted": false
+        },
+        {
+          "status": 429,
+          "body": "Too many requests",
+          "headers": {
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "SAMEORIGIN",
+            "X-XSS-Protection": "1; mode=block",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+            "X-Permitted-Cross-Domain-Policies": "none",
+            "X-Download-Options": "noopen",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Resource-Policy": "same-origin",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+            "Retry-After": "60"
+          },
+          "is_exempt": false,
+          "is_whitelisted": false,
+          "on_block": [
+            {
+              "check_name": "rate_limit",
+              "reason": "Rate limit exceeded for IP: 192.0.2.10 (6 requests in 60s window)",
+              "trigger_info": "",
+              "passive_mode": false,
+              "client_ip": "192.0.2.10",
+              "path": "/api",
+              "method": "GET",
+              "status_code": 429
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "exempt_ip_never_rate_limited",
+      "config": {
+        "rate_limit": 2,
+        "rate_limit_window": 60,
+        "exempt_ips": [
+          "192.0.2.30"
+        ]
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "192.0.2.30",
+          "url_path": "/api"
+        },
+        {
+          "client_ip": "192.0.2.30",
+          "url_path": "/api"
+        },
+        {
+          "client_ip": "192.0.2.30",
+          "url_path": "/api"
+        }
+      ],
+      "expected": [
+        {
+          "status": null,
+          "is_exempt": true,
+          "is_whitelisted": false
+        },
+        {
+          "status": null,
+          "is_exempt": true,
+          "is_whitelisted": false
+        },
+        {
+          "status": null,
+          "is_exempt": true,
+          "is_whitelisted": false
+        }
+      ]
+    },
+    {
+      "id": "rate_limit_passive_mode_allows",
+      "config": {
+        "rate_limit": 1,
+        "rate_limit_window": 60,
+        "passive_mode": true
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api"
+        },
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api"
+        }
+      ],
+      "expected": [
+        {
+          "status": null,
+          "is_exempt": false,
+          "is_whitelisted": false
+        },
+        {
+          "status": null,
+          "is_exempt": false,
+          "is_whitelisted": false,
+          "on_block": [
+            {
+              "check_name": "rate_limit",
+              "reason": "Rate limit exceeded for IP: 192.0.2.10 (2 requests in 60s window)",
+              "trigger_info": "",
+              "passive_mode": true,
+              "client_ip": "192.0.2.10",
+              "path": "/api",
+              "method": "GET",
+              "status_code": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "route_rate_limit_tier",
+      "config": {
+        "rate_limit": 100,
+        "rate_limit_window": 60
+      },
+      "geo_countries": {},
+      "routes": {
+        "/api/login": {
+          "rate_limit": 1,
+          "rate_limit_window": 30
+        }
+      },
+      "drives": [
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api/login"
+        },
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api/login"
+        },
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api"
+        }
+      ],
+      "expected": [
+        {
+          "status": null,
+          "is_exempt": false,
+          "is_whitelisted": false
+        },
+        {
+          "status": 429,
+          "body": "Too many requests",
+          "headers": {
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "SAMEORIGIN",
+            "X-XSS-Protection": "1; mode=block",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+            "X-Permitted-Cross-Domain-Policies": "none",
+            "X-Download-Options": "noopen",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Resource-Policy": "same-origin",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+            "Retry-After": "30"
+          },
+          "is_exempt": false,
+          "is_whitelisted": false,
+          "events": [
+            [
+              "decorator_violation",
+              "request_blocked"
+            ]
+          ],
+          "on_block": [
+            {
+              "check_name": "rate_limit",
+              "reason": "Rate limit exceeded for IP: 192.0.2.10 (2 requests in 30s window)",
+              "trigger_info": "",
+              "passive_mode": false,
+              "client_ip": "192.0.2.10",
+              "path": "/api/login",
+              "method": "GET",
+              "status_code": 429
+            }
+          ]
+        },
+        {
+          "status": null,
+          "is_exempt": false,
+          "is_whitelisted": false
+        }
+      ]
+    }
+  ]
+}

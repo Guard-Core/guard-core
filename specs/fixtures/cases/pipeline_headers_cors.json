@@ -1,0 +1,338 @@
+{
+  "suite": "pipeline_headers_cors",
+  "kind": "pipeline",
+  "spec_version": "4.1.0",
+  "engine_version": "4.1.0",
+  "cases": [
+    {
+      "id": "error_response_carries_default_security_headers",
+      "config": {},
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api",
+          "body": "<script>alert(1)</script>"
+        }
+      ],
+      "expected": [
+        {
+          "status": 400,
+          "body": "Suspicious activity detected",
+          "headers": {
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "SAMEORIGIN",
+            "X-XSS-Protection": "1; mode=block",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+            "X-Permitted-Cross-Domain-Policies": "none",
+            "X-Download-Options": "noopen",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Resource-Policy": "same-origin",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains"
+          },
+          "is_exempt": false,
+          "is_whitelisted": false,
+          "events": [
+            [
+              "penetration_attempt",
+              "request_blocked"
+            ]
+          ],
+          "on_block": [
+            {
+              "check_name": "suspicious_activity",
+              "reason": "Suspicious activity detected for IP: 192.0.2.10 - Request body: Value matched pattern '<script[^>]*>[^<]*<\\/script\\s*>'",
+              "trigger_info": "",
+              "passive_mode": false,
+              "client_ip": "192.0.2.10",
+              "path": "/api",
+              "method": "GET",
+              "status_code": 400
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "disabled_security_headers_on_error_response",
+      "config": {
+        "security_headers": {
+          "enabled": false
+        }
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api",
+          "body": "<script>alert(1)</script>"
+        }
+      ],
+      "expected": [
+        {
+          "status": 400,
+          "body": "Suspicious activity detected",
+          "is_exempt": false,
+          "is_whitelisted": false,
+          "events": [
+            [
+              "penetration_attempt",
+              "request_blocked"
+            ]
+          ],
+          "on_block": [
+            {
+              "check_name": "suspicious_activity",
+              "reason": "Suspicious activity detected for IP: 192.0.2.10 - Request body: Value matched pattern '<script[^>]*>[^<]*<\\/script\\s*>'",
+              "trigger_info": "",
+              "passive_mode": false,
+              "client_ip": "192.0.2.10",
+              "path": "/api",
+              "method": "GET",
+              "status_code": 400
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "custom_security_headers_on_error_response",
+      "config": {
+        "security_headers": {
+          "frame_options": "DENY",
+          "custom": {
+            "X-Custom-Header": "custom-value"
+          },
+          "csp": {
+            "default-src": [
+              "'self'"
+            ]
+          },
+          "hsts": {
+            "max_age": 63072000
+          }
+        }
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api",
+          "body": "<script>alert(1)</script>"
+        }
+      ],
+      "expected": [
+        {
+          "status": 400,
+          "body": "Suspicious activity detected",
+          "headers": {
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "DENY",
+            "X-XSS-Protection": "1; mode=block",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+            "X-Permitted-Cross-Domain-Policies": "none",
+            "X-Download-Options": "noopen",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Resource-Policy": "same-origin",
+            "Content-Security-Policy": "default-src 'self'",
+            "Strict-Transport-Security": "max-age=63072000; includeSubDomains",
+            "X-Custom-Header": "custom-value"
+          },
+          "is_exempt": false,
+          "is_whitelisted": false,
+          "events": [
+            [
+              "penetration_attempt",
+              "request_blocked"
+            ]
+          ],
+          "on_block": [
+            {
+              "check_name": "suspicious_activity",
+              "reason": "Suspicious activity detected for IP: 192.0.2.10 - Request body: Value matched pattern '<script[^>]*>[^<]*<\\/script\\s*>'",
+              "trigger_info": "",
+              "passive_mode": false,
+              "client_ip": "192.0.2.10",
+              "path": "/api",
+              "method": "GET",
+              "status_code": 400
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cors_allowed_origin_echoed_on_response",
+      "config": {
+        "enable_cors": true,
+        "cors_allow_origins": [
+          "https://app.example.com"
+        ]
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api",
+          "stage": "process_response",
+          "headers": {
+            "Origin": "https://app.example.com"
+          }
+        }
+      ],
+      "expected": [
+        {
+          "status": 200,
+          "body": "ok",
+          "headers": {
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "SAMEORIGIN",
+            "X-XSS-Protection": "1; mode=block",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+            "X-Permitted-Cross-Domain-Policies": "none",
+            "X-Download-Options": "noopen",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Resource-Policy": "same-origin",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+            "Access-Control-Allow-Origin": "https://app.example.com",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Max-Age": "3600"
+          }
+        }
+      ]
+    },
+    {
+      "id": "cors_disallowed_origin_gets_no_cors_headers",
+      "config": {
+        "enable_cors": true,
+        "cors_allow_origins": [
+          "https://app.example.com"
+        ]
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api",
+          "stage": "process_response",
+          "headers": {
+            "Origin": "https://evil.example.com"
+          }
+        }
+      ],
+      "expected": [
+        {
+          "status": 200,
+          "body": "ok",
+          "headers": {
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "SAMEORIGIN",
+            "X-XSS-Protection": "1; mode=block",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+            "X-Permitted-Cross-Domain-Policies": "none",
+            "X-Download-Options": "noopen",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Resource-Policy": "same-origin",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains"
+          }
+        }
+      ]
+    },
+    {
+      "id": "cors_wildcard_with_credentials_blocked",
+      "config": {
+        "enable_cors": true,
+        "cors_allow_origins": [
+          "*"
+        ],
+        "cors_allow_credentials": true
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api",
+          "stage": "process_response",
+          "headers": {
+            "Origin": "https://app.example.com"
+          }
+        }
+      ],
+      "expected": [
+        {
+          "status": 200,
+          "body": "ok",
+          "headers": {
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "SAMEORIGIN",
+            "X-XSS-Protection": "1; mode=block",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+            "X-Permitted-Cross-Domain-Policies": "none",
+            "X-Download-Options": "noopen",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Resource-Policy": "same-origin",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Max-Age": "3600"
+          }
+        }
+      ]
+    },
+    {
+      "id": "cors_disabled_no_cors_headers",
+      "config": {
+        "enable_cors": false
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api",
+          "stage": "process_response",
+          "headers": {
+            "Origin": "https://app.example.com"
+          }
+        }
+      ],
+      "expected": [
+        {
+          "status": 200,
+          "body": "ok",
+          "headers": {
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "SAMEORIGIN",
+            "X-XSS-Protection": "1; mode=block",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+            "X-Permitted-Cross-Domain-Policies": "none",
+            "X-Download-Options": "noopen",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Resource-Policy": "same-origin",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains"
+          }
+        }
+      ]
+    }
+  ]
+}

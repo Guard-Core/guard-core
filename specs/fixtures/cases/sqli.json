@@ -1,0 +1,612 @@
+{
+  "suite": "sqli",
+  "kind": "detect",
+  "spec_version": "4.1.0",
+  "engine_version": "4.1.0",
+  "cases": [
+    {
+      "id": "sqli_or_tautology",
+      "input": {
+        "content": "' OR 1=1--",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?i)('\\s*(?:OR|AND)[\\s(]*'?(?:[@:$][A-Za-z_]\\w*|[\\d\\w]+)\\s*(?:LIKE|[<>]=?|=)[\\s(]*'?(?:[@:$][A-Za-z_]\\w*|[\\d\\w]+))",
+            "match": "' OR 1=1",
+            "position": 0,
+            "category": "sqli",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "(?i)\\b(?:OR|AND)\\s*(\\d+|'[^']*'|\\\"[^\\\"]*\\\"|[@:$][A-Za-z_]\\w*)\\s*=\\s*\\1\\b",
+            "match": "OR 1=1",
+            "position": 2,
+            "category": "sqli",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 10,
+        "processed_length": 8,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "sqli_union_select",
+      "input": {
+        "content": "' UNION SELECT NULL, NULL, NULL--",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?i)(UNION\\s+(?:ALL\\s+)?SELECT\\s+NULL(?:[,\\s]*NULL)*[,\\s]*|\\(\\s*SELECT\\s+(?:@@|VERSION))",
+            "match": "UNION SELECT NULL, NULL, NULL",
+            "position": 2,
+            "category": "sqli",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "(?i)UNION\\s+(?:ALL\\s+)?SELECT",
+            "match": "UNION SELECT",
+            "position": 2,
+            "category": "sqli",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 33,
+        "processed_length": 31,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "sqli_union_password",
+      "input": {
+        "content": "' AND 1=2 UNION SELECT username, password FROM users--",
+        "context": "query_param"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?i)('\\s*(?:OR|AND)[\\s(]*'?(?:[@:$][A-Za-z_]\\w*|[\\d\\w]+)\\s*(?:LIKE|[<>]=?|=)[\\s(]*'?(?:[@:$][A-Za-z_]\\w*|[\\d\\w]+))",
+            "match": "' AND 1=2",
+            "position": 0,
+            "category": "sqli",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "(?i)UNION\\s+(?:ALL\\s+)?SELECT",
+            "match": "UNION SELECT",
+            "position": 10,
+            "category": "sqli",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "(?i)\\bSELECT\\b(?:(?!\\bSELECT\\b)[\\w\\s,\\*().])*?\\bFROM\\b",
+            "match": "SELECT username, password FROM",
+            "position": 16,
+            "category": "sqli",
+            "weight": 0.5
+          }
+        ],
+        "original_length": 54,
+        "processed_length": 52,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "sqli_drop_table",
+      "input": {
+        "content": "1; DROP TABLE users--",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?i);\\s*(?:DROP|TRUNCATE|ALTER|CREATE)\\s+(?:TABLE|DATABASE|SCHEMA)\\b",
+            "match": "; DROP TABLE",
+            "position": 1,
+            "category": "sqli",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 21,
+        "processed_length": 19,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "sqli_sleep",
+      "input": {
+        "content": "1 AND SLEEP(5)",
+        "context": "query_param"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?i)(?:SLEEP\\s*\\(\\s*\\d+\\s*\\))",
+            "match": "SLEEP(5)",
+            "position": 6,
+            "category": "sqli",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 14,
+        "processed_length": 14,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "sqli_benchmark",
+      "input": {
+        "content": "1 AND BENCHMARK(10000000, MD5('a'))",
+        "context": "query_param"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?i)(?:BENCHMARK\\s*\\(\\s*\\d+\\s*,)",
+            "match": "BENCHMARK(10000000,",
+            "position": 6,
+            "category": "sqli",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 35,
+        "processed_length": 35,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "sqli_comment_bypass",
+      "input": {
+        "content": "admin'--",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "'\\s*(?:[\\);]+\\s*)?--|'[\\);]*#(?:\\n|\\Z)",
+            "match": "'--",
+            "position": 5,
+            "category": "sqli",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 8,
+        "processed_length": 6,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "sqli_or_string_compare",
+      "input": {
+        "content": "' OR '1'='1",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?i)(?:OR|AND)\\s+(?:'[\\w\\d]*'='[\\w\\d]*'?|[@:$][A-Za-z_]\\w*\\s*=\\s*[@:$][A-Za-z_]\\w*)",
+            "match": "OR '1'='1",
+            "position": 2,
+            "category": "sqli",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 11,
+        "processed_length": 11,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "sqli_parenthesized",
+      "input": {
+        "content": "1') OR ('1'='1",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": false,
+        "threat_score": 0.0,
+        "threats": [],
+        "original_length": 14,
+        "processed_length": 14,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "sqli_information_schema",
+      "input": {
+        "content": "' UNION SELECT table_name FROM information_schema.tables--",
+        "context": "query_param"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?i)UNION\\s+(?:ALL\\s+)?SELECT",
+            "match": "UNION SELECT",
+            "position": 2,
+            "category": "sqli",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "(?i)\\bSELECT\\b(?:(?!\\bSELECT\\b)[\\w\\s,\\*().])*?\\bFROM\\b",
+            "match": "SELECT table_name FROM",
+            "position": 8,
+            "category": "sqli",
+            "weight": 0.5
+          }
+        ],
+        "original_length": 58,
+        "processed_length": 56,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "sqli_load_file",
+      "input": {
+        "content": "' UNION SELECT LOAD_FILE('/etc/passwd')--",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "\\A(?:(?!\\n).)*etc/(?:passwd|shadow|group|hosts|motd|issue|mysql/my\\.cnf|ssh/ssh_config)(?:[&#;,\\\"'<>]|\\s*\\Z)",
+            "match": "' UNION SELECT LOAD_FILE('/etc/passwd'",
+            "position": 0,
+            "category": "dir_traversal",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "'\\s*(?:[\\);]+\\s*)?--|'[\\);]*#(?:\\n|\\Z)",
+            "match": "')--",
+            "position": 37,
+            "category": "sqli",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "(?i)(?:LOAD_FILE\\s*\\([^)]+\\))",
+            "match": "LOAD_FILE('/etc/passwd')",
+            "position": 15,
+            "category": "sqli",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "(?i)UNION\\s+(?:ALL\\s+)?SELECT",
+            "match": "UNION SELECT",
+            "position": 2,
+            "category": "sqli",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 41,
+        "processed_length": 39,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "sqli_xp_cmdshell",
+      "input": {
+        "content": "'; EXEC xp_cmdshell('dir')--",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "'\\s*(?:[\\);]+\\s*)?--|'[\\);]*#(?:\\n|\\Z)",
+            "match": "')--",
+            "position": 24,
+            "category": "sqli",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "(?i)(?:\\A|[;'\\\"])\\s*EXEC(?:UTE)?\\s+(?:xp_\\w+|sp_\\w+)",
+            "match": "; EXEC xp_cmdshell",
+            "position": 1,
+            "category": "sqli",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "(?i)\\bEXEC(?:UTE)?\\s+(?:xp_\\w+|sp_\\w+)",
+            "match": "EXEC xp_cmdshell",
+            "position": 3,
+            "category": "sqli",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 28,
+        "processed_length": 26,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "sqli_sqlite_version",
+      "input": {
+        "content": "' OR 1=1 AND sqlite_version() IS NOT NULL--",
+        "context": "query_param"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?i)('\\s*(?:OR|AND)[\\s(]*'?(?:[@:$][A-Za-z_]\\w*|[\\d\\w]+)\\s*(?:LIKE|[<>]=?|=)[\\s(]*'?(?:[@:$][A-Za-z_]\\w*|[\\d\\w]+))",
+            "match": "' OR 1=1",
+            "position": 0,
+            "category": "sqli",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "(?i)\\b(?:OR|AND)\\s*(\\d+|'[^']*'|\\\"[^\\\"]*\\\"|[@:$][A-Za-z_]\\w*)\\s*=\\s*\\1\\b",
+            "match": "OR 1=1",
+            "position": 2,
+            "category": "sqli",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 43,
+        "processed_length": 41,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "sqli_pg_sleep",
+      "input": {
+        "content": "'; SELECT pg_sleep(10)--",
+        "context": "query_param"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?i)(?:SLEEP\\s*\\(\\s*\\d+\\s*\\))",
+            "match": "sleep(10)",
+            "position": 13,
+            "category": "sqli",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 24,
+        "processed_length": 22,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "sqli_waitfor_delay",
+      "input": {
+        "content": "'; WAITFOR DELAY '0:0:10'--",
+        "context": "query_param"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "'\\s*(?:[\\);]+\\s*)?--|'[\\);]*#(?:\\n|\\Z)",
+            "match": "'--",
+            "position": 24,
+            "category": "sqli",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "(?i)\\bWAITFOR\\s+(?:DELAY|TIME)\\s+'\\d{1,2}:\\d{1,2}:\\d{1,2}(?:\\.\\d+)?'",
+            "match": "WAITFOR DELAY '0:0:10'",
+            "position": 3,
+            "category": "sqli",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 27,
+        "processed_length": 25,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "sqli_url_encoded_quote",
+      "input": {
+        "content": "%27%20OR%20%271%27%3D%271",
+        "context": "query_param"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?i)(?:OR|AND)\\s+(?:'[\\w\\d]*'='[\\w\\d]*'?|[@:$][A-Za-z_]\\w*\\s*=\\s*[@:$][A-Za-z_]\\w*)",
+            "match": "OR '1'='1",
+            "position": 2,
+            "category": "sqli",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 25,
+        "processed_length": 11,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "sqli_inline_comment_obfuscation",
+      "input": {
+        "content": "UNI/**/ON SE/**/LECT 1,2,3",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "\\w/\\*(?!!)[^*]*\\*/\\w",
+            "match": "I/**/O",
+            "position": 2,
+            "category": "sqli",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 26,
+        "processed_length": 26,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "sqli_double_query",
+      "input": {
+        "content": "id=1 UNION SELECT 1 FROM (SELECT 1)a--",
+        "context": "query_param"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?i)UNION\\s+(?:ALL\\s+)?SELECT",
+            "match": "UNION SELECT",
+            "position": 5,
+            "category": "sqli",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "(?i)\\bSELECT\\b(?:(?!\\bSELECT\\b)[\\w\\s,\\*().])*?\\bFROM\\b",
+            "match": "SELECT 1 FROM",
+            "position": 11,
+            "category": "sqli",
+            "weight": 0.5
+          }
+        ],
+        "original_length": 38,
+        "processed_length": 36,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "sqli_having_clause",
+      "input": {
+        "content": "' GROUP BY password HAVING 1=1--",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": false,
+        "threat_score": 0.0,
+        "threats": [],
+        "original_length": 32,
+        "processed_length": 30,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "sqli_update_set",
+      "input": {
+        "content": "'; UPDATE users SET admin=true WHERE id=1--",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?i);\\s*(?:INSERT\\s+INTO|UPDATE\\s+\\w+\\s+SET|DELETE\\s+FROM|SELECT\\b[^;]*?\\bFROM\\b|REPLACE\\s+INTO)\\b",
+            "match": "; UPDATE users SET",
+            "position": 1,
+            "category": "sqli",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "(?i)\\bWHERE\\s+[\\w.\"]+\\s*(?:=|<|>|<=|>=|LIKE|IN)\\b",
+            "match": "WHERE id=",
+            "position": 31,
+            "category": "sqli",
+            "weight": 0.5
+          }
+        ],
+        "original_length": 43,
+        "processed_length": 41,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "sqli_benign_apostrophe",
+      "input": {
+        "content": "O'Brien went to the store",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": false,
+        "threat_score": 0.0,
+        "threats": [],
+        "original_length": 25,
+        "processed_length": 25,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "sqli_benign_word_select",
+      "input": {
+        "content": "please select your preferred language",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": false,
+        "threat_score": 0.0,
+        "threats": [],
+        "original_length": 37,
+        "processed_length": 37,
+        "detection_method": "enhanced"
+      }
+    }
+  ]
+}

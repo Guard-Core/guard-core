@@ -1,0 +1,280 @@
+{
+  "suite": "context_matrix",
+  "kind": "detect",
+  "spec_version": "4.1.0",
+  "engine_version": "4.1.0",
+  "cases": [
+    {
+      "id": "ctx_trav_url_path",
+      "input": {
+        "content": "/files?name=../../etc/passwd",
+        "context": "url_path"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?:\\.\\.\\/|\\.\\.\\\\)(?:\\.\\.\\/|\\.\\.\\\\)+",
+            "match": "../../",
+            "position": 12,
+            "category": "dir_traversal",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "\\A(?:(?!\\n).)*etc/(?:passwd|shadow|group|hosts|motd|issue|mysql/my\\.cnf|ssh/ssh_config)(?:[&#;,\\\"'<>]|\\s*\\Z)",
+            "match": "/files?name=../../etc/passwd",
+            "position": 0,
+            "category": "dir_traversal",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 28,
+        "processed_length": 28,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "ctx_trav_request_body",
+      "input": {
+        "content": "file=../../etc/passwd",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?:\\.\\.\\/|\\.\\.\\\\)(?:\\.\\.\\/|\\.\\.\\\\)+",
+            "match": "../../",
+            "position": 5,
+            "category": "dir_traversal",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "\\A(?:(?!\\n).)*etc/(?:passwd|shadow|group|hosts|motd|issue|mysql/my\\.cnf|ssh/ssh_config)(?:[&#;,\\\"'<>]|\\s*\\Z)",
+            "match": "file=../../etc/passwd",
+            "position": 0,
+            "category": "dir_traversal",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 21,
+        "processed_length": 21,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "ctx_trav_header",
+      "input": {
+        "content": "../../etc/passwd",
+        "context": "header"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?:\\.\\.\\/|\\.\\.\\\\)(?:\\.\\.\\/|\\.\\.\\\\)+",
+            "match": "../../",
+            "position": 0,
+            "category": "dir_traversal",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "\\A(?:(?!\\n).)*etc/(?:passwd|shadow|group|hosts|motd|issue|mysql/my\\.cnf|ssh/ssh_config)(?:[&#;,\\\"'<>]|\\s*\\Z)",
+            "match": "../../etc/passwd",
+            "position": 0,
+            "category": "dir_traversal",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 16,
+        "processed_length": 16,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "ctx_trav_query_param",
+      "input": {
+        "content": "../../etc/passwd",
+        "context": "query_param"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?:\\.\\.\\/|\\.\\.\\\\)(?:\\.\\.\\/|\\.\\.\\\\)+",
+            "match": "../../",
+            "position": 0,
+            "category": "dir_traversal",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "\\A(?:(?!\\n).)*etc/(?:passwd|shadow|group|hosts|motd|issue|mysql/my\\.cnf|ssh/ssh_config)(?:[&#;,\\\"'<>]|\\s*\\Z)",
+            "match": "../../etc/passwd",
+            "position": 0,
+            "category": "dir_traversal",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 16,
+        "processed_length": 16,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "ctx_trav_unknown",
+      "input": {
+        "content": "../../etc/passwd",
+        "context": "unknown"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?:\\.\\.\\/|\\.\\.\\\\)(?:\\.\\.\\/|\\.\\.\\\\)+",
+            "match": "../../",
+            "position": 0,
+            "category": "dir_traversal",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "\\A(?:(?!\\n).)*etc/(?:passwd|shadow|group|hosts|motd|issue|mysql/my\\.cnf|ssh/ssh_config)(?:[&#;,\\\"'<>]|\\s*\\Z)",
+            "match": "../../etc/passwd",
+            "position": 0,
+            "category": "dir_traversal",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 16,
+        "processed_length": 16,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "ctx_sqli_narrow_header",
+      "input": {
+        "content": "' UNION SELECT password FROM users--",
+        "context": "header"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?i)UNION\\s+(?:ALL\\s+)?SELECT",
+            "match": "UNION SELECT",
+            "position": 2,
+            "category": "sqli",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "(?i)\\bSELECT\\b(?:(?!\\bSELECT\\b)[\\w\\s,\\*().])*?\\bFROM\\b",
+            "match": "SELECT password FROM",
+            "position": 8,
+            "category": "sqli",
+            "weight": 0.5
+          }
+        ],
+        "original_length": 36,
+        "processed_length": 34,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "ctx_sqli_narrow_body",
+      "input": {
+        "content": "' UNION SELECT password FROM users--",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?i)UNION\\s+(?:ALL\\s+)?SELECT",
+            "match": "UNION SELECT",
+            "position": 2,
+            "category": "sqli",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "(?i)\\bSELECT\\b(?:(?!\\bSELECT\\b)[\\w\\s,\\*().])*?\\bFROM\\b",
+            "match": "SELECT password FROM",
+            "position": 8,
+            "category": "sqli",
+            "weight": 0.5
+          }
+        ],
+        "original_length": 36,
+        "processed_length": 34,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "ctx_xss_url_path",
+      "input": {
+        "content": "/<script>alert(1)</script>",
+        "context": "url_path"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "<script[^>]*>[^<]*<\\/script\\s*>",
+            "match": "<script>alert(1)</script>",
+            "position": 1,
+            "category": "xss",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 26,
+        "processed_length": 26,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "ctx_xss_header",
+      "input": {
+        "content": "<script>alert(1)</script>",
+        "context": "header"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "<script[^>]*>[^<]*<\\/script\\s*>",
+            "match": "<script>alert(1)</script>",
+            "position": 0,
+            "category": "xss",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 25,
+        "processed_length": 25,
+        "detection_method": "enhanced"
+      }
+    }
+  ]
+}

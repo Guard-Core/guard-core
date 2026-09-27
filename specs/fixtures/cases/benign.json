@@ -1,0 +1,233 @@
+{
+  "suite": "benign",
+  "kind": "detect",
+  "spec_version": "4.1.0",
+  "engine_version": "4.1.0",
+  "cases": [
+    {
+      "id": "benign_plain_text",
+      "input": {
+        "content": "hello world",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": false,
+        "threat_score": 0.0,
+        "threats": [],
+        "original_length": 11,
+        "processed_length": 11,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "benign_email",
+      "input": {
+        "content": "user@example.com",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": false,
+        "threat_score": 0.0,
+        "threats": [],
+        "original_length": 16,
+        "processed_length": 16,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "benign_query",
+      "input": {
+        "content": "blue shoes size 42",
+        "context": "query_param"
+      },
+      "expected": {
+        "is_threat": false,
+        "threat_score": 0.0,
+        "threats": [],
+        "original_length": 18,
+        "processed_length": 18,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "benign_arithmetic",
+      "input": {
+        "content": "1 + 1 = 2",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": false,
+        "threat_score": 0.0,
+        "threats": [],
+        "original_length": 9,
+        "processed_length": 9,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "benign_json_payload",
+      "input": {
+        "content": "{\"name\": \"Renzo\", \"age\": 30, \"tags\": [\"a\", \"b\"]}",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": false,
+        "threat_score": 0.0,
+        "threats": [],
+        "original_length": 48,
+        "processed_length": 48,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "benign_unicode",
+      "input": {
+        "content": "naïve café résumé — итог",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": false,
+        "threat_score": 0.0,
+        "threats": [],
+        "original_length": 24,
+        "processed_length": 24,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "benign_html_italic",
+      "input": {
+        "content": "<i>emphasized</i>",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": false,
+        "threat_score": 0.0,
+        "threats": [],
+        "original_length": 17,
+        "processed_length": 17,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "benign_null_word",
+      "input": {
+        "content": "null",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": false,
+        "threat_score": 0.0,
+        "threats": [],
+        "original_length": 4,
+        "processed_length": 4,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "benign_health_path",
+      "input": {
+        "content": "/health",
+        "context": "url_path"
+      },
+      "expected": {
+        "is_threat": false,
+        "threat_score": 0.0,
+        "threats": [],
+        "original_length": 7,
+        "processed_length": 7,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "benign_api_path",
+      "input": {
+        "content": "/api/v1/users/42?fields=name",
+        "context": "url_path"
+      },
+      "expected": {
+        "is_threat": false,
+        "threat_score": 0.0,
+        "threats": [],
+        "original_length": 28,
+        "processed_length": 28,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "benign_markdown",
+      "input": {
+        "content": "# Title\n\n- item one\n- item two",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": false,
+        "threat_score": 0.0,
+        "threats": [],
+        "original_length": 30,
+        "processed_length": 27,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "benign_numeric",
+      "input": {
+        "content": "1234567890",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": false,
+        "threat_score": 0.0,
+        "threats": [],
+        "original_length": 10,
+        "processed_length": 10,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "benign_whitespace",
+      "input": {
+        "content": "   ",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": false,
+        "threat_score": 0.0,
+        "threats": [],
+        "original_length": 3,
+        "processed_length": 0,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "benign_search_apostrophe",
+      "input": {
+        "content": "it's a beautiful day",
+        "context": "query_param"
+      },
+      "expected": {
+        "is_threat": false,
+        "threat_score": 0.0,
+        "threats": [],
+        "original_length": 20,
+        "processed_length": 20,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "benign_price_dollar",
+      "input": {
+        "content": "$49.99 plus tax",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": false,
+        "threat_score": 0.0,
+        "threats": [],
+        "original_length": 15,
+        "processed_length": 15,
+        "detection_method": "enhanced"
+      }
+    }
+  ]
+}

