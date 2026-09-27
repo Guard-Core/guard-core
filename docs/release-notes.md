@@ -10,6 +10,18 @@ Release Notes
 
 ___
 
+v4.2.0 (2026-09-27)
+-------------------
+
+The parity release: the conformance corpus tracks the engine release (v4.2.0)
+-----------------------------------------------------------------------------
+
+### Added
+
+- **The conformance corpus is the 4.2.0 parity surface** (guard-core #124, #125). ``specs/fixtures/`` now carries the full corpus inside the reference repo: 219 cases across 17 suites at spec 4.1.0. The 12 detect suites (184 cases) regenerate byte-identical against the vendored expectations (zero detect drift) and five new ``kind=pipeline`` suites (35 cases) pin the pipeline-level parity surface through the real ``SecurityCheckPipeline`` over a redis-free middleware stub: ip control (whitelist/blacklist/exempt_ips precedence, blacklist beats exemption, geo country block and allowlist, route ip/UA restrictions), rate limits (global 429 with ``Retry-After``, endpoint tier independence, route tiers, exempt skip, passive mode), detection response (the 400 contract body, custom error responses, ``logged_only`` events, on_block payloads, route detection exclusions), headers and CORS (default/custom/disabled security headers on error responses, origin echo, wildcard plus credentials block) and behavioral rules (global return_pattern rules driving the in-memory behavior ban with passive-mode suppression). ``run_fixtures.py`` replays both suite kinds and the generator records kind and consumers per suite so the rust detect-only runner and the go/php/ts pipeline runners load the right files; the corpus ``engine_version`` stamp now tracks this release, so ``219 cases match engine 4.2.0`` is a truthful statement about the shipping engine.
+
+___
+
 v4.1.0 (2026-09-26)
 -------------------
 
