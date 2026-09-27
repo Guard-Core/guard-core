@@ -400,10 +400,10 @@ SUITES: dict[str, list[tuple[str, str, str]]] = {
 
 BINARY_INPUTS = json.loads((Path(__file__).parent / "binary_inputs.json").read_text())
 
-# Engines whose conformance runner consumes each suite kind. The Rust engine
-# has no pipeline port yet, so it consumes the detect stage only.
+# Engines whose conformance runner consumes each suite kind. The Rust
+# pipeline runner (guard-core-rs) replays kind=pipeline suites too.
 DETECT_CONSUMERS = ["python", "go", "php", "ts", "rust"]
-PIPELINE_CONSUMERS = ["python", "go", "php", "ts"]
+PIPELINE_CONSUMERS = ["python", "go", "php", "ts", "rust"]
 
 
 def normalize(value: Any) -> Any:
