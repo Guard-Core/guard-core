@@ -227,6 +227,17 @@
         "ts",
         "rust"
       ]
+    },
+    "safety_gates": {
+      "case_count": 94,
+      "kind": "pattern_safety",
+      "consumers": [
+        "python",
+        "go",
+        "php",
+        "ts",
+        "rust"
+      ]
     }
   },
   "comparison": {
@@ -244,6 +255,7 @@
       "response_time",
       "timestamp"
     ],
-    "redis_interop": "byte equality: keys, static string values and TTL semantics are exact; zset members the engine generates at write time (uuid4 hex, epoch floats) and ban expiry floats are pinned by SHAPE (regex), not value; zset scores are compared as floats at 6-decimal precision"
+    "redis_interop": "byte equality: keys, static string values and TTL semantics are exact; zset members the engine generates at write time (uuid4 hex, epoch floats) and ban expiry floats are pinned by SHAPE (regex), not value; zset scores are compared as floats at 6-decimal precision",
+    "pattern_safety_records": "compare expected.safe and expected.reason_class; the numeric parts of over-budget reason strings are host-measured and never compared; a runner whose safety chain cannot produce a reason_class yet maps the case to that class's documented divergence instead of failing silently"
   }
 }
