@@ -747,6 +747,24 @@ class _SecurityConfigFields(BaseModel):
         le=10.0,
     )
 
+    detection_pattern_validation_cache_path: str | None = Field(
+        default=None,
+        description=(
+            "Optional file path for a disk-backed pattern-validation cache. "
+            "When set, the empirical cost-verdict outcome of "
+            "validate_pattern_safety (probe synthesis plus timed subprocess "
+            "probes) is cached keyed by pattern, flags, and engine version, "
+            "so a process boot reuses prior certifications instead of "
+            "re-timing every custom pattern; the cheap deterministic layers "
+            "(dangerous constructs, compile check, structural detectors) "
+            "always re-run. Cache entries from a different engine version "
+            "are ignored and overwritten. Leave unset (the default) to keep "
+            "every validation fully empirical. Aimed at shared-nothing "
+            "workers and hosts where subprocess spawn latency makes "
+            "startup validation prohibitively slow."
+        ),
+    )
+
     detection_max_content_length: int = Field(
         default=10000,
         description=(

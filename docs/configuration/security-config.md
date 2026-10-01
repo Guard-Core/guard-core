@@ -381,6 +381,7 @@ Detection Engine
 |-------------------------------------|---------|---------|---------------|----------------------------------------------|
 | `enable_penetration_detection`      | `bool`  | `True`  | N/A           | Master switch for threat detection.          |
 | `detection_compiler_timeout`        | `float` | `2.0`   | 0.1 - 10.0   | Timeout for pattern compilation/matching (s).|
+| `detection_pattern_validation_cache_path` | `str \| None` | `None` | N/A | Opt-in disk cache for the empirical cost-verdict validation outcome, keyed by pattern, flags, and engine version; deterministic layers always re-run. |
 | `detection_max_content_length`      | `int`   | `10000` | 1000 - 100000 | Maximum content length for detection.        |
 | `detection_preserve_attack_patterns`| `bool`  | `True`  | N/A           | Preserve attack patterns during truncation.  |
 | `detection_semantic_threshold`      | `float` | `0.7`   | 0.0 - 1.0    | Threshold for semantic attack detection.     |

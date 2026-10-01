@@ -5,6 +5,7 @@ import re
 import threading
 from collections.abc import Awaitable, Callable
 
+from guard_core.detection_engine import _validation_cache
 from guard_core.detection_engine._redos_cost_arbiter import (
     _reach_probe_cost_verdict,
     _run_pattern_safety_probe_subprocess,
@@ -70,12 +71,18 @@ def report_scan_timeout() -> None:
 class PatternCompiler:
     MAX_CACHE_SIZE = 1000
 
-    def __init__(self, default_timeout: float = 5.0, max_cache_size: int = 1000):
+    def __init__(
+        self,
+        default_timeout: float = 5.0,
+        max_cache_size: int = 1000,
+        validation_cache: "_validation_cache.PatternValidationCache | None" = None,
+    ):
         self.default_timeout = default_timeout
         self.max_cache_size = min(max_cache_size, 5000)
         self._compiled_cache: dict[str, re.Pattern] = {}
         self._cache_order: list[str] = []
         self._lock = asyncio.Lock()
+        self._validation_cache = validation_cache
 
     async def compile_pattern(
         self, pattern: str, flags: int = re.IGNORECASE | re.MULTILINE
@@ -127,7 +134,14 @@ class PatternCompiler:
                 return False, structural_violation
             return _run_pattern_safety_probe_subprocess(pattern, test_strings, flags)
 
-        return _reach_probe_cost_verdict(pattern, max_content_length, flags)
+        if self._validation_cache is not None:
+            cached = self._validation_cache.get(pattern, flags)
+            if cached is not None:
+                return cached
+        verdict = _reach_probe_cost_verdict(pattern, max_content_length, flags)
+        if self._validation_cache is not None:
+            self._validation_cache.put(pattern, flags, *verdict)
+        return verdict
 
     def create_safe_matcher(
         self,

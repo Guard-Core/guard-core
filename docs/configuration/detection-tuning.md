@@ -25,6 +25,12 @@ Maximum time in seconds for a single regex pattern match. Patterns that exceed t
 | `2.0`    | Balanced. Catches most attacks while limiting resource usage.|
 | `5.0`    | Permissive. Better detection but higher latency risk.        |
 
+### `detection_pattern_validation_cache_path`
+
+**Type**: `str | None` | **Default**: `None`
+
+Optional file path for a disk-backed pattern-validation cache. When set, the empirical cost-verdict outcome of `validate_pattern_safety` (probe synthesis plus timed subprocess probes) is cached keyed by pattern, flags, and engine version, so a process boot reuses prior certifications instead of re-timing every custom pattern. The cheap deterministic layers (dangerous constructs, compile check, structural detectors) always re-run; cache entries produced by a different engine version are ignored and overwritten. Leave unset to keep every validation fully empirical. Aimed at shared-nothing workers and hosts where subprocess spawn latency makes startup validation prohibitively slow.
+
 ### `detection_max_content_length`
 
 **Type**: `int` | **Default**: `10000` | **Range**: 1000 - 100000

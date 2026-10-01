@@ -106,3 +106,9 @@ request_id  # type: ignore  # pragma: no cover
 attack_detected  # type: ignore  # pragma: no cover
 penetration_attempt  # type: ignore  # pragma: no cover
 intrusion_attempt  # type: ignore  # pragma: no cover
+
+# monkeypatched os.replace stubs keep os.replace's positional parameter
+# names so the seam reads identically to the real call site; vulture sees
+# the names as unused variables in the test stubs.
+_rtl = src
+_rtl = dst
