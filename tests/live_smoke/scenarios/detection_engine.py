@@ -477,11 +477,16 @@ def pattern_validation_cache_persists_cost_verdicts(
     ctx: ScenarioContext,
 ) -> None:
     ctx.agent.post("/_debug/reset")
+    ctx.agent.post(
+        "/_debug/rules",
+        json={"suspicious_patterns": ["smoke-cache-pattern-[0-9]{4}"]},
+    )
     mark = ctx.stack.logs.mark()
 
-    # The agent stub serves the smoke rule; applying it validates the
-    # rule's patterns through the empirical cost-verdict path, which must
-    # land in the disk cache keyed by pattern, flags, and engine version.
+    # The agent stub serves the smoke rule with the injected suspicious
+    # pattern; applying it validates the pattern through the empirical
+    # cost-verdict path, which must land in the disk cache keyed by
+    # pattern, flags, and engine version.
     content = wait_until(
         lambda: _read_container_text(ctx, _VALIDATION_CACHE_PATH), timeout=30.0
     )
