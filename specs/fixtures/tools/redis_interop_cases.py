@@ -351,7 +351,7 @@ async def _op_rate_limit(args: dict[str, Any]) -> None:
 
     try:
         await manager.check_rate_limit(
-            request,
+            request,  # type: ignore[arg-type]
             args["client_ip"],
             _error,
             endpoint_path=args.get("endpoint_path", ""),
@@ -489,7 +489,7 @@ async def _op_ipinfo_database(args: dict[str, Any]) -> None:
         async def __aexit__(self, *exc: Any) -> bool:
             return False
 
-        def __await__(self):
+        def __await__(self) -> Any:
             # aiohttp request context managers are also directly awaitable.
             async def _resolve() -> _FakeResponse:
                 return _FakeResponse(self._content)
@@ -510,7 +510,7 @@ async def _op_ipinfo_database(args: dict[str, Any]) -> None:
             return _FakeGet(FAKE_MMDB_BYTES)
 
     original_session = aiohttp.ClientSession
-    aiohttp.ClientSession = _FakeSession  # type: ignore[misc]
+    aiohttp.ClientSession = _FakeSession  # type: ignore[misc,assignment]
     try:
         await handler.initialize()
     finally:
@@ -545,7 +545,7 @@ async def _op_cloud_ranges(args: dict[str, Any]) -> None:
     async def _fixed_fetch(provider: str) -> tuple[set[Any], dict[str, str]]:
         return set(ranges), dict(regions)
 
-    cloud_module._fetch_provider_ranges = _fixed_fetch  # type: ignore[assignment]
+    cloud_module._fetch_provider_ranges = _fixed_fetch
     try:
         await cloud_handler.refresh_async(providers=[args["provider"]], ttl=args["ttl"])
     finally:
