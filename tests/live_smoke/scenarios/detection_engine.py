@@ -448,3 +448,52 @@ def detection_binary_min_run_length_lowered_restores_fragment_detection(
         "detection_binary_min_run_length=4 did not restore detection of a "
         f"short fragment inside a binary-dense upload: {response.status_code}"
     )
+
+
+_VALIDATION_CACHE_PATH = "/tmp/guard-pattern-validation-cache.json"
+
+_VALIDATION_CACHE_CONFIG = {
+    **_BASE,
+    "enable_agent": True,
+    "agent_api_key": "smoke-agent-key",
+    "agent_endpoint": "http://agent-stub:8090",
+    "enable_dynamic_rules": True,
+    "detection_pattern_validation_cache_path": _VALIDATION_CACHE_PATH,
+}
+
+
+def _read_container_text(ctx: ScenarioContext, path: str) -> str | None:
+    try:
+        return ctx.stack.container_file(path)
+    except FileNotFoundError:
+        return None
+
+
+@scenario(
+    covers={"detection_pattern_validation_cache_path"},
+    config=_VALIDATION_CACHE_CONFIG,
+)
+def pattern_validation_cache_persists_cost_verdicts(
+    ctx: ScenarioContext,
+) -> None:
+    ctx.agent.post("/_debug/reset")
+    mark = ctx.stack.logs.mark()
+
+    # The agent stub serves the smoke rule; applying it validates the
+    # rule's patterns through the empirical cost-verdict path, which must
+    # land in the disk cache keyed by pattern, flags, and engine version.
+    content = wait_until(
+        lambda: _read_container_text(ctx, _VALIDATION_CACHE_PATH), timeout=30.0
+    )
+    assert content, "the pattern-validation cache file was never written"
+    entries = json.loads(content)
+    assert entries, "the validation cache holds no entries after a rule applied"
+    for key, entry in entries.items():
+        assert len(key) == 64 and all(c in "0123456789abcdef" for c in key), (
+            f"cache key is not a sha256 hex digest: {key[:16]}..."
+        )
+        assert isinstance(entry.get("safe"), bool), "cache entry missing safe"
+        assert entry.get("version"), "cache entry missing the engine version pin"
+
+    error_lines = ctx.stack.logs.lines_since(mark, kind="Failed to")
+    assert not error_lines, f"unexpected 'Failed to' error lines: {error_lines}"

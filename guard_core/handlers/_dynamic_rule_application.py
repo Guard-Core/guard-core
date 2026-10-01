@@ -121,10 +121,20 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
         self.logger.info(f"Dynamic rule: Blocked cloud providers {valid}")
 
     async def _apply_user_agent_rules(self, user_agents: list[str]) -> None:
+        from guard_core.detection_engine._validation_cache import (
+            PatternValidationCache,
+        )
         from guard_core.detection_engine.compiler import PatternCompiler
         from guard_core.utils import _MAX_USER_AGENT_MATCH_LENGTH
 
-        compiler = PatternCompiler()
+        cache_path = getattr(
+            self.config, "detection_pattern_validation_cache_path", None
+        )
+        compiler = PatternCompiler(
+            validation_cache=(
+                PatternValidationCache(cache_path) if cache_path else None
+            )
+        )
         valid: list[str] = []
         rejected: list[tuple[str, str]] = []
         for pattern in user_agents:
