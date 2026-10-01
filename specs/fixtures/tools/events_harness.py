@@ -163,7 +163,8 @@ def event_envelope(event: Any) -> dict[str, Any]:
                 if not key.startswith("_")
             }
         )
-    return _normalize(data)
+    result: dict[str, Any] = _normalize(data)
+    return result
 
 
 class CapturingAgentHandler:
@@ -383,7 +384,7 @@ class EventsCase:
         async def _raising_ban(ip: str, duration: int, reason: str) -> bool:
             raise RuntimeError("corpus injected ban failure")
 
-        ip_ban_manager.ban_ip = _raising_ban  # type: ignore[method-assign]
+        ip_ban_manager.ban_ip = _raising_ban  # type: ignore[method-assign,assignment]
 
     async def _call_detect(self, step: dict[str, Any]) -> None:
         await sus_patterns_handler.initialize_agent(self.agent)
@@ -492,7 +493,7 @@ class EventsCase:
     async def _call_geo_country_stub(self, step: dict[str, Any]) -> None:
         handler = IPInfoManager("corpus-token")
         saved = (handler.get_country, handler.agent_handler)
-        handler.agent_handler = self.agent
+        handler.agent_handler = self.agent  # type: ignore[assignment]
         country = step.get("country", "CN")
         handler.get_country = lambda ip: country  # type: ignore[method-assign]
         try:
@@ -510,7 +511,7 @@ class EventsCase:
             handler.reader,
             handler._initialization_attempted,
         )
-        handler.agent_handler = self.agent
+        handler.agent_handler = self.agent  # type: ignore[assignment]
         scratch = Path("/tmp/guard_core_corpus_geo_scratch")
         handler.db_path = scratch / "corpus.mmdb"
         handler._initialization_attempted = False
@@ -684,12 +685,12 @@ async def run_events_case(case: dict[str, Any]) -> list[dict[str, Any]]:
             if step.get("call") == "cloud_stub":
                 provider = step.get("provider", "aws")
                 network = step.get("network", "203.0.113.0/24")
-                cloud_handler.agent_handler = harness.agent
+                cloud_handler.agent_handler = harness.agent  # type: ignore[assignment]
                 cloud_handler.is_cloud_ip = (  # type: ignore[method-assign]
-                    lambda ip, providers, _always=True: _always
+                    lambda ip, providers, _always=True: _always  # type: ignore[misc,assignment]
                 )
                 cloud_handler.get_cloud_provider_details = (  # type: ignore[method-assign]
-                    lambda ip, providers, _p=provider, _n=network: (_p, _n)
+                    lambda ip, providers, _p=provider, _n=network: (_p, _n)  # type: ignore[misc,assignment]
                 )
                 continue
             if "call" in step:
