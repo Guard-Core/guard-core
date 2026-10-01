@@ -2,7 +2,7 @@
   "suite": "benign",
   "kind": "detect",
   "spec_version": "4.1.0",
-  "engine_version": "4.1.0",
+  "engine_version": "4.2.0",
   "cases": [
     {
       "id": "benign_plain_text",

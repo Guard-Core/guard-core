@@ -2,7 +2,7 @@
   "suite": "sqli",
   "kind": "detect",
   "spec_version": "4.1.0",
-  "engine_version": "4.1.0",
+  "engine_version": "4.2.0",
   "cases": [
     {
       "id": "sqli_or_tautology",

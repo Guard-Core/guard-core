@@ -2,7 +2,7 @@
   "suite": "encoding",
   "kind": "detect",
   "spec_version": "4.1.0",
-  "engine_version": "4.1.0",
+  "engine_version": "4.2.0",
   "cases": [
     {
       "id": "enc_base64_xss_payload",

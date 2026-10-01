@@ -11,8 +11,11 @@ from typing import Any
 REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT))
 
+from events_cases import EVENTS_SUITES  # noqa: E402
+from events_harness import EVENT_DROP_KEYS, run_events_case  # noqa: E402
 from pipeline_cases import PIPELINE_SUITES  # noqa: E402
 from pipeline_harness import run_case  # noqa: E402
+from redis_interop_cases import REDIS_SUITES, run_redis_case  # noqa: E402
 
 from guard_core import __version__ as engine_version  # noqa: E402
 from guard_core.handlers.suspatterns_handler import (  # noqa: E402
@@ -404,6 +407,35 @@ BINARY_INPUTS = json.loads((Path(__file__).parent / "binary_inputs.json").read_t
 # pipeline runner (guard-core-rs) replays kind=pipeline suites too.
 DETECT_CONSUMERS = ["python", "go", "php", "ts", "rust"]
 PIPELINE_CONSUMERS = ["python", "go", "php", "ts", "rust"]
+EVENTS_CONSUMERS = ["python", "go", "php", "ts", "rust"]
+REDIS_CONSUMERS = ["python", "go", "php", "ts", "rust"]
+
+EVENTS_SUITE_DOC = (
+    "Full event-surface corpus: one case per engine event type in "
+    "guard_core/core/events/event_types.py (plus one passive-mode "
+    "variant). Each expected entry is the FULL SecurityEvent envelope "
+    "captured from the live reference engine through the real "
+    "SecurityEventBus / handler send_event seams, minus the volatile "
+    "fields listed in comparison.events_volatile_fields (dropped "
+    "recursively). Compare only the keys present in each expected "
+    "envelope; a runner that cannot observe a field records its absence "
+    "instead of failing. Cases with xfail=true are advisory: the event "
+    "type has no deterministic in-process driver (see xfail_reason) and "
+    "the runner may skip them."
+)
+
+REDIS_SUITE_DOC = (
+    "Byte-level Redis interop corpus per specs/08-redis-schema.md: one "
+    "operation per key family against the reference handlers pointed at a "
+    "real Redis under the suite prefix. Byte equality is the standard: the "
+    "pinned key string (sha256hex segments per spec), the exact stored "
+    "value for static values, the member/score shape for zsets (members "
+    "are engine-generated where noted), the parsed-then-canonicalized JSON "
+    "blob with volatile fields dropped, and the TTL semantics (whether a "
+    "TTL is set and its configured value, never the remaining time). Go, "
+    "PHP, TS and Rust ports pointed at the same Redis MUST produce "
+    "byte-identical results."
+)
 
 
 def normalize(value: Any) -> Any:
@@ -481,48 +513,90 @@ async def run_binary_suite(manager: Any) -> list[dict]:
     return entries
 
 
-async def run_corpus(config: SecurityConfig) -> dict[str, dict]:
+async def run_corpus(
+    config: SecurityConfig, only: str | None = None
+) -> dict[str, dict]:
     sus_patterns_handler.configure(config)
     manager = sus_patterns_handler
     results: dict[str, dict] = {}
-    for suite_name, cases in SUITES.items():
-        entries = await run_detect_suite(manager, suite_name, cases)
-        results[suite_name] = {
-            "suite": suite_name,
+    if only in (None, "detect"):
+        for suite_name, cases in SUITES.items():
+            entries = await run_detect_suite(manager, suite_name, cases)
+            results[suite_name] = {
+                "suite": suite_name,
+                "kind": "detect",
+                "spec_version": SPEC_VERSION,
+                "engine_version": engine_version,
+                "cases": entries,
+            }
+        entries = await run_binary_suite(manager)
+        results["binary_bodies"] = {
+            "suite": "binary_bodies",
             "kind": "detect",
             "spec_version": SPEC_VERSION,
             "engine_version": engine_version,
             "cases": entries,
         }
-    entries = await run_binary_suite(manager)
-    results["binary_bodies"] = {
-        "suite": "binary_bodies",
-        "kind": "detect",
-        "spec_version": SPEC_VERSION,
-        "engine_version": engine_version,
-        "cases": entries,
-    }
-    for suite_name, suite_cases in PIPELINE_SUITES.items():
-        observed = []
-        for case in suite_cases:
-            records = await run_case(case)
-            observed.append(
-                {
+    if only in (None, "pipeline"):
+        for suite_name, suite_cases in PIPELINE_SUITES.items():
+            observed = []
+            for case in suite_cases:
+                records = await run_case(case)
+                observed.append(
+                    {
+                        "id": case["id"],
+                        "config": case.get("config", {}),
+                        "geo_countries": case.get("geo_countries", {}),
+                        "routes": case.get("routes", {}),
+                        "drives": case["drives"],
+                        "expected": records,
+                    }
+                )
+            results[suite_name] = {
+                "suite": suite_name,
+                "kind": "pipeline",
+                "spec_version": SPEC_VERSION,
+                "engine_version": engine_version,
+                "cases": observed,
+            }
+    if only in (None, "events"):
+        for suite_name, suite_cases in EVENTS_SUITES.items():
+            observed = []
+            for case in suite_cases:
+                envelopes = await run_events_case(case)
+                entry: dict[str, Any] = {
                     "id": case["id"],
                     "config": case.get("config", {}),
                     "geo_countries": case.get("geo_countries", {}),
                     "routes": case.get("routes", {}),
                     "drives": case["drives"],
-                    "expected": records,
+                    "expected": envelopes,
                 }
-            )
-        results[suite_name] = {
-            "suite": suite_name,
-            "kind": "pipeline",
-            "spec_version": SPEC_VERSION,
-            "engine_version": engine_version,
-            "cases": observed,
-        }
+                if case.get("xfail"):
+                    entry["xfail"] = True
+                    entry["xfail_reason"] = case["xfail_reason"]
+                observed.append(entry)
+            results[suite_name] = {
+                "suite": suite_name,
+                "kind": "events",
+                "spec_version": SPEC_VERSION,
+                "engine_version": engine_version,
+                "doc": EVENTS_SUITE_DOC,
+                "cases": observed,
+            }
+    if only in (None, "redis"):
+        for suite_name, suite_cases in REDIS_SUITES.items():
+            observed = []
+            for case in suite_cases:
+                observed.append(await run_redis_case(case))
+            results[suite_name] = {
+                "suite": suite_name,
+                "kind": "redis_interop",
+                "spec_version": SPEC_VERSION,
+                "engine_version": engine_version,
+                "doc": REDIS_SUITE_DOC,
+                "cases": observed,
+            }
     return results
 
 
@@ -539,24 +613,30 @@ def engine_commit() -> str:
         return "unknown"
 
 
-def write_corpus(results: dict[str, dict], config: SecurityConfig) -> None:
-    CASES_DIR.mkdir(parents=True, exist_ok=True)
-    index = {
+def suite_consumers(kind: str) -> list[str]:
+    return {
+        "detect": DETECT_CONSUMERS,
+        "pipeline": PIPELINE_CONSUMERS,
+        "events": EVENTS_CONSUMERS,
+        "redis_interop": REDIS_CONSUMERS,
+    }[kind]
+
+
+def build_index(
+    results: dict[str, dict], config: SecurityConfig, generated_at: str
+) -> dict:
+    return {
         "spec_version": SPEC_VERSION,
         "engine_version": engine_version,
         "engine_commit": engine_commit(),
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": generated_at,
         "fixed_ip": FIXED_IP,
         "config_knobs": {knob: getattr(config, knob) for knob in DETECTION_KNOBS},
         "suites": {
             name: {
                 "case_count": len(payload["cases"]),
                 "kind": payload["kind"],
-                "consumers": (
-                    DETECT_CONSUMERS
-                    if payload["kind"] == "detect"
-                    else PIPELINE_CONSUMERS
-                ),
+                "consumers": suite_consumers(payload["kind"]),
             }
             for name, payload in results.items()
         },
@@ -569,18 +649,55 @@ def write_corpus(results: dict[str, dict], config: SecurityConfig) -> None:
                 "runner that cannot observe the engine event bus skips the "
                 "events key instead of failing it"
             ),
+            "events_envelopes": (
+                "compare only the keys present in each expected envelope "
+                "(envelopes from different emitter seams carry different "
+                "key sets); volatile fields are dropped recursively and "
+                "listed in events_volatile_fields; xfail cases are "
+                "advisory and carry no expectations"
+            ),
+            "events_volatile_fields": sorted(EVENT_DROP_KEYS),
+            "redis_interop": (
+                "byte equality: keys, static string values and TTL "
+                "semantics are exact; zset members the engine generates at "
+                "write time (uuid4 hex, epoch floats) and ban expiry "
+                "floats are pinned by SHAPE (regex), not value; zset "
+                "scores are compared as floats at 6-decimal precision"
+            ),
         },
     }
+
+
+def write_corpus(
+    results: dict[str, dict],
+    config: SecurityConfig,
+    write_index: bool = True,
+    generated_at: str | None = None,
+) -> None:
+    CASES_DIR.mkdir(parents=True, exist_ok=True)
+    stamp = generated_at or datetime.now(timezone.utc).isoformat()
+    index = build_index(results, config, stamp)
     for name, payload in results.items():
         path = CASES_DIR / f"{name}.json"
         path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
-    (CASES_DIR / "index.json").write_text(json.dumps(index, indent=2) + "\n")
+    if write_index:
+        (CASES_DIR / "index.json").write_text(json.dumps(index, indent=2) + "\n")
+
+
+def suite_bytes(payload: dict) -> str:
+    return json.dumps(payload, indent=2, ensure_ascii=False) + "\n"
 
 
 def main() -> None:
+    only = None
+    for arg in sys.argv[1:]:
+        if arg.startswith("--only="):
+            only = arg.split("=", 1)[1]
+    verify = "--no-verify" not in sys.argv[1:]
+
     config = SecurityConfig()
-    results = asyncio.run(run_corpus(config))
-    write_corpus(results, config)
+    results = asyncio.run(run_corpus(config, only=only))
+    write_corpus(results, config, write_index=only is None)
     total = sum(len(payload["cases"]) for payload in results.values())
     threats = sum(
         1
@@ -591,6 +708,31 @@ def main() -> None:
     print(
         f"wrote {len(results)} suites, {total} cases ({threats} threats) to {CASES_DIR}"
     )
+
+    # Determinism proof: regenerate from scratch and require every suite
+    # file to be byte-identical. The index pins a generation timestamp, so
+    # it is compared with generated_at masked out.
+    if verify and only is None:
+        second = asyncio.run(run_corpus(config))
+        drifted = [
+            name
+            for name, payload in second.items()
+            if (CASES_DIR / f"{name}.json").read_text() != suite_bytes(payload)
+        ]
+        index_now = json.loads((CASES_DIR / "index.json").read_text())
+        index_second = build_index(second, config, "masked")
+        for blob in (index_now, index_second):
+            blob.pop("generated_at", None)
+        if drifted or index_now != index_second:
+            raise SystemExit(
+                f"NON-DETERMINISTIC corpus generation: suites {sorted(drifted)} "
+                "or index (excluding generated_at) differ between two "
+                "consecutive runs"
+            )
+        print(
+            "determinism proof: second full regeneration byte-identical "
+            f"({len(second)} suites, index equal modulo generated_at)"
+        )
 
 
 if __name__ == "__main__":

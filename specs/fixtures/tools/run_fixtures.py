@@ -85,6 +85,48 @@ async def check_pipeline_case(suite: str, case: dict) -> str | None:
     return None
 
 
+async def check_events_case(suite: str, case: dict) -> str | None:
+    if case.get("xfail"):
+        return None
+    from events_harness import run_events_case
+
+    observed = await run_events_case(case)
+    expected = case["expected"]
+    if len(observed) != len(expected):
+        return (
+            f"{suite}/{case['id']}: event count differs: "
+            f"want {len(expected)}, got {len(observed)}"
+        )
+    for index, (actual, want) in enumerate(zip(observed, expected, strict=True)):
+        # Compare only the pinned keys of each envelope; emitter seams
+        # differ in the surface they carry.
+        for key, want_value in want.items():
+            if normalize(actual.get(key)) != normalize(want_value):
+                return (
+                    f"{suite}/{case['id']} event {index}: "
+                    f"field {key} differs: want {want_value!r}, "
+                    f"got {actual.get(key)!r}"
+                )
+    return None
+
+
+async def check_redis_case(suite: str, case: dict) -> str | None:
+    from redis_interop_cases import run_redis_case
+
+    observed = await run_redis_case(case)
+    if observed["expected"] != case["expected"]:
+        for index, (actual, want) in enumerate(
+            zip(observed["expected"], case["expected"], strict=False)
+        ):
+            if actual != want:
+                return (
+                    f"{suite}/{case['id']} key {index} differs: "
+                    f"want {want!r}, got {actual!r}"
+                )
+        return f"{suite}/{case['id']}: expected key count differs"
+    return None
+
+
 async def main_async() -> int:
     config = SecurityConfig()
     sus_patterns_handler.configure(config)
@@ -96,13 +138,18 @@ async def main_async() -> int:
     for suite_name, suite_meta in index["suites"].items():
         suite_path = CASES_DIR / f"{suite_name}.json"
         suite_data = json.loads(suite_path.read_text())
-        is_pipeline = suite_meta.get("kind") == "pipeline"
+        kind = suite_meta.get("kind")
+        if kind == "pipeline":
+            checker = check_pipeline_case
+        elif kind == "events":
+            checker = check_events_case
+        elif kind == "redis_interop":
+            checker = check_redis_case
+        else:
+            checker = lambda suite, case: check_case(manager, suite, case)  # noqa: E731
         for case in suite_data["cases"]:
             total += 1
-            if is_pipeline:
-                failure = await check_pipeline_case(suite_name, case)
-            else:
-                failure = await check_case(manager, suite_name, case)
+            failure = await checker(suite_name, case)
             if failure:
                 failures.append(failure)
 

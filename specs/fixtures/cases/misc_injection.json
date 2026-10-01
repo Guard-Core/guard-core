@@ -2,7 +2,7 @@
   "suite": "misc_injection",
   "kind": "detect",
   "spec_version": "4.1.0",
-  "engine_version": "4.1.0",
+  "engine_version": "4.2.0",
   "cases": [
     {
       "id": "log4shell_jndi_ldap",

@@ -139,3 +139,38 @@ detection exclusions and excluded detection headers),
 responses, CORS origin echo, wildcard+credentials block), and
 `pipeline_behavior_rules` (global `return_pattern` rules driving an
 in-memory behavior ban, passive-mode suppression).
+
+## spec 4.1.0 additions: event stream + Redis interop
+
+`event_stream.json` (`kind: "events"`) pins the full engine event surface:
+one case per event type in `guard_core/core/events/event_types.py` (plus a
+passive-mode `penetration_attempt` variant). Each expected entry is the
+FULL `SecurityEvent` envelope captured through the real
+`SecurityEventBus` / handler `send_event` seams (`events_harness.py`),
+minus the volatile fields in
+`index.json > comparison > events_volatile_fields`
+(`idempotency_key`, `timestamp`, `response_time` plus the timing-derived
+`execution_time` / `execution_time_ms` inside `metadata`; all dropped
+recursively). Comparison rule: compare only the keys present in each
+expected envelope - emitter seams differ in the surface they carry. One
+case is `xfail: true` (`evt_decoding_error_unreachable`): the engine has
+no deterministic in-process driver for `decoding_error` (the stdlib
+decoders it guards never raise on `str` input); xfail cases are advisory
+and carry no expectations. Scenario injection seams are documented in the
+`events_harness.py` module docstring.
+
+`redis_interop.json` (`kind: "redis_interop"`) pins the byte-level Redis
+surface per `specs/08-redis-schema.md`: one operation per key family
+through the real handlers (rate-limit Lua path global and endpoint tiers,
+exact and CIDR bans, behavior usage and return counters, the three
+security-headers config caches, the custom pattern registry, the GeoIP
+database cache, `cloud_ranges_v2` + `cloud_ip_v2`, and the dynamic rules
+last-known snapshot) against a real Redis under the suite prefix
+`guard_core:corpus_rio:`. Byte equality is the standard. Keys, static
+string values, JSON blobs and TTL semantics (whether a TTL is set and its
+configured value, never the remaining seconds) are pinned exactly;
+engine-generated values (ban expiry floats, epoch zset members, uuid4
+members) are pinned by SHAPE regex as recorded in each expected record.
+The reference runner replays both suites (`run_fixtures.py`); the
+redis-backed cases and scenarios require the Redis at
+`redis://localhost:6379`.

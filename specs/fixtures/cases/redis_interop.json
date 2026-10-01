@@ -1,0 +1,391 @@
+{
+  "suite": "redis_interop",
+  "kind": "redis_interop",
+  "spec_version": "4.1.0",
+  "engine_version": "4.2.0",
+  "doc": "Byte-level Redis interop corpus per specs/08-redis-schema.md: one operation per key family against the reference handlers pointed at a real Redis under the suite prefix. Byte equality is the standard: the pinned key string (sha256hex segments per spec), the exact stored value for static values, the member/score shape for zsets (members are engine-generated where noted), the parsed-then-canonicalized JSON blob with volatile fields dropped, and the TTL semantics (whether a TTL is set and its configured value, never the remaining time). Go, PHP, TS and Rust ports pointed at the same Redis MUST produce byte-identical results.",
+  "cases": [
+    {
+      "id": "rio_rate_limit_global_tier",
+      "prefix": "guard_core:corpus_rio:",
+      "operation": {
+        "op": "rate_limit",
+        "handler": "ratelimit_handler.RateLimitManager",
+        "call": "check_rate_limit (Lua path, global tier)",
+        "args": {
+          "client_ip": "203.0.113.20",
+          "rate_limit": 5,
+          "rate_limit_window": 60
+        }
+      },
+      "expected": [
+        {
+          "key": "guard_core:corpus_rio:rate_limit:rate:203.0.113.20",
+          "type": "zset",
+          "ttl": {
+            "set": true,
+            "seconds": 120
+          },
+          "card": 1,
+          "member_shape": "^[0-9]+\\.[0-9]+(e[+-]?[0-9]+)?$",
+          "score_equals_member": true
+        }
+      ]
+    },
+    {
+      "id": "rio_rate_limit_endpoint_tier",
+      "prefix": "guard_core:corpus_rio:",
+      "operation": {
+        "op": "rate_limit",
+        "handler": "ratelimit_handler.RateLimitManager",
+        "call": "check_rate_limit (Lua path, endpoint tier)",
+        "args": {
+          "client_ip": "203.0.113.20",
+          "rate_limit": 5,
+          "rate_limit_window": 60,
+          "endpoint_path": "/api"
+        }
+      },
+      "expected": [
+        {
+          "key": "guard_core:corpus_rio:rate_limit:rate:203.0.113.20:702acf7c08d3b03b321d97b4903ad2210d87cee61dae07068d060b8d7dcbd693",
+          "type": "zset",
+          "ttl": {
+            "set": true,
+            "seconds": 120
+          },
+          "card": 1,
+          "member_shape": "^[0-9]+\\.[0-9]+(e[+-]?[0-9]+)?$",
+          "score_equals_member": true
+        }
+      ]
+    },
+    {
+      "id": "rio_ban_exact_ip",
+      "prefix": "guard_core:corpus_rio:",
+      "operation": {
+        "op": "ban_ip",
+        "handler": "ipban_handler.ip_ban_manager",
+        "call": "ban_ip",
+        "args": {
+          "ip": "203.0.113.21",
+          "duration": 3600,
+          "reason": "rio_ban"
+        }
+      },
+      "expected": [
+        {
+          "key": "guard_core:corpus_rio:banned_ips:203.0.113.21",
+          "type": "string",
+          "ttl": {
+            "set": true,
+            "seconds": 3600
+          },
+          "value_shape": "^[0-9]+\\.[0-9]+(e[+-]?[0-9]+)?$"
+        }
+      ]
+    },
+    {
+      "id": "rio_ban_cidr_network",
+      "prefix": "guard_core:corpus_rio:",
+      "operation": {
+        "op": "ban_ip",
+        "handler": "ipban_handler.ip_ban_manager",
+        "call": "ban_ip",
+        "args": {
+          "ip": "10.0.0.0/24",
+          "duration": 1800,
+          "reason": "rio_ban"
+        }
+      },
+      "expected": [
+        {
+          "key": "guard_core:corpus_rio:banned_networks:10.0.0.0/24",
+          "type": "string",
+          "ttl": {
+            "set": true,
+            "seconds": 1800
+          },
+          "value_shape": "^[0-9]+\\.[0-9]+(e[+-]?[0-9]+)?$"
+        }
+      ]
+    },
+    {
+      "id": "rio_behavior_usage_increment",
+      "prefix": "guard_core:corpus_rio:",
+      "operation": {
+        "op": "behavior_usage",
+        "handler": "behavior_handler.BehaviorTracker",
+        "call": "track_endpoint_usage",
+        "args": {
+          "endpoint_id": "corpus.endpoint",
+          "client_ip": "203.0.113.20",
+          "rule": {
+            "rule_type": "usage",
+            "threshold": 5,
+            "window": 120
+          }
+        }
+      },
+      "expected": [
+        {
+          "key": "guard_core:corpus_rio:behavior_usage:behavior:usage:ded2c0cf54d6716bb27c96c49bfa9baa37f1fc5f973b780fef5b25e6fcc58118:89d523ed9039790f597af21528236c4d4934fd3c270f2fd0d8e114866c2c694d",
+          "type": "zset",
+          "ttl": {
+            "set": true,
+            "seconds": 120
+          },
+          "card": 1,
+          "member_shape": "^[0-9a-f]{32}$",
+          "score_shape": "^[0-9]+\\.[0-9]+(e[+-]?[0-9]+)?$"
+        }
+      ]
+    },
+    {
+      "id": "rio_behavior_return_increment",
+      "prefix": "guard_core:corpus_rio:",
+      "operation": {
+        "op": "behavior_return",
+        "handler": "behavior_handler.BehaviorTracker",
+        "call": "track_return_pattern",
+        "args": {
+          "endpoint_id": "corpus.endpoint",
+          "client_ip": "203.0.113.20",
+          "rule": {
+            "rule_type": "return_pattern",
+            "threshold": 3,
+            "window": 120,
+            "pattern": "status:404"
+          },
+          "response_status": 404
+        }
+      },
+      "expected": [
+        {
+          "key": "guard_core:corpus_rio:behavior_returns:behavior:return:ded2c0cf54d6716bb27c96c49bfa9baa37f1fc5f973b780fef5b25e6fcc58118:89d523ed9039790f597af21528236c4d4934fd3c270f2fd0d8e114866c2c694d:c4a3b17cef32e92bbce11146e8ff9b841378ba417eab26c814248a1f264d6ba1",
+          "type": "zset",
+          "ttl": {
+            "set": true,
+            "seconds": 120
+          },
+          "card": 1,
+          "member_shape": "^[0-9a-f]{32}$",
+          "score_shape": "^[0-9]+\\.[0-9]+(e[+-]?[0-9]+)?$"
+        }
+      ]
+    },
+    {
+      "id": "rio_security_headers_csp_config",
+      "prefix": "guard_core:corpus_rio:",
+      "operation": {
+        "op": "security_headers",
+        "handler": "security_headers_handler.security_headers_manager",
+        "call": "initialize_redis (_cache_configuration, csp only)",
+        "args": {
+          "csp_config": {
+            "default-src": [
+              "'self'"
+            ],
+            "script-src": [
+              "'self'",
+              "https://cdn.example.com"
+            ]
+          }
+        }
+      },
+      "expected": [
+        {
+          "key": "guard_core:corpus_rio:security_headers:csp_config",
+          "type": "json",
+          "ttl": {
+            "set": true,
+            "seconds": 86400
+          },
+          "value": "{\"default-src\": [\"'self'\"], \"script-src\": [\"'self'\", \"https://cdn.example.com\"]}"
+        }
+      ]
+    },
+    {
+      "id": "rio_security_headers_hsts_config",
+      "prefix": "guard_core:corpus_rio:",
+      "operation": {
+        "op": "security_headers",
+        "handler": "security_headers_handler.security_headers_manager",
+        "call": "initialize_redis (_cache_configuration, hsts only)",
+        "args": {
+          "hsts_config": {
+            "max_age": 31536000,
+            "include_subdomains": true
+          }
+        }
+      },
+      "expected": [
+        {
+          "key": "guard_core:corpus_rio:security_headers:hsts_config",
+          "type": "json",
+          "ttl": {
+            "set": true,
+            "seconds": 86400
+          },
+          "value": "{\"max_age\": 31536000, \"include_subdomains\": true}"
+        }
+      ]
+    },
+    {
+      "id": "rio_security_headers_custom_headers",
+      "prefix": "guard_core:corpus_rio:",
+      "operation": {
+        "op": "security_headers",
+        "handler": "security_headers_handler.security_headers_manager",
+        "call": "initialize_redis (_cache_configuration, custom only)",
+        "args": {
+          "custom_headers": {
+            "X-Corpus-Header": "corpus-value"
+          }
+        }
+      },
+      "expected": [
+        {
+          "key": "guard_core:corpus_rio:security_headers:custom_headers",
+          "type": "json",
+          "ttl": {
+            "set": true,
+            "seconds": 86400
+          },
+          "value": "{\"X-Corpus-Header\": \"corpus-value\"}"
+        }
+      ]
+    },
+    {
+      "id": "rio_custom_pattern_registry_write",
+      "prefix": "guard_core:corpus_rio:",
+      "operation": {
+        "op": "add_pattern",
+        "handler": "suspatterns_handler.sus_patterns_handler",
+        "call": "add_pattern (custom)",
+        "args": {
+          "pattern": "corpuspattern-[a-z]+"
+        }
+      },
+      "expected": [
+        {
+          "key": "guard_core:corpus_rio:patterns:custom",
+          "type": "string",
+          "ttl": {
+            "set": false
+          },
+          "value": "corpuspattern-[a-z]+"
+        }
+      ]
+    },
+    {
+      "id": "rio_ipinfo_database_cache_write",
+      "prefix": "guard_core:corpus_rio:",
+      "operation": {
+        "op": "ipinfo_database",
+        "handler": "ipinfo_handler.IPInfoManager",
+        "call": "initialize (download cache write, fetched bytes pinned)",
+        "args": {
+          "max_age": 86400,
+          "fixture": "corpus-mmdb-fixture"
+        }
+      },
+      "expected": [
+        {
+          "key": "guard_core:corpus_rio:ipinfo:database",
+          "type": "string",
+          "ttl": {
+            "set": true,
+            "seconds": 86400
+          },
+          "value": "corpus-mmdb-fixture:éÿ\u0000:end"
+        }
+      ]
+    },
+    {
+      "id": "rio_cloud_ranges_v2_write",
+      "prefix": "guard_core:corpus_rio:",
+      "operation": {
+        "op": "cloud_ranges",
+        "handler": "cloud_handler.cloud_handler",
+        "call": "refresh_async (redis-handler path, fetched ranges pinned)",
+        "args": {
+          "provider": "corpus",
+          "ranges": [
+            "198.51.100.0/24",
+            "203.0.113.0/24"
+          ],
+          "regions": {
+            "203.0.113.0/24": "us-east"
+          },
+          "ttl": 3600
+        }
+      },
+      "expected": [
+        {
+          "key": "guard_core:corpus_rio:cloud_ranges_v2:corpus",
+          "type": "string",
+          "ttl": {
+            "set": true,
+            "seconds": 3600
+          },
+          "value": "198.51.100.0/24,203.0.113.0/24|us-east"
+        }
+      ]
+    },
+    {
+      "id": "rio_cloud_ip_v2_write",
+      "prefix": "guard_core:corpus_rio:",
+      "operation": {
+        "op": "cloud_ip_store",
+        "handler": "cloud_ip_stores.RedisCloudIpStore",
+        "call": "set (persist)",
+        "args": {
+          "provider": "corpus",
+          "ranges": [
+            "10.0.0.0/8",
+            "192.168.0.0/16",
+            "2001:db8::/32"
+          ],
+          "ttl": null
+        }
+      },
+      "expected": [
+        {
+          "key": "guard_core:corpus_rio:cloud_ip_v2:corpus",
+          "type": "json",
+          "ttl": {
+            "set": false
+          },
+          "value": "[\"10.0.0.0/8\", \"192.168.0.0/16\", \"2001:db8::/32\"]"
+        }
+      ]
+    },
+    {
+      "id": "rio_dynamic_rules_snapshot_write",
+      "prefix": "guard_core:corpus_rio:",
+      "operation": {
+        "op": "dynamic_rules",
+        "handler": "dynamic_rule_handler.DynamicRuleManager",
+        "call": "update_rules (_persist_last_known_rules)",
+        "args": {
+          "rules": {
+            "rule_id": "rio-rules",
+            "version": 3,
+            "timestamp": "2026-01-01T00:00:00+00:00"
+          }
+        }
+      },
+      "expected": [
+        {
+          "key": "guard_core:corpus_rio:dynamic_rules:last_known",
+          "type": "json",
+          "ttl": {
+            "set": false
+          },
+          "value": "{\"schema_version\":1,\"rules\":{\"rule_id\":\"rio-rules\",\"version\":3,\"timestamp\":\"2026-01-01T00:00:00Z\",\"expires_at\":null,\"ttl\":300,\"ip_blacklist\":[],\"ip_whitelist\":[],\"ip_ban_duration\":3600,\"blocked_countries\":[],\"whitelist_countries\":[],\"global_rate_limit\":null,\"global_rate_window\":null,\"endpoint_rate_limits\":{},\"blocked_cloud_providers\":[],\"blocked_user_agents\":[],\"suspicious_patterns\":[],\"enable_penetration_detection\":null,\"enable_ip_banning\":null,\"enable_rate_limiting\":null,\"auto_ban_threshold\":null,\"auto_ban_duration\":null,\"enable_rate_limit_auto_ban\":null,\"emergency_mode\":false,\"emergency_whitelist\":[]}}"
+        }
+      ]
+    }
+  ]
+}
