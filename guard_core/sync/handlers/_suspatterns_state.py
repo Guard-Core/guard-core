@@ -7,6 +7,7 @@ from guard_core.sync.detection_engine import (
     PerformanceMonitor,
     SemanticAnalyzer,
 )
+from guard_core.sync.detection_engine._validation_cache import PatternValidationCache
 
 
 class _DetectionState(NamedTuple):
@@ -29,10 +30,13 @@ _LEGACY_DETECTION_STATE = _DetectionState(
 
 
 def _build_enhanced_detection_state(config: Any) -> _DetectionState:
+    cache_path = getattr(config, "detection_pattern_validation_cache_path", None)
+    validation_cache = PatternValidationCache(cache_path) if cache_path else None
     return _DetectionState(
         compiler=PatternCompiler(
             default_timeout=config.detection_compiler_timeout,
             max_cache_size=config.detection_max_tracked_patterns,
+            validation_cache=validation_cache,
         ),
         preprocessor=ContentPreprocessor(
             max_content_length=config.detection_max_content_length,

@@ -613,6 +613,15 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "line 366: logs only the sampled and total probe-set counts and "
         "the stride length; no pattern text or scanned value is involved"
     ),
+    "detection_engine/_validation_cache.py:PatternValidationCache._load": (
+        "lines 57,75: the warning carries only the OSError/ValueError text "
+        "from reading or parsing the cache file; no pattern, verdict, or "
+        "scanned value is interpolated"
+    ),
+    "detection_engine/_validation_cache.py:PatternValidationCache._save": (
+        "line 114: the warning carries only the OSError text from the "
+        "atomic write; no pattern or verdict is interpolated"
+    ),
     "detection_engine/compiler.py:report_scan_timeout": (
         "line 63: takes no arguments beyond a module-global consecutive-"
         "timeout counter; no pattern or scanned value is even accessible "
