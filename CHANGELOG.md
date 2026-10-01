@@ -21,6 +21,9 @@ The safety-corpus release: the pattern-safety chain, the event stream and the Re
 - **The corpus tool harnesses pass full-workspace mypy** (guard-core #137). The events and redis-interop generators' duck-typed doubles (GuardRequest-shaped pipeline stubs, monkeypatched handler attributes, the aiohttp ``ClientSession`` replacement, lambdas assigned onto manager seams) carry the narrow ignore codes mypy requests, and the hex-escape attack-indicator regex parity was re-verified against the reference's two-character escaped-backslash form.
 - **``specs/`` tooling is ruff-format stable under the pinned hook versions** (guard-core #138): the safety-gates generator's 10 line-normalization diffs are landed so pre-commit's ruff-format hook stops failing every open PR.
 
+___
+
+v4.2.0 (2026-09-27)
 -------------------
 
 The parity release: the conformance corpus tracks the engine release (v4.2.0)
