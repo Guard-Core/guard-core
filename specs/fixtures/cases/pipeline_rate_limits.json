@@ -2,7 +2,7 @@
   "suite": "pipeline_rate_limits",
   "kind": "pipeline",
   "spec_version": "4.1.0",
-  "engine_version": "4.1.0",
+  "engine_version": "4.2.0",
   "cases": [
     {
       "id": "global_limit_429_with_retry_after",

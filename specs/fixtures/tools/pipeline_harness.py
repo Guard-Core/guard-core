@@ -384,14 +384,10 @@ class _PipelineRequest:
         return cast(bytes, self._body)
 
     def url_replace_scheme(self, scheme: str) -> Any:
-        class _URL:
-            def __init__(self, scheme: str) -> None:
-                self.scheme = scheme
-
-            def __str__(self) -> str:
-                return f"{self.scheme}://example.com"
-
-        return _URL(scheme)
+        # Plain string, matching the display redaction path: the engine
+        # passes the replaced-scheme URL straight into urlsplit-based
+        # redaction, which requires a str.
+        return f"{scheme}://example.com"
 
 
 class HarnessCase:

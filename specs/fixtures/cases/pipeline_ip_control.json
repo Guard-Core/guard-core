@@ -2,7 +2,7 @@
   "suite": "pipeline_ip_control",
   "kind": "pipeline",
   "spec_version": "4.1.0",
-  "engine_version": "4.1.0",
+  "engine_version": "4.2.0",
   "cases": [
     {
       "id": "ip_blacklist_forbidden",

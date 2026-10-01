@@ -1,0 +1,1693 @@
+{
+  "suite": "event_stream",
+  "kind": "events",
+  "spec_version": "4.1.0",
+  "engine_version": "4.2.0",
+  "doc": "Full event-surface corpus: one case per engine event type in guard_core/core/events/event_types.py (plus one passive-mode variant). Each expected entry is the FULL SecurityEvent envelope captured from the live reference engine through the real SecurityEventBus / handler send_event seams, minus the volatile fields listed in comparison.events_volatile_fields (dropped recursively). Compare only the keys present in each expected envelope; a runner that cannot observe a field records its absence instead of failing. Cases with xfail=true are advisory: the event type has no deterministic in-process driver (see xfail_reason) and the runner may skip them.",
+  "cases": [
+    {
+      "id": "evt_penetration_attempt_blocked",
+      "config": {},
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "203.0.113.10",
+          "url_path": "/api",
+          "body": "<script>alert(1)</script>"
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "penetration_attempt",
+          "ip_address": "203.0.113.10",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "request_blocked",
+          "reason": "Penetration attempt detected: Request body: Value matched pattern '<script[^>]*>[^<]*<\\/script\\s*>'",
+          "endpoint": "/api",
+          "method": "GET",
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "middleware",
+          "metadata": {
+            "request_count": 1,
+            "trigger_info": "Request body: Value matched pattern '<script[^>]*>[^<]*<\\/script\\s*>'"
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_penetration_attempt_passive",
+      "config": {
+        "passive_mode": true
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "203.0.113.10",
+          "url_path": "/api",
+          "body": "<script>alert(1)</script>"
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "penetration_attempt",
+          "ip_address": "203.0.113.10",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "logged_only",
+          "reason": "Suspicious pattern detected (passive mode): Request body: Value matched pattern '<script[^>]*>[^<]*<\\/script\\s*>'",
+          "endpoint": "/api",
+          "method": "GET",
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "middleware",
+          "metadata": {
+            "request_count": 1,
+            "passive_mode": true,
+            "trigger_info": "Request body: Value matched pattern '<script[^>]*>[^<]*<\\/script\\s*>'"
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_ip_blocked_global_blacklist",
+      "config": {
+        "blacklist": [
+          "203.0.113.11"
+        ]
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "203.0.113.11",
+          "url_path": "/api"
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "ip_blocked",
+          "ip_address": "203.0.113.11",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "request_blocked",
+          "reason": "IP 203.0.113.11 not in global allowlist/blocklist",
+          "endpoint": "/api",
+          "method": "GET",
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "middleware",
+          "metadata": {
+            "ip_address": "203.0.113.11",
+            "filter_type": "global"
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_ip_banned_then_blocked",
+      "config": {},
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "call": "ban_ip",
+          "ip": "203.0.113.12",
+          "reason": "corpus_ban"
+        },
+        {
+          "client_ip": "203.0.113.12",
+          "url_path": "/api"
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "ip_banned",
+          "ip_address": "203.0.113.12",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "banned",
+          "reason": "corpus_ban",
+          "endpoint": null,
+          "method": null,
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "ip_ban",
+          "metadata": {
+            "duration": 3600
+          }
+        },
+        {
+          "event_type": "ip_blocked",
+          "ip_address": "203.0.113.12",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "request_blocked",
+          "reason": "Banned IP attempted access: 203.0.113.12",
+          "endpoint": "/api",
+          "method": "GET",
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "middleware",
+          "metadata": {
+            "ip_address": "203.0.113.12",
+            "filter_type": "banned"
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_ip_ban_failed_escalation",
+      "config": {
+        "blacklist": [
+          "203.0.113.13"
+        ],
+        "enable_ip_banning": true,
+        "auto_ban_threshold": 1
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "call": "ipban_fault"
+        },
+        {
+          "client_ip": "203.0.113.13",
+          "url_path": "/api",
+          "body": "<script>alert(1)</script>"
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "ip_blocked",
+          "ip_address": "203.0.113.13",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "request_blocked",
+          "reason": "IP 203.0.113.13 not in global allowlist/blocklist",
+          "endpoint": "/api",
+          "method": "GET",
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "middleware",
+          "metadata": {
+            "ip_address": "203.0.113.13",
+            "filter_type": "global"
+          }
+        },
+        {
+          "event_type": "ip_ban_failed",
+          "ip_address": "203.0.113.13",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "ban_not_applied",
+          "reason": "Escalation ban failed for 203.0.113.13: corpus injected ban failure",
+          "endpoint": "/api",
+          "method": "GET",
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "middleware",
+          "metadata": {
+            "ip_address": "203.0.113.13"
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_ip_unbanned",
+      "config": {},
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "call": "ban_ip",
+          "ip": "203.0.113.14",
+          "reason": "corpus_ban"
+        },
+        {
+          "call": "unban_ip",
+          "ip": "203.0.113.14"
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "ip_banned",
+          "ip_address": "203.0.113.14",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "banned",
+          "reason": "corpus_ban",
+          "endpoint": null,
+          "method": null,
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "ip_ban",
+          "metadata": {
+            "duration": 3600
+          }
+        },
+        {
+          "event_type": "ip_unbanned",
+          "ip_address": "203.0.113.14",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "unbanned",
+          "reason": "dynamic_rule_whitelist",
+          "endpoint": null,
+          "method": null,
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "ip_ban",
+          "metadata": {
+            "action": "unban"
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_cloud_blocked_provider",
+      "config": {},
+      "geo_countries": {},
+      "routes": {
+        "/api": {
+          "block_cloud_providers": [
+            "AWS"
+          ]
+        }
+      },
+      "drives": [
+        {
+          "call": "cloud_stub",
+          "provider": "AWS",
+          "network": "203.0.113.0/24"
+        },
+        {
+          "client_ip": "203.0.113.10",
+          "url_path": "/api"
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "cloud_blocked",
+          "ip_address": "203.0.113.10",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "request_blocked",
+          "reason": "IP belongs to blocked cloud provider: AWS",
+          "endpoint": null,
+          "method": null,
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "cloud",
+          "metadata": {
+            "cloud_provider": "AWS",
+            "network": "203.0.113.0/24"
+          }
+        },
+        {
+          "event_type": "decorator_violation",
+          "ip_address": "203.0.113.10",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "request_blocked",
+          "reason": "Cloud provider IP 203.0.113.10 blocked",
+          "endpoint": "/api",
+          "method": "GET",
+          "status_code": null,
+          "decorator_type": "block_clouds",
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "middleware",
+          "metadata": {
+            "decorator_type": "block_clouds",
+            "violation_type": "cloud_provider",
+            "blocked_providers": [
+              "AWS"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_https_enforced_redirect",
+      "config": {
+        "enforce_https": true
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "203.0.113.10",
+          "url_path": "/api"
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "https_enforced",
+          "ip_address": "203.0.113.10",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "https_redirect",
+          "reason": "HTTP request redirected to HTTPS for security",
+          "endpoint": "/api",
+          "method": "GET",
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "middleware",
+          "metadata": {
+            "original_scheme": "http",
+            "redirect_url": "https://example.com"
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_decorator_violation_auth_required",
+      "config": {},
+      "geo_countries": {},
+      "routes": {
+        "/api": {
+          "auth_required": "bearer"
+        }
+      },
+      "drives": [
+        {
+          "client_ip": "203.0.113.10",
+          "url_path": "/api"
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "decorator_violation",
+          "ip_address": "203.0.113.10",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "request_blocked",
+          "reason": "Missing or invalid Bearer token",
+          "endpoint": "/api",
+          "method": "GET",
+          "status_code": null,
+          "decorator_type": "authentication",
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "middleware",
+          "metadata": {
+            "decorator_type": "authentication",
+            "violation_type": "require_auth",
+            "auth_type": "bearer"
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_behavioral_violation_usage_log",
+      "config": {},
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "call": "behavior_action",
+          "rule": {
+            "rule_type": "usage",
+            "threshold": 5,
+            "window": 60
+          },
+          "ip": "203.0.113.15",
+          "details": "Usage threshold exceeded: 5 calls in 60s"
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "behavioral_violation",
+          "ip_address": "203.0.113.15",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "log",
+          "reason": "Behavioral rule violated: Usage threshold exceeded: 5 calls in 60s",
+          "endpoint": null,
+          "method": null,
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": "usage",
+          "pattern_matched": null,
+          "handler_name": "behavior",
+          "metadata": {
+            "endpoint": "corpus.endpoint",
+            "rule_type": "usage",
+            "threshold": 5,
+            "window": 60
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_pattern_detected_xss",
+      "config": {},
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "call": "detect",
+          "content": "<script>alert(1)</script>",
+          "ip": "203.0.113.7",
+          "context": "request_body"
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "pattern_detected",
+          "ip_address": "203.0.113.7",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "threat_detected",
+          "reason": "Threat detected in request_body",
+          "endpoint": null,
+          "method": null,
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": "<script[^>]*>[^<]*<\\/script\\s*>",
+          "handler_name": "sus_patterns",
+          "metadata": {
+            "pattern": "<script[^>]*>[^<]*<\\/script\\s*>",
+            "context": "request_body",
+            "content_preview": "<script>alert(1)</script>",
+            "threat_score": 1.0,
+            "threats": 1,
+            "regex_threats": 1,
+            "semantic_threats": 0,
+            "timeouts": 0,
+            "detection_method": "enhanced",
+            "correlation_id": null,
+            "threat_categories": [
+              "xss"
+            ],
+            "category": "xss"
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_dynamic_rules_update_apply",
+      "config": {
+        "agent_api_key": "corpus-agent-key",
+        "enable_agent": true,
+        "enable_dynamic_rules": true
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "call": "dynamic_rules",
+          "rules": {
+            "rule_id": "corpus-rules",
+            "version": 7
+          }
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "dynamic_rule_updated",
+          "ip_address": "system",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "rules_received",
+          "reason": "Received updated rules corpus-rules v7",
+          "endpoint": null,
+          "method": null,
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "dynamic_rules",
+          "metadata": {
+            "rule_id": "corpus-rules",
+            "version": 7,
+            "previous_version": 0
+          }
+        },
+        {
+          "event_type": "dynamic_rule_applied",
+          "ip_address": "system",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "rules_updated",
+          "reason": "Applied dynamic rules corpus-rules v7",
+          "endpoint": null,
+          "method": null,
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "dynamic_rules",
+          "metadata": {
+            "rule_id": "corpus-rules",
+            "version": 7,
+            "ip_bans": 0,
+            "country_blocks": 0,
+            "emergency_mode": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_emergency_mode_activated",
+      "config": {
+        "agent_api_key": "corpus-agent-key",
+        "enable_agent": true,
+        "enable_dynamic_rules": true
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "call": "dynamic_rules",
+          "rules": {
+            "rule_id": "corpus-rules",
+            "version": 9,
+            "emergency_mode": true,
+            "emergency_whitelist": [
+              "198.51.100.5"
+            ]
+          }
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "dynamic_rule_updated",
+          "ip_address": "system",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "rules_received",
+          "reason": "Received updated rules corpus-rules v9",
+          "endpoint": null,
+          "method": null,
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "dynamic_rules",
+          "metadata": {
+            "rule_id": "corpus-rules",
+            "version": 9,
+            "previous_version": 0
+          }
+        },
+        {
+          "event_type": "emergency_mode_activated",
+          "ip_address": "system",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "emergency_lockdown",
+          "reason": "[EMERGENCY MODE] activated via dynamic rules",
+          "endpoint": null,
+          "method": null,
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "dynamic_rules",
+          "metadata": {
+            "whitelist_count": 1,
+            "whitelist": [
+              "198.51.100.5"
+            ]
+          }
+        },
+        {
+          "event_type": "dynamic_rule_applied",
+          "ip_address": "system",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "rules_updated",
+          "reason": "Applied dynamic rules corpus-rules v9",
+          "endpoint": null,
+          "method": null,
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "dynamic_rules",
+          "metadata": {
+            "rule_id": "corpus-rules",
+            "version": 9,
+            "ip_bans": 0,
+            "country_blocks": 0,
+            "emergency_mode": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_access_denied_decorator",
+      "config": {},
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "call": "decorator_event",
+          "send": "send_access_denied_event",
+          "client_ip": "203.0.113.10",
+          "url_path": "/api",
+          "kwargs": {
+            "reason": "corpus access denied",
+            "decorator_type": "access_control",
+            "violation_type": "corpus"
+          }
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "access_denied",
+          "ip_address": "203.0.113.10",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "blocked",
+          "reason": "corpus access denied",
+          "endpoint": "/api",
+          "method": "GET",
+          "status_code": null,
+          "decorator_type": "access_control",
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "middleware",
+          "metadata": {
+            "decorator_type": "access_control",
+            "violation_type": "corpus"
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_authentication_failed_decorator",
+      "config": {},
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "call": "decorator_event",
+          "send": "send_authentication_failed_event",
+          "client_ip": "203.0.113.10",
+          "url_path": "/api",
+          "kwargs": {
+            "reason": "corpus auth failed",
+            "auth_type": "bearer"
+          }
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "authentication_failed",
+          "ip_address": "203.0.113.10",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "blocked",
+          "reason": "corpus auth failed",
+          "endpoint": "/api",
+          "method": "GET",
+          "status_code": null,
+          "decorator_type": "authentication",
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "middleware",
+          "metadata": {
+            "decorator_type": "authentication",
+            "auth_type": "bearer"
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_content_filtered_max_size",
+      "config": {},
+      "geo_countries": {},
+      "routes": {
+        "/upload": {
+          "max_request_size": 10
+        }
+      },
+      "drives": [
+        {
+          "client_ip": "203.0.113.10",
+          "url_path": "/upload",
+          "method": "POST",
+          "body": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "content_filtered",
+          "ip_address": "203.0.113.10",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "request_blocked",
+          "reason": "Request size 64 exceeds limit: 10",
+          "endpoint": "/upload",
+          "method": "POST",
+          "status_code": null,
+          "decorator_type": "content_filtering",
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "middleware",
+          "metadata": {
+            "decorator_type": "content_filtering",
+            "violation_type": "max_request_size"
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_country_blocked_geo",
+      "config": {},
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "call": "geo_country_stub",
+          "ip": "198.51.100.9",
+          "country": "CN",
+          "blocked_countries": [
+            "CN"
+          ]
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "country_blocked",
+          "ip_address": "198.51.100.9",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "request_blocked",
+          "reason": "Country CN is blocked",
+          "endpoint": null,
+          "method": null,
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": "country_blacklist",
+          "pattern_matched": null,
+          "handler_name": "ipinfo",
+          "metadata": {
+            "country": "CN",
+            "rule_type": "country_blacklist"
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_csp_violation_report",
+      "config": {},
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "call": "csp_report",
+          "report": {
+            "csp-report": {
+              "document-uri": "https://example.com/page",
+              "violated-directive": "script-src",
+              "blocked-uri": "https://evil.example/x.js"
+            }
+          }
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "csp_violation",
+          "ip_address": "",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "logged",
+          "reason": "",
+          "endpoint": null,
+          "method": null,
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "security_headers",
+          "metadata": {
+            "document_uri": "https://example.com/page",
+            "violated_directive": "script-src",
+            "blocked_uri": "https://evil.example/x.js",
+            "source_file": "None",
+            "line_number": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_custom_request_check_reject",
+      "config": {
+        "custom_request_check": "corpus_reject_all"
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "203.0.113.10",
+          "url_path": "/api"
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "custom_request_check",
+          "ip_address": "203.0.113.10",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "request_blocked",
+          "reason": "Custom request check returned blocking response",
+          "endpoint": "/api",
+          "method": "GET",
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "middleware",
+          "metadata": {
+            "response_status": 418,
+            "check_function": "corpus_reject_all"
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_decoding_error_unreachable",
+      "config": {},
+      "geo_countries": {},
+      "routes": {},
+      "drives": [],
+      "expected": [],
+      "xfail": true,
+      "xfail_reason": "decoding_error fires only when urllib.parse.unquote or html.unescape raises on a str; neither raises for any str input, so the event has no deterministic in-process driver. Needs a decode-backend fault-injection surface."
+    },
+    {
+      "id": "evt_emergency_mode_block",
+      "config": {
+        "emergency_mode": true
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "203.0.113.10",
+          "url_path": "/api"
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "emergency_mode_block",
+          "ip_address": "203.0.113.10",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "request_blocked",
+          "reason": "[EMERGENCY MODE] IP 203.0.113.10 not in whitelist",
+          "endpoint": "/api",
+          "method": "GET",
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "middleware",
+          "metadata": {
+            "emergency_whitelist_count": 0,
+            "emergency_active": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_geo_lookup_failed_download",
+      "config": {},
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "call": "geo_download_failure"
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "geo_lookup_failed",
+          "ip_address": "system",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "database_download_failed",
+          "reason": "Failed to download IPInfo database: RuntimeError",
+          "endpoint": null,
+          "method": null,
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "ipinfo",
+          "metadata": {}
+        }
+      ]
+    },
+    {
+      "id": "evt_path_excluded_health",
+      "config": {
+        "exclude_paths": [
+          "/health"
+        ]
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "call": "path_excluded",
+          "client_ip": "203.0.113.10",
+          "url_path": "/health"
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "path_excluded",
+          "ip_address": "203.0.113.10",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "security_checks_bypassed",
+          "reason": "Path /health excluded from security checks",
+          "endpoint": "/health",
+          "method": "GET",
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "middleware",
+          "metadata": {
+            "excluded_path": "/health",
+            "configured_exclusions": [
+              "/health"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_pattern_added_custom",
+      "config": {},
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "call": "add_pattern",
+          "pattern": "corpuspattern-[a-z]+"
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "pattern_added",
+          "ip_address": "system",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "pattern_added",
+          "reason": "Custom pattern added to detection system",
+          "endpoint": null,
+          "method": null,
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "sus_patterns",
+          "metadata": {
+            "pattern": "corpuspattern-[a-z]+",
+            "pattern_type": "custom",
+            "total_patterns": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_pattern_removed_custom",
+      "config": {},
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "call": "remove_pattern",
+          "pattern": "corpuspattern-[a-z]+"
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "pattern_removed",
+          "ip_address": "system",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "pattern_removed",
+          "reason": "Custom pattern removed from detection system",
+          "endpoint": null,
+          "method": null,
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "sus_patterns",
+          "metadata": {
+            "pattern": "corpuspattern-[a-z]+",
+            "pattern_type": "custom",
+            "total_patterns": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_rate_limited_global",
+      "config": {
+        "rate_limit": 1,
+        "rate_limit_window": 60
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "203.0.113.10",
+          "url_path": "/api"
+        },
+        {
+          "client_ip": "203.0.113.10",
+          "url_path": "/api"
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "rate_limited",
+          "ip_address": "203.0.113.10",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "request_blocked",
+          "reason": "Rate limit exceeded: 2 requests in 60s window",
+          "endpoint": "/api",
+          "method": "GET",
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "rate_limit",
+          "metadata": {
+            "request_count": 2,
+            "rate_limit": 1,
+            "window": 60
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_dynamic_rule_violation_endpoint",
+      "config": {
+        "endpoint_rate_limits": {
+          "/api": [
+            1,
+            60
+          ]
+        }
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "203.0.113.10",
+          "url_path": "/api"
+        },
+        {
+          "client_ip": "203.0.113.10",
+          "url_path": "/api"
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "rate_limited",
+          "ip_address": "203.0.113.10",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "request_blocked",
+          "reason": "Rate limit exceeded: 2 requests in 60s window",
+          "endpoint": "/api",
+          "method": "GET",
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "rate_limit",
+          "metadata": {
+            "request_count": 2,
+            "rate_limit": 10,
+            "window": 60
+          }
+        },
+        {
+          "event_type": "dynamic_rule_violation",
+          "ip_address": "203.0.113.10",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "request_blocked",
+          "reason": "Endpoint-specific rate limit exceeded: 1 requests per 60s for /api",
+          "endpoint": "/api",
+          "method": "GET",
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": "endpoint_rate_limit",
+          "pattern_matched": null,
+          "handler_name": "middleware",
+          "metadata": {
+            "rule_type": "endpoint_rate_limit",
+            "endpoint": "/api",
+            "rate_limit": 1,
+            "window": 60
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_rate_limit_script_reloaded",
+      "config": {},
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "call": "rate_limit_script_reload",
+          "client_ip": "203.0.113.16",
+          "url_path": "/api"
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "rate_limit_script_reloaded",
+          "ip_address": "system",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "script_reloaded",
+          "reason": "NOSCRIPT recovery: Lua script re-cached on Redis",
+          "endpoint": null,
+          "method": null,
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "rate_limit",
+          "metadata": {}
+        }
+      ]
+    },
+    {
+      "id": "evt_redis_connection_established",
+      "config": {},
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "call": "redis_connect"
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "redis_connection",
+          "ip_address": "system",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "connection_established",
+          "reason": "Redis connection successfully established",
+          "endpoint": null,
+          "method": null,
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "redis",
+          "metadata": {
+            "redis_url": "redis://localhost:6379/0"
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_redis_error_connection_failed",
+      "config": {},
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "call": "redis_connect_error"
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "redis_error",
+          "ip_address": "system",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "connection_failed",
+          "reason": "Redis connection failed: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 59999, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 59999) connecting to localhost:59999.",
+          "endpoint": null,
+          "method": null,
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "redis",
+          "metadata": {
+            "redis_url": "redis://localhost:59999/0",
+            "error_type": "connection_error"
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_route_unresolved_strict",
+      "config": {
+        "route_resolution_strict": true
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "203.0.113.10",
+          "url_path": "/api",
+          "guard_route_unresolved": true
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "route_unresolved",
+          "ip_address": "203.0.113.10",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "request_blocked",
+          "reason": "Route resolution failed; per-route decorator config could not be applied",
+          "endpoint": "/api",
+          "method": "GET",
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "middleware",
+          "metadata": {}
+        }
+      ]
+    },
+    {
+      "id": "evt_security_bypass_all",
+      "config": {},
+      "geo_countries": {},
+      "routes": {
+        "/open": {
+          "bypassed_checks": [
+            "all"
+          ]
+        }
+      },
+      "drives": [
+        {
+          "call": "bypass",
+          "client_ip": "203.0.113.10",
+          "url_path": "/open"
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "security_bypass",
+          "ip_address": "203.0.113.10",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "all_checks_bypassed",
+          "reason": "Route configured to bypass all security checks",
+          "endpoint": "/open",
+          "method": "GET",
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "middleware",
+          "metadata": {
+            "bypassed_checks": [
+              "all"
+            ],
+            "endpoint": "/open"
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_security_headers_applied_default",
+      "config": {},
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "call": "headers_applied",
+          "path": "/api"
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "security_headers_applied",
+          "ip_address": "",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "headers_added",
+          "reason": "",
+          "endpoint": null,
+          "method": null,
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "security_headers",
+          "metadata": {
+            "path": "/api",
+            "headers_count": 11,
+            "has_csp": false,
+            "has_hsts": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_user_agent_blocked_global",
+      "config": {
+        "blocked_user_agents": [
+          "evilbot/1.0"
+        ]
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "203.0.113.10",
+          "url_path": "/api",
+          "headers": {
+            "User-Agent": "evilbot/1.0"
+          }
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "user_agent_blocked",
+          "ip_address": "203.0.113.10",
+          "country": null,
+          "user_agent": "evilbot/1.0",
+          "action_taken": "request_blocked",
+          "reason": "User agent 'evilbot/1.0' in global blocklist",
+          "endpoint": "/api",
+          "method": "GET",
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "middleware",
+          "metadata": {
+            "user_agent": "evilbot/1.0",
+            "filter_type": "global"
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_suspicious_request_untrusted_proxy",
+      "config": {
+        "trusted_proxies": [
+          "192.0.2.1"
+        ]
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "203.0.113.17",
+          "url_path": "/api",
+          "headers": {
+            "X-Forwarded-For": "198.51.100.77"
+          },
+          "drop_cached_client_ip": true
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "suspicious_request",
+          "ip_address": "203.0.113.17",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "spoofing_detected",
+          "reason": "Potential IP spoof attempt: X-Forwarded-For header 198.51.100.77",
+          "endpoint": "/api",
+          "method": "GET",
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "ip_extraction",
+          "metadata": {}
+        }
+      ]
+    },
+    {
+      "id": "evt_detection_engine_callback_error",
+      "config": {},
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "call": "monitor_callback_fault",
+          "pattern": "corpuspattern-[a-z]+",
+          "execution_time": 0.5
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "pattern_anomaly_slow_execution",
+          "ip_address": "system",
+          "action_taken": "anomaly_detected",
+          "reason": "Pattern performance anomaly: slow_execution",
+          "metadata": {
+            "component": "PerformanceMonitor",
+            "correlation_id": null,
+            "type": "slow_execution",
+            "pattern": "corpuspattern-[a-z]+",
+            "content_length": 128
+          }
+        },
+        {
+          "event_type": "detection_engine_callback_error",
+          "ip_address": "system",
+          "action_taken": "logged",
+          "reason": "Anomaly callback failed: corpus injected callback failure",
+          "metadata": {
+            "component": "PerformanceMonitor",
+            "correlation_id": null,
+            "callback_error": "corpus injected callback failure",
+            "anomaly_type": "slow_execution"
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_pattern_anomaly_timeout",
+      "config": {},
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "call": "monitor_anomaly",
+          "samples": [
+            {
+              "pattern": "corpuspattern-[a-z]+",
+              "execution_time": 0.0,
+              "timeout": true
+            }
+          ]
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "pattern_anomaly_timeout",
+          "ip_address": "system",
+          "action_taken": "anomaly_detected",
+          "reason": "Pattern performance anomaly: timeout",
+          "metadata": {
+            "component": "PerformanceMonitor",
+            "correlation_id": null,
+            "type": "timeout",
+            "pattern": "corpuspattern-[a-z]+",
+            "content_length": 128
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_pattern_anomaly_slow_execution",
+      "config": {},
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "call": "monitor_anomaly",
+          "slow_pattern_threshold": 0.1,
+          "samples": [
+            {
+              "pattern": "corpuspattern-[a-z]+",
+              "execution_time": 0.5
+            }
+          ]
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "pattern_anomaly_slow_execution",
+          "ip_address": "system",
+          "action_taken": "anomaly_detected",
+          "reason": "Pattern performance anomaly: slow_execution",
+          "metadata": {
+            "component": "PerformanceMonitor",
+            "correlation_id": null,
+            "type": "slow_execution",
+            "pattern": "corpuspattern-[a-z]+",
+            "content_length": 128
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_pattern_anomaly_statistical",
+      "config": {},
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "call": "monitor_anomaly",
+          "anomaly_threshold": 3.0,
+          "min_samples_for_anomaly": 10,
+          "slow_pattern_threshold": 10.0,
+          "samples": [
+            {
+              "pattern": "corpuspattern-[a-z]+",
+              "execution_time": 0.08
+            },
+            {
+              "pattern": "corpuspattern-[a-z]+",
+              "execution_time": 0.12
+            },
+            {
+              "pattern": "corpuspattern-[a-z]+",
+              "execution_time": 0.08
+            },
+            {
+              "pattern": "corpuspattern-[a-z]+",
+              "execution_time": 0.12
+            },
+            {
+              "pattern": "corpuspattern-[a-z]+",
+              "execution_time": 0.08
+            },
+            {
+              "pattern": "corpuspattern-[a-z]+",
+              "execution_time": 0.12
+            },
+            {
+              "pattern": "corpuspattern-[a-z]+",
+              "execution_time": 0.08
+            },
+            {
+              "pattern": "corpuspattern-[a-z]+",
+              "execution_time": 0.12
+            },
+            {
+              "pattern": "corpuspattern-[a-z]+",
+              "execution_time": 0.08
+            },
+            {
+              "pattern": "corpuspattern-[a-z]+",
+              "execution_time": 0.12
+            },
+            {
+              "pattern": "corpuspattern-[a-z]+",
+              "execution_time": 0.08
+            },
+            {
+              "pattern": "corpuspattern-[a-z]+",
+              "execution_time": 0.12
+            },
+            {
+              "pattern": "corpuspattern-[a-z]+",
+              "execution_time": 0.08
+            },
+            {
+              "pattern": "corpuspattern-[a-z]+",
+              "execution_time": 0.12
+            },
+            {
+              "pattern": "corpuspattern-[a-z]+",
+              "execution_time": 0.08
+            },
+            {
+              "pattern": "corpuspattern-[a-z]+",
+              "execution_time": 0.12
+            },
+            {
+              "pattern": "corpuspattern-[a-z]+",
+              "execution_time": 0.08
+            },
+            {
+              "pattern": "corpuspattern-[a-z]+",
+              "execution_time": 0.12
+            },
+            {
+              "pattern": "corpuspattern-[a-z]+",
+              "execution_time": 0.08
+            },
+            {
+              "pattern": "corpuspattern-[a-z]+",
+              "execution_time": 0.12
+            },
+            {
+              "pattern": "corpuspattern-[a-z]+",
+              "execution_time": 5.0
+            }
+          ]
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "pattern_anomaly_statistical_anomaly",
+          "ip_address": "system",
+          "action_taken": "anomaly_detected",
+          "reason": "Pattern performance anomaly: statistical_anomaly",
+          "metadata": {
+            "component": "PerformanceMonitor",
+            "correlation_id": null,
+            "type": "statistical_anomaly",
+            "pattern": "corpuspattern-[a-z]+",
+            "z_score": 4.363595,
+            "avg_time": 0.333333,
+            "std_time": 1.069455
+          }
+        }
+      ]
+    }
+  ]
+}

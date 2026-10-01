@@ -2,7 +2,7 @@
   "suite": "path_traversal",
   "kind": "detect",
   "spec_version": "4.1.0",
-  "engine_version": "4.1.0",
+  "engine_version": "4.2.0",
   "cases": [
     {
       "id": "trav_double_dot_slash",
