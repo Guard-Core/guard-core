@@ -17,20 +17,23 @@ import logging
 import os
 import tempfile
 import threading
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _version
 from pathlib import Path
 
 logger = logging.getLogger("guard_core.detection_engine._validation_cache")
 
-try:  # pragma: no cover - trivial environment probe
-    from importlib.metadata import PackageNotFoundError
-    from importlib.metadata import version as _version
 
+def _engine_version() -> str:
     try:
-        ENGINE_VERSION: str = _version("guard-core")
-    except PackageNotFoundError:  # pragma: no cover - source checkouts
-        ENGINE_VERSION = "unknown"
-except Exception:  # pragma: no cover - defensive
-    ENGINE_VERSION = "unknown"
+        return _version("guard-core")
+    except PackageNotFoundError:
+        return "unknown"
+    except Exception:
+        return "unknown"
+
+
+ENGINE_VERSION = _engine_version()
 
 
 class PatternValidationCache:

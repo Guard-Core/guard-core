@@ -162,3 +162,113 @@ def test_missing_entry_shape_is_rejected(tmp_path: Path) -> None:
 def test_entry_helper_matches_expected_shape() -> None:
     entry = _entry(True, "ok")
     assert entry["version"] == _validation_cache.ENGINE_VERSION
+
+
+def test_engine_version_falls_back_when_the_package_is_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def raise_missing(name: str) -> str:
+        raise _validation_cache.PackageNotFoundError(name)
+
+    monkeypatch.setattr(_validation_cache, "_version", raise_missing)
+    assert _validation_cache._engine_version() == "unknown"
+
+
+def test_engine_version_falls_back_on_unexpected_metadata_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def raise_odd(name: str) -> str:
+        raise RuntimeError("metadata backend exploded")
+
+    monkeypatch.setattr(_validation_cache, "_version", raise_odd)
+    assert _validation_cache._engine_version() == "unknown"
+
+
+def test_unreadable_cache_path_starts_empty(tmp_path: Path) -> None:
+    directory = tmp_path / "cache-dir"
+    directory.mkdir()
+    cache = PatternValidationCache(directory)
+    assert len(cache) == 0
+    cache.put("d+", 0, True, "ok")
+    assert cache.get("d+", 0) == (True, "ok")
+
+
+def test_save_failure_is_logged_and_never_raised(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    cache = PatternValidationCache(tmp_path / "cache.json")
+
+    def broken_replace(src: object, dst: object) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(_validation_cache.os, "replace", broken_replace)
+    logger_name = "guard_core.sync.detection_engine._validation_cache"
+    with caplog.at_level("WARNING", logger=logger_name):
+        cache.put("e+", 0, True, "ok")
+    assert any("write failed" in r.message for r in caplog.records)
+    assert cache.get("e+", 0) == (True, "ok")
+
+
+def test_non_object_cache_root_starts_empty(tmp_path: Path) -> None:
+    path = tmp_path / "cache.json"
+    path.write_text("[1, 2, 3]", encoding="utf-8")
+    assert len(PatternValidationCache(path)) == 0
+
+
+def test_non_object_cache_entry_rejects_the_whole_file(tmp_path: Path) -> None:
+    path = tmp_path / "cache.json"
+    bad = {"k": "not-a-dict"}
+    path.write_text(json.dumps(bad), encoding="utf-8")
+    assert len(PatternValidationCache(path)) == 0
+
+
+def test_entry_without_a_boolean_verdict_rejects_the_file(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "cache.json"
+    bad = {"k": {"version": _validation_cache.ENGINE_VERSION, "reason": "x"}}
+    path.write_text(json.dumps(bad), encoding="utf-8")
+    assert len(PatternValidationCache(path)) == 0
+
+
+def test_interrupted_write_cleans_the_tmp_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "cache.json"
+    cache = PatternValidationCache(path)
+
+    def interrupted_replace(src: object, dst: object) -> None:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(_validation_cache.os, "replace", interrupted_replace)
+    with pytest.raises(KeyboardInterrupt):
+        cache.put("f+", 0, True, "ok")
+    leftovers = [p for p in tmp_path.iterdir() if p.name != "cache.json"]
+    assert leftovers == []
+
+
+def test_entry_without_a_string_reason_rejects_the_file(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "cache.json"
+    bad = {"k": {"version": _validation_cache.ENGINE_VERSION, "safe": True}}
+    path.write_text(json.dumps(bad), encoding="utf-8")
+    assert len(PatternValidationCache(path)) == 0
+
+
+def test_interrupted_write_tolerates_tmp_cleanup_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "cache.json"
+    cache = PatternValidationCache(path)
+
+    def interrupted_replace(src: object, dst: object) -> None:
+        raise KeyboardInterrupt
+
+    def failing_unlink(name: object) -> None:
+        raise OSError("already gone")
+
+    monkeypatch.setattr(_validation_cache.os, "replace", interrupted_replace)
+    monkeypatch.setattr(_validation_cache.os, "unlink", failing_unlink)
+    with pytest.raises(KeyboardInterrupt):
+        cache.put("g+", 0, True, "ok")
