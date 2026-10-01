@@ -175,6 +175,9 @@ class Stack:
     def up(self) -> None:
         _compose("up", "--build", "--wait", env=baseline_env())
 
+    def restart_service(self, service: str = APP_SERVICE) -> None:
+        _compose("restart", service, env=baseline_env())
+
     def dump_logs(self) -> None:
         REPORT_DIR.mkdir(parents=True, exist_ok=True)
         (REPORT_DIR / "app.log").write_text(

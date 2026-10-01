@@ -481,14 +481,17 @@ def pattern_validation_cache_persists_cost_verdicts(
         "/_debug/rules",
         json={"suspicious_patterns": ["smoke-cache-pattern-[0-9]{4}"]},
     )
+
+    # Restart the app so its boot-time rule fetch serves the pattern-carrying
+    # rule (the update loop polls on dynamic_rule_interval, far slower than a
+    # scenario). The boot apply validates the pattern through the empirical
+    # cost-verdict path, which must land the verdict in the disk cache keyed
+    # by pattern, flags, and engine version.
+    ctx.stack.restart_service()
     mark = ctx.stack.logs.mark()
 
-    # The agent stub serves the smoke rule with the injected suspicious
-    # pattern; applying it validates the pattern through the empirical
-    # cost-verdict path, which must land in the disk cache keyed by
-    # pattern, flags, and engine version.
     content = wait_until(
-        lambda: _read_container_text(ctx, _VALIDATION_CACHE_PATH), timeout=30.0
+        lambda: _read_container_text(ctx, _VALIDATION_CACHE_PATH), timeout=90.0
     )
     assert content, "the pattern-validation cache file was never written"
     entries = json.loads(content)
