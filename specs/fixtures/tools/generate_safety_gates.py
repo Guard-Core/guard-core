@@ -74,7 +74,10 @@ CLASS_RULES: list[tuple[str, str]] = [
     ("Pattern contains dangerous construct", "dangerous_construct"),
     ("Pattern validation failed:", "compile_failed"),
     ("Pattern contains nested unbounded quantifier", "structural_nested_unbounded"),
-    ("Pattern contains adjacent broad unbounded quantifiers", "structural_adjacent_broad"),
+    (
+        "Pattern contains adjacent broad unbounded quantifiers",
+        "structural_adjacent_broad",
+    ),
     ("terminator cannot be reached by", "structural_unreachable_terminator"),
     ("absorb the mandatory literal", "structural_literal_absorb"),
     ("ambiguous optional tail", "structural_ambiguous_tail"),
@@ -107,7 +110,9 @@ def _worker(job: tuple[str, str]) -> tuple[str, str, bool, str, str]:
     try:
         pc = PatternCompiler()
         if mode == "test_strings":
-            safe, reason = pc.validate_pattern_safety(pattern, test_strings=TEST_STRINGS)
+            safe, reason = pc.validate_pattern_safety(
+                pattern, test_strings=TEST_STRINGS
+            )
         else:
             safe, reason = pc.validate_pattern_safety(pattern, max_content_length=10000)
         return pattern, mode, safe, reason, "ok"
@@ -189,7 +194,9 @@ def main() -> None:
         if cls == "probe_subprocess_timeout":
             # Timing a >2s probe is host-speed dependent; pinning it would
             # make the suite flaky on faster runners. Excluded by design.
-            drops[f"{mode}:nondeterministic"] = drops.get(f"{mode}:nondeterministic", 0) + 1
+            drops[f"{mode}:nondeterministic"] = (
+                drops.get(f"{mode}:nondeterministic", 0) + 1
+            )
             continue
         if cls == "over_budget":
             ext = extrapolated_seconds(reason)
