@@ -1,0 +1,1400 @@
+{
+  "suite": "safety_gates",
+  "kind": "pattern_safety",
+  "spec_version": "4.1.0",
+  "engine_version": "4.2.0",
+  "cases": [
+    {
+      "id": "safety_test_strings_safe_01",
+      "input": {
+        "pattern": "'[^']*'",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": true,
+        "reason_class": "safe"
+      }
+    },
+    {
+      "id": "safety_cost_verdict_safe_01",
+      "input": {
+        "pattern": "'\\\\s*(?:\\\\s+)\\\\s*--",
+        "mode": "cost_verdict",
+        "max_content_length": 10000
+      },
+      "expected": {
+        "safe": true,
+        "reason_class": "safe"
+      }
+    },
+    {
+      "id": "safety_test_strings_safe_02",
+      "input": {
+        "pattern": "'\\\\s*(?:\\\\s+)\\\\s*--",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": true,
+        "reason_class": "safe"
+      }
+    },
+    {
+      "id": "safety_test_strings_safe_03",
+      "input": {
+        "pattern": "'\\s*(?!x)\\s*--",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": true,
+        "reason_class": "safe"
+      }
+    },
+    {
+      "id": "safety_test_strings_safe_04",
+      "input": {
+        "pattern": "'\\s*(?:(\\s)\\1z)+\\s*--",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": true,
+        "reason_class": "safe"
+      }
+    },
+    {
+      "id": "safety_test_strings_safe_05",
+      "input": {
+        "pattern": "'\\s*(?:AND|OR)\\s*--",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": true,
+        "reason_class": "safe"
+      }
+    },
+    {
+      "id": "safety_test_strings_safe_06",
+      "input": {
+        "pattern": "'\\s*(?:\\d*(?!y)(z))+\\s*--",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": true,
+        "reason_class": "safe"
+      }
+    },
+    {
+      "id": "safety_test_strings_safe_07",
+      "input": {
+        "pattern": "'\\s*(?:\\s+)\\s*--",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": true,
+        "reason_class": "safe"
+      }
+    },
+    {
+      "id": "safety_test_strings_structural_nested_unbounded_01",
+      "input": {
+        "pattern": "'\\s*(?:\\s+|,)+\\s*--",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "structural_nested_unbounded"
+      }
+    },
+    {
+      "id": "safety_test_strings_safe_08",
+      "input": {
+        "pattern": "'\\s*(?:\\s+|,)\\s*--",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": true,
+        "reason_class": "safe"
+      }
+    },
+    {
+      "id": "safety_test_strings_safe_09",
+      "input": {
+        "pattern": "'\\s*(?:ab)*\\s*--",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": true,
+        "reason_class": "safe"
+      }
+    },
+    {
+      "id": "safety_test_strings_safe_10",
+      "input": {
+        "pattern": "'\\s*(\\s+)\\s*--",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": true,
+        "reason_class": "safe"
+      }
+    },
+    {
+      "id": "safety_test_strings_safe_11",
+      "input": {
+        "pattern": "'\\s*[\\);]*\\s*--",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": true,
+        "reason_class": "safe"
+      }
+    },
+    {
+      "id": "safety_test_strings_safe_12",
+      "input": {
+        "pattern": "'\\s*[\\);]*\\s*--|'[\\);]*#(?:\\n|\\Z)",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": true,
+        "reason_class": "safe"
+      }
+    },
+    {
+      "id": "safety_test_strings_structural_ambiguous_tail_01",
+      "input": {
+        "pattern": "((\\d{1,3}\\d{1,3}))+$",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "structural_ambiguous_tail"
+      }
+    },
+    {
+      "id": "safety_cost_verdict_dangerous_construct_01",
+      "input": {
+        "pattern": "(.*)+",
+        "mode": "cost_verdict",
+        "max_content_length": 10000
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "dangerous_construct"
+      }
+    },
+    {
+      "id": "safety_test_strings_dangerous_construct_01",
+      "input": {
+        "pattern": "(.*)+",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "dangerous_construct"
+      }
+    },
+    {
+      "id": "safety_cost_verdict_dangerous_construct_02",
+      "input": {
+        "pattern": "(.+)+",
+        "mode": "cost_verdict",
+        "max_content_length": 10000
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "dangerous_construct"
+      }
+    },
+    {
+      "id": "safety_test_strings_dangerous_construct_02",
+      "input": {
+        "pattern": "(.+)+",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "dangerous_construct"
+      }
+    },
+    {
+      "id": "safety_test_strings_safe_13",
+      "input": {
+        "pattern": "(?!x)",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": true,
+        "reason_class": "safe"
+      }
+    },
+    {
+      "id": "safety_test_strings_safe_14",
+      "input": {
+        "pattern": "(?:'[^']*'|\\\"[^\\\"]*\\\")",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": true,
+        "reason_class": "safe"
+      }
+    },
+    {
+      "id": "safety_test_strings_compile_failed_01",
+      "input": {
+        "pattern": "(?:'[^']*'|\\\"[^\\\"]*\\\")\\s*=\\s*\\1",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "compile_failed"
+      }
+    },
+    {
+      "id": "safety_test_strings_structural_nested_unbounded_02",
+      "input": {
+        "pattern": "(?:(?:a|aa))+$",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "structural_nested_unbounded"
+      }
+    },
+    {
+      "id": "safety_test_strings_compile_failed_02",
+      "input": {
+        "pattern": "(?:<[^<>]*(?<!=)(?<!=\\\")(?<!=')[\\s/]+on\\w+\\s*=",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "compile_failed"
+      }
+    },
+    {
+      "id": "safety_test_strings_safe_15",
+      "input": {
+        "pattern": "(?:<[^<>]*)",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": true,
+        "reason_class": "safe"
+      }
+    },
+    {
+      "id": "safety_test_strings_safe_16",
+      "input": {
+        "pattern": "(?:AND|OR)",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": true,
+        "reason_class": "safe"
+      }
+    },
+    {
+      "id": "safety_test_strings_structural_nested_unbounded_03",
+      "input": {
+        "pattern": "(?:X*)*",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "structural_nested_unbounded"
+      }
+    },
+    {
+      "id": "safety_test_strings_structural_nested_unbounded_04",
+      "input": {
+        "pattern": "(?:X*)*$",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "structural_nested_unbounded"
+      }
+    },
+    {
+      "id": "safety_test_strings_structural_nested_unbounded_05",
+      "input": {
+        "pattern": "(?:X+)*",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "structural_nested_unbounded"
+      }
+    },
+    {
+      "id": "safety_test_strings_structural_nested_unbounded_06",
+      "input": {
+        "pattern": "(?:X+)*$",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "structural_nested_unbounded"
+      }
+    },
+    {
+      "id": "safety_test_strings_compile_failed_03",
+      "input": {
+        "pattern": "(?:[\\\"'][^\\\"']*[\\\"']|[^\\s>]+))",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "compile_failed"
+      }
+    },
+    {
+      "id": "safety_test_strings_structural_ambiguous_tail_02",
+      "input": {
+        "pattern": "(?:[\\w.\\-~%]+[/\\\\][\\w.\\-~%]*)*",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "structural_ambiguous_tail"
+      }
+    },
+    {
+      "id": "safety_test_strings_compile_failed_04",
+      "input": {
+        "pattern": "(?:\\1)",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "compile_failed"
+      }
+    },
+    {
+      "id": "safety_cost_verdict_structural_ambiguous_tail_01",
+      "input": {
+        "pattern": "(?:\\w+\\s?)+$",
+        "mode": "cost_verdict",
+        "max_content_length": 10000
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "structural_ambiguous_tail"
+      }
+    },
+    {
+      "id": "safety_test_strings_structural_ambiguous_tail_03",
+      "input": {
+        "pattern": "(?:\\w+\\s?)+$",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "structural_ambiguous_tail"
+      }
+    },
+    {
+      "id": "safety_test_strings_structural_adjacent_broad_01",
+      "input": {
+        "pattern": "(?:a|[^>]*b[^<]*c)",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "structural_adjacent_broad"
+      }
+    },
+    {
+      "id": "safety_test_strings_structural_adjacent_broad_02",
+      "input": {
+        "pattern": "(?:x|(?:y|[^>]*b[^<]*c))",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "structural_adjacent_broad"
+      }
+    },
+    {
+      "id": "safety_test_strings_compile_failed_05",
+      "input": {
+        "pattern": "(?>a)+",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "compile_failed"
+      }
+    },
+    {
+      "id": "safety_cost_verdict_compile_failed_01",
+      "input": {
+        "pattern": "(?P<1bad>x)",
+        "mode": "cost_verdict",
+        "max_content_length": 10000
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "compile_failed"
+      }
+    },
+    {
+      "id": "safety_test_strings_compile_failed_06",
+      "input": {
+        "pattern": "(?P<1bad>x)",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "compile_failed"
+      }
+    },
+    {
+      "id": "safety_test_strings_structural_ambiguous_tail_04",
+      "input": {
+        "pattern": "(?P<a>(?P<b>\\d\\d?))+$",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "structural_ambiguous_tail"
+      }
+    },
+    {
+      "id": "safety_test_strings_structural_nested_unbounded_07",
+      "input": {
+        "pattern": "(?P<n>a*)*",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "structural_nested_unbounded"
+      }
+    },
+    {
+      "id": "safety_test_strings_structural_ambiguous_tail_05",
+      "input": {
+        "pattern": "(?P<n>a+\\s?)*",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "structural_ambiguous_tail"
+      }
+    },
+    {
+      "id": "safety_test_strings_structural_ambiguous_tail_06",
+      "input": {
+        "pattern": "(?P<x>\\d{1,3}\\d{1,3})+$",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "structural_ambiguous_tail"
+      }
+    },
+    {
+      "id": "safety_test_strings_structural_nested_unbounded_08",
+      "input": {
+        "pattern": "(?P<x>a+)*$",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "structural_nested_unbounded"
+      }
+    },
+    {
+      "id": "safety_test_strings_compile_failed_07",
+      "input": {
+        "pattern": "(?P=n)",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "compile_failed"
+      }
+    },
+    {
+      "id": "safety_test_strings_compile_failed_08",
+      "input": {
+        "pattern": "(?P=n)+$",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "compile_failed"
+      }
+    },
+    {
+      "id": "safety_cost_verdict_safe_02",
+      "input": {
+        "pattern": "(?i)union\\s+select",
+        "mode": "cost_verdict",
+        "max_content_length": 10000
+      },
+      "expected": {
+        "safe": true,
+        "reason_class": "safe"
+      }
+    },
+    {
+      "id": "safety_test_strings_structural_ambiguous_tail_07",
+      "input": {
+        "pattern": "([0-9A-F][0-9A-F]?)+$",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "structural_ambiguous_tail"
+      }
+    },
+    {
+      "id": "safety_test_strings_structural_ambiguous_tail_08",
+      "input": {
+        "pattern": "([a-f]{2,4})+",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "structural_ambiguous_tail"
+      }
+    },
+    {
+      "id": "safety_test_strings_dangerous_construct_03",
+      "input": {
+        "pattern": "([a-z]*)+",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "dangerous_construct"
+      }
+    },
+    {
+      "id": "safety_test_strings_dangerous_construct_04",
+      "input": {
+        "pattern": "([a-z]+)+",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "dangerous_construct"
+      }
+    },
+    {
+      "id": "safety_cost_verdict_dangerous_construct_03",
+      "input": {
+        "pattern": "([a-z]+.*)+",
+        "mode": "cost_verdict",
+        "max_content_length": 10000
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "dangerous_construct"
+      }
+    },
+    {
+      "id": "safety_test_strings_dangerous_construct_05",
+      "input": {
+        "pattern": "([a-z]+.*)+",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "dangerous_construct"
+      }
+    },
+    {
+      "id": "safety_cost_verdict_dangerous_construct_04",
+      "input": {
+        "pattern": "(\\d+)+s",
+        "mode": "cost_verdict",
+        "max_content_length": 10000
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "dangerous_construct"
+      }
+    },
+    {
+      "id": "safety_test_strings_dangerous_construct_06",
+      "input": {
+        "pattern": "(\\d+)+s",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "dangerous_construct"
+      }
+    },
+    {
+      "id": "safety_cost_verdict_over_budget_01",
+      "input": {
+        "pattern": "(\\d|\\w)*;",
+        "mode": "cost_verdict",
+        "max_content_length": 10000
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "over_budget"
+      }
+    },
+    {
+      "id": "safety_cost_verdict_safe_03",
+      "input": {
+        "pattern": "(\\w+\\.?)+",
+        "mode": "cost_verdict",
+        "max_content_length": 10000
+      },
+      "expected": {
+        "safe": true,
+        "reason_class": "safe"
+      }
+    },
+    {
+      "id": "safety_test_strings_dangerous_construct_07",
+      "input": {
+        "pattern": "(a*){2,}",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "dangerous_construct"
+      }
+    },
+    {
+      "id": "safety_test_strings_dangerous_construct_08",
+      "input": {
+        "pattern": "(a+)+$",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "dangerous_construct"
+      }
+    },
+    {
+      "id": "safety_cost_verdict_safe_04",
+      "input": {
+        "pattern": "(a|a?)+",
+        "mode": "cost_verdict",
+        "max_content_length": 10000
+      },
+      "expected": {
+        "safe": true,
+        "reason_class": "safe"
+      }
+    },
+    {
+      "id": "safety_cost_verdict_structural_nested_unbounded_01",
+      "input": {
+        "pattern": "(a|aa)+$",
+        "mode": "cost_verdict",
+        "max_content_length": 10000
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "structural_nested_unbounded"
+      }
+    },
+    {
+      "id": "safety_cost_verdict_compile_failed_02",
+      "input": {
+        "pattern": "(unclosed",
+        "mode": "cost_verdict",
+        "max_content_length": 10000
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "compile_failed"
+      }
+    },
+    {
+      "id": "safety_cost_verdict_dangerous_construct_05",
+      "input": {
+        "pattern": "(x+x+)+y",
+        "mode": "cost_verdict",
+        "max_content_length": 10000
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "dangerous_construct"
+      }
+    },
+    {
+      "id": "safety_cost_verdict_compile_failed_03",
+      "input": {
+        "pattern": "*leading",
+        "mode": "cost_verdict",
+        "max_content_length": 10000
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "compile_failed"
+      }
+    },
+    {
+      "id": "safety_test_strings_structural_adjacent_broad_03",
+      "input": {
+        "pattern": ".*x.*",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "structural_adjacent_broad"
+      }
+    },
+    {
+      "id": "safety_cost_verdict_safe_05",
+      "input": {
+        "pattern": "<!\\[CDATA\\[.*?\\]\\]>",
+        "mode": "cost_verdict",
+        "max_content_length": 10000
+      },
+      "expected": {
+        "safe": true,
+        "reason_class": "safe"
+      }
+    },
+    {
+      "id": "safety_test_strings_structural_unreachable_terminator_01",
+      "input": {
+        "pattern": "<!\\[CDATA\\[.*?\\]\\]>",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "structural_unreachable_terminator"
+      }
+    },
+    {
+      "id": "safety_cost_verdict_safe_06",
+      "input": {
+        "pattern": "<script[^>]*>",
+        "mode": "cost_verdict",
+        "max_content_length": 10000
+      },
+      "expected": {
+        "safe": true,
+        "reason_class": "safe"
+      }
+    },
+    {
+      "id": "safety_test_strings_structural_unreachable_terminator_02",
+      "input": {
+        "pattern": "<script[^>]*>",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "structural_unreachable_terminator"
+      }
+    },
+    {
+      "id": "safety_test_strings_structural_adjacent_broad_04",
+      "input": {
+        "pattern": "<script[^>]*>[^<]*<\\/script\\s*>",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "structural_adjacent_broad"
+      }
+    },
+    {
+      "id": "safety_test_strings_structural_adjacent_broad_05",
+      "input": {
+        "pattern": "[\\s\\S]*[\\s\\S]+$",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "structural_adjacent_broad"
+      }
+    },
+    {
+      "id": "safety_test_strings_structural_adjacent_broad_06",
+      "input": {
+        "pattern": "[\\s\\S]*x[^%]+",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "structural_adjacent_broad"
+      }
+    },
+    {
+      "id": "safety_cost_verdict_structural_literal_absorb_01",
+      "input": {
+        "pattern": "[\\w-]*--",
+        "mode": "cost_verdict",
+        "max_content_length": 10000
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "structural_literal_absorb"
+      }
+    },
+    {
+      "id": "safety_test_strings_structural_literal_absorb_01",
+      "input": {
+        "pattern": "[\\w-]*--",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "structural_literal_absorb"
+      }
+    },
+    {
+      "id": "safety_test_strings_structural_literal_absorb_02",
+      "input": {
+        "pattern": "[\\w-]*config[\\w-]*\\.env",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "structural_literal_absorb"
+      }
+    },
+    {
+      "id": "safety_test_strings_structural_adjacent_broad_07",
+      "input": {
+        "pattern": "[^<>]*(?:foo|bar)[^\\\"']*",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "structural_adjacent_broad"
+      }
+    },
+    {
+      "id": "safety_test_strings_structural_adjacent_broad_08",
+      "input": {
+        "pattern": "[^>]*>[^<]*",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "structural_adjacent_broad"
+      }
+    },
+    {
+      "id": "safety_cost_verdict_safe_07",
+      "input": {
+        "pattern": "[a-z]+[0-9]*_?",
+        "mode": "cost_verdict",
+        "max_content_length": 10000
+      },
+      "expected": {
+        "safe": true,
+        "reason_class": "safe"
+      }
+    },
+    {
+      "id": "safety_cost_verdict_structural_literal_absorb_02",
+      "input": {
+        "pattern": "[a-z]+abc",
+        "mode": "cost_verdict",
+        "max_content_length": 10000
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "structural_literal_absorb"
+      }
+    },
+    {
+      "id": "safety_test_strings_structural_literal_absorb_03",
+      "input": {
+        "pattern": "[a-z]+abc",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "structural_literal_absorb"
+      }
+    },
+    {
+      "id": "safety_cost_verdict_compile_failed_04",
+      "input": {
+        "pattern": "[invalid",
+        "mode": "cost_verdict",
+        "max_content_length": 10000
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "compile_failed"
+      }
+    },
+    {
+      "id": "safety_cost_verdict_safe_08",
+      "input": {
+        "pattern": "\\$\\([^)]+\\)",
+        "mode": "cost_verdict",
+        "max_content_length": 10000
+      },
+      "expected": {
+        "safe": true,
+        "reason_class": "safe"
+      }
+    },
+    {
+      "id": "safety_test_strings_structural_unreachable_terminator_03",
+      "input": {
+        "pattern": "\\$\\([^)]+\\)",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "structural_unreachable_terminator"
+      }
+    },
+    {
+      "id": "safety_cost_verdict_safe_09",
+      "input": {
+        "pattern": "\\$\\{[^}]+\\}",
+        "mode": "cost_verdict",
+        "max_content_length": 10000
+      },
+      "expected": {
+        "safe": true,
+        "reason_class": "safe"
+      }
+    },
+    {
+      "id": "safety_test_strings_structural_unreachable_terminator_04",
+      "input": {
+        "pattern": "\\$\\{[^}]+\\}",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "structural_unreachable_terminator"
+      }
+    },
+    {
+      "id": "safety_test_strings_structural_unreachable_terminator_05",
+      "input": {
+        "pattern": "\\(\\s*[^)]+=",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "structural_unreachable_terminator"
+      }
+    },
+    {
+      "id": "safety_test_strings_structural_unreachable_terminator_06",
+      "input": {
+        "pattern": "\\(\\s*[|&]\\s*\\(\\s*[^)]+=[*]",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "structural_unreachable_terminator"
+      }
+    },
+    {
+      "id": "safety_cost_verdict_safe_10",
+      "input": {
+        "pattern": "\\b(?:foo|bar|baz)\\b",
+        "mode": "cost_verdict",
+        "max_content_length": 10000
+      },
+      "expected": {
+        "safe": true,
+        "reason_class": "safe"
+      }
+    },
+    {
+      "id": "safety_cost_verdict_safe_11",
+      "input": {
+        "pattern": "\\d{3}-\\d{4}",
+        "mode": "cost_verdict",
+        "max_content_length": 10000
+      },
+      "expected": {
+        "safe": true,
+        "reason_class": "safe"
+      }
+    },
+    {
+      "id": "safety_cost_verdict_safe_12",
+      "input": {
+        "pattern": "^\\s*$",
+        "mode": "cost_verdict",
+        "max_content_length": 10000
+      },
+      "expected": {
+        "safe": true,
+        "reason_class": "safe"
+      }
+    },
+    {
+      "id": "safety_cost_verdict_structural_unreachable_terminator_01",
+      "input": {
+        "pattern": "foo.*bar",
+        "mode": "cost_verdict",
+        "max_content_length": 10000
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "structural_unreachable_terminator"
+      }
+    },
+    {
+      "id": "safety_test_strings_structural_unreachable_terminator_07",
+      "input": {
+        "pattern": "foo.*bar",
+        "mode": "test_strings",
+        "test_strings": [
+          "abcdefghij",
+          "attack-test-string-123",
+          "x"
+        ]
+      },
+      "expected": {
+        "safe": false,
+        "reason_class": "structural_unreachable_terminator"
+      }
+    },
+    {
+      "id": "safety_cost_verdict_safe_13",
+      "input": {
+        "pattern": "hello world",
+        "mode": "cost_verdict",
+        "max_content_length": 10000
+      },
+      "expected": {
+        "safe": true,
+        "reason_class": "safe"
+      }
+    }
+  ]
+}
