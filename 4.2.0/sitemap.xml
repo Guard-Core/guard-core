@@ -2,158 +2,158 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://rennf93.github.io/guard-core/latest/4.2.0/</loc>
-         <lastmod>2026-09-27</lastmod>
+         <lastmod>2026-10-01</lastmod>
     </url>
     <url>
          <loc>https://rennf93.github.io/guard-core/latest/4.2.0/installation/</loc>
-         <lastmod>2026-09-27</lastmod>
+         <lastmod>2026-10-01</lastmod>
     </url>
     <url>
          <loc>https://rennf93.github.io/guard-core/latest/4.2.0/release-notes/</loc>
-         <lastmod>2026-09-27</lastmod>
+         <lastmod>2026-10-01</lastmod>
     </url>
     <url>
          <loc>https://rennf93.github.io/guard-core/latest/4.2.0/adapters/decorators/</loc>
-         <lastmod>2026-09-27</lastmod>
+         <lastmod>2026-10-01</lastmod>
     </url>
     <url>
          <loc>https://rennf93.github.io/guard-core/latest/4.2.0/adapters/getting-started/</loc>
-         <lastmod>2026-09-27</lastmod>
+         <lastmod>2026-10-01</lastmod>
     </url>
     <url>
          <loc>https://rennf93.github.io/guard-core/latest/4.2.0/adapters/guard-request/</loc>
-         <lastmod>2026-09-27</lastmod>
+         <lastmod>2026-10-01</lastmod>
     </url>
     <url>
          <loc>https://rennf93.github.io/guard-core/latest/4.2.0/adapters/guard-response/</loc>
-         <lastmod>2026-09-27</lastmod>
+         <lastmod>2026-10-01</lastmod>
     </url>
     <url>
          <loc>https://rennf93.github.io/guard-core/latest/4.2.0/adapters/middleware-integration/</loc>
-         <lastmod>2026-09-27</lastmod>
+         <lastmod>2026-10-01</lastmod>
     </url>
     <url>
          <loc>https://rennf93.github.io/guard-core/latest/4.2.0/adapters/testing/</loc>
-         <lastmod>2026-09-27</lastmod>
+         <lastmod>2026-10-01</lastmod>
     </url>
     <url>
          <loc>https://rennf93.github.io/guard-core/latest/4.2.0/api/ban-config/</loc>
-         <lastmod>2026-09-27</lastmod>
+         <lastmod>2026-10-01</lastmod>
     </url>
     <url>
          <loc>https://rennf93.github.io/guard-core/latest/4.2.0/api/behavior-rules/</loc>
-         <lastmod>2026-09-27</lastmod>
+         <lastmod>2026-10-01</lastmod>
     </url>
     <url>
          <loc>https://rennf93.github.io/guard-core/latest/4.2.0/api/cloud-ip-store/</loc>
-         <lastmod>2026-09-27</lastmod>
+         <lastmod>2026-10-01</lastmod>
     </url>
     <url>
          <loc>https://rennf93.github.io/guard-core/latest/4.2.0/api/decorators/</loc>
-         <lastmod>2026-09-27</lastmod>
+         <lastmod>2026-10-01</lastmod>
     </url>
     <url>
          <loc>https://rennf93.github.io/guard-core/latest/4.2.0/api/detection-engine/</loc>
-         <lastmod>2026-09-27</lastmod>
+         <lastmod>2026-10-01</lastmod>
     </url>
     <url>
          <loc>https://rennf93.github.io/guard-core/latest/4.2.0/api/detection-result/</loc>
-         <lastmod>2026-09-27</lastmod>
+         <lastmod>2026-10-01</lastmod>
     </url>
     <url>
          <loc>https://rennf93.github.io/guard-core/latest/4.2.0/api/handlers/</loc>
-         <lastmod>2026-09-27</lastmod>
+         <lastmod>2026-10-01</lastmod>
     </url>
     <url>
          <loc>https://rennf93.github.io/guard-core/latest/4.2.0/api/models/</loc>
-         <lastmod>2026-09-27</lastmod>
+         <lastmod>2026-10-01</lastmod>
     </url>
     <url>
          <loc>https://rennf93.github.io/guard-core/latest/4.2.0/api/protocols/</loc>
-         <lastmod>2026-09-27</lastmod>
+         <lastmod>2026-10-01</lastmod>
     </url>
     <url>
          <loc>https://rennf93.github.io/guard-core/latest/4.2.0/api/utilities/</loc>
-         <lastmod>2026-09-27</lastmod>
+         <lastmod>2026-10-01</lastmod>
     </url>
     <url>
          <loc>https://rennf93.github.io/guard-core/latest/4.2.0/architecture/dependency-injection/</loc>
-         <lastmod>2026-09-27</lastmod>
+         <lastmod>2026-10-01</lastmod>
     </url>
     <url>
          <loc>https://rennf93.github.io/guard-core/latest/4.2.0/architecture/events/</loc>
-         <lastmod>2026-09-27</lastmod>
+         <lastmod>2026-10-01</lastmod>
     </url>
     <url>
          <loc>https://rennf93.github.io/guard-core/latest/4.2.0/architecture/overview/</loc>
-         <lastmod>2026-09-27</lastmod>
+         <lastmod>2026-10-01</lastmod>
     </url>
     <url>
          <loc>https://rennf93.github.io/guard-core/latest/4.2.0/architecture/pipeline/</loc>
-         <lastmod>2026-09-27</lastmod>
+         <lastmod>2026-10-01</lastmod>
     </url>
     <url>
          <loc>https://rennf93.github.io/guard-core/latest/4.2.0/architecture/protocols/</loc>
-         <lastmod>2026-09-27</lastmod>
+         <lastmod>2026-10-01</lastmod>
     </url>
     <url>
          <loc>https://rennf93.github.io/guard-core/latest/4.2.0/architecture/telemetry/</loc>
-         <lastmod>2026-09-27</lastmod>
+         <lastmod>2026-10-01</lastmod>
     </url>
     <url>
          <loc>https://rennf93.github.io/guard-core/latest/4.2.0/configuration/detection-tuning/</loc>
-         <lastmod>2026-09-27</lastmod>
+         <lastmod>2026-10-01</lastmod>
     </url>
     <url>
          <loc>https://rennf93.github.io/guard-core/latest/4.2.0/configuration/logging/</loc>
-         <lastmod>2026-09-27</lastmod>
+         <lastmod>2026-10-01</lastmod>
     </url>
     <url>
          <loc>https://rennf93.github.io/guard-core/latest/4.2.0/configuration/security-config/</loc>
-         <lastmod>2026-09-27</lastmod>
+         <lastmod>2026-10-01</lastmod>
     </url>
     <url>
          <loc>https://rennf93.github.io/guard-core/latest/4.2.0/internals/api-surface-audit/</loc>
-         <lastmod>2026-09-27</lastmod>
+         <lastmod>2026-10-01</lastmod>
     </url>
     <url>
          <loc>https://rennf93.github.io/guard-core/latest/4.2.0/internals/behavioral/</loc>
-         <lastmod>2026-09-27</lastmod>
+         <lastmod>2026-10-01</lastmod>
     </url>
     <url>
          <loc>https://rennf93.github.io/guard-core/latest/4.2.0/internals/check-implementations/</loc>
-         <lastmod>2026-09-27</lastmod>
+         <lastmod>2026-10-01</lastmod>
     </url>
     <url>
          <loc>https://rennf93.github.io/guard-core/latest/4.2.0/internals/checks/</loc>
-         <lastmod>2026-09-27</lastmod>
+         <lastmod>2026-10-01</lastmod>
     </url>
     <url>
          <loc>https://rennf93.github.io/guard-core/latest/4.2.0/internals/cloud-providers/</loc>
-         <lastmod>2026-09-27</lastmod>
+         <lastmod>2026-10-01</lastmod>
     </url>
     <url>
          <loc>https://rennf93.github.io/guard-core/latest/4.2.0/internals/detection-engine/</loc>
-         <lastmod>2026-09-27</lastmod>
+         <lastmod>2026-10-01</lastmod>
     </url>
     <url>
          <loc>https://rennf93.github.io/guard-core/latest/4.2.0/internals/ip-management/</loc>
-         <lastmod>2026-09-27</lastmod>
+         <lastmod>2026-10-01</lastmod>
     </url>
     <url>
          <loc>https://rennf93.github.io/guard-core/latest/4.2.0/internals/rate-limiting/</loc>
-         <lastmod>2026-09-27</lastmod>
+         <lastmod>2026-10-01</lastmod>
     </url>
     <url>
          <loc>https://rennf93.github.io/guard-core/latest/4.2.0/internals/redis/</loc>
-         <lastmod>2026-09-27</lastmod>
+         <lastmod>2026-10-01</lastmod>
     </url>
     <url>
          <loc>https://rennf93.github.io/guard-core/latest/4.2.0/internals/security-headers/</loc>
-         <lastmod>2026-09-27</lastmod>
+         <lastmod>2026-10-01</lastmod>
     </url>
     <url>
          <loc>https://rennf93.github.io/guard-core/latest/4.2.0/migration/v1-to-v2/</loc>
-         <lastmod>2026-09-27</lastmod>
+         <lastmod>2026-10-01</lastmod>
     </url>
 </urlset>
