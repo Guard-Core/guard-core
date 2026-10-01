@@ -304,8 +304,11 @@ per_rule_ignores = { "DEP002" = [
     "vulture",
     "xenon",
 ], "DEP001" = [
+    "events_cases",
+    "events_harness",
     "pipeline_cases",
     "pipeline_harness",
+    "redis_interop_cases",
 ], "DEP003" = [
     "guard-agent",
 ] }
