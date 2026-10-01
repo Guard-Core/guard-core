@@ -5,7 +5,22 @@ All notable changes to this project will be documented in this file.
 
 ___
 
-v4.2.0 (2026-09-27)
+v4.3.0 (2026-10-01)
+-------------------
+
+The safety-corpus release: the pattern-safety chain, the event stream and the Redis interop surface are pinned by the corpus, and boot validation can be cached (v4.3.0)
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+### Added
+
+- **The corpus is now the full safety-and-surface parity suite: 327 cases across 20 suites** (guard-core #132, #134). ``specs/fixtures/cases/`` grows from 219 cases in 17 suites to 327 cases in 20 with three new kinds, every expected value produced by executing the reference engine and kept only when decisive and stable across repeated oracle runs. ``safety_gates.json`` (kind ``pattern_safety``, 94 cases, #132) pins ``PatternCompiler.validate_pattern_safety`` across nine decision classes in both modes: the three dangerous backtracking constructs, compile failures, all five structural detectors (nested unbounded, adjacent broad, unreachable terminator, literal absorb, ambiguous optional tail), pure over-budget extrapolation, and the safe verdict; cases pin ``safe`` plus a stable ``reason_class`` token and never the host-measured numeric reason text, and the probe-timeout class is excluded by design because it is host-speed dependent. ``event_stream.json`` (kind ``events``, 39 cases, #134) pins all 39 event types' full envelopes through a capturing agent handler with the volatile fields (``idempotency_key``, ``timestamp``, response/execution timings) dropped recursively per the index comparison contract, plus one honest xfail (``decoding_error`` guards stdlib decoders that never raise on ``str``). ``redis_interop.json`` (kind ``redis_interop``, 14 cases, #134) pins the byte-level Redis surface of section 08 per key family: exact keys with the sha256 composition, exact static values, zset member/score shapes, canonicalized JSON blobs, and TTL presence plus value. ``specs/fixtures/tools/generate_safety_gates.py`` ships the bounded generator (harvested pool via the fast test-strings mode, curated per-class triggers via both modes, eight workers, a 90 second per-call alarm) alongside the existing pipeline generator; both new generators replay byte-identical.
+- **``detection_pattern_validation_cache_path``: an opt-in disk cache for the pattern-validation cost verdict** (guard-core #135, #136). When set, ``PatternValidationCache`` persists ``validate_pattern_safety``'s empirical cost-verdict outcome (probe synthesis plus timed subprocess probes) keyed by pattern, flags, and engine version, so a process boot reuses prior certifications instead of re-timing every custom pattern; the cheap deterministic layers (dangerous constructs, compile check, structural detectors) always re-run, explicit ``test_strings`` validation bypasses the cache, entries produced by a different engine version are ignored and overwritten, writes are atomic (tempfile plus ``os.replace``), and a corrupt or unreadable cache starts empty with a warning instead of failing the boot. Wired through ``PatternCompiler(validation_cache=...)``, the suspatterns detection state builder and the dynamic-rule application paths. Left unset (the default) every validation stays fully empirical. The motivating incident: on a host with degraded subprocess spawn latency, startup validation of ~100 patterns turned into minutes of killable-subprocess timeouts and wholesale fail-closed rejection.
+
+### Fixed
+
+- **The corpus tool harnesses pass full-workspace mypy** (guard-core #137). The events and redis-interop generators' duck-typed doubles (GuardRequest-shaped pipeline stubs, monkeypatched handler attributes, the aiohttp ``ClientSession`` replacement, lambdas assigned onto manager seams) carry the narrow ignore codes mypy requests, and the hex-escape attack-indicator regex parity was re-verified against the reference's two-character escaped-backslash form.
+- **``specs/`` tooling is ruff-format stable under the pinned hook versions** (guard-core #138): the safety-gates generator's 10 line-normalization diffs are landed so pre-commit's ruff-format hook stops failing every open PR.
+
 -------------------
 
 The parity release: the conformance corpus tracks the engine release (v4.2.0)

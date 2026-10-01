@@ -2,6 +2,7 @@ version_selector: true
 title_switch: true
 versions_file: docs/versions/versions.json
 versions:
+  - 4.3.0
   - 4.2.0
   - 4.1.0
   - 4.0.5
@@ -48,4 +49,4 @@ versions:
   - 0.1.0
   - latest
 aliases:
-  latest: 4.2.0
+  latest: 4.3.0
