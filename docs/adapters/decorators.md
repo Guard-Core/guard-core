@@ -92,7 +92,15 @@ class BaseSecurityDecorator:
         return self._route_configs.get(route_id)
 
     def _get_route_id(self, func: Callable[..., Any]) -> str:
-        return f"{func.__module__}.{func.__qualname__}"
+        route_id = getattr(func, "_guard_route_id", None)
+        if isinstance(route_id, str):
+            return route_id
+        route_id = base_id = f"{func.__module__}.{func.__qualname__}"
+        suffix = 1
+        while route_id in self._route_configs:
+            suffix += 1
+            route_id = f"{base_id}#{suffix}"
+        return route_id
 
     def _ensure_route_config(self, func: Callable[..., Any]) -> RouteConfig:
         route_id = self._get_route_id(func)
@@ -103,6 +111,7 @@ class BaseSecurityDecorator:
             )
             self._route_configs[route_id] = config
             self._route_config_revision.bump()
+        cast(Any, func)._guard_route_id = route_id
         return self._route_configs[route_id]
 
     def _apply_route_config(self, func: Callable[..., Any]) -> DecoratedFunction:
@@ -115,9 +124,9 @@ class BaseSecurityDecorator:
 
 Key points:
 
-- **Route ID** is `"{module}.{qualname}"` of the decorated function. This ensures uniqueness across the application.
-- **`_guard_route_id`** is stamped onto the function object. The routing system uses this attribute to look up the `RouteConfig` at request time.
-- **`_ensure_route_config`** creates a `RouteConfig` on first access and reuses it for stacked decorators on the same function.
+- **Route ID** is `"{module}.{qualname}"` of the decorated function. Functions made by one factory or shared wrapper have the same qualname, so a function whose `"{module}.{qualname}"` already belongs to another function gets the next free `"{module}.{qualname}#2"`, `#3` and so on, and keeps its own `RouteConfig`.
+- **`_guard_route_id`** is stamped onto the function object by the first decorator. The routing system uses this attribute to look up the `RouteConfig` at request time.
+- **`_ensure_route_config`** creates a `RouteConfig` on first access and reuses it for stacked decorators on the same function. A wrapper made with `functools.wraps` copies `_guard_route_id`, so guard decorators applied above it join the config of the function it wraps.
 
 Mixin Classes
 -------------

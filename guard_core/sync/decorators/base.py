@@ -77,7 +77,15 @@ class BaseSecurityDecorator:
         return self._route_configs.get(route_id)
 
     def _get_route_id(self, func: Callable[..., Any]) -> str:
-        return f"{func.__module__}.{func.__qualname__}"
+        route_id = getattr(func, "_guard_route_id", None)
+        if isinstance(route_id, str):
+            return route_id
+        route_id = base_id = f"{func.__module__}.{func.__qualname__}"
+        suffix = 1
+        while route_id in self._route_configs:
+            suffix += 1
+            route_id = f"{base_id}#{suffix}"
+        return route_id
 
     def _ensure_route_config(self, func: Callable[..., Any]) -> RouteConfig:
         route_id = self._get_route_id(func)
@@ -88,6 +96,7 @@ class BaseSecurityDecorator:
             )
             self._route_configs[route_id] = config
             self._route_config_revision.bump()
+        cast(Any, func)._guard_route_id = route_id
         return self._route_configs[route_id]
 
     def _apply_route_config(self, func: Callable[..., Any]) -> DecoratedFunction:
