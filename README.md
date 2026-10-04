@@ -146,8 +146,8 @@ ___
 How Detection Works
 -------------------
 
-1. Request inputs (query, headers, body) are decoded through up to 7 iterations covering URL, HTML entities, base64, hex, and Unicode escapes, then a final SQL-comment strip.
-2. Decoded content is matched against 88 regex patterns across 18 attack categories, with patterns context-filtered to relevant input zones.
+1. Request inputs (query, headers, body) are decoded through up to 16 iterations covering URL (including percent-U escapes and overlong-UTF-8 percent runs), HTML entities, base64, hex, Unicode escapes, and LDAP hex escapes, then a final SQL-comment strip.
+2. Decoded content is matched against 157 regex patterns across 19 attack categories, with patterns context-filtered to relevant input zones.
 3. Matched payloads receive a multi-metric semantic score combining keyword overlap, Shannon entropy, encoding-layer count, and obfuscation indicators.
 4. ReDoS protection rejects any custom pattern whose validation probe runs longer than 50ms, and caps every custom pattern's live match at `detection_compiler_timeout` (default 2.0s, configurable 0.1-10.0s). Built-in patterns match directly with no per-match timeout.
 
