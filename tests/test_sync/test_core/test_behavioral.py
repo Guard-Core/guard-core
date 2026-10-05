@@ -314,6 +314,14 @@ def test_get_endpoint_id_with_route(processor: Mock, mock_request: Mock) -> None
     assert endpoint_id == "test_module.test_function"
 
 
+def test_get_endpoint_id_prefers_guard_route_id(
+    processor: Mock, mock_request: Mock
+) -> None:
+    mock_request.state.guard_route_id = "guard_core.decorators.endpoint#2"
+    endpoint_id = processor.get_endpoint_id(mock_request)
+    assert endpoint_id == "guard_core.decorators.endpoint#2"
+
+
 def test_get_endpoint_id_no_guard_endpoint(processor: BehavioralProcessor) -> None:
     request = Mock()
     request.method = "POST"
@@ -329,6 +337,7 @@ def test_get_endpoint_id_none_state(processor: Mock) -> None:
     request.method = "GET"
     request.url_path = "/test"
     request.state = Mock()
+    request.state.guard_route_id = None
     request.state.guard_endpoint_id = None
 
     endpoint_id = processor.get_endpoint_id(request)

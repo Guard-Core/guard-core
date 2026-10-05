@@ -64,6 +64,11 @@ class BaseSecurityDecorator:
 
         self.config = config
         self._route_configs: dict[str, RouteConfig] = {}
+        # id -> id(func) of the function the id was derived from. A stamped
+        # _guard_route_id is only reused when THIS instance assigned it to
+        # THIS function; otherwise a cross-instance collision would select
+        # another route's config.
+        self._route_id_owner: dict[str, int] = {}
         self._route_config_revision = RouteConfigRevision()
         self.behavior_tracker = BehaviorTracker(config)
         self.agent_handler: Any = None
@@ -78,7 +83,19 @@ class BaseSecurityDecorator:
 
     def _get_route_id(self, func: Callable[..., Any]) -> str:
         route_id = getattr(func, "_guard_route_id", None)
-        if isinstance(route_id, str):
+        owner_chain: list[int] = []
+        current: Any = func
+        while current is not None and id(current) not in owner_chain:
+            owner_chain.append(id(current))
+            current = getattr(current, "__wrapped__", None)
+        if (
+            isinstance(route_id, str)
+            and route_id in self._route_configs
+            and self._route_id_owner.get(route_id) in owner_chain
+        ):
+            # Same instance, same function: stacked decorators intentionally
+            # share this config. An id assigned to a DIFFERENT function (in
+            # this or another instance) must not select its config.
             return route_id
         route_id = base_id = f"{func.__module__}.{func.__qualname__}"
         suffix = 1
@@ -96,6 +113,7 @@ class BaseSecurityDecorator:
             )
             self._route_configs[route_id] = config
             self._route_config_revision.bump()
+        self._route_id_owner.setdefault(route_id, id(func))
         cast(Any, func)._guard_route_id = route_id
         return self._route_configs[route_id]
 

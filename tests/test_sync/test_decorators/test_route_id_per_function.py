@@ -102,3 +102,27 @@ def test_a_functools_wraps_wrapper_joins_the_route_config_it_wraps(
     assert config is not None
     assert config.ip_whitelist == ["10.0.0.1"]
     assert config.rate_limit == 5
+
+
+def test_a_stamped_route_id_is_not_reused_across_decorator_instances(
+    security_config: SecurityConfig,
+) -> None:
+    guard_a = SecurityDecorator(security_config)
+    guard_b = SecurityDecorator(security_config)
+    first = _endpoint_from_factory(guard_a.rate_limit(requests=2, window=60))
+    second = _endpoint_from_factory(guard_b.bypass(["all"]))
+
+    assert first.__qualname__ == second.__qualname__
+
+    # Cross-instance reuse of a stamped id must not select the other
+    # function's config: decorating first with guard_b assigns first its
+    # own config in guard_b instead of joining second's.
+    redecorated = guard_b.require_ip(whitelist=["10.0.0.1"])(first)
+
+    first_config = guard_b.get_route_config(redecorated._guard_route_id)
+    second_config = guard_b.get_route_config(second._guard_route_id)
+    assert first_config is not None
+    assert second_config is not None
+    assert first_config.ip_whitelist == ["10.0.0.1"]
+    assert second_config.bypassed_checks == {"all"}
+    assert not first_config.bypassed_checks

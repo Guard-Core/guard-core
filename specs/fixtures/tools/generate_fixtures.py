@@ -734,6 +734,17 @@ def main() -> None:
             f"({len(second)} suites, index equal modulo generated_at)"
         )
 
+    # The cost suite is chained, never optional: build_index rebuilds the
+    # suites registry from scratch, so a regen without this call would
+    # silently drop the cost_bodies registration and the cost budgets.
+    if only is None:
+        cost_script = Path(__file__).resolve().parent / "generate_cost_cases.py"
+        subprocess.run(
+            [sys.executable, str(cost_script)],
+            check=True,
+            cwd=str(cost_script.parent),
+        )
+
 
 if __name__ == "__main__":
     main()
