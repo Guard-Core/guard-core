@@ -221,6 +221,9 @@ class BehavioralProcessor:
         )
 
     def get_endpoint_id(self, request: SyncGuardRequest) -> str:
+        route_id: str | None = getattr(request.state, "guard_route_id", None)
+        if route_id:
+            return route_id
         endpoint_id: str | None = getattr(request.state, "guard_endpoint_id", None)
         if endpoint_id:
             return endpoint_id

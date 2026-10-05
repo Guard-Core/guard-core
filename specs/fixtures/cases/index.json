@@ -1,261 +1,317 @@
 {
-  "spec_version": "4.1.0",
-  "engine_version": "4.2.0",
-  "engine_commit": "13436664e53e7329d5f2587a01ddb9a0fd95873f",
-  "generated_at": "2026-10-01T02:02:25.923544+00:00",
-  "fixed_ip": "203.0.113.7",
-  "config_knobs": {
-    "detection_compiler_timeout": 2.0,
-    "detection_max_tracked_patterns": 1000,
-    "detection_max_content_length": 10000,
-    "detection_preserve_attack_patterns": true,
-    "detection_max_body_inspect_bytes": 262144,
-    "detection_anomaly_threshold": 3.0,
-    "detection_slow_pattern_threshold": 0.1,
-    "detection_monitor_history_size": 1000,
-    "detection_anomaly_emission_cooldown": 60.0,
-    "detection_min_samples_for_anomaly": 30,
-    "detection_semantic_threshold": 0.7,
-    "detection_threat_score_threshold": 1.0
+ "spec_version": "4.1.0",
+ "engine_version": "4.2.0",
+ "engine_commit": "13436664e53e7329d5f2587a01ddb9a0fd95873f",
+ "generated_at": "2026-10-01T02:02:25.923544+00:00",
+ "fixed_ip": "203.0.113.7",
+ "config_knobs": {
+  "detection_compiler_timeout": 2.0,
+  "detection_max_tracked_patterns": 1000,
+  "detection_max_content_length": 10000,
+  "detection_preserve_attack_patterns": true,
+  "detection_max_body_inspect_bytes": 262144,
+  "detection_anomaly_threshold": 3.0,
+  "detection_slow_pattern_threshold": 0.1,
+  "detection_monitor_history_size": 1000,
+  "detection_anomaly_emission_cooldown": 60.0,
+  "detection_min_samples_for_anomaly": 30,
+  "detection_semantic_threshold": 0.7,
+  "detection_threat_score_threshold": 1.0
+ },
+ "suites": {
+  "xss": {
+   "case_count": 22,
+   "kind": "detect",
+   "consumers": [
+    "python",
+    "go",
+    "php",
+    "ts",
+    "rust"
+   ]
   },
-  "suites": {
-    "xss": {
-      "case_count": 22,
-      "kind": "detect",
-      "consumers": [
-        "python",
-        "go",
-        "php",
-        "ts",
-        "rust"
-      ]
-    },
-    "sqli": {
-      "case_count": 22,
-      "kind": "detect",
-      "consumers": [
-        "python",
-        "go",
-        "php",
-        "ts",
-        "rust"
-      ]
-    },
-    "cmd_injection": {
-      "case_count": 18,
-      "kind": "detect",
-      "consumers": [
-        "python",
-        "go",
-        "php",
-        "ts",
-        "rust"
-      ]
-    },
-    "path_traversal": {
-      "case_count": 10,
-      "kind": "detect",
-      "consumers": [
-        "python",
-        "go",
-        "php",
-        "ts",
-        "rust"
-      ]
-    },
-    "inclusion_sensitive_recon": {
-      "case_count": 18,
-      "kind": "detect",
-      "consumers": [
-        "python",
-        "go",
-        "php",
-        "ts",
-        "rust"
-      ]
-    },
-    "misc_injection": {
-      "case_count": 29,
-      "kind": "detect",
-      "consumers": [
-        "python",
-        "go",
-        "php",
-        "ts",
-        "rust"
-      ]
-    },
-    "encoding": {
-      "case_count": 8,
-      "kind": "detect",
-      "consumers": [
-        "python",
-        "go",
-        "php",
-        "ts",
-        "rust"
-      ]
-    },
-    "semantic": {
-      "case_count": 6,
-      "kind": "detect",
-      "consumers": [
-        "python",
-        "go",
-        "php",
-        "ts",
-        "rust"
-      ]
-    },
-    "benign": {
-      "case_count": 15,
-      "kind": "detect",
-      "consumers": [
-        "python",
-        "go",
-        "php",
-        "ts",
-        "rust"
-      ]
-    },
-    "context_matrix": {
-      "case_count": 9,
-      "kind": "detect",
-      "consumers": [
-        "python",
-        "go",
-        "php",
-        "ts",
-        "rust"
-      ]
-    },
-    "boundaries": {
-      "case_count": 8,
-      "kind": "detect",
-      "consumers": [
-        "python",
-        "go",
-        "php",
-        "ts",
-        "rust"
-      ]
-    },
-    "binary_bodies": {
-      "case_count": 19,
-      "kind": "detect",
-      "consumers": [
-        "python",
-        "go",
-        "php",
-        "ts",
-        "rust"
-      ]
-    },
-    "pipeline_ip_control": {
-      "case_count": 12,
-      "kind": "pipeline",
-      "consumers": [
-        "python",
-        "go",
-        "php",
-        "ts",
-        "rust"
-      ]
-    },
-    "pipeline_rate_limits": {
-      "case_count": 5,
-      "kind": "pipeline",
-      "consumers": [
-        "python",
-        "go",
-        "php",
-        "ts",
-        "rust"
-      ]
-    },
-    "pipeline_detection_response": {
-      "case_count": 8,
-      "kind": "pipeline",
-      "consumers": [
-        "python",
-        "go",
-        "php",
-        "ts",
-        "rust"
-      ]
-    },
-    "pipeline_headers_cors": {
-      "case_count": 7,
-      "kind": "pipeline",
-      "consumers": [
-        "python",
-        "go",
-        "php",
-        "ts",
-        "rust"
-      ]
-    },
-    "pipeline_behavior_rules": {
-      "case_count": 3,
-      "kind": "pipeline",
-      "consumers": [
-        "python",
-        "go",
-        "php",
-        "ts",
-        "rust"
-      ]
-    },
-    "event_stream": {
-      "case_count": 39,
-      "kind": "events",
-      "consumers": [
-        "python",
-        "go",
-        "php",
-        "ts",
-        "rust"
-      ]
-    },
-    "redis_interop": {
-      "case_count": 14,
-      "kind": "redis_interop",
-      "consumers": [
-        "python",
-        "go",
-        "php",
-        "ts",
-        "rust"
-      ]
-    },
-    "safety_gates": {
-      "case_count": 94,
-      "kind": "pattern_safety",
-      "consumers": [
-        "python",
-        "go",
-        "php",
-        "ts",
-        "rust"
-      ]
-    }
+  "sqli": {
+   "case_count": 22,
+   "kind": "detect",
+   "consumers": [
+    "python",
+    "go",
+    "php",
+    "ts",
+    "rust"
+   ]
   },
-  "comparison": {
-    "threat_order": "sorted-canonical, compare order-insensitively",
-    "excluded_fields": [
-      "execution_time"
-    ],
-    "float_precision": 6,
-    "pipeline_records": "compare only the keys present in each expected record; a runner that cannot observe the engine event bus skips the events key instead of failing it",
-    "events_envelopes": "compare only the keys present in each expected envelope (envelopes from different emitter seams carry different key sets); volatile fields are dropped recursively and listed in events_volatile_fields; xfail cases are advisory and carry no expectations",
-    "events_volatile_fields": [
-      "execution_time",
-      "execution_time_ms",
-      "idempotency_key",
-      "response_time",
-      "timestamp"
-    ],
-    "redis_interop": "byte equality: keys, static string values and TTL semantics are exact; zset members the engine generates at write time (uuid4 hex, epoch floats) and ban expiry floats are pinned by SHAPE (regex), not value; zset scores are compared as floats at 6-decimal precision",
-    "pattern_safety_records": "compare expected.safe and expected.reason_class; the numeric parts of over-budget reason strings are host-measured and never compared; a runner whose safety chain cannot produce a reason_class yet maps the case to that class's documented divergence instead of failing silently"
+  "cmd_injection": {
+   "case_count": 18,
+   "kind": "detect",
+   "consumers": [
+    "python",
+    "go",
+    "php",
+    "ts",
+    "rust"
+   ]
+  },
+  "path_traversal": {
+   "case_count": 10,
+   "kind": "detect",
+   "consumers": [
+    "python",
+    "go",
+    "php",
+    "ts",
+    "rust"
+   ]
+  },
+  "inclusion_sensitive_recon": {
+   "case_count": 18,
+   "kind": "detect",
+   "consumers": [
+    "python",
+    "go",
+    "php",
+    "ts",
+    "rust"
+   ]
+  },
+  "misc_injection": {
+   "case_count": 29,
+   "kind": "detect",
+   "consumers": [
+    "python",
+    "go",
+    "php",
+    "ts",
+    "rust"
+   ]
+  },
+  "encoding": {
+   "case_count": 8,
+   "kind": "detect",
+   "consumers": [
+    "python",
+    "go",
+    "php",
+    "ts",
+    "rust"
+   ]
+  },
+  "semantic": {
+   "case_count": 6,
+   "kind": "detect",
+   "consumers": [
+    "python",
+    "go",
+    "php",
+    "ts",
+    "rust"
+   ]
+  },
+  "benign": {
+   "case_count": 15,
+   "kind": "detect",
+   "consumers": [
+    "python",
+    "go",
+    "php",
+    "ts",
+    "rust"
+   ]
+  },
+  "context_matrix": {
+   "case_count": 9,
+   "kind": "detect",
+   "consumers": [
+    "python",
+    "go",
+    "php",
+    "ts",
+    "rust"
+   ]
+  },
+  "boundaries": {
+   "case_count": 8,
+   "kind": "detect",
+   "consumers": [
+    "python",
+    "go",
+    "php",
+    "ts",
+    "rust"
+   ]
+  },
+  "binary_bodies": {
+   "case_count": 19,
+   "kind": "detect",
+   "consumers": [
+    "python",
+    "go",
+    "php",
+    "ts",
+    "rust"
+   ]
+  },
+  "pipeline_ip_control": {
+   "case_count": 12,
+   "kind": "pipeline",
+   "consumers": [
+    "python",
+    "go",
+    "php",
+    "ts",
+    "rust"
+   ]
+  },
+  "pipeline_rate_limits": {
+   "case_count": 5,
+   "kind": "pipeline",
+   "consumers": [
+    "python",
+    "go",
+    "php",
+    "ts",
+    "rust"
+   ]
+  },
+  "pipeline_detection_response": {
+   "case_count": 8,
+   "kind": "pipeline",
+   "consumers": [
+    "python",
+    "go",
+    "php",
+    "ts",
+    "rust"
+   ]
+  },
+  "pipeline_headers_cors": {
+   "case_count": 7,
+   "kind": "pipeline",
+   "consumers": [
+    "python",
+    "go",
+    "php",
+    "ts",
+    "rust"
+   ]
+  },
+  "pipeline_behavior_rules": {
+   "case_count": 3,
+   "kind": "pipeline",
+   "consumers": [
+    "python",
+    "go",
+    "php",
+    "ts",
+    "rust"
+   ]
+  },
+  "event_stream": {
+   "case_count": 39,
+   "kind": "events",
+   "consumers": [
+    "python",
+    "go",
+    "php",
+    "ts",
+    "rust"
+   ]
+  },
+  "redis_interop": {
+   "case_count": 14,
+   "kind": "redis_interop",
+   "consumers": [
+    "python",
+    "go",
+    "php",
+    "ts",
+    "rust"
+   ]
+  },
+  "safety_gates": {
+   "case_count": 94,
+   "kind": "pattern_safety",
+   "consumers": [
+    "python",
+    "go",
+    "php",
+    "ts",
+    "rust"
+   ]
+  },
+  "cost_bodies": {
+   "case_count": 9,
+   "kind": "detect",
+   "consumers": [
+    "python",
+    "go",
+    "php",
+    "ts",
+    "rust"
+   ]
   }
+ },
+ "comparison": {
+  "threat_order": "sorted-canonical, compare order-insensitively",
+  "excluded_fields": [
+   "execution_time"
+  ],
+  "float_precision": 6,
+  "pipeline_records": "compare only the keys present in each expected record; a runner that cannot observe the engine event bus skips the events key instead of failing it",
+  "events_envelopes": "compare only the keys present in each expected envelope (envelopes from different emitter seams carry different key sets); volatile fields are dropped recursively and listed in events_volatile_fields; xfail cases are advisory and carry no expectations",
+  "events_volatile_fields": [
+   "execution_time",
+   "execution_time_ms",
+   "idempotency_key",
+   "response_time",
+   "timestamp"
+  ],
+  "redis_interop": "byte equality: keys, static string values and TTL semantics are exact; zset members the engine generates at write time (uuid4 hex, epoch floats) and ban expiry floats are pinned by SHAPE (regex), not value; zset scores are compared as floats at 6-decimal precision",
+  "pattern_safety_records": "compare expected.safe and expected.reason_class; the numeric parts of over-budget reason strings are host-measured and never compared; a runner whose safety chain cannot produce a reason_class yet maps the case to that class's documented divergence instead of failing silently"
+ },
+ "cost_budgets": {
+  "method": "ceilings are self-relative so they survive host variance: a runner measures its own best-of-3 at the 8 KiB workload (cost_prose_8kib) and every other workload must satisfy best_ms <= K * best8_ms * (size_bytes / 8192) + floor_ms, with K=5 and floor_ms=250. This catches gross superlinearity while tolerating fixed-overhead and host differences. reference_ms below is the configured reference engine's best-of-5 on the generating host, recorded for drift review only, never compared. Verdicts in this suite compare exactly like every other suite.",
+  "k": 5,
+  "floor_ms": 250,
+  "timing_runs": 5,
+  "generated_at": "2026-10-05T10:02:47+00:00",
+  "budgets": {
+   "cost_prose_8kib": {
+    "reference_ms": 25.8,
+    "expected_is_threat": false
+   },
+   "cost_prose_64kib": {
+    "reference_ms": 176.4,
+    "expected_is_threat": false
+   },
+   "cost_prose_256kib": {
+    "reference_ms": 683.0,
+    "expected_is_threat": false
+   },
+   "cost_prose_1mib": {
+    "reference_ms": 1218.2,
+    "expected_is_threat": false
+   },
+   "cost_encoded_64kib": {
+    "reference_ms": 145.9,
+    "expected_is_threat": false
+   },
+   "cost_binnoise_64kib": {
+    "reference_ms": 196.1,
+    "expected_is_threat": false
+   },
+   "cost_threat_8kib": {
+    "reference_ms": 25.5,
+    "expected_is_threat": true
+   },
+   "cost_threat_tail_256kib": {
+    "reference_ms": 676.2,
+    "expected_is_threat": true
+   },
+   "cost_threat_mid_1mib": {
+    "reference_ms": 1205.6,
+    "expected_is_threat": false
+   }
+  }
+ }
 }

@@ -139,6 +139,11 @@ async def main_async() -> int:
         suite_path = CASES_DIR / f"{suite_name}.json"
         suite_data = json.loads(suite_path.read_text())
         kind = suite_meta.get("kind")
+        if kind == "pattern_safety":
+            # Safety-gates cases carry their own schema (validatePatternSafety
+            # chain, reason classes) and are replayed by the dedicated
+            # safety-gates harness, not the detect checker.
+            continue
         if kind == "pipeline":
             checker = check_pipeline_case
         elif kind == "events":
