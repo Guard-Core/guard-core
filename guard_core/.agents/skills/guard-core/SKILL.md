@@ -7,7 +7,7 @@ description: Guard Core best practices and conventions for the framework-agnosti
 
 Official guard-core skill to write code with best practices, keeping up to date with the real installed surface (introspect the package, do not rely on model memory of it).
 
-Current as of guard-core 4.2.0.
+Current as of guard-core 4.3.1.
 
 guard-core is the framework-agnostic security engine powering the Guard ecosystem. Framework adapters (fastapi-guard, flaskapi-guard, djapi-guard, tornadoapi-guard) implement three protocols and get the full pipeline, detection engine, Redis state, and telemetry for free.
 

@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 
 ___
 
+v4.3.1 (2026-10-06)
+
+- fix(decorators): per-function route ids for factory-built endpoints (#141, @HardMax71) - same-qualname siblings no longer share one RouteConfig
+- fix(decorators): route-id ownership validation - a stamped id is honored only within the decorator instance that bound it, or for wrappers of the same route (#142)
+- fix(behavior): get_endpoint_id prefers guard_route_id - behavioral usage/return counters are per-function for factory-built endpoints across all four adapters
+- feat(corpus): cost_bodies suite with self-relative scan-cost ceilings; cost-parity corpus joins the CI-enforced parity contract (verdicts + cost on all five engines)
+- test: lazy-init timing assertion load headroom; run_fixtures pattern_safety dispatch fix
+
 v4.3.0 (2026-10-01)
 -------------------
 
