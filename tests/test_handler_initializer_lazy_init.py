@@ -86,7 +86,11 @@ async def test_lazy_init_returns_fast_with_slow_background() -> None:  # async-o
         await initializer.initialize_redis_handlers()
         elapsed = time.perf_counter() - start
 
-        assert elapsed < 0.5
+        # Load headroom: the contract is "returns without waiting for the
+        # background init", not a wall-clock budget - a saturated CI runner
+        # measured 0.54s against the old 0.5s bound (ledger F5). 5s still
+        # fails loudly if lazy init ever blocks on the background work.
+        assert elapsed < 5.0
         assert initializer._lazy_init_task is not None
         assert initializer._lazy_init_task.done() is False
         initializer._lazy_init_task.cancel()
