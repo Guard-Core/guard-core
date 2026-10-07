@@ -75,27 +75,27 @@ jobs:
       matrix:
         include:
           - name: fastapi-guard
-            repo: rennf93/fastapi-guard
+            repo: Guard-Core/fastapi-guard
             sync_extra: '--extra dev'
             pytest_args: '-v --cov=guard --cov-branch'
             redis_prefix: 'test:fastapi_guard:'
           - name: flaskapi-guard
-            repo: rennf93/flaskapi-guard
+            repo: Guard-Core/flaskapi-guard
             sync_extra: '--extra dev'
             pytest_args: '-v --cov=flaskapi_guard'
             redis_prefix: 'test:flaskapi_guard:'
           - name: djapi-guard
-            repo: rennf93/djapi-guard
+            repo: Guard-Core/djapi-guard
             sync_extra: '--extra dev'
             pytest_args: '-v --cov=djangoapi_guard'
             redis_prefix: 'test:djangoapi_guard:'
           - name: guard-agent
-            repo: rennf93/guard-agent
+            repo: Guard-Core/guard-agent
             sync_extra: '--extra dev'
             pytest_args: '-v --cov=guard_agent'
             redis_prefix: ''
           - name: guard-core-mcp
-            repo: rennf93/guard-core-mcp
+            repo: Guard-Core/guard-core-mcp
             sync_extra: '--extra dev'
             pytest_args: '-v --cov=guard_core_mcp --cov-branch'
             redis_prefix: ''
@@ -167,27 +167,27 @@ jobs:
       matrix:
         include:
           - name: fastapi-guard
-            repo: rennf93/fastapi-guard
+            repo: Guard-Core/fastapi-guard
             sync_extra: '--extra dev'
             pytest_args: '-v --cov=guard --cov-branch'
             redis_prefix: 'test:fastapi_guard:'
           - name: flaskapi-guard
-            repo: rennf93/flaskapi-guard
+            repo: Guard-Core/flaskapi-guard
             sync_extra: '--extra dev'
             pytest_args: '-v --cov=flaskapi_guard'
             redis_prefix: 'test:flaskapi_guard:'
           - name: djapi-guard
-            repo: rennf93/djapi-guard
+            repo: Guard-Core/djapi-guard
             sync_extra: '--extra dev'
             pytest_args: '-v --cov=djangoapi_guard'
             redis_prefix: 'test:djangoapi_guard:'
           - name: guard-agent
-            repo: rennf93/guard-agent
+            repo: Guard-Core/guard-agent
             sync_extra: '--extra dev'
             pytest_args: '-v --cov=guard_agent'
             redis_prefix: ''
           - name: guard-core-mcp
-            repo: rennf93/guard-core-mcp
+            repo: Guard-Core/guard-core-mcp
             sync_extra: '--extra dev'
             pytest_args: '-v --cov=guard_core_mcp --cov-branch'
             redis_prefix: ''
