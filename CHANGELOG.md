@@ -6,12 +6,24 @@ All notable changes to this project will be documented in this file.
 ___
 
 v4.3.1 (2026-10-06)
+-------------------
 
-- fix(decorators): per-function route ids for factory-built endpoints (#141, @HardMax71) - same-qualname siblings no longer share one RouteConfig
-- fix(decorators): route-id ownership validation - a stamped id is honored only within the decorator instance that bound it, or for wrappers of the same route (#142)
-- fix(behavior): get_endpoint_id prefers guard_route_id - behavioral usage/return counters are per-function for factory-built endpoints across all four adapters
-- feat(corpus): cost_bodies suite with self-relative scan-cost ceilings; cost-parity corpus joins the CI-enforced parity contract (verdicts + cost on all five engines)
-- test: lazy-init timing assertion load headroom; run_fixtures pattern_safety dispatch fix
+The route-id ownership release: factory-built endpoints get their own route ids and behavioral counters, and the cost-parity corpus joins the CI-enforced parity contract (v4.3.1)
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+### Fixed
+
+- **Endpoints built by one decorator factory share one RouteConfig, last one wins** (guard-core #140, #141, @HardMax71). The route id was ``module.qualname``, so endpoints built by one decorator factory shared a single ``RouteConfig`` and the last decorator call silently won. ``_get_route_id`` now reuses a function's ``_guard_route_id`` when present, otherwise dedups with ``#2``, ``#3`` and so on, and ``_ensure_route_config`` stamps the id on the function right away so the next decorator in a stack finds it. ``functools.wraps`` wrappers join the config of the function they wrap.
+- **Route-id ownership validation** (guard-core #142). A stamped ``_guard_route_id`` is honored only within the decorator instance that bound it, or for wrappers of the same route via the ``__wrapped__`` chain - a colliding id stamped by a different decorator instance on a same-qualname sibling can no longer select that sibling's config.
+- **Behavioral counters are per-function for factory-built endpoints** (guard-core #142). ``BehavioralProcessor.get_endpoint_id`` now prefers ``state.guard_route_id`` over the legacy ``module.qualname`` ``guard_endpoint_id``, so the usage/return counters and pattern state stop mixing across same-qualname siblings on all four adapters (the adapters already stamp ``guard_route_id``; no adapter changes needed). Decorated endpoints' hashed Redis counter keys change shape, so pre-existing counters age out through their TTLs.
+
+### Added
+
+- **The cost-parity corpus: the 9-case ``cost_bodies`` suite with self-relative scan-cost ceilings** - large-body verdict parity across the truncation cap plus self-relative scan-cost ceilings, CI-enforced on every engine. The family's verdict-and-cost parity contract is now machine-checked on every push (guard-core #142, and the engine/lane PRs in the four sibling repos).
+
+### Test
+
+- The lazy-init timing assertion carries load headroom (a saturated runner measured 0.538s against the old 0.5s bound; rerun green), and ``run_fixtures.py`` no longer drops ``pattern_safety`` suites into the detect checker.
 
 v4.3.0 (2026-10-01)
 -------------------

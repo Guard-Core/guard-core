@@ -13,8 +13,8 @@ ___
 v4.3.1 (2026-10-06)
 -------------------
 
-Route-id ownership, per-route behavioral counters, cost-parity corpus
----------------------------------------------------------------------
+The route-id ownership release: factory-built endpoints get their own route ids and behavioral counters, and the cost-parity corpus joins the CI-enforced parity contract (v4.3.1)
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 - **Route ids for factory-built endpoints** (#141, @HardMax71): endpoints built by one decorator factory no longer share a single RouteConfig - every function gets its own id, with `#N` dedup for same-qualname siblings.
 - **Route-id ownership validation** (#142): a stamped `_guard_route_id` is honored only within the decorator instance that bound it, or for wrappers of the same route via the `__wrapped__` chain - cross-instance collisions can no longer select another route's config.
