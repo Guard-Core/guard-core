@@ -1,0 +1,3967 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Complete reference for every SecurityConfig field in guard-core, grouped by category with types, defaults, and descriptions">
+      
+      
+      
+        <link rel="canonical" href="https://rennf93.github.io/guard-core/latest/4.3.1/configuration/security-config/">
+      
+      
+        <link rel="prev" href="../../internals/api-surface-audit/">
+      
+      
+        <link rel="next" href="../detection-tuning/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/guard_core_favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>SecurityConfig Reference - Guard Core</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../css/custom.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+  
+
+
+  <script
+    src="https://analytics.guard-core.com/api/script.js"
+    data-site-id="852006e69f52"
+    defer
+></script>
+  
+    <script>"undefined"!=typeof __md_analytics&&__md_analytics()</script>
+  
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="dark-blue" data-md-color-accent="blue">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#securityconfig-reference" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+        <aside class="md-banner">
+          <div class="md-banner__inner md-grid md-typeset">
+            
+            
+  <div class="gc-announce">
+    Running Guard in production?
+    <a href="https://guard-core.com/?utm_source=docs&amp;utm_medium=guard-core&amp;utm_campaign=docs_announce">The hosted platform</a>
+    adds live dashboards, alerting and dynamic rules you can push without a redeploy.
+    <a href="https://playground.guard-core.com/?utm_source=docs&amp;utm_medium=guard-core&amp;utm_campaign=docs_announce_playground">Try the playground</a>
+    first, no account needed.
+  </div>
+
+          </div>
+          
+        </aside>
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Guard Core" class="md-header__button md-logo" aria-label="Guard Core" data-md-component="logo">
+      
+  <img src="../../assets/guard_core_logo.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Guard Core
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              SecurityConfig Reference
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="dark-blue" data-md-color-accent="blue"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="dark-blue" data-md-color-accent="blue"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/rennf93/guard-core" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    rennf93/guard-core
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../installation/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Installation
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../architecture/overview/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Architecture
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../adapters/getting-started/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Building Adapters
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../internals/checks/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Engine Internals
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="./" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Configuration
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../api/protocols/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  API Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../migration/v1-to-v2/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Migration
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../release-notes/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Release Notes
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Guard Core" class="md-nav__button md-logo" aria-label="Guard Core" data-md-component="logo">
+      
+  <img src="../../assets/guard_core_logo.svg" alt="logo">
+
+    </a>
+    Guard Core
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/rennf93/guard-core" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    rennf93/guard-core
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/protocols/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Protocol Layer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/events/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Event System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/telemetry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Telemetry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/dependency-injection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dependency Injection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building Adapters
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Building Adapters
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adapters/getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adapters/guard-request/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Implementing GuardRequest
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adapters/guard-response/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Implementing GuardResponse
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adapters/middleware-integration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Middleware Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adapters/decorators/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decorator System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adapters/testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing Your Adapter
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Engine Internals
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Engine Internals
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../internals/checks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Checks Framework
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../internals/check-implementations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Check Implementations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../internals/ip-management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IP Management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../internals/rate-limiting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rate Limiting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../internals/detection-engine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Detection Engine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../internals/cloud-providers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cloud Providers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../internals/security-headers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security Headers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../internals/behavioral/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Behavioral Analysis
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../internals/redis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Redis Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../internals/api-surface-audit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Surface Audit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Configuration
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SecurityConfig Reference
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SecurityConfig Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#core-settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Core Settings
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#proxy-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Proxy Configuration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ip-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IP Management
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#per-category-bans" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Per-Category Bans
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#global-behavior-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Global Behavior Rules
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#detection-exclusions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Detection Exclusions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ip-lifecycle-controls" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IP Lifecycle Controls
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="IP Lifecycle Controls">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#provider-status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Provider Status
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#geolocation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Geolocation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rate-limiting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rate Limiting
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cloud-provider-blocking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cloud Provider Blocking
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#security-headers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Security Headers
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CORS
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#redis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Redis
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#detection-engine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Detection Engine
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#logging" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Logging
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#agent-telemetry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Agent / Telemetry
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dynamic-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dynamic Rules
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#validators" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Validators
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../detection-tuning/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Detection Tuning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../logging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Logging
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/protocols/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Protocols
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/models/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Models
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/handlers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Handlers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/detection-engine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Detection Engine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/detection-result/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DetectionResult
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/ban-config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ban Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/behavior-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Behavior Rules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/cloud-ip-store/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cloud IP Store
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/decorators/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decorators
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/utilities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Utilities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migration
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Migration
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../migration/v1-to-v2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    v1.x to v2.0
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../release-notes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Release Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#core-settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Core Settings
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#proxy-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Proxy Configuration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ip-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IP Management
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#per-category-bans" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Per-Category Bans
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#global-behavior-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Global Behavior Rules
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#detection-exclusions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Detection Exclusions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ip-lifecycle-controls" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IP Lifecycle Controls
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="IP Lifecycle Controls">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#provider-status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Provider Status
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#geolocation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Geolocation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rate-limiting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rate Limiting
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cloud-provider-blocking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cloud Provider Blocking
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#security-headers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Security Headers
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CORS
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#redis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Redis
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#detection-engine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Detection Engine
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#logging" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Logging
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#agent-telemetry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Agent / Telemetry
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dynamic-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dynamic Rules
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#validators" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Validators
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="securityconfig-reference">SecurityConfig Reference<a class="headerlink" href="#securityconfig-reference" title="Permanent link">&para;</a></h1>
+<p><code>SecurityConfig</code> is a Pydantic <code>BaseModel</code> that controls all guard-core behavior. Adapter developers should expose relevant fields to their users while keeping internal fields (agent, dynamic rules) as implementation details.</p>
+<h2 id="core-settings">Core Settings<a class="headerlink" href="#core-settings" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>passive_mode</code></td>
+<td><code>bool</code></td>
+<td><code>False</code></td>
+<td>Log-only mode. Logs and emits events but never blocks.</td>
+</tr>
+<tr>
+<td><code>fail_secure</code></td>
+<td><code>bool</code></td>
+<td><code>True</code></td>
+<td>Block the request with <code>500</code> when any security check raises an unexpected exception. <code>False</code> logs and falls through (fail-open); opt-in only for staging diagnostics.</td>
+</tr>
+<tr>
+<td><code>exclude_paths</code></td>
+<td><code>list[str]</code></td>
+<td>See below</td>
+<td>Paths that skip detection and behavioral analysis; ban enforcement and rate limiting still apply. See <a href="../../api/ban-config/#exclude_paths-enforces-bans-and-rate-limits-not-evidence-gathering">Ban Configuration</a>.</td>
+</tr>
+<tr>
+<td><code>custom_error_responses</code></td>
+<td><code>dict[int, str]</code></td>
+<td><code>{}</code></td>
+<td>Override error messages for specific HTTP status codes.</td>
+</tr>
+<tr>
+<td><code>enforce_https</code></td>
+<td><code>bool</code></td>
+<td><code>False</code></td>
+<td>Redirect HTTP requests to HTTPS globally.</td>
+</tr>
+<tr>
+<td><code>custom_request_check</code></td>
+<td><code>Callable \| None</code></td>
+<td><code>None</code></td>
+<td>Global async function for custom request validation.</td>
+</tr>
+<tr>
+<td><code>auth_verifier</code></td>
+<td><code>Any</code></td>
+<td><code>None</code></td>
+<td>Global default verifier for <code>require_auth</code>/<code>api_key_auth</code> routes with no per-route <code>verifier=</code>: <code>verifier(request, credential) -&gt; Principal \| None</code>. Sync or async in async deployments; sync-only under WSGI.</td>
+</tr>
+<tr>
+<td><code>custom_response_modifier</code></td>
+<td><code>Callable \| None</code></td>
+<td><code>None</code></td>
+<td>Global async function to modify responses.</td>
+</tr>
+<tr>
+<td><code>route_resolution_strict</code></td>
+<td><code>bool</code></td>
+<td><code>False</code></td>
+<td>Block with <code>500</code> when the adapter reports it could not resolve the route, instead of running the pipeline with no per-route config. Also turns requests to paths the app does not serve into <code>500</code>s rather than <code>404</code>s. See <a href="../../adapters/decorators/#reporting-a-failed-match">Reporting a Failed Match</a>.</td>
+</tr>
+<tr>
+<td><code>on_error</code></td>
+<td><code>Callable[[str, BaseException, dict], None] \| None</code></td>
+<td><code>None</code></td>
+<td>Best-effort callback invoked when a middleware/agent step fails, receiving <code>(stage, exception, context)</code>. <code>stage</code> is one of <code>agent_init</code>, <code>geoip</code>, <code>transport_send</code>, <code>encryption</code>. Also forwarded to <code>AgentConfig.on_error</code> when the agent is enabled; see <a href="#agent--telemetry">Agent / Telemetry</a>.</td>
+</tr>
+<tr>
+<td><code>on_block</code></td>
+<td><code>Callable[[GuardRequest, dict[str, Any]], None] \| None</code></td>
+<td><code>None</code></td>
+<td>Fired exactly once per block decision with <code>(request, payload)</code>; in passive mode fires at flag time with <code>status_code=None</code>. Payload keys: <code>check_name</code>, <code>reason</code>, <code>trigger_info</code>, <code>passive_mode</code>, <code>client_ip</code>, <code>path</code>, <code>method</code>, <code>status_code</code>. Not fired for <code>custom_request</code>/<code>custom_validators</code> (application-authored), the HTTPS redirect, or a Redis-unavailable response (use <code>on_error</code>). Sync or async under ASGI; sync-only under WSGI (async raises <code>TypeError</code>). A raising hook is logged, never propagated.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Default <code>exclude_paths</code></strong>: <code>["/docs", "/redoc", "/openapi.json", "/openapi.yaml", "/favicon.ico", "/static"]</code></p>
+<div class="admonition tip">
+<p class="admonition-title">Adapter Exposure</p>
+<p>All core settings should be exposed to end users. <code>passive_mode</code> is particularly useful for deployment rollouts.</p>
+</div>
+<hr />
+<h2 id="proxy-configuration">Proxy Configuration<a class="headerlink" href="#proxy-configuration" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>trusted_proxies</code></td>
+<td><code>tuple[str, ...]</code></td>
+<td><code>()</code></td>
+<td>Trusted proxy IPs or CIDR ranges for X-Forwarded-For.</td>
+</tr>
+<tr>
+<td><code>trusted_proxy_depth</code></td>
+<td><code>int</code></td>
+<td><code>1</code></td>
+<td>Number of proxies in the X-Forwarded-For chain.</td>
+</tr>
+<tr>
+<td><code>trust_x_forwarded_proto</code></td>
+<td><code>bool</code></td>
+<td><code>False</code></td>
+<td>Trust X-Forwarded-Proto header for HTTPS detection.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Validators</strong>:</p>
+<ul>
+<li><code>trusted_proxies</code>: Each entry is validated as a valid IP address or CIDR range, or the literal string <code>"unix"</code>, which marks a peer-less connection (no <code>request.client_host</code>, e.g. a Unix domain socket) as a trusted hop so <code>X-Forwarded-For</code> still resolves the real client. <code>whitelist</code> and <code>blacklist</code> do not accept <code>"unix"</code>.</li>
+<li><code>trusted_proxies</code>: if any entry is a <code>/0</code> network (<code>0.0.0.0/0</code> or <code>::/0</code>), construction logs a <code>WARNING</code> naming the risk (every peer becomes trusted to set <code>X-Forwarded-For</code>); the literal <code>"unix"</code> token is exempt from this check.</li>
+<li><code>trusted_proxy_depth</code>: Must be &gt;= 1.</li>
+</ul>
+<p><code>trusted_proxy_depth</code> is the number of hops you vouch for, not a maximum: the connecting peer must itself be listed in <code>trusted_proxies</code>. A chain shorter than the configured depth, or a depth-selected entry that is itself a trusted proxy, now logs a one-time <code>WARNING</code>. A declared depth that over-counts the real hops -- an entry to the right of the depth-selected one is not itself a listed trusted proxy -- also logs a one-time <code>WARNING</code> and, unlike the first two, corrects the resolved identity: it walks the chain right to left and returns the first entry that is not a listed trusted proxy, instead of the plain (and, in that case, client-rotatable) depth-indexed entry. See <a href="../../internals/ip-management/#unsatisfiable-and-over-counted-depth">Unsatisfiable and Over-Counted Depth</a>.</p>
+<div class="admonition warning">
+<p class="admonition-title">Your app server must not pre-resolve the client itself</p>
+<p>Leaving <code>trusted_proxies</code> unset only means "<code>X-Forwarded-For</code> is never trusted" if your ASGI/WSGI server isn't already applying that header before guard-core runs. uvicorn's default <code>proxy_headers=True</code> (and equivalent settings in Gunicorn/Hypercorn) does exactly that. See <a href="../../internals/ip-management/#deployment-prerequisite-disable-the-app-servers-own-forwarded-header-handling">Deployment Prerequisite</a> for the fix.</p>
+</div>
+<hr />
+<h2 id="ip-management">IP Management<a class="headerlink" href="#ip-management" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>whitelist</code></td>
+<td><code>tuple[str, ...] \| None</code></td>
+<td><code>None</code></td>
+<td>Allowed IPs/CIDRs. <code>None</code> disables (allow all).</td>
+</tr>
+<tr>
+<td><code>blacklist</code></td>
+<td><code>tuple[str, ...]</code></td>
+<td><code>()</code></td>
+<td>Blocked IPs/CIDRs.</td>
+</tr>
+<tr>
+<td><code>exempt_ips</code></td>
+<td><code>tuple[str, ...]</code></td>
+<td><code>()</code></td>
+<td>IPs/CIDRs that skip rate limiting, the user-agent check and per-route <code>@block_clouds</code>, as a whitelist match does. Not restrictive: other IPs are checked as usual. The blacklist, dynamic bans, route IP rules, penetration detection and the global <code>block_cloud_providers</code> (enforced by the IP check, as for a whitelist match) still apply.</td>
+</tr>
+<tr>
+<td><code>whitelist_countries</code></td>
+<td><code>frozenset[str]</code></td>
+<td><code>frozenset()</code></td>
+<td>Allowed countries. Non-empty = only listed pass (unknown blocked). Overrides <code>blocked_countries</code>.</td>
+</tr>
+<tr>
+<td><code>blocked_countries</code></td>
+<td><code>frozenset[str]</code></td>
+<td><code>frozenset()</code></td>
+<td>Country codes always blocked.</td>
+</tr>
+<tr>
+<td><code>blocked_user_agents</code></td>
+<td><code>list[str]</code></td>
+<td><code>[]</code></td>
+<td>Regex patterns for blocked user agents.</td>
+</tr>
+<tr>
+<td><code>enable_ip_banning</code></td>
+<td><code>bool</code></td>
+<td><code>True</code></td>
+<td>Enable automatic IP banning.</td>
+</tr>
+<tr>
+<td><code>auto_ban_threshold</code></td>
+<td><code>int</code></td>
+<td><code>10</code></td>
+<td>Suspicious requests before auto-ban (<code>&gt;= 1</code>).</td>
+</tr>
+<tr>
+<td><code>auto_ban_duration</code></td>
+<td><code>int</code></td>
+<td><code>3600</code></td>
+<td>Ban duration in seconds (<code>&gt;= 1</code>).</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Validators</strong>:</p>
+<ul>
+<li><code>whitelist</code> and <code>blacklist</code>: Each entry validated as a valid IP or CIDR range via <code>ipaddress.ip_address()</code> / <code>ip_network()</code>.</li>
+<li><code>whitelist</code>: if any entry is a <code>/0</code> network (<code>0.0.0.0/0</code> or <code>::/0</code>), construction logs a <code>WARNING</code> naming the risk (every address becomes whitelisted, so <code>blacklist</code>, <code>blocked_countries</code> and IP bans cannot block anyone). Precedence is unchanged: a <code>/0</code> whitelist still allows every address, this is a signal only.</li>
+</ul>
+<div class="admonition warning">
+<p class="admonition-title">Whitelist Semantics</p>
+<p><code>whitelist=None</code> means "no whitelist" (all IPs pass). <code>whitelist=[]</code> means "empty whitelist" (no IPs pass). Adapter developers should document this distinction.</p>
+</div>
+<hr />
+<h2 id="per-category-bans">Per-Category Bans<a class="headerlink" href="#per-category-bans" title="Permanent link">&para;</a></h2>
+<p><code>threat_ban_config</code> lets each detection category carry its own threshold and duration. The pipeline tracks per-category counts in <code>suspicious_request_counts</code>, then walks the matched categories of the current detection. The first category whose own count reaches its <code>threshold</code> triggers a category-tagged ban; if no per-category entry matches, the flat <code>auto_ban_threshold</code> / <code>auto_ban_duration</code> fallback fires off the <em>total</em> count instead.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>threat_ban_config</code></td>
+<td><code>MappingProxyType[str, ThreatBanConfig]</code></td>
+<td><code>mappingproxy({})</code></td>
+<td>Per-category ban policy. Validator rejects unknown keys.</td>
+</tr>
+</tbody>
+</table>
+<p>When to use:</p>
+<ul>
+<li>You want SQL injection detections to be a single-strike ban for a week, but XSS detections to be a 3-strike ban for an hour.</li>
+<li>You want to keep the existing flat threshold for any category you do not name.</li>
+<li>You want the audit log reasons to disambiguate which category triggered the ban (<code>"penetration_attempt:sqli"</code> vs the flat <code>"penetration_attempt"</code>).</li>
+</ul>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">guard_core.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">SecurityConfig</span><span class="p">,</span> <span class="n">ThreatBanConfig</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">config</span> <span class="o">=</span> <span class="n">SecurityConfig</span><span class="p">(</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">auto_ban_threshold</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">auto_ban_duration</span><span class="o">=</span><span class="mi">3600</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">threat_ban_config</span><span class="o">=</span><span class="p">{</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>        <span class="s2">"sqli"</span><span class="p">:</span> <span class="n">ThreatBanConfig</span><span class="p">(</span><span class="n">threshold</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">duration</span><span class="o">=</span><span class="mi">604800</span><span class="p">),</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>        <span class="s2">"xss"</span><span class="p">:</span> <span class="n">ThreatBanConfig</span><span class="p">(</span><span class="n">threshold</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">duration</span><span class="o">=</span><span class="mi">86400</span><span class="p">),</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="p">},</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="p">)</span>
+</span></code></pre></div>
+<p>See <a href="../../api/ban-config/">Ban Configuration</a> for the <code>ThreatBanConfig</code> model and the full fall-through rule.</p>
+<hr />
+<h2 id="global-behavior-rules">Global Behavior Rules<a class="headerlink" href="#global-behavior-rules" title="Permanent link">&para;</a></h2>
+<p><code>global_behavior_rules</code> applies behavior rules to every route without requiring decorators. The merged rules are run alongside any decorator-specified rules. The most common use is service-wide 404-noise correlation, but the same shape supports <code>usage</code>, <code>frequency</code>, and <code>return_pattern</code> rules.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>global_behavior_rules</code></td>
+<td><code>tuple[BehaviorRuleConfig, ...]</code></td>
+<td><code>()</code></td>
+<td>Behavior rules merged into every route. Immutable: reassign the whole field to change it, <code>.append()</code> raises <code>AttributeError</code>.</td>
+</tr>
+<tr>
+<td><code>behavior_scan_response_body</code></td>
+<td><code>bool</code></td>
+<td><code>False</code></td>
+<td>Read response bodies to evaluate <code>return_pattern</code> rules whose pattern is not <code>status:</code> (<code>json:</code>, <code>regex:</code>, or a bare substring). Off by default: no response body is ever read for pattern matching, and constructing a <code>return_pattern</code> rule with a non-<code>status:</code> pattern while this is <code>False</code> raises <code>ValueError</code> instead of silently accepting a rule that can never match. <code>status:</code> patterns match on <code>status_code</code> alone and are unaffected.</td>
+</tr>
+<tr>
+<td><code>behavior_max_response_body_inspect_bytes</code></td>
+<td><code>int</code></td>
+<td><code>262144</code></td>
+<td>Maximum bytes read from the start of a response body and held for <code>return_pattern</code> inspection when <code>behavior_scan_response_body</code> is <code>True</code>. Bounds what guard-core retains, not what the application produces; a streaming response stays streaming to the client. See <a href="../../api/protocols/#boundedresponsebodyreader">Protocols - BoundedResponseBodyReader</a>.</td>
+</tr>
+<tr>
+<td><code>body_read_timeout</code></td>
+<td><code>float</code></td>
+<td><code>3.0</code></td>
+<td>Seconds to wait for an adapter's <code>read_body_prefix</code>/<code>body</code> call before giving up. Bounds the request-body detection read and the response-body behaviour-rule read against a stalled or misbehaving adapter/stream; on timeout the body is treated as unavailable, the same fail-closed outcome already used when the adapter raises. The async <code>guard_core</code> tree bounds the wait via <code>asyncio.wait_for</code>. The sync tree (<code>guard_core.sync</code>) cannot cancel a blocking call from the outside, so each read attempt runs on its own daemon thread and this value bounds how long the caller joins that thread instead; see <code>sync_body_read_max_concurrent</code> for the concurrent-thread budget.</td>
+</tr>
+<tr>
+<td><code>sync_body_read_max_concurrent</code></td>
+<td><code>int</code></td>
+<td><code>64</code></td>
+<td>Maximum daemon threads the sync (<code>guard_core.sync</code>) tree may have blocked at once inside an adapter's <code>read_body_prefix</code>/<code>body</code> call. Once that many threads are already blocked on a stalled read, further attempts queue for the same <code>body_read_timeout</code> budget and then give up, logging the exhaustion, instead of spawning without limit.</td>
+</tr>
+</tbody>
+</table>
+<p>When to use:</p>
+<ul>
+<li>You want a global "ban after 20 404s in 5 minutes" rule that does not require touching every route.</li>
+<li>You want detection-correlated thresholds, <code>correlate_with_detection=True</code> halves the threshold (floor 1) when the IP has any positive <code>suspicious_request_counts</code> entry, so probing that already triggered a regex hit gets banned faster.</li>
+<li>You want a service-wide frequency or usage cap for any caller, regardless of which route they hit.</li>
+</ul>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">guard_core.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">BehaviorRuleConfig</span><span class="p">,</span> <span class="n">SecurityConfig</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">config</span> <span class="o">=</span> <span class="n">SecurityConfig</span><span class="p">(</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="n">global_behavior_rules</span><span class="o">=</span><span class="p">[</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>        <span class="n">BehaviorRuleConfig</span><span class="p">(</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>            <span class="n">rule_type</span><span class="o">=</span><span class="s2">"return_pattern"</span><span class="p">,</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>            <span class="n">threshold</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>            <span class="n">window</span><span class="o">=</span><span class="mi">300</span><span class="p">,</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>            <span class="n">pattern</span><span class="o">=</span><span class="s2">"status:404"</span><span class="p">,</span>
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>            <span class="n">action</span><span class="o">=</span><span class="s2">"ban"</span><span class="p">,</span>
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>            <span class="n">ban_duration</span><span class="o">=</span><span class="mi">3600</span><span class="p">,</span>
+</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>            <span class="n">correlate_with_detection</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>        <span class="p">),</span>
+</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>    <span class="p">],</span>
+</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="p">)</span>
+</span></code></pre></div>
+<p>A <code>json:</code>, <code>regex:</code>, or bare-substring pattern additionally requires <code>behavior_scan_response_body=True</code> and an adapter that implements <code>BoundedResponseBodyReader</code>; without both, construction rejects the rule outright rather than accepting one that can never match:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">config</span> <span class="o">=</span> <span class="n">SecurityConfig</span><span class="p">(</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="n">behavior_scan_response_body</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="n">behavior_max_response_body_inspect_bytes</span><span class="o">=</span><span class="mi">65536</span><span class="p">,</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="n">global_behavior_rules</span><span class="o">=</span><span class="p">[</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>        <span class="n">BehaviorRuleConfig</span><span class="p">(</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>            <span class="n">rule_type</span><span class="o">=</span><span class="s2">"return_pattern"</span><span class="p">,</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>            <span class="n">threshold</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>            <span class="n">window</span><span class="o">=</span><span class="mi">300</span><span class="p">,</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>            <span class="n">pattern</span><span class="o">=</span><span class="s2">"json:error.code==AUTH_FAIL"</span><span class="p">,</span>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>            <span class="n">action</span><span class="o">=</span><span class="s2">"ban"</span><span class="p">,</span>
+</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>        <span class="p">),</span>
+</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>    <span class="p">],</span>
+</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="p">)</span>
+</span></code></pre></div>
+<p>See <a href="../../api/behavior-rules/">Behavior Rules</a> for the full field reference.</p>
+<hr />
+<h2 id="detection-exclusions">Detection Exclusions<a class="headerlink" href="#detection-exclusions" title="Permanent link">&para;</a></h2>
+<p>These fields opt request components out of penetration detection. The header set is merged with a hardcoded default that already excludes <code>host</code>, <code>user-agent</code>, <code>accept</code>, <code>accept-encoding</code>, <code>connection</code>, <code>origin</code>, <code>referer</code>, all <code>sec-fetch-*</code>, all <code>sec-ch-ua*</code>, and the proxy identity headers <code>forwarded</code>, <code>x-forwarded-for</code>, <code>x-forwarded-host</code>, <code>x-forwarded-proto</code>, <code>x-real-ip</code>, <code>x-client-ip</code>, <code>x-cluster-client-ip</code>, <code>cf-connecting-ip</code>, <code>true-client-ip</code>, <code>fly-client-ip</code>, and <code>x-envoy-external-address</code> (their values are addresses or hostnames set by infrastructure, not the client, so a private address like <code>192.168.65.1</code> never trips the SSRF pattern). An excluded header still gets the always-on command-injection check, so <code>X-Real-IP: $(id)</code> is still detected; client IP attribution is unaffected, since it never used pattern detection. <code>enabled_detection_categories</code> narrows the regex scan to a subset of the 18 known categories; custom user patterns always run regardless. An empty <code>enabled_detection_categories</code> while <code>enable_penetration_detection</code> is <code>True</code> logs a <code>WARNING</code> at construction: detection would run on every request but never match anything.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>excluded_detection_headers</code></td>
+<td><code>set[str]</code></td>
+<td><code>set()</code></td>
+<td>Headers exempted only from the categories known to false-positive on their typical values: identity and proxy headers such as <code>X-Forwarded-For</code>, <code>X-Real-IP</code>, <code>Host</code>, <code>Origin</code> and <code>Via</code> skip <code>ssrf</code> only, and every other category (sqli, xss, cmd_injection, template, Log4Shell) still scans them. A name outside the built-in identity set inherits the same rule when its value looks like an address chain, otherwise it gets no exclusion at all. Merged with the hardcoded default list.</td>
+</tr>
+<tr>
+<td><code>excluded_detection_params</code></td>
+<td><code>set[str]</code></td>
+<td><code>set()</code></td>
+<td>Query parameter names skipped by detection.</td>
+</tr>
+<tr>
+<td><code>excluded_detection_body_fields</code></td>
+<td><code>set[str]</code></td>
+<td><code>set()</code></td>
+<td>Top-level JSON body keys skipped by detection.</td>
+</tr>
+<tr>
+<td><code>enabled_detection_categories</code></td>
+<td><code>frozenset[str]</code></td>
+<td>full <code>ALL_DETECTION_CATEGORIES</code></td>
+<td>Categories scanned for. Validator rejects unknown labels.</td>
+</tr>
+</tbody>
+</table>
+<p>When to use:</p>
+<ul>
+<li>A first-party endpoint accepts JSON containing literals (Markdown source, code blobs, URL-shaped query params) that look like attacks but are not.</li>
+<li>A regression in one category's regex is producing false positives faster than you can write a fix, disable the category temporarily.</li>
+<li>A privacy-sensitive header value should not be scanned at all.</li>
+<li>You want different routes to have different opt-outs, pair this with <code>@security.detection_exclusion(...)</code> on the route.</li>
+</ul>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">guard_core.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">SecurityConfig</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="n">config</span> <span class="o">=</span> <span class="n">SecurityConfig</span><span class="p">(</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="n">excluded_detection_params</span><span class="o">=</span><span class="p">{</span><span class="s2">"q"</span><span class="p">,</span> <span class="s2">"search"</span><span class="p">,</span> <span class="s2">"filter"</span><span class="p">},</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="n">excluded_detection_body_fields</span><span class="o">=</span><span class="p">{</span><span class="s2">"description"</span><span class="p">,</span> <span class="s2">"markdown"</span><span class="p">},</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="n">enabled_detection_categories</span><span class="o">=</span><span class="p">{</span><span class="s2">"sqli"</span><span class="p">,</span> <span class="s2">"xss"</span><span class="p">,</span> <span class="s2">"cmd_injection"</span><span class="p">,</span> <span class="s2">"ssrf"</span><span class="p">},</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="p">)</span>
+</span></code></pre></div>
+<hr />
+<h2 id="ip-lifecycle-controls">IP Lifecycle Controls<a class="headerlink" href="#ip-lifecycle-controls" title="Permanent link">&para;</a></h2>
+<p>These fields tune cold-start and horizontal-scale behaviour for the geo-IP and cloud-IP subsystems. They are inert by default, only adjust if you have a specific cold-start or scale-out problem.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>lazy_init</code></td>
+<td><code>bool</code></td>
+<td><code>True</code></td>
+<td>When <code>True</code> (default), run the IPInfo MMDB download and cloud-IP provider fetches as a background task during startup instead of awaiting them inline, so app boot never blocks on multi-second network calls. Cloud and geo layers are inert until the task completes. Set to <code>False</code> to await them inline for synchronous-init guarantees.</td>
+</tr>
+<tr>
+<td><code>geo_ip_db_max_age</code></td>
+<td><code>int</code></td>
+<td><code>86400</code></td>
+<td>Maximum age in seconds for the IPInfo MMDB before re-download. Range 3600 - 604800.</td>
+</tr>
+<tr>
+<td><code>cloud_ip_store</code></td>
+<td><code>CloudIpStoreProtocol \| None</code></td>
+<td><code>None</code></td>
+<td>Pluggable cloud-IP backend. <code>None</code> uses the in-memory default; auto-upgraded to Redis when Redis is enabled.</td>
+</tr>
+</tbody>
+</table>
+<p>When to use:</p>
+<ul>
+<li><code>lazy_init=True</code> to keep startup non-blocking when IPInfo MMDB or cloud-IP provider fetches are slow. The background warmup runs concurrently with normal request handling; cloud-provider blocking and geo checks become active once the background task finishes. Rate limiting, IP banning, pattern detection, and other layers remain fully active throughout the warmup window. <code>lazy_init</code> only takes effect when Redis is enabled and the adapter calls <code>initialize_redis_handlers()</code> from its own startup hook (for example fastapi-guard's lifespan integration), see <a href="#provider-status">Provider Status</a> below for the accessor that lets a Kubernetes/ALB warmup probe (or any health endpoint) tell when that window has closed.</li>
+<li><code>geo_ip_db_max_age</code> to tighten or loosen the IPInfo refresh cadence, match it to your IPInfo plan's update frequency.</li>
+<li><code>cloud_ip_store</code> to point multiple horizontally-scaled instances at a single pre-populated Redis namespace, skipping per-instance cloud-IP cold starts.</li>
+</ul>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">guard_core.handlers.cloud_ip_stores</span><span class="w"> </span><span class="kn">import</span> <span class="n">RedisCloudIpStore</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">guard_core.handlers.redis_handler</span><span class="w"> </span><span class="kn">import</span> <span class="n">RedisManager</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">guard_core.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">SecurityConfig</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="n">config</span> <span class="o">=</span> <span class="n">SecurityConfig</span><span class="p">(</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    <span class="n">lazy_init</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>    <span class="n">geo_ip_db_max_age</span><span class="o">=</span><span class="mi">43200</span><span class="p">,</span>
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="p">)</span>
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="n">shared_store</span> <span class="o">=</span> <span class="n">RedisCloudIpStore</span><span class="p">(</span><span class="n">RedisManager</span><span class="p">(</span><span class="n">config</span><span class="p">))</span>
+</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="n">config_with_shared_store</span> <span class="o">=</span> <span class="n">SecurityConfig</span><span class="p">(</span><span class="n">cloud_ip_store</span><span class="o">=</span><span class="n">shared_store</span><span class="p">)</span>
+</span></code></pre></div>
+<h3 id="provider-status">Provider Status<a class="headerlink" href="#provider-status" title="Permanent link">&para;</a></h3>
+<p><code>cloud_handler.get_status()</code> (the module-level singleton) and your <code>IPInfoManager</code> instance's <code>get_status()</code> report per-provider readiness, the last successful refresh timestamp, and a cheap entry count. <code>HandlerInitializer</code> is adapter-internal, its <code>get_initialization_status()</code> combines both into one payload, and adapters expose that combined payload as their status surface (fastapi-guard: <code>SecurityMiddleware.get_initialization_status()</code>, or <code>add_status_route(app)</code> → <code>GET /_guard/status</code>).</p>
+<p>Cloud-only status, callable anywhere:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">guard_core.handlers.cloud_handler</span><span class="w"> </span><span class="kn">import</span> <span class="n">cloud_handler</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="n">cloud_status</span> <span class="o">=</span> <span class="n">cloud_handler</span><span class="o">.</span><span class="n">get_status</span><span class="p">()</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="c1"># {</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="c1">#     "AWS": {"ready": True, "last_refreshed": datetime(...), "entries": 3421},</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="c1">#     "GCP": {"ready": False, "last_refreshed": None, "entries": 0},</span>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="c1">#     ...</span>
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="c1"># }</span>
+</span></code></pre></div>
+<p>Geo-IP status, call <code>get_status()</code> on the <code>IPInfoManager</code> instance you passed in as <code>geo_ip_handler</code> (there is no module singleton: the manager is token-gated, so it is instantiated per app, not at import time):</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">geo_status</span> <span class="o">=</span> <span class="n">ip_info_manager</span><span class="o">.</span><span class="n">get_status</span><span class="p">()</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="c1"># {"ready": True, "last_refreshed": datetime(...), "entries": 494}</span>
+</span></code></pre></div>
+<p>Combined cloud + geo-IP payload, for a warmup probe or health endpoint, read it through your adapter rather than reconstructing <code>HandlerInitializer</code> yourself (fastapi-guard):</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">guard.status</span><span class="w"> </span><span class="kn">import</span> <span class="n">add_status_route</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="n">add_status_route</span><span class="p">(</span><span class="n">app</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s2">"/_guard/status"</span><span class="p">)</span>  <span class="c1"># GET /_guard/status -&gt; combined payload</span>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="c1"># or, in-process: security_middleware.get_initialization_status()</span>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="c1"># {</span>
+</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="c1">#     "cloud_providers": { ...as above... },</span>
+</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="c1">#     "geo_ip": { ...as above... },</span>
+</span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="c1"># }</span>
+</span></code></pre></div>
+<p><code>geo_ip</code> is <code>None</code> when no <code>geo_ip_handler</code> is configured. A custom <code>geo_ip_handler</code> that does not implement <code>get_status()</code> still reports <code>ready</code> (from the required <code>is_initialized</code> property) with <code>last_refreshed</code>/<code>entries</code> as placeholders. This is synchronous, dependency-free, and cheap enough to poll from a warmup probe or health endpoint, it is exactly what to wire up for the "cannot tolerate any inert window" case above.</p>
+<p>See <a href="../../api/cloud-ip-store/">Cloud IP Store</a> for the protocol contract and the Redis namespace migration note.</p>
+<hr />
+<h2 id="geolocation">Geolocation<a class="headerlink" href="#geolocation" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>geo_ip_handler</code></td>
+<td><code>GeoIPHandler \| None</code></td>
+<td><code>None</code></td>
+<td>Custom geolocation handler implementing the protocol.</td>
+</tr>
+<tr>
+<td><code>ipinfo_token</code></td>
+<td><code>str \| None</code></td>
+<td><code>None</code></td>
+<td>IPInfo API token for IP geolocation.</td>
+</tr>
+<tr>
+<td><code>ipinfo_db_path</code></td>
+<td><code>Path \| None</code></td>
+<td><code>data/ipinfo/country_asn.mmdb</code></td>
+<td>Path to the local IPInfo MMDB database file.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Model validator</strong>: If <code>blocked_countries</code> or <code>whitelist_countries</code> are set, <code>geo_ip_handler</code> must be provided (or <code>ipinfo_token</code>, from which one is constructed automatically). Raises <code>ValueError</code> otherwise.</p>
+<hr />
+<h2 id="rate-limiting">Rate Limiting<a class="headerlink" href="#rate-limiting" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>enable_rate_limiting</code></td>
+<td><code>bool</code></td>
+<td><code>True</code></td>
+<td>Master switch for rate limiting.</td>
+</tr>
+<tr>
+<td><code>rate_limit</code></td>
+<td><code>int</code></td>
+<td><code>10</code></td>
+<td>Maximum requests per window (global).</td>
+</tr>
+<tr>
+<td><code>rate_limit_window</code></td>
+<td><code>int</code></td>
+<td><code>60</code></td>
+<td>Window duration in seconds (global).</td>
+</tr>
+<tr>
+<td><code>endpoint_rate_limits</code></td>
+<td><code>dict[str, tuple[int, int]]</code></td>
+<td><code>{}</code></td>
+<td>Per-endpoint overrides <code>{path: (limit, window)}</code>.</td>
+</tr>
+<tr>
+<td><code>enable_rate_limit_auto_ban</code></td>
+<td><code>bool</code></td>
+<td><code>False</code></td>
+<td>Feed rate-limit violations into the same auto-ban engine penetration detection uses. Requires <code>enable_ip_banning</code> to actually ban; off by default, so this is zero behavior change unless enabled.</td>
+</tr>
+</tbody>
+</table>
+<p><code>enable_rate_limit_auto_ban</code> reuses the <a href="#per-category-bans">Per-Category Bans</a> machinery: each active-mode (non-passive) rate-limit violation increments the <code>rate_limit</code> category of <code>suspicious_request_counts</code> and runs the same threshold logic, <code>threat_ban_config["rate_limit"]</code> first if present, otherwise the flat <code>auto_ban_threshold</code> / <code>auto_ban_duration</code> policy, banning with <code>reason="rate_limit_exceeded"</code> (distinct from the <code>"penetration_attempt"</code> reason the detection path uses). See <a href="../../api/ban-config/#rate-limit-auto-ban">Rate-limit auto-ban</a> for the full behavior. Like the rest of the auto-ban state, <code>suspicious_request_counts</code> is in-memory and per-process, so multi-replica deployments do not share rate-limit auto-ban counts across replicas.</p>
+<hr />
+<h2 id="cloud-provider-blocking">Cloud Provider Blocking<a class="headerlink" href="#cloud-provider-blocking" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>block_cloud_providers</code></td>
+<td><code>frozenset[str] \| None</code></td>
+<td><code>None</code></td>
+<td>Providers to block: <code>"AWS"</code>, <code>"GCP"</code>, <code>"Azure"</code>, <code>"DigitalOcean"</code>, <code>"Linode"</code>, <code>"Vultr"</code>. A bare name blocks the whole provider; a region carve-out (<code>"GCP:!us-central1"</code>) blocks the provider except that region. Region metadata exists for AWS and GCP only, so a carve-out on the other four exempts nothing and the whole provider stays blocked. An unrecognized provider name raises <code>ValueError</code>.</td>
+</tr>
+<tr>
+<td><code>cloud_ip_refresh_interval</code></td>
+<td><code>int</code></td>
+<td><code>3600</code></td>
+<td>Seconds between IP range refreshes (60-86400).</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Validator</strong>: each entry is valid when the part before an optional <code>:!region</code> suffix is one of the six provider names; any invalid entry raises <code>ValueError</code> naming it (nothing is silently dropped).</p>
+<hr />
+<h2 id="security-headers">Security Headers<a class="headerlink" href="#security-headers" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>security_headers</code></td>
+<td><code>dict[str, Any] \| None</code></td>
+<td>See below</td>
+<td>Security headers configuration dict.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Default structure</strong>:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="p">{</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>    <span class="s2">"enabled"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>    <span class="s2">"hsts"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"max_age"</span><span class="p">:</span> <span class="mi">31536000</span><span class="p">,</span> <span class="s2">"include_subdomains"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s2">"preload"</span><span class="p">:</span> <span class="kc">False</span><span class="p">},</span>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>    <span class="s2">"csp"</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>    <span class="s2">"frame_options"</span><span class="p">:</span> <span class="s2">"SAMEORIGIN"</span><span class="p">,</span>
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>    <span class="s2">"content_type_options"</span><span class="p">:</span> <span class="s2">"nosniff"</span><span class="p">,</span>
+</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>    <span class="s2">"xss_protection"</span><span class="p">:</span> <span class="s2">"1; mode=block"</span><span class="p">,</span>
+</span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>    <span class="s2">"referrer_policy"</span><span class="p">:</span> <span class="s2">"strict-origin-when-cross-origin"</span><span class="p">,</span>
+</span><span id="__span-8-9"><a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>    <span class="s2">"permissions_policy"</span><span class="p">:</span> <span class="s2">"geolocation=(), microphone=(), camera=()"</span><span class="p">,</span>
+</span><span id="__span-8-10"><a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>    <span class="s2">"custom"</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-8-11"><a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="p">}</span>
+</span></code></pre></div>
+<hr />
+<h2 id="cors">CORS<a class="headerlink" href="#cors" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>enable_cors</code></td>
+<td><code>bool</code></td>
+<td><code>False</code></td>
+<td>Enable CORS header injection.</td>
+</tr>
+<tr>
+<td><code>cors_allow_origins</code></td>
+<td><code>list[str]</code></td>
+<td><code>["*"]</code></td>
+<td>Allowed origins.</td>
+</tr>
+<tr>
+<td><code>cors_allow_methods</code></td>
+<td><code>list[str]</code></td>
+<td><code>["GET", "POST", ...]</code></td>
+<td>Allowed HTTP methods.</td>
+</tr>
+<tr>
+<td><code>cors_allow_headers</code></td>
+<td><code>list[str]</code></td>
+<td><code>["*"]</code></td>
+<td>Allowed request headers.</td>
+</tr>
+<tr>
+<td><code>cors_allow_credentials</code></td>
+<td><code>bool</code></td>
+<td><code>False</code></td>
+<td>Allow credentials in CORS requests.</td>
+</tr>
+<tr>
+<td><code>cors_expose_headers</code></td>
+<td><code>list[str]</code></td>
+<td><code>[]</code></td>
+<td>Headers exposed in CORS responses.</td>
+</tr>
+<tr>
+<td><code>cors_max_age</code></td>
+<td><code>int</code></td>
+<td><code>600</code></td>
+<td>Preflight cache duration in seconds.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="redis">Redis<a class="headerlink" href="#redis" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>enable_redis</code></td>
+<td><code>bool</code></td>
+<td><code>True</code></td>
+<td>Master switch for Redis.</td>
+</tr>
+<tr>
+<td><code>redis_url</code></td>
+<td><code>str \| None</code></td>
+<td><code>"redis://localhost:6379"</code></td>
+<td>Redis connection URL.</td>
+</tr>
+<tr>
+<td><code>redis_prefix</code></td>
+<td><code>str</code></td>
+<td><code>"guard_core:"</code></td>
+<td>Key prefix for namespace isolation.</td>
+</tr>
+<tr>
+<td><code>redis_socket_connect_timeout</code></td>
+<td><code>float \| None</code></td>
+<td><code>2.0</code></td>
+<td>Seconds to wait establishing a TCP connection. Must be positive; <code>None</code> disables (blocks indefinitely on a partitioned Redis).</td>
+</tr>
+<tr>
+<td><code>redis_socket_timeout</code></td>
+<td><code>float \| None</code></td>
+<td><code>2.0</code></td>
+<td>Seconds to wait on a read/write before raising. Must be positive; <code>None</code> means no timeout.</td>
+</tr>
+<tr>
+<td><code>redis_health_check_interval</code></td>
+<td><code>int</code></td>
+<td><code>30</code></td>
+<td>Seconds between pooled-connection health checks. <code>0</code> disables.</td>
+</tr>
+<tr>
+<td><code>redis_max_connections</code></td>
+<td><code>int \| None</code></td>
+<td><code>None</code></td>
+<td>Cap on the connection pool size. <code>None</code> uses redis-py's default.</td>
+</tr>
+<tr>
+<td><code>redis_retries</code></td>
+<td><code>int</code></td>
+<td><code>1</code></td>
+<td>Retries (with exponential backoff) on transient connection/timeout errors. <code>0</code> disables.</td>
+</tr>
+<tr>
+<td><code>redis_fail_open</code></td>
+<td><code>bool</code></td>
+<td><code>False</code></td>
+<td>On Redis outage, <code>fail_secure</code> governs by default. Set <code>True</code> to skip the failing check and let the request through, treating Redis outages as an availability concern distinct from other check failures. Covers Redis unavailability at startup, a <code>GuardRedisError</code> raised from any security check mid-request, and the rate limiter's Redis path: <code>True</code> falls back to an in-memory window with a one-time process warning (with several workers the effective limit becomes workers times <code>rate_limit</code>), <code>False</code> raises so <code>fail_secure</code> decides the outcome.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="detection-engine">Detection Engine<a class="headerlink" href="#detection-engine" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Default</th>
+<th>Range</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>enable_penetration_detection</code></td>
+<td><code>bool</code></td>
+<td><code>True</code></td>
+<td>N/A</td>
+<td>Master switch for threat detection.</td>
+</tr>
+<tr>
+<td><code>detection_compiler_timeout</code></td>
+<td><code>float</code></td>
+<td><code>2.0</code></td>
+<td>0.1 - 10.0</td>
+<td>Timeout for pattern compilation/matching (s).</td>
+</tr>
+<tr>
+<td><code>detection_pattern_validation_cache_path</code></td>
+<td><code>str \| None</code></td>
+<td><code>None</code></td>
+<td>N/A</td>
+<td>Opt-in disk cache for the empirical cost-verdict validation outcome, keyed by pattern, flags, and engine version; deterministic layers always re-run.</td>
+</tr>
+<tr>
+<td><code>detection_max_content_length</code></td>
+<td><code>int</code></td>
+<td><code>10000</code></td>
+<td>1000 - 100000</td>
+<td>Maximum content length for detection.</td>
+</tr>
+<tr>
+<td><code>detection_preserve_attack_patterns</code></td>
+<td><code>bool</code></td>
+<td><code>True</code></td>
+<td>N/A</td>
+<td>Preserve attack patterns during truncation.</td>
+</tr>
+<tr>
+<td><code>detection_semantic_threshold</code></td>
+<td><code>float</code></td>
+<td><code>0.7</code></td>
+<td>0.0 - 1.0</td>
+<td>Threshold for semantic attack detection.</td>
+</tr>
+<tr>
+<td><code>detection_anomaly_threshold</code></td>
+<td><code>float</code></td>
+<td><code>3.0</code></td>
+<td>1.0 - 10.0</td>
+<td>Std deviations slower than average to flag an anomaly (never faster).</td>
+</tr>
+<tr>
+<td><code>detection_anomaly_emission_cooldown</code></td>
+<td><code>float</code></td>
+<td><code>60.0</code></td>
+<td>1.0 - 3600.0</td>
+<td>Minimum seconds between anomaly events for the same pattern. Raise to reduce noise on low-traffic apps.</td>
+</tr>
+<tr>
+<td><code>detection_min_samples_for_anomaly</code></td>
+<td><code>int</code></td>
+<td><code>30</code></td>
+<td>10 - 1000</td>
+<td>Minimum samples recorded for a pattern before statistical-anomaly detection engages. Raise to reduce false fires on low-traffic apps.</td>
+</tr>
+<tr>
+<td><code>detection_slow_pattern_threshold</code></td>
+<td><code>float</code></td>
+<td><code>0.1</code></td>
+<td>0.01 - 1.0</td>
+<td>Seconds to consider a pattern slow.</td>
+</tr>
+<tr>
+<td><code>detection_monitor_history_size</code></td>
+<td><code>int</code></td>
+<td><code>1000</code></td>
+<td>100 - 10000</td>
+<td>Recent metrics to keep in history.</td>
+</tr>
+<tr>
+<td><code>detection_max_tracked_patterns</code></td>
+<td><code>int</code></td>
+<td><code>1000</code></td>
+<td>100 - 5000</td>
+<td>Maximum patterns to track for performance.</td>
+</tr>
+<tr>
+<td><code>detection_max_body_inspect_bytes</code></td>
+<td><code>int</code></td>
+<td><code>262144</code></td>
+<td>1024 - 10485760</td>
+<td>Body size cap read/scanned for detection; distinct from <code>detection_max_content_length</code> and <code>max_request_size</code>. A body whose declared <code>Content-Length</code> exceeds this cap is read through the adapter's bounded reader (<code>read_body_prefix</code>) and only the first this-many bytes are scanned, if the adapter implements one; without a bounded reader the body is not read at all, the same skip as before this cap existed. Either way a one-time warning names the cap, the client, and which of the two happened. A signature that straddles the cap boundary is still caught: a small overlap (the longest compiled pattern length, up to 256 bytes) is read past the cap on every path, including a declared oversized <code>Content-Length</code>.</td>
+</tr>
+<tr>
+<td><code>detection_max_scan_values</code></td>
+<td><code>int</code></td>
+<td><code>512</code></td>
+<td>2 - 100000</td>
+<td>Maximum values (query params, headers, JSON keys/values, form/multipart fields) scanned per request; remaining values are skipped and a one-time warning logs the client IP once reached. Each named value costs two scan units (name, then value), so the minimum is 2.</td>
+</tr>
+<tr>
+<td><code>detection_max_scan_chars</code></td>
+<td><code>int</code></td>
+<td><code>65536</code></td>
+<td>1024 - 262144</td>
+<td>Maximum total characters, across every value handed to the pattern engine per request (counted at the same point as <code>detection_max_scan_values</code>), before remaining values are skipped and a one-time warning logs the client IP. A value already in progress when the budget is checked is always scanned in full; only values that would start after the budget is spent are skipped, so a single large value is never silently dropped (GHSA-3hfx-8m47-5f9h residual).</td>
+</tr>
+<tr>
+<td><code>detection_max_json_depth</code></td>
+<td><code>int</code></td>
+<td><code>32</code></td>
+<td>1 - 1000</td>
+<td>Maximum nesting depth of a JSON request body walked structurally. A dict or list reached at this depth is not descended into: it is serialized back to text and scanned as one value instead, bounded by <code>detection_max_content_length</code>, so content hidden below the cap is still scanned as text rather than structurally. A one-time warning logs the client IP once reached (GHSA-f6cf-jjhc-qp85).</td>
+</tr>
+<tr>
+<td><code>detection_binary_min_run_length</code></td>
+<td><code>int</code></td>
+<td><code>16</code></td>
+<td>4 - 1024</td>
+<td>Minimum length a printable run inside a binary-dense multipart file-part payload must reach to be pattern-scanned. A part payload whose binary artifact characters make up at least a fifth of it is reduced to its printable runs before scanning; compressed bytes produce attack-shaped printable fragments at a rate that grows with file size, so shorter runs are skipped instead of matched. Text uploads and short or mostly-text payloads stay below the ratio and keep their full scan, whole-body fallback scans are never reduced (raw-body signature coverage stays intact), and text embedded in uploads (scripts inside PDFs, stored paths in archives) forms runs past the threshold and is scanned in full. File names, multipart field names, and part headers are scanned regardless (see <code>docs/configuration/detection-tuning.md</code>).</td>
+</tr>
+<tr>
+<td><code>detection_threat_score_threshold</code></td>
+<td><code>float</code></td>
+<td><code>1.0</code></td>
+<td>0.0 - 10.0</td>
+<td>Anomaly/threat score required to flag a request.</td>
+</tr>
+<tr>
+<td><code>detection_scan_body</code></td>
+<td><code>bool</code></td>
+<td><code>True</code></td>
+<td>N/A</td>
+<td>Scan the request body during detection; <code>False</code> restricts detection to path/query/headers. Body values are additionally filtered by the binary artifact density gate (see <code>docs/configuration/detection-tuning.md</code>): regex matches from registered noise-prone heuristic patterns inside strings dense in binary artifact characters are discarded, so text-decoded binary uploads no longer produce spurious blocks while signature patterns and pure text keep unchanged behavior.</td>
+</tr>
+</tbody>
+</table>
+<p>The detection engine follows one <code>SecurityConfig</code> per process: <code>detect_penetration_attempt(request, config)</code> configures the shared detection singleton from <code>config</code> the first time it is called, and reconfigures it whenever called with a different <code>SecurityConfig</code> object (compared by identity, so calling it repeatedly with the same object is a no-op). Alternating between two <code>SecurityConfig</code> objects on every other request reconfigures on every call, discarding the previously compiled pattern cache each time. The swap itself is a single attribute assignment: the new state is built completely before it replaces the old one, so a concurrent request always sees a fully-built state, never a half-constructed one. There is no lock around the swap.</p>
+<hr />
+<h2 id="logging">Logging<a class="headerlink" href="#logging" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>log_suspicious_level</code></td>
+<td><code>"INFO" \| "DEBUG" \| "WARNING" \| "ERROR" \| "CRITICAL" \| None</code></td>
+<td><code>"WARNING"</code></td>
+<td>Log level for suspicious requests. <code>None</code> disables.</td>
+</tr>
+<tr>
+<td><code>log_request_level</code></td>
+<td>Same as above</td>
+<td><code>None</code></td>
+<td>Log level for all requests. <code>None</code> disables.</td>
+</tr>
+<tr>
+<td><code>log_country_check_level</code></td>
+<td>Same as above (default <code>"INFO"</code>)</td>
+<td><code>"INFO"</code></td>
+<td>Log level for non-block country verdicts (whitelisted / not-affected). <code>None</code> disables. Blocked-country hits log at <code>log_suspicious_level</code> instead (default <code>WARNING</code>); no-rules / no-geolocation always log at <code>DEBUG</code>.</td>
+</tr>
+<tr>
+<td><code>muted_check_logs</code></td>
+<td><code>frozenset[str]</code></td>
+<td><code>frozenset()</code></td>
+<td>Security check names to mute from pipeline logging entirely. Validator rejects unknown check names.</td>
+</tr>
+<tr>
+<td><code>log_sensitive_headers</code></td>
+<td><code>frozenset[str]</code></td>
+<td><code>frozenset()</code></td>
+<td>Header names redacted from guard log lines, matched case-insensitively. Merged with the hardcoded default set (<code>authorization</code>, <code>proxy-authorization</code>, <code>cookie</code>, <code>x-api-key</code>). Also redacts the value in the detection engine's per-header <code>Potential attack detected</code> line.</td>
+</tr>
+<tr>
+<td><code>log_sensitive_params</code></td>
+<td><code>frozenset[str]</code></td>
+<td><code>frozenset()</code></td>
+<td>Query-parameter names whose values are redacted from guard log lines, matched case-insensitively. Merged with the hardcoded default set (<code>access_token</code>, <code>refresh_token</code>, <code>api_key</code>, <code>apikey</code>, <code>token</code>, <code>password</code>, <code>secret</code>, <code>client_secret</code>, <code>signature</code>). Redacts the URL segment of <code>log_activity</code> lines and the value in the detection engine's per-parameter <code>Potential attack detected</code> line.</td>
+</tr>
+<tr>
+<td><code>log_sensitive_body_fields</code></td>
+<td><code>frozenset[str]</code></td>
+<td><code>frozenset()</code></td>
+<td>JSON key, form-field, and multipart text-part names whose values are redacted, matched case-insensitively. Merged with the same hardcoded default set as <code>log_sensitive_params</code>. Redacts only the value in the detection engine's per-field <code>Potential attack detected</code> line.</td>
+</tr>
+<tr>
+<td><code>log_format</code></td>
+<td><code>"text" \| "json"</code></td>
+<td><code>"text"</code></td>
+<td>Log output format.</td>
+</tr>
+<tr>
+<td><code>custom_log_file</code></td>
+<td><code>str \| None</code></td>
+<td><code>None</code></td>
+<td>Path to a custom log file.</td>
+</tr>
+</tbody>
+</table>
+<p><code>setup_custom_logging()</code> (called by every adapter at middleware init with <code>log_format</code> and <code>custom_log_file</code>) always attaches its own console handler to the <code>guard_core</code> logger, but that handler's console output yields to the host's root handlers whenever they exist, whichever was configured first, so the event propagates to the host's own root handlers exactly once instead of printing twice. The <code>custom_log_file</code> handler is unaffected and is attached in every case. See <a href="../logging/#avoiding-duplicate-log-lines">Logging Configuration</a> for detail.</p>
+<hr />
+<h2 id="agent-telemetry">Agent / Telemetry<a class="headerlink" href="#agent-telemetry" title="Permanent link">&para;</a></h2>
+<div class="admonition note">
+<p class="admonition-title">Internal Configuration</p>
+<p>Agent fields are typically not exposed to end users. They are used for Guard Agent SaaS integration.</p>
+</div>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>enable_agent</code></td>
+<td><code>bool</code></td>
+<td><code>False</code></td>
+<td>Enable Guard Agent telemetry.</td>
+</tr>
+<tr>
+<td><code>agent_api_key</code></td>
+<td><code>str \| None</code></td>
+<td><code>None</code></td>
+<td>API key for the SaaS platform.</td>
+</tr>
+<tr>
+<td><code>agent_strict</code></td>
+<td><code>bool</code></td>
+<td><code>False</code></td>
+<td>Raise at middleware init instead of degrading to agent-off when an enabled agent cannot be initialized.</td>
+</tr>
+<tr>
+<td><code>agent_endpoint</code></td>
+<td><code>str</code></td>
+<td><code>"https://api.guard-core.com"</code></td>
+<td>Agent endpoint URL.</td>
+</tr>
+<tr>
+<td><code>agent_project_id</code></td>
+<td><code>str \| None</code></td>
+<td><code>None</code></td>
+<td>Project identifier.</td>
+</tr>
+<tr>
+<td><code>agent_buffer_size</code></td>
+<td><code>int</code></td>
+<td><code>100</code></td>
+<td>Events to buffer before flush.</td>
+</tr>
+<tr>
+<td><code>agent_flush_interval</code></td>
+<td><code>int</code></td>
+<td><code>30</code></td>
+<td>Seconds between automatic flushes.</td>
+</tr>
+<tr>
+<td><code>agent_enable_events</code></td>
+<td><code>bool</code></td>
+<td><code>True</code></td>
+<td>Send security events.</td>
+</tr>
+<tr>
+<td><code>agent_enable_metrics</code></td>
+<td><code>bool</code></td>
+<td><code>True</code></td>
+<td>Send performance metrics.</td>
+</tr>
+<tr>
+<td><code>agent_timeout</code></td>
+<td><code>int</code></td>
+<td><code>30</code></td>
+<td>HTTP request timeout in seconds.</td>
+</tr>
+<tr>
+<td><code>agent_retry_attempts</code></td>
+<td><code>int</code></td>
+<td><code>3</code></td>
+<td>Retry attempts for failed requests.</td>
+</tr>
+<tr>
+<td><code>agent_project_encryption_key</code></td>
+<td><code>str \| None</code></td>
+<td><code>None</code></td>
+<td>Per-project AES-256-GCM key that switches the agent to the encrypted events endpoint. Required for API keys with encryption enforced server-side.</td>
+</tr>
+<tr>
+<td><code>agent_guard_version</code></td>
+<td><code>str \| None</code></td>
+<td><code>None</code></td>
+<td>Framework wrapper version (e.g. fastapi-guard's <code>__version__</code>) reported alongside agent telemetry.</td>
+</tr>
+<tr>
+<td><code>agent_status_interval</code></td>
+<td><code>int</code></td>
+<td><code>300</code></td>
+<td>Seconds between agent status reports to the SaaS. Must be between 60 and 86400.</td>
+</tr>
+<tr>
+<td><code>agent_high_watermark_ratio</code></td>
+<td><code>float \| None</code></td>
+<td><code>None</code></td>
+<td>Buffer occupancy ratio that triggers an early flush. <code>None</code> defers to the agent's own default (<code>0.8</code>).</td>
+</tr>
+<tr>
+<td><code>agent_max_concurrent_flushes</code></td>
+<td><code>int \| None</code></td>
+<td><code>None</code></td>
+<td>Maximum concurrent early-flush operations. <code>None</code> defers to the agent's own default (<code>1</code>).</td>
+</tr>
+<tr>
+<td><code>agent_buffer_overflow_policy</code></td>
+<td><code>Literal["drop", "block", "raise"] \| None</code></td>
+<td><code>None</code></td>
+<td>Behavior when the agent's in-memory buffer is full. <code>None</code> defers to the agent's own default (<code>"drop"</code>).</td>
+</tr>
+<tr>
+<td><code>agent_backoff_factor</code></td>
+<td><code>float \| None</code></td>
+<td><code>None</code></td>
+<td>Backoff factor for agent HTTP retries. <code>None</code> defers to the agent's own default.</td>
+</tr>
+<tr>
+<td><code>agent_sensitive_headers</code></td>
+<td><code>list[str] \| None</code></td>
+<td><code>None</code></td>
+<td>Header names excluded from telemetry payloads. <code>None</code> defers to the agent's own default.</td>
+</tr>
+<tr>
+<td><code>agent_max_payload_size</code></td>
+<td><code>int \| None</code></td>
+<td><code>None</code></td>
+<td>Maximum payload size in bytes included in events. <code>None</code> defers to the agent's own default.</td>
+</tr>
+<tr>
+<td><code>agent_compression_enabled</code></td>
+<td><code>bool \| None</code></td>
+<td><code>None</code></td>
+<td>Gzip-compress outgoing batch bodies above <code>agent_compression_threshold</code>. <code>None</code> defers to the agent's own default.</td>
+</tr>
+<tr>
+<td><code>agent_compression_threshold</code></td>
+<td><code>int \| None</code></td>
+<td><code>None</code></td>
+<td>Minimum body size in bytes before gzip compression applies. <code>None</code> defers to the agent's own default.</td>
+</tr>
+<tr>
+<td><code>agent_install_id</code></td>
+<td><code>str \| None</code></td>
+<td><code>None</code></td>
+<td>Override the agent install ID. <code>None</code> auto-generates one.</td>
+</tr>
+<tr>
+<td><code>agent_payload_signing_secret</code></td>
+<td><code>str \| None</code></td>
+<td><code>None</code></td>
+<td>HMAC-SHA256 secret used to sign the <code>X-Payload-Signature</code> header.</td>
+</tr>
+<tr>
+<td><code>enable_enrichment</code></td>
+<td><code>bool</code></td>
+<td><code>False</code></td>
+<td>Populate <code>guard.*</code> metadata on every event and metric with project identity, deterministic threat score, matched dynamic rule, and per-IP behavioral correlation keys. Requires <code>enable_agent=True</code>.</td>
+</tr>
+<tr>
+<td><code>muted_event_types</code></td>
+<td><code>frozenset[str]</code></td>
+<td><code>frozenset()</code></td>
+<td>Event types to mute from telemetry dispatch. Validator rejects unknown values.</td>
+</tr>
+<tr>
+<td><code>muted_metric_types</code></td>
+<td><code>frozenset[str]</code></td>
+<td><code>frozenset()</code></td>
+<td>Metric types to mute from telemetry dispatch. Validator rejects unknown values.</td>
+</tr>
+<tr>
+<td><code>enable_otel</code></td>
+<td><code>bool</code></td>
+<td><code>False</code></td>
+<td>Enable OpenTelemetry span/metric export. Requires the <code>otel</code> extra.</td>
+</tr>
+<tr>
+<td><code>otel_service_name</code></td>
+<td><code>str</code></td>
+<td><code>"guard-core"</code></td>
+<td>Service name reported on the OpenTelemetry resource.</td>
+</tr>
+<tr>
+<td><code>otel_exporter_endpoint</code></td>
+<td><code>str \| None</code></td>
+<td><code>None</code></td>
+<td>OTLP HTTP endpoint for OpenTelemetry export.</td>
+</tr>
+<tr>
+<td><code>otel_resource_attributes</code></td>
+<td><code>dict[str, str]</code></td>
+<td><code>{}</code></td>
+<td>Additional OpenTelemetry resource attributes (e.g. <code>deployment.environment</code>, <code>service.version</code>).</td>
+</tr>
+<tr>
+<td><code>enable_logfire</code></td>
+<td><code>bool</code></td>
+<td><code>False</code></td>
+<td>Enable Logfire span/metric export. Requires the <code>logfire</code> extra.</td>
+</tr>
+<tr>
+<td><code>logfire_service_name</code></td>
+<td><code>str</code></td>
+<td><code>"guard-core"</code></td>
+<td>Service name reported to Logfire.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Validator</strong>: <code>agent_api_key</code> is required when <code>enable_agent</code> is <code>True</code>. <code>agent_buffer_overflow_policy</code> rejects any value other than <code>"drop"</code>, <code>"block"</code>, or <code>"raise"</code> at construction time. <code>enable_enrichment=True</code> without <code>enable_agent=True</code> raises <code>ValueError</code>.</p>
+<p><code>SecurityConfig.on_error</code> (documented under <a href="#core-settings">Core Settings</a> hooks) is also forwarded to <code>AgentConfig.on_error</code> when the agent is enabled, so the same callback receives agent-side <code>transport_send</code> and <code>encryption</code> failures in addition to guard-core's own <code>agent_init</code> and <code>geoip</code> failures.</p>
+<p>All eleven fields above with a <code>None</code> default follow the same rule: <code>to_agent_config()</code> omits a field from the <code>AgentConfig</code> call entirely when it is <code>None</code>, so an unset field is controlled by <code>AgentConfig</code>'s own default rather than by a value duplicated into guard-core.</p>
+<hr />
+<h2 id="dynamic-rules">Dynamic Rules<a class="headerlink" href="#dynamic-rules" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>enable_dynamic_rules</code></td>
+<td><code>bool</code></td>
+<td><code>False</code></td>
+<td>Enable dynamic rule updates from SaaS platform.</td>
+</tr>
+<tr>
+<td><code>dynamic_rule_interval</code></td>
+<td><code>int</code></td>
+<td><code>300</code></td>
+<td>Seconds between rule update checks.</td>
+</tr>
+<tr>
+<td><code>dynamic_rules_cache_path</code></td>
+<td><code>Path \| None</code></td>
+<td><code>None</code></td>
+<td>Optional local JSON file persisting the last-known dynamic rules snapshot so a restart during a SaaS outage restores the last applied rules instead of base config. Redis holds the primary snapshot whenever a redis_handler is present; the file is an additional opt-in fallback that is only written and read when this path is set. Neither store expires: the Redis key and the file persist until you remove them, even after you disable dynamic rules.</td>
+</tr>
+<tr>
+<td><code>emergency_mode</code></td>
+<td><code>bool</code></td>
+<td><code>False</code></td>
+<td>Emergency lockdown mode (set by dynamic rules).</td>
+</tr>
+<tr>
+<td><code>emergency_whitelist</code></td>
+<td><code>list[str]</code></td>
+<td><code>[]</code></td>
+<td>Emergency whitelist IPs (set by dynamic rules).</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Validator</strong>: <code>enable_agent</code> must be <code>True</code> when <code>enable_dynamic_rules</code> is <code>True</code>.</p>
+<hr />
+<h2 id="validators">Validators<a class="headerlink" href="#validators" title="Permanent link">&para;</a></h2>
+<p><code>SecurityConfig</code> includes Pydantic validators that run on instantiation:</p>
+<table>
+<thead>
+<tr>
+<th>Validator</th>
+<th>Fields</th>
+<th>Behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>validate_ip_lists</code></td>
+<td><code>whitelist</code>, <code>blacklist</code></td>
+<td>Validates IP addresses and CIDR ranges. Raises <code>ValueError</code> on invalid entries.</td>
+</tr>
+<tr>
+<td><code>validate_trusted_proxies</code></td>
+<td><code>trusted_proxies</code></td>
+<td>Validates proxy IPs and CIDR ranges, plus the literal <code>"unix"</code> token. Raises <code>ValueError</code> on invalid entries.</td>
+</tr>
+<tr>
+<td><code>warn_trusted_proxies_prefix_zero</code></td>
+<td>model-level</td>
+<td>Logs a <code>WARNING</code> when <code>trusted_proxies</code> contains a <code>/0</code> network. Does not raise; construction still succeeds.</td>
+</tr>
+<tr>
+<td><code>warn_whitelist_prefix_zero</code></td>
+<td>model-level</td>
+<td>Logs a <code>WARNING</code> when <code>whitelist</code> contains a <code>/0</code> network. Does not raise; construction still succeeds, and precedence is unchanged.</td>
+</tr>
+<tr>
+<td><code>warn_empty_enabled_detection_categories</code></td>
+<td>model-level</td>
+<td>Logs a <code>WARNING</code> when <code>enabled_detection_categories</code> is empty while <code>enable_penetration_detection</code> is <code>True</code>. Does not raise; construction still succeeds.</td>
+</tr>
+<tr>
+<td><code>validate_proxy_depth</code></td>
+<td><code>trusted_proxy_depth</code></td>
+<td>Must be &gt;= 1. Raises <code>ValueError</code> otherwise.</td>
+</tr>
+<tr>
+<td><code>validate_cloud_providers</code></td>
+<td><code>block_cloud_providers</code></td>
+<td>Requires the part before an optional <code>:!region</code> suffix to be <code>"AWS"</code>, <code>"GCP"</code>, or <code>"Azure"</code>. Raises <code>ValueError</code> naming any entry that fails this check.</td>
+</tr>
+<tr>
+<td><code>validate_geo_ip_handler_exists</code></td>
+<td>model-level</td>
+<td>Requires <code>geo_ip_handler</code> when <code>blocked_countries</code> or <code>whitelist_countries</code> is set. Falls back to <code>IPInfoManager</code> if <code>ipinfo_token</code> is provided. Also re-run from <code>__setattr__</code>/<code>model_copy</code> when <code>blocked_countries</code>, <code>whitelist_countries</code>, <code>geo_ip_handler</code>, or <code>ipinfo_token</code> is reassigned after construction. As of 4.0.0, <code>__setattr__</code>/<code>model_copy</code> reassignment revalidation also covers every collection-typed field (<code>exclude_paths</code>, <code>global_behavior_rules</code>, <code>security_headers</code>, the CORS and OTel attribute fields, and the detection-exclusion sets among them), not only the geo-state fields.</td>
+</tr>
+<tr>
+<td><code>validate_agent_config</code></td>
+<td>model-level</td>
+<td>Requires <code>agent_api_key</code> when <code>enable_agent</code> is <code>True</code>. Requires <code>enable_agent</code> when <code>enable_dynamic_rules</code> is <code>True</code>.</td>
+</tr>
+<tr>
+<td><code>validate_optional_extras_installed</code></td>
+<td>model-level</td>
+<td>Requires the <code>redis</code> extra when <code>enable_redis</code> is <code>True</code>, the <code>cloud</code> extra (<code>aiohttp</code> or <code>requests</code>) when cloud blocking is enabled (<code>block_cloud_providers</code> or <code>enable_dynamic_rules</code>), and the <code>geo</code> extra (<code>maxminddb</code>) when country rules are configured with no custom <code>geo_ip_handler</code>. Raises <code>ValueError</code> naming the missing extra's install command, checked via <code>importlib.util.find_spec</code> (never a bare <code>import</code>). See <a href="../../installation/#optional-dependency-extras">Installation</a>.</td>
+</tr>
+<tr>
+<td><code>warn_unknown_fields</code></td>
+<td>model-level, <code>mode="before"</code></td>
+<td>Compares the constructor keyword arguments against <code>model_fields</code> (and any field's <code>alias</code>) and logs a <code>guard_core.models</code> warning naming each unknown key, since <code>SecurityConfig</code> still allows unknown keys through (<code>extra="ignore"</code>) rather than raising. Construction still succeeds and the unknown key is still dropped; only a log line is added, so a typo'd field name is no longer a silent no-op. <code>extra="forbid"</code> is the intended behavior at a future major release.</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition warning">
+<p class="admonition-title">Unknown provider names raise</p>
+<p><code>validate_cloud_providers</code> rejects a <code>block_cloud_providers</code> entry whose provider name (the part before an optional <code>:!region</code> suffix) is not <code>"AWS"</code>, <code>"GCP"</code>, or <code>"Azure"</code>. <code>{"AWS", "InvalidProvider"}</code> raises <code>ValueError</code> naming <code>InvalidProvider</code> instead of silently blocking only <code>"AWS"</code>.</p>
+</div>
+
+
+
+
+
+
+
+  
+  
+
+
+
+  
+
+
+
+  <form class="md-feedback" name="feedback" hidden>
+    <fieldset>
+      <legend class="md-feedback__title">
+        Was this page helpful?
+      </legend>
+      <div class="md-feedback__inner">
+        <div class="md-feedback__list">
+          
+            <button class="md-feedback__icon md-icon" type="submit" title="This page was helpful" data-md-value="1">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 12a8 8 0 0 0-8-8 8 8 0 0 0-8 8 8 8 0 0 0 8 8 8 8 0 0 0 8-8m2 0a10 10 0 0 1-10 10A10 10 0 0 1 2 12 10 10 0 0 1 12 2a10 10 0 0 1 10 10M10 9.5c0 .8-.7 1.5-1.5 1.5S7 10.3 7 9.5 7.7 8 8.5 8s1.5.7 1.5 1.5m7 0c0 .8-.7 1.5-1.5 1.5S14 10.3 14 9.5 14.7 8 15.5 8s1.5.7 1.5 1.5m-5 7.73c-1.75 0-3.29-.73-4.19-1.81L9.23 14c.45.72 1.52 1.23 2.77 1.23s2.32-.51 2.77-1.23l1.42 1.42c-.9 1.08-2.44 1.81-4.19 1.81"/></svg>
+            </button>
+          
+            <button class="md-feedback__icon md-icon" type="submit" title="This page could be improved" data-md-value="0">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 12a8 8 0 0 0-8-8 8 8 0 0 0-8 8 8 8 0 0 0 8 8 8 8 0 0 0 8-8m2 0a10 10 0 0 1-10 10A10 10 0 0 1 2 12 10 10 0 0 1 12 2a10 10 0 0 1 10 10m-6.5-4c.8 0 1.5.7 1.5 1.5s-.7 1.5-1.5 1.5-1.5-.7-1.5-1.5.7-1.5 1.5-1.5M10 9.5c0 .8-.7 1.5-1.5 1.5S7 10.3 7 9.5 7.7 8 8.5 8s1.5.7 1.5 1.5m2 4.5c1.75 0 3.29.72 4.19 1.81l-1.42 1.42C14.32 16.5 13.25 16 12 16s-2.32.5-2.77 1.23l-1.42-1.42C8.71 14.72 10.25 14 12 14"/></svg>
+            </button>
+          
+        </div>
+        <div class="md-feedback__note">
+          
+            <div data-md-value="1" hidden>
+              
+              
+                
+              
+              
+              
+                
+                
+              
+              Thanks for your feedback!
+            </div>
+          
+            <div data-md-value="0" hidden>
+              
+              
+                
+              
+              
+              
+                
+                
+              
+              Thanks for your feedback! Help us improve by using our <a href="https://github.com/rennf93/guard-core/issues/new">issue tracker</a>.
+            </div>
+          
+        </div>
+      </div>
+    </fieldset>
+  </form>
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-footer-copyright footer-custom">
+        <a href="https://github.com/rennf93/guard-core">Guard Core</a> by
+        <a href="https://github.com/rennf93"> Renzo Franceschini</a>
+        <br>
+        Documentation was built using <a href="https://squidfunk.github.io/mkdocs-material/">MkDocs</a>
+      </div>
+      
+      
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/rennf93/guard-core" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://pypi.org/project/guard-core/" target="_blank" rel="noopener" title="pypi.org" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.8 200.5c-7.7-30.9-22.3-54.2-53.4-54.2h-40.1v47.4c0 36.8-31.2 67.8-66.8 67.8H172.7c-29.2 0-53.4 25-53.4 54.3v101.8c0 29 25.2 46 53.4 54.3 33.8 9.9 66.3 11.7 106.8 0 26.9-7.8 53.4-23.5 53.4-54.3v-40.7H226.2v-13.6h160.2c31.1 0 42.6-21.7 53.4-54.2 11.2-33.5 10.7-65.7 0-108.6M286.2 444.7a20.4 20.4 0 1 1 0-40.7 20.4 20.4 0 1 1 0 40.7M167.8 248.1h106.8c29.7 0 53.4-24.5 53.4-54.3V91.9c0-29-24.4-50.7-53.4-55.6-35.8-5.9-74.7-5.6-106.8.1-45.2 8-53.4 24.7-53.4 55.6v40.7h106.9v13.6h-147c-31.1 0-58.3 18.7-66.8 54.2-9.8 40.7-10.2 66.1 0 108.6 7.6 31.6 25.7 54.2 56.8 54.2H101v-48.8c0-35.3 30.5-66.4 66.8-66.4m-6.6-183.4a20.4 20.4 0 1 1 0 40.8 20.4 20.4 0 1 1 0-40.8"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.code.copy", "content.code.annotate", "navigation.tracking", "navigation.tabs", "navigation.sections", "navigation.indexes", "navigation.top", "search.highlight", "search.share", "toc.follow"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "json_file": "/guard-core/versions.json", "provider": "mike", "version_selector": true}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

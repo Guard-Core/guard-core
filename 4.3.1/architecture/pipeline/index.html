@@ -1,0 +1,4219 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Deep dive into the SecurityCheckPipeline chain of responsibility, the applies_to build-time elimination mechanism, all 17 security checks in catalogue order, the SecurityCheck base class, and extending the pipeline">
+      
+      
+      
+        <link rel="canonical" href="https://rennf93.github.io/guard-core/latest/4.3.1/architecture/pipeline/">
+      
+      
+        <link rel="prev" href="../protocols/">
+      
+      
+        <link rel="next" href="../events/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/guard_core_favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Security Pipeline - Guard Core - Guard Core</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../css/custom.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+  
+
+
+  <script
+    src="https://analytics.guard-core.com/api/script.js"
+    data-site-id="852006e69f52"
+    defer
+></script>
+  
+    <script>"undefined"!=typeof __md_analytics&&__md_analytics()</script>
+  
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="dark-blue" data-md-color-accent="blue">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#security-pipeline" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+        <aside class="md-banner">
+          <div class="md-banner__inner md-grid md-typeset">
+            
+            
+  <div class="gc-announce">
+    Running Guard in production?
+    <a href="https://guard-core.com/?utm_source=docs&amp;utm_medium=guard-core&amp;utm_campaign=docs_announce">The hosted platform</a>
+    adds live dashboards, alerting and dynamic rules you can push without a redeploy.
+    <a href="https://playground.guard-core.com/?utm_source=docs&amp;utm_medium=guard-core&amp;utm_campaign=docs_announce_playground">Try the playground</a>
+    first, no account needed.
+  </div>
+
+          </div>
+          
+        </aside>
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Guard Core" class="md-header__button md-logo" aria-label="Guard Core" data-md-component="logo">
+      
+  <img src="../../assets/guard_core_logo.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Guard Core
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Security Pipeline - Guard Core
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="dark-blue" data-md-color-accent="blue"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="dark-blue" data-md-color-accent="blue"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/rennf93/guard-core" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    rennf93/guard-core
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../installation/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Installation
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../overview/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Architecture
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../adapters/getting-started/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Building Adapters
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../internals/checks/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Engine Internals
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../configuration/security-config/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Configuration
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../api/protocols/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  API Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../migration/v1-to-v2/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Migration
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../release-notes/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Release Notes
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Guard Core" class="md-nav__button md-logo" aria-label="Guard Core" data-md-component="logo">
+      
+  <img src="../../assets/guard_core_logo.svg" alt="logo">
+
+    </a>
+    Guard Core
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/rennf93/guard-core" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    rennf93/guard-core
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../protocols/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Protocol Layer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security Pipeline
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#securitycheckpipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SecurityCheckPipeline
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="SecurityCheckPipeline">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#config-revision-rebuild" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Config-Revision Rebuild
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#route-config-revision-rebuild" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Route-Config Revision Rebuild
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#execution-semantics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Execution Semantics
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pipeline-management-methods" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pipeline Management Methods
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#securitycheck-base-class" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SecurityCheck Base Class
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="SecurityCheck Base Class">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-a-check-must-implement" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What a Check Must Implement
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-a-check-may-override" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What a Check May Override
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-a-check-gets-for-free" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What a Check Gets for Free
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#build-time-elimination" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Build-Time Elimination
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Build-Time Elimination">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-safety-rule" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The safety rule
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#unknown-route-configuration-means-keep-everything" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Unknown route configuration means keep everything
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#enable_dynamic_rules-keeps-every-dynamically-mutable-check" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        enable_dynamic_rules keeps every dynamically-mutable check
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ipsecuritycheck-is-never-eliminated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IpSecurityCheck is never eliminated
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#per-check-predicates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Per-check predicates
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#all-17-checks-in-execution-order" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        All 17 Checks in Execution Order
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="All 17 Checks in Execution Order">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-routeconfigcheck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. RouteConfigCheck
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-emergencymodecheck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. EmergencyModeCheck
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-httpsenforcementcheck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. HttpsEnforcementCheck
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-requestloggingcheck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. RequestLoggingCheck
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-requestsizecontentcheck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. RequestSizeContentCheck
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-requiredheaderscheck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. RequiredHeadersCheck
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#7-authenticationcheck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. AuthenticationCheck
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#8-referrercheck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. ReferrerCheck
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#9-customvalidatorscheck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. CustomValidatorsCheck
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#10-timewindowcheck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. TimeWindowCheck
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#11-cloudiprefreshcheck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11. CloudIpRefreshCheck
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#12-ipsecuritycheck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        12. IpSecurityCheck
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#13-cloudprovidercheck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13. CloudProviderCheck
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#14-useragentcheck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        14. UserAgentCheck
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#15-ratelimitcheck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        15. RateLimitCheck
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#16-suspiciousactivitycheck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        16. SuspiciousActivityCheck
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#17-customrequestcheck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        17. CustomRequestCheck
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fail-open-vs-fail-secure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fail-Open vs Fail-Secure
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Fail-Open vs Fail-Secure">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rebuild-failures" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rebuild Failures
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#passive-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Passive Mode
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adding-a-custom-security-check" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adding a Custom Security Check
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Adding a Custom Security Check">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#step-1-create-the-check" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 1: Create the Check
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-2-register-in-the-pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 2: Register in the Pipeline
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-3-optional-make-it-removable" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 3: (Optional) Make It Removable
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#guidelines" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Guidelines
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../events/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Event System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../telemetry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Telemetry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dependency-injection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dependency Injection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building Adapters
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Building Adapters
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adapters/getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adapters/guard-request/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Implementing GuardRequest
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adapters/guard-response/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Implementing GuardResponse
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adapters/middleware-integration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Middleware Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adapters/decorators/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decorator System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adapters/testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing Your Adapter
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Engine Internals
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Engine Internals
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../internals/checks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Checks Framework
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../internals/check-implementations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Check Implementations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../internals/ip-management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IP Management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../internals/rate-limiting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rate Limiting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../internals/detection-engine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Detection Engine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../internals/cloud-providers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cloud Providers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../internals/security-headers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security Headers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../internals/behavioral/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Behavioral Analysis
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../internals/redis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Redis Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../internals/api-surface-audit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Surface Audit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Configuration
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/security-config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SecurityConfig Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/detection-tuning/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Detection Tuning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/logging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Logging
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/protocols/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Protocols
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/models/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Models
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/handlers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Handlers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/detection-engine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Detection Engine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/detection-result/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DetectionResult
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/ban-config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ban Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/behavior-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Behavior Rules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/cloud-ip-store/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cloud IP Store
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/decorators/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decorators
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/utilities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Utilities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migration
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Migration
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../migration/v1-to-v2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    v1.x to v2.0
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../release-notes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Release Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#securitycheckpipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SecurityCheckPipeline
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="SecurityCheckPipeline">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#config-revision-rebuild" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Config-Revision Rebuild
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#route-config-revision-rebuild" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Route-Config Revision Rebuild
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#execution-semantics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Execution Semantics
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pipeline-management-methods" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pipeline Management Methods
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#securitycheck-base-class" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SecurityCheck Base Class
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="SecurityCheck Base Class">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-a-check-must-implement" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What a Check Must Implement
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-a-check-may-override" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What a Check May Override
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-a-check-gets-for-free" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What a Check Gets for Free
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#build-time-elimination" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Build-Time Elimination
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Build-Time Elimination">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-safety-rule" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The safety rule
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#unknown-route-configuration-means-keep-everything" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Unknown route configuration means keep everything
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#enable_dynamic_rules-keeps-every-dynamically-mutable-check" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        enable_dynamic_rules keeps every dynamically-mutable check
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ipsecuritycheck-is-never-eliminated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IpSecurityCheck is never eliminated
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#per-check-predicates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Per-check predicates
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#all-17-checks-in-execution-order" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        All 17 Checks in Execution Order
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="All 17 Checks in Execution Order">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-routeconfigcheck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. RouteConfigCheck
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-emergencymodecheck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. EmergencyModeCheck
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-httpsenforcementcheck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. HttpsEnforcementCheck
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-requestloggingcheck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. RequestLoggingCheck
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-requestsizecontentcheck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. RequestSizeContentCheck
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-requiredheaderscheck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. RequiredHeadersCheck
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#7-authenticationcheck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. AuthenticationCheck
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#8-referrercheck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. ReferrerCheck
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#9-customvalidatorscheck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. CustomValidatorsCheck
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#10-timewindowcheck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. TimeWindowCheck
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#11-cloudiprefreshcheck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11. CloudIpRefreshCheck
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#12-ipsecuritycheck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        12. IpSecurityCheck
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#13-cloudprovidercheck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13. CloudProviderCheck
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#14-useragentcheck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        14. UserAgentCheck
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#15-ratelimitcheck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        15. RateLimitCheck
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#16-suspiciousactivitycheck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        16. SuspiciousActivityCheck
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#17-customrequestcheck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        17. CustomRequestCheck
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fail-open-vs-fail-secure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fail-Open vs Fail-Secure
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Fail-Open vs Fail-Secure">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rebuild-failures" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rebuild Failures
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#passive-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Passive Mode
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adding-a-custom-security-check" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adding a Custom Security Check
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Adding a Custom Security Check">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#step-1-create-the-check" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 1: Create the Check
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-2-register-in-the-pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 2: Register in the Pipeline
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-3-optional-make-it-removable" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 3: (Optional) Make It Removable
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#guidelines" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Guidelines
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="security-pipeline">Security Pipeline<a class="headerlink" href="#security-pipeline" title="Permanent link">&para;</a></h1>
+<p>The security pipeline is the heart of guard-core. It implements the <strong>chain of responsibility</strong> pattern: an ordered list of <code>SecurityCheck</code> instances, executed sequentially for every request. The first check that returns a non-<code>None</code> response short-circuits the pipeline and blocks the request.</p>
+<hr />
+<h2 id="securitycheckpipeline">SecurityCheckPipeline<a class="headerlink" href="#securitycheckpipeline" title="Permanent link">&para;</a></h2>
+<p><strong>Location</strong>: <code>guard_core/core/checks/pipeline.py</code></p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">SecurityCheckPipeline</span><span class="p">:</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>        <span class="bp">self</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>        <span class="n">checks</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">SecurityCheck</span><span class="p">],</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>        <span class="n">muted_check_logs</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>        <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>        <span class="n">config</span><span class="p">:</span> <span class="n">SecurityConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>        <span class="n">rebuild_checks</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="nb">list</span><span class="p">[</span><span class="n">SecurityCheck</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>        <span class="n">watched_container_fields</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>        <span class="n">route_config_revision</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">checks</span> <span class="o">=</span> <span class="n">checks</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">muted_check_logs</span> <span class="o">=</span> <span class="n">muted_check_logs</span> <span class="ow">or</span> <span class="nb">set</span><span class="p">()</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_config</span> <span class="o">=</span> <span class="n">config</span>
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_rebuild_checks</span> <span class="o">=</span> <span class="n">rebuild_checks</span>
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_watched_container_fields</span> <span class="o">=</span> <span class="n">watched_container_fields</span> <span class="ow">or</span> <span class="p">()</span>
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_route_config_revision</span> <span class="o">=</span> <span class="n">route_config_revision</span>
+</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_rebuild_lock</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">Lock</span><span class="p">()</span>
+</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_built_revision</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">revision</span> <span class="k">if</span> <span class="n">config</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
+</span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_built_signature</span> <span class="o">=</span> <span class="p">(</span>
+</span><span id="__span-0-22"><a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>            <span class="bp">self</span><span class="o">.</span><span class="n">_container_signature</span><span class="p">(</span><span class="n">config</span><span class="p">)</span> <span class="k">if</span> <span class="n">config</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="p">()</span>
+</span><span id="__span-0-23"><a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>        <span class="p">)</span>
+</span><span id="__span-0-24"><a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_built_route_config_revision</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_current_route_config_revision</span><span class="p">()</span>
+</span><span id="__span-0-25"><a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>
+</span><span id="__span-0-26"><a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">execute</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">:</span> <span class="n">GuardRequest</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">GuardResponse</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="__span-0-27"><a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a>        <span class="k">try</span><span class="p">:</span>
+</span><span id="__span-0-28"><a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a>            <span class="bp">self</span><span class="o">.</span><span class="n">_rebuild_if_stale</span><span class="p">()</span>
+</span><span id="__span-0-29"><a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a>        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+</span><span id="__span-0-30"><a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a>            <span class="n">response</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_handle_rebuild_error</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
+</span><span id="__span-0-31"><a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a>            <span class="k">if</span> <span class="n">response</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="__span-0-32"><a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a>                <span class="k">return</span> <span class="n">response</span>
+</span><span id="__span-0-33"><a id="__codelineno-0-33" name="__codelineno-0-33" href="#__codelineno-0-33"></a>
+</span><span id="__span-0-34"><a id="__codelineno-0-34" name="__codelineno-0-34" href="#__codelineno-0-34"></a>        <span class="k">for</span> <span class="n">check</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">checks</span><span class="p">:</span>
+</span><span id="__span-0-35"><a id="__codelineno-0-35" name="__codelineno-0-35" href="#__codelineno-0-35"></a>            <span class="k">try</span><span class="p">:</span>
+</span><span id="__span-0-36"><a id="__codelineno-0-36" name="__codelineno-0-36" href="#__codelineno-0-36"></a>                <span class="n">response</span> <span class="o">=</span> <span class="k">await</span> <span class="n">check</span><span class="o">.</span><span class="n">check</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
+</span><span id="__span-0-37"><a id="__codelineno-0-37" name="__codelineno-0-37" href="#__codelineno-0-37"></a>                <span class="k">if</span> <span class="n">response</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="__span-0-38"><a id="__codelineno-0-38" name="__codelineno-0-38" href="#__codelineno-0-38"></a>                    <span class="k">if</span> <span class="n">check</span><span class="o">.</span><span class="n">check_name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">muted_check_logs</span><span class="p">:</span>
+</span><span id="__span-0-39"><a id="__codelineno-0-39" name="__codelineno-0-39" href="#__codelineno-0-39"></a>                        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+</span><span id="__span-0-40"><a id="__codelineno-0-40" name="__codelineno-0-40" href="#__codelineno-0-40"></a>                            <span class="sa">f</span><span class="s2">"Request blocked by </span><span class="si">{</span><span class="n">check</span><span class="o">.</span><span class="n">check_name</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
+</span><span id="__span-0-41"><a id="__codelineno-0-41" name="__codelineno-0-41" href="#__codelineno-0-41"></a>                            <span class="n">extra</span><span class="o">=</span><span class="p">{</span>
+</span><span id="__span-0-42"><a id="__codelineno-0-42" name="__codelineno-0-42" href="#__codelineno-0-42"></a>                                <span class="s2">"check"</span><span class="p">:</span> <span class="n">check</span><span class="o">.</span><span class="n">check_name</span><span class="p">,</span>
+</span><span id="__span-0-43"><a id="__codelineno-0-43" name="__codelineno-0-43" href="#__codelineno-0-43"></a>                                <span class="s2">"path"</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">url_path</span><span class="p">,</span>
+</span><span id="__span-0-44"><a id="__codelineno-0-44" name="__codelineno-0-44" href="#__codelineno-0-44"></a>                                <span class="s2">"method"</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">method</span><span class="p">,</span>
+</span><span id="__span-0-45"><a id="__codelineno-0-45" name="__codelineno-0-45" href="#__codelineno-0-45"></a>                            <span class="p">},</span>
+</span><span id="__span-0-46"><a id="__codelineno-0-46" name="__codelineno-0-46" href="#__codelineno-0-46"></a>                        <span class="p">)</span>
+</span><span id="__span-0-47"><a id="__codelineno-0-47" name="__codelineno-0-47" href="#__codelineno-0-47"></a>                    <span class="k">return</span> <span class="n">response</span>
+</span><span id="__span-0-48"><a id="__codelineno-0-48" name="__codelineno-0-48" href="#__codelineno-0-48"></a>
+</span><span id="__span-0-49"><a id="__codelineno-0-49" name="__codelineno-0-49" href="#__codelineno-0-49"></a>            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+</span><span id="__span-0-50"><a id="__codelineno-0-50" name="__codelineno-0-50" href="#__codelineno-0-50"></a>                <span class="n">error_response</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_handle_check_error</span><span class="p">(</span><span class="n">check</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
+</span><span id="__span-0-51"><a id="__codelineno-0-51" name="__codelineno-0-51" href="#__codelineno-0-51"></a>                <span class="k">if</span> <span class="n">error_response</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="__span-0-52"><a id="__codelineno-0-52" name="__codelineno-0-52" href="#__codelineno-0-52"></a>                    <span class="k">return</span> <span class="n">error_response</span>
+</span><span id="__span-0-53"><a id="__codelineno-0-53" name="__codelineno-0-53" href="#__codelineno-0-53"></a>
+</span><span id="__span-0-54"><a id="__codelineno-0-54" name="__codelineno-0-54" href="#__codelineno-0-54"></a>        <span class="k">return</span> <span class="kc">None</span>
+</span></code></pre></div>
+<p><code>_handle_check_error</code> logs the exception (unless the check is in <code>muted_check_logs</code>), skips the check and returns <code>None</code> when it is a <code>GuardRedisError</code> and <code>config.redis_fail_open</code> is <code>True</code>, and otherwise blocks with a 500 when <code>config.fail_secure</code> is <code>True</code> -- the same fail-secure decision shown in <a href="#fail-open-vs-fail-secure">Fail-Open vs Fail-Secure</a> below, just factored into its own method. The generic <code>"Request blocked by {check.check_name}"</code> summary line logs at <code>DEBUG</code>, not <code>INFO</code>: every check that can block already logs its own detailed, configurable-level line before returning, so this line is a secondary trace, not the primary block-decision log.</p>
+<h3 id="config-revision-rebuild">Config-Revision Rebuild<a class="headerlink" href="#config-revision-rebuild" title="Permanent link">&para;</a></h3>
+<p><code>SecurityConfig</code> bumps a private, monotonically increasing revision counter on every attribute assignment (an overridden <code>__setattr__</code>; the counter itself is a Pydantic <code>PrivateAttr</code>, so it never appears in <code>model_fields</code>, <code>model_dump()</code>, equality, or the constructor). <code>build_default_pipeline</code> passes the pipeline the <code>SecurityConfig</code> it built from, a closure that reruns <code>applies_to</code> over <code>DEFAULT_CHECK_CLASSES</code>, and <code>factory.WATCHED_CONTAINER_FIELDS</code>. <code>execute()</code> calls <code>_rebuild_if_stale()</code> first, which compares the config's current revision against the revision the pipeline was last built at; if the revision moved, it rebuilds outright without looking any further. If it did not move, it computes a size signature -- <code>len()</code> on each watched container, with <code>None</code> counted as <code>0</code> and no allocation -- and compares that against the signature recorded at the last build, rebuilding only if that moved too. When neither has moved this is one integer comparison plus a handful of <code>len()</code> calls, not a config fingerprint. When either has moved, it calls the closure, reassigns <code>self.checks</code> to the freshly filtered list it returns, and records the new revision and signature, so a config mutated -- by whole-value assignment or by mutating one of the watched containers in place -- after the pipeline was built takes effect on the next request instead of staying silently stale.</p>
+<p>The watched fields are <code>blocked_user_agents</code>, <code>block_cloud_providers</code>, and <code>endpoint_rate_limits</code> -- every mutable container any <code>applies_to</code> predicate reads, and nothing else needs watching: <code>blocked_countries</code>/<code>whitelist_countries</code> are <code>frozenset</code>, every feature flag is a <code>bool</code>, and every predicate reads these three containers as <code>bool(...)</code> alone, never by content, so a predicate's answer can only change when a container crosses between empty and non-empty, which is exactly what a size signature catches. <code>blacklist</code> and <code>whitelist</code> are also mutable containers on <code>SecurityConfig</code>, but no <code>applies_to</code> reads either one -- <code>IpSecurityCheck</code> never overrides <code>applies_to</code> and is therefore always built regardless of their contents -- so they are correctly absent from the watched set. That set is not a second hardcoded list: <code>SecurityCheck.container_fields: ClassVar[tuple[str, ...]]</code> is a class attribute each check declares next to its own <code>applies_to</code> (empty by default), and <code>factory.WATCHED_CONTAINER_FIELDS</code> is the union of <code>container_fields</code> across <code>DEFAULT_CHECK_CLASSES</code>, computed once at import time. A predicate that starts reading a new mutable container is watched the moment its check class says so; nothing elsewhere has to change.</p>
+<p>The rebuild always constructs a brand-new list and swaps it into <code>self.checks</code> with a single attribute assignment rather than mutating the existing list in place, and <code>execute()</code>'s <code>for check in self.checks</code> loop captures that list reference once, at the start of the call. A request already in flight therefore keeps running against the snapshot it started with even if a concurrent request or the dynamic-rules background task bumps the revision and triggers a rebuild mid-flight.</p>
+<p><code>_rebuild_if_stale()</code> captures the revision, the container signature, and <code>muted_check_logs</code> from <code>config</code> <em>before</em> calling the rebuild closure, then publishes all four together with the rebuilt checks under a <code>threading.Lock</code> scoped to the publish alone -- never to the closure call itself, so a rebuild storm never serializes the request path. Two callers can still both rebuild redundantly from a similarly-stale read; that costs CPU, not correctness, since whichever caller's publish lands last stamps <em>its own</em> captured revision and signature, not whatever the live config has moved to by the time its build finished. A caller that built from stale state can therefore only ever record that it built from stale state -- it can never publish a check list and then stamp it with a revision/signature that makes the pipeline believe it is current when it is not -- so the next call to <code>_rebuild_if_stale()</code> sees the mismatch and rebuilds again. Before this guarantee existed, the revision and signature were read from the live <code>config</code> <em>after</em> the rebuild closure returned rather than captured before it started; that ordering is safe in the async tree, where <code>_rebuild_if_stale()</code> contains no <code>await</code> and always completes within a single, uninterruptible coroutine turn, but it was a genuine lost-update race in the generated sync tree, whose <code>DynamicRuleManager</code> mutates the watched config fields from a real background <code>threading.Thread</code>. The steady-state comparison in <code>_is_stale()</code> never takes the lock, so the cost of a request that finds nothing stale is unchanged.</p>
+<p>A pipeline constructed directly as <code>SecurityCheckPipeline(checks)</code> -- the form every adapter and <a href="../../adapters/testing/">the testing guide</a> use -- has no <code>config</code>/<code>rebuild_checks</code> reference and so never rebuilds, exactly as it did before this mechanism existed.</p>
+<h3 id="route-config-revision-rebuild">Route-Config Revision Rebuild<a class="headerlink" href="#route-config-revision-rebuild" title="Permanent link">&para;</a></h3>
+<p><code>BaseSecurityDecorator</code> holds a <code>RouteConfigRevision</code> counter -- its own mutable cell, independent of <code>SecurityConfig._revision</code> -- that starts at zero for every decorator instance. <code>RouteConfig.__setattr__</code> bumps that counter on every attribute assignment except during <code>__init__</code> itself, gated behind a private <code>_initialized</code> flag that only flips <code>True</code> after the constructor's own ~25 field assignments finish, so decorating a fresh route touches the counter zero times for its own defaults, the same way <code>SecurityConfig</code>'s Pydantic-populated <code>__init__</code> never touches its overridden <code>__setattr__</code>. <code>_ensure_route_config</code> is the single insertion point for <code>_route_configs</code>; the counter is also bumped there explicitly, the moment a route id is first seen, so a route decorated after the pipeline was already built is observable on its own, independent of whatever attribute assignment the calling decorator makes next. <code>build_default_pipeline</code> reads <code>middleware.guard_decorator.route_config_revision</code> through a <code>route_config_revision</code> callable it hands the pipeline alongside <code>config</code> and <code>watched_container_fields</code>; <code>_is_stale()</code> compares that against the value recorded at the last build as one more integer comparison after the existing two, so the hot path stays O(1) in the number of watched fields and never touches <code>_route_configs</code> itself -- comparing container sizes across every route config on every request would make the steady-state cost proportional to route count, which the counter design avoids entirely. When <code>middleware.guard_decorator</code> is <code>None</code> the callable returns <code>None</code> on both sides of the comparison, so a middleware with no decorator handle behaves exactly as before this mechanism existed.</p>
+<p>In-place mutation of a container <em>inside</em> a <code>RouteConfig</code> -- <code>route_config.custom_validators.append(...)</code>, <code>route_config.required_headers["X-Api-Key"] = "required"</code> -- does not go through <code>RouteConfig.__setattr__</code> any more than <code>config.blocked_user_agents.append(...)</code> goes through <code>SecurityConfig.__setattr__</code>. Ten checks read a <code>RouteConfig</code> field as <code>bool(...)</code> or <code>is not None</code>: six purely route-driven (<code>authentication</code>, <code>custom_validators</code>, <code>referrer</code>, <code>request_size_content</code>, <code>required_headers</code>, <code>time_window</code>) and four whose predicate also has a <code>SecurityConfig</code>-level or <code>enable_dynamic_rules</code> escape hatch (<code>cloud_provider</code>, <code>cloud_ip_refresh</code>, <code>rate_limit</code>, <code>user_agent</code>) -- all ten read the same truthiness-only pattern the <code>SecurityConfig</code> side relies on, so the fix takes the same shape but a different form for every one of them: recomputing a length signature across every route config on every request would scale with route count, which the hot-path constraint rules out, so instead <code>RouteConfig.__setattr__</code> wraps values assigned to every mutable-container field any of the ten reads -- <code>custom_validators</code>, <code>require_referrer</code>, <code>allowed_content_types</code>, <code>blocked_user_agents</code> (lists), <code>required_headers</code>, <code>time_restrictions</code>, <code>geo_rate_limits</code> (dicts), and <code>block_cloud_providers</code> (a <code>set</code>) -- in a <code>list</code>/<code>dict</code>/<code>set</code> subclass whose mutating methods bump the same shared counter directly, in the method call itself, rather than being detected by scanning afterward: <code>append</code>, <code>extend</code>, <code>insert</code>, <code>remove</code>, <code>pop</code>, <code>clear</code>, <code>sort</code>, <code>reverse</code>, <code>__setitem__</code>, <code>__delitem__</code>, <code>__iadd__</code>, <code>__imul__</code> for the list subclass; <code>__setitem__</code>, <code>__delitem__</code>, <code>update</code>, <code>setdefault</code>, <code>pop</code>, <code>popitem</code>, <code>clear</code>, <code>__ior__</code> for the dict subclass; <code>add</code>, <code>discard</code>, <code>remove</code>, <code>pop</code>, <code>clear</code>, <code>update</code>, <code>intersection_update</code>, <code>difference_update</code>, <code>symmetric_difference_update</code>, <code>__ior__</code>, <code>__iand__</code>, <code>__isub__</code>, <code>__ixor__</code> for the set subclass. The non-augmented counterparts (<code>__add__</code>/<code>__mul__</code> on the list subclass, <code>__or__</code> on the dict subclass, <code>__or__</code>/<code>__and__</code>/<code>__sub__</code>/<code>__xor__</code> on the set subclass) each return a new, untracked object without touching <code>self</code>, exactly like the builtin they wrap, and correctly leave the counter alone. Wrapping happens unconditionally, including for the empty <code>[]</code>/<code>{}</code>/<code>set()</code> the constructor assigns, so the very first container object a decorator gets back from <code>_ensure_route_config</code> is already tracked -- deferring wrapping until after <code>_initialized</code> would leave that first container, the one most decorators mutate in place, permanently unobserved. <code>max_request_size</code> and <code>auth_required</code> are read by the same predicates but are <code>int | None</code> and <code>str | None</code>; both are immutable, so whole-value assignment -- already covered -- is the only way either changes. <code>block_cloud_providers</code>, <code>geo_rate_limits</code>, and <code>blocked_user_agents</code> having an additional <code>SecurityConfig</code>-level or dynamic-rules escape hatch only means a route config with all three empty can still keep the check for a reason unrelated to that route; it does not change how <code>route_config.block_cloud_providers.add("AWS")</code> behaves, since the predicate still consults the route config's own field by truthiness like the other seven.</p>
+<h3 id="execution-semantics">Execution Semantics<a class="headerlink" href="#execution-semantics" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Checks run <strong>sequentially</strong> in insertion order</li>
+<li>A check returning <code>None</code> means "pass -- continue to next check"</li>
+<li>A check returning a <code>GuardResponse</code> means "block -- stop pipeline and return this response"</li>
+<li>If a check raises an exception, the pipeline catches it and either continues (fail-open) or blocks (fail-secure)</li>
+<li>If all checks return <code>None</code>, the pipeline returns <code>None</code>, meaning the request is allowed</li>
+</ol>
+<h3 id="pipeline-management-methods">Pipeline Management Methods<a class="headerlink" href="#pipeline-management-methods" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Signature</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>execute</code></td>
+<td><code>async (request: GuardRequest) -&gt; GuardResponse \| None</code></td>
+<td>Run all checks against the request</td>
+</tr>
+<tr>
+<td><code>add_check</code></td>
+<td><code>(check: SecurityCheck) -&gt; None</code></td>
+<td>Append a check to the end of the pipeline</td>
+</tr>
+<tr>
+<td><code>insert_check</code></td>
+<td><code>(index: int, check: SecurityCheck) -&gt; None</code></td>
+<td>Insert a check at a specific position</td>
+</tr>
+<tr>
+<td><code>remove_check</code></td>
+<td><code>(check_name: str) -&gt; bool</code></td>
+<td>Remove a check by name. Returns <code>True</code> if found</td>
+</tr>
+<tr>
+<td><code>get_check_names</code></td>
+<td><code>() -&gt; list[str]</code></td>
+<td>List all check names in execution order</td>
+</tr>
+<tr>
+<td><code>__len__</code></td>
+<td><code>() -&gt; int</code></td>
+<td>Number of checks in the pipeline</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="securitycheck-base-class">SecurityCheck Base Class<a class="headerlink" href="#securitycheck-base-class" title="Permanent link">&para;</a></h2>
+<p><strong>Location</strong>: <code>guard_core/core/checks/base.py</code></p>
+<p>Every security check extends this abstract base class:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">SecurityCheck</span><span class="p">(</span><span class="n">ABC</span><span class="p">):</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    <span class="n">requires</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]]</span> <span class="o">=</span> <span class="p">()</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="n">container_fields</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]]</span> <span class="o">=</span> <span class="p">()</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">middleware</span><span class="p">:</span> <span class="s2">"GuardMiddlewareProtocol"</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">middleware</span> <span class="o">=</span> <span class="n">middleware</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">config</span> <span class="o">=</span> <span class="n">middleware</span><span class="o">.</span><span class="n">config</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span> <span class="o">=</span> <span class="n">middleware</span><span class="o">.</span><span class="n">logger</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>    <span class="nd">@classmethod</span>
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">applies_to</span><span class="p">(</span>
+</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>        <span class="bp">cls</span><span class="p">,</span>
+</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>        <span class="n">config</span><span class="p">:</span> <span class="s2">"SecurityConfig"</span><span class="p">,</span>
+</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>        <span class="n">route_configs</span><span class="p">:</span> <span class="s2">"Collection[RouteConfig] | None"</span><span class="p">,</span>
+</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+</span><span id="__span-1-16"><a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>        <span class="k">return</span> <span class="kc">True</span>
+</span><span id="__span-1-17"><a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a>
+</span><span id="__span-1-18"><a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>    <span class="nd">@abstractmethod</span>
+</span><span id="__span-1-19"><a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">check</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">:</span> <span class="n">GuardRequest</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">GuardResponse</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="__span-1-20"><a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a>        <span class="k">pass</span>
+</span><span id="__span-1-21"><a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a>
+</span><span id="__span-1-22"><a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a>    <span class="nd">@property</span>
+</span><span id="__span-1-23"><a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a>    <span class="nd">@abstractmethod</span>
+</span><span id="__span-1-24"><a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">check_name</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+</span><span id="__span-1-25"><a id="__codelineno-1-25" name="__codelineno-1-25" href="#__codelineno-1-25"></a>        <span class="k">pass</span>
+</span><span id="__span-1-26"><a id="__codelineno-1-26" name="__codelineno-1-26" href="#__codelineno-1-26"></a>
+</span><span id="__span-1-27"><a id="__codelineno-1-27" name="__codelineno-1-27" href="#__codelineno-1-27"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">send_event</span><span class="p">(</span>
+</span><span id="__span-1-28"><a id="__codelineno-1-28" name="__codelineno-1-28" href="#__codelineno-1-28"></a>        <span class="bp">self</span><span class="p">,</span>
+</span><span id="__span-1-29"><a id="__codelineno-1-29" name="__codelineno-1-29" href="#__codelineno-1-29"></a>        <span class="n">event_type</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+</span><span id="__span-1-30"><a id="__codelineno-1-30" name="__codelineno-1-30" href="#__codelineno-1-30"></a>        <span class="n">request</span><span class="p">:</span> <span class="n">GuardRequest</span><span class="p">,</span>
+</span><span id="__span-1-31"><a id="__codelineno-1-31" name="__codelineno-1-31" href="#__codelineno-1-31"></a>        <span class="n">action_taken</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+</span><span id="__span-1-32"><a id="__codelineno-1-32" name="__codelineno-1-32" href="#__codelineno-1-32"></a>        <span class="n">reason</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+</span><span id="__span-1-33"><a id="__codelineno-1-33" name="__codelineno-1-33" href="#__codelineno-1-33"></a>        <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+</span><span id="__span-1-34"><a id="__codelineno-1-34" name="__codelineno-1-34" href="#__codelineno-1-34"></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="__span-1-35"><a id="__codelineno-1-35" name="__codelineno-1-35" href="#__codelineno-1-35"></a>        <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">middleware</span><span class="o">.</span><span class="n">event_bus</span><span class="o">.</span><span class="n">send_middleware_event</span><span class="p">(</span>
+</span><span id="__span-1-36"><a id="__codelineno-1-36" name="__codelineno-1-36" href="#__codelineno-1-36"></a>            <span class="n">event_type</span><span class="o">=</span><span class="n">event_type</span><span class="p">,</span>
+</span><span id="__span-1-37"><a id="__codelineno-1-37" name="__codelineno-1-37" href="#__codelineno-1-37"></a>            <span class="n">request</span><span class="o">=</span><span class="n">request</span><span class="p">,</span>
+</span><span id="__span-1-38"><a id="__codelineno-1-38" name="__codelineno-1-38" href="#__codelineno-1-38"></a>            <span class="n">action_taken</span><span class="o">=</span><span class="n">action_taken</span><span class="p">,</span>
+</span><span id="__span-1-39"><a id="__codelineno-1-39" name="__codelineno-1-39" href="#__codelineno-1-39"></a>            <span class="n">reason</span><span class="o">=</span><span class="n">reason</span><span class="p">,</span>
+</span><span id="__span-1-40"><a id="__codelineno-1-40" name="__codelineno-1-40" href="#__codelineno-1-40"></a>            <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
+</span><span id="__span-1-41"><a id="__codelineno-1-41" name="__codelineno-1-41" href="#__codelineno-1-41"></a>        <span class="p">)</span>
+</span><span id="__span-1-42"><a id="__codelineno-1-42" name="__codelineno-1-42" href="#__codelineno-1-42"></a>
+</span><span id="__span-1-43"><a id="__codelineno-1-43" name="__codelineno-1-43" href="#__codelineno-1-43"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">create_error_response</span><span class="p">(</span>
+</span><span id="__span-1-44"><a id="__codelineno-1-44" name="__codelineno-1-44" href="#__codelineno-1-44"></a>        <span class="bp">self</span><span class="p">,</span> <span class="n">status_code</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">default_message</span><span class="p">:</span> <span class="nb">str</span>
+</span><span id="__span-1-45"><a id="__codelineno-1-45" name="__codelineno-1-45" href="#__codelineno-1-45"></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">GuardResponse</span><span class="p">:</span>
+</span><span id="__span-1-46"><a id="__codelineno-1-46" name="__codelineno-1-46" href="#__codelineno-1-46"></a>        <span class="k">return</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">middleware</span><span class="o">.</span><span class="n">create_error_response</span><span class="p">(</span><span class="n">status_code</span><span class="p">,</span> <span class="n">default_message</span><span class="p">)</span>
+</span><span id="__span-1-47"><a id="__codelineno-1-47" name="__codelineno-1-47" href="#__codelineno-1-47"></a>
+</span><span id="__span-1-48"><a id="__codelineno-1-48" name="__codelineno-1-48" href="#__codelineno-1-48"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">is_passive_mode</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+</span><span id="__span-1-49"><a id="__codelineno-1-49" name="__codelineno-1-49" href="#__codelineno-1-49"></a>        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">passive_mode</span>
+</span></code></pre></div>
+<h3 id="what-a-check-must-implement">What a Check Must Implement<a class="headerlink" href="#what-a-check-must-implement" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Member</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>check_name</code></td>
+<td><code>@property -&gt; str</code></td>
+<td>A unique identifier for the check (e.g. <code>"ip_security"</code>, <code>"rate_limit"</code>)</td>
+</tr>
+<tr>
+<td><code>check(request)</code></td>
+<td><code>async -&gt; GuardResponse \| None</code></td>
+<td>The check logic. Return <code>None</code> to pass, or a <code>GuardResponse</code> to block</td>
+</tr>
+</tbody>
+</table>
+<h3 id="what-a-check-may-override">What a Check May Override<a class="headerlink" href="#what-a-check-may-override" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Member</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>applies_to(config, route_configs)</code></td>
+<td><code>@classmethod -&gt; bool</code></td>
+<td>Returns <code>True</code> unconditionally</td>
+<td>Declares, at pipeline-build time, whether the effective configuration can ever make this check fire. See <a href="#build-time-elimination">Build-Time Elimination</a> below.</td>
+</tr>
+<tr>
+<td><code>requires</code></td>
+<td><code>ClassVar[tuple[str, ...]]</code></td>
+<td><code>()</code></td>
+<td>Names the packaging extra(s) the check's handler needs (for example <code>("cloud",)</code> on <code>CloudProviderCheck</code>).</td>
+</tr>
+<tr>
+<td><code>container_fields</code></td>
+<td><code>ClassVar[tuple[str, ...]]</code></td>
+<td><code>()</code></td>
+<td>Names the mutable <code>SecurityConfig</code> container field(s) this check's <code>applies_to</code> reads (for example <code>("endpoint_rate_limits",)</code> on <code>RateLimitCheck</code>). <code>factory.WATCHED_CONTAINER_FIELDS</code> is the union of this attribute across <code>DEFAULT_CHECK_CLASSES</code>; see <a href="#config-revision-rebuild">Config-Revision Rebuild</a> above.</td>
+</tr>
+</tbody>
+</table>
+<p>A check that does not override <code>applies_to</code> always runs, because the base implementation returns <code>True</code>.</p>
+<h3 id="what-a-check-gets-for-free">What a Check Gets for Free<a class="headerlink" href="#what-a-check-gets-for-free" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>self.middleware</code></td>
+<td>Access to the <code>GuardMiddlewareProtocol</code> instance (event bus, route resolver, handlers)</td>
+</tr>
+<tr>
+<td><code>self.config</code></td>
+<td>Direct access to <code>SecurityConfig</code></td>
+</tr>
+<tr>
+<td><code>self.logger</code></td>
+<td>The middleware's logger</td>
+</tr>
+<tr>
+<td><code>send_event(...)</code></td>
+<td>Shortcut for <code>self.middleware.event_bus.send_middleware_event(...)</code></td>
+</tr>
+<tr>
+<td><code>create_error_response(status_code, message)</code></td>
+<td>Shortcut for <code>self.middleware.create_error_response(...)</code></td>
+</tr>
+<tr>
+<td><code>is_passive_mode()</code></td>
+<td>Whether the engine is in passive (log-only) mode</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="build-time-elimination">Build-Time Elimination<a class="headerlink" href="#build-time-elimination" title="Permanent link">&para;</a></h2>
+<p><strong>Location</strong>: <code>guard_core/core/checks/factory.py</code></p>
+<p><code>build_default_pipeline</code> filters the 17-check catalogue (<code>DEFAULT_CHECK_CLASSES</code>) through each check class's <code>applies_to(config, route_configs)</code> classmethod before instantiating anything, so a deployment only builds and runs the checks its configuration can actually trigger:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_build_checks</span><span class="p">(</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="n">middleware</span><span class="p">:</span> <span class="s2">"GuardMiddlewareProtocol"</span><span class="p">,</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">SecurityCheck</span><span class="p">]:</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="n">config</span> <span class="o">=</span> <span class="n">middleware</span><span class="o">.</span><span class="n">config</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="n">route_configs</span> <span class="o">=</span> <span class="n">_collect_route_configs</span><span class="p">(</span><span class="n">middleware</span><span class="p">)</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>    <span class="k">return</span> <span class="p">[</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>        <span class="bp">cls</span><span class="p">(</span><span class="n">middleware</span><span class="p">)</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>        <span class="k">for</span> <span class="bp">cls</span> <span class="ow">in</span> <span class="n">DEFAULT_CHECK_CLASSES</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>        <span class="k">if</span> <span class="bp">cls</span><span class="o">.</span><span class="n">applies_to</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">route_configs</span><span class="p">)</span>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>    <span class="p">]</span>
+</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>
+</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>
+</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="k">def</span><span class="w"> </span><span class="nf">build_default_pipeline</span><span class="p">(</span>
+</span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>    <span class="n">middleware</span><span class="p">:</span> <span class="s2">"GuardMiddlewareProtocol"</span><span class="p">,</span>
+</span><span id="__span-2-15"><a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SecurityCheckPipeline</span><span class="p">:</span>
+</span><span id="__span-2-16"><a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a>    <span class="n">config</span> <span class="o">=</span> <span class="n">middleware</span><span class="o">.</span><span class="n">config</span>
+</span><span id="__span-2-17"><a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a>    <span class="k">return</span> <span class="n">SecurityCheckPipeline</span><span class="p">(</span>
+</span><span id="__span-2-18"><a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a>        <span class="n">_build_checks</span><span class="p">(</span><span class="n">middleware</span><span class="p">),</span>
+</span><span id="__span-2-19"><a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a>        <span class="n">muted_check_logs</span><span class="o">=</span><span class="n">config</span><span class="o">.</span><span class="n">muted_check_logs</span><span class="p">,</span>
+</span><span id="__span-2-20"><a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a>        <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+</span><span id="__span-2-21"><a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a>        <span class="n">rebuild_checks</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">_build_checks</span><span class="p">(</span><span class="n">middleware</span><span class="p">),</span>
+</span><span id="__span-2-22"><a id="__codelineno-2-22" name="__codelineno-2-22" href="#__codelineno-2-22"></a>    <span class="p">)</span>
+</span><span id="__span-2-23"><a id="__codelineno-2-23" name="__codelineno-2-23" href="#__codelineno-2-23"></a>
+</span><span id="__span-2-24"><a id="__codelineno-2-24" name="__codelineno-2-24" href="#__codelineno-2-24"></a>
+</span><span id="__span-2-25"><a id="__codelineno-2-25" name="__codelineno-2-25" href="#__codelineno-2-25"></a><span class="k">def</span><span class="w"> </span><span class="nf">_collect_route_configs</span><span class="p">(</span>
+</span><span id="__span-2-26"><a id="__codelineno-2-26" name="__codelineno-2-26" href="#__codelineno-2-26"></a>    <span class="n">middleware</span><span class="p">:</span> <span class="s2">"GuardMiddlewareProtocol"</span><span class="p">,</span>
+</span><span id="__span-2-27"><a id="__codelineno-2-27" name="__codelineno-2-27" href="#__codelineno-2-27"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Collection</span><span class="p">[</span><span class="n">RouteConfig</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="__span-2-28"><a id="__codelineno-2-28" name="__codelineno-2-28" href="#__codelineno-2-28"></a>    <span class="n">decorator</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">middleware</span><span class="p">,</span> <span class="s2">"guard_decorator"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+</span><span id="__span-2-29"><a id="__codelineno-2-29" name="__codelineno-2-29" href="#__codelineno-2-29"></a>    <span class="k">if</span> <span class="n">decorator</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="__span-2-30"><a id="__codelineno-2-30" name="__codelineno-2-30" href="#__codelineno-2-30"></a>        <span class="k">return</span> <span class="kc">None</span>
+</span><span id="__span-2-31"><a id="__codelineno-2-31" name="__codelineno-2-31" href="#__codelineno-2-31"></a>    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">decorator</span><span class="o">.</span><span class="n">_route_configs</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
+</span></code></pre></div>
+<p>This filtering happens once, when the pipeline is built (lazily, on the first request, after route registration completes). It does not re-run on every single call to <code>execute()</code>: a check's presence in the pipeline reflects the configuration as of the last build, not necessarily the configuration at this exact instant. But it does re-run the moment <code>execute()</code> notices the config has moved since that build -- see <a href="#config-revision-rebuild">Config-Revision Rebuild</a> above -- so mutating <code>SecurityConfig</code> after the pipeline exists now does add or remove checks from that pipeline, on the next request through it. <code>enable_dynamic_rules=True</code> (see below) remains the way to keep every dynamically-relevant check present regardless of what the rest of the config says; it is not the only way to get a runtime change to take effect, but the revision-triggered rebuild does not replace its narrower guarantee of "these seven checks are always here" with a broader one -- an app that relies on that guarantee for cloud/user-agent/rate-limit checks it might toggle via <code>DynamicRuleManager</code> should keep using it.</p>
+<h3 id="the-safety-rule">The safety rule<a class="headerlink" href="#the-safety-rule" title="Permanent link">&para;</a></h3>
+<p>Elimination is strictly an optimization, never a security decision. The base <code>applies_to</code> implementation returns <code>True</code>, so any check that does not override it always runs unconditionally. Every real <code>applies_to</code> override in the codebase returns <code>True</code> on any uncertainty about the effective configuration or the registered routes -- an unknown state is always treated as "keep the check."</p>
+<h3 id="unknown-route-configuration-means-keep-everything">Unknown route configuration means keep everything<a class="headerlink" href="#unknown-route-configuration-means-keep-everything" title="Permanent link">&para;</a></h3>
+<p><code>_collect_route_configs</code> returns <code>None</code>, not an empty tuple, when <code>middleware.guard_decorator</code> is <code>None</code>, meaning the adapter has no decorator handle to enumerate registered routes from. <code>None</code> means "unknown"; an empty tuple means "known to be empty, no route carries a decorator." Every route-driven predicate goes through <code>route_config_applies()</code> (<code>guard_core/core/checks/helpers.py</code>), which returns <code>True</code> immediately when <code>route_configs is None</code>:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">route_config_applies</span><span class="p">(</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="n">route_configs</span><span class="p">:</span> <span class="n">Collection</span><span class="p">[</span><span class="n">RouteConfig</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="n">predicate</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">RouteConfig</span><span class="p">],</span> <span class="nb">bool</span><span class="p">],</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="k">if</span> <span class="n">route_configs</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>        <span class="k">return</span> <span class="kc">True</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="k">for</span> <span class="n">route_config</span> <span class="ow">in</span> <span class="n">route_configs</span><span class="p">:</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>        <span class="k">if</span> <span class="n">predicate</span><span class="p">(</span><span class="n">route_config</span><span class="p">):</span>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>            <span class="k">return</span> <span class="kc">True</span>
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>    <span class="k">return</span> <span class="kc">False</span>
+</span></code></pre></div>
+<p>An adapter that cannot enumerate its routes at pipeline-build time therefore loses the elimination optimization for route-driven checks, never the protection those checks provide.</p>
+<h3 id="enable_dynamic_rules-keeps-every-dynamically-mutable-check"><code>enable_dynamic_rules</code> keeps every dynamically-mutable check<a class="headerlink" href="#enable_dynamic_rules-keeps-every-dynamically-mutable-check" title="Permanent link">&para;</a></h3>
+<p><code>DynamicRuleManager</code> can flip <code>enable_penetration_detection</code>, <code>enable_ip_banning</code>, <code>enable_rate_limiting</code>, <code>emergency_mode</code>, <code>endpoint_rate_limits</code>, <code>block_cloud_providers</code>, and <code>blocked_user_agents</code> on a live <code>SecurityConfig</code>. Setting <code>config.enable_dynamic_rules = True</code> keeps every check whose predicate depends on one of those flags, regardless of every other setting: <code>emergency_mode</code>, <code>cloud_ip_refresh</code>, <code>cloud_provider</code>, <code>user_agent</code>, <code>rate_limit</code>, and <code>suspicious_activity</code> each OR <code>config.enable_dynamic_rules</code> directly into their predicate. <code>ip_security</code> does not need to, because it is never eliminated at all, for the reason below -- so all seven checks a running deployment might turn on through dynamic rules stay in the pipeline once <code>enable_dynamic_rules=True</code> is set, whatever the rest of the configuration says.</p>
+<h3 id="ipsecuritycheck-is-never-eliminated"><code>IpSecurityCheck</code> is never eliminated<a class="headerlink" href="#ipsecuritycheck-is-never-eliminated" title="Permanent link">&para;</a></h3>
+<p><code>IpSecurityCheck</code> has no <code>applies_to</code> override, so it inherits the base's unconditional <code>True</code>. This is deliberate, not an oversight. <code>check()</code> calls <code>_check_banned_ip</code> first, which calls <code>ip_ban_manager.is_ip_banned()</code> unconditionally, gated only by a per-route <code>should_bypass_check("ip_ban", route_config)</code> decorator, never by <code>SecurityConfig.enable_ip_banning</code>. IPs reach that ban store from <code>BehaviorTracker._execute_ban_action</code>, which bans through <code>ip_ban_manager.ban_ip()</code> regardless of <code>enable_ip_banning</code>, and from any other process sharing the same Redis-backed ban store. No <code>SecurityConfig</code> can prove the check unreachable, so it is always built.</p>
+<h3 id="per-check-predicates">Per-check predicates<a class="headerlink" href="#per-check-predicates" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Check</th>
+<th>Kept when</th>
+<th>Default verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>route_config</code></td>
+<td>Always (no override; produces <code>client_ip</code>, <code>route_config</code>)</td>
+<td>keep</td>
+</tr>
+<tr>
+<td><code>emergency_mode</code></td>
+<td><code>config.emergency_mode</code> or <code>enable_dynamic_rules</code></td>
+<td>drop</td>
+</tr>
+<tr>
+<td><code>https_enforcement</code></td>
+<td><code>config.enforce_https</code> or any route requires HTTPS</td>
+<td>drop</td>
+</tr>
+<tr>
+<td><code>request_logging</code></td>
+<td><code>config.log_request_level is not None</code></td>
+<td>drop</td>
+</tr>
+<tr>
+<td><code>request_size_content</code></td>
+<td>Any route sets <code>max_request_size</code> or <code>allowed_content_types</code></td>
+<td>drop</td>
+</tr>
+<tr>
+<td><code>required_headers</code></td>
+<td>Any route sets <code>required_headers</code></td>
+<td>drop</td>
+</tr>
+<tr>
+<td><code>authentication</code></td>
+<td>Any route sets <code>auth_required</code></td>
+<td>drop</td>
+</tr>
+<tr>
+<td><code>referrer</code></td>
+<td>Any route sets <code>require_referrer</code></td>
+<td>drop</td>
+</tr>
+<tr>
+<td><code>custom_validators</code></td>
+<td>Any route sets <code>custom_validators</code></td>
+<td>drop</td>
+</tr>
+<tr>
+<td><code>time_window</code></td>
+<td>Any route sets <code>time_restrictions</code></td>
+<td>drop</td>
+</tr>
+<tr>
+<td><code>cloud_ip_refresh</code></td>
+<td><code>config.block_cloud_providers</code> is set, any route sets <code>block_cloud_providers</code>, or <code>enable_dynamic_rules</code></td>
+<td>drop</td>
+</tr>
+<tr>
+<td><code>ip_security</code></td>
+<td>Always (no override, see above)</td>
+<td>keep</td>
+</tr>
+<tr>
+<td><code>cloud_provider</code></td>
+<td><code>config.block_cloud_providers</code> is set, any route sets <code>block_cloud_providers</code>, or <code>enable_dynamic_rules</code></td>
+<td>drop</td>
+</tr>
+<tr>
+<td><code>user_agent</code></td>
+<td><code>config.blocked_user_agents</code> is non-empty, any route sets <code>blocked_user_agents</code>, or <code>enable_dynamic_rules</code></td>
+<td>drop</td>
+</tr>
+<tr>
+<td><code>rate_limit</code></td>
+<td><code>config.enable_rate_limiting</code>, <code>config.endpoint_rate_limits</code> is set, any route sets <code>rate_limit</code>/<code>geo_rate_limits</code>, or <code>enable_dynamic_rules</code></td>
+<td>keep (<code>enable_rate_limiting</code> defaults to <code>True</code>)</td>
+</tr>
+<tr>
+<td><code>suspicious_activity</code></td>
+<td><code>config.enable_penetration_detection</code>, any route sets <code>enable_suspicious_detection</code>, or <code>enable_dynamic_rules</code></td>
+<td>keep (<code>enable_penetration_detection</code> defaults to <code>True</code>)</td>
+</tr>
+<tr>
+<td><code>custom_request</code></td>
+<td><code>config.custom_request_check is not None</code></td>
+<td>drop</td>
+</tr>
+</tbody>
+</table>
+<p>"Any route sets X" is <code>False</code> when <code>route_configs</code> is a known-empty tuple and always <code>True</code> when <code>route_configs is None</code> (unknown, see above). A default <code>SecurityConfig()</code> with no route decorators builds exactly four checks: <code>route_config</code>, <code>ip_security</code>, <code>rate_limit</code>, <code>suspicious_activity</code>. Configuring every feature and providing a fully-populated route decorator builds all 17, in the order shown below.</p>
+<hr />
+<h2 id="all-17-checks-in-execution-order">All 17 Checks in Execution Order<a class="headerlink" href="#all-17-checks-in-execution-order" title="Permanent link">&para;</a></h2>
+<p>The checks are listed here in the fixed order the catalogue defines. This order matters -- earlier checks set up state that later checks depend on. A given deployment's pipeline is a subset of this list, filtered by <code>applies_to</code> as described above, but the checks that do build always run in this relative order.</p>
+<h3 id="1-routeconfigcheck">1. RouteConfigCheck<a class="headerlink" href="#1-routeconfigcheck" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>check_name</strong></td>
+<td><code>route_config</code></td>
+</tr>
+<tr>
+<td><strong>Module</strong></td>
+<td><code>guard_core.core.checks.implementations.route_config</code></td>
+</tr>
+<tr>
+<td><strong>Purpose</strong></td>
+<td>Resolves the route-level decorator configuration and extracts the client IP</td>
+</tr>
+<tr>
+<td><strong>Blocks?</strong></td>
+<td>Only under <code>route_resolution_strict</code>, when the adapter reports it could not resolve the route -- <code>500 Route resolution failed</code></td>
+</tr>
+<tr>
+<td><strong>Side Effects</strong></td>
+<td>Sets <code>request.state.route_config</code> and <code>request.state.client_ip</code></td>
+</tr>
+</tbody>
+</table>
+<p>This check runs first because all subsequent checks depend on <code>request.state.client_ip</code> and <code>request.state.route_config</code>.</p>
+<h3 id="2-emergencymodecheck">2. EmergencyModeCheck<a class="headerlink" href="#2-emergencymodecheck" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>check_name</strong></td>
+<td><code>emergency_mode</code></td>
+</tr>
+<tr>
+<td><strong>Module</strong></td>
+<td><code>guard_core.core.checks.implementations.emergency_mode</code></td>
+</tr>
+<tr>
+<td><strong>Purpose</strong></td>
+<td>Blocks all requests when <code>config.emergency_mode = True</code>, except IPs in <code>config.emergency_whitelist</code></td>
+</tr>
+<tr>
+<td><strong>Blocks?</strong></td>
+<td>Returns 503 for non-whitelisted IPs (unless passive mode)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="3-httpsenforcementcheck">3. HttpsEnforcementCheck<a class="headerlink" href="#3-httpsenforcementcheck" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>check_name</strong></td>
+<td><code>https_enforcement</code></td>
+</tr>
+<tr>
+<td><strong>Module</strong></td>
+<td><code>guard_core.core.checks.implementations.https_enforcement</code></td>
+</tr>
+<tr>
+<td><strong>Purpose</strong></td>
+<td>Redirects HTTP requests to HTTPS when <code>config.enforce_https = True</code> or route requires HTTPS</td>
+</tr>
+<tr>
+<td><strong>Blocks?</strong></td>
+<td>Returns 301 redirect to HTTPS URL</td>
+</tr>
+</tbody>
+</table>
+<h3 id="4-requestloggingcheck">4. RequestLoggingCheck<a class="headerlink" href="#4-requestloggingcheck" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>check_name</strong></td>
+<td><code>request_logging</code></td>
+</tr>
+<tr>
+<td><strong>Module</strong></td>
+<td><code>guard_core.core.checks.implementations.request_logging</code></td>
+</tr>
+<tr>
+<td><strong>Purpose</strong></td>
+<td>Logs the incoming request if <code>config.log_request_level</code> is set</td>
+</tr>
+<tr>
+<td><strong>Blocks?</strong></td>
+<td>Never. Always returns <code>None</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="5-requestsizecontentcheck">5. RequestSizeContentCheck<a class="headerlink" href="#5-requestsizecontentcheck" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>check_name</strong></td>
+<td><code>request_size_content</code></td>
+</tr>
+<tr>
+<td><strong>Module</strong></td>
+<td><code>guard_core.core.checks.implementations.request_size_content</code></td>
+</tr>
+<tr>
+<td><strong>Purpose</strong></td>
+<td>Validates request body size and content type against route-level <code>max_request_size</code> and <code>allowed_content_types</code></td>
+</tr>
+<tr>
+<td><strong>Blocks?</strong></td>
+<td>Returns 413 (payload too large) or 415 (unsupported media type)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="6-requiredheaderscheck">6. RequiredHeadersCheck<a class="headerlink" href="#6-requiredheaderscheck" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>check_name</strong></td>
+<td><code>required_headers</code></td>
+</tr>
+<tr>
+<td><strong>Module</strong></td>
+<td><code>guard_core.core.checks.implementations.required_headers</code></td>
+</tr>
+<tr>
+<td><strong>Purpose</strong></td>
+<td>Validates that required headers are present with expected values (from route config)</td>
+</tr>
+<tr>
+<td><strong>Blocks?</strong></td>
+<td>Returns 400 (bad request)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="7-authenticationcheck">7. AuthenticationCheck<a class="headerlink" href="#7-authenticationcheck" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>check_name</strong></td>
+<td><code>authentication</code></td>
+</tr>
+<tr>
+<td><strong>Module</strong></td>
+<td><code>guard_core.core.checks.implementations.authentication</code></td>
+</tr>
+<tr>
+<td><strong>Purpose</strong></td>
+<td>Validates authentication headers (Bearer, Basic, custom) based on route config</td>
+</tr>
+<tr>
+<td><strong>Blocks?</strong></td>
+<td>Returns 401 (unauthorized)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="8-referrercheck">8. ReferrerCheck<a class="headerlink" href="#8-referrercheck" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>check_name</strong></td>
+<td><code>referrer</code></td>
+</tr>
+<tr>
+<td><strong>Module</strong></td>
+<td><code>guard_core.core.checks.implementations.referrer</code></td>
+</tr>
+<tr>
+<td><strong>Purpose</strong></td>
+<td>Validates the <code>Referer</code> header against route-level allowed domains</td>
+</tr>
+<tr>
+<td><strong>Blocks?</strong></td>
+<td>Returns 403 (forbidden)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="9-customvalidatorscheck">9. CustomValidatorsCheck<a class="headerlink" href="#9-customvalidatorscheck" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>check_name</strong></td>
+<td><code>custom_validators</code></td>
+</tr>
+<tr>
+<td><strong>Module</strong></td>
+<td><code>guard_core.core.checks.implementations.custom_validators</code></td>
+</tr>
+<tr>
+<td><strong>Purpose</strong></td>
+<td>Executes route-level custom validator callables</td>
+</tr>
+<tr>
+<td><strong>Blocks?</strong></td>
+<td>Returns whatever the custom validator returns</td>
+</tr>
+</tbody>
+</table>
+<h3 id="10-timewindowcheck">10. TimeWindowCheck<a class="headerlink" href="#10-timewindowcheck" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>check_name</strong></td>
+<td><code>time_window</code></td>
+</tr>
+<tr>
+<td><strong>Module</strong></td>
+<td><code>guard_core.core.checks.implementations.time_window</code></td>
+</tr>
+<tr>
+<td><strong>Purpose</strong></td>
+<td>Enforces time-of-day access restrictions from route config</td>
+</tr>
+<tr>
+<td><strong>Blocks?</strong></td>
+<td>Returns 403 (forbidden)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="11-cloudiprefreshcheck">11. CloudIpRefreshCheck<a class="headerlink" href="#11-cloudiprefreshcheck" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>check_name</strong></td>
+<td><code>cloud_ip_refresh</code></td>
+</tr>
+<tr>
+<td><strong>Module</strong></td>
+<td><code>guard_core.core.checks.implementations.cloud_ip_refresh</code></td>
+</tr>
+<tr>
+<td><strong>Purpose</strong></td>
+<td>Periodically refreshes cloud provider IP ranges based on <code>config.cloud_ip_refresh_interval</code></td>
+</tr>
+<tr>
+<td><strong>Blocks?</strong></td>
+<td>Never. Always returns <code>None</code></td>
+</tr>
+<tr>
+<td><strong>Side Effects</strong></td>
+<td>Schedules a single-flight background refresh (running <code>middleware.refresh_cloud_ip_ranges()</code> off the request path) when the interval has elapsed</td>
+</tr>
+</tbody>
+</table>
+<h3 id="12-ipsecuritycheck">12. IpSecurityCheck<a class="headerlink" href="#12-ipsecuritycheck" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>check_name</strong></td>
+<td><code>ip_security</code></td>
+</tr>
+<tr>
+<td><strong>Module</strong></td>
+<td><code>guard_core.core.checks.implementations.ip_security</code></td>
+</tr>
+<tr>
+<td><strong>Purpose</strong></td>
+<td>IP ban checks, route-level IP whitelist/blacklist, country-based filtering, and global IP allowlist/blocklist</td>
+</tr>
+<tr>
+<td><strong>Blocks?</strong></td>
+<td>Returns 403 (forbidden)</td>
+</tr>
+<tr>
+<td><strong>Side Effects</strong></td>
+<td>Sets <code>request.state.is_whitelisted</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="13-cloudprovidercheck">13. CloudProviderCheck<a class="headerlink" href="#13-cloudprovidercheck" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>check_name</strong></td>
+<td><code>cloud_provider</code></td>
+</tr>
+<tr>
+<td><strong>Module</strong></td>
+<td><code>guard_core.core.checks.implementations.cloud_provider</code></td>
+</tr>
+<tr>
+<td><strong>Purpose</strong></td>
+<td>Blocks requests originating from cloud provider IP ranges (AWS, GCP, Azure)</td>
+</tr>
+<tr>
+<td><strong>Blocks?</strong></td>
+<td>Returns 403 (forbidden)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="14-useragentcheck">14. UserAgentCheck<a class="headerlink" href="#14-useragentcheck" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>check_name</strong></td>
+<td><code>user_agent</code></td>
+</tr>
+<tr>
+<td><strong>Module</strong></td>
+<td><code>guard_core.core.checks.implementations.user_agent</code></td>
+</tr>
+<tr>
+<td><strong>Purpose</strong></td>
+<td>Filters requests by user agent string against route-level and global blocklists</td>
+</tr>
+<tr>
+<td><strong>Blocks?</strong></td>
+<td>Returns 403 (forbidden)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="15-ratelimitcheck">15. RateLimitCheck<a class="headerlink" href="#15-ratelimitcheck" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>check_name</strong></td>
+<td><code>rate_limit</code></td>
+</tr>
+<tr>
+<td><strong>Module</strong></td>
+<td><code>guard_core.core.checks.implementations.rate_limit</code></td>
+</tr>
+<tr>
+<td><strong>Purpose</strong></td>
+<td>Enforces rate limits at four levels: endpoint-specific, route-level, geo-based, and global</td>
+</tr>
+<tr>
+<td><strong>Blocks?</strong></td>
+<td>Returns 429 (too many requests)</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition note">
+<p class="admonition-title">Rate limit evaluation order</p>
+<p>The rate limit check evaluates in this priority: endpoint rate limits (from dynamic rules) &gt; route rate limits (from decorators) &gt; geo rate limits (from decorators) &gt; global rate limit (from config). The first limit that is exceeded blocks the request.</p>
+</div>
+<h3 id="16-suspiciousactivitycheck">16. SuspiciousActivityCheck<a class="headerlink" href="#16-suspiciousactivitycheck" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>check_name</strong></td>
+<td><code>suspicious_activity</code></td>
+</tr>
+<tr>
+<td><strong>Module</strong></td>
+<td><code>guard_core.core.checks.implementations.suspicious_activity</code></td>
+</tr>
+<tr>
+<td><strong>Purpose</strong></td>
+<td>Runs penetration attempt detection against the request URL, headers, query params, and body. Tracks suspicious request counts for auto-ban</td>
+</tr>
+<tr>
+<td><strong>Blocks?</strong></td>
+<td>Returns 403 (forbidden)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="17-customrequestcheck">17. CustomRequestCheck<a class="headerlink" href="#17-customrequestcheck" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>check_name</strong></td>
+<td><code>custom_request</code></td>
+</tr>
+<tr>
+<td><strong>Module</strong></td>
+<td><code>guard_core.core.checks.implementations.custom_request</code></td>
+</tr>
+<tr>
+<td><strong>Purpose</strong></td>
+<td>Executes the <code>config.custom_request_check</code> callable if provided</td>
+</tr>
+<tr>
+<td><strong>Blocks?</strong></td>
+<td>Returns whatever the custom check callable returns</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="fail-open-vs-fail-secure">Fail-Open vs Fail-Secure<a class="headerlink" href="#fail-open-vs-fail-secure" title="Permanent link">&para;</a></h2>
+<p>By default, the pipeline is <strong>fail-secure</strong>: if a security check raises an unhandled exception, the pipeline logs the error and blocks the request with an HTTP 500 response so check bugs surface instead of silently passing requests through.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="k">if</span> <span class="n">check</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">fail_secure</span><span class="p">:</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>        <span class="k">return</span> <span class="k">await</span> <span class="n">check</span><span class="o">.</span><span class="n">create_error_response</span><span class="p">(</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>            <span class="n">status_code</span><span class="o">=</span><span class="mi">500</span><span class="p">,</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>            <span class="n">default_message</span><span class="o">=</span><span class="s2">"Security check failed"</span><span class="p">,</span>
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>        <span class="p">)</span>
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>    <span class="k">continue</span>
+</span></code></pre></div>
+<p><code>fail_secure</code> is a standard field on the <code>SecurityConfig</code> model (<code>fail_secure: bool = Field(default=True)</code>). When <code>True</code> (the default), any check exception results in a 500 response, blocking the request. Setting <code>fail_secure = False</code> opts into fail-open behavior: the pipeline logs the error and falls through to the next check.</p>
+<div class="admonition tip">
+<p class="admonition-title">Choosing a failure mode</p>
+<p>Keep fail-secure (the default) in production so check bugs surface as 500s rather than letting unchecked requests through. Set <code>fail_secure = False</code> to opt into fail-open behavior, intended only for staging diagnostics where availability is preferred over blocking on a check error.</p>
+</div>
+<h3 id="rebuild-failures">Rebuild Failures<a class="headerlink" href="#rebuild-failures" title="Permanent link">&para;</a></h3>
+<p><code>execute()</code> now wraps the call to <code>_rebuild_if_stale()</code> in its own <code>try</code>/<code>except</code>, ahead of and separate from the one already wrapping each check, so a raising rebuild closure -- a check constructor failing during initialization, for instance -- is routed through the same <code>fail_secure</code> decision a check exception gets, not left to propagate out of <code>execute()</code> uncaught. Under <code>fail_secure=True</code> (the default), a rebuild failure blocks the request with the same 500 <code>Security check failed</code> response a failing check produces, built through the still-valid last-known-good <code>self.checks[0]</code>'s middleware; a pipeline that has no known-good check at all to build a response through re-raises the original exception instead of silently falling open. <code>build_default_pipeline</code> cannot produce that empty pipeline, because <code>IpSecurityCheck</code> is never eliminated, but the public <code>remove_check()</code> can drain any pipeline down to no checks, so the path is reachable in principle rather than only by hand-constructing an empty one. It still fails closed in practice: an exception escaping <code>execute()</code> becomes a 500 in every shipping adapter. Under <code>fail_secure=False</code>, the error is logged and the request continues against the last known-good <code>self.checks</code> -- the check list the pipeline already knew to be correct before the failed rebuild attempt, not a partially-rebuilt or truncated one, since <code>self.checks</code> is only ever reassigned after the rebuild closure returns successfully. Neither path updates the revision/signature bookkeeping on failure, so a transient rebuild failure -- a check constructor that fails once and then succeeds, for example -- is retried, and recovers, on the very next request instead of wedging the pipeline into raising (or silently degrading) forever.</p>
+<hr />
+<h2 id="passive-mode">Passive Mode<a class="headerlink" href="#passive-mode" title="Permanent link">&para;</a></h2>
+<p>When <code>SecurityConfig.passive_mode = True</code>, checks still evaluate fully and log violations, but they return <code>None</code> instead of a blocking <code>GuardResponse</code>. This is implemented at the individual check level:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">passive_mode</span><span class="p">:</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    <span class="k">return</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">middleware</span><span class="o">.</span><span class="n">create_error_response</span><span class="p">(</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>        <span class="n">status_code</span><span class="o">=</span><span class="mi">403</span><span class="p">,</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>        <span class="n">default_message</span><span class="o">=</span><span class="s2">"Forbidden"</span><span class="p">,</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>    <span class="p">)</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="k">return</span> <span class="kc">None</span>
+</span></code></pre></div>
+<p>Each check is responsible for honoring passive mode. The base class provides <code>is_passive_mode()</code> as a convenience method.</p>
+<hr />
+<h2 id="adding-a-custom-security-check">Adding a Custom Security Check<a class="headerlink" href="#adding-a-custom-security-check" title="Permanent link">&para;</a></h2>
+<p>To add a new check, create a class extending <code>SecurityCheck</code>, then register it in the pipeline.</p>
+<h3 id="step-1-create-the-check">Step 1: Create the Check<a class="headerlink" href="#step-1-create-the-check" title="Permanent link">&para;</a></h3>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">guard_core.core.checks.base</span><span class="w"> </span><span class="kn">import</span> <span class="n">SecurityCheck</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">guard_core.protocols.request_protocol</span><span class="w"> </span><span class="kn">import</span> <span class="n">GuardRequest</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">guard_core.protocols.response_protocol</span><span class="w"> </span><span class="kn">import</span> <span class="n">GuardResponse</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="k">class</span><span class="w"> </span><span class="nc">ApiKeyCheck</span><span class="p">(</span><span class="n">SecurityCheck</span><span class="p">):</span>
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>    <span class="nd">@property</span>
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">check_name</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>        <span class="k">return</span> <span class="s2">"api_key"</span>
+</span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>
+</span><span id="__span-6-11"><a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">check</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">:</span> <span class="n">GuardRequest</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">GuardResponse</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="__span-6-12"><a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>        <span class="n">api_key</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">headers</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"X-API-Key"</span><span class="p">)</span>
+</span><span id="__span-6-13"><a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a>        <span class="k">if</span> <span class="ow">not</span> <span class="n">api_key</span><span class="p">:</span>
+</span><span id="__span-6-14"><a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a>            <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">send_event</span><span class="p">(</span>
+</span><span id="__span-6-15"><a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a>                <span class="n">event_type</span><span class="o">=</span><span class="s2">"authentication_failed"</span><span class="p">,</span>
+</span><span id="__span-6-16"><a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a>                <span class="n">request</span><span class="o">=</span><span class="n">request</span><span class="p">,</span>
+</span><span id="__span-6-17"><a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a>                <span class="n">action_taken</span><span class="o">=</span><span class="s2">"request_blocked"</span>
+</span><span id="__span-6-18"><a id="__codelineno-6-18" name="__codelineno-6-18" href="#__codelineno-6-18"></a>                <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_passive_mode</span><span class="p">()</span>
+</span><span id="__span-6-19"><a id="__codelineno-6-19" name="__codelineno-6-19" href="#__codelineno-6-19"></a>                <span class="k">else</span> <span class="s2">"logged_only"</span><span class="p">,</span>
+</span><span id="__span-6-20"><a id="__codelineno-6-20" name="__codelineno-6-20" href="#__codelineno-6-20"></a>                <span class="n">reason</span><span class="o">=</span><span class="s2">"Missing API key"</span><span class="p">,</span>
+</span><span id="__span-6-21"><a id="__codelineno-6-21" name="__codelineno-6-21" href="#__codelineno-6-21"></a>            <span class="p">)</span>
+</span><span id="__span-6-22"><a id="__codelineno-6-22" name="__codelineno-6-22" href="#__codelineno-6-22"></a>
+</span><span id="__span-6-23"><a id="__codelineno-6-23" name="__codelineno-6-23" href="#__codelineno-6-23"></a>            <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_passive_mode</span><span class="p">():</span>
+</span><span id="__span-6-24"><a id="__codelineno-6-24" name="__codelineno-6-24" href="#__codelineno-6-24"></a>                <span class="k">return</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_error_response</span><span class="p">(</span>
+</span><span id="__span-6-25"><a id="__codelineno-6-25" name="__codelineno-6-25" href="#__codelineno-6-25"></a>                    <span class="n">status_code</span><span class="o">=</span><span class="mi">401</span><span class="p">,</span>
+</span><span id="__span-6-26"><a id="__codelineno-6-26" name="__codelineno-6-26" href="#__codelineno-6-26"></a>                    <span class="n">default_message</span><span class="o">=</span><span class="s2">"API key required"</span><span class="p">,</span>
+</span><span id="__span-6-27"><a id="__codelineno-6-27" name="__codelineno-6-27" href="#__codelineno-6-27"></a>                <span class="p">)</span>
+</span><span id="__span-6-28"><a id="__codelineno-6-28" name="__codelineno-6-28" href="#__codelineno-6-28"></a>
+</span><span id="__span-6-29"><a id="__codelineno-6-29" name="__codelineno-6-29" href="#__codelineno-6-29"></a>        <span class="k">return</span> <span class="kc">None</span>
+</span></code></pre></div>
+<h3 id="step-2-register-in-the-pipeline">Step 2: Register in the Pipeline<a class="headerlink" href="#step-2-register-in-the-pipeline" title="Permanent link">&para;</a></h3>
+<p>In your adapter's middleware, after building the default pipeline, add the check:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">guard_core.core.checks</span><span class="w"> </span><span class="kn">import</span> <span class="n">build_default_pipeline</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="n">pipeline</span> <span class="o">=</span> <span class="n">build_default_pipeline</span><span class="p">(</span><span class="n">middleware</span><span class="p">)</span>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="n">pipeline</span><span class="o">.</span><span class="n">add_check</span><span class="p">(</span><span class="n">ApiKeyCheck</span><span class="p">(</span><span class="n">middleware</span><span class="p">))</span>
+</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>
+</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="n">pipeline</span><span class="o">.</span><span class="n">insert_check</span><span class="p">(</span><span class="mi">7</span><span class="p">,</span> <span class="n">ApiKeyCheck</span><span class="p">(</span><span class="n">middleware</span><span class="p">))</span>
+</span></code></pre></div>
+<h3 id="step-3-optional-make-it-removable">Step 3: (Optional) Make It Removable<a class="headerlink" href="#step-3-optional-make-it-removable" title="Permanent link">&para;</a></h3>
+<p>Other code can remove your check by name:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="n">pipeline</span><span class="o">.</span><span class="n">remove_check</span><span class="p">(</span><span class="s2">"api_key"</span><span class="p">)</span>
+</span></code></pre></div>
+<h3 id="guidelines">Guidelines<a class="headerlink" href="#guidelines" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Always honor <code>self.is_passive_mode()</code> in your blocking logic</li>
+<li>Use <code>self.send_event(...)</code> to emit telemetry for agent integration</li>
+<li>Use <code>self.create_error_response(...)</code> instead of constructing responses directly -- this applies custom error messages, security headers, and response modifiers</li>
+<li>Access shared state through <code>self.middleware</code> (e.g. <code>self.middleware.rate_limit_handler</code>, <code>self.middleware.geo_ip_handler</code>)</li>
+<li>Read per-request state from <code>request.state</code> (e.g. <code>request.state.client_ip</code>, <code>request.state.route_config</code>)</li>
+</ul>
+
+
+
+
+
+
+
+  
+  
+
+
+
+  
+
+
+
+  <form class="md-feedback" name="feedback" hidden>
+    <fieldset>
+      <legend class="md-feedback__title">
+        Was this page helpful?
+      </legend>
+      <div class="md-feedback__inner">
+        <div class="md-feedback__list">
+          
+            <button class="md-feedback__icon md-icon" type="submit" title="This page was helpful" data-md-value="1">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 12a8 8 0 0 0-8-8 8 8 0 0 0-8 8 8 8 0 0 0 8 8 8 8 0 0 0 8-8m2 0a10 10 0 0 1-10 10A10 10 0 0 1 2 12 10 10 0 0 1 12 2a10 10 0 0 1 10 10M10 9.5c0 .8-.7 1.5-1.5 1.5S7 10.3 7 9.5 7.7 8 8.5 8s1.5.7 1.5 1.5m7 0c0 .8-.7 1.5-1.5 1.5S14 10.3 14 9.5 14.7 8 15.5 8s1.5.7 1.5 1.5m-5 7.73c-1.75 0-3.29-.73-4.19-1.81L9.23 14c.45.72 1.52 1.23 2.77 1.23s2.32-.51 2.77-1.23l1.42 1.42c-.9 1.08-2.44 1.81-4.19 1.81"/></svg>
+            </button>
+          
+            <button class="md-feedback__icon md-icon" type="submit" title="This page could be improved" data-md-value="0">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 12a8 8 0 0 0-8-8 8 8 0 0 0-8 8 8 8 0 0 0 8 8 8 8 0 0 0 8-8m2 0a10 10 0 0 1-10 10A10 10 0 0 1 2 12 10 10 0 0 1 12 2a10 10 0 0 1 10 10m-6.5-4c.8 0 1.5.7 1.5 1.5s-.7 1.5-1.5 1.5-1.5-.7-1.5-1.5.7-1.5 1.5-1.5M10 9.5c0 .8-.7 1.5-1.5 1.5S7 10.3 7 9.5 7.7 8 8.5 8s1.5.7 1.5 1.5m2 4.5c1.75 0 3.29.72 4.19 1.81l-1.42 1.42C14.32 16.5 13.25 16 12 16s-2.32.5-2.77 1.23l-1.42-1.42C8.71 14.72 10.25 14 12 14"/></svg>
+            </button>
+          
+        </div>
+        <div class="md-feedback__note">
+          
+            <div data-md-value="1" hidden>
+              
+              
+                
+              
+              
+              
+                
+                
+              
+              Thanks for your feedback!
+            </div>
+          
+            <div data-md-value="0" hidden>
+              
+              
+                
+              
+              
+              
+                
+                
+              
+              Thanks for your feedback! Help us improve by using our <a href="https://github.com/rennf93/guard-core/issues/new">issue tracker</a>.
+            </div>
+          
+        </div>
+      </div>
+    </fieldset>
+  </form>
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-footer-copyright footer-custom">
+        <a href="https://github.com/rennf93/guard-core">Guard Core</a> by
+        <a href="https://github.com/rennf93"> Renzo Franceschini</a>
+        <br>
+        Documentation was built using <a href="https://squidfunk.github.io/mkdocs-material/">MkDocs</a>
+      </div>
+      
+      
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/rennf93/guard-core" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://pypi.org/project/guard-core/" target="_blank" rel="noopener" title="pypi.org" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.8 200.5c-7.7-30.9-22.3-54.2-53.4-54.2h-40.1v47.4c0 36.8-31.2 67.8-66.8 67.8H172.7c-29.2 0-53.4 25-53.4 54.3v101.8c0 29 25.2 46 53.4 54.3 33.8 9.9 66.3 11.7 106.8 0 26.9-7.8 53.4-23.5 53.4-54.3v-40.7H226.2v-13.6h160.2c31.1 0 42.6-21.7 53.4-54.2 11.2-33.5 10.7-65.7 0-108.6M286.2 444.7a20.4 20.4 0 1 1 0-40.7 20.4 20.4 0 1 1 0 40.7M167.8 248.1h106.8c29.7 0 53.4-24.5 53.4-54.3V91.9c0-29-24.4-50.7-53.4-55.6-35.8-5.9-74.7-5.6-106.8.1-45.2 8-53.4 24.7-53.4 55.6v40.7h106.9v13.6h-147c-31.1 0-58.3 18.7-66.8 54.2-9.8 40.7-10.2 66.1 0 108.6 7.6 31.6 25.7 54.2 56.8 54.2H101v-48.8c0-35.3 30.5-66.4 66.8-66.4m-6.6-183.4a20.4 20.4 0 1 1 0 40.8 20.4 20.4 0 1 1 0-40.8"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.code.copy", "content.code.annotate", "navigation.tracking", "navigation.tabs", "navigation.sections", "navigation.indexes", "navigation.top", "search.highlight", "search.share", "toc.follow"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "json_file": "/guard-core/versions.json", "provider": "mike", "version_selector": true}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
