@@ -10,6 +10,19 @@ Release Notes
 
 ___
 
+v4.3.1 (2026-10-06)
+-------------------
+
+Route-id ownership, per-route behavioral counters, cost-parity corpus
+---------------------------------------------------------------------
+
+- **Route ids for factory-built endpoints** (#141, @HardMax71): endpoints built by one decorator factory no longer share a single RouteConfig - every function gets its own id, with `#N` dedup for same-qualname siblings.
+- **Route-id ownership validation** (#142): a stamped `_guard_route_id` is honored only within the decorator instance that bound it, or for wrappers of the same route via the `__wrapped__` chain - cross-instance collisions can no longer select another route's config.
+- **Per-route behavioral counters** (#142): `get_endpoint_id` prefers `guard_route_id`, so behavioral usage and return counters become per-function for factory-built endpoints across all four adapters. Counter key shapes change; pre-existing keys age out through their TTLs.
+- **Cost-parity corpus**: the 9-case `cost_bodies` suite with self-relative scan-cost ceilings ships in the fixture corpus, CI-enforced on every engine - the family's verdict-and-cost parity contract is now machine-checked on every push.
+
+___
+
 v4.3.0 (2026-10-01)
 -------------------
 
