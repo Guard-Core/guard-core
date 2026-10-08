@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://guard-core.github.io/guard-core/sitemap.xml 
