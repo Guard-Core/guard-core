@@ -11,10 +11,10 @@ Guard Core
 ![Guard Core Logo](assets/guard_core_legend.svg)
 
 [![PyPI version](https://badge.fury.io/py/guard-core.svg?cache=none&icon=si%3Apython&icon_color=%23008cb4)](https://badge.fury.io/py/guard-core)
-[![Release](https://github.com/rennf93/guard-core/actions/workflows/release.yml/badge.svg)](https://github.com/rennf93/guard-core/actions/workflows/release.yml)
+[![Release](https://github.com/Guard-Core/guard-core/actions/workflows/release.yml/badge.svg)](https://github.com/Guard-Core/guard-core/actions/workflows/release.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![CI](https://github.com/rennf93/guard-core/actions/workflows/ci.yml/badge.svg)](https://github.com/rennf93/guard-core/actions/workflows/ci.yml)
-[![CodeQL](https://github.com/rennf93/guard-core/actions/workflows/code-ql.yml/badge.svg)](https://github.com/rennf93/guard-core/actions/workflows/code-ql.yml)
+[![CI](https://github.com/Guard-Core/guard-core/actions/workflows/ci.yml/badge.svg)](https://github.com/Guard-Core/guard-core/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/Guard-Core/guard-core/actions/workflows/code-ql.yml/badge.svg)](https://github.com/Guard-Core/guard-core/actions/workflows/code-ql.yml)
 
 `guard-core` is the **framework-agnostic security engine** that provides IP control, rate limiting, penetration detection, security headers, and behavioral analysis through a protocol-based architecture. It is designed to be consumed by **framework-specific adapters** -- not directly by end users.
 
@@ -46,7 +46,7 @@ It catches the HTTP-layer attacks an automated, AI-orchestrated attacker runs at
 
 It does **not** cover prompt injection against LLM endpoints, model-output exfiltration, application-logic vulnerabilities (auth bypass, IDOR, business-logic flaws), or network-layer DDoS, those are out-of-scope by design and belong to other layers of your stack.
 
-If you're integrating into FastAPI, jump straight to the [**fastapi-guard Integration Guide**](https://rennf93.github.io/fastapi-guard/latest/tutorial/integration/), it has the decision tree across standalone / SaaS / encrypted-SaaS paths and the common pitfalls.
+If you're integrating into FastAPI, jump straight to the [**fastapi-guard Integration Guide**](https://guard-core.github.io/fastapi-guard/latest/tutorial/integration/), it has the decision tree across standalone / SaaS / encrypted-SaaS paths and the common pitfalls.
 
 ___
 

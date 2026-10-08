@@ -197,10 +197,10 @@ The repo uses uv, Ruff, mypy, pytest (with `pytest-asyncio`, `asyncio_mode="auto
 
 ## Related Projects
 
-* [fastapi-guard](https://github.com/rennf93/fastapi-guard): ASGI middleware adapter for FastAPI.
-* [flaskapi-guard](https://github.com/rennf93/flaskapi-guard): Flask extension adapter over the sync mirror.
-* [djapi-guard](https://github.com/rennf93/djapi-guard): Django middleware adapter over the sync mirror.
-* [tornadoapi-guard](https://github.com/rennf93/tornadoapi-guard): Tornado handler/middleware adapter.
-* [guard-agent](https://github.com/rennf93/guard-agent): Telemetry and monitoring agent the adapters ship events with.
-* [guard-core-mcp](https://github.com/rennf93/guard-core-mcp): MCP server answering Guard questions from the installed libraries.
-* [guard-core-app](https://github.com/rennf93/guard-core-app): SaaS platform the agent reports to (API, dashboard, playground).
+* [fastapi-guard](https://github.com/Guard-Core/fastapi-guard): ASGI middleware adapter for FastAPI.
+* [flaskapi-guard](https://github.com/Guard-Core/flaskapi-guard): Flask extension adapter over the sync mirror.
+* [djapi-guard](https://github.com/Guard-Core/djapi-guard): Django middleware adapter over the sync mirror.
+* [tornadoapi-guard](https://github.com/Guard-Core/tornadoapi-guard): Tornado handler/middleware adapter.
+* [guard-agent](https://github.com/Guard-Core/guard-agent): Telemetry and monitoring agent the adapters ship events with.
+* [guard-core-mcp](https://github.com/Guard-Core/guard-core-mcp): MCP server answering Guard questions from the installed libraries.
+* [guard-core-app](https://github.com/Guard-Core/guard-core-app): SaaS platform the agent reports to (API, dashboard, playground).

@@ -1,9 +1,9 @@
 site_name: Guard Core
 site_description: Framework-agnostic security library for Python web applications
-site_url: https://rennf93.github.io/guard-core/latest/
-repo_name: rennf93/guard-core
-repo_url: https://github.com/rennf93/guard-core
-edit_uri: edit/main/docs/
+site_url: https://guard-core.github.io/guard-core/latest/
+repo_name: Guard-Core/guard-core
+repo_url: https://github.com/Guard-Core/guard-core
+edit_uri: edit/master/docs/
 
 theme:
   name: material
@@ -127,7 +127,7 @@ plugins:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/rennf93/guard-core
+      link: https://github.com/Guard-Core/guard-core
     - icon: fontawesome/brands/python
       link: https://pypi.org/project/guard-core/
 
@@ -146,7 +146,7 @@ extra:
           data: 0
           note: >-
             Thanks for your feedback! Help us improve by using our
-            <a href="https://github.com/rennf93/guard-core/issues/new">issue tracker</a>.
+            <a href="https://github.com/Guard-Core/guard-core/issues/new">issue tracker</a>.
 
   generator: false
   meta:
@@ -157,7 +157,7 @@ extra:
     - property: og:description
       content: Comprehensive security library for Python web applications providing IP control, request logging, and penetration detection
     - property: og:image
-      content: https://rennf93.github.io/guard-core/assets/guard_core_legend.svg
+      content: https://guard-core.github.io/guard-core/assets/guard_core_legend.svg
     - name: keywords
       content: guard-core, security, python, ip control, rate limiting, penetration detection
 

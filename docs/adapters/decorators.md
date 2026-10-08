@@ -303,7 +303,7 @@ This is **not** automatic -- even on ASGI frameworks the adapter has to read the
 
 ### Reporting a Failed Match
 
-A missing `guard_route_id` is ambiguous on its own: it means either "this route carries no decorators" or "matching failed and the decorators on this route will not be applied". The first is normal and every per-route check correctly skips itself. The second silently disables those checks, which is how [GHSA-f2vm-w8gq-h378](https://github.com/rennf93/fastapi-guard/security/advisories/GHSA-f2vm-w8gq-h378) turned a route-matching bug into an authentication bypass.
+A missing `guard_route_id` is ambiguous on its own: it means either "this route carries no decorators" or "matching failed and the decorators on this route will not be applied". The first is normal and every per-route check correctly skips itself. The second silently disables those checks, which is how [GHSA-f2vm-w8gq-h378](https://github.com/Guard-Core/fastapi-guard/security/advisories/GHSA-f2vm-w8gq-h378) turned a route-matching bug into an authentication bypass.
 
 Adapters disambiguate by setting `request.state.guard_route_unresolved = True` on the branch where matching itself failed, and leaving it unset once a route was matched -- decorated or not:
 

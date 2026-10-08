@@ -8,7 +8,7 @@ keywords: migration, upgrade, v2, breaking changes, detection result, suspicious
 Migrating from v1.x to v2.0
 ===========================
 
-`guard-core 2.0.0` ships operator-facing security controls and a pluggable IP lifecycle. This page lists every breaking change and the matching migration step. See the [v2.0.0 changelog entry](https://github.com/rennf93/guard-core/blob/master/CHANGELOG.md) for the full list of additions.
+`guard-core 2.0.0` ships operator-facing security controls and a pluggable IP lifecycle. This page lists every breaking change and the matching migration step. See the [v2.0.0 changelog entry](https://github.com/Guard-Core/guard-core/blob/master/CHANGELOG.md) for the full list of additions.
 
 ___
 

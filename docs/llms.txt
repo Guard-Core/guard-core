@@ -1,6 +1,6 @@
 # Guard Core Documentation - LLMs.txt
 # For LLM Crawlers and AI Assistants
-# Documentation Site: https://rennf93.github.io/guard-core
+# Documentation Site: https://guard-core.github.io/guard-core
 
 ## Overview
 Guard Core is the framework-agnostic security engine that powers the Guard ecosystem. It provides IP control, rate limiting, penetration detection, security headers, and behavioral analysis through a protocol-based architecture. Framework-specific adapters (fastapi-guard, flaskapi-guard, djapi-guard) consume this library to provide security for their respective frameworks.
@@ -8,70 +8,70 @@ Guard Core is the framework-agnostic security engine that powers the Guard ecosy
 ## Documentation Structure
 
 ### Getting Started
-- **Home**: https://rennf93.github.io/guard-core/latest/
-- **Installation**: https://rennf93.github.io/guard-core/latest/installation/
+- **Home**: https://guard-core.github.io/guard-core/latest/
+- **Installation**: https://guard-core.github.io/guard-core/latest/installation/
 
 ### Architecture
 - **Overview**: Ecosystem architecture, module map, request lifecycle, design principles
-  - Docs: https://rennf93.github.io/guard-core/latest/architecture/overview/
+  - Docs: https://guard-core.github.io/guard-core/latest/architecture/overview/
 - **Protocol Layer**: GuardRequest, GuardResponse, GuardResponseFactory, GuardMiddlewareProtocol
-  - Docs: https://rennf93.github.io/guard-core/latest/architecture/protocols/
+  - Docs: https://guard-core.github.io/guard-core/latest/architecture/protocols/
 - **Security Pipeline**: SecurityCheckPipeline, 17-check catalogue in execution order, applies_to build-time filtering, fail-open/fail-secure
-  - Docs: https://rennf93.github.io/guard-core/latest/architecture/pipeline/
+  - Docs: https://guard-core.github.io/guard-core/latest/architecture/pipeline/
 - **Event System**: SecurityEventBus, MetricsCollector, agent integration
-  - Docs: https://rennf93.github.io/guard-core/latest/architecture/events/
+  - Docs: https://guard-core.github.io/guard-core/latest/architecture/events/
 - **Dependency Injection**: Context objects, HandlerInitializer, singleton lifecycle
-  - Docs: https://rennf93.github.io/guard-core/latest/architecture/dependency-injection/
+  - Docs: https://guard-core.github.io/guard-core/latest/architecture/dependency-injection/
 
 ### Building Adapters
 - **Getting Started**: What an adapter is, minimal structure, what you implement vs what you get
-  - Docs: https://rennf93.github.io/guard-core/latest/adapters/getting-started/
+  - Docs: https://guard-core.github.io/guard-core/latest/adapters/getting-started/
 - **Implementing GuardRequest**: Protocol definition, framework mapping table, wrapper examples
-  - Docs: https://rennf93.github.io/guard-core/latest/adapters/guard-request/
+  - Docs: https://guard-core.github.io/guard-core/latest/adapters/guard-request/
 - **Implementing GuardResponse**: Response protocol, factory pattern, header application
-  - Docs: https://rennf93.github.io/guard-core/latest/adapters/guard-response/
+  - Docs: https://guard-core.github.io/guard-core/latest/adapters/guard-response/
 - **Middleware Integration**: Dispatch pattern, initialization sequence, CORS handling
-  - Docs: https://rennf93.github.io/guard-core/latest/adapters/middleware-integration/
+  - Docs: https://guard-core.github.io/guard-core/latest/adapters/middleware-integration/
 - **Decorator System**: RouteConfig, SecurityDecorator, route resolution
-  - Docs: https://rennf93.github.io/guard-core/latest/adapters/decorators/
+  - Docs: https://guard-core.github.io/guard-core/latest/adapters/decorators/
 - **Testing Your Adapter**: MockGuardRequest, MockGuardResponse, check testing, integration patterns
-  - Docs: https://rennf93.github.io/guard-core/latest/adapters/testing/
+  - Docs: https://guard-core.github.io/guard-core/latest/adapters/testing/
 
 ### Engine Internals
 - **Security Checks**: SecurityCheck base class, SecurityCheckPipeline, helper functions
-  - Docs: https://rennf93.github.io/guard-core/latest/internals/checks/
+  - Docs: https://guard-core.github.io/guard-core/latest/internals/checks/
 - **Check Implementations**: All 17 checks with blocking conditions, configuration, and applies_to elimination predicates
-  - Docs: https://rennf93.github.io/guard-core/latest/internals/check-implementations/
+  - Docs: https://guard-core.github.io/guard-core/latest/internals/check-implementations/
 - **IP Management**: IPBanManager, allow/block logic, CIDR support, client IP extraction
-  - Docs: https://rennf93.github.io/guard-core/latest/internals/ip-management/
+  - Docs: https://guard-core.github.io/guard-core/latest/internals/ip-management/
 - **Rate Limiting**: Sliding window algorithm, in-memory vs Redis, Lua scripts
-  - Docs: https://rennf93.github.io/guard-core/latest/internals/rate-limiting/
+  - Docs: https://guard-core.github.io/guard-core/latest/internals/rate-limiting/
 - **Detection Engine**: PatternCompiler, ContentPreprocessor, SemanticAnalyzer, PerformanceMonitor
-  - Docs: https://rennf93.github.io/guard-core/latest/internals/detection-engine/
+  - Docs: https://guard-core.github.io/guard-core/latest/internals/detection-engine/
 - **Cloud Providers**: AWS/GCP/Azure/DigitalOcean/Linode/Vultr IP range fetching, caching, refresh intervals
-  - Docs: https://rennf93.github.io/guard-core/latest/internals/cloud-providers/
+  - Docs: https://guard-core.github.io/guard-core/latest/internals/cloud-providers/
 - **Security Headers**: CSP, HSTS, CORS, default headers, nonce generation
-  - Docs: https://rennf93.github.io/guard-core/latest/internals/security-headers/
+  - Docs: https://guard-core.github.io/guard-core/latest/internals/security-headers/
 - **Behavioral Rules**: BehaviorTracker, usage/return rules, action types
-  - Docs: https://rennf93.github.io/guard-core/latest/internals/behavioral/
+  - Docs: https://guard-core.github.io/guard-core/latest/internals/behavioral/
 - **Redis Integration**: RedisManager, connection pooling, key namespacing, fault tolerance
-  - Docs: https://rennf93.github.io/guard-core/latest/internals/redis/
+  - Docs: https://guard-core.github.io/guard-core/latest/internals/redis/
 
 ### Configuration
 - **SecurityConfig Reference**: Every field with type, default, and description
-  - Docs: https://rennf93.github.io/guard-core/latest/configuration/security-config/
+  - Docs: https://guard-core.github.io/guard-core/latest/configuration/security-config/
 - **Detection Tuning**: Sensitivity vs performance tradeoffs, tuning profiles
-  - Docs: https://rennf93.github.io/guard-core/latest/configuration/detection-tuning/
+  - Docs: https://guard-core.github.io/guard-core/latest/configuration/detection-tuning/
 - **Logging**: Log levels, JsonFormatter, custom log files
-  - Docs: https://rennf93.github.io/guard-core/latest/configuration/logging/
+  - Docs: https://guard-core.github.io/guard-core/latest/configuration/logging/
 
 ### API Reference
-- **Protocols**: https://rennf93.github.io/guard-core/latest/api/protocols/
-- **Models**: https://rennf93.github.io/guard-core/latest/api/models/
-- **Handlers**: https://rennf93.github.io/guard-core/latest/api/handlers/
-- **Detection Engine**: https://rennf93.github.io/guard-core/latest/api/detection-engine/
-- **Decorators**: https://rennf93.github.io/guard-core/latest/api/decorators/
-- **Utilities**: https://rennf93.github.io/guard-core/latest/api/utilities/
+- **Protocols**: https://guard-core.github.io/guard-core/latest/api/protocols/
+- **Models**: https://guard-core.github.io/guard-core/latest/api/models/
+- **Handlers**: https://guard-core.github.io/guard-core/latest/api/handlers/
+- **Detection Engine**: https://guard-core.github.io/guard-core/latest/api/detection-engine/
+- **Decorators**: https://guard-core.github.io/guard-core/latest/api/decorators/
+- **Utilities**: https://guard-core.github.io/guard-core/latest/api/utilities/
 
 ## Key Technical Details
 
@@ -107,9 +107,9 @@ Each check declares an `applies_to(config, route_configs)` classmethod; `build_d
 - **Import**: `import guard_core`
 - **Python**: 3.10, 3.11, 3.12, 3.13, 3.14
 - **License**: MIT
-- **Repository**: https://github.com/rennf93/guard-core
+- **Repository**: https://github.com/Guard-Core/guard-core
 
 ## Links
-- **GitHub**: https://github.com/rennf93/guard-core
+- **GitHub**: https://github.com/Guard-Core/guard-core
 - **PyPI**: https://pypi.org/project/guard-core/
-- **Documentation**: https://rennf93.github.io/guard-core/latest/
+- **Documentation**: https://guard-core.github.io/guard-core/latest/

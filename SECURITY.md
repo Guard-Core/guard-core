@@ -18,12 +18,12 @@ We take the security of Guard Core seriously. If you believe you've found a secu
 
 1. **Do not disclose the vulnerability publicly** until it has been addressed by the maintainers.
 2. **Report the vulnerability through GitHub's security advisory feature**:
-   - Go to the [Security tab](https://github.com/rennf93/guard-core/security/advisories) of the Guard Core repository
+   - Go to the [Security tab](https://github.com/Guard-Core/guard-core/security/advisories) of the Guard Core repository
    - Click on "New draft security advisory"
    - Fill in the details of the vulnerability
    - Submit the advisory
 
-   Alternatively, you can report vulnerabilities through [GitHub's private vulnerability reporting feature](https://github.com/rennf93/guard-core/security/advisories/new).
+   Alternatively, you can report vulnerabilities through [GitHub's private vulnerability reporting feature](https://github.com/Guard-Core/guard-core/security/advisories/new).
 
 3. Include the following information in your report:
    - A description of the vulnerability and its potential impact
@@ -87,7 +87,7 @@ Guard Core provides several security features to protect your applications:
 - Country-based Access Control
 - Cloud Provider IP Blocking
 
-For detailed information on configuring these features, refer to the [documentation](https://rennf93.github.io/guard-core).
+For detailed information on configuring these features, refer to the [documentation](https://guard-core.github.io/guard-core).
 
 Threat Model
 ------------
