@@ -7,7 +7,7 @@ from pathlib import Path
 
 STACK_DIR = Path(__file__).resolve().parent / "stack"
 DEST = STACK_DIR / "app"
-REPO_URL = "https://github.com/rennf93/fastapi-guard.git"
+REPO_URL = "https://github.com/Guard-Core/fastapi-guard.git"
 
 
 def _version_key(tag: str) -> tuple[int, ...] | tuple[int]:

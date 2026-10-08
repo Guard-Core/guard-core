@@ -3,7 +3,7 @@ name = "guard-core"
 version = "4.3.1"
 description = "Framework-agnostic security engine for the Guard ecosystem."
 authors = [
-    {name = "Renzo Franceschini", email = "rennf93@users.noreply.github.com"}
+    {name = "Renzo Franceschini", email = "rennf93@guard-core.com"}
 ]
 readme = "README.md"
 license = "MIT"
@@ -31,7 +31,11 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/rennf93/guard-core"
+Homepage = "https://github.com/Guard-Core/guard-core"
+Repository = "https://github.com/Guard-Core/guard-core"
+Documentation = "https://guard-core.github.io/guard-core/latest/"
+Issues = "https://github.com/Guard-Core/guard-core/issues"
+Changelog = "https://github.com/Guard-Core/guard-core/blob/master/CHANGELOG.md"
 
 [project.optional-dependencies]
 dev = [

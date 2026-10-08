@@ -119,7 +119,7 @@ To work on guard-core itself:
 ### Clone and Install
 
 ```bash
-git clone https://github.com/rennf93/guard-core.git
+git clone https://github.com/Guard-Core/guard-core.git
 cd guard-core
 make install-dev
 ```

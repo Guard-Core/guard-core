@@ -503,10 +503,10 @@ All framework adapters automatically pick up the new check. Check execution orde
 
 ## Related Projects
 
-- **fastapi-guard** - ASGI middleware adapter for FastAPI: <https://github.com/rennf93/fastapi-guard>
-- **flaskapi-guard** - Flask extension adapter (sync mirror): <https://github.com/rennf93/flaskapi-guard>
-- **djapi-guard** - Django middleware adapter (sync mirror): <https://github.com/rennf93/djapi-guard>
-- **tornadoapi-guard** - Tornado handler/middleware adapter: <https://github.com/rennf93/tornadoapi-guard>
-- **guard-agent** - Telemetry and monitoring agent for the adapters: <https://github.com/rennf93/guard-agent>
-- **guard-core-mcp** - MCP server for config validation and docs search: <https://github.com/rennf93/guard-core-mcp>
-- **guard-core-app** - SaaS platform (API, dashboard, playground): <https://github.com/rennf93/guard-core-app>
+- **fastapi-guard** - ASGI middleware adapter for FastAPI: <https://github.com/Guard-Core/fastapi-guard>
+- **flaskapi-guard** - Flask extension adapter (sync mirror): <https://github.com/Guard-Core/flaskapi-guard>
+- **djapi-guard** - Django middleware adapter (sync mirror): <https://github.com/Guard-Core/djapi-guard>
+- **tornadoapi-guard** - Tornado handler/middleware adapter: <https://github.com/Guard-Core/tornadoapi-guard>
+- **guard-agent** - Telemetry and monitoring agent for the adapters: <https://github.com/Guard-Core/guard-agent>
+- **guard-core-mcp** - MCP server for config validation and docs search: <https://github.com/Guard-Core/guard-core-mcp>
+- **guard-core-app** - SaaS platform (API, dashboard, playground): <https://github.com/Guard-Core/guard-core-app>
