@@ -1,6 +1,6 @@
 [project]
 name = "guard-core"
-version = "4.3.1"
+version = "4.3.2"
 description = "Framework-agnostic security engine for the Guard ecosystem."
 authors = [
     {name = "Renzo Franceschini", email = "rennf93@guard-core.com"}
