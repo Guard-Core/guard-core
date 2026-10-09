@@ -2,158 +2,158 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://guard-core.github.io/guard-core/latest/4.3.2/</loc>
-         <lastmod>2026-10-08</lastmod>
+         <lastmod>2026-10-09</lastmod>
     </url>
     <url>
          <loc>https://guard-core.github.io/guard-core/latest/4.3.2/installation/</loc>
-         <lastmod>2026-10-08</lastmod>
+         <lastmod>2026-10-09</lastmod>
     </url>
     <url>
          <loc>https://guard-core.github.io/guard-core/latest/4.3.2/release-notes/</loc>
-         <lastmod>2026-10-08</lastmod>
+         <lastmod>2026-10-09</lastmod>
     </url>
     <url>
          <loc>https://guard-core.github.io/guard-core/latest/4.3.2/adapters/decorators/</loc>
-         <lastmod>2026-10-08</lastmod>
+         <lastmod>2026-10-09</lastmod>
     </url>
     <url>
          <loc>https://guard-core.github.io/guard-core/latest/4.3.2/adapters/getting-started/</loc>
-         <lastmod>2026-10-08</lastmod>
+         <lastmod>2026-10-09</lastmod>
     </url>
     <url>
          <loc>https://guard-core.github.io/guard-core/latest/4.3.2/adapters/guard-request/</loc>
-         <lastmod>2026-10-08</lastmod>
+         <lastmod>2026-10-09</lastmod>
     </url>
     <url>
          <loc>https://guard-core.github.io/guard-core/latest/4.3.2/adapters/guard-response/</loc>
-         <lastmod>2026-10-08</lastmod>
+         <lastmod>2026-10-09</lastmod>
     </url>
     <url>
          <loc>https://guard-core.github.io/guard-core/latest/4.3.2/adapters/middleware-integration/</loc>
-         <lastmod>2026-10-08</lastmod>
+         <lastmod>2026-10-09</lastmod>
     </url>
     <url>
          <loc>https://guard-core.github.io/guard-core/latest/4.3.2/adapters/testing/</loc>
-         <lastmod>2026-10-08</lastmod>
+         <lastmod>2026-10-09</lastmod>
     </url>
     <url>
          <loc>https://guard-core.github.io/guard-core/latest/4.3.2/api/ban-config/</loc>
-         <lastmod>2026-10-08</lastmod>
+         <lastmod>2026-10-09</lastmod>
     </url>
     <url>
          <loc>https://guard-core.github.io/guard-core/latest/4.3.2/api/behavior-rules/</loc>
-         <lastmod>2026-10-08</lastmod>
+         <lastmod>2026-10-09</lastmod>
     </url>
     <url>
          <loc>https://guard-core.github.io/guard-core/latest/4.3.2/api/cloud-ip-store/</loc>
-         <lastmod>2026-10-08</lastmod>
+         <lastmod>2026-10-09</lastmod>
     </url>
     <url>
          <loc>https://guard-core.github.io/guard-core/latest/4.3.2/api/decorators/</loc>
-         <lastmod>2026-10-08</lastmod>
+         <lastmod>2026-10-09</lastmod>
     </url>
     <url>
          <loc>https://guard-core.github.io/guard-core/latest/4.3.2/api/detection-engine/</loc>
-         <lastmod>2026-10-08</lastmod>
+         <lastmod>2026-10-09</lastmod>
     </url>
     <url>
          <loc>https://guard-core.github.io/guard-core/latest/4.3.2/api/detection-result/</loc>
-         <lastmod>2026-10-08</lastmod>
+         <lastmod>2026-10-09</lastmod>
     </url>
     <url>
          <loc>https://guard-core.github.io/guard-core/latest/4.3.2/api/handlers/</loc>
-         <lastmod>2026-10-08</lastmod>
+         <lastmod>2026-10-09</lastmod>
     </url>
     <url>
          <loc>https://guard-core.github.io/guard-core/latest/4.3.2/api/models/</loc>
-         <lastmod>2026-10-08</lastmod>
+         <lastmod>2026-10-09</lastmod>
     </url>
     <url>
          <loc>https://guard-core.github.io/guard-core/latest/4.3.2/api/protocols/</loc>
-         <lastmod>2026-10-08</lastmod>
+         <lastmod>2026-10-09</lastmod>
     </url>
     <url>
          <loc>https://guard-core.github.io/guard-core/latest/4.3.2/api/utilities/</loc>
-         <lastmod>2026-10-08</lastmod>
+         <lastmod>2026-10-09</lastmod>
     </url>
     <url>
          <loc>https://guard-core.github.io/guard-core/latest/4.3.2/architecture/dependency-injection/</loc>
-         <lastmod>2026-10-08</lastmod>
+         <lastmod>2026-10-09</lastmod>
     </url>
     <url>
          <loc>https://guard-core.github.io/guard-core/latest/4.3.2/architecture/events/</loc>
-         <lastmod>2026-10-08</lastmod>
+         <lastmod>2026-10-09</lastmod>
     </url>
     <url>
          <loc>https://guard-core.github.io/guard-core/latest/4.3.2/architecture/overview/</loc>
-         <lastmod>2026-10-08</lastmod>
+         <lastmod>2026-10-09</lastmod>
     </url>
     <url>
          <loc>https://guard-core.github.io/guard-core/latest/4.3.2/architecture/pipeline/</loc>
-         <lastmod>2026-10-08</lastmod>
+         <lastmod>2026-10-09</lastmod>
     </url>
     <url>
          <loc>https://guard-core.github.io/guard-core/latest/4.3.2/architecture/protocols/</loc>
-         <lastmod>2026-10-08</lastmod>
+         <lastmod>2026-10-09</lastmod>
     </url>
     <url>
          <loc>https://guard-core.github.io/guard-core/latest/4.3.2/architecture/telemetry/</loc>
-         <lastmod>2026-10-08</lastmod>
+         <lastmod>2026-10-09</lastmod>
     </url>
     <url>
          <loc>https://guard-core.github.io/guard-core/latest/4.3.2/configuration/detection-tuning/</loc>
-         <lastmod>2026-10-08</lastmod>
+         <lastmod>2026-10-09</lastmod>
     </url>
     <url>
          <loc>https://guard-core.github.io/guard-core/latest/4.3.2/configuration/logging/</loc>
-         <lastmod>2026-10-08</lastmod>
+         <lastmod>2026-10-09</lastmod>
     </url>
     <url>
          <loc>https://guard-core.github.io/guard-core/latest/4.3.2/configuration/security-config/</loc>
-         <lastmod>2026-10-08</lastmod>
+         <lastmod>2026-10-09</lastmod>
     </url>
     <url>
          <loc>https://guard-core.github.io/guard-core/latest/4.3.2/internals/api-surface-audit/</loc>
-         <lastmod>2026-10-08</lastmod>
+         <lastmod>2026-10-09</lastmod>
     </url>
     <url>
          <loc>https://guard-core.github.io/guard-core/latest/4.3.2/internals/behavioral/</loc>
-         <lastmod>2026-10-08</lastmod>
+         <lastmod>2026-10-09</lastmod>
     </url>
     <url>
          <loc>https://guard-core.github.io/guard-core/latest/4.3.2/internals/check-implementations/</loc>
-         <lastmod>2026-10-08</lastmod>
+         <lastmod>2026-10-09</lastmod>
     </url>
     <url>
          <loc>https://guard-core.github.io/guard-core/latest/4.3.2/internals/checks/</loc>
-         <lastmod>2026-10-08</lastmod>
+         <lastmod>2026-10-09</lastmod>
     </url>
     <url>
          <loc>https://guard-core.github.io/guard-core/latest/4.3.2/internals/cloud-providers/</loc>
-         <lastmod>2026-10-08</lastmod>
+         <lastmod>2026-10-09</lastmod>
     </url>
     <url>
          <loc>https://guard-core.github.io/guard-core/latest/4.3.2/internals/detection-engine/</loc>
-         <lastmod>2026-10-08</lastmod>
+         <lastmod>2026-10-09</lastmod>
     </url>
     <url>
          <loc>https://guard-core.github.io/guard-core/latest/4.3.2/internals/ip-management/</loc>
-         <lastmod>2026-10-08</lastmod>
+         <lastmod>2026-10-09</lastmod>
     </url>
     <url>
          <loc>https://guard-core.github.io/guard-core/latest/4.3.2/internals/rate-limiting/</loc>
-         <lastmod>2026-10-08</lastmod>
+         <lastmod>2026-10-09</lastmod>
     </url>
     <url>
          <loc>https://guard-core.github.io/guard-core/latest/4.3.2/internals/redis/</loc>
-         <lastmod>2026-10-08</lastmod>
+         <lastmod>2026-10-09</lastmod>
     </url>
     <url>
          <loc>https://guard-core.github.io/guard-core/latest/4.3.2/internals/security-headers/</loc>
-         <lastmod>2026-10-08</lastmod>
+         <lastmod>2026-10-09</lastmod>
     </url>
     <url>
          <loc>https://guard-core.github.io/guard-core/latest/4.3.2/migration/v1-to-v2/</loc>
-         <lastmod>2026-10-08</lastmod>
+         <lastmod>2026-10-09</lastmod>
     </url>
 </urlset>
