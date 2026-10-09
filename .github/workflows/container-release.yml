@@ -1,0 +1,71 @@
+name: Publish Containerized Demo
+
+on:
+  release:
+    types: [created]
+  push:
+    branches:
+      - master
+    paths:
+      - '.github/workflows/container-release.yml'
+  workflow_dispatch:
+
+jobs:
+  publish-container:
+    name: Build and push the containerized demo
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      # Guard Core ships no example apps of its own (the repo boundary rule):
+      # the family's example app lives in the reference adapter. Build THAT
+      # proven stack and publish it under the engine's name, so
+      # ghcr.io/guard-core/guard-core-example demonstrates the engine
+      # through fastapi-guard exactly like the python family's other
+      # containers do.
+      - name: Checkout fastapi-guard (the family's reference example app)
+        uses: actions/checkout@v7
+        with:
+          repository: Guard-Core/fastapi-guard
+          ref: master
+          path: fastapi-guard
+
+      - name: Set version tag
+        id: set_version
+        run: |
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            echo "VERSION=${{ github.event.release.tag_name }}" >> "$GITHUB_ENV"
+            echo "IS_RELEASE=true" >> "$GITHUB_ENV"
+          else
+            echo "VERSION=latest" >> "$GITHUB_ENV"
+            echo "IS_RELEASE=false" >> "$GITHUB_ENV"
+          fi
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build the demo image
+        working-directory: fastapi-guard
+        run: |
+          docker compose -f examples/advanced_app/docker-compose.yml build fastapi-guard-example
+
+      - name: Tag and push to GHCR
+        run: |
+          IMAGE=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep "fastapi-guard-example" | head -n 1)
+          echo "Using image: $IMAGE"
+          docker tag "$IMAGE" ghcr.io/guard-core/guard-core-example:latest
+          docker push ghcr.io/guard-core/guard-core-example:latest
+
+          if [[ "${{ env.IS_RELEASE }}" == "true" ]]; then
+            docker tag "$IMAGE" ghcr.io/guard-core/guard-core-example:${{ env.VERSION }}
+            docker push ghcr.io/guard-core/guard-core-example:${{ env.VERSION }}
+          fi
