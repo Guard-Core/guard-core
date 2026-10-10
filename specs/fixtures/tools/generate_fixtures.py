@@ -738,11 +738,20 @@ def main() -> None:
     # suites registry from scratch, so a regen without this call would
     # silently drop the cost_bodies registration and the cost budgets.
     if only is None:
-        cost_script = Path(__file__).resolve().parent / "generate_cost_cases.py"
+        tools = Path(__file__).resolve().parent
+        cost_script = tools / "generate_cost_cases.py"
         subprocess.run(
             [sys.executable, str(cost_script)],
             check=True,
             cwd=str(cost_script.parent),
+        )
+        # The safety suite is chained like the cost suite: never optional,
+        # otherwise a regen would silently drop its registration.
+        safety_script = tools / "generate_safety_gates.py"
+        subprocess.run(
+            [sys.executable, str(safety_script)],
+            check=True,
+            cwd=str(safety_script.parent),
         )
 
 

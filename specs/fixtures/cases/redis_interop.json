@@ -2,7 +2,7 @@
   "suite": "redis_interop",
   "kind": "redis_interop",
   "spec_version": "4.1.0",
-  "engine_version": "4.2.0",
+  "engine_version": "4.3.2",
   "doc": "Byte-level Redis interop corpus per specs/08-redis-schema.md: one operation per key family against the reference handlers pointed at a real Redis under the suite prefix. Byte equality is the standard: the pinned key string (sha256hex segments per spec), the exact stored value for static values, the member/score shape for zsets (members are engine-generated where noted), the parsed-then-canonicalized JSON blob with volatile fields dropped, and the TTL semantics (whether a TTL is set and its configured value, never the remaining time). Go, PHP, TS and Rust ports pointed at the same Redis MUST produce byte-identical results.",
   "cases": [
     {

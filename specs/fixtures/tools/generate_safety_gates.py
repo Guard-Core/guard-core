@@ -24,6 +24,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO))
 
+from guard_core import __version__ as engine_version  # noqa: E402
 from guard_core.detection_engine.compiler import PatternCompiler  # noqa: E402
 
 HARVEST_FILES = [
@@ -225,11 +226,30 @@ def main() -> None:
         "suite": "safety_gates",
         "kind": "pattern_safety",
         "spec_version": "4.1.0",
-        "engine_version": "4.2.0",
+        "engine_version": engine_version,
         "cases": cases,
     }
     out = REPO / "specs/fixtures/cases/safety_gates.json"
     out.write_text(json.dumps(suite, indent=2, ensure_ascii=False) + "\n")
+
+    # Register the suite in the corpus index (same upsert contract as the
+    # cost suite): a regen without this would silently drop the
+    # safety_gates registration and the pattern-safety comparison rule.
+    index_path = REPO / "specs/fixtures/cases/index.json"
+    index = json.loads(index_path.read_text(encoding="utf-8"))
+    index["suites"]["safety_gates"] = {
+        "case_count": len(cases),
+        "kind": "pattern_safety",
+        "consumers": ["python", "go", "php", "ts", "rust", "jvm"],
+    }
+    index["comparison"]["pattern_safety_records"] = (
+        "compare expected.safe and expected.reason_class; the numeric parts "
+        "of over-budget reason strings are host-measured and never compared; "
+        "a runner whose safety chain cannot produce a reason_class yet maps "
+        "the case to that class's documented divergence instead of failing "
+        "silently"
+    )
+    index_path.write_text(json.dumps(index, indent=1) + "\n", encoding="utf-8")
     print(f"wrote {len(cases)} cases to {out}", flush=True)
     print("per class:", json.dumps(per_class, indent=1, sort_keys=True), flush=True)
     print("drops:", json.dumps(drops, indent=1, sort_keys=True), flush=True)
