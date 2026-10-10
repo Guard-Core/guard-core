@@ -45,8 +45,9 @@ idiomatic internally.
 
 ## Parity matrix
 
-Coverage declarations per port, last audited 2026-09-29 against engine 4.2.0
-with the spec 4.1.0 corpus (184 detect cases + 35 pipeline cases). `full` =
+Coverage declarations per port, last audited 2026-10-10 against engine 4.3.2
+with the spec 4.1.0 corpus (375 cases across 21 suites; see
+fixtures/cases/index.json). `full` =
 all sections implemented and conformance-green. `partial` = the section is not
 yet at parity (missing stages or surfaces). `partial-with-deviations` = the
 corpus is green but documented semantic divergences remain. Ports MUST keep

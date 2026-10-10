@@ -2,7 +2,7 @@
   "suite": "event_stream",
   "kind": "events",
   "spec_version": "4.1.0",
-  "engine_version": "4.2.0",
+  "engine_version": "4.3.2",
   "doc": "Full event-surface corpus: one case per engine event type in guard_core/core/events/event_types.py (plus one passive-mode variant). Each expected entry is the FULL SecurityEvent envelope captured from the live reference engine through the real SecurityEventBus / handler send_event seams, minus the volatile fields listed in comparison.events_volatile_fields (dropped recursively). Compare only the keys present in each expected envelope; a runner that cannot observe a field records its absence instead of failing. Cases with xfail=true are advisory: the event type has no deterministic in-process driver (see xfail_reason) and the runner may skip them.",
   "cases": [
     {

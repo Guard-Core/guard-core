@@ -2,7 +2,7 @@
   "suite": "pipeline_behavior_rules",
   "kind": "pipeline",
   "spec_version": "4.1.0",
-  "engine_version": "4.2.0",
+  "engine_version": "4.3.2",
   "cases": [
     {
       "id": "return_pattern_rule_bans_after_threshold",
