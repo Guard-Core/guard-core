@@ -695,6 +695,21 @@ def main() -> None:
             only = arg.split("=", 1)[1]
     verify = "--no-verify" not in sys.argv[1:]
 
+    # Preflight: the events harness captures the envelopes the middleware
+    # bus hands to the optional agent seam. Without guard_agent importable,
+    # the bus swallows the import error and every event case silently pins
+    # zero envelopes, producing a corpus that xfails every real engine
+    # (2026-10-10 incident). Fail loudly instead.
+    try:
+        import guard_agent  # noqa: F401
+    except ModuleNotFoundError as exc:
+        raise SystemExit(
+            "corpus generation requires the optional agent seam: "
+            f"{exc}. Install it (e.g. `uv pip install -e "
+            "../guard-agent` from the ecosystem checkout) and rerun; "
+            "generating without it pins zero event envelopes."
+        ) from exc
+
     config = SecurityConfig()
     results = asyncio.run(run_corpus(config, only=only))
     write_corpus(results, config, write_index=only is None)
