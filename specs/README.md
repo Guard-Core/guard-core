@@ -1,10 +1,10 @@
 # Guard Core Behavioral Specification
 
 Canonical, language-neutral specification of the guard-core engine's observable
-behavior. One engine, five implementations: Python (reference), TypeScript, Rust,
-Go, PHP. Every port MUST produce the same observable behavior (verdicts, status
-codes, headers, Redis effects, event surfaces) while remaining idiomatic
-internally.
+behavior. One engine, six implementations: Python (reference), TypeScript, Rust,
+Go, PHP, JVM (Kotlin). Every port MUST produce the same observable behavior
+(verdicts, status codes, headers, Redis effects, event surfaces) while remaining
+idiomatic internally.
 
 - **Spec version**: `4.1.0` (tracks the guard-core release it was extracted from)
 - **Status**: the parity matrix below is tracked as the audited baseline; the
@@ -53,28 +53,32 @@ corpus is green but documented semantic divergences remain. Ports MUST keep
 this honest; declaring coverage the fixtures do not verify is a conformance
 violation.
 
-| Section | py | ts | rs | go | php |
-|---------|----|----|----|----|-----|
-| 01 contract | reference | full | full | full | full |
-| 02 config | reference | full | full | full | full |
-| 03 pipeline | reference | full | partial | full | full |
-| 04 detection | reference | partial-with-deviations | partial | partial | partial-with-deviations |
-| 05 content | reference | full | full | full | full |
-| 06 suspatterns | reference | full | partial | full | full |
-| 07 rate limiting | reference | full | full | full | full |
-| 08 redis schema | reference | full | partial | partial | full |
-| 09 ip bans | reference | full | full | full | full |
-| 10 cloud/geo | reference | full | partial | full | full |
-| 11 responses/headers | reference | full | full | full | full |
-| 12 behavior/events | reference | full | partial | partial | partial |
-| 13 documentation | reference | full | full | full | full |
-| 14 ci/supply-chain | reference | full | partial | partial | partial |
+| Section | py | ts | rs | go | php | jvm |
+|---------|----|----|----|----|-----|-----|
+| 01 contract | reference | full | full | full | full | none |
+| 02 config | reference | full | full | full | full | none |
+| 03 pipeline | reference | full | partial | full | full | none |
+| 04 detection | reference | partial-with-deviations | partial | partial | partial-with-deviations | none |
+| 05 content | reference | full | full | full | full | none |
+| 06 suspatterns | reference | full | partial | full | full | none |
+| 07 rate limiting | reference | full | full | full | full | none |
+| 08 redis schema | reference | full | partial | partial | full | none |
+| 09 ip bans | reference | full | full | full | full | none |
+| 10 cloud/geo | reference | full | partial | full | full | none |
+| 11 responses/headers | reference | full | full | full | full | none |
+| 12 behavior/events | reference | full | partial | partial | partial | none |
+| 13 documentation | reference | full | full | full | full | none |
+| 14 ci/supply-chain | reference | full | partial | partial | partial | none |
 
 This table is a coarse baseline, not the record of deviations. The live source
 of truth for what each port still owes is that engine's gap ledger:
 `KNOWN_GAPS.md` in guard-core-go and guard-core-php, `conformance/README.md`
 with `xfail_baseline.toml` and `pattern_ledger.toml` in guard-core-rs, and
 `conformance/baseline.json` with `ts_pipeline_xfail.json` in guard-core-ts.
+guard-core-jvm follows the Rust convention (`KNOWN_GAPS.md` + `conformance/`
+xfail manifests + pattern ledger) from its scaffold onward. The `jvm` column
+targets `full` on every section per the family's non-negotiable parity bar
+(see [impl/jvm.md](impl/jvm.md) "Parity bar").
 Update the ledger first, then this table.
 
 ## Per-language implementation specs
@@ -89,6 +93,7 @@ splits (TS), and crate layout (Rust).
 - [impl/php.md](impl/php.md)
 - [impl/ts-catchup.md](impl/ts-catchup.md)
 - [impl/rs.md](impl/rs.md)
+- [impl/jvm.md](impl/jvm.md)
 
 ## Fixture corpus
 
