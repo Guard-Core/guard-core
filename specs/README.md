@@ -68,8 +68,8 @@ violation.
 | 10 cloud/geo | reference | full | partial | full | full | full |
 | 11 responses/headers | reference | full | full | full | full | full |
 | 12 behavior/events | reference | full | partial | partial | partial | full |
-| 13 documentation | reference | full | full | full | full | partial |
-| 14 ci/supply-chain | reference | full | partial | partial | partial | partial |
+| 13 documentation | reference | full | full | full | full | full |
+| 14 ci/supply-chain | reference | full | partial | partial | partial | full |
 
 This table is a coarse baseline, not the record of deviations. The live source
 of truth for what each port still owes is that engine's gap ledger:
@@ -87,11 +87,19 @@ full-corpus gate (375 cases + 9 cost budgets, 0 failing, 8 ledgered entries:
 2 events reason-string shapes at the TS floor, 6 pattern-safety timing facts
 at the RS class) and the every-feature matrix in guard-core-jvm
 `docs/every-feature-matrix.md` (880 rows: 826 FULL, 54 IDIOMATIC, 0 PARTIAL,
-0 MISSING). Sections 13 and 14 are `partial` pending pre-release work: root
-governance artifacts (`SECURITY.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`)
-and the user-facing docs tree are not yet shipped in the JVM family repos, and
-the CI set still lacks dependency auditing, scheduled scanning, the release
-workflow (W8b), Dependabot config, and a committed lockfile.
+0 MISSING). Sections 13 and 14 closed in W8d (2026-10-11): governance artifacts
+(`SECURITY.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`) in all four family
+repos; the docs tree with a strict docs build in CI (engine: full taxonomy
+including the generated 129-field configuration reference and the Dokka API
+jars; adapters and agent: index/installation/api/examples sets, mirroring the
+Rust family shape); dependency auditing (osv-scanner v2.6.0, checksum-pinned,
+over the committed gradle.lockfile state, with per-advisory reasoned
+suppressions and documented removal triggers); weekly scheduled scanning
+(the code-ql cron plus a scheduled-lint workflow mirroring the Go
+convention); Dependabot for gradle + github-actions in all four repos; and
+committed lockfiles (gradle dependency locking, enforced on every
+resolution). Release engineering landed in W8b. Evidence:
+guard-core-jvm#19, spring-boot-guard#5, ktor-guard#4, guard-agent-jvm#4.
 
 ## Per-language implementation specs
 
