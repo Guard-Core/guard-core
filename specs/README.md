@@ -45,7 +45,7 @@ idiomatic internally.
 
 ## Parity matrix
 
-Coverage declarations per port, last audited 2026-10-10 against engine 4.3.2
+Coverage declarations per port, last audited 2026-10-11 against engine 4.3.2
 with the spec 4.1.0 corpus (375 cases across 21 suites; see
 fixtures/cases/index.json). `full` =
 all sections implemented and conformance-green. `partial` = the section is not
@@ -56,20 +56,20 @@ violation.
 
 | Section | py | ts | rs | go | php | jvm |
 |---------|----|----|----|----|-----|-----|
-| 01 contract | reference | full | full | full | full | none |
-| 02 config | reference | full | full | full | full | none |
-| 03 pipeline | reference | full | partial | full | full | none |
-| 04 detection | reference | partial-with-deviations | partial | partial | partial-with-deviations | none |
-| 05 content | reference | full | full | full | full | none |
-| 06 suspatterns | reference | full | partial | full | full | none |
-| 07 rate limiting | reference | full | full | full | full | none |
-| 08 redis schema | reference | full | partial | partial | full | none |
-| 09 ip bans | reference | full | full | full | full | none |
-| 10 cloud/geo | reference | full | partial | full | full | none |
-| 11 responses/headers | reference | full | full | full | full | none |
-| 12 behavior/events | reference | full | partial | partial | partial | none |
-| 13 documentation | reference | full | full | full | full | none |
-| 14 ci/supply-chain | reference | full | partial | partial | partial | none |
+| 01 contract | reference | full | full | full | full | full |
+| 02 config | reference | full | full | full | full | full |
+| 03 pipeline | reference | full | partial | full | full | full |
+| 04 detection | reference | partial-with-deviations | partial | partial | partial-with-deviations | full |
+| 05 content | reference | full | full | full | full | full |
+| 06 suspatterns | reference | full | partial | full | full | full |
+| 07 rate limiting | reference | full | full | full | full | full |
+| 08 redis schema | reference | full | partial | partial | full | full |
+| 09 ip bans | reference | full | full | full | full | full |
+| 10 cloud/geo | reference | full | partial | full | full | full |
+| 11 responses/headers | reference | full | full | full | full | full |
+| 12 behavior/events | reference | full | partial | partial | partial | full |
+| 13 documentation | reference | full | full | full | full | partial |
+| 14 ci/supply-chain | reference | full | partial | partial | partial | partial |
 
 This table is a coarse baseline, not the record of deviations. The live source
 of truth for what each port still owes is that engine's gap ledger:
@@ -81,6 +81,17 @@ xfail manifests + pattern ledger) from its scaffold onward. The `jvm` column
 targets `full` on every section per the family's non-negotiable parity bar
 (see [impl/jvm.md](impl/jvm.md) "Parity bar").
 Update the ledger first, then this table.
+
+JVM column certification (2026-10-11): sections 01-12 verified by the W5
+full-corpus gate (375 cases + 9 cost budgets, 0 failing, 8 ledgered entries:
+2 events reason-string shapes at the TS floor, 6 pattern-safety timing facts
+at the RS class) and the every-feature matrix in guard-core-jvm
+`docs/every-feature-matrix.md` (880 rows: 826 FULL, 54 IDIOMATIC, 0 PARTIAL,
+0 MISSING). Sections 13 and 14 are `partial` pending pre-release work: root
+governance artifacts (`SECURITY.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`)
+and the user-facing docs tree are not yet shipped in the JVM family repos, and
+the CI set still lacks dependency auditing, scheduled scanning, the release
+workflow (W8b), Dependabot config, and a committed lockfile.
 
 ## Per-language implementation specs
 
