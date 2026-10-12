@@ -1,6 +1,6 @@
 [project]
 name = "guard-core"
-version = "4.3.2"
+version = "4.3.3"
 description = "Framework-agnostic security engine for the Guard ecosystem."
 authors = [
     {name = "Renzo Franceschini", email = "rennf93@guard-core.com"}
@@ -281,7 +281,7 @@ ignore = []
 
 [tool.deptry]
 extend_exclude = ['vulture_whitelist\.py', 'docs', 'conftest\.py', '\.claude', 'interop']
-known_first_party = ["guard_core"]
+known_first_party = ["guard_core", "run_fixtures"]
 per_rule_ignores = { "DEP002" = [
     "bandit",
     "deptry",

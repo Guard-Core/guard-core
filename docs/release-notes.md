@@ -10,6 +10,18 @@ Release Notes
 
 ___
 
+v4.3.3 (2026-10-12)
+-------------------
+
+Parity release (v4.3.3)
+-----------------------
+
+A parity release with no functional change: the engine moves to 4.3.3 so all five core engines (Python, TypeScript, Rust, Go, PHP) ship the same version.
+
+The deptry configuration now lists `run_fixtures` (the specs fixture tooling module) as first party, which clears the DEP001 report on `specs/fixtures/tools/generate_cost_cases.py`.
+
+___
+
 v4.3.2 (2026-10-08)
 -------------------
 
