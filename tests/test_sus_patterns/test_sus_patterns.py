@@ -343,8 +343,8 @@ async def test_regex_timeout_fallback() -> None:
     with patch(
         "guard_core.handlers._suspatterns_regex.shared_regex_executor"
     ) as mock_shared_executor:
-        mock_future = MagicMock()
-        mock_future.result.side_effect = concurrent.futures.TimeoutError()
+        mock_future: concurrent.futures.Future[None] = concurrent.futures.Future()
+        mock_future.set_exception(concurrent.futures.TimeoutError())
         mock_shared_executor.return_value.submit.return_value = mock_future
 
         with patch("guard_core.handlers._suspatterns_regex.logger") as mock_logger:
@@ -544,23 +544,18 @@ async def test_legacy_pattern_timeout_uses_configured_compiler_timeout(
     assert manager._compiler is None
     manager._config = MagicMock(detection_compiler_timeout=7.5)
 
-    captured_timeouts = []
+    captured_timeouts: list[float] = []
 
-    class FakeFuture:
-        def result(self, timeout: float = 0) -> None:
-            captured_timeouts.append(timeout)
-            raise concurrent.futures.TimeoutError()
+    async def fake_await(future: object, timeout: float) -> None:
+        captured_timeouts.append(timeout)
+        raise concurrent.futures.TimeoutError()
 
-        def cancel(self) -> None:
-            pass
-
-    class FakeExecutor:
-        def submit(self, fn: object, *args: object) -> "FakeFuture":
-            return FakeFuture()
-
-    with patch(
-        "guard_core.handlers._suspatterns_regex.shared_regex_executor",
-        return_value=FakeExecutor(),
+    with (
+        patch(
+            "guard_core.handlers._suspatterns_regex._await_regex_future",
+            side_effect=fake_await,
+        ),
+        patch("guard_core.handlers._suspatterns_regex.shared_regex_executor"),
     ):
         match, timed_out = await manager._check_pattern_with_timeout(
             re.compile("x"), "content", "1.2.3.4", 0.0
@@ -587,8 +582,8 @@ async def test_regex_search_exception_fallback() -> None:
     with patch(
         "guard_core.handlers._suspatterns_regex.shared_regex_executor"
     ) as mock_shared_executor:
-        mock_future = MagicMock()
-        mock_future.result.side_effect = RuntimeError("Test exception")
+        mock_future: concurrent.futures.Future[None] = concurrent.futures.Future()
+        mock_future.set_exception(RuntimeError("Test exception"))
         mock_shared_executor.return_value.submit.return_value = mock_future
 
         with patch("guard_core.handlers._suspatterns_regex.logger") as mock_logger:

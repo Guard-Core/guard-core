@@ -3,6 +3,7 @@ import logging
 import re
 import threading
 from collections.abc import Callable
+from typing import Any
 
 from guard_core.sync.detection_engine import _validation_cache
 from guard_core.sync.detection_engine._redos_cost_arbiter import (
@@ -35,6 +36,14 @@ def shared_regex_executor() -> concurrent.futures.ThreadPoolExecutor:
                     thread_name_prefix="guard-regex",
                 )
     return _shared_executor
+
+
+def _await_regex_future(future: concurrent.futures.Future[Any], timeout: float) -> Any:
+    return future.result(timeout=timeout)
+
+
+def _yield_to_event_loop() -> None:
+    return None
 
 
 def report_scan_success() -> None:

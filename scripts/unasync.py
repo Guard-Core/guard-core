@@ -27,6 +27,7 @@ SKIP_SRC = {
 }
 
 SKIP_TESTS = {
+    "test_scan_event_loop_yield.py",
     "test_module_imports_standalone.py",
     "test_suspatterns_handler_module_surface.py",
     "test_gc_per_test_opt_in.py",
@@ -146,7 +147,36 @@ _SYNC_SAFE_READ_REPLACEMENT = (
     "    return result\n"
 )
 
+_ASYNC_AWAIT_REGEX_FUTURE_SRC = (
+    "async def _await_regex_future(\n"
+    "    future: concurrent.futures.Future[Any], timeout: float\n"
+    ") -> Any:\n"
+    "    try:\n"
+    "        return await asyncio.wait_for("
+    "asyncio.wrap_future(future), timeout=timeout)\n"
+    "    except asyncio.TimeoutError as exc:\n"
+    "        raise concurrent.futures.TimeoutError() from exc\n"
+)
+
+_SYNC_AWAIT_REGEX_FUTURE_REPLACEMENT = (
+    "def _await_regex_future(\n"
+    "    future: concurrent.futures.Future[Any], timeout: float\n"
+    ") -> Any:\n"
+    "    return future.result(timeout=timeout)\n"
+)
+
+_ASYNC_YIELD_SRC = (
+    "async def _yield_to_event_loop() -> None:\n    await asyncio.sleep(0)\n"
+)
+
+_SYNC_YIELD_REPLACEMENT = "def _yield_to_event_loop() -> None:\n    return None\n"
+
 SUBS: list[tuple[str, str]] = [
+    (re.escape(_ASYNC_YIELD_SRC), _SYNC_YIELD_REPLACEMENT),
+    (
+        re.escape(_ASYNC_AWAIT_REGEX_FUTURE_SRC),
+        _SYNC_AWAIT_REGEX_FUTURE_REPLACEMENT.replace("\\", "\\\\"),
+    ),
     (
         re.escape(_ASYNC_SAFE_READ_SRC),
         _SYNC_SAFE_READ_REPLACEMENT.replace("\\", "\\\\"),

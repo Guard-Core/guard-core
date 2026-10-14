@@ -103,8 +103,8 @@ def test_check_windowed_pattern_timeout_log_redacts_secret_shaped_pattern(
     with patch(
         "guard_core.sync.handlers._suspatterns_regex.shared_regex_executor"
     ) as mock_executor:
-        mock_future = MagicMock()
-        mock_future.result.side_effect = concurrent.futures.TimeoutError()
+        mock_future: concurrent.futures.Future[None] = concurrent.futures.Future()
+        mock_future.set_exception(concurrent.futures.TimeoutError())
         mock_executor.return_value.submit.return_value = mock_future
 
         with patch("guard_core.sync.handlers._suspatterns_regex.logger") as mock_logger:
@@ -131,8 +131,8 @@ def test_check_windowed_pattern_exception_log_redacts_secret_shaped_pattern(
     with patch(
         "guard_core.sync.handlers._suspatterns_regex.shared_regex_executor"
     ) as mock_executor:
-        mock_future = MagicMock()
-        mock_future.result.side_effect = RuntimeError("boom")
+        mock_future: concurrent.futures.Future[None] = concurrent.futures.Future()
+        mock_future.set_exception(RuntimeError("boom"))
         mock_executor.return_value.submit.return_value = mock_future
 
         with patch("guard_core.sync.handlers._suspatterns_regex.logger") as mock_logger:
@@ -157,8 +157,8 @@ def test_check_pattern_with_timeout_log_redacts_secret_shaped_pattern(
     with patch(
         "guard_core.sync.handlers._suspatterns_regex.shared_regex_executor"
     ) as mock_executor:
-        mock_future = MagicMock()
-        mock_future.result.side_effect = concurrent.futures.TimeoutError()
+        mock_future: concurrent.futures.Future[None] = concurrent.futures.Future()
+        mock_future.set_exception(concurrent.futures.TimeoutError())
         mock_executor.return_value.submit.return_value = mock_future
 
         with patch("guard_core.sync.handlers._suspatterns_regex.logger") as mock_logger:
@@ -183,8 +183,8 @@ def test_check_pattern_with_timeout_exception_log_redacts_secret_shaped_pattern(
     with patch(
         "guard_core.sync.handlers._suspatterns_regex.shared_regex_executor"
     ) as mock_executor:
-        mock_future = MagicMock()
-        mock_future.result.side_effect = RuntimeError("boom")
+        mock_future: concurrent.futures.Future[None] = concurrent.futures.Future()
+        mock_future.set_exception(RuntimeError("boom"))
         mock_executor.return_value.submit.return_value = mock_future
 
         with patch("guard_core.sync.handlers._suspatterns_regex.logger") as mock_logger:

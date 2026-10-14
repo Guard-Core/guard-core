@@ -758,6 +758,19 @@ class _SecurityConfigFields(BaseModel):
         le=10.0,
     )
 
+    detection_max_scan_seconds: float = Field(
+        default=10.0,
+        description=(
+            "Cap on the total regex scan time (seconds) spent on one request, "
+            "summed across every field and every pattern. Once reached, "
+            "remaining patterns and values are not scanned and the request "
+            "receives a weighted pattern_timeout threat that counts toward the "
+            "anomaly score, so padding a request cannot skip detection."
+        ),
+        ge=0.1,
+        le=60.0,
+    )
+
     detection_pattern_validation_cache_path: str | None = Field(
         default=None,
         description=(
@@ -1067,6 +1080,16 @@ class _SecurityConfigFields(BaseModel):
             "their typical values (identity/proxy headers skip ssrf only); "
             "every other detection category still scans them. Merged with "
             "the hardcoded default exclusion set."
+        ),
+    )
+    excluded_semantic_detection_headers: set[str] = Field(
+        default_factory=set,
+        description=(
+            "Opt-in: header names whose values skip the semantic analyzer "
+            "only, matched case-insensitively. Regex category scanning of "
+            "these headers is unchanged. Useful for apps whose JWT session "
+            "cookies score near detection_semantic_threshold (for example "
+            "cookie, authorization). Default empty."
         ),
     )
     excluded_detection_params: set[str] = Field(

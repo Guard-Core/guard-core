@@ -4,6 +4,7 @@ import logging
 import re
 import threading
 from collections.abc import Awaitable, Callable
+from typing import Any
 
 from guard_core.detection_engine import _validation_cache
 from guard_core.detection_engine._redos_cost_arbiter import (
@@ -36,6 +37,19 @@ def shared_regex_executor() -> concurrent.futures.ThreadPoolExecutor:
                     thread_name_prefix="guard-regex",
                 )
     return _shared_executor
+
+
+async def _await_regex_future(
+    future: concurrent.futures.Future[Any], timeout: float
+) -> Any:
+    try:
+        return await asyncio.wait_for(asyncio.wrap_future(future), timeout=timeout)
+    except asyncio.TimeoutError as exc:
+        raise concurrent.futures.TimeoutError() from exc
+
+
+async def _yield_to_event_loop() -> None:
+    await asyncio.sleep(0)
 
 
 def report_scan_success() -> None:

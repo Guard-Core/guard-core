@@ -65,6 +65,7 @@ _NEWLY_REGISTERED_FIELDS: tuple[tuple[str, Any, Any], ...] = (
     ("agent_sensitive_headers", ["authorization"], "nope"),
     ("otel_resource_attributes", {"service.name": "guard"}, "nope"),
     ("excluded_detection_headers", {"x-foo"}, "nope"),
+    ("excluded_semantic_detection_headers", {"cookie"}, "nope"),
     ("excluded_detection_params", {"token"}, "nope"),
     ("excluded_detection_body_fields", {"password"}, "nope"),
 )

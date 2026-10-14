@@ -25,6 +25,14 @@ Maximum time in seconds for a single regex pattern match. Patterns that exceed t
 | `2.0`    | Balanced. Catches most attacks while limiting resource usage.|
 | `5.0`    | Permissive. Better detection but higher latency risk.        |
 
+### `detection_max_scan_seconds`
+
+**Type**: `float` | **Default**: `10.0` | **Range**: 0.1 - 60.0
+
+Total regex scan time allowed for one request, summed across every field (query parameters, headers, body values) and every pattern, not per `detect()` call. Once the budget is spent, the remaining patterns and request values are not scanned and the request gets a weighted `pattern_timeout` threat (pattern `scan_time_budget_exhausted`) that counts toward the anomaly score and the reported `timeouts`, the same way a per-pattern `detection_compiler_timeout` does, so padding a request with filler cannot silently skip detection. The wait for a single pattern is also clamped to the time left in the budget. The default is far above normal traffic (a few milliseconds per request, roughly 16 ms for 8,863 characters on one measured CPU) and about 6 times the worst legitimate case the value cap allows (256 benign query parameters, 512 scan units, measured at about 1.5 s on that CPU), which leaves headroom for slower hosts. Only regex pattern time counts, not decoding or semantic analysis.
+
+In the async tree the scan awaits the regex worker instead of blocking the event loop, so other requests run between patterns. A single regex that is already executing still holds the GIL until it returns. The sync tree has no event loop and keeps blocking.
+
 ### `detection_pattern_validation_cache_path`
 
 **Type**: `str | None` | **Default**: `None`
@@ -81,6 +89,12 @@ Minimum score from the `SemanticAnalyzer` to classify content as a threat. The s
 
 !!! info "Semantic vs Regex"
     Regex patterns provide definitive threat detection. Semantic analysis is a secondary layer that catches obfuscated or novel attacks. Lowering the semantic threshold increases the chance of catching evasion attempts but also increases false positives on legitimate content containing technical terms.
+
+### `excluded_semantic_detection_headers`
+
+**Type**: `set[str]` | **Default**: `set()`
+
+Opt-in list of header names whose values skip the semantic analyzer only, matched case-insensitively. Regex category scanning of those headers is unchanged, and `excluded_detection_headers` keeps its meaning (it never silences a header). The semantic analyzer counts base64 as obfuscation and encoding layers, so JWT session cookies and bearer tokens can score close to `detection_semantic_threshold` (0.30 to 0.59 measured on sample cookies, 0.71 reported). For apps with JWT sessions, set `excluded_semantic_detection_headers={"cookie", "authorization"}` instead of raising the global threshold. A route can add names with `@security.detection_exclusion(semantic_headers={...})`.
 
 ### `detection_anomaly_threshold`
 

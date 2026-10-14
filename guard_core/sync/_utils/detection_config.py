@@ -232,3 +232,32 @@ def _resolve_binary_min_run_length(config: "SecurityConfig | None") -> int:
         if config is not None
         else _DEFAULT_BINARY_MIN_RUN_LENGTH
     )
+
+
+_DEFAULT_MAX_SCAN_SECONDS = 10.0
+
+
+def _resolve_max_scan_seconds(config: "SecurityConfig | None") -> float:
+    return (
+        config.detection_max_scan_seconds
+        if config is not None
+        else _DEFAULT_MAX_SCAN_SECONDS
+    )
+
+
+def _resolve_semantic_excluded_headers(
+    config: "SecurityConfig | None", route_config: "RouteConfig | None"
+) -> frozenset[str]:
+    excluded: set[str] = set()
+    if config is not None:
+        excluded |= {
+            h.strip().lower() for h in config.excluded_semantic_detection_headers
+        }
+    if (
+        route_config is not None
+        and route_config.excluded_semantic_detection_headers is not None
+    ):
+        excluded |= {
+            h.strip().lower() for h in route_config.excluded_semantic_detection_headers
+        }
+    return frozenset(excluded)
