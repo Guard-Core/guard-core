@@ -1,3 +1,5 @@
+from collections.abc import Iterator, Mapping
+
 from guard_core._utils.body_form_scan import (
     _multipart_part_entries,
     _multipart_text_parts,
@@ -291,6 +293,16 @@ async def _scan_sensitive_header(
     return hit
 
 
+def _header_items_to_scan(headers: Mapping[str, str]) -> Iterator[tuple[str, str]]:
+    for key, value in headers.items():
+        if key.strip().lower() != "cookie":
+            yield key, value
+            continue
+        for pair in value.split(";"):
+            if stripped := pair.strip(" "):
+                yield key, stripped
+
+
 async def _scan_headers(
     request: GuardRequest,
     excluded_headers: set[str],
@@ -303,7 +315,7 @@ async def _scan_headers(
     excluded_body_fields: frozenset[str] = frozenset(),
     sensitive_params: frozenset[str] = frozenset(),
 ) -> tuple[bool, str, list[dict]]:
-    for key, value in request.headers.items():
+    for key, value in _header_items_to_scan(request.headers):
         if key.strip().lower() in sensitive_headers:
             hit = await _scan_sensitive_header(
                 key,
