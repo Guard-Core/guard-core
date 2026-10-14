@@ -1,6 +1,6 @@
 site_name: Guard Core
 site_description: Framework-agnostic security library for Python web applications
-site_url: https://guard-core.github.io/guard-core/latest/
+site_url: https://guard-core.github.io/guard-core/
 repo_name: Guard-Core/guard-core
 repo_url: https://github.com/Guard-Core/guard-core
 edit_uri: edit/master/docs/
