@@ -701,7 +701,15 @@ class _SecurityConfigFields(BaseModel):
     )
 
     enable_dynamic_rules: bool = Field(
-        default=False, description="Enable dynamic rule updates from SaaS platform"
+        default=False,
+        description=(
+            "Lets the SaaS dashboard change these settings at runtime without a "
+            "code change: blocked_countries, whitelist_countries, rate_limit, "
+            "rate_limit_window, endpoint_rate_limits, block_cloud_providers, "
+            "enable_penetration_detection, enable_ip_banning, enable_rate_limiting, "
+            "enable_rate_limit_auto_ban, auto_ban_threshold, auto_ban_duration, "
+            "emergency_mode and emergency_whitelist. Requires enable_agent."
+        ),
     )
 
     dynamic_rule_interval: int = Field(

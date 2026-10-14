@@ -157,7 +157,7 @@ async def log_activity(
 | `"suspicious"` | `Suspicious activity detected from {ip}: {method} {url} - Reason: {reason} - Headers: {...}` |
 | Other          | `{Type} from {ip}: {method} {url} - Details: {reason} - Headers: {...}` |
 
-**Passive mode**: When `passive_mode=True` and `log_type="suspicious"`, the message is prefixed with `[PASSIVE MODE] Penetration attempt detected`, in the format `[PASSIVE MODE] Penetration attempt detected from {ip}: {method} {url} - Trigger: {trigger_info} - Headers: {...}`. The `Trigger: {trigger_info}` segment only appears when `trigger_info` is non-empty.
+**Passive mode**: When `passive_mode=True` and `log_type="suspicious"`, the message is prefixed with `[PASSIVE MODE] Penetration attempt detected` when `trigger_info` is set, in the format `[PASSIVE MODE] Penetration attempt detected from {ip}: {method} {url} - Trigger: {trigger_info} - Headers: {...}`. When `trigger_info` is empty (for example a passive rate-limit hit), the line is `[PASSIVE MODE] Suspicious activity detected from {ip}: {method} {url} - Reason: {reason} - Headers: {...}`, so the reason is never dropped.
 
 **Level `None`**: When `level` is `None`, the function returns immediately without logging.
 

@@ -370,15 +370,16 @@ def _build_log_message_for_suspicious(
     context: dict[str, Any], reason: str, passive_mode: bool, trigger_info: str
 ) -> tuple[str, str]:
     if passive_mode:
-        message = "[PASSIVE MODE] Penetration attempt detected from"
+        label = "Penetration attempt" if trigger_info else "Suspicious activity"
+        message = f"[PASSIVE MODE] {label} detected from"
         details = (
             f"{message} {context['client_ip']}: {context['method']} {context['url']}"
         )
 
-        trigger_message = f"Trigger: {trigger_info}" if trigger_info else ""
-        reason_message = f"Headers: {context['headers']}"
-        if trigger_message:
-            reason_message = f"{trigger_message} - {reason_message}"
+        if trigger_info:
+            reason_message = f"Trigger: {trigger_info} - Headers: {context['headers']}"
+        else:
+            reason_message = f"Reason: {reason} - Headers: {context['headers']}"
     else:
         message = "Suspicious activity detected from"
         details = (

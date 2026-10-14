@@ -59,7 +59,7 @@ In-memory rate-limit stores (`RateLimitManager.request_timestamps` and the modul
 
 `to_agent_config()` builds an `AgentConfig` from the agent fields when `enable_agent=True` and `agent_api_key` is set, else returns `None`. The ten `agent_*` fields listed above with a `None` default (plus `on_error`) are each omitted from the `AgentConfig(...)` call when unset, so `AgentConfig`'s own default applies instead of a duplicated value drifting out of sync with guard-agent.
 
-`dynamic_rule_interval` (Interval in seconds between dynamic rule updates).
+`enable_dynamic_rules` (default `False`; requires `enable_agent`) lets the SaaS dashboard change these settings at runtime without a code change: `blocked_countries`, `whitelist_countries`, `rate_limit`, `rate_limit_window`, `endpoint_rate_limits`, `block_cloud_providers`, `enable_penetration_detection`, `enable_ip_banning`, `enable_rate_limiting`, `enable_rate_limit_auto_ban`, `auto_ban_threshold`, `auto_ban_duration`, `emergency_mode`, `emergency_whitelist`. `dynamic_rule_interval` (Interval in seconds between dynamic rule updates).
 
 ### Pipeline behavior
 
