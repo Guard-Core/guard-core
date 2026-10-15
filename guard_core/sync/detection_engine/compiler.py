@@ -191,6 +191,7 @@ class PatternCompiler:
         pattern: str | re.Pattern,
         timeout: float | None = None,
         inline_safe: bool = False,
+        worker_wrapper: Callable[[Callable[[], Any]], Callable[[], Any]] | None = None,
     ) -> Callable[[str], list[re.Match]]:
         compiled = (
             pattern
@@ -207,11 +208,12 @@ class PatternCompiler:
             return inline_safe_finditer
 
         def safe_finditer(text: str) -> list[re.Match]:
+            work: Callable[[], Any] = lambda: list(compiled.finditer(text))  # noqa: E731
             future = shared_regex_executor().submit(
-                lambda: list(compiled.finditer(text))
+                work if worker_wrapper is None else worker_wrapper(work)
             )
             try:
-                result = future.result(timeout=match_timeout)
+                result: list[re.Match] = future.result(timeout=match_timeout)
                 report_scan_success()
                 return result
             except concurrent.futures.TimeoutError:
@@ -228,6 +230,7 @@ class PatternCompiler:
         pattern: str | re.Pattern,
         timeout: float | None = None,
         inline_safe: bool = False,
+        worker_wrapper: Callable[[Callable[[], Any]], Callable[[], Any]] | None = None,
     ) -> Callable[[str], list[re.Match]]:
         compiled = (
             pattern
@@ -243,7 +246,9 @@ class PatternCompiler:
 
             return async_inline_finditer
 
-        sync_finder = self.create_safe_finditer_matcher(pattern, timeout=match_timeout)
+        sync_finder = self.create_safe_finditer_matcher(
+            pattern, timeout=match_timeout, worker_wrapper=worker_wrapper
+        )
 
         def async_safe_finditer(text: str) -> list[re.Match]:
             return sync_finder(text)

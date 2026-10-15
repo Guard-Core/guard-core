@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import AsyncGenerator, Iterator
 from typing import Any
 from unittest.mock import patch
@@ -35,7 +36,7 @@ class _FakeClock:
         self.now = 0.0
         self.step = step
 
-    def monotonic(self) -> float:
+    def cpu_seconds(self) -> float:
         self.now += self.step
         return self.now
 
@@ -43,8 +44,7 @@ class _FakeClock:
 @pytest.fixture
 def fake_regex_clock() -> Iterator[_FakeClock]:
     clock = _FakeClock(step=1.0)
-    with patch("guard_core.handlers._suspatterns_regex.time") as fake_time:
-        fake_time.monotonic = clock.monotonic
+    with patch.object(detection_scan, "_thread_cpu_seconds", clock.cpu_seconds):
         yield clock
 
 
@@ -183,3 +183,37 @@ def test_threats_message_appends_the_first_later_timeout() -> None:
     assert detection_scan._build_threats_message([timeout, regex]) == (
         "Pattern exceeded scan time budget: 'slow'"
     )
+
+
+async def test_wall_slow_but_cpu_cheap_scan_does_not_exhaust_the_budget() -> None:
+    manager = SusPatternsManager()
+    manager.configure(SecurityConfig())
+    real = manager._check_regex_pattern
+
+    async def slow_wall(*args: Any, **kwargs: Any) -> Any:
+        await asyncio.sleep(0.01)
+        return await real(*args, **kwargs)
+
+    with (
+        patch.object(manager, "_check_regex_pattern", slow_wall),
+        _scan_value_budget(512, max_scan_seconds=0.1),
+    ):
+        result = await manager.detect("hello world", "127.0.0.1", "query_param:q")
+
+    assert all(t["pattern"] != "scan_time_budget_exhausted" for t in result["threats"])
+    assert result["is_threat"] is False
+
+
+async def test_worker_scan_cpu_is_recorded_from_the_worker_thread(
+    fake_regex_clock: _FakeClock,
+) -> None:
+    manager = SusPatternsManager()
+    manager.configure(SecurityConfig())
+    await manager.add_pattern("zzzworker[a-z]+q")
+
+    with _scan_value_budget(512, max_scan_seconds=1000.0):
+        await manager.detect("hello", "127.0.0.1", "query_param:q")
+        remaining = detection_scan._scan_time_remaining()
+
+    assert remaining is not None
+    assert remaining < 1000.0

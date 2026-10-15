@@ -3,6 +3,7 @@ import subprocess
 import sys
 import time
 from collections.abc import Awaitable, Callable
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -924,9 +925,16 @@ async def test_custom_pattern_routed_through_pool_path() -> None:
         pattern: str | re.Pattern,
         timeout: float | None = None,
         inline_safe: bool = False,
+        worker_wrapper: Any = None,
     ) -> Callable[[str], Awaitable[list[re.Match]]]:
         captured.append(inline_safe)
-        return original(self, pattern, timeout=timeout, inline_safe=inline_safe)
+        return original(
+            self,
+            pattern,
+            timeout=timeout,
+            inline_safe=inline_safe,
+            worker_wrapper=worker_wrapper,
+        )
 
     with patch.object(PatternCompiler, "create_async_safe_finditer_matcher", _spy):
         result = await sus_patterns_handler.detect(
@@ -946,9 +954,16 @@ async def test_built_in_pattern_routed_through_inline_safe_path() -> None:
         pattern: str | re.Pattern,
         timeout: float | None = None,
         inline_safe: bool = False,
+        worker_wrapper: Any = None,
     ) -> Callable[[str], Awaitable[list[re.Match]]]:
         captured.append(inline_safe)
-        return original(self, pattern, timeout=timeout, inline_safe=inline_safe)
+        return original(
+            self,
+            pattern,
+            timeout=timeout,
+            inline_safe=inline_safe,
+            worker_wrapper=worker_wrapper,
+        )
 
     with patch.object(PatternCompiler, "create_async_safe_finditer_matcher", _spy):
         result = await sus_patterns_handler.detect(

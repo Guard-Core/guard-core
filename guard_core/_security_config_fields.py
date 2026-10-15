@@ -761,8 +761,8 @@ class _SecurityConfigFields(BaseModel):
     detection_max_scan_seconds: float = Field(
         default=10.0,
         description=(
-            "Cap on the total regex scan time (seconds) spent on one request, "
-            "summed across every field and every pattern. Once reached, "
+            "Cap on the CPU time (seconds) spent regex scanning one request, "
+            "not wall time, summed across every field and every pattern. Once reached, "
             "remaining patterns and values are not scanned and the request "
             "receives a weighted pattern_timeout threat that counts toward the "
             "anomaly score, so padding a request cannot skip detection."

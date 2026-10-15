@@ -2,7 +2,7 @@ import contextvars
 import logging
 import re
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from typing import Any
 
@@ -105,7 +105,6 @@ def _scan_time_remaining() -> float | None:
 
 
 _SCAN_TIME_BUDGET_EXHAUSTED_PATTERN = "scan_time_budget_exhausted"
-_MIN_CLAMPED_TIMEOUT = 0.001
 _EVENT_LOOP_SLICE_SECONDS = 0.002
 
 
@@ -121,15 +120,34 @@ def _scan_time_budget_exhausted_threat(weight: float) -> dict[str, Any]:
     }
 
 
-def _clamp_to_scan_time_budget(timeout: float) -> float:
-    remaining = _scan_time_remaining()
-    if remaining is None:
-        return timeout
-    return max(min(timeout, remaining), _MIN_CLAMPED_TIMEOUT)
+def _thread_cpu_seconds() -> float:
+    return time.thread_time()
 
 
 def _record_scan_time(elapsed: float) -> None:
     _scan_time_spent.set(_scan_time_spent.get() + elapsed)
+
+
+@contextmanager
+def _record_inline_cpu() -> Iterator[None]:
+    start = _thread_cpu_seconds()
+    try:
+        yield
+    finally:
+        _record_scan_time(_thread_cpu_seconds() - start)
+
+
+def _timed_in_worker(
+    work: Callable[[], Any], cpu_sink: list[float]
+) -> Callable[[], Any]:
+    def run() -> Any:
+        start = _thread_cpu_seconds()
+        try:
+            return work()
+        finally:
+            cpu_sink.append(_thread_cpu_seconds() - start)
+
+    return run
 
 
 def _scan_time_budget_exhausted() -> bool:
@@ -538,3 +556,22 @@ def _check_always_scan_header(value: str) -> tuple[bool, str, list[dict]]:
             )
             return True, trigger, [threat]
     return False, "", []
+
+
+async def _compiler_finditer(
+    compiler: Any, pattern: re.Pattern, category: str, content: str
+) -> list[re.Match]:
+    inline_scan = category != "custom"
+    worker_cpu: list[float] = []
+    finder = compiler.create_async_safe_finditer_matcher(
+        pattern,
+        inline_safe=inline_scan,
+        worker_wrapper=lambda work: _timed_in_worker(work, worker_cpu),
+    )
+    if inline_scan:
+        with _record_inline_cpu():
+            matches: list[re.Match] = await finder(content)
+        return matches
+    matches = await finder(content)
+    _record_scan_time(sum(worker_cpu) if worker_cpu else compiler.default_timeout)
+    return matches
