@@ -78,6 +78,19 @@ async def test_listed_header_is_still_scanned_by_regex() -> None:
     assert "Semantic attack" not in result.trigger_info
 
 
+async def test_listed_header_opt_out_applies_to_every_cookie_pair() -> None:
+    cookie = f"theme=dark; {_JWT_COOKIE}; lang=en"
+    request = MockGuardRequest(headers={"cookie": cookie})
+
+    flagged = await detect_penetration_attempt(request, _config())
+    exempt = await detect_penetration_attempt(
+        request, _config(excluded_semantic_detection_headers={"cookie"})
+    )
+
+    assert flagged.is_threat is True
+    assert exempt.is_threat is False
+
+
 async def test_route_config_set_is_merged() -> None:
     request = MockGuardRequest(headers={"cookie": _JWT_COOKIE})
     route_config = RouteConfig()
