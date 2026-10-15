@@ -143,6 +143,7 @@ def test_windowed_registries_share_no_pattern() -> None:
 
 
 _SCAN_WINDOW_TIMING_RUNS = 5
+_HANG_GUARD_SECONDS = 60.0
 
 
 def _scan_window_child(
@@ -1368,9 +1369,12 @@ def test_hostname_fragment_not_catastrophic_with_failing_tail() -> None:
         f"hostname group still has outer * (nested unbounded quantifier): {fragment}"
     )
     probe = fragment.rstrip("?") + r"$"
-    results = _timed_batch(probe, ["a" * 25 + "!"], timeout=1.0)
-    assert results is not None, (
-        f"hostname fragment timed out with failing tail: {probe}"
+    # The 1s budget is the child's CPU time; the wall-clock join is only a
+    # hang guard, since forkserver start-up alone outruns 1s on a loaded runner.
+    results = _timed_batch(probe, ["a" * 25 + "!"], timeout=_HANG_GUARD_SECONDS)
+    assert results is not None, f"hostname fragment hung with failing tail: {probe}"
+    assert results[0] < 1.0, (
+        f"hostname fragment used {results[0]:.3f}s of CPU with failing tail: {probe}"
     )
 
 
