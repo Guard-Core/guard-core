@@ -2869,7 +2869,7 @@
 </tr>
 </tbody>
 </table>
-<p><strong>Passive mode</strong>: When <code>passive_mode=True</code> and <code>log_type="suspicious"</code>, the message is prefixed with <code>[PASSIVE MODE] Penetration attempt detected</code>, in the format <code>[PASSIVE MODE] Penetration attempt detected from {ip}: {method} {url} - Trigger: {trigger_info} - Headers: {...}</code>. The <code>Trigger: {trigger_info}</code> segment only appears when <code>trigger_info</code> is non-empty.</p>
+<p><strong>Passive mode</strong>: When <code>passive_mode=True</code> and <code>log_type="suspicious"</code>, the message is prefixed with <code>[PASSIVE MODE] Penetration attempt detected</code> when <code>trigger_info</code> is set, in the format <code>[PASSIVE MODE] Penetration attempt detected from {ip}: {method} {url} - Trigger: {trigger_info} - Headers: {...}</code>. When <code>trigger_info</code> is empty (for example a passive rate-limit hit), the line is <code>[PASSIVE MODE] Suspicious activity detected from {ip}: {method} {url} - Reason: {reason} - Headers: {...}</code>, so the reason is never dropped.</p>
 <p><strong>Level <code>None</code></strong>: When <code>level</code> is <code>None</code>, the function returns immediately without logging.</p>
 <hr />
 <h2 id="sensitive-data-redaction">Sensitive Data Redaction<a class="headerlink" href="#sensitive-data-redaction" title="Permanent link">&para;</a></h2>
