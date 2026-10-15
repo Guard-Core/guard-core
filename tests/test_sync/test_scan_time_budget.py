@@ -153,3 +153,35 @@ def test_fallback_check_honours_budget() -> None:
 
     assert detected is True
     assert "budget" in trigger
+
+
+def test_trigger_names_the_budget_when_it_tips_the_request(
+    fake_regex_clock: _FakeClock,
+) -> None:
+    request = SyncMockGuardRequest(path="/items", headers={"x-pad": "select a from b"})
+
+    result = detect_penetration_attempt(
+        request, SecurityConfig(detection_max_scan_seconds=0.1)
+    )
+
+    assert result.is_threat is True
+    assert "Pattern exceeded scan time budget" in result.trigger_info
+    assert "scan_time_budget_exhausted" in result.trigger_info
+
+
+def test_threats_message_appends_the_first_later_timeout() -> None:
+    regex = {"type": "regex", "pattern": "a"}
+    timeout = {"type": "pattern_timeout", "pattern": "slow"}
+    other = {"type": "pattern_timeout", "pattern": "later"}
+
+    message = detection_scan._build_threats_message([regex, timeout, other])
+
+    assert message == (
+        "Value matched pattern 'a'; Pattern exceeded scan time budget: 'slow'"
+    )
+    assert detection_scan._build_threats_message([regex]) == (
+        "Value matched pattern 'a'"
+    )
+    assert detection_scan._build_threats_message([timeout, regex]) == (
+        "Pattern exceeded scan time budget: 'slow'"
+    )

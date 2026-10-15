@@ -277,6 +277,16 @@ def _build_threat_message(threat: dict[str, Any]) -> str:
     return "Threat detected"
 
 
+def _build_threats_message(threats: list[dict[str, Any]]) -> str:
+    message = _build_threat_message(threats[0])
+    if threats[0]["type"] == "pattern_timeout":
+        return message
+    timeout = next((t for t in threats[1:] if t["type"] == "pattern_timeout"), None)
+    if timeout is None:
+        return message
+    return f"{message}; {_build_threat_message(timeout)}"
+
+
 _MAX_USER_AGENT_MATCH_LENGTH = 512
 
 
@@ -421,7 +431,7 @@ async def _check_value_enhanced(
 
         threats: list[dict] = list(result.get("threats", []))
         if threats:
-            return True, _build_threat_message(threats[0]), threats, None
+            return True, _build_threats_message(threats), threats, None
 
         return True, "Threat detected", threats, None
 
