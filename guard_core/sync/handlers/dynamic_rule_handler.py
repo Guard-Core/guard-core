@@ -224,7 +224,7 @@ class DynamicRuleManager(DynamicRuleApplicationMixin, DynamicRuleSnapshotMixin):
 
     def _restore_config(self, snapshot: dict[str, object]) -> None:
         for field, value in snapshot.items():
-            self.config._set_prevalidated(field, value)
+            self.config._set_prevalidated(field, deepcopy(value))
 
     def _capture_active_base_snapshot(self, snapshot: dict[str, object]) -> None:
         if self.current_rules is None and self._active_base_snapshot is None:
@@ -232,6 +232,9 @@ class DynamicRuleManager(DynamicRuleApplicationMixin, DynamicRuleSnapshotMixin):
 
     def _apply_rules(self, rules: DynamicRules) -> None:
         with self._lock:
+            previous = self._snapshot_config()
+            if self._active_base_snapshot is not None:
+                self._restore_config(self._active_base_snapshot)
             snapshot = self._snapshot_config()
             try:
                 self._apply_ip_rules(rules)
@@ -247,7 +250,7 @@ class DynamicRuleManager(DynamicRuleApplicationMixin, DynamicRuleSnapshotMixin):
                     self._activate_emergency_mode(rules.emergency_whitelist)
 
             except Exception as e:
-                self._restore_config(snapshot)
+                self._restore_config(previous)
                 self.logger.error(f"Failed to apply dynamic rules: {e}")
                 raise
 

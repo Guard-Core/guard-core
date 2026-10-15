@@ -85,7 +85,8 @@ def test_concurrent_threads_serialize() -> None:
             t.join()
 
     assert len(observed) == 2
-    assert observed[0] != observed[1]
+    assert observed == [[], []]
+    assert config.blocked_countries in (frozenset({"AA"}), frozenset({"BB"}))
 
 
 def test_rollback_restores_all_snapshot_fields() -> None:
