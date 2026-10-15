@@ -1,4 +1,3 @@
-import threading
 import time
 from contextlib import contextmanager
 from typing import Any
@@ -6,6 +5,8 @@ from unittest.mock import MagicMock, patch
 
 from guard_core.models import SecurityConfig
 from guard_core.sync.core.initialization.handler_initializer import HandlerInitializer
+
+_BACKGROUND_BLOCK_SECONDS = 2.0
 
 
 def _make_initializer(
@@ -73,22 +74,29 @@ def test_lazy_init_schedules_background_task_for_cloud_and_geo() -> None:
 def test_lazy_init_returns_quickly_with_blocking_background_init() -> None:
     initializer, geo_ip, _ = _make_initializer(lazy_init=True, block_cloud={"AWS"})
 
-    release = threading.Event()
+    finished: list[str] = []
 
     def blocking_cloud_init(*args: Any, **kwargs: Any) -> None:
-        release.set()
+        time.sleep(_BACKGROUND_BLOCK_SECONDS)
+        finished.append("cloud")
 
-    geo_ip.initialize_redis = MagicMock(side_effect=blocking_cloud_init)
+    geo_ip.initialize_redis = MagicMock()
 
     with _patch_handlers() as patches:
         patches["cloud"].initialize_redis = MagicMock(side_effect=blocking_cloud_init)
-        start = time.perf_counter()
         initializer.initialize_redis_handlers()
-        elapsed = time.perf_counter() - start
 
-        assert elapsed < 0.5
+        # The contract is "returns without waiting for the background init",
+        # asserted as ordering rather than a wall-clock budget: the background
+        # init is still inside its block when the call returns. A lazy init
+        # that awaited it would have finished it first, however fast the
+        # runner is (the old 0.5s bound flaked at 0.56-0.69s under load, and
+        # could not fail on a real regression because the stub never blocked).
         assert initializer._lazy_init_task is not None
-        initializer._lazy_init_task.join(timeout=1.0)
+        assert finished == []
+        initializer._lazy_init_task.join(timeout=30.0)
+        assert finished == ["cloud"]
+        geo_ip.initialize_redis.assert_called_once()
 
 
 def test_lazy_init_cloud_failure_still_runs_geo_init() -> None:

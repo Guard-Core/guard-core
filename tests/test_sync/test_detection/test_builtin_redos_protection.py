@@ -7,6 +7,7 @@ from guard_core.sync.handlers.suspatterns_handler import SusPatternsManager
 
 _REDOS_PAYLOAD = "{{" * 10000
 _DETECT_DEADLINE_SECONDS = 2.0
+_HANG_GUARD_SECONDS = 60.0
 _COMPILER_TIMEOUT_SECONDS = 0.3
 _MAX_CONTENT_LENGTH = 20000
 
@@ -25,12 +26,12 @@ def _child_detect(
     )
     manager = SusPatternsManager()
     manager.configure(config)
-    t0 = time.monotonic()
+    t0 = time.process_time()
     result = manager.detect(payload, "127.0.0.1", context="request_body")
-    elapsed = time.monotonic() - t0
+    cpu = time.process_time() - t0
     q.put(
         {
-            "elapsed": elapsed,
+            "cpu": cpu,
             "is_threat": bool(result["is_threat"]),
             "timeout_count": len(result["timeouts"]),
             "detection_method": result["detection_method"],
@@ -39,7 +40,7 @@ def _child_detect(
 
 
 def _run_detect_under_deadline(
-    config: SecurityConfig, payload: str, deadline: float
+    config: SecurityConfig, payload: str
 ) -> dict[str, Any] | None:
     ctx = mp.get_context("forkserver")
     q: mp.Queue[dict[str, Any]] = ctx.Queue()
@@ -53,7 +54,10 @@ def _run_detect_under_deadline(
         ),
     )
     proc.start()
-    proc.join(deadline)
+    # Wall clock only guards against a hang: forkserver start-up and imports
+    # alone outrun a 2s wall budget on a loaded runner. The deadline itself is
+    # the child's CPU time around detect(), which load does not inflate.
+    proc.join(_HANG_GUARD_SECONDS)
     if proc.is_alive():
         proc.terminate()
         proc.join()
@@ -69,15 +73,13 @@ def _enhanced_config() -> SecurityConfig:
 
 
 def test_builtin_template_redos_protected_in_enhanced_mode() -> None:
-    result = _run_detect_under_deadline(
-        _enhanced_config(), _REDOS_PAYLOAD, _DETECT_DEADLINE_SECONDS
-    )
+    result = _run_detect_under_deadline(_enhanced_config(), _REDOS_PAYLOAD)
     assert result is not None, (
-        "detect did not return within the deadline; the built-in template "
+        "detect did not return within the hang guard; the built-in template "
         "pattern ran an unguarded re.search and ReDoSed the worker"
     )
-    assert result["elapsed"] < _DETECT_DEADLINE_SECONDS, (
-        f"detect took {result['elapsed']:.3f}s, exceeding the "
+    assert result["cpu"] < _DETECT_DEADLINE_SECONDS, (
+        f"detect used {result['cpu']:.3f}s of CPU, exceeding the "
         f"{_DETECT_DEADLINE_SECONDS}s deadline"
     )
     assert result["detection_method"] == "enhanced"
@@ -86,16 +88,14 @@ def test_builtin_template_redos_protected_in_enhanced_mode() -> None:
 
 def test_builtin_ldap_extensible_match_redos_protected_in_enhanced_mode() -> None:
     result = _run_detect_under_deadline(
-        _enhanced_config(),
-        _LDAP_EXTENSIBLE_MATCH_REDOS_PAYLOAD,
-        _DETECT_DEADLINE_SECONDS,
+        _enhanced_config(), _LDAP_EXTENSIBLE_MATCH_REDOS_PAYLOAD
     )
     assert result is not None, (
-        "detect did not return within the deadline; the ldap extensible-match "
+        "detect did not return within the hang guard; the ldap extensible-match "
         "attribute pattern's ambiguous ':dn' alternation ReDoSed the worker"
     )
-    assert result["elapsed"] < _DETECT_DEADLINE_SECONDS, (
-        f"detect took {result['elapsed']:.3f}s, exceeding the "
+    assert result["cpu"] < _DETECT_DEADLINE_SECONDS, (
+        f"detect used {result['cpu']:.3f}s of CPU, exceeding the "
         f"{_DETECT_DEADLINE_SECONDS}s deadline"
     )
     assert result["detection_method"] == "enhanced"
