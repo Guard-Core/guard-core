@@ -10,6 +10,41 @@ Release Notes
 
 ___
 
+v4.4.0 (2026-10-15)
+-------------------
+
+The scan-budget release: the detection scan yields the event loop and is capped per request, the Cookie header is scanned pair by pair, and dynamic rule versions apply over the base config (v4.4.0)
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+### Added
+
+- **`detection_max_scan_seconds`: a per-request cap on regex scan CPU time** (guard-core #166, #167). A scan could hold the event loop and nothing bounded the total scan time of one request. In the async tree the scan now awaits the regex worker between patterns, so other requests run in between, and `detection_max_scan_seconds` (default `10.0`, range `0.1` to `60.0`) caps the thread CPU time spent regex scanning one request, summed across every field and every pattern. Once the budget is spent the remaining patterns and values are not scanned and the request receives a weighted `pattern_timeout` threat (pattern `scan_time_budget_exhausted`) that counts toward the anomaly score, so padding a request with filler cannot skip detection. The default is far above normal traffic, so ordinary requests never reach it. The sync tree has no event loop and keeps blocking.
+- **`excluded_semantic_detection_headers`: an opt-in semantic-only header exclusion** (guard-core #166, #167). Header names listed here (case-insensitive, default empty) skip the semantic analyzer only, and regex category scanning of those headers is unchanged. JWT session cookies and bearer tokens can score close to `detection_semantic_threshold` because the analyzer counts base64 as obfuscation, so an app can now set `excluded_semantic_detection_headers={"cookie", "authorization"}` instead of raising the global threshold. A route adds names with `@security.detection_exclusion(semantic_headers={...})`.
+
+### Fixed
+
+- **The Cookie header is scanned one `name=value` pair at a time** (guard-core #161, #162, @HardMax71). The whole header used to be one scanned value, so the `;` between cookies counted as command separators in the semantic score and an ordinary logged-in header reached 0.71 and was rejected. Each pair now goes through the same sensitive, excluded or normal header path as before, so every regex and semantic check still runs on each cookie and the `cookie` log redaction is unchanged. Only spaces around a pair are trimmed (a CR or LF stays in the scanned value), empty pairs are skipped, and each pair counts against `detection_max_scan_values`, as each query parameter does.
+- **Dynamic rule versions apply over the base config, not over the previous version** (guard-core #168, #169). `DynamicRuleManager._apply_rules` now restores the base snapshot before applying a new version or a different rule, so a version is an overlay on the base config. Before this, emergency mode halved `auto_ban_threshold` again for every emergency version (16, 8, 4, 2), and a version that stopped setting a field kept the value the previous version set. A failed apply rolls back to the state before the attempt, the retained base is deep-copied so the live config cannot mutate it, and expiry is unchanged and still restores the base. Suspicious patterns added by a rule were appended to the registry again for every version that repeated them, so patterns the registry already holds are now skipped (patterns still persist after expiry, as before). IP bans keep their current behavior.
+- **Passive-mode suspicious logs keep the reason** (guard-core #164, #165). A passive line without a trigger now reads `[PASSIVE MODE] Suspicious activity detected from <ip>: ... - Reason: <reason> - Headers: ...` instead of the penetration wording with the reason dropped. Lines with a trigger are unchanged. If you match on the old passive log text, update the match.
+
+### Changed
+
+- **Behavior to know before upgrading.** A dynamic rule version no longer carries over the previous version's changes: a field the new version does not set returns to the base value, so rules that relied on stacking versions must set every field they want. Emergency mode no longer compounds the `auto_ban_threshold` reduction per version. A request that spends `detection_max_scan_seconds` of regex CPU time is now flagged with a `pattern_timeout` threat instead of being scanned to the end. The Cookie header is scanned per pair, so a logged-in cookie header that used to be rejected as a command-separator false positive now passes while XSS, SQLi and CRLF inside a single cookie are still detected.
+
+### Docs
+
+- `enable_dynamic_rules` (field description, `docs/configuration/security-config.md` and the agent skill reference) now lists everything a rule changes, checked against every config write in the rule application module, and `docs/configuration/detection-tuning.md` documents the two new options and the Cookie behavior (guard-core #165, #162, #167).
+
+### Test
+
+- The timing tests measure CPU time and corroborate before failing on loaded runners: the lazy-init test now blocks the background init and asserts ordering, the bounded-scan ceiling must be breached at every size, and the ReDoS and hostname-fragment tests use the child's CPU time with wall clock only guarding against a hang (guard-core #163).
+
+### Chore
+
+- The sponsor button points at the maintainer's Sponsors page, the mkdocs `site_url` drops `/latest/` so canonical URLs resolve, and the CodeQL action moves to 4.38.3 (guard-core #158, #159, #160).
+
+___
+
 v4.3.3 (2026-10-12)
 -------------------
 
