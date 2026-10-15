@@ -156,15 +156,17 @@ def detection_exclusion(
     body_fields: set[str] | None = None,
     categories: set[str] | None = None,
     scan_body: bool | None = None,
+    semantic_headers: set[str] | None = None,
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]: ...
 ```
 
-All five kwargs are optional (`set[str] | None` for `headers`/`params`/`body_fields`/`categories`, `bool | None` for `scan_body`). Passing `None` (or omitting) leaves the corresponding `RouteConfig` field unset, the route inherits the global `SecurityConfig` value at request time. Passing a value replaces the inherited value at this route only.
+All six kwargs are optional (`set[str] | None` for `headers`/`params`/`body_fields`/`categories`/`semantic_headers`, `bool | None` for `scan_body`). Passing `None` (or omitting) leaves the corresponding `RouteConfig` field unset, the route inherits the global `SecurityConfig` value at request time. Passing a value replaces the inherited value at this route only.
 
 - `headers`, header names skipped by detection. Merged with `SecurityConfig.excluded_detection_headers` and the hardcoded default exclusion list.
 - `params`, query parameter names skipped by detection. Replaces (does not merge with) the global set when set.
 - `body_fields`, top-level JSON body keys skipped by detection. Replaces the global set when set.
 - `categories`, categories the regex scanner runs at this route. Replaces the global `enabled_detection_categories`. Custom user patterns always run regardless.
+- `semantic_headers`, header names whose values skip the semantic analyzer only (regex scanning is unchanged). Merged with `SecurityConfig.excluded_semantic_detection_headers`.
 - `scan_body`, whether to scan the request body at this route. Replaces the global `detection_scan_body` when set.
 
 ```python

@@ -172,6 +172,9 @@ COVERED_PRODUCERS: dict[str, frozenset[str]] = {
             "size_json_body_300_level_nested_wrapper_must_not_raise",
         }
     ),
+    "_utils/detection_scan.py:_warn_scan_time_cap_reached_once": frozenset(
+        {"scan_time_budget_exhausted"}
+    ),
     "_utils/ip_extraction.py:_warn_forwarded_header_chain_too_short": frozenset(
         {"xff_spoof_warning"}
     ),

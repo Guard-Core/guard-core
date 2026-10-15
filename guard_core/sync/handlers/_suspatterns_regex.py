@@ -5,12 +5,25 @@ import time
 from collections.abc import Callable, Iterator
 from typing import Any
 
-from guard_core.sync._utils.detection_scan import _redact_pattern_source
+from guard_core.sync._utils.detection_scan import (
+    _EVENT_LOOP_SLICE_SECONDS,
+    _SCAN_TIME_BUDGET_EXHAUSTED_PATTERN,
+    _compiler_finditer,
+    _record_inline_cpu,
+    _record_scan_time,
+    _redact_pattern_source,
+    _scan_time_budget_exhausted,
+    _scan_time_budget_exhausted_threat,
+    _timed_in_worker,
+    _warn_scan_time_cap_reached_once,
+)
 from guard_core.sync.detection_engine.binary_prefix import (
     build_binary_prefix,
     match_is_binary_dense,
 )
 from guard_core.sync.detection_engine.compiler import (
+    _await_regex_future,
+    _yield_to_event_loop,
     report_scan_success,
     report_scan_timeout,
     shared_regex_executor,
@@ -335,12 +348,13 @@ def _first_accepted_regex_threat(
     context: str = "unknown",
     binary_prefix: list[int] | None = None,
 ) -> dict[str, Any] | None:
-    for match in matches:
-        threat = _build_regex_threat(
-            pattern, match, category, pattern_start, context, binary_prefix
-        )
-        if threat:
-            return threat
+    with _record_inline_cpu():
+        for match in matches:
+            threat = _build_regex_threat(
+                pattern, match, category, pattern_start, context, binary_prefix
+            )
+            if threat:
+                return threat
     return None
 
 
@@ -374,7 +388,8 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
 
         scan_window_matcher = _PATTERN_SCAN_WINDOW_MATCHERS.get(pattern.pattern)
         if scan_window_matcher is not None:
-            matches = scan_window_matcher(content, pattern)
+            with _record_inline_cpu():
+                matches = scan_window_matcher(content, pattern)
             threat = _first_accepted_regex_threat(
                 iter(matches),
                 pattern,
@@ -403,10 +418,7 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
         compiler = state.compiler
 
         if compiler:
-            safe_finder = compiler.create_async_safe_finditer_matcher(
-                pattern, inline_safe=category != "custom"
-            )
-            matches = safe_finder(content)
+            matches = _compiler_finditer(compiler, pattern, category, content)
             timeout_threshold = 0.9 * compiler.default_timeout
             if not matches and time.monotonic() - pattern_start >= timeout_threshold:
                 timeout_occurred = True
@@ -453,11 +465,16 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
         timeout = getattr(
             self._config, "detection_compiler_timeout", _DEFAULT_COMPILER_TIMEOUT
         )
-        future = shared_regex_executor().submit(lambda: list(finder(content)))
+        worker_cpu: list[float] = []
+        future = shared_regex_executor().submit(
+            _timed_in_worker(lambda: list(finder(content)), worker_cpu)
+        )
         try:
-            matches = future.result(timeout=timeout)
+            matches = _await_regex_future(future, timeout)
             report_scan_success()
+            _record_scan_time(sum(worker_cpu))
         except concurrent.futures.TimeoutError:
+            _record_scan_time(timeout)
             logger.warning(
                 f"Pattern timeout: {_redact_pattern_source(pattern.pattern)[:50]}..."
             )
@@ -520,12 +537,17 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
         timeout = getattr(
             self._config, "detection_compiler_timeout", _DEFAULT_COMPILER_TIMEOUT
         )
-        future = shared_regex_executor().submit(pattern.search, content, search_from)
+        worker_cpu: list[float] = []
+        future = shared_regex_executor().submit(
+            _timed_in_worker(lambda: pattern.search(content, search_from), worker_cpu)
+        )
         try:
-            match = future.result(timeout=timeout)
+            match = _await_regex_future(future, timeout)
             report_scan_success()
+            _record_scan_time(sum(worker_cpu))
             return match, False
         except concurrent.futures.TimeoutError:
+            _record_scan_time(timeout)
             logger.warning(
                 f"Regex timeout exceeded for pattern: "
                 f"{_redact_pattern_source(pattern.pattern)[:50]}... "
@@ -582,7 +604,19 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
         performance_monitor = state.performance_monitor
         binary_prefix = build_binary_prefix(content)
 
+        slice_start = time.monotonic()
         for pattern, contexts, category in all_patterns:
+            if _scan_time_budget_exhausted():
+                budget_threat = _scan_time_budget_exhausted_threat(
+                    _resolve_pattern_weight(
+                        _SCAN_TIME_BUDGET_EXHAUSTED_PATTERN, "custom"
+                    )
+                )
+                _warn_scan_time_cap_reached_once(ip_address)
+                threats.append(budget_threat)
+                matched_patterns.append(budget_threat["pattern"])
+                timeouts.append(budget_threat["pattern"])
+                break
             if _pattern_should_be_skipped(
                 pattern,
                 contexts,
@@ -608,6 +642,11 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
                 context=validator_context,
                 binary_prefix=binary_prefix,
             )
+
+            pattern_end = time.monotonic()
+            if pattern_end - slice_start >= _EVENT_LOOP_SLICE_SECONDS:
+                _yield_to_event_loop()
+                slice_start = time.monotonic()
 
             if timeout_occurred:
                 timeouts.append(pattern.pattern)

@@ -2,7 +2,7 @@ import contextvars
 import logging
 import re
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from typing import Any
 
@@ -10,6 +10,7 @@ from guard_core._utils.detection_config import (
     _DEFAULT_BINARY_MIN_RUN_LENGTH,
     _DEFAULT_MAX_JSON_DEPTH,
     _DEFAULT_MAX_SCAN_CHARS,
+    _DEFAULT_MAX_SCAN_SECONDS,
     _DEFAULT_MAX_SCAN_VALUES,
 )
 from guard_core._utils.logging_utils import _log_at_level, _sanitize_for_reporting
@@ -31,6 +32,9 @@ _scan_char_cap: contextvars.ContextVar[int] = contextvars.ContextVar(
 _scan_char_cap_warned: contextvars.ContextVar[bool] = contextvars.ContextVar(
     "guard_core_detection_scan_char_cap_warned", default=False
 )
+_scan_time_cap_warned: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "guard_core_detection_scan_time_cap_warned", default=False
+)
 _json_depth_cap: contextvars.ContextVar[int] = contextvars.ContextVar(
     "guard_core_detection_json_depth_cap", default=_DEFAULT_MAX_JSON_DEPTH
 )
@@ -40,6 +44,17 @@ _json_depth_warned: contextvars.ContextVar[bool] = contextvars.ContextVar(
 _binary_min_run: contextvars.ContextVar[int] = contextvars.ContextVar(
     "guard_core_detection_binary_min_run", default=_DEFAULT_BINARY_MIN_RUN_LENGTH
 )
+_scan_time_cap: contextvars.ContextVar[float | None] = contextvars.ContextVar(
+    "guard_core_detection_scan_time_cap", default=None
+)
+_scan_time_spent: contextvars.ContextVar[float] = contextvars.ContextVar(
+    "guard_core_detection_scan_time_spent", default=0.0
+)
+_semantic_excluded_headers: contextvars.ContextVar[frozenset[str]] = (
+    contextvars.ContextVar(
+        "guard_core_detection_semantic_excluded_headers", default=frozenset()
+    )
+)
 
 
 @contextmanager
@@ -48,6 +63,8 @@ def _scan_value_budget(
     max_json_depth: int = _DEFAULT_MAX_JSON_DEPTH,
     max_scan_chars: int = _DEFAULT_MAX_SCAN_CHARS,
     binary_min_run_length: int = _DEFAULT_BINARY_MIN_RUN_LENGTH,
+    max_scan_seconds: float = _DEFAULT_MAX_SCAN_SECONDS,
+    semantic_excluded_headers: frozenset[str] = frozenset(),
 ) -> Iterator[None]:
     count_token = _scanned_value_count.set(0)
     cap_token = _scan_value_cap.set(max_values)
@@ -57,6 +74,10 @@ def _scan_value_budget(
     depth_cap_token = _json_depth_cap.set(max_json_depth)
     depth_warned_token = _json_depth_warned.set(False)
     binary_run_token = _binary_min_run.set(binary_min_run_length)
+    time_cap_token = _scan_time_cap.set(max_scan_seconds)
+    time_spent_token = _scan_time_spent.set(0.0)
+    time_warned_token = _scan_time_cap_warned.set(False)
+    semantic_token = _semantic_excluded_headers.set(semantic_excluded_headers)
     try:
         yield
     finally:
@@ -68,10 +89,93 @@ def _scan_value_budget(
         _json_depth_cap.reset(depth_cap_token)
         _json_depth_warned.reset(depth_warned_token)
         _binary_min_run.reset(binary_run_token)
+        _scan_time_cap.reset(time_cap_token)
+        _scan_time_spent.reset(time_spent_token)
+        _scan_time_cap_warned.reset(time_warned_token)
+        _semantic_excluded_headers.reset(semantic_token)
 
 
 def _binary_island_min_run_length() -> int:
     return _binary_min_run.get()
+
+
+def _scan_time_remaining() -> float | None:
+    cap = _scan_time_cap.get()
+    return None if cap is None else cap - _scan_time_spent.get()
+
+
+_SCAN_TIME_BUDGET_EXHAUSTED_PATTERN = "scan_time_budget_exhausted"
+_EVENT_LOOP_SLICE_SECONDS = 0.002
+
+
+def _scan_time_budget_exhausted_threat(weight: float) -> dict[str, Any]:
+    return {
+        "type": "pattern_timeout",
+        "pattern": _SCAN_TIME_BUDGET_EXHAUSTED_PATTERN,
+        "match": "",
+        "position": 0,
+        "execution_time": 0.0,
+        "category": "custom",
+        "weight": weight,
+    }
+
+
+def _thread_cpu_seconds() -> float:
+    return time.thread_time()
+
+
+def _record_scan_time(elapsed: float) -> None:
+    _scan_time_spent.set(_scan_time_spent.get() + elapsed)
+
+
+@contextmanager
+def _record_inline_cpu() -> Iterator[None]:
+    start = _thread_cpu_seconds()
+    try:
+        yield
+    finally:
+        _record_scan_time(_thread_cpu_seconds() - start)
+
+
+def _timed_in_worker(
+    work: Callable[[], Any], cpu_sink: list[float]
+) -> Callable[[], Any]:
+    def run() -> Any:
+        start = _thread_cpu_seconds()
+        try:
+            return work()
+        finally:
+            cpu_sink.append(_thread_cpu_seconds() - start)
+
+    return run
+
+
+def _scan_time_budget_exhausted() -> bool:
+    remaining = _scan_time_remaining()
+    return remaining is not None and remaining <= 0.0
+
+
+def _warn_scan_time_cap_reached_once(client_ip: str) -> None:
+    if _scan_time_cap_warned.get():
+        return
+    _scan_time_cap_warned.set(True)
+    logger.warning(
+        "detection_max_scan_seconds (%s) reached for client %s; remaining "
+        "patterns and request values are not scanned",
+        _scan_time_cap.get(),
+        client_ip,
+    )
+
+
+def _context_header_is_semantic_excluded(context: str) -> bool:
+    excluded = _semantic_excluded_headers.get()
+    if not excluded:
+        return False
+    kind, _, rest = context.partition(":")
+    if kind != "header":
+        return False
+    name = rest.removesuffix(":embedded_json")
+    return name.strip().lower() in excluded
 
 
 def _scan_value_budget_exhausted(client_ip: str) -> bool:
@@ -191,6 +295,16 @@ def _build_threat_message(threat: dict[str, Any]) -> str:
     return "Threat detected"
 
 
+def _build_threats_message(threats: list[dict[str, Any]]) -> str:
+    message = _build_threat_message(threats[0])
+    if threats[0]["type"] == "pattern_timeout":
+        return message
+    timeout = next((t for t in threats[1:] if t["type"] == "pattern_timeout"), None)
+    if timeout is None:
+        return message
+    return f"{message}; {_build_threat_message(timeout)}"
+
+
 _MAX_USER_AGENT_MATCH_LENGTH = 512
 
 
@@ -218,6 +332,8 @@ async def _fallback_pattern_check(
     all_compiled = await sus_patterns_handler.get_all_compiled_patterns()
     binary_prefix = build_binary_prefix(value)
     for pattern, _contexts, category in all_compiled:
+        if _scan_time_budget_exhausted():
+            return True, "Scan time budget exhausted (fallback)"
         pattern_start = time.monotonic()
         try:
             threat, _timeout_occurred = await sus_patterns_handler._check_regex_pattern(
@@ -333,7 +449,7 @@ async def _check_value_enhanced(
 
         threats: list[dict] = list(result.get("threats", []))
         if threats:
-            return True, _build_threat_message(threats[0]), threats, None
+            return True, _build_threats_message(threats), threats, None
 
         return True, "Threat detected", threats, None
 
@@ -440,3 +556,22 @@ def _check_always_scan_header(value: str) -> tuple[bool, str, list[dict]]:
             )
             return True, trigger, [threat]
     return False, "", []
+
+
+async def _compiler_finditer(
+    compiler: Any, pattern: re.Pattern, category: str, content: str
+) -> list[re.Match]:
+    inline_scan = category != "custom"
+    worker_cpu: list[float] = []
+    finder = compiler.create_async_safe_finditer_matcher(
+        pattern,
+        inline_safe=inline_scan,
+        worker_wrapper=lambda work: _timed_in_worker(work, worker_cpu),
+    )
+    if inline_scan:
+        with _record_inline_cpu():
+            matches: list[re.Match] = await finder(content)
+        return matches
+    matches = await finder(content)
+    _record_scan_time(sum(worker_cpu) if worker_cpu else compiler.default_timeout)
+    return matches

@@ -100,7 +100,7 @@ This validation subprocess mechanism is unrelated to, and isolated from, the liv
 
 ## Tuning knobs (SecurityConfig)
 
-`detection_max_content_length` (default 10000), `detection_compiler_timeout` (default 2.0s, range 0.1-10.0), `detection_threat_score_threshold` (default 1.0), `detection_max_scan_values` (default 512, `ge=2`; see [Request-value scan cap](#request-value-scan-cap) above), `enabled_detection_categories` (`frozenset[str]`, subset of the 19, defaults to all 19). `PatternCompiler.validate_pattern_safety`'s 50ms cost-arbiter budget is a hardcoded constant, not a config field; only `max_content_length` (the caller's real content-length cap) is passed in per call.
+`detection_max_content_length` (default 10000), `detection_compiler_timeout` (default 2.0s, range 0.1-10.0), `detection_max_scan_seconds` (default 10.0s, range 0.1-60.0; per-request total regex CPU time budget, exhaustion adds a weighted `pattern_timeout` threat `scan_time_budget_exhausted`), `excluded_semantic_detection_headers` (opt-in; header values skip the semantic analyzer only), `detection_threat_score_threshold` (default 1.0), `detection_max_scan_values` (default 512, `ge=2`; see [Request-value scan cap](#request-value-scan-cap) above), `enabled_detection_categories` (`frozenset[str]`, subset of the 19, defaults to all 19). `PatternCompiler.validate_pattern_safety`'s 50ms cost-arbiter budget is a hardcoded constant, not a config field; only `max_content_length` (the caller's real content-length cap) is passed in per call.
 
 ## Adding patterns
 

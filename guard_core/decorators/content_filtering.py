@@ -84,11 +84,14 @@ class ContentFilteringMixin(BaseSecurityMixin):
         body_fields: set[str] | None = None,
         categories: set[str] | None = None,
         scan_body: bool | None = None,
+        semantic_headers: set[str] | None = None,
     ) -> Callable[[Callable[..., Any]], DecoratedFunction]:
         def decorator(func: Callable[..., Any]) -> DecoratedFunction:
             route_config = self._ensure_route_config(func)
             if headers is not None:
                 route_config.excluded_detection_headers = set(headers)
+            if semantic_headers is not None:
+                route_config.excluded_semantic_detection_headers = set(semantic_headers)
             if params is not None:
                 route_config.excluded_detection_params = set(params)
             if body_fields is not None:

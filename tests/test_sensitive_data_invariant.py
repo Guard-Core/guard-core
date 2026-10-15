@@ -1194,6 +1194,23 @@ async def _run_auth_invalid(secret: str, ctx: "_ScenarioContext") -> None:
     assert response is not None, "auth_invalid scenario never blocked"
 
 
+async def _run_scan_time_budget_exhausted(secret: str, ctx: "_ScenarioContext") -> None:
+    config = _scenario_config(detection_max_scan_seconds=0.1)
+    request = MockGuardRequest(
+        query_params={"token": f"{secret} {_SQLI}"},
+        client_host=_client_ip_for("scan_time_budget_exhausted"),
+    )
+    with patch(
+        "guard_core._utils.detection_scan._scan_time_remaining", return_value=0.0
+    ):
+        result = await detect_penetration_attempt(request, config)
+    assert result.is_threat, "scan_time_budget_exhausted scenario never flagged"
+    assert "scan_time_budget_exhausted" in result.trigger_info
+    assert any(
+        "detection_max_scan_seconds" in r.getMessage() for r in ctx.caplog.records
+    )
+
+
 async def _run_referrer_invalid(secret: str, ctx: "_ScenarioContext") -> None:
     client_ip = _client_ip_for("referrer_invalid")
     route_config = RouteConfig()
@@ -1798,6 +1815,7 @@ _COMPONENT_SCENARIOS: list[ComponentScenario] = [
     ComponentScenario("auth_missing", _run_auth_missing),
     ComponentScenario("auth_invalid", _run_auth_invalid),
     ComponentScenario("referrer_invalid", _run_referrer_invalid),
+    ComponentScenario("scan_time_budget_exhausted", _run_scan_time_budget_exhausted),
     ComponentScenario(
         "referrer_invalid_query_token", _run_referrer_invalid_query_token
     ),

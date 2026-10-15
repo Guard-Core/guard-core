@@ -100,3 +100,16 @@ def test_detection_exclusion_no_args_creates_route_config() -> None:
     assert rc.excluded_detection_params is None
     assert rc.excluded_detection_body_fields is None
     assert rc.enabled_detection_categories is None
+
+
+def test_detection_exclusion_sets_semantic_headers() -> None:
+    d = _FakeDecorator(SecurityConfig())
+    decorated = _decorate(d.detection_exclusion(semantic_headers={"cookie"}))
+    rc = d.get_route_config(d._get_route_id(decorated))
+    assert rc is not None
+    assert rc.excluded_semantic_detection_headers == {"cookie"}
+    assert rc.excluded_detection_headers is None
+
+
+def test_semantic_headers_default_to_none() -> None:
+    assert RouteConfig().excluded_semantic_detection_headers is None

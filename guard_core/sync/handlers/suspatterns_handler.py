@@ -16,6 +16,7 @@ from datetime import timezone as timezone
 from typing import Any
 from typing import NamedTuple as NamedTuple
 
+from guard_core.sync._utils.detection_scan import _context_header_is_semantic_excluded
 from guard_core.sync.detection_engine import (
     ContentPreprocessor,
     PatternCompiler,
@@ -932,9 +933,11 @@ class SusPatternsManager(_SusPatternsViewsMixin):
         matched_patterns = matched_patterns + short_base64_matched
         timeouts = timeouts + short_base64_timeouts
 
-        semantic_threats, semantic_score = self._check_semantic_threats(
-            processed_content, state=state, raw_content=original_content
-        )
+        semantic_threats: list[dict] = []
+        if not _context_header_is_semantic_excluded(context):
+            semantic_threats, _semantic_score = self._check_semantic_threats(
+                processed_content, state=state, raw_content=original_content
+            )
 
         threats = regex_threats + semantic_threats
         is_threat = (
