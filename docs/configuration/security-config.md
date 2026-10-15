@@ -477,7 +477,7 @@ Dynamic Rules
 
 | Field                   | Type   | Default | Description                                     |
 |-------------------------|--------|---------|-------------------------------------------------|
-| `enable_dynamic_rules`  | `bool` | `False` | Enable dynamic rule updates from SaaS platform. |
+| `enable_dynamic_rules`  | `bool` | `False` | Enable dynamic rule updates from the SaaS platform. Enabling it lets the dashboard change protection at runtime without a code change: a rule bans the IPs in its ip_blacklist (for ip_ban_duration seconds), unbans the IPs in its ip_whitelist, adds its suspicious_patterns to detection, and replaces blocked_countries, whitelist_countries, rate_limit, rate_limit_window, endpoint_rate_limits, block_cloud_providers, blocked_user_agents, enable_penetration_detection, enable_ip_banning, enable_rate_limiting, enable_rate_limit_auto_ban, auto_ban_threshold, auto_ban_duration, emergency_mode and emergency_whitelist. Requires enable_agent. A rule cannot change any other setting. |
 | `dynamic_rule_interval` | `int`  | `300`   | Seconds between rule update checks.             |
 | `dynamic_rules_cache_path` | `Path \| None` | `None` | Optional local JSON file persisting the last-known dynamic rules snapshot so a restart during a SaaS outage restores the last applied rules instead of base config. Redis holds the primary snapshot whenever a redis_handler is present; the file is an additional opt-in fallback that is only written and read when this path is set. Neither store expires: the Redis key and the file persist until you remove them, even after you disable dynamic rules. |
 | `emergency_mode`        | `bool` | `False` | Emergency lockdown mode (set by dynamic rules). |

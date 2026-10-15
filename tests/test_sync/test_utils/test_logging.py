@@ -945,7 +945,9 @@ def test_log_suspicious_activity_passive_mode_without_trigger_info_omits_trigger
             trigger_info="",
         )
 
-    assert "[PASSIVE MODE] Penetration attempt detected from" in caplog.text
+    assert "[PASSIVE MODE] Suspicious activity detected from" in caplog.text
+    assert "Penetration attempt" not in caplog.text
+    assert "Reason: Suspicious activity detected" in caplog.text
     assert "Trigger:" not in caplog.text
 
 

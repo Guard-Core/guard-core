@@ -1,3 +1,4 @@
+import logging
 import time
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -684,6 +685,22 @@ async def test_ratelimit_handle_exceeded_with_agent() -> None:
                 req, "1.2.3.4", 10, create_error
             )
     assert result.status_code == 429
+
+
+async def test_ratelimit_exceeded_passive_log_names_rate_limit(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    config = SecurityConfig(enable_redis=False, passive_mode=True)
+    mgr = RateLimitManager(config)
+    req = MockGuardRequest()
+
+    from tests.conftest import MockGuardResponse
+
+    create_error = AsyncMock(return_value=MockGuardResponse("rate limited", 429))
+    with caplog.at_level(logging.WARNING):
+        await mgr._handle_rate_limit_exceeded(req, "1.2.3.4", 10, create_error)
+    assert "Rate limit exceeded for IP: 1.2.3.4" in caplog.text
+    assert "Penetration attempt" not in caplog.text
 
 
 async def test_responses_factory_cors_disabled() -> None:
