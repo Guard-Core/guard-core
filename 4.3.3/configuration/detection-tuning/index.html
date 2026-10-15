@@ -1571,6 +1571,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#detection_max_scan_seconds" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        detection_max_scan_seconds
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#detection_pattern_validation_cache_path" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1630,6 +1641,17 @@
     <span class="md-ellipsis">
       
         detection_semantic_threshold
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#excluded_semantic_detection_headers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        excluded_semantic_detection_headers
       
     </span>
   </a>
@@ -2396,6 +2418,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#detection_max_scan_seconds" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        detection_max_scan_seconds
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#detection_pattern_validation_cache_path" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2455,6 +2488,17 @@
     <span class="md-ellipsis">
       
         detection_semantic_threshold
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#excluded_semantic_detection_headers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        excluded_semantic_detection_headers
       
     </span>
   </a>
@@ -2696,6 +2740,10 @@
 </tr>
 </tbody>
 </table>
+<h3 id="detection_max_scan_seconds"><code>detection_max_scan_seconds</code><a class="headerlink" href="#detection_max_scan_seconds" title="Permanent link">&para;</a></h3>
+<p><strong>Type</strong>: <code>float</code> | <strong>Default</strong>: <code>10.0</code> | <strong>Range</strong>: 0.1 - 60.0</p>
+<p>CPU time allowed for regex scanning one request (thread CPU time, not wall time, so a busy or CPU-starved host does not exhaust it), summed across every field (query parameters, headers, body values) and every pattern, not per <code>detect()</code> call. Once the budget is spent, the remaining patterns and request values are not scanned and the request gets a weighted <code>pattern_timeout</code> threat (pattern <code>scan_time_budget_exhausted</code>) that counts toward the anomaly score and the reported <code>timeouts</code>, the same way a per-pattern <code>detection_compiler_timeout</code> does, so padding a request with filler cannot silently skip detection. The default is far above normal traffic (a few milliseconds per request, roughly 16 ms for 8,863 characters on one measured CPU) and about 6 times the worst legitimate case the value cap allows (256 benign query parameters, 512 scan units, measured at about 1.5 s on that CPU), which leaves headroom for slower hosts. Only regex pattern CPU time counts, not decoding or semantic analysis. A pattern that hits <code>detection_compiler_timeout</code> is charged that timeout.</p>
+<p>In the async tree the scan awaits the regex worker instead of blocking the event loop, so other requests run between patterns. A single regex that is already executing still holds the GIL until it returns. The sync tree has no event loop and keeps blocking.</p>
 <h3 id="detection_pattern_validation_cache_path"><code>detection_pattern_validation_cache_path</code><a class="headerlink" href="#detection_pattern_validation_cache_path" title="Permanent link">&para;</a></h3>
 <p><strong>Type</strong>: <code>str | None</code> | <strong>Default</strong>: <code>None</code></p>
 <p>Optional file path for a disk-backed pattern-validation cache. When set, the empirical cost-verdict outcome of <code>validate_pattern_safety</code> (probe synthesis plus timed subprocess probes) is cached keyed by pattern, flags, and engine version, so a process boot reuses prior certifications instead of re-timing every custom pattern. The cheap deterministic layers (dangerous constructs, compile check, structural detectors) always re-run; cache entries produced by a different engine version are ignored and overwritten. Leave unset to keep every validation fully empirical. Aimed at shared-nothing workers and hosts where subprocess spawn latency makes startup validation prohibitively slow.</p>
@@ -2765,6 +2813,9 @@
 <p class="admonition-title">Semantic vs Regex</p>
 <p>Regex patterns provide definitive threat detection. Semantic analysis is a secondary layer that catches obfuscated or novel attacks. Lowering the semantic threshold increases the chance of catching evasion attempts but also increases false positives on legitimate content containing technical terms.</p>
 </div>
+<h3 id="excluded_semantic_detection_headers"><code>excluded_semantic_detection_headers</code><a class="headerlink" href="#excluded_semantic_detection_headers" title="Permanent link">&para;</a></h3>
+<p><strong>Type</strong>: <code>set[str]</code> | <strong>Default</strong>: <code>set()</code></p>
+<p>Opt-in list of header names whose values skip the semantic analyzer only, matched case-insensitively. Regex category scanning of those headers is unchanged, and <code>excluded_detection_headers</code> keeps its meaning (it never silences a header). The semantic analyzer counts base64 as obfuscation and encoding layers, so JWT session cookies and bearer tokens can score close to <code>detection_semantic_threshold</code> (0.30 to 0.59 measured on sample cookies, 0.71 reported). For apps with JWT sessions, set <code>excluded_semantic_detection_headers={"cookie", "authorization"}</code> instead of raising the global threshold. A route can add names with <code>@security.detection_exclusion(semantic_headers={...})</code>.</p>
 <h3 id="detection_anomaly_threshold"><code>detection_anomaly_threshold</code><a class="headerlink" href="#detection_anomaly_threshold" title="Permanent link">&para;</a></h3>
 <p><strong>Type</strong>: <code>float</code> | <strong>Default</strong>: <code>3.0</code> | <strong>Range</strong>: 1.0 - 10.0</p>
 <p>Number of standard deviations slower than the mean execution time to flag a pattern as anomalous; a faster-than-average execution is never flagged. This tracks performance anomalies, not security threats. Anomaly events sent to the agent handler are additionally rate-limited per pattern by <code>PerformanceMonitor</code>'s <code>anomaly_emission_cooldown</code> (default 60s), so a host-wide stall cannot burst thousands of events at once, see <code>docs/internals/detection-engine.md</code>.</p>

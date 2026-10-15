@@ -2894,6 +2894,12 @@
 <td>Headers exempted only from the categories known to false-positive on their typical values: identity and proxy headers such as <code>X-Forwarded-For</code>, <code>X-Real-IP</code>, <code>Host</code>, <code>Origin</code> and <code>Via</code> skip <code>ssrf</code> only, and every other category (sqli, xss, cmd_injection, template, Log4Shell) still scans them. A name outside the built-in identity set inherits the same rule when its value looks like an address chain, otherwise it gets no exclusion at all. Merged with the hardcoded default list.</td>
 </tr>
 <tr>
+<td><code>excluded_semantic_detection_headers</code></td>
+<td><code>set[str]</code></td>
+<td><code>set()</code></td>
+<td>Opt-in. Header names (case-insensitive) whose values skip the semantic analyzer only; regex category scanning of these headers is unchanged, and <code>excluded_detection_headers</code> semantics are untouched. Use it when a header legitimately carries high-entropy encoded data, for example <code>cookie</code> or <code>authorization</code> for apps with JWT sessions, whose base64 segments score close to <code>detection_semantic_threshold</code>. Merged with the route-level set from <code>@security.detection_exclusion(semantic_headers=...)</code>.</td>
+</tr>
+<tr>
 <td><code>excluded_detection_params</code></td>
 <td><code>set[str]</code></td>
 <td><code>set()</code></td>
@@ -3379,6 +3385,13 @@
 <td><code>512</code></td>
 <td>2 - 100000</td>
 <td>Maximum values (query params, headers, JSON keys/values, form/multipart fields) scanned per request; remaining values are skipped and a one-time warning logs the client IP once reached. Each named value costs two scan units (name, then value), so the minimum is 2.</td>
+</tr>
+<tr>
+<td><code>detection_max_scan_seconds</code></td>
+<td><code>float</code></td>
+<td><code>10.0</code></td>
+<td>0.1 - 60.0</td>
+<td>Cap on the CPU time spent regex scanning one request (not wall time, so a busy or CPU-starved host does not exhaust it), summed across every field and pattern (not per <code>detect()</code> call). Once reached, remaining patterns and values are not scanned and the request receives a weighted <code>pattern_timeout</code> threat (pattern <code>scan_time_budget_exhausted</code>) that counts toward the anomaly score and the event <code>timeouts</code>, so padding a request cannot skip detection; a one-time warning logs the client IP. Only regex pattern CPU time is counted.</td>
 </tr>
 <tr>
 <td><code>detection_max_scan_chars</code></td>
