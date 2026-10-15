@@ -157,6 +157,8 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
     def _apply_pattern_rules(self, patterns: list[str]) -> None:
         from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
 
+        known = set(sus_patterns_handler.patterns)
+        patterns = [p for p in patterns if p not in known]
         added = [p for p in patterns if sus_patterns_handler.add_pattern(p)]
         if added:
             self.logger.info(

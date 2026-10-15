@@ -86,7 +86,8 @@ async def test_concurrent_rule_application_serializes() -> None:
     assert len(observed) == 2
     assert observed[0] in ([], ["AA"], ["BB"])
     assert observed[1] in ([], ["AA"], ["BB"])
-    assert observed[0] != observed[1]
+    assert observed == [[], []]
+    assert config.blocked_countries in (frozenset({"AA"}), frozenset({"BB"}))
 
 
 @pytest.mark.asyncio
