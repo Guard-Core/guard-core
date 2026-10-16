@@ -21,7 +21,7 @@ from guard_core.utils import log_activity
 _by_ip_logger = logging.getLogger("guard_core.handlers.ratelimit")
 _RATE_LIMIT_HANDLER_NAME = "rate_limit"
 _by_ip_request_timestamps: defaultdict[str, deque[float]] = defaultdict(deque)
-_by_ip_autoban_counts: defaultdict[str, int] = defaultdict(int)
+_by_ip_autoban_counts: dict[str, Any] = {}
 _MAX_TRACKED_RATE_LIMIT_KEYS = 10_000
 _redis_fail_open_warned = False
 
@@ -153,7 +153,8 @@ async def _feed_rate_limit_autoban(ip: str, config: SecurityConfig) -> None:
     """Feed a rate-limited call into the shared auto-ban engine.
 
     Increments a dedicated, per-process, in-memory violation counter keyed by
-    ``ip`` (``_by_ip_autoban_counts`` in this module), separate from and never
+    ``ip`` (``_by_ip_autoban_counts`` in this module) over a sliding
+    ``SUSPICIOUS_COUNT_WINDOW_SECONDS`` window, separate from and never
     merged with ``middleware.suspicious_request_counts``: the primitive has no
     middleware/request, so it cannot share that store. No-ops unless both
     ``config.enable_rate_limit_auto_ban`` and ``config.enable_ip_banning`` are
@@ -169,19 +170,25 @@ async def _feed_rate_limit_autoban(ip: str, config: SecurityConfig) -> None:
     if config.passive_mode:
         return
 
-    from guard_core.core.checks.helpers import _resolve_and_apply_threshold_ban
+    from guard_core.core.checks.helpers import (
+        _MAX_RETAINED_EVENTS_PER_CATEGORY,
+        SUSPICIOUS_COUNT_WINDOW_SECONDS,
+        _resolve_and_apply_threshold_ban,
+        _WindowedCategoryCounts,
+    )
     from guard_core.handlers.ipban_handler import IPBanManager
 
     ip_ban_manager = IPBanManager()
     if await ip_ban_manager.is_ip_banned(ip):
         return
 
-    count = (
-        _lru_pop_or_create(_by_ip_autoban_counts, ip, _MAX_TRACKED_RATE_LIMIT_KEYS, int)
-        + 1
+    now = time.monotonic()
+    ip_counts = _lru_pop_or_create(
+        _by_ip_autoban_counts, ip, _MAX_TRACKED_RATE_LIMIT_KEYS, _WindowedCategoryCounts
     )
-    _by_ip_autoban_counts[ip] = count
-    ip_counts = {"rate_limit": count}
+    ip_counts.expire_before(now - SUSPICIOUS_COUNT_WINDOW_SECONDS)
+    ip_counts.record("rate_limit", now, _MAX_RETAINED_EVENTS_PER_CATEGORY)
+    _by_ip_autoban_counts[ip] = ip_counts
     result = await _resolve_and_apply_threshold_ban(
         ip_counts,
         config,

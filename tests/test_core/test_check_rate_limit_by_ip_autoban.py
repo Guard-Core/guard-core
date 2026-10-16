@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, Mock
 import pytest
 
 import guard_core.handlers.ratelimit_handler as ratelimit_handler
+from guard_core.core.checks.helpers import SUSPICIOUS_COUNT_WINDOW_SECONDS
 from guard_core.core.checks.implementations.rate_limit import RateLimitCheck
 from guard_core.handlers.ipban_handler import IPBanManager
 from guard_core.handlers.ratelimit_handler import (
@@ -324,7 +325,7 @@ async def test_dedicated_counter_isolated_from_middleware_suspicious_counts() ->
             "192.0.2.108": {"rate_limit": 1}
         }
         assert primitive_ip not in middleware.suspicious_request_counts
-        assert _by_ip_autoban_counts[primitive_ip] == 1
+        assert _by_ip_autoban_counts[primitive_ip] == {"rate_limit": 1}
         assert "192.0.2.108" not in _by_ip_autoban_counts
     finally:
         IPBanManager._instance = None
@@ -366,3 +367,56 @@ async def test_autoban_counter_evicts_the_oldest_ip_a_touched_ip_survives(
         assert "198.51.100.4" in _by_ip_autoban_counts
     finally:
         IPBanManager._instance = None
+
+
+def _autoban_config() -> SecurityConfig:
+    return SecurityConfig(
+        enable_redis=False,
+        rate_limit=1,
+        rate_limit_window=60,
+        enable_rate_limit_auto_ban=True,
+        enable_ip_banning=True,
+        auto_ban_threshold=2,
+        auto_ban_duration=600,
+    )
+
+
+async def test_violations_older_than_the_window_do_not_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = {"now": 10_000.0}
+    monkeypatch.setattr(time, "monotonic", lambda: clock["now"])
+    config = _autoban_config()
+    _, ban_calls = _install_recording_ban_manager(config)
+    ip = "192.0.2.150"
+    try:
+        await check_rate_limit_by_ip(ip, config)
+        assert await check_rate_limit_by_ip(ip, config) is False
+        clock["now"] += SUSPICIOUS_COUNT_WINDOW_SECONDS + 1
+        assert await check_rate_limit_by_ip(ip, config) is False
+
+        assert ban_calls == []
+    finally:
+        IPBanManager._instance = None
+        _by_ip_autoban_counts.pop(ip, None)
+
+
+async def test_violations_inside_the_window_still_ban_and_clear_the_counter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = {"now": 20_000.0}
+    monkeypatch.setattr(time, "monotonic", lambda: clock["now"])
+    config = _autoban_config()
+    _, ban_calls = _install_recording_ban_manager(config)
+    ip = "192.0.2.151"
+    try:
+        await check_rate_limit_by_ip(ip, config)
+        assert await check_rate_limit_by_ip(ip, config) is False
+        clock["now"] += SUSPICIOUS_COUNT_WINDOW_SECONDS - 1
+        assert await check_rate_limit_by_ip(ip, config) is False
+
+        assert ban_calls == [(ip, 600, "rate_limit_exceeded")]
+        assert ip not in _by_ip_autoban_counts
+    finally:
+        IPBanManager._instance = None
+        _by_ip_autoban_counts.pop(ip, None)
