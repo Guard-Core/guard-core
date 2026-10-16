@@ -1,11 +1,21 @@
+from datetime import datetime, timezone
+from typing import Any
+
 import pytest
 
 from guard_core._security_config_field_validators import (
     canonicalize_cloud_provider_selector,
 )
-from guard_core.models import SecurityConfig
+from guard_core.models import DynamicRules, SecurityConfig
 from guard_core.sync.decorators import SecurityDecorator
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
+
+
+def _apply(manager: DynamicRuleManager, **fields: Any) -> None:
+    rules = DynamicRules(
+        rule_id="plan", version=1, timestamp=datetime.now(timezone.utc), **fields
+    )
+    manager._apply_rules(rules)
 
 
 @pytest.mark.parametrize(
@@ -69,6 +79,6 @@ def test_dynamic_rule_blocks_azure_in_every_spelling(spelling: str) -> None:
     DynamicRuleManager._instance = None
     config = SecurityConfig(enable_redis=False)
     manager = DynamicRuleManager(config)
-    manager._apply_cloud_provider_rules({spelling})
+    _apply(manager, blocked_cloud_providers={spelling})
     assert config.block_cloud_providers == frozenset({"Azure"})
     DynamicRuleManager._instance = None

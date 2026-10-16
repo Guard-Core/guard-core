@@ -124,7 +124,7 @@ async def test_failed_apply_rolls_back_to_the_active_version() -> None:
     await _apply(manager, _rules(1, global_rate_limit=7, auto_ban_threshold=4))
 
     with patch.object(
-        manager, "_apply_feature_toggles", AsyncMock(side_effect=RuntimeError("boom"))
+        manager, "_apply_side_effects", AsyncMock(side_effect=RuntimeError("boom"))
     ):
         with pytest.raises(RuntimeError, match="boom"):
             await manager._apply_rules(_rules(2, global_rate_limit=9))

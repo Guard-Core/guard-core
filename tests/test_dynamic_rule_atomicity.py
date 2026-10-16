@@ -41,7 +41,7 @@ async def test_apply_rules_rolls_back_on_partial_failure() -> None:
 
         with patch.object(
             manager,
-            "_apply_blocking_rules",
+            "_apply_side_effects",
             AsyncMock(side_effect=RuntimeError("kaboom")),
         ):
             with pytest.raises(RuntimeError, match="kaboom"):
@@ -68,14 +68,14 @@ async def test_concurrent_rule_application_serializes() -> None:
     manager = DynamicRuleManager(config)
     observed: list[list[str]] = []
 
-    original_apply_blocking = manager._apply_blocking_rules
+    original_apply_blocking = manager._build_plan
 
-    async def slow_blocking(rules: DynamicRules) -> None:
+    async def slow_blocking(rules: DynamicRules, base: dict[str, object]) -> object:
         observed.append(list(config.blocked_countries))
         await asyncio.sleep(0.05)
-        await original_apply_blocking(rules)
+        return await original_apply_blocking(rules, base)
 
-    with patch.object(manager, "_apply_blocking_rules", side_effect=slow_blocking):
+    with patch.object(manager, "_build_plan", side_effect=slow_blocking):
         rules_a = _rules(blocked_countries=["AA"])
         rules_b = _rules(blocked_countries=["BB"])
         await asyncio.gather(
@@ -84,9 +84,10 @@ async def test_concurrent_rule_application_serializes() -> None:
         )
 
     assert len(observed) == 2
-    assert observed[0] in ([], ["AA"], ["BB"])
-    assert observed[1] in ([], ["AA"], ["BB"])
-    assert observed == [[], []]
+    assert observed[0] == []
+    assert observed[1] in (["AA"], ["BB"])
+    assert manager._active_base_snapshot is not None
+    assert manager._active_base_snapshot["blocked_countries"] == frozenset()
     assert config.blocked_countries in (frozenset({"AA"}), frozenset({"BB"}))
 
 
@@ -109,7 +110,7 @@ async def test_rollback_restores_all_snapshot_fields() -> None:
 
     with patch.object(
         manager,
-        "_apply_feature_toggles",
+        "_apply_side_effects",
         AsyncMock(side_effect=RuntimeError("fail")),
     ):
         with pytest.raises(RuntimeError):
@@ -140,7 +141,7 @@ async def test_rollback_restores_auto_ban_overrides() -> None:
 
     with patch.object(
         manager,
-        "_activate_emergency_mode",
+        "_apply_side_effects",
         AsyncMock(side_effect=RuntimeError("fail")),
     ):
         with pytest.raises(RuntimeError, match="fail"):
@@ -163,7 +164,7 @@ async def test_rollback_restores_untouched_block_cloud_providers_to_none() -> No
 
     with patch.object(
         manager,
-        "_apply_feature_toggles",
+        "_apply_side_effects",
         AsyncMock(side_effect=RuntimeError("kaboom")),
     ):
         with pytest.raises(RuntimeError, match="kaboom"):
@@ -309,7 +310,7 @@ async def test_apply_rules_failed_first_apply_leaves_no_stale_base_snapshot() ->
 
     with patch.object(
         manager,
-        "_apply_feature_toggles",
+        "_apply_side_effects",
         AsyncMock(side_effect=RuntimeError("kaboom")),
     ):
         with pytest.raises(RuntimeError, match="kaboom"):
@@ -420,7 +421,7 @@ async def test_rollback_restores_every_snapshot_field_after_full_mutation() -> N
 
         with patch.object(
             manager,
-            "_send_emergency_event",
+            "_apply_side_effects",
             AsyncMock(side_effect=RuntimeError("boom")),
         ):
             with pytest.raises(RuntimeError, match="boom"):

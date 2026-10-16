@@ -38,7 +38,7 @@ def test_apply_rules_rolls_back_on_partial_failure() -> None:
     rules = _rules(blocked_countries=["NEW"])
 
     with patch.object(
-        manager, "_apply_blocking_rules", MagicMock(side_effect=RuntimeError("kaboom"))
+        manager, "_apply_side_effects", MagicMock(side_effect=RuntimeError("kaboom"))
     ):
         with pytest.raises(RuntimeError, match="kaboom"):
             manager._apply_rules(rules)
@@ -61,14 +61,14 @@ def test_concurrent_threads_serialize() -> None:
     manager = DynamicRuleManager(config)
     observed: list[list[str]] = []
 
-    original = manager._apply_blocking_rules
+    original = manager._build_plan
 
-    def slow(rules: DynamicRules) -> None:
+    def slow(rules: DynamicRules, base: dict[str, object]) -> object:
         observed.append(list(config.blocked_countries))
         time.sleep(0.05)
-        original(rules)
+        return original(rules, base)
 
-    with patch.object(manager, "_apply_blocking_rules", side_effect=slow):
+    with patch.object(manager, "_build_plan", side_effect=slow):
         threads = [
             threading.Thread(
                 target=manager._apply_rules,
@@ -85,7 +85,10 @@ def test_concurrent_threads_serialize() -> None:
             t.join()
 
     assert len(observed) == 2
-    assert observed == [[], []]
+    assert observed[0] == []
+    assert observed[1] in (["AA"], ["BB"])
+    assert manager._active_base_snapshot is not None
+    assert manager._active_base_snapshot["blocked_countries"] == frozenset()
     assert config.blocked_countries in (frozenset({"AA"}), frozenset({"BB"}))
 
 
@@ -106,7 +109,7 @@ def test_rollback_restores_all_snapshot_fields() -> None:
 
     with patch.object(
         manager,
-        "_apply_feature_toggles",
+        "_apply_side_effects",
         MagicMock(side_effect=RuntimeError("fail")),
     ):
         with pytest.raises(RuntimeError):
@@ -135,7 +138,7 @@ def test_rollback_restores_auto_ban_overrides() -> None:
 
     with patch.object(
         manager,
-        "_activate_emergency_mode",
+        "_apply_side_effects",
         MagicMock(side_effect=RuntimeError("fail")),
     ):
         with pytest.raises(RuntimeError, match="fail"):
@@ -157,7 +160,7 @@ def test_rollback_restores_untouched_block_cloud_providers_to_none() -> None:
 
     with patch.object(
         manager,
-        "_apply_feature_toggles",
+        "_apply_side_effects",
         MagicMock(side_effect=RuntimeError("kaboom")),
     ):
         with pytest.raises(RuntimeError, match="kaboom"):
@@ -293,7 +296,7 @@ def test_apply_rules_failed_first_apply_leaves_no_stale_base_snapshot() -> None:
 
     with patch.object(
         manager,
-        "_apply_feature_toggles",
+        "_apply_side_effects",
         MagicMock(side_effect=RuntimeError("kaboom")),
     ):
         with pytest.raises(RuntimeError, match="kaboom"):
@@ -400,7 +403,7 @@ def test_rollback_restores_every_snapshot_field_after_full_mutation() -> None:
 
         with patch.object(
             manager,
-            "_send_emergency_event",
+            "_apply_side_effects",
             MagicMock(side_effect=RuntimeError("boom")),
         ):
             with pytest.raises(RuntimeError, match="boom"):

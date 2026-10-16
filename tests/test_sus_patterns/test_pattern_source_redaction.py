@@ -1,8 +1,10 @@
 import asyncio
 import concurrent.futures
+import logging
 import re
 import time
 from collections.abc import Iterator
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -24,6 +26,7 @@ from guard_core.handlers._behavior_response_pattern import (
     BehaviorResponsePatternMixin,
 )
 from guard_core.handlers._dynamic_rule_application import DynamicRuleApplicationMixin
+from guard_core.handlers._dynamic_rule_plan import DynamicRulePlanMixin
 from guard_core.handlers.suspatterns_handler import SusPatternsManager
 from guard_core.models import DynamicRules, SecurityConfig
 
@@ -338,32 +341,28 @@ def test_build_pattern_report_leaves_builtin_pattern_unchanged() -> None:
     assert report["pattern"] == builtin_source
 
 
-async def test_dynamic_rule_apply_user_agent_rules_logs_redact_secret_shaped_pattern(
+async def test_dynamic_rule_plan_user_agent_logs_redact_secret_shaped_pattern(
     fresh_legacy_singleton: SusPatternsManager,
 ) -> None:
-    class _Applier(DynamicRuleApplicationMixin):
+    class _Planner(DynamicRulePlanMixin):
         def __init__(self) -> None:
             import logging
 
             self.config = SecurityConfig()
-            self.agent_handler = None
             self.logger = logging.getLogger(
                 "guard_core.handlers.dynamic_rule_test_user_agent_redaction"
             )
 
-    applier = _Applier()
-    with patch.object(applier, "logger") as mock_logger:
-        await applier._apply_user_agent_rules(
-            [_SECRET_PATTERN, "(a+)+" + _SECRET_PATTERN + "$"]
-        )
-
-    assert mock_logger.warning.called
-    logged = " ".join(
-        str(call)
-        for call in (
-            mock_logger.info.call_args_list + mock_logger.warning.call_args_list
-        )
+    rules = DynamicRules(
+        rule_id="redaction",
+        version=1,
+        timestamp=datetime.now(timezone.utc),
+        blocked_user_agents=[_SECRET_PATTERN, "(a+)+" + _SECRET_PATTERN + "$"],
     )
+    plan = await _Planner()._build_plan(rules, {})
+
+    assert any(level == logging.WARNING for level, _ in plan.messages)
+    logged = " ".join(message for _, message in plan.messages)
     assert "hunter2" not in logged
     assert "[REDACTED]" in logged
 

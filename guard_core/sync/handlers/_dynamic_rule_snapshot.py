@@ -24,7 +24,7 @@ class DynamicRuleSnapshotMixin:
     logger: logging.Logger
     current_rules: DynamicRules | None
     last_update: float
-    _apply_rules: Callable[[DynamicRules], None]
+    _apply_rules: Callable[[DynamicRules], list[str]]
     _has_rule_expired: Callable[[DynamicRules], bool]
 
     def _hydrate_last_known_rules(self) -> None:

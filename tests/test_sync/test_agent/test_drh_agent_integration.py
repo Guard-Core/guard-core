@@ -18,6 +18,21 @@ def _frozen_datetime(moment: datetime) -> MagicMock:
     return clock
 
 
+def _apply_plan(
+    manager: DynamicRuleManager, rules: DynamicRules | None = None, **fields: Any
+) -> None:
+    if rules is None:
+        rules = DynamicRules(
+            rule_id="plan",
+            version=1,
+            timestamp=datetime.now(timezone.utc),
+            **fields,
+        )
+    plan = manager._build_plan(rules, manager._snapshot_config())
+    manager._swap_config(plan)
+    manager._announce_plan(plan)
+
+
 @pytest.fixture
 def sample_rules() -> DynamicRules:
     return DynamicRules(
@@ -922,25 +937,10 @@ def test_apply_rules_all_types(
         patch.object(manager, "_apply_ip_bans", MagicMock()) as mock_ip_bans,
         patch.object(manager, "_apply_ip_whitelist", MagicMock()) as mock_ip_whitelist,
         patch.object(
-            manager, "_apply_country_rules", MagicMock()
-        ) as mock_country_rules,
-        patch.object(
-            manager, "_apply_rate_limit_rules", MagicMock()
-        ) as mock_rate_limit_rules,
-        patch.object(
-            manager, "_apply_cloud_provider_rules", MagicMock()
-        ) as mock_cloud_provider_rules,
-        patch.object(
-            manager, "_apply_user_agent_rules", MagicMock()
-        ) as mock_user_agent_rules,
-        patch.object(
             manager, "_apply_pattern_rules", MagicMock()
         ) as mock_pattern_rules,
         patch.object(
-            manager, "_apply_feature_toggles", MagicMock()
-        ) as mock_feature_toggles,
-        patch.object(
-            manager, "_activate_emergency_mode", MagicMock()
+            manager, "_announce_emergency_mode", MagicMock()
         ) as mock_emergency_mode,
     ):
         manager._apply_rules(sample_rules)
@@ -949,17 +949,12 @@ def test_apply_rules_all_types(
             sample_rules.ip_blacklist, sample_rules.ip_ban_duration
         )
         mock_ip_whitelist.assert_called_once_with(sample_rules.ip_whitelist)
-        mock_country_rules.assert_called_once_with(
-            sample_rules.blocked_countries, sample_rules.whitelist_countries
-        )
-        mock_rate_limit_rules.assert_called_once_with(sample_rules)
-        mock_cloud_provider_rules.assert_called_once_with(
-            sample_rules.blocked_cloud_providers
-        )
-        mock_user_agent_rules.assert_called_once_with(sample_rules.blocked_user_agents)
         mock_pattern_rules.assert_called_once_with(sample_rules.suspicious_patterns)
-        mock_feature_toggles.assert_called_once_with(sample_rules)
         mock_emergency_mode.assert_not_called()
+
+    assert manager.config.rate_limit == sample_rules.global_rate_limit
+    assert manager.config.blocked_user_agents == sample_rules.blocked_user_agents
+    assert manager.config.block_cloud_providers == frozenset({"AWS", "Azure"})
 
 
 def test_apply_rules_emergency_mode(
@@ -978,7 +973,7 @@ def test_apply_rules_emergency_mode(
 
     with (
         patch.object(
-            manager, "_activate_emergency_mode", MagicMock()
+            manager, "_announce_emergency_mode", MagicMock()
         ) as mock_emergency_mode,
         caplog.at_level(logging.WARNING),
     ):
@@ -1023,34 +1018,14 @@ def test_apply_rules_partial(
         patch.object(manager, "_apply_ip_bans", MagicMock()) as mock_ip_bans,
         patch.object(manager, "_apply_ip_whitelist", MagicMock()) as mock_ip_whitelist,
         patch.object(
-            manager, "_apply_country_rules", MagicMock()
-        ) as mock_country_rules,
-        patch.object(
-            manager, "_apply_rate_limit_rules", MagicMock()
-        ) as mock_rate_limit_rules,
-        patch.object(
-            manager, "_apply_cloud_provider_rules", MagicMock()
-        ) as mock_cloud_provider_rules,
-        patch.object(
-            manager, "_apply_user_agent_rules", MagicMock()
-        ) as mock_user_agent_rules,
-        patch.object(
             manager, "_apply_pattern_rules", MagicMock()
         ) as mock_pattern_rules,
-        patch.object(
-            manager, "_apply_feature_toggles", MagicMock()
-        ) as mock_feature_toggles,
     ):
         manager._apply_rules(partial_rules)
 
         mock_ip_bans.assert_called_once()
         mock_ip_whitelist.assert_not_called()
-        mock_country_rules.assert_not_called()
-        mock_rate_limit_rules.assert_not_called()
-        mock_cloud_provider_rules.assert_not_called()
-        mock_user_agent_rules.assert_not_called()
         mock_pattern_rules.assert_not_called()
-        mock_feature_toggles.assert_called_once()
 
 
 def test_apply_rules_exception_handling(
@@ -1067,11 +1042,10 @@ def test_apply_rules_exception_handling(
     with patch.object(
         manager, "_apply_ip_bans", MagicMock(side_effect=Exception("IP ban failed"))
     ):
-        with caplog.at_level(logging.ERROR):
-            with pytest.raises(Exception, match="IP ban failed"):
-                manager._apply_rules(sample_rules)
+        with pytest.raises(Exception, match="IP ban failed"):
+            manager._apply_rules(sample_rules)
 
-    assert "Failed to apply dynamic rules: IP ban failed" in caplog.text
+    assert manager._active_base_snapshot is None
 
 
 def test_apply_ip_bans_success(
@@ -1203,7 +1177,7 @@ def test_apply_country_rules_blocked_only_skipped_without_geo_handler(
     allowed: list[str] = []
 
     with caplog.at_level(logging.WARNING):
-        manager._apply_country_rules(blocked, allowed)
+        _apply_plan(manager, blocked_countries=blocked, whitelist_countries=allowed)
 
     assert manager.config.blocked_countries == frozenset()
     assert "country rules cannot take effect" in caplog.text
@@ -1220,7 +1194,7 @@ def test_apply_country_rules_allowed_only_skipped_without_geo_handler(
     allowed = ["us", "ca"]
 
     with caplog.at_level(logging.WARNING):
-        manager._apply_country_rules(blocked, allowed)
+        _apply_plan(manager, blocked_countries=blocked, whitelist_countries=allowed)
 
     assert manager.config.whitelist_countries == frozenset()
     assert "country rules cannot take effect" in caplog.text
@@ -1237,7 +1211,7 @@ def test_apply_country_rules_both_skipped_without_geo_handler(
     allowed = ["us", "ca"]
 
     with caplog.at_level(logging.WARNING):
-        manager._apply_country_rules(blocked, allowed)
+        _apply_plan(manager, blocked_countries=blocked, whitelist_countries=allowed)
 
     assert manager.config.blocked_countries == frozenset()
     assert manager.config.whitelist_countries == frozenset()
@@ -1256,7 +1230,7 @@ def test_apply_country_rules_blocked_only_applies_with_geo_handler_configured(
     allowed: list[str] = []
 
     with caplog.at_level(logging.INFO):
-        manager._apply_country_rules(blocked, allowed)
+        _apply_plan(manager, blocked_countries=blocked, whitelist_countries=allowed)
 
     assert manager.config.blocked_countries == frozenset({"XX", "YY"})
 
@@ -1275,7 +1249,7 @@ def test_apply_country_rules_allowed_only_applies_with_geo_handler_configured(
     allowed = ["us", "ca"]
 
     with caplog.at_level(logging.INFO):
-        manager._apply_country_rules(blocked, allowed)
+        _apply_plan(manager, blocked_countries=blocked, whitelist_countries=allowed)
 
     assert manager.config.whitelist_countries == frozenset({"US", "CA"})
 
@@ -1312,7 +1286,7 @@ def test_apply_rate_limit_global_only(
     )
 
     with caplog.at_level(logging.INFO):
-        manager._apply_rate_limit_rules(rules)
+        _apply_plan(manager, rules)
 
     assert manager.config.rate_limit == 50
     assert manager.config.rate_limit_window == 30
@@ -1350,7 +1324,7 @@ def test_apply_rate_limit_endpoint_only(
     )
 
     with caplog.at_level(logging.INFO):
-        manager._apply_rate_limit_rules(rules)
+        _apply_plan(manager, rules)
 
     assert manager.config.endpoint_rate_limits == rules.endpoint_rate_limits
 
@@ -1391,7 +1365,7 @@ def test_apply_rate_limit_both(
     )
 
     with caplog.at_level(logging.INFO):
-        manager._apply_rate_limit_rules(rules)
+        _apply_plan(manager, rules)
 
     assert manager.config.rate_limit == 100
     assert manager.config.rate_limit_window == 60
@@ -1408,7 +1382,7 @@ def test_apply_cloud_provider_rules(
     providers = {"AWS", "Azure", "GCP"}
 
     with caplog.at_level(logging.INFO):
-        manager._apply_cloud_provider_rules(providers)
+        _apply_plan(manager, blocked_cloud_providers=providers)
 
     assert manager.config.block_cloud_providers == providers
 
@@ -1423,7 +1397,7 @@ def test_apply_user_agent_rules(
     user_agents = ["badbot", "scanner", "scraper"]
 
     with caplog.at_level(logging.INFO):
-        manager._apply_user_agent_rules(user_agents)
+        _apply_plan(manager, blocked_user_agents=user_agents)
 
     assert manager.config.blocked_user_agents == user_agents
 
@@ -1443,7 +1417,7 @@ def test_apply_user_agent_rules_rejects_catastrophic_pattern(
     user_agents = [r"(?:a+)+$", "badbot"]
 
     with caplog.at_level(logging.WARNING):
-        manager._apply_user_agent_rules(user_agents)
+        _apply_plan(manager, blocked_user_agents=user_agents)
 
     assert manager.config.blocked_user_agents == ["badbot"]
     assert "rejected blocked_user_agents patterns" in caplog.text
@@ -1472,7 +1446,7 @@ def test_apply_user_agent_rules_validates_each_pattern_exactly_once(
         return original(self, pattern, test_strings, max_content_length)
 
     with patch.object(PatternCompiler, "validate_pattern_safety", _spy):
-        manager._apply_user_agent_rules(["badbot", "scanner"])
+        _apply_plan(manager, blocked_user_agents=["badbot", "scanner"])
 
     assert calls.count("badbot") == 1
     assert calls.count("scanner") == 1
@@ -1618,7 +1592,7 @@ def test_apply_feature_toggles_all_enabled(
     )
 
     with caplog.at_level(logging.INFO):
-        manager._apply_feature_toggles(rules)
+        _apply_plan(manager, rules)
 
     assert manager.config.enable_penetration_detection is True
     assert manager.config.enable_ip_banning is True
@@ -1659,7 +1633,7 @@ def test_apply_feature_toggles_all_disabled(
     )
 
     with caplog.at_level(logging.INFO):
-        manager._apply_feature_toggles(rules)
+        _apply_plan(manager, rules)
 
     assert manager.config.enable_penetration_detection is False
     assert manager.config.enable_ip_banning is False
@@ -1704,7 +1678,7 @@ def test_apply_feature_toggles_none_values(
     )
 
     with caplog.at_level(logging.INFO):
-        manager._apply_feature_toggles(rules)
+        _apply_plan(manager, rules)
 
     assert manager.config.enable_penetration_detection == orig_pen
     assert manager.config.enable_ip_banning == orig_ban
@@ -1748,7 +1722,7 @@ def test_apply_feature_toggles_auto_ban_overrides(
     )
 
     with caplog.at_level(logging.INFO):
-        manager._apply_feature_toggles(rules)
+        _apply_plan(manager, rules)
 
     assert manager.config.auto_ban_threshold == 7
     assert manager.config.auto_ban_duration == 1800
@@ -1796,7 +1770,7 @@ def test_apply_feature_toggles_auto_ban_none_values(
     )
 
     with caplog.at_level(logging.INFO):
-        manager._apply_feature_toggles(rules)
+        _apply_plan(manager, rules)
 
     assert manager.config.auto_ban_threshold == orig_threshold
     assert manager.config.auto_ban_duration == orig_duration
@@ -1841,7 +1815,7 @@ def test_apply_feature_toggles_rate_limit_auto_ban_false_override(
     )
 
     with caplog.at_level(logging.INFO):
-        manager._apply_feature_toggles(rules)
+        _apply_plan(manager, rules)
 
     assert manager.config.enable_rate_limit_auto_ban is False
 
@@ -1864,7 +1838,7 @@ def test_activate_emergency_mode_with_agent(
         whitelist = ["192.168.1.1", "10.0.0.1"]
 
         with caplog.at_level(logging.WARNING):
-            manager._activate_emergency_mode(whitelist)
+            _apply_plan(manager, emergency_mode=True, emergency_whitelist=whitelist)
 
         assert manager.config.emergency_mode is True
         assert manager.config.emergency_whitelist == whitelist
@@ -1892,7 +1866,7 @@ def test_activate_emergency_mode_without_agent(
     whitelist = ["192.168.1.1"]
 
     with caplog.at_level(logging.CRITICAL):
-        manager._activate_emergency_mode(whitelist)
+        _apply_plan(manager, emergency_mode=True, emergency_whitelist=whitelist)
 
     assert manager.config.emergency_mode is True
     assert manager.config.emergency_whitelist == whitelist
@@ -1911,7 +1885,7 @@ def test_activate_emergency_mode_minimum_threshold(
     whitelist: list[str] = []
 
     with caplog.at_level(logging.WARNING):
-        manager._activate_emergency_mode(whitelist)
+        _apply_plan(manager, emergency_mode=True, emergency_whitelist=whitelist)
 
     assert manager.config.auto_ban_threshold == 1
 
@@ -2125,7 +2099,7 @@ def test_apply_ip_rules_whitelist_only() -> None:
         "guard_core.sync.handlers.ipban_handler.ip_ban_manager.unban_ip",
         new=MagicMock(),
     ):
-        mgr._apply_ip_rules(rules)
+        mgr._apply_side_effects(rules)
     DynamicRuleManager._instance = None
 
 
@@ -2144,6 +2118,7 @@ def test_apply_rate_limit_rules_global_without_window() -> None:
         global_rate_limit=100,
         global_rate_window=None,
     )
-    mgr._apply_rate_limit_rules(rules)
+    plan = mgr._build_plan(rules, mgr._snapshot_config())
+    mgr._swap_config(plan)
     assert mgr.config.rate_limit == 100
     DynamicRuleManager._instance = None

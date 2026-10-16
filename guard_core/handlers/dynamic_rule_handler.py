@@ -6,6 +6,10 @@ from datetime import datetime, timezone
 from typing import Any
 
 from guard_core.handlers._dynamic_rule_application import DynamicRuleApplicationMixin
+from guard_core.handlers._dynamic_rule_plan import (
+    DynamicRulePlan,
+    DynamicRulePlanMixin,
+)
 from guard_core.handlers._dynamic_rule_snapshot import DynamicRuleSnapshotMixin
 from guard_core.models import (
     DynamicRules,
@@ -19,7 +23,9 @@ def _coerce_naive_utc(value: datetime) -> datetime:
     return value
 
 
-class DynamicRuleManager(DynamicRuleApplicationMixin, DynamicRuleSnapshotMixin):
+class DynamicRuleManager(
+    DynamicRulePlanMixin, DynamicRuleApplicationMixin, DynamicRuleSnapshotMixin
+):
     _instance = None
     config: SecurityConfig
     agent_handler: Any = None
@@ -245,37 +251,33 @@ class DynamicRuleManager(DynamicRuleApplicationMixin, DynamicRuleSnapshotMixin):
         for field, value in snapshot.items():
             self.config._set_prevalidated(field, deepcopy(value))
 
-    def _capture_active_base_snapshot(self, snapshot: dict[str, object]) -> None:
-        if self.current_rules is None and self._active_base_snapshot is None:
-            self._active_base_snapshot = snapshot
-
-    async def _apply_rules(self, rules: DynamicRules) -> None:
+    async def _apply_rules(self, rules: DynamicRules) -> list[str]:
         async with self._lock:
-            previous = self._snapshot_config()
-            if self._active_base_snapshot is not None:
-                self._restore_config(self._active_base_snapshot)
-            snapshot = self._snapshot_config()
-            try:
-                await self._apply_ip_rules(rules)
-
-                await self._apply_blocking_rules(rules)
-
-                if rules.global_rate_limit or rules.endpoint_rate_limits:
-                    await self._apply_rate_limit_rules(rules)
-
-                await self._apply_feature_toggles(rules)
-
-                if rules.emergency_mode:
-                    await self._activate_emergency_mode(rules.emergency_whitelist)
-
-            except Exception as e:
-                self._restore_config(previous)
-                self.logger.error(f"Failed to apply dynamic rules: {e}")
-                raise
-
-            self._capture_active_base_snapshot(snapshot)
-
+            base = self._active_base_snapshot
+            if base is None:
+                base = self._snapshot_config()
+            plan = await self._build_plan(rules, base)
+            await self._apply_side_effects(rules)
+            self._swap_config_or_restore(plan)
+            self._active_base_snapshot = base
+            await self._announce_plan(plan)
             await self._persist_last_known_rules(rules)
+            return plan.skipped
+
+    def _swap_config_or_restore(self, plan: DynamicRulePlan) -> None:
+        previous = self._snapshot_config()
+        try:
+            self._swap_config(plan)
+        except Exception as e:
+            self._restore_config(previous)
+            self.logger.error(f"Failed to apply dynamic rules: {e}")
+            raise
+
+    async def _announce_plan(self, plan: DynamicRulePlan) -> None:
+        for level, message in plan.messages:
+            self.logger.log(level, message)
+        if plan.emergency_whitelist is not None:
+            await self._announce_emergency_mode(plan.emergency_whitelist)
 
     async def get_current_rules(self) -> DynamicRules | None:
         return self.current_rules

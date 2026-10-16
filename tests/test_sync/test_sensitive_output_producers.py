@@ -711,22 +711,9 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "line 133: provider IP-range fetch failure - infra only"
     ),
     "handlers/_dynamic_rule_application.py:"
-    "DynamicRuleApplicationMixin._activate_emergency_mode": (
-        "lines 183,194: applying a SaaS-pushed DynamicRules payload "
-        "(admin/operator policy), never an inbound HTTP request"
-    ),
-    "handlers/_dynamic_rule_application.py:"
-    "DynamicRuleApplicationMixin._apply_cloud_provider_rules": (
-        "lines 106,109: applying SaaS-pushed policy, not a request"
-    ),
-    "handlers/_dynamic_rule_application.py:"
-    "DynamicRuleApplicationMixin._apply_country_rules": (
-        "lines 61,71,78: applying SaaS-pushed policy, not a request"
-    ),
-    "handlers/_dynamic_rule_application.py:"
-    "DynamicRuleApplicationMixin._apply_feature_toggles": (
-        "lines 152,156,160,166,172,178: applying SaaS-pushed feature "
-        "toggles, not a request"
+    "DynamicRuleApplicationMixin._announce_emergency_mode": (
+        "line 65: reports on a SaaS-pushed emergency-mode policy change, "
+        "never an inbound HTTP request"
     ),
     "handlers/_dynamic_rule_application.py:"
     "DynamicRuleApplicationMixin._apply_ip_bans": (
@@ -741,14 +728,6 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "lines 142,147: applying SaaS-pushed suspicious-pattern policy, not a "
         "request; the logged pattern text is also now redacted via "
         "_redact_pattern_source, in case a pushed pattern's source is secret-shaped"
-    ),
-    "handlers/_dynamic_rule_application.py:"
-    "DynamicRuleApplicationMixin._apply_rate_limit_rules": (
-        "lines 89,93: applying SaaS-pushed rate-limit policy, not a request"
-    ),
-    "handlers/_dynamic_rule_application.py:"
-    "DynamicRuleApplicationMixin._apply_user_agent_rules": (
-        "lines 129,133: applying SaaS-pushed blocked-user-agent policy, not a request"
     ),
     "handlers/_dynamic_rule_events.py:"
     "DynamicRuleEventSenderMixin._send_emergency_event": (
@@ -901,8 +880,11 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
     "handlers/cloud_handler.py:CloudManager.schedule_refresh": (
         "line 183: scheduling failure for the refresh task, infra only"
     ),
-    "handlers/dynamic_rule_handler.py:DynamicRuleManager._apply_rules": (
-        "line 250: applying a SaaS-pushed DynamicRules payload, not a request"
+    "handlers/dynamic_rule_handler.py:DynamicRuleManager._ignore_platform_default": (
+        "line 189: ignores the SaaS platform default shape, policy metadata only"
+    ),
+    "handlers/dynamic_rule_handler.py:DynamicRuleManager._swap_config_or_restore": (
+        "line 273: config swap failure for a SaaS-pushed rule, not a request"
     ),
     "handlers/dynamic_rule_handler.py:DynamicRuleManager._check_rule_expiry": (
         "line 162: rule-expiry lifecycle log, policy metadata only"
