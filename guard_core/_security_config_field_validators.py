@@ -36,6 +36,18 @@ logger = logging.getLogger("guard_core.models")
 
 CloudProvider = Literal["AWS", "GCP", "Azure", "DigitalOcean", "Linode", "Vultr"]
 VALID_CLOUD_PROVIDERS: frozenset[str] = frozenset(get_args(CloudProvider))
+_CANONICAL_CLOUD_PROVIDERS = {name.lower(): name for name in VALID_CLOUD_PROVIDERS}
+
+
+def canonicalize_cloud_provider_selector(selector: Any) -> str | None:
+    if not isinstance(selector, str):
+        return None
+    name, separator, region = selector.partition(":!")
+    canonical = _CANONICAL_CLOUD_PROVIDERS.get(name.lower())
+    if canonical is None:
+        return None
+    return f"{canonical}{separator}{region}"
+
 
 _GLOBAL_BEHAVIOR_RULE_FIELDS = frozenset(
     {"global_behavior_rules", "behavior_scan_response_body"}
@@ -342,10 +354,10 @@ def _validate_sensitive_name_set_value(v: Any, field_name: str) -> frozenset[str
 def _validate_block_cloud_providers_value(v: Any) -> frozenset[str] | None:
     if v is None:
         return None
-    result = frozenset(v)
-    invalid = {
-        sel for sel in result if sel.partition(":!")[0] not in VALID_CLOUD_PROVIDERS
-    }
+    selectors = frozenset(v)
+    canonical = {sel: canonicalize_cloud_provider_selector(sel) for sel in selectors}
+    invalid = {sel for sel, name in canonical.items() if name is None}
+    result = frozenset(name for name in canonical.values() if name is not None)
     if invalid:
         raise ValueError(
             f"Unknown cloud providers in block_cloud_providers: {sorted(invalid)}. "

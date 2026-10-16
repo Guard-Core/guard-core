@@ -1,8 +1,11 @@
 from typing import Any
 
+from guard_core._security_config_field_validators import (
+    canonicalize_cloud_provider_selector,
+)
 from guard_core._utils.detection_scan import _redact_pattern_source
 from guard_core.handlers._dynamic_rule_events import DynamicRuleEventSenderMixin
-from guard_core.models import VALID_CLOUD_PROVIDERS, DynamicRules, SecurityConfig
+from guard_core.models import DynamicRules, SecurityConfig
 
 
 def _redact_pattern_list(patterns: list[str]) -> list[str]:
@@ -109,11 +112,10 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
             )
 
     async def _apply_cloud_provider_rules(self, providers: set[str]) -> None:
-        valid = frozenset(
-            p for p in providers if p.partition(":!")[0] in VALID_CLOUD_PROVIDERS
-        )
+        canonical = {p: canonicalize_cloud_provider_selector(p) for p in providers}
+        valid = frozenset(name for name in canonical.values() if name is not None)
         self.config.block_cloud_providers = valid
-        invalid = providers - valid
+        invalid = {p for p, name in canonical.items() if name is None}
         if invalid:
             self.logger.warning(
                 f"Dynamic rule: ignored unknown cloud providers {sorted(invalid)}"

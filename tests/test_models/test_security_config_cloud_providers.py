@@ -105,6 +105,11 @@ def test_block_cloud_providers_accepts_expanded_provider_carve_out() -> None:
     assert config.block_cloud_providers == frozenset({"DigitalOcean:!nyc3"})
 
 
-def test_block_cloud_providers_rejects_lowercase_expanded_names() -> None:
-    with pytest.raises(ValueError, match="digitalocean"):
-        SecurityConfig(block_cloud_providers={"digitalocean"})
+def test_block_cloud_providers_canonicalizes_lowercase_expanded_names() -> None:
+    config = SecurityConfig(block_cloud_providers={"digitalocean"})
+    assert config.block_cloud_providers == frozenset({"DigitalOcean"})
+
+
+def test_block_cloud_providers_rejects_misspelled_names() -> None:
+    with pytest.raises(ValueError, match="digitalocen"):
+        SecurityConfig(block_cloud_providers={"digitalocen"})
