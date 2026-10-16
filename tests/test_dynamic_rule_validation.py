@@ -72,6 +72,11 @@ MALFORMED = [
     pytest.param({"blocked_countries": ["12"]}, id="country-digits"),
     pytest.param({"whitelist_countries": ["USA"]}, id="allow-three-letters"),
     pytest.param({"blocked_cloud_providers": {"NotACloud"}}, id="provider"),
+    pytest.param({"ip_blacklist": ["not-an-ip"]}, id="ban-not-an-ip"),
+    pytest.param({"ip_blacklist": ["10.0.0.0/33"]}, id="ban-bad-cidr"),
+    pytest.param({"ip_whitelist": ["not-an-ip"]}, id="allow-not-an-ip"),
+    pytest.param({"emergency_whitelist": ["10.0.0.0/33"]}, id="emergency-bad-cidr"),
+    pytest.param({"emergency_whitelist": ["not-an-ip"]}, id="emergency-not-an-ip"),
 ]
 
 
@@ -173,3 +178,30 @@ async def test_unsafe_patterns_are_skipped_and_listed_in_the_applied_event() -> 
     ]
     skipped = applied[0].metadata["skipped"]
     assert any(item.startswith("blocked_user_agents:") for item in skipped)
+
+
+@pytest.mark.asyncio
+async def test_a_refused_self_ban_is_skipped_and_reported() -> None:
+    manager, _, send_event = _manager()
+    await _poll(manager, _rules(ip_blacklist=["127.0.0.1", "198.51.100.50"]))
+
+    assert await ip_ban_manager.is_ip_banned("198.51.100.50")
+    applied = [
+        call.args[0]
+        for call in send_event.call_args_list
+        if call.args[0].event_type == "dynamic_rule_applied"
+    ]
+    assert (
+        "ip_blacklist: 127.0.0.1 (ban refused: loopback)"
+        in (applied[0].metadata["skipped"])
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_valid_emergency_whitelist_is_still_applied() -> None:
+    manager, config, _ = _manager()
+    await _poll(
+        manager,
+        _rules(emergency_mode=True, emergency_whitelist=["198.51.100.0/24", "::1"]),
+    )
+    assert config.emergency_mode is True

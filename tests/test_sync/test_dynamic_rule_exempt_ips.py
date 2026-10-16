@@ -102,7 +102,7 @@ def test_entry_in_both_lists_ends_exempt_and_is_reported() -> None:
 
 def test_skipped_whitelist_entries_are_reported_in_the_applied_event() -> None:
     manager, config, send_event = _manager()
-    _poll(manager, _rules(ip_whitelist=["not-an-ip", "127.0.0.1", "::1", EXEMPT_IP]))
+    _poll(manager, _rules(ip_whitelist=["127.0.0.1", "::1", EXEMPT_IP]))
 
     applied = [
         call.args[0]
@@ -111,7 +111,6 @@ def test_skipped_whitelist_entries_are_reported_in_the_applied_event() -> None:
     ]
     assert len(applied) == 1
     skipped = applied[0].metadata["skipped"]
-    assert "ip_whitelist: not-an-ip (invalid)" in skipped
     assert "ip_whitelist: 127.0.0.1 (loopback)" in skipped
     assert "ip_whitelist: ::1 (loopback)" in skipped
     assert _resolve_is_exempt(EXEMPT_IP, config, True, False) is True

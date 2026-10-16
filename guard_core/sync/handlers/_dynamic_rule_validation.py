@@ -1,3 +1,4 @@
+import ipaddress
 import re
 from typing import Any
 
@@ -52,8 +53,21 @@ def _provider_problems(providers: set[str]) -> list[str]:
     ]
 
 
+def _ip_problems(name: str, entries: list[str]) -> list[str]:
+    problems = []
+    for entry in entries:
+        try:
+            ipaddress.ip_network(entry, strict=False)
+        except ValueError:
+            problems.append(f"{name}: {entry!r} (not an IP address or CIDR range)")
+    return problems
+
+
 def find_malformed_values(rules: Any) -> list[str]:
     return [
+        *_ip_problems("ip_blacklist", rules.ip_blacklist),
+        *_ip_problems("ip_whitelist", rules.ip_whitelist),
+        *_ip_problems("emergency_whitelist", rules.emergency_whitelist),
         *_rate_limit_problems(rules),
         *_country_problems("blocked_countries", rules.blocked_countries),
         *_country_problems("whitelist_countries", rules.whitelist_countries),

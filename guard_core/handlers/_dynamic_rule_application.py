@@ -34,7 +34,10 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
         effects = effects or RuleSideEffects()
         if rules.ip_blacklist:
             await self._apply_ip_bans(
-                rules.ip_blacklist, rules.ip_ban_duration, effects.created_bans
+                rules.ip_blacklist,
+                rules.ip_ban_duration,
+                effects.created_bans,
+                effects.skipped,
             )
 
         whitelist = rules.ip_whitelist if exempt_ips is None else exempt_ips
@@ -77,11 +80,16 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
                 self.logger.error(f"Failed to revoke suspicious pattern: {e}")
 
     async def _apply_ip_bans(
-        self, ip_list: list[str], duration: int, created: list[str] | None = None
+        self,
+        ip_list: list[str],
+        duration: int,
+        created: list[str] | None = None,
+        skipped: list[str] | None = None,
     ) -> None:
         from guard_core.handlers.ipban_handler import ip_ban_manager
 
         created = created if created is not None else []
+        skipped = skipped if skipped is not None else []
         for ip in ip_list:
             try:
                 canonical = _canonicalize_ip(ip)
@@ -93,6 +101,10 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
                     self.logger.info(f"Dynamic rule: Banned IP {ip} for {duration}s")
                     if not owned and canonical not in created:
                         created.append(canonical)
+                else:
+                    refusal = ip_ban_manager._self_dos_refusal_reason(canonical)
+                    if refusal is not None:
+                        skipped.append(f"ip_blacklist: {ip} (ban refused: {refusal})")
             except Exception as e:
                 self.logger.error(f"Failed to ban IP {ip}: {e}")
 

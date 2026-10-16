@@ -48,10 +48,7 @@ def _redact_rejected_patterns(
 
 
 def _classify_exempt_entry(entry: str) -> tuple[str | None, str]:
-    try:
-        network = ipaddress.ip_network(entry, strict=False)
-    except ValueError:
-        return None, "invalid"
+    network = ipaddress.ip_network(entry, strict=False)
     if any(
         network.version == loopback.version and network.overlaps(loopback)
         for loopback in _LOOPBACK_NETWORKS
@@ -63,10 +60,7 @@ def _classify_exempt_entry(entry: str) -> tuple[str | None, str]:
 
 
 def _covered_by(entry: str, networks: list[Any]) -> bool:
-    try:
-        target = ipaddress.ip_network(entry, strict=False)
-    except ValueError:
-        return False
+    target = ipaddress.ip_network(entry, strict=False)
     return any(
         target.version == network.version and target.subnet_of(network)
         for network in networks

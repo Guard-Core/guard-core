@@ -119,11 +119,3 @@ def test_unbanning_a_network_removes_the_redis_record() -> None:
 def test_a_non_ip_value_is_never_rule_exempt() -> None:
     ip_ban_manager.set_rule_exempt_ips(["198.51.100.0/24"])
     assert ip_ban_manager.is_ip_banned("not-an-ip") is False
-
-
-def test_an_invalid_ban_entry_next_to_a_whitelist_does_not_break_planning() -> None:
-    manager = _manager()
-    skipped = manager._apply_rules(
-        _rules(ip_blacklist=["not-an-ip"], ip_whitelist=["198.51.100.20"])
-    )
-    assert not any(item.startswith("ip_blacklist:") for item in skipped)
