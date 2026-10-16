@@ -4,7 +4,7 @@ import time
 from collections import defaultdict, deque
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from redis.exceptions import NoScriptError, RedisError
 
@@ -18,10 +18,13 @@ from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.scripts.rate_lua import RATE_LIMIT_SCRIPT
 from guard_core.utils import log_activity
 
+if TYPE_CHECKING:
+    from guard_core.core.checks.helpers import _WindowedCategoryCounts
+
 _by_ip_logger = logging.getLogger("guard_core.handlers.ratelimit")
 _RATE_LIMIT_HANDLER_NAME = "rate_limit"
 _by_ip_request_timestamps: defaultdict[str, deque[float]] = defaultdict(deque)
-_by_ip_autoban_counts: dict[str, Any] = {}
+_by_ip_autoban_counts: dict[str, "_WindowedCategoryCounts"] = {}
 _MAX_TRACKED_RATE_LIMIT_KEYS = 10_000
 _redis_fail_open_warned = False
 
