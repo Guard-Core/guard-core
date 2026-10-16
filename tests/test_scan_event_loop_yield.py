@@ -1,12 +1,19 @@
 import asyncio
 import concurrent.futures
 import threading
+import time
 from collections.abc import AsyncGenerator
+from types import SimpleNamespace
+from typing import Any
+from unittest.mock import patch
 
 import pytest
 
+from guard_core._utils import detection_scan
+from guard_core._utils.detection_scan import _scan_value_budget
 from guard_core.detection_engine import compiler as compiler_module
 from guard_core.detection_engine.compiler import _await_regex_future
+from guard_core.handlers import _suspatterns_regex as regex_module
 from guard_core.handlers._suspatterns_regex import _WINDOWED_PATTERN_FINDERS
 from guard_core.handlers.suspatterns_handler import SusPatternsManager
 from guard_core.models import SecurityConfig
@@ -108,3 +115,59 @@ async def test_pattern_loop_yields_to_other_tasks_once_a_slice_elapses() -> None
     assert ran_at
     assert ran_at[0] < len(all_patterns)
     assert ran_at[0] <= 2
+
+
+def _fake_time(now: list[float]) -> Any:
+    return SimpleNamespace(monotonic=lambda: now[0], thread_time=time.thread_time)
+
+
+async def test_slice_clock_spans_values_within_a_request() -> None:
+    manager = SusPatternsManager()
+    manager.configure(SecurityConfig())
+    now = [0.0]
+    checks = {"count": 0}
+    yields = {"count": 0}
+    real_check = manager._check_regex_pattern
+    real_yield = regex_module._yield_to_event_loop
+
+    async def counting_check(*args: Any, **kwargs: Any) -> Any:
+        checks["count"] += 1
+        now[0] += step[0]
+        return await real_check(*args, **kwargs)
+
+    async def counting_yield() -> None:
+        yields["count"] += 1
+        await real_yield()
+
+    step = [0.0]
+    with (
+        patch.object(manager, "_check_regex_pattern", counting_check),
+        patch.object(regex_module, "_yield_to_event_loop", counting_yield),
+        patch.object(regex_module, "time", _fake_time(now)),
+        patch.object(detection_scan, "time", _fake_time(now)),
+    ):
+        await manager.detect("hello world", "127.0.0.1", "query_param:q")
+        per_value = checks["count"]
+        step[0] = 0.0015 / per_value
+        with _scan_value_budget(512):
+            await manager.detect("hello world", "127.0.0.1", "query_param:q")
+            assert yields["count"] == 0
+            await manager.detect("hello world", "127.0.0.1", "query_param:q")
+            assert yields["count"] >= 1
+
+
+async def test_suspended_time_is_not_charged_to_the_request() -> None:
+    manager = SusPatternsManager()
+    manager.configure(SecurityConfig())
+
+    async def burn_cpu() -> None:
+        end = time.thread_time() + 0.3
+        while time.thread_time() < end:
+            pass
+
+    burner = asyncio.create_task(burn_cpu())
+    with _scan_value_budget(512, max_scan_seconds=0.15):
+        result = await manager.detect("hello world", "127.0.0.1", "query_param:q")
+    await burner
+
+    assert all(t["pattern"] != "scan_time_budget_exhausted" for t in result["threats"])

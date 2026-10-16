@@ -4,7 +4,7 @@ import re
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from typing import Any
+from typing import Any, TypeVar
 
 from guard_core.sync._utils.detection_config import (
     _DEFAULT_BINARY_MIN_RUN_LENGTH,
@@ -14,8 +14,11 @@ from guard_core.sync._utils.detection_config import (
     _DEFAULT_MAX_SCAN_VALUES,
 )
 from guard_core.sync._utils.logging_utils import _log_at_level, _sanitize_for_reporting
+from guard_core.sync._utils.pattern_source_redaction import _redact_pattern_source
 
 logger = logging.getLogger("guard_core")
+
+_T = TypeVar("_T")
 
 _scanned_value_count: contextvars.ContextVar[int] = contextvars.ContextVar(
     "guard_core_detection_scanned_value_count", default=0
@@ -50,6 +53,12 @@ _scan_time_cap: contextvars.ContextVar[float | None] = contextvars.ContextVar(
 _scan_time_spent: contextvars.ContextVar[float] = contextvars.ContextVar(
     "guard_core_detection_scan_time_spent", default=0.0
 )
+_scan_cpu_mark: contextvars.ContextVar[float | None] = contextvars.ContextVar(
+    "guard_core_detection_scan_cpu_mark", default=None
+)
+_scan_slice_start: contextvars.ContextVar[float | None] = contextvars.ContextVar(
+    "guard_core_detection_scan_slice_start", default=None
+)
 _semantic_excluded_headers: contextvars.ContextVar[frozenset[str]] = (
     contextvars.ContextVar(
         "guard_core_detection_semantic_excluded_headers", default=frozenset()
@@ -77,6 +86,7 @@ def _scan_value_budget(
     time_cap_token = _scan_time_cap.set(max_scan_seconds)
     time_spent_token = _scan_time_spent.set(0.0)
     time_warned_token = _scan_time_cap_warned.set(False)
+    slice_token = _scan_slice_start.set(time.monotonic())
     semantic_token = _semantic_excluded_headers.set(semantic_excluded_headers)
     try:
         yield
@@ -92,6 +102,7 @@ def _scan_value_budget(
         _scan_time_cap.reset(time_cap_token)
         _scan_time_spent.reset(time_spent_token)
         _scan_time_cap_warned.reset(time_warned_token)
+        _scan_slice_start.reset(slice_token)
         _semantic_excluded_headers.reset(semantic_token)
 
 
@@ -128,13 +139,36 @@ def _record_scan_time(elapsed: float) -> None:
     _scan_time_spent.set(_scan_time_spent.get() + elapsed)
 
 
-@contextmanager
-def _record_inline_cpu() -> Iterator[None]:
-    start = _thread_cpu_seconds()
+def _open_cpu_pass() -> contextvars.Token[float | None]:
+    return _scan_cpu_mark.set(
+        None if _scan_time_cap.get() is None else _thread_cpu_seconds()
+    )
+
+
+def _close_cpu_pass(token: contextvars.Token[float | None]) -> None:
+    _charge_inline_cpu()
+    _scan_cpu_mark.reset(token)
+
+
+def _charge_inline_cpu() -> None:
+    mark = _scan_cpu_mark.get()
+    if mark is not None:
+        now = _thread_cpu_seconds()
+        _record_scan_time(now - mark)
+        _scan_cpu_mark.set(now)
+
+
+def _restart_inline_cpu() -> None:
+    if _scan_cpu_mark.get() is not None:
+        _scan_cpu_mark.set(_thread_cpu_seconds())
+
+
+def _suspended(awaitable: _T) -> _T:
+    _charge_inline_cpu()
     try:
-        yield
+        return awaitable
     finally:
-        _record_scan_time(_thread_cpu_seconds() - start)
+        _restart_inline_cpu()
 
 
 def _timed_in_worker(
@@ -233,53 +267,6 @@ def _warn_json_depth_cap_reached_once(client_ip: str) -> None:
     )
 
 
-_PATTERN_SOURCE_NON_TOKEN_RE = re.compile(r"[^a-z0-9_-]+")
-_PATTERN_SOURCE_ESCAPE_RE = re.compile(
-    r"\\(?:[xX]([0-9A-Fa-f]{2})|u([0-9A-Fa-f]{4})|U([0-9A-Fa-f]{8})|([0-7]{1,3}))"
-)
-
-
-def _decode_pattern_source_escape(match: re.Match[str]) -> str:
-    hex_body = match.group(1) or match.group(2) or match.group(3)
-    code = int(hex_body, 16) if hex_body else int(match.group(4), 8)
-    return chr(code) if code <= 0x10FFFF else match.group(0)
-
-
-def _pattern_source_names_a_sensitive_field(
-    pattern_source: str, sensitive_names: frozenset[str]
-) -> bool:
-    decoded = _PATTERN_SOURCE_ESCAPE_RE.sub(
-        _decode_pattern_source_escape, pattern_source
-    )
-    normalized = _PATTERN_SOURCE_NON_TOKEN_RE.sub("", decoded.lower())
-    return any(name in normalized for name in sensitive_names)
-
-
-def _redact_pattern_source(pattern_source: str) -> str:
-    from guard_core.sync._utils.request_logging import (
-        _merge_sensitive_log_body_fields,
-        _merged_sensitive_names,
-        redact_blob_for_display,
-    )
-    from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
-
-    sensitive_params = sus_patterns_handler._sensitive_params_union
-    sensitive_body_fields = sus_patterns_handler._sensitive_body_fields_union
-    sensitive_headers = sus_patterns_handler._sensitive_headers_union
-
-    sensitive_names = _merged_sensitive_names(
-        sensitive_params,
-        _merge_sensitive_log_body_fields(sensitive_body_fields),
-        sensitive_headers,
-    )
-    if _pattern_source_names_a_sensitive_field(pattern_source, sensitive_names):
-        return "[REDACTED]"
-
-    return redact_blob_for_display(
-        pattern_source, sensitive_params, sensitive_body_fields, sensitive_headers
-    )
-
-
 def _build_threat_message(threat: dict[str, Any]) -> str:
     if threat["type"] == "regex":
         return f"Value matched pattern '{_redact_pattern_source(threat['pattern'])}'"
@@ -329,31 +316,36 @@ def _fallback_pattern_check(
     normalized_context = sus_patterns_handler._normalize_context(context)
     all_compiled = sus_patterns_handler.get_all_compiled_patterns()
     binary_prefix = build_binary_prefix(value)
-    for pattern, _contexts, category in all_compiled:
-        if _scan_time_budget_exhausted():
-            return True, "Scan time budget exhausted (fallback)"
-        pattern_start = time.monotonic()
-        try:
-            threat, _timeout_occurred = sus_patterns_handler._check_regex_pattern(
-                pattern,
-                value,
-                client_ip,
-                pattern_start,
-                category,
-                context=normalized_context,
-                binary_prefix=binary_prefix,
-            )
-        except RecursionError:
-            logger.warning(
-                "Fallback pattern search hit the regex engine's recursion "
-                "limit on pattern %r; skipping it and continuing the "
-                "fallback scan",
-                _redact_pattern_source(pattern.pattern),
-            )
-            continue
-        if threat:
-            return True, "Value matched pattern (fallback)"
-    return False, ""
+    mark_token = _open_cpu_pass()
+    try:
+        for pattern, _contexts, category in all_compiled:
+            _charge_inline_cpu()
+            if _scan_time_budget_exhausted():
+                return True, "Scan time budget exhausted (fallback)"
+            pattern_start = time.monotonic()
+            try:
+                threat, _ = sus_patterns_handler._check_regex_pattern(
+                    pattern,
+                    value,
+                    client_ip,
+                    pattern_start,
+                    category,
+                    context=normalized_context,
+                    binary_prefix=binary_prefix,
+                )
+            except RecursionError:
+                logger.warning(
+                    "Fallback pattern search hit the regex engine's recursion "
+                    "limit on pattern %r; skipping it and continuing the "
+                    "fallback scan",
+                    _redact_pattern_source(pattern.pattern),
+                )
+                continue
+            if threat:
+                return True, "Value matched pattern (fallback)"
+        return False, ""
+    finally:
+        _close_cpu_pass(mark_token)
 
 
 def _resolve_json_redact_all(
@@ -559,17 +551,18 @@ def _check_always_scan_header(value: str) -> tuple[bool, str, list[dict]]:
 def _compiler_finditer(
     compiler: Any, pattern: re.Pattern, category: str, content: str
 ) -> list[re.Match]:
-    inline_scan = category != "custom"
+    if category != "custom":
+        inline_finder = compiler.create_async_safe_finditer_matcher(
+            pattern, inline_safe=True
+        )
+        inline_matches: list[re.Match] = inline_finder(content)
+        return inline_matches
     worker_cpu: list[float] = []
     finder = compiler.create_async_safe_finditer_matcher(
         pattern,
-        inline_safe=inline_scan,
+        inline_safe=False,
         worker_wrapper=lambda work: _timed_in_worker(work, worker_cpu),
     )
-    if inline_scan:
-        with _record_inline_cpu():
-            matches: list[re.Match] = finder(content)
-        return matches
-    matches = finder(content)
+    matches: list[re.Match] = _suspended(finder(content))
     _record_scan_time(sum(worker_cpu) if worker_cpu else compiler.default_timeout)
     return matches

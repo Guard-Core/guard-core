@@ -1,4 +1,5 @@
 import asyncio
+import threading
 from collections.abc import AsyncGenerator, Iterator
 from typing import Any
 from unittest.mock import patch
@@ -11,7 +12,10 @@ from guard_core._utils.detection_scan import (
     _scan_time_budget_exhausted,
     _scan_value_budget,
 )
-from guard_core.handlers.suspatterns_handler import SusPatternsManager
+from guard_core.handlers.suspatterns_handler import (
+    SusPatternsManager,
+    sus_patterns_handler,
+)
 from guard_core.models import SecurityConfig
 from guard_core.utils import detect_penetration_attempt
 from tests.conftest import MockGuardRequest
@@ -153,6 +157,24 @@ async def test_fallback_check_honours_budget() -> None:
     assert "budget" in trigger
 
 
+async def test_fallback_check_charges_its_inline_scan_cpu(
+    fake_regex_clock: _FakeClock,
+) -> None:
+    async def inline_only(*args: Any, **kwargs: Any) -> tuple[None, bool]:
+        return None, False
+
+    with (
+        patch.object(sus_patterns_handler, "_check_regex_pattern", inline_only),
+        _scan_value_budget(512, max_scan_seconds=2.5),
+    ):
+        detected, trigger = await detection_scan._fallback_pattern_check(
+            "hello", "127.0.0.1", "query_param:q"
+        )
+
+    assert detected is True
+    assert "budget" in trigger
+
+
 async def test_trigger_names_the_budget_when_it_tips_the_request(
     fake_regex_clock: _FakeClock,
 ) -> None:
@@ -217,3 +239,49 @@ async def test_worker_scan_cpu_is_recorded_from_the_worker_thread(
 
     assert remaining is not None
     assert remaining < 1000.0
+
+
+async def test_inline_cpu_is_accounted_per_pass_not_per_pattern() -> None:
+    manager = SusPatternsManager()
+    manager.configure(SecurityConfig())
+    calls = {"clock": 0, "patterns": 0}
+    real = manager._check_regex_pattern
+
+    scan_thread = threading.get_ident()
+
+    def counting_clock() -> float:
+        if threading.get_ident() == scan_thread:
+            calls["clock"] += 1
+        return 0.0
+
+    async def counting(*args: Any, **kwargs: Any) -> Any:
+        calls["patterns"] += 1
+        return await real(*args, **kwargs)
+
+    with (
+        patch.object(detection_scan, "_thread_cpu_seconds", counting_clock),
+        patch.object(manager, "_check_regex_pattern", counting),
+        _scan_value_budget(512, max_scan_seconds=1000.0),
+    ):
+        await manager.detect("hello world", "127.0.0.1", "query_param:q")
+
+    assert calls["patterns"] > 50
+    assert 0 < calls["clock"] < calls["patterns"] * 0.2
+
+
+async def test_no_cpu_clock_reads_outside_a_request_scope() -> None:
+    manager = SusPatternsManager()
+    manager.configure(SecurityConfig())
+    calls = {"clock": 0}
+
+    scan_thread = threading.get_ident()
+
+    def counting_clock() -> float:
+        if threading.get_ident() == scan_thread:
+            calls["clock"] += 1
+        return 0.0
+
+    with patch.object(detection_scan, "_thread_cpu_seconds", counting_clock):
+        await manager.detect("hello world", "127.0.0.1", "query_param:q")
+
+    assert calls["clock"] == 0

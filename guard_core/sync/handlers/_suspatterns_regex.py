@@ -8,12 +8,18 @@ from typing import Any
 from guard_core.sync._utils.detection_scan import (
     _EVENT_LOOP_SLICE_SECONDS,
     _SCAN_TIME_BUDGET_EXHAUSTED_PATTERN,
+    _charge_inline_cpu,
+    _close_cpu_pass,
     _compiler_finditer,
-    _record_inline_cpu,
+    _open_cpu_pass,
     _record_scan_time,
     _redact_pattern_source,
+    _restart_inline_cpu,
+    _scan_slice_start,
     _scan_time_budget_exhausted,
     _scan_time_budget_exhausted_threat,
+    _scan_time_cap,
+    _suspended,
     _timed_in_worker,
     _warn_scan_time_cap_reached_once,
 )
@@ -28,7 +34,6 @@ from guard_core.sync.detection_engine.compiler import (
     report_scan_timeout,
     shared_regex_executor,
 )
-from guard_core.sync.detection_engine.scan_window import bounded_finditer
 from guard_core.sync.handlers._suspatterns_enhanced import _SusPatternsEnhancedMixin
 from guard_core.sync.handlers._suspatterns_ldap_ipv4 import (
     _LEGACY_IPV4_HOST_RE,
@@ -54,6 +59,10 @@ from guard_core.sync.handlers._suspatterns_pickle import (
     _pickle_global_candidate_is_injection,
 )
 from guard_core.sync.handlers._suspatterns_registry import _SusPatternsRegistryMixin
+from guard_core.sync.handlers._suspatterns_scan_windows import (
+    _SCAN_WINDOW_PATTERNS,
+    _iter_scan_window_matches,
+)
 from guard_core.sync.handlers._suspatterns_shell_sources import (
     _BRACE_EXPANSION_COMMAND_RE,
     _GLOB_WILDCARD_ATOM_RE,
@@ -98,8 +107,6 @@ from guard_core.sync.handlers._suspatterns_sources import (
 from guard_core.sync.handlers._suspatterns_state import _DetectionState
 from guard_core.sync.handlers._suspatterns_xml_xxe import (
     _XML_XXE_PUBLIC_EXTERNAL_DTD_COMPILED_RE,
-    _xml_internal_entity_finditer,
-    _xml_system_finditer,
     _xml_xxe_public_external_dtd_finditer,
 )
 
@@ -242,53 +249,6 @@ _WINDOWED_PATTERN_FINDERS: dict[str, Callable[[str], Iterator[re.Match]]] = {
     ),
 }
 
-_SCAN_WINDOW_BOUND_SOURCES: dict[str, tuple[tuple[str, str], ...]] = {
-    r"<script[^>]*>[^<]*<\/script\s*>": ((r"<script", r"<\/script\s*>"),),
-    (
-        r"(?:<[A-Za-z/][^<>]*style\s*=\s{0,20}[\"']?[^<>\"']*"
-        r"(?:expression|behavior|url)\s*\([^)]*\))"
-    ): ((r"<[A-Za-z/][^<>]*style\s*=", r"\)"),),
-    r"(?:<object[^>]*>[\s\S]*<\/object\s*>)": ((r"<object", r"<\/object\s*>"),),
-    r"(?:<embed[^>]*>[\s\S]*<\/embed\s*>)": ((r"<embed", r"<\/embed\s*>"),),
-    r"(?:<applet[^>]*>[\s\S]*<\/applet\s*>)": ((r"<applet", r"<\/applet\s*>"),),
-    r"\.\.;[^/\\]*[/\\]": ((r"\.\.;", r"[/\\]"),),
-    (
-        r"=(?:https?|ftp):\/\/[^\s'\"<>]+\/[^\s'\"<>\/]*"
-        r"\.(?:phtml|php[3-5]?|phar|jsp|aspx?|pl|py|txt|inc)(?![a-zA-Z0-9])"
-    ): (
-        (
-            r"=(?:https?|ftp):\/\/",
-            r"\.(?:phtml|php\d*|phar|jsp|aspx?|pl|py|txt|inc)[a-zA-Z0-9]*",
-        ),
-    ),
-    r"<!(?:ENTITY|DOCTYPE)[^>]+SYSTEM[^>]+>": ((r"<!(?:ENTITY|DOCTYPE)", r">"),),
-    r"(?:<!\[CDATA\[.*?\]\]>)": ((r"<!\[CDATA\[", r"\]\]>"),),
-    r"<!DOCTYPE[^>\[]*\[[\s\S]*?<!ENTITY": ((r"<!DOCTYPE", r"<!ENTITY"),),
-}
-
-_SCAN_WINDOW_PATTERNS: dict[str, tuple[tuple[re.Pattern, re.Pattern], ...]] = {
-    source: tuple(
-        (re.compile(prefix, re.IGNORECASE), re.compile(terminator, re.IGNORECASE))
-        for prefix, terminator in pairs
-    )
-    for source, pairs in _SCAN_WINDOW_BOUND_SOURCES.items()
-}
-
-
-def _iter_scan_window_matches(
-    content: str,
-    pattern: re.Pattern,
-    bounds: tuple[tuple[re.Pattern, re.Pattern], ...],
-) -> Iterator[re.Match]:
-    if pattern.pattern == r"<!(?:ENTITY|DOCTYPE)[^>]+SYSTEM[^>]+>":
-        yield from _xml_system_finditer(content)
-        return
-    if pattern.pattern == r"<!DOCTYPE[^>\[]*\[[\s\S]*?<!ENTITY":
-        yield from _xml_internal_entity_finditer(content)
-        return
-    for prefix, terminator in bounds:
-        yield from bounded_finditer(content, pattern, prefix, terminator)
-
 
 def _sanitize_for_reporting(value: str) -> str:
     return value.encode("utf-8", errors="surrogateescape").decode(
@@ -348,14 +308,32 @@ def _first_accepted_regex_threat(
     context: str = "unknown",
     binary_prefix: list[int] | None = None,
 ) -> dict[str, Any] | None:
-    with _record_inline_cpu():
-        for match in matches:
-            threat = _build_regex_threat(
-                pattern, match, category, pattern_start, context, binary_prefix
-            )
-            if threat:
-                return threat
+    for match in matches:
+        threat = _build_regex_threat(
+            pattern, match, category, pattern_start, context, binary_prefix
+        )
+        if threat:
+            return threat
     return None
+
+
+def _pass_slice_start() -> tuple[float, bool]:
+    request_slice_start = _scan_slice_start.get()
+    if request_slice_start is None:
+        return time.monotonic(), False
+    return request_slice_start, True
+
+
+def _yield_once_slice_elapsed(slice_start: float, request_scoped: bool) -> float:
+    if time.monotonic() - slice_start < _EVENT_LOOP_SLICE_SECONDS:
+        return slice_start
+    _charge_inline_cpu()
+    _yield_to_event_loop()
+    _restart_inline_cpu()
+    slice_start = time.monotonic()
+    if request_scoped:
+        _scan_slice_start.set(slice_start)
+    return slice_start
 
 
 class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixin):
@@ -388,8 +366,7 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
 
         scan_window_matcher = _PATTERN_SCAN_WINDOW_MATCHERS.get(pattern.pattern)
         if scan_window_matcher is not None:
-            with _record_inline_cpu():
-                matches = scan_window_matcher(content, pattern)
+            matches = scan_window_matcher(content, pattern)
             threat = _first_accepted_regex_threat(
                 iter(matches),
                 pattern,
@@ -470,7 +447,7 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
             _timed_in_worker(lambda: list(finder(content)), worker_cpu)
         )
         try:
-            matches = _await_regex_future(future, timeout)
+            matches = _suspended(_await_regex_future(future, timeout))
             report_scan_success()
             _record_scan_time(sum(worker_cpu))
         except concurrent.futures.TimeoutError:
@@ -542,7 +519,7 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
             _timed_in_worker(lambda: pattern.search(content, search_from), worker_cpu)
         )
         try:
-            match = _await_regex_future(future, timeout)
+            match = _suspended(_await_regex_future(future, timeout))
             report_scan_success()
             _record_scan_time(sum(worker_cpu))
             return match, False
@@ -604,68 +581,71 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
         performance_monitor = state.performance_monitor
         binary_prefix = build_binary_prefix(content)
 
-        slice_start = time.monotonic()
-        for pattern, contexts, category in all_patterns:
-            if _scan_time_budget_exhausted():
-                budget_threat = _scan_time_budget_exhausted_threat(
-                    _resolve_pattern_weight(
-                        _SCAN_TIME_BUDGET_EXHAUSTED_PATTERN, "custom"
+        time_cap = _scan_time_cap.get()
+        slice_start, request_scoped = _pass_slice_start()
+        mark_token = _open_cpu_pass()
+        try:
+            for pattern, contexts, category in all_patterns:
+                if time_cap is not None and _scan_time_budget_exhausted():
+                    budget_threat = _scan_time_budget_exhausted_threat(
+                        _resolve_pattern_weight(
+                            _SCAN_TIME_BUDGET_EXHAUSTED_PATTERN, "custom"
+                        )
                     )
+                    _warn_scan_time_cap_reached_once(ip_address)
+                    threats.append(budget_threat)
+                    matched_patterns.append(budget_threat["pattern"])
+                    timeouts.append(budget_threat["pattern"])
+                    break
+                if _pattern_should_be_skipped(
+                    pattern,
+                    contexts,
+                    category,
+                    raw_view_only=raw_view_only,
+                    skip_filter=skip_filter,
+                    normalized_context=normalized,
+                    enabled_categories=enabled_categories,
+                    url_decoded_view_only=url_decoded_view_only,
+                ):
+                    continue
+
+                pattern_start = time.monotonic()
+
+                scan_content = content
+                threat, timeout_occurred = self._check_regex_pattern(
+                    pattern,
+                    scan_content,
+                    ip_address,
+                    pattern_start,
+                    category,
+                    state=state,
+                    context=validator_context,
+                    binary_prefix=binary_prefix,
                 )
-                _warn_scan_time_cap_reached_once(ip_address)
-                threats.append(budget_threat)
-                matched_patterns.append(budget_threat["pattern"])
-                timeouts.append(budget_threat["pattern"])
-                break
-            if _pattern_should_be_skipped(
-                pattern,
-                contexts,
-                category,
-                raw_view_only=raw_view_only,
-                skip_filter=skip_filter,
-                normalized_context=normalized,
-                enabled_categories=enabled_categories,
-                url_decoded_view_only=url_decoded_view_only,
-            ):
-                continue
 
-            pattern_start = time.monotonic()
+                slice_start = _yield_once_slice_elapsed(slice_start, request_scoped)
 
-            scan_content = content
-            threat, timeout_occurred = self._check_regex_pattern(
-                pattern,
-                scan_content,
-                ip_address,
-                pattern_start,
-                category,
-                state=state,
-                context=validator_context,
-                binary_prefix=binary_prefix,
-            )
+                if timeout_occurred:
+                    timeouts.append(pattern.pattern)
+                    if not threat:
+                        threat = _build_timeout_threat(pattern, category, pattern_start)
 
-            pattern_end = time.monotonic()
-            if pattern_end - slice_start >= _EVENT_LOOP_SLICE_SECONDS:
-                _yield_to_event_loop()
-                slice_start = time.monotonic()
+                if threat:
+                    threats.append(threat)
+                    matched_patterns.append(pattern.pattern)
 
-            if timeout_occurred:
-                timeouts.append(pattern.pattern)
-                if not threat:
-                    threat = _build_timeout_threat(pattern, category, pattern_start)
+                if performance_monitor:
+                    performance_monitor.record_metric(
+                        pattern=pattern.pattern,
+                        execution_time=time.monotonic() - pattern_start,
+                        content_length=len(content),
+                        matched=bool(threat),
+                        timeout=timeout_occurred,
+                        agent_handler=self.agent_handler,
+                        correlation_id=correlation_id,
+                    )
 
-            if threat:
-                threats.append(threat)
-                matched_patterns.append(pattern.pattern)
-
-            if performance_monitor:
-                performance_monitor.record_metric(
-                    pattern=pattern.pattern,
-                    execution_time=time.monotonic() - pattern_start,
-                    content_length=len(content),
-                    matched=bool(threat),
-                    timeout=timeout_occurred,
-                    agent_handler=self.agent_handler,
-                    correlation_id=correlation_id,
-                )
+        finally:
+            _close_cpu_pass(mark_token)
 
         return threats, matched_patterns, timeouts
