@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import time
+
 from guard_core.detection_engine._redos_intervals import MAX_CODE_POINT, _IntervalSet
 
 _FOLD_GROUPS: tuple[frozenset[int], ...] | None = None
 _FOLD_GROUP_BY_CODE_POINT: dict[int, frozenset[int]] | None = None
 _EXPAND_IGNORECASE_MEMBER_SCAN_CEILING = 4096
+_FOLD_BLOCK_SIZE = 256
+_FOLD_BUILD_YIELD_BLOCKS = 32
 
 
 def _uf_find(parent: dict[int, int], code_point: int) -> int:
@@ -50,15 +54,27 @@ def _multi_member_groups(
     return tuple(frozenset(group) for group in groups.values() if len(group) > 1)
 
 
+def _block_has_case_variants(block: str) -> bool:
+    return not (
+        block.lower() == block and block.upper() == block and block.casefold() == block
+    )
+
+
 def _build_fold_groups() -> tuple[frozenset[int], ...]:
     parent: dict[int, int] = {}
     multi_char_fold_owner: dict[str, int] = {}
-    for code_point in range(MAX_CODE_POINT + 1):
-        char = chr(code_point)
-        for variant in (char.lower(), char.upper(), char.casefold()):
-            _register_fold_variant(
-                parent, multi_char_fold_owner, code_point, char, variant
-            )
+    for start in range(0, MAX_CODE_POINT + 1, _FOLD_BLOCK_SIZE):
+        stop = min(start + _FOLD_BLOCK_SIZE, MAX_CODE_POINT + 1)
+        block = "".join(map(chr, range(start, stop)))
+        if (start // _FOLD_BLOCK_SIZE) % _FOLD_BUILD_YIELD_BLOCKS == 0:
+            time.sleep(0)
+        if not _block_has_case_variants(block):
+            continue
+        for code_point, char in enumerate(block, start):
+            for variant in (char.lower(), char.upper(), char.casefold()):
+                _register_fold_variant(
+                    parent, multi_char_fold_owner, code_point, char, variant
+                )
     return _multi_member_groups(parent)
 
 
