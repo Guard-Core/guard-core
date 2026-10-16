@@ -203,6 +203,7 @@ def _feed_rate_limit_autoban(ip: str, config: SecurityConfig) -> None:
         "rate_limit_exceeded",
     )
     if result is not None:
+        _by_ip_autoban_counts.pop(ip, None)
         _by_ip_logger.warning(
             "check_rate_limit_by_ip: auto-banned %s (rate_limit_exceeded)", ip
         )

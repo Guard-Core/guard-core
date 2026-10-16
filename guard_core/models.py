@@ -39,6 +39,7 @@ from guard_core._security_config_validators import (
     _warn_country_allowlist_shadows_blocklist,
     _warn_empty_enabled_detection_categories,
     _warn_exempt_ips_prefix_zero,
+    _warn_hostile_signal_bans_default_off,
     _warn_trusted_proxies_prefix_zero,
     _warn_whitelist_prefix_zero,
 )
@@ -264,12 +265,10 @@ class SecurityConfig(_SecurityConfigFields):
         return self
 
     @model_validator(mode="after")
-    def warn_exempt_ips_prefix_zero(self) -> Self:
+    def warn_about_risky_or_unset_settings(self) -> Self:
         _warn_exempt_ips_prefix_zero(self.exempt_ips)
-        return self
-
-    @model_validator(mode="after")
-    def warn_empty_enabled_detection_categories(self) -> Self:
+        if "ban_on_hostile_signals" not in self.model_fields_set:
+            _warn_hostile_signal_bans_default_off(stacklevel=4)
         if self.enable_penetration_detection and not self.enabled_detection_categories:
             _warn_empty_enabled_detection_categories()
         return self

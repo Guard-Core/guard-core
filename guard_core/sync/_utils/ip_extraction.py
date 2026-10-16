@@ -1,4 +1,8 @@
 import logging
+import threading
+import time
+from collections import OrderedDict, deque
+from collections.abc import Sequence
 from ipaddress import IPv4Address, IPv6Address, ip_address, ip_network
 from typing import Any
 
@@ -12,19 +16,31 @@ logger = logging.getLogger("guard_core")
 UNKNOWN_CLIENT_IDENTITY = "unknown"
 
 
-def _proxy_matches(connecting_ip: str, connecting_ip_obj: Any, proxy: str) -> bool:
-    if "/" in proxy:
-        return connecting_ip_obj in ip_network(proxy, strict=False)
-    return connecting_ip == proxy
-
-
-def _is_trusted_proxy(connecting_ip: str, trusted_proxies: list[str]) -> bool:
+def _peer_address_for_matching(value: str) -> IPv4Address | IPv6Address | None:
+    candidate = value.strip()
+    if candidate.startswith("[") and candidate.endswith("]"):
+        candidate = candidate[1:-1]
     try:
-        connecting_ip_obj = ip_address(connecting_ip)
-        return any(
-            _proxy_matches(connecting_ip, connecting_ip_obj, proxy)
-            for proxy in trusted_proxies
-        )
+        addr = ip_address(candidate.partition("%")[0])
+    except ValueError:
+        return None
+    if isinstance(addr, IPv6Address) and addr.ipv4_mapped is not None:
+        return addr.ipv4_mapped
+    return addr
+
+
+def _proxy_matches(peer_address: IPv4Address | IPv6Address, proxy: str) -> bool:
+    if "/" in proxy:
+        return peer_address in ip_network(proxy, strict=False)
+    return peer_address == _peer_address_for_matching(proxy)
+
+
+def _is_trusted_proxy(connecting_ip: str, trusted_proxies: Sequence[str]) -> bool:
+    peer_address = _peer_address_for_matching(connecting_ip)
+    if peer_address is None:
+        return False
+    try:
+        return any(_proxy_matches(peer_address, proxy) for proxy in trusted_proxies)
     except ValueError:
         return False
 
@@ -192,6 +208,59 @@ def _display_forwarded_chain(value: str) -> str:
     return ",".join(displayed)
 
 
+_UNTRUSTED_XFF_WINDOW_SECONDS = 60
+_UNTRUSTED_XFF_ROTATION_DISTINCT_VALUES = 3
+_UNTRUSTED_XFF_RECENT_LIMIT = 16
+_MAX_TRACKED_UNTRUSTED_PEERS = 10_000
+_untrusted_peer_lock = threading.Lock()
+
+
+class _UntrustedPeerActivity:
+    def __init__(self) -> None:
+        self.last_warned: float | None = None
+        self.recent: deque[tuple[float, str]] = deque(
+            maxlen=_UNTRUSTED_XFF_RECENT_LIMIT
+        )
+
+
+_untrusted_peers: OrderedDict[str, _UntrustedPeerActivity] = OrderedDict()
+
+
+def _observe_untrusted_forwarded_for(
+    peer: str, forwarded_for: str
+) -> tuple[bool, bool]:
+    """Record an X-Forwarded-For value sent by an untrusted peer.
+
+    Returns ``(should_warn, is_rotating)``: ``should_warn`` is true at most once
+    per peer per window, and ``is_rotating`` is true when the peer sent at least
+    ``_UNTRUSTED_XFF_ROTATION_DISTINCT_VALUES`` distinct values inside the window.
+    """
+    now = time.monotonic()
+    cutoff = now - _UNTRUSTED_XFF_WINDOW_SECONDS
+    with _untrusted_peer_lock:
+        activity = _untrusted_peers.pop(peer, None)
+        if activity is None:
+            if len(_untrusted_peers) >= _MAX_TRACKED_UNTRUSTED_PEERS:
+                _untrusted_peers.popitem(last=False)
+            activity = _UntrustedPeerActivity()
+        _untrusted_peers[peer] = activity
+        activity.recent.append((now, forwarded_for))
+        distinct_values = {value for seen, value in activity.recent if seen > cutoff}
+        should_warn = activity.last_warned is None or activity.last_warned <= cutoff
+        if should_warn:
+            activity.last_warned = now
+    return should_warn, len(distinct_values) >= _UNTRUSTED_XFF_ROTATION_DISTINCT_VALUES
+
+
+def forwarded_for_addresses(forwarded_for: str) -> list[IPv4Address | IPv6Address]:
+    addresses = []
+    for entry in forwarded_for.split(","):
+        address = _peer_address_for_matching(_strip_forwarded_entry_port(entry.strip()))
+        if address is not None:
+            addresses.append(address)
+    return addresses
+
+
 def _handle_untrusted_proxy(
     request: SyncGuardRequest,
     connecting_ip: str,
@@ -203,14 +272,22 @@ def _handle_untrusted_proxy(
         _warn_forwarded_header_preempted(connecting_ip, forwarded_for)
         display_forwarded_for = _display_forwarded_chain(forwarded_for)
         safe_forwarded_for = _sanitize_for_log(display_forwarded_for)
-        log_fn = (
-            logger.debug if _is_private_or_loopback(connecting_ip) else logger.warning
-        )
-        log_fn(
+        message = (
             f"Potential IP spoof attempt: X-Forwarded-For header "
             f"({safe_forwarded_for}) received from untrusted IP "
             f"{_sanitize_for_log(connecting_ip)}"
         )
+        peer_is_public = not _is_private_or_loopback(connecting_ip)
+        log_fn = logger.warning if peer_is_public else logger.debug
+        should_log = True
+        if peer_is_public:
+            should_log, is_rotating = _observe_untrusted_forwarded_for(
+                canonical_connecting_ip, forwarded_for
+            )
+            request.state.untrusted_forwarded_for = forwarded_for
+            request.state.untrusted_forwarded_for_rotating = is_rotating
+        if should_log:
+            log_fn(message)
         from guard_core.sync.core.events.event_types import EVENT_SUSPICIOUS_REQUEST
 
         send_agent_event(

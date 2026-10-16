@@ -172,10 +172,27 @@ class _SecurityConfigFields(BaseModel):
         description=(
             "Per-category ban thresholds and durations. Categories are the "
             "penetration-detection categories plus the pseudo-category "
-            "'rate_limit' (used only when enable_rate_limit_auto_ban is on) and "
+            "'rate_limit' (used only when enable_rate_limit_auto_ban is on), "
             "'honeypot' (a filled honeypot_detection trap field bans on the first "
-            "hit with auto_ban_duration unless an entry here overrides it). "
-            "Unlisted categories fall back to auto_ban_threshold / auto_ban_duration."
+            "hit with auto_ban_duration unless an entry here overrides it) and the "
+            "hostile-signal categories 'auth_failure', 'required_header', "
+            "'referrer', 'ip_list', 'country', 'cloud', 'user_agent' "
+            "(route and global block-list denials share one category) and "
+            "'ip_spoofing' (an untrusted public peer forging an X-Forwarded-For "
+            "that claims a whitelisted or trusted-proxy address, or sending three "
+            "distinct values within a minute). Each counts one active-mode event "
+            "and defaults to auto_ban_threshold / auto_ban_duration; counts "
+            "cover the last hour and reset when a ban is applied. Unlisted "
+            "categories fall back to auto_ban_threshold / auto_ban_duration."
+        ),
+    )
+
+    ban_on_hostile_signals: bool = Field(
+        default=False,
+        description=(
+            "Count failed authentication, missing required headers, bad "
+            "referrers, block-list hits and clear X-Forwarded-For forgery toward "
+            "automatic bans. Off by default in 4.5.0; on by default from 5.0.0."
         ),
     )
 

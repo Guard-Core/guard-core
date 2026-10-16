@@ -21,6 +21,7 @@ from guard_core.handlers.ratelimit_handler import (
 from guard_core.models import SecurityConfig
 from guard_core.sync._utils import body_reader
 from guard_core.sync._utils import detection_scan as _detection_scan_module
+from guard_core.sync._utils import ip_extraction as _ip_extraction_module
 from guard_core.sync.core.events import logfire_handler as _logfire_handler_module
 from guard_core.sync.core.events import otel_handler as _otel_handler_module
 from guard_core.sync.handlers import ipban_handler as _ipban_module
@@ -153,6 +154,10 @@ def _isolate_event_handler_modules() -> Any:
 
 _ORIGINAL_IP_BAN_MANAGER = _ipban_module.ip_ban_manager
 _ORIGINAL_SECURITY_HEADERS_MANAGER = _security_headers_module.security_headers_manager
+
+
+def _reset_untrusted_forwarded_for_tracking() -> None:
+    _ip_extraction_module._untrusted_peers.clear()
 
 
 def _reset_ip_ban_manager() -> None:
@@ -364,6 +369,7 @@ def pytest_runtest_setup(item: pytest.Item) -> None:
 
     _detection_singleton_snapshots[id(item)] = _snapshot_detection_singleton()
 
+    _reset_untrusted_forwarded_for_tracking()
     _reset_ip_ban_manager()
     _reset_cloud_handler()
     _reset_detection_scan_budgets()

@@ -213,7 +213,7 @@ async def test_is_ip_allowed_cloud_providers(
     config = SecurityConfig(block_cloud_providers={"AWS"})
 
     assert await is_ip_allowed("127.0.0.1", config)
-    assert not await is_ip_allowed("13.59.255.255", config)
+    assert await is_ip_allowed("13.59.255.255", config)
     assert await is_ip_allowed("8.8.8.8", config)
 
 
@@ -339,47 +339,20 @@ async def test_cloud_provider_blocking(
     assert not await is_ip_allowed("8.8.8.8", security_config)
 
 
-async def test_check_ip_access_cloud_block_names_provider(
+async def test_check_ip_access_leaves_cloud_blocking_to_the_cloud_provider_check(
     mocker: MockerFixture,
 ) -> None:
     from guard_core.handlers.cloud_handler import cloud_handler
     from guard_core.utils import check_ip_access
 
-    mocker.patch.object(cloud_handler, "is_cloud_ip", return_value=True)
-    mocker.patch.object(
-        cloud_handler,
-        "get_cloud_provider_details",
-        return_value=("AWS", "13.0.0.0/8"),
-    )
+    is_cloud_ip = mocker.patch.object(cloud_handler, "is_cloud_ip", return_value=True)
 
     config = SecurityConfig(block_cloud_providers={"AWS"})
 
     result = await check_ip_access("13.59.255.255", config)
 
-    assert result.allowed is False
-    assert "AWS" in result.reason
-    assert "allowlist/blocklist" not in result.reason
-    assert result.cloud_provider == "AWS"
-    assert result.network == "13.0.0.0/8"
-
-
-async def test_check_ip_access_cloud_block_falls_back_without_details(
-    mocker: MockerFixture,
-) -> None:
-    from guard_core.handlers.cloud_handler import cloud_handler
-    from guard_core.utils import check_ip_access
-
-    mocker.patch.object(cloud_handler, "is_cloud_ip", return_value=True)
-    mocker.patch.object(cloud_handler, "get_cloud_provider_details", return_value=None)
-
-    config = SecurityConfig(block_cloud_providers={"AWS"})
-
-    result = await check_ip_access("13.59.255.255", config)
-
-    assert result.allowed is False
-    assert result.reason == "IP 13.59.255.255 not in global allowlist/blocklist"
-    assert result.cloud_provider is None
-    assert result.network is None
+    assert result.allowed is True
+    is_cloud_ip.assert_not_called()
 
 
 async def test_check_ip_access_country_block_names_country(
@@ -397,8 +370,6 @@ async def test_check_ip_access_country_block_names_country(
     assert result.allowed is False
     assert "RU" in result.reason
     assert "allowlist/blocklist" not in result.reason
-    assert result.cloud_provider is None
-    assert result.network is None
 
 
 async def test_check_ip_access_blocklist_block_keeps_existing_reason() -> None:
@@ -410,7 +381,6 @@ async def test_check_ip_access_blocklist_block_keeps_existing_reason() -> None:
 
     assert result.allowed is False
     assert result.reason == "IP 192.168.1.1 not in global allowlist/blocklist"
-    assert result.cloud_provider is None
 
 
 async def test_check_ip_access_whitelist_block_keeps_existing_reason() -> None:
@@ -501,8 +471,6 @@ async def test_check_ip_access_allowed_has_no_reason() -> None:
     result = await check_ip_access("8.8.8.8", SecurityConfig())
 
     assert result.allowed is True
-    assert result.cloud_provider is None
-    assert result.network is None
 
 
 async def test_check_ip_access_unknown_identity_with_no_lists_is_allowed() -> None:
@@ -613,7 +581,7 @@ async def test_is_ip_allowed_regression_bool_outcomes_by_block_type(
     )
     cloud_config = SecurityConfig(block_cloud_providers={"AWS"})
     result = await is_ip_allowed("13.59.255.255", cloud_config)
-    assert result is False
+    assert result is True
     result = await is_ip_allowed("8.8.8.8", cloud_config)
     assert result is True
 

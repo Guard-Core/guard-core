@@ -98,7 +98,9 @@ async def test_route_whitelisted_ip_still_scanned_for_attacks(_mock_log: Any) ->
 
 
 @patch("guard_core.core.checks.implementations.ip_security.log_activity")
-async def test_cloud_block_on_route_whitelisted_ip_is_coherent(_mock_log: Any) -> None:
+async def test_global_cloud_block_is_left_to_the_cloud_provider_check(
+    _mock_log: Any,
+) -> None:
     cfg = SecurityConfig()
     cfg.passive_mode = False
     cfg.block_cloud_providers = frozenset({"AWS"})
@@ -110,14 +112,11 @@ async def test_cloud_block_on_route_whitelisted_ip_is_coherent(_mock_log: Any) -
     with (
         patch.object(check, "ip_ban_manager") as mock_ban_manager,
         patch("guard_core.handlers.cloud_handler.cloud_handler") as cloud,
-        patch(
-            "guard_core.core.checks.implementations.ip_security."
-            "escalate_identity_violation"
-        ),
     ):
         mock_ban_manager.is_ip_banned = AsyncMock(return_value=False)
         cloud.is_cloud_ip = Mock(return_value=True)
         result = await check.check(req)
 
-    assert result is not None
+    assert result is None
+    cloud.is_cloud_ip.assert_not_called()
     assert req.state.is_whitelisted is False

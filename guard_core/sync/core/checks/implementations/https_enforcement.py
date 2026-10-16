@@ -2,6 +2,7 @@ from collections.abc import Collection
 
 from guard_core.models import SecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
+from guard_core.sync._utils.ip_extraction import _is_trusted_proxy
 from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.core.checks.helpers import route_config_applies
 from guard_core.sync.decorators.base import RouteConfig
@@ -38,16 +39,7 @@ class HttpsEnforcementCheck(SecurityCheck):
         return is_https
 
     def _is_trusted_proxy(self, connecting_ip: str) -> bool:
-        from ipaddress import ip_address, ip_network
-
-        for proxy in self.config.trusted_proxies:
-            if "/" not in proxy:
-                if connecting_ip == proxy:
-                    return True
-            else:
-                if ip_address(connecting_ip) in ip_network(proxy, strict=False):
-                    return True
-        return False
+        return _is_trusted_proxy(connecting_ip, self.config.trusted_proxies)
 
     def _create_https_redirect(self, request: SyncGuardRequest) -> GuardResponse:
         result: GuardResponse = self.middleware.response_factory.create_https_redirect(

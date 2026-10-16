@@ -200,9 +200,9 @@ async def is_ip_allowed(
     """
     Check if IP address is allowed. `skip_ip_lists`/`skip_countries` let a
     caller that has already evaluated one aspect (e.g. a route-level check)
-    skip re-evaluating it here. Delegates to `check_ip_access()`, which also
-    reports cloud-provider blocks; `is_ip_allowed()` keeps its bool-only
-    return for backward compatibility.
+    skip re-evaluating it here. Delegates to `check_ip_access()`, which evaluates the IP lists and
+    country rules (cloud providers are blocked by `CloudProviderCheck`);
+    `is_ip_allowed()` keeps its bool-only return for backward compatibility.
     """
 ```
 

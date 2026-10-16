@@ -7,6 +7,7 @@ from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.core.checks.helpers import (
     emit_access_denied_event,
     is_referrer_domain_allowed,
+    report_hostile_signal,
     route_config_applies,
 )
 from guard_core.sync.core.events.event_types import EVENT_DECORATOR_VIOLATION
@@ -57,6 +58,8 @@ class ReferrerCheck(SecurityCheck):
             allowed_domains=route_config.require_referrer,
         )
 
+        report_hostile_signal(self, request, "referrer", "Missing referrer header")
+
         if not self.config.passive_mode:
             return self.middleware.create_error_response(
                 status_code=403,
@@ -99,6 +102,10 @@ class ReferrerCheck(SecurityCheck):
             violation_type="require_referrer",
             referrer=redacted_referrer,
             allowed_domains=route_config.require_referrer,
+        )
+
+        report_hostile_signal(
+            self, request, "referrer", f"Invalid referrer: {redacted_referrer}"
         )
 
         if not self.config.passive_mode:

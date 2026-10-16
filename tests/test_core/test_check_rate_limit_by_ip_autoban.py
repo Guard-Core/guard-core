@@ -256,13 +256,13 @@ async def test_already_banned_ip_makes_zero_additional_ban_calls() -> None:
 
         assert await check_rate_limit_by_ip(ip, config) is False
         assert ban_calls == [(ip, 1234, "rate_limit_exceeded")]
-        assert _by_ip_autoban_counts[ip] == 2
+        assert ip not in _by_ip_autoban_counts
 
         for _ in range(3):
             assert await check_rate_limit_by_ip(ip, config) is False
 
         assert ban_calls == [(ip, 1234, "rate_limit_exceeded")]
-        assert _by_ip_autoban_counts[ip] == 2
+        assert ip not in _by_ip_autoban_counts
     finally:
         IPBanManager._instance = None
 

@@ -82,7 +82,18 @@ class ThreatBanConfig(BaseModel):
 
 
 THREAT_BAN_CONFIG_CATEGORIES: frozenset[str] = ALL_DETECTION_CATEGORIES | frozenset(
-    {"rate_limit", "honeypot"}
+    {
+        "rate_limit",
+        "honeypot",
+        "auth_failure",
+        "required_header",
+        "referrer",
+        "ip_list",
+        "country",
+        "cloud",
+        "user_agent",
+        "ip_spoofing",
+    }
 )
 
 
@@ -217,6 +228,29 @@ def _warn_exempt_ips_prefix_zero(entries: tuple[str, ...]) -> None:
         "exempt_ips contains a /0 network (0.0.0.0/0 or ::/0): every "
         "address skips rate limiting and the user-agent and cloud-provider "
         "checks. Remove the /0 entry or list the specific networks you trust."
+    )
+
+
+_hostile_signal_ban_default_warned = False
+
+_HOSTILE_SIGNAL_BAN_DEFAULT_WARNING = (
+    "ban_on_hostile_signals is not set. guard-core 5.0.0 turns it on: failed "
+    "authentication, missing required headers, bad referrers, block-list hits "
+    "and clear X-Forwarded-For forgery will then count toward automatic IP "
+    "bans. Pass ban_on_hostile_signals=True to SecurityConfig now to opt in, or "
+    "ban_on_hostile_signals=False to state that you want today's behavior. This "
+    "warning is logged once."
+)
+
+
+def _warn_hostile_signal_bans_default_off(*, stacklevel: int) -> None:
+    global _hostile_signal_ban_default_warned
+    if _hostile_signal_ban_default_warned:
+        return
+    _hostile_signal_ban_default_warned = True
+    logger.warning(_HOSTILE_SIGNAL_BAN_DEFAULT_WARNING)
+    warnings.warn(
+        _HOSTILE_SIGNAL_BAN_DEFAULT_WARNING, DeprecationWarning, stacklevel=stacklevel
     )
 
 

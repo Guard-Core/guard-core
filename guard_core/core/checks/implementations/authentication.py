@@ -6,6 +6,7 @@ from guard_core.core.checks.base import SecurityCheck
 from guard_core.core.checks.helpers import (
     emit_authentication_failed_event,
     extract_credential,
+    report_hostile_signal,
     route_config_applies,
 )
 from guard_core.core.events.event_types import EVENT_DECORATOR_VIOLATION
@@ -72,6 +73,8 @@ class AuthenticationCheck(SecurityCheck):
             violation_type=violation_type,
             passive_mode=self.config.passive_mode,
         )
+
+        await report_hostile_signal(self, request, "auth_failure", auth_reason)
 
         if not self.config.passive_mode:
             return await self.middleware.create_error_response(

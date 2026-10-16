@@ -386,7 +386,7 @@ async def test_per_category_ban_config_overrides_a_high_flat_threshold(
     )
 
     ban.ban_ip.assert_called_once_with("9.9.9.9", 99999, "penetration_attempt:xss")
-    assert mw.suspicious_request_counts["9.9.9.9"] == {"xss": 1}
+    assert "9.9.9.9" not in mw.suspicious_request_counts
 
 
 async def test_per_category_ban_takes_priority_over_flat_ban(

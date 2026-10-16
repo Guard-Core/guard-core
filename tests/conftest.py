@@ -17,8 +17,10 @@ import pytest
 from guard_agent.models import AgentConfig, SecurityEvent, SecurityMetric
 from pytest import TempPathFactory
 
+from guard_core import _security_config_field_validators as _field_validators_module
 from guard_core._utils import body_reader
 from guard_core._utils import detection_scan as _detection_scan_module
+from guard_core._utils import ip_extraction as _ip_extraction_module
 from guard_core.core.events import logfire_handler as _logfire_handler_module
 from guard_core.core.events import otel_handler as _otel_handler_module
 from guard_core.handlers import ipban_handler as _ipban_module
@@ -49,6 +51,7 @@ if TYPE_CHECKING:
     from tests.live_smoke.driver import ScenarioContext, Stack
 
 _suspatterns_module._legacy_detection_warned = True
+_field_validators_module._hostile_signal_ban_default_warned = True
 
 IPINFO_TOKEN = os.getenv("IPINFO_TOKEN") or "test_token"
 REDIS_URL = os.getenv("REDIS_URL") or "redis://localhost:6379"
@@ -131,6 +134,10 @@ def _isolate_event_handler_modules() -> Any:
 
 _ORIGINAL_IP_BAN_MANAGER = _ipban_module.ip_ban_manager
 _ORIGINAL_SECURITY_HEADERS_MANAGER = _security_headers_module.security_headers_manager
+
+
+def _reset_untrusted_forwarded_for_tracking() -> None:
+    _ip_extraction_module._untrusted_peers.clear()
 
 
 def _reset_ip_ban_manager() -> None:
@@ -348,6 +355,7 @@ class MockGuardResponseFactory:
 
 @pytest.fixture(autouse=True)
 async def reset_state() -> AsyncGenerator[None, None]:
+    _reset_untrusted_forwarded_for_tracking()
     _reset_ip_ban_manager()
     _reset_cloud_handler()
     _reset_detection_scan_budgets()
@@ -368,6 +376,7 @@ async def reset_state() -> AsyncGenerator[None, None]:
     sus_patterns_handler.compiled_custom_patterns = set()
     sus_patterns_handler._detection_state = _LEGACY_DETECTION_STATE
     _suspatterns_module._legacy_detection_warned = True
+    _field_validators_module._hostile_signal_ban_default_warned = True
 
     _reset_ip_ban_manager()
     _reset_cloud_handler()

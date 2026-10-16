@@ -75,7 +75,7 @@ ___
 IP Allow/Block Logic
 --------------------
 
-The function `check_ip_access()` in `guard_core.utils` implements the global IP evaluation chain; `IpSecurityCheck._check_global_ip_restrictions` calls it directly. `is_ip_allowed()` is a thin bool-returning wrapper around `check_ip_access()` (same `skip_ip_lists`/`skip_countries` signature) kept for external callers that only need a yes/no answer, not `check_ip_access()`'s richer `IpAccessResult` (which also names the cloud provider and network on a cloud-provider block); it is not called anywhere else inside `guard_core`. `IpSecurityCheck` calls `check_ip_access()` for every request that reaches this step (after any route-level check has run and not blocked), passing `skip_ip_lists` / `skip_countries` flags that suppress the IP-list or country gate independently: `skip_ip_lists` is `True` whenever the route declares a non-empty `ip_whitelist` (a non-matching IP would already have been denied by the route-level step above, so reaching here means it matched); `skip_countries` is `True` only when the route's `whitelist_countries` actually matches the resolved country for this request. A route `ip_whitelist` match does not, by itself, suppress country enforcement.
+The function `check_ip_access()` in `guard_core.utils` implements the global IP evaluation chain; `IpSecurityCheck._check_global_ip_restrictions` calls it directly. `is_ip_allowed()` is a thin bool-returning wrapper around `check_ip_access()` (same `skip_ip_lists`/`skip_countries` signature) kept for external callers that only need a yes/no answer, not `check_ip_access()`'s richer `IpAccessResult` (which carries the denial reason and the ban category of a denial); it is not called anywhere else inside `guard_core`. `IpSecurityCheck` calls `check_ip_access()` for every request that reaches this step (after any route-level check has run and not blocked), passing `skip_ip_lists` / `skip_countries` flags that suppress the IP-list or country gate independently: `skip_ip_lists` is `True` whenever the route declares a non-empty `ip_whitelist` (a non-matching IP would already have been denied by the route-level step above, so reaching here means it matched); `skip_countries` is `True` only when the route's `whitelist_countries` actually matches the resolved country for this request. A route `ip_whitelist` match does not, by itself, suppress country enforcement.
 
 ### Evaluation Order
 
@@ -86,7 +86,6 @@ flowchart TD
     WL{"2. IP in whitelist?"}
     BL{"3. IP in blacklist?"}
     CC{"4. Country blocked?"}
-    CL{"5. Cloud provider blocked?"}
     ALLOW["return True"]
     DENY["return False"]
 
@@ -98,9 +97,7 @@ flowchart TD
     BL -- Yes --> DENY
     BL -- No --> CC
     CC -- Yes --> DENY
-    CC -- No --> CL
-    CL -- Yes --> DENY
-    CL -- No --> ALLOW
+    CC -- No --> ALLOW
 ```
 
 When `config.whitelist` is configured, it alone governs the IP-list gate, a whitelist match is allowed even if the same IP also falls inside `config.blacklist` (explicit allow overrides deny, since v3.2.0). The blacklist is only consulted when no whitelist is configured.
@@ -144,7 +141,7 @@ Uses the `GeoIPHandler` protocol to resolve the country code for an IP, then che
 
 ### Cloud Provider Check
 
-Delegates to `CloudManager.is_cloud_ip()` to check if the IP belongs to a blocked cloud provider. Before the provider's ranges are populated, `is_cloud_ip()` fails open the same way, `False`, not blocked, and logs a rate-limited `WARNING` so the window is visible instead of silent; see [Provider Status](../configuration/security-config.md#provider-status).
+`check_ip_access()` does not evaluate cloud providers. Cloud blocking, global and per route, runs only in `CloudProviderCheck`, which honors the global `whitelist`, `exempt_ips`, `bypass(["clouds"])` and route cloud lists. A global cloud block answers `403` with `Cloud provider IP not allowed`. The provider check calls `CloudManager.is_cloud_ip()`. Before the provider's ranges are populated, `is_cloud_ip()` fails open, `False`, not blocked, and logs a rate-limited `WARNING` so the window is visible.
 
 ### Provider Status
 
@@ -182,7 +179,7 @@ When no client address can be resolved, `extract_client_ip` returns the sentinel
 2. Get the connecting IP from `request.client_host`.
 3. Get `X-Forwarded-For` header value.
 4. If no trusted proxies are configured, log a spoofing warning (if `X-Forwarded-For` is present) and return the connecting IP.
-5. If the connecting IP is not a trusted proxy, log a spoofing warning and return the connecting IP.
+5. If the connecting IP is not a trusted proxy, log a spoofing warning (WARNING for a public peer, sampled to at most once per peer per 60 seconds, DEBUG for a private or loopback peer) and return the connecting IP. With `ban_on_hostile_signals` on, a public peer that forges a privileged `X-Forwarded-For` or rotates three distinct values within 60 seconds also counts toward an `ip_spoofing` ban.
 6. If the connecting IP is a trusted proxy, extract the client IP from `X-Forwarded-For` counting from the right end of the comma-separated list (`ips[-trusted_proxy_depth]`); with the default depth of `1` that is the rightmost entry, not the leftmost, since each proxy hop appends its own view to the right.
 
 Each comma-separated entry is stripped of a trailing port before parsing (`_strip_forwarded_entry_port`, `guard_core/_utils/ip_extraction.py`): `1.2.3.4:5678` and `[2001:db8::1]:5678` resolve to `1.2.3.4` and `2001:db8::1`. An unbracketed IPv6 address is never mistaken for `host:port`, since the split only fires when an entry has exactly one colon (every real IPv6 literal has at least two); an entry that merely looks like `host:port` but has a non-numeric or missing port (`1.2.3.4:abc`, `[2001:db8::1]:`) is left untouched and fails address parsing exactly as it did before this stripping existed, following the existing malformed-entry path.
@@ -191,11 +188,15 @@ Each comma-separated entry is stripped of a trailing port before parsing (`_stri
 
 ```python
 def _is_trusted_proxy(connecting_ip, trusted_proxies) -> bool:
+    # unwrap ::ffff:a.b.c.d, strip [] and %zone
+    peer = _peer_address_for_matching(connecting_ip)
+    if peer is None:
+        return False
     for proxy in trusted_proxies:
         if "/" in proxy:
-            if ip_address(connecting_ip) in ip_network(proxy, strict=False):
+            if peer in ip_network(proxy, strict=False):
                 return True
-        elif connecting_ip == proxy:
+        elif peer == _peer_address_for_matching(proxy):
             return True
     return False
 ```

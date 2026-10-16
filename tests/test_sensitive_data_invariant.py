@@ -1326,6 +1326,9 @@ async def _run_cloud_blocked(secret: str, ctx: "_ScenarioContext") -> None:
     client_ip = _client_ip_for("cloud_blocked")
     config = _scenario_config(block_cloud_providers=frozenset({"AWS"}))
     middleware = _scenario_middleware(config)
+    middleware.route_resolver.get_cloud_providers_to_check = MagicMock(
+        return_value=["AWS"]
+    )
     request = _tri_surface_request(secret, client_ip)
     pipeline = build_default_pipeline(middleware)
     with (

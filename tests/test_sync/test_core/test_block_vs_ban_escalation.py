@@ -243,7 +243,7 @@ def test_global_whitelist_blocked_by_stricter_route_whitelist_escalates(
     assert result is not None
     assert result.status_code == 403
     assert request.state.is_whitelisted is False
-    assert mw.suspicious_request_counts["203.0.113.55"] == {"sqli": 1}
+    assert "203.0.113.55" not in mw.suspicious_request_counts
     ban.ban_ip.assert_called_once_with(
         "203.0.113.55", config.auto_ban_duration, "penetration_attempt"
     )
@@ -280,7 +280,7 @@ def test_global_whitelist_blocked_by_route_blacklist_still_escalates(
 
     assert result is not None
     assert result.status_code == 403
-    assert mw.suspicious_request_counts["203.0.113.55"] == {"sqli": 1}
+    assert "203.0.113.55" not in mw.suspicious_request_counts
     ban.ban_ip.assert_called_once_with(
         "203.0.113.55", config.auto_ban_duration, "penetration_attempt"
     )
@@ -316,7 +316,7 @@ def test_route_blacklist_without_global_whitelist_escalates_as_control(
 
     assert result is not None
     assert result.status_code == 403
-    assert mw.suspicious_request_counts["203.0.113.55"] == {"sqli": 1}
+    assert "203.0.113.55" not in mw.suspicious_request_counts
     ban.ban_ip.assert_called_once_with(
         "203.0.113.55", config.auto_ban_duration, "penetration_attempt"
     )

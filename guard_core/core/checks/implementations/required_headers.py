@@ -3,6 +3,7 @@ from collections.abc import Collection
 from guard_core.core.checks.base import SecurityCheck
 from guard_core.core.checks.helpers import (
     emit_access_denied_event,
+    report_hostile_signal,
     route_config_applies,
 )
 from guard_core.core.events.event_types import EVENT_DECORATOR_VIOLATION
@@ -71,6 +72,8 @@ class RequiredHeadersCheck(SecurityCheck):
             violation_type=violation_type,
             **{header_field: header},
         )
+
+        await report_hostile_signal(self, request, "required_header", reason)
 
         if not self.config.passive_mode:
             return await self.middleware.create_error_response(

@@ -64,7 +64,10 @@ def _ip_check(config: SecurityConfig, request: Mock, banned: bool = False) -> An
     with (
         patch.object(check, "ip_ban_manager") as ban_manager,
         patch(f"{_IMPL}.ip_security.log_activity", new=MagicMock()),
-        patch(f"{_IMPL}.ip_security.escalate_identity_violation", new=MagicMock()),
+        patch(
+            "guard_core.sync.core.checks.helpers.escalate_identity_violation",
+            new=MagicMock(),
+        ),
     ):
         ban_manager.is_ip_banned = MagicMock(return_value=banned)
         return check.check(request)
@@ -135,23 +138,17 @@ def test_route_require_ip_takes_over_as_it_does_for_the_whitelist() -> None:
 
 
 @pytest.mark.parametrize("ip_list", ["whitelist", "exempt_ips"])
-def test_global_cloud_block_still_applies_as_it_does_for_the_whitelist(
+def test_global_cloud_block_is_left_to_the_cloud_provider_check(
     ip_list: str,
 ) -> None:
-    with (
-        patch.object(cloud_handler, "is_cloud_ip", return_value=True),
-        patch.object(
-            cloud_handler,
-            "get_cloud_provider_details",
-            return_value=("AWS", "3.0.0.0/8"),
-        ),
-    ):
+    with patch.object(cloud_handler, "is_cloud_ip", return_value=True) as is_cloud:
         result = _ip_check(
             _config(block_cloud_providers={"AWS"}, **{ip_list: [EXEMPT_IP]}),
             _request(EXEMPT_IP),
         )
 
-    assert result is not None
+    assert result is None
+    is_cloud.assert_not_called()
 
 
 def _run_twice(check: SecurityCheck, **request_fields: Any) -> tuple[Any, Any]:

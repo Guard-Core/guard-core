@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Sequence
 from dataclasses import dataclass
 from ipaddress import ip_address, ip_network
 from typing import Any
@@ -132,7 +133,7 @@ def check_ip_country(
     return is_blocked
 
 
-def _ip_in_list(ip_addr: Any, ip: str, entries: list[str] | None) -> bool:
+def _ip_in_list(ip_addr: Any, ip: str, entries: Sequence[str] | None) -> bool:
     if not entries:
         return False
     canonical_ip = _canonicalize_ip(ip)
@@ -165,12 +166,24 @@ def _check_blocked_countries(
     return True
 
 
+ALLOW_LIST_MISSES_ARE_HOSTILE = False
+
+
+def allow_list_miss_category(category: str) -> str | None:
+    """Return ``category`` when an allow-list miss counts toward a ban, else ``None``.
+
+    Block-list hits always count. Whether a client that merely is not on an
+    allow-list (IP whitelist, country whitelist) is a hostile signal is a pending
+    maintainer decision, so this one switch keeps those misses uncounted.
+    """
+    return category if ALLOW_LIST_MISSES_ARE_HOSTILE else None
+
+
 @dataclass(frozen=True)
 class IpAccessResult:
     allowed: bool
     reason: str
-    cloud_provider: str | None = None
-    network: str | None = None
+    denial_category: str | None = None
 
 
 _GENERIC_LIST_BLOCK_REASON = "IP {ip} not in global allowlist/blocklist"
@@ -194,27 +207,12 @@ def _check_blocked_countries_detail(
         if country
         else _GENERIC_LIST_BLOCK_REASON.format(ip=ip)
     )
-    return IpAccessResult(False, reason)
-
-
-def _check_cloud_providers_detail(ip: str, config: Any) -> IpAccessResult | None:
-    from guard_core.sync.handlers.cloud_handler import cloud_handler
-
-    if not config.block_cloud_providers:
-        return None
-    if not cloud_handler.is_cloud_ip(ip, config.block_cloud_providers):
-        return None
-
-    details = cloud_handler.get_cloud_provider_details(ip, config.block_cloud_providers)
-    if details is None:
-        return IpAccessResult(False, _GENERIC_LIST_BLOCK_REASON.format(ip=ip))
-
-    provider, network = details
     return IpAccessResult(
         False,
-        f"IP belongs to blocked cloud provider: {provider}",
-        cloud_provider=provider,
-        network=network,
+        reason,
+        allow_list_miss_category("country")
+        if config.whitelist_countries
+        else "country",
     )
 
 
@@ -226,16 +224,21 @@ def _check_unknown_identity_access(
     whitelist_blocks = not skip_ip_lists and config.whitelist
     country_whitelist_blocks = not skip_countries and config.whitelist_countries
     if whitelist_blocks or country_whitelist_blocks:
-        return IpAccessResult(False, _GENERIC_LIST_BLOCK_REASON.format(ip=ip))
+        return IpAccessResult(
+            False,
+            _GENERIC_LIST_BLOCK_REASON.format(ip=ip),
+            allow_list_miss_category("ip_list" if whitelist_blocks else "country"),
+        )
     return IpAccessResult(True, "")
 
 
 def _check_ip_lists_detail(ip_addr: Any, ip: str, config: Any) -> IpAccessResult | None:
+    reason = _GENERIC_LIST_BLOCK_REASON.format(ip=ip)
     if config.whitelist:
         if not _check_whitelist(ip_addr, ip, config):
-            return IpAccessResult(False, _GENERIC_LIST_BLOCK_REASON.format(ip=ip))
+            return IpAccessResult(False, reason, allow_list_miss_category("ip_list"))
     elif not _check_blacklist(ip_addr, ip, config):
-        return IpAccessResult(False, _GENERIC_LIST_BLOCK_REASON.format(ip=ip))
+        return IpAccessResult(False, reason, "ip_list")
     return None
 
 
@@ -267,10 +270,6 @@ def check_ip_access(
             country_result = _check_blocked_countries_detail(ip, config, geo_ip_handler)
             if country_result is not None:
                 return country_result
-
-        cloud_result = _check_cloud_providers_detail(ip, config)
-        if cloud_result is not None:
-            return cloud_result
 
         return IpAccessResult(True, "")
     except ValueError:

@@ -1,5 +1,7 @@
 import logging
 import threading
+import time
+from collections import deque
 from collections.abc import Callable, Collection, Mapping
 from ipaddress import ip_address
 from typing import TYPE_CHECKING, Any, cast
@@ -22,9 +24,12 @@ from guard_core.utils import (
 )
 
 if TYPE_CHECKING:
+    from guard_core.core.checks.base import SecurityCheck
     from guard_core.protocols.middleware_protocol import GuardMiddlewareProtocol
 
 _MAX_TRACKED_SUSPICIOUS_IPS = 10_000
+SUSPICIOUS_COUNT_WINDOW_SECONDS = 3600
+_MAX_RETAINED_EVENTS_PER_CATEGORY = 10_000
 _DETECTION_RESULT_STATE_ATTR = "_guard_detection_result_cache"
 _suspicious_counts_lock = threading.Lock()
 
@@ -349,6 +354,48 @@ async def get_cached_detection_result(
     return result
 
 
+class _WindowedCategoryCounts(dict[str, int]):
+    """Per-category counts of the events inside the last ``SUSPICIOUS_COUNT_WINDOW``.
+
+    The dict itself holds the live count per category, so every reader of
+    ``suspicious_request_counts`` keeps seeing ``{category: int}``. The event
+    times behind the counts are kept in a bounded deque per category.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._event_times: dict[str, deque[float]] = {}
+
+    def expire_before(self, cutoff: float) -> None:
+        for category in tuple(self._event_times):
+            times = self._event_times[category]
+            while times and times[0] <= cutoff:
+                times.popleft()
+            if times:
+                self[category] = len(times)
+            else:
+                del self._event_times[category]
+                self.pop(category, None)
+
+    def record(self, category: str, now: float, retain: int) -> None:
+        times = self._event_times.get(category)
+        if times is None or times.maxlen != retain:
+            times = deque(times or (), maxlen=retain)
+            self._event_times[category] = times
+        times.append(now)
+        self[category] = len(times)
+
+    @classmethod
+    def adopting(
+        cls, counts: Mapping[str, int], now: float, retain: int
+    ) -> "_WindowedCategoryCounts":
+        adopted = cls()
+        for category, count in counts.items():
+            for _ in range(min(count, retain)):
+                adopted.record(category, now, retain)
+        return adopted
+
+
 def _increment_suspicious_counts(
     middleware: "GuardMiddlewareProtocol",
     client_ip: str,
@@ -359,17 +406,31 @@ def _increment_suspicious_counts(
         if isinstance(categories, str)
         else categories or ("uncategorized",)
     )
+    now = time.monotonic()
+    retain = _MAX_RETAINED_EVENTS_PER_CATEGORY
     with _suspicious_counts_lock:
         counts = middleware.suspicious_request_counts
-        ip_counts = counts.pop(client_ip, None)
-        if ip_counts is None:
+        existing = counts.pop(client_ip, None)
+        if existing is None:
             if len(counts) >= _MAX_TRACKED_SUSPICIOUS_IPS:
                 oldest_ip = next(iter(counts))
                 del counts[oldest_ip]
-            ip_counts = {}
+            ip_counts = _WindowedCategoryCounts()
+        elif isinstance(existing, _WindowedCategoryCounts):
+            ip_counts = existing
+        else:
+            ip_counts = _WindowedCategoryCounts.adopting(existing, now, retain)
+        ip_counts.expire_before(now - SUSPICIOUS_COUNT_WINDOW_SECONDS)
         for category in resolved_categories:
-            ip_counts[category] = ip_counts.get(category, 0) + 1
+            ip_counts.record(category, now, retain)
         counts[client_ip] = ip_counts
+
+
+def _forget_suspicious_counts(
+    middleware: "GuardMiddlewareProtocol", client_ip: str
+) -> None:
+    with _suspicious_counts_lock:
+        middleware.suspicious_request_counts.pop(client_ip, None)
 
 
 async def _resolve_and_apply_threshold_ban(
@@ -441,6 +502,7 @@ async def _try_threshold_ban(
     )
     if result is None:
         return False
+    _forget_suspicious_counts(middleware, client_ip)
     _, _, category = result
     log_reason = (
         f"IP banned due to {category} threshold: {client_ip} - {trigger_info}"
@@ -483,6 +545,66 @@ def _log_exception_safely(logger: logging.Logger, message: str, *args: Any) -> N
         logger.exception(message, *args)
     except Exception:
         logging.getLogger(__name__).exception(message, *args)
+
+
+async def count_hostile_signal_and_maybe_ban(
+    check: "SecurityCheck",
+    request: GuardRequest,
+    category: str,
+    trigger_info: str,
+    default_threshold: int | None = None,
+) -> bool:
+    """Count one hostile failure under ``category`` and ban at the threshold.
+
+    The category threshold is the ``threat_ban_config`` entry when present,
+    else ``default_threshold`` (``auto_ban_threshold`` when ``None``) with
+    ``auto_ban_duration``. Nothing is counted in passive mode, with banning
+    disabled, for an unknown client or for a whitelisted client. A failure while
+    counting or banning is logged and reported as an ``ip_ban_failed`` event,
+    never raised, so the denial itself still goes out. Returns ``True`` when the
+    client was banned.
+    """
+    config = check.config
+    client_ip = getattr(request.state, "client_ip", None)
+    if (
+        config.passive_mode
+        or not config.enable_ip_banning
+        or not client_ip
+        or getattr(request.state, "is_whitelisted", False)
+    ):
+        return False
+    try:
+        _increment_suspicious_counts(check.middleware, client_ip, category)
+        return await _try_threshold_ban(
+            request,
+            config,
+            check.ip_ban_manager,
+            check.middleware,
+            client_ip,
+            trigger_info,
+            check.logger,
+            check.check_name,
+            config.muted_check_logs,
+            (category,),
+            reason=f"{category}_triggered",
+            default_entries={
+                category: ThreatBanConfig(
+                    threshold=default_threshold or config.auto_ban_threshold,
+                    duration=config.auto_ban_duration,
+                )
+            },
+        )
+    except Exception as exc:
+        _log_exception_safely(
+            check.logger, "counting hostile signal %s failed", category
+        )
+        try:
+            await _emit_ban_escalation_failed(check.middleware, request, client_ip, exc)
+        except Exception:
+            _log_exception_safely(
+                check.logger, "reporting ban failure for %s failed", category
+            )
+        return False
 
 
 async def escalate_identity_violation(
@@ -553,3 +675,40 @@ async def escalate_identity_violation(
                 "Failed to report ban escalation failure for %s",
                 client_ip,
             )
+
+
+async def report_hostile_signal(
+    check: "SecurityCheck",
+    request: GuardRequest,
+    category: str | None,
+    trigger_info: str,
+    legacy_violation: str | None = None,
+) -> None:
+    """Feed a denial into the ban policy that ``ban_on_hostile_signals`` selects.
+
+    With the flag on, a denial that has a ``category`` counts toward an automatic
+    ban. With the flag off, the denial keeps the 4.4.0 behavior: a denial that
+    names a ``legacy_violation`` escalates only when the request also matches a
+    penetration-detection pattern, and every other denial counts nothing.
+    """
+    if check.config.ban_on_hostile_signals:
+        if category is not None:
+            await count_hostile_signal_and_maybe_ban(
+                check, request, category, trigger_info
+            )
+        return
+    client_ip = getattr(request.state, "client_ip", None)
+    if legacy_violation is None or check.config.passive_mode or not client_ip:
+        return
+    await escalate_identity_violation(
+        check.middleware,
+        check.config,
+        check.ip_ban_manager,
+        request,
+        client_ip,
+        check.logger,
+        check.check_name,
+        check.config.muted_check_logs,
+        legacy_violation,
+        trigger_info,
+    )

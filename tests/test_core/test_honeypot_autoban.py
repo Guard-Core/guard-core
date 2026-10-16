@@ -98,7 +98,7 @@ async def test_filled_trap_bans_on_first_hit(
 
     assert response is not None
     assert response.status_code == 403
-    assert mw.suspicious_request_counts[BOT_IP] == {"honeypot": 1}
+    assert BOT_IP not in mw.suspicious_request_counts
     spy.assert_awaited_once_with(BOT_IP, 900, "honeypot_triggered:honeypot")
     assert await fresh_ban_manager.is_ip_banned(BOT_IP)
 

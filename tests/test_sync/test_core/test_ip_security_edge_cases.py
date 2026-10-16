@@ -192,8 +192,7 @@ def test_unknown_client_identity_blocked_when_whitelist_configured(
             "guard_core.sync.core.checks.implementations.ip_security.log_activity"
         ):
             with patch(
-                "guard_core.sync.core.checks.implementations.ip_security."
-                "escalate_identity_violation",
+                "guard_core.sync.core.checks.helpers.escalate_identity_violation",
                 new=MagicMock(),
             ):
                 result = ip_security_check.check(mock_request)
@@ -217,8 +216,7 @@ def test_unknown_client_identity_blocked_when_whitelist_countries_configured(
             "guard_core.sync.core.checks.implementations.ip_security.log_activity"
         ):
             with patch(
-                "guard_core.sync.core.checks.implementations.ip_security."
-                "escalate_identity_violation",
+                "guard_core.sync.core.checks.helpers.escalate_identity_violation",
                 new=MagicMock(),
             ):
                 result = ip_security_check.check(mock_request)
@@ -254,8 +252,7 @@ def test_unknown_client_identity_with_route_whitelist_blocked(
             "guard_core.sync.core.checks.implementations.ip_security.log_activity"
         ):
             with patch(
-                "guard_core.sync.core.checks.implementations.ip_security."
-                "escalate_identity_violation",
+                "guard_core.sync.core.checks.helpers.escalate_identity_violation",
                 new=MagicMock(),
             ):
                 result = ip_security_check.check(mock_request)
@@ -278,8 +275,7 @@ def test_unknown_client_identity_with_route_whitelist_countries_blocked(
             "guard_core.sync.core.checks.implementations.ip_security.log_activity"
         ):
             with patch(
-                "guard_core.sync.core.checks.implementations.ip_security."
-                "escalate_identity_violation",
+                "guard_core.sync.core.checks.helpers.escalate_identity_violation",
                 new=MagicMock(),
             ):
                 result = ip_security_check.check(mock_request)
@@ -300,3 +296,15 @@ def test_unknown_client_identity_with_route_blacklist_not_blocked(
 
         result = ip_security_check.check(mock_request)
         assert result is None
+
+
+def test_route_blacklist_match_ignores_an_unparseable_client_ip() -> None:
+    from guard_core.sync.core.checks.implementations.ip_security import (
+        _route_blacklist_matches,
+    )
+
+    route_config = RouteConfig()
+    route_config.ip_blacklist = ["10.0.0.0/8"]
+
+    assert _route_blacklist_matches(route_config, "unknown") is False
+    assert _route_blacklist_matches(route_config, "10.1.2.3") is True

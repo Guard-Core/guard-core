@@ -5,6 +5,7 @@ from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.core.checks.helpers import (
     emit_access_denied_event,
+    report_hostile_signal,
     route_config_applies,
 )
 from guard_core.sync.core.events.event_types import EVENT_DECORATOR_VIOLATION
@@ -71,6 +72,8 @@ class RequiredHeadersCheck(SecurityCheck):
             violation_type=violation_type,
             **{header_field: header},
         )
+
+        report_hostile_signal(self, request, "required_header", reason)
 
         if not self.config.passive_mode:
             return self.middleware.create_error_response(

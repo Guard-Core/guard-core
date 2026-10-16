@@ -2,12 +2,16 @@ from ipaddress import ip_address
 from typing import TYPE_CHECKING, Any
 
 from guard_core.protocols.response_protocol import GuardResponse
+from guard_core.sync._utils.ip_extraction import (
+    _is_trusted_proxy,
+    forwarded_for_addresses,
+)
 from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.core.checks.helpers import (
     check_country_access,
     check_route_ip_access,
     emit_access_denied_event,
-    escalate_identity_violation,
+    report_hostile_signal,
 )
 from guard_core.sync.core.events.event_types import (
     EVENT_DECORATOR_VIOLATION,
@@ -18,14 +22,13 @@ from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 from guard_core.sync.utils import (
     IpAccessResult,
     _ip_in_list,
+    allow_list_miss_category,
     check_ip_access,
     log_activity,
 )
 
 if TYPE_CHECKING:
-    from guard_core.sync.protocols.middleware_protocol import (
-        SyncGuardMiddlewareProtocol,
-    )
+    pass
 
 
 def _route_overrides_ip_lists(route_config: RouteConfig | None) -> bool:
@@ -82,14 +85,29 @@ def _classify_route_ip_denial(
     return "allow_countries", "country_restriction"
 
 
+def _route_blacklist_matches(route_config: RouteConfig, client_ip: str) -> bool:
+    try:
+        return _ip_in_list(
+            ip_address(client_ip), client_ip, route_config.ip_blacklist or []
+        )
+    except ValueError:
+        return False
+
+
+def _route_denial_category(
+    route_config: RouteConfig, decorator_type: str, client_ip: str
+) -> str | None:
+    if decorator_type == "block_countries":
+        return "country"
+    if decorator_type == "allow_countries":
+        return allow_list_miss_category("country")
+    if route_config.ip_whitelist:
+        return allow_list_miss_category("ip_list")
+    return "ip_list" if _route_blacklist_matches(route_config, client_ip) else None
+
+
 class IpSecurityCheck(SecurityCheck):
     enforced_on_excluded_paths = True
-
-    def __init__(self, middleware: "SyncGuardMiddlewareProtocol") -> None:
-        super().__init__(middleware)
-        from guard_core.sync.handlers.ipban_handler import ip_ban_manager
-
-        self.ip_ban_manager = ip_ban_manager
 
     @property
     def check_name(self) -> str:
@@ -181,19 +199,18 @@ class IpSecurityCheck(SecurityCheck):
             violation_type=violation_type,
         )
 
+        route_denial_category = _route_denial_category(
+            route_config, decorator_type, client_ip
+        )
+        report_hostile_signal(
+            self,
+            request,
+            route_denial_category,
+            f"IP not allowed by route config: {client_ip}",
+            "ip_restriction",
+        )
+
         if not self.config.passive_mode:
-            escalate_identity_violation(
-                self.middleware,
-                self.config,
-                self.ip_ban_manager,
-                request,
-                client_ip,
-                self.logger,
-                self.check_name,
-                self.config.muted_check_logs,
-                "ip_restriction",
-                f"IP not allowed by route config: {client_ip}",
-            )
             return self.middleware.create_error_response(
                 status_code=403,
                 default_message="Forbidden",
@@ -260,12 +277,6 @@ class IpSecurityCheck(SecurityCheck):
             sensitive_body_fields=self.config.log_sensitive_body_fields,
         )
 
-        event_kwargs: dict[str, Any] = {}
-        if access_result.cloud_provider:
-            event_kwargs["cloud_provider"] = access_result.cloud_provider
-        if access_result.network:
-            event_kwargs["network"] = access_result.network
-
         self.middleware.event_bus.send_middleware_event(
             event_type=EVENT_IP_BLOCKED,
             request=request,
@@ -275,22 +286,16 @@ class IpSecurityCheck(SecurityCheck):
             reason=access_result.reason,
             ip_address=client_ip,
             filter_type="global",
-            **event_kwargs,
         )
 
         if not self.config.passive_mode:
             if escalate:
-                escalate_identity_violation(
-                    self.middleware,
-                    self.config,
-                    self.ip_ban_manager,
+                report_hostile_signal(
+                    self,
                     request,
-                    client_ip,
-                    self.logger,
-                    self.check_name,
-                    self.config.muted_check_logs,
-                    "ip_blocked",
+                    access_result.denial_category,
                     access_result.reason,
+                    "ip_blocked",
                 )
             return self.middleware.create_error_response(
                 status_code=403,
@@ -299,7 +304,50 @@ class IpSecurityCheck(SecurityCheck):
 
         return None
 
+    def _forwarded_for_claims_privileged_address(
+        self, forwarded_for: str, route_config: RouteConfig | None
+    ) -> bool:
+        for address in forwarded_for_addresses(forwarded_for):
+            text = str(address)
+            if (
+                _is_trusted_proxy(text, self.config.trusted_proxies)
+                or _ip_in_list(address, text, self.config.whitelist)
+                or (
+                    route_config is not None
+                    and _ip_in_list(address, text, route_config.ip_whitelist)
+                )
+            ):
+                return True
+        return False
+
+    def _count_ip_spoofing(
+        self, request: SyncGuardRequest, route_config: RouteConfig | None
+    ) -> None:
+        forwarded_for = getattr(request.state, "untrusted_forwarded_for", None)
+        if not self.config.ban_on_hostile_signals or not isinstance(forwarded_for, str):
+            return
+        rotating = (
+            getattr(request.state, "untrusted_forwarded_for_rotating", False) is True
+        )
+        if rotating or self._forwarded_for_claims_privileged_address(
+            forwarded_for, route_config
+        ):
+            report_hostile_signal(
+                self,
+                request,
+                "ip_spoofing",
+                "X-Forwarded-For forged by an untrusted peer",
+            )
+
     def check(self, request: SyncGuardRequest) -> GuardResponse | None:
+        response = self._enforce_ip_rules(request)
+        if response is None:
+            self._count_ip_spoofing(
+                request, getattr(request.state, "route_config", None)
+            )
+        return response
+
+    def _enforce_ip_rules(self, request: SyncGuardRequest) -> GuardResponse | None:
         client_ip = getattr(request.state, "client_ip", None)
         route_config = getattr(request.state, "route_config", None)
         if not client_ip:

@@ -8,7 +8,7 @@ from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.core.checks.helpers import (
     check_user_agent_allowed,
     emit_decorator_event,
-    escalate_identity_violation,
+    report_hostile_signal,
     route_config_applies,
 )
 from guard_core.sync.core.events.event_types import (
@@ -20,19 +20,11 @@ from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 from guard_core.sync.utils import log_activity
 
 if TYPE_CHECKING:
-    from guard_core.sync.protocols.middleware_protocol import (
-        SyncGuardMiddlewareProtocol,
-    )
+    pass
 
 
 class UserAgentCheck(SecurityCheck):
     container_fields: ClassVar[tuple[str, ...]] = ("blocked_user_agents",)
-
-    def __init__(self, middleware: "SyncGuardMiddlewareProtocol") -> None:
-        super().__init__(middleware)
-        from guard_core.sync.handlers.ipban_handler import ip_ban_manager
-
-        self.ip_ban_manager = ip_ban_manager
 
     @property
     def check_name(self) -> str:
@@ -110,20 +102,13 @@ class UserAgentCheck(SecurityCheck):
                 )
 
             if not self.config.passive_mode:
-                client_ip = getattr(request.state, "client_ip", None)
-                if client_ip:
-                    escalate_identity_violation(
-                        self.middleware,
-                        self.config,
-                        self.ip_ban_manager,
-                        request,
-                        client_ip,
-                        self.logger,
-                        self.check_name,
-                        self.config.muted_check_logs,
-                        "user_agent",
-                        f"Blocked user agent: {redacted_user_agent}",
-                    )
+                report_hostile_signal(
+                    self,
+                    request,
+                    "user_agent",
+                    f"Blocked user agent: {redacted_user_agent}",
+                    "user_agent",
+                )
                 return self.middleware.create_error_response(
                     status_code=403,
                     default_message="User-Agent not allowed",

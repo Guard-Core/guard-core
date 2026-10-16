@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, ClassVar
 from guard_core.core.checks.base import SecurityCheck
 from guard_core.core.checks.helpers import (
     emit_access_denied_event,
+    report_hostile_signal,
     route_config_applies,
 )
 from guard_core.core.events.event_types import EVENT_DECORATOR_VIOLATION
@@ -82,6 +83,15 @@ class CloudProviderCheck(SecurityCheck):
 
         await self._emit_cloud_block_events(
             request, client_ip, cloud_providers_to_check, route_config
+        )
+
+        route_blocks_clouds = bool(route_config and route_config.block_cloud_providers)
+        await report_hostile_signal(
+            self,
+            request,
+            "cloud",
+            f"Blocked cloud provider IP: {client_ip}",
+            None if route_blocks_clouds else "ip_blocked",
         )
 
         if not self.config.passive_mode:

@@ -54,8 +54,7 @@ def _patches(ip_security_check: IpSecurityCheck) -> Any:
     _unbanned(ip_security_check)
     patch("guard_core.core.checks.implementations.ip_security.log_activity").start()
     patch(
-        "guard_core.core.checks.implementations.ip_security."
-        "escalate_identity_violation",
+        "guard_core.core.checks.helpers.escalate_identity_violation",
         new=AsyncMock(),
     ).start()
     yield
@@ -351,33 +350,18 @@ async def test_route_ip_whitelist_overrides_route_ip_blacklist_same_ip(
     assert request.state.is_whitelisted is False
 
 
-async def test_global_cloud_provider_block_names_provider_not_allowlist(
+async def test_global_cloud_provider_list_is_not_evaluated_by_ip_security(
     ip_security_check: IpSecurityCheck, security_config: SecurityConfig
 ) -> None:
     from guard_core.handlers.cloud_handler import cloud_handler
 
     security_config.block_cloud_providers = frozenset({"AWS"})
 
-    with (
-        patch.object(cloud_handler, "is_cloud_ip", return_value=True),
-        patch.object(
-            cloud_handler,
-            "get_cloud_provider_details",
-            return_value=("AWS", "1.2.3.0/24"),
-        ),
-    ):
+    with patch.object(cloud_handler, "is_cloud_ip", return_value=True) as is_cloud:
         result = await ip_security_check.check(_request_for(None))
 
-    assert result is not None
-    event_call = cast(
-        Any, ip_security_check.middleware
-    ).event_bus.send_middleware_event.await_args
-    assert event_call.kwargs["event_type"] == "ip_blocked"
-    assert event_call.kwargs["filter_type"] == "global"
-    assert "AWS" in event_call.kwargs["reason"]
-    assert "allowlist/blocklist" not in event_call.kwargs["reason"]
-    assert event_call.kwargs["cloud_provider"] == "AWS"
-    assert event_call.kwargs["network"] == "1.2.3.0/24"
+    assert result is None
+    is_cloud.assert_not_called()
 
 
 async def test_global_country_block_names_the_country(
