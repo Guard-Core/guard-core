@@ -438,6 +438,13 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "build_block_payload is already redacted there, a separately "
         "covered producer)"
     ),
+    "core/checks/implementations/custom_validators.py:"
+    "CustomValidatorsCheck._handle_honeypot_hit": (
+        "the fire_block_hook call passes the static reason 'Honeypot trap "
+        "field filled' and trigger_info 'honeypot field filled', never "
+        "request-derived text (the path threaded through build_block_payload "
+        "is already redacted there, a separately covered producer)"
+    ),
     "core/checks/helpers.py:_emit_ban_escalation_failed": (
         "line 335: reason is f'Escalation ban failed for {client_ip}: "
         "{error}' - client_ip plus the ban_ip() call's own exception; "

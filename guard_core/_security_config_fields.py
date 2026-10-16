@@ -577,11 +577,13 @@ class _SecurityConfigFields(BaseModel):
             "path, method, status_code (None on the passive-mode path, where no "
             "response is ever sent). Not fired for custom_request_check or "
             "route_config.custom_validators (application-authored, the app "
-            "already knows), the HTTPS-enforcement redirect (a redirect is not "
-            "a block), or an adapter's Redis-unavailable response (see "
-            "on_error). Sync or async in async deployments; sync-only in WSGI "
-            "deployments, where an async callback raises TypeError. A callback "
-            "that raises is caught and logged, never propagated."
+            "already knows), except a honeypot_detection hit, which fires with "
+            "check_name 'honeypot'. Also not fired for the HTTPS-enforcement "
+            "redirect (a redirect is not a block), or an adapter's "
+            "Redis-unavailable response (see on_error). Sync or async in async "
+            "deployments; sync-only in WSGI deployments, where an async callback "
+            "raises TypeError. A callback that raises is caught and logged, never "
+            "propagated."
         ),
     )
 

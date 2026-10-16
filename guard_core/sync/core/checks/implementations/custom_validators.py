@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 
 from guard_core.models import SecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
+from guard_core.sync._utils.block_events import fire_block_hook
 from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.core.checks.helpers import (
     count_hostile_signal_and_maybe_ban,
@@ -32,6 +33,30 @@ class CustomValidatorsCheck(SecurityCheck):
         return route_config_applies(
             route_configs, lambda rc: bool(rc.custom_validators)
         )
+
+    def _handle_honeypot_hit(self, request: SyncGuardRequest) -> GuardResponse | None:
+        passive = self.config.passive_mode
+        response: GuardResponse | None = None
+        if not passive:
+            count_hostile_signal_and_maybe_ban(
+                self, request, "honeypot", "honeypot field filled", 1
+            )
+            response = self.middleware.create_error_response(
+                status_code=403, default_message="Forbidden"
+            )
+        fire_block_hook(
+            self.config.on_block,
+            request,
+            "honeypot",
+            "Honeypot trap field filled",
+            "honeypot field filled",
+            passive,
+            response.status_code if response is not None else None,
+            self.config.log_sensitive_params,
+            self.config.log_sensitive_body_fields,
+            self.config.log_sensitive_headers,
+        )
+        return response
 
     def check(self, request: SyncGuardRequest) -> GuardResponse | None:
         route_config = getattr(request.state, "route_config", None)
@@ -68,13 +93,8 @@ class CustomValidatorsCheck(SecurityCheck):
                     violation_type="custom_validation",
                     validator_name=getattr(validator, "__name__", "anonymous"),
                 )
-                if (
-                    not self.config.passive_mode
-                    and validator in route_config.honeypot_validators
-                ):
-                    count_hostile_signal_and_maybe_ban(
-                        self, request, "honeypot", "honeypot field filled", 1
-                    )
+                if validator in route_config.honeypot_validators:
+                    return self._handle_honeypot_hit(request)
                 if not self.config.passive_mode and isinstance(
                     validation_response, GuardResponse
                 ):
