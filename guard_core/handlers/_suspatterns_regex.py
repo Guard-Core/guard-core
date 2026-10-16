@@ -317,6 +317,25 @@ def _first_accepted_regex_threat(
     return None
 
 
+def _pass_slice_start() -> tuple[float, bool]:
+    request_slice_start = _scan_slice_start.get()
+    if request_slice_start is None:
+        return time.monotonic(), False
+    return request_slice_start, True
+
+
+async def _yield_once_slice_elapsed(slice_start: float, request_scoped: bool) -> float:
+    if time.monotonic() - slice_start < _EVENT_LOOP_SLICE_SECONDS:
+        return slice_start
+    _charge_inline_cpu()
+    await _yield_to_event_loop()
+    _restart_inline_cpu()
+    slice_start = time.monotonic()
+    if request_scoped:
+        _scan_slice_start.set(slice_start)
+    return slice_start
+
+
 class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixin):
     async def _check_regex_pattern(
         self,
@@ -563,10 +582,7 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
         binary_prefix = build_binary_prefix(content)
 
         time_cap = _scan_time_cap.get()
-        request_slice_start = _scan_slice_start.get()
-        slice_start = (
-            time.monotonic() if request_slice_start is None else request_slice_start
-        )
+        slice_start, request_scoped = _pass_slice_start()
         mark_token = _open_cpu_pass()
         try:
             for pattern, contexts, category in all_patterns:
@@ -607,14 +623,9 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
                     binary_prefix=binary_prefix,
                 )
 
-                pattern_end = time.monotonic()
-                if pattern_end - slice_start >= _EVENT_LOOP_SLICE_SECONDS:
-                    _charge_inline_cpu()
-                    await _yield_to_event_loop()
-                    _restart_inline_cpu()
-                    slice_start = time.monotonic()
-                    if request_slice_start is not None:
-                        _scan_slice_start.set(slice_start)
+                slice_start = await _yield_once_slice_elapsed(
+                    slice_start, request_scoped
+                )
 
                 if timeout_occurred:
                     timeouts.append(pattern.pattern)
