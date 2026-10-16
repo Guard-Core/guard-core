@@ -1,3 +1,4 @@
+import functools
 from typing import Any
 
 from guard_core._security_config_field_validators import (
@@ -135,12 +136,14 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
                 PatternValidationCache(cache_path) if cache_path else None
             )
         )
+        validate = functools.partial(
+            compiler.validate_pattern_safety,
+            max_content_length=_MAX_USER_AGENT_MATCH_LENGTH,
+        )
         valid: list[str] = []
         rejected: list[tuple[str, str]] = []
         for pattern in user_agents:
-            is_safe, reason = compiler.validate_pattern_safety(
-                pattern, max_content_length=_MAX_USER_AGENT_MATCH_LENGTH
-            )
+            is_safe, reason = validate(pattern)
             if is_safe:
                 valid.append(pattern)
             else:
