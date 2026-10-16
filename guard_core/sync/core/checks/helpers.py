@@ -5,7 +5,7 @@ from ipaddress import ip_address
 from typing import TYPE_CHECKING, Any, cast
 from urllib.parse import urlparse
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SecurityConfig, ThreatBanConfig
 from guard_core.sync.core.events.event_types import (
     EVENT_IP_BAN_FAILED,
     EVENT_PENETRATION_ATTEMPT,
@@ -381,22 +381,26 @@ def _resolve_and_apply_threshold_ban(
     client_ip: str,
     threat_categories: Collection[str],
     reason: str,
+    default_entries: Mapping[str, ThreatBanConfig] | None = None,
 ) -> tuple[int, str, str | None] | None:
     """Pure threshold resolution against ``ip_counts`` plus the ``ban_ip`` call.
 
     Tries ``threat_ban_config`` per-category entries first (in ``threat_categories``
     order), then the flat ``auto_ban_threshold``/``auto_ban_duration`` against the
-    total of all categories in ``ip_counts``. Returns ``(duration, ban_reason,
-    category)`` when a ban was applied (``category`` is ``None`` for the flat
-    fallback), or ``None`` when banning is disabled, no threshold crossed, or
-    ``ban_ip`` refused the ban (self-DoS guard). Callers own their own logging:
-    the middleware path logs via ``log_activity``, the request-free
-    ``check_rate_limit_by_ip`` primitive logs via the module logger.
+    total of all categories in ``ip_counts``. ``default_entries`` supplies a
+    per-category entry used when the user configured none. Returns
+    ``(duration, ban_reason, category)`` when a ban was applied (``category`` is
+    ``None`` for the flat fallback), or ``None`` when banning is disabled, no
+    threshold crossed, or ``ban_ip`` refused the ban (self-DoS guard). Callers own
+    their own logging: the middleware path logs via ``log_activity``, the
+    request-free ``check_rate_limit_by_ip`` primitive logs via the module logger.
     """
     if not config.enable_ip_banning:
         return None
     for category in threat_categories:
-        entry = config.threat_ban_config.get(category)
+        entry = config.threat_ban_config.get(category) or (
+            default_entries.get(category) if default_entries else None
+        )
         if entry is None or ip_counts.get(category, 0) < entry.threshold:
             continue
         ban_reason = f"{reason}:{category}"
@@ -425,10 +429,17 @@ def _try_threshold_ban(
     muted_check_logs: frozenset[str],
     threat_categories: Collection[str],
     reason: str = "penetration_attempt",
+    default_entries: Mapping[str, ThreatBanConfig] | None = None,
 ) -> bool:
     ip_counts = middleware.suspicious_request_counts.get(client_ip, {})
     result = _resolve_and_apply_threshold_ban(
-        ip_counts, config, ip_ban_manager, client_ip, threat_categories, reason
+        ip_ban_manager=ip_ban_manager,
+        ip_counts=ip_counts,
+        config=config,
+        client_ip=client_ip,
+        threat_categories=threat_categories,
+        reason=reason,
+        default_entries=default_entries,
     )
     if result is None:
         return False

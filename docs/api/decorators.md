@@ -187,7 +187,7 @@ Provides advanced detection and time-based decorators.
 
 - `@guard_deco.time_window(start_time, end_time, timezone)` - Time-based access control
 - `@guard_deco.suspicious_detection(enabled=True)` - Toggle suspicious pattern detection
-- `@guard_deco.honeypot_detection(trap_fields=[])` - Detect bots using honeypot fields
+- `@guard_deco.honeypot_detection(trap_fields=[])` - Detect bots using honeypot fields (a filled trap field returns 403 and bans the client IP on the first hit unless `threat_ban_config["honeypot"]` says otherwise)
 
 ___
 

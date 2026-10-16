@@ -112,6 +112,7 @@ class AdvancedMixin(BaseSecurityMixin):
 
             route_config = self._ensure_route_config(func)
             route_config.custom_validators.append(honeypot_validator)
+            route_config.honeypot_validators.append(honeypot_validator)
             return self._apply_route_config(func)
 
         return decorator

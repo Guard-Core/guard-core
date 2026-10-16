@@ -84,7 +84,7 @@ ___
 Per-Category Bans
 -----------------
 
-`threat_ban_config` lets each detection category carry its own threshold and duration. The pipeline tracks per-category counts in `suspicious_request_counts`, then walks the matched categories of the current detection. The first category whose own count reaches its `threshold` triggers a category-tagged ban; if no per-category entry matches, the flat `auto_ban_threshold` / `auto_ban_duration` fallback fires off the *total* count instead.
+`threat_ban_config` lets each detection category carry its own threshold and duration. The pipeline tracks per-category counts in `suspicious_request_counts`, then walks the matched categories of the current detection. The first category whose own count reaches its `threshold` triggers a category-tagged ban; if no per-category entry matches, the flat `auto_ban_threshold` / `auto_ban_duration` fallback fires off the *total* count instead. The `honeypot` pseudo-category is also a valid key: a filled `honeypot_detection` trap field bans the IP on the first hit with `auto_ban_duration` by default, and a `threat_ban_config["honeypot"]` entry changes the threshold and duration.
 
 | Field                | Type                              | Default | Description                                          |
 |----------------------|-----------------------------------|---------|------------------------------------------------------|

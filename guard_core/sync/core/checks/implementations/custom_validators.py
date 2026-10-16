@@ -1,9 +1,12 @@
 from collections.abc import Collection
+from typing import TYPE_CHECKING
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SecurityConfig, ThreatBanConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.core.checks.helpers import (
+    _increment_suspicious_counts,
+    _try_threshold_ban,
     emit_decorator_event,
     route_config_applies,
 )
@@ -12,8 +15,19 @@ from guard_core.sync.decorators.base import RouteConfig
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 from guard_core.sync.utils import log_activity
 
+if TYPE_CHECKING:
+    from guard_core.sync.protocols.middleware_protocol import (
+        SyncGuardMiddlewareProtocol,
+    )
+
 
 class CustomValidatorsCheck(SecurityCheck):
+    def __init__(self, middleware: "SyncGuardMiddlewareProtocol") -> None:
+        super().__init__(middleware)
+        from guard_core.sync.handlers.ipban_handler import ip_ban_manager
+
+        self.ip_ban_manager = ip_ban_manager
+
     @property
     def check_name(self) -> str:
         return "custom_validators"
@@ -26,6 +40,30 @@ class CustomValidatorsCheck(SecurityCheck):
     ) -> bool:
         return route_config_applies(
             route_configs, lambda rc: bool(rc.custom_validators)
+        )
+
+    def _ban_honeypot_hit(self, request: SyncGuardRequest) -> None:
+        client_ip = getattr(request.state, "client_ip", None)
+        if not client_ip:
+            return
+        _increment_suspicious_counts(self.middleware, client_ip, "honeypot")
+        _try_threshold_ban(
+            request,
+            self.config,
+            self.ip_ban_manager,
+            self.middleware,
+            client_ip,
+            "honeypot field filled",
+            self.logger,
+            self.check_name,
+            self.config.muted_check_logs,
+            ("honeypot",),
+            reason="honeypot_triggered",
+            default_entries={
+                "honeypot": ThreatBanConfig(
+                    threshold=1, duration=self.config.auto_ban_duration
+                )
+            },
         )
 
     def check(self, request: SyncGuardRequest) -> GuardResponse | None:
@@ -63,6 +101,11 @@ class CustomValidatorsCheck(SecurityCheck):
                     violation_type="custom_validation",
                     validator_name=getattr(validator, "__name__", "anonymous"),
                 )
+                if (
+                    not self.config.passive_mode
+                    and validator in route_config.honeypot_validators
+                ):
+                    self._ban_honeypot_hit(request)
                 if not self.config.passive_mode and isinstance(
                     validation_response, GuardResponse
                 ):

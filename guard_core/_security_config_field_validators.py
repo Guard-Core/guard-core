@@ -82,7 +82,7 @@ class ThreatBanConfig(BaseModel):
 
 
 THREAT_BAN_CONFIG_CATEGORIES: frozenset[str] = ALL_DETECTION_CATEGORIES | frozenset(
-    {"rate_limit"}
+    {"rate_limit", "honeypot"}
 )
 
 

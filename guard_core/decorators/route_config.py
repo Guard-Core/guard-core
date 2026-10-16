@@ -255,6 +255,7 @@ class RouteConfig:
         self.require_https: bool = False
         self.auth_required: str | None = None
         self.custom_validators: list[Callable] = []
+        self.honeypot_validators: list[Callable] = []
         self.blocked_user_agents: list[str] = []
         self.required_headers: dict[str, str] = {}
         self.behavior_rules: list[BehaviorRule] = []

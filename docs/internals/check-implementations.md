@@ -174,7 +174,7 @@ ___
 
 **Purpose**: Runs user-defined async validator functions.
 
-**Blocks when**: Any validator in `RouteConfig.custom_validators` returns a non-`None` `GuardResponse`.
+**Blocks when**: Any validator in `RouteConfig.custom_validators` returns a non-`None` `GuardResponse`. A rejection from a validator listed in `RouteConfig.honeypot_validators` (registered by `honeypot_detection`) also counts one `honeypot` hit and bans the client IP, by default on the first hit.
 
 **Configuration**: Validators are `Callable[[GuardRequest], Awaitable[GuardResponse | None]]` functions registered via decorators.
 

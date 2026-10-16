@@ -172,7 +172,9 @@ class _SecurityConfigFields(BaseModel):
         description=(
             "Per-category ban thresholds and durations. Categories are the "
             "penetration-detection categories plus the pseudo-category "
-            "'rate_limit' (used only when enable_rate_limit_auto_ban is on). "
+            "'rate_limit' (used only when enable_rate_limit_auto_ban is on) and "
+            "'honeypot' (a filled honeypot_detection trap field bans on the first "
+            "hit with auto_ban_duration unless an entry here overrides it). "
             "Unlisted categories fall back to auto_ban_threshold / auto_ban_duration."
         ),
     )
