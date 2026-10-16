@@ -229,3 +229,67 @@ def rate_limit_auto_ban_uses_the_configured_threat_ban_thresholds(
 
     lines = ctx.stack.logs.lines_since(mark)
     assert any("IP banned due to rate_limit threshold" in line for line in lines)
+
+
+HOSTILE_SIGNAL_BAN_CONFIG = {
+    "blocked_user_agents": ["smoke-blocked-agent"],
+    "auto_ban_threshold": 2,
+    "auto_ban_duration": 60,
+    "enable_ip_banning": True,
+    "ban_on_hostile_signals": True,
+    "excluded_detection_headers": EXCLUDED_HEADERS,
+}
+HOSTILE_SIGNAL_NO_BAN_CONFIG = {
+    **HOSTILE_SIGNAL_BAN_CONFIG,
+    "ban_on_hostile_signals": False,
+}
+BLOCKED_AGENT = {"User-Agent": "smoke-blocked-agent/1.0"}
+
+
+def _ban_lines(ctx: ScenarioContext, mark: str) -> list[str]:
+    return [
+        line
+        for line in ctx.stack.logs.lines_since(mark)
+        if "IP banned due to user_agent threshold" in line
+    ]
+
+
+@scenario(covers={"ban_on_hostile_signals"}, config=HOSTILE_SIGNAL_BAN_CONFIG)
+def ban_on_hostile_signals_bans_repeated_blocked_user_agents(
+    ctx: ScenarioContext,
+) -> None:
+    client = ctx.client
+    params = {"q": "hello"}
+    clean_agent = {"User-Agent": "curl/8.0"}
+    mark = ctx.stack.logs.mark()
+
+    first = client.get("/basic/ip", params=params, headers=BLOCKED_AGENT)
+    assert first.status_code == 403
+    below_threshold = client.get("/basic/ip", params=params, headers=clean_agent)
+    assert below_threshold.status_code == 200, "one hostile signal already banned"
+    assert not _ban_lines(ctx, mark)
+
+    second = client.get("/basic/ip", params=params, headers=BLOCKED_AGENT)
+    assert second.status_code == 403
+    at_threshold = client.get("/basic/ip", params=params, headers=clean_agent)
+    assert at_threshold.status_code == 403, (
+        "the threshold of hostile signals did not ban"
+    )
+    assert _ban_lines(ctx, mark), "no ban log line after the threshold"
+
+
+@scenario(covers={"ban_on_hostile_signals"}, config=HOSTILE_SIGNAL_NO_BAN_CONFIG)
+def ban_on_hostile_signals_off_never_bans_blocked_user_agents(
+    ctx: ScenarioContext,
+) -> None:
+    client = ctx.client
+    params = {"q": "hello"}
+
+    statuses = [
+        client.get("/basic/ip", params=params, headers=BLOCKED_AGENT).status_code
+        for _ in range(4)
+    ]
+    assert statuses == [403] * 4, statuses
+
+    clean = client.get("/basic/ip", params=params, headers={"User-Agent": "curl/8.0"})
+    assert clean.status_code == 200, "blocked user agents banned with the flag off"
