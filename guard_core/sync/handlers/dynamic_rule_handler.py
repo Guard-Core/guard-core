@@ -34,6 +34,7 @@ class DynamicRuleManager(DynamicRuleApplicationMixin, DynamicRuleSnapshotMixin):
     _stop_event: threading.Event
     _active_base_snapshot: dict[str, object] | None = None
     _last_skipped_expired_rule: tuple[str, int] | None = None
+    _last_ignored_platform_default: tuple[str, int] | None = None
     _hydrated_last_known_rules: bool = False
 
     _SNAPSHOT_FIELDS = (
@@ -72,6 +73,7 @@ class DynamicRuleManager(DynamicRuleApplicationMixin, DynamicRuleSnapshotMixin):
             cls._instance._stop_event = threading.Event()
             cls._instance._active_base_snapshot = None
             cls._instance._last_skipped_expired_rule = None
+            cls._instance._last_ignored_platform_default = None
             cls._instance._hydrated_last_known_rules = False
         return cls._instance
 
@@ -170,6 +172,19 @@ class DynamicRuleManager(DynamicRuleApplicationMixin, DynamicRuleSnapshotMixin):
             return False
         return datetime.now(timezone.utc) > _coerce_naive_utc(rules.expires_at)
 
+    def _ignore_platform_default(self, rules: DynamicRules) -> bool:
+        if getattr(rules, "is_platform_default", False) is not True:
+            return False
+
+        key = (rules.rule_id, rules.version)
+        if self._last_ignored_platform_default != key:
+            self._last_ignored_platform_default = key
+            self.logger.warning(
+                f"Dynamic rule {rules.rule_id} v{rules.version} is a platform "
+                "default, not an operator rule; ignoring"
+            )
+        return True
+
     def _reject_if_already_expired(self, rules: DynamicRules) -> bool:
         if not self._has_rule_expired(rules):
             return False
@@ -192,6 +207,9 @@ class DynamicRuleManager(DynamicRuleApplicationMixin, DynamicRuleSnapshotMixin):
 
             rules = self.agent_handler.get_dynamic_rules()
             if not rules:
+                return
+
+            if self._ignore_platform_default(rules):
                 return
 
             if self._reject_if_already_expired(rules):
