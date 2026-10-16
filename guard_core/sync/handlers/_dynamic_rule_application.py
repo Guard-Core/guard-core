@@ -1,36 +1,92 @@
+from dataclasses import dataclass, field
 from typing import Any
 
 from guard_core.models import DynamicRules, SecurityConfig
 from guard_core.sync._utils.detection_scan import _redact_pattern_source
 from guard_core.sync.handlers._dynamic_rule_events import DynamicRuleEventSenderMixin
+from guard_core.sync.utils import _canonicalize_ip
 
 
 def _redact_pattern_list(patterns: list[str]) -> list[str]:
     return [_redact_pattern_source(pattern) for pattern in patterns]
 
 
+@dataclass
+class RuleSideEffects:
+    created_bans: list[str] = field(default_factory=list)
+    created_patterns: list[str] = field(default_factory=list)
+
+
 class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
     config: SecurityConfig
     agent_handler: Any
+    _owned_bans: list[str]
+    _owned_patterns: list[str]
 
-    def _apply_side_effects(self, rules: DynamicRules) -> None:
+    def _apply_side_effects(
+        self, rules: DynamicRules, effects: RuleSideEffects | None = None
+    ) -> None:
+        effects = effects or RuleSideEffects()
         if rules.ip_blacklist:
-            self._apply_ip_bans(rules.ip_blacklist, rules.ip_ban_duration)
+            self._apply_ip_bans(
+                rules.ip_blacklist, rules.ip_ban_duration, effects.created_bans
+            )
 
         if rules.ip_whitelist:
             self._apply_ip_whitelist(rules.ip_whitelist)
 
         if rules.suspicious_patterns:
-            self._apply_pattern_rules(rules.suspicious_patterns)
+            self._apply_pattern_rules(
+                rules.suspicious_patterns, effects.created_patterns
+            )
 
-    def _apply_ip_bans(self, ip_list: list[str], duration: int) -> None:
+    def _owned_after(
+        self, listed: list[str], previously_owned: list[str], created: list[str]
+    ) -> list[str]:
+        kept = [entry for entry in dict.fromkeys(listed) if entry in previously_owned]
+        return [*kept, *created]
+
+    def _undo_side_effects(self, effects: RuleSideEffects) -> None:
+        self._revoke_owned(effects.created_bans, effects.created_patterns)
+
+    def _revoke_owned(self, bans: list[str], patterns: list[str]) -> None:
+        from guard_core.sync.handlers.ipban_handler import ip_ban_manager
+        from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
+
+        for ip in bans:
+            try:
+                ip_ban_manager.unban_ip(ip)
+                self.logger.info(f"Dynamic rule: Revoked IP ban {ip}")
+            except Exception as e:
+                self.logger.error(f"Failed to revoke IP ban {ip}: {e}")
+
+        for pattern in patterns:
+            try:
+                sus_patterns_handler.remove_pattern(pattern)
+                self.logger.info(
+                    "Dynamic rule: Revoked suspicious pattern "
+                    f"{_redact_pattern_source(pattern)}"
+                )
+            except Exception as e:
+                self.logger.error(f"Failed to revoke suspicious pattern: {e}")
+
+    def _apply_ip_bans(
+        self, ip_list: list[str], duration: int, created: list[str] | None = None
+    ) -> None:
         from guard_core.sync.handlers.ipban_handler import ip_ban_manager
 
+        created = created if created is not None else []
         for ip in ip_list:
             try:
+                canonical = _canonicalize_ip(ip)
+                owned = canonical in self._owned_bans
+                if not owned and ip_ban_manager.is_ip_banned(canonical):
+                    continue
                 applied = ip_ban_manager.ban_ip(ip, duration, "dynamic_rule")
                 if applied:
                     self.logger.info(f"Dynamic rule: Banned IP {ip} for {duration}s")
+                    if not owned and canonical not in created:
+                        created.append(canonical)
             except Exception as e:
                 self.logger.error(f"Failed to ban IP {ip}: {e}")
 
@@ -44,18 +100,27 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
             except Exception as e:
                 self.logger.error(f"Failed to whitelist IP {ip}: {e}")
 
-    def _apply_pattern_rules(self, patterns: list[str]) -> None:
+    def _apply_pattern_rules(
+        self, patterns: list[str], created: list[str] | None = None
+    ) -> None:
         from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
 
+        created = created if created is not None else []
         known = set(sus_patterns_handler.patterns)
-        patterns = [p for p in patterns if p not in known]
-        added = [p for p in patterns if sus_patterns_handler.add_pattern(p)]
+        candidates = [p for p in dict.fromkeys(patterns) if p not in known]
+        rejected: list[str] = []
+        added: list[str] = []
+        for pattern in candidates:
+            if sus_patterns_handler.add_pattern(pattern):
+                created.append(pattern)
+                added.append(pattern)
+            else:
+                rejected.append(pattern)
         if added:
             self.logger.info(
                 f"Dynamic rule: Added suspicious patterns {_redact_pattern_list(added)}"
             )
 
-        rejected = [p for p in patterns if p not in added]
         if rejected:
             self.logger.warning(
                 f"Dynamic rule: rejected patterns {_redact_pattern_list(rejected)}"

@@ -69,7 +69,20 @@ class IpBanQueryMixin(IpBanEventMixin):
 
         return False
 
+    async def _unban_cidr(self, cidr: str) -> None:
+        network = ipaddress.ip_network(cidr, strict=False)
+        self.banned_networks = [
+            (banned, expiry)
+            for banned, expiry in self.banned_networks
+            if banned != network
+        ]
+        if self.redis_handler:
+            await self.redis_handler.delete("banned_networks", str(network))
+
     async def unban_ip(self, ip: str) -> None:
+        if "/" in ip:
+            await self._unban_cidr(ip)
+            return
         ip = _canonicalize_ip(ip)
         self._purge_banned_ip(ip)
 

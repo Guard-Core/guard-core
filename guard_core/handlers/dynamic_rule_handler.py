@@ -6,7 +6,10 @@ from datetime import datetime, timezone
 from typing import Any
 
 from guard_core._dynamic_rules import content_fingerprint
-from guard_core.handlers._dynamic_rule_application import DynamicRuleApplicationMixin
+from guard_core.handlers._dynamic_rule_application import (
+    DynamicRuleApplicationMixin,
+    RuleSideEffects,
+)
 from guard_core.handlers._dynamic_rule_plan import (
     DynamicRulePlan,
     DynamicRulePlanMixin,
@@ -16,6 +19,7 @@ from guard_core.models import (
     DynamicRules,
     SecurityConfig,
 )
+from guard_core.utils import _canonicalize_ip
 
 
 def _coerce_naive_utc(value: datetime) -> datetime:
@@ -42,6 +46,8 @@ class DynamicRuleManager(
     _last_ignored_platform_default: tuple[str, int] | None = None
     _hydrated_last_known_rules: bool = False
     _current_fingerprint: str | None = None
+    _owned_bans: list[str]
+    _owned_patterns: list[str]
 
     _SNAPSHOT_FIELDS = (
         "blocked_countries",
@@ -80,6 +86,8 @@ class DynamicRuleManager(
             cls._instance._last_ignored_platform_default = None
             cls._instance._hydrated_last_known_rules = False
             cls._instance._current_fingerprint = None
+            cls._instance._owned_bans = []
+            cls._instance._owned_patterns = []
         return cls._instance
 
     async def initialize_agent(self, agent_handler: Any) -> None:
@@ -179,6 +187,7 @@ class DynamicRuleManager(
                 return
 
             self._revert_to_base_config()
+            await self._revoke_all_owned()
             self.logger.info(
                 f"Dynamic rule {rules.rule_id} v{rules.version} expired; "
                 "restored base config"
@@ -193,6 +202,7 @@ class DynamicRuleManager(
             if rules is None:
                 return
             self._revert_to_base_config()
+            await self._revoke_all_owned()
             await self._clear_last_known_rules()
             self.logger.info(
                 f"Dynamic rule {rules.rule_id} v{rules.version} revoked by the "
@@ -287,12 +297,39 @@ class DynamicRuleManager(
             if base is None:
                 base = self._snapshot_config()
             plan = await self._build_plan(rules, base)
-            await self._apply_side_effects(rules)
-            self._swap_config_or_restore(plan)
+            effects = RuleSideEffects()
+            try:
+                await self._apply_side_effects(rules, effects)
+                self._swap_config_or_restore(plan)
+            except Exception:
+                await self._undo_side_effects(effects)
+                raise
             self._active_base_snapshot = base
+            await self._revoke_stale_side_effects(rules, effects)
             await self._announce_plan(plan)
             await self._persist_last_known_rules(rules)
             return plan.skipped
+
+    async def _revoke_stale_side_effects(
+        self, rules: DynamicRules, effects: RuleSideEffects
+    ) -> None:
+        bans = self._owned_after(
+            [_canonicalize_ip(ip) for ip in rules.ip_blacklist],
+            self._owned_bans,
+            effects.created_bans,
+        )
+        patterns = self._owned_after(
+            rules.suspicious_patterns, self._owned_patterns, effects.created_patterns
+        )
+        stale_bans = [ip for ip in self._owned_bans if ip not in bans]
+        stale_patterns = [p for p in self._owned_patterns if p not in patterns]
+        self._owned_bans, self._owned_patterns = bans, patterns
+        await self._revoke_owned(stale_bans, stale_patterns)
+
+    async def _revoke_all_owned(self) -> None:
+        bans, patterns = self._owned_bans, self._owned_patterns
+        self._owned_bans, self._owned_patterns = [], []
+        await self._revoke_owned(bans, patterns)
 
     def _swap_config_or_restore(self, plan: DynamicRulePlan) -> None:
         previous = self._snapshot_config()

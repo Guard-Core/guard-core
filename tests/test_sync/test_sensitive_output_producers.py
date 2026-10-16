@@ -710,6 +710,9 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
     "handlers/_cloud_provider_fetchers.py:fetch_vultr_ip_ranges": (
         "line 133: provider IP-range fetch failure - infra only"
     ),
+    "handlers/_dynamic_rule_application.py:DynamicRuleApplicationMixin._revoke_owned": (
+        "lines 59,61,66,71: revoking SaaS-pushed bans and patterns, not a request"
+    ),
     "handlers/_dynamic_rule_application.py:"
     "DynamicRuleApplicationMixin._announce_emergency_mode": (
         "line 65: reports on a SaaS-pushed emergency-mode policy change, "

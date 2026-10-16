@@ -990,11 +990,14 @@ async def test_apply_rules_all_types(
     ):
         await manager._apply_rules(sample_rules)
 
-        mock_ip_bans.assert_called_once_with(
-            sample_rules.ip_blacklist, sample_rules.ip_ban_duration
+        mock_ip_bans.assert_called_once()
+        assert mock_ip_bans.call_args.args[:2] == (
+            sample_rules.ip_blacklist,
+            sample_rules.ip_ban_duration,
         )
         mock_ip_whitelist.assert_called_once_with(sample_rules.ip_whitelist)
-        mock_pattern_rules.assert_called_once_with(sample_rules.suspicious_patterns)
+        mock_pattern_rules.assert_called_once()
+        assert mock_pattern_rules.call_args.args[0] == sample_rules.suspicious_patterns
         mock_emergency_mode.assert_not_called()
 
     assert manager.config.rate_limit == sample_rules.global_rate_limit
@@ -1105,6 +1108,7 @@ async def test_apply_ip_bans_success(
     manager = DynamicRuleManager(config)
 
     with patch("guard_core.handlers.ipban_handler.ip_ban_manager") as mock_ban_manager:
+        mock_ban_manager.is_ip_banned = AsyncMock(return_value=False)
         mock_ban_manager.ban_ip = AsyncMock()
 
         ip_list = ["172.16.0.100", "10.0.0.50"]
@@ -1130,6 +1134,7 @@ async def test_apply_ip_bans_with_failures(
     manager = DynamicRuleManager(config)
 
     with patch("guard_core.handlers.ipban_handler.ip_ban_manager") as mock_ban_manager:
+        mock_ban_manager.is_ip_banned = AsyncMock(return_value=False)
         mock_ban_manager.ban_ip = AsyncMock(side_effect=[None, Exception("Ban failed")])
 
         ip_list = ["172.16.0.100", "10.0.0.50"]
@@ -1152,6 +1157,7 @@ async def test_apply_ip_bans_does_not_log_success_when_refused(
     manager = DynamicRuleManager(config)
 
     with patch("guard_core.handlers.ipban_handler.ip_ban_manager") as mock_ban_manager:
+        mock_ban_manager.is_ip_banned = AsyncMock(return_value=False)
         mock_ban_manager.ban_ip = AsyncMock(return_value=False)
 
         ip_list = ["127.0.0.1"]
