@@ -10,6 +10,28 @@ from guard_core.handlers._ipban_rule_exempt import IpBanRuleExemptionMixin
 from guard_core.utils import _canonicalize_ip
 
 
+def _network_inside(candidate: _Network, network: _Network) -> bool:
+    return (
+        candidate.version == network.version
+        and candidate.network_address in network
+        and candidate.broadcast_address in network
+    )
+
+
+def _address_inside(ip: str, network: _Network) -> bool:
+    try:
+        address = ipaddress.ip_address(ip)
+    except ValueError:
+        return False
+    return address.version == network.version and address in network
+
+
+def _member_inside(namespace: str, member: str, network: _Network) -> bool:
+    if namespace == "banned_ips":
+        return _address_inside(member, network)
+    return _network_inside(ipaddress.ip_network(member, strict=False), network)
+
+
 class IpBanQueryMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
     banned_ips: TTLCache
     banned_networks: list[tuple[_Network, float]]
@@ -81,6 +103,26 @@ class IpBanQueryMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
         ]
         if self.redis_handler:
             await self.redis_handler.delete("banned_networks", str(network))
+
+    async def unban_inside(self, entry: str) -> None:
+        network = ipaddress.ip_network(entry, strict=False)
+        self.banned_networks = [
+            (banned, expiry)
+            for banned, expiry in self.banned_networks
+            if not _network_inside(banned, network)
+        ]
+        for ip in [ip for ip in self.banned_ips if _address_inside(ip, network)]:
+            self._purge_banned_ip(ip)
+        if self.redis_handler:
+            await self._unban_inside_redis(network)
+
+    async def _unban_inside_redis(self, network: _Network) -> None:
+        for namespace in ("banned_ips", "banned_networks"):
+            keys = await self.redis_handler.keys(f"{namespace}:*") or []
+            for key in keys:
+                member = key.split(f"{namespace}:", 1)[1]
+                if _member_inside(namespace, member, network):
+                    await self.redis_handler.delete(namespace, member)
 
     async def unban_ip(self, ip: str) -> None:
         if "/" in ip:

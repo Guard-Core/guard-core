@@ -113,7 +113,10 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
 
         for ip in ip_list:
             try:
-                await ip_ban_manager.unban_ip(ip)
+                if "/" in ip:
+                    await ip_ban_manager.unban_inside(ip)
+                else:
+                    await ip_ban_manager.unban_ip(ip)
                 self.logger.info(f"Dynamic rule: Whitelisted IP {ip}")
             except Exception as e:
                 self.logger.error(f"Failed to whitelist IP {ip}: {e}")

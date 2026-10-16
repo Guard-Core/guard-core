@@ -1,7 +1,7 @@
 from collections.abc import AsyncIterator
 from datetime import datetime, timedelta, timezone
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -145,3 +145,62 @@ async def test_static_exempt_ips_stay_bannable() -> None:
     manager, _, _ = _manager()
     await _poll(manager, _rules(ip_whitelist=[EXEMPT_IP]))
     assert await ip_ban_manager.ban_ip(STATIC_EXEMPT, 60, "threshold_exceeded") is True
+
+
+@pytest.mark.asyncio
+async def test_whitelisting_a_cidr_unbans_every_ip_and_network_inside_it() -> None:
+    manager, _, _ = _manager()
+    await ip_ban_manager.ban_ip("198.51.100.7", 3600, "threshold_exceeded")
+    await ip_ban_manager.ban_ip("198.51.100.128/25", 3600, "operator")
+    await ip_ban_manager.ban_ip("203.0.113.9", 3600, "threshold_exceeded")
+
+    await _poll(manager, _rules(ip_whitelist=["198.51.100.0/24"]))
+    assert not await ip_ban_manager.is_ip_banned("198.51.100.7")
+    assert not await ip_ban_manager.is_ip_banned("198.51.100.200")
+
+    ip_ban_manager.set_rule_exempt_ips(())
+    assert not await ip_ban_manager.is_ip_banned("198.51.100.7")
+    assert not await ip_ban_manager.is_ip_banned("198.51.100.200")
+    assert await ip_ban_manager.is_ip_banned("203.0.113.9")
+
+
+@pytest.mark.asyncio
+async def test_revoking_the_rule_does_not_bring_back_a_ban_inside_the_cidr() -> None:
+    manager, _, _ = _manager()
+    await ip_ban_manager.ban_ip("198.51.100.7", 3600, "threshold_exceeded")
+    await _poll(manager, _rules(ip_whitelist=["198.51.100.0/24"]))
+    await _poll(
+        manager,
+        DynamicRules(rule_id="none-p", version=0, timestamp=datetime.now(timezone.utc)),
+    )
+    assert manager.current_rules is None
+    assert not await ip_ban_manager.is_ip_banned("198.51.100.7")
+
+
+@pytest.mark.asyncio
+async def test_whitelisting_a_cidr_removes_matching_redis_records() -> None:
+    manager, _, _ = _manager()
+    ip_ban_manager.banned_ips["weird"] = 9e12
+    redis = MagicMock()
+    redis.keys = AsyncMock(
+        side_effect=lambda pattern: {
+            "banned_ips:*": [
+                "pfx_banned_ips:weird",
+                "pfx_banned_ips:198.51.100.7",
+                "pfx_banned_ips:203.0.113.9",
+            ],
+            "banned_networks:*": [
+                "pfx_banned_networks:198.51.100.128/25",
+                "pfx_banned_networks:203.0.113.0/24",
+            ],
+        }[pattern]
+    )
+    redis.delete = AsyncMock()
+    with patch.object(ip_ban_manager, "redis_handler", redis):
+        await _poll(manager, _rules(ip_whitelist=["198.51.100.0/24"]))
+
+    deleted = sorted(call.args for call in redis.delete.call_args_list)
+    assert ("banned_ips", "198.51.100.7") in deleted
+    assert ("banned_networks", "198.51.100.128/25") in deleted
+    assert ("banned_ips", "203.0.113.9") not in deleted
+    assert ("banned_networks", "203.0.113.0/24") not in deleted
