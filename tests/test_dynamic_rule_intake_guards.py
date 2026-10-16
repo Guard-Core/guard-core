@@ -155,3 +155,20 @@ async def test_update_rules_is_a_no_op_without_the_feature_or_without_an_agent()
     object.__setattr__(config, "enable_dynamic_rules", False)
     await manager.update_rules()
     manager2_agent.get_dynamic_rules.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_applying_and_failing_updates_are_logged(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    manager, _, _ = _manager()
+    with caplog.at_level(logging.INFO, logger="guard_core.handlers.dynamic_rule"):
+        await _poll(manager, _rules())
+    assert "Applying dynamic rules: R v1" in [r.getMessage() for r in caplog.records]
+
+    manager.agent_handler.get_dynamic_rules.side_effect = RuntimeError("boom")
+    with caplog.at_level(logging.ERROR, logger="guard_core.handlers.dynamic_rule"):
+        await manager.update_rules()
+    assert "Failed to update dynamic rules: boom" in [
+        r.getMessage() for r in caplog.records
+    ]
