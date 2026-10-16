@@ -227,8 +227,8 @@ def _observe_untrusted_forwarded_for(peer: str) -> bool:
     Returns true at most once per peer per ``_UNTRUSTED_XFF_WINDOW_SECONDS``, so a
     peer that sends an X-Forwarded-For on every request (an unlisted CDN does) is
     logged once a minute instead of once per request. The header value is never
-    stored or compared: a rotating value is not a ban signal, only a forged
-    address of a whitelisted or trusted-proxy peer is. At most
+    stored or compared: a rotating value is not a ban signal, only an
+    X-Forwarded-For that claims a whitelisted or trusted-proxy address is. At most
     ``_MAX_TRACKED_UNTRUSTED_PEERS`` peers are tracked and the oldest is evicted.
     """
     now = time.monotonic()
