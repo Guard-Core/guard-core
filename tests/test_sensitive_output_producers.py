@@ -722,6 +722,9 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
     "DynamicRuleApplicationMixin._apply_ip_bans": (
         "lines 39,41: applying SaaS-pushed IP-ban policy, not a request"
     ),
+    "handlers/_dynamic_rule_application.py:DynamicRuleApplicationMixin._ban_rule_ip": (
+        "line 118: applying SaaS-pushed IP-ban policy, not a request"
+    ),
     "handlers/_dynamic_rule_application.py:"
     "DynamicRuleApplicationMixin._apply_ip_whitelist": (
         "lines 49,51: applying SaaS-pushed IP-whitelist policy, not a request"

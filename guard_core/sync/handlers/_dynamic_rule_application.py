@@ -90,30 +90,42 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
         skipped: list[str] | None = None,
         reowned: list[str] | None = None,
     ) -> None:
-        from guard_core.sync.handlers.ipban_handler import ip_ban_manager
-
         created = created if created is not None else []
         skipped = skipped if skipped is not None else []
         reowned = reowned if reowned is not None else []
         for ip in ip_list:
             try:
-                canonical = _canonicalize_ip(ip)
-                owned = canonical in self._owned_bans
-                if not owned and ip_ban_manager.is_ip_banned(canonical):
-                    if self._hydrating and canonical not in reowned:
-                        reowned.append(canonical)
-                    continue
-                applied = ip_ban_manager.ban_ip(ip, duration, "dynamic_rule")
-                if applied:
-                    self.logger.info(f"Dynamic rule: Banned IP {ip} for {duration}s")
-                    if not owned and canonical not in created:
-                        created.append(canonical)
-                else:
-                    refusal = ip_ban_manager._self_dos_refusal_reason(canonical)
-                    if refusal is not None:
-                        skipped.append(f"ip_blacklist: {ip} (ban refused: {refusal})")
+                self._ban_rule_ip(ip, duration, created, skipped, reowned)
             except Exception as e:
                 self.logger.error(f"Failed to ban IP {ip}: {e}")
+
+    def _ban_rule_ip(
+        self,
+        ip: str,
+        duration: int,
+        created: list[str],
+        skipped: list[str],
+        reowned: list[str],
+    ) -> None:
+        from guard_core.sync.handlers.ipban_handler import ip_ban_manager
+
+        canonical = _canonicalize_ip(ip)
+        owned = canonical in self._owned_bans
+        if not owned and ip_ban_manager.is_ip_banned(canonical):
+            self._note_foreign_ban(canonical, reowned)
+            return
+        if ip_ban_manager.ban_ip(ip, duration, "dynamic_rule"):
+            self.logger.info(f"Dynamic rule: Banned IP {ip} for {duration}s")
+            if not owned and canonical not in created:
+                created.append(canonical)
+            return
+        refusal = ip_ban_manager._self_dos_refusal_reason(canonical)
+        if refusal is not None:
+            skipped.append(f"ip_blacklist: {ip} (ban refused: {refusal})")
+
+    def _note_foreign_ban(self, canonical: str, reowned: list[str]) -> None:
+        if self._hydrating and canonical not in reowned:
+            reowned.append(canonical)
 
     def _apply_ip_whitelist(self, ip_list: list[str]) -> None:
         from guard_core.sync.handlers.ipban_handler import ip_ban_manager
