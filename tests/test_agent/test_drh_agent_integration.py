@@ -334,7 +334,7 @@ async def test_update_rules_same_version(
 
 
 @pytest.mark.asyncio
-async def test_update_rules_older_version(
+async def test_update_rules_rollback_to_an_older_version_is_applied(
     config: SecurityConfig,
     mock_agent_handler: AsyncMock,
     sample_rules: DynamicRules,
@@ -353,8 +353,8 @@ async def test_update_rules_older_version(
     await manager.update_rules()
 
     assert manager.current_rules is not None
-    assert manager.current_rules.version == 2
-    assert manager.last_update == 0
+    assert manager.current_rules.version == 1
+    assert manager.last_update > 0
 
 
 @pytest.mark.asyncio

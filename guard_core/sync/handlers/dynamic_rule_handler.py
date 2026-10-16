@@ -5,6 +5,7 @@ from copy import deepcopy
 from datetime import datetime, timezone
 from typing import Any
 
+from guard_core._dynamic_rules import content_fingerprint
 from guard_core.models import (
     DynamicRules,
     SecurityConfig,
@@ -42,6 +43,7 @@ class DynamicRuleManager(
     _last_skipped_expired_rule: tuple[str, int] | None = None
     _last_ignored_platform_default: tuple[str, int] | None = None
     _hydrated_last_known_rules: bool = False
+    _current_fingerprint: str | None = None
 
     _SNAPSHOT_FIELDS = (
         "blocked_countries",
@@ -81,6 +83,7 @@ class DynamicRuleManager(
             cls._instance._last_skipped_expired_rule = None
             cls._instance._last_ignored_platform_default = None
             cls._instance._hydrated_last_known_rules = False
+            cls._instance._current_fingerprint = None
         return cls._instance
 
     def initialize_agent(self, agent_handler: Any) -> None:
@@ -148,13 +151,23 @@ class DynamicRuleManager(
         self._stop_event.wait(timeout=timeout)
 
     def _should_update_rules(self, rules: DynamicRules) -> bool:
-        if not self.current_rules:
+        current = self.current_rules
+        if not current:
             return True
 
-        return not (
-            rules.rule_id == self.current_rules.rule_id
-            and rules.version <= self.current_rules.version
+        current_fingerprint = self._current_fingerprint or content_fingerprint(current)
+        return (rules.rule_id, rules.version, content_fingerprint(rules)) != (
+            current.rule_id,
+            current.version,
+            current_fingerprint,
         )
+
+    def _revert_to_base_config(self) -> None:
+        if self._active_base_snapshot is not None:
+            self._restore_config(self._active_base_snapshot)
+        self.current_rules = None
+        self._current_fingerprint = None
+        self._active_base_snapshot = None
 
     def _check_rule_expiry(self) -> None:
         with self._lock:
@@ -164,13 +177,25 @@ class DynamicRuleManager(
             if datetime.now(timezone.utc) <= _coerce_naive_utc(rules.expires_at):
                 return
 
-            if self._active_base_snapshot is not None:
-                self._restore_config(self._active_base_snapshot)
-            self.current_rules = None
-            self._active_base_snapshot = None
+            self._revert_to_base_config()
             self.logger.info(
                 f"Dynamic rule {rules.rule_id} v{rules.version} expired; "
                 "restored base config"
+            )
+
+    def _is_no_op_answer(self, rules: DynamicRules) -> bool:
+        return getattr(rules, "version", None) == 0
+
+    def _revoke_active_rules(self, answer: DynamicRules) -> None:
+        with self._lock:
+            rules = self.current_rules
+            if rules is None:
+                return
+            self._revert_to_base_config()
+            self._clear_last_known_rules()
+            self.logger.info(
+                f"Dynamic rule {rules.rule_id} v{rules.version} revoked by the "
+                f"version-0 answer {answer.rule_id}; restored base config"
             )
 
     def _has_rule_expired(self, rules: DynamicRules) -> bool:
@@ -218,6 +243,10 @@ class DynamicRuleManager(
             if self._ignore_platform_default(rules):
                 return
 
+            if self._is_no_op_answer(rules):
+                self._revoke_active_rules(rules)
+                return
+
             if self._reject_if_already_expired(rules):
                 return
 
@@ -232,6 +261,7 @@ class DynamicRuleManager(
             self._apply_rules(rules)
 
             self.current_rules = rules
+            self._current_fingerprint = content_fingerprint(rules)
             self.last_update = time.time()
 
             self._send_rule_applied_event(rules)

@@ -450,7 +450,7 @@ async def test_first_successful_fetch_supersedes_hydrated_state() -> None:
 
 
 @pytest.mark.asyncio
-async def test_hydrated_state_kept_when_fetch_returns_older_version() -> None:
+async def test_hydrated_state_replaced_when_fetch_returns_a_rollback() -> None:
     config = SecurityConfig(
         enable_dynamic_rules=True,
         enable_agent=True,
@@ -470,8 +470,8 @@ async def test_hydrated_state_kept_when_fetch_returns_older_version() -> None:
 
     await manager.update_rules()
 
-    assert manager.current_rules == hydrated
-    assert config.auto_ban_threshold == 7
+    assert manager.current_rules == older
+    assert config.auto_ban_threshold == 9
 
 
 @pytest.mark.asyncio

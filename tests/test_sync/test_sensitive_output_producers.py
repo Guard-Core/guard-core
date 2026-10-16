@@ -880,6 +880,13 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
     "handlers/cloud_handler.py:CloudManager.schedule_refresh": (
         "line 183: scheduling failure for the refresh task, infra only"
     ),
+    "handlers/_dynamic_rule_snapshot.py:"
+    "DynamicRuleSnapshotMixin._clear_last_known_rules": (
+        "lines 114,124: persistence cleanup failure for SaaS-pushed rules, infra only"
+    ),
+    "handlers/dynamic_rule_handler.py:DynamicRuleManager._revoke_active_rules": (
+        "line 197: rule-revocation lifecycle log, policy metadata only"
+    ),
     "handlers/dynamic_rule_handler.py:DynamicRuleManager._ignore_platform_default": (
         "line 189: ignores the SaaS platform default shape, policy metadata only"
     ),

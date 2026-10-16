@@ -1,4 +1,6 @@
+import json
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -69,6 +71,19 @@ class DynamicRules(BaseModel):
     emergency_whitelist: list[str] = Field(
         default_factory=list, description="Emergency whitelist IPs"
     )
+
+
+_FINGERPRINT_EXCLUDED_FIELDS = frozenset({"timestamp", "ttl"})
+
+
+def content_fingerprint(rules: Any) -> str:
+    content: dict[str, object] = {}
+    for name in DynamicRules.model_fields:
+        if name in _FINGERPRINT_EXCLUDED_FIELDS:
+            continue
+        value = getattr(rules, name, None)
+        content[name] = sorted(value) if isinstance(value, set) else value
+    return json.dumps(content, sort_keys=True, default=str)
 
 
 LAST_KNOWN_RULES_SNAPSHOT_SCHEMA_VERSION = 1

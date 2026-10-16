@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from guard_core._dynamic_rules import (
+    content_fingerprint,
     dump_last_known_rules_snapshot,
     load_last_known_rules_snapshot,
 )
@@ -24,6 +25,7 @@ class DynamicRuleSnapshotMixin:
     logger: logging.Logger
     current_rules: DynamicRules | None
     last_update: float
+    _current_fingerprint: str | None
     _apply_rules: Callable[[DynamicRules], Awaitable[list[str]]]
     _has_rule_expired: Callable[[DynamicRules], bool]
 
@@ -34,6 +36,7 @@ class DynamicRuleSnapshotMixin:
                 return
             await self._apply_rules(rules)
             self.current_rules = rules
+            self._current_fingerprint = content_fingerprint(rules)
             self.last_update = time.time()
             self.logger.info(
                 f"Hydrated last-known dynamic rules {rules.rule_id} "
@@ -98,6 +101,29 @@ class DynamicRuleSnapshotMixin:
                 f"Discarding unusable last-known dynamic rules payload: {e}"
             )
             return None
+
+    async def _clear_last_known_rules(self) -> None:
+        if self.redis_handler:
+            try:
+                await resolve_redis_value(
+                    self.redis_handler.delete(
+                        DYNAMIC_RULES_REDIS_NAMESPACE, LAST_KNOWN_RULES_KEY
+                    )
+                )
+            except Exception as e:
+                self.logger.error(
+                    f"Failed to clear last-known dynamic rules in Redis: {e}"
+                )
+
+        cache_path = self.config.dynamic_rules_cache_path
+        if cache_path is None:
+            return
+        try:
+            cache_path.unlink(missing_ok=True)
+        except OSError as e:
+            self.logger.error(
+                f"Failed to clear dynamic rules cache file {cache_path}: {e}"
+            )
 
     async def _persist_last_known_rules(self, rules: DynamicRules) -> None:
         try:
