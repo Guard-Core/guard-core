@@ -7,6 +7,7 @@ import pytest
 
 from guard_core.models import DynamicRules, SecurityConfig
 from guard_core.sync._utils.access_control import _is_loopback
+from guard_core.sync.handlers._dynamic_rule_validation import MalformedDynamicRules
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.sync.protocols.geo_ip_protocol import SyncGeoIPHandler
 
@@ -55,14 +56,12 @@ def test_dynamic_blocks_are_added_to_the_static_lists() -> None:
     assert config.blocked_user_agents == ["staticbot", "dynbot"]
 
 
-def test_dynamic_rule_with_nothing_valid_leaves_the_static_lists_intact() -> None:
+def test_dynamic_rule_with_nothing_usable_leaves_the_static_lists_intact() -> None:
     manager, config = _manager()
-    manager._apply_rules(
-        _rules(
-            blocked_cloud_providers={"NotACloud"},
-            blocked_user_agents=[r"(a|aa)+$"],
-        )
-    )
+    with pytest.raises(MalformedDynamicRules):
+        manager._apply_rules(_rules(blocked_cloud_providers={"NotACloud"}))
+    manager._apply_rules(_rules(version=2, blocked_user_agents=[r"(a|aa)+$"]))
+
     assert config.block_cloud_providers == frozenset({"GCP"})
     assert config.blocked_user_agents == ["staticbot"]
     assert config.blocked_countries == frozenset({"CN"})
@@ -95,8 +94,9 @@ def test_dynamic_allow_list_replaces_only_when_non_empty_and_valid() -> None:
     manager._apply_rules(_rules(version=2, whitelist_countries=["de", "fr"]))
     assert config.whitelist_countries == frozenset({"DE", "FR"})
 
-    manager._apply_rules(_rules(version=3, whitelist_countries=["de", "USA!"]))
-    assert config.whitelist_countries == frozenset({"US"})
+    with pytest.raises(MalformedDynamicRules):
+        manager._apply_rules(_rules(version=3, whitelist_countries=["de", "USA!"]))
+    assert config.whitelist_countries == frozenset({"DE", "FR"})
 
 
 def test_dynamic_allow_list_keeps_the_check_time_loopback_exemption() -> None:

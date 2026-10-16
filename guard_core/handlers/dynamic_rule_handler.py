@@ -15,6 +15,7 @@ from guard_core.handlers._dynamic_rule_plan import (
     DynamicRulePlanMixin,
 )
 from guard_core.handlers._dynamic_rule_snapshot import DynamicRuleSnapshotMixin
+from guard_core.handlers._dynamic_rule_validation import find_malformed_values
 from guard_core.handlers.ipban_handler import ip_ban_manager
 from guard_core.models import (
     DynamicRules,
@@ -45,6 +46,7 @@ class DynamicRuleManager(
     _active_base_snapshot: dict[str, object] | None = None
     _last_skipped_expired_rule: tuple[str, int] | None = None
     _last_ignored_platform_default: tuple[str, int] | None = None
+    _last_rejected_rule: tuple[str, int, str] | None = None
     _hydrated_last_known_rules: bool = False
     _current_fingerprint: str | None = None
     _owned_bans: list[str]
@@ -86,6 +88,7 @@ class DynamicRuleManager(
             cls._instance._active_base_snapshot = None
             cls._instance._last_skipped_expired_rule = None
             cls._instance._last_ignored_platform_default = None
+            cls._instance._last_rejected_rule = None
             cls._instance._hydrated_last_known_rules = False
             cls._instance._current_fingerprint = None
             cls._instance._owned_bans = []
@@ -243,6 +246,21 @@ class DynamicRuleManager(
             )
         return True
 
+    async def _reject_if_malformed(self, rules: DynamicRules) -> bool:
+        problems = find_malformed_values(rules)
+        if not problems:
+            return False
+
+        key = (rules.rule_id, rules.version, content_fingerprint(rules))
+        if self._last_rejected_rule != key:
+            self._last_rejected_rule = key
+            self.logger.warning(
+                f"Dynamic rule {rules.rule_id} v{rules.version} rejected, "
+                f"keeping the last-known rules: {problems}"
+            )
+            await self._send_rule_rejected_event(rules, problems)
+        return True
+
     async def update_rules(self) -> None:
         if not self.config.enable_dynamic_rules or not self.agent_handler:
             return
@@ -262,6 +280,9 @@ class DynamicRuleManager(
                 return
 
             if self._reject_if_already_expired(rules):
+                return
+
+            if await self._reject_if_malformed(rules):
                 return
 
             if not self._should_update_rules(rules):
@@ -314,7 +335,7 @@ class DynamicRuleManager(
             await self._revoke_stale_side_effects(rules, effects)
             await self._announce_plan(plan)
             await self._persist_last_known_rules(rules)
-            return plan.skipped
+            return [*plan.skipped, *effects.skipped]
 
     async def _revoke_stale_side_effects(
         self, rules: DynamicRules, effects: RuleSideEffects

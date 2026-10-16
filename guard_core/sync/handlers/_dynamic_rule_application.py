@@ -15,6 +15,7 @@ def _redact_pattern_list(patterns: list[str]) -> list[str]:
 class RuleSideEffects:
     created_bans: list[str] = field(default_factory=list)
     created_patterns: list[str] = field(default_factory=list)
+    skipped: list[str] = field(default_factory=list)
 
 
 class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
@@ -41,7 +42,7 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
 
         if rules.suspicious_patterns:
             self._apply_pattern_rules(
-                rules.suspicious_patterns, effects.created_patterns
+                rules.suspicious_patterns, effects.created_patterns, effects.skipped
             )
 
     def _owned_after(
@@ -105,11 +106,15 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
                 self.logger.error(f"Failed to whitelist IP {ip}: {e}")
 
     def _apply_pattern_rules(
-        self, patterns: list[str], created: list[str] | None = None
+        self,
+        patterns: list[str],
+        created: list[str] | None = None,
+        skipped: list[str] | None = None,
     ) -> None:
         from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
 
         created = created if created is not None else []
+        skipped = skipped if skipped is not None else []
         known = set(sus_patterns_handler.patterns)
         candidates = [p for p in dict.fromkeys(patterns) if p not in known]
         rejected: list[str] = []
@@ -126,6 +131,10 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
             )
 
         if rejected:
+            skipped.extend(
+                f"suspicious_patterns: pattern {pattern!r} rejected"
+                for pattern in _redact_pattern_list(rejected)
+            )
             self.logger.warning(
                 f"Dynamic rule: rejected patterns {_redact_pattern_list(rejected)}"
             )

@@ -77,6 +77,37 @@ class DynamicRuleEventSenderMixin:
         except Exception as e:
             self.logger.error(f"Failed to send rule applied event: {e}")
 
+    async def _send_rule_rejected_event(
+        self, rules: DynamicRules, problems: list[str]
+    ) -> None:
+        from guard_core.core.events.event_types import EVENT_DYNAMIC_RULE_UPDATED
+
+        if not self.agent_handler:
+            return
+
+        try:
+            from guard_core._pydantic_plugin_mute import get_telemetry_model
+
+            SecurityEvent = get_telemetry_model("SecurityEvent")
+
+            event = SecurityEvent(
+                timestamp=datetime.now(timezone.utc),
+                event_type=EVENT_DYNAMIC_RULE_UPDATED,
+                ip_address="system",
+                action_taken="rules_rejected",
+                reason=f"Rejected malformed dynamic rules {rules.rule_id} "
+                f"v{rules.version}",
+                handler_name=_DYNAMIC_RULES_HANDLER_NAME,
+                metadata={
+                    "rule_id": rules.rule_id,
+                    "version": rules.version,
+                    "rejected": problems,
+                },
+            )
+            await self.agent_handler.send_event(event)
+        except Exception as e:
+            self.logger.error(f"Failed to send rule rejected event: {e}")
+
     async def _send_emergency_event(self, whitelist: list[str]) -> None:
         from guard_core.core.events.event_types import EVENT_EMERGENCY_MODE
 

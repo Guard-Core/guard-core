@@ -37,7 +37,7 @@ async def test_apply_rules_rolls_back_on_partial_failure() -> None:
         config.whitelist_countries = frozenset({"YY"})
         manager = DynamicRuleManager(config)
 
-        rules = _rules(blocked_countries=["NEW"], whitelist_countries=["NEW2"])
+        rules = _rules(blocked_countries=["NN"], whitelist_countries=["NY"])
 
         with patch.object(
             manager,
@@ -103,7 +103,7 @@ async def test_rollback_restores_all_snapshot_fields() -> None:
     manager = DynamicRuleManager(config)
 
     rules = _rules(
-        blocked_countries=["NEW_COUNTRY"],
+        blocked_countries=["NC"],
         global_rate_limit=999,
         enable_ip_banning=False,
     )
@@ -344,7 +344,7 @@ async def test_rollback_restores_fields_on_smuggled_invalid_auto_ban_threshold()
     manager = DynamicRuleManager(config)
 
     rules = _rules(
-        blocked_countries=["NEW_COUNTRY"],
+        blocked_countries=["NC"],
         global_rate_limit=999,
         enable_ip_banning=False,
         auto_ban_threshold=7,
@@ -382,8 +382,8 @@ def _full_snapshot_base_kwargs() -> dict[str, object]:
 
 def _full_mutation_rule(**extra: object) -> DynamicRules:
     return _rules(
-        blocked_countries=["NEW_BLOCK"],
-        whitelist_countries=["NEW_WHITE"],
+        blocked_countries=["NB"],
+        whitelist_countries=["NW"],
         global_rate_limit=999,
         global_rate_window=120,
         endpoint_rate_limits={"/new": (10, 30)},

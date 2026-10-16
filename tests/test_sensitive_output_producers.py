@@ -738,6 +738,11 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "change, not a request; logger.error fallback is send-failure text"
     ),
     "handlers/_dynamic_rule_events.py:"
+    "DynamicRuleEventSenderMixin._send_rule_rejected_event": (
+        "lines 107,109: reports on a rejected SaaS-pushed rule, not a request; "
+        "logger.error fallback is send-failure text"
+    ),
+    "handlers/_dynamic_rule_events.py:"
     "DynamicRuleEventSenderMixin._send_rule_applied_event": (
         "lines 69,71: reports on a SaaS-pushed rule application, not a request"
     ),
@@ -893,6 +898,9 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
     ),
     "handlers/dynamic_rule_handler.py:DynamicRuleManager._revoke_active_rules": (
         "line 197: rule-revocation lifecycle log, policy metadata only"
+    ),
+    "handlers/dynamic_rule_handler.py:DynamicRuleManager._reject_if_malformed": (
+        "line 257: rejects a malformed pushed rule set, policy metadata only"
     ),
     "handlers/dynamic_rule_handler.py:DynamicRuleManager._ignore_platform_default": (
         "line 189: ignores the SaaS platform default shape, policy metadata only"

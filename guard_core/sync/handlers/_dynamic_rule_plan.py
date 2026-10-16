@@ -1,7 +1,6 @@
 import functools
 import ipaddress
 import logging
-import re
 from collections.abc import Iterable
 from copy import deepcopy
 from dataclasses import dataclass, field
@@ -12,6 +11,10 @@ from guard_core._security_config_field_validators import (
 )
 from guard_core.models import DynamicRules, SecurityConfig
 from guard_core.sync._utils.detection_scan import _redact_pattern_source
+from guard_core.sync.handlers._dynamic_rule_validation import (
+    MalformedDynamicRules,
+    find_malformed_values,
+)
 from guard_core.sync.handlers._ipban_bans import _LOOPBACK_NETWORKS
 
 
@@ -41,13 +44,6 @@ def _redact_rejected_patterns(
     rejected: list[tuple[str, str]],
 ) -> list[tuple[str, str]]:
     return [(_redact_pattern_source(pattern), reason) for pattern, reason in rejected]
-
-
-_COUNTRY_CODE = re.compile(r"[A-Za-z]{2}")
-
-
-def _valid_country_codes(codes: list[str]) -> list[str]:
-    return [code.upper() for code in codes if _COUNTRY_CODE.fullmatch(code)]
 
 
 def _classify_exempt_entry(entry: str) -> tuple[str | None, str]:
@@ -87,6 +83,9 @@ class DynamicRulePlanMixin:
     def _build_plan(
         self, rules: DynamicRules, base: dict[str, object]
     ) -> DynamicRulePlan:
+        problems = find_malformed_values(rules)
+        if problems:
+            raise MalformedDynamicRules(problems)
         plan = DynamicRulePlan(state=dict(base))
         valid_user_agents = self._validate_user_agents(plan, rules)
         self._plan_countries(plan, rules)
@@ -124,34 +123,21 @@ class DynamicRulePlanMixin:
     def _plan_blocked_countries(
         self, plan: DynamicRulePlan, blocked: list[str]
     ) -> None:
-        valid = _valid_country_codes(blocked)
-        if len(valid) != len(blocked):
-            plan.skip(
-                "blocked_countries: entries that are not two-letter codes",
-                "Dynamic rule: ignored blocked_countries entries that are not "
-                f"two-letter country codes: {sorted(set(blocked) - set(valid))}",
-            )
-        if not valid:
+        if not blocked:
             return
-        merged = _merge_unique(plan.state.get("blocked_countries"), valid)
+        normalized = [code.upper() for code in blocked]
+        merged = _merge_unique(plan.state.get("blocked_countries"), normalized)
         plan.set("blocked_countries", frozenset(merged))
-        plan.note(f"Dynamic rule: Blocked countries {sorted(set(valid))}")
+        plan.note(f"Dynamic rule: Blocked countries {sorted(set(normalized))}")
 
     def _plan_allowed_countries(
         self, plan: DynamicRulePlan, allowed: list[str]
     ) -> None:
         if not allowed:
             return
-        valid = _valid_country_codes(allowed)
-        if len(valid) != len(allowed):
-            plan.skip(
-                "whitelist_countries: not fully valid, static allow-list kept",
-                "Dynamic rule: whitelist_countries has entries that are not "
-                f"two-letter country codes ({allowed}); keeping the static allow-list",
-            )
-            return
-        plan.set("whitelist_countries", frozenset(valid))
-        plan.note(f"Dynamic rule: Whitelisted countries {sorted(set(valid))}")
+        normalized = [code.upper() for code in allowed]
+        plan.set("whitelist_countries", frozenset(normalized))
+        plan.note(f"Dynamic rule: Whitelisted countries {sorted(set(normalized))}")
 
     def _plan_cloud_providers(self, plan: DynamicRulePlan, rules: DynamicRules) -> None:
         providers = rules.blocked_cloud_providers
@@ -206,6 +192,11 @@ class DynamicRulePlanMixin:
             else:
                 rejected.append((pattern, reason))
         if rejected:
+            for pattern, _reason in rejected:
+                plan.skipped.append(
+                    "blocked_user_agents: pattern "
+                    f"{_redact_pattern_source(pattern)!r} failed the ReDoS validator"
+                )
             plan.note(
                 f"Dynamic rule: rejected blocked_user_agents patterns failing the "
                 f"ReDoS validator: {_redact_rejected_patterns(rejected)}",

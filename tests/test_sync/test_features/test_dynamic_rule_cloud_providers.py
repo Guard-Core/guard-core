@@ -1,10 +1,10 @@
-import logging
 from datetime import datetime, timezone
 from typing import Any
 
 import pytest
 
 from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.sync.handlers._dynamic_rule_validation import MalformedDynamicRules
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
 
 
@@ -21,14 +21,12 @@ def manager() -> DynamicRuleManager:
     return DynamicRuleManager(config)
 
 
-def test_apply_cloud_provider_rules_filters_invalid_providers(
-    manager: DynamicRuleManager, caplog: pytest.LogCaptureFixture
+def test_apply_cloud_provider_rules_rejects_a_rule_with_an_unknown_provider(
+    manager: DynamicRuleManager,
 ) -> None:
-    caplog.set_level(logging.WARNING)
-    _apply(manager, blocked_cloud_providers={"AWS", "Bogus", "GCP"})
-    assert manager.config.block_cloud_providers == {"AWS", "GCP"}
-    assert "ignored unknown cloud providers" in caplog.text
-    assert "Bogus" in caplog.text
+    with pytest.raises(MalformedDynamicRules, match="Bogus"):
+        _apply(manager, blocked_cloud_providers={"AWS", "Bogus", "GCP"})
+    assert manager.config.block_cloud_providers is None
 
 
 def test_apply_cloud_provider_rules_all_valid(
@@ -46,9 +44,8 @@ def test_apply_cloud_provider_rules_empty_set(
 
 
 def test_apply_cloud_provider_rules_all_invalid(
-    manager: DynamicRuleManager, caplog: pytest.LogCaptureFixture
+    manager: DynamicRuleManager,
 ) -> None:
-    caplog.set_level(logging.WARNING)
-    _apply(manager, blocked_cloud_providers={"Bogus1", "Bogus2"})
+    with pytest.raises(MalformedDynamicRules):
+        _apply(manager, blocked_cloud_providers={"Bogus1", "Bogus2"})
     assert manager.config.block_cloud_providers is None
-    assert "ignored unknown cloud providers" in caplog.text
