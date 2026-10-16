@@ -1,6 +1,8 @@
 from typing import Any
 from unittest.mock import AsyncMock
 
+import pytest
+
 from guard_core.models import SecurityConfig
 from tests.conftest import MockGuardResponse
 from tests.test_core.conftest import build_route_pipeline, send_request
@@ -131,3 +133,56 @@ async def test_other_custom_validators_still_skip_the_block_hook() -> None:
     assert response.status_code == 418
     assert response.body == b"app says no"
     assert hook.calls == []
+
+
+async def _trap_hit_before_a_later_validator(
+    config: SecurityConfig,
+) -> tuple[Any, list[int]]:
+    later_calls: list[int] = []
+
+    async def later_validator(request: Any) -> Any:
+        later_calls.append(1)
+        return MockGuardResponse("later says no", 418)
+
+    pipeline, _, route_id = build_route_pipeline(
+        config,
+        lambda d: (
+            lambda func: d.custom_validation(later_validator)(
+                d.honeypot_detection(["hp"])(func)
+            )
+        ),
+    )
+    response = await send_request(
+        pipeline,
+        route_id,
+        ip=BOT_IP,
+        method="POST",
+        headers=FORM,
+        body=b"hp=bot",
+    )
+    return response, later_calls
+
+
+async def test_passive_honeypot_hit_keeps_evaluating_later_validators(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    hook = _Hook()
+
+    with caplog.at_level("WARNING"):
+        response, later_calls = await _trap_hit_before_a_later_validator(
+            _config(hook, passive_mode=True)
+        )
+
+    assert response is None
+    assert later_calls == [1]
+    assert [c["check_name"] for c in hook.calls] == ["honeypot"]
+    failures = [r for r in caplog.records if "Custom validation failed" in r.message]
+    assert len(failures) == 2
+
+
+async def test_active_honeypot_hit_stops_before_later_validators() -> None:
+    response, later_calls = await _trap_hit_before_a_later_validator(_config(_Hook()))
+
+    assert response is not None
+    assert response.status_code == 403
+    assert later_calls == []

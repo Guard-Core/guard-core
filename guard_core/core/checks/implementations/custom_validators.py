@@ -90,7 +90,10 @@ class CustomValidatorsCheck(SecurityCheck):
                     validator_name=getattr(validator, "__name__", "anonymous"),
                 )
                 if validator in route_config.honeypot_validators:
-                    return await self._handle_honeypot_hit(request)
+                    honeypot_response = await self._handle_honeypot_hit(request)
+                    if honeypot_response is not None:
+                        return honeypot_response
+                    continue
                 if not self.config.passive_mode and isinstance(
                     validation_response, GuardResponse
                 ):
