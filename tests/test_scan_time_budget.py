@@ -12,7 +12,10 @@ from guard_core._utils.detection_scan import (
     _scan_time_budget_exhausted,
     _scan_value_budget,
 )
-from guard_core.handlers.suspatterns_handler import SusPatternsManager
+from guard_core.handlers.suspatterns_handler import (
+    SusPatternsManager,
+    sus_patterns_handler,
+)
 from guard_core.models import SecurityConfig
 from guard_core.utils import detect_penetration_attempt
 from tests.conftest import MockGuardRequest
@@ -146,6 +149,24 @@ async def test_budget_is_shared_across_fields_of_one_request(
 async def test_fallback_check_honours_budget() -> None:
     with _scan_value_budget(512, max_scan_seconds=0.1):
         detection_scan._record_scan_time(1.0)
+        detected, trigger = await detection_scan._fallback_pattern_check(
+            "hello", "127.0.0.1", "query_param:q"
+        )
+
+    assert detected is True
+    assert "budget" in trigger
+
+
+async def test_fallback_check_charges_its_inline_scan_cpu(
+    fake_regex_clock: _FakeClock,
+) -> None:
+    async def inline_only(*args: Any, **kwargs: Any) -> tuple[None, bool]:
+        return None, False
+
+    with (
+        patch.object(sus_patterns_handler, "_check_regex_pattern", inline_only),
+        _scan_value_budget(512, max_scan_seconds=2.5),
+    ):
         detected, trigger = await detection_scan._fallback_pattern_check(
             "hello", "127.0.0.1", "query_param:q"
         )

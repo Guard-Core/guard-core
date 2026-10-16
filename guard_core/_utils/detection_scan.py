@@ -318,31 +318,36 @@ async def _fallback_pattern_check(
     normalized_context = sus_patterns_handler._normalize_context(context)
     all_compiled = await sus_patterns_handler.get_all_compiled_patterns()
     binary_prefix = build_binary_prefix(value)
-    for pattern, _contexts, category in all_compiled:
-        if _scan_time_budget_exhausted():
-            return True, "Scan time budget exhausted (fallback)"
-        pattern_start = time.monotonic()
-        try:
-            threat, _timeout_occurred = await sus_patterns_handler._check_regex_pattern(
-                pattern,
-                value,
-                client_ip,
-                pattern_start,
-                category,
-                context=normalized_context,
-                binary_prefix=binary_prefix,
-            )
-        except RecursionError:
-            logger.warning(
-                "Fallback pattern search hit the regex engine's recursion "
-                "limit on pattern %r; skipping it and continuing the "
-                "fallback scan",
-                _redact_pattern_source(pattern.pattern),
-            )
-            continue
-        if threat:
-            return True, "Value matched pattern (fallback)"
-    return False, ""
+    mark_token = _open_cpu_pass()
+    try:
+        for pattern, _contexts, category in all_compiled:
+            _charge_inline_cpu()
+            if _scan_time_budget_exhausted():
+                return True, "Scan time budget exhausted (fallback)"
+            pattern_start = time.monotonic()
+            try:
+                threat, _ = await sus_patterns_handler._check_regex_pattern(
+                    pattern,
+                    value,
+                    client_ip,
+                    pattern_start,
+                    category,
+                    context=normalized_context,
+                    binary_prefix=binary_prefix,
+                )
+            except RecursionError:
+                logger.warning(
+                    "Fallback pattern search hit the regex engine's recursion "
+                    "limit on pattern %r; skipping it and continuing the "
+                    "fallback scan",
+                    _redact_pattern_source(pattern.pattern),
+                )
+                continue
+            if threat:
+                return True, "Value matched pattern (fallback)"
+        return False, ""
+    finally:
+        _close_cpu_pass(mark_token)
 
 
 def _resolve_json_redact_all(
