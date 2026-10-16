@@ -25,6 +25,7 @@ class DynamicRuleSnapshotMixin:
     logger: logging.Logger
     current_rules: DynamicRules | None
     last_update: float
+    _hydrating: bool
     _current_fingerprint: str | None
     _apply_rules: Callable[[DynamicRules], Awaitable[list[str]]]
     _has_rule_expired: Callable[[DynamicRules], bool]
@@ -34,7 +35,11 @@ class DynamicRuleSnapshotMixin:
             rules = await self._load_last_known_rules()
             if rules is None:
                 return
-            await self._apply_rules(rules)
+            self._hydrating = True
+            try:
+                await self._apply_rules(rules)
+            finally:
+                self._hydrating = False
             self.current_rules = rules
             self._current_fingerprint = content_fingerprint(rules)
             self.last_update = time.time()

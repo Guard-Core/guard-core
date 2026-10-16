@@ -17,6 +17,7 @@ class RuleSideEffects:
     created_bans: list[str] = field(default_factory=list)
     created_patterns: list[str] = field(default_factory=list)
     skipped: list[str] = field(default_factory=list)
+    reowned_bans: list[str] = field(default_factory=list)
 
 
 class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
@@ -24,6 +25,7 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
     agent_handler: Any
     _owned_bans: list[str]
     _owned_patterns: list[str]
+    _hydrating: bool = False
 
     async def _apply_side_effects(
         self,
@@ -38,6 +40,7 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
                 rules.ip_ban_duration,
                 effects.created_bans,
                 effects.skipped,
+                effects.reowned_bans,
             )
 
         whitelist = rules.ip_whitelist if exempt_ips is None else exempt_ips
@@ -85,16 +88,20 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
         duration: int,
         created: list[str] | None = None,
         skipped: list[str] | None = None,
+        reowned: list[str] | None = None,
     ) -> None:
         from guard_core.handlers.ipban_handler import ip_ban_manager
 
         created = created if created is not None else []
         skipped = skipped if skipped is not None else []
+        reowned = reowned if reowned is not None else []
         for ip in ip_list:
             try:
                 canonical = _canonicalize_ip(ip)
                 owned = canonical in self._owned_bans
                 if not owned and await ip_ban_manager.is_ip_banned(canonical):
+                    if self._hydrating and canonical not in reowned:
+                        reowned.append(canonical)
                     continue
                 applied = await ip_ban_manager.ban_ip(ip, duration, "dynamic_rule")
                 if applied:
@@ -168,7 +175,7 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
         bans = self._owned_after(
             [_canonicalize_ip(ip) for ip in rules.ip_blacklist],
             self._owned_bans,
-            effects.created_bans,
+            [*effects.created_bans, *effects.reowned_bans],
         )
         patterns = self._owned_after(
             rules.suspicious_patterns, self._owned_patterns, effects.created_patterns
