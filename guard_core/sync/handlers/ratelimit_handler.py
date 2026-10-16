@@ -5,7 +5,7 @@ import time
 from collections import defaultdict, deque
 from collections.abc import Callable
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from redis.exceptions import NoScriptError, RedisError
 
@@ -19,11 +19,14 @@ from guard_core.sync._utils.request_logging import redact_endpoint_for_display
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 from guard_core.sync.utils import log_activity
 
+if TYPE_CHECKING:
+    from guard_core.sync.core.checks.helpers import _WindowedCategoryCounts
+
 _by_ip_logger = logging.getLogger("guard_core.sync.handlers.ratelimit")
 _RATE_LIMIT_HANDLER_NAME = "rate_limit"
 _by_ip_request_timestamps: defaultdict[str, deque[float]] = defaultdict(deque)
 _by_ip_lock = threading.Lock()
-_by_ip_autoban_counts: defaultdict[str, int] = defaultdict(int)
+_by_ip_autoban_counts: dict[str, "_WindowedCategoryCounts"] = {}
 _by_ip_autoban_lock = threading.Lock()
 _MAX_TRACKED_RATE_LIMIT_KEYS = 10_000
 _redis_fail_open_warned = False
@@ -159,7 +162,8 @@ def _feed_rate_limit_autoban(ip: str, config: SecurityConfig) -> None:
     """Feed a rate-limited call into the shared auto-ban engine.
 
     Increments a dedicated, per-process, in-memory violation counter keyed by
-    ``ip`` (``_by_ip_autoban_counts`` in this module), separate from and never
+    ``ip`` (``_by_ip_autoban_counts`` in this module) over a sliding
+    ``SUSPICIOUS_COUNT_WINDOW_SECONDS`` window, separate from and never
     merged with ``middleware.suspicious_request_counts``: the primitive has no
     middleware/request, so it cannot share that store. Guarded by
     ``_by_ip_autoban_lock`` (same discipline as ``_by_ip_request_timestamps``'s
@@ -177,23 +181,30 @@ def _feed_rate_limit_autoban(ip: str, config: SecurityConfig) -> None:
     if config.passive_mode:
         return
 
-    from guard_core.sync.core.checks.helpers import _resolve_and_apply_threshold_ban
+    from guard_core.sync.core.checks.helpers import (
+        _MAX_RETAINED_EVENTS_PER_CATEGORY,
+        SUSPICIOUS_COUNT_WINDOW_SECONDS,
+        _resolve_and_apply_threshold_ban,
+        _WindowedCategoryCounts,
+    )
     from guard_core.sync.handlers.ipban_handler import IPBanManager
 
     ip_ban_manager = IPBanManager()
     if ip_ban_manager.is_ip_banned(ip):
         return
 
+    now = time.monotonic()
     with _by_ip_autoban_lock:
-        count = (
-            _lru_pop_or_create(
-                _by_ip_autoban_counts, ip, _MAX_TRACKED_RATE_LIMIT_KEYS, int
-            )
-            + 1
+        ip_counts = _lru_pop_or_create(
+            _by_ip_autoban_counts,
+            ip,
+            _MAX_TRACKED_RATE_LIMIT_KEYS,
+            _WindowedCategoryCounts,
         )
-        _by_ip_autoban_counts[ip] = count
+        ip_counts.expire_before(now - SUSPICIOUS_COUNT_WINDOW_SECONDS)
+        ip_counts.record("rate_limit", now, _MAX_RETAINED_EVENTS_PER_CATEGORY)
+        _by_ip_autoban_counts[ip] = ip_counts
 
-    ip_counts = {"rate_limit": count}
     result = _resolve_and_apply_threshold_ban(
         ip_counts,
         config,
