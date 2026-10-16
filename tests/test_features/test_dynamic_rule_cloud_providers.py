@@ -54,5 +54,5 @@ async def test_apply_cloud_provider_rules_all_invalid(
 ) -> None:
     caplog.set_level(logging.WARNING)
     await _apply(manager, blocked_cloud_providers={"Bogus1", "Bogus2"})
-    assert manager.config.block_cloud_providers == set()
+    assert manager.config.block_cloud_providers is None
     assert "ignored unknown cloud providers" in caplog.text

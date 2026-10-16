@@ -50,10 +50,10 @@ def test_apply_rules_persists_on_success() -> None:
     config = SecurityConfig(geo_ip_handler=MagicMock(spec=SyncGeoIPHandler))
     manager = DynamicRuleManager(config)
 
-    rules = _rules(blocked_countries=["NEW"])
+    rules = _rules(blocked_countries=["NW"])
     manager._apply_rules(rules)
 
-    assert config.blocked_countries == frozenset({"NEW"})
+    assert config.blocked_countries == frozenset({"NW"})
 
 
 def test_concurrent_threads_serialize() -> None:

@@ -1,5 +1,7 @@
 import functools
 import logging
+import re
+from collections.abc import Iterable
 from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any, cast
@@ -13,7 +15,7 @@ from guard_core.sync._utils.detection_scan import _redact_pattern_source
 
 @dataclass
 class DynamicRulePlan:
-    state: dict[str, object]
+    state: dict[str, Any]
     skipped: list[str] = field(default_factory=list)
     messages: list[tuple[int, str]] = field(default_factory=list)
     emergency_whitelist: list[str] | None = None
@@ -36,6 +38,17 @@ def _redact_rejected_patterns(
     rejected: list[tuple[str, str]],
 ) -> list[tuple[str, str]]:
     return [(_redact_pattern_source(pattern), reason) for pattern, reason in rejected]
+
+
+_COUNTRY_CODE = re.compile(r"[A-Za-z]{2}")
+
+
+def _valid_country_codes(codes: list[str]) -> list[str]:
+    return [code.upper() for code in codes if _COUNTRY_CODE.fullmatch(code)]
+
+
+def _merge_unique(static: Iterable[str] | None, dynamic: Iterable[str]) -> list[str]:
+    return list(dict.fromkeys([*(static or ()), *dynamic]))
 
 
 class DynamicRulePlanMixin:
@@ -75,31 +88,60 @@ class DynamicRulePlanMixin:
                 "ipinfo_token is configured to resolve IPs to countries",
             )
             return
-        if blocked:
-            normalized_blocked = frozenset(c.upper() for c in blocked)
-            plan.set("blocked_countries", normalized_blocked)
-            plan.note(f"Dynamic rule: Blocked countries {sorted(normalized_blocked)}")
-        if allowed:
-            normalized_allowed = frozenset(c.upper() for c in allowed)
-            plan.set("whitelist_countries", normalized_allowed)
-            plan.note(
-                f"Dynamic rule: Whitelisted countries {sorted(normalized_allowed)}"
+        self._plan_blocked_countries(plan, blocked)
+        self._plan_allowed_countries(plan, allowed)
+
+    def _plan_blocked_countries(
+        self, plan: DynamicRulePlan, blocked: list[str]
+    ) -> None:
+        valid = _valid_country_codes(blocked)
+        if len(valid) != len(blocked):
+            plan.skip(
+                "blocked_countries: entries that are not two-letter codes",
+                "Dynamic rule: ignored blocked_countries entries that are not "
+                f"two-letter country codes: {sorted(set(blocked) - set(valid))}",
             )
+        if not valid:
+            return
+        merged = _merge_unique(plan.state.get("blocked_countries"), valid)
+        plan.set("blocked_countries", frozenset(merged))
+        plan.note(f"Dynamic rule: Blocked countries {sorted(set(valid))}")
+
+    def _plan_allowed_countries(
+        self, plan: DynamicRulePlan, allowed: list[str]
+    ) -> None:
+        if not allowed:
+            return
+        valid = _valid_country_codes(allowed)
+        if len(valid) != len(allowed):
+            plan.skip(
+                "whitelist_countries: not fully valid, static allow-list kept",
+                "Dynamic rule: whitelist_countries has entries that are not "
+                f"two-letter country codes ({allowed}); keeping the static allow-list",
+            )
+            return
+        plan.set("whitelist_countries", frozenset(valid))
+        plan.note(f"Dynamic rule: Whitelisted countries {sorted(set(valid))}")
 
     def _plan_cloud_providers(self, plan: DynamicRulePlan, rules: DynamicRules) -> None:
         providers = rules.blocked_cloud_providers
         if not providers:
             return
         canonical = {p: canonicalize_cloud_provider_selector(p) for p in providers}
-        valid = frozenset(name for name in canonical.values() if name is not None)
-        plan.set("block_cloud_providers", valid)
+        valid = [name for name in canonical.values() if name is not None]
         invalid = sorted(p for p, name in canonical.items() if name is None)
         if invalid:
             plan.note(
                 f"Dynamic rule: ignored unknown cloud providers {invalid}",
                 logging.WARNING,
             )
-        plan.note(f"Dynamic rule: Blocked cloud providers {valid}")
+        if not valid:
+            return
+        merged = frozenset(
+            _merge_unique(plan.state.get("block_cloud_providers"), valid)
+        )
+        plan.set("block_cloud_providers", merged)
+        plan.note(f"Dynamic rule: Blocked cloud providers {merged}")
 
     def _validate_user_agents(
         self, plan: DynamicRulePlan, rules: DynamicRules
@@ -144,10 +186,11 @@ class DynamicRulePlanMixin:
     def _plan_user_agents(
         self, plan: DynamicRulePlan, valid_user_agents: list[str] | None
     ) -> None:
-        if valid_user_agents is None:
+        if not valid_user_agents:
             return
-        plan.set("blocked_user_agents", valid_user_agents, validate=False)
-        redacted = [_redact_pattern_source(p) for p in valid_user_agents]
+        merged = _merge_unique(plan.state.get("blocked_user_agents"), valid_user_agents)
+        plan.set("blocked_user_agents", merged, validate=False)
+        redacted = [_redact_pattern_source(p) for p in merged]
         plan.note(f"Dynamic rule: Blocked user agents {redacted}")
 
     def _plan_rate_limits(self, plan: DynamicRulePlan, rules: DynamicRules) -> None:

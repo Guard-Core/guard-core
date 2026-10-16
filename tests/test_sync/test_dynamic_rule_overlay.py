@@ -74,8 +74,8 @@ def test_collection_values_do_not_accumulate_across_versions() -> None:
         ),
     )
 
-    assert config.blocked_user_agents == ["bot-b"]
-    assert config.block_cloud_providers == frozenset({"Azure"})
+    assert config.blocked_user_agents == ["base-bot", "bot-b"]
+    assert config.block_cloud_providers == frozenset({"AWS", "Azure"})
     assert config.blocked_countries == frozenset({"BB"})
     assert config.endpoint_rate_limits == {"/b": (2, 60)}
 
