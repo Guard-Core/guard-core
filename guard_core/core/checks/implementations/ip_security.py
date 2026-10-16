@@ -322,7 +322,12 @@ class IpSecurityCheck(SecurityCheck):
         forwarded_for = getattr(request.state, "untrusted_forwarded_for", None)
         if not self.config.ban_on_hostile_signals or not isinstance(forwarded_for, str):
             return
-        if self._forwarded_for_claims_privileged_address(forwarded_for, route_config):
+        client_ip = getattr(request.state, "client_ip", None)
+        if not client_ip or not self._forwarded_for_claims_privileged_address(
+            forwarded_for, route_config
+        ):
+            return
+        if not await self.ip_ban_manager.is_ip_banned(client_ip):
             await report_hostile_signal(
                 self,
                 request,
@@ -332,10 +337,9 @@ class IpSecurityCheck(SecurityCheck):
 
     async def check(self, request: GuardRequest) -> GuardResponse | None:
         response = await self._enforce_ip_rules(request)
-        if response is None:
-            await self._count_ip_spoofing(
-                request, getattr(request.state, "route_config", None)
-            )
+        await self._count_ip_spoofing(
+            request, getattr(request.state, "route_config", None)
+        )
         return response
 
     async def _enforce_ip_rules(self, request: GuardRequest) -> GuardResponse | None:

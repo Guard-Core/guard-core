@@ -149,3 +149,129 @@ async def test_unparseable_forwarded_for_entry_next_to_a_privileged_one_counts()
     )
 
     assert middleware.suspicious_request_counts[PUBLIC_PROXY] == {"ip_spoofing": 1}
+
+
+ROUTE_ALLOWED_ADDRESS = "198.51.100.1"
+OTHER_ALLOWED_ADDRESS = "192.0.2.77"
+
+
+async def _send_to_allow_listed_route(
+    config: SecurityConfig, peer: str, claim: str, count: int
+) -> tuple[Any, list[int]]:
+    pipeline, middleware, route_id = build_route_pipeline(
+        config, lambda d: d.require_ip(whitelist=[ROUTE_ALLOWED_ADDRESS])
+    )
+    codes = []
+    for _ in range(count):
+        response = await send_request(
+            pipeline, route_id, ip=peer, headers={"X-Forwarded-For": claim}
+        )
+        codes.append(response.status_code if response is not None else 200)
+    return middleware, codes
+
+
+async def test_route_whitelist_claim_is_counted_when_the_allow_list_denies() -> None:
+    config = _config(auto_ban_threshold=3, trusted_proxies=["10.0.0.1"])
+
+    middleware, codes = await _send_to_allow_listed_route(
+        config, PUBLIC_PROXY, ROUTE_ALLOWED_ADDRESS, 3
+    )
+
+    assert codes == [403, 403, 403]
+    assert PUBLIC_PROXY not in middleware.suspicious_request_counts
+    assert await ipban_handler.ip_ban_manager.is_ip_banned(PUBLIC_PROXY)
+
+
+async def test_route_whitelist_claim_counts_once_per_denied_request() -> None:
+    config = _config(auto_ban_threshold=5, trusted_proxies=["10.0.0.1"])
+
+    middleware, _ = await _send_to_allow_listed_route(
+        config, PUBLIC_PROXY, ROUTE_ALLOWED_ADDRESS, 2
+    )
+
+    assert middleware.suspicious_request_counts[PUBLIC_PROXY] == {"ip_spoofing": 2}
+
+
+async def test_route_whitelist_claim_is_counted_when_the_peer_is_allowed() -> None:
+    config = _config(auto_ban_threshold=2, trusted_proxies=["10.0.0.1"])
+    pipeline, _, route_id = build_route_pipeline(
+        config, lambda d: d.require_ip(whitelist=[ROUTE_ALLOWED_ADDRESS, PUBLIC_PROXY])
+    )
+
+    for _ in range(2):
+        await send_request(
+            pipeline,
+            route_id,
+            ip=PUBLIC_PROXY,
+            headers={"X-Forwarded-For": ROUTE_ALLOWED_ADDRESS},
+        )
+
+    assert await ipban_handler.ip_ban_manager.is_ip_banned(PUBLIC_PROXY)
+
+
+async def test_global_whitelist_claim_is_counted_when_the_allow_list_denies() -> None:
+    config = _config(
+        auto_ban_threshold=3,
+        trusted_proxies=["10.0.0.1"],
+        whitelist=[WHITELISTED_ADDRESS],
+    )
+
+    await _send(config, PUBLIC_PROXY, [WHITELISTED_ADDRESS] * 3)
+
+    assert await ipban_handler.ip_ban_manager.is_ip_banned(PUBLIC_PROXY)
+
+
+async def test_trusted_proxy_claim_is_counted_on_the_denied_path() -> None:
+    config = _config(auto_ban_threshold=3)
+
+    middleware, codes = await _send_to_allow_listed_route(
+        config, PUBLIC_PROXY, "198.51.100.5", 3
+    )
+
+    assert codes == [403, 403, 403]
+    assert await ipban_handler.ip_ban_manager.is_ip_banned(PUBLIC_PROXY)
+
+
+async def test_plain_claim_on_a_denied_request_is_never_counted() -> None:
+    config = _config(auto_ban_threshold=1, trusted_proxies=["10.0.0.1"])
+
+    middleware, codes = await _send_to_allow_listed_route(
+        config, PUBLIC_PROXY, "198.18.0.9", 5
+    )
+
+    assert codes == [403] * 5
+    assert middleware.suspicious_request_counts == {}
+    assert not await ipban_handler.ip_ban_manager.is_ip_banned(PUBLIC_PROXY)
+
+
+async def test_private_peer_claim_on_a_denied_request_is_never_counted() -> None:
+    config = _config(auto_ban_threshold=1, trusted_proxies=["10.0.0.1"])
+
+    middleware, codes = await _send_to_allow_listed_route(
+        config, PRIVATE_PROXY, ROUTE_ALLOWED_ADDRESS, 5
+    )
+
+    assert codes == [403] * 5
+    assert middleware.suspicious_request_counts == {}
+    assert not await ipban_handler.ip_ban_manager.is_ip_banned(PRIVATE_PROXY)
+
+
+async def test_an_already_banned_peer_is_not_counted_again() -> None:
+    config = _config(auto_ban_threshold=1, trusted_proxies=["10.0.0.1"])
+    middleware, _ = await _send_to_allow_listed_route(
+        config, PUBLIC_PROXY, ROUTE_ALLOWED_ADDRESS, 1
+    )
+    counted = dict(middleware.suspicious_request_counts)
+
+    pipeline, _, route_id = build_route_pipeline(
+        config, lambda d: d.require_ip(whitelist=[ROUTE_ALLOWED_ADDRESS])
+    )
+    await send_request(
+        pipeline,
+        route_id,
+        ip=PUBLIC_PROXY,
+        headers={"X-Forwarded-For": ROUTE_ALLOWED_ADDRESS},
+    )
+
+    assert counted == {}
+    assert middleware.suspicious_request_counts == {}
