@@ -899,19 +899,21 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
     "handlers/dynamic_rule_handler.py:DynamicRuleManager._revoke_active_rules": (
         "line 197: rule-revocation lifecycle log, policy metadata only"
     ),
-    "handlers/dynamic_rule_handler.py:DynamicRuleManager._reject_if_malformed": (
+    "handlers/_dynamic_rule_intake.py:DynamicRuleIntakeMixin._reject_if_malformed": (
         "line 257: rejects a malformed pushed rule set, policy metadata only"
     ),
-    "handlers/dynamic_rule_handler.py:DynamicRuleManager._ignore_platform_default": (
+    "handlers/_dynamic_rule_intake.py:"
+    "DynamicRuleIntakeMixin._ignore_platform_default": (
         "line 189: ignores the SaaS platform default shape, policy metadata only"
     ),
-    "handlers/dynamic_rule_handler.py:DynamicRuleManager._swap_config_or_restore": (
+    "handlers/_dynamic_rule_plan.py:DynamicRulePlanMixin._swap_config_or_restore": (
         "line 273: config swap failure for a SaaS-pushed rule, not a request"
     ),
     "handlers/dynamic_rule_handler.py:DynamicRuleManager._check_rule_expiry": (
         "line 162: rule-expiry lifecycle log, policy metadata only"
     ),
-    "handlers/dynamic_rule_handler.py:DynamicRuleManager._reject_if_already_expired": (
+    "handlers/_dynamic_rule_intake.py:"
+    "DynamicRuleIntakeMixin._reject_if_already_expired": (
         "line 179: rejects an already-expired pushed rule set, policy metadata only"
     ),
     "handlers/dynamic_rule_handler.py:DynamicRuleManager._rule_update_loop": (
@@ -923,7 +925,7 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
     "handlers/dynamic_rule_handler.py:DynamicRuleManager.stop": (
         "line 272: shutdown lifecycle log, not a request"
     ),
-    "handlers/dynamic_rule_handler.py:DynamicRuleManager.update_rules": (
+    "handlers/_dynamic_rule_intake.py:DynamicRuleIntakeMixin.update_rules": (
         "lines 204,215: SaaS rule-fetch/apply lifecycle log, not a request"
     ),
     "handlers/ipban_handler.py:IPBanManager._on_eviction": (

@@ -1,11 +1,8 @@
 import logging
 import threading
-import time
-from copy import deepcopy
 from datetime import datetime, timezone
 from typing import Any
 
-from guard_core._dynamic_rules import content_fingerprint
 from guard_core.models import (
     DynamicRules,
     SecurityConfig,
@@ -14,14 +11,12 @@ from guard_core.sync.handlers._dynamic_rule_application import (
     DynamicRuleApplicationMixin,
     RuleSideEffects,
 )
+from guard_core.sync.handlers._dynamic_rule_intake import DynamicRuleIntakeMixin
 from guard_core.sync.handlers._dynamic_rule_plan import (
-    DynamicRulePlan,
     DynamicRulePlanMixin,
 )
 from guard_core.sync.handlers._dynamic_rule_snapshot import DynamicRuleSnapshotMixin
-from guard_core.sync.handlers._dynamic_rule_validation import find_malformed_values
 from guard_core.sync.handlers.ipban_handler import ip_ban_manager
-from guard_core.sync.utils import _canonicalize_ip
 
 
 def _coerce_naive_utc(value: datetime) -> datetime:
@@ -31,7 +26,10 @@ def _coerce_naive_utc(value: datetime) -> datetime:
 
 
 class DynamicRuleManager(
-    DynamicRulePlanMixin, DynamicRuleApplicationMixin, DynamicRuleSnapshotMixin
+    DynamicRuleIntakeMixin,
+    DynamicRulePlanMixin,
+    DynamicRuleApplicationMixin,
+    DynamicRuleSnapshotMixin,
 ):
     _instance = None
     config: SecurityConfig
@@ -51,25 +49,6 @@ class DynamicRuleManager(
     _current_fingerprint: str | None = None
     _owned_bans: list[str]
     _owned_patterns: list[str]
-
-    _SNAPSHOT_FIELDS = (
-        "blocked_countries",
-        "whitelist_countries",
-        "rate_limit",
-        "rate_limit_window",
-        "endpoint_rate_limits",
-        "block_cloud_providers",
-        "blocked_user_agents",
-        "enable_penetration_detection",
-        "enable_ip_banning",
-        "enable_rate_limiting",
-        "emergency_mode",
-        "emergency_whitelist",
-        "exempt_ips",
-        "auto_ban_threshold",
-        "auto_ban_duration",
-        "enable_rate_limit_auto_ban",
-    )
 
     def __new__(
         cls: type["DynamicRuleManager"], config: SecurityConfig
@@ -161,18 +140,6 @@ class DynamicRuleManager(
     def _interruptible_sleep(self, timeout: float) -> None:
         self._stop_event.wait(timeout=timeout)
 
-    def _should_update_rules(self, rules: DynamicRules) -> bool:
-        current = self.current_rules
-        if not current:
-            return True
-
-        current_fingerprint = self._current_fingerprint or content_fingerprint(current)
-        return (rules.rule_id, rules.version, content_fingerprint(rules)) != (
-            current.rule_id,
-            current.version,
-            current_fingerprint,
-        )
-
     def _revert_to_base_config(self) -> None:
         ip_ban_manager.set_rule_exempt_ips(())
         if self._active_base_snapshot is not None:
@@ -196,9 +163,6 @@ class DynamicRuleManager(
                 "restored base config"
             )
 
-    def _is_no_op_answer(self, rules: DynamicRules) -> bool:
-        return getattr(rules, "version", None) == 0
-
     def _revoke_active_rules(self, answer: DynamicRules) -> None:
         with self._lock:
             rules = self.current_rules
@@ -216,101 +180,6 @@ class DynamicRuleManager(
         if rules.expires_at is None:
             return False
         return datetime.now(timezone.utc) > _coerce_naive_utc(rules.expires_at)
-
-    def _ignore_platform_default(self, rules: DynamicRules) -> bool:
-        if getattr(rules, "is_platform_default", False) is not True:
-            return False
-
-        key = (rules.rule_id, rules.version)
-        if self._last_ignored_platform_default != key:
-            self._last_ignored_platform_default = key
-            self.logger.warning(
-                f"Dynamic rule {rules.rule_id} v{rules.version} is a platform "
-                "default, not an operator rule; ignoring"
-            )
-        return True
-
-    def _reject_if_already_expired(self, rules: DynamicRules) -> bool:
-        if not self._has_rule_expired(rules):
-            return False
-
-        key = (rules.rule_id, rules.version)
-        if self._last_skipped_expired_rule != key:
-            self._last_skipped_expired_rule = key
-            self.logger.warning(
-                f"Dynamic rule {rules.rule_id} v{rules.version} already "
-                "expired on receipt; ignoring"
-            )
-        return True
-
-    def _reject_if_malformed(self, rules: DynamicRules) -> bool:
-        problems = find_malformed_values(rules)
-        if not problems:
-            return False
-
-        key = (rules.rule_id, rules.version, content_fingerprint(rules))
-        if self._last_rejected_rule != key:
-            self._last_rejected_rule = key
-            self.logger.warning(
-                f"Dynamic rule {rules.rule_id} v{rules.version} rejected, "
-                f"keeping the last-known rules: {problems}"
-            )
-            self._send_rule_rejected_event(rules, problems)
-        return True
-
-    def update_rules(self) -> None:
-        if not self.config.enable_dynamic_rules or not self.agent_handler:
-            return
-
-        try:
-            self._check_rule_expiry()
-
-            rules = self.agent_handler.get_dynamic_rules()
-            if not rules:
-                return
-
-            if self._ignore_platform_default(rules):
-                return
-
-            if self._is_no_op_answer(rules):
-                self._revoke_active_rules(rules)
-                return
-
-            if self._reject_if_already_expired(rules):
-                return
-
-            if self._reject_if_malformed(rules):
-                return
-
-            if not self._should_update_rules(rules):
-                return
-
-            self._send_rule_received_event(rules)
-
-            self.logger.info(
-                f"Applying dynamic rules: {rules.rule_id} v{rules.version}"
-            )
-            skipped = self._apply_rules(rules)
-
-            self.current_rules = rules
-            self._current_fingerprint = content_fingerprint(rules)
-            self.last_update = time.time()
-
-            self._send_rule_applied_event(rules, skipped)
-
-        except Exception as e:
-            self.logger.error(f"Failed to update dynamic rules: {e}")
-
-    def _snapshot_config(self) -> dict[str, object]:
-        return {
-            field: deepcopy(getattr(self.config, field))
-            for field in self._SNAPSHOT_FIELDS
-            if hasattr(self.config, field)
-        }
-
-    def _restore_config(self, snapshot: dict[str, object]) -> None:
-        for field, value in snapshot.items():
-            self.config._set_prevalidated(field, deepcopy(value))
 
     def _apply_rules(self, rules: DynamicRules) -> list[str]:
         with self._lock:
@@ -333,42 +202,6 @@ class DynamicRuleManager(
             self._announce_plan(plan)
             self._persist_last_known_rules(rules)
             return [*plan.skipped, *effects.skipped]
-
-    def _revoke_stale_side_effects(
-        self, rules: DynamicRules, effects: RuleSideEffects
-    ) -> None:
-        bans = self._owned_after(
-            [_canonicalize_ip(ip) for ip in rules.ip_blacklist],
-            self._owned_bans,
-            effects.created_bans,
-        )
-        patterns = self._owned_after(
-            rules.suspicious_patterns, self._owned_patterns, effects.created_patterns
-        )
-        stale_bans = [ip for ip in self._owned_bans if ip not in bans]
-        stale_patterns = [p for p in self._owned_patterns if p not in patterns]
-        self._owned_bans, self._owned_patterns = bans, patterns
-        self._revoke_owned(stale_bans, stale_patterns)
-
-    def _revoke_all_owned(self) -> None:
-        bans, patterns = self._owned_bans, self._owned_patterns
-        self._owned_bans, self._owned_patterns = [], []
-        self._revoke_owned(bans, patterns)
-
-    def _swap_config_or_restore(self, plan: DynamicRulePlan) -> None:
-        previous = self._snapshot_config()
-        try:
-            self._swap_config(plan)
-        except Exception as e:
-            self._restore_config(previous)
-            self.logger.error(f"Failed to apply dynamic rules: {e}")
-            raise
-
-    def _announce_plan(self, plan: DynamicRulePlan) -> None:
-        for level, message in plan.messages:
-            self.logger.log(level, message)
-        if plan.emergency_whitelist is not None:
-            self._announce_emergency_mode(plan.emergency_whitelist)
 
     def get_current_rules(self) -> DynamicRules | None:
         return self.current_rules

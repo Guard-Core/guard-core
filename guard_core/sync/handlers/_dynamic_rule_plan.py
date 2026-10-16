@@ -80,6 +80,25 @@ class DynamicRulePlanMixin:
     config: SecurityConfig
     logger: logging.Logger
 
+    _SNAPSHOT_FIELDS = (
+        "blocked_countries",
+        "whitelist_countries",
+        "rate_limit",
+        "rate_limit_window",
+        "endpoint_rate_limits",
+        "block_cloud_providers",
+        "blocked_user_agents",
+        "enable_penetration_detection",
+        "enable_ip_banning",
+        "enable_rate_limiting",
+        "emergency_mode",
+        "emergency_whitelist",
+        "exempt_ips",
+        "auto_ban_threshold",
+        "auto_ban_duration",
+        "enable_rate_limit_auto_ban",
+    )
+
     def _build_plan(
         self, rules: DynamicRules, base: dict[str, object]
     ) -> DynamicRulePlan:
@@ -143,16 +162,11 @@ class DynamicRulePlanMixin:
         providers = rules.blocked_cloud_providers
         if not providers:
             return
-        canonical = {p: canonicalize_cloud_provider_selector(p) for p in providers}
-        valid = [name for name in canonical.values() if name is not None]
-        invalid = sorted(p for p, name in canonical.items() if name is None)
-        if invalid:
-            plan.note(
-                f"Dynamic rule: ignored unknown cloud providers {invalid}",
-                logging.WARNING,
-            )
-        if not valid:
-            return
+        valid = [
+            name
+            for name in map(canonicalize_cloud_provider_selector, providers)
+            if name is not None
+        ]
         merged = frozenset(
             _merge_unique(plan.state.get("block_cloud_providers"), valid)
         )
@@ -292,3 +306,23 @@ class DynamicRulePlanMixin:
             f"from {threshold} to {plan.state['auto_ban_threshold']}",
             logging.WARNING,
         )
+
+    def _snapshot_config(self) -> dict[str, object]:
+        return {
+            name: deepcopy(getattr(self.config, name))
+            for name in self._SNAPSHOT_FIELDS
+            if hasattr(self.config, name)
+        }
+
+    def _restore_config(self, snapshot: dict[str, object]) -> None:
+        for name, value in snapshot.items():
+            self.config._set_prevalidated(name, deepcopy(value))
+
+    def _swap_config_or_restore(self, plan: DynamicRulePlan) -> None:
+        previous = self._snapshot_config()
+        try:
+            self._swap_config(plan)
+        except Exception as e:
+            self._restore_config(previous)
+            self.logger.error(f"Failed to apply dynamic rules: {e}")
+            raise

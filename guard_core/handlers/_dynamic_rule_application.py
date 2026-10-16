@@ -3,6 +3,7 @@ from typing import Any
 
 from guard_core._utils.detection_scan import _redact_pattern_source
 from guard_core.handlers._dynamic_rule_events import DynamicRuleEventSenderMixin
+from guard_core.handlers._dynamic_rule_plan import DynamicRulePlan
 from guard_core.models import DynamicRules, SecurityConfig
 from guard_core.utils import _canonicalize_ip
 
@@ -145,3 +146,30 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
         )
         if self.agent_handler:
             await self._send_emergency_event(whitelist)
+
+    async def _revoke_stale_side_effects(
+        self, rules: DynamicRules, effects: RuleSideEffects
+    ) -> None:
+        bans = self._owned_after(
+            [_canonicalize_ip(ip) for ip in rules.ip_blacklist],
+            self._owned_bans,
+            effects.created_bans,
+        )
+        patterns = self._owned_after(
+            rules.suspicious_patterns, self._owned_patterns, effects.created_patterns
+        )
+        stale_bans = [ip for ip in self._owned_bans if ip not in bans]
+        stale_patterns = [p for p in self._owned_patterns if p not in patterns]
+        self._owned_bans, self._owned_patterns = bans, patterns
+        await self._revoke_owned(stale_bans, stale_patterns)
+
+    async def _revoke_all_owned(self) -> None:
+        bans, patterns = self._owned_bans, self._owned_patterns
+        self._owned_bans, self._owned_patterns = [], []
+        await self._revoke_owned(bans, patterns)
+
+    async def _announce_plan(self, plan: DynamicRulePlan) -> None:
+        for level, message in plan.messages:
+            self.logger.log(level, message)
+        if plan.emergency_whitelist is not None:
+            await self._announce_emergency_mode(plan.emergency_whitelist)
