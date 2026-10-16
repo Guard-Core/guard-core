@@ -130,11 +130,15 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
     async def _apply_ip_whitelist(self, ip_list: list[str]) -> None:
         from guard_core.handlers.ipban_handler import ip_ban_manager
 
+        ranges = [ip for ip in ip_list if "/" in ip]
+        if ranges:
+            try:
+                await ip_ban_manager.unban_inside(ranges)
+            except Exception as e:
+                self.logger.error(f"Failed to whitelist ranges {ranges}: {e}")
         for ip in ip_list:
             try:
-                if "/" in ip:
-                    await ip_ban_manager.unban_inside(ip)
-                else:
+                if "/" not in ip:
                     await ip_ban_manager.unban_ip(ip)
                 self.logger.info(f"Dynamic rule: Whitelisted IP {ip}")
             except Exception as e:

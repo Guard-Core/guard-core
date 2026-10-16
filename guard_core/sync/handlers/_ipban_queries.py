@@ -1,41 +1,34 @@
 import ipaddress
+import logging
 import time
+from collections.abc import Iterable
 from typing import Any
 
 from cachetools import TTLCache
 
 from guard_core.sync.handlers._ipban_cache import _Network
+from guard_core.sync.handlers._ipban_coverage import NetworkCoverage
 from guard_core.sync.handlers._ipban_events import IpBanEventMixin
 from guard_core.sync.handlers._ipban_rule_exempt import IpBanRuleExemptionMixin
 from guard_core.sync.utils import _canonicalize_ip
 
-
-def _network_inside(candidate: _Network, network: _Network) -> bool:
-    return (
-        candidate.version == network.version
-        and candidate.network_address in network
-        and candidate.broadcast_address in network
-    )
+_BATCH = 2000
 
 
-def _address_inside(ip: str, network: _Network) -> bool:
+def _member_covered(namespace: str, member: str, coverage: NetworkCoverage) -> bool:
+    if namespace == "banned_ips":
+        return coverage.covers_address(member)
     try:
-        address = ipaddress.ip_address(ip)
+        return coverage.covers_network(ipaddress.ip_network(member, strict=False))
     except ValueError:
         return False
-    return address.version == network.version and address in network
-
-
-def _member_inside(namespace: str, member: str, network: _Network) -> bool:
-    if namespace == "banned_ips":
-        return _address_inside(member, network)
-    return _network_inside(ipaddress.ip_network(member, strict=False), network)
 
 
 class IpBanQueryMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
     banned_ips: TTLCache
     banned_networks: list[tuple[_Network, float]]
     redis_handler: Any = None
+    logger: logging.Logger
 
     def _check_network_cache(
         self, addr: ipaddress.IPv4Address | ipaddress.IPv6Address, now: float
@@ -104,25 +97,58 @@ class IpBanQueryMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
         if self.redis_handler:
             self.redis_handler.delete("banned_networks", str(network))
 
-    def unban_inside(self, entry: str) -> None:
-        network = ipaddress.ip_network(entry, strict=False)
-        self.banned_networks = [
-            (banned, expiry)
-            for banned, expiry in self.banned_networks
-            if not _network_inside(banned, network)
-        ]
-        for ip in [ip for ip in self.banned_ips if _address_inside(ip, network)]:
-            self._purge_banned_ip(ip)
+    def unban_inside(self, entries: Iterable[str]) -> None:
+        networks = [ipaddress.ip_network(entry, strict=False) for entry in entries]
+        if not networks:
+            return
+        coverage = NetworkCoverage(networks)
+        removed = self._unban_memory_inside(coverage)
         if self.redis_handler:
-            self._unban_inside_redis(network)
+            removed.extend(self._unban_redis_inside(coverage))
+        if self.agent_handler:
+            for member in dict.fromkeys(removed):
+                self._send_unban_event(member)
 
-    def _unban_inside_redis(self, network: _Network) -> None:
-        for namespace in ("banned_ips", "banned_networks"):
-            keys = self.redis_handler.keys(f"{namespace}:*") or []
-            for key in keys:
-                member = key.split(f"{namespace}:", 1)[1]
-                if _member_inside(namespace, member, network):
-                    self.redis_handler.delete(namespace, member)
+    def _unban_memory_inside(self, coverage: NetworkCoverage) -> list[str]:
+        removed: list[str] = []
+        kept: list[tuple[_Network, float]] = []
+        for banned, expiry in self.banned_networks:
+            if coverage.covers_network(banned):
+                removed.append(str(banned))
+            else:
+                kept.append((banned, expiry))
+        self.banned_networks = kept
+        keys = list(self.banned_ips)
+        for start in range(0, len(keys), _BATCH):
+            for ip in keys[start : start + _BATCH]:
+                if coverage.covers_address(ip):
+                    self._purge_banned_ip(ip)
+                    removed.append(ip)
+            time.sleep(0)
+        return removed
+
+    def _unban_redis_inside(self, coverage: NetworkCoverage) -> list[str]:
+        removed: list[str] = []
+        prefix = self.redis_handler.config.redis_prefix
+        try:
+            with self.redis_handler.get_connection() as conn:
+                for namespace in ("banned_ips", "banned_networks"):
+                    stem = f"{prefix}{namespace}:"
+                    batch: list[str] = []
+                    for key in conn.scan_iter(match=f"{stem}*", count=_BATCH):
+                        member = key[len(stem) :]
+                        if _member_covered(namespace, member, coverage):
+                            batch.append(key)
+                            removed.append(member)
+                        if len(batch) >= _BATCH:
+                            conn.delete(*batch)
+                            batch.clear()
+                            time.sleep(0)
+                    if batch:
+                        conn.delete(*batch)
+        except Exception as e:
+            self.logger.warning("Redis unban of whitelisted ranges failed: %s", e)
+        return removed
 
     def unban_ip(self, ip: str) -> None:
         if "/" in ip:

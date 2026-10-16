@@ -790,6 +790,9 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "line 137: logs the ban-target IP covered by a dynamic ip_whitelist "
         "entry only; client_ip is outside the secret matrix"
     ),
+    "handlers/_ipban_queries.py:IpBanQueryMixin._unban_redis_inside": (
+        "line 151: Redis range-unban failure for SaaS-pushed policy, infra only"
+    ),
     "handlers/_ipban_events.py:IpBanEventMixin._send_unban_event": (
         "line 49: unban is never exercised by any scenario; the event "
         "carries only ip/reason (ip outside the secret matrix, reason is "
