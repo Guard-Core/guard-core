@@ -287,16 +287,16 @@ An adapter that cannot enumerate its routes at pipeline-build time therefore los
 | `https_enforcement` | `config.enforce_https` or any route requires HTTPS | drop |
 | `request_logging` | `config.log_request_level is not None` | drop |
 | `request_size_content` | Any route sets `max_request_size` or `allowed_content_types` | drop |
-| `required_headers` | Any route sets `required_headers` | drop |
-| `authentication` | Any route sets `auth_required` | drop |
-| `referrer` | Any route sets `require_referrer` | drop |
-| `custom_validators` | Any route sets `custom_validators` | drop |
-| `time_window` | Any route sets `time_restrictions` | drop |
 | `cloud_ip_refresh` | `config.block_cloud_providers` is set, any route sets `block_cloud_providers`, or `enable_dynamic_rules` | drop |
 | `ip_security` | Always (no override, see above) | keep |
 | `cloud_provider` | `config.block_cloud_providers` is set, any route sets `block_cloud_providers`, or `enable_dynamic_rules` | drop |
 | `user_agent` | `config.blocked_user_agents` is non-empty, any route sets `blocked_user_agents`, or `enable_dynamic_rules` | drop |
 | `rate_limit` | `config.enable_rate_limiting`, `config.endpoint_rate_limits` is set, any route sets `rate_limit`/`geo_rate_limits`, or `enable_dynamic_rules` | keep (`enable_rate_limiting` defaults to `True`) |
+| `required_headers` | Any route sets `required_headers` | drop |
+| `authentication` | Any route sets `auth_required` | drop |
+| `referrer` | Any route sets `require_referrer` | drop |
+| `custom_validators` | Any route sets `custom_validators` | drop |
+| `time_window` | Any route sets `time_restrictions` | drop |
 | `suspicious_activity` | `config.enable_penetration_detection`, any route sets `enable_suspicious_detection`, or `enable_dynamic_rules` | keep (`enable_penetration_detection` defaults to `True`) |
 | `custom_request` | `config.custom_request_check is not None` | drop |
 
@@ -307,7 +307,7 @@ ___
 All 17 Checks in Execution Order
 ---------------------------------
 
-The checks are listed here in the fixed order the catalogue defines. This order matters -- earlier checks set up state that later checks depend on. A given deployment's pipeline is a subset of this list, filtered by `applies_to` as described above, but the checks that do build always run in this relative order.
+The checks are listed here in the fixed order the catalogue defines. This order matters -- earlier checks set up state that later checks depend on. The identity checks (`required_headers`, `authentication`, `referrer`, `custom_validators`, `time_window`) run after `ip_security`, `cloud_provider`, `user_agent` and `rate_limit`, so a banned, blocked or rate-limited client is answered before any verifier or validator runs. A given deployment's pipeline is a subset of this list, filtered by `applies_to` as described above, but the checks that do build always run in this relative order.
 
 ### 1. RouteConfigCheck
 
@@ -357,52 +357,7 @@ This check runs first because all subsequent checks depend on `request.state.cli
 | **Purpose** | Validates request body size and content type against route-level `max_request_size` and `allowed_content_types` |
 | **Blocks?** | Returns 413 (payload too large) or 415 (unsupported media type) |
 
-### 6. RequiredHeadersCheck
-
-| | |
-|---|---|
-| **check_name** | `required_headers` |
-| **Module** | `guard_core.core.checks.implementations.required_headers` |
-| **Purpose** | Validates that required headers are present with expected values (from route config) |
-| **Blocks?** | Returns 400 (bad request) |
-
-### 7. AuthenticationCheck
-
-| | |
-|---|---|
-| **check_name** | `authentication` |
-| **Module** | `guard_core.core.checks.implementations.authentication` |
-| **Purpose** | Validates authentication headers (Bearer, Basic, custom) based on route config |
-| **Blocks?** | Returns 401 (unauthorized) |
-
-### 8. ReferrerCheck
-
-| | |
-|---|---|
-| **check_name** | `referrer` |
-| **Module** | `guard_core.core.checks.implementations.referrer` |
-| **Purpose** | Validates the `Referer` header against route-level allowed domains |
-| **Blocks?** | Returns 403 (forbidden) |
-
-### 9. CustomValidatorsCheck
-
-| | |
-|---|---|
-| **check_name** | `custom_validators` |
-| **Module** | `guard_core.core.checks.implementations.custom_validators` |
-| **Purpose** | Executes route-level custom validator callables |
-| **Blocks?** | Returns whatever the custom validator returns |
-
-### 10. TimeWindowCheck
-
-| | |
-|---|---|
-| **check_name** | `time_window` |
-| **Module** | `guard_core.core.checks.implementations.time_window` |
-| **Purpose** | Enforces time-of-day access restrictions from route config |
-| **Blocks?** | Returns 403 (forbidden) |
-
-### 11. CloudIpRefreshCheck
+### 6. CloudIpRefreshCheck
 
 | | |
 |---|---|
@@ -412,7 +367,7 @@ This check runs first because all subsequent checks depend on `request.state.cli
 | **Blocks?** | Never. Always returns `None` |
 | **Side Effects** | Schedules a single-flight background refresh (running `middleware.refresh_cloud_ip_ranges()` off the request path) when the interval has elapsed |
 
-### 12. IpSecurityCheck
+### 7. IpSecurityCheck
 
 | | |
 |---|---|
@@ -422,7 +377,7 @@ This check runs first because all subsequent checks depend on `request.state.cli
 | **Blocks?** | Returns 403 (forbidden) |
 | **Side Effects** | Sets `request.state.is_whitelisted` |
 
-### 13. CloudProviderCheck
+### 8. CloudProviderCheck
 
 | | |
 |---|---|
@@ -431,7 +386,7 @@ This check runs first because all subsequent checks depend on `request.state.cli
 | **Purpose** | Blocks requests originating from cloud provider IP ranges (AWS, GCP, Azure) |
 | **Blocks?** | Returns 403 (forbidden) |
 
-### 14. UserAgentCheck
+### 9. UserAgentCheck
 
 | | |
 |---|---|
@@ -440,7 +395,7 @@ This check runs first because all subsequent checks depend on `request.state.cli
 | **Purpose** | Filters requests by user agent string against route-level and global blocklists |
 | **Blocks?** | Returns 403 (forbidden) |
 
-### 15. RateLimitCheck
+### 10. RateLimitCheck
 
 | | |
 |---|---|
@@ -451,6 +406,51 @@ This check runs first because all subsequent checks depend on `request.state.cli
 
 !!! note "Rate limit evaluation order"
     The rate limit check evaluates in this priority: endpoint rate limits (from dynamic rules) > route rate limits (from decorators) > geo rate limits (from decorators) > global rate limit (from config). The first limit that is exceeded blocks the request.
+
+### 11. RequiredHeadersCheck
+
+| | |
+|---|---|
+| **check_name** | `required_headers` |
+| **Module** | `guard_core.core.checks.implementations.required_headers` |
+| **Purpose** | Validates that required headers are present with expected values (from route config) |
+| **Blocks?** | Returns 400 (bad request) |
+
+### 12. AuthenticationCheck
+
+| | |
+|---|---|
+| **check_name** | `authentication` |
+| **Module** | `guard_core.core.checks.implementations.authentication` |
+| **Purpose** | Validates authentication headers (Bearer, Basic, custom) based on route config |
+| **Blocks?** | Returns 401 (unauthorized) |
+
+### 13. ReferrerCheck
+
+| | |
+|---|---|
+| **check_name** | `referrer` |
+| **Module** | `guard_core.core.checks.implementations.referrer` |
+| **Purpose** | Validates the `Referer` header against route-level allowed domains |
+| **Blocks?** | Returns 403 (forbidden) |
+
+### 14. CustomValidatorsCheck
+
+| | |
+|---|---|
+| **check_name** | `custom_validators` |
+| **Module** | `guard_core.core.checks.implementations.custom_validators` |
+| **Purpose** | Executes route-level custom validator callables |
+| **Blocks?** | Returns whatever the custom validator returns |
+
+### 15. TimeWindowCheck
+
+| | |
+|---|---|
+| **check_name** | `time_window` |
+| **Module** | `guard_core.core.checks.implementations.time_window` |
+| **Purpose** | Enforces time-of-day access restrictions from route config |
+| **Blocks?** | Returns 403 (forbidden) |
 
 ### 16. SuspiciousActivityCheck
 

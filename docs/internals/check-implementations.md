@@ -20,16 +20,16 @@ Execution Order
 | 3  | `https_enforcement`     | `HttpsEnforcementCheck`   | Yes     | Yes            | `enforce_https` is `False` and no route requires HTTPS |
 | 4  | `request_logging`       | `RequestLoggingCheck`     | Never   | N/A            | `log_request_level` is `None` |
 | 5  | `request_size_content`  | `RequestSizeContentCheck` | Yes     | Yes            | No route sets `max_request_size` or `allowed_content_types` |
-| 6  | `required_headers`      | `RequiredHeadersCheck`    | Yes     | Yes            | No route sets `required_headers` |
-| 7  | `authentication`        | `AuthenticationCheck`     | Yes     | Yes            | No route sets `auth_required` |
-| 8  | `referrer`              | `ReferrerCheck`           | Yes     | Yes            | No route sets `require_referrer` |
-| 9  | `custom_validators`     | `CustomValidatorsCheck`   | Yes     | Yes            | No route sets `custom_validators` |
-| 10 | `time_window`           | `TimeWindowCheck`         | Yes     | Yes            | No route sets `time_restrictions` |
-| 11 | `cloud_ip_refresh`      | `CloudIpRefreshCheck`     | Never   | N/A            | `block_cloud_providers` unset globally and per-route, and `enable_dynamic_rules` is `False` |
-| 12 | `ip_security`           | `IpSecurityCheck`         | Yes     | Yes            | Never |
-| 13 | `cloud_provider`        | `CloudProviderCheck`      | Yes     | Yes            | `block_cloud_providers` unset globally and per-route, and `enable_dynamic_rules` is `False` |
-| 14 | `user_agent`            | `UserAgentCheck`          | Yes     | Yes            | `blocked_user_agents` empty globally and per-route, and `enable_dynamic_rules` is `False` |
-| 15 | `rate_limit`            | `RateLimitCheck`          | Yes     | Yes            | `enable_rate_limiting` is `False`, `endpoint_rate_limits` unset, no route sets `rate_limit`/`geo_rate_limits`, and `enable_dynamic_rules` is `False` |
+| 6  | `cloud_ip_refresh`      | `CloudIpRefreshCheck`     | Never   | N/A            | `block_cloud_providers` unset globally and per-route, and `enable_dynamic_rules` is `False` |
+| 7  | `ip_security`           | `IpSecurityCheck`         | Yes     | Yes            | Never |
+| 8  | `cloud_provider`        | `CloudProviderCheck`      | Yes     | Yes            | `block_cloud_providers` unset globally and per-route, and `enable_dynamic_rules` is `False` |
+| 9  | `user_agent`            | `UserAgentCheck`          | Yes     | Yes            | `blocked_user_agents` empty globally and per-route, and `enable_dynamic_rules` is `False` |
+| 10 | `rate_limit`            | `RateLimitCheck`          | Yes     | Yes            | `enable_rate_limiting` is `False`, `endpoint_rate_limits` unset, no route sets `rate_limit`/`geo_rate_limits`, and `enable_dynamic_rules` is `False` |
+| 11 | `required_headers`      | `RequiredHeadersCheck`    | Yes     | Yes            | No route sets `required_headers` |
+| 12 | `authentication`        | `AuthenticationCheck`     | Yes     | Yes            | No route sets `auth_required` |
+| 13 | `referrer`              | `ReferrerCheck`           | Yes     | Yes            | No route sets `require_referrer` |
+| 14 | `custom_validators`     | `CustomValidatorsCheck`   | Yes     | Yes            | No route sets `custom_validators` |
+| 15 | `time_window`           | `TimeWindowCheck`         | Yes     | Yes            | No route sets `time_restrictions` |
 | 16 | `suspicious_activity`   | `SuspiciousActivityCheck` | Yes     | Yes            | `enable_penetration_detection` is `False`, no route sets `enable_suspicious_detection`, and `enable_dynamic_rules` is `False` |
 | 17 | `custom_request`        | `CustomRequestCheck`      | Yes     | Yes            | `custom_request_check` is `None` |
 
@@ -130,8 +130,80 @@ ___
 
 ___
 
-6. RequiredHeadersCheck
------------------------
+6. CloudIpRefreshCheck
+----------------------
+
+**Purpose**: Periodically refreshes cloud provider IP ranges.
+
+**Blocks**: Never. The refresh runs as a single-flight background task (via `cloud_handler.schedule_refresh`, which invokes the middleware's `refresh_cloud_ip_ranges()`), so the request that crosses the interval is never delayed by provider fetches.
+
+**Triggers when**: `config.block_cloud_providers` is set and `cloud_ip_refresh_interval` seconds have elapsed since the last refresh. If scheduling fails, the debounce timestamp is restored so the next request retries.
+
+___
+
+7. IpSecurityCheck
+------------------
+
+**Purpose**: Enforces IP-based access control at multiple levels.
+
+**Evaluation order**:
+
+1. **Banned IP check**: Consults `IPBanManager`. Returns `403 IP address banned`.
+2. **Route-level IP restrictions**: If a `RouteConfig` exists, evaluates its `ip_blacklist`, `ip_whitelist`, `blocked_countries`, and `whitelist_countries` first. Returns `403 Forbidden` if the route denies the request.
+3. **Global IP restrictions**: Always evaluated afterward, even when the route-level check ran and passed. Evaluates `config.blacklist`, `config.whitelist`, `config.blocked_countries`, and `config.block_cloud_providers`. Returns `403 Forbidden`.
+
+A route setting overrides the global gate only for the aspect it explicitly allows, and the IP and country aspects are evaluated independently: a route `ip_whitelist` match suppresses the global IP-list gate but does not exempt the request from country enforcement, and only an actual `whitelist_countries` match for the resolved country suppresses the global country gate. A route-level deny (`ip_blacklist` / `blocked_countries`) is enforced at the route step and never, by itself, disables the global IP or country rules. Within the IP aspect, a route `ip_whitelist` match wins over that same route's own `ip_blacklist` (v3.2.0 precedence, unchanged).
+
+Also sets `request.state.is_whitelisted`, `True` only for a **global** `config.whitelist` match. A route-level `ip_whitelist` match grants access to that route but does not set `is_whitelisted`; it is access-only and still passes through rate limiting, user-agent filtering, cloud-provider blocking, and suspicious-activity detection.
+
+___
+
+8. CloudProviderCheck
+---------------------
+
+**Purpose**: Blocks requests originating from cloud provider IP ranges (AWS, GCP, Azure).
+
+**Blocks when**: `client_ip` belongs to a blocked cloud provider's network and the check is not bypassed.
+
+**Response**: `403 Cloud provider IP not allowed`
+
+**Skips**: IPs whitelisted at the **global** level (`request.state.is_whitelisted`), a route-level `ip_whitelist` match alone does not set this, so it does not skip this check.
+
+___
+
+9. UserAgentCheck
+-----------------
+
+**Purpose**: Blocks requests from matching user agents.
+
+**Blocks when**: The `User-Agent` header matches any pattern in `RouteConfig.blocked_user_agents` or `config.blocked_user_agents` (case-insensitive regex).
+
+**Response**: `403 User-Agent not allowed`
+
+**Skips**: Whitelisted IPs.
+
+___
+
+10. RateLimitCheck
+------------------
+
+**Purpose**: Enforces request rate limits using a sliding window algorithm.
+
+**Evaluation order** (first match wins):
+
+1. **Endpoint-specific rate limits** from `config.endpoint_rate_limits` (set by dynamic rules).
+2. **Route-level rate limits** from `RouteConfig.rate_limit` and `RouteConfig.rate_limit_window`.
+3. **Geo-based rate limits** from `RouteConfig.geo_rate_limits`.
+4. **Global rate limits** from `config.rate_limit` and `config.rate_limit_window`.
+
+**Response**: `429 Too many requests`
+
+**Skips**: Whitelisted IPs and bypassed routes.
+
+___
+
+11. RequiredHeadersCheck
+------------------------
 
 **Purpose**: Validates that required headers are present, and where a specific value is configured, that they match it.
 
@@ -144,8 +216,8 @@ ___
 
 ___
 
-7. AuthenticationCheck
-----------------------
+12. AuthenticationCheck
+-----------------------
 
 **Purpose**: Validates the `Authorization` header format.
 
@@ -158,8 +230,8 @@ ___
 
 ___
 
-8. ReferrerCheck
-----------------
+13. ReferrerCheck
+-----------------
 
 **Purpose**: Validates the `Referer` header against allowed domains.
 
@@ -169,8 +241,8 @@ ___
 
 ___
 
-9. CustomValidatorsCheck
-------------------------
+14. CustomValidatorsCheck
+-------------------------
 
 **Purpose**: Runs user-defined async validator functions.
 
@@ -180,7 +252,7 @@ ___
 
 ___
 
-10. TimeWindowCheck
+15. TimeWindowCheck
 -------------------
 
 **Purpose**: Restricts access to specific time windows.
@@ -200,78 +272,6 @@ ___
 ```
 
 Supports overnight ranges (e.g., `start: "22:00"`, `end: "06:00"`).
-
-___
-
-11. CloudIpRefreshCheck
------------------------
-
-**Purpose**: Periodically refreshes cloud provider IP ranges.
-
-**Blocks**: Never. The refresh runs as a single-flight background task (via `cloud_handler.schedule_refresh`, which invokes the middleware's `refresh_cloud_ip_ranges()`), so the request that crosses the interval is never delayed by provider fetches.
-
-**Triggers when**: `config.block_cloud_providers` is set and `cloud_ip_refresh_interval` seconds have elapsed since the last refresh. If scheduling fails, the debounce timestamp is restored so the next request retries.
-
-___
-
-12. IpSecurityCheck
--------------------
-
-**Purpose**: Enforces IP-based access control at multiple levels.
-
-**Evaluation order**:
-
-1. **Banned IP check**: Consults `IPBanManager`. Returns `403 IP address banned`.
-2. **Route-level IP restrictions**: If a `RouteConfig` exists, evaluates its `ip_blacklist`, `ip_whitelist`, `blocked_countries`, and `whitelist_countries` first. Returns `403 Forbidden` if the route denies the request.
-3. **Global IP restrictions**: Always evaluated afterward, even when the route-level check ran and passed. Evaluates `config.blacklist`, `config.whitelist`, `config.blocked_countries`, and `config.block_cloud_providers`. Returns `403 Forbidden`.
-
-A route setting overrides the global gate only for the aspect it explicitly allows, and the IP and country aspects are evaluated independently: a route `ip_whitelist` match suppresses the global IP-list gate but does not exempt the request from country enforcement, and only an actual `whitelist_countries` match for the resolved country suppresses the global country gate. A route-level deny (`ip_blacklist` / `blocked_countries`) is enforced at the route step and never, by itself, disables the global IP or country rules. Within the IP aspect, a route `ip_whitelist` match wins over that same route's own `ip_blacklist` (v3.2.0 precedence, unchanged).
-
-Also sets `request.state.is_whitelisted`, `True` only for a **global** `config.whitelist` match. A route-level `ip_whitelist` match grants access to that route but does not set `is_whitelisted`; it is access-only and still passes through rate limiting, user-agent filtering, cloud-provider blocking, and suspicious-activity detection.
-
-___
-
-13. CloudProviderCheck
-----------------------
-
-**Purpose**: Blocks requests originating from cloud provider IP ranges (AWS, GCP, Azure).
-
-**Blocks when**: `client_ip` belongs to a blocked cloud provider's network and the check is not bypassed.
-
-**Response**: `403 Cloud provider IP not allowed`
-
-**Skips**: IPs whitelisted at the **global** level (`request.state.is_whitelisted`), a route-level `ip_whitelist` match alone does not set this, so it does not skip this check.
-
-___
-
-14. UserAgentCheck
-------------------
-
-**Purpose**: Blocks requests from matching user agents.
-
-**Blocks when**: The `User-Agent` header matches any pattern in `RouteConfig.blocked_user_agents` or `config.blocked_user_agents` (case-insensitive regex).
-
-**Response**: `403 User-Agent not allowed`
-
-**Skips**: Whitelisted IPs.
-
-___
-
-15. RateLimitCheck
-------------------
-
-**Purpose**: Enforces request rate limits using a sliding window algorithm.
-
-**Evaluation order** (first match wins):
-
-1. **Endpoint-specific rate limits** from `config.endpoint_rate_limits` (set by dynamic rules).
-2. **Route-level rate limits** from `RouteConfig.rate_limit` and `RouteConfig.rate_limit_window`.
-3. **Geo-based rate limits** from `RouteConfig.geo_rate_limits`.
-4. **Global rate limits** from `config.rate_limit` and `config.rate_limit_window`.
-
-**Response**: `429 Too many requests`
-
-**Skips**: Whitelisted IPs and bypassed routes.
 
 ___
 

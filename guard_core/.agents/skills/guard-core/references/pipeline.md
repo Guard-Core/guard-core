@@ -26,16 +26,16 @@ The `"unknown"` identity is not automatically blocked once inside the pipeline: 
 3. `https_enforcement` - redirect/reject non-HTTPS.
 4. `request_logging` - structured access logging.
 5. `request_size_content` - size and content-type gates.
-6. `required_headers` - presence and exact-value checks.
-7. `authentication` - auth gate.
-8. `referrer` - referrer policy.
-9. `custom_validators` - user-supplied sync/async validators.
-10. `time_window` - time-of-day access windows.
-11. `cloud_ip_refresh` - refresh cloud IP ranges.
-12. `ip_security` - whitelist/blacklist + country.
-13. `cloud_provider` - block AWS/GCP/Azure source IPs.
-14. `user_agent` - UA allow/block.
-15. `rate_limit` - sliding window (memory or Redis).
+6. `cloud_ip_refresh` - refresh cloud IP ranges.
+7. `ip_security` - whitelist/blacklist + country.
+8. `cloud_provider` - block AWS/GCP/Azure source IPs.
+9. `user_agent` - UA allow/block.
+10. `rate_limit` - sliding window (memory or Redis).
+11. `required_headers` - presence and exact-value checks.
+12. `authentication` - auth gate.
+13. `referrer` - referrer policy.
+14. `custom_validators` - user-supplied sync/async validators.
+15. `time_window` - time-of-day access windows.
 16. `suspicious_activity` - detection engine integration.
 17. `custom_request` - user-supplied request-level check.
 

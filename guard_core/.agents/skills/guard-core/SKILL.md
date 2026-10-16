@@ -114,16 +114,16 @@ See [the adapters reference](references/adapters.md) for a complete wrapper exam
 3. https_enforcement
 4. request_logging
 5. request_size_content
-6. required_headers
-7. authentication
-8. referrer
-9. custom_validators
-10. time_window
-11. cloud_ip_refresh
-12. ip_security
-13. cloud_provider
-14. user_agent
-15. rate_limit
+6. cloud_ip_refresh
+7. ip_security
+8. cloud_provider
+9. user_agent
+10. rate_limit
+11. required_headers
+12. authentication
+13. referrer
+14. custom_validators
+15. time_window
 16. suspicious_activity
 17. custom_request
 

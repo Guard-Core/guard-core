@@ -479,7 +479,7 @@ class MyCustomCheck(SecurityCheck):
 
 3. **Export** in `guard_core/core/checks/__init__.py`
 
-All framework adapters automatically pick up the new check. Check execution order in the pipeline is: route_config, emergency_mode, https_enforcement, request_logging, request_size_content, required_headers, authentication, referrer, custom_validators, time_window, cloud_ip_refresh, ip_security, cloud_provider, user_agent, rate_limit, suspicious_activity, custom_request.
+All framework adapters automatically pick up the new check. Check execution order in the pipeline is: route_config, emergency_mode, https_enforcement, request_logging, request_size_content, cloud_ip_refresh, ip_security, cloud_provider, user_agent, rate_limit, required_headers, authentication, referrer, custom_validators, time_window, suspicious_activity, custom_request.
 
 ## Best Practices
 
