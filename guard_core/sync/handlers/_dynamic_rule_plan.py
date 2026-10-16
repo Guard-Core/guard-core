@@ -26,6 +26,7 @@ class DynamicRulePlan:
     emergency_whitelist: list[str] | None = None
     exempt_ips: list[str] = field(default_factory=list)
     validated: set[str] = field(default_factory=set)
+    prepared: dict[str, Any] = field(default_factory=dict)
 
     def set(self, name: str, value: object, *, validate: bool = True) -> None:
         self.state[name] = value
@@ -108,14 +109,11 @@ class DynamicRulePlanMixin:
         self._plan_rate_limits(plan, rules)
         self._plan_feature_toggles(plan, rules)
         self._plan_emergency_mode(plan, rules)
+        plan.prepared = self.config._prepare_batch(plan.state, plan.validated)
         return plan
 
     def _swap_config(self, plan: DynamicRulePlan) -> None:
-        for name, value in plan.state.items():
-            if name not in plan.validated:
-                self.config._set_prevalidated(name, deepcopy(value))
-        for name in plan.validated:
-            setattr(self.config, name, deepcopy(plan.state[name]))
+        self.config._apply_batch(plan.prepared)
 
     def _plan_countries(self, plan: DynamicRulePlan, rules: DynamicRules) -> None:
         blocked, allowed = rules.blocked_countries, rules.whitelist_countries
@@ -309,14 +307,4 @@ class DynamicRulePlanMixin:
         }
 
     def _restore_config(self, snapshot: dict[str, object]) -> None:
-        for name, value in snapshot.items():
-            self.config._set_prevalidated(name, deepcopy(value))
-
-    def _swap_config_or_restore(self, plan: DynamicRulePlan) -> None:
-        previous = self._snapshot_config()
-        try:
-            self._swap_config(plan)
-        except Exception as e:
-            self._restore_config(previous)
-            self.logger.error(f"Failed to apply dynamic rules: {e}")
-            raise
+        self.config._apply_batch(deepcopy(snapshot))

@@ -912,9 +912,6 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
     "DynamicRuleIntakeMixin._ignore_platform_default": (
         "line 189: ignores the SaaS platform default shape, policy metadata only"
     ),
-    "handlers/_dynamic_rule_plan.py:DynamicRulePlanMixin._swap_config_or_restore": (
-        "line 273: config swap failure for a SaaS-pushed rule, not a request"
-    ),
     "handlers/dynamic_rule_handler.py:DynamicRuleManager._check_rule_expiry": (
         "line 162: rule-expiry lifecycle log, policy metadata only"
     ),

@@ -197,7 +197,7 @@ class DynamicRuleManager(
             try:
                 ip_ban_manager.set_rule_exempt_ips(plan.exempt_ips)
                 await self._apply_side_effects(rules, effects, plan.exempt_ips)
-                self._swap_config_or_restore(plan)
+                self._swap_config(plan)
             except Exception:
                 ip_ban_manager.rule_exempt_networks = previous_exempt
                 await self._undo_side_effects(effects)

@@ -1,4 +1,3 @@
-import logging
 from collections.abc import Iterator
 from datetime import datetime, timezone
 from pathlib import Path
@@ -54,27 +53,28 @@ def test_a_fresh_plan_has_empty_defaults() -> None:
 
 def test_plan_messages_describe_every_applied_part() -> None:
     manager = _manager()
-    plan = _plan(
-        manager,
-        _rules(
-            blocked_countries=["ru", "RU"],
-            whitelist_countries=["us"],
-            blocked_cloud_providers={"azure"},
-            blocked_user_agents=["goodbot"],
-            global_rate_limit=50,
-            global_rate_window=60,
-            endpoint_rate_limits={"/a": (5, 60)},
-            enable_penetration_detection=True,
-            enable_ip_banning=False,
-            enable_rate_limiting=True,
-            enable_rate_limit_auto_ban=True,
-            auto_ban_threshold=10,
-            auto_ban_duration=600,
-            ip_whitelist=["198.51.100.0/24"],
-            emergency_mode=True,
-            emergency_whitelist=["10.0.0.0/8"],
-        ),
-    )
+    with pytest.warns(UserWarning, match="blocked_countries is ignored"):
+        plan = _plan(
+            manager,
+            _rules(
+                blocked_countries=["ru", "RU"],
+                whitelist_countries=["us"],
+                blocked_cloud_providers={"azure"},
+                blocked_user_agents=["goodbot"],
+                global_rate_limit=50,
+                global_rate_window=60,
+                endpoint_rate_limits={"/a": (5, 60)},
+                enable_penetration_detection=True,
+                enable_ip_banning=False,
+                enable_rate_limiting=True,
+                enable_rate_limit_auto_ban=True,
+                auto_ban_threshold=10,
+                auto_ban_duration=600,
+                ip_whitelist=["198.51.100.0/24"],
+                emergency_mode=True,
+                emergency_whitelist=["10.0.0.0/8"],
+            ),
+        )
     texts = [message for _, message in plan.messages]
     assert texts == [
         "Dynamic rule: Blocked countries ['RU']",
@@ -203,21 +203,34 @@ def test_each_user_agent_pattern_is_validated_exactly_once() -> None:
     assert calls == ["onebot", "twobot"]
 
 
-def test_a_failing_swap_is_logged_and_restored(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
+def test_a_value_the_validators_reject_fails_the_plan_before_any_change() -> None:
     manager = _manager()
-    rules = _rules(global_rate_limit=50, global_rate_window=60)
-    plan = _plan(manager, rules)
+    rules = _rules(global_rate_limit=50, global_rate_window=60, auto_ban_threshold=7)
+    rules.auto_ban_threshold = 0
     before = manager.config.auto_ban_threshold
-    plan.validated.add("auto_ban_threshold")
-    plan.state["auto_ban_threshold"] = 0
-    with caplog.at_level(logging.ERROR, logger="guard_core.sync.handlers.dynamic_rule"):
-        with pytest.raises(ValueError):
-            manager._swap_config_or_restore(plan)
-    assert any(
-        r.getMessage().startswith("Failed to apply dynamic rules: ")
-        for r in caplog.records
-    )
+
+    with pytest.raises(ValueError, match="auto_ban_threshold must be >= 1"):
+        _plan(manager, rules)
+
     assert manager.config.auto_ban_threshold == before
     assert manager.config.rate_limit == 10
+
+
+def test_the_swap_writes_one_prepared_batch_and_bumps_the_revision_once() -> None:
+    manager = _manager(blocked_countries=["KP"])
+    plan = _plan(manager, _rules(global_rate_limit=50, blocked_countries=["ru"]))
+    revision = manager.config.revision
+    manager._swap_config(plan)
+    assert manager.config.revision == revision + 1
+    assert manager.config.rate_limit == 50
+    assert manager.config.blocked_countries == frozenset({"KP", "RU"})
+    assert "rate_limit" in manager.config.model_fields_set
+
+
+def test_geo_state_is_resolved_while_planning_not_while_swapping() -> None:
+    manager = _manager(geo=False, ipinfo_token="token-for-test")
+    plan = _plan(manager, _rules(blocked_countries=["ru"]))
+    assert "geo_ip_handler" in plan.prepared
+    assert manager.config.geo_ip_handler is None
+    manager._swap_config(plan)
+    assert manager.config.geo_ip_handler is plan.prepared["geo_ip_handler"]

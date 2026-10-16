@@ -142,9 +142,7 @@ def test_a_failed_apply_removes_the_bans_and_patterns_it_created() -> None:
         failing = _rules(
             version=2, ip_blacklist=[OPERATOR_IP], suspicious_patterns=[PATTERN]
         )
-        with patch.object(
-            manager, "_swap_config_or_restore", side_effect=RuntimeError("boom")
-        ):
+        with patch.object(manager, "_swap_config", side_effect=RuntimeError("boom")):
             manager._apply_rules(failing)
 
     assert not ip_ban_manager.is_ip_banned(OPERATOR_IP)
