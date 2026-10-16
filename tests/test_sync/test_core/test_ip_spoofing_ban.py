@@ -87,41 +87,12 @@ def test_forged_route_whitelist_address_is_counted() -> None:
     assert middleware.suspicious_request_counts[PUBLIC_PROXY] == {"ip_spoofing": 1}
 
 
-def test_three_distinct_values_within_a_minute_count_as_rotation() -> None:
-    config = _config(auto_ban_threshold=5)
-    middleware = _send(
-        config, PUBLIC_PROXY, ["198.18.0.1", "198.18.0.2", "198.18.0.3", "198.18.0.1"]
-    )
-
-    assert middleware.suspicious_request_counts[PUBLIC_PROXY] == {"ip_spoofing": 2}
-
-
-def test_two_distinct_values_are_not_rotation() -> None:
-    middleware = _send(
-        _config(auto_ban_threshold=5), PUBLIC_PROXY, ["198.18.0.1", "198.18.0.2"] * 5
-    )
+def test_rotating_forwarded_for_from_a_public_peer_is_never_banned() -> None:
+    config = _config(auto_ban_threshold=5, trusted_proxies=["10.0.0.1"])
+    middleware = _send(config, PUBLIC_PROXY, [f"198.18.0.{n}" for n in range(1, 41)])
 
     assert middleware.suspicious_request_counts == {}
-
-
-def test_rotation_window_expires(monkeypatch: pytest.MonkeyPatch) -> None:
-    clock = {"now": 5000.0}
-    monkeypatch.setattr(ip_extraction.time, "monotonic", lambda: clock["now"])
-    config = _config(auto_ban_threshold=5)
-    pipeline, middleware, route_id = build_route_pipeline(
-        config, lambda d: d.max_request_size(10**6)
-    )
-
-    for value in ("198.18.0.1", "198.18.0.2"):
-        send_request(
-            pipeline, route_id, ip=PUBLIC_PROXY, headers={"X-Forwarded-For": value}
-        )
-        clock["now"] += 40
-    send_request(
-        pipeline, route_id, ip=PUBLIC_PROXY, headers={"X-Forwarded-For": "198.18.0.3"}
-    )
-
-    assert middleware.suspicious_request_counts == {}
+    assert not ipban_handler.ip_ban_manager.is_ip_banned(PUBLIC_PROXY)
 
 
 def test_rotating_values_from_a_private_peer_are_never_counted() -> None:
@@ -145,7 +116,7 @@ def test_tracked_untrusted_peers_stay_bounded(monkeypatch: pytest.MonkeyPatch) -
     monkeypatch.setattr(ip_extraction, "_MAX_TRACKED_UNTRUSTED_PEERS", 3)
 
     for n in range(10):
-        ip_extraction._observe_untrusted_forwarded_for(f"93.184.216.{n}", "198.18.0.1")
+        ip_extraction._observe_untrusted_forwarded_for(f"93.184.216.{n}")
 
     assert list(ip_extraction._untrusted_peers) == [
         "93.184.216.7",

@@ -1,5 +1,4 @@
 from collections.abc import Collection
-from typing import TYPE_CHECKING
 
 from guard_core.models import SecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
@@ -14,9 +13,6 @@ from guard_core.sync.core.events.event_types import EVENT_DECORATOR_VIOLATION
 from guard_core.sync.decorators.base import RouteConfig
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 from guard_core.sync.utils import log_activity
-
-if TYPE_CHECKING:
-    pass
 
 
 class CustomValidatorsCheck(SecurityCheck):

@@ -1,5 +1,5 @@
 from collections.abc import Collection
-from typing import TYPE_CHECKING, ClassVar
+from typing import ClassVar
 
 from guard_core._utils.request_logging import redact_header_value_for_display
 from guard_core.core.checks.base import SecurityCheck
@@ -18,9 +18,6 @@ from guard_core.models import SecurityConfig
 from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.utils import log_activity
-
-if TYPE_CHECKING:
-    pass
 
 
 class UserAgentCheck(SecurityCheck):

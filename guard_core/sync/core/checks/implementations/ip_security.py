@@ -1,5 +1,5 @@
 from ipaddress import ip_address
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.ip_extraction import (
@@ -26,9 +26,6 @@ from guard_core.sync.utils import (
     check_ip_access,
     log_activity,
 )
-
-if TYPE_CHECKING:
-    pass
 
 
 def _route_overrides_ip_lists(route_config: RouteConfig | None) -> bool:
@@ -326,12 +323,7 @@ class IpSecurityCheck(SecurityCheck):
         forwarded_for = getattr(request.state, "untrusted_forwarded_for", None)
         if not self.config.ban_on_hostile_signals or not isinstance(forwarded_for, str):
             return
-        rotating = (
-            getattr(request.state, "untrusted_forwarded_for_rotating", False) is True
-        )
-        if rotating or self._forwarded_for_claims_privileged_address(
-            forwarded_for, route_config
-        ):
+        if self._forwarded_for_claims_privileged_address(forwarded_for, route_config):
             report_hostile_signal(
                 self,
                 request,

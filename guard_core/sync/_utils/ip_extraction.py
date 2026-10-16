@@ -1,7 +1,7 @@
 import logging
 import threading
 import time
-from collections import OrderedDict, deque
+from collections import OrderedDict
 from collections.abc import Sequence
 from ipaddress import IPv4Address, IPv6Address, ip_address, ip_network
 from typing import Any
@@ -209,8 +209,6 @@ def _display_forwarded_chain(value: str) -> str:
 
 
 _UNTRUSTED_XFF_WINDOW_SECONDS = 60
-_UNTRUSTED_XFF_ROTATION_DISTINCT_VALUES = 3
-_UNTRUSTED_XFF_RECENT_LIMIT = 16
 _MAX_TRACKED_UNTRUSTED_PEERS = 10_000
 _untrusted_peer_lock = threading.Lock()
 
@@ -218,22 +216,20 @@ _untrusted_peer_lock = threading.Lock()
 class _UntrustedPeerActivity:
     def __init__(self) -> None:
         self.last_warned: float | None = None
-        self.recent: deque[tuple[float, str]] = deque(
-            maxlen=_UNTRUSTED_XFF_RECENT_LIMIT
-        )
 
 
 _untrusted_peers: OrderedDict[str, _UntrustedPeerActivity] = OrderedDict()
 
 
-def _observe_untrusted_forwarded_for(
-    peer: str, forwarded_for: str
-) -> tuple[bool, bool]:
-    """Record an X-Forwarded-For value sent by an untrusted peer.
+def _observe_untrusted_forwarded_for(peer: str) -> bool:
+    """Sample the spoof warning for an untrusted public peer.
 
-    Returns ``(should_warn, is_rotating)``: ``should_warn`` is true at most once
-    per peer per window, and ``is_rotating`` is true when the peer sent at least
-    ``_UNTRUSTED_XFF_ROTATION_DISTINCT_VALUES`` distinct values inside the window.
+    Returns true at most once per peer per ``_UNTRUSTED_XFF_WINDOW_SECONDS``, so a
+    peer that sends an X-Forwarded-For on every request (an unlisted CDN does) is
+    logged once a minute instead of once per request. The header value is never
+    stored or compared: a rotating value is not a ban signal, only a forged
+    address of a whitelisted or trusted-proxy peer is. At most
+    ``_MAX_TRACKED_UNTRUSTED_PEERS`` peers are tracked and the oldest is evicted.
     """
     now = time.monotonic()
     cutoff = now - _UNTRUSTED_XFF_WINDOW_SECONDS
@@ -244,12 +240,10 @@ def _observe_untrusted_forwarded_for(
                 _untrusted_peers.popitem(last=False)
             activity = _UntrustedPeerActivity()
         _untrusted_peers[peer] = activity
-        activity.recent.append((now, forwarded_for))
-        distinct_values = {value for seen, value in activity.recent if seen > cutoff}
         should_warn = activity.last_warned is None or activity.last_warned <= cutoff
         if should_warn:
             activity.last_warned = now
-    return should_warn, len(distinct_values) >= _UNTRUSTED_XFF_ROTATION_DISTINCT_VALUES
+    return should_warn
 
 
 def forwarded_for_addresses(forwarded_for: str) -> list[IPv4Address | IPv6Address]:
@@ -281,11 +275,8 @@ def _handle_untrusted_proxy(
         log_fn = logger.warning if peer_is_public else logger.debug
         should_log = True
         if peer_is_public:
-            should_log, is_rotating = _observe_untrusted_forwarded_for(
-                canonical_connecting_ip, forwarded_for
-            )
+            should_log = _observe_untrusted_forwarded_for(canonical_connecting_ip)
             request.state.untrusted_forwarded_for = forwarded_for
-            request.state.untrusted_forwarded_for_rotating = is_rotating
         if should_log:
             log_fn(message)
         from guard_core.sync.core.events.event_types import EVENT_SUSPICIOUS_REQUEST
