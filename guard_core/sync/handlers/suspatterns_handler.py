@@ -158,8 +158,6 @@ from guard_core.sync.handlers._suspatterns_pickle import (
 from guard_core.sync.handlers._suspatterns_regex import (
     _CANDIDATE_REJECTION_VALIDATORS,
     _DECODE_BUDGET_EXHAUSTED_PATTERN,
-    _SCAN_WINDOW_BOUND_SOURCES,
-    _SCAN_WINDOW_PATTERNS,
     _WINDOWED_PATTERN_FINDERS,
     DETECTION_CATEGORY_WEIGHTS,
     DETECTION_PATTERN_WEIGHT_OVERRIDES,
@@ -167,11 +165,15 @@ from guard_core.sync.handlers._suspatterns_regex import (
     _build_timeout_threat,
     _decode_budget_exhausted_threat,
     _first_accepted_regex_threat,
-    _iter_scan_window_matches,
     _pattern_excluded_from_view,
     _pattern_should_be_skipped,
     _resolve_pattern_weight,
     _sanitize_for_reporting,
+)
+from guard_core.sync.handlers._suspatterns_scan_windows import (
+    _SCAN_WINDOW_BOUND_SOURCES,
+    _SCAN_WINDOW_PATTERNS,
+    _iter_scan_window_matches,
 )
 from guard_core.sync.handlers._suspatterns_shell_sources import (
     _AMBIGUOUS_BACKTICK_INJECTION_CONTEXTS,
