@@ -47,7 +47,7 @@ def _redact_rejected_patterns(
     return [(_redact_pattern_source(pattern), reason) for pattern, reason in rejected]
 
 
-def _classify_exempt_entry(entry: str) -> tuple[str | None, str]:
+def _classify_exempt_entry(entry: str) -> tuple[str | None, str | None]:
     network = ipaddress.ip_network(entry, strict=False)
     if any(
         network.version == loopback.version and network.overlaps(loopback)
@@ -55,8 +55,8 @@ def _classify_exempt_entry(entry: str) -> tuple[str | None, str]:
     ):
         return None, "loopback"
     if network.prefixlen == network.max_prefixlen:
-        return str(network.network_address), ""
-    return str(network), ""
+        return str(network.network_address), None
+    return str(network), None
 
 
 def _covered_by(entry: str, networks: list[Any]) -> bool:

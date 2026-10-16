@@ -119,3 +119,17 @@ def test_unbanning_a_network_removes_the_redis_record() -> None:
 def test_a_non_ip_value_is_never_rule_exempt() -> None:
     ip_ban_manager.set_rule_exempt_ips(["198.51.100.0/24"])
     assert ip_ban_manager.is_ip_banned("not-an-ip") is False
+
+
+def test_rule_exemption_mixin_defaults_to_no_networks_and_matches_by_family() -> None:
+    from guard_core.sync.handlers._ipban_rule_exempt import IpBanRuleExemptionMixin
+
+    mixin = IpBanRuleExemptionMixin()
+    assert mixin.rule_exempt_networks == ()
+    assert mixin._is_rule_exempt_ip("198.51.100.5") is False
+
+    mixin.set_rule_exempt_ips(["198.51.100.7/24"])
+    assert mixin._is_rule_exempt_ip("198.51.100.5") is True
+    assert mixin._is_rule_exempt_ip("198.51.101.5") is False
+    assert mixin._is_rule_exempt_ip("2001:db8::1") is False
+    assert mixin._is_rule_exempt_ip("not-an-ip") is False

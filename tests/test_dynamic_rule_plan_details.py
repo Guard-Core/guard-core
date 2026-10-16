@@ -1,0 +1,234 @@
+import logging
+from collections.abc import Iterator
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from guard_core.detection_engine.compiler import PatternCompiler
+from guard_core.handlers._dynamic_rule_plan import DynamicRulePlan
+from guard_core.handlers.dynamic_rule_handler import DynamicRuleManager
+from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.protocols.geo_ip_protocol import GeoIPHandler
+
+
+@pytest.fixture(autouse=True)
+def reset_singleton() -> Iterator[None]:
+    DynamicRuleManager._instance = None
+    yield
+    DynamicRuleManager._instance = None
+
+
+def _rules(**overrides: Any) -> DynamicRules:
+    base: dict[str, Any] = {
+        "rule_id": "R",
+        "version": 1,
+        "timestamp": datetime.now(timezone.utc),
+    }
+    base.update(overrides)
+    return DynamicRules(**base)
+
+
+def _manager(geo: bool = True, **config_kwargs: Any) -> DynamicRuleManager:
+    settings: dict[str, Any] = {"enable_redis": False}
+    if geo:
+        settings["geo_ip_handler"] = MagicMock(spec=GeoIPHandler)
+    settings.update(config_kwargs)
+    return DynamicRuleManager(SecurityConfig(**settings))
+
+
+async def _plan(manager: DynamicRuleManager, rules: DynamicRules) -> DynamicRulePlan:
+    return await manager._build_plan(rules, manager._snapshot_config())
+
+
+def test_a_fresh_plan_has_empty_defaults() -> None:
+    plan = DynamicRulePlan(state={})
+    assert plan.exempt_ips == []
+    assert plan.emergency_whitelist is None
+    assert plan.skipped == []
+    assert plan.messages == []
+    assert plan.validated == set()
+
+
+@pytest.mark.asyncio
+async def test_plan_messages_describe_every_applied_part() -> None:
+    manager = _manager()
+    plan = await _plan(
+        manager,
+        _rules(
+            blocked_countries=["ru", "RU"],
+            whitelist_countries=["us"],
+            blocked_cloud_providers={"azure"},
+            blocked_user_agents=["goodbot"],
+            global_rate_limit=50,
+            global_rate_window=60,
+            endpoint_rate_limits={"/a": (5, 60)},
+            enable_penetration_detection=True,
+            enable_ip_banning=False,
+            enable_rate_limiting=True,
+            enable_rate_limit_auto_ban=True,
+            auto_ban_threshold=10,
+            auto_ban_duration=600,
+            ip_whitelist=["198.51.100.0/24"],
+            emergency_mode=True,
+            emergency_whitelist=["10.0.0.0/8"],
+        ),
+    )
+    texts = [message for _, message in plan.messages]
+    assert texts == [
+        "Dynamic rule: Blocked countries ['RU']",
+        "Dynamic rule: Whitelisted countries ['US']",
+        "Dynamic rule: Blocked cloud providers frozenset({'Azure'})",
+        "Dynamic rule: Blocked user agents ['goodbot']",
+        "Dynamic rule: Exempt IPs ['198.51.100.0/24']",
+        "Dynamic rule: Global rate limit 50 per 60s",
+        "Dynamic rule: Applied endpoint-specific rate limits for 1 endpoints: ['/a']",
+        "Dynamic rule: Penetration detection True",
+        "Dynamic rule: IP banning False",
+        "Dynamic rule: Rate limiting True",
+        "Dynamic rule: Rate-limit auto-ban True",
+        "Dynamic rule: Auto-ban threshold 10",
+        "Dynamic rule: Auto-ban duration 600",
+        "[EMERGENCY MODE] Reduced auto-ban threshold from 10 to 5",
+    ]
+    assert plan.emergency_whitelist == ["10.0.0.0/8"]
+    assert "exempt_ips" not in plan.validated
+    assert "blocked_user_agents" not in plan.validated
+    assert {"blocked_countries", "rate_limit", "emergency_mode"} <= plan.validated
+
+
+@pytest.mark.asyncio
+async def test_static_countries_are_merged_not_replaced() -> None:
+    manager = _manager(blocked_countries=["KP"])
+    plan = await _plan(manager, _rules(blocked_countries=["ru"]))
+    assert plan.state["blocked_countries"] == frozenset({"KP", "RU"})
+
+
+@pytest.mark.asyncio
+async def test_emergency_threshold_never_drops_below_one_and_halves_otherwise() -> None:
+    manager = _manager(auto_ban_threshold=1)
+    plan = await _plan(manager, _rules(emergency_mode=True))
+    assert plan.state["auto_ban_threshold"] == 1
+
+    DynamicRuleManager._instance = None
+    plan = await _plan(_manager(auto_ban_threshold=7), _rules(emergency_mode=True))
+    assert plan.state["auto_ban_threshold"] == 3
+
+
+@pytest.mark.asyncio
+async def test_skips_are_listed_with_their_reasons() -> None:
+    manager = _manager(geo=False)
+    plan = await _plan(
+        manager,
+        _rules(
+            blocked_countries=["RU"],
+            blocked_user_agents=[r"(a|aa)+$"],
+            ip_blacklist=["198.51.100.9", "2001:db8::9"],
+            ip_whitelist=["127.0.0.1", "198.51.100.0/24"],
+        ),
+    )
+    assert sorted(plan.skipped) == sorted(
+        [
+            "blocked_countries and whitelist_countries: no geo_ip_handler or "
+            "ipinfo_token to resolve IPs to countries",
+            "ip_whitelist: 127.0.0.1 (loopback)",
+            "ip_blacklist: 198.51.100.9 (overridden by ip_whitelist)",
+            "blocked_user_agents: pattern '(a|aa)+$' failed the ReDoS validator",
+        ]
+    )
+    texts = [message for _, message in plan.messages]
+    assert (
+        "Dynamic rule: country rules cannot take effect (blocked=['RU'], "
+        "allowed=[]); no geo_ip_handler or ipinfo_token is configured to "
+        "resolve IPs to countries"
+    ) in texts
+    assert "Dynamic rule: skipped ip_whitelist entry '127.0.0.1' (loopback)" in texts
+    assert (
+        "Dynamic rule: ip_blacklist entry 198.51.100.9 is also in ip_whitelist; "
+        "the whitelist wins"
+    ) in texts
+    assert any(
+        message.startswith(
+            "Dynamic rule: rejected blocked_user_agents patterns failing the "
+            "ReDoS validator: "
+        )
+        for message in texts
+    )
+
+
+@pytest.mark.asyncio
+async def test_host_bits_in_ip_entries_are_accepted_and_mixed_families_coexist() -> (
+    None
+):
+    manager = _manager()
+    plan = await _plan(
+        manager,
+        _rules(
+            ip_blacklist=["198.51.100.77/24", "2001:db8::1"],
+            ip_whitelist=["198.51.100.0/24"],
+        ),
+    )
+    assert plan.skipped == [
+        "ip_blacklist: 198.51.100.77/24 (overridden by ip_whitelist)"
+    ]
+    assert plan.exempt_ips == ["198.51.100.0/24"]
+
+
+@pytest.mark.asyncio
+async def test_exempt_entry_with_host_bits_is_canonicalized() -> None:
+    manager = _manager()
+    plan = await _plan(manager, _rules(ip_whitelist=["198.51.100.77/24"]))
+    assert plan.exempt_ips == ["198.51.100.0/24"]
+
+
+@pytest.mark.asyncio
+async def test_user_agent_validation_uses_the_configured_validation_cache(
+    tmp_path: Path,
+) -> None:
+    cache_path = tmp_path / "validation-cache.json"
+    manager = _manager(detection_pattern_validation_cache_path=str(cache_path))
+    await _plan(manager, _rules(blocked_user_agents=["cachedbot"]))
+    assert cache_path.exists()
+
+
+@pytest.mark.asyncio
+async def test_each_user_agent_pattern_is_validated_exactly_once() -> None:
+    manager = _manager()
+    calls: list[str] = []
+    original = PatternCompiler.validate_pattern_safety
+
+    def spy(
+        self: PatternCompiler,
+        pattern: str,
+        test_strings: list[str] | None = None,
+        max_content_length: int | None = None,
+    ) -> tuple[bool, str]:
+        calls.append(pattern)
+        return original(self, pattern, test_strings, max_content_length)
+
+    with patch.object(PatternCompiler, "validate_pattern_safety", spy):
+        await manager._apply_rules(_rules(blocked_user_agents=["onebot", "twobot"]))
+    assert calls == ["onebot", "twobot"]
+
+
+@pytest.mark.asyncio
+async def test_a_failing_swap_is_logged_and_restored(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    manager = _manager()
+    rules = _rules(global_rate_limit=50, global_rate_window=60)
+    plan = await _plan(manager, rules)
+    before = manager.config.auto_ban_threshold
+    plan.validated.add("auto_ban_threshold")
+    plan.state["auto_ban_threshold"] = 0
+    with caplog.at_level(logging.ERROR, logger="guard_core.handlers.dynamic_rule"):
+        with pytest.raises(ValueError):
+            manager._swap_config_or_restore(plan)
+    assert any(
+        r.getMessage().startswith("Failed to apply dynamic rules: ")
+        for r in caplog.records
+    )
+    assert manager.config.auto_ban_threshold == before
+    assert manager.config.rate_limit == 10
