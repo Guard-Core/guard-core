@@ -44,7 +44,9 @@ class DynamicRuleEventSenderMixin:
         except Exception as e:
             self.logger.error(f"Failed to send rule updated event: {e}")
 
-    async def _send_rule_applied_event(self, rules: DynamicRules) -> None:
+    async def _send_rule_applied_event(
+        self, rules: DynamicRules, skipped: list[str] | None = None
+    ) -> None:
         from guard_core.core.events.event_types import EVENT_DYNAMIC_RULE_APPLIED
 
         if not self.agent_handler:
@@ -68,6 +70,7 @@ class DynamicRuleEventSenderMixin:
                     "ip_bans": len(rules.ip_blacklist),
                     "country_blocks": len(rules.blocked_countries),
                     "emergency_mode": rules.emergency_mode,
+                    "skipped": list(skipped or []),
                 },
             )
             await self.agent_handler.send_event(event)

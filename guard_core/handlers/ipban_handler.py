@@ -50,6 +50,7 @@ class IPBanManager(IpBanMigrationMixin, IpBanOperationsMixin, IpBanQueryMixin):
                 on_evict=cls._instance._on_eviction,
             )
             cls._instance.banned_networks = []
+            cls._instance.rule_exempt_networks = ()
             cls._instance.redis_handler = None
             cls._instance.agent_handler = None
         return cls._instance
@@ -71,6 +72,7 @@ async def reset_global_state() -> None:
     manager = IPBanManager()
     manager.banned_ips.clear()
     manager.banned_networks = []
+    manager.rule_exempt_networks = ()
     manager.evictions_count = 0
     manager.redis_handler = None
     manager.agent_handler = None

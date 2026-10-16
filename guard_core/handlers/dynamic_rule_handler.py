@@ -15,6 +15,7 @@ from guard_core.handlers._dynamic_rule_plan import (
     DynamicRulePlanMixin,
 )
 from guard_core.handlers._dynamic_rule_snapshot import DynamicRuleSnapshotMixin
+from guard_core.handlers.ipban_handler import ip_ban_manager
 from guard_core.models import (
     DynamicRules,
     SecurityConfig,
@@ -62,6 +63,7 @@ class DynamicRuleManager(
         "enable_rate_limiting",
         "emergency_mode",
         "emergency_whitelist",
+        "exempt_ips",
         "auto_ban_threshold",
         "auto_ban_duration",
         "enable_rate_limit_auto_ban",
@@ -172,6 +174,7 @@ class DynamicRuleManager(
         )
 
     def _revert_to_base_config(self) -> None:
+        ip_ban_manager.set_rule_exempt_ips(())
         if self._active_base_snapshot is not None:
             self._restore_config(self._active_base_snapshot)
         self.current_rules = None
@@ -269,13 +272,13 @@ class DynamicRuleManager(
             self.logger.info(
                 f"Applying dynamic rules: {rules.rule_id} v{rules.version}"
             )
-            await self._apply_rules(rules)
+            skipped = await self._apply_rules(rules)
 
             self.current_rules = rules
             self._current_fingerprint = content_fingerprint(rules)
             self.last_update = time.time()
 
-            await self._send_rule_applied_event(rules)
+            await self._send_rule_applied_event(rules, skipped)
 
         except Exception as e:
             self.logger.error(f"Failed to update dynamic rules: {e}")
@@ -298,10 +301,13 @@ class DynamicRuleManager(
                 base = self._snapshot_config()
             plan = await self._build_plan(rules, base)
             effects = RuleSideEffects()
+            previous_exempt = ip_ban_manager.rule_exempt_networks
             try:
-                await self._apply_side_effects(rules, effects)
+                ip_ban_manager.set_rule_exempt_ips(plan.exempt_ips)
+                await self._apply_side_effects(rules, effects, plan.exempt_ips)
                 self._swap_config_or_restore(plan)
             except Exception:
+                ip_ban_manager.rule_exempt_networks = previous_exempt
                 await self._undo_side_effects(effects)
                 raise
             self._active_base_snapshot = base

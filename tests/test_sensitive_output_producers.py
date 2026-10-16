@@ -778,6 +778,10 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "line 124: logs the ban-target IP and the overlapping loopback/"
         "trusted-proxy CIDR only; client_ip is outside the secret matrix"
     ),
+    "handlers/_ipban_bans.py:IpBanOperationsMixin._refuse_rule_exempt_target": (
+        "line 137: logs the ban-target IP covered by a dynamic ip_whitelist "
+        "entry only; client_ip is outside the secret matrix"
+    ),
     "handlers/_ipban_events.py:IpBanEventMixin._send_unban_event": (
         "line 49: unban is never exercised by any scenario; the event "
         "carries only ip/reason (ip outside the secret matrix, reason is "

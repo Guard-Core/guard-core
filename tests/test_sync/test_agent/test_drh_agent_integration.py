@@ -340,7 +340,9 @@ def test_update_rules_success(
     manager.agent_handler = mock_agent_handler
 
     with (
-        patch.object(manager, "_apply_rules", MagicMock()) as mock_apply_rules,
+        patch.object(
+            manager, "_apply_rules", MagicMock(return_value=[])
+        ) as mock_apply_rules,
         patch.object(
             manager, "_send_rule_applied_event", MagicMock()
         ) as mock_send_event,
@@ -355,7 +357,7 @@ def test_update_rules_success(
         assert manager.current_rules == sample_rules
         assert manager.last_update > 0
 
-        mock_send_event.assert_called_once_with(sample_rules)
+        mock_send_event.assert_called_once_with(sample_rules, [])
 
     assert (
         f"Applying dynamic rules: {sample_rules.rule_id} v{sample_rules.version}"
@@ -385,7 +387,9 @@ def test_update_rules_dynamic_rule_updated_event_failure(
     mock_agent_handler.send_event.side_effect = Exception("Network error")
 
     with (
-        patch.object(manager, "_apply_rules", MagicMock()) as mock_apply_rules,
+        patch.object(
+            manager, "_apply_rules", MagicMock(return_value=[])
+        ) as mock_apply_rules,
         patch.object(
             manager, "_send_rule_applied_event", MagicMock()
         ) as mock_send_event,
@@ -406,7 +410,7 @@ def test_update_rules_dynamic_rule_updated_event_failure(
         assert manager.current_rules == sample_rules
         assert manager.last_update > 0
 
-        mock_send_event.assert_called_once_with(sample_rules)
+        mock_send_event.assert_called_once_with(sample_rules, [])
 
 
 def test_update_rules_applies_and_sends_applied_event_with_handler_name(

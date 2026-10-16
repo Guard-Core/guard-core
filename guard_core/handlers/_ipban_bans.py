@@ -7,6 +7,7 @@ from cachetools import TTLCache
 
 from guard_core.handlers._ipban_cache import _Network
 from guard_core.handlers._ipban_events import IpBanEventMixin
+from guard_core.handlers._ipban_rule_exempt import IpBanRuleExemptionMixin
 from guard_core.utils import _canonicalize_ip
 
 _LOOPBACK_NETWORKS: tuple[_Network, ...] = (
@@ -15,7 +16,7 @@ _LOOPBACK_NETWORKS: tuple[_Network, ...] = (
 )
 
 
-class IpBanOperationsMixin(IpBanEventMixin):
+class IpBanOperationsMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
     LOCAL_CACHE_TTL_CAP_SECONDS: int
     banned_ips: TTLCache
     banned_networks: list[tuple[_Network, float]]
@@ -129,6 +130,16 @@ class IpBanOperationsMixin(IpBanEventMixin):
             space,
         )
 
+    def _refuse_rule_exempt_target(self, ip: str) -> bool:
+        target = self._target_network(ip)
+        if target is None or not self._is_rule_exempt_target(target):
+            return False
+        self.logger.info(
+            "Refused to ban %s: covered by an active dynamic rule ip_whitelist entry",
+            ip,
+        )
+        return True
+
     def _warn_if_private_target(self, ip: str) -> None:
         target = self._target_network(ip)
         if target is None:
@@ -148,6 +159,8 @@ class IpBanOperationsMixin(IpBanEventMixin):
     ) -> bool:
         ip = _canonicalize_ip(ip)
         self._assert_positive_duration(duration)
+        if self._refuse_rule_exempt_target(ip):
+            return False
         refusal = self._self_dos_refusal_reason(ip)
         if refusal is not None:
             self._log_refused_ban(ip, refusal)

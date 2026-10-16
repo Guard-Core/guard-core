@@ -6,10 +6,11 @@ from cachetools import TTLCache
 
 from guard_core.handlers._ipban_cache import _Network
 from guard_core.handlers._ipban_events import IpBanEventMixin
+from guard_core.handlers._ipban_rule_exempt import IpBanRuleExemptionMixin
 from guard_core.utils import _canonicalize_ip
 
 
-class IpBanQueryMixin(IpBanEventMixin):
+class IpBanQueryMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
     banned_ips: TTLCache
     banned_networks: list[tuple[_Network, float]]
     redis_handler: Any = None
@@ -47,6 +48,8 @@ class IpBanQueryMixin(IpBanEventMixin):
 
     async def is_ip_banned(self, ip: str) -> bool:
         ip = _canonicalize_ip(ip)
+        if self.rule_exempt_networks and self._is_rule_exempt_ip(ip):
+            return False
         current_time = time.time()
 
         expiry = self.banned_ips.get(ip)

@@ -24,7 +24,10 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
     _owned_patterns: list[str]
 
     async def _apply_side_effects(
-        self, rules: DynamicRules, effects: RuleSideEffects | None = None
+        self,
+        rules: DynamicRules,
+        effects: RuleSideEffects | None = None,
+        exempt_ips: list[str] | None = None,
     ) -> None:
         effects = effects or RuleSideEffects()
         if rules.ip_blacklist:
@@ -32,8 +35,9 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
                 rules.ip_blacklist, rules.ip_ban_duration, effects.created_bans
             )
 
-        if rules.ip_whitelist:
-            await self._apply_ip_whitelist(rules.ip_whitelist)
+        whitelist = rules.ip_whitelist if exempt_ips is None else exempt_ips
+        if whitelist:
+            await self._apply_ip_whitelist(whitelist)
 
         if rules.suspicious_patterns:
             await self._apply_pattern_rules(

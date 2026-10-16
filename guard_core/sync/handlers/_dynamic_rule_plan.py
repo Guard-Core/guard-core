@@ -1,4 +1,5 @@
 import functools
+import ipaddress
 import logging
 import re
 from collections.abc import Iterable
@@ -11,6 +12,7 @@ from guard_core._security_config_field_validators import (
 )
 from guard_core.models import DynamicRules, SecurityConfig
 from guard_core.sync._utils.detection_scan import _redact_pattern_source
+from guard_core.sync.handlers._ipban_bans import _LOOPBACK_NETWORKS
 
 
 @dataclass
@@ -19,6 +21,7 @@ class DynamicRulePlan:
     skipped: list[str] = field(default_factory=list)
     messages: list[tuple[int, str]] = field(default_factory=list)
     emergency_whitelist: list[str] | None = None
+    exempt_ips: list[str] = field(default_factory=list)
     validated: set[str] = field(default_factory=set)
 
     def set(self, name: str, value: object, *, validate: bool = True) -> None:
@@ -47,6 +50,32 @@ def _valid_country_codes(codes: list[str]) -> list[str]:
     return [code.upper() for code in codes if _COUNTRY_CODE.fullmatch(code)]
 
 
+def _classify_exempt_entry(entry: str) -> tuple[str | None, str]:
+    try:
+        network = ipaddress.ip_network(entry, strict=False)
+    except ValueError:
+        return None, "invalid"
+    if any(
+        network.version == loopback.version and network.overlaps(loopback)
+        for loopback in _LOOPBACK_NETWORKS
+    ):
+        return None, "loopback"
+    if network.prefixlen == network.max_prefixlen:
+        return str(network.network_address), ""
+    return str(network), ""
+
+
+def _covered_by(entry: str, networks: list[Any]) -> bool:
+    try:
+        target = ipaddress.ip_network(entry, strict=False)
+    except ValueError:
+        return False
+    return any(
+        target.version == network.version and target.subnet_of(network)
+        for network in networks
+    )
+
+
 def _merge_unique(static: Iterable[str] | None, dynamic: Iterable[str]) -> list[str]:
     return list(dict.fromkeys([*(static or ()), *dynamic]))
 
@@ -63,6 +92,7 @@ class DynamicRulePlanMixin:
         self._plan_countries(plan, rules)
         self._plan_cloud_providers(plan, rules)
         self._plan_user_agents(plan, valid_user_agents)
+        self._plan_exempt_ips(plan, rules)
         self._plan_rate_limits(plan, rules)
         self._plan_feature_toggles(plan, rules)
         self._plan_emergency_mode(plan, rules)
@@ -192,6 +222,31 @@ class DynamicRulePlanMixin:
         plan.set("blocked_user_agents", merged, validate=False)
         redacted = [_redact_pattern_source(p) for p in merged]
         plan.note(f"Dynamic rule: Blocked user agents {redacted}")
+
+    def _plan_exempt_ips(self, plan: DynamicRulePlan, rules: DynamicRules) -> None:
+        exempt: list[str] = []
+        for entry in rules.ip_whitelist:
+            canonical, problem = _classify_exempt_entry(entry)
+            if canonical is None:
+                plan.skip(
+                    f"ip_whitelist: {entry} ({problem})",
+                    f"Dynamic rule: skipped ip_whitelist entry {entry!r} ({problem})",
+                )
+            else:
+                exempt.append(canonical)
+        networks = [ipaddress.ip_network(entry) for entry in exempt]
+        for entry in rules.ip_blacklist:
+            if _covered_by(entry, networks):
+                plan.skip(
+                    f"ip_blacklist: {entry} (overridden by ip_whitelist)",
+                    f"Dynamic rule: ip_blacklist entry {entry} is also in "
+                    "ip_whitelist; the whitelist wins",
+                )
+        plan.exempt_ips = list(dict.fromkeys(exempt))
+        if plan.exempt_ips:
+            merged = _merge_unique(plan.state.get("exempt_ips"), plan.exempt_ips)
+            plan.set("exempt_ips", tuple(merged), validate=False)
+            plan.note(f"Dynamic rule: Exempt IPs {plan.exempt_ips}")
 
     def _plan_rate_limits(self, plan: DynamicRulePlan, rules: DynamicRules) -> None:
         if not (rules.global_rate_limit or rules.endpoint_rate_limits):
