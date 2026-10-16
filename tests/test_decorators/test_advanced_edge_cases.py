@@ -1,10 +1,11 @@
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import Mock
 
 import pytest
 
 from guard_core import utils
 from guard_core.decorators import SecurityDecorator
 from guard_core.models import SecurityConfig
+from tests.conftest import MockGuardRequest
 
 
 @pytest.fixture
@@ -186,15 +187,9 @@ async def test_honeypot_non_post_method(decorator: SecurityDecorator) -> None:
     assert route_config is not None
     validator = route_config.custom_validators[0]
 
-    mock_request = AsyncMock()
-    mock_request.method = "GET"
-
-    result = await validator(mock_request)
-    assert result is None
-
-    mock_request.method = "DELETE"
-    result = await validator(mock_request)
-    assert result is None
+    for method in ("GET", "DELETE"):
+        result = await validator(MockGuardRequest(method=method))
+        assert result is None
 
 
 async def test_honeypot_unsupported_content_type(
@@ -212,21 +207,14 @@ async def test_honeypot_unsupported_content_type(
     assert route_config is not None
     validator = route_config.custom_validators[0]
 
-    mock_request = AsyncMock()
-    mock_request.method = "POST"
-    mock_request.headers.get = lambda key, default="": (
-        "text/plain" if key == "content-type" else default
-    )
-
-    result = await validator(mock_request)
-    assert result is None
-
-    mock_request.headers.get = lambda key, default="": (
-        "multipart/form-data" if key == "content-type" else default
-    )
-
-    result = await validator(mock_request)
-    assert result is None
+    for content_type in ("text/plain", "image/png"):
+        request = MockGuardRequest(
+            method="POST",
+            headers={"content-type": content_type, "content-length": "20"},
+            body_content=b"trap_field=filled   ",
+        )
+        result = await validator(request)
+        assert result is None
 
 
 @pytest.mark.parametrize(
@@ -248,10 +236,7 @@ async def test_honeypot_various_non_modifying_methods(
     assert route_config is not None
     validator = route_config.custom_validators[0]
 
-    mock_request = AsyncMock()
-    mock_request.method = method
-
-    result = await validator(mock_request)
+    result = await validator(MockGuardRequest(method=method))
     assert result is None
 
 
@@ -274,13 +259,13 @@ async def test_honeypot_modifying_methods_without_content_type(
     assert route_config is not None
     validator = route_config.custom_validators[0]
 
-    mock_request = AsyncMock()
-    mock_request.method = method
-    mock_request.headers.get = lambda key, default="": (
-        "application/xml" if key == "content-type" else default
+    request = MockGuardRequest(
+        method=method,
+        headers={"content-type": "application/xml", "content-length": "20"},
+        body_content=b"trap_field=filled   ",
     )
 
-    result = await validator(mock_request)
+    result = await validator(request)
     assert result is None
 
 
@@ -291,6 +276,7 @@ class _BodyTrackingRequest:
         if content_length is not None:
             self.headers["content-length"] = str(content_length)
         self.method = "POST"
+        self.url_full = "https://test/x"
         self.body_read = False
         self.state = type("S", (), {})()
 

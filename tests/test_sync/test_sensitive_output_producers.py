@@ -604,12 +604,14 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "the @bypass(...) decorator argument, evaluated once at "
         "route-definition time, never per-request"
     ),
-    "decorators/advanced.py:AdvancedMixin.honeypot_detection.decorator."
-    "honeypot_validator._validate_json_data": (
-        "line 91: logger.debug('...skipping unparsable JSON body: %s', "
-        "exc) logs only the JSONDecodeError/TypeError/RecursionError "
-        "object, whose str() is built from parse-position numbers, never "
-        "a copy of the body text or honeypot field values"
+    "decorators/advanced.py:_log_unparsable_json": (
+        "logs a fixed message for a too-deeply-nested body, or the "
+        "JSONDecodeError str(), which is built from parse-position numbers "
+        "and never carries a copy of the body text or honeypot field values"
+    ),
+    "decorators/advanced.py:_warn_if_body_not_fully_inspected": (
+        "logs only the configured detection_max_body_inspect_bytes limit, "
+        "never any request value or client address"
     ),
     "detection_engine/_redos_cost_arbiter.py:_log_structural_disagreement": (
         "line 183: logs the regex *rule* text being validated at compile "

@@ -187,7 +187,7 @@ Provides advanced detection and time-based decorators.
 
 - `@guard_deco.time_window(start_time, end_time, timezone)` - Time-based access control
 - `@guard_deco.suspicious_detection(enabled=True)` - Toggle suspicious pattern detection
-- `@guard_deco.honeypot_detection(trap_fields=[])` - Detect bots using honeypot fields (a filled trap field returns 403 and bans the client IP on the first hit unless `threat_ban_config["honeypot"]` says otherwise)
+- `@guard_deco.honeypot_detection(trap_fields=[])` - Detect bots using honeypot fields (a filled trap field returns 403 and bans the client IP on the first hit unless `threat_ban_config["honeypot"]` says otherwise). Every method is inspected, the query string included, for urlencoded, multipart and JSON bodies. Media types and trap field names match case-insensitively, JSON is walked through nested objects and arrays and through every occurrence of a duplicated key, and any present value other than `null`, an empty string or whitespace counts as filled (`0`, `false` and `[]` too). JSON in UTF-8 (with or without a BOM), UTF-16 and UTF-32 is parsed. A body larger than `detection_max_body_inspect_bytes` is not fully inspected and logs a WARNING
 
 ___
 

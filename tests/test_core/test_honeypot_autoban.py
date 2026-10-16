@@ -192,12 +192,14 @@ async def test_unfilled_trap_passes_without_count(
     spy.assert_not_awaited()
 
 
-async def test_get_request_is_unaffected(fresh_ban_manager: IPBanManager) -> None:
+async def test_get_request_without_a_trap_is_unaffected(
+    fresh_ban_manager: IPBanManager,
+) -> None:
     mw = _middleware()
     route_config = _honeypot_route_config(mw.config)
     check, spy = _check(mw, fresh_ban_manager)
 
-    request = _post(route_config, FORM, b"website=spam", method="GET")
+    request = _post(route_config, FORM, b"website=", method="GET")
 
     assert await check.check(request) is None
     spy.assert_not_awaited()

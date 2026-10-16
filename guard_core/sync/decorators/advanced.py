@@ -1,11 +1,21 @@
-import json
 import logging
 from collections.abc import Callable, MutableMapping
 from typing import Any
-from urllib.parse import parse_qs
+from urllib.parse import urlsplit
 
 from guard_core.models import SecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
+from guard_core.sync._utils.body_reader import _parse_content_length
+from guard_core.sync._utils.honeypot_fields import (
+    FORM_MEDIA_TYPE,
+    JSON_MEDIA_TYPE,
+    MULTIPART_MEDIA_TYPE,
+    form_has_filled_trap,
+    json_has_filled_trap,
+    media_type_of,
+    multipart_has_filled_trap,
+    query_has_filled_trap,
+)
 from guard_core.sync.decorators.base import BaseSecurityMixin, DecoratedFunction
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 from guard_core.sync.utils import _read_capped_body
@@ -30,6 +40,39 @@ class _SimpleResponse:
     @property
     def body(self) -> bytes:
         return self._body
+
+
+_BODY_METHODS = frozenset({"POST", "PUT", "PATCH"})
+
+
+def _warn_if_body_not_fully_inspected(
+    request: SyncGuardRequest, raw_body: bytes | None, config: SecurityConfig
+) -> None:
+    max_bytes = config.detection_max_body_inspect_bytes
+    declared = _parse_content_length(request.headers.get("content-length", ""))
+    if declared is not None:
+        cut_short = declared > max_bytes or raw_body is None
+    elif raw_body is None:
+        cut_short = request.method in _BODY_METHODS
+    else:
+        cut_short = len(raw_body) >= max_bytes
+    if cut_short:
+        logger.warning(
+            "honeypot_detection: a request body larger than "
+            "detection_max_body_inspect_bytes (%d) or unreadable was not fully "
+            "inspected for trap fields",
+            max_bytes,
+        )
+
+
+def _log_unparsable_json(error: Exception | None) -> None:
+    if isinstance(error, RecursionError):
+        logger.warning(
+            "honeypot_detection: a JSON body nested too deeply to parse was not "
+            "fully inspected for trap fields"
+        )
+    elif error is not None:
+        logger.debug("honeypot_detection: skipping unparsable JSON body: %s", error)
 
 
 class AdvancedMixin(BaseSecurityMixin):
@@ -63,52 +106,35 @@ class AdvancedMixin(BaseSecurityMixin):
         self, trap_fields: list[str]
     ) -> Callable[[Callable[..., Any]], DecoratedFunction]:
         config = self.config
+        trap_names = frozenset(field.lower() for field in trap_fields)
 
         def decorator(func: Callable[..., Any]) -> DecoratedFunction:
             def honeypot_validator(
                 request: SyncGuardRequest,
             ) -> GuardResponse | None:
-                def _has_trap_field_filled(data: dict[str, Any]) -> bool:
-                    return any(field in data and data[field] for field in trap_fields)
-
-                def _validate_form_data(raw_body: bytes) -> GuardResponse | None:
-                    parsed = parse_qs(
-                        raw_body.decode("utf-8", errors="surrogateescape")
-                    )
-                    flat = {k: v[0] for k, v in parsed.items() if v}
-                    if _has_trap_field_filled(flat):
-                        return _SimpleResponse("Forbidden", 403)
-                    return None
-
-                def _validate_json_data(raw_body: bytes) -> GuardResponse | None:
-                    try:
-                        json_data = json.loads(
-                            raw_body.decode("utf-8", errors="surrogateescape")
-                        )
-                        if _has_trap_field_filled(json_data):
-                            return _SimpleResponse("Forbidden", 403)
-                    except (json.JSONDecodeError, TypeError, RecursionError) as exc:
-                        logger.debug(
-                            "honeypot_detection: skipping unparsable JSON body: %s",
-                            exc,
-                        )
-                    return None
-
-                if request.method not in ["POST", "PUT", "PATCH"]:
-                    return None
+                query = urlsplit(request.url_full).query
+                if query_has_filled_trap(query, trap_names):
+                    return _SimpleResponse("Forbidden", 403)
 
                 raw_body = _read_capped_body(request, config)
+                _warn_if_body_not_fully_inspected(request, raw_body, config)
                 if raw_body is None:
                     return None
 
                 content_type = request.headers.get("content-type", "")
-
-                if "application/x-www-form-urlencoded" in content_type:
-                    return _validate_form_data(raw_body)
-                elif "application/json" in content_type:
-                    return _validate_json_data(raw_body)
-
-                return None
+                media_type = media_type_of(content_type)
+                if media_type == FORM_MEDIA_TYPE:
+                    filled = form_has_filled_trap(raw_body, trap_names)
+                elif media_type == MULTIPART_MEDIA_TYPE:
+                    filled = multipart_has_filled_trap(
+                        raw_body, content_type, trap_names
+                    )
+                elif media_type == JSON_MEDIA_TYPE:
+                    filled, error = json_has_filled_trap(raw_body, trap_names)
+                    _log_unparsable_json(error)
+                else:
+                    filled = False
+                return _SimpleResponse("Forbidden", 403) if filled else None
 
             route_config = self._ensure_route_config(func)
             route_config.custom_validators.append(honeypot_validator)

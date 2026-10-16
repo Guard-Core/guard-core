@@ -99,9 +99,7 @@ def _multipart_part_entries(part: Any) -> list[tuple[str | None, str, str]]:
     return entries
 
 
-def _multipart_text_parts(
-    raw_body: str, content_type: str
-) -> list[tuple[str | None, str, str]] | None:
+def _multipart_leaf_parts(raw_body: str, content_type: str) -> list[Any] | None:
     from email.parser import Parser
     from email.policy import compat32
 
@@ -109,12 +107,34 @@ def _multipart_text_parts(
     message = Parser(policy=compat32).parsestr(header + raw_body)
     if not message.is_multipart():
         return None
+    return [part for part in message.walk() if not part.is_multipart()]
+
+
+def _multipart_text_parts(
+    raw_body: str, content_type: str
+) -> list[tuple[str | None, str, str]] | None:
+    leaves = _multipart_leaf_parts(raw_body, content_type)
+    if leaves is None:
+        return None
     parts: list[tuple[str | None, str, str]] = []
-    for part in message.walk():
-        if part.is_multipart():
-            continue
+    for part in leaves:
         parts.extend(_multipart_part_entries(part))
     return parts
+
+
+def _multipart_field_values(
+    raw_body: str, content_type: str
+) -> list[tuple[str, str]] | None:
+    leaves = _multipart_leaf_parts(raw_body, content_type)
+    if leaves is None:
+        return None
+    fields = []
+    for part in leaves:
+        name = part.get_param("name", header="content-disposition")
+        payload = getattr(part, "_payload", None)
+        if name is not None and isinstance(payload, str):
+            fields.append((str(name), payload))
+    return fields
 
 
 async def _scan_multipart_part(
