@@ -862,6 +862,15 @@ def test_notify_callbacks_exception_without_agent_handler() -> None:
     assert len(captured) == 1
 
 
+def test_notify_callbacks_skips_sanitizing_without_callbacks() -> None:
+    monitor = PerformanceMonitor()
+    with patch.object(monitor, "_sanitize_anomaly_data") as sanitize:
+        monitor._notify_callbacks(
+            {"pattern": "x", "type": "t"}, agent_handler=None, correlation_id=None
+        )
+    sanitize.assert_not_called()
+
+
 def test_get_slow_patterns_skips_missing_report() -> None:
     monitor = PerformanceMonitor()
     stats = PatternStats(pattern="gone")

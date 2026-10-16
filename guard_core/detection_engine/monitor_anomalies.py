@@ -48,8 +48,9 @@ def detect_statistical_anomaly(
     if anomaly_threshold >= 0 and metric.execution_time <= avg_time:
         return None
 
-    variance = math.fsum((t - avg_time) ** 2 for t in recent_times) / (sample_count - 1)
-    std_time = variance**0.5
+    std_time = math.dist(recent_times, [avg_time] * sample_count) / math.sqrt(
+        sample_count - 1
+    )
 
     if std_time <= 0:
         return None

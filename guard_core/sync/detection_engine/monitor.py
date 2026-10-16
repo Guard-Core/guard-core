@@ -182,6 +182,8 @@ class PerformanceMonitor:
         agent_handler: Any,
         correlation_id: str | None,
     ) -> None:
+        if not self.anomaly_callbacks:
+            return
         safe_anomaly = self._sanitize_anomaly_data(anomaly)
 
         for callback in self.anomaly_callbacks:
