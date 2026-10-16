@@ -2,6 +2,7 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING, Any, cast
 
+from guard_core.core.checks.helpers import _MAX_RETAINED_EVENTS_PER_CATEGORY
 from guard_core.exceptions import GuardRedisError
 from guard_core.protocols.cloud_ip_store_protocol import CloudIpStoreProtocol
 
@@ -64,6 +65,25 @@ class _HandlerInitializerStepsMixin:
 
         ip_ban_manager.config = self.config
         sus_patterns_handler.configure(self.config)
+
+    def _warn_unreachable_ban_thresholds(self) -> None:
+        thresholds = {"auto_ban_threshold": self.config.auto_ban_threshold}
+        thresholds.update(
+            {
+                f"threat_ban_config['{category}']": entry.threshold
+                for category, entry in self.config.threat_ban_config.items()
+            }
+        )
+        for field, value in thresholds.items():
+            if value > _MAX_RETAINED_EVENTS_PER_CATEGORY:
+                self.logger.warning(
+                    "%s is %d, above the %s events retained per category, so "
+                    "this ban threshold can never fire. Lower it to at most %s.",
+                    field,
+                    value,
+                    f"{_MAX_RETAINED_EVENTS_PER_CATEGORY:,}",
+                    f"{_MAX_RETAINED_EVENTS_PER_CATEGORY:,}",
+                )
 
     def _warn_if_lazy_init_is_inert(self) -> None:
         if not (self.config.block_cloud_providers or self.geo_ip_handler is not None):
@@ -140,6 +160,7 @@ class _HandlerInitializerStepsMixin:
 
     async def initialize_redis_handlers(self) -> None:
         self._configure_detection()
+        self._warn_unreachable_ban_thresholds()
 
         if not (self.config.enable_redis and self.redis_handler):
             if self.config.lazy_init:
