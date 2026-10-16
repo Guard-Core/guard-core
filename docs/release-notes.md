@@ -10,6 +10,24 @@ Release Notes
 
 ___
 
+v4.4.1 (2026-10-16)
+-------------------
+
+The CPU release: detection uses less CPU per request than 4.3.x and keeps the 4.4.0 event-loop responsiveness (v4.4.1)
+----------------------------------------------------------------------------------------------------------------------
+
+### Fixed
+
+- **The scan time budget charges CPU once per pass instead of once per pattern** (guard-core #172, #173). 4.4.0 read the thread CPU clock twice and entered a context manager for every pattern check, about 57,000 clock reads on a typical request, so a request cost about 1.4 times the CPU it cost on 4.3.1. The budget now takes one reading when a pass opens, charges at each 2 ms slice boundary and around every await that can suspend, and makes a final charge when the pass closes. Other requests' CPU is never charged to this one, and `detection_max_scan_seconds` still stops a long scan within about one slice. The fallback scan now charges its inline CPU too.
+- **The event-loop yield slice spans the whole request** (guard-core #172, #173). The 2 ms slice restarted for every scanned value, so on short values it almost never fired and responsiveness came from per-pattern thread pool round trips instead. The slice now starts with the request budget, so the loop yields every 2 ms of scanning.
+- **The performance monitor costs less per pattern check** (guard-core #172, #173). It no longer builds the sanitized anomaly copy when no callback is registered, and it computes the standard deviation in one C pass (`math.dist`). Results are identical to 6 decimals.
+
+### Changed
+
+- **Measured effect.** On a POST with a JSON body, browser headers and a bearer token, a request costs about 130 ms of CPU, against about 148 ms on 4.3.1 and about 209 ms on 4.4.0. Fifty concurrent requests finish in 6.7 s (4.3.1: 7.5 s, 4.4.0: 13.0 s) and the worst event-loop stall is 26 ms (4.3.1: 7.5 s, 4.4.0: 86 ms). Every verdict, category and score over the 738 production corpus cases is identical to 4.4.0. No configuration changes.
+
+___
+
 v4.4.0 (2026-10-15)
 -------------------
 
