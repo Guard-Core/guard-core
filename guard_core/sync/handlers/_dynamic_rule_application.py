@@ -17,7 +17,6 @@ class RuleSideEffects:
     created_bans: list[str] = field(default_factory=list)
     created_patterns: list[str] = field(default_factory=list)
     skipped: list[str] = field(default_factory=list)
-    reowned_bans: list[str] = field(default_factory=list)
 
 
 class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
@@ -25,7 +24,6 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
     agent_handler: Any
     _owned_bans: list[str]
     _owned_patterns: list[str]
-    _hydrating: bool = False
 
     def _apply_side_effects(
         self,
@@ -40,7 +38,6 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
                 rules.ip_ban_duration,
                 effects.created_bans,
                 effects.skipped,
-                effects.reowned_bans,
             )
 
         whitelist = rules.ip_whitelist if exempt_ips is None else exempt_ips
@@ -88,14 +85,12 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
         duration: int,
         created: list[str] | None = None,
         skipped: list[str] | None = None,
-        reowned: list[str] | None = None,
     ) -> None:
         created = created if created is not None else []
         skipped = skipped if skipped is not None else []
-        reowned = reowned if reowned is not None else []
         for ip in ip_list:
             try:
-                self._ban_rule_ip(ip, duration, created, skipped, reowned)
+                self._ban_rule_ip(ip, duration, created, skipped)
             except Exception as e:
                 self.logger.error(f"Failed to ban IP {ip}: {e}")
 
@@ -105,14 +100,12 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
         duration: int,
         created: list[str],
         skipped: list[str],
-        reowned: list[str],
     ) -> None:
         from guard_core.sync.handlers.ipban_handler import ip_ban_manager
 
         canonical = _canonicalize_ip(ip)
         owned = canonical in self._owned_bans
         if not owned and ip_ban_manager.is_ip_banned(canonical):
-            self._note_foreign_ban(canonical, reowned)
             return
         if ip_ban_manager.ban_ip(ip, duration, "dynamic_rule"):
             self.logger.info(f"Dynamic rule: Banned IP {ip} for {duration}s")
@@ -122,10 +115,6 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
         refusal = ip_ban_manager._self_dos_refusal_reason(canonical)
         if refusal is not None:
             skipped.append(f"ip_blacklist: {ip} (ban refused: {refusal})")
-
-    def _note_foreign_ban(self, canonical: str, reowned: list[str]) -> None:
-        if self._hydrating and canonical not in reowned:
-            reowned.append(canonical)
 
     def _apply_ip_whitelist(self, ip_list: list[str]) -> None:
         from guard_core.sync.handlers.ipban_handler import ip_ban_manager
@@ -191,7 +180,7 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
         bans = self._owned_after(
             [_canonicalize_ip(ip) for ip in rules.ip_blacklist],
             self._owned_bans,
-            [*effects.created_bans, *effects.reowned_bans],
+            effects.created_bans,
         )
         patterns = self._owned_after(
             rules.suspicious_patterns, self._owned_patterns, effects.created_patterns

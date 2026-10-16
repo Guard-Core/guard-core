@@ -1,4 +1,5 @@
 import json
+from collections.abc import Sequence
 from datetime import datetime
 from typing import Any
 
@@ -93,20 +94,38 @@ class LastKnownDynamicRules(DynamicRules):
     model_config = ConfigDict(extra="forbid")
 
 
+class LastKnownOwnership(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    bans: list[str] = Field(default_factory=list)
+    patterns: list[str] = Field(default_factory=list)
+
+
 class LastKnownRulesSnapshot(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     schema_version: int
     rules: LastKnownDynamicRules
+    owned: LastKnownOwnership | None = None
 
 
-def dump_last_known_rules_snapshot(rules: DynamicRules) -> str:
+def dump_last_known_rules_snapshot(
+    rules: DynamicRules,
+    owned_bans: Sequence[str] | None = None,
+    owned_patterns: Sequence[str] | None = None,
+) -> str:
     mirrored_fields = rules.model_dump(include=set(DynamicRules.model_fields))
+    owned = None
+    if owned_bans is not None or owned_patterns is not None:
+        owned = LastKnownOwnership(
+            bans=list(owned_bans or ()), patterns=list(owned_patterns or ())
+        )
     snapshot = LastKnownRulesSnapshot(
         schema_version=LAST_KNOWN_RULES_SNAPSHOT_SCHEMA_VERSION,
         rules=LastKnownDynamicRules.model_validate(mirrored_fields),
+        owned=owned,
     )
-    return snapshot.model_dump_json()
+    return snapshot.model_dump_json(exclude={"owned"} if owned is None else None)
 
 
 def load_last_known_rules_snapshot(payload: str | bytes) -> DynamicRules:
@@ -117,3 +136,10 @@ def load_last_known_rules_snapshot(payload: str | bytes) -> DynamicRules:
             f"{snapshot.schema_version}"
         )
     return DynamicRules.model_validate(snapshot.rules.model_dump())
+
+
+def load_last_known_ownership(payload: str | bytes) -> tuple[list[str], list[str]]:
+    snapshot = LastKnownRulesSnapshot.model_validate_json(payload)
+    if snapshot.owned is None:
+        return [], []
+    return list(snapshot.owned.bans), list(snapshot.owned.patterns)

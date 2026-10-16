@@ -16,6 +16,7 @@ async def real_redis() -> AsyncIterator[RedisManager]:
     config = SecurityConfig(
         enable_redis=True, redis_url=REDIS_URL, redis_prefix=REDIS_PREFIX
     )
+    RedisManager._instance = None
     redis = RedisManager(config)
     await redis.initialize()
     ip_ban_manager.redis_handler = redis

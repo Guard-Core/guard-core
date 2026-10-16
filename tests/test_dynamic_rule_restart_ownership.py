@@ -1,10 +1,14 @@
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from guard_core._dynamic_rules import (
+    dump_last_known_rules_snapshot,
+    load_last_known_ownership,
+)
 from guard_core.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.handlers.ipban_handler import ip_ban_manager
 from guard_core.handlers.redis_handler import RedisManager
@@ -57,38 +61,106 @@ def _manager(config: SecurityConfig, redis: RedisManager) -> DynamicRuleManager:
     return manager
 
 
-@pytest.mark.asyncio
-async def test_a_restart_keeps_ownership_so_the_hydrated_rule_revokes_its_bans() -> (
-    None
-):
+async def _restart(config: SecurityConfig, redis: RedisManager) -> DynamicRuleManager:
+    ip_ban_manager.banned_ips.clear()
+    if PATTERN in sus_patterns_handler.patterns:
+        await sus_patterns_handler.remove_pattern(PATTERN)
+    DynamicRuleManager._instance = None
+    return _manager(config, redis)
+
+
+async def _expire(manager: DynamicRuleManager) -> None:
+    assert manager.current_rules is not None
+    manager.current_rules.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+    await manager._check_rule_expiry()
+    ip_ban_manager.banned_ips.clear()
+
+
+@pytest.fixture
+async def stack() -> AsyncIterator[tuple[SecurityConfig, RedisManager]]:
     config = _config()
+    RedisManager._instance = None
     redis = RedisManager(config)
     await redis.initialize()
     ip_ban_manager.redis_handler = redis
     ip_ban_manager.config = config
-    try:
-        first = _manager(config, redis)
-        first.agent_handler.get_dynamic_rules.return_value = _rules()
-        await first.update_rules()
-        assert await ip_ban_manager.is_ip_banned(RULE_IP)
+    yield config, redis
+    ip_ban_manager.redis_handler = None
+    await redis.close()
 
-        ip_ban_manager.banned_ips.clear()
-        await sus_patterns_handler.remove_pattern(PATTERN)
-        DynamicRuleManager._instance = None
-        second = _manager(config, redis)
-        await second._hydrate_last_known_rules()
-        assert second.current_rules is not None
-        assert await ip_ban_manager.is_ip_banned(RULE_IP)
-        assert PATTERN in sus_patterns_handler.patterns
 
-        second.current_rules.expires_at = datetime.now(timezone.utc) - timedelta(
-            seconds=1
-        )
-        await second._check_rule_expiry()
+@pytest.mark.asyncio
+async def test_a_rule_created_ban_is_revoked_after_a_restart(
+    stack: tuple[SecurityConfig, RedisManager],
+) -> None:
+    config, redis = stack
+    first = _manager(config, redis)
+    first.agent_handler.get_dynamic_rules.return_value = _rules()
+    await first.update_rules()
+    assert await ip_ban_manager.is_ip_banned(RULE_IP)
 
-        ip_ban_manager.banned_ips.clear()
-        assert not await ip_ban_manager.is_ip_banned(RULE_IP)
-        assert PATTERN not in sus_patterns_handler.patterns
-    finally:
-        ip_ban_manager.redis_handler = None
-        await redis.close()
+    second = await _restart(config, redis)
+    await second._hydrate_last_known_rules()
+    assert second.current_rules is not None
+    assert await ip_ban_manager.is_ip_banned(RULE_IP)
+    assert PATTERN in sus_patterns_handler.patterns
+
+    await _expire(second)
+
+    assert not await ip_ban_manager.is_ip_banned(RULE_IP)
+    assert PATTERN not in sus_patterns_handler.patterns
+
+
+@pytest.mark.asyncio
+async def test_an_operator_ban_on_a_listed_ip_survives_the_rule_after_a_restart(
+    stack: tuple[SecurityConfig, RedisManager],
+) -> None:
+    config, redis = stack
+    await ip_ban_manager.ban_ip(RULE_IP, 3600, "operator")
+    first = _manager(config, redis)
+    first.agent_handler.get_dynamic_rules.return_value = _rules()
+    await first.update_rules()
+    assert first._owned_bans == []
+
+    second = await _restart(config, redis)
+    await second._hydrate_last_known_rules()
+    assert second.current_rules is not None
+    await _expire(second)
+
+    assert await ip_ban_manager.is_ip_banned(RULE_IP)
+    await ip_ban_manager.unban_ip(RULE_IP)
+
+
+@pytest.mark.asyncio
+async def test_a_snapshot_written_by_4_4_0_owns_nothing(
+    stack: tuple[SecurityConfig, RedisManager],
+) -> None:
+    config, redis = stack
+    rules = _rules()
+    legacy_payload = dump_last_known_rules_snapshot(rules)
+    assert '"owned"' not in legacy_payload
+    assert load_last_known_ownership(legacy_payload) == ([], [])
+    await redis.set_key("dynamic_rules", "last_known", legacy_payload)
+    await ip_ban_manager.ban_ip(RULE_IP, 3600, "dynamic_rule")
+
+    manager = _manager(config, redis)
+    await manager._hydrate_last_known_rules()
+    assert manager.current_rules is not None
+    assert manager._owned_bans == []
+    await _expire(manager)
+
+    assert await ip_ban_manager.is_ip_banned(RULE_IP)
+    await ip_ban_manager.unban_ip(RULE_IP)
+
+
+def test_the_snapshot_carries_ownership_as_an_additive_field() -> None:
+    payload = dump_last_known_rules_snapshot(
+        _rules(), owned_bans=[RULE_IP], owned_patterns=[PATTERN]
+    )
+    assert load_last_known_ownership(payload) == ([RULE_IP], [PATTERN])
+    assert load_last_known_ownership(
+        dump_last_known_rules_snapshot(_rules(), [], [])
+    ) == (
+        [],
+        [],
+    )

@@ -9,6 +9,7 @@ from typing import Any
 from guard_core._dynamic_rules import (
     content_fingerprint,
     dump_last_known_rules_snapshot,
+    load_last_known_ownership,
     load_last_known_rules_snapshot,
 )
 from guard_core.models import DynamicRules, SecurityConfig
@@ -25,7 +26,10 @@ class DynamicRuleSnapshotMixin:
     logger: logging.Logger
     current_rules: DynamicRules | None
     last_update: float
-    _hydrating: bool
+    _restored_ownership: tuple[list[str], list[str]] = ([], [])
+    _owned_bans: list[str] | tuple[()] = ()
+    _owned_patterns: list[str] | tuple[()] = ()
+    _reject_if_malformed: Callable[[DynamicRules], bool]
     _current_fingerprint: str | None
     _apply_rules: Callable[[DynamicRules], list[str]]
     _has_rule_expired: Callable[[DynamicRules], bool]
@@ -35,11 +39,14 @@ class DynamicRuleSnapshotMixin:
             rules = self._load_last_known_rules()
             if rules is None:
                 return
-            self._hydrating = True
+            if self._reject_if_malformed(rules):
+                return
+            self._owned_bans, self._owned_patterns = self._restored_ownership
             try:
                 self._apply_rules(rules)
-            finally:
-                self._hydrating = False
+            except Exception:
+                self._owned_bans, self._owned_patterns = [], []
+                raise
             self.current_rules = rules
             self._current_fingerprint = content_fingerprint(rules)
             self.last_update = time.time()
@@ -100,7 +107,9 @@ class DynamicRuleSnapshotMixin:
 
     def _parse_last_known_rules(self, payload: str | bytes) -> DynamicRules | None:
         try:
-            return load_last_known_rules_snapshot(payload)
+            rules = load_last_known_rules_snapshot(payload)
+            self._restored_ownership = load_last_known_ownership(payload)
+            return rules
         except Exception as e:
             self.logger.error(
                 f"Discarding unusable last-known dynamic rules payload: {e}"
@@ -132,7 +141,9 @@ class DynamicRuleSnapshotMixin:
 
     def _persist_last_known_rules(self, rules: DynamicRules) -> None:
         try:
-            payload = dump_last_known_rules_snapshot(rules)
+            payload = dump_last_known_rules_snapshot(
+                rules, self._owned_bans, self._owned_patterns
+            )
         except Exception as e:
             self.logger.error(f"Failed to build last-known dynamic rules snapshot: {e}")
             return

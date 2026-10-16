@@ -36,7 +36,7 @@ def _rules(**kwargs: object) -> DynamicRules:
 
 
 def _snapshot(rules: DynamicRules) -> str:
-    return dump_last_known_rules_snapshot(rules)
+    return dump_last_known_rules_snapshot(rules, [], [])
 
 
 def _agent_rules(**kwargs: object) -> DynamicRules:
