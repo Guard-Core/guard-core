@@ -61,16 +61,17 @@ _reported_by_middleware: "weakref.WeakKeyDictionary[Any, set[str]]" = (
     weakref.WeakKeyDictionary()
 )
 # shortcut: a middleware that cannot be weakly referenced (for example one with
-# __slots__ and no __weakref__) is keyed by id() and never released, one small
-# set per such middleware; upgrade if middlewares are created per request.
-_reported_by_id: dict[int, set[str]] = {}
+# __slots__ and no __weakref__) is held strongly here, keyed by id() so an id is
+# never reused, one small set per such middleware and never released; upgrade if
+# middlewares are created per request.
+_reported_by_id: dict[int, tuple[Any, set[str]]] = {}
 
 
 def _reported(middleware: Any) -> set[str]:
     try:
         return _reported_by_middleware.setdefault(middleware, set())
     except TypeError:
-        return _reported_by_id.setdefault(id(middleware), set())
+        return _reported_by_id.setdefault(id(middleware), (middleware, set()))[1]
 
 
 def _warn_once(middleware: Any, message: str) -> None:

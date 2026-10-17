@@ -14,6 +14,19 @@ def normalize_limit_path(path: str) -> str:
     return resolved
 
 
+def _identities_of(
+    key: str, resolve_route: RouteResolver
+) -> tuple[RouteIdentity, ...] | None:
+    try:
+        return resolve_route(key)
+    except Exception as error:
+        config_logger.warning(
+            f"resolve_route() raised {error!r} for endpoint_rate_limits "
+            f"key {key!r}; the key matches by its normalized path only."
+        )
+        return None
+
+
 class EndpointLimitKeyMap:
     def __init__(
         self, keys: Iterable[str], resolve_route: RouteResolver | None
@@ -26,13 +39,8 @@ class EndpointLimitKeyMap:
             by_path.setdefault(normalize_limit_path(key), set()).add(key)
             if resolve_route is None:
                 continue
-            try:
-                identities = resolve_route(key)
-            except Exception as error:
-                config_logger.warning(
-                    f"resolve_route() raised {error!r} for endpoint_rate_limits "
-                    f"key {key!r}; the key matches by its normalized path only."
-                )
+            identities = _identities_of(key, resolve_route)
+            if identities is None:
                 continue
             if not identities:
                 unresolved.add(key)

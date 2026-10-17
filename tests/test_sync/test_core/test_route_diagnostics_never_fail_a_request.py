@@ -48,7 +48,7 @@ class Slotted:
     def static_route_prefixes(self) -> tuple[str, ...]:
         if isinstance(self.prefixes, Exception):
             raise self.prefixes
-        return self.prefixes
+        return tuple(self.prefixes)
 
     def resolve_route(self, path: str) -> tuple[Any, ...]:
         if isinstance(self.resolver, Exception):
@@ -57,6 +57,10 @@ class Slotted:
 
     def create_error_response(self, *args: Any, **kwargs: Any) -> Any:
         return BLOCKED
+
+
+def _slotted(config: SecurityConfig, prefixes: Any, resolver: Any) -> Any:
+    return Slotted(config, prefixes, resolver)
 
 
 def _request() -> Any:
@@ -85,7 +89,7 @@ def _through_pipeline(middleware: Any, check: Any) -> Any:
 def test_a_slotted_middleware_still_gets_the_warning_and_the_request_passes(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    middleware = Slotted(_config(exclude_paths=["/typo"]), ("/health",), None)
+    middleware = _slotted(_config(exclude_paths=["/typo"]), ("/health",), None)
     with caplog.at_level(logging.WARNING, logger="guard_core"):
         for _ in range(3):
             assert _through_pipeline(middleware, RouteConfigCheck(middleware)) is None
@@ -98,7 +102,7 @@ def test_a_slotted_middleware_still_gets_the_warning_and_the_request_passes(
 def test_a_raising_static_route_prefixes_never_fails_the_request(
     error: Exception, caplog: pytest.LogCaptureFixture
 ) -> None:
-    middleware = Slotted(_config(exclude_paths=["/typo"]), error, None)
+    middleware = _slotted(_config(exclude_paths=["/typo"]), error, None)
     with caplog.at_level(logging.WARNING, logger="guard_core"):
         for _ in range(2):
             assert _through_pipeline(middleware, RouteConfigCheck(middleware)) is None
@@ -114,7 +118,7 @@ def test_a_raising_resolve_route_never_fails_the_request_and_keeps_the_limit(
     caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     config = _config(endpoint_rate_limits={"/health": (1, 60)}, passive_mode=False)
-    middleware = Slotted(config, (), RuntimeError("no app context"))
+    middleware = _slotted(config, (), RuntimeError("no app context"))
     check = RateLimitCheck(middleware)
     seen: list[str] = []
 
