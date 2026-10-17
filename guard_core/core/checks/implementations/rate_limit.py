@@ -1,7 +1,6 @@
 from collections.abc import Collection
 from typing import TYPE_CHECKING, Any, ClassVar
 
-from guard_core._misconfiguration import config_logger
 from guard_core._utils.request_logging import redact_endpoint_for_display
 from guard_core.core.checks.base import SecurityCheck
 from guard_core.core.checks.endpoint_limit_keys import EndpointLimitKeyMap
@@ -12,6 +11,7 @@ from guard_core.core.checks.helpers import (
     emit_rate_limit_event,
     route_config_applies,
 )
+from guard_core.core.checks.route_prefixes import warn_unmatched_endpoint_keys
 from guard_core.core.events.event_types import (
     EVENT_DECORATOR_VIOLATION,
     EVENT_DYNAMIC_RULE_VIOLATION,
@@ -57,7 +57,6 @@ class RateLimitCheck(SecurityCheck):
 
         self.ip_ban_manager = ip_ban_manager
         self._endpoint_key_map: EndpointLimitKeyMap | None = None
-        self._warned_unmatched_keys: set[str] = set()
 
     @property
     def check_name(self) -> str:
@@ -73,17 +72,8 @@ class RateLimitCheck(SecurityCheck):
                 keys, getattr(self.middleware, "resolve_route", None)
             )
             self._endpoint_key_map = key_map
-            self._warn_unmatched_keys(key_map)
+            warn_unmatched_endpoint_keys(self.middleware, key_map.unresolved)
         return key_map
-
-    def _warn_unmatched_keys(self, key_map: EndpointLimitKeyMap) -> None:
-        for key in sorted(key_map.unresolved - self._warned_unmatched_keys):
-            self._warned_unmatched_keys.add(key)
-            config_logger.warning(
-                f"endpoint_rate_limits key {key!r} matches no registered route; "
-                "check it for a typo. It still applies to requests whose path "
-                "matches it after normalization."
-            )
 
     @property
     def needs_route_identity(self) -> bool:

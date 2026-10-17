@@ -15,6 +15,15 @@ from guard_core.protocols.geo_ip_protocol import GeoIPHandler
 from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse
 
+DEFAULT_EXCLUDE_PATHS: tuple[str, ...] = (
+    "/docs",
+    "/redoc",
+    "/openapi.json",
+    "/openapi.yaml",
+    "/favicon.ico",
+    "/static",
+)
+
 
 class _SecurityConfigFields(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -480,14 +489,7 @@ class _SecurityConfigFields(BaseModel):
     )
 
     exclude_paths: list[str] = Field(
-        default_factory=lambda: [
-            "/docs",
-            "/redoc",
-            "/openapi.json",
-            "/openapi.yaml",
-            "/favicon.ico",
-            "/static",
-        ],
+        default_factory=lambda: list(DEFAULT_EXCLUDE_PATHS),
         description="Paths to exclude from security checks",
     )
 

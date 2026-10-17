@@ -1,5 +1,6 @@
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.core.checks.base import SecurityCheck
+from guard_core.sync.core.checks.route_prefixes import warn_unmatched_exclude_paths
 from guard_core.sync.core.events.event_types import EVENT_ROUTE_UNRESOLVED
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 from guard_core.sync.utils import extract_client_ip, log_activity
@@ -49,6 +50,7 @@ class RouteConfigCheck(SecurityCheck):
         return None
 
     def check(self, request: SyncGuardRequest) -> GuardResponse | None:
+        warn_unmatched_exclude_paths(self.middleware, self.config)
         route_config = self.middleware.route_resolver.get_route_config(request)
         request.state.route_config = route_config
         request.state.client_ip = extract_client_ip(

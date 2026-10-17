@@ -1,0 +1,152 @@
+import logging
+from typing import Any
+from unittest.mock import MagicMock, Mock
+
+import pytest
+
+from guard_core.models import SecurityConfig
+from guard_core.sync.core.checks.implementations.rate_limit import RateLimitCheck
+from guard_core.sync.core.checks.implementations.route_config import RouteConfigCheck
+from guard_core.sync.core.checks.route_prefixes import (
+    entry_matches_route_prefixes,
+    regex_route_prefix,
+    template_route_prefix,
+)
+
+
+@pytest.mark.parametrize(
+    ("template", "prefix"),
+    [
+        ("/health", "/health"),
+        ("/api/users/{id}", "/api/users/"),
+        ("/api/users/<int:id>", "/api/users/"),
+        ("/{anything}", "/"),
+        ("/user-{id}", "/"),
+        ("/files/{p:path}", "/files/"),
+    ],
+)
+def test_template_route_prefix(template: str, prefix: str) -> None:
+    assert template_route_prefix(template) == prefix
+
+
+@pytest.mark.parametrize(
+    ("pattern", "prefix"),
+    [
+        ("/ok$", "/ok"),
+        ("^health$", "/health"),
+        ("/static/(.*)$", "/static/"),
+        ("^api/", "/api/"),
+        ("^api/users/(?P<id>[0-9]+)/$", "/api/users/"),
+        ("^colou?r$", "/"),
+        ("(?P<x>.*)$", "/"),
+        ("^a/b.c$", "/a/"),
+    ],
+)
+def test_regex_route_prefix(pattern: str, prefix: str) -> None:
+    assert regex_route_prefix(pattern) == prefix
+
+
+@pytest.mark.parametrize(
+    ("entry", "prefixes", "expected"),
+    [
+        ("/health", ["/health"], True),
+        ("/health/", ["/health"], True),
+        ("/healthz", ["/health"], False),
+        ("/api", ["/api/users/"], True),
+        ("/api/users", ["/api/users/"], True),
+        ("/api/users/42", ["/api/users/"], True),
+        ("/api/users/42", ["/api/users"], False),
+        ("/admin/x", ["/admin", "/admin/"], True),
+        ("/typo", ["/health", "/api/"], False),
+        ("/typo", ["/"], True),
+        ("/typo", [], False),
+    ],
+)
+def test_entry_matches_route_prefixes(
+    entry: str, prefixes: list[str], expected: bool
+) -> None:
+    assert entry_matches_route_prefixes(entry, prefixes) is expected
+
+
+def _middleware(config: SecurityConfig, prefixes: Any = None) -> Mock:
+    middleware = Mock()
+    middleware.config = config
+    middleware.logger = Mock()
+    middleware.event_bus.send_middleware_event = MagicMock()
+    middleware.route_resolver.get_route_config.return_value = None
+    if prefixes is None:
+        del middleware.static_route_prefixes
+    else:
+        middleware.static_route_prefixes = Mock(return_value=tuple(prefixes))
+    return middleware
+
+
+def _warnings(caplog: pytest.LogCaptureFixture) -> list[str]:
+    return [
+        r.getMessage()
+        for r in caplog.records
+        if r.name == "guard_core.models" and r.levelno == logging.WARNING
+    ]
+
+
+def _first_requests(middleware: Mock, count: int = 2) -> None:
+    check = RouteConfigCheck(middleware)
+    request = Mock()
+    request.state = Mock(spec=["client_ip", "guard_route_unresolved"])
+    request.state.guard_route_unresolved = False
+    request.headers = {}
+    request.client_host = "1.2.3.4"
+    for _ in range(count):
+        check.check(request)
+
+
+def _config(**settings: Any) -> SecurityConfig:
+    return SecurityConfig(enable_redis=False, **settings)
+
+
+def test_a_typo_entry_warns_once_and_a_matched_or_default_entry_never(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "guard_core.sync.core.checks.implementations.route_config.extract_client_ip",
+        MagicMock(return_value="1.2.3.4"),
+    )
+    config = _config(exclude_paths=["/docs", "/admin", "/api", "/typo"])
+    middleware = _middleware(config, ["/admin/", "/api/users/"])
+    with caplog.at_level(logging.WARNING, logger="guard_core"):
+        _first_requests(middleware, 3)
+        _first_requests(middleware, 2)
+
+    assert _warnings(caplog) == [
+        "exclude_paths entry '/typo' matches no registered route; check it for a typo."
+    ]
+
+
+def test_no_warning_without_the_adapter_call_and_never_fatal(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "guard_core.sync.core.checks.implementations.route_config.extract_client_ip",
+        MagicMock(return_value="1.2.3.4"),
+    )
+    config = _config(exclude_paths=["/typo"], fail_on_misconfiguration=True)
+    with caplog.at_level(logging.WARNING, logger="guard_core"):
+        _first_requests(_middleware(config, None))
+        _first_requests(_middleware(config, []))
+
+    assert _warnings(caplog) == [
+        "exclude_paths entry '/typo' matches no registered route; check it for a typo."
+    ]
+
+
+def test_a_rebuilt_rate_limit_check_does_not_repeat_a_key_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    config = _config(endpoint_rate_limits={"/ghost": (1, 60)})
+    middleware = _middleware(config, None)
+    middleware.resolve_route = lambda path: ()
+    with caplog.at_level(logging.WARNING, logger="guard_core"):
+        for _ in range(2):
+            assert RateLimitCheck(middleware).needs_route_identity is False
+
+    assert len(_warnings(caplog)) == 1

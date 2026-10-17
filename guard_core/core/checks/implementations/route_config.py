@@ -1,4 +1,5 @@
 from guard_core.core.checks.base import SecurityCheck
+from guard_core.core.checks.route_prefixes import warn_unmatched_exclude_paths
 from guard_core.core.events.event_types import EVENT_ROUTE_UNRESOLVED
 from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse
@@ -49,6 +50,7 @@ class RouteConfigCheck(SecurityCheck):
         return None
 
     async def check(self, request: GuardRequest) -> GuardResponse | None:
+        warn_unmatched_exclude_paths(self.middleware, self.config)
         route_config = self.middleware.route_resolver.get_route_config(request)
         request.state.route_config = route_config
         request.state.client_ip = await extract_client_ip(
