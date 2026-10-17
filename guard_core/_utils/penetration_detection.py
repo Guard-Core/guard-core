@@ -37,12 +37,50 @@ from guard_core._utils.ip_extraction import (
     extract_client_ip,
 )
 from guard_core._utils.request_logging import redact_url_for_display
+from guard_core._utils.request_path import resolve_dot_and_empty_segments
 from guard_core.detection_result import DetectionResult
 from guard_core.protocols.request_protocol import GuardRequest
 
 if TYPE_CHECKING:
     from guard_core.decorators.base import RouteConfig
     from guard_core.models import SecurityConfig
+
+
+async def _scan_url_path_variants(
+    request: GuardRequest,
+    redacted_url_path: str,
+    client_ip: str,
+    correlation_id: str,
+    enabled_categories: set[str] | None,
+    log_level: str | None,
+    sensitive_body_fields: frozenset[str],
+    excluded_body_fields: frozenset[str],
+) -> tuple[bool, str, list[dict]]:
+    literal_path = request.url_path
+    resolved_path = resolve_dot_and_empty_segments(literal_path)
+    variants = (
+        (literal_path,)
+        if resolved_path == literal_path
+        else (literal_path, resolved_path)
+    )
+    detected, trigger, threats = False, "", list[dict]()
+    for variant in variants:
+        detected, trigger, threats = await _check_request_component(
+            variant,
+            "url_path",
+            "URL path",
+            client_ip,
+            correlation_id,
+            enabled_categories,
+            log_level,
+            content_preview=redacted_url_path,
+            sensitive_body_fields=sensitive_body_fields,
+            excluded_body_fields=excluded_body_fields,
+            json_redact_all=False,
+        )
+        if detected:
+            break
+    return detected, trigger, threats
 
 
 async def _scan_request_surface(
@@ -76,18 +114,15 @@ async def _scan_request_surface(
     redacted_url_path = redact_url_for_display(
         request.url_path, sensitive_params, sensitive_body_fields, sensitive_headers
     )
-    detected, trigger, threats = await _check_request_component(
-        request.url_path,
-        "url_path",
-        "URL path",
+    detected, trigger, threats = await _scan_url_path_variants(
+        request,
+        redacted_url_path,
         client_ip,
         correlation_id,
         enabled_categories,
         log_level,
-        content_preview=redacted_url_path,
-        sensitive_body_fields=sensitive_body_fields,
-        excluded_body_fields=excluded_body_fields,
-        json_redact_all=False,
+        sensitive_body_fields,
+        excluded_body_fields,
     )
     if detected:
         return _build_detection_hit(f"URL path: {trigger}", threats)
