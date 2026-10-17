@@ -9,8 +9,8 @@ from guard_core.core.events.event_types import EVENT_PATH_EXCLUDED
 from guard_core.core.validation.context import ValidationContext
 from guard_core.core.validation.path_matching import (
     normalize_exclude_paths,
-    normalize_url_path,
     path_matches_exclusions,
+    router_path_for_exclusion,
 )
 from guard_core.protocols.request_protocol import GuardRequest
 
@@ -75,7 +75,7 @@ class RequestValidator:
         return self._normalized_exclude_paths
 
     async def is_path_excluded(self, request: GuardRequest) -> bool:
-        normalized_path = normalize_url_path(request.url_path)
+        normalized_path = router_path_for_exclusion(request.url_path)
         if normalized_path is None:
             return False
 

@@ -65,9 +65,8 @@ def _validate_exclude_paths_value(v: list[str], *, stacklevel: int) -> list[str]
         if normalized is None:
             raise ValueError(
                 f"exclude_paths entry {entry!r} could not be normalized "
-                "(malformed percent-encoding, invalid UTF-8 or a '..' segment); "
-                "it would silently exclude nothing at request time. "
-                "Fix or remove it."
+                "(malformed percent-encoding or invalid UTF-8); it would "
+                "silently exclude nothing at request time. Fix or remove it."
             )
         if normalized != "/":
             continue

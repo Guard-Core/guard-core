@@ -9,8 +9,8 @@ from guard_core.sync.core.events.event_types import EVENT_PATH_EXCLUDED
 from guard_core.sync.core.validation.context import ValidationContext
 from guard_core.sync.core.validation.path_matching import (
     normalize_exclude_paths,
-    normalize_url_path,
     path_matches_exclusions,
+    router_path_for_exclusion,
 )
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
@@ -75,7 +75,7 @@ class RequestValidator:
         return self._normalized_exclude_paths
 
     def is_path_excluded(self, request: SyncGuardRequest) -> bool:
-        normalized_path = normalize_url_path(request.url_path)
+        normalized_path = router_path_for_exclusion(request.url_path)
         if normalized_path is None:
             return False
 

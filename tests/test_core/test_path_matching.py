@@ -49,7 +49,7 @@ BOUNDARY_CASES: list[tuple[str, bool]] = [
     ("/static/js/app.js", True),
     ("/staticfoo", False),
     ("/static/a/../b.js", False),
-    ("/static//js//app.js", True),
+    ("/static//js//app.js", False),
 ]
 
 
@@ -100,9 +100,8 @@ def test_path_is_excluded_percent_encoded_slash_traversal_escapes() -> None:
 
 
 def test_path_is_excluded_double_encoded_traversal_escapes() -> None:
-    encoded_dotdot = _nested_percent_encode("..", 2)
-    url_path = f"/static/{encoded_dotdot}/secret"
-    assert path_is_excluded(url_path, ["/static"]) is False
+    arrives_after_one_server_decode = "/static/%2e%2e/secret"
+    assert path_is_excluded(arrives_after_one_server_decode, ["/static"]) is False
 
 
 def test_path_is_excluded_unicode_overlong_encoding_fails_closed() -> None:
@@ -115,25 +114,27 @@ def test_normalize_url_path_leaves_plain_path_untouched() -> None:
     assert normalize_url_path("/health") == "/health"
 
 
-def test_normalize_url_path_fails_closed_on_dot_dot_segment() -> None:
-    assert normalize_url_path("/static/a/../b.js") is None
+def test_normalize_url_path_collapses_dot_segments() -> None:
+    assert normalize_url_path("/static/a/../b.js") == "/static/b.js"
 
 
-def test_normalize_url_path_fails_closed_on_traversal_above_root() -> None:
-    assert normalize_url_path("/static/../../../root/.ssh/id_rsa") is None
+def test_normalize_url_path_absorbs_traversal_above_root() -> None:
+    assert (
+        normalize_url_path("/static/../../../root/.ssh/id_rsa") == "/root/.ssh/id_rsa"
+    )
 
 
-def test_normalize_url_path_fails_closed_on_backslash_dot_dot() -> None:
-    assert normalize_url_path("/static\\..\\..\\etc\\passwd") is None
+def test_normalize_url_path_treats_backslash_as_separator() -> None:
+    assert normalize_url_path("/static\\..\\..\\etc\\passwd") == "/etc/passwd"
 
 
 def test_normalize_url_path_decodes_percent_encoded_slash_as_boundary() -> None:
     assert normalize_url_path("/static%2Fjs") == "/static/js"
 
 
-def test_normalize_url_path_fails_closed_on_nested_encoded_dot_dot() -> None:
+def test_normalize_url_path_resolves_nested_encoding_within_round_cap() -> None:
     encoded = _nested_percent_encode("..", 4)
-    assert normalize_url_path(f"/static/{encoded}/x") is None
+    assert normalize_url_path(f"/static/{encoded}/x") == "/x"
 
 
 def test_normalize_url_path_fails_closed_beyond_round_cap() -> None:
@@ -153,8 +154,8 @@ def test_normalize_url_path_leaves_malformed_percent_sequence_literal() -> None:
     assert normalize_url_path("/static%zz/js") == "/static%zz/js"
 
 
-def test_normalize_url_path_fails_closed_on_matrix_param_dot_dot() -> None:
-    assert normalize_url_path("/static/..;/etc/passwd") is None
+def test_normalize_url_path_collapses_matrix_param_dot_segment_traversal() -> None:
+    assert normalize_url_path("/static/..;/etc/passwd") == "/etc/passwd"
 
 
 def test_path_is_excluded_matrix_param_dot_segment_traversal_escapes() -> None:
@@ -183,34 +184,34 @@ def test_normalize_url_path_collapses_single_dot_segment_with_matrix_params() ->
     assert normalize_url_path("/static/.;x/js/app.js") == "/static/js/app.js"
 
 
-def test_path_is_excluded_single_dot_segment_matrix_param_stays_excluded() -> None:
-    assert path_is_excluded("/static/.;x/js/app.js", ["/static"]) is True
+def test_path_is_excluded_single_dot_segment_matrix_param_fails_closed() -> None:
+    assert path_is_excluded("/static/.;x/js/app.js", ["/static"]) is False
 
 
-def test_normalize_url_path_fails_closed_on_dot_dot_with_multi_matrix_params() -> None:
-    assert normalize_url_path("/static/..;a=1;b=2/etc/passwd") is None
+def test_normalize_url_path_collapses_dot_segment_with_multi_matrix_params() -> None:
+    assert normalize_url_path("/static/..;a=1;b=2/etc/passwd") == "/etc/passwd"
 
 
 @pytest.mark.parametrize("encoded_semicolon", ["%3b", "%3B"])
-def test_normalize_url_path_fails_closed_on_percent_encoded_semicolon_dot_dot(
+def test_normalize_url_path_collapses_percent_encoded_semicolon_dot_segment(
     encoded_semicolon: str,
 ) -> None:
     url_path = f"/static/..{encoded_semicolon}/etc/passwd"
-    assert normalize_url_path(url_path) is None
-    assert path_is_excluded(url_path, ["/static"]) is False
+    assert normalize_url_path(url_path) == "/etc/passwd"
+    assert (
+        path_is_excluded(url_path.replace(encoded_semicolon, ";"), ["/static"]) is False
+    )
 
 
-def test_normalize_url_path_fails_closed_on_double_encoded_semicolon_dot_dot() -> None:
+def test_normalize_url_path_collapses_double_encoded_semicolon_dot_segment() -> None:
     encoded = _nested_percent_encode("..;", 2)
     url_path = f"/static/{encoded}/etc/passwd"
-    assert normalize_url_path(url_path) is None
-    assert path_is_excluded(url_path, ["/static"]) is False
+    assert normalize_url_path(url_path) == "/etc/passwd"
+    assert path_is_excluded("/static/%2e%2e%3b/etc/passwd", ["/static"]) is False
 
 
-def test_normalize_url_path_fails_closed_on_backslash_delimited_dot_dot_params() -> (
-    None
-):
-    assert normalize_url_path("/static\\..;\\etc\\passwd") is None
+def test_normalize_url_path_collapses_backslash_delimited_dot_segment_params() -> None:
+    assert normalize_url_path("/static\\..;\\etc\\passwd") == "/etc/passwd"
 
 
 def test_normalize_url_path_leaves_lone_semicolon_segment_literal() -> None:

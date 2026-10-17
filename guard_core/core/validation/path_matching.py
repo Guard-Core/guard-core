@@ -1,6 +1,8 @@
 import re
 from collections.abc import Sequence
 
+from guard_core._utils.request_path import has_routing_anomaly
+
 _PERCENT_RUN = re.compile(r"(?:%[0-9A-Fa-f]{2})+")
 _MAX_DECODE_ROUNDS = 4
 
@@ -34,14 +36,16 @@ def _fold_dot_segment_params(segment: str) -> str:
     return base if base in (".", "..") else segment
 
 
-def _collapse_dot_segments(decoded: str) -> str | None:
+def _collapse_dot_segments(decoded: str) -> str:
     segments: list[str] = []
     for raw_segment in decoded.replace("\\", "/").split("/"):
         segment = _fold_dot_segment_params(raw_segment)
         if segment in ("", "."):
             continue
         if segment == "..":
-            return None
+            if segments:
+                segments.pop()
+            continue
         segments.append(segment)
     return "/" + "/".join(segments)
 
@@ -73,8 +77,14 @@ def path_matches_exclusions(
     )
 
 
+def router_path_for_exclusion(url_path: str) -> str | None:
+    if has_routing_anomaly(url_path):
+        return None
+    return url_path.rstrip("/") or "/"
+
+
 def path_is_excluded(url_path: str, exclude_paths: Sequence[str]) -> bool:
-    normalized_path = normalize_url_path(url_path)
+    normalized_path = router_path_for_exclusion(url_path)
     if normalized_path is None:
         return False
     return path_matches_exclusions(
