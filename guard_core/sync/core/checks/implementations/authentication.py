@@ -16,6 +16,15 @@ from guard_core.sync.decorators.base import RouteConfig
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 from guard_core.sync.utils import log_activity
 
+_CHALLENGES = {
+    "basic": 'Basic realm="Restricted"',
+    "api_key": "ApiKey",
+}
+
+
+def _challenge_for(auth_type: str) -> str:
+    return _CHALLENGES.get(auth_type, auth_type.title())
+
 
 class AuthenticationCheck(SecurityCheck):
     @property
@@ -79,10 +88,12 @@ class AuthenticationCheck(SecurityCheck):
         report_hostile_signal(self, request, "auth_failure", auth_reason)
 
         if not self.config.passive_mode:
-            return self.middleware.create_error_response(
+            response: GuardResponse = self.middleware.create_error_response(
                 status_code=401,
                 default_message="Authentication required",
             )
+            response.headers["WWW-Authenticate"] = _challenge_for(auth_type)
+            return response
 
         return None
 
