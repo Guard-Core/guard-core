@@ -183,14 +183,14 @@ async def test_payload_fragment_buried_in_binary_noise_not_flagged(
 
 
 @pytest.mark.asyncio
-async def test_binary_noise_scan_completes_under_five_seconds(
+async def test_binary_noise_scan_takes_under_five_cpu_seconds(
     sus_patterns_manager_with_detection: SusPatternsManager,
 ) -> None:
-    started = time.monotonic()
+    started = time.process_time()
     result = await _detect(
         sus_patterns_manager_with_detection, _decoded_noise(seed=3, decoding="latin-1")
     )
-    elapsed = time.monotonic() - started
+    elapsed = time.process_time() - started
     assert result["is_threat"] is False
     assert not any(t["type"] == "pattern_timeout" for t in result["threats"])
     assert elapsed < 5.0

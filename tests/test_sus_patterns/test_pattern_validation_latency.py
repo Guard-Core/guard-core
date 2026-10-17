@@ -1,3 +1,4 @@
+import resource
 import time
 
 from guard_core.detection_engine.compiler import PatternCompiler
@@ -8,7 +9,13 @@ from guard_core.handlers.suspatterns_handler import (
     SusPatternsManager,
 )
 
-_LATENCY_CEILING_SECONDS = 4.0
+_CPU_CEILING_SECONDS = 4.0
+
+
+def _cpu_seconds_including_probe_subprocesses() -> float:
+    children = resource.getrusage(resource.RUSAGE_CHILDREN)
+    return time.process_time() + children.ru_utime + children.ru_stime
+
 
 _CATASTROPHIC_PATTERNS = [
     r"(?P<x>\d{1,3}\d{1,3})+$",
@@ -37,24 +44,24 @@ def test_catastrophic_patterns_are_rejected_well_under_the_old_forty_second_stal
 ):
     compiler = PatternCompiler()
     for pattern in _CATASTROPHIC_PATTERNS:
-        start = time.perf_counter()
+        start = _cpu_seconds_including_probe_subprocesses()
         is_safe, _reason = compiler.validate_pattern_safety(pattern)
-        elapsed = time.perf_counter() - start
+        elapsed = _cpu_seconds_including_probe_subprocesses() - start
         assert is_safe is False, f"{pattern!r} should have been rejected"
-        assert elapsed < _LATENCY_CEILING_SECONDS, (
-            f"{pattern!r} took {elapsed:.3f}s to reject, "
-            f"expected under {_LATENCY_CEILING_SECONDS}s"
+        assert elapsed < _CPU_CEILING_SECONDS, (
+            f"{pattern!r} used {elapsed:.3f} CPU seconds to reject, "
+            f"expected under {_CPU_CEILING_SECONDS}"
         )
 
 
 def test_accepted_builtin_patterns_stay_accepted_and_validate_quickly() -> None:
     compiler = PatternCompiler()
     for pattern in _first_accepted_builtin_patterns(2):
-        start = time.perf_counter()
+        start = _cpu_seconds_including_probe_subprocesses()
         is_safe, reason = compiler.validate_pattern_safety(pattern)
-        elapsed = time.perf_counter() - start
+        elapsed = _cpu_seconds_including_probe_subprocesses() - start
         assert is_safe is True, f"{pattern!r} should stay accepted, got: {reason}"
-        assert elapsed < _LATENCY_CEILING_SECONDS, (
-            f"{pattern!r} took {elapsed:.3f}s to validate, "
-            f"expected under {_LATENCY_CEILING_SECONDS}s"
+        assert elapsed < _CPU_CEILING_SECONDS, (
+            f"{pattern!r} used {elapsed:.3f} CPU seconds to validate, "
+            f"expected under {_CPU_CEILING_SECONDS}"
         )

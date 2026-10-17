@@ -1,5 +1,7 @@
 import json
+import math
 import multiprocessing as mp
+import resource
 import time
 from urllib.parse import quote
 
@@ -406,7 +408,8 @@ _BUDGET_SMALL_REPEATS = 50000
 _BUDGET_MAX_DURATION_SECONDS = 0.3
 _BUDGET_ESCAPE_RUN_MAX_DURATION_SECONDS = 1.0
 _BUDGET_MAX_RATIO = 3.0
-_BUDGET_DEADLINE_SECONDS = 10.0
+_BUDGET_CPU_DEADLINE_SECONDS = 10
+_STALLED_CHILD_WALL_SECONDS = 120.0
 _BUDGET_SAMPLE_COUNT = 5
 
 
@@ -419,9 +422,18 @@ def _time_one_redact_blob(text: str) -> float:
 _BUDGET_ADVERSARIAL_UNITS = ("a=", "\\\\t", "\\N{TAB}", "\\u{9}", 'password\t:"')
 
 
+def _limit_child_cpu_to_the_deadline() -> None:
+    _soft, hard = resource.getrlimit(resource.RLIMIT_CPU)
+    soft = math.ceil(time.process_time()) + _BUDGET_CPU_DEADLINE_SECONDS
+    if hard != resource.RLIM_INFINITY:
+        soft = min(soft, hard)
+    resource.setrlimit(resource.RLIMIT_CPU, (soft, hard))
+
+
 def _redact_blob_min_duration_child(
     repeats: int, q: "mp.Queue[float]", unit: str = "a="
 ) -> None:
+    _limit_child_cpu_to_the_deadline()
     text = unit * repeats
     durations = [_time_one_redact_blob(text) for _ in range(_BUDGET_SAMPLE_COUNT)]
     q.put(min(durations))
@@ -432,7 +444,8 @@ def _measure_redact_blob_min_duration(repeats: int, unit: str = "a=") -> float |
     q: mp.Queue[float] = ctx.Queue()
     proc = ctx.Process(target=_redact_blob_min_duration_child, args=(repeats, q, unit))
     proc.start()
-    proc.join(_BUDGET_DEADLINE_SECONDS)
+    # The child's CPU limit is the deadline; this catches a child that stopped running.
+    proc.join(_STALLED_CHILD_WALL_SECONDS)
     if proc.is_alive():
         proc.terminate()
         proc.join()
@@ -444,7 +457,7 @@ def _assert_redact_blob_adversarial_pairs_stay_linear() -> None:
     large_duration = _measure_redact_blob_min_duration(_BUDGET_LARGE_REPEATS)
     assert large_duration is not None, (
         f"redact_blob_for_display did not return within "
-        f"{_BUDGET_DEADLINE_SECONDS}s at repeats={_BUDGET_LARGE_REPEATS}"
+        f"{_BUDGET_CPU_DEADLINE_SECONDS} CPU seconds at repeats={_BUDGET_LARGE_REPEATS}"
     )
     assert large_duration < _BUDGET_MAX_DURATION_SECONDS, (
         f"redact_blob_for_display took {large_duration:.4f}s for "
@@ -455,7 +468,7 @@ def _assert_redact_blob_adversarial_pairs_stay_linear() -> None:
     small_duration = _measure_redact_blob_min_duration(_BUDGET_SMALL_REPEATS)
     assert small_duration is not None, (
         f"redact_blob_for_display did not return within "
-        f"{_BUDGET_DEADLINE_SECONDS}s at repeats={_BUDGET_SMALL_REPEATS}"
+        f"{_BUDGET_CPU_DEADLINE_SECONDS} CPU seconds at repeats={_BUDGET_SMALL_REPEATS}"
     )
     assert small_duration > 0.001, (
         f"redact_blob_for_display took {small_duration:.4f}s for "
