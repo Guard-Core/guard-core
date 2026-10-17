@@ -213,7 +213,7 @@ async def test_is_ip_allowed_cloud_providers(
     config = SecurityConfig(block_cloud_providers={"AWS"})
 
     assert await is_ip_allowed("127.0.0.1", config)
-    assert await is_ip_allowed("13.59.255.255", config)
+    assert not await is_ip_allowed("13.59.255.255", config)
     assert await is_ip_allowed("8.8.8.8", config)
 
 
@@ -339,7 +339,7 @@ async def test_cloud_provider_blocking(
     assert not await is_ip_allowed("8.8.8.8", security_config)
 
 
-async def test_check_ip_access_leaves_cloud_blocking_to_the_cloud_provider_check(
+async def test_check_ip_access_skip_clouds_leaves_blocking_to_the_cloud_check(
     mocker: MockerFixture,
 ) -> None:
     from guard_core.handlers.cloud_handler import cloud_handler
@@ -349,7 +349,7 @@ async def test_check_ip_access_leaves_cloud_blocking_to_the_cloud_provider_check
 
     config = SecurityConfig(block_cloud_providers={"AWS"})
 
-    result = await check_ip_access("13.59.255.255", config)
+    result = await check_ip_access("13.59.255.255", config, skip_clouds=True)
 
     assert result.allowed is True
     is_cloud_ip.assert_not_called()
@@ -560,6 +560,7 @@ def test_is_ip_allowed_signature_unchanged() -> None:
         "geo_ip_handler",
         "skip_ip_lists",
         "skip_countries",
+        "skip_clouds",
     ]
     assert params["ip"].kind == inspect.Parameter.POSITIONAL_OR_KEYWORD
     assert params["config"].kind == inspect.Parameter.POSITIONAL_OR_KEYWORD
@@ -568,6 +569,8 @@ def test_is_ip_allowed_signature_unchanged() -> None:
     assert params["skip_ip_lists"].default is False
     assert params["skip_countries"].kind == inspect.Parameter.KEYWORD_ONLY
     assert params["skip_countries"].default is False
+    assert params["skip_clouds"].kind == inspect.Parameter.KEYWORD_ONLY
+    assert params["skip_clouds"].default is False
     assert sig.return_annotation is bool
 
 
@@ -581,7 +584,7 @@ async def test_is_ip_allowed_regression_bool_outcomes_by_block_type(
     )
     cloud_config = SecurityConfig(block_cloud_providers={"AWS"})
     result = await is_ip_allowed("13.59.255.255", cloud_config)
-    assert result is True
+    assert result is False
     result = await is_ip_allowed("8.8.8.8", cloud_config)
     assert result is True
 

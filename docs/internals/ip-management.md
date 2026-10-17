@@ -75,7 +75,7 @@ ___
 IP Allow/Block Logic
 --------------------
 
-The function `check_ip_access()` in `guard_core.utils` implements the global IP evaluation chain; `IpSecurityCheck._check_global_ip_restrictions` calls it directly. `is_ip_allowed()` is a thin bool-returning wrapper around `check_ip_access()` (same `skip_ip_lists`/`skip_countries` signature) kept for external callers that only need a yes/no answer, not `check_ip_access()`'s richer `IpAccessResult` (which carries the denial reason and the ban category of a denial); it is not called anywhere else inside `guard_core`. `IpSecurityCheck` calls `check_ip_access()` for every request that reaches this step (after any route-level check has run and not blocked), passing `skip_ip_lists` / `skip_countries` flags that suppress the IP-list or country gate independently: `skip_ip_lists` is `True` whenever the route declares a non-empty `ip_whitelist` (a non-matching IP would already have been denied by the route-level step above, so reaching here means it matched); `skip_countries` is `True` only when the route's `whitelist_countries` actually matches the resolved country for this request. A route `ip_whitelist` match does not, by itself, suppress country enforcement.
+The function `check_ip_access()` in `guard_core.utils` implements the global IP evaluation chain; `IpSecurityCheck._check_global_ip_restrictions` calls it directly. `is_ip_allowed()` is a thin bool-returning wrapper around `check_ip_access()` (same `skip_ip_lists`/`skip_countries`/`skip_clouds` signature) kept for external callers that only need a yes/no answer (for example fastapi-guard's WebSocket handshake), not `check_ip_access()`'s richer `IpAccessResult` (which carries the denial reason and the ban category of a denial, and names the cloud provider and network on a cloud-provider block); it is not called anywhere else inside `guard_core`. `IpSecurityCheck` calls `check_ip_access()` for every request that reaches this step (after any route-level check has run and not blocked), passing `skip_ip_lists` / `skip_countries` flags that suppress the IP-list or country gate independently, and always `skip_clouds=True`, because in the HTTP pipeline `CloudProviderCheck` blocks cloud providers (so `exempt_ips` and `bypass(["clouds"])` apply there): `skip_ip_lists` is `True` whenever the route declares a non-empty `ip_whitelist` (a non-matching IP would already have been denied by the route-level step above, so reaching here means it matched); `skip_countries` is `True` only when the route's `whitelist_countries` actually matches the resolved country for this request. A route `ip_whitelist` match does not, by itself, suppress country enforcement.
 
 ### Evaluation Order
 
@@ -86,6 +86,7 @@ flowchart TD
     WL{"2. IP in whitelist?"}
     BL{"3. IP in blacklist?"}
     CC{"4. Country blocked?"}
+    CL{"5. Cloud provider blocked?"}
     ALLOW["return True"]
     DENY["return False"]
 
@@ -97,8 +98,12 @@ flowchart TD
     BL -- Yes --> DENY
     BL -- No --> CC
     CC -- Yes --> DENY
-    CC -- No --> ALLOW
+    CC -- No --> CL
+    CL -- Yes --> DENY
+    CL -- No --> ALLOW
 ```
+
+Step 5 is skipped with `skip_clouds=True`, for an IP in `config.whitelist`, and for an IP in `config.exempt_ips`, the same IPs `CloudProviderCheck` lets through.
 
 When `config.whitelist` is configured, it alone governs the IP-list gate, a whitelist match is allowed even if the same IP also falls inside `config.blacklist` (explicit allow overrides deny, since v3.2.0). The blacklist is only consulted when no whitelist is configured.
 

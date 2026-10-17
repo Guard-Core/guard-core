@@ -183,6 +183,8 @@ def allow_list_miss_category(category: str) -> str | None:
 class IpAccessResult:
     allowed: bool
     reason: str
+    cloud_provider: str | None = None
+    network: str | None = None
     denial_category: str | None = None
 
 
@@ -210,9 +212,33 @@ def _check_blocked_countries_detail(
     return IpAccessResult(
         False,
         reason,
-        allow_list_miss_category("country")
+        denial_category=allow_list_miss_category("country")
         if config.whitelist_countries
         else "country",
+    )
+
+
+def _check_cloud_providers_detail(ip: str, config: Any) -> IpAccessResult | None:
+    from guard_core.sync.handlers.cloud_handler import cloud_handler
+
+    if not config.block_cloud_providers:
+        return None
+    if not cloud_handler.is_cloud_ip(ip, config.block_cloud_providers):
+        return None
+
+    details = cloud_handler.get_cloud_provider_details(ip, config.block_cloud_providers)
+    if details is None:
+        return IpAccessResult(
+            False, _GENERIC_LIST_BLOCK_REASON.format(ip=ip), denial_category="cloud"
+        )
+
+    provider, network = details
+    return IpAccessResult(
+        False,
+        f"IP belongs to blocked cloud provider: {provider}",
+        cloud_provider=provider,
+        network=network,
+        denial_category="cloud",
     )
 
 
@@ -227,7 +253,9 @@ def _check_unknown_identity_access(
         return IpAccessResult(
             False,
             _GENERIC_LIST_BLOCK_REASON.format(ip=ip),
-            allow_list_miss_category("ip_list" if whitelist_blocks else "country"),
+            denial_category=allow_list_miss_category(
+                "ip_list" if whitelist_blocks else "country"
+            ),
         )
     return IpAccessResult(True, "")
 
@@ -236,9 +264,11 @@ def _check_ip_lists_detail(ip_addr: Any, ip: str, config: Any) -> IpAccessResult
     reason = _GENERIC_LIST_BLOCK_REASON.format(ip=ip)
     if config.whitelist:
         if not _check_whitelist(ip_addr, ip, config):
-            return IpAccessResult(False, reason, allow_list_miss_category("ip_list"))
+            return IpAccessResult(
+                False, reason, denial_category=allow_list_miss_category("ip_list")
+            )
     elif not _check_blacklist(ip_addr, ip, config):
-        return IpAccessResult(False, reason, "ip_list")
+        return IpAccessResult(False, reason, denial_category="ip_list")
     return None
 
 
@@ -249,6 +279,7 @@ def check_ip_access(
     *,
     skip_ip_lists: bool = False,
     skip_countries: bool = False,
+    skip_clouds: bool = False,
 ) -> IpAccessResult:
     unknown_result = _check_unknown_identity_access(
         ip, config, skip_ip_lists, skip_countries
@@ -265,11 +296,17 @@ def check_ip_access(
                 return list_result
             if _ip_in_list(ip_addr, ip, config.whitelist):
                 skip_countries = True
+                skip_clouds = True
 
         if not skip_countries:
             country_result = _check_blocked_countries_detail(ip, config, geo_ip_handler)
             if country_result is not None:
                 return country_result
+
+        if not skip_clouds and not _ip_in_list(ip_addr, ip, config.exempt_ips):
+            cloud_result = _check_cloud_providers_detail(ip, config)
+            if cloud_result is not None:
+                return cloud_result
 
         return IpAccessResult(True, "")
     except ValueError:
@@ -286,6 +323,7 @@ def is_ip_allowed(
     *,
     skip_ip_lists: bool = False,
     skip_countries: bool = False,
+    skip_clouds: bool = False,
 ) -> bool:
     result = check_ip_access(
         ip,
@@ -293,5 +331,6 @@ def is_ip_allowed(
         geo_ip_handler,
         skip_ip_lists=skip_ip_lists,
         skip_countries=skip_countries,
+        skip_clouds=skip_clouds,
     )
     return result.allowed

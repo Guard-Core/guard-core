@@ -196,13 +196,17 @@ async def is_ip_allowed(
     *,
     skip_ip_lists: bool = False,
     skip_countries: bool = False,
+    skip_clouds: bool = False,
 ) -> bool:
     """
     Check if IP address is allowed. `skip_ip_lists`/`skip_countries` let a
     caller that has already evaluated one aspect (e.g. a route-level check)
-    skip re-evaluating it here. Delegates to `check_ip_access()`, which evaluates the IP lists and
-    country rules (cloud providers are blocked by `CloudProviderCheck`);
-    `is_ip_allowed()` keeps its bool-only return for backward compatibility.
+    skip re-evaluating it here. Delegates to `check_ip_access()`, which evaluates the IP lists,
+    country rules and blocked cloud providers and also reports cloud-provider blocks
+    (provider and network). `skip_clouds=True` leaves cloud blocking to the caller,
+    as the HTTP pipeline does because `CloudProviderCheck` blocks clouds there;
+    whitelisted and `exempt_ips` IPs pass the cloud step. `is_ip_allowed()` keeps its
+    bool-only return for backward compatibility.
     """
 ```
 

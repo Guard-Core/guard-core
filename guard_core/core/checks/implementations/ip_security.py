@@ -230,6 +230,7 @@ class IpSecurityCheck(SecurityCheck):
             self.middleware.geo_ip_handler,
             skip_ip_lists=skip_ip_lists,
             skip_countries=skip_countries,
+            skip_clouds=True,
         )
 
         is_whitelisted = _resolve_is_whitelisted(
