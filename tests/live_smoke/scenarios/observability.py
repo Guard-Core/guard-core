@@ -28,13 +28,12 @@ def otel_and_logfire_handlers_start_with_extras_installed(
     ctx: ScenarioContext,
 ) -> None:
     ctx.otlp.post("/_debug/reset")
-    mark = ctx.stack.logs.mark()
     response = ctx.client.get("/basic/ip", params={"q": "hello"})
     assert response.status_code == 200, (
         "enabling otel and logfire must not break the request pipeline"
     )
 
-    log_text = "\n".join(ctx.stack.logs.lines_since(mark))
+    log_text = ctx.stack.logs.current_boot_text()
     assert "OTEL handler disabled" not in log_text, (
         "opentelemetry-sdk is installed in the image, the handler must start"
     )

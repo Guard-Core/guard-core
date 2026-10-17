@@ -57,10 +57,9 @@ def _lines_containing(ctx: ScenarioContext, mark: str, needle: str) -> list[str]
 
 
 def _rule_apply_count(ctx: ScenarioContext) -> int:
-    text = ctx.stack.logs.full_text()
-    boundary = text.rfind("Starting gunicorn")
-    current_boot = text[boundary:] if boundary >= 0 else text
-    return current_boot.count("Applying dynamic rules: smoke-rule v")
+    return ctx.stack.logs.current_boot_text().count(
+        "Applying dynamic rules: smoke-rule v"
+    )
 
 
 def _state_with_status(ctx: ScenarioContext) -> dict[str, Any] | None:

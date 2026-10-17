@@ -146,3 +146,31 @@ def test_the_newest_stamp_wins_when_several_containers_log(
     mark = driver.LogReader("app").mark()
 
     assert _parse(mark) == VM_START_NS + 21
+
+
+def test_the_current_boot_text_keeps_the_startup_lines_before_the_mark(
+    docker_logs: _FakeDockerLogs,
+) -> None:
+    docker_logs.write("Starting gunicorn 25.0")
+    docker_logs.write("OTEL handler disabled")
+    reader = driver.LogReader("app")
+
+    mark = reader.mark()
+    docker_logs.write("a request")
+
+    assert not any("OTEL handler disabled" in line for line in reader.lines_since(mark))
+    assert "OTEL handler disabled" in reader.current_boot_text()
+
+
+def test_the_current_boot_text_drops_the_previous_boot(
+    docker_logs: _FakeDockerLogs,
+) -> None:
+    docker_logs.write("Starting gunicorn 25.0")
+    docker_logs.write("OTEL handler disabled")
+    docker_logs.write("Starting gunicorn 25.0")
+    docker_logs.write("healthy boot")
+
+    text = driver.LogReader("app").current_boot_text()
+
+    assert "healthy boot" in text
+    assert "OTEL handler disabled" not in text

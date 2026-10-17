@@ -70,6 +70,7 @@ def baseline_env() -> dict[str, str] | None:
 
 _LOG_TIMESTAMP = re.compile(r"(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)\.(\d+)Z")
 _NANOS_PER_SECOND = 10**9
+_BOOT_MARKER = "Starting gunicorn"
 
 
 def _stamp_after(newest: tuple[str, int]) -> str:
@@ -127,6 +128,12 @@ class LogReader:
     def full_text(self) -> str:
         result = _compose("logs", "--no-color", self._service, check=False)
         return result.stdout
+
+    def current_boot_text(self) -> str:
+        """The log since the last gunicorn start, i.e. this boot's startup too."""
+        text = self.full_text()
+        boundary = text.rfind(_BOOT_MARKER)
+        return text[boundary:] if boundary >= 0 else text
 
 
 def run_in_app_container(
