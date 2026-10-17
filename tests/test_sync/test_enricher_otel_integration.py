@@ -93,7 +93,7 @@ def test_enrichment_fields_land_on_otel_span(monkeypatch: MonkeyPatch) -> None:
         ip_blacklist=["1.2.3.4"],
     )
     tracker = BehaviorTracker(config)
-    tracker.recent_requests["1.2.3.4"] = [9999999999.0]
+    tracker.usage_counts["/api"]["1.2.3.4"].append(9999999999.0)
 
     enricher = EventEnricher(
         EnrichmentContext(

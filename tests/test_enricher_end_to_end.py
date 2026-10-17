@@ -44,7 +44,7 @@ async def test_end_to_end_enrichment_on_event_through_composite() -> None:
     rule_handler = DynamicRuleManager(config)
     rule_handler.current_rules = rules
     tracker = BehaviorTracker(config)
-    tracker.recent_requests["1.2.3.4"] = [9999999999.0]
+    tracker.usage_counts["/api"]["1.2.3.4"].append(9999999999.0)
 
     enricher = EventEnricher(
         EnrichmentContext(

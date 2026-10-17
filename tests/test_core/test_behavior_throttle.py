@@ -108,7 +108,6 @@ def _request(path: str = "/x", route_id: str | None = _ENDPOINT) -> MagicMock:
     request.state.guard_route_id = route_id
     request.state.guard_decorator = None
     request.state.guard_exclusion_scoped = False
-    request.state.guard_behavior_request_recorded = False
     return request
 
 

@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 
 ___
 
+[Unreleased]
+------------
+
+### Fixed
+
+- **`guard.behavior.recent_event_count` is no longer 0 with Redis** (`docs/architecture/telemetry.md`). The field counts the IP's behavior-rule hits across all endpoints in the last 5 minutes, one per `usage` or `frequency` rule a request reaches (route or global). With Redis enabled it was always 0: the count read only the in-memory usage counters, and the Redis path never writes them. Every usage or frequency rule hit is now also recorded in a per-IP Redis window that all workers share, in the same Redis call as the hit, and the enricher reads it through the new `BehaviorTracker.count_recent_rule_hits(ip, window_seconds)`, so with Redis the field now carries the same rule-hit count as in memory. The Guard Core SaaS uses this field in severity scoring, so severity scores change for events from Redis deployments, where the count was 0. `BehaviorTracker.get_recent_event_count(ip, window_seconds)` is unchanged (sync, sums the in-memory usage counters), and the enricher still reads it from a custom tracker that only has that method.
+
+___
+
 v4.4.0 (2026-10-15)
 -------------------
 

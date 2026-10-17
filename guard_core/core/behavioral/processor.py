@@ -67,15 +67,12 @@ class BehavioralProcessor(BehavioralThrottleMixin):
         route_rules: Sequence[BehaviorRule],
     ) -> list[BehaviorRule]:
         route_throttles: list[BehaviorRule] = []
-        unclaimed = True
         for rule in route_rules:
             if is_throttle_rule(rule):
                 route_throttles.append(rule)
             elif rule.rule_type in ["usage", "frequency"]:
-                record_recent = unclaimed and self._claims_recent_record(request)
-                unclaimed = False
                 threshold_exceeded = await behavior_tracker.track_endpoint_usage(
-                    endpoint_id, client_ip, rule, record_recent
+                    endpoint_id, client_ip, rule
                 )
                 if threshold_exceeded:
                     details = f"{rule.threshold} calls in {rule.window}s"
@@ -177,7 +174,7 @@ class BehavioralProcessor(BehavioralThrottleMixin):
         rule: BehaviorRule,
     ) -> None:
         if not await tracker.track_endpoint_usage(
-            global_scope_id(rule), client_ip, rule, self._claims_recent_record(request)
+            global_scope_id(rule), client_ip, rule
         ):
             return
 
@@ -242,13 +239,6 @@ class BehavioralProcessor(BehavioralThrottleMixin):
             endpoint_id,
             f"Global return pattern threshold exceeded: {details}",
         )
-
-    def _claims_recent_record(self, request: GuardRequest) -> bool:
-        # The first usage or frequency write of a request also records it as recent.
-        if getattr(request.state, "guard_behavior_request_recorded", False) is True:
-            return False
-        request.state.guard_behavior_request_recorded = True
-        return True
 
     async def _report_decorator_violation(
         self,

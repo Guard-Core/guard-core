@@ -86,7 +86,6 @@ class BehavioralThrottleMixin:
     _throttle_count_lock: threading.Lock
     _report_decorator_violation: Callable[..., None]
     _evaluate_global_usage_rule: Callable[..., None]
-    _claims_recent_record: Callable[[SyncGuardRequest], bool]
 
     def _init_throttle_state(self) -> None:
         self._global_rules_source = None
@@ -153,8 +152,6 @@ class BehavioralThrottleMixin:
                 checks,
                 time.time(),
                 record_when_over=not enforced,
-                record_recent=any(c.records for c in checks)
-                and self._claims_recent_record(request),
             )
         except GuardRedisError as error:
             return self._throttle_check_failed(error)

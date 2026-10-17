@@ -5,13 +5,7 @@ local member = ARGV[2]
 local record_when_over = ARGV[3] == '1'
 local counts = {}
 local over = false
-
-if #KEYS > 2 * n then
-  local recent = KEYS[2 * n + 1]
-  redis.call('ZADD', recent, now, member)
-  redis.call('ZREMRANGEBYSCORE', recent, '-inf', '(' .. ARGV[4])
-  redis.call('EXPIRE', recent, ARGV[5])
-end
+local recent = KEYS[2 * n + 1]
 
 for i = 1, n do
   local base = 5 + (i - 1) * 4
@@ -28,7 +22,12 @@ if (not over) or record_when_over then
     if ARGV[base + 1] == '1' then
       redis.call('ZADD', KEYS[i], now, member)
       redis.call('EXPIRE', KEYS[i], ARGV[base + 3])
+      redis.call('ZADD', recent, now, member .. ':' .. i)
     end
+  end
+  if recent then
+    redis.call('ZREMRANGEBYSCORE', recent, '-inf', '(' .. ARGV[4])
+    redis.call('EXPIRE', recent, ARGV[5])
   end
 end
 

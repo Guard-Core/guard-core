@@ -99,8 +99,7 @@ class BehaviorThrottleMixin:
     _lock: threading.Lock
     _trip_markers: "OrderedDict[str, float]"
     _throttle_script_sha: str | None
-    _recent_window: Callable[[str, float], tuple[str, float, int]]
-    _record_recent_request_locked: Callable[[str, float], None]
+    _recent_rule_hits_window: Callable[[str, float], tuple[str, float, int]]
 
     def check_throttle(
         self,
@@ -108,17 +107,12 @@ class BehaviorThrottleMixin:
         checks: list[ThrottleCheck],
         now: float,
         record_when_over: bool,
-        record_recent: bool = False,
     ) -> list[ThrottleTrip]:
         if self.redis_handler and self.redis_handler.config.enable_redis:
-            trips = self._redis_throttle(
-                client_ip, checks, now, record_when_over, record_recent
-            )
+            trips = self._redis_throttle(client_ip, checks, now, record_when_over)
             if trips is not None:
                 return trips
-        return self._memory_throttle(
-            client_ip, checks, now, record_when_over, record_recent
-        )
+        return self._memory_throttle(client_ip, checks, now, record_when_over)
 
     def _redis_throttle(
         self,
@@ -126,7 +120,6 @@ class BehaviorThrottleMixin:
         checks: list[ThrottleCheck],
         now: float,
         record_when_over: bool,
-        record_recent: bool,
     ) -> list[ThrottleTrip] | None:
         prefix = self.redis_handler.config.redis_prefix
         keys = [
@@ -140,8 +133,10 @@ class BehaviorThrottleMixin:
             for c in checks
         ]
         args: list[Any] = [repr(now), uuid.uuid4().hex, int(record_when_over), "", ""]
-        if record_recent:
-            recent_key, recent_start, recent_ttl = self._recent_window(client_ip, now)
+        if any(c.records for c in checks):
+            recent_key, recent_start, recent_ttl = self._recent_rule_hits_window(
+                client_ip, now
+            )
             keys.append(f"{prefix}{USAGE_NAMESPACE}:{recent_key}")
             args[3:5] = [repr(recent_start), recent_ttl]
         for check in checks:
@@ -205,11 +200,8 @@ class BehaviorThrottleMixin:
         checks: list[ThrottleCheck],
         now: float,
         record_when_over: bool,
-        record_recent: bool,
     ) -> list[ThrottleTrip]:
         with self._lock:
-            if record_recent:
-                self._record_recent_request_locked(client_ip, now)
             hit_lists = [
                 self._memory_hits(client_ip, check, now - check.rule.window)
                 for check in checks

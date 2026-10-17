@@ -44,7 +44,7 @@ From `guard_core.core.events.event_types`:
 | `guard.threat_score` | deterministic `ThreatScorer.score_for(event_type)` map (`penetration_attempt=90`, `ip_banned=70`, medium=50, `rate_limited=20`, default=20) |
 | `guard.rule.id` / `guard.rule.version` | `DynamicRuleManager.match_event` when the cached rule's IP/country/event-type matched |
 | `guard.behavior.correlation_key` | `sha256` snippet below -- stable within a 5-min window |
-| `guard.behavior.recent_event_count` | `BehaviorTracker.get_recent_event_count(ip, 300)` -- in-memory |
+| `guard.behavior.recent_event_count` | `BehaviorTracker.count_recent_rule_hits(ip, 300)` -- behavior-rule hits across all endpoints (one per usage/frequency rule a request reached); Redis-backed with Redis, in-memory otherwise |
 
 `guard.behavior.correlation_key` source:
 

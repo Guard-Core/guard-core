@@ -83,9 +83,8 @@ class BehaviorRule:
         )
 
 
-RECENT_REQUEST_WINDOW_SECONDS = 300
+RECENT_RULE_HITS_WINDOW_SECONDS = 300
 _RECENT_ENDPOINT_ID = "recent"
-_MAX_RECENT_REQUESTS_PER_CLIENT = 10_000
 _MAX_TRACKED_ENDPOINTS = 10_000
 _MAX_TRACKED_CLIENTS_PER_ENDPOINT = 10_000
 
@@ -102,7 +101,6 @@ class BehaviorTracker(
         self.return_patterns: dict[str, dict[str, list[float]]] = defaultdict(
             lambda: defaultdict(list)
         )
-        self.recent_requests: dict[str, list[float]] = {}
         self.redis_handler: Any | None = None
         self.agent_handler: Any | None = None
         self._body_unavailable_log_cache: TTLCache[str, bool] = TTLCache(
@@ -118,67 +116,60 @@ class BehaviorTracker(
     async def initialize_agent(self, agent_handler: Any) -> None:
         self.agent_handler = agent_handler
 
-    def _recent_requests_key(self, ip: str) -> str:
+    def _recent_rule_hits_key(self, ip: str) -> str:
         return (
             f"behavior:usage:{_hash_identity_segment(_RECENT_ENDPOINT_ID)}:"
             f"{_hash_identity_segment(ip)}"
         )
 
-    def _recent_window(self, ip: str, now: float) -> tuple[str, float, int]:
+    def _recent_rule_hits_window(self, ip: str, now: float) -> tuple[str, float, int]:
         return (
-            self._recent_requests_key(ip),
-            now - RECENT_REQUEST_WINDOW_SECONDS,
-            RECENT_REQUEST_WINDOW_SECONDS,
+            self._recent_rule_hits_key(ip),
+            now - RECENT_RULE_HITS_WINDOW_SECONDS,
+            RECENT_RULE_HITS_WINDOW_SECONDS,
         )
 
-    def _record_recent_request_locked(self, ip: str, now: float) -> None:
-        window_start = now - RECENT_REQUEST_WINDOW_SECONDS
-        timestamps = _lru_pop_or_create(
-            self.recent_requests, ip, _MAX_TRACKED_CLIENTS_PER_ENDPOINT, list
-        )
-        kept = [ts for ts in timestamps if ts >= window_start]
-        kept.append(now)
-        self.recent_requests[ip] = kept[-_MAX_RECENT_REQUESTS_PER_CLIENT:]
-
-    async def get_recent_event_count(self, ip: str, window_seconds: int) -> int:
+    def get_recent_event_count(self, ip: str, window_seconds: int) -> int:
         if not ip:
             return 0
-        window_start = time.time() - window_seconds
-
-        if self.redis_handler:
-            count: int = await self.redis_handler.count_sliding_window_hits(
-                "behavior_usage", self._recent_requests_key(ip), window_start
-            )
-            return count
-
+        cutoff = time.time() - window_seconds
+        count = 0
         with self._lock:
-            return sum(
-                1 for ts in self.recent_requests.get(ip, []) if ts >= window_start
-            )
+            for endpoint_bucket in self.usage_counts.values():
+                for ts in endpoint_bucket.get(ip, []):
+                    if ts >= cutoff:
+                        count += 1
+        return count
+
+    async def count_recent_rule_hits(self, ip: str, window_seconds: int) -> int:
+        if not self.redis_handler:
+            return self.get_recent_event_count(ip, window_seconds)
+        if not ip:
+            return 0
+        count: int = await self.redis_handler.count_sliding_window_hits(
+            USAGE_NAMESPACE,
+            self._recent_rule_hits_key(ip),
+            time.time() - window_seconds,
+        )
+        return count
 
     async def track_endpoint_usage(
         self,
         endpoint_id: str,
         client_ip: str,
         rule: BehaviorRule,
-        record_recent: bool = False,
     ) -> bool:
         current_time = time.time()
         window_start = current_time - rule.window
 
         if self.redis_handler:
-            recent = (
-                {"extra_window": self._recent_window(client_ip, current_time)}
-                if record_recent
-                else {}
-            )
             valid_count: int = await self.redis_handler.record_sliding_window_hit(
                 USAGE_NAMESPACE,
                 usage_hits_key(endpoint_id, client_ip, rule),
                 current_time,
                 window_start,
                 rule.window,
-                **recent,
+                extra_window=self._recent_rule_hits_window(client_ip, current_time),
             )
 
             return valid_count > rule.threshold
@@ -200,8 +191,6 @@ class BehaviorTracker(
 
             timestamps.append(current_time)
             bucket[client_ip] = timestamps
-            if record_recent:
-                self._record_recent_request_locked(client_ip, current_time)
 
             return len(timestamps) > rule.threshold
 

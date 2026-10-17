@@ -9,7 +9,9 @@ from guard_core.sync.handlers.behavior_handler import BehaviorTracker
 def _tracker_with_events(ip: str, count: int, offsets: list[float]) -> BehaviorTracker:
     tracker = BehaviorTracker(SecurityConfig())
     now = time.time()
-    tracker.recent_requests[ip] = [now + offsets[i] for i in range(count)]
+    for i in range(count):
+        endpoint = f"endpoint-{i % 2}"
+        tracker.usage_counts[endpoint][ip].append(now + offsets[i])
     return tracker
 
 
@@ -32,7 +34,7 @@ def test_get_recent_event_count_returns_zero_for_empty_ip() -> None:
     assert tracker.get_recent_event_count("", 300) == 0
 
 
-def test_get_recent_event_count_counts_recorded_requests() -> None:
+def test_get_recent_event_count_sums_across_endpoints() -> None:
     tracker = _tracker_with_events("1.2.3.4", 3, [-10, -20, -30])
     assert tracker.get_recent_event_count("1.2.3.4", 300) == 3
 
@@ -40,6 +42,12 @@ def test_get_recent_event_count_counts_recorded_requests() -> None:
 def test_get_recent_event_count_excludes_timestamps_outside_window() -> None:
     tracker = _tracker_with_events("1.2.3.4", 3, [-10, -600, -700])
     assert tracker.get_recent_event_count("1.2.3.4", 300) == 1
+
+
+def test_count_recent_rule_hits_in_memory_is_the_sync_count() -> None:
+    tracker = _tracker_with_events("1.2.3.4", 3, [-10, -20, -600])
+    assert tracker.count_recent_rule_hits("1.2.3.4", 300) == 2
+    assert tracker.count_recent_rule_hits("", 300) == 0
 
 
 def test_enrich_event_attaches_behavior_correlation_key_and_count() -> None:
@@ -111,3 +119,24 @@ def test_enrich_event_skips_behavior_when_tracker_lacks_method() -> None:
     event = SimpleNamespace(event_type="ip_blocked", ip_address="1.2.3.4", metadata={})
     enricher.enrich_event(event)
     assert "guard.behavior.correlation_key" not in event.metadata
+
+
+class _SyncOnlyTracker:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, int]] = []
+
+    def get_recent_event_count(self, ip: str, window_seconds: int) -> int:
+        self.calls.append((ip, window_seconds))
+        return 7
+
+
+def test_enrich_event_reads_a_tracker_with_only_the_sync_method() -> None:
+    tracker = _SyncOnlyTracker()
+    enricher = EventEnricher(
+        EnrichmentContext(config=SecurityConfig(), behavior_tracker=tracker)
+    )
+    event = SimpleNamespace(event_type="ip_blocked", ip_address="1.2.3.4", metadata={})
+    enricher.enrich_event(event)
+    assert event.metadata["guard.behavior.recent_event_count"] == 7
+    assert tracker.calls == [("1.2.3.4", 300)]
+    assert len(event.metadata["guard.behavior.correlation_key"]) == 16

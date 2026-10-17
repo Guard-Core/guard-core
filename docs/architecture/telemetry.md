@@ -55,11 +55,11 @@ When `enable_enrichment=True` the `EventEnricher` runs inside `CompositeAgentHan
 | `guard.rule.id` | `str` | `DynamicRuleManager.match_event(event)` when the cached rule's IP / country / event-type matched | events only |
 | `guard.rule.version` | `int` | Same source as `guard.rule.id` | events only |
 | `guard.behavior.correlation_key` | `str` (16-char hex) | SHA-256 prefix of `ip \| service \| floor(now/300)`, stable within a 5-minute window so multiple events from the same IP share a key | events only |
-| `guard.behavior.recent_event_count` | `int` | `BehaviorTracker.get_recent_event_count(ip, 300)`, total events observed from the IP across all endpoints in the last 5 minutes | events only |
+| `guard.behavior.recent_event_count` | `int` | `BehaviorTracker.count_recent_rule_hits(ip, 300)`, behavior-rule hits from the IP across all endpoints in the last 5 minutes: one per `usage` or `frequency` rule (route or global) a request reached, so one request on a route with two such rules counts 2. Redis-backed when Redis is enabled (every hit is also recorded in a per-IP window that all workers share), in-memory otherwise (the same sum `get_recent_event_count` returns). A custom tracker that only has the sync `get_recent_event_count(ip, window_seconds)` is still read through that method. | events only |
 
 All fields are nullable and absent unless the corresponding context is available. When `enable_enrichment=False` the enricher is never constructed and none of these keys appear. OTel spans receive these as span attributes; Logfire spans receive them as log attributes via `**enrichment` unpacking.
 
-Enrichment is **always client-side**. guard-core-app's SaaS backend stores them as structured fields for indexed queries, but no server-side component computes them, the full behaviour is deterministic from `SecurityConfig` + current dynamic rule + local in-memory behavioural counters.
+Enrichment is **always client-side**. guard-core-app's SaaS backend stores them as structured fields for indexed queries, but no server-side component computes them, the full behaviour is deterministic from `SecurityConfig` + current dynamic rule + the behaviour tracker's rule-hit counters (Redis when enabled, in-memory otherwise).
 
 ## Muting events, metrics, and check logs
 
