@@ -299,7 +299,7 @@ def is_referrer_domain_allowed(referrer: str, allowed_domains: list[str]) -> boo
     try:
         parts = urlparse(referrer)
         host = parts.hostname
-        if host is None or (parts.port or 0) < 0:
+        if host is None or "\\" in parts.netloc or (parts.port or 0) < 0:
             return False
         netloc = parts.netloc.lower()
         return any(
