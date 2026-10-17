@@ -63,7 +63,11 @@ def test_non_strict_mode_passes_but_warns_once_per_route(
         if route_id in record.getMessage() and "decorator" in record.getMessage()
     ]
     assert len(warnings_for_route) == 1
-    assert "different SecurityDecorator" in warnings_for_route[0]
+    assert warnings_for_route[0] == (
+        f"Route {route_id!r} carries a route id that this SecurityDecorator does "
+        "not know: it was decorated by a different SecurityDecorator instance "
+        "than the one the middleware uses, so none of its decorators apply."
+    )
 
 
 def test_a_route_known_to_the_decorator_is_not_reported(

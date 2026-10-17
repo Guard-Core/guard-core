@@ -71,7 +71,7 @@ class TestBadRouteArgument:
     "make",
     [
         lambda d: d.require_ip(
-            whitelist=["203.0.113.7", "10.0.0.0/8", "2001:db8::/32"],
+            whitelist=["203.0.113.7", "10.0.0.0/8", "10.1.2.3/24", "2001:db8::/32"],
             blacklist=["198.51.100.1"],
         ),
     ],
