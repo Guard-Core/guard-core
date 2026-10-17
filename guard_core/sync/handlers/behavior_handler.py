@@ -2,6 +2,7 @@ import json
 import logging
 import threading
 import time
+import uuid
 from collections import defaultdict
 from collections.abc import Callable
 from typing import Any, Literal
@@ -28,6 +29,9 @@ __all__ = [
 ]
 
 
+_RULE_ID_PREFIX = "guard-core:behavior-rule:"
+
+
 class BehaviorRule:
     def __init__(
         self,
@@ -51,7 +55,14 @@ class BehaviorRule:
 
     def discriminator(self) -> str:
         return json.dumps(
-            [self.rule_type, self.pattern, self.window, self.threshold, self.action]
+            [self.rule_type, self.pattern, self.window, self.threshold, self.action],
+            separators=(",", ":"),
+            ensure_ascii=False,
+        )
+
+    def matched_rule_id(self) -> str:
+        return str(
+            uuid.uuid5(uuid.NAMESPACE_URL, _RULE_ID_PREFIX + self.discriminator())
         )
 
 
