@@ -34,16 +34,14 @@ def _fold_dot_segment_params(segment: str) -> str:
     return base if base in (".", "..") else segment
 
 
-def _collapse_dot_segments(decoded: str) -> str:
+def _collapse_dot_segments(decoded: str) -> str | None:
     segments: list[str] = []
     for raw_segment in decoded.replace("\\", "/").split("/"):
         segment = _fold_dot_segment_params(raw_segment)
         if segment in ("", "."):
             continue
         if segment == "..":
-            if segments:
-                segments.pop()
-            continue
+            return None
         segments.append(segment)
     return "/" + "/".join(segments)
 

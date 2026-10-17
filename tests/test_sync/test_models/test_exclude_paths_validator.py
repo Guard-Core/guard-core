@@ -8,7 +8,8 @@ import pytest
 from guard_core.models import SecurityConfig
 from guard_core.sync.core.validation.path_matching import path_is_excluded
 
-DEGENERATE_TO_ROOT_ENTRIES = ["", "//", ".", "..", "%2f", "\\", "%2e%2e", "//../"]
+DEGENERATE_TO_ROOT_ENTRIES = ["", "//", ".", "%2f", "\\"]
+DOT_DOT_ENTRIES = ["..", "%2e%2e", "//../", "/static/../x"]
 
 
 def _current_lineno() -> int:
@@ -260,3 +261,25 @@ def test_country_field_assignment_is_unaffected_by_exclude_paths_setattr_branch(
     assert config.blocked_countries == frozenset({"CN"})
     assert config.exclude_paths == ["/healthz"]
     assert config.revision == revision_before + 1
+
+
+@pytest.mark.parametrize("entry", DOT_DOT_ENTRIES)
+def test_exclude_paths_rejects_entries_with_dot_dot_segment(entry: str) -> None:
+    with pytest.raises(ValueError) as exc:
+        SecurityConfig(exclude_paths=[entry])
+    msg = str(exc.value)
+    assert repr(entry) in msg
+    assert "could not be normalized" in msg
+    assert "'..' segment" in msg
+
+
+@pytest.mark.parametrize("entry", DOT_DOT_ENTRIES)
+def test_exclude_paths_runtime_assignment_rejects_entries_with_dot_dot_segment(
+    entry: str,
+) -> None:
+    config = SecurityConfig(exclude_paths=["/healthz"])
+
+    with pytest.raises(ValueError, match="could not be normalized"):
+        config.exclude_paths = [entry]
+
+    assert config.exclude_paths == ["/healthz"]
