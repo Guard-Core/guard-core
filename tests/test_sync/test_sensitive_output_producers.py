@@ -376,7 +376,7 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "raised; names the exception repr of the adapter's own routing call, no "
         "request value is interpolated"
     ),
-    "core/checks/endpoint_limit_keys.py:EndpointLimitKeyMap.__init__": (
+    "core/checks/endpoint_limit_keys.py:_identities_of": (
         "advisory that the adapter's resolve_route() raised for a configured "
         "endpoint_rate_limits key; names the key and the exception repr of the "
         "adapter's own routing call, no request value is interpolated"
