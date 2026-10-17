@@ -186,6 +186,22 @@ async def test_frequency_throttle_refuses_like_usage(
     assert await _statuses(processor, clock, route, 3) == [None, None, (429, "8")]
 
 
+async def test_custom_action_overrides_throttle_and_is_never_refused(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = _Clock(monkeypatch)
+    config = _config()
+    processor, _, _ = _processor(config, BehaviorTracker(config))
+    acted_on: list[str] = []
+
+    async def custom_action(client_ip: str, endpoint_id: str, details: str) -> None:
+        acted_on.append(client_ip)
+
+    route = _route(_throttle_rule(2, custom_action=custom_action))
+    assert await _statuses(processor, clock, route, 4) == [None] * 4
+    assert acted_on == [_IP, _IP]
+
+
 async def test_throttle_429_uses_custom_error_responses(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
