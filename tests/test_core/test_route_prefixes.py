@@ -18,6 +18,8 @@ from guard_core.models import SecurityConfig
     ("template", "prefix"),
     [
         ("/health", "/health"),
+        ("/health/", "/health"),
+        ("/", ""),
         ("/api/users/{id}", "/api/users/"),
         ("/api/users/<int:id>", "/api/users/"),
         ("/{anything}", "/"),
@@ -34,6 +36,8 @@ def test_template_route_prefix(template: str, prefix: str) -> None:
     [
         ("/ok$", "/ok"),
         ("^health$", "/health"),
+        ("^health/$", "/health"),
+        ("^$", ""),
         ("/static/(.*)$", "/static/"),
         ("^api/", "/api/"),
         ("^api/users/(?P<id>[0-9]+)/$", "/api/users/"),
@@ -60,6 +64,9 @@ def test_regex_route_prefix(pattern: str, prefix: str) -> None:
         ("/typo", ["/health", "/api/"], False),
         ("/typo", ["/"], True),
         ("/typo", [], False),
+        ("/", [""], True),
+        ("/typo", [""], False),
+        ("/health/x", ["/health"], False),
     ],
 )
 def test_entry_matches_route_prefixes(

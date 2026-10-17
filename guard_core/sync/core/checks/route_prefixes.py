@@ -20,7 +20,7 @@ _PARAM_MARKERS = re.compile(r"[{<]")
 def template_route_prefix(template: str) -> str:
     match = _PARAM_MARKERS.search(template)
     if match is None:
-        return template
+        return template.rstrip("/")
     head = template[: match.start()]
     return head[: head.rfind("/") + 1] or "/"
 
@@ -33,7 +33,7 @@ def regex_route_prefix(pattern: str) -> str:
             literal += char
             continue
         if char == _TRAILING_ANCHOR and index == len(source) - 1:
-            return "/" + literal.lstrip("/")
+            return ("/" + literal.lstrip("/")).rstrip("/")
         if char in _OPTIONAL_AFTER:
             literal = literal[:-1]
         head = "/" + literal.lstrip("/")
