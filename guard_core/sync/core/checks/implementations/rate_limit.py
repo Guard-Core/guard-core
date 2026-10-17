@@ -1,4 +1,5 @@
 from collections.abc import Collection
+from ipaddress import ip_address
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from guard_core.models import SecurityConfig
@@ -8,6 +9,7 @@ from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.core.checks.endpoint_limit_keys import EndpointLimitKeyMap
 from guard_core.sync.core.checks.helpers import (
     _increment_suspicious_counts,
+    _log_exception_safely,
     _try_threshold_ban,
     emit_decorator_event,
     emit_rate_limit_event,
@@ -25,6 +27,17 @@ if TYPE_CHECKING:
     from guard_core.sync.protocols.middleware_protocol import (
         SyncGuardMiddlewareProtocol,
     )
+
+
+_non_ip_ban_refusal_logged = False
+
+
+def _is_ip_address(identity: str) -> bool:
+    try:
+        ip_address(identity)
+    except ValueError:
+        return False
+    return True
 
 
 def _route_rate_limit_configured(route_config: RouteConfig) -> bool:
@@ -146,19 +159,40 @@ class RateLimitCheck(SecurityCheck):
     ) -> None:
         if not self.config.enable_rate_limit_auto_ban:
             return
-        _increment_suspicious_counts(self.middleware, client_ip, "rate_limit")
-        _try_threshold_ban(
-            request,
-            self.config,
-            self.ip_ban_manager,
-            self.middleware,
-            client_ip,
-            trigger_info,
-            self.logger,
-            self.check_name,
-            self.config.muted_check_logs,
-            ("rate_limit",),
-            reason="rate_limit_exceeded",
+        if not _is_ip_address(client_ip):
+            self._log_non_ip_ban_refusal(client_ip)
+            return
+        try:
+            _increment_suspicious_counts(self.middleware, client_ip, "rate_limit")
+            _try_threshold_ban(
+                request,
+                self.config,
+                self.ip_ban_manager,
+                self.middleware,
+                client_ip,
+                trigger_info,
+                self.logger,
+                self.check_name,
+                self.config.muted_check_logs,
+                ("rate_limit",),
+                reason="rate_limit_exceeded",
+            )
+        except Exception:
+            _log_exception_safely(
+                self.logger, "rate-limit auto-ban failed for %s", client_ip
+            )
+
+    def _log_non_ip_ban_refusal(self, identity: str) -> None:
+        global _non_ip_ban_refusal_logged
+        if _non_ip_ban_refusal_logged:
+            return
+        _non_ip_ban_refusal_logged = True
+        self.logger.warning(
+            "Not auto-banning %r: it is not an IP address, so every client with "
+            "this identity shares one rate-limit counter and cannot be banned. If "
+            'the app is served over a Unix socket add "unix" to trusted_proxies. '
+            "This is logged once.",
+            identity,
         )
 
     def _apply_rate_limit_check(
