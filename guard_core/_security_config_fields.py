@@ -493,6 +493,17 @@ class _SecurityConfigFields(BaseModel):
         description="Paths to exclude from security checks",
     )
 
+    exclude_all_paths: bool = Field(
+        default=False,
+        description=(
+            "Skip every security check for every request, exactly like the "
+            "literal '/' entry in exclude_paths does today. Use it to keep that "
+            "behavior explicitly: from guard-core 5.0.0 the '/' entry covers "
+            "only the root page. A request path with a routing anomaly is still "
+            "never excluded."
+        ),
+    )
+
     enable_ip_banning: bool = Field(
         default=True, description="Enable/disable IP banning functionality"
     )

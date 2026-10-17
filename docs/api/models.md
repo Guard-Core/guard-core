@@ -109,6 +109,7 @@ class SecurityConfig(BaseModel):
             "/static",
         ]
     )
+    exclude_all_paths: bool = Field(default=False)
 
     enable_ip_banning: bool = Field(default=True)
     enable_rate_limiting: bool = Field(default=True)

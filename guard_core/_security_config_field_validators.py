@@ -214,6 +214,16 @@ def _is_prefix_zero_network_entry(entry: str) -> bool:
         return False
 
 
+def _warn_exclude_all_paths(*, stacklevel: int) -> None:
+    warnings.warn(
+        "exclude_all_paths=True excludes the entire application from all "
+        "security checks (IP banning, rate limiting, penetration detection, "
+        "everything). Confirm this is intentional.",
+        UserWarning,
+        stacklevel=stacklevel,
+    )
+
+
 def _warn_trusted_proxies_prefix_zero() -> None:
     logger.warning(
         "trusted_proxies contains a /0 network (0.0.0.0/0 or ::/0): every "

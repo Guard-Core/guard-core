@@ -43,6 +43,7 @@ from guard_core._security_config_validators import (
     _validate_threat_ban_config_value,
     _warn_country_allowlist_shadows_blocklist,
     _warn_empty_enabled_detection_categories,
+    _warn_exclude_all_paths,
     _warn_exempt_ips_prefix_zero,
     _warn_hostile_signal_bans_default_off,
     _warn_trusted_proxies_prefix_zero,
@@ -253,6 +254,12 @@ class SecurityConfig(_SecurityConfigFields):
     @model_validator(mode="after")
     def warn_exempt_ips_prefix_zero(self) -> Self:
         _warn_exempt_ips_prefix_zero(self.exempt_ips)
+        return self
+
+    @model_validator(mode="after")
+    def warn_exclude_all_paths(self) -> Self:
+        if self.exclude_all_paths:
+            _warn_exclude_all_paths(stacklevel=4)
         return self
 
     @model_validator(mode="after")

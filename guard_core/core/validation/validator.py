@@ -68,7 +68,8 @@ class RequestValidator:
             return True
 
     def _current_normalized_exclude_paths(self) -> tuple[str, ...]:
-        current_source = tuple(self.context.config.exclude_paths)
+        config = self.context.config
+        current_source = (*config.exclude_paths, *(("/",) * config.exclude_all_paths))
         if current_source != self._normalized_exclude_paths_source:
             self._normalized_exclude_paths = normalize_exclude_paths(current_source)
             self._normalized_exclude_paths_source = current_source

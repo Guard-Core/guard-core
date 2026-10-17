@@ -176,3 +176,23 @@ def fail_on_misconfiguration_false_starts_and_names_the_misconfiguration(
     )
     assert "fail_on_misconfiguration=False keeps starting" in boot
     assert "fail_on_misconfiguration is not set" not in boot
+
+
+EXCLUDE_ALL_PATHS_CONFIG = {
+    "exclude_all_paths": True,
+    "excluded_detection_headers": EXCLUDED_HEADERS,
+}
+
+
+@scenario(covers={"exclude_all_paths"}, config=EXCLUDE_ALL_PATHS_CONFIG)
+def exclude_all_paths_skips_every_check_and_warns_at_startup(
+    ctx: ScenarioContext,
+) -> None:
+    badbot = ctx.client.get("/basic/ip", params={"q": "hello"}, headers=BADBOT_HEADERS)
+    assert badbot.status_code == 200, (
+        "exclude_all_paths=True should keep every path out of the user_agent check "
+        f"that blocks this request by default, got {badbot.status_code}"
+    )
+
+    boot = ctx.stack.logs.current_boot_text()
+    assert "exclude_all_paths=True excludes the entire application" in boot

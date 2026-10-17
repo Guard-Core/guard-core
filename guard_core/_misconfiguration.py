@@ -104,7 +104,8 @@ def _whole_app_exclusion_problems(config: "SecurityConfig") -> list[str]:
         return []
     return [
         "exclude_paths entry '/' excludes every check for the whole application, "
-        "and guard-core 5.0.0 will make '/' cover only the root page."
+        "and guard-core 5.0.0 will make '/' cover only the root page. Use "
+        "exclude_all_paths=True to keep this."
     ]
 
 
