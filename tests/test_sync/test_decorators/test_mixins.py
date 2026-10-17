@@ -134,7 +134,7 @@ def test_api_key_auth() -> None:
     rc = d.get_route_config(decorated._guard_route_id)
     assert rc is not None
     assert rc.api_key_required is True
-    assert "X-API-Key" not in rc.required_headers
+    assert rc.required_headers["X-API-Key"] == "required"
     assert rc.api_key_header == "X-API-Key"
     assert rc.api_key_verifier is None
 

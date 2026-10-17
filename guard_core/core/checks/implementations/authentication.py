@@ -62,6 +62,7 @@ class AuthenticationCheck(SecurityCheck):
         violation_type: str = "require_auth",
         auth_type: str | None = None,
         verifier_error: bool = False,
+        **metadata: Any,
     ) -> GuardResponse | None:
         await log_activity(
             request,
@@ -92,6 +93,7 @@ class AuthenticationCheck(SecurityCheck):
             auth_type=auth_type,
             violation_type=violation_type,
             passive_mode=self.config.passive_mode,
+            **metadata,
         )
 
         if verifier_error:
@@ -138,9 +140,12 @@ class AuthenticationCheck(SecurityCheck):
         verifier: Any,
         auth_type: str,
         violation_type: str,
+        missing_metadata: dict[str, Any] | None = None,
     ) -> tuple[bool, GuardResponse | None, Any]:
+        missing_metadata = missing_metadata or {}
+
         async def fail(
-            reason: str, verifier_error: bool = False
+            reason: str, verifier_error: bool = False, **metadata: Any
         ) -> tuple[bool, GuardResponse | None, Any]:
             response = await self._handle_auth_failure(
                 request,
@@ -149,11 +154,12 @@ class AuthenticationCheck(SecurityCheck):
                 violation_type=violation_type,
                 auth_type=auth_type,
                 verifier_error=verifier_error,
+                **metadata,
             )
             return True, response, None
 
         if credential is None:
-            return await fail(missing_reason)
+            return await fail(missing_reason, **missing_metadata)
         if verifier is None:
             return await fail("No auth verifier configured")
         try:
@@ -194,6 +200,7 @@ class AuthenticationCheck(SecurityCheck):
             verifier=route_config.api_key_verifier or self.config.auth_verifier,
             auth_type="api_key",
             violation_type="api_key_required",
+            missing_metadata={"missing_header": route_config.api_key_header},
         )
 
     async def check(self, request: GuardRequest) -> GuardResponse | None:

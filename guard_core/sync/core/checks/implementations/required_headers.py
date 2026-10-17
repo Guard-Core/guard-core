@@ -25,6 +25,16 @@ def _classify_header_violation(header_name: str) -> tuple[str, str]:
     return "advanced", "required_header"
 
 
+def _is_presence_only_api_key_header(
+    route_config: RouteConfig, header: str, expected: str
+) -> bool:
+    return (
+        route_config.api_key_required
+        and header == route_config.api_key_header
+        and expected == "required"
+    )
+
+
 class RequiredHeadersCheck(SecurityCheck):
     @property
     def check_name(self) -> str:
@@ -106,6 +116,8 @@ class RequiredHeadersCheck(SecurityCheck):
             return None
 
         for header, expected in route_config.required_headers.items():
+            if _is_presence_only_api_key_header(route_config, header, expected):
+                continue
             actual = request.headers.get(header)
             if not actual:
                 return self._handle_missing_header(request, header)

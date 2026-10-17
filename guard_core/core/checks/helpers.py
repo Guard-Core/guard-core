@@ -88,6 +88,7 @@ async def emit_authentication_failed_event(
     auth_type: str,
     violation_type: str,
     passive_mode: bool,
+    **metadata: Any,
 ) -> None:
     guard_decorator = get_guard_decorator(middleware, request)
     if guard_decorator is not None:
@@ -97,6 +98,7 @@ async def emit_authentication_failed_event(
             auth_type=auth_type,
             action_taken=_decorator_action_taken(passive_mode),
             violation_type=violation_type,
+            **metadata,
         )
         return
     await middleware.event_bus.send_middleware_event(
@@ -107,6 +109,7 @@ async def emit_authentication_failed_event(
         decorator_type="authentication",
         violation_type=violation_type,
         auth_type=auth_type,
+        **metadata,
     )
 
 

@@ -136,3 +136,36 @@ async def test_a_stacked_route_reports_each_failure_with_its_own_auth_type() -> 
     )
 
     assert [e.metadata["auth_type"] for e in agent.events] == ["api_key"]
+
+
+async def test_a_missing_api_key_event_still_names_the_missing_header() -> None:
+    pipeline, middleware, route_id = build_route_pipeline(
+        _config(), lambda d: d.api_key_auth("X-Key", verifier=lambda r, k: True)
+    )
+    agent = _RecordingAgent()
+    await middleware.guard_decorator.initialize_agent(agent)
+
+    await send_request(pipeline, route_id, ip="203.0.113.144")
+
+    assert [e.metadata["missing_header"] for e in agent.events] == ["X-Key"]
+
+
+async def test_a_literal_value_required_on_the_api_key_header_is_still_enforced() -> (
+    None
+):
+    pipeline, _, route_id = build_route_pipeline(
+        _config(),
+        lambda d: d.api_key_auth("X-Key", verifier=lambda r, k: True),
+        lambda d: d.require_headers({"X-Key": "exact-value"}),
+    )
+
+    wrong = await send_request(
+        pipeline, route_id, ip="203.0.113.145", headers={"X-Key": "other"}
+    )
+    right = await send_request(
+        pipeline, route_id, ip="203.0.113.145", headers={"X-Key": "exact-value"}
+    )
+
+    assert wrong is not None
+    assert wrong.status_code == 400
+    assert right is None
