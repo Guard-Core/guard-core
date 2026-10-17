@@ -560,6 +560,48 @@ def test_initialize_twice_against_real_redis_does_not_warn(
     assert resource_warnings == []
 
 
+def test_record_sliding_window_hit_reloads_its_script_after_a_script_flush(
+    security_config_redis: SecurityConfig,
+) -> None:
+    handler = redis_handler(security_config_redis)
+    handler.initialize()
+    key = f"script_flush_{uuid.uuid4().hex}"
+    with handler.get_connection() as conn:
+        conn.script_flush()
+
+    count = handler.record_sliding_window_hit(
+        "sliding_window_test", key, 2_000_000_000.0, 1_999_999_000.0, 60
+    )
+
+    assert count == 1
+    handler.delete("sliding_window_test", key)
+    handler.close()
+
+
+def test_record_sliding_window_hit_records_the_extra_window_in_the_same_call(
+    security_config_redis: SecurityConfig,
+) -> None:
+    handler = redis_handler(security_config_redis)
+    handler.initialize()
+    key, extra = f"main_{uuid.uuid4().hex}", f"extra_{uuid.uuid4().hex}"
+    base = 2_000_000_000.0
+    for offset in (-500, 0):
+        count = handler.record_sliding_window_hit(
+            "sliding_window_test",
+            key,
+            base + offset,
+            base - 1000,
+            60,
+            extra_window=(extra, base - 100, 300),
+        )
+
+    assert count == 2
+    assert handler.count_sliding_window_hits("sliding_window_test", extra, 0) == 1
+    handler.delete("sliding_window_test", key)
+    handler.delete("sliding_window_test", extra)
+    handler.close()
+
+
 def test_count_sliding_window_hits_counts_only_hits_inside_the_window(
     security_config_redis: SecurityConfig,
 ) -> None:

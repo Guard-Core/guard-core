@@ -1,3 +1,4 @@
+import hashlib
 import logging
 import threading
 import uuid
@@ -10,11 +11,13 @@ from urllib.parse import urlsplit, urlunsplit
 from redis import Redis
 from redis.backoff import ExponentialBackoff
 from redis.exceptions import ConnectionError as RedisConnectionError
+from redis.exceptions import NoScriptError
 from redis.exceptions import TimeoutError as RedisTimeoutError
 from redis.retry import Retry
 
 from guard_core.exceptions import GuardRedisError
 from guard_core.models import SecurityConfig
+from guard_core.scripts.sliding_window_lua import SLIDING_WINDOW_HIT_SCRIPT
 from guard_core.sync.core.events.event_types import (
     EVENT_REDIS_CONNECTION,
     EVENT_REDIS_ERROR,
@@ -47,6 +50,9 @@ def _redact_redis_url(url: str | None) -> str | None:
 
 
 _REDIS_HANDLER_NAME = "redis"
+_SLIDING_WINDOW_SHA = hashlib.sha1(
+    SLIDING_WINDOW_HIT_SCRIPT.encode(), usedforsecurity=False
+).hexdigest()
 
 
 class RedisManager:
@@ -294,20 +300,36 @@ class RedisManager:
         return int(result) if result is not None else 0
 
     def record_sliding_window_hit(
-        self, namespace: str, key: str, timestamp: float, window_start: float, ttl: int
+        self,
+        namespace: str,
+        key: str,
+        timestamp: float,
+        window_start: float,
+        ttl: int,
+        *,
+        extra_window: tuple[str, float, int] | None = None,
     ) -> int:
+        """Record one hit and return the key's count in the window. extra_window
+        (key, window_start, ttl) records the same hit in a second key of the
+        namespace in the same round trip; its count is not returned."""
         if not self.config.enable_redis:
             return 0
 
+        prefix = f"{self.config.redis_prefix}{namespace}:"
+        keys = [f"{prefix}{key}"]
+        args: list[Any] = [repr(timestamp), uuid.uuid4().hex, repr(window_start), ttl]
+        if extra_window is not None:
+            extra_key, extra_start, extra_ttl = extra_window
+            keys.append(f"{prefix}{extra_key}")
+            args += [repr(extra_start), extra_ttl]
+
         def _record(conn: Redis) -> int:
-            full_key = f"{self.config.redis_prefix}{namespace}:{key}"
-            with conn.pipeline() as pipe:
-                pipe.zadd(full_key, {uuid.uuid4().hex: timestamp})
-                pipe.zremrangebyscore(full_key, "-inf", f"({window_start}")
-                pipe.zcard(full_key)
-                pipe.expire(full_key, ttl)
-                result = pipe.execute()
-                return int(result[2]) if len(result) > 2 else 0
+            try:
+                count = conn.evalsha(_SLIDING_WINDOW_SHA, len(keys), *keys, *args)
+            except NoScriptError:
+                conn.script_load(SLIDING_WINDOW_HIT_SCRIPT)
+                count = conn.evalsha(_SLIDING_WINDOW_SHA, len(keys), *keys, *args)
+            return int(count)
 
         result = self.safe_operation(_record)
         return int(result) if result is not None else 0
