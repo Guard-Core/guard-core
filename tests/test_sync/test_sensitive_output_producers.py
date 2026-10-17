@@ -594,11 +594,6 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "init only, no request in scope"
     ),
     "core/initialization/_handler_initializer_steps.py:"
-    "_HandlerInitializerStepsMixin._warn_unreachable_ban_thresholds": (
-        "line 79: startup advisory naming a config field, its integer value "
-        "and the fixed retention cap; adapter init only, no request in scope"
-    ),
-    "core/initialization/_handler_initializer_steps.py:"
     "_HandlerInitializerStepsMixin._warn_if_lazy_init_is_inert": (
         "line 71: static advisory about lazy_init without Redis; adapter "
         "init only, no request in scope"
