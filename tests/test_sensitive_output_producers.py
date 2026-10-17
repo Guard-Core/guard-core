@@ -613,11 +613,6 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "time_restrictions is the decorator-configured dict, not request "
         "data (mirrors TimeWindowCheck._check_time_window)"
     ),
-    "decorators/access_control.py:AccessControlMixin.block_clouds.decorator": (
-        "line 61: 'ignored unknown cloud providers %s' where the list "
-        "comes from the @block_clouds(...) decorator argument, evaluated "
-        "once at route-definition time, never per-request"
-    ),
     "decorators/access_control.py:AccessControlMixin.bypass.decorator": (
         "line 78: 'ignored unknown checks %s' where the list comes from "
         "the @bypass(...) decorator argument, evaluated once at "

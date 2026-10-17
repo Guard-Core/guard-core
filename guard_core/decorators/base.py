@@ -6,6 +6,7 @@ from typing import (
     runtime_checkable,
 )
 
+from guard_core._misconfiguration import report_misconfiguration
 from guard_core.decorators.route_config import (
     _REVISION_EXEMPT_ATTRS,
     _TRACKED_DICT_FIELDS,
@@ -51,6 +52,8 @@ class DecoratedFunction(Protocol):
 
 
 class BaseSecurityMixin:
+    _report_misconfiguration: Callable[[str], None]
+
     def _ensure_route_config(self, func: Callable[..., Any]) -> RouteConfig:
         raise NotImplementedError("This mixin must be used with BaseSecurityDecorator")
 
@@ -73,6 +76,9 @@ class BaseSecurityDecorator:
         self.behavior_tracker = BehaviorTracker(config)
         self.agent_handler: Any = None
         self.geo_ip_handler: Any = None
+
+    def _report_misconfiguration(self, problem: str) -> None:
+        report_misconfiguration(self.config, problem, stacklevel=4)
 
     @property
     def route_config_revision(self) -> int:

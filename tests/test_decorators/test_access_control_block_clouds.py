@@ -104,7 +104,8 @@ async def test_async_block_clouds_filters_unknown_and_warns(
 ) -> None:
     d = _async_decorator()
     caplog.set_level(logging.WARNING, logger="guard_core.decorators")
-    decorated = d.block_clouds(["AWS", "Bogus"])(_third_sample_func)
+    with pytest.warns(DeprecationWarning, match="ignored unknown cloud providers"):
+        decorated = d.block_clouds(["AWS", "Bogus"])(_third_sample_func)
     rc = d.get_route_config(decorated._guard_route_id)
     assert rc is not None
     assert rc.block_cloud_providers == {"AWS"}
@@ -125,7 +126,8 @@ def test_sync_block_clouds_filters_unknown_and_warns(
 ) -> None:
     d = _sync_decorator()
     caplog.set_level(logging.WARNING, logger="guard_core.sync.decorators")
-    decorated = d.block_clouds(["AWS", "Bogus"])(_fifth_sample_func)
+    with pytest.warns(DeprecationWarning, match="ignored unknown cloud providers"):
+        decorated = d.block_clouds(["AWS", "Bogus"])(_fifth_sample_func)
     rc = d.get_route_config(decorated._guard_route_id)
     assert rc is not None
     assert rc.block_cloud_providers == {"AWS"}

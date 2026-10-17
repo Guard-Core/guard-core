@@ -2,6 +2,7 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
+from guard_core.decorators._route_arguments import canonical_cloud_selector
 from guard_core.decorators.base import BaseSecurityMixin, DecoratedFunction
 from guard_core.models import VALID_BYPASS_CHECKS, VALID_CLOUD_PROVIDERS
 
@@ -13,6 +14,11 @@ class AccessControlMixin(BaseSecurityMixin):
         blacklist: list[str] | None = None,
     ) -> Callable[[Callable[..., Any]], DecoratedFunction]:
         def decorator(func: Callable[..., Any]) -> DecoratedFunction:
+            if whitelist is not None and not whitelist:
+                self._report_misconfiguration(
+                    "@require_ip received an empty whitelist: an empty list "
+                    "restricts nothing, so every address is allowed on this route."
+                )
             route_config = self._ensure_route_config(func)
             if whitelist:
                 route_config.ip_whitelist = whitelist
@@ -36,6 +42,12 @@ class AccessControlMixin(BaseSecurityMixin):
         self, countries: list[str]
     ) -> Callable[[Callable[..., Any]], DecoratedFunction]:
         def decorator(func: Callable[..., Any]) -> DecoratedFunction:
+            if not countries:
+                self._report_misconfiguration(
+                    "@allow_countries received an empty country list: an empty "
+                    "list restricts nothing, so every country is allowed on this "
+                    "route."
+                )
             route_config = self._ensure_route_config(func)
             route_config.whitelist_countries = [c.upper() for c in countries]
             return self._apply_route_config(func)
@@ -46,22 +58,26 @@ class AccessControlMixin(BaseSecurityMixin):
         self, providers: list[str] | None = None
     ) -> Callable[[Callable[..., Any]], DecoratedFunction]:
         def decorator(func: Callable[..., Any]) -> DecoratedFunction:
+            canonical = (
+                None
+                if providers is None
+                else {c for p in providers if (c := canonical_cloud_selector(p))}
+            )
+            unknown = (
+                []
+                if providers is None
+                else sorted(p for p in providers if canonical_cloud_selector(p) is None)
+            )
+            if unknown:
+                self._report_misconfiguration(
+                    f"@block_clouds: ignored unknown cloud providers {unknown}. "
+                    f"Valid providers: {sorted(VALID_CLOUD_PROVIDERS)} (matched "
+                    "case-insensitively)."
+                )
             route_config = self._ensure_route_config(func)
-            if providers is None:
-                route_config.block_cloud_providers = set(VALID_CLOUD_PROVIDERS)
-            else:
-                valid = {
-                    p
-                    for p in providers
-                    if p.partition(":!")[0] in VALID_CLOUD_PROVIDERS
-                }
-                route_config.block_cloud_providers = valid
-                invalid = set(providers) - valid
-                if invalid:
-                    logging.getLogger("guard_core.decorators").warning(
-                        "@block_clouds: ignored unknown cloud providers %s",
-                        sorted(invalid),
-                    )
+            route_config.block_cloud_providers = (
+                set(VALID_CLOUD_PROVIDERS) if canonical is None else canonical
+            )
             return self._apply_route_config(func)
 
         return decorator
