@@ -9,33 +9,45 @@ from typing_extensions import Self
 
 from tests.live_smoke import driver
 
-VM_START = datetime(2026, 10, 17, 1, 0, 0, tzinfo=timezone.utc)
+VM_START_NS = int(datetime(2026, 10, 17, 1, 0, 0, tzinfo=timezone.utc).timestamp()) * (
+    10**9
+)
 HOST_AHEAD_OF_VM = timedelta(seconds=1)
 
 
+def _format(stamp_ns: int) -> str:
+    seconds, nanos = divmod(stamp_ns, 10**9)
+    moment = datetime.fromtimestamp(seconds, timezone.utc)
+    return f"{moment.strftime('%Y-%m-%dT%H:%M:%S')}.{nanos:09d}Z"
+
+
+def _parse(stamp: str) -> int:
+    whole, fraction = stamp.removesuffix("+00:00").rstrip("Z").split(".")
+    moment = datetime.strptime(whole, "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc)
+    return int(moment.timestamp()) * 10**9 + int(fraction.ljust(9, "0"))
+
+
 class _FakeDockerLogs:
-    """A container log on the VM clock; the host clock runs ahead of it."""
+    """Container logs stamped to the nanosecond on the VM clock."""
 
     def __init__(self) -> None:
-        self.vm_now = VM_START
-        self.lines: list[tuple[datetime, str]] = []
+        self.vm_now_ns = VM_START_NS
+        self.lines: list[tuple[int, str]] = []
 
-    def write(self, text: str, after: timedelta = timedelta(milliseconds=5)) -> None:
-        self.vm_now += after
-        self.lines.append((self.vm_now, text))
+    def write(self, text: str, after_ns: int = 5_000_000) -> None:
+        self.vm_now_ns += after_ns
+        self.lines.append((self.vm_now_ns, text))
 
     def compose(self, *args: str, **_: Any) -> Any:
         selected = list(self.lines)
         if "--since" in args:
-            cutoff = datetime.fromisoformat(args[args.index("--since") + 1])
+            cutoff = _parse(args[args.index("--since") + 1])
             selected = [item for item in selected if item[0] >= cutoff]
         if "--tail" in args:
             selected = selected[-int(args[args.index("--tail") + 1]) :]
         stamped = "--timestamps" in args
         out = [
-            f"app-1  | {stamp.strftime('%Y-%m-%dT%H:%M:%S.%f')}000Z {text}"
-            if stamped
-            else f"app-1  | {text}"
+            f"app-1  | {_format(stamp)} {text}" if stamped else f"app-1  | {text}"
             for stamp, text in selected
         ]
         return SimpleNamespace(stdout="\n".join(out), returncode=0)
@@ -49,7 +61,8 @@ def docker_logs(monkeypatch: pytest.MonkeyPatch) -> _FakeDockerLogs:
     class _HostClock(datetime):
         @classmethod
         def now(cls, tz: tzinfo | None = None) -> Self:
-            return cls.fromtimestamp((fake.vm_now + HOST_AHEAD_OF_VM).timestamp(), tz)
+            ahead_ns = fake.vm_now_ns + int(HOST_AHEAD_OF_VM.total_seconds() * 10**9)
+            return cls.fromtimestamp(ahead_ns / 10**9, tz)
 
     monkeypatch.setattr(driver, "datetime", _HostClock)
     return fake
@@ -88,3 +101,48 @@ def test_an_empty_log_marks_the_beginning(docker_logs: _FakeDockerLogs) -> None:
     docker_logs.write("first line ever")
 
     assert any("first line ever" in line for line in reader.lines_since(mark))
+
+
+def test_a_line_in_the_same_microsecond_as_the_newest_one_is_seen(
+    docker_logs: _FakeDockerLogs,
+) -> None:
+    docker_logs.write("newest at .123456100")
+    docker_logs.lines[-1] = (
+        docker_logs.vm_now_ns - docker_logs.vm_now_ns % 1000 + 100,
+        "newest",
+    )
+    reader = driver.LogReader("app")
+
+    mark = reader.mark()
+    docker_logs.lines.append((docker_logs.lines[-1][0] + 800, "next in the burst"))
+
+    assert any("next in the burst" in line for line in reader.lines_since(mark))
+    assert not any("newest" in line for line in reader.lines_since(mark))
+
+
+def test_the_mark_carries_over_a_second_boundary(docker_logs: _FakeDockerLogs) -> None:
+    whole_second = VM_START_NS + 7 * 10**9
+    docker_logs.lines.append((whole_second - 1, "last nanosecond of the second"))
+    reader = driver.LogReader("app")
+
+    mark = reader.mark()
+    docker_logs.lines.append((whole_second, "first nanosecond of the next one"))
+
+    assert mark.endswith(".000000000Z")
+    assert any("first nanosecond" in line for line in reader.lines_since(mark))
+
+
+def test_the_newest_stamp_wins_when_several_containers_log(
+    docker_logs: _FakeDockerLogs, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    older = f"app-1  | {_format(VM_START_NS + 10)} one"
+    newer = f"app-2  | {_format(VM_START_NS + 20)} two"
+    monkeypatch.setattr(
+        driver,
+        "_compose",
+        lambda *args, **_: SimpleNamespace(stdout=f"{newer}\n{older}", returncode=0),
+    )
+
+    mark = driver.LogReader("app").mark()
+
+    assert _parse(mark) == VM_START_NS + 21

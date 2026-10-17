@@ -8,7 +8,7 @@ import subprocess
 import time
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -68,7 +68,24 @@ def baseline_env() -> dict[str, str] | None:
     return {"GUARD_CORE_SPEC": baseline}
 
 
-_LOG_TIMESTAMP = re.compile(r"(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d+)Z")
+_LOG_TIMESTAMP = re.compile(r"(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)\.(\d+)Z")
+_NANOS_PER_SECOND = 10**9
+
+
+def _stamp_after(newest: tuple[str, int]) -> str:
+    """The RFC3339Nano stamp one nanosecond after ``(seconds, nanos)``.
+
+    ``datetime`` only holds microseconds, so the stamp is built by hand: cutting
+    to microseconds would put the cutoff after a line written later in the same
+    microsecond as the newest one.
+    """
+    seconds, nanos = newest
+    nanos += 1
+    if nanos == _NANOS_PER_SECOND:
+        moment = datetime.strptime(seconds, "%Y-%m-%dT%H:%M:%S")
+        seconds = (moment + timedelta(seconds=1)).strftime("%Y-%m-%dT%H:%M:%S")
+        nanos = 0
+    return f"{seconds}.{nanos:09d}Z"
 
 
 class LogReader:
@@ -78,11 +95,11 @@ class LogReader:
     def mark(self) -> str:
         """Return a ``--since`` cutoff on the container's own clock.
 
-        The cutoff is one microsecond after the newest log line, so it never
-        compares the host wall clock with the Docker VM clock: those drift by
-        tens of milliseconds, which is enough to hide a line that the app logs
-        within a few milliseconds of the mark. An empty log gives an empty mark,
-        meaning "from the beginning".
+        The cutoff is one nanosecond after the newest log line (the newest stamp
+        across every container of the service), so it never compares the host
+        wall clock with the Docker VM clock: those drift by tens of milliseconds,
+        enough to hide a line the app logs within a few milliseconds of the mark.
+        An empty log gives an empty mark, meaning "from the beginning".
         """
         result = _compose(
             "logs",
@@ -93,13 +110,11 @@ class LogReader:
             self._service,
             check=False,
         )
-        stamp = _LOG_TIMESTAMP.search(result.stdout)
-        if stamp is None:
-            return ""
-        newest = datetime.strptime(stamp.group(1)[:26], "%Y-%m-%dT%H:%M:%S.%f")
-        return (
-            newest.replace(tzinfo=timezone.utc) + timedelta(microseconds=1)
-        ).isoformat()
+        stamps = [
+            (seconds, int(fraction.ljust(9, "0")[:9]))
+            for seconds, fraction in _LOG_TIMESTAMP.findall(result.stdout)
+        ]
+        return _stamp_after(max(stamps)) if stamps else ""
 
     def lines_since(self, mark: str, kind: str | None = None) -> list[str]:
         since = ["--since", mark] if mark else []
