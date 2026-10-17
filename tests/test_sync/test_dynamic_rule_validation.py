@@ -67,6 +67,13 @@ MALFORMED = [
     pytest.param({"global_rate_limit": 5, "global_rate_window": -1}, id="neg-window"),
     pytest.param({"endpoint_rate_limits": {"/x": (0, 0)}}, id="endpoint-zero"),
     pytest.param({"endpoint_rate_limits": {"/x": (5, 0)}}, id="endpoint-window"),
+    pytest.param({"endpoint_rate_limits": {"/a/../b": (5, 60)}}, id="key-dot-dot"),
+    pytest.param({"endpoint_rate_limits": {"/a//b": (5, 60)}}, id="key-double-slash"),
+    pytest.param({"endpoint_rate_limits": {"/a%2Fb": (5, 60)}}, id="key-encoded-slash"),
+    pytest.param(
+        {"endpoint_rate_limits": {"/a%5cb": (5, 60)}}, id="key-encoded-bslash"
+    ),
+    pytest.param({"endpoint_rate_limits": {"/a\\b": (5, 60)}}, id="key-backslash"),
     pytest.param({"blocked_countries": ["USA!"]}, id="country-punct"),
     pytest.param({"blocked_countries": ["not a country"]}, id="country-words"),
     pytest.param({"blocked_countries": ["12"]}, id="country-digits"),

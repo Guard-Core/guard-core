@@ -5,6 +5,7 @@ from typing import Any
 from guard_core._security_config_field_validators import (
     canonicalize_cloud_provider_selector,
 )
+from guard_core.sync._utils.request_path import has_anomalous_path_spelling
 
 _COUNTRY_CODE = re.compile(r"[A-Za-z]{2}")
 
@@ -35,6 +36,15 @@ def _rate_limit_problems(rules: Any) -> list[str]:
         if any(_below_one(part) for part in limit)
     )
     return problems
+
+
+def _endpoint_key_problems(rules: Any) -> list[str]:
+    return [
+        f"endpoint_rate_limits[{endpoint}]: {tuple(limit)} "
+        "(contains '..', '//', an encoded separator or a backslash)"
+        for endpoint, limit in rules.endpoint_rate_limits.items()
+        if has_anomalous_path_spelling(endpoint)
+    ]
 
 
 def _country_problems(name: str, codes: list[str]) -> list[str]:
@@ -69,6 +79,7 @@ def find_malformed_values(rules: Any) -> list[str]:
         *_ip_problems("ip_whitelist", rules.ip_whitelist),
         *_ip_problems("emergency_whitelist", rules.emergency_whitelist),
         *_rate_limit_problems(rules),
+        *_endpoint_key_problems(rules),
         *_country_problems("blocked_countries", rules.blocked_countries),
         *_country_problems("whitelist_countries", rules.whitelist_countries),
         *_provider_problems(rules.blocked_cloud_providers),
