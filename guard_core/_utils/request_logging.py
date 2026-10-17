@@ -1,7 +1,7 @@
 import json
 import logging
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Any, Literal
 from urllib.parse import quote, unquote, urlsplit, urlunsplit
 
@@ -17,6 +17,7 @@ from guard_core._utils.pair_redaction import (
     _redact_pairs_in_text,
 )
 from guard_core._utils.pair_value_scan import _QUOTE_CHARS
+from guard_core._utils.sensitive_names import has_sensitive_name_token
 from guard_core.protocols.request_protocol import GuardRequest
 
 _DEFAULT_SENSITIVE_LOG_HEADERS: frozenset[str] = frozenset(
@@ -186,7 +187,7 @@ def _redact_sensitive_headers(
     sensitive = _merge_sensitive_log_headers(sensitive_headers)
     return {
         key: "[REDACTED]"
-        if key.strip().lower() in sensitive
+        if key.strip().lower() in sensitive or has_sensitive_name_token(key.strip())
         else redact_blob_for_display(
             value, sensitive_params, sensitive_body_fields, sensitive_headers
         )
@@ -327,6 +328,18 @@ def redact_header_value_for_display(
     )
 
 
+def _route_secret_header_names(request: GuardRequest) -> frozenset[str]:
+    route_config = getattr(request.state, "route_config", None)
+    names: set[str] = set()
+    api_key_header = getattr(route_config, "api_key_header", None)
+    if isinstance(api_key_header, str):
+        names.add(api_key_header.strip().lower())
+    required_headers = getattr(route_config, "required_headers", None)
+    if isinstance(required_headers, Mapping):
+        names.update(str(name).strip().lower() for name in required_headers)
+    return frozenset(names)
+
+
 def _extract_request_context(
     request: GuardRequest,
     sensitive_headers: frozenset[str] | None,
@@ -349,7 +362,10 @@ def _extract_request_context(
         ),
         "headers": _redact_sensitive_headers(
             dict(request.headers),
-            sensitive_headers,
+            _merge_sensitive_names(
+                _merge_sensitive_log_headers(sensitive_headers),
+                _route_secret_header_names(request),
+            ),
             sensitive_body_fields,
             sensitive_params,
         ),

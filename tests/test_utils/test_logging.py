@@ -907,10 +907,18 @@ def test_redact_sensitive_headers_with_no_sensitive_names_unchanged() -> None:
     assert _redact_sensitive_headers(headers, None) == headers
 
 
-def test_redact_sensitive_headers_none_uses_default_set_only() -> None:
-    headers = {"Authorization": "secret", "X-Internal-Token": "keepme"}
+def test_redact_sensitive_headers_none_uses_default_set_and_name_tokens_only() -> None:
+    headers = {
+        "Authorization": "secret",
+        "X-Internal-Token": "by-token",
+        "X-Internal-Marker": "keepme",
+    }
     result = _redact_sensitive_headers(headers, None)
-    assert result == {"Authorization": "[REDACTED]", "X-Internal-Token": "keepme"}
+    assert result == {
+        "Authorization": "[REDACTED]",
+        "X-Internal-Token": "[REDACTED]",
+        "X-Internal-Marker": "keepme",
+    }
 
 
 async def test_log_activity_falls_back_to_unknown_client_identity_without_ip(
