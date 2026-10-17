@@ -265,10 +265,18 @@ class SecurityConfig(_SecurityConfigFields):
         return self
 
     @model_validator(mode="after")
-    def warn_about_risky_or_unset_settings(self) -> Self:
+    def warn_exempt_ips_prefix_zero(self) -> Self:
         _warn_exempt_ips_prefix_zero(self.exempt_ips)
+        return self
+
+    @model_validator(mode="after")
+    def warn_hostile_signal_bans_default_off(self) -> Self:
         if "ban_on_hostile_signals" not in self.model_fields_set:
             _warn_hostile_signal_bans_default_off(stacklevel=4)
+        return self
+
+    @model_validator(mode="after")
+    def warn_empty_enabled_detection_categories(self) -> Self:
         if self.enable_penetration_detection and not self.enabled_detection_categories:
             _warn_empty_enabled_detection_categories()
         return self
