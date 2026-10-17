@@ -1,6 +1,7 @@
 from guard_core.core.checks.base import SecurityCheck
 from guard_core.core.checks.route_prefixes import warn_unmatched_exclude_paths
 from guard_core.core.events.event_types import EVENT_ROUTE_UNRESOLVED
+from guard_core.handlers.cors_handler import is_preflight
 from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.utils import extract_client_ip, log_activity
@@ -44,10 +45,26 @@ class RouteConfigCheck(SecurityCheck):
         )
         if not self.config.passive_mode:
             return await self.middleware.create_error_response(
-                status_code=500,
+                status_code=self._unresolved_status(request),
                 default_message="Route resolution failed",
             )
         return None
+
+    def _unresolved_status(self, request: GuardRequest) -> int:
+        if getattr(request.state, "guard_route_id", None):
+            return 500
+        resolve_route = getattr(self.middleware, "resolve_route", None)
+        if callable(resolve_route):
+            try:
+                if any(True for _ in resolve_route(str(request.url_path))):
+                    return 405
+            except Exception:
+                self.logger.error("resolve_route failed; answering 500")
+                return 500
+        return 404
+
+    def _is_cors_preflight(self, request: GuardRequest) -> bool:
+        return self.config.enable_cors and is_preflight(request.method, request.headers)
 
     async def check(self, request: GuardRequest) -> GuardResponse | None:
         warn_unmatched_exclude_paths(self.middleware, self.config)
@@ -56,8 +73,10 @@ class RouteConfigCheck(SecurityCheck):
         request.state.client_ip = await extract_client_ip(
             request, self.config, self.middleware.agent_handler
         )
-        if self.config.route_resolution_strict and getattr(
-            request.state, "guard_route_unresolved", False
+        if (
+            self.config.route_resolution_strict
+            and getattr(request.state, "guard_route_unresolved", False)
+            and not self._is_cors_preflight(request)
         ):
             return await self._handle_unresolved_route(request)
         return None

@@ -582,8 +582,10 @@ class _SecurityConfigFields(BaseModel):
             "lets undecorated routes and unrouted requests through. Set True "
             "when every request must be attributable to a known route, so a "
             "resolution failure cannot silently skip per-route checks - note "
-            "that this also turns requests to paths the app does not serve "
-            "into 500s instead of 404s."
+            "that this also blocks requests to paths the app does not serve: "
+            "guard-core answers 404 for a path no route serves and 405 for a "
+            "wrong method, never the app's own page. CORS preflights are "
+            "answered before this check."
         ),
     )
 

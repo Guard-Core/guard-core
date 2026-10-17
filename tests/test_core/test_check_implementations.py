@@ -143,7 +143,9 @@ async def test_route_config_unresolved_route_blocked_when_strict() -> None:
     result = await _run_route_config_check(mw, req)
 
     assert result is not None
-    assert result.status_code == 500
+    mw.create_error_response.assert_awaited_once_with(
+        status_code=404, default_message="Route resolution failed"
+    )
     assert (
         mw.event_bus.send_middleware_event.await_args.kwargs["event_type"]
         == EVENT_ROUTE_UNRESOLVED

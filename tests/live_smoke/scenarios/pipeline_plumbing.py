@@ -16,8 +16,8 @@ RESPONSE_CUSTOMIZATION_CONFIG = {
 
 def _assert_route_resolution_strict(ctx: ScenarioContext, mark: str) -> None:
     unresolved = ctx.client.get(UNRESOLVED_PATH)
-    assert unresolved.status_code == 500, (
-        "route_resolution_strict=True should turn an unroutable path into a 500, "
+    assert unresolved.status_code == 404, (
+        "route_resolution_strict=True should answer an unroutable path with a 404, "
         f"got {unresolved.status_code}"
     )
     lines = ctx.stack.logs.lines_since(mark)

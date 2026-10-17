@@ -102,8 +102,8 @@ def route_config_strict_mode_blocks_unresolved_route(ctx: ScenarioContext) -> No
     )
 
     unresolved = ctx.client.get("/this-path-does-not-exist-anywhere")
-    assert unresolved.status_code == 500, (
-        "route_resolution_strict did not turn an unresolved path into a 500: "
+    assert unresolved.status_code == 404, (
+        "route_resolution_strict did not answer an unresolved path with a 404: "
         f"{unresolved.status_code}"
     )
 

@@ -220,9 +220,11 @@ COVERED_PRODUCERS: dict[str, frozenset[str]] = {
     ),
     "core/checks/implementations/custom_validators.py:"
     "CustomValidatorsCheck.check": frozenset({"custom_validator_echo"}),
-    "core/checks/implementations/emergency_mode.py:EmergencyModeCheck.check": (
-        frozenset({"emergency_mode_denied", "emergency_mode_whitelisted"})
+    "core/checks/implementations/emergency_mode.py:EmergencyModeCheck._deny": (
+        frozenset({"emergency_mode_denied"})
     ),
+    "core/checks/implementations/emergency_mode.py:"
+    "EmergencyModeCheck._log_allowed": frozenset({"emergency_mode_whitelisted"}),
     "core/checks/implementations/ip_security.py:IpSecurityCheck._check_banned_ip": (
         frozenset({"banned_ip"})
     ),
@@ -510,6 +512,10 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "line 32: reason is the static string 'Missing referrer header' - "
         "no request data, since the header is by definition absent on "
         "this path"
+    ),
+    "core/checks/implementations/route_config.py:RouteConfigCheck._unresolved_status": (
+        "line 62: the message is a fixed string, no request data and no "
+        "exception text or traceback"
     ),
     "core/checks/implementations/route_config.py:"
     "RouteConfigCheck._handle_unresolved_route": (
