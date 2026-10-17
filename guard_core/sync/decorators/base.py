@@ -170,6 +170,7 @@ class BaseSecurityDecorator:
         request: SyncGuardRequest,
         reason: str,
         decorator_type: str,
+        action_taken: str = "blocked",
         **metadata: Any,
     ) -> None:
         from guard_core.sync.core.events.event_types import EVENT_ACCESS_DENIED
@@ -177,7 +178,7 @@ class BaseSecurityDecorator:
         self.send_decorator_event(
             event_type=EVENT_ACCESS_DENIED,
             request=request,
-            action_taken="blocked",
+            action_taken=action_taken,
             reason=reason,
             decorator_type=decorator_type,
             **metadata,
@@ -188,6 +189,7 @@ class BaseSecurityDecorator:
         request: SyncGuardRequest,
         reason: str,
         auth_type: str,
+        action_taken: str = "blocked",
         **metadata: Any,
     ) -> None:
         from guard_core.sync.core.events.event_types import EVENT_AUTHENTICATION_FAILED
@@ -195,7 +197,7 @@ class BaseSecurityDecorator:
         self.send_decorator_event(
             event_type=EVENT_AUTHENTICATION_FAILED,
             request=request,
-            action_taken="blocked",
+            action_taken=action_taken,
             reason=reason,
             decorator_type="authentication",
             auth_type=auth_type,
@@ -207,6 +209,7 @@ class BaseSecurityDecorator:
         request: SyncGuardRequest,
         limit: int,
         window: int,
+        action_taken: str = "blocked",
         **metadata: Any,
     ) -> None:
         from guard_core.sync.core.events.event_types import EVENT_RATE_LIMITED
@@ -214,7 +217,7 @@ class BaseSecurityDecorator:
         self.send_decorator_event(
             event_type=EVENT_RATE_LIMITED,
             request=request,
-            action_taken="blocked",
+            action_taken=action_taken,
             reason=f"Rate limit exceeded: {limit} requests per {window}s",
             decorator_type="rate_limiting",
             limit=limit,

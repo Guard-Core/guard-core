@@ -47,6 +47,10 @@ def get_guard_decorator(middleware: Any, request: SyncGuardRequest) -> Any:
     )
 
 
+def _decorator_action_taken(passive_mode: bool) -> str:
+    return "logged_only" if passive_mode else "blocked"
+
+
 def emit_access_denied_event(
     middleware: Any,
     request: SyncGuardRequest,
@@ -60,7 +64,11 @@ def emit_access_denied_event(
     guard_decorator = get_guard_decorator(middleware, request)
     if guard_decorator is not None:
         guard_decorator.send_access_denied_event(
-            request, reason=reason, decorator_type=decorator_type, **metadata
+            request,
+            reason=reason,
+            decorator_type=decorator_type,
+            action_taken=_decorator_action_taken(passive_mode),
+            **metadata,
         )
         return
     middleware.event_bus.send_middleware_event(
@@ -86,7 +94,11 @@ def emit_authentication_failed_event(
     guard_decorator = get_guard_decorator(middleware, request)
     if guard_decorator is not None:
         guard_decorator.send_authentication_failed_event(
-            request, reason=reason, auth_type=auth_type, violation_type=violation_type
+            request,
+            reason=reason,
+            auth_type=auth_type,
+            action_taken=_decorator_action_taken(passive_mode),
+            violation_type=violation_type,
         )
         return
     middleware.event_bus.send_middleware_event(
@@ -112,7 +124,9 @@ def emit_rate_limit_event(
 ) -> None:
     guard_decorator = get_guard_decorator(middleware, request)
     if guard_decorator is not None:
-        guard_decorator.send_rate_limit_event(request, limit, window)
+        guard_decorator.send_rate_limit_event(
+            request, limit, window, action_taken=_decorator_action_taken(passive_mode)
+        )
         return
     middleware.event_bus.send_middleware_event(
         event_type=event_type,
