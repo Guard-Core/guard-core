@@ -14,6 +14,10 @@ from guard_core._utils.honeypot_fields import (
     multipart_has_filled_trap,
     query_has_filled_trap,
 )
+from guard_core.decorators._route_arguments import (
+    invalid_time_of_day,
+    unknown_time_zone,
+)
 from guard_core.decorators.base import BaseSecurityMixin, DecoratedFunction
 from guard_core.models import SecurityConfig
 from guard_core.protocols.request_protocol import GuardRequest
@@ -82,6 +86,17 @@ class AdvancedMixin(BaseSecurityMixin):
         self, start_time: str, end_time: str, timezone: str = "UTC"
     ) -> Callable[[Callable[..., Any]], DecoratedFunction]:
         def decorator(func: Callable[..., Any]) -> DecoratedFunction:
+            for name, value in (("start_time", start_time), ("end_time", end_time)):
+                if invalid_time_of_day(value):
+                    self._report_misconfiguration(
+                        f"@time_window {name} {value!r} is not a valid HH:MM "
+                        "time, so the window is evaluated on a broken value."
+                    )
+            if unknown_time_zone(timezone):
+                self._report_misconfiguration(
+                    f"@time_window timezone {timezone!r} is not a known IANA "
+                    "time zone, so the window silently falls back to UTC."
+                )
             route_config = self._ensure_route_config(func)
             route_config.time_restrictions = {
                 "start": start_time,

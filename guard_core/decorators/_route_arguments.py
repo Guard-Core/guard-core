@@ -1,4 +1,6 @@
+from datetime import datetime
 from ipaddress import ip_network
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from guard_core.models import VALID_CLOUD_PROVIDERS
 
@@ -19,3 +21,19 @@ def invalid_ip_entries(entries: list[str] | None) -> list[str]:
         except ValueError:
             invalid.append(entry)
     return invalid
+
+
+def invalid_time_of_day(value: str) -> bool:
+    try:
+        datetime.strptime(value, "%H:%M")
+    except ValueError:
+        return True
+    return False
+
+
+def unknown_time_zone(name: str) -> bool:
+    try:
+        ZoneInfo(name)
+    except (ZoneInfoNotFoundError, ValueError, OSError):
+        return True
+    return False
