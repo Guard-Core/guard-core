@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import socket
 import subprocess
 import time
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -67,17 +68,42 @@ def baseline_env() -> dict[str, str] | None:
     return {"GUARD_CORE_SPEC": baseline}
 
 
+_LOG_TIMESTAMP = re.compile(r"(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d+)Z")
+
+
 class LogReader:
     def __init__(self, service: str = APP_SERVICE) -> None:
         self._service = service
 
     def mark(self) -> str:
-        return datetime.now(timezone.utc).isoformat()
+        """Return a ``--since`` cutoff on the container's own clock.
+
+        The cutoff is one microsecond after the newest log line, so it never
+        compares the host wall clock with the Docker VM clock: those drift by
+        tens of milliseconds, which is enough to hide a line that the app logs
+        within a few milliseconds of the mark. An empty log gives an empty mark,
+        meaning "from the beginning".
+        """
+        result = _compose(
+            "logs",
+            "--no-color",
+            "--timestamps",
+            "--tail",
+            "1",
+            self._service,
+            check=False,
+        )
+        stamp = _LOG_TIMESTAMP.search(result.stdout)
+        if stamp is None:
+            return ""
+        newest = datetime.strptime(stamp.group(1)[:26], "%Y-%m-%dT%H:%M:%S.%f")
+        return (
+            newest.replace(tzinfo=timezone.utc) + timedelta(microseconds=1)
+        ).isoformat()
 
     def lines_since(self, mark: str, kind: str | None = None) -> list[str]:
-        result = _compose(
-            "logs", "--no-color", "--since", mark, self._service, check=False
-        )
+        since = ["--since", mark] if mark else []
+        result = _compose("logs", "--no-color", *since, self._service, check=False)
         lines = result.stdout.splitlines()
         if kind is None:
             return lines
