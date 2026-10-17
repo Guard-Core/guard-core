@@ -77,8 +77,20 @@ def path_matches_exclusions(
     )
 
 
+def _has_routing_anomaly_in_any_decoding(url_path: str) -> bool:
+    decoded: str | None = url_path
+    for _ in range(_MAX_DECODE_ROUNDS + 1):
+        if decoded is None or has_routing_anomaly(decoded):
+            return True
+        next_decoded = _decode_percent_once(decoded)
+        if next_decoded == decoded:
+            return False
+        decoded = next_decoded
+    return True
+
+
 def router_path_for_exclusion(url_path: str) -> str | None:
-    if has_routing_anomaly(url_path):
+    if _has_routing_anomaly_in_any_decoding(url_path):
         return None
     return url_path.rstrip("/") or "/"
 

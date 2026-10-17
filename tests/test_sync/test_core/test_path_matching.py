@@ -100,8 +100,19 @@ def test_path_is_excluded_percent_encoded_slash_traversal_escapes() -> None:
 
 
 def test_path_is_excluded_double_encoded_traversal_escapes() -> None:
-    arrives_after_one_server_decode = "/static/%2e%2e/secret"
-    assert path_is_excluded(arrives_after_one_server_decode, ["/static"]) is False
+    encoded_dotdot = _nested_percent_encode("..", 2)
+    url_path = f"/static/{encoded_dotdot}/secret"
+    assert path_is_excluded(url_path, ["/static"]) is False
+
+
+def test_path_is_excluded_nested_encoding_within_round_cap_stays_excluded() -> None:
+    encoded = _nested_percent_encode("js", 4)
+    assert path_is_excluded(f"/static/{encoded}/app.js", ["/static"]) is True
+
+
+def test_path_is_excluded_nested_encoding_beyond_round_cap_fails_closed() -> None:
+    encoded = _nested_percent_encode("js", 5)
+    assert path_is_excluded(f"/static/{encoded}/app.js", ["/static"]) is False
 
 
 def test_path_is_excluded_unicode_overlong_encoding_fails_closed() -> None:
@@ -198,16 +209,14 @@ def test_normalize_url_path_collapses_percent_encoded_semicolon_dot_segment(
 ) -> None:
     url_path = f"/static/..{encoded_semicolon}/etc/passwd"
     assert normalize_url_path(url_path) == "/etc/passwd"
-    assert (
-        path_is_excluded(url_path.replace(encoded_semicolon, ";"), ["/static"]) is False
-    )
+    assert path_is_excluded(url_path, ["/static"]) is False
 
 
 def test_normalize_url_path_collapses_double_encoded_semicolon_dot_segment() -> None:
     encoded = _nested_percent_encode("..;", 2)
     url_path = f"/static/{encoded}/etc/passwd"
     assert normalize_url_path(url_path) == "/etc/passwd"
-    assert path_is_excluded("/static/%2e%2e%3b/etc/passwd", ["/static"]) is False
+    assert path_is_excluded(url_path, ["/static"]) is False
 
 
 def test_normalize_url_path_collapses_backslash_delimited_dot_segment_params() -> None:
