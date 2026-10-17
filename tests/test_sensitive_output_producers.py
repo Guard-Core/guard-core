@@ -371,6 +371,11 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "startup advisory naming a config field or decorator "
         "argument and its configured value; startup only, no request in scope"
     ),
+    "core/checks/route_prefixes.py:_warn_once": (
+        "first-request advisory naming a configured exclude_paths entry or "
+        "endpoint_rate_limits key that matches no route; operator configuration "
+        "only, no request value is interpolated"
+    ),
     "_pydantic_plugin_mute.py:_mute_pydantic_plugin_instrumentation": (
         "line 46: warns once about pydantic-plugin instrumentation at import "
         "time; no request in scope"
