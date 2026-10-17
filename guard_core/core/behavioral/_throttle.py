@@ -79,16 +79,19 @@ class BehavioralThrottleMixin:
     context: BehavioralContext
     _global_rules_source: tuple[BehaviorRuleConfig, ...] | None
     _global_rules_cache: tuple[BehaviorRule, ...]
+    _global_throttle_cache: tuple[BehaviorRule, ...]
     _throttle_sampled: "OrderedDict[str, float]"
     _throttle_sample_lock: threading.Lock
     _throttle_refusals: "OrderedDict[str, int]"
     _throttle_count_lock: threading.Lock
     _report_decorator_violation: Callable[..., Awaitable[None]]
     _evaluate_global_usage_rule: Callable[..., Awaitable[None]]
+    _claims_recent_record: Callable[[GuardRequest], bool]
 
     def _init_throttle_state(self) -> None:
         self._global_rules_source = None
         self._global_rules_cache = ()
+        self._global_throttle_cache = ()
         self._throttle_sampled = OrderedDict()
         self._throttle_sample_lock = threading.Lock()
         self._throttle_refusals = OrderedDict()
@@ -98,8 +101,16 @@ class BehavioralThrottleMixin:
         configs = self.context.config.global_behavior_rules
         if configs is not self._global_rules_source:
             self._global_rules_cache = tuple(config_to_rule(cfg) for cfg in configs)
+            self._global_throttle_cache = tuple(
+                filter(is_throttle_rule, self._global_rules_cache)
+            )
             self._global_rules_source = configs
         return self._global_rules_cache
+
+    def _global_throttle_rules(self) -> tuple[BehaviorRule, ...]:
+        if self.context.config.global_behavior_rules is not self._global_rules_source:
+            self._global_rules()
+        return self._global_throttle_cache
 
     def _collect_correlated_categories(self, client_ip: str) -> list[str]:
         if self.context.middleware is None:
@@ -109,14 +120,10 @@ class BehavioralThrottleMixin:
         return sorted(cat for cat, n in ip_counts.items() if n > 0)
 
     def _throttle_checks(
-        self, client_ip: str, endpoint_id: str, route_rules: Sequence[BehaviorRule]
+        self, client_ip: str, endpoint_id: str, route_throttles: Sequence[BehaviorRule]
     ) -> list[ThrottleCheck]:
-        checks = [
-            _route_check(rule, endpoint_id)
-            for rule in route_rules
-            if is_throttle_rule(rule)
-        ]
-        global_throttles = [r for r in self._global_rules() if is_throttle_rule(r)]
+        checks = [_route_check(rule, endpoint_id) for rule in route_throttles]
+        global_throttles = self._global_throttle_rules()
         if global_throttles:
             correlated = self._collect_correlated_categories(client_ip)
             checks += [_global_check(rule, correlated) for rule in global_throttles]
@@ -136,15 +143,18 @@ class BehavioralThrottleMixin:
         request: GuardRequest,
         client_ip: str,
         endpoint_id: str,
-        route_rules: Sequence[BehaviorRule],
+        route_throttles: Sequence[BehaviorRule],
     ) -> GuardResponse | None:
-        checks = self._throttle_checks(client_ip, endpoint_id, route_rules)
-        if not checks:
-            return None
+        checks = self._throttle_checks(client_ip, endpoint_id, route_throttles)
         enforced = self._throttle_enforced()
         try:
             trips: list[ThrottleTrip] = await tracker.check_throttle(
-                client_ip, checks, time.time(), record_when_over=not enforced
+                client_ip,
+                checks,
+                time.time(),
+                record_when_over=not enforced,
+                record_recent=any(c.records for c in checks)
+                and self._claims_recent_record(request),
             )
         except GuardRedisError as error:
             return await self._throttle_check_failed(error)

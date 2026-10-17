@@ -51,17 +51,13 @@ class BehavioralProcessor(BehavioralThrottleMixin):
 
         endpoint_id = self.get_endpoint_id(request)
         route_rules = route_config.behavior_rules if route_config is not None else []
-        self._record_recent_request_once(
-            behavior_tracker,
-            request,
-            client_ip,
-            [*route_rules, *filter(is_throttle_rule, self._global_rules())],
-        )
-        self._evaluate_route_usage_rules(
+        route_throttles = self._evaluate_route_usage_rules(
             behavior_tracker, request, client_ip, endpoint_id, route_rules
         )
+        if not route_throttles and not self._global_throttle_rules():
+            return None
         return self._enforce_throttle(
-            behavior_tracker, request, client_ip, endpoint_id, route_rules
+            behavior_tracker, request, client_ip, endpoint_id, route_throttles
         )
 
     def _evaluate_route_usage_rules(
@@ -71,11 +67,14 @@ class BehavioralProcessor(BehavioralThrottleMixin):
         client_ip: str,
         endpoint_id: str,
         route_rules: Sequence[BehaviorRule],
-    ) -> None:
+    ) -> list[BehaviorRule]:
+        route_throttles: list[BehaviorRule] = []
         for rule in route_rules:
-            if rule.rule_type in ["usage", "frequency"] and not is_throttle_rule(rule):
+            if is_throttle_rule(rule):
+                route_throttles.append(rule)
+            elif rule.rule_type in ["usage", "frequency"]:
                 threshold_exceeded = behavior_tracker.track_endpoint_usage(
-                    endpoint_id, client_ip, rule
+                    endpoint_id, client_ip, rule, self._claims_recent_record(request)
                 )
                 if threshold_exceeded:
                     details = f"{rule.threshold} calls in {rule.window}s"
@@ -94,6 +93,7 @@ class BehavioralProcessor(BehavioralThrottleMixin):
                         endpoint_id,
                         f"Usage threshold exceeded: {details}",
                     )
+        return route_throttles
 
     def process_return_rules(
         self,
@@ -142,7 +142,6 @@ class BehavioralProcessor(BehavioralThrottleMixin):
 
         endpoint_id = self.get_endpoint_id(request)
         correlated_categories = self._collect_correlated_categories(client_ip)
-        self._record_recent_request_once(tracker, request, client_ip, rules)
 
         for rule in filter(_counts_in_response_phase, rules):
             if rule.rule_type == "return_pattern":
@@ -170,7 +169,9 @@ class BehavioralProcessor(BehavioralThrottleMixin):
         endpoint_id: str,
         rule: BehaviorRule,
     ) -> None:
-        if not tracker.track_endpoint_usage(global_scope_id(rule), client_ip, rule):
+        if not tracker.track_endpoint_usage(
+            global_scope_id(rule), client_ip, rule, self._claims_recent_record(request)
+        ):
             return
 
         details = f"{rule.threshold} calls in {rule.window}s"
@@ -235,19 +236,12 @@ class BehavioralProcessor(BehavioralThrottleMixin):
             f"Global return pattern threshold exceeded: {details}",
         )
 
-    def _record_recent_request_once(
-        self,
-        tracker: Any,
-        request: SyncGuardRequest,
-        client_ip: str,
-        rules: Sequence[BehaviorRule],
-    ) -> None:
-        if not any(rule.rule_type in ("usage", "frequency") for rule in rules):
-            return
+    def _claims_recent_record(self, request: SyncGuardRequest) -> bool:
+        # The first usage or frequency write of a request also records it as recent.
         if getattr(request.state, _RECENT_RECORDED_STATE_FLAG, False) is True:
-            return
+            return False
         setattr(request.state, _RECENT_RECORDED_STATE_FLAG, True)
-        tracker.record_recent_request(client_ip)
+        return True
 
     def _report_decorator_violation(
         self,

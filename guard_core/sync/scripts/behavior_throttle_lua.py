@@ -1,13 +1,20 @@
 BEHAVIOR_THROTTLE_SCRIPT = """
-local n = #KEYS / 2
+local n = math.floor(#KEYS / 2)
 local now = ARGV[1]
 local member = ARGV[2]
 local record_when_over = ARGV[3] == '1'
 local counts = {}
 local over = false
 
+if #KEYS > 2 * n then
+  local recent = KEYS[2 * n + 1]
+  redis.call('ZADD', recent, now, member)
+  redis.call('ZREMRANGEBYSCORE', recent, '-inf', '(' .. ARGV[4])
+  redis.call('EXPIRE', recent, ARGV[5])
+end
+
 for i = 1, n do
-  local base = 3 + (i - 1) * 4
+  local base = 5 + (i - 1) * 4
   redis.call('ZREMRANGEBYSCORE', KEYS[i], '-inf', '(' .. ARGV[base + 2])
   counts[i] = redis.call('ZCARD', KEYS[i])
   if counts[i] >= tonumber(ARGV[base + 4]) then
@@ -17,7 +24,7 @@ end
 
 if (not over) or record_when_over then
   for i = 1, n do
-    local base = 3 + (i - 1) * 4
+    local base = 5 + (i - 1) * 4
     if ARGV[base + 1] == '1' then
       redis.call('ZADD', KEYS[i], now, member)
       redis.call('EXPIRE', KEYS[i], ARGV[base + 3])
@@ -27,7 +34,7 @@ end
 
 local trips = {}
 for i = 1, n do
-  local base = 3 + (i - 1) * 4
+  local base = 5 + (i - 1) * 4
   local refuse_at = tonumber(ARGV[base + 4])
   if counts[i] >= refuse_at then
     local rank = counts[i] - refuse_at

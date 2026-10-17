@@ -20,3 +20,10 @@ def test_matched_rule_id_is_uuid5_of_the_rule_id_in_the_url_namespace() -> None:
     assert _ESCAPE_PRONE.matched_rule_id() == "424a3b2a-0758-5512-821f-c3f78eb8ea6a"
     usage = BehaviorRule("usage", threshold=5, window=3600)
     assert usage.matched_rule_id() == "151310c6-8783-51f6-ad36-6ac3790c5cfe"
+
+
+def test_discriminator_follows_a_changed_field() -> None:
+    rule = BehaviorRule("usage", threshold=5, window=3600, action="log")
+    assert rule.discriminator() == '["usage",null,3600,5,"log"]'
+    rule.threshold = 6
+    assert rule.discriminator() == '["usage",null,3600,6,"log"]'

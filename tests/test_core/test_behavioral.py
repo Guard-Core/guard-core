@@ -27,7 +27,6 @@ def mock_guard_decorator() -> Mock:
     decorator = Mock()
     decorator.behavior_tracker = Mock()
     decorator.behavior_tracker.track_endpoint_usage = AsyncMock(return_value=False)
-    decorator.behavior_tracker.record_recent_request = AsyncMock()
     decorator.behavior_tracker.track_return_pattern = AsyncMock(return_value=False)
     decorator.behavior_tracker.apply_action = AsyncMock()
     decorator.send_decorator_violation_event = AsyncMock()
@@ -108,9 +107,6 @@ async def test_process_usage_rules_threshold_exceeded(
     processor.context.guard_decorator.behavior_tracker.track_endpoint_usage = AsyncMock(
         return_value=True
     )
-    processor.context.guard_decorator.behavior_tracker.record_recent_request = (
-        AsyncMock()
-    )
 
     rule = BehaviorRule(rule_type="usage", threshold=5, window=60, action="ban")
     route_config = create_route_config_with_rules([rule])
@@ -135,7 +131,6 @@ async def test_process_usage_rules_threshold_exceeded_without_decorator_uses_eve
 ) -> None:
     owned_tracker = Mock()
     owned_tracker.track_endpoint_usage = AsyncMock(return_value=True)
-    owned_tracker.record_recent_request = AsyncMock()
     owned_tracker.apply_action = AsyncMock()
 
     context = BehavioralContext(
@@ -173,9 +168,6 @@ async def test_process_usage_rules_frequency_type(
 ) -> None:
     processor.context.guard_decorator.behavior_tracker.track_endpoint_usage = AsyncMock(
         return_value=True
-    )
-    processor.context.guard_decorator.behavior_tracker.record_recent_request = (
-        AsyncMock()
     )
 
     rule = BehaviorRule(rule_type="frequency", threshold=3, window=30, action="log")
@@ -425,12 +417,10 @@ async def test_process_usage_rules_uses_context_behavior_tracker_when_present(
 ) -> None:
     owned_tracker = Mock()
     owned_tracker.track_endpoint_usage = AsyncMock(return_value=False)
-    owned_tracker.record_recent_request = AsyncMock()
     owned_tracker.apply_action = AsyncMock()
 
     decorator_tracker = Mock()
     decorator_tracker.track_endpoint_usage = AsyncMock(return_value=False)
-    decorator_tracker.record_recent_request = AsyncMock()
     decorator = Mock()
     decorator.behavior_tracker = decorator_tracker
 
@@ -460,7 +450,6 @@ async def test_process_usage_rules_falls_back_to_decorator_tracker(
 ) -> None:
     decorator_tracker = Mock()
     decorator_tracker.track_endpoint_usage = AsyncMock(return_value=False)
-    decorator_tracker.record_recent_request = AsyncMock()
     decorator = Mock()
     decorator.behavior_tracker = decorator_tracker
 
@@ -510,7 +499,6 @@ async def test_process_usage_rules_uses_request_state_decorator_tracker(
 ) -> None:
     request_tracker = Mock()
     request_tracker.track_endpoint_usage = AsyncMock(return_value=False)
-    request_tracker.record_recent_request = AsyncMock()
     request_decorator = Mock()
     request_decorator.behavior_tracker = request_tracker
     mock_request.state.guard_decorator = request_decorator
