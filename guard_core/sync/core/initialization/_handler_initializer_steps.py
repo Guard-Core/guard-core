@@ -86,6 +86,27 @@ class _HandlerInitializerStepsMixin:
                     stacklevel=4,
                 )
 
+    def _report_country_decorators_without_geoip(self) -> None:
+        if self.guard_decorator is None:
+            return
+        route_configs = getattr(self.guard_decorator, "_route_configs", {})
+        for route_id, route_config in route_configs.items():
+            decorators = []
+            if self.geo_ip_handler is None and (
+                route_config.blocked_countries or route_config.whitelist_countries
+            ):
+                decorators.append("block_countries or allow_countries")
+            if self.config.geo_ip_handler is None and route_config.geo_rate_limits:
+                decorators.append("geo_rate_limit")
+            for decorator in decorators:
+                report_misconfiguration(
+                    self.config,
+                    f"Route {route_id!r} uses {decorator} but no GeoIP database "
+                    "is configured (geo_ip_handler is None; set ipinfo_token or "
+                    "geo_ip_handler), so the country rule is ignored.",
+                    stacklevel=4,
+                )
+
     def _warn_if_lazy_init_is_inert(self) -> None:
         if not (self.config.block_cloud_providers or self.geo_ip_handler is not None):
             return
@@ -164,6 +185,7 @@ class _HandlerInitializerStepsMixin:
 
     def initialize_redis_handlers(self) -> None:
         self._report_unreachable_ban_thresholds()
+        self._report_country_decorators_without_geoip()
         self._configure_detection()
 
         if not (self.config.enable_redis and self.redis_handler):
