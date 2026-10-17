@@ -254,11 +254,13 @@ class RouteConfig:
     _revision: RouteConfigRevision | None
     _initialized: bool
     _inherits_suspicious_detection: bool
+    _verifier_receives_whole_header: bool
 
     def __init__(self, revision: RouteConfigRevision | None = None) -> None:
         object.__setattr__(self, "_revision", revision)
         object.__setattr__(self, "_initialized", False)
         object.__setattr__(self, "_inherits_suspicious_detection", False)
+        object.__setattr__(self, "_verifier_receives_whole_header", False)
         self.rate_limit: int | None = None
         self.rate_limit_window: int | None = None
         self.ip_whitelist: list[str] | None = None

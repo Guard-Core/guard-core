@@ -16,6 +16,16 @@ def canonical_auth_scheme(scheme: str) -> str:
     return folded if folded in BUILT_IN_AUTH_SCHEMES else scheme
 
 
+def whole_header_verifier_note(declared: str, scheme: str) -> str:
+    return (
+        f"require_auth(type={declared!r}) uses the built-in {scheme!r} scheme, as "
+        "HTTP auth scheme names are case-insensitive, and its verifier still "
+        "receives the whole Authorization header, as in guard-core 4.4.0. "
+        "guard-core 5.0.0 passes the verifier only the credential, as for "
+        f"type={scheme!r}; use type={scheme!r} to get that now."
+    )
+
+
 def canonical_cloud_selector(selector: str) -> str | None:
     name, separator, region = selector.partition(":!")
     canonical = _CANONICAL_CLOUD_PROVIDERS.get(name.casefold())

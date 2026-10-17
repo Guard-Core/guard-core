@@ -91,7 +91,7 @@ Provides authentication and authorization decorators.
 **Available Decorators:**
 
 - `@guard_deco.require_https()` - Force HTTPS
-- `@guard_deco.require_auth(type="bearer")` - Require authentication. The built-in types `bearer` and `basic` match in any case (`"Basic"` and `"BEARER"` mean the built-in schemes, as HTTP auth scheme names are case-insensitive); any other type is kept as given. `require_authorization_header(scheme=...)` folds its scheme the same way.
+- `@guard_deco.require_auth(type="bearer")` - Require authentication. The built-in types `bearer` and `basic` match in any case (`"Basic"` and `"BEARER"` mean the built-in schemes, as HTTP auth scheme names are case-insensitive); any other type is kept as given. A capitalized built-in type gets the built-in prefix check, challenge and log redaction, but its verifier still receives the whole `Authorization` header, as in 4.4.0, and the decorator emits a `DeprecationWarning`: guard-core 5.0.0 passes it only the credential, as the lowercase types already do. `require_authorization_header(scheme=...)` folds its scheme the same way.
 - `@guard_deco.api_key_auth(header_name="X-API-Key")` - API key authentication
 - `@guard_deco.require_headers(headers={})` - Require specific headers
 

@@ -1,7 +1,11 @@
+import warnings
 from collections.abc import Callable
 from typing import Any
 
-from guard_core.decorators._route_arguments import canonical_auth_scheme
+from guard_core.decorators._route_arguments import (
+    canonical_auth_scheme,
+    whole_header_verifier_note,
+)
 from guard_core.decorators.base import (
     AuthVerifier,
     BaseSecurityMixin,
@@ -31,7 +35,15 @@ class AuthenticationMixin(BaseSecurityMixin):
                     " the latter is presence-only and mutually exclusive with"
                     " authenticated routes"
                 )
-            route_config.auth_required = canonical_auth_scheme(type)
+            scheme = canonical_auth_scheme(type)
+            if scheme != type:
+                warnings.warn(
+                    whole_header_verifier_note(type, scheme),
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
+            route_config.auth_required = scheme
+            route_config._verifier_receives_whole_header = scheme != type
             route_config.auth_verifier = verifier
             return self._apply_route_config(func)
 

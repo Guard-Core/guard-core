@@ -1,4 +1,5 @@
 import base64
+import contextlib
 import logging
 from typing import Any
 
@@ -11,6 +12,7 @@ from guard_core.sync.decorators._route_arguments import BUILT_IN_AUTH_SCHEMES
 from tests.test_sync.test_core.conftest import build_route_pipeline, send_request
 
 PASSWORD = "Sup3r-Secret-Pw"
+WHOLE_HEADER_NOTE = "its verifier still receives the whole Authorization header"
 BASIC_BLOB = base64.b64encode(f"alice:{PASSWORD}".encode()).decode()
 
 
@@ -45,9 +47,10 @@ def _route_config(make: Any) -> Any:
 def test_a_capitalized_basic_type_never_logs_the_decoded_password(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    pipeline, _, route_id = build_route_pipeline(
-        _config(), lambda d: d.require_auth("Basic", verifier=_decoding)
-    )
+    with pytest.warns(DeprecationWarning, match=WHOLE_HEADER_NOTE):
+        pipeline, _, route_id = build_route_pipeline(
+            _config(), lambda d: d.require_auth("Basic", verifier=_decoding)
+        )
 
     with caplog.at_level(logging.DEBUG):
         response = send_request(
@@ -71,9 +74,10 @@ def test_a_capitalized_basic_type_never_logs_the_decoded_password(
 def test_a_capitalized_basic_type_answers_the_basic_challenge(
     scheme: str, challenge: str
 ) -> None:
-    pipeline, _, route_id = build_route_pipeline(
-        _config(), lambda d: d.require_auth(scheme, verifier=_deny)
-    )
+    with pytest.warns(DeprecationWarning, match=WHOLE_HEADER_NOTE):
+        pipeline, _, route_id = build_route_pipeline(
+            _config(), lambda d: d.require_auth(scheme, verifier=_deny)
+        )
 
     response = send_request(pipeline, route_id, ip="203.0.113.161")
 
@@ -82,26 +86,59 @@ def test_a_capitalized_basic_type_answers_the_basic_challenge(
     assert response.headers["WWW-Authenticate"] == challenge
 
 
-def test_an_uppercase_bearer_type_hands_the_verifier_the_token_only() -> None:
+def _verifier_inputs(scheme: str, authorization: str) -> tuple[Any, list[str]]:
     received: list[str] = []
 
     def verifier(request: Any, credential: str) -> bool:
         received.append(credential)
         return True
 
-    pipeline, _, route_id = build_route_pipeline(
-        _config(), lambda d: d.require_auth("BEARER", verifier=verifier)
-    )
-
+    with (
+        pytest.warns(DeprecationWarning, match=WHOLE_HEADER_NOTE)
+        if scheme != scheme.lower()
+        else contextlib.nullcontext()
+    ):
+        pipeline, _, route_id = build_route_pipeline(
+            _config(), lambda d: d.require_auth(scheme, verifier=verifier)
+        )
     response = send_request(
         pipeline,
         route_id,
         ip="203.0.113.162",
-        headers={"authorization": "Bearer tok-1"},
+        headers={"authorization": authorization},
     )
+    return response, received
+
+
+def test_an_uppercase_bearer_type_keeps_the_whole_header_for_its_verifier() -> None:
+    response, received = _verifier_inputs("BEARER", "Bearer tok-1")
+
+    assert response is None
+    assert received == ["Bearer tok-1"]
+
+
+def test_a_lowercase_bearer_type_hands_the_verifier_the_token_only() -> None:
+    response, received = _verifier_inputs("bearer", "Bearer tok-1")
 
     assert response is None
     assert received == ["tok-1"]
+
+
+def test_a_capitalized_bearer_type_refuses_other_schemes_first() -> None:
+    response, received = _verifier_inputs("Bearer", "Token tok-1")
+
+    assert response is not None
+    assert response.status_code == 401
+    assert response.headers["WWW-Authenticate"] == "Bearer"
+    assert received == []
+
+
+def test_the_whole_header_note_points_at_the_decorated_route() -> None:
+    with pytest.warns(DeprecationWarning, match=WHOLE_HEADER_NOTE) as caught:
+        _route_config(lambda d: d.require_auth("Basic"))
+
+    assert caught[0].filename == __file__
+    assert "use type='basic'" in str(caught[0].message)
 
 
 @pytest.mark.parametrize(
@@ -132,10 +169,17 @@ def test_a_capitalized_presence_scheme_enforces_the_bearer_prefix(
     ],
 )
 def test_only_the_built_in_scheme_names_are_folded(given: str, stored: str) -> None:
-    auth = _route_config(lambda d: d.require_auth(given))
+    folded = given != stored
+    with (
+        pytest.warns(DeprecationWarning, match=WHOLE_HEADER_NOTE)
+        if folded
+        else contextlib.nullcontext()
+    ):
+        auth = _route_config(lambda d: d.require_auth(given))
     presence = _route_config(lambda d: d.require_authorization_header(given))
 
     assert auth.auth_required == stored
+    assert auth._verifier_receives_whole_header is folded
     assert presence.authorization_header_required == stored
 
 
