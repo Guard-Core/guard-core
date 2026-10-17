@@ -15,8 +15,6 @@ from guard_core.handlers.behavior_handler import BehaviorRule
 from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse
 
-_RECENT_RECORDED_STATE_FLAG = "guard_behavior_request_recorded"
-
 
 def _counts_in_response_phase(rule: BehaviorRule) -> bool:
     return rule.rule_type == "return_pattern" or not is_throttle_rule(rule)
@@ -69,12 +67,15 @@ class BehavioralProcessor(BehavioralThrottleMixin):
         route_rules: Sequence[BehaviorRule],
     ) -> list[BehaviorRule]:
         route_throttles: list[BehaviorRule] = []
+        unclaimed = True
         for rule in route_rules:
             if is_throttle_rule(rule):
                 route_throttles.append(rule)
             elif rule.rule_type in ["usage", "frequency"]:
+                record_recent = unclaimed and self._claims_recent_record(request)
+                unclaimed = False
                 threshold_exceeded = await behavior_tracker.track_endpoint_usage(
-                    endpoint_id, client_ip, rule, self._claims_recent_record(request)
+                    endpoint_id, client_ip, rule, record_recent
                 )
                 if threshold_exceeded:
                     details = f"{rule.threshold} calls in {rule.window}s"
@@ -102,32 +103,38 @@ class BehavioralProcessor(BehavioralThrottleMixin):
         client_ip: str,
         route_config: RouteConfig,
     ) -> None:
+        return_rules = [
+            rule
+            for rule in route_config.behavior_rules
+            if rule.rule_type == "return_pattern"
+        ]
+        if not return_rules:
+            return
         behavior_tracker = self._behavior_tracker(request)
         if behavior_tracker is None:
             return
 
         endpoint_id = self.get_endpoint_id(request)
-        for rule in route_config.behavior_rules:
-            if rule.rule_type == "return_pattern":
-                pattern_detected = await behavior_tracker.track_return_pattern(
-                    endpoint_id, client_ip, response, rule
+        for rule in return_rules:
+            pattern_detected = await behavior_tracker.track_return_pattern(
+                endpoint_id, client_ip, response, rule
+            )
+            if pattern_detected and not is_throttle_rule(rule):
+                details = f"{rule.threshold} for '{rule.pattern}' in {rule.window}s"
+                await self._report_decorator_violation(
+                    request,
+                    rule,
+                    endpoint_id,
+                    f"Return pattern threshold exceeded: {details}",
+                    "behavioral",
+                    pattern=rule.pattern,
                 )
-                if pattern_detected and not is_throttle_rule(rule):
-                    details = f"{rule.threshold} for '{rule.pattern}' in {rule.window}s"
-                    await self._report_decorator_violation(
-                        request,
-                        rule,
-                        endpoint_id,
-                        f"Return pattern threshold exceeded: {details}",
-                        "behavioral",
-                        pattern=rule.pattern,
-                    )
-                    await behavior_tracker.apply_action(
-                        rule,
-                        client_ip,
-                        endpoint_id,
-                        f"Return pattern threshold exceeded: {details}",
-                    )
+                await behavior_tracker.apply_action(
+                    rule,
+                    client_ip,
+                    endpoint_id,
+                    f"Return pattern threshold exceeded: {details}",
+                )
 
     async def process_global_rules(
         self,
@@ -238,9 +245,9 @@ class BehavioralProcessor(BehavioralThrottleMixin):
 
     def _claims_recent_record(self, request: GuardRequest) -> bool:
         # The first usage or frequency write of a request also records it as recent.
-        if getattr(request.state, _RECENT_RECORDED_STATE_FLAG, False) is True:
+        if getattr(request.state, "guard_behavior_request_recorded", False) is True:
             return False
-        setattr(request.state, _RECENT_RECORDED_STATE_FLAG, True)
+        request.state.guard_behavior_request_recorded = True
         return True
 
     async def _report_decorator_violation(
