@@ -272,6 +272,23 @@ def _check_ip_lists_detail(ip_addr: Any, ip: str, config: Any) -> IpAccessResult
     return None
 
 
+def _check_country_and_cloud_detail(
+    ip_addr: Any,
+    ip: str,
+    config: Any,
+    geo_ip_handler: SyncGeoIPHandler | None,
+    skip_countries: bool,
+    skip_clouds: bool,
+) -> IpAccessResult | None:
+    if not skip_countries:
+        country_result = _check_blocked_countries_detail(ip, config, geo_ip_handler)
+        if country_result is not None:
+            return country_result
+    if skip_clouds or _ip_in_list(ip_addr, ip, config.exempt_ips):
+        return None
+    return _check_cloud_providers_detail(ip, config)
+
+
 def check_ip_access(
     ip: str,
     config: Any,
@@ -298,16 +315,11 @@ def check_ip_access(
                 skip_countries = True
                 skip_clouds = True
 
-        if not skip_countries:
-            country_result = _check_blocked_countries_detail(ip, config, geo_ip_handler)
-            if country_result is not None:
-                return country_result
-
-        if not skip_clouds and not _ip_in_list(ip_addr, ip, config.exempt_ips):
-            cloud_result = _check_cloud_providers_detail(ip, config)
-            if cloud_result is not None:
-                return cloud_result
-
+        result = _check_country_and_cloud_detail(
+            ip_addr, ip, config, geo_ip_handler, skip_countries, skip_clouds
+        )
+        if result is not None:
+            return result
         return IpAccessResult(True, "")
     except ValueError:
         return IpAccessResult(False, _GENERIC_LIST_BLOCK_REASON.format(ip=ip))
