@@ -288,16 +288,26 @@ def _normalize_allowed_referrer_domain(entry: str) -> str:
     return normalized[:slash_index] if slash_index != -1 else normalized
 
 
+def _referrer_matches_allowed_entry(
+    host: str, netloc: str, normalized_allowed: str
+) -> bool:
+    subject = netloc if ":" in normalized_allowed else host
+    return subject == normalized_allowed or subject.endswith(f".{normalized_allowed}")
+
+
 def is_referrer_domain_allowed(referrer: str, allowed_domains: list[str]) -> bool:
     try:
-        referrer_domain = urlparse(referrer).netloc.lower()
-        for allowed_domain in allowed_domains:
-            normalized_allowed = _normalize_allowed_referrer_domain(allowed_domain)
-            if referrer_domain == normalized_allowed or referrer_domain.endswith(
-                f".{normalized_allowed}"
-            ):
-                return True
-        return False
+        parts = urlparse(referrer)
+        host = parts.hostname
+        if host is None or (parts.port or 0) < 0:
+            return False
+        netloc = parts.netloc.lower()
+        return any(
+            _referrer_matches_allowed_entry(
+                host, netloc, _normalize_allowed_referrer_domain(allowed)
+            )
+            for allowed in allowed_domains
+        )
     except Exception:
         return False
 
