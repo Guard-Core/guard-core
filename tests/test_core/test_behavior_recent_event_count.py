@@ -292,7 +292,7 @@ async def test_recent_count_refuses_a_window_beyond_300_seconds(
     if backend == "redis":
         tracker = BehaviorTracker(security_config_redis)
         await tracker.initialize_redis(redis_handler(security_config_redis))
-    with pytest.raises(ValueError, match="at most 300"):
+    with pytest.raises(ValueError, match=r"^window_seconds must be at most 300$"):
         await tracker.count_recent_rule_hits(_IP, 600)
 
 
