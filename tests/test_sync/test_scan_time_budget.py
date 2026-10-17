@@ -13,6 +13,7 @@ from guard_core.sync._utils.detection_scan import (
     _scan_time_budget_exhausted,
     _scan_value_budget,
 )
+from guard_core.sync.handlers import _suspatterns_regex
 from guard_core.sync.handlers.suspatterns_handler import (
     SusPatternsManager,
     sus_patterns_handler,
@@ -260,9 +261,12 @@ def test_inline_cpu_is_accounted_per_pass_not_per_pattern() -> None:
         calls["patterns"] += 1
         return real(*args, **kwargs)
 
+    # The 2 ms event-loop slice yields on wall time, and each yield reads the
+    # clock, so a loaded machine adds reads; switch slicing off to count passes only.
     with (
         patch.object(detection_scan, "_thread_cpu_seconds", counting_clock),
         patch.object(manager, "_check_regex_pattern", counting),
+        patch.object(_suspatterns_regex, "_EVENT_LOOP_SLICE_SECONDS", float("inf")),
         _scan_value_budget(512, max_scan_seconds=1000.0),
     ):
         manager.detect("hello world", "127.0.0.1", "query_param:q")
