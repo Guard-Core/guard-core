@@ -114,9 +114,6 @@ class BaseSecurityDecorator:
         route_id = self._get_route_id(func)
         if route_id not in self._route_configs:
             config = RouteConfig(self._route_config_revision)
-            config.enable_suspicious_detection = (
-                self.config.enable_penetration_detection
-            )
             self._route_configs[route_id] = config
             self._route_config_revision.bump()
         self._route_id_owner.setdefault(route_id, id(func))

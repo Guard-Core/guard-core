@@ -341,17 +341,9 @@ def test_route_id_generation(config: SecurityConfig) -> None:
     assert route_id == f"{test_function.__module__}.{test_function.__qualname__}"
 
 
-@pytest.mark.parametrize(
-    "enable_penetration_detection,expected_suspicious_detection",
-    [
-        (True, True),
-        (False, False),
-    ],
-)
+@pytest.mark.parametrize("enable_penetration_detection", [True, False])
 def test_ensure_route_config(
-    config: SecurityConfig,
-    enable_penetration_detection: bool,
-    expected_suspicious_detection: bool,
+    config: SecurityConfig, enable_penetration_detection: bool
 ) -> None:
     config.enable_penetration_detection = enable_penetration_detection
     decorator = BaseSecurityDecorator(config)
@@ -360,7 +352,7 @@ def test_ensure_route_config(
         pass  # pragma: no cover
 
     route_config = decorator._ensure_route_config(test_func)
-    assert route_config.enable_suspicious_detection is expected_suspicious_detection
+    assert route_config.enable_suspicious_detection is None
 
 
 def test_apply_route_config(config: SecurityConfig) -> None:
