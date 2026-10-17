@@ -127,6 +127,7 @@ async def test_a_typo_entry_warns_once_and_a_matched_or_default_entry_never(
     assert _warnings(caplog) == [
         "exclude_paths entry '/typo' matches no registered route; check it for a typo."
     ]
+    assert middleware.static_route_prefixes.call_count == 1
 
 
 async def test_no_warning_without_the_adapter_call_and_never_fatal(
@@ -157,3 +158,19 @@ def test_a_rebuilt_rate_limit_check_does_not_repeat_a_key_warning(
             assert RateLimitCheck(middleware).needs_route_identity is False
 
     assert len(_warnings(caplog)) == 1
+
+
+async def test_the_entries_are_examined_on_the_first_request_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "guard_core.core.checks.implementations.route_config.extract_client_ip",
+        AsyncMock(return_value="1.2.3.4"),
+    )
+    config = _config(exclude_paths=["/typo"])
+    middleware = _middleware(config, ["/health"])
+    await _first_requests(middleware, 1)
+    config.exclude_paths = ["/typo2", "/typo3"]
+    await _first_requests(middleware, 2)
+
+    assert middleware.static_route_prefixes.call_count == 1

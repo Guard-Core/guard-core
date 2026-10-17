@@ -15,6 +15,7 @@ _REGEX_META = frozenset("\\.[](){}*+?|$")
 _OPTIONAL_AFTER = frozenset("?*{")
 _TRAILING_ANCHOR = "$"
 _PARAM_MARKERS = re.compile(r"[{<]")
+_EXCLUDE_PATHS_EXAMINED = "exclude_paths examined"
 
 
 def template_route_prefix(template: str) -> str:
@@ -79,6 +80,10 @@ def warn_unmatched_endpoint_keys(middleware: Any, keys: Iterable[str]) -> None:
 
 
 def warn_unmatched_exclude_paths(middleware: Any, config: "SecurityConfig") -> None:
+    reported = _reported(middleware)
+    if _EXCLUDE_PATHS_EXAMINED in reported:
+        return
+    reported.add(_EXCLUDE_PATHS_EXAMINED)
     provider = getattr(middleware, "static_route_prefixes", None)
     if provider is None:
         return
