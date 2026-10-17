@@ -2,11 +2,6 @@ from datetime import datetime
 from ipaddress import ip_network
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from guard_core.models import VALID_CLOUD_PROVIDERS
-
-_CANONICAL_CLOUD_PROVIDERS = {name.casefold(): name for name in VALID_CLOUD_PROVIDERS}
-
-
 BUILT_IN_AUTH_SCHEMES = ("bearer", "basic")
 
 
@@ -24,12 +19,6 @@ def whole_header_verifier_note(declared: str, scheme: str) -> str:
         "guard-core 5.0.0 passes the verifier only the credential, as for "
         f"type={scheme!r}; use type={scheme!r} to get that now."
     )
-
-
-def canonical_cloud_selector(selector: str) -> str | None:
-    name, separator, region = selector.partition(":!")
-    canonical = _CANONICAL_CLOUD_PROVIDERS.get(name.casefold())
-    return None if canonical is None else f"{canonical}{separator}{region}"
 
 
 def invalid_ip_entries(entries: list[str] | None) -> list[str]:

@@ -2,10 +2,10 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
-from guard_core.decorators._route_arguments import (
-    canonical_cloud_selector,
-    invalid_ip_entries,
+from guard_core._security_config_field_validators import (
+    canonicalize_cloud_provider_selector,
 )
+from guard_core.decorators._route_arguments import invalid_ip_entries
 from guard_core.decorators.base import BaseSecurityMixin, DecoratedFunction
 from guard_core.models import VALID_BYPASS_CHECKS, VALID_CLOUD_PROVIDERS
 
@@ -71,12 +71,20 @@ class AccessControlMixin(BaseSecurityMixin):
             canonical = (
                 None
                 if providers is None
-                else {c for p in providers if (c := canonical_cloud_selector(p))}
+                else {
+                    c
+                    for p in providers
+                    if (c := canonicalize_cloud_provider_selector(p))
+                }
             )
             unknown = (
                 []
                 if providers is None
-                else sorted(p for p in providers if canonical_cloud_selector(p) is None)
+                else sorted(
+                    p
+                    for p in providers
+                    if canonicalize_cloud_provider_selector(p) is None
+                )
             )
             if unknown:
                 self._report_misconfiguration(
