@@ -3,7 +3,7 @@ import logging
 import threading
 import time
 import uuid
-from collections import defaultdict
+from collections import OrderedDict, defaultdict
 from collections.abc import Callable
 from typing import Any, Literal
 
@@ -19,6 +19,14 @@ from guard_core.sync.handlers._behavior_action_dispatch import (
 from guard_core.sync.handlers._behavior_response_pattern import (
     BehaviorResponsePatternMixin,
     _BoundedResponseBodyReader,
+)
+from guard_core.sync.handlers._behavior_throttle import (
+    RETURN_NAMESPACE,
+    USAGE_NAMESPACE,
+    BehaviorThrottleMixin,
+    bucket_key,
+    return_hits_key,
+    usage_hits_key,
 )
 from guard_core.sync.utils import _log_at_level, _safe_read
 
@@ -73,7 +81,9 @@ _MAX_TRACKED_ENDPOINTS = 10_000
 _MAX_TRACKED_CLIENTS_PER_ENDPOINT = 10_000
 
 
-class BehaviorTracker(BehaviorResponsePatternMixin, BehaviorActionDispatchMixin):
+class BehaviorTracker(
+    BehaviorResponsePatternMixin, BehaviorActionDispatchMixin, BehaviorThrottleMixin
+):
     def __init__(self, config: SecurityConfig):
         self.config = config
         self.logger = logging.getLogger("guard_core.sync.handlers.behavior")
@@ -90,6 +100,8 @@ class BehaviorTracker(BehaviorResponsePatternMixin, BehaviorActionDispatchMixin)
             maxsize=1000, ttl=300
         )
         self._lock = threading.Lock()
+        self._trip_markers: OrderedDict[str, float] = OrderedDict()
+        self._throttle_script_sha: str | None = None
 
     def initialize_redis(self, redis_handler: Any) -> None:
         self.redis_handler = redis_handler
@@ -146,30 +158,27 @@ class BehaviorTracker(BehaviorResponsePatternMixin, BehaviorActionDispatchMixin)
     ) -> bool:
         current_time = time.time()
         window_start = current_time - rule.window
-        discriminator = rule.discriminator()
 
         if self.redis_handler:
-            key = (
-                f"behavior:usage:{_hash_identity_segment(endpoint_id)}:"
-                f"{_hash_identity_segment(client_ip)}:"
-                f"{_hash_identity_segment(discriminator)}"
-            )
-
             valid_count: int = self.redis_handler.record_sliding_window_hit(
-                "behavior_usage", key, current_time, window_start, rule.window
+                USAGE_NAMESPACE,
+                usage_hits_key(endpoint_id, client_ip, rule),
+                current_time,
+                window_start,
+                rule.window,
             )
 
             return valid_count > rule.threshold
 
-        bucket_key = f"{discriminator}|{endpoint_id}"
+        usage_key = bucket_key(endpoint_id, rule)
         with self._lock:
             bucket = _lru_pop_or_create(
                 self.usage_counts,
-                bucket_key,
+                usage_key,
                 _MAX_TRACKED_ENDPOINTS,
                 lambda: defaultdict(list),
             )
-            self.usage_counts[bucket_key] = bucket
+            self.usage_counts[usage_key] = bucket
             timestamps = _lru_pop_or_create(
                 bucket, client_ip, _MAX_TRACKED_CLIENTS_PER_ENDPOINT, list
             )
@@ -204,19 +213,17 @@ class BehaviorTracker(BehaviorResponsePatternMixin, BehaviorActionDispatchMixin)
             return False
 
         if self.redis_handler:
-            key = (
-                f"behavior:return:{_hash_identity_segment(endpoint_id)}:"
-                f"{_hash_identity_segment(client_ip)}:"
-                f"{_hash_identity_segment(rule.discriminator())}"
-            )
-
             valid_count: int = self.redis_handler.record_sliding_window_hit(
-                "behavior_returns", key, current_time, window_start, rule.window
+                RETURN_NAMESPACE,
+                return_hits_key(endpoint_id, client_ip, rule),
+                current_time,
+                window_start,
+                rule.window,
             )
 
             return valid_count > threshold
 
-        pattern_key = f"{rule.discriminator()}|{endpoint_id}"
+        pattern_key = bucket_key(endpoint_id, rule)
         with self._lock:
             bucket = _lru_pop_or_create(
                 self.return_patterns,

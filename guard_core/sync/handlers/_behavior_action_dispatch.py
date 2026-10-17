@@ -18,11 +18,16 @@ class BehaviorActionDispatchMixin:
     logger: logging.Logger
     agent_handler: Any
 
-    def _log_passive_mode_action(
-        self, rule: "BehaviorRule", client_ip: str, details: str
-    ) -> None:
-        prefix = "[PASSIVE MODE] "
+    def _observe_only_log_prefix(self) -> str:
+        return "[PASSIVE MODE] " if self.config.passive_mode else ""
 
+    def _log_passive_mode_action(
+        self,
+        rule: "BehaviorRule",
+        client_ip: str,
+        details: str,
+        prefix: str = "[PASSIVE MODE] ",
+    ) -> None:
         if rule.action == "alert":
             self.logger.critical(f"{prefix}ALERT - Behavioral anomaly: {details}")
             return
@@ -121,11 +126,20 @@ class BehaviorActionDispatchMixin:
         return rule.action
 
     def apply_action(
-        self, rule: "BehaviorRule", client_ip: str, endpoint_id: str, details: str
+        self,
+        rule: "BehaviorRule",
+        client_ip: str,
+        endpoint_id: str,
+        details: str,
+        *,
+        observe_only: bool = False,
+        **event_metadata: Any,
     ) -> str:
-        if self.config.passive_mode:
+        if self.config.passive_mode or observe_only:
             action_taken = "logged_only"
-            self._log_passive_mode_action(rule, client_ip, details)
+            self._log_passive_mode_action(
+                rule, client_ip, details, self._observe_only_log_prefix()
+            )
         else:
             action_taken = self._execute_active_mode_action(
                 rule, client_ip, endpoint_id, details
@@ -143,6 +157,7 @@ class BehaviorActionDispatchMixin:
                 rule_type=rule.rule_type,
                 threshold=rule.threshold,
                 window=rule.window,
+                **event_metadata,
             )
         return action_taken
 

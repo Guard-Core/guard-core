@@ -1,7 +1,14 @@
+from collections.abc import Sequence
 from typing import Any
 
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.request_logging import redact_endpoint_for_display
+from guard_core.sync.core.behavioral._throttle import (
+    BehavioralThrottleMixin,
+    effective_return_threshold,
+    global_scope_id,
+    is_throttle_rule,
+)
 from guard_core.sync.core.behavioral.context import BehavioralContext
 from guard_core.sync.core.events.event_types import EVENT_DECORATOR_VIOLATION
 from guard_core.sync.decorators.base import RouteConfig
@@ -11,13 +18,14 @@ from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 _RECENT_RECORDED_STATE_FLAG = "guard_behavior_request_recorded"
 
 
-def _global_tracking_endpoint_id(rule: BehaviorRule) -> str:
-    return f"global|{rule.discriminator()}"
+def _counts_in_response_phase(rule: BehaviorRule) -> bool:
+    return rule.rule_type == "return_pattern" or not is_throttle_rule(rule)
 
 
-class BehavioralProcessor:
+class BehavioralProcessor(BehavioralThrottleMixin):
     def __init__(self, context: BehavioralContext) -> None:
         self.context = context
+        self._init_throttle_state()
 
     def _behavior_tracker(self, request: SyncGuardRequest) -> Any | None:
         if getattr(request.state, "guard_exclusion_scoped", False) is True:
@@ -32,18 +40,40 @@ class BehavioralProcessor:
         return None
 
     def process_usage_rules(
-        self, request: SyncGuardRequest, client_ip: str, route_config: RouteConfig
-    ) -> None:
+        self,
+        request: SyncGuardRequest,
+        client_ip: str,
+        route_config: RouteConfig | None = None,
+    ) -> GuardResponse | None:
         behavior_tracker = self._behavior_tracker(request)
         if behavior_tracker is None:
-            return
+            return None
 
         endpoint_id = self.get_endpoint_id(request)
+        route_rules = route_config.behavior_rules if route_config is not None else []
         self._record_recent_request_once(
-            behavior_tracker, request, client_ip, route_config.behavior_rules
+            behavior_tracker,
+            request,
+            client_ip,
+            [*route_rules, *filter(is_throttle_rule, self._global_rules())],
         )
-        for rule in route_config.behavior_rules:
-            if rule.rule_type in ["usage", "frequency"]:
+        self._evaluate_route_usage_rules(
+            behavior_tracker, request, client_ip, endpoint_id, route_rules
+        )
+        return self._enforce_throttle(
+            behavior_tracker, request, client_ip, endpoint_id, route_rules
+        )
+
+    def _evaluate_route_usage_rules(
+        self,
+        behavior_tracker: Any,
+        request: SyncGuardRequest,
+        client_ip: str,
+        endpoint_id: str,
+        route_rules: Sequence[BehaviorRule],
+    ) -> None:
+        for rule in route_rules:
+            if rule.rule_type in ["usage", "frequency"] and not is_throttle_rule(rule):
                 threshold_exceeded = behavior_tracker.track_endpoint_usage(
                     endpoint_id, client_ip, rule
                 )
@@ -82,7 +112,7 @@ class BehavioralProcessor:
                 pattern_detected = behavior_tracker.track_return_pattern(
                     endpoint_id, client_ip, response, rule
                 )
-                if pattern_detected:
+                if pattern_detected and not is_throttle_rule(rule):
                     details = f"{rule.threshold} for '{rule.pattern}' in {rule.window}s"
                     self._report_decorator_violation(
                         request,
@@ -104,7 +134,7 @@ class BehavioralProcessor:
         request: SyncGuardRequest,
         response: GuardResponse,
         client_ip: str,
-        rules: list[BehaviorRule],
+        rules: Sequence[BehaviorRule],
     ) -> None:
         tracker = self._behavior_tracker(request)
         if tracker is None:
@@ -114,7 +144,7 @@ class BehavioralProcessor:
         correlated_categories = self._collect_correlated_categories(client_ip)
         self._record_recent_request_once(tracker, request, client_ip, rules)
 
-        for rule in rules:
+        for rule in filter(_counts_in_response_phase, rules):
             if rule.rule_type == "return_pattern":
                 self._evaluate_global_return_rule(
                     tracker,
@@ -140,9 +170,7 @@ class BehavioralProcessor:
         endpoint_id: str,
         rule: BehaviorRule,
     ) -> None:
-        if not tracker.track_endpoint_usage(
-            _global_tracking_endpoint_id(rule), client_ip, rule
-        ):
+        if not tracker.track_endpoint_usage(global_scope_id(rule), client_ip, rule):
             return
 
         details = f"{rule.threshold} calls in {rule.window}s"
@@ -160,13 +188,6 @@ class BehavioralProcessor:
             f"Global usage threshold exceeded: {details}",
         )
 
-    def _collect_correlated_categories(self, client_ip: str) -> list[str]:
-        if self.context.middleware is None:
-            return []
-        counts = getattr(self.context.middleware, "suspicious_request_counts", {})
-        ip_counts = dict(counts.get(client_ip, {}))
-        return sorted(cat for cat, n in ip_counts.items() if n > 0)
-
     def _evaluate_global_return_rule(
         self,
         tracker: Any,
@@ -177,21 +198,18 @@ class BehavioralProcessor:
         rule: BehaviorRule,
         correlated_categories: list[str],
     ) -> None:
-        correlation_active = rule.correlate_with_detection and bool(
-            correlated_categories
-        )
-        effective_threshold = (
-            max(1, rule.threshold // 2) if correlation_active else rule.threshold
+        effective_threshold, correlation_active = effective_return_threshold(
+            rule, correlated_categories
         )
 
         pattern_detected = tracker.track_return_pattern(
-            _global_tracking_endpoint_id(rule),
+            global_scope_id(rule),
             client_ip,
             response,
             rule,
             effective_threshold=effective_threshold,
         )
-        if not pattern_detected:
+        if not pattern_detected or is_throttle_rule(rule):
             return
 
         details = (
@@ -222,7 +240,7 @@ class BehavioralProcessor:
         tracker: Any,
         request: SyncGuardRequest,
         client_ip: str,
-        rules: list[BehaviorRule],
+        rules: Sequence[BehaviorRule],
     ) -> None:
         if not any(rule.rule_type in ("usage", "frequency") for rule in rules):
             return
@@ -238,6 +256,7 @@ class BehavioralProcessor:
         endpoint_id: str,
         reason: str,
         decorator_type: str,
+        action_taken: str | None = None,
         **overrides: Any,
     ) -> None:
         fields: dict[str, Any] = {
@@ -250,17 +269,27 @@ class BehavioralProcessor:
         fields.update(overrides)
         guard_decorator = self.context.guard_decorator
         if decorator_type == "behavioral" and guard_decorator is not None:
-            guard_decorator.send_decorator_violation_event(
-                request,
-                violation_type=fields.pop("violation_type"),
+            if action_taken is None:
+                guard_decorator.send_decorator_violation_event(
+                    request,
+                    violation_type=fields.pop("violation_type"),
+                    reason=reason,
+                    **fields,
+                )
+                return
+            guard_decorator.send_decorator_event(
+                event_type=EVENT_DECORATOR_VIOLATION,
+                request=request,
+                action_taken=action_taken,
                 reason=reason,
+                decorator_type=fields.pop("violation_type"),
                 **fields,
             )
             return
         self.context.event_bus.send_middleware_event(
             event_type=EVENT_DECORATOR_VIOLATION,
             request=request,
-            action_taken="behavioral_action_triggered",
+            action_taken=action_taken or "behavioral_action_triggered",
             reason=reason,
             decorator_type=decorator_type,
             **fields,

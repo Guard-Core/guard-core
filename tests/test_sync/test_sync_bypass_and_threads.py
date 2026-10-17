@@ -6,15 +6,23 @@ from unittest.mock import MagicMock
 import pytest
 
 from guard_core.models import SecurityConfig
+from guard_core.scripts.behavior_throttle_lua import (
+    BEHAVIOR_THROTTLE_SCRIPT as TRACKER_THROTTLE_SCRIPT,
+)
 from guard_core.sync.core.bypass.context import BypassContext
 from guard_core.sync.core.bypass.handler import BypassHandler
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
+from guard_core.sync.scripts.behavior_throttle_lua import BEHAVIOR_THROTTLE_SCRIPT
 from guard_core.sync.scripts.rate_lua import RATE_LIMIT_SCRIPT
 
 
 def test_rate_lua_script_exists() -> None:
     assert isinstance(RATE_LIMIT_SCRIPT, str)
     assert "ZADD" in RATE_LIMIT_SCRIPT
+
+
+def test_generated_sync_throttle_script_matches_the_script_trackers_load() -> None:
+    assert BEHAVIOR_THROTTLE_SCRIPT == TRACKER_THROTTLE_SCRIPT
 
 
 def _make_bypass_handler() -> BypassHandler:

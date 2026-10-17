@@ -39,6 +39,7 @@ def behavioral_context(
     mock_event_bus: Mock, mock_guard_decorator: Mock
 ) -> BehavioralContext:
     config = Mock()
+    config.global_behavior_rules = ()
     config.log_sensitive_params = frozenset()
     config.log_sensitive_body_fields = frozenset()
     config.log_sensitive_headers = frozenset()
@@ -139,6 +140,7 @@ async def test_process_usage_rules_threshold_exceeded_without_decorator_uses_eve
 
     context = BehavioralContext(
         config=Mock(
+            global_behavior_rules=(),
             log_sensitive_params=frozenset(),
             log_sensitive_body_fields=frozenset(),
             log_sensitive_headers=frozenset(),
@@ -436,7 +438,7 @@ async def test_process_usage_rules_uses_context_behavior_tracker_when_present(
     event_bus.send_middleware_event = AsyncMock()
 
     context = BehavioralContext(
-        config=Mock(),
+        config=Mock(global_behavior_rules=()),
         logger=Mock(),
         event_bus=event_bus,
         guard_decorator=decorator,
@@ -466,7 +468,7 @@ async def test_process_usage_rules_falls_back_to_decorator_tracker(
     event_bus.send_middleware_event = AsyncMock()
 
     context = BehavioralContext(
-        config=Mock(),
+        config=Mock(global_behavior_rules=()),
         logger=Mock(),
         event_bus=event_bus,
         guard_decorator=decorator,
@@ -487,7 +489,7 @@ async def test_process_usage_rules_returns_when_no_tracker_anywhere(
     event_bus = Mock()
     event_bus.send_middleware_event = AsyncMock()
     context = BehavioralContext(
-        config=Mock(),
+        config=Mock(global_behavior_rules=()),
         logger=Mock(),
         event_bus=event_bus,
         guard_decorator=None,
@@ -514,7 +516,7 @@ async def test_process_usage_rules_uses_request_state_decorator_tracker(
     mock_request.state.guard_decorator = request_decorator
 
     context = BehavioralContext(
-        config=Mock(),
+        config=Mock(global_behavior_rules=()),
         logger=Mock(),
         event_bus=Mock(),
         guard_decorator=None,
@@ -546,7 +548,7 @@ async def test_process_return_rules_uses_context_behavior_tracker_when_present(
     event_bus.send_middleware_event = AsyncMock()
 
     context = BehavioralContext(
-        config=Mock(),
+        config=Mock(global_behavior_rules=()),
         logger=Mock(),
         event_bus=event_bus,
         guard_decorator=decorator,
@@ -578,7 +580,7 @@ async def test_process_return_rules_returns_when_no_tracker_anywhere(
     event_bus = Mock()
     event_bus.send_middleware_event = AsyncMock()
     context = BehavioralContext(
-        config=Mock(),
+        config=Mock(global_behavior_rules=()),
         logger=Mock(),
         event_bus=event_bus,
         guard_decorator=None,

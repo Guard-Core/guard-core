@@ -996,6 +996,19 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "caller-supplied label and error is the Redis client's own "
         "exception, never request content"
     ),
+    "handlers/_behavior_throttle.py:_warn_throttle_fail_open": (
+        "line 36: static warning about the in-memory throttle fallback, "
+        "no interpolation"
+    ),
+    "core/behavioral/_throttle.py:_warn_throttle_needs_middleware": (
+        "line 34: static warning that the adapter passes no middleware, "
+        "no interpolation"
+    ),
+    "core/behavioral/_throttle.py:BehavioralThrottleMixin._throttle_check_failed": (
+        "lines 178 and 183: the redacted text of the GuardRedisError the throttle "
+        "raises itself (a fixed message) and a static fail-secure line, never "
+        "request content"
+    ),
     "handlers/ratelimit_handler.py:_warn_redis_fail_open_in_memory_fallback": (
         "line 31: static warning about the in-memory fallback mode, no interpolation"
     ),
