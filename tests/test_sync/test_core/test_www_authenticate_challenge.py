@@ -19,6 +19,10 @@ def _deny(request: Any, credential: str) -> bool:
     return False
 
 
+def _allow(request: Any, credential: str) -> bool:
+    return True
+
+
 @pytest.mark.parametrize(
     ("make", "headers", "challenge"),
     [
@@ -35,6 +39,8 @@ def _deny(request: Any, credential: str) -> bool:
         ),
         (lambda d: d.api_key_auth("X-Key", verifier=_deny), {}, "ApiKey"),
         (lambda d: d.require_authorization_header("bearer"), {}, "Bearer"),
+        (lambda d: d.require_auth("token", verifier=_allow), {}, "Token"),
+        (lambda d: d.require_authorization_header("token"), {}, "Token"),
     ],
 )
 def test_a_401_carries_a_challenge_for_the_scheme_in_use(
@@ -46,6 +52,7 @@ def test_a_401_carries_a_challenge_for_the_scheme_in_use(
 
     assert response is not None
     assert response.status_code == 401
+    assert response.body == b"Authentication required"
     assert response.headers["WWW-Authenticate"] == challenge
 
 

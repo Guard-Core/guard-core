@@ -1,3 +1,4 @@
+import logging
 from typing import Any
 
 import pytest
@@ -74,15 +75,26 @@ SCENARIOS = [
 
 @pytest.mark.parametrize(("make", "headers", "expected"), SCENARIOS)
 async def test_the_failure_event_names_the_reason_the_type_and_the_violation(
-    make: Any, headers: dict[str, str], expected: tuple[str, str, str]
+    make: Any,
+    headers: dict[str, str],
+    expected: tuple[str, str, str],
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     reason, auth_type, violation_type = expected
     pipeline, middleware, route_id = build_route_pipeline(_config(), make)
     agent = _RecordingAgent()
     await middleware.guard_decorator.initialize_agent(agent)
 
-    await send_request(pipeline, route_id, ip="203.0.113.140", headers=headers)
+    with caplog.at_level(logging.WARNING):
+        await send_request(pipeline, route_id, ip="203.0.113.140", headers=headers)
 
+    suspicious = [
+        r.getMessage()
+        for r in caplog.records
+        if r.getMessage().startswith("Suspicious activity detected from 203.0.113.140")
+    ]
+    assert len(suspicious) == 1
+    assert f"Reason: Authentication failure: {reason} - Headers:" in suspicious[0]
     assert len(agent.events) == 1
     event = agent.events[0]
     assert event.reason == reason
@@ -169,3 +181,21 @@ async def test_a_literal_value_required_on_the_api_key_header_is_still_enforced(
     assert wrong is not None
     assert wrong.status_code == 400
     assert right is None
+
+
+async def test_headers_after_the_api_key_header_are_still_required() -> None:
+    pipeline, middleware, route_id = build_route_pipeline(
+        _config(),
+        lambda d: d.require_headers({"X-Tenant": "required"}),
+        lambda d: d.api_key_auth("X-Key", verifier=lambda r, k: True),
+    )
+    route_config = middleware.guard_decorator.get_route_config(route_id)
+    assert route_config is not None
+    assert list(route_config.required_headers) == ["X-Key", "X-Tenant"]
+
+    response = await send_request(
+        pipeline, route_id, ip="203.0.113.146", headers={"X-Key": "k"}
+    )
+
+    assert response is not None
+    assert response.status_code == 400

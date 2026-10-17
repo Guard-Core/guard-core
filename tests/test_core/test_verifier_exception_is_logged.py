@@ -1,5 +1,6 @@
 import base64
 import logging
+import traceback
 from typing import Any
 
 import pytest
@@ -185,11 +186,16 @@ def test_an_empty_credential_redacts_nothing() -> None:
         _describe_verifier_error,
     )
 
-    description = _describe_verifier_error(ValueError("kept intact"), "", "basic")
+    try:
+        raise ValueError("kept intact")
+    except ValueError as raised:
+        error = raised
 
-    assert description.splitlines()[0] == "Authentication verifier raised ValueError"
-    assert "ValueError: kept intact" in description
-    assert "[REDACTED]" not in description
+    description = _describe_verifier_error(error, "", "basic")
+
+    assert description == "Authentication verifier raised ValueError\n" + "".join(
+        traceback.format_exception(error)
+    )
 
 
 _BASIC_PASSWORD = "Sup3r-Secret-Pw"
@@ -236,6 +242,7 @@ def _basic(user_pass: bytes) -> str:
     [
         (_basic(b"alice:pw-1"), "rejected alice:pw-1", "rejected [REDACTED]"),
         (_basic(b"alice:pw-1"), "rejected pw-1", "rejected [REDACTED]"),
+        (_basic(b"alice:pw-1"), f"bad {_basic(b'alice:pw-1')}", "bad [REDACTED]"),
         (_basic(b"alice:"), "kept intact", "kept intact"),
         (_basic(b"alice:\xff"), "kept intact", "kept intact"),
         ("not-base64!", "bad not-base64!", "bad [REDACTED]"),
