@@ -822,7 +822,7 @@ def test_apply_action_ban_refused_does_not_log_success(
         mock_logger.assert_not_called()
 
 
-def test_apply_action_ban_refused_returns_tracked(
+def test_apply_action_ban_refused_reports_tracked_in_event(
     security_config: SecurityConfig,
 ) -> None:
     tracker = BehaviorTracker(security_config)
@@ -834,15 +834,14 @@ def test_apply_action_ban_refused_returns_tracked(
     ) as mock_ban_manager:
         mock_ban_manager.ban_ip = MagicMock(return_value=False)
 
-        action_taken = tracker.apply_action(
-            rule, "192.168.1.1", "/api/test", "Test violation"
-        )
+        tracker.apply_action(rule, "192.168.1.1", "/api/test", "Test violation")
 
-    assert action_taken == "tracked"
-    tracker.agent_handler.send_event.assert_not_called()
+    tracker.agent_handler.send_event.assert_called_once()
+    sent_event = tracker.agent_handler.send_event.call_args[0][0]
+    assert sent_event.action_taken == "tracked"
 
 
-def test_apply_action_ban_applied_returns_ban(
+def test_apply_action_ban_applied_reports_ban_in_event(
     security_config: SecurityConfig,
 ) -> None:
     tracker = BehaviorTracker(security_config)
@@ -854,12 +853,11 @@ def test_apply_action_ban_applied_returns_ban(
     ) as mock_ban_manager:
         mock_ban_manager.ban_ip = MagicMock(return_value=True)
 
-        action_taken = tracker.apply_action(
-            rule, "192.168.1.1", "/api/test", "Test violation"
-        )
+        tracker.apply_action(rule, "192.168.1.1", "/api/test", "Test violation")
 
-    assert action_taken == "ban"
-    tracker.agent_handler.send_event.assert_not_called()
+    tracker.agent_handler.send_event.assert_called_once()
+    sent_event = tracker.agent_handler.send_event.call_args[0][0]
+    assert sent_event.action_taken == "ban"
 
 
 def test_apply_action_log_silenced_when_log_suspicious_level_none(

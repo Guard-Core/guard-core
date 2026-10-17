@@ -81,6 +81,7 @@ async def test_build_enricher_stores_owned_tracker_on_initializer() -> None:
         rate_limit_handler=None,
         guard_decorator=None,
     )
-    assert init.behavior_tracker is None
+    standalone_tracker = init.behavior_tracker
+    assert isinstance(standalone_tracker, BehaviorTracker)
     init.build_enricher()
-    assert isinstance(init.behavior_tracker, BehaviorTracker)
+    assert init.behavior_tracker is standalone_tracker

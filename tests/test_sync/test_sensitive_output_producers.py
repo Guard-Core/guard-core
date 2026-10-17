@@ -189,7 +189,7 @@ COVERED_PRODUCERS: dict[str, frozenset[str]] = {
         {"blacklist_hit", "banned_ip"}
     ),
     "_utils/request_logging.py:log_activity": frozenset({_DETECTION_MATRIX_SCENARIO}),
-    "core/behavioral/processor.py:BehavioralProcessor._report_violation": (
+    "core/behavioral/processor.py:BehavioralProcessor._report_decorator_violation": (
         frozenset(
             {"behavior_usage_frequency_endpoint", "behavior_return_pattern_body_scan"}
         )
@@ -309,6 +309,10 @@ COVERED_PRODUCERS: dict[str, frozenset[str]] = {
     ),
     "handlers/_behavior_action_dispatch.py:"
     "BehaviorActionDispatchMixin._execute_ban_action": frozenset(
+        {"behavior_usage_frequency_endpoint"}
+    ),
+    "handlers/_behavior_action_dispatch.py:"
+    "BehaviorActionDispatchMixin._send_behavior_event": frozenset(
         {"behavior_usage_frequency_endpoint"}
     ),
     "handlers/_behavior_response_pattern.py:"
@@ -1041,6 +1045,14 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
     "handlers/_suspatterns_registry.py:_SusPatternsRegistryMixin.initialize_redis": (
         "lines 69,74: Redis-backed pattern-registry initialization "
         "lifecycle log, not a request"
+    ),
+    "handlers/_behavior_action_dispatch.py:"
+    "BehaviorActionDispatchMixin._run_custom_action": (
+        "line 90: logs the exception raised by an operator-supplied "
+        "custom_action together with the client IP and the endpoint id "
+        "(the endpoint id is route-derived or redacted by "
+        "get_endpoint_id); the exception text comes from operator code, "
+        "not from the request"
     ),
     "handlers/suspatterns_handler.py:_warn_if_legacy_detection": (
         "line 344: logs the fixed _LEGACY_DETECTION_WARNING deprecation "

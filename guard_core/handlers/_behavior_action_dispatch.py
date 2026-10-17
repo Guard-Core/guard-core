@@ -1,5 +1,6 @@
 import logging
 from collections.abc import Awaitable, Callable
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from guard_core.models import SecurityConfig
@@ -9,9 +10,13 @@ if TYPE_CHECKING:
     from guard_core.handlers.behavior_handler import BehaviorRule
 
 
+_BEHAVIOR_HANDLER_NAME = "behavior"
+
+
 class BehaviorActionDispatchMixin:
     config: SecurityConfig
     logger: logging.Logger
+    agent_handler: Any
 
     def _log_passive_mode_action(
         self, rule: "BehaviorRule", client_ip: str, details: str
@@ -121,8 +126,54 @@ class BehaviorActionDispatchMixin:
         self, rule: "BehaviorRule", client_ip: str, endpoint_id: str, details: str
     ) -> str:
         if self.config.passive_mode:
+            action_taken = "logged_only"
             self._log_passive_mode_action(rule, client_ip, details)
-            return "logged_only"
-        return await self._execute_active_mode_action(
-            rule, client_ip, endpoint_id, details
-        )
+        else:
+            action_taken = await self._execute_active_mode_action(
+                rule, client_ip, endpoint_id, details
+            )
+
+        if self.agent_handler and self.config.agent_enable_events:
+            from guard_core.core.events.event_types import EVENT_BEHAVIOR_VIOLATION
+
+            await self._send_behavior_event(
+                event_type=EVENT_BEHAVIOR_VIOLATION,
+                ip_address=client_ip,
+                action_taken=action_taken,
+                reason=f"Behavioral rule violated: {details}",
+                endpoint=endpoint_id,
+                rule_type=rule.rule_type,
+                threshold=rule.threshold,
+                window=rule.window,
+            )
+        return action_taken
+
+    async def _send_behavior_event(
+        self,
+        event_type: str,
+        ip_address: str,
+        action_taken: str,
+        reason: str,
+        **kwargs: Any,
+    ) -> None:
+        if not self.agent_handler:
+            return
+
+        try:
+            from guard_core._pydantic_plugin_mute import get_telemetry_model
+
+            SecurityEvent = get_telemetry_model("SecurityEvent")
+
+            event = SecurityEvent(
+                timestamp=datetime.now(timezone.utc),
+                event_type=event_type,
+                ip_address=ip_address,
+                action_taken=action_taken,
+                reason=reason,
+                rule_type=kwargs.get("rule_type"),
+                handler_name=_BEHAVIOR_HANDLER_NAME,
+                metadata=kwargs,
+            )
+            await self.agent_handler.send_event(event)
+        except Exception as e:
+            self.logger.error(f"Failed to send behavior event to agent: {e}")

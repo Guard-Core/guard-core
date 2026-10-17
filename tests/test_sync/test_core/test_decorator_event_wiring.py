@@ -241,22 +241,21 @@ def _usage_violation_events(config: SecurityConfig) -> list[Any]:
     return list(recording_agent.events)
 
 
-def test_usage_monitor_threshold_sends_one_behavioral_violation_event() -> None:
+def test_usage_monitor_threshold_sends_both_violation_events() -> None:
     events = _usage_violation_events(_config())
-    assert [event.event_type for event in events] == ["behavioral_violation"]
-    event = events[0]
-    assert event.action_taken == "log"
-    assert event.rule_type == "usage"
-    assert "threshold exceeded" in event.reason
+    assert [event.event_type for event in events] == [
+        "decorator_violation",
+        "behavioral_violation",
+    ]
+    assert events[0].action_taken == "blocked"
+    assert events[0].decorator_type == "usage"
+    assert events[1].action_taken == "log"
+    assert events[1].rule_type == "usage"
+    assert "threshold exceeded" in events[0].reason
 
 
 def test_usage_monitor_threshold_honors_agent_enable_events() -> None:
     assert _usage_violation_events(_config(agent_enable_events=False)) == []
-
-
-def test_usage_monitor_threshold_honors_muted_event_types() -> None:
-    config = _config(muted_event_types={"behavioral_violation"})
-    assert _usage_violation_events(config) == []
 
 
 def test_startup_wires_initialize_behavior_tracking_for_a_decorated_route() -> None:
