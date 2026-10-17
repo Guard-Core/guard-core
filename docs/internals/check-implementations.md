@@ -209,7 +209,7 @@ ___
 
 **Blocks when**: A header in `RouteConfig.required_headers` is missing from the request, or, when the configured value is not the sentinel `"required"`, present but not equal to that value.
 
-**Response**: `400 Bad request`. The body never names the header or says whether a value was close; the specific reason (`Missing required header: {name}` or `Header 'X' does not match the required value`) goes to the log line and the event only. A configured value is compared with `hmac.compare_digest`. `api_key_auth` does not register its header here: the authentication check answers a missing key with 401.
+**Response**: `400 Bad request`. The body never names the header or says whether a value was close; the specific reason (`Missing required header: {name}` or `Header 'X' does not match the required value`) goes to the log line and the event only. A configured value is compared with `hmac.compare_digest`. `api_key_auth` registers its header here as `"required"` (presence only); this check leaves that entry to the authentication check, which answers a missing key with 401. A literal value set for the same header is still enforced here.
 
 !!! warning "Breaking Change"
     Before this fix, a configured value other than `"required"` was never enforced -- the check was a silent no-op for it, and neither a missing header nor a mismatched value blocked the request. A route relying on that no-op now has the value enforced.
@@ -221,12 +221,12 @@ ___
 
 **Purpose**: Validates every credential the route configures: the `Authorization` header for `require_auth` and the API key header for `api_key_auth`, each by its own verifier.
 
-**Blocks when**: a configured credential is missing, empty, in the wrong format (`"bearer"` expects `Bearer ...`, `"basic"` expects `Basic ...`, the scheme name is case-insensitive) or rejected by its verifier. A route that stacks `require_auth` and `api_key_auth` needs both to pass. A verifier that raises is logged at ERROR with its exception and still gives a 401.
+**Blocks when**: `RouteConfig.auth_required` or `RouteConfig.api_key_required` is set and a configured credential is missing, empty, in the wrong format (`"bearer"` expects `Bearer ...`, `"basic"` expects `Basic ...`, the scheme name is case-insensitive) or rejected by its verifier. A route that stacks `require_auth` and `api_key_auth` needs both to pass. A verifier that raises is logged at ERROR with its exception type and its traceback, with the credential (and for `basic` the decoded `user:password` and password) replaced by `[REDACTED]`, and the response is `503 Authentication service unavailable` without a challenge; it never counts toward a ban.
 
 **Response**: `401 Authentication required` with a `WWW-Authenticate` challenge: `Bearer`, `Basic realm="Restricted"` or `ApiKey`.
 
-!!! note "Token Validation Not Included"
-    This check only validates the header format, not the token itself. Actual token validation should be done in a custom validator or application logic.
+!!! note "Token validation is the verifier's job"
+    `require_auth` and `api_key_auth` run the route's `verifier=` (or `SecurityConfig.auth_verifier`) on the credential; without one, every request on the route gets 401. `require_authorization_header` checks presence and format only and does not authenticate.
 
 ___
 
