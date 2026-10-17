@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Callable
 from typing import (
     Any,
@@ -78,7 +79,12 @@ class BaseSecurityDecorator:
         self.geo_ip_handler: Any = None
 
     def _report_misconfiguration(self, problem: str) -> None:
-        report_misconfiguration(self.config, problem, stacklevel=4)
+        report_misconfiguration(
+            self.config,
+            problem,
+            logger=logging.getLogger("guard_core.sync.decorators"),
+            stacklevel=4,
+        )
 
     @property
     def route_config_revision(self) -> int:

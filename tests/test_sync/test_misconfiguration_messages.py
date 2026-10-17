@@ -164,17 +164,22 @@ DECORATOR_PROBLEMS: list[tuple[Callable[[SecurityDecorator], Any], str]] = [
 
 @pytest.mark.parametrize(("make", "problem"), DECORATOR_PROBLEMS)
 def test_decorator_misconfiguration_text_and_location(
-    make: Callable[[SecurityDecorator], Any], problem: str
+    make: Callable[[SecurityDecorator], Any],
+    problem: str,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     decorator = SecurityDecorator(SecurityConfig(enable_redis=False))
 
     def route() -> None:
         pass
 
-    with warnings.catch_warnings(record=True) as caught:
+    with caplog.at_level("WARNING"), warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         make(decorator)(route)
 
+    assert [r.name for r in caplog.records if problem in r.getMessage()] == [
+        "guard_core.sync.decorators"
+    ]
     assert len(caught) == 1
     assert str(caught[0].message) == f"{problem} {NOT_SET}"
     assert caught[0].filename == __file__
@@ -196,7 +201,9 @@ def test_decorator_misconfiguration_text_and_location(
     ],
 )
 def test_startup_report_text_and_location_for_country_decorators(
-    make: Callable[[SecurityDecorator], Any], decorator_text: str
+    make: Callable[[SecurityDecorator], Any],
+    decorator_text: str,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     config = SecurityConfig(enable_redis=False)
     decorator = SecurityDecorator(config)
@@ -207,7 +214,7 @@ def test_startup_report_text_and_location_for_country_decorators(
     decorated = make(decorator)(country_route)
     initializer = HandlerInitializer(config, guard_decorator=decorator)
 
-    with warnings.catch_warnings(record=True) as caught:
+    with caplog.at_level("WARNING"), warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         initializer.initialize_redis_handlers()
 
@@ -216,17 +223,22 @@ def test_startup_report_text_and_location_for_country_decorators(
         "database is configured (geo_ip_handler is None; set ipinfo_token or "
         "geo_ip_handler), so the country rule is ignored."
     )
+    assert [r.name for r in caplog.records if problem in r.getMessage()] == [
+        "guard_core.sync.core.initialization"
+    ]
     assert len(caught) == 1
     assert str(caught[0].message) == f"{problem} {NOT_SET}"
     assert caught[0].filename == __file__
 
 
-def test_startup_report_text_and_location_for_an_unreachable_ban_threshold() -> None:
+def test_startup_report_text_and_location_for_an_unreachable_ban_threshold(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     config = SecurityConfig(
         enable_redis=False, enable_penetration_detection=False, auto_ban_threshold=10001
     )
 
-    with warnings.catch_warnings(record=True) as caught:
+    with caplog.at_level("WARNING"), warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         HandlerInitializer(config).initialize_redis_handlers()
 
@@ -234,6 +246,9 @@ def test_startup_report_text_and_location_for_an_unreachable_ban_threshold() -> 
         "auto_ban_threshold is 10001, above the 10,000 events retained per "
         "category, so this ban threshold can never fire. Lower it to at most 10,000."
     )
+    assert [r.name for r in caplog.records if problem in r.getMessage()] == [
+        "guard_core.sync.core.initialization"
+    ]
     assert len(caught) == 1
     assert str(caught[0].message) == f"{problem} {NOT_SET}"
     assert caught[0].filename == __file__

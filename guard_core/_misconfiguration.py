@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from guard_core.models import SecurityConfig
 
-logger = logging.getLogger("guard_core.models")
+config_logger = logging.getLogger("guard_core.models")
 
 FLAG_NAME = "fail_on_misconfiguration"
 
@@ -22,7 +22,11 @@ _TRUE_NOTE = f"Set {FLAG_NAME}=False to start with it anyway."
 
 
 def report_misconfiguration(
-    config: "SecurityConfig", problem: str, *, stacklevel: int
+    config: "SecurityConfig",
+    problem: str,
+    *,
+    logger: logging.Logger,
+    stacklevel: int,
 ) -> None:
     if FLAG_NAME not in config.model_fields_set:
         message = f"{problem} {_NOT_SET_NOTE}"
@@ -83,4 +87,6 @@ def report_config_misconfigurations(
     config: "SecurityConfig", *, stacklevel: int
 ) -> None:
     for problem in config_misconfigurations(config):
-        report_misconfiguration(config, problem, stacklevel=stacklevel + 1)
+        report_misconfiguration(
+            config, problem, logger=config_logger, stacklevel=stacklevel + 1
+        )

@@ -83,6 +83,7 @@ class _HandlerInitializerStepsMixin:
                     f"{field} is {value}, above the {cap} events retained per "
                     f"category, so this ban threshold can never fire. Lower it "
                     f"to at most {cap}.",
+                    logger=self.logger,
                     stacklevel=4,
                 )
 
@@ -104,6 +105,7 @@ class _HandlerInitializerStepsMixin:
                     f"Route {route_id!r} uses {decorator} but no GeoIP database "
                     "is configured (geo_ip_handler is None; set ipinfo_token or "
                     "geo_ip_handler), so the country rule is ignored.",
+                    logger=self.logger,
                     stacklevel=4,
                 )
 
