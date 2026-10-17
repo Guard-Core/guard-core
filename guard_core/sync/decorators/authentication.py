@@ -1,6 +1,7 @@
 from collections.abc import Callable
 from typing import Any
 
+from guard_core.sync.decorators._route_arguments import canonical_auth_scheme
 from guard_core.sync.decorators.base import (
     AuthVerifier,
     BaseSecurityMixin,
@@ -30,7 +31,7 @@ class AuthenticationMixin(BaseSecurityMixin):
                     " the latter is presence-only and mutually exclusive with"
                     " authenticated routes"
                 )
-            route_config.auth_required = type
+            route_config.auth_required = canonical_auth_scheme(type)
             route_config.auth_verifier = verifier
             return self._apply_route_config(func)
 
@@ -69,7 +70,7 @@ class AuthenticationMixin(BaseSecurityMixin):
                     " require_auth or api_key_auth; it is presence-only and"
                     " mutually exclusive with authenticated routes"
                 )
-            route_config.authorization_header_required = scheme
+            route_config.authorization_header_required = canonical_auth_scheme(scheme)
             return self._apply_route_config(func)
 
         return decorator

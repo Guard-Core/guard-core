@@ -7,6 +7,15 @@ from guard_core.models import VALID_CLOUD_PROVIDERS
 _CANONICAL_CLOUD_PROVIDERS = {name.casefold(): name for name in VALID_CLOUD_PROVIDERS}
 
 
+BUILT_IN_AUTH_SCHEMES = ("bearer", "basic")
+
+
+def canonical_auth_scheme(scheme: str) -> str:
+    # RFC 9110 section 11.1: auth scheme names are case-insensitive.
+    folded = scheme.lower()
+    return folded if folded in BUILT_IN_AUTH_SCHEMES else scheme
+
+
 def canonical_cloud_selector(selector: str) -> str | None:
     name, separator, region = selector.partition(":!")
     canonical = _CANONICAL_CLOUD_PROVIDERS.get(name.casefold())
