@@ -33,6 +33,7 @@ SKIP_TESTS = {
     "test_dynamic_rule_user_agent_offloop.py",
     "test_dynamic_rule_atomic_swap.py",
     "test_dynamic_rule_swap_atomicity.py",
+    "test_redis_prefix_isolation.py",
     "test_module_imports_standalone.py",
     "test_suspatterns_handler_module_surface.py",
     "test_gc_per_test_opt_in.py",

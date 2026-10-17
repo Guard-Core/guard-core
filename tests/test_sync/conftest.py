@@ -1,6 +1,7 @@
 import logging
 import os
 import re
+import secrets
 import sys
 import uuid
 from collections.abc import Callable, Generator
@@ -53,7 +54,8 @@ _suspatterns_module._legacy_detection_warned = True
 
 IPINFO_TOKEN = os.getenv("IPINFO_TOKEN") or "test_token"
 REDIS_URL = os.getenv("REDIS_URL") or "redis://localhost:6379"
-REDIS_PREFIX = os.getenv("REDIS_PREFIX") or f"test:guard_core:{os.getpid()}:"
+_REDIS_PREFIX_BASE = os.getenv("REDIS_PREFIX") or "test:guard_core:"
+REDIS_PREFIX = f"{_REDIS_PREFIX_BASE}{os.getpid()}:{secrets.token_hex(4)}:"
 
 _TEST_AGENT_DIR = Path(__file__).parent / "test_agent"
 _TEST_SUS_PATTERNS_DIR = Path(__file__).parent / "test_sus_patterns"

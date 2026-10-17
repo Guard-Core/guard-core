@@ -38,7 +38,7 @@ async def _seed(redis: RedisManager) -> None:
         ("banned_networks", "198.51.0.0/16"),
         ("other_namespace", "198.51.100.7"),
     ):
-        await redis.set_key(namespace, member, expiry, ttl=600)
+        assert await redis.set_key(namespace, member, expiry, ttl=600) is True, member
 
 
 @pytest.mark.asyncio
@@ -166,7 +166,8 @@ async def test_unban_inside_deletes_redis_keys_in_batches_and_keeps_the_rest(
                     ex=600,
                 )
             pipe.set(f"{REDIS_PREFIX}banned_ips:10.10.0.1", expiry, ex=600)
-            await pipe.execute()
+            seeded = await pipe.execute()
+    assert seeded == [True] * 2101
 
     await ip_ban_manager.unban_inside(["10.9.0.0/20"])
 

@@ -38,7 +38,7 @@ def _seed(redis: RedisManager) -> None:
         ("banned_networks", "198.51.0.0/16"),
         ("other_namespace", "198.51.100.7"),
     ):
-        redis.set_key(namespace, member, expiry, ttl=600)
+        assert redis.set_key(namespace, member, expiry, ttl=600) is True, member
 
 
 def test_unban_inside_removes_only_covered_redis_keys(
@@ -158,7 +158,8 @@ def test_unban_inside_deletes_redis_keys_in_batches_and_keeps_the_rest(
                     ex=600,
                 )
             pipe.set(f"{REDIS_PREFIX}banned_ips:10.10.0.1", expiry, ex=600)
-            pipe.execute()
+            seeded = pipe.execute()
+    assert seeded == [True] * 2101
 
     ip_ban_manager.unban_inside(["10.9.0.0/20"])
 
