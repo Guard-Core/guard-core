@@ -54,7 +54,9 @@ def _request(
     **state: Any,
 ) -> Mock:
     request = Mock()
-    request.state = SimpleNamespace(client_ip=ip, route_config=route_config, **state)
+    request.state = SimpleNamespace(
+        client_ip=ip, route_config=route_config, guard_route_id="app.route", **state
+    )
     request.headers = {"User-Agent": user_agent}
     return request
 

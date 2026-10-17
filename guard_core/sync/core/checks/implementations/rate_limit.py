@@ -219,7 +219,7 @@ class RateLimitCheck(SecurityCheck):
                 "rate_limit": route_config.rate_limit,
                 "window": window,
             },
-            endpoint_path=request.url_path,
+            endpoint_path=request.state.guard_route_id,
         )
 
     def _check_geo_rate_limit(
@@ -258,7 +258,7 @@ class RateLimitCheck(SecurityCheck):
                 "rate_limit": rate_limit,
                 "window": window,
             },
-            endpoint_path=request.url_path,
+            endpoint_path=request.state.guard_route_id,
         )
 
     def _check_global_rate_limit(

@@ -44,6 +44,7 @@ def mock_request() -> Mock:
     request.state.route_config = None
     request.state.is_whitelisted = False
     request.url_path = "/api/test"
+    request.state.guard_route_id = "app.api.test"
     return request
 
 
@@ -199,7 +200,7 @@ async def test_check_geo_rate_limit_country_match(
         assert result == response
         mock_apply.assert_awaited_once()
         call_kwargs = mock_apply.call_args[1]
-        assert call_kwargs["endpoint_path"] == "/api/test"
+        assert call_kwargs["endpoint_path"] == "app.api.test"
 
 
 async def test_check_geo_rate_limit_wildcard_match(
@@ -226,7 +227,7 @@ async def test_check_geo_rate_limit_wildcard_match(
         call_args = mock_apply.call_args
         assert call_args[0][2] == 5
         assert call_args[0][3] == 30
-        assert call_args[1]["endpoint_path"] == "/api/test"
+        assert call_args[1]["endpoint_path"] == "app.api.test"
 
 
 async def test_check_geo_rate_limit_no_match(
@@ -447,7 +448,7 @@ async def test_route_rate_limit_passes_path(
             mock_request, "1.2.3.4", route_config
         )
         call_kwargs = mock_apply.call_args[1]
-        assert call_kwargs["endpoint_path"] == "/api/test"
+        assert call_kwargs["endpoint_path"] == "app.api.test"
 
 
 async def test_global_rate_limit_passes_its_own_config_and_no_endpoint_path(
