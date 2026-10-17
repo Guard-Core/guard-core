@@ -558,3 +558,41 @@ def test_initialize_twice_against_real_redis_does_not_warn(
 
     resource_warnings = [w for w in caught if issubclass(w.category, ResourceWarning)]
     assert resource_warnings == []
+
+
+def test_count_sliding_window_hits_counts_only_hits_inside_the_window(
+    security_config_redis: SecurityConfig,
+) -> None:
+    handler = redis_handler(security_config_redis)
+    handler.initialize()
+
+    key = f"count_window_{uuid.uuid4().hex}"
+    base = 2_000_000_300.0
+    for offset in (-200, -50, -10):
+        handler.record_sliding_window_hit(
+            "sliding_window_test", key, base + offset, base - 1000, 60
+        )
+
+    assert handler.count_sliding_window_hits("sliding_window_test", key, base - 60) == 2
+    assert (
+        handler.count_sliding_window_hits("sliding_window_test", "absent", base - 60)
+        == 0
+    )
+
+    handler.delete("sliding_window_test", key)
+    handler.close()
+
+
+def test_count_sliding_window_hits_is_zero_when_redis_is_disabled() -> None:
+    handler = redis_handler(SecurityConfig(enable_redis=False))
+
+    assert handler.count_sliding_window_hits("ns", "key", 0.0) == 0
+
+
+def test_count_sliding_window_hits_is_zero_when_the_operation_fails(
+    security_config_redis: SecurityConfig,
+) -> None:
+    handler = redis_handler(security_config_redis)
+
+    with patch.object(handler, "safe_operation", MagicMock(return_value=None)):
+        assert handler.count_sliding_window_hits("ns", "key", 0.0) == 0

@@ -55,6 +55,7 @@ from guard_core.core.events.event_types import (
     EVENT_SUSPICIOUS_REQUEST,
     EVENT_USER_AGENT_BLOCKED,
 )
+from guard_core.handlers.behavior_handler import RECENT_REQUEST_WINDOW_SECONDS
 
 if TYPE_CHECKING:
     from guard_core.models import SecurityConfig
@@ -105,7 +106,7 @@ _THREAT_SCORE_MAP: dict[str, int] = {
 }
 _DEFAULT_THREAT_SCORE = 20
 
-_BEHAVIOR_CORRELATION_WINDOW_SECONDS = 300
+_BEHAVIOR_CORRELATION_WINDOW_SECONDS = RECENT_REQUEST_WINDOW_SECONDS
 
 
 class ThreatScorer:
@@ -183,7 +184,7 @@ class EventEnricher:
         if not hasattr(tracker, "get_recent_event_count"):
             return
         window_seconds = _BEHAVIOR_CORRELATION_WINDOW_SECONDS
-        count = tracker.get_recent_event_count(ip, window_seconds)
+        count = await tracker.get_recent_event_count(ip, window_seconds)
         bag[ENRICHMENT_KEY_RECENT_EVENT_COUNT] = count
         bucket = int(time.time() // window_seconds)
         service = self._context.config.otel_service_name

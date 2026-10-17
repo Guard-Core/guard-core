@@ -11,9 +11,7 @@ from guard_core.models import SecurityConfig
 def _tracker_with_events(ip: str, count: int, offsets: list[float]) -> BehaviorTracker:
     tracker = BehaviorTracker(SecurityConfig())
     now = time.time()
-    for i in range(count):
-        endpoint = f"endpoint-{i % 2}"
-        tracker.usage_counts[endpoint][ip].append(now + offsets[i])
+    tracker.recent_requests[ip] = [now + offsets[i] for i in range(count)]
     return tracker
 
 
@@ -26,24 +24,24 @@ def _enricher(tracker: BehaviorTracker | None) -> EventEnricher:
     )
 
 
-def test_get_recent_event_count_returns_zero_for_empty_tracker() -> None:
+async def test_get_recent_event_count_returns_zero_for_empty_tracker() -> None:
     tracker = BehaviorTracker(SecurityConfig())
-    assert tracker.get_recent_event_count("1.2.3.4", 300) == 0
+    assert await tracker.get_recent_event_count("1.2.3.4", 300) == 0
 
 
-def test_get_recent_event_count_returns_zero_for_empty_ip() -> None:
+async def test_get_recent_event_count_returns_zero_for_empty_ip() -> None:
     tracker = BehaviorTracker(SecurityConfig())
-    assert tracker.get_recent_event_count("", 300) == 0
+    assert await tracker.get_recent_event_count("", 300) == 0
 
 
-def test_get_recent_event_count_sums_across_endpoints() -> None:
+async def test_get_recent_event_count_counts_recorded_requests() -> None:
     tracker = _tracker_with_events("1.2.3.4", 3, [-10, -20, -30])
-    assert tracker.get_recent_event_count("1.2.3.4", 300) == 3
+    assert await tracker.get_recent_event_count("1.2.3.4", 300) == 3
 
 
-def test_get_recent_event_count_excludes_timestamps_outside_window() -> None:
+async def test_get_recent_event_count_excludes_timestamps_outside_window() -> None:
     tracker = _tracker_with_events("1.2.3.4", 3, [-10, -600, -700])
-    assert tracker.get_recent_event_count("1.2.3.4", 300) == 1
+    assert await tracker.get_recent_event_count("1.2.3.4", 300) == 1
 
 
 @pytest.mark.asyncio

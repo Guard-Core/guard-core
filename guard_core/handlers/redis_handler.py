@@ -314,6 +314,19 @@ class RedisManager:
         result = await self.safe_operation(_record)
         return int(result) if result is not None else 0
 
+    async def count_sliding_window_hits(
+        self, namespace: str, key: str, window_start: float
+    ) -> int:
+        if not self.config.enable_redis:
+            return 0
+
+        async def _count(conn: Redis) -> int:
+            full_key = f"{self.config.redis_prefix}{namespace}:{key}"
+            return int(await conn.zcount(full_key, window_start, "+inf"))
+
+        result = await self.safe_operation(_count)
+        return int(result) if result is not None else 0
+
     async def exists(self, namespace: str, key: str) -> bool | None:
         if not self.config.enable_redis:
             return None

@@ -8,6 +8,8 @@ from guard_core.handlers.behavior_handler import BehaviorRule
 from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse
 
+_RECENT_RECORDED_STATE_FLAG = "guard_behavior_request_recorded"
+
 
 def _global_tracking_endpoint_id(rule: BehaviorRule) -> str:
     return f"global|{rule.discriminator()}"
@@ -37,6 +39,9 @@ class BehavioralProcessor:
             return
 
         endpoint_id = self.get_endpoint_id(request)
+        await self._record_recent_request_once(
+            behavior_tracker, request, client_ip, route_config.behavior_rules
+        )
         for rule in route_config.behavior_rules:
             if rule.rule_type in ["usage", "frequency"]:
                 threshold_exceeded = await behavior_tracker.track_endpoint_usage(
@@ -109,6 +114,7 @@ class BehavioralProcessor:
 
         endpoint_id = self.get_endpoint_id(request)
         correlated_categories = self._collect_correlated_categories(client_ip)
+        await self._record_recent_request_once(tracker, request, client_ip, rules)
 
         for rule in rules:
             if rule.rule_type == "return_pattern":
@@ -214,6 +220,20 @@ class BehavioralProcessor:
             correlation=correlation_active,
             correlated_categories=correlated_categories if correlation_active else [],
         )
+
+    async def _record_recent_request_once(
+        self,
+        tracker: Any,
+        request: GuardRequest,
+        client_ip: str,
+        rules: list[BehaviorRule],
+    ) -> None:
+        if not any(rule.rule_type in ("usage", "frequency") for rule in rules):
+            return
+        if getattr(request.state, _RECENT_RECORDED_STATE_FLAG, False) is True:
+            return
+        setattr(request.state, _RECENT_RECORDED_STATE_FLAG, True)
+        await tracker.record_recent_request(client_ip)
 
     async def _report_violation(
         self,
