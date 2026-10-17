@@ -114,6 +114,9 @@ class SecurityCheckPipeline:
                 extra=self._log_extra(check, request),
             )
 
+        if check.config.passive_mode:
+            return None
+
         if check.config.fail_secure:
             if not muted:
                 self.logger.warning(
