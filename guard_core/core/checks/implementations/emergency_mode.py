@@ -1,6 +1,9 @@
+import threading
+from collections import OrderedDict
 from collections.abc import Collection, Sequence
 from ipaddress import ip_address
 
+from guard_core._utils.sampling import observe_sampled_key
 from guard_core.core.checks.base import SecurityCheck
 from guard_core.core.events.event_types import EVENT_EMERGENCY_MODE_BLOCK
 from guard_core.decorators.base import RouteConfig
@@ -8,6 +11,22 @@ from guard_core.models import SecurityConfig
 from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.utils import _ip_in_list, extract_client_ip, log_activity
+
+EMERGENCY_RETRY_AFTER = 60
+_EMERGENCY_SAMPLE_WINDOW_SECONDS = 60
+_MAX_TRACKED_EMERGENCY_CLIENTS = 10_000
+_emergency_lock = threading.Lock()
+_emergency_samples: OrderedDict[str, float] = OrderedDict()
+
+
+def _sample_emergency_line(kind: str, client_ip: str) -> bool:
+    return observe_sampled_key(
+        _emergency_samples,
+        _emergency_lock,
+        f"{kind}|{client_ip}",
+        window=_EMERGENCY_SAMPLE_WINDOW_SECONDS,
+        max_tracked=_MAX_TRACKED_EMERGENCY_CLIENTS,
+    )
 
 
 class EmergencyModeCheck(SecurityCheck):
@@ -53,21 +72,30 @@ class EmergencyModeCheck(SecurityCheck):
         )
 
         if not is_whitelisted:
-            await log_activity(
-                request,
-                self.logger,
-                log_type="suspicious",
-                reason=f"[EMERGENCY MODE] Access denied for IP {client_ip}",
-                level=self.config.log_suspicious_level,
-                passive_mode=self.config.passive_mode,
-                check_name=self.check_name,
-                muted_check_logs=self.config.muted_check_logs,
-                on_block=self.config.on_block,
-                sensitive_headers=self.config.log_sensitive_headers,
-                sensitive_params=self.config.log_sensitive_params,
-                sensitive_body_fields=self.config.log_sensitive_body_fields,
-            )
+            return await self._deny(request, client_ip)
+        await self._log_allowed(request, client_ip)
+        return None
 
+    async def _deny(
+        self, request: GuardRequest, client_ip: str
+    ) -> GuardResponse | None:
+        sampled = _sample_emergency_line("block", client_ip)
+        await log_activity(
+            request,
+            self.logger,
+            log_type="suspicious",
+            reason=f"[EMERGENCY MODE] Access denied for IP {client_ip}",
+            level=self.config.log_suspicious_level if sampled else None,
+            passive_mode=self.config.passive_mode,
+            check_name=self.check_name,
+            muted_check_logs=self.config.muted_check_logs,
+            on_block=self.config.on_block,
+            sensitive_headers=self.config.log_sensitive_headers,
+            sensitive_params=self.config.log_sensitive_params,
+            sensitive_body_fields=self.config.log_sensitive_body_fields,
+        )
+
+        if sampled:
             await self.middleware.event_bus.send_middleware_event(
                 event_type=EVENT_EMERGENCY_MODE_BLOCK,
                 request=request,
@@ -79,25 +107,27 @@ class EmergencyModeCheck(SecurityCheck):
                 emergency_active=True,
             )
 
-            if not self.config.passive_mode:
-                return await self.middleware.create_error_response(
-                    status_code=503,
-                    default_message="Service temporarily unavailable",
-                )
-        else:
-            await log_activity(
-                request,
-                self.logger,
-                log_type="info",
-                reason=(
-                    f"[EMERGENCY MODE] Allowed access for whitelisted IP {client_ip}"
-                ),
-                level="INFO",
-                check_name=self.check_name,
-                muted_check_logs=self.config.muted_check_logs,
-                sensitive_headers=self.config.log_sensitive_headers,
-                sensitive_params=self.config.log_sensitive_params,
-                sensitive_body_fields=self.config.log_sensitive_body_fields,
-            )
+        if self.config.passive_mode:
+            return None
+        response: GuardResponse = await self.middleware.create_error_response(
+            status_code=503,
+            default_message="Service temporarily unavailable",
+        )
+        response.headers["Retry-After"] = str(EMERGENCY_RETRY_AFTER)
+        return response
 
-        return None
+    async def _log_allowed(self, request: GuardRequest, client_ip: str) -> None:
+        if not _sample_emergency_line("allow", client_ip):
+            return
+        await log_activity(
+            request,
+            self.logger,
+            log_type="info",
+            reason=f"[EMERGENCY MODE] Allowed access for whitelisted IP {client_ip}",
+            level="INFO",
+            check_name=self.check_name,
+            muted_check_logs=self.config.muted_check_logs,
+            sensitive_headers=self.config.log_sensitive_headers,
+            sensitive_params=self.config.log_sensitive_params,
+            sensitive_body_fields=self.config.log_sensitive_body_fields,
+        )

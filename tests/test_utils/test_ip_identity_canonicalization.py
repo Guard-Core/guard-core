@@ -43,7 +43,9 @@ def _build_mock_middleware(config: SecurityConfig) -> Mock:
     middleware.logger = Mock()
     middleware.event_bus = Mock()
     middleware.event_bus.send_middleware_event = AsyncMock()
-    middleware.create_error_response = AsyncMock(return_value=Mock(status_code=403))
+    middleware.create_error_response = AsyncMock(
+        return_value=Mock(status_code=403, headers={})
+    )
     middleware.route_resolver = Mock()
     middleware.route_resolver.should_bypass_check = Mock(return_value=False)
     middleware.geo_ip_handler = None

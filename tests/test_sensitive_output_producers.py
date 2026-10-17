@@ -220,9 +220,11 @@ COVERED_PRODUCERS: dict[str, frozenset[str]] = {
     ),
     "core/checks/implementations/custom_validators.py:"
     "CustomValidatorsCheck.check": frozenset({"custom_validator_echo"}),
-    "core/checks/implementations/emergency_mode.py:EmergencyModeCheck.check": (
-        frozenset({"emergency_mode_denied", "emergency_mode_whitelisted"})
+    "core/checks/implementations/emergency_mode.py:EmergencyModeCheck._deny": (
+        frozenset({"emergency_mode_denied"})
     ),
+    "core/checks/implementations/emergency_mode.py:"
+    "EmergencyModeCheck._log_allowed": frozenset({"emergency_mode_whitelisted"}),
     "core/checks/implementations/ip_security.py:IpSecurityCheck._check_banned_ip": (
         frozenset({"banned_ip"})
     ),

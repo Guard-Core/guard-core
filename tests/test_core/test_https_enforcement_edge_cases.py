@@ -207,7 +207,9 @@ async def test_emergency_mode_check_no_client_ip_extracts_unit() -> None:
     middleware.event_bus = Mock()
     middleware.event_bus.send_middleware_event = AsyncMock()
     middleware.agent_handler = None
-    middleware.create_error_response = AsyncMock(return_value=Mock(status_code=503))
+    middleware.create_error_response = AsyncMock(
+        return_value=Mock(status_code=503, headers={})
+    )
 
     check = EmergencyModeCheck(middleware)
 
