@@ -50,8 +50,9 @@ def test_exclude_paths_rejects_root_entry_alongside_valid_entries() -> None:
 
 
 def test_exclude_paths_accepts_literal_root_with_loud_warning() -> None:
-    with pytest.warns(UserWarning, match="excludes the entire application"):
-        config = SecurityConfig(exclude_paths=["/"])
+    with pytest.warns(DeprecationWarning, match="whole application"):
+        with pytest.warns(UserWarning, match="excludes the entire application"):
+            config = SecurityConfig(exclude_paths=["/"])
     assert config.exclude_paths == ["/"]
 
 
