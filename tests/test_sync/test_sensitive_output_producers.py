@@ -189,6 +189,9 @@ COVERED_PRODUCERS: dict[str, frozenset[str]] = {
         {"blacklist_hit", "banned_ip"}
     ),
     "_utils/request_logging.py:log_activity": frozenset({_DETECTION_MATRIX_SCENARIO}),
+    "core/behavioral/processor.py:BehavioralProcessor._evaluate_global_usage_rule": (
+        frozenset({"behavior_usage_frequency_endpoint"})
+    ),
     "core/behavioral/processor.py:BehavioralProcessor._evaluate_global_return_rule": (
         frozenset({"behavior_return_pattern_body_scan"})
     ),

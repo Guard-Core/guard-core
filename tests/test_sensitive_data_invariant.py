@@ -1529,6 +1529,17 @@ async def _run_behavior_usage_frequency_endpoint(
     assert await ip_ban_manager.is_ip_banned(client_ip), (
         "behavior_usage_frequency_endpoint scenario never exercised the ban action"
     )
+    global_events_before = len(_AGENT_RECORDER.events)
+    await processor.process_global_rules(
+        request,
+        MockGuardResponse("ok", 200),
+        client_ip,
+        route_config.behavior_rules,
+    )
+    assert len(_AGENT_RECORDER.events) > global_events_before, (
+        "behavior_usage_frequency_endpoint scenario never exercised "
+        "the global usage rules"
+    )
 
 
 async def _run_behavior_return_pattern_body_scan(

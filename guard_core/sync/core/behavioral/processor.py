@@ -131,7 +131,7 @@ class BehavioralProcessor:
                         f"Return pattern threshold exceeded: {details}",
                     )
 
-    def process_global_return_rules(
+    def process_global_rules(
         self,
         request: SyncGuardRequest,
         response: GuardResponse,
@@ -146,17 +146,55 @@ class BehavioralProcessor:
         correlated_categories = self._collect_correlated_categories(client_ip)
 
         for rule in rules:
-            if rule.rule_type != "return_pattern":
-                continue
-            self._evaluate_global_return_rule(
-                tracker,
-                request,
-                response,
-                client_ip,
-                endpoint_id,
-                rule,
-                correlated_categories,
-            )
+            if rule.rule_type == "return_pattern":
+                self._evaluate_global_return_rule(
+                    tracker,
+                    request,
+                    response,
+                    client_ip,
+                    endpoint_id,
+                    rule,
+                    correlated_categories,
+                )
+            else:
+                self._evaluate_global_usage_rule(
+                    tracker, request, client_ip, endpoint_id, rule
+                )
+
+    process_global_return_rules = process_global_rules
+
+    def _evaluate_global_usage_rule(
+        self,
+        tracker: Any,
+        request: SyncGuardRequest,
+        client_ip: str,
+        endpoint_id: str,
+        rule: BehaviorRule,
+    ) -> None:
+        global_endpoint_id = f"global|{rule.discriminator()}"
+        if not tracker.track_endpoint_usage(global_endpoint_id, client_ip, rule):
+            return
+
+        details = f"{rule.threshold} calls in {rule.window}s"
+        self.context.event_bus.send_middleware_event(
+            event_type=EVENT_DECORATOR_VIOLATION,
+            request=request,
+            action_taken="behavioral_action_triggered",
+            reason=f"Global behavioral {rule.rule_type} threshold exceeded: {details}",
+            decorator_type="behavioral_global",
+            violation_type=rule.rule_type,
+            threshold=rule.threshold,
+            window=rule.window,
+            action=rule.action,
+            endpoint_id=endpoint_id,
+        )
+
+        tracker.apply_action(
+            rule,
+            client_ip,
+            endpoint_id,
+            f"Global usage threshold exceeded: {details}",
+        )
 
     def _collect_correlated_categories(self, client_ip: str) -> list[str]:
         if self.context.middleware is None:

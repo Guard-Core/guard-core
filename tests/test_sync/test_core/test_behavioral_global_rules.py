@@ -128,16 +128,6 @@ def test_correlation_halves_threshold_floor_at_one() -> None:
     assert event_bus.send_middleware_event.call_count == 1
 
 
-def test_non_return_pattern_rules_are_ignored() -> None:
-    processor, event_bus, _ = _build_processor()
-    rule = BehaviorRule(rule_type="usage", threshold=1)
-    request = _make_request()
-    response = MockGuardResponse("ok", status_code=200)
-    for _ in range(5):
-        processor.process_global_return_rules(request, response, "1.2.3.4", [rule])
-    assert event_bus.send_middleware_event.call_count == 0
-
-
 def test_global_return_rules_use_middleware_tracker_without_decorator() -> None:
     config = SecurityConfig()
     tracker = BehaviorTracker(config)
