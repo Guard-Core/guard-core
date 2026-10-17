@@ -171,10 +171,12 @@ class SecurityEventBus:
         route_config: RouteConfig | None,
         cloud_handler: Any,
         passive_mode: bool,
+        cloud_details: tuple[str, str] | None = None,
     ) -> None:
-        cloud_details = cloud_handler.get_cloud_provider_details(
-            client_ip, set(cloud_providers_to_check)
-        )
+        if cloud_details is None:
+            cloud_details = cloud_handler.get_cloud_provider_details(
+                client_ip, set(cloud_providers_to_check)
+            )
         if cloud_details and cloud_handler.agent_handler:
             provider, network = cloud_details
             cloud_handler.send_cloud_detection_event(

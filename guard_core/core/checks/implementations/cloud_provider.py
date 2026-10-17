@@ -7,7 +7,10 @@ from guard_core.core.checks.helpers import (
     report_hostile_signal,
     route_config_applies,
 )
-from guard_core.core.events.event_types import EVENT_DECORATOR_VIOLATION
+from guard_core.core.events.event_types import (
+    EVENT_DECORATOR_VIOLATION,
+    EVENT_IP_BLOCKED,
+)
 from guard_core.decorators.base import RouteConfig
 from guard_core.models import SecurityConfig, cloud_blocking_enabled
 from guard_core.protocols.request_protocol import GuardRequest
@@ -16,6 +19,14 @@ from guard_core.utils import log_activity
 
 if TYPE_CHECKING:
     from guard_core.protocols.middleware_protocol import GuardMiddlewareProtocol
+
+
+def _cloud_block_reason(client_ip: str, cloud_details: tuple[str, str] | None) -> str:
+    reason = f"Blocked cloud provider IP: {client_ip}"
+    if cloud_details is None:
+        return reason
+    provider, network = cloud_details
+    return f"{reason} - IP belongs to blocked cloud provider: {provider} ({network})"
 
 
 class CloudProviderCheck(SecurityCheck):
@@ -66,11 +77,15 @@ class CloudProviderCheck(SecurityCheck):
         if not self.cloud_handler.is_cloud_ip(client_ip, set(cloud_providers_to_check)):
             return None
 
+        cloud_details = self.cloud_handler.get_cloud_provider_details(
+            client_ip, set(cloud_providers_to_check)
+        )
+        reason = _cloud_block_reason(client_ip, cloud_details)
         await log_activity(
             request,
             self.logger,
             log_type="suspicious",
-            reason=f"Blocked cloud provider IP: {client_ip}",
+            reason=reason,
             level=self.config.log_suspicious_level,
             passive_mode=self.config.passive_mode,
             check_name=self.check_name,
@@ -82,7 +97,7 @@ class CloudProviderCheck(SecurityCheck):
         )
 
         await self._emit_cloud_block_events(
-            request, client_ip, cloud_providers_to_check, route_config
+            request, client_ip, cloud_providers_to_check, route_config, cloud_details
         )
 
         route_blocks_clouds = bool(route_config and route_config.block_cloud_providers)
@@ -90,7 +105,7 @@ class CloudProviderCheck(SecurityCheck):
             self,
             request,
             "cloud",
-            f"Blocked cloud provider IP: {client_ip}",
+            reason,
             None if route_blocks_clouds else "ip_blocked",
         )
 
@@ -108,6 +123,7 @@ class CloudProviderCheck(SecurityCheck):
         client_ip: str,
         cloud_providers_to_check: list[str],
         route_config: RouteConfig | None,
+        cloud_details: tuple[str, str] | None,
     ) -> None:
         route_blocks_clouds = bool(route_config and route_config.block_cloud_providers)
 
@@ -118,9 +134,13 @@ class CloudProviderCheck(SecurityCheck):
             None if route_blocks_clouds else route_config,
             self.cloud_handler,
             self.config.passive_mode,
+            cloud_details=cloud_details,
         )
 
         if not route_blocks_clouds:
+            await self._emit_global_cloud_ip_blocked_event(
+                request, client_ip, cloud_details
+            )
             return
 
         await emit_access_denied_event(
@@ -132,4 +152,29 @@ class CloudProviderCheck(SecurityCheck):
             passive_mode=self.config.passive_mode,
             violation_type="cloud_provider",
             blocked_providers=list(cloud_providers_to_check),
+        )
+
+    async def _emit_global_cloud_ip_blocked_event(
+        self,
+        request: GuardRequest,
+        client_ip: str,
+        cloud_details: tuple[str, str] | None,
+    ) -> None:
+        reason = f"Blocked cloud provider IP: {client_ip}"
+        provider_fields: dict[str, str] = {}
+        if cloud_details is not None:
+            provider, network = cloud_details
+            reason = f"IP belongs to blocked cloud provider: {provider}"
+            provider_fields = {"cloud_provider": provider, "network": network}
+
+        await self.middleware.event_bus.send_middleware_event(
+            event_type=EVENT_IP_BLOCKED,
+            request=request,
+            action_taken="request_blocked"
+            if not self.config.passive_mode
+            else "logged_only",
+            reason=reason,
+            ip_address=client_ip,
+            filter_type="global",
+            **provider_fields,
         )

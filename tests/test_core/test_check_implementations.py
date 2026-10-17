@@ -1003,6 +1003,7 @@ async def test_cloud_provider_blocks() -> None:
     req.state.client_ip = "1.2.3.4"
     with patch.object(check, "cloud_handler") as mock_ch:
         mock_ch.is_cloud_ip = MagicMock(return_value=True)
+        mock_ch.get_cloud_provider_details = MagicMock(return_value=None)
         with patch(f"{_IMPL}.cloud_provider.log_activity", new_callable=AsyncMock):
             result = await check.check(req)
     assert result is not None
@@ -1030,6 +1031,7 @@ async def test_cloud_provider_passive_mode() -> None:
     req.state.client_ip = "1.2.3.4"
     with patch.object(check, "cloud_handler") as mock_ch:
         mock_ch.is_cloud_ip = MagicMock(return_value=True)
+        mock_ch.get_cloud_provider_details = MagicMock(return_value=None)
         with patch(f"{_IMPL}.cloud_provider.log_activity", new_callable=AsyncMock):
             result = await check.check(req)
     assert result is None

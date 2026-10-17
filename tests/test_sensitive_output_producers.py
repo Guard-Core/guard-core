@@ -457,10 +457,18 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "failed for %s' plus client_ip - never request content"
     ),
     "core/checks/implementations/cloud_provider.py:CloudProviderCheck.check": (
-        "line 61: reason is f'Blocked cloud provider IP: {client_ip}' and "
+        "reason is f'Blocked cloud provider IP: {client_ip}' plus the "
+        "provider name and network CIDR from the cloud range tables, and "
         "send_cloud_detection_events forwards only client_ip/provider/"
         "network - never header/query/body content; client_ip is outside "
         "the secret matrix"
+    ),
+    "core/checks/implementations/cloud_provider.py:"
+    "CloudProviderCheck._emit_global_cloud_ip_blocked_event": (
+        "the ip_blocked event carries client_ip and either the static "
+        "'Blocked cloud provider IP' text or the provider name and network "
+        "CIDR from the cloud range tables - never header/query/body content; "
+        "client_ip is outside the secret matrix"
     ),
     "core/checks/implementations/referrer.py:ReferrerCheck._handle_missing_referrer": (
         "line 32: reason is the static string 'Missing referrer header' - "

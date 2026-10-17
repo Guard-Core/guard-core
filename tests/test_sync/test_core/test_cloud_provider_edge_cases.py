@@ -21,6 +21,7 @@ def mock_middleware() -> Mock:
     middleware.logger = Mock()
     middleware.event_bus = Mock()
     middleware.event_bus.send_cloud_detection_events = MagicMock()
+    middleware.event_bus.send_middleware_event = MagicMock()
     middleware.create_error_response = MagicMock(return_value=Mock(status_code=403))
     middleware.route_resolver = Mock()
     middleware.route_resolver.should_bypass_check = Mock(return_value=False)
@@ -76,6 +77,10 @@ def test_check_passive_mode(
 
     with patch.object(cloud_check, "cloud_handler") as mock_cloud_handler:
         mock_cloud_handler.is_cloud_ip.return_value = True
+        mock_cloud_handler.get_cloud_provider_details.return_value = (
+            "AWS",
+            "1.2.3.0/24",
+        )
 
         with patch(
             "guard_core.sync.core.checks.implementations.cloud_provider.log_activity"
@@ -116,6 +121,10 @@ def test_check_cloud_ip_active_mode(
 
     with patch.object(cloud_check, "cloud_handler") as mock_cloud_handler:
         mock_cloud_handler.is_cloud_ip.return_value = True
+        mock_cloud_handler.get_cloud_provider_details.return_value = (
+            "AWS",
+            "1.2.3.0/24",
+        )
 
         with patch(
             "guard_core.sync.core.checks.implementations.cloud_provider.log_activity"
