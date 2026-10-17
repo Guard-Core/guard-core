@@ -20,6 +20,7 @@ class _HandlerInitializerStepsMixin:
     guard_decorator: Any = None
     composite_handler: Any = None
     event_filter: Any = None
+    behavior_tracker: Any = None
     _lazy_init_task: "threading.Thread | None" = None
     logger: logging.Logger
 
@@ -141,14 +142,6 @@ class _HandlerInitializerStepsMixin:
             return False
         return True
 
-    def _guard_decorator_has_behavior_rules(self) -> bool:
-        if self.guard_decorator is None:
-            return False
-        route_configs = getattr(self.guard_decorator, "_route_configs", {})
-        return any(
-            route_config.behavior_rules for route_config in route_configs.values()
-        )
-
     def _initialize_cloud_and_geo_redis(self) -> None:
         from guard_core.sync.handlers.cloud_handler import cloud_handler
 
@@ -182,8 +175,10 @@ class _HandlerInitializerStepsMixin:
             self.rate_limit_handler.initialize_redis(self.redis_handler)
         sus_patterns_handler.initialize_redis(self.redis_handler)
 
-        if self._guard_decorator_has_behavior_rules():
+        if self.guard_decorator is not None:
             self.guard_decorator.initialize_behavior_tracking(self.redis_handler)
+        elif self.behavior_tracker is not None:
+            self.behavior_tracker.initialize_redis(self.redis_handler)
 
     def initialize_redis_handlers(self) -> None:
         self._report_unreachable_ban_thresholds()

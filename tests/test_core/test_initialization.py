@@ -246,9 +246,10 @@ async def test_initialize_redis_handlers_initializes_behavior_tracking_with_rule
     )
 
 
-async def test_initialize_redis_handlers_skips_behavior_tracking_without_rules(
+async def test_initialize_redis_handlers_connects_behavior_tracking_without_rules(
     initializer: HandlerInitializer,
     mock_guard_decorator: Mock,
+    mock_redis_handler: Mock,
 ) -> None:
     with (
         patch("guard_core.handlers.cloud_handler.cloud_handler") as mock_cloud,
@@ -263,10 +264,12 @@ async def test_initialize_redis_handlers_skips_behavior_tracking_without_rules(
 
         await initializer.initialize_redis_handlers()
 
-    mock_guard_decorator.initialize_behavior_tracking.assert_not_called()
+    mock_guard_decorator.initialize_behavior_tracking.assert_called_once_with(
+        mock_redis_handler
+    )
 
 
-async def test_initialize_redis_handlers_skips_behavior_tracking_without_decorator(
+async def test_initialize_redis_handlers_connects_standalone_behavior_tracker(
     security_config: SecurityConfig,
     mock_redis_handler: Mock,
 ) -> None:
@@ -275,6 +278,9 @@ async def test_initialize_redis_handlers_skips_behavior_tracking_without_decorat
         redis_handler=mock_redis_handler,
         guard_decorator=None,
     )
+    standalone_tracker = Mock()
+    standalone_tracker.initialize_redis = AsyncMock()
+    initializer.behavior_tracker = standalone_tracker
 
     with (
         patch("guard_core.handlers.cloud_handler.cloud_handler") as mock_cloud,
@@ -288,6 +294,8 @@ async def test_initialize_redis_handlers_skips_behavior_tracking_without_decorat
         mock_sus.initialize_redis = AsyncMock()
 
         await initializer.initialize_redis_handlers()
+
+    standalone_tracker.initialize_redis.assert_awaited_once_with(mock_redis_handler)
 
 
 async def test_initialize_agent_for_handlers_no_agent(
