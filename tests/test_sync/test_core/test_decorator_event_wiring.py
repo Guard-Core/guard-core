@@ -205,8 +205,7 @@ def test_custom_validation_block_wires_generic_send_decorator_event() -> None:
     assert event.metadata["violation_type"] == "custom_validation"
 
 
-def test_usage_monitor_threshold_wires_send_decorator_violation_event() -> None:
-    config = _config()
+def _usage_violation_events(config: SecurityConfig) -> list[Any]:
     decorator = SecurityDecorator(config)
     recording_agent = _RecordingAgent()
     decorator.initialize_agent(recording_agent)
@@ -222,7 +221,13 @@ def test_usage_monitor_threshold_wires_send_decorator_violation_event() -> None:
     context = BehavioralContext(
         config=config,
         logger=_LOGGER,
-        event_bus=MagicMock(),
+        event_bus=SecurityEventBus(
+            agent_handler=recording_agent,
+            config=config,
+            event_filter=EventFilter(
+                muted_event_types=frozenset(config.muted_event_types)
+            ),
+        ),
         guard_decorator=decorator,
     )
     processor = BehavioralProcessor(context)
@@ -233,17 +238,25 @@ def test_usage_monitor_threshold_wires_send_decorator_violation_event() -> None:
 
     processor.process_usage_rules(request, "203.0.113.54", route_config)
     processor.process_usage_rules(request, "203.0.113.54", route_config)
+    return list(recording_agent.events)
 
-    violation_events = [
-        event
-        for event in recording_agent.events
-        if event.event_type == "decorator_violation"
-    ]
-    assert len(violation_events) == 1
-    event = violation_events[0]
-    assert event.action_taken == "blocked"
-    assert event.decorator_type == "usage"
+
+def test_usage_monitor_threshold_sends_one_behavioral_violation_event() -> None:
+    events = _usage_violation_events(_config())
+    assert [event.event_type for event in events] == ["behavioral_violation"]
+    event = events[0]
+    assert event.action_taken == "log"
+    assert event.rule_type == "usage"
     assert "threshold exceeded" in event.reason
+
+
+def test_usage_monitor_threshold_honors_agent_enable_events() -> None:
+    assert _usage_violation_events(_config(agent_enable_events=False)) == []
+
+
+def test_usage_monitor_threshold_honors_muted_event_types() -> None:
+    config = _config(muted_event_types={"behavioral_violation"})
+    assert _usage_violation_events(config) == []
 
 
 def test_startup_wires_initialize_behavior_tracking_for_a_decorated_route() -> None:

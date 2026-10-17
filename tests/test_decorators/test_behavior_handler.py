@@ -856,7 +856,7 @@ async def test_apply_action_ban_refused_does_not_log_success(
 
 
 @pytest.mark.asyncio
-async def test_apply_action_ban_refused_reports_tracked_in_event(
+async def test_apply_action_ban_refused_returns_tracked(
     security_config: SecurityConfig,
 ) -> None:
     tracker = BehaviorTracker(security_config)
@@ -866,15 +866,16 @@ async def test_apply_action_ban_refused_reports_tracked_in_event(
     with patch("guard_core.handlers.ipban_handler.ip_ban_manager") as mock_ban_manager:
         mock_ban_manager.ban_ip = AsyncMock(return_value=False)
 
-        await tracker.apply_action(rule, "192.168.1.1", "/api/test", "Test violation")
+        action_taken = await tracker.apply_action(
+            rule, "192.168.1.1", "/api/test", "Test violation"
+        )
 
-    tracker.agent_handler.send_event.assert_called_once()
-    sent_event = tracker.agent_handler.send_event.call_args[0][0]
-    assert sent_event.action_taken == "tracked"
+    assert action_taken == "tracked"
+    tracker.agent_handler.send_event.assert_not_called()
 
 
 @pytest.mark.asyncio
-async def test_apply_action_ban_applied_reports_ban_in_event(
+async def test_apply_action_ban_applied_returns_ban(
     security_config: SecurityConfig,
 ) -> None:
     tracker = BehaviorTracker(security_config)
@@ -884,11 +885,12 @@ async def test_apply_action_ban_applied_reports_ban_in_event(
     with patch("guard_core.handlers.ipban_handler.ip_ban_manager") as mock_ban_manager:
         mock_ban_manager.ban_ip = AsyncMock(return_value=True)
 
-        await tracker.apply_action(rule, "192.168.1.1", "/api/test", "Test violation")
+        action_taken = await tracker.apply_action(
+            rule, "192.168.1.1", "/api/test", "Test violation"
+        )
 
-    tracker.agent_handler.send_event.assert_called_once()
-    sent_event = tracker.agent_handler.send_event.call_args[0][0]
-    assert sent_event.action_taken == "ban"
+    assert action_taken == "ban"
+    tracker.agent_handler.send_event.assert_not_called()
 
 
 @pytest.mark.asyncio

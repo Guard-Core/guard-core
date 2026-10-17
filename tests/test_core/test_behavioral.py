@@ -112,11 +112,10 @@ async def test_process_usage_rules_threshold_exceeded(
 
     await processor.process_usage_rules(mock_request, "1.2.3.4", route_config)
 
-    mock_event_bus.send_middleware_event.assert_not_called()
-    processor.context.guard_decorator.send_decorator_violation_event.assert_called_once()
-    call_kwargs = (
-        processor.context.guard_decorator.send_decorator_violation_event.call_args[1]
-    )
+    processor.context.guard_decorator.send_decorator_violation_event.assert_not_called()
+    mock_event_bus.send_middleware_event.assert_called_once()
+    call_kwargs = mock_event_bus.send_middleware_event.call_args[1]
+    assert call_kwargs["event_type"] == "behavioral_violation"
     assert call_kwargs["violation_type"] == "usage"
     assert "threshold exceeded" in call_kwargs["reason"]
     assert call_kwargs["threshold"] == 5
@@ -152,8 +151,7 @@ async def test_process_usage_rules_threshold_exceeded_without_decorator_uses_eve
 
     mock_event_bus.send_middleware_event.assert_called_once()
     call_kwargs = mock_event_bus.send_middleware_event.call_args[1]
-    assert call_kwargs["event_type"] == "decorator_violation"
-    assert call_kwargs["action_taken"] == "behavioral_action_triggered"
+    assert call_kwargs["event_type"] == "behavioral_violation"
     assert call_kwargs["decorator_type"] == "behavioral"
     assert call_kwargs["violation_type"] == "usage"
     assert "threshold exceeded" in call_kwargs["reason"]
@@ -246,11 +244,10 @@ async def test_process_return_rules_pattern_detected(
         mock_request, mock_response, "1.2.3.4", route_config
     )
 
-    mock_event_bus.send_middleware_event.assert_not_called()
-    processor.context.guard_decorator.send_decorator_violation_event.assert_called_once()
-    call_kwargs = (
-        processor.context.guard_decorator.send_decorator_violation_event.call_args[1]
-    )
+    processor.context.guard_decorator.send_decorator_violation_event.assert_not_called()
+    mock_event_bus.send_middleware_event.assert_called_once()
+    call_kwargs = mock_event_bus.send_middleware_event.call_args[1]
+    assert call_kwargs["event_type"] == "behavioral_violation"
     assert call_kwargs["violation_type"] == "return_pattern"
     assert call_kwargs["pattern"] == "error"
     assert "Return pattern threshold exceeded" in call_kwargs["reason"]
@@ -295,7 +292,7 @@ async def test_process_return_rules_pattern_detected_without_decorator_uses_even
 
     mock_event_bus.send_middleware_event.assert_called_once()
     call_kwargs = mock_event_bus.send_middleware_event.call_args[1]
-    assert call_kwargs["event_type"] == "decorator_violation"
+    assert call_kwargs["event_type"] == "behavioral_violation"
     assert call_kwargs["decorator_type"] == "behavioral"
     assert call_kwargs["violation_type"] == "return_pattern"
     assert "Return pattern threshold exceeded" in call_kwargs["reason"]

@@ -2,7 +2,7 @@ from typing import Any
 
 from guard_core._utils.request_logging import redact_endpoint_for_display
 from guard_core.core.behavioral.context import BehavioralContext
-from guard_core.core.events.event_types import EVENT_DECORATOR_VIOLATION
+from guard_core.core.events.event_types import EVENT_BEHAVIOR_VIOLATION
 from guard_core.decorators.base import RouteConfig
 from guard_core.handlers.behavior_handler import BehaviorRule
 from guard_core.protocols.request_protocol import GuardRequest
@@ -46,38 +46,19 @@ class BehavioralProcessor:
                     details = f"{rule.threshold} calls in {rule.window}s"
                     message = f"Behavioral {rule.rule_type}"
                     reason = "threshold exceeded"
-                    violation_reason = f"{message} {reason}: {details}"
-
-                    guard_decorator = self.context.guard_decorator
-                    if guard_decorator is not None:
-                        await guard_decorator.send_decorator_violation_event(
-                            request,
-                            violation_type=rule.rule_type,
-                            reason=violation_reason,
-                            threshold=rule.threshold,
-                            window=rule.window,
-                            action=rule.action,
-                            endpoint_id=endpoint_id,
-                        )
-                    else:
-                        await self.context.event_bus.send_middleware_event(
-                            event_type=EVENT_DECORATOR_VIOLATION,
-                            request=request,
-                            action_taken="behavioral_action_triggered",
-                            reason=violation_reason,
-                            decorator_type="behavioral",
-                            violation_type=rule.rule_type,
-                            threshold=rule.threshold,
-                            window=rule.window,
-                            action=rule.action,
-                            endpoint_id=endpoint_id,
-                        )
-
-                    await behavior_tracker.apply_action(
+                    action_taken = await behavior_tracker.apply_action(
                         rule,
                         client_ip,
                         endpoint_id,
                         f"Usage threshold exceeded: {details}",
+                    )
+                    await self._report_violation(
+                        request,
+                        rule,
+                        endpoint_id,
+                        f"{message} {reason}: {details}",
+                        action_taken,
+                        "behavioral",
                     )
 
     async def process_return_rules(
@@ -99,40 +80,20 @@ class BehavioralProcessor:
                 )
                 if pattern_detected:
                     details = f"{rule.threshold} for '{rule.pattern}' in {rule.window}s"
-                    violation_reason = f"Return pattern threshold exceeded: {details}"
-
-                    guard_decorator = self.context.guard_decorator
-                    if guard_decorator is not None:
-                        await guard_decorator.send_decorator_violation_event(
-                            request,
-                            violation_type="return_pattern",
-                            reason=violation_reason,
-                            threshold=rule.threshold,
-                            window=rule.window,
-                            pattern=rule.pattern,
-                            action=rule.action,
-                            endpoint_id=endpoint_id,
-                        )
-                    else:
-                        await self.context.event_bus.send_middleware_event(
-                            event_type=EVENT_DECORATOR_VIOLATION,
-                            request=request,
-                            action_taken="behavioral_action_triggered",
-                            reason=violation_reason,
-                            decorator_type="behavioral",
-                            violation_type="return_pattern",
-                            threshold=rule.threshold,
-                            window=rule.window,
-                            pattern=rule.pattern,
-                            action=rule.action,
-                            endpoint_id=endpoint_id,
-                        )
-
-                    await behavior_tracker.apply_action(
+                    action_taken = await behavior_tracker.apply_action(
                         rule,
                         client_ip,
                         endpoint_id,
                         f"Return pattern threshold exceeded: {details}",
+                    )
+                    await self._report_violation(
+                        request,
+                        rule,
+                        endpoint_id,
+                        f"Return pattern threshold exceeded: {details}",
+                        action_taken,
+                        "behavioral",
+                        pattern=rule.pattern,
                     )
 
     async def process_global_rules(
@@ -181,24 +142,19 @@ class BehavioralProcessor:
             return
 
         details = f"{rule.threshold} calls in {rule.window}s"
-        await self.context.event_bus.send_middleware_event(
-            event_type=EVENT_DECORATOR_VIOLATION,
-            request=request,
-            action_taken="behavioral_action_triggered",
-            reason=f"Global behavioral {rule.rule_type} threshold exceeded: {details}",
-            decorator_type="behavioral_global",
-            violation_type=rule.rule_type,
-            threshold=rule.threshold,
-            window=rule.window,
-            action=rule.action,
-            endpoint_id=endpoint_id,
-        )
-
-        await tracker.apply_action(
+        action_taken = await tracker.apply_action(
             rule,
             client_ip,
             endpoint_id,
             f"Global usage threshold exceeded: {details}",
+        )
+        await self._report_violation(
+            request,
+            rule,
+            endpoint_id,
+            f"Global behavioral {rule.rule_type} threshold exceeded: {details}",
+            action_taken,
+            "behavioral_global",
         )
 
     def _collect_correlated_categories(self, client_ip: str) -> list[str]:
@@ -240,27 +196,51 @@ class BehavioralProcessor:
             f"{' (correlated)' if correlation_active else ''}"
         )
 
-        await self.context.event_bus.send_middleware_event(
-            event_type=EVENT_DECORATOR_VIOLATION,
-            request=request,
-            action_taken="behavioral_action_triggered",
-            reason=f"Global return pattern threshold exceeded: {details}",
-            decorator_type="behavioral_global",
-            violation_type="return_pattern",
-            threshold=effective_threshold,
-            window=rule.window,
-            pattern=rule.pattern,
-            action=rule.action,
-            endpoint_id=endpoint_id,
-            correlation=correlation_active,
-            correlated_categories=correlated_categories if correlation_active else [],
-        )
-
-        await tracker.apply_action(
+        action_taken = await tracker.apply_action(
             rule,
             client_ip,
             endpoint_id,
             f"Global return pattern threshold exceeded: {details}",
+        )
+        await self._report_violation(
+            request,
+            rule,
+            endpoint_id,
+            f"Global return pattern threshold exceeded: {details}",
+            action_taken,
+            "behavioral_global",
+            pattern=rule.pattern,
+            threshold=effective_threshold,
+            correlation=correlation_active,
+            correlated_categories=correlated_categories if correlation_active else [],
+        )
+
+    async def _report_violation(
+        self,
+        request: GuardRequest,
+        rule: BehaviorRule,
+        endpoint_id: str,
+        reason: str,
+        action_taken: str,
+        decorator_type: str,
+        **overrides: Any,
+    ) -> None:
+        fields: dict[str, Any] = {
+            "decorator_type": decorator_type,
+            "rule_type": rule.rule_type,
+            "violation_type": rule.rule_type,
+            "threshold": rule.threshold,
+            "window": rule.window,
+            "action": rule.action,
+            "endpoint_id": endpoint_id,
+        }
+        fields.update(overrides)
+        await self.context.event_bus.send_middleware_event(
+            event_type=EVENT_BEHAVIOR_VIOLATION,
+            request=request,
+            action_taken=action_taken,
+            reason=reason,
+            **fields,
         )
 
     def get_endpoint_id(self, request: GuardRequest) -> str:

@@ -189,17 +189,10 @@ COVERED_PRODUCERS: dict[str, frozenset[str]] = {
         {"blacklist_hit", "banned_ip"}
     ),
     "_utils/request_logging.py:log_activity": frozenset({_DETECTION_MATRIX_SCENARIO}),
-    "core/behavioral/processor.py:BehavioralProcessor._evaluate_global_usage_rule": (
-        frozenset({"behavior_usage_frequency_endpoint"})
-    ),
-    "core/behavioral/processor.py:BehavioralProcessor._evaluate_global_return_rule": (
-        frozenset({"behavior_return_pattern_body_scan"})
-    ),
-    "core/behavioral/processor.py:BehavioralProcessor.process_return_rules": (
-        frozenset({"behavior_return_pattern_body_scan"})
-    ),
-    "core/behavioral/processor.py:BehavioralProcessor.process_usage_rules": (
-        frozenset({"behavior_usage_frequency_endpoint"})
+    "core/behavioral/processor.py:BehavioralProcessor._report_violation": (
+        frozenset(
+            {"behavior_usage_frequency_endpoint", "behavior_return_pattern_body_scan"}
+        )
     ),
     "core/bypass/handler.py:BypassHandler.handle_security_bypass": frozenset(
         {"security_bypass_event"}
@@ -316,10 +309,6 @@ COVERED_PRODUCERS: dict[str, frozenset[str]] = {
     ),
     "handlers/_behavior_action_dispatch.py:"
     "BehaviorActionDispatchMixin._execute_ban_action": frozenset(
-        {"behavior_usage_frequency_endpoint"}
-    ),
-    "handlers/_behavior_action_dispatch.py:"
-    "BehaviorActionDispatchMixin._send_behavior_event": frozenset(
         {"behavior_usage_frequency_endpoint"}
     ),
     "handlers/_behavior_response_pattern.py:"
