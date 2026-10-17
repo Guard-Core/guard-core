@@ -62,8 +62,18 @@ def _zero_detection_threshold_problems(config: "SecurityConfig") -> list[str]:
     ]
 
 
+def _glob_exclude_path_problems(config: "SecurityConfig") -> list[str]:
+    return [
+        f"exclude_paths entry {entry!r} is not a glob: wildcards are literal "
+        "characters, so it excludes nothing."
+        for entry in config.exclude_paths
+        if any(char in entry for char in "*?#")
+    ]
+
+
 def config_misconfigurations(config: "SecurityConfig") -> list[str]:
     return [
+        *_glob_exclude_path_problems(config),
         *_non_positive_rate_limit_problems(config),
         *_zero_detection_threshold_problems(config),
     ]
