@@ -333,7 +333,11 @@ def _get_effective_penetration_setting(
     route_specific_detection = None
     penetration_enabled = config.enable_penetration_detection
 
-    if route_config and route_config.enable_suspicious_detection is not None:
+    if (
+        route_config
+        and hasattr(route_config, "enable_suspicious_detection")
+        and getattr(route_config, "_inherits_suspicious_detection", False) is not True
+    ):
         route_specific_detection = route_config.enable_suspicious_detection
         penetration_enabled = route_specific_detection
 

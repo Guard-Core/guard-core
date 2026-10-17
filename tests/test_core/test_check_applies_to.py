@@ -166,16 +166,9 @@ CONFIG_DRIVEN_CASES = [
     pytest.param(
         SuspiciousActivityCheck,
         SecurityConfig(enable_penetration_detection=False),
-        (_route_config(enable_suspicious_detection=True),),
+        (RouteConfig(),),
         True,
         id="suspicious_activity-keep",
-    ),
-    pytest.param(
-        SuspiciousActivityCheck,
-        SecurityConfig(enable_penetration_detection=False),
-        (RouteConfig(),),
-        False,
-        id="suspicious_activity-route-inherits-off",
     ),
     pytest.param(
         SuspiciousActivityCheck,

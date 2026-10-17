@@ -36,7 +36,7 @@ def test_route_config_initialization() -> None:
     assert config.max_request_size is None
     assert config.allowed_content_types is None
     assert config.time_restrictions is None
-    assert config.enable_suspicious_detection is None
+    assert config.enable_suspicious_detection is True
     assert config.require_referrer is None
     assert config.api_key_required is False
 
@@ -96,7 +96,10 @@ def test_base_security_decorator(security_config: SecurityConfig) -> None:
 
     route_config = decorator._ensure_route_config(mock_func)
     assert isinstance(route_config, RouteConfig)
-    assert route_config.enable_suspicious_detection is None
+    assert (
+        route_config.enable_suspicious_detection
+        == security_config.enable_penetration_detection
+    )
 
     route_config2 = decorator._ensure_route_config(mock_func)
     assert route_config is route_config2

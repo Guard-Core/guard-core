@@ -238,13 +238,27 @@ _TRACKED_SET_FIELDS = frozenset({"block_cloud_providers"})
 _REVISION_EXEMPT_ATTRS = frozenset({"_revision", "_initialized"})
 
 
+def _wrap_in_tracked_container(
+    name: str, value: Any, revision: RouteConfigRevision | None
+) -> Any:
+    if name in _TRACKED_LIST_FIELDS and isinstance(value, list):
+        return _TrackedList(value, revision=revision)
+    if name in _TRACKED_DICT_FIELDS and isinstance(value, dict):
+        return _TrackedDict(value, revision=revision)
+    if name in _TRACKED_SET_FIELDS and isinstance(value, set):
+        return _TrackedSet(value, revision=revision)
+    return value
+
+
 class RouteConfig:
     _revision: RouteConfigRevision | None
     _initialized: bool
+    _inherits_suspicious_detection: bool
 
     def __init__(self, revision: RouteConfigRevision | None = None) -> None:
         object.__setattr__(self, "_revision", revision)
         object.__setattr__(self, "_initialized", False)
+        object.__setattr__(self, "_inherits_suspicious_detection", False)
         self.rate_limit: int | None = None
         self.rate_limit_window: int | None = None
         self.ip_whitelist: list[str] | None = None
@@ -263,7 +277,7 @@ class RouteConfig:
         self.max_request_size: int | None = None
         self.allowed_content_types: list[str] | None = None
         self.time_restrictions: dict[str, str] | None = None
-        self.enable_suspicious_detection: bool | None = None
+        self.enable_suspicious_detection: bool = True
         self.require_referrer: list[str] | None = None
         self.api_key_required: bool = False
         self.auth_verifier: AuthVerifier | None = None
@@ -279,14 +293,17 @@ class RouteConfig:
         self.detection_scan_body: bool | None = None
         object.__setattr__(self, "_initialized", True)
 
+    def _inherit_suspicious_detection(self, global_setting: bool) -> None:
+        # Keeps the v4.4.0 snapshot readable while the request path follows the
+        # live global setting until a decorator or an assignment pins the route.
+        self.enable_suspicious_detection = global_setting
+        object.__setattr__(self, "_inherits_suspicious_detection", True)
+
     def __setattr__(self, name: str, value: Any) -> None:
-        if name in _TRACKED_LIST_FIELDS and isinstance(value, list):
-            value = _TrackedList(value, revision=self._revision)
-        elif name in _TRACKED_DICT_FIELDS and isinstance(value, dict):
-            value = _TrackedDict(value, revision=self._revision)
-        elif name in _TRACKED_SET_FIELDS and isinstance(value, set):
-            value = _TrackedSet(value, revision=self._revision)
+        value = _wrap_in_tracked_container(name, value, self._revision)
         object.__setattr__(self, name, value)
+        if name == "enable_suspicious_detection":
+            object.__setattr__(self, "_inherits_suspicious_detection", False)
         if self._initialized and name not in _REVISION_EXEMPT_ATTRS:
             revision = self._revision
             if revision is not None:

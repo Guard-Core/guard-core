@@ -107,7 +107,7 @@ class BaseSecurityDecorator:
         route_id = self._get_route_id(func)
         if route_id not in self._route_configs:
             config = RouteConfig(self._route_config_revision)
-            config.enable_suspicious_detection = (
+            config._inherit_suspicious_detection(
                 self.config.enable_penetration_detection
             )
             self._route_configs[route_id] = config
@@ -122,6 +122,8 @@ class BaseSecurityDecorator:
 ```
 
 `_route_config_revision` is a separate counter from `SecurityConfig`'s own revision; `build_default_pipeline` reads `guard_decorator.route_config_revision` to know when a route was registered or reconfigured after the pipeline was built. `_ensure_route_config` bumps it explicitly the moment a route id is first seen, in addition to `RouteConfig.__setattr__` bumping it for every field assignment after that.
+
+`_inherit_suspicious_detection` stores the global `enable_penetration_detection` in `enable_suspicious_detection`, as 4.4.0 did, and marks the route as inheriting: at request time an inheriting route follows the current global setting, so turning detection on after a route was decorated protects that route. `suspicious_detection(enabled)` or any assignment to `enable_suspicious_detection` pins the route to its own value.
 
 Key points:
 
