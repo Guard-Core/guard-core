@@ -51,6 +51,9 @@ class BehaviorActionDispatchMixin:
         details: str,
         rule: "BehaviorRule | None" = None,
     ) -> str:
+        if not self.config.enable_ip_banning:
+            return "tracked"
+
         from guard_core.handlers.ipban_handler import ip_ban_manager
 
         duration = (

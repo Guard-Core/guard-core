@@ -785,6 +785,20 @@ async def test_execute_ban_action_returns_false_when_refused(
 
 
 @pytest.mark.asyncio
+async def test_execute_ban_action_skips_ban_when_ip_banning_disabled() -> None:
+    config = SecurityConfig(enable_redis=False, enable_ip_banning=False)
+    tracker = BehaviorTracker(config)
+
+    with patch("guard_core.handlers.ipban_handler.ip_ban_manager") as mock_ban_manager:
+        mock_ban_manager.ban_ip = AsyncMock(return_value=True)
+
+        result = await tracker._execute_ban_action("192.168.1.1", "Test violation")
+
+        assert result == "tracked"
+        mock_ban_manager.ban_ip.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_execute_ban_action_returns_true_when_applied(
     security_config: SecurityConfig,
 ) -> None:

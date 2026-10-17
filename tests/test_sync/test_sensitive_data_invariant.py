@@ -1500,7 +1500,7 @@ def _run_behavior_usage_frequency_endpoint(
     secret: str, ctx: "_ScenarioContext"
 ) -> None:
     client_ip = _client_ip_for("behavior_usage_frequency_endpoint")
-    config = _scenario_config()
+    config = _scenario_config(enable_ip_banning=True)
     event_bus = SecurityEventBus(agent_handler=_AGENT_RECORDER, config=config)
     tracker = BehaviorTracker(config)
     tracker.agent_handler = _AGENT_RECORDER
