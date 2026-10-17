@@ -1,3 +1,4 @@
+import base64
 import logging
 from typing import Any
 
@@ -184,8 +185,70 @@ def test_an_empty_credential_redacts_nothing() -> None:
         _describe_verifier_error,
     )
 
-    description = _describe_verifier_error(ValueError("kept intact"), "")
+    description = _describe_verifier_error(ValueError("kept intact"), "", "basic")
 
     assert description.splitlines()[0] == "Authentication verifier raised ValueError"
     assert "ValueError: kept intact" in description
     assert "[REDACTED]" not in description
+
+
+_BASIC_PASSWORD = "Sup3r-Secret-Pw"
+_BASIC_BLOB = base64.b64encode(f"alice:{_BASIC_PASSWORD}".encode()).decode()
+
+
+def _decoding(request: Any, credential: str) -> bool:
+    user, _, password = base64.b64decode(credential).decode().partition(":")
+    raise ValueError(f"backend rejected {user} with password {password}")
+
+
+async def test_a_decoded_basic_password_never_reaches_the_log(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    pipeline, _, route_id = build_route_pipeline(
+        _config(), lambda d: d.require_auth("basic", verifier=_decoding)
+    )
+
+    with caplog.at_level(logging.DEBUG):
+        response = await send_request(
+            pipeline,
+            route_id,
+            ip="203.0.113.60",
+            headers={"authorization": f"Basic {_BASIC_BLOB}"},
+        )
+
+    assert response is not None
+    assert response.status_code == 503
+    logged = "\n".join(r.getMessage() for r in caplog.records)
+    assert _BASIC_PASSWORD not in logged
+    errors = [r for r in caplog.records if r.levelno == logging.ERROR]
+    assert len(errors) == 1
+    message = errors[0].getMessage()
+    assert "Traceback (most recent call last)" in message
+    assert "ValueError: backend rejected alice with password [REDACTED]" in message
+
+
+def _basic(user_pass: bytes) -> str:
+    return base64.b64encode(user_pass).decode()
+
+
+@pytest.mark.parametrize(
+    ("credential", "error", "expected"),
+    [
+        (_basic(b"alice:pw-1"), "rejected alice:pw-1", "rejected [REDACTED]"),
+        (_basic(b"alice:pw-1"), "rejected pw-1", "rejected [REDACTED]"),
+        (_basic(b"alice:"), "kept intact", "kept intact"),
+        (_basic(b"alice:\xff"), "kept intact", "kept intact"),
+        ("not-base64!", "bad not-base64!", "bad [REDACTED]"),
+    ],
+)
+def test_basic_credentials_are_redacted_raw_and_decoded(
+    credential: str, error: str, expected: str
+) -> None:
+    from guard_core.core.checks.implementations.authentication import (
+        _describe_verifier_error,
+    )
+
+    description = _describe_verifier_error(ValueError(error), credential, "basic")
+
+    assert description.splitlines()[0] == "Authentication verifier raised ValueError"
+    assert f"ValueError: {expected}" in description

@@ -1,3 +1,6 @@
+import base64
+import binascii
+import contextlib
 import traceback
 from collections.abc import Collection
 from typing import Any
@@ -27,10 +30,20 @@ def _challenge_for(auth_type: str) -> str:
     return _CHALLENGES.get(auth_type, auth_type.title())
 
 
-def _describe_verifier_error(exc: Exception, credential: str) -> str:
+def _secrets_in_credential(credential: str, auth_type: str) -> list[str]:
+    secrets = [credential]
+    if auth_type == "basic":
+        with contextlib.suppress(binascii.Error, UnicodeDecodeError):
+            user_pass = base64.b64decode(credential).decode()
+            secrets += [user_pass, user_pass.partition(":")[2]]
+    # Longest first, so the password inside user:password is never redacted alone.
+    return sorted(filter(None, secrets), key=len, reverse=True)
+
+
+def _describe_verifier_error(exc: Exception, credential: str, auth_type: str) -> str:
     trace = "".join(traceback.format_exception(exc))
-    if credential:
-        trace = trace.replace(credential, "[REDACTED]")
+    for secret in _secrets_in_credential(credential, auth_type):
+        trace = trace.replace(secret, "[REDACTED]")
     return f"Authentication verifier raised {type(exc).__name__}\n{trace}"
 
 
@@ -165,7 +178,9 @@ class AuthenticationCheck(SecurityCheck):
         try:
             result = await resolve_verifier_result(verifier(request, credential))
         except Exception as exc:
-            self.logger.error("%s", _describe_verifier_error(exc, credential))
+            self.logger.error(
+                "%s", _describe_verifier_error(exc, credential, auth_type)
+            )
             return await fail("Authentication error", verifier_error=True)
         if not result:
             return await fail("Authentication failed")
