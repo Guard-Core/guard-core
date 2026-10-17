@@ -389,3 +389,56 @@ async def test_passive_mode_only_logs_a_globally_blocked_ip_on_excluded_path() -
     result = await pipeline.execute(request)
 
     assert result is None
+
+
+BYPASS_SHAPES = [
+    "/admin/../static/x",
+    "/admin/../health",
+    "/admin/%2e%2e/health",
+    "/%64ocs",
+    "//health",
+]
+
+
+async def _run_passthrough_then_pipeline(
+    path: str, client_ip: str
+) -> tuple[bool, GuardResponse | None]:
+    config = _config(
+        exclude_paths=["/static", "/health", "/docs"],
+        enable_penetration_detection=True,
+        enable_ip_banning=True,
+        auto_ban_threshold=1,
+        auto_ban_duration=300,
+    )
+    middleware = _build_middleware(config)
+    bypass_handler = _build_bypass_handler(config, middleware)
+    pipeline = build_default_pipeline(middleware)
+    request = MockGuardRequest(
+        path=path, client_host=client_ip, query_params={"q": "' OR '1'='1"}
+    )
+
+    passthrough = await bypass_handler.handle_passthrough(
+        request, cast(Callable[[GuardRequest], Awaitable[GuardResponse]], _never_called)
+    )
+    assert passthrough is None
+    scoped = getattr(request.state, "guard_exclusion_scoped", False) is True
+    return scoped, await pipeline.execute(request)
+
+
+@pytest.mark.parametrize("path", BYPASS_SHAPES)
+async def test_router_inconsistent_path_runs_the_protected_routes_checks(
+    path: str,
+) -> None:
+    scoped, result = await _run_passthrough_then_pipeline(path, "203.0.113.20")
+
+    assert scoped is False
+    assert result is not None
+    assert result.status_code == 403
+
+
+@pytest.mark.parametrize("path", ["/static/app.js", "/health", "/docs"])
+async def test_legitimate_excluded_path_still_skips_detection(path: str) -> None:
+    scoped, result = await _run_passthrough_then_pipeline(path, "203.0.113.21")
+
+    assert scoped is True
+    assert result is None
