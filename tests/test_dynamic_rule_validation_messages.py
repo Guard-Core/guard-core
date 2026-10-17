@@ -67,14 +67,19 @@ def test_the_exception_joins_the_problems_and_keeps_the_list() -> None:
 
 def test_an_anomalous_endpoint_key_is_reported_with_its_key_and_reason() -> None:
     rules = _rules(
-        endpoint_rate_limits={"/a/../b": (5, 60), "/ok": (5, 60), "/a%2fb": (0, 60)}
+        endpoint_rate_limits={
+            "/a/../b": (5, 60),
+            "/ok": (5, 60),
+            "/a%2fb": (0, 60),
+            "/downloads/file..txt": (5, 60),
+        }
     )
 
     assert find_malformed_values(rules) == [
         "endpoint_rate_limits[/a%2fb]: (0, 60) (requests and window must be at "
         "least 1)",
-        "endpoint_rate_limits[/a/../b]: (5, 60) (contains '..', '//', an encoded "
-        "separator or a backslash)",
-        "endpoint_rate_limits[/a%2fb]: (0, 60) (contains '..', '//', an encoded "
-        "separator or a backslash)",
+        "endpoint_rate_limits[/a/../b]: (5, 60) (a dot segment, an empty segment, a "
+        "backslash or an encoded dot or separator, in any decoding round)",
+        "endpoint_rate_limits[/a%2fb]: (0, 60) (a dot segment, an empty segment, a "
+        "backslash or an encoded dot or separator, in any decoding round)",
     ]

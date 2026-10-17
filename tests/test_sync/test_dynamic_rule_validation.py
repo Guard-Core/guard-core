@@ -74,6 +74,13 @@ MALFORMED = [
         {"endpoint_rate_limits": {"/a%5cb": (5, 60)}}, id="key-encoded-bslash"
     ),
     pytest.param({"endpoint_rate_limits": {"/a\\b": (5, 60)}}, id="key-backslash"),
+    pytest.param(
+        {"endpoint_rate_limits": {"/a%252fb": (5, 60)}}, id="key-double-encoded"
+    ),
+    pytest.param({"endpoint_rate_limits": {"/a/./b": (5, 60)}}, id="key-dot-segment"),
+    pytest.param(
+        {"endpoint_rate_limits": {"/a/%2e%2e/b": (5, 60)}}, id="key-encoded-dots"
+    ),
     pytest.param({"blocked_countries": ["USA!"]}, id="country-punct"),
     pytest.param({"blocked_countries": ["not a country"]}, id="country-words"),
     pytest.param({"blocked_countries": ["12"]}, id="country-digits"),

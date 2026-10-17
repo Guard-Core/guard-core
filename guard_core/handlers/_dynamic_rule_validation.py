@@ -5,7 +5,6 @@ from typing import Any
 from guard_core._security_config_field_validators import (
     canonicalize_cloud_provider_selector,
 )
-from guard_core._utils.request_path import has_anomalous_path_spelling
 
 _COUNTRY_CODE = re.compile(r"[A-Za-z]{2}")
 
@@ -39,11 +38,16 @@ def _rate_limit_problems(rules: Any) -> list[str]:
 
 
 def _endpoint_key_problems(rules: Any) -> list[str]:
+    from guard_core.core.validation.path_matching import (
+        _has_routing_anomaly_in_any_decoding,
+    )
+
     return [
         f"endpoint_rate_limits[{endpoint}]: {tuple(limit)} "
-        "(contains '..', '//', an encoded separator or a backslash)"
+        "(a dot segment, an empty segment, a backslash or an encoded dot or "
+        "separator, in any decoding round)"
         for endpoint, limit in rules.endpoint_rate_limits.items()
-        if has_anomalous_path_spelling(endpoint)
+        if _has_routing_anomaly_in_any_decoding(endpoint)
     ]
 
 

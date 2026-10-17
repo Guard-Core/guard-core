@@ -51,15 +51,15 @@ CONFIG_PROBLEMS: list[tuple[dict[str, Any], str]] = [
     ),
     (
         {"exclude_paths": ["/a/../b"]},
-        "exclude_paths entry '/a/../b' contains '..', '//', an encoded separator "
-        "(%2f, %5c) or a backslash, a spelling the router does not serve as "
-        "written. Write the plain path.",
+        "exclude_paths entry '/a/../b' has a dot segment, an empty segment, a "
+        "backslash or an encoded dot or separator (in any decoding round), a "
+        "spelling the router does not serve as written. Write the plain path.",
     ),
     (
         {"endpoint_rate_limits": {"/a//b": (5, 60)}},
-        "endpoint_rate_limits key '/a//b' contains '..', '//', an encoded "
-        "separator (%2f, %5c) or a backslash, a spelling the router does not "
-        "serve as written. Write the plain path.",
+        "endpoint_rate_limits key '/a//b' has a dot segment, an empty segment, a "
+        "backslash or an encoded dot or separator (in any decoding round), a "
+        "spelling the router does not serve as written. Write the plain path.",
     ),
 ]
 

@@ -7,13 +7,17 @@ import pytest
 from guard_core.models import SecurityConfig
 
 ANOMALOUS_PATHS = [
-    "/admin/../static",
+    "/a/../b",
     "/a//b",
     "/a%2fb",
     "/a%2Fb",
     "/a%5cb",
     "/a%5Cb",
+    "/a%252fb",
     "/a\\b",
+    "/a/./b",
+    "/a/%2e%2e/b",
+    "/a/..;x/b",
 ]
 
 
@@ -55,7 +59,17 @@ class TestAnomalousPathSpelling:
 
 @pytest.mark.parametrize("field", ["exclude_paths", "endpoint_rate_limits"])
 @pytest.mark.parametrize(
-    "path", ["/api/v1.2/users", "/files/a.b.c", "/a/b/", "/a%20b", "/health"]
+    "path",
+    [
+        "/api/v1.2/users",
+        "/files/a.b.c",
+        "/a/b/",
+        "/a%20b",
+        "/health",
+        "/downloads/file..txt",
+        "/static",
+        "/api/v1/",
+    ],
 )
 def test_a_plain_path_never_warns(field: str, path: str) -> None:
     with warnings.catch_warnings():

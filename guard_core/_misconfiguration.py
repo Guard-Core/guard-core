@@ -2,8 +2,6 @@ import logging
 import warnings
 from typing import TYPE_CHECKING
 
-from guard_core._utils.request_path import has_anomalous_path_spelling
-
 if TYPE_CHECKING:
     from guard_core.models import SecurityConfig
 
@@ -78,20 +76,25 @@ def _glob_exclude_path_problems(config: "SecurityConfig") -> list[str]:
 
 
 def _anomalous_path_problems(config: "SecurityConfig") -> list[str]:
+    from guard_core.core.validation.path_matching import (
+        _has_routing_anomaly_in_any_decoding,
+    )
+
     spelling = (
-        "contains '..', '//', an encoded separator (%2f, %5c) or a backslash, "
-        "a spelling the router does not serve as written. Write the plain path."
+        "has a dot segment, an empty segment, a backslash or an encoded dot or "
+        "separator (in any decoding round), a spelling the router does not "
+        "serve as written. Write the plain path."
     )
     return [
         *(
             f"exclude_paths entry {entry!r} {spelling}"
             for entry in config.exclude_paths
-            if has_anomalous_path_spelling(entry)
+            if _has_routing_anomaly_in_any_decoding(entry)
         ),
         *(
             f"endpoint_rate_limits key {key!r} {spelling}"
             for key in config.endpoint_rate_limits
-            if has_anomalous_path_spelling(key)
+            if _has_routing_anomaly_in_any_decoding(key)
         ),
     ]
 

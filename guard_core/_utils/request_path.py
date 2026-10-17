@@ -31,10 +31,3 @@ def has_routing_anomaly(url_path: str) -> bool:
     if segments and segments[-1] == "":
         segments.pop()
     return any(segment == "" or _is_dot_segment(segment) for segment in segments)
-
-
-_ANOMALOUS_SPELLING = re.compile(r"\.\.|//|\\|%(?:2f|5c)", re.IGNORECASE)
-
-
-def has_anomalous_path_spelling(path: str) -> bool:
-    return _ANOMALOUS_SPELLING.search(path) is not None
