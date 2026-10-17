@@ -92,8 +92,10 @@ def _retry_after(oldest_needed: float, window: int, now: float) -> int:
 def _record_hits(
     checks: list[ThrottleCheck], hit_lists: list[list[float]], now: float
 ) -> None:
+    recorded: set[int] = set()
     for check, hits in zip(checks, hit_lists, strict=True):
-        if check.records:
+        if check.records and id(hits) not in recorded:
+            recorded.add(id(hits))
             hits.append(now)
 
 

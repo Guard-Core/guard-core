@@ -42,6 +42,15 @@ def global_scope_id(rule: BehaviorRule) -> str:
     return f"global|{rule.discriminator()}"
 
 
+def first_of_rule_id(seen: set[str], rule: BehaviorRule) -> bool:
+    # Rules sharing a rule_id share one hit list: only the first of them in a
+    # request or response records the hit, each still evaluates its own threshold.
+    rule_id = rule.discriminator()
+    first = rule_id not in seen
+    seen.add(rule_id)
+    return first
+
+
 def is_throttle_rule(rule: BehaviorRule) -> bool:
     return rule.action == "throttle" and rule.custom_action is None
 
@@ -261,8 +270,14 @@ class BehavioralThrottleMixin:
     async def _count_refused_request_in_global_rules(
         self, tracker: Any, request: GuardRequest, client_ip: str, endpoint_id: str
     ) -> None:
+        seen: set[str] = set()
         for rule in self._global_rules():
             if rule.rule_type != "return_pattern" and not is_throttle_rule(rule):
                 await self._evaluate_global_usage_rule(
-                    tracker, request, client_ip, endpoint_id, rule
+                    tracker,
+                    request,
+                    client_ip,
+                    endpoint_id,
+                    rule,
+                    first_of_rule_id(seen, rule),
                 )

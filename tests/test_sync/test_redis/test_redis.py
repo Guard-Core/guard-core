@@ -244,6 +244,55 @@ def test_record_sliding_window_hit_disabled_redis_returns_zero(
     assert count == 0
 
 
+def test_count_sliding_window_hits_counts_without_recording(
+    security_config_redis: SecurityConfig,
+) -> None:
+    handler = redis_handler(security_config_redis)
+    handler.initialize()
+    base = 2_000_000_000.0
+    key = "count_only"
+    try:
+        handler.record_sliding_window_hit(
+            "sliding_window_test", key, base - 100, base - 200, 60
+        )
+        handler.record_sliding_window_hit(
+            "sliding_window_test", key, base, base - 200, 60
+        )
+        assert (
+            handler.count_sliding_window_hits("sliding_window_test", key, base - 60)
+            == 1
+        )
+        assert (
+            handler.count_sliding_window_hits("sliding_window_test", key, base - 200)
+            == 2
+        )
+    finally:
+        handler.delete_pattern("sliding_window_test*")
+        handler.close()
+
+
+def test_count_sliding_window_hits_disabled_redis_returns_zero(
+    security_config: SecurityConfig,
+) -> None:
+    handler = redis_handler(security_config)
+    handler.initialize()
+
+    assert not security_config.enable_redis
+    assert handler.count_sliding_window_hits("sliding_window_test", "x", 0.0) == 0
+
+
+def test_count_sliding_window_hits_returns_zero_when_the_operation_fails(
+    security_config_redis: SecurityConfig, monkeypatch: Any
+) -> None:
+    handler = redis_handler(security_config_redis)
+    handler.initialize()
+    monkeypatch.setattr(handler, "safe_operation", MagicMock(return_value=None))
+    try:
+        assert handler.count_sliding_window_hits("sliding_window_test", "x", 0.0) == 0
+    finally:
+        handler.close()
+
+
 def test_redis_connection_context_get_error(
     security_config_redis: SecurityConfig, monkeypatch: Any
 ) -> None:

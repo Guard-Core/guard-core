@@ -27,3 +27,10 @@ def test_discriminator_follows_a_changed_field() -> None:
     assert rule.discriminator() == '["usage",null,3600,5,"log"]'
     rule.threshold = 6
     assert rule.discriminator() == '["usage",null,3600,6,"log"]'
+
+
+def test_rule_id_of_a_usage_or_frequency_rule_never_reads_its_pattern() -> None:
+    usage = BehaviorRule("usage", threshold=5, window=60, pattern="ignored")
+    frequency = BehaviorRule("frequency", threshold=5, window=60, pattern="ignored")
+    assert usage.discriminator() == '["usage",null,60,5,"log"]'
+    assert frequency.discriminator() == '["frequency",null,60,5,"log"]'

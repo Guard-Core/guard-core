@@ -338,6 +338,21 @@ class RedisManager:
         result = self.safe_operation(_record)
         return int(result) if result is not None else 0
 
+    def count_sliding_window_hits(
+        self, namespace: str, key: str, window_start: float
+    ) -> int:
+        """The key's hits at or after window_start, without recording one."""
+        if not self.config.enable_redis:
+            return 0
+
+        full_key = f"{self.config.redis_prefix}{namespace}:{key}"
+
+        def _count(conn: Redis) -> int:
+            return int(conn.zcount(full_key, window_start, "+inf"))
+
+        result = self.safe_operation(_count)
+        return int(result) if result is not None else 0
+
     def sum_indexed_window_hits(
         self, namespace: str, index_key: str, window_start: float
     ) -> int:

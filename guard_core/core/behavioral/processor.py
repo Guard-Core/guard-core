@@ -5,6 +5,7 @@ from guard_core._utils.request_logging import redact_endpoint_for_display
 from guard_core.core.behavioral._throttle import (
     BehavioralThrottleMixin,
     effective_return_threshold,
+    first_of_rule_id,
     global_scope_id,
     is_throttle_rule,
 )
@@ -67,12 +68,13 @@ class BehavioralProcessor(BehavioralThrottleMixin):
         route_rules: Sequence[BehaviorRule],
     ) -> list[BehaviorRule]:
         route_throttles: list[BehaviorRule] = []
+        seen: set[str] = set()
         for rule in route_rules:
             if is_throttle_rule(rule):
                 route_throttles.append(rule)
             elif rule.rule_type in ["usage", "frequency"]:
                 threshold_exceeded = await behavior_tracker.track_endpoint_usage(
-                    endpoint_id, client_ip, rule
+                    endpoint_id, client_ip, rule, first_of_rule_id(seen, rule)
                 )
                 if threshold_exceeded:
                     details = f"{rule.threshold} calls in {rule.window}s"
@@ -112,9 +114,14 @@ class BehavioralProcessor(BehavioralThrottleMixin):
             return
 
         endpoint_id = self.get_endpoint_id(request)
+        seen: set[str] = set()
         for rule in return_rules:
             pattern_detected = await behavior_tracker.track_return_pattern(
-                endpoint_id, client_ip, response, rule
+                endpoint_id,
+                client_ip,
+                response,
+                rule,
+                record=first_of_rule_id(seen, rule),
             )
             if pattern_detected and not is_throttle_rule(rule):
                 details = f"{rule.threshold} for '{rule.pattern}' in {rule.window}s"
@@ -147,7 +154,9 @@ class BehavioralProcessor(BehavioralThrottleMixin):
         endpoint_id = self.get_endpoint_id(request)
         correlated_categories = self._collect_correlated_categories(client_ip)
 
+        seen: set[str] = set()
         for rule in filter(_counts_in_response_phase, rules):
+            record = first_of_rule_id(seen, rule)
             if rule.rule_type == "return_pattern":
                 await self._evaluate_global_return_rule(
                     tracker,
@@ -157,10 +166,11 @@ class BehavioralProcessor(BehavioralThrottleMixin):
                     endpoint_id,
                     rule,
                     correlated_categories,
+                    record,
                 )
             else:
                 await self._evaluate_global_usage_rule(
-                    tracker, request, client_ip, endpoint_id, rule
+                    tracker, request, client_ip, endpoint_id, rule, record
                 )
 
     process_global_return_rules = process_global_rules
@@ -172,9 +182,10 @@ class BehavioralProcessor(BehavioralThrottleMixin):
         client_ip: str,
         endpoint_id: str,
         rule: BehaviorRule,
+        record: bool = True,
     ) -> None:
         if not await tracker.track_endpoint_usage(
-            global_scope_id(rule), client_ip, rule
+            global_scope_id(rule), client_ip, rule, record
         ):
             return
 
@@ -202,6 +213,7 @@ class BehavioralProcessor(BehavioralThrottleMixin):
         endpoint_id: str,
         rule: BehaviorRule,
         correlated_categories: list[str],
+        record: bool = True,
     ) -> None:
         effective_threshold, correlation_active = effective_return_threshold(
             rule, correlated_categories
@@ -213,6 +225,7 @@ class BehavioralProcessor(BehavioralThrottleMixin):
             response,
             rule,
             effective_threshold=effective_threshold,
+            record=record,
         )
         if not pattern_detected or is_throttle_rule(rule):
             return

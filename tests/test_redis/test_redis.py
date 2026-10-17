@@ -257,6 +257,65 @@ async def test_record_sliding_window_hit_disabled_redis_returns_zero(
 
 
 @pytest.mark.asyncio
+async def test_count_sliding_window_hits_counts_without_recording(
+    security_config_redis: SecurityConfig,
+) -> None:
+    handler = redis_handler(security_config_redis)
+    await handler.initialize()
+    base = 2_000_000_000.0
+    key = "count_only"
+    try:
+        await handler.record_sliding_window_hit(
+            "sliding_window_test", key, base - 100, base - 200, 60
+        )
+        await handler.record_sliding_window_hit(
+            "sliding_window_test", key, base, base - 200, 60
+        )
+        assert (
+            await handler.count_sliding_window_hits(
+                "sliding_window_test", key, base - 60
+            )
+            == 1
+        )
+        assert (
+            await handler.count_sliding_window_hits(
+                "sliding_window_test", key, base - 200
+            )
+            == 2
+        )
+    finally:
+        await handler.delete_pattern("sliding_window_test*")
+        await handler.close()
+
+
+@pytest.mark.asyncio
+async def test_count_sliding_window_hits_disabled_redis_returns_zero(
+    security_config: SecurityConfig,
+) -> None:
+    handler = redis_handler(security_config)
+    await handler.initialize()
+
+    assert not security_config.enable_redis
+    assert await handler.count_sliding_window_hits("sliding_window_test", "x", 0.0) == 0
+
+
+@pytest.mark.asyncio
+async def test_count_sliding_window_hits_returns_zero_when_the_operation_fails(
+    security_config_redis: SecurityConfig, monkeypatch: Any
+) -> None:
+    handler = redis_handler(security_config_redis)
+    await handler.initialize()
+    monkeypatch.setattr(handler, "safe_operation", AsyncMock(return_value=None))
+    try:
+        assert (
+            await handler.count_sliding_window_hits("sliding_window_test", "x", 0.0)
+            == 0
+        )
+    finally:
+        await handler.close()
+
+
+@pytest.mark.asyncio
 async def test_redis_connection_context_get_error(
     security_config_redis: SecurityConfig, monkeypatch: Any
 ) -> None:

@@ -68,7 +68,7 @@ class BehaviorRule:
         # Cached per field values: it keys every hit list a request touches.
         fields = (
             self.rule_type,
-            self.pattern,
+            self.pattern if self.rule_type == "return_pattern" else None,
             self.window,
             self.threshold,
             self.action,
@@ -163,19 +163,26 @@ class BehaviorTracker(
         endpoint_id: str,
         client_ip: str,
         rule: BehaviorRule,
+        record: bool = True,
     ) -> bool:
         current_time = time.time()
         window_start = current_time - rule.window
 
         if self.redis_handler:
-            valid_count: int = await self.redis_handler.record_sliding_window_hit(
-                USAGE_NAMESPACE,
-                usage_hits_key(endpoint_id, client_ip, rule),
-                current_time,
-                window_start,
-                rule_hit_ttl(rule),
-                index=self._rule_hit_index(client_ip),
-            )
+            key = usage_hits_key(endpoint_id, client_ip, rule)
+            if record:
+                valid_count: int = await self.redis_handler.record_sliding_window_hit(
+                    USAGE_NAMESPACE,
+                    key,
+                    current_time,
+                    window_start,
+                    rule_hit_ttl(rule),
+                    index=self._rule_hit_index(client_ip),
+                )
+            else:
+                valid_count = await self.redis_handler.count_sliding_window_hits(
+                    USAGE_NAMESPACE, key, window_start
+                )
 
             return valid_count > rule.threshold
 
@@ -194,7 +201,8 @@ class BehaviorTracker(
 
             timestamps[:] = [ts for ts in timestamps if ts >= window_start]
 
-            timestamps.append(current_time)
+            if record:
+                timestamps.append(current_time)
             bucket[client_ip] = timestamps
 
             return len(timestamps) > rule.threshold
@@ -206,6 +214,7 @@ class BehaviorTracker(
         response: GuardResponse,
         rule: BehaviorRule,
         effective_threshold: int | None = None,
+        record: bool = True,
     ) -> bool:
         if not rule.pattern:
             return False
@@ -222,13 +231,15 @@ class BehaviorTracker(
             return False
 
         if self.redis_handler:
-            valid_count: int = await self.redis_handler.record_sliding_window_hit(
-                RETURN_NAMESPACE,
-                return_hits_key(endpoint_id, client_ip, rule),
-                current_time,
-                window_start,
-                rule.window,
-            )
+            key = return_hits_key(endpoint_id, client_ip, rule)
+            if record:
+                valid_count: int = await self.redis_handler.record_sliding_window_hit(
+                    RETURN_NAMESPACE, key, current_time, window_start, rule.window
+                )
+            else:
+                valid_count = await self.redis_handler.count_sliding_window_hits(
+                    RETURN_NAMESPACE, key, window_start
+                )
 
             return valid_count > threshold
 
@@ -247,7 +258,8 @@ class BehaviorTracker(
 
             timestamps[:] = [ts for ts in timestamps if ts >= window_start]
 
-            timestamps.append(current_time)
+            if record:
+                timestamps.append(current_time)
             bucket[client_ip] = timestamps
 
             return len(timestamps) > threshold
