@@ -21,6 +21,9 @@ from guard_core import _security_config_field_validators as _field_validators_mo
 from guard_core._utils import body_reader
 from guard_core._utils import detection_scan as _detection_scan_module
 from guard_core._utils import ip_extraction as _ip_extraction_module
+from guard_core.core.checks.implementations import (
+    suspicious_activity as _suspicious_activity_module,
+)
 from guard_core.core.events import logfire_handler as _logfire_handler_module
 from guard_core.core.events import otel_handler as _otel_handler_module
 from guard_core.handlers import ipban_handler as _ipban_module
@@ -138,6 +141,7 @@ _ORIGINAL_SECURITY_HEADERS_MANAGER = _security_headers_module.security_headers_m
 
 def _reset_untrusted_forwarded_for_tracking() -> None:
     _ip_extraction_module._untrusted_peers.clear()
+    _suspicious_activity_module._disabled_detection_samples.clear()
 
 
 def _reset_ip_ban_manager() -> None:

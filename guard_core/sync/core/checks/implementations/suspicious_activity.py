@@ -1,8 +1,11 @@
+import threading
+from collections import OrderedDict
 from collections.abc import Collection
 from typing import TYPE_CHECKING
 
 from guard_core.models import SecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
+from guard_core.sync._utils.sampling import observe_sampled_key
 from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.core.checks.helpers import (
     _increment_suspicious_counts,
@@ -21,6 +24,22 @@ from guard_core.sync.utils import log_activity
 if TYPE_CHECKING:
     from guard_core.sync.protocols.middleware_protocol import (
         SyncGuardMiddlewareProtocol,
+    )
+
+
+_DISABLED_DETECTION_EVENT_WINDOW_SECONDS = 60
+_MAX_TRACKED_DISABLED_DETECTION_CLIENTS = 10_000
+_disabled_detection_lock = threading.Lock()
+_disabled_detection_samples: OrderedDict[str, float] = OrderedDict()
+
+
+def _sample_disabled_detection_event(client_ip: str, route_id: str) -> bool:
+    return observe_sampled_key(
+        _disabled_detection_samples,
+        _disabled_detection_lock,
+        f"{route_id}|{client_ip}",
+        window=_DISABLED_DETECTION_EVENT_WINDOW_SECONDS,
+        max_tracked=_MAX_TRACKED_DISABLED_DETECTION_CLIENTS,
     )
 
 
@@ -157,14 +176,16 @@ class SuspiciousActivityCheck(SecurityCheck):
         )
 
         if result.trigger_info == "disabled_by_decorator":
-            self.middleware.event_bus.send_middleware_event(
-                event_type=EVENT_DECORATOR_VIOLATION,
-                request=request,
-                action_taken="detection_disabled",
-                reason="Suspicious pattern detection disabled by route decorator",
-                decorator_type="advanced",
-                violation_type="suspicious_detection_disabled",
-            )
+            route_id = str(getattr(request.state, "guard_route_id", ""))
+            if _sample_disabled_detection_event(client_ip, route_id):
+                self.middleware.event_bus.send_middleware_event(
+                    event_type=EVENT_DECORATOR_VIOLATION,
+                    request=request,
+                    action_taken="detection_disabled",
+                    reason="Suspicious pattern detection disabled by route decorator",
+                    decorator_type="advanced",
+                    violation_type="suspicious_detection_disabled",
+                )
             return None
 
         if not result.is_threat:

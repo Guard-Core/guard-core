@@ -1,6 +1,5 @@
 import logging
 import threading
-import time
 from collections import OrderedDict
 from collections.abc import Sequence
 from ipaddress import IPv4Address, IPv6Address, ip_address, ip_network
@@ -8,6 +7,7 @@ from typing import Any
 
 from guard_core.sync._utils.agent_events import send_agent_event
 from guard_core.sync._utils.logging_utils import _sanitize_for_log
+from guard_core.sync._utils.sampling import observe_sampled_key
 from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
@@ -213,12 +213,7 @@ _MAX_TRACKED_UNTRUSTED_PEERS = 10_000
 _untrusted_peer_lock = threading.Lock()
 
 
-class _UntrustedPeerActivity:
-    def __init__(self) -> None:
-        self.last_warned: float | None = None
-
-
-_untrusted_peers: OrderedDict[str, _UntrustedPeerActivity] = OrderedDict()
+_untrusted_peers: OrderedDict[str, float] = OrderedDict()
 
 
 def _observe_untrusted_forwarded_for(peer: str) -> bool:
@@ -231,19 +226,13 @@ def _observe_untrusted_forwarded_for(peer: str) -> bool:
     X-Forwarded-For that claims a whitelisted or trusted-proxy address is. At most
     ``_MAX_TRACKED_UNTRUSTED_PEERS`` peers are tracked and the oldest is evicted.
     """
-    now = time.monotonic()
-    cutoff = now - _UNTRUSTED_XFF_WINDOW_SECONDS
-    with _untrusted_peer_lock:
-        activity = _untrusted_peers.pop(peer, None)
-        if activity is None:
-            if len(_untrusted_peers) >= _MAX_TRACKED_UNTRUSTED_PEERS:
-                _untrusted_peers.popitem(last=False)
-            activity = _UntrustedPeerActivity()
-        _untrusted_peers[peer] = activity
-        should_warn = activity.last_warned is None or activity.last_warned <= cutoff
-        if should_warn:
-            activity.last_warned = now
-    return should_warn
+    return observe_sampled_key(
+        _untrusted_peers,
+        _untrusted_peer_lock,
+        peer,
+        window=_UNTRUSTED_XFF_WINDOW_SECONDS,
+        max_tracked=_MAX_TRACKED_UNTRUSTED_PEERS,
+    )
 
 
 def forwarded_for_addresses(forwarded_for: str) -> list[IPv4Address | IPv6Address]:
