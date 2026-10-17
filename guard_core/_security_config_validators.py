@@ -73,6 +73,7 @@ __all__ = [
     "_geo_state_candidates",
     "_is_prefix_zero_network_entry",
     "_normalized_country_value",
+    "_require_optional_extras",
     "_resolve_geo_ip_handler",
     "_revalidate_copied_config",
     "_validate_blacklist_value",
@@ -160,3 +161,25 @@ def _revalidate_copied_config(
     _revalidate_geo_state_fields(copied, update)
     _revalidate_changed_fields(copied, update)
     _revalidate_global_behavior_rule_fields(copied, update)
+
+
+def _require_optional_extras(config: "SecurityConfig") -> None:
+    if config.enable_redis and not _extra_installed("redis"):
+        raise ValueError(
+            "enable_redis=True requires the 'redis' package. "
+            "Install it with: pip install guard-core[redis]"
+        )
+
+    if cloud_blocking_enabled(config) and not _extra_installed("aiohttp", "requests"):
+        raise ValueError(
+            "block_cloud_providers / enable_dynamic_rules requires 'aiohttp' or "
+            "'requests'. Install it with: pip install guard-core[cloud]"
+        )
+
+    has_country_rules = bool(config.blocked_countries or config.whitelist_countries)
+    needs_builtin_geo_handler = config.geo_ip_handler is None and has_country_rules
+    if needs_builtin_geo_handler and not _extra_installed("maxminddb"):
+        raise ValueError(
+            "geo_ip_handler / country rules require the 'maxminddb' package. "
+            "Install it with: pip install guard-core[geo]"
+        )

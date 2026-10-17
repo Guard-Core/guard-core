@@ -10,7 +10,10 @@ from pydantic import ConfigDict, PrivateAttr, field_validator, model_validator
 from typing_extensions import Self
 
 from guard_core import __version__
-from guard_core._config_capabilities import _extra_installed, cloud_blocking_enabled
+from guard_core._config_capabilities import _extra_installed as _extra_installed
+from guard_core._config_capabilities import (
+    cloud_blocking_enabled as cloud_blocking_enabled,
+)
 from guard_core._dynamic_rules import DynamicRules as DynamicRules
 from guard_core._security_config_fields import _SecurityConfigFields
 from guard_core._security_config_validators import (
@@ -20,6 +23,7 @@ from guard_core._security_config_validators import (
     _apply_geo_ip_handler_assignment,
     _country_shadow_should_warn,
     _is_prefix_zero_network_entry,
+    _require_optional_extras,
     _resolve_geo_ip_handler,
     _revalidate_copied_config,
     _validate_block_cloud_providers_value,
@@ -182,26 +186,7 @@ class SecurityConfig(_SecurityConfigFields):
 
     @model_validator(mode="after")
     def validate_optional_extras_installed(self) -> Self:
-        if self.enable_redis and not _extra_installed("redis"):
-            raise ValueError(
-                "enable_redis=True requires the 'redis' package. "
-                "Install it with: pip install guard-core[redis]"
-            )
-
-        if cloud_blocking_enabled(self) and not _extra_installed("aiohttp", "requests"):
-            raise ValueError(
-                "block_cloud_providers / enable_dynamic_rules requires 'aiohttp' or "
-                "'requests'. Install it with: pip install guard-core[cloud]"
-            )
-
-        has_country_rules = bool(self.blocked_countries or self.whitelist_countries)
-        needs_builtin_geo_handler = self.geo_ip_handler is None and has_country_rules
-        if needs_builtin_geo_handler and not _extra_installed("maxminddb"):
-            raise ValueError(
-                "geo_ip_handler / country rules require the 'maxminddb' package. "
-                "Install it with: pip install guard-core[geo]"
-            )
-
+        _require_optional_extras(self)
         return self
 
     @model_validator(mode="after")
