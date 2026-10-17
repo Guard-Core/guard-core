@@ -169,3 +169,19 @@ def test_unban_inside_deletes_redis_keys_in_batches_and_keeps_the_rest(
     with real_redis.get_connection() as conn:
         remaining = [key for key in conn.scan_iter(match=f"{REDIS_PREFIX}banned_ips:*")]
     assert remaining == [f"{REDIS_PREFIX}banned_ips:10.10.0.1"]
+
+
+def test_unban_inside_does_not_walk_the_expiry_ordered_cache_iterator() -> None:
+    from cachetools import TTLCache
+
+    expiry = time.time() + 600
+    for index in range(300):
+        ip_ban_manager.banned_ips[f"10.7.0.{index % 250}"] = expiry
+
+    def refuse(self: object) -> None:
+        raise AssertionError("TTLCache iteration walks and expires every entry")
+
+    with patch.object(TTLCache, "__iter__", refuse):
+        ip_ban_manager.unban_inside(["10.7.0.0/24"])
+
+    assert len(ip_ban_manager.banned_ips) == 0

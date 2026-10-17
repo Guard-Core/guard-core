@@ -4,7 +4,7 @@ import time
 from collections.abc import Iterable
 from typing import Any
 
-from cachetools import TTLCache
+from cachetools import Cache, TTLCache
 
 from guard_core.sync.handlers._ipban_cache import _Network
 from guard_core.sync.handlers._ipban_coverage import NetworkCoverage
@@ -13,6 +13,8 @@ from guard_core.sync.handlers._ipban_rule_exempt import IpBanRuleExemptionMixin
 from guard_core.sync.utils import _canonicalize_ip
 
 _BATCH = 2000
+_MEMORY_BATCH = 1000
+_EVENT_BATCH = 100
 
 
 def _member_covered(namespace: str, member: str, coverage: NetworkCoverage) -> bool:
@@ -106,8 +108,13 @@ class IpBanQueryMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
         if self.redis_handler:
             removed.extend(self._unban_redis_inside(coverage))
         if self.agent_handler:
-            for member in dict.fromkeys(removed):
+            self._send_unban_events(list(dict.fromkeys(removed)))
+
+    def _send_unban_events(self, members: list[str]) -> None:
+        for start in range(0, len(members), _EVENT_BATCH):
+            for member in members[start : start + _EVENT_BATCH]:
                 self._send_unban_event(member)
+            time.sleep(0)
 
     def _unban_memory_inside(self, coverage: NetworkCoverage) -> list[str]:
         removed: list[str] = []
@@ -118,9 +125,9 @@ class IpBanQueryMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
             else:
                 kept.append((banned, expiry))
         self.banned_networks = kept
-        keys = list(self.banned_ips)
-        for start in range(0, len(keys), _BATCH):
-            for ip in keys[start : start + _BATCH]:
+        keys = list(Cache.__iter__(self.banned_ips))
+        for start in range(0, len(keys), _MEMORY_BATCH):
+            for ip in keys[start : start + _MEMORY_BATCH]:
                 if coverage.covers_address(ip):
                     self._purge_banned_ip(ip)
                     removed.append(ip)
