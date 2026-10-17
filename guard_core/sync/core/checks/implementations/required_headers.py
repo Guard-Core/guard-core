@@ -78,7 +78,7 @@ class RequiredHeadersCheck(SecurityCheck):
         if not self.config.passive_mode:
             return self.middleware.create_error_response(
                 status_code=400,
-                default_message=reason,
+                default_message="Bad request",
             )
         return None
 

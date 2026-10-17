@@ -549,9 +549,11 @@ def test_required_headers_mismatch_reason_does_not_leak_values() -> None:
     req = _make_request_with_route_config(
         rc, headers={"X-Custom": "super-secret-received"}
     )
-    with patch(f"{_IMPL}.required_headers.log_activity"):
+    with patch(f"{_IMPL}.required_headers.log_activity") as log_mock:
         check.check(req)
-    reason = mw.create_error_response.call_args.kwargs["default_message"]
+    body = mw.create_error_response.call_args.kwargs["default_message"]
+    assert body == "Bad request"
+    reason = log_mock.call_args.kwargs["reason"]
     assert reason == "Header 'X-Custom' does not match the required value"
     assert "super-secret-expected" not in reason
     assert "super-secret-received" not in reason
