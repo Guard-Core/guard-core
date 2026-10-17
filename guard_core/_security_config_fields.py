@@ -743,7 +743,8 @@ class _SecurityConfigFields(BaseModel):
             "endpoint_rate_limits, block_cloud_providers, blocked_user_agents, "
             "enable_penetration_detection, enable_ip_banning, enable_rate_limiting, "
             "enable_rate_limit_auto_ban, auto_ban_threshold, auto_ban_duration, "
-            "emergency_mode and emergency_whitelist. Requires enable_agent."
+            "emergency_mode, emergency_whitelist and emergency_whitelist_only. "
+            "Requires enable_agent."
         ),
     )
 
@@ -776,6 +777,13 @@ class _SecurityConfigFields(BaseModel):
     emergency_whitelist: list[str] = Field(
         default_factory=list,
         description="Emergency whitelist IPs (set by dynamic rules)",
+    )
+
+    emergency_whitelist_only: bool = Field(
+        default=True,
+        description="During emergency mode, admit only emergency_whitelist IPs. "
+        "False keeps the lockdown but also admits whitelist and exempt_ips "
+        "(set by dynamic rules)",
     )
 
     endpoint_rate_limits: dict[str, tuple[int, int]] = Field(

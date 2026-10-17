@@ -90,6 +90,7 @@ class DynamicRulePlanMixin:
         "enable_rate_limiting",
         "emergency_mode",
         "emergency_whitelist",
+        "emergency_whitelist_only",
         "exempt_ips",
         "auto_ban_threshold",
         "auto_ban_duration",
@@ -292,6 +293,7 @@ class DynamicRulePlanMixin:
             return
         plan.set("emergency_mode", True)
         plan.set("emergency_whitelist", rules.emergency_whitelist)
+        plan.set("emergency_whitelist_only", rules.emergency_whitelist_only)
         plan.emergency_whitelist = rules.emergency_whitelist
         threshold = cast(int, plan.state["auto_ban_threshold"])
         plan.set("auto_ban_threshold", max(1, threshold // 2))

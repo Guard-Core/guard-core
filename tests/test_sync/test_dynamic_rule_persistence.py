@@ -496,19 +496,20 @@ def test_sync_guard_core_dynamic_rules_mirror_is_a_subset_of_guard_agent_model()
 
 
 def test_sync_dump_last_known_rules_snapshot_excludes_guard_agent_only_fields() -> None:
-    agent_rules = _agent_rules()
+    agent_rules = _agent_rules(emergency_whitelist_only=False)
 
     payload = dump_last_known_rules_snapshot(agent_rules)
     envelope = json.loads(payload)
 
-    assert "emergency_whitelist_only" not in envelope["rules"]
     assert "message" not in envelope["rules"]
+    assert envelope["rules"]["emergency_whitelist_only"] is False
 
     loaded = load_last_known_rules_snapshot(payload)
     assert loaded.rule_id == "agent-rule"
     assert loaded.version == 3
     assert loaded.ip_blacklist == ["1.2.3.4"]
     assert loaded.emergency_mode is False
+    assert loaded.emergency_whitelist_only is False
 
 
 def test_sync_apply_rules_persists_snapshot_built_from_real_guard_agent_rules(

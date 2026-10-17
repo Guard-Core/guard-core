@@ -66,7 +66,7 @@ ___
 
 **Purpose**: Lockdown mode that blocks all traffic except whitelisted IPs.
 
-**Blocks when**: `config.emergency_mode` is `True` and `client_ip` is not in `config.emergency_whitelist`.
+**Blocks when**: `config.emergency_mode` is `True` and `client_ip` is not in `config.emergency_whitelist`. With `config.emergency_whitelist_only` set to `False`, IPs in `config.whitelist` or `config.exempt_ips` also get through; everyone else is still blocked.
 
 **Response**: `503 Service temporarily unavailable`
 
@@ -76,6 +76,7 @@ ___
 |-----------------------|-------------|----------|
 | `emergency_mode`      | `bool`      | `False`  |
 | `emergency_whitelist` | `list[str]` | `[]`     |
+| `emergency_whitelist_only` | `bool` | `True` |
 
 ___
 

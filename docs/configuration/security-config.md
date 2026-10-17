@@ -486,6 +486,7 @@ Dynamic Rules
 | `dynamic_rules_cache_path` | `Path \| None` | `None` | Optional local JSON file persisting the last-known dynamic rules snapshot so a restart during a SaaS outage restores the last applied rules instead of base config. Redis holds the primary snapshot whenever a redis_handler is present; the file is an additional opt-in fallback that is only written and read when this path is set. Neither store expires: the Redis key and the file persist until you remove them, even after you disable dynamic rules. |
 | `emergency_mode`        | `bool` | `False` | Emergency lockdown mode (set by dynamic rules). |
 | `emergency_whitelist`   | `list[str]` | `[]`| Emergency whitelist IPs (set by dynamic rules). |
+| `emergency_whitelist_only` | `bool` | `True` | During emergency mode, only `emergency_whitelist` IPs get through and every other client gets the 503. `False` keeps the lockdown but also lets `whitelist` and `exempt_ips` IPs through (set by dynamic rules; a rule without the field keeps `True`). |
 
 **Validator**: `enable_agent` must be `True` when `enable_dynamic_rules` is `True`.
 

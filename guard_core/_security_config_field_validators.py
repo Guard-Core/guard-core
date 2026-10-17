@@ -450,6 +450,9 @@ _FIELD_REVALIDATORS: dict[str, Callable[[Any], Any]] = {
     "emergency_whitelist": partial(
         _validate_str_list_field_value, field_name="emergency_whitelist"
     ),
+    "emergency_whitelist_only": partial(
+        _validate_bool_field_value, field_name="emergency_whitelist_only"
+    ),
     "auto_ban_threshold": partial(
         _validate_positive_int_field_value, field_name="auto_ban_threshold"
     ),

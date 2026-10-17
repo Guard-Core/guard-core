@@ -83,6 +83,7 @@ Ordered by domain, then by field name.
 | `dynamic_rule_interval` | `int` | `300` | dynamic-rules | Keep |
 | `emergency_mode` | `bool` | `False` | dynamic-rules | Keep |
 | `emergency_whitelist` | `list[str]` | `list` | dynamic-rules | Keep |
+| `emergency_whitelist_only` | `bool` | `True` | dynamic-rules | Keep |
 | `endpoint_rate_limits` | `dict[str, tuple[int, int]]` | `dict` | dynamic-rules | Keep |
 | `enable_enrichment` | `bool` | `False` | enrichment | Keep |
 | `ipinfo_token` | `str \| None` | `None` | ipinfo | **Deprecate (warns)** |

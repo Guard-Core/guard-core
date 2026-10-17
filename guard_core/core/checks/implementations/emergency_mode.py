@@ -1,4 +1,4 @@
-from collections.abc import Collection
+from collections.abc import Collection, Sequence
 from ipaddress import ip_address
 
 from guard_core.core.checks.base import SecurityCheck
@@ -23,6 +23,15 @@ class EmergencyModeCheck(SecurityCheck):
     ) -> bool:
         return config.emergency_mode or config.enable_dynamic_rules
 
+    def _admitted_lists(self) -> tuple[Sequence[str] | None, ...]:
+        if self.config.emergency_whitelist_only:
+            return (self.config.emergency_whitelist,)
+        return (
+            self.config.emergency_whitelist,
+            self.config.whitelist,
+            self.config.exempt_ips,
+        )
+
     async def check(self, request: GuardRequest) -> GuardResponse | None:
         if not self.config.emergency_mode:
             return None
@@ -38,8 +47,9 @@ class EmergencyModeCheck(SecurityCheck):
         except ValueError:
             client_ip_addr = None
 
-        is_whitelisted = client_ip_addr is not None and _ip_in_list(
-            client_ip_addr, client_ip, self.config.emergency_whitelist
+        is_whitelisted = client_ip_addr is not None and any(
+            _ip_in_list(client_ip_addr, client_ip, entries)
+            for entries in self._admitted_lists()
         )
 
         if not is_whitelisted:
