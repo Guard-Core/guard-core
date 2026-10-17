@@ -5,9 +5,9 @@ from functools import partial
 from ipaddress import ip_address, ip_network
 from pathlib import Path
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, Literal, get_args
+from typing import TYPE_CHECKING, Annotated, Any, Literal, get_args
 
-from pydantic import BaseModel, Field, TypeAdapter
+from pydantic import AfterValidator, BaseModel, Field, TypeAdapter
 
 from guard_core._config_field_revalidators import (
     _validate_bool_field_value,
@@ -117,6 +117,21 @@ class BehaviorRuleConfig(BaseModel):
     action: Literal["ban", "log", "throttle", "alert"] = "log"
     ban_duration: int | None = Field(default=None, ge=1)
     correlate_with_detection: bool = False
+
+
+def _drop_exact_duplicate_rules(
+    rules: tuple[BehaviorRuleConfig, ...],
+) -> tuple[BehaviorRuleConfig, ...]:
+    unique: list[BehaviorRuleConfig] = []
+    for rule in rules:
+        if rule not in unique:
+            unique.append(rule)
+    return tuple(unique)
+
+
+GlobalBehaviorRules = Annotated[
+    tuple[BehaviorRuleConfig, ...], AfterValidator(_drop_exact_duplicate_rules)
+]
 
 
 def return_pattern_requires_response_body(pattern: str) -> bool:
@@ -413,7 +428,7 @@ def _validate_dynamic_rules_cache_path_value(v: Any) -> Path | None:
 
 
 _GLOBAL_BEHAVIOR_RULES_ADAPTER: TypeAdapter[tuple[BehaviorRuleConfig, ...]] = (
-    TypeAdapter(tuple[BehaviorRuleConfig, ...])
+    TypeAdapter(GlobalBehaviorRules)
 )
 
 

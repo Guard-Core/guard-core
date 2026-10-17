@@ -9,6 +9,10 @@ from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse
 
 
+def _global_tracking_endpoint_id(rule: BehaviorRule) -> str:
+    return f"global|{rule.discriminator()}"
+
+
 class BehavioralProcessor:
     def __init__(self, context: BehavioralContext) -> None:
         self.context = context
@@ -171,8 +175,9 @@ class BehavioralProcessor:
         endpoint_id: str,
         rule: BehaviorRule,
     ) -> None:
-        global_endpoint_id = f"global|{rule.discriminator()}"
-        if not await tracker.track_endpoint_usage(global_endpoint_id, client_ip, rule):
+        if not await tracker.track_endpoint_usage(
+            _global_tracking_endpoint_id(rule), client_ip, rule
+        ):
             return
 
         details = f"{rule.threshold} calls in {rule.window}s"
@@ -221,7 +226,7 @@ class BehavioralProcessor:
         )
 
         pattern_detected = await tracker.track_return_pattern(
-            endpoint_id,
+            _global_tracking_endpoint_id(rule),
             client_ip,
             response,
             rule,

@@ -5,7 +5,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from guard_core._security_config_validators import BehaviorRuleConfig, ThreatBanConfig
+from guard_core._security_config_field_validators import GlobalBehaviorRules
+from guard_core._security_config_validators import ThreatBanConfig
 from guard_core.handlers.suspatterns_handler import ALL_DETECTION_CATEGORIES
 from guard_core.protocols.cloud_ip_store_protocol import (
     CloudIpStoreFactory,
@@ -229,7 +230,7 @@ class _SecurityConfigFields(BaseModel):
         ),
     )
 
-    global_behavior_rules: tuple[BehaviorRuleConfig, ...] = Field(
+    global_behavior_rules: GlobalBehaviorRules = Field(
         default_factory=tuple,
         description=(
             "Behaviour rules applied to every route, in addition to any "
