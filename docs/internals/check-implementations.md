@@ -209,7 +209,7 @@ ___
 
 **Blocks when**: A header in `RouteConfig.required_headers` is missing from the request, or, when the configured value is not the sentinel `"required"`, present but not equal to that value.
 
-**Response**: `400 Missing required header: {name}` when the header is absent; `400 Header 'X' does not match the required value` when present but mismatched -- the reason never echoes the expected or received value.
+**Response**: `400 Bad request`. The body never names the header or says whether a value was close; the specific reason (`Missing required header: {name}` or `Header 'X' does not match the required value`) goes to the log line and the event only. A configured value is compared with `hmac.compare_digest`. `api_key_auth` does not register its header here: the authentication check answers a missing key with 401.
 
 !!! warning "Breaking Change"
     Before this fix, a configured value other than `"required"` was never enforced -- the check was a silent no-op for it, and neither a missing header nor a mismatched value blocked the request. A route relying on that no-op now has the value enforced.
@@ -219,11 +219,11 @@ ___
 12. AuthenticationCheck
 -----------------------
 
-**Purpose**: Validates the `Authorization` header format.
+**Purpose**: Validates every credential the route configures: the `Authorization` header for `require_auth` and the API key header for `api_key_auth`, each by its own verifier.
 
-**Blocks when**: `RouteConfig.auth_required` is set and the header does not match the expected format (`"bearer"` expects `Bearer ...`, `"basic"` expects `Basic ...`).
+**Blocks when**: a configured credential is missing, empty, in the wrong format (`"bearer"` expects `Bearer ...`, `"basic"` expects `Basic ...`, the scheme name is case-insensitive) or rejected by its verifier. A route that stacks `require_auth` and `api_key_auth` needs both to pass. A verifier that raises is logged at ERROR with its exception and still gives a 401.
 
-**Response**: `401 Authentication required`
+**Response**: `401 Authentication required` with a `WWW-Authenticate` challenge: `Bearer`, `Basic realm="Restricted"` or `ApiKey`.
 
 !!! note "Token Validation Not Included"
     This check only validates the header format, not the token itself. Actual token validation should be done in a custom validator or application logic.
