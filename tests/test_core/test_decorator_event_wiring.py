@@ -151,7 +151,7 @@ async def test_route_rate_limit_wires_send_rate_limit_event() -> None:
     await decorator.initialize_agent(recording_agent)
 
     route_id = _decorated_route(
-        decorator, lambda d: d.rate_limit(0, window=60), "rate_limit_route"
+        decorator, lambda d: d.rate_limit(1, window=60), "rate_limit_route"
     )
     middleware = _build_middleware(config, decorator)
     pipeline = build_default_pipeline(middleware)
@@ -159,6 +159,7 @@ async def test_route_rate_limit_wires_send_rate_limit_event() -> None:
     request = MockGuardRequest(client_host="203.0.113.52")
     request.state.guard_route_id = route_id
 
+    assert await pipeline.execute(request) is None
     result = await pipeline.execute(request)
 
     assert result is not None
@@ -167,7 +168,7 @@ async def test_route_rate_limit_wires_send_rate_limit_event() -> None:
     assert event.event_type == "rate_limited"
     assert event.action_taken == "blocked"
     assert event.decorator_type == "rate_limiting"
-    assert event.metadata["limit"] == 0
+    assert event.metadata["limit"] == 1
     assert event.metadata["window"] == 60
 
 
