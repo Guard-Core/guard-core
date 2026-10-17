@@ -1,3 +1,4 @@
+import hmac
 from collections.abc import Collection
 
 from guard_core.core.checks.base import SecurityCheck
@@ -108,7 +109,9 @@ class RequiredHeadersCheck(SecurityCheck):
             actual = request.headers.get(header)
             if not actual:
                 return await self._handle_missing_header(request, header)
-            if expected != "required" and actual != expected:
+            if expected != "required" and not hmac.compare_digest(
+                actual.encode(), expected.encode()
+            ):
                 return await self._handle_mismatched_header(request, header)
 
         return None
