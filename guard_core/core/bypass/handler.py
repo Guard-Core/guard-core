@@ -103,8 +103,8 @@ class BypassHandler:
             ),
         )
 
-        if not self.context.config.passive_mode:
-            response = await call_next(request)
-            return await self.context.response_factory.apply_modifier(response)
-
-        return None
+        response = await call_next(request)
+        response = await self.context.response_factory.apply_security_headers(
+            response, str(request.url_path)
+        )
+        return await self.context.response_factory.apply_modifier(response)

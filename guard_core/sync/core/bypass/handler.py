@@ -101,10 +101,10 @@ class BypassHandler:
             ),
         )
 
-        if not self.context.config.passive_mode:
-            if call_next:
-                response = call_next(request)
-                return self.context.response_factory.apply_modifier(response)
+        if call_next is None:
             return None
-
-        return None
+        response = call_next(request)
+        response = self.context.response_factory.apply_security_headers(
+            response, str(request.url_path)
+        )
+        return self.context.response_factory.apply_modifier(response)

@@ -436,14 +436,14 @@ DOTALL_FIXUPS: list[tuple[str, str]] = [
         "        route_config: RouteConfig | None = None,",
     ),
     (
-        r"if not self\.context\.config\.passive_mode:\n\s+response = call_next\(request\)\n\s+return self\.context\.response_factory\.apply_modifier\(response\)\n\n\s+return None",  # noqa: E501
-        "if not self.context.config.passive_mode:\n"
-        "            if call_next:\n"
-        "                response = call_next(request)\n"
-        "                return self.context.response_factory.apply_modifier(response)\n"  # noqa: E501
+        r"response = call_next\(request\)\n\s+response = self\.context\.response_factory\.apply_security_headers\(\n\s+response, str\(request\.url_path\)\n\s+\)\n\s+return self\.context\.response_factory\.apply_modifier\(response\)",  # noqa: E501
+        "if call_next is None:\n"
         "            return None\n"
-        "\n"
-        "        return None",
+        "        response = call_next(request)\n"
+        "        response = self.context.response_factory.apply_security_headers(\n"  # noqa: E501
+        "            response, str(request.url_path)\n"
+        "        )\n"
+        "        return self.context.response_factory.apply_modifier(response)",
     ),
     (
         r"def stop\(self\) -> None:\n\s+if self\.update_task:\n"

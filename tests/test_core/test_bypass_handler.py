@@ -22,6 +22,9 @@ def _reset_no_client_address_warning() -> None:
 def mock_response_factory() -> Mock:
     factory = Mock()
     factory.apply_modifier = AsyncMock(return_value=Mock(status_code=200))
+    factory.apply_security_headers = AsyncMock(
+        side_effect=lambda response, path=None: response
+    )
     factory.create_error_response = AsyncMock(return_value=Mock(status_code=403))
     return factory
 
@@ -369,6 +372,7 @@ async def test_handle_security_bypass_active_mode(
     assert call_args["event_type"] == "security_bypass"
     assert call_args["action_taken"] == "all_checks_bypassed"
     assert call_args["endpoint"] == "/test"
+    mock_response_factory.apply_security_headers.assert_awaited_once()
     mock_response_factory.apply_modifier.assert_called_once()
 
 
@@ -392,9 +396,11 @@ async def test_handle_security_bypass_passive_mode(
         route_config,
     )
 
-    assert response is None
+    assert response is not None
+    assert response.status_code == 200
     mock_event_bus.send_middleware_event.assert_called_once()
-    mock_response_factory.apply_modifier.assert_not_called()
+    mock_response_factory.apply_security_headers.assert_awaited_once()
+    mock_response_factory.apply_modifier.assert_called_once()
 
 
 async def test_handle_security_bypass_with_multiple_bypassed_checks(

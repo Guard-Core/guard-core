@@ -1687,6 +1687,10 @@ async def _run_security_bypass_event(secret: str, ctx: "_ScenarioContext") -> No
     route_resolver = MagicMock()
     route_resolver.should_bypass_check = MagicMock(return_value=True)
     response_factory = MagicMock()
+    response_factory.apply_security_headers = AsyncMock(
+        side_effect=lambda response, path=None: response
+    )
+    response_factory.apply_modifier = AsyncMock(side_effect=lambda response: response)
     validator = MagicMock()
     validator.is_path_excluded = AsyncMock(return_value=False)
     context = BypassContext(
@@ -1702,7 +1706,7 @@ async def _run_security_bypass_event(secret: str, ctx: "_ScenarioContext") -> No
     route_config.bypassed_checks = {"all"}
 
     async def _call_next(request: Any) -> Any:
-        raise AssertionError("call_next should not run in passive mode")
+        return MagicMock(status_code=200)
 
     request = MockGuardRequest(path=f"/items;token={secret}", client_host=client_ip)
     events_before = len(_AGENT_RECORDER.events)
