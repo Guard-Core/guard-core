@@ -166,3 +166,20 @@ def test_applying_and_failing_updates_are_logged(
     assert "Failed to update dynamic rules: boom" in [
         r.getMessage() for r in caplog.records
     ]
+
+
+def test_a_failing_apply_step_is_logged_before_the_update_failure(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manager, _, _ = _manager()
+    monkeypatch.setattr(
+        manager, "_swap_config", MagicMock(side_effect=RuntimeError("boom"))
+    )
+    with caplog.at_level(logging.ERROR, logger="guard_core.sync.handlers.dynamic_rule"):
+        _poll(manager, _rules())
+
+    assert [r.getMessage() for r in caplog.records] == [
+        "Failed to apply dynamic rules: boom",
+        "Failed to update dynamic rules: boom",
+    ]
+    assert manager.current_rules is None

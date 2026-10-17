@@ -902,6 +902,9 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
     "DynamicRuleSnapshotMixin._clear_last_known_rules": (
         "lines 114,124: persistence cleanup failure for SaaS-pushed rules, infra only"
     ),
+    "handlers/dynamic_rule_handler.py:DynamicRuleManager._apply_rules": (
+        "line 204: applying a SaaS-pushed DynamicRules payload, not a request"
+    ),
     "handlers/dynamic_rule_handler.py:DynamicRuleManager._revoke_active_rules": (
         "line 197: rule-revocation lifecycle log, policy metadata only"
     ),

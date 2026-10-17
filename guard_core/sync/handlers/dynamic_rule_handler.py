@@ -195,9 +195,10 @@ class DynamicRuleManager(
                 ip_ban_manager.set_rule_exempt_ips(plan.exempt_ips)
                 self._apply_side_effects(rules, effects, plan.exempt_ips)
                 self._swap_config(plan)
-            except Exception:
+            except Exception as e:
                 ip_ban_manager.rule_exempt_networks = previous_exempt
                 self._undo_side_effects(effects)
+                self.logger.error(f"Failed to apply dynamic rules: {e}")
                 raise
             self._active_base_snapshot = base
             self._revoke_stale_side_effects(rules, effects)
