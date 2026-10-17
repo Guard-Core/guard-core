@@ -1,5 +1,6 @@
 from collections.abc import Callable, Iterable
 
+from guard_core._misconfiguration import config_logger
 from guard_core._utils.request_path import resolve_dot_and_empty_segments
 from guard_core.protocols.route_identity import RouteIdentity
 
@@ -25,7 +26,14 @@ class EndpointLimitKeyMap:
             by_path.setdefault(normalize_limit_path(key), set()).add(key)
             if resolve_route is None:
                 continue
-            identities = resolve_route(key)
+            try:
+                identities = resolve_route(key)
+            except Exception as error:
+                config_logger.warning(
+                    f"resolve_route() raised {error!r} for endpoint_rate_limits "
+                    f"key {key!r}; the key matches by its normalized path only."
+                )
+                continue
             if not identities:
                 unresolved.add(key)
             for identity in identities:

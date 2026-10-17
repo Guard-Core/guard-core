@@ -1,0 +1,133 @@
+import logging
+from typing import Any
+from unittest.mock import MagicMock, Mock
+
+import pytest
+
+from guard_core.models import SecurityConfig
+from guard_core.sync.core.checks.implementations.rate_limit import RateLimitCheck
+from guard_core.sync.core.checks.implementations.route_config import RouteConfigCheck
+from guard_core.sync.core.checks.pipeline import SecurityCheckPipeline
+
+BLOCKED = object()
+
+
+def _config(**settings: Any) -> SecurityConfig:
+    return SecurityConfig(enable_redis=False, ban_on_hostile_signals=False, **settings)
+
+
+class _Handler:
+    def check_rate_limit(self, *args: Any, **kwargs: Any) -> None:
+        return None
+
+
+class Slotted:
+    __slots__ = (
+        "config",
+        "logger",
+        "route_resolver",
+        "agent_handler",
+        "event_bus",
+        "prefixes",
+        "resolver",
+        "rate_limit_handler",
+    )
+
+    def __init__(self, config: SecurityConfig, prefixes: Any, resolver: Any) -> None:
+        self.config = config
+        self.logger = Mock()
+        self.route_resolver = Mock()
+        self.route_resolver.get_route_config.return_value = None
+        self.agent_handler = None
+        self.event_bus = Mock()
+        self.event_bus.send_middleware_event = MagicMock()
+        self.prefixes = prefixes
+        self.resolver = resolver
+        self.rate_limit_handler = _Handler()
+
+    def static_route_prefixes(self) -> tuple[str, ...]:
+        if isinstance(self.prefixes, Exception):
+            raise self.prefixes
+        return self.prefixes
+
+    def resolve_route(self, path: str) -> tuple[Any, ...]:
+        if isinstance(self.resolver, Exception):
+            raise self.resolver
+        return ()
+
+    def create_error_response(self, *args: Any, **kwargs: Any) -> Any:
+        return BLOCKED
+
+
+def _request() -> Any:
+    request = Mock()
+    request.state = Mock(spec=["client_ip", "guard_route_unresolved"])
+    request.state.guard_route_unresolved = False
+    request.url_path = "/health"
+    request.headers = {}
+    request.client_host = "1.2.3.4"
+    return request
+
+
+@pytest.fixture(autouse=True)
+def _client_ip(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "guard_core.sync.core.checks.implementations.route_config.extract_client_ip",
+        MagicMock(return_value="1.2.3.4"),
+    )
+
+
+def _through_pipeline(middleware: Any, check: Any) -> Any:
+    pipeline = SecurityCheckPipeline([check], config=middleware.config)
+    return pipeline.execute(_request())
+
+
+def test_a_slotted_middleware_still_gets_the_warning_and_the_request_passes(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    middleware = Slotted(_config(exclude_paths=["/typo"]), ("/health",), None)
+    with caplog.at_level(logging.WARNING, logger="guard_core"):
+        for _ in range(3):
+            assert _through_pipeline(middleware, RouteConfigCheck(middleware)) is None
+
+    typos = [r for r in caplog.records if "'/typo' matches no registered" in r.message]
+    assert len(typos) == 1
+
+
+@pytest.mark.parametrize("error", [RuntimeError("boom"), ValueError("bad app")])
+def test_a_raising_static_route_prefixes_never_fails_the_request(
+    error: Exception, caplog: pytest.LogCaptureFixture
+) -> None:
+    middleware = Slotted(_config(exclude_paths=["/typo"]), error, None)
+    with caplog.at_level(logging.WARNING, logger="guard_core"):
+        for _ in range(2):
+            assert _through_pipeline(middleware, RouteConfigCheck(middleware)) is None
+
+    failures = [
+        r for r in caplog.records if "static_route_prefixes() raised" in r.message
+    ]
+    assert len(failures) == 1
+    assert repr(error) in failures[0].message
+
+
+def test_a_raising_resolve_route_never_fails_the_request_and_keeps_the_limit(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _config(endpoint_rate_limits={"/health": (1, 60)}, passive_mode=False)
+    middleware = Slotted(config, (), RuntimeError("no app context"))
+    check = RateLimitCheck(middleware)
+    seen: list[str] = []
+
+    def apply(*args: Any, **kwargs: Any) -> None:
+        seen.append(kwargs["endpoint_path"])
+
+    monkeypatch.setattr(check, "_apply_rate_limit_check", apply)
+    with caplog.at_level(logging.WARNING, logger="guard_core"):
+        for _ in range(2):
+            assert _through_pipeline(middleware, check) is None
+
+    assert seen == ["/health", "/health"]
+    raised = [r for r in caplog.records if "resolve_route() raised" in r.message]
+    assert len(raised) == 1
+    assert "'/health'" in raised[0].message
+    assert not [r for r in caplog.records if "matches no registered route" in r.message]

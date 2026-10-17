@@ -1,4 +1,5 @@
 import re
+import weakref
 from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any
 
@@ -56,9 +57,20 @@ def entry_matches_route_prefixes(entry: str, prefixes: Iterable[str]) -> bool:
     return False
 
 
+_reported_by_middleware: "weakref.WeakKeyDictionary[Any, set[str]]" = (
+    weakref.WeakKeyDictionary()
+)
+# shortcut: a middleware that cannot be weakly referenced (for example one with
+# __slots__ and no __weakref__) is keyed by id() and never released, one small
+# set per such middleware; upgrade if middlewares are created per request.
+_reported_by_id: dict[int, set[str]] = {}
+
+
 def _reported(middleware: Any) -> set[str]:
-    reported: set[str] = middleware.__dict__.setdefault("_guard_route_warnings", set())
-    return reported
+    try:
+        return _reported_by_middleware.setdefault(middleware, set())
+    except TypeError:
+        return _reported_by_id.setdefault(id(middleware), set())
 
 
 def _warn_once(middleware: Any, message: str) -> None:
@@ -80,6 +92,16 @@ def warn_unmatched_endpoint_keys(middleware: Any, keys: Iterable[str]) -> None:
 
 
 def warn_unmatched_exclude_paths(middleware: Any, config: "SecurityConfig") -> None:
+    try:
+        _warn_unmatched_exclude_paths(middleware, config)
+    except Exception as error:
+        config_logger.warning(
+            f"static_route_prefixes() raised {error!r}; the exclude_paths route "
+            "check was skipped and the request continues."
+        )
+
+
+def _warn_unmatched_exclude_paths(middleware: Any, config: "SecurityConfig") -> None:
     reported = _reported(middleware)
     if _EXCLUDE_PATHS_EXAMINED in reported:
         return

@@ -371,6 +371,16 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "startup advisory naming a config field or decorator "
         "argument and its configured value; startup only, no request in scope"
     ),
+    "core/checks/route_prefixes.py:warn_unmatched_exclude_paths": (
+        "first-request advisory that the adapter's static_route_prefixes() "
+        "raised; names the exception repr of the adapter's own routing call, no "
+        "request value is interpolated"
+    ),
+    "core/checks/endpoint_limit_keys.py:EndpointLimitKeyMap.__init__": (
+        "advisory that the adapter's resolve_route() raised for a configured "
+        "endpoint_rate_limits key; names the key and the exception repr of the "
+        "adapter's own routing call, no request value is interpolated"
+    ),
     "core/checks/route_prefixes.py:_warn_once": (
         "first-request advisory naming a configured exclude_paths entry or "
         "endpoint_rate_limits key that matches no route; operator configuration "
