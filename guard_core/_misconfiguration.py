@@ -2,6 +2,8 @@ import logging
 import warnings
 from typing import TYPE_CHECKING
 
+from guard_core._utils.request_path import has_anomalous_path_spelling
+
 if TYPE_CHECKING:
     from guard_core.models import SecurityConfig
 
@@ -75,9 +77,29 @@ def _glob_exclude_path_problems(config: "SecurityConfig") -> list[str]:
     ]
 
 
+def _anomalous_path_problems(config: "SecurityConfig") -> list[str]:
+    spelling = (
+        "contains '..', '//', an encoded separator (%2f, %5c) or a backslash, "
+        "a spelling the router does not serve as written. Write the plain path."
+    )
+    return [
+        *(
+            f"exclude_paths entry {entry!r} {spelling}"
+            for entry in config.exclude_paths
+            if has_anomalous_path_spelling(entry)
+        ),
+        *(
+            f"endpoint_rate_limits key {key!r} {spelling}"
+            for key in config.endpoint_rate_limits
+            if has_anomalous_path_spelling(key)
+        ),
+    ]
+
+
 def config_misconfigurations(config: "SecurityConfig") -> list[str]:
     return [
         *_glob_exclude_path_problems(config),
+        *_anomalous_path_problems(config),
         *_non_positive_rate_limit_problems(config),
         *_zero_detection_threshold_problems(config),
     ]

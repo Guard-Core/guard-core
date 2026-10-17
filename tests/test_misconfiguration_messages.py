@@ -49,6 +49,18 @@ CONFIG_PROBLEMS: list[tuple[dict[str, Any], str]] = [
         "exclude_paths entry '/static/*' is not a glob: wildcards are literal "
         "characters, so it excludes nothing.",
     ),
+    (
+        {"exclude_paths": ["/a/../b"]},
+        "exclude_paths entry '/a/../b' contains '..', '//', an encoded separator "
+        "(%2f, %5c) or a backslash, a spelling the router does not serve as "
+        "written. Write the plain path.",
+    ),
+    (
+        {"endpoint_rate_limits": {"/a//b": (5, 60)}},
+        "endpoint_rate_limits key '/a//b' contains '..', '//', an encoded "
+        "separator (%2f, %5c) or a backslash, a spelling the router does not "
+        "serve as written. Write the plain path.",
+    ),
 ]
 
 
