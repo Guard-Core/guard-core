@@ -36,22 +36,12 @@ def _config(**overrides: Any) -> SecurityConfig:
     return SecurityConfig(**settings)
 
 
-def _raising_verifier(request: Any, credential: str) -> bool:
-    raise RuntimeError("verifier backend down")
-
-
 HOSTILE_FAILURES = [
     pytest.param(
         lambda d: d.api_key_auth(verifier=lambda r, k: False),
         {"headers": {"X-API-Key": "wrong"}},
         "auth_failure",
         id="auth-verifier-false",
-    ),
-    pytest.param(
-        lambda d: d.api_key_auth(verifier=_raising_verifier),
-        {"headers": {"X-API-Key": "wrong"}},
-        "auth_failure",
-        id="auth-verifier-raises",
     ),
     pytest.param(
         lambda d: d.require_auth(type="bearer", verifier=lambda r, k: False),

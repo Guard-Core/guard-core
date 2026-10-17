@@ -358,6 +358,11 @@ COVERED_PRODUCERS: dict[str, frozenset[str]] = {
 }
 
 NON_REQUEST_PRODUCERS: dict[str, str] = {
+    "core/checks/implementations/authentication.py:"
+    "AuthenticationCheck._verify_credential": (
+        "logs the exception type name and traceback of the operator's own "
+        "verifier; no request value is interpolated by guard_core"
+    ),
     "_misconfiguration.py:report_misconfiguration": (
         "startup advisory naming a config field or decorator "
         "argument and its configured value; startup only, no request in scope"

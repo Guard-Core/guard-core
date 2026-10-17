@@ -1,3 +1,4 @@
+import traceback
 from collections.abc import Collection
 from typing import Any
 
@@ -24,6 +25,13 @@ _CHALLENGES = {
 
 def _challenge_for(auth_type: str) -> str:
     return _CHALLENGES.get(auth_type, auth_type.title())
+
+
+def _describe_verifier_error(exc: Exception, credential: str) -> str:
+    trace = "".join(traceback.format_exception(exc))
+    if credential:
+        trace = trace.replace(credential, "[REDACTED]")
+    return f"Authentication verifier raised {type(exc).__name__}\n{trace}"
 
 
 class AuthenticationCheck(SecurityCheck):
@@ -53,6 +61,7 @@ class AuthenticationCheck(SecurityCheck):
         route_config: RouteConfig,
         violation_type: str = "require_auth",
         auth_type: str | None = None,
+        verifier_error: bool = False,
     ) -> GuardResponse | None:
         await log_activity(
             request,
@@ -85,6 +94,9 @@ class AuthenticationCheck(SecurityCheck):
             passive_mode=self.config.passive_mode,
         )
 
+        if verifier_error:
+            return await self._respond_to_verifier_error()
+
         await report_hostile_signal(self, request, "auth_failure", auth_reason)
 
         if not self.config.passive_mode:
@@ -96,6 +108,14 @@ class AuthenticationCheck(SecurityCheck):
             return response
 
         return None
+
+    async def _respond_to_verifier_error(self) -> GuardResponse | None:
+        if self.config.passive_mode:
+            return None
+        return await self.middleware.create_error_response(
+            status_code=503,
+            default_message="Authentication service unavailable",
+        )
 
     async def _check_presence(
         self, request: GuardRequest, route_config: RouteConfig, scheme: str
@@ -119,13 +139,16 @@ class AuthenticationCheck(SecurityCheck):
         auth_type: str,
         violation_type: str,
     ) -> tuple[bool, GuardResponse | None, Any]:
-        async def fail(reason: str) -> tuple[bool, GuardResponse | None, Any]:
+        async def fail(
+            reason: str, verifier_error: bool = False
+        ) -> tuple[bool, GuardResponse | None, Any]:
             response = await self._handle_auth_failure(
                 request,
                 reason,
                 route_config,
                 violation_type=violation_type,
                 auth_type=auth_type,
+                verifier_error=verifier_error,
             )
             return True, response, None
 
@@ -135,8 +158,9 @@ class AuthenticationCheck(SecurityCheck):
             return await fail("No auth verifier configured")
         try:
             result = await resolve_verifier_result(verifier(request, credential))
-        except Exception:
-            return await fail("Authentication error")
+        except Exception as exc:
+            self.logger.error("%s", _describe_verifier_error(exc, credential))
+            return await fail("Authentication error", verifier_error=True)
         if not result:
             return await fail("Authentication failed")
         return False, None, result
