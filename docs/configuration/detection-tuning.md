@@ -87,6 +87,9 @@ Minimum score from the `SemanticAnalyzer` to classify content as a threat. The s
 | `0.7`    | Balanced. Good detection with low false positive rate.       |
 | `0.9`    | Conservative. Only high-confidence semantic threats trigger. |
 
+!!! note "Separate from the threat score threshold"
+    `detection_semantic_threshold` is the knob for semantic findings. `detection_threat_score_threshold` only governs the regex anomaly score and does not silence a semantic finding. A value of `0.0` flags every request and is reported by `fail_on_misconfiguration`.
+
 !!! info "Semantic vs Regex"
     Regex patterns provide definitive threat detection. Semantic analysis is a secondary layer that catches obfuscated or novel attacks. Lowering the semantic threshold increases the chance of catching evasion attempts but also increases false positives on legitimate content containing technical terms.
 
@@ -130,7 +133,10 @@ Maximum number of unique patterns tracked by the performance monitor. When excee
 
 **Type**: `float` | **Default**: `1.0` | **Range**: 0.0 - 10.0
 
-Anomaly/threat score required to flag a request as a threat.
+Regex anomaly score required to flag a request as a threat.
+
+!!! warning "This does not govern semantic findings"
+    A request is a threat when its regex anomaly score reaches `detection_threat_score_threshold` **or** the semantic analyzer reports any finding. Raising `detection_threat_score_threshold` therefore does **not** silence semantic findings. Use [`detection_semantic_threshold`](#detection_semantic_threshold) to tune those. A value of `0.0` flags every request and is reported by `fail_on_misconfiguration`.
 
 ### `detection_scan_body`
 

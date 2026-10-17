@@ -959,7 +959,11 @@ class _SecurityConfigFields(BaseModel):
 
     detection_semantic_threshold: float = Field(
         default=0.7,
-        description="Threshold for semantic attack detection (0.0-1.0)",
+        description=(
+            "Score the semantic analyzer must reach for a finding (0.0-1.0). "
+            "This is the knob for semantic findings; detection_threat_score_threshold "
+            "does not apply to them."
+        ),
         ge=0.0,
         le=1.0,
     )
@@ -1014,7 +1018,12 @@ class _SecurityConfigFields(BaseModel):
 
     detection_threat_score_threshold: float = Field(
         default=1.0,
-        description="Anomaly score required to flag a request as a threat",
+        description=(
+            "Regex anomaly score required to flag a request as a threat. A "
+            "semantic finding flags a request regardless of this value; raising it "
+            "does NOT silence semantic findings, tune detection_semantic_threshold "
+            "for those."
+        ),
         ge=0.0,
         le=10.0,
     )
