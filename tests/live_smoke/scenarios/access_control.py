@@ -284,6 +284,54 @@ def emergency_whitelist_allows_listed_ip_through(ctx: ScenarioContext) -> None:
     )
 
 
+EMERGENCY_WHITELIST_ONLY_ON_CONFIG = {
+    "emergency_mode": True,
+    "emergency_whitelist": [],
+    "emergency_whitelist_only": True,
+    "whitelist": [CLIENT_IP, "127.0.0.1"],
+    "excluded_detection_headers": EXCLUDED_HEADERS,
+}
+
+
+@scenario(
+    covers={"emergency_whitelist_only"}, config=EMERGENCY_WHITELIST_ONLY_ON_CONFIG
+)
+def emergency_whitelist_only_admits_only_the_emergency_whitelist(
+    ctx: ScenarioContext,
+) -> None:
+    mark = ctx.stack.logs.mark()
+    response = ctx.client.get("/basic/ip", params={"q": "hello"})
+    assert response.status_code == 503
+
+    lines = ctx.stack.logs.lines_since(mark)
+    assert any("[EMERGENCY MODE] Access denied" in line for line in lines)
+
+
+EMERGENCY_WHITELIST_ONLY_OFF_CONFIG = {
+    "emergency_mode": True,
+    "emergency_whitelist": [],
+    "emergency_whitelist_only": False,
+    "whitelist": [CLIENT_IP, "127.0.0.1"],
+    "excluded_detection_headers": EXCLUDED_HEADERS,
+}
+
+
+@scenario(
+    covers={"emergency_whitelist_only"}, config=EMERGENCY_WHITELIST_ONLY_OFF_CONFIG
+)
+def emergency_whitelist_only_off_also_admits_the_whitelist(
+    ctx: ScenarioContext,
+) -> None:
+    mark = ctx.stack.logs.mark()
+    response = ctx.client.get("/basic/ip", params={"q": "hello"})
+    assert response.status_code == 200
+
+    lines = ctx.stack.logs.lines_since(mark)
+    assert any(
+        "[EMERGENCY MODE] Allowed access for whitelisted IP" in line for line in lines
+    )
+
+
 GEO_CONFIG_ALLOW = {
     "blocked_countries": ["ZZ"],
     "ipinfo_token": "smoke-token",
