@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock, Mock
 
@@ -57,3 +58,23 @@ def test_two_routes_never_share_a_bucket(check: RateLimitCheck) -> None:
     check._check_route_rate_limit(_request("/a", "app.b"), "1.2.3.4", route_config)
 
     assert _bucket_paths(check) == ["app.a", "app.b"]
+
+
+@pytest.mark.parametrize("kind", ["route", "geo"])
+def test_a_request_without_a_route_id_keeps_the_path_bucket(
+    check: RateLimitCheck, kind: str
+) -> None:
+    route_config = Mock(rate_limit=5, rate_limit_window=60)
+    route_config.geo_rate_limits = {"US": (5, 60)}
+    method = (
+        check._check_route_rate_limit
+        if kind == "route"
+        else check._check_geo_rate_limit
+    )
+    request = Mock()
+    request.url_path = "/users/1"
+    request.state = SimpleNamespace()
+
+    method(request, "1.2.3.4", route_config)
+
+    assert _bucket_paths(check) == ["/users/1"]

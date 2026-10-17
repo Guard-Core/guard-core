@@ -42,6 +42,12 @@ def _rate_limit_applies(
     )
 
 
+def _route_bucket_key(request: SyncGuardRequest) -> str:
+    # A pluggable route resolver can return a route config without a route id.
+    route_id = getattr(request.state, "guard_route_id", None)
+    return route_id if isinstance(route_id, str) and route_id else request.url_path
+
+
 class RateLimitCheck(SecurityCheck):
     container_fields: ClassVar[tuple[str, ...]] = ("endpoint_rate_limits",)
     enforced_on_excluded_paths = True
@@ -258,7 +264,7 @@ class RateLimitCheck(SecurityCheck):
                 "rate_limit": route_config.rate_limit,
                 "window": window,
             },
-            endpoint_path=request.state.guard_route_id,
+            endpoint_path=_route_bucket_key(request),
         )
 
     def _check_geo_rate_limit(
@@ -297,7 +303,7 @@ class RateLimitCheck(SecurityCheck):
                 "rate_limit": rate_limit,
                 "window": window,
             },
-            endpoint_path=request.state.guard_route_id,
+            endpoint_path=_route_bucket_key(request),
         )
 
     def _check_global_rate_limit(
