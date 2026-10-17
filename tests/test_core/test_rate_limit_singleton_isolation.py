@@ -20,6 +20,7 @@ class _FakeErrorResponse:
 def _make_middleware(config: SecurityConfig) -> Mock:
     middleware = Mock()
     middleware.config = config
+    middleware.resolve_route = None
     middleware.logger = logging.getLogger("test_rate_limit_singleton_isolation")
     middleware.rate_limit_handler = RateLimitManager(config)
     middleware.event_bus = Mock()
@@ -100,10 +101,10 @@ async def test_endpoint_limit_survives_a_later_middleware_with_rate_limiting_off
     ip = "198.51.100.30"
 
     first = await check_limited._check_endpoint_rate_limit(
-        MockGuardRequest(path="/special", client_host=ip), ip, "/special"
+        MockGuardRequest(path="/special", client_host=ip), ip
     )
     second = await check_limited._check_endpoint_rate_limit(
-        MockGuardRequest(path="/special", client_host=ip), ip, "/special"
+        MockGuardRequest(path="/special", client_host=ip), ip
     )
     assert first is None
     assert second is not None, (

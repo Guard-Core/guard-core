@@ -5,6 +5,7 @@ from guard_core.models import SecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.request_logging import redact_endpoint_for_display
 from guard_core.sync.core.checks.base import SecurityCheck
+from guard_core.sync.core.checks.endpoint_limit_keys import EndpointLimitKeyMap
 from guard_core.sync.core.checks.helpers import (
     _increment_suspicious_counts,
     _try_threshold_ban,
@@ -50,10 +51,30 @@ class RateLimitCheck(SecurityCheck):
         from guard_core.sync.handlers.ipban_handler import ip_ban_manager
 
         self.ip_ban_manager = ip_ban_manager
+        self._endpoint_key_map: EndpointLimitKeyMap | None = None
 
     @property
     def check_name(self) -> str:
         return "rate_limit"
+
+    def _current_endpoint_key_map(
+        self, limits: dict[str, tuple[int, int]]
+    ) -> EndpointLimitKeyMap:
+        keys = limits.keys()
+        key_map = self._endpoint_key_map
+        if key_map is None or key_map.keys != keys:
+            key_map = EndpointLimitKeyMap(
+                keys, getattr(self.middleware, "resolve_route", None)
+            )
+            self._endpoint_key_map = key_map
+        return key_map
+
+    @property
+    def needs_route_identity(self) -> bool:
+        limits = self.config.endpoint_rate_limits
+        if not limits:
+            return False
+        return bool(self._current_endpoint_key_map(limits).by_identity)
 
     @classmethod
     def applies_to(
@@ -165,14 +186,32 @@ class RateLimitCheck(SecurityCheck):
         return result
 
     def _check_endpoint_rate_limit(
-        self, request: SyncGuardRequest, client_ip: str, endpoint_path: str
+        self, request: SyncGuardRequest, client_ip: str
     ) -> GuardResponse | None:
-        if endpoint_path not in self.config.endpoint_rate_limits:
+        limits = self.config.endpoint_rate_limits
+        if not limits:
             return None
 
-        rate_limit, window = self.config.endpoint_rate_limits[endpoint_path]
+        identity = getattr(request.state, "guard_route_identity", None)
+        for key in self._current_endpoint_key_map(limits).matched_keys(
+            identity, request.url_path
+        ):
+            if response := self._enforce_endpoint_key(
+                request, client_ip, key, limits[key]
+            ):
+                return response
+        return None
+
+    def _enforce_endpoint_key(
+        self,
+        request: SyncGuardRequest,
+        client_ip: str,
+        endpoint_key: str,
+        limit: tuple[int, int],
+    ) -> GuardResponse | None:
+        rate_limit, window = limit
         safe_endpoint = redact_endpoint_for_display(
-            endpoint_path,
+            endpoint_key,
             self.config.log_sensitive_params,
             self.config.log_sensitive_body_fields,
             self.config.log_sensitive_headers,
@@ -193,7 +232,7 @@ class RateLimitCheck(SecurityCheck):
                 "rate_limit": rate_limit,
                 "window": window,
             },
-            endpoint_path=endpoint_path,
+            endpoint_path=endpoint_key,
         )
 
     def _check_route_rate_limit(
@@ -304,11 +343,7 @@ class RateLimitCheck(SecurityCheck):
         ):
             return None
 
-        endpoint_path = request.url_path
-
-        if response := self._check_endpoint_rate_limit(
-            request, client_ip, endpoint_path
-        ):
+        if response := self._check_endpoint_rate_limit(request, client_ip):
             return response
 
         if response := self._check_route_rate_limit(request, client_ip, route_config):

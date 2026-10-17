@@ -34,6 +34,10 @@ class SecurityCheck(ABC):
     ) -> bool:
         return True
 
+    @property
+    def needs_route_identity(self) -> bool:
+        return False
+
     @abstractmethod
     def check(self, request: SyncGuardRequest) -> GuardResponse | None: ...
 

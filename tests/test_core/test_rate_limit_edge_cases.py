@@ -19,6 +19,7 @@ def security_config() -> SecurityConfig:
 def mock_middleware(security_config: SecurityConfig) -> Mock:
     middleware = Mock()
     middleware.config = security_config
+    middleware.resolve_route = None
     middleware.logger = Mock()
     middleware.event_bus = Mock()
     middleware.event_bus.send_middleware_event = AsyncMock()
@@ -402,9 +403,7 @@ async def test_endpoint_rate_limit_passes_path(
         rate_limit_check, "_apply_rate_limit_check", new_callable=AsyncMock
     ) as mock_apply:
         mock_apply.return_value = None
-        await rate_limit_check._check_endpoint_rate_limit(
-            mock_request, "1.2.3.4", "/api/test"
-        )
+        await rate_limit_check._check_endpoint_rate_limit(mock_request, "1.2.3.4")
         call_kwargs = mock_apply.call_args[1]
         assert call_kwargs["endpoint_path"] == "/api/test"
 
@@ -422,9 +421,8 @@ async def test_endpoint_rate_limit_redacts_sensitive_endpoint_path(
         rate_limit_check, "_apply_rate_limit_check", new_callable=AsyncMock
     ) as mock_apply:
         mock_apply.return_value = None
-        await rate_limit_check._check_endpoint_rate_limit(
-            mock_request, "1.2.3.4", secret_path
-        )
+        mock_request.url_path = secret_path
+        await rate_limit_check._check_endpoint_rate_limit(mock_request, "1.2.3.4")
         call_args, call_kwargs = mock_apply.call_args
         event_kwargs = call_args[5]
         assert "super-secret-value" not in event_kwargs["reason"]

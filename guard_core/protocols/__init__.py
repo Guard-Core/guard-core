@@ -8,8 +8,10 @@ from guard_core.protocols.response_protocol import (
     GuardResponse,
     GuardResponseFactory,
 )
+from guard_core.protocols.route_identity import RouteIdentity
 
 __all__ = [
+    "RouteIdentity",
     "AgentHandlerProtocol",
     "BoundedBodyReader",
     "BoundedResponseBodyReader",

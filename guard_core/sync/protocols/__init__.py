@@ -11,8 +11,10 @@ from guard_core.sync.protocols.response_protocol import (
     GuardResponseFactory,
     SyncBoundedResponseBodyReader,
 )
+from guard_core.sync.protocols.route_identity import RouteIdentity
 
 __all__ = [
+    "RouteIdentity",
     "SyncAgentHandlerProtocol",
     "SyncBoundedBodyReader",
     "SyncBoundedResponseBodyReader",

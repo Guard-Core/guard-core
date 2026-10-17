@@ -197,6 +197,10 @@ class SecurityCheckPipeline:
 
         return None
 
+    @property
+    def needs_route_identity(self) -> bool:
+        return any(check.needs_route_identity for check in self.checks)
+
     def add_check(self, check: SecurityCheck) -> None:
         self.checks.append(check)
 
