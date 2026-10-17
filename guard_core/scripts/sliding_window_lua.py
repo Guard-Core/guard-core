@@ -1,13 +1,15 @@
-SLIDING_WINDOW_HIT_SCRIPT = """
-local count = 0
-for i = 1, #KEYS do
-  local base = 2 + (i - 1) * 2
-  redis.call('ZADD', KEYS[i], ARGV[1], ARGV[2])
-  redis.call('ZREMRANGEBYSCORE', KEYS[i], '-inf', '(' .. ARGV[base + 1])
-  if i == 1 then
-    count = redis.call('ZCARD', KEYS[i])
-  end
-  redis.call('EXPIRE', KEYS[i], ARGV[base + 2])
+from guard_core.scripts.rule_hit_index_lua import ADD_TO_RULE_HIT_INDEX
+
+SLIDING_WINDOW_HIT_SCRIPT = (
+    ADD_TO_RULE_HIT_INDEX
+    + """
+redis.call('ZADD', KEYS[1], ARGV[1], ARGV[2])
+redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', '(' .. ARGV[3])
+local count = redis.call('ZCARD', KEYS[1])
+redis.call('EXPIRE', KEYS[1], ARGV[4])
+if KEYS[2] then
+  add_to_rule_hit_index(KEYS[2], KEYS[1], tonumber(ARGV[5]), ARGV[4])
 end
 return count
 """
+)

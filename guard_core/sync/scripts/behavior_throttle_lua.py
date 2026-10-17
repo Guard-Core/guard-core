@@ -1,11 +1,15 @@
-BEHAVIOR_THROTTLE_SCRIPT = """
+from guard_core.scripts.rule_hit_index_lua import ADD_TO_RULE_HIT_INDEX
+
+BEHAVIOR_THROTTLE_SCRIPT = (
+    ADD_TO_RULE_HIT_INDEX
+    + """
 local n = math.floor(#KEYS / 2)
 local now = ARGV[1]
 local member = ARGV[2]
 local record_when_over = ARGV[3] == '1'
 local counts = {}
 local over = false
-local recent = KEYS[2 * n + 1]
+local index = KEYS[2 * n + 1]
 
 for i = 1, n do
   local base = 5 + (i - 1) * 4
@@ -20,14 +24,11 @@ if (not over) or record_when_over then
   for i = 1, n do
     local base = 5 + (i - 1) * 4
     if ARGV[base + 1] == '1' then
+      local ttl = math.max(tonumber(ARGV[base + 3]), tonumber(ARGV[5]))
       redis.call('ZADD', KEYS[i], now, member)
-      redis.call('EXPIRE', KEYS[i], ARGV[base + 3])
-      redis.call('ZADD', recent, now, member .. ':' .. i)
+      redis.call('EXPIRE', KEYS[i], ttl)
+      add_to_rule_hit_index(index, KEYS[i], tonumber(ARGV[4]), ttl)
     end
-  end
-  if recent then
-    redis.call('ZREMRANGEBYSCORE', recent, '-inf', '(' .. ARGV[4])
-    redis.call('EXPIRE', recent, ARGV[5])
   end
 end
 
@@ -51,3 +52,4 @@ for i = 1, n do
 end
 return trips
 """
+)

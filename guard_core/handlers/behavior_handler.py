@@ -17,11 +17,13 @@ from guard_core.handlers._behavior_response_pattern import (
     _BoundedResponseBodyReader,
 )
 from guard_core.handlers._behavior_throttle import (
+    RECENT_RULE_HITS_WINDOW_SECONDS,
     RETURN_NAMESPACE,
     USAGE_NAMESPACE,
     BehaviorThrottleMixin,
     bucket_key,
     return_hits_key,
+    rule_hit_ttl,
     usage_hits_key,
 )
 from guard_core.models import BehaviorRuleConfig, SecurityConfig
@@ -29,6 +31,7 @@ from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.utils import _log_at_level, _safe_read
 
 __all__ = [
+    "RECENT_RULE_HITS_WINDOW_SECONDS",
     "_BoundedResponseBodyReader",
     "_log_at_level",
     "_safe_read",
@@ -83,7 +86,6 @@ class BehaviorRule:
         )
 
 
-RECENT_RULE_HITS_WINDOW_SECONDS = 300
 _RECENT_ENDPOINT_ID = "recent"
 _MAX_TRACKED_ENDPOINTS = 10_000
 _MAX_TRACKED_CLIENTS_PER_ENDPOINT = 10_000
@@ -116,18 +118,12 @@ class BehaviorTracker(
     async def initialize_agent(self, agent_handler: Any) -> None:
         self.agent_handler = agent_handler
 
-    def _recent_rule_hits_key(self, ip: str) -> str:
-        return (
+    def _rule_hit_index(self, ip: str) -> tuple[str, int]:
+        key = (
             f"behavior:usage:{_hash_identity_segment(_RECENT_ENDPOINT_ID)}:"
             f"{_hash_identity_segment(ip)}"
         )
-
-    def _recent_rule_hits_window(self, ip: str, now: float) -> tuple[str, float, int]:
-        return (
-            self._recent_rule_hits_key(ip),
-            now - RECENT_RULE_HITS_WINDOW_SECONDS,
-            RECENT_RULE_HITS_WINDOW_SECONDS,
-        )
+        return key, _MAX_TRACKED_ENDPOINTS
 
     def get_recent_event_count(self, ip: str, window_seconds: int) -> int:
         if not ip:
@@ -142,14 +138,23 @@ class BehaviorTracker(
         return count
 
     async def count_recent_rule_hits(self, ip: str, window_seconds: int) -> int:
+        """Each usage or frequency rule's hits from the IP that are still inside
+        that rule's own window, summed across all endpoints, counting only hits in
+        the last window_seconds (at most 300, the shortest TTL of a rule's Redis
+        key). In memory this is get_recent_event_count; with Redis it is the same
+        sum over the IP's indexed rule keys. Remaining difference: at its caps
+        memory evicts the least recently used endpoint bucket (10,000) or client
+        (10,000 per bucket), while Redis keeps at most 10,000 rule keys per IP."""
+        if window_seconds > RECENT_RULE_HITS_WINDOW_SECONDS:
+            raise ValueError(
+                f"window_seconds must be at most {RECENT_RULE_HITS_WINDOW_SECONDS}"
+            )
         if not self.redis_handler:
             return self.get_recent_event_count(ip, window_seconds)
         if not ip:
             return 0
-        count: int = await self.redis_handler.count_sliding_window_hits(
-            USAGE_NAMESPACE,
-            self._recent_rule_hits_key(ip),
-            time.time() - window_seconds,
+        count: int = await self.redis_handler.sum_indexed_window_hits(
+            USAGE_NAMESPACE, self._rule_hit_index(ip)[0], time.time() - window_seconds
         )
         return count
 
@@ -168,8 +173,8 @@ class BehaviorTracker(
                 usage_hits_key(endpoint_id, client_ip, rule),
                 current_time,
                 window_start,
-                rule.window,
-                extra_window=self._recent_rule_hits_window(client_ip, current_time),
+                rule_hit_ttl(rule),
+                index=self._rule_hit_index(client_ip),
             )
 
             return valid_count > rule.threshold

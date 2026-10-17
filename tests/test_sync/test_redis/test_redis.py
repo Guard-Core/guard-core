@@ -578,63 +578,127 @@ def test_record_sliding_window_hit_reloads_its_script_after_a_script_flush(
     handler.close()
 
 
-def test_record_sliding_window_hit_records_the_extra_window_in_the_same_call(
+_NS = "sliding_window_test"
+
+
+def _indexed_hits(
+    handler: Any, index: str, max_members: int, hits: dict[str, list[float]]
+) -> None:
+    for key, timestamps in hits.items():
+        for timestamp in timestamps:
+            handler.record_sliding_window_hit(
+                _NS, key, timestamp, 0.0, 300, index=(index, max_members)
+            )
+
+
+def _index_members(handler: Any, index: str) -> set[str]:
+    prefix = f"{handler.config.redis_prefix}{_NS}:"
+    with handler.get_connection() as conn:
+        members = conn.smembers(f"{prefix}{index}")
+    return {member.removeprefix(prefix) for member in members}
+
+
+def test_record_sliding_window_hit_indexes_the_key_with_its_ttl(
     security_config_redis: SecurityConfig,
 ) -> None:
     handler = redis_handler(security_config_redis)
     handler.initialize()
-    key, extra = f"main_{uuid.uuid4().hex}", f"extra_{uuid.uuid4().hex}"
-    base = 2_000_000_000.0
-    for offset in (-500, 0):
+    index, first, second = (f"{name}_{uuid.uuid4().hex}" for name in "ifs")
+    try:
         count = handler.record_sliding_window_hit(
-            "sliding_window_test",
-            key,
-            base + offset,
-            base - 1000,
-            60,
-            extra_window=(extra, base - 100, 300),
+            _NS, first, 2_000_000_000.0, 0.0, 600, index=(index, 10)
         )
+        handler.record_sliding_window_hit(
+            _NS, second, 2_000_000_000.0, 0.0, 300, index=(index, 10)
+        )
+        assert count == 1
+        assert _index_members(handler, index) == {first, second}
+        with handler.get_connection() as conn:
+            ttl = conn.ttl(f"{handler.config.redis_prefix}{_NS}:{index}")
+        assert 290 < ttl <= 300
+    finally:
+        handler.delete_pattern(f"{_NS}:*")
+        handler.close()
 
-    assert count == 2
-    assert handler.count_sliding_window_hits("sliding_window_test", extra, 0) == 1
-    handler.delete("sliding_window_test", key)
-    handler.delete("sliding_window_test", extra)
-    handler.close()
 
-
-def test_count_sliding_window_hits_counts_only_hits_inside_the_window(
+def test_sum_indexed_window_hits_counts_hits_from_the_window_start(
     security_config_redis: SecurityConfig,
 ) -> None:
     handler = redis_handler(security_config_redis)
     handler.initialize()
-
-    key = f"count_window_{uuid.uuid4().hex}"
-    base = 2_000_000_300.0
-    for offset in (-200, -50, -10):
-        handler.record_sliding_window_hit(
-            "sliding_window_test", key, base + offset, base - 1000, 60
+    index, first, second = (f"{name}_{uuid.uuid4().hex}" for name in "ifs")
+    try:
+        _indexed_hits(
+            handler, index, 10, {first: [100.0, 200.0, 250.0], second: [200.0]}
         )
-
-    assert handler.count_sliding_window_hits("sliding_window_test", key, base - 60) == 2
-    assert (
-        handler.count_sliding_window_hits("sliding_window_test", "absent", base - 60)
-        == 0
-    )
-
-    handler.delete("sliding_window_test", key)
-    handler.close()
+        assert handler.sum_indexed_window_hits(_NS, index, 200.0) == 3
+        assert handler.sum_indexed_window_hits(_NS, "absent", 0.0) == 0
+    finally:
+        handler.delete_pattern(f"{_NS}:*")
+        handler.close()
 
 
-def test_count_sliding_window_hits_is_zero_when_redis_is_disabled() -> None:
+def test_sum_indexed_window_hits_drops_members_whose_key_expired(
+    security_config_redis: SecurityConfig,
+) -> None:
+    handler = redis_handler(security_config_redis)
+    handler.initialize()
+    index, first, second = (f"{name}_{uuid.uuid4().hex}" for name in "ifs")
+    try:
+        _indexed_hits(handler, index, 10, {first: [100.0], second: [100.0]})
+        handler.delete(_NS, first)
+        assert handler.sum_indexed_window_hits(_NS, index, 0.0) == 1
+        assert _index_members(handler, index) == {second}
+    finally:
+        handler.delete_pattern(f"{_NS}:*")
+        handler.close()
+
+
+def test_a_full_index_prunes_expired_keys_then_drops_the_new_key(
+    security_config_redis: SecurityConfig,
+) -> None:
+    handler = redis_handler(security_config_redis)
+    handler.initialize()
+    index = f"index_{uuid.uuid4().hex}"
+    keys = [f"key{n}_{uuid.uuid4().hex}" for n in range(4)]
+    try:
+        _indexed_hits(handler, index, 2, {keys[0]: [1.0], keys[1]: [1.0]})
+        handler.delete(_NS, keys[0])
+        _indexed_hits(handler, index, 2, {keys[2]: [1.0]})
+        assert _index_members(handler, index) == {keys[1], keys[2]}
+        _indexed_hits(handler, index, 2, {keys[3]: [1.0]})
+        assert _index_members(handler, index) == {keys[1], keys[2]}
+    finally:
+        handler.delete_pattern(f"{_NS}:*")
+        handler.close()
+
+
+def test_sum_indexed_window_hits_reloads_its_script_after_a_script_flush(
+    security_config_redis: SecurityConfig,
+) -> None:
+    handler = redis_handler(security_config_redis)
+    handler.initialize()
+    index, key = f"index_{uuid.uuid4().hex}", f"key_{uuid.uuid4().hex}"
+    try:
+        _indexed_hits(handler, index, 10, {key: [5.0]})
+        with handler.get_connection() as conn:
+            conn.script_flush()
+        assert handler.sum_indexed_window_hits(_NS, index, 0.0) == 1
+    finally:
+        handler.delete_pattern(f"{_NS}:*")
+        handler.close()
+
+
+def test_sum_indexed_window_hits_is_zero_when_redis_is_disabled() -> None:
     handler = redis_handler(SecurityConfig(enable_redis=False))
 
-    assert handler.count_sliding_window_hits("ns", "key", 0.0) == 0
+    assert handler.sum_indexed_window_hits("ns", "index", 0.0) == 0
 
 
-def test_count_sliding_window_hits_is_zero_when_the_operation_fails(
+def test_sum_indexed_window_hits_is_zero_when_the_operation_fails(
     security_config_redis: SecurityConfig,
 ) -> None:
     handler = redis_handler(security_config_redis)
 
     with patch.object(handler, "safe_operation", MagicMock(return_value=None)):
-        assert handler.count_sliding_window_hits("ns", "key", 0.0) == 0
+        assert handler.sum_indexed_window_hits("ns", "index", 0.0) == 0

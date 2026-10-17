@@ -19,6 +19,8 @@ class _HitListRedis:
         timestamp: float,
         window_start: float,
         ttl: int,
+        *,
+        index: tuple[str, int] | None = None,
     ) -> int:
         hits = self.lists.setdefault(f"{namespace}:{key}", [])
         hits.append(timestamp)

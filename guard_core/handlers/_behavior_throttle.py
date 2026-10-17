@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from guard_core.handlers.behavior_handler import BehaviorRule
 
 USAGE_NAMESPACE = "behavior_usage"
+RECENT_RULE_HITS_WINDOW_SECONDS = 300
 RETURN_NAMESPACE = "behavior_returns"
 TRIP_NAMESPACE = "behavior_throttle"
 MAX_TRIP_MARKERS = 10_000
@@ -60,6 +61,11 @@ def trip_marker_key(scope_id: str, client_ip: str, rule: "BehaviorRule") -> str:
     return f"behavior:throttle:{_identity_suffix(scope_id, client_ip, rule)}"
 
 
+def rule_hit_ttl(rule: "BehaviorRule") -> int:
+    # Keeps every hit the recent rule-hit count can still read (D-36).
+    return max(rule.window, RECENT_RULE_HITS_WINDOW_SECONDS)
+
+
 def bucket_key(scope_id: str, rule: "BehaviorRule") -> str:
     return f"{rule.discriminator()}|{scope_id}"
 
@@ -99,7 +105,7 @@ class BehaviorThrottleMixin:
     _lock: threading.Lock
     _trip_markers: "OrderedDict[str, float]"
     _throttle_script_sha: str | None
-    _recent_rule_hits_window: Callable[[str, float], tuple[str, float, int]]
+    _rule_hit_index: Callable[[str], tuple[str, int]]
 
     async def check_throttle(
         self,
@@ -134,11 +140,9 @@ class BehaviorThrottleMixin:
         ]
         args: list[Any] = [repr(now), uuid.uuid4().hex, int(record_when_over), "", ""]
         if any(c.records for c in checks):
-            recent_key, recent_start, recent_ttl = self._recent_rule_hits_window(
-                client_ip, now
-            )
-            keys.append(f"{prefix}{USAGE_NAMESPACE}:{recent_key}")
-            args[3:5] = [repr(recent_start), recent_ttl]
+            index_key, max_members = self._rule_hit_index(client_ip)
+            keys.append(f"{prefix}{USAGE_NAMESPACE}:{index_key}")
+            args[3:5] = [max_members, RECENT_RULE_HITS_WINDOW_SECONDS]
         for check in checks:
             args += [
                 int(check.records),

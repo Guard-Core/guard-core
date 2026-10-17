@@ -17,6 +17,7 @@ from redis.retry import Retry
 
 from guard_core.exceptions import GuardRedisError
 from guard_core.models import SecurityConfig
+from guard_core.scripts.rule_hit_index_lua import SUM_INDEXED_WINDOW_HITS_SCRIPT
 from guard_core.scripts.sliding_window_lua import SLIDING_WINDOW_HIT_SCRIPT
 from guard_core.sync.core.events.event_types import (
     EVENT_REDIS_CONNECTION,
@@ -52,6 +53,9 @@ def _redact_redis_url(url: str | None) -> str | None:
 _REDIS_HANDLER_NAME = "redis"
 _SLIDING_WINDOW_SHA = hashlib.sha1(
     SLIDING_WINDOW_HIT_SCRIPT.encode(), usedforsecurity=False
+).hexdigest()
+_SUM_INDEXED_WINDOW_HITS_SHA = hashlib.sha1(
+    SUM_INDEXED_WINDOW_HITS_SCRIPT.encode(), usedforsecurity=False
 ).hexdigest()
 
 
@@ -307,21 +311,21 @@ class RedisManager:
         window_start: float,
         ttl: int,
         *,
-        extra_window: tuple[str, float, int] | None = None,
+        index: tuple[str, int] | None = None,
     ) -> int:
-        """Record one hit and return the key's count in the window. extra_window
-        (key, window_start, ttl) records the same hit in a second key of the
-        namespace in the same round trip; its count is not returned."""
+        """Record one hit and return the key's count in the window. index
+        (index key, max members) also adds the key to that set of the namespace,
+        with the key's ttl, in the same round trip."""
         if not self.config.enable_redis:
             return 0
 
         prefix = f"{self.config.redis_prefix}{namespace}:"
         keys = [f"{prefix}{key}"]
         args: list[Any] = [repr(timestamp), uuid.uuid4().hex, repr(window_start), ttl]
-        if extra_window is not None:
-            extra_key, extra_start, extra_ttl = extra_window
-            keys.append(f"{prefix}{extra_key}")
-            args += [repr(extra_start), extra_ttl]
+        if index is not None:
+            index_key, max_members = index
+            keys.append(f"{prefix}{index_key}")
+            args.append(max_members)
 
         def _record(conn: Redis) -> int:
             try:
@@ -334,17 +338,29 @@ class RedisManager:
         result = self.safe_operation(_record)
         return int(result) if result is not None else 0
 
-    def count_sliding_window_hits(
-        self, namespace: str, key: str, window_start: float
+    def sum_indexed_window_hits(
+        self, namespace: str, index_key: str, window_start: float
     ) -> int:
+        """Sum the hits at or after window_start over every key in the index set,
+        dropping members whose key has expired, in one round trip."""
         if not self.config.enable_redis:
             return 0
 
-        def _count(conn: Redis) -> int:
-            full_key = f"{self.config.redis_prefix}{namespace}:{key}"
-            return int(conn.zcount(full_key, window_start, "+inf"))
+        full_index = f"{self.config.redis_prefix}{namespace}:{index_key}"
 
-        result = self.safe_operation(_count)
+        def _sum(conn: Redis) -> int:
+            try:
+                total = conn.evalsha(
+                    _SUM_INDEXED_WINDOW_HITS_SHA, 1, full_index, repr(window_start)
+                )
+            except NoScriptError:
+                conn.script_load(SUM_INDEXED_WINDOW_HITS_SCRIPT)
+                total = conn.evalsha(
+                    _SUM_INDEXED_WINDOW_HITS_SHA, 1, full_index, repr(window_start)
+                )
+            return int(total)
+
+        result = self.safe_operation(_sum)
         return int(result) if result is not None else 0
 
     def exists(self, namespace: str, key: str) -> bool | None:

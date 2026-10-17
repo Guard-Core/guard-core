@@ -1,4 +1,5 @@
 import logging
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -8,6 +9,7 @@ from guard_core.core.behavioral.context import BehavioralContext
 from guard_core.core.behavioral.processor import BehavioralProcessor
 from guard_core.decorators.base import RouteConfig
 from guard_core.handlers import behavior_handler
+from guard_core.handlers._behavior_throttle import ThrottleCheck, usage_hits_key
 from guard_core.handlers.behavior_handler import BehaviorRule, BehaviorTracker
 from guard_core.handlers.redis_handler import redis_handler
 from guard_core.models import SecurityConfig
@@ -224,3 +226,103 @@ async def test_recent_rule_hit_rides_on_the_behavior_redis_call(
     finally:
         await redis_mgr.delete_pattern("behavior_*")
         await redis_mgr.close()
+
+
+_PARITY_HITS = [10.0 * n for n in range(30)]
+_PARITY_CASES: dict[str, tuple[list[BehaviorRule], list[float], float, int]] = {
+    "60s-rule-hit-every-10s-for-290s": (
+        [BehaviorRule("usage", threshold=1000, window=60)],
+        _PARITY_HITS,
+        295.0,
+        7,
+    ),
+    "600s-rule-same-hits": (
+        [BehaviorRule("usage", threshold=1000, window=600)],
+        _PARITY_HITS,
+        295.0,
+        30,
+    ),
+    "two-rules-three-hits": (
+        [
+            BehaviorRule("usage", threshold=1000, window=60),
+            BehaviorRule("frequency", threshold=1000, window=120),
+        ],
+        [1.0, 2.0, 3.0],
+        4.0,
+        6,
+    ),
+}
+
+
+@pytest.mark.parametrize("backend", ["memory", "redis"])
+@pytest.mark.parametrize("case", list(_PARITY_CASES))
+async def test_recent_count_mirrors_the_in_memory_sum_on_both_backends(
+    security_config_redis: SecurityConfig,
+    monkeypatch: pytest.MonkeyPatch,
+    backend: str,
+    case: str,
+) -> None:
+    rules, hits, counted_at, expected = _PARITY_CASES[case]
+    clock = [0.0]
+    monkeypatch.setattr(
+        behavior_handler, "time", SimpleNamespace(time=lambda: clock[0])
+    )
+    redis_mgr = None
+    tracker = BehaviorTracker(SecurityConfig(enable_redis=False))
+    if backend == "redis":
+        redis_mgr, tracker = await _redis_tracker(security_config_redis)
+    try:
+        for hit_at in hits:
+            clock[0] = hit_at
+            for rule in rules:
+                await tracker.track_endpoint_usage("ep1", _IP, rule)
+        clock[0] = counted_at
+        assert await tracker.count_recent_rule_hits(_IP, 300) == expected
+    finally:
+        if redis_mgr is not None:
+            await redis_mgr.delete_pattern("behavior_*")
+            await redis_mgr.close()
+
+
+@pytest.mark.parametrize("backend", ["memory", "redis"])
+async def test_recent_count_refuses_a_window_beyond_300_seconds(
+    security_config_redis: SecurityConfig, backend: str
+) -> None:
+    tracker = BehaviorTracker(SecurityConfig(enable_redis=False))
+    if backend == "redis":
+        tracker = BehaviorTracker(security_config_redis)
+        await tracker.initialize_redis(redis_handler(security_config_redis))
+    with pytest.raises(ValueError, match="at most 300"):
+        await tracker.count_recent_rule_hits(_IP, 600)
+
+
+async def test_rule_keys_and_the_index_live_at_least_300_seconds(
+    security_config_redis: SecurityConfig,
+) -> None:
+    redis_mgr, tracker = await _redis_tracker(security_config_redis)
+    prefix = f"{security_config_redis.redis_prefix}behavior_usage:"
+    index = f"{prefix}{tracker._rule_hit_index(_IP)[0]}"
+    short = BehaviorRule("usage", threshold=1000, window=60)
+    throttle = BehaviorRule("frequency", threshold=1000, window=30, action="throttle")
+    long = BehaviorRule("usage", threshold=1000, window=600)
+    ttls = []
+    try:
+        await tracker.track_endpoint_usage("ep1", _IP, short)
+        await tracker.check_throttle(
+            _IP, [ThrottleCheck(throttle, "ep1", True, 1000)], 1.0, False
+        )
+        async with redis_mgr.get_connection() as conn:
+            for rule in (short, throttle):
+                ttls.append(
+                    await conn.ttl(f"{prefix}{usage_hits_key('ep1', _IP, rule)}")
+                )
+            ttls.append(await conn.ttl(index))
+            await tracker.track_endpoint_usage("ep1", _IP, long)
+            ttls.append(await conn.ttl(f"{prefix}{usage_hits_key('ep1', _IP, long)}"))
+            ttls.append(await conn.ttl(index))
+            assert len(await conn.smembers(index)) == 3
+    finally:
+        await redis_mgr.delete_pattern("behavior_*")
+        await redis_mgr.close()
+    assert all(290 < ttl <= 300 for ttl in ttls[:3])
+    assert all(590 < ttl <= 600 for ttl in ttls[3:])

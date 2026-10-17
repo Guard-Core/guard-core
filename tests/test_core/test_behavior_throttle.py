@@ -1,4 +1,6 @@
 import logging
+import subprocess
+import sys
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
@@ -456,6 +458,7 @@ async def _serve_404s(
     clock: _Clock,
     route: RouteConfig | None,
     count: int,
+    status: int = 404,
 ) -> list[int]:
     statuses = []
     for _ in range(count):
@@ -464,13 +467,13 @@ async def _serve_404s(
         if refused is not None:
             statuses.append(refused.status_code)
         else:
-            response = MockGuardResponse(status_code=404)
+            response = MockGuardResponse(status_code=status)
             if route is not None:
                 await processor.process_return_rules(request, response, _IP, route)
             await processor.process_global_rules(
                 request, response, _IP, list(processor._global_rules())
             )
-            statuses.append(404)
+            statuses.append(status)
         clock.advance(1)
     return statuses
 
@@ -751,3 +754,277 @@ async def test_adapter_without_middleware_only_logs_and_warns_once(
         r for r in caplog.records if "throttle rules are only logged" in r.message
     ]
     assert len(warnings) == 1
+
+
+def _global_rule_config(**fields: Any) -> BehaviorRuleConfig:
+    values: dict[str, Any] = {"threshold": 1, "window": 60, "action": "throttle"}
+    values.update(fields)
+    return BehaviorRuleConfig(**values)
+
+
+async def test_route_return_throttle_counts_matching_responses_not_requests(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = _Clock(monkeypatch)
+    config = _config()
+    processor, _, _ = _processor(config, BehaviorTracker(config))
+    route = _route(_throttle_rule(1, rule_type="return_pattern", pattern="status:404"))
+    assert await _serve_404s(processor, clock, route, 4, status=200) == [200] * 4
+
+
+async def test_global_return_throttle_counts_matching_responses_not_requests(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = _Clock(monkeypatch)
+    rule = _global_rule_config(rule_type="return_pattern", pattern="status:404")
+    config = _config(global_behavior_rules=(rule,))
+    processor, _, _ = _processor(config, BehaviorTracker(config))
+    assert await _serve_404s(processor, clock, None, 4, status=200) == [200] * 4
+
+
+async def test_route_throttle_refuses_when_a_global_throttle_also_applies(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = _Clock(monkeypatch)
+    config = _config(
+        global_behavior_rules=(_global_rule_config(rule_type="usage", threshold=100),)
+    )
+    processor, _, _ = _processor(config, BehaviorTracker(config))
+    statuses = await _statuses(processor, clock, _route(_throttle_rule(1)), 2)
+    assert [s if s is None else s[0] for s in statuses] == [None, 429]
+
+
+async def test_throttle_429_carries_the_default_message(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _Clock(monkeypatch)
+    config = _config()
+    processor, _, _ = _processor(config, BehaviorTracker(config))
+    route = _route(_throttle_rule(1))
+    await processor.process_usage_rules(_request(), _IP, route)
+    response = await processor.process_usage_rules(_request(), _IP, route)
+    assert response is not None
+    assert (response.status_code, response.body) == (429, b"Too many requests")
+
+
+@pytest.mark.parametrize(
+    ("route_rules", "global_rules", "statuses", "reason", "extra", "applied"),
+    [
+        (
+            [_throttle_rule(1, window=20)],
+            (),
+            [],
+            "Behavioral usage throttle threshold reached: 1 calls in 20s",
+            {"threshold": 1},
+            "Throttle threshold reached: 1 calls in 20s",
+        ),
+        (
+            [],
+            (_global_rule_config(rule_type="usage", window=20),),
+            [],
+            "Global behavioral usage throttle threshold reached: 1 calls in 20s",
+            {"threshold": 1, "decorator_type": "behavioral_global"},
+            "Throttle threshold reached: 1 calls in 20s",
+        ),
+        (
+            [
+                _throttle_rule(
+                    2, window=20, rule_type="return_pattern", pattern="status:404"
+                )
+            ],
+            (),
+            [404, 404, 404],
+            "Behavioral return_pattern throttle threshold reached: "
+            "2 for 'status:404' in 20s",
+            {"threshold": 2, "pattern": "status:404"},
+            "Throttle threshold reached: 2 for 'status:404' in 20s",
+        ),
+    ],
+    ids=["route-usage", "global-usage", "route-return"],
+)
+async def test_throttle_trip_reports_the_rule_and_its_limit(
+    monkeypatch: pytest.MonkeyPatch,
+    route_rules: list[BehaviorRule],
+    global_rules: tuple[BehaviorRuleConfig, ...],
+    statuses: list[int],
+    reason: str,
+    extra: dict[str, Any],
+    applied: str,
+) -> None:
+    clock = _Clock(monkeypatch)
+    config = _config(global_behavior_rules=global_rules)
+    tracker = BehaviorTracker(config)
+    processor, event_bus, _ = _processor(config, tracker)
+    reasons: list[str] = []
+    original = tracker.apply_action
+
+    async def record(
+        rule: BehaviorRule, client_ip: str, endpoint_id: str, details: str, **kw: Any
+    ) -> str:
+        reasons.append(details)
+        return await original(rule, client_ip, endpoint_id, details, **kw)
+
+    monkeypatch.setattr(tracker, "apply_action", record)
+    route = _route(*route_rules) if route_rules else None
+    if statuses:
+        assert await _serve_404s(processor, clock, route, 3) == statuses
+    else:
+        await processor.process_usage_rules(_request(), _IP, route)
+    refused = await processor.process_usage_rules(_request(), _IP, route)
+    assert refused is not None and refused.status_code == 429
+    kwargs = event_bus.send_middleware_event.await_args.kwargs
+    assert kwargs["reason"] == reason
+    assert {key: kwargs[key] for key in extra} == extra
+    assert ("pattern" in kwargs) == ("pattern" in extra)
+    assert reasons == [applied]
+
+
+async def test_refusal_events_are_sampled_again_exactly_one_minute_later(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = _Clock(monkeypatch)
+    config = _config()
+    processor, event_bus, _ = _processor(config, BehaviorTracker(config))
+    route = _route(_throttle_rule(1, window=3600))
+    await _statuses(processor, clock, route, 2)
+    assert event_bus.send_middleware_event.await_count == 1
+    clock.advance(59)
+    await _statuses(processor, clock, route, 1)
+    assert event_bus.send_middleware_event.await_count == 2
+
+
+def test_throttle_sampling_and_bounds_match_the_spec() -> None:
+    assert _throttle.THROTTLE_EVENT_SAMPLE_SECONDS == 60
+    assert _throttle.MAX_SAMPLED_THROTTLE_KEYS == 10_000
+
+
+def test_a_fresh_process_has_not_warned_about_a_missing_middleware() -> None:
+    code = (
+        "from guard_core.core.behavioral import _throttle; "
+        "print(_throttle._missing_middleware_warned)"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, check=True
+    )
+    assert result.stdout.strip() == "False"
+
+
+async def test_missing_middleware_warning_text_and_logger(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    clock = _Clock(monkeypatch)
+    monkeypatch.setattr(_throttle, "_missing_middleware_warned", False)
+    config = _config()
+    processor, _, _ = _processor(config, BehaviorTracker(config), middleware=False)
+    with caplog.at_level(logging.WARNING):
+        await _statuses(processor, clock, _route(_throttle_rule(1)), 2)
+    warnings = [r for r in caplog.records if r.name == "guard_core.core.behavioral"]
+    assert [r.getMessage() for r in warnings] == [
+        "Behavior throttle rules are only logged: this adapter does not pass "
+        "its middleware to the behavioral processor, so the engine cannot "
+        "answer 429. Upgrade the adapter to enforce throttle rules."
+    ]
+
+
+async def test_redis_failure_logs_the_redacted_error_and_the_fail_secure_block(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    _Clock(monkeypatch)
+    config = _config(enable_redis=True, redis_fail_open=False, fail_secure=True)
+    processor, _, _ = _processor(config, _broken_redis_tracker(config))
+    with caplog.at_level(logging.WARNING, logger="test_throttle"):
+        await processor.process_usage_rules(_request(), _IP, _route(_throttle_rule(1)))
+    assert [r.getMessage() for r in caplog.records if r.name == "test_throttle"] == [
+        "Error in behavior throttle (GuardRedisError): "
+        "Redis behavior throttling unavailable",
+        "Blocking request due to check error in fail-secure mode: behavior throttle",
+    ]
+
+
+async def test_global_throttle_hits_use_the_global_scope_key_over_redis(
+    monkeypatch: pytest.MonkeyPatch, security_config_redis: SecurityConfig
+) -> None:
+    _Clock(monkeypatch)
+    rule_config = _global_rule_config(rule_type="usage", threshold=100)
+    config = security_config_redis.model_copy(
+        update={"global_behavior_rules": (rule_config,)}
+    )
+    async with _redis(config) as manager:
+        tracker = BehaviorTracker(config)
+        await tracker.initialize_redis(manager)
+        processor, _, _ = _processor(config, tracker)
+        await processor.process_usage_rules(_request(), _IP, None)
+        rule = processor._global_rules()[0]
+        key = usage_hits_key(f"global|{rule.discriminator()}", _IP, rule)
+        async with manager.get_connection() as conn:
+            assert await conn.zcard(f"{config.redis_prefix}behavior_usage:{key}") == 1
+
+
+async def test_global_rules_are_converted_once_per_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = _config(global_behavior_rules=(_global_rule_config(rule_type="usage"),))
+    processor, _, _ = _processor(config, BehaviorTracker(config))
+    converted: list[BehaviorRuleConfig] = []
+    original = _throttle.config_to_rule
+
+    def counting(rule_config: BehaviorRuleConfig) -> BehaviorRule:
+        converted.append(rule_config)
+        return original(rule_config)
+
+    monkeypatch.setattr(_throttle, "config_to_rule", counting)
+    first = processor._global_rules()
+    assert processor._global_rules() is first
+    assert len(converted) == 1
+
+
+async def test_bounded_refusal_counts_evict_the_oldest_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = _Clock(monkeypatch)
+    monkeypatch.setattr(_throttle, "MAX_SAMPLED_THROTTLE_KEYS", 2)
+    config = _config()
+    processor, _, _ = _processor(config, BehaviorTracker(config))
+    rule = _throttle_rule(1, window=3600)
+    ips = ("198.51.100.1", "198.51.100.2", "198.51.100.3")
+    for ip in ips:
+        for _ in range(3):
+            await processor.process_usage_rules(_request(), ip, _route(rule))
+        clock.advance(1)
+    assert list(processor._throttle_refusals) == [
+        _behavior_throttle.trip_marker_key(_ENDPOINT, ip, rule) for ip in ips[1:]
+    ]
+
+
+async def test_a_refused_request_counts_only_in_global_non_throttle_usage_rules(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = _Clock(monkeypatch)
+    throttle = _global_rule_config(rule_type="usage", threshold=100)
+    returns = _global_rule_config(
+        rule_type="return_pattern", pattern="status:404", threshold=100, action="log"
+    )
+    config = _config(global_behavior_rules=(throttle, returns))
+    tracker = BehaviorTracker(config)
+    processor, _, _ = _processor(config, tracker)
+    statuses = await _statuses(processor, clock, _route(_throttle_rule(1)), 2)
+    assert [s if s is None else s[0] for s in statuses] == [None, 429]
+    global_throttle, global_return = processor._global_rules()
+    scope = f"global|{global_throttle.discriminator()}"
+    assert len(tracker.usage_counts[bucket_key(scope, global_throttle)][_IP]) == 1
+    return_scope = f"global|{global_return.discriminator()}"
+    assert bucket_key(return_scope, global_return) not in tracker.usage_counts
+
+
+async def test_route_return_throttle_refuses_over_redis(
+    monkeypatch: pytest.MonkeyPatch, security_config_redis: SecurityConfig
+) -> None:
+    clock = _Clock(monkeypatch)
+    async with _redis(security_config_redis) as manager:
+        tracker = BehaviorTracker(security_config_redis)
+        await tracker.initialize_redis(manager)
+        processor, _, _ = _processor(security_config_redis, tracker)
+        route = _route(
+            _throttle_rule(2, rule_type="return_pattern", pattern="status:404")
+        )
+        assert await _serve_404s(processor, clock, route, 4) == [404, 404, 404, 429]
