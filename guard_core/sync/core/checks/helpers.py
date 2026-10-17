@@ -263,18 +263,21 @@ def check_user_agent_allowed(
     return global_user_agent_check(user_agent, config)
 
 
+_SCHEME_FAILURES = {
+    "bearer": "Missing or invalid Bearer token",
+    "basic": "Missing or invalid Basic authentication",
+}
+
+
 def extract_credential(auth_header: str, auth_type: str) -> tuple[str | None, str]:
-    if auth_type == "bearer":
-        if not auth_header.startswith("Bearer "):
-            return None, "Missing or invalid Bearer token"
-        return auth_header[len("Bearer ") :], ""
-    if auth_type == "basic":
-        if not auth_header.startswith("Basic "):
-            return None, "Missing or invalid Basic authentication"
-        return auth_header[len("Basic ") :], ""
-    if not auth_header:
-        return None, f"Missing {auth_type} authentication"
-    return auth_header, ""
+    failure = _SCHEME_FAILURES.get(auth_type, f"Missing {auth_type} authentication")
+    if auth_type not in _SCHEME_FAILURES:
+        return (auth_header, "") if auth_header else (None, failure)
+    prefix = f"{auth_type} "
+    if auth_header[: len(prefix)].lower() != prefix:
+        return None, failure
+    credential = auth_header[len(prefix) :].strip()
+    return (credential, "") if credential else (None, failure)
 
 
 def _normalize_allowed_referrer_domain(entry: str) -> str:
