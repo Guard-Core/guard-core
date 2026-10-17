@@ -15,6 +15,7 @@ from guard_core._config_capabilities import (
     cloud_blocking_enabled as cloud_blocking_enabled,
 )
 from guard_core._dynamic_rules import DynamicRules as DynamicRules
+from guard_core._misconfiguration import report_config_misconfigurations
 from guard_core._security_config_fields import _SecurityConfigFields
 from guard_core._security_config_validators import (
     _FIELD_REVALIDATORS,
@@ -252,6 +253,11 @@ class SecurityConfig(_SecurityConfigFields):
     @model_validator(mode="after")
     def warn_exempt_ips_prefix_zero(self) -> Self:
         _warn_exempt_ips_prefix_zero(self.exempt_ips)
+        return self
+
+    @model_validator(mode="after")
+    def report_misconfigurations(self) -> Self:
+        report_config_misconfigurations(self, stacklevel=4)
         return self
 
     @model_validator(mode="after")

@@ -53,6 +53,14 @@ def _neutral_config(**overrides: object) -> SecurityConfig:
     return SecurityConfig(**fields)
 
 
+def _always_limited_config() -> SecurityConfig:
+    config = _neutral_config(
+        enable_rate_limiting=True, rate_limit=1, rate_limit_window=60
+    )
+    config.rate_limit = 0
+    return config
+
+
 def _route_config(**overrides: object) -> RouteConfig:
     route_config = RouteConfig()
     for name, value in overrides.items():
@@ -378,9 +386,7 @@ CORPUS: list[EliminationCase] = [
         id="rate_limit-keep-blocks",
         check_class=RateLimitCheck,
         predicate_keeps=True,
-        config=_neutral_config(
-            enable_rate_limiting=True, rate_limit=0, rate_limit_window=60
-        ),
+        config=_always_limited_config(),
         route_configs=None,
         request_route_id=None,
         request_kwargs={"client_host": "198.51.100.20"},

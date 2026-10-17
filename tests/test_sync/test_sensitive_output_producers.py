@@ -358,6 +358,10 @@ COVERED_PRODUCERS: dict[str, frozenset[str]] = {
 }
 
 NON_REQUEST_PRODUCERS: dict[str, str] = {
+    "_misconfiguration.py:report_misconfiguration": (
+        "startup advisory naming a config field or decorator "
+        "argument and its configured value; startup only, no request in scope"
+    ),
     "_pydantic_plugin_mute.py:_mute_pydantic_plugin_instrumentation": (
         "line 46: warns once about pydantic-plugin instrumentation at import "
         "time; no request in scope"

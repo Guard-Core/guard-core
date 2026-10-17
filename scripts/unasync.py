@@ -14,6 +14,7 @@ CHECK_TMP_PREFIX = ".unasync_check_tmp_"
 
 SKIP_SRC = {
     "models.py",
+    "_misconfiguration.py",
     "exceptions.py",
     "_pydantic_plugin_mute.py",
     "_security_config_validators.py",

@@ -153,3 +153,26 @@ def decorator_agent_wiring_via_behavior_tracker(ctx: ScenarioContext) -> None:
         "SecurityDecorator.initialize_agent must wire behavior_tracker.agent_handler "
         "so a crossed usage_monitor threshold reaches the agent stub"
     )
+
+
+MISCONFIGURED_START_CONFIG = {
+    "rate_limit_window": 0,
+    "fail_on_misconfiguration": False,
+}
+
+
+@scenario(covers={"fail_on_misconfiguration"}, config=MISCONFIGURED_START_CONFIG)
+def fail_on_misconfiguration_false_starts_and_names_the_misconfiguration(
+    ctx: ScenarioContext,
+) -> None:
+    response = ctx.client.get("/basic/ip", params={"q": "hello"})
+    assert response.status_code == 200, (
+        "fail_on_misconfiguration=False must keep the app serving requests"
+    )
+
+    boot = ctx.stack.logs.current_boot_text()
+    assert "rate_limit_window is 0" in boot, (
+        "the startup log should name the misconfigured field and its value"
+    )
+    assert "fail_on_misconfiguration=False keeps starting" in boot
+    assert "fail_on_misconfiguration is not set" not in boot

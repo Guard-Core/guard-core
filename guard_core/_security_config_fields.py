@@ -196,6 +196,17 @@ class _SecurityConfigFields(BaseModel):
         ),
     )
 
+    fail_on_misconfiguration: bool = Field(
+        default=False,
+        description=(
+            "Refuse to start when the configuration or a route decorator is "
+            "misconfigured (a rate limit below 1, a zero detection threshold, an "
+            "empty route allow-list and the like). Off by default in 4.5.0: each "
+            "misconfiguration logs one WARNING line and raises one "
+            "DeprecationWarning at startup; on by default from 5.0.0."
+        ),
+    )
+
     enable_rate_limit_auto_ban: bool = Field(
         default=False,
         description=(
