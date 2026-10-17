@@ -129,11 +129,19 @@
       },
       "expected": [
         {
-          "key": "guard_core:corpus_rio:behavior_usage:behavior:usage:ded2c0cf54d6716bb27c96c49bfa9baa37f1fc5f973b780fef5b25e6fcc58118:89d523ed9039790f597af21528236c4d4934fd3c270f2fd0d8e114866c2c694d",
+          "key": "guard_core:corpus_rio:behavior_usage:behavior:usage:034a7e52c5c9534b709dc1dba403868399b0949f7c1933a67325c22077ffc221:89d523ed9039790f597af21528236c4d4934fd3c270f2fd0d8e114866c2c694d",
+          "type": "set",
+          "ttl": {
+            "set": true,
+            "seconds": 300
+          }
+        },
+        {
+          "key": "guard_core:corpus_rio:behavior_usage:behavior:usage:ded2c0cf54d6716bb27c96c49bfa9baa37f1fc5f973b780fef5b25e6fcc58118:89d523ed9039790f597af21528236c4d4934fd3c270f2fd0d8e114866c2c694d:298cce2f4cddd39c71abf5ff171b7afa7bfd18068e9d677f5fb38b4185daede8",
           "type": "zset",
           "ttl": {
             "set": true,
-            "seconds": 120
+            "seconds": 300
           },
           "card": 1,
           "member_shape": "^[0-9a-f]{32}$",
@@ -162,7 +170,7 @@
       },
       "expected": [
         {
-          "key": "guard_core:corpus_rio:behavior_returns:behavior:return:ded2c0cf54d6716bb27c96c49bfa9baa37f1fc5f973b780fef5b25e6fcc58118:89d523ed9039790f597af21528236c4d4934fd3c270f2fd0d8e114866c2c694d:c4a3b17cef32e92bbce11146e8ff9b841378ba417eab26c814248a1f264d6ba1",
+          "key": "guard_core:corpus_rio:behavior_returns:behavior:return:ded2c0cf54d6716bb27c96c49bfa9baa37f1fc5f973b780fef5b25e6fcc58118:89d523ed9039790f597af21528236c4d4934fd3c270f2fd0d8e114866c2c694d:188d88075d614df769f7b1c68ecc5033a97c653df44bdb7508f4bb4cd59f3535",
           "type": "zset",
           "ttl": {
             "set": true,

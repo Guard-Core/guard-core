@@ -356,6 +356,46 @@ PIPELINE_SUITES["pipeline_behavior_rules"] = [
         "id": "return_pattern_rule_bans_after_threshold",
         "config": {
             "behavior_scan_response_body": True,
+            "enable_ip_banning": True,
+            "global_behavior_rules": [
+                {
+                    "rule_type": "return_pattern",
+                    "threshold": 2,
+                    "window": 3600,
+                    "pattern": "status:404",
+                    "action": "ban",
+                    "ban_duration": 900,
+                }
+            ],
+        },
+        "drives": [
+            {
+                "client_ip": IP,
+                "url_path": "/api",
+                "stage": "process_response",
+                "response_status": 404,
+            },
+            {
+                "client_ip": IP,
+                "url_path": "/api",
+                "stage": "process_response",
+                "response_status": 404,
+            },
+            {
+                "client_ip": IP,
+                "url_path": "/api",
+                "stage": "process_response",
+                "response_status": 404,
+            },
+            {"client_ip": IP, "url_path": "/api"},
+            {"client_ip": IP_OTHER, "url_path": "/api"},
+        ],
+    },
+    {
+        "id": "return_pattern_rule_ban_action_is_tracked_when_ip_banning_is_off",
+        "config": {
+            "behavior_scan_response_body": True,
+            "enable_ip_banning": False,
             "global_behavior_rules": [
                 {
                     "rule_type": "return_pattern",

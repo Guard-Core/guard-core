@@ -2,12 +2,13 @@
   "suite": "pipeline_behavior_rules",
   "kind": "pipeline",
   "spec_version": "4.1.0",
-  "engine_version": "4.3.2",
+  "engine_version": "4.4.0",
   "cases": [
     {
       "id": "return_pattern_rule_bans_after_threshold",
       "config": {
         "behavior_scan_response_body": true,
+        "enable_ip_banning": true,
         "global_behavior_rules": [
           {
             "rule_type": "return_pattern",
@@ -141,6 +142,122 @@
               "status_code": 403
             }
           ]
+        },
+        {
+          "status": null,
+          "is_exempt": false,
+          "is_whitelisted": false
+        }
+      ]
+    },
+    {
+      "id": "return_pattern_rule_ban_action_is_tracked_when_ip_banning_is_off",
+      "config": {
+        "behavior_scan_response_body": true,
+        "enable_ip_banning": false,
+        "global_behavior_rules": [
+          {
+            "rule_type": "return_pattern",
+            "threshold": 2,
+            "window": 3600,
+            "pattern": "status:404",
+            "action": "ban",
+            "ban_duration": 900
+          }
+        ]
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api",
+          "stage": "process_response",
+          "response_status": 404
+        },
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api",
+          "stage": "process_response",
+          "response_status": 404
+        },
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api",
+          "stage": "process_response",
+          "response_status": 404
+        },
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api"
+        },
+        {
+          "client_ip": "192.0.2.11",
+          "url_path": "/api"
+        }
+      ],
+      "expected": [
+        {
+          "status": 404,
+          "body": "ok",
+          "headers": {
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "SAMEORIGIN",
+            "X-XSS-Protection": "1; mode=block",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+            "X-Permitted-Cross-Domain-Policies": "none",
+            "X-Download-Options": "noopen",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Resource-Policy": "same-origin",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains"
+          }
+        },
+        {
+          "status": 404,
+          "body": "ok",
+          "headers": {
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "SAMEORIGIN",
+            "X-XSS-Protection": "1; mode=block",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+            "X-Permitted-Cross-Domain-Policies": "none",
+            "X-Download-Options": "noopen",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Resource-Policy": "same-origin",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains"
+          }
+        },
+        {
+          "status": 404,
+          "body": "ok",
+          "headers": {
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "SAMEORIGIN",
+            "X-XSS-Protection": "1; mode=block",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+            "X-Permitted-Cross-Domain-Policies": "none",
+            "X-Download-Options": "noopen",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Resource-Policy": "same-origin",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains"
+          },
+          "events": [
+            [
+              "decorator_violation",
+              "behavioral_action_triggered"
+            ]
+          ]
+        },
+        {
+          "status": null,
+          "is_exempt": false,
+          "is_whitelisted": false
         },
         {
           "status": null,
