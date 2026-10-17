@@ -133,3 +133,31 @@ def test_rule_exemption_mixin_defaults_to_no_networks_and_matches_by_family() ->
     assert mixin._is_rule_exempt_ip("198.51.101.5") is False
     assert mixin._is_rule_exempt_ip("2001:db8::1") is False
     assert mixin._is_rule_exempt_ip("not-an-ip") is False
+
+
+def test_a_failing_range_unban_is_logged_and_does_not_stop_the_apply(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    manager = _manager()
+    with (
+        patch.object(
+            ip_ban_manager, "unban_inside", MagicMock(side_effect=RuntimeError("boom"))
+        ),
+        caplog.at_level(logging.ERROR),
+    ):
+        manager._apply_ip_whitelist(["198.51.100.0/24", "198.51.100.9"])
+
+    assert "Failed to whitelist ranges ['198.51.100.0/24']: boom" in caplog.text
+
+
+def test_a_validated_name_without_a_revalidator_is_passed_through() -> None:
+    from guard_core._security_config_batch import prepare_config_batch
+
+    config = SecurityConfig(enable_redis=False)
+    prepared = prepare_config_batch(
+        config,
+        {"passive_mode": True, "rate_limit": 7},
+        {"passive_mode", "rate_limit"},
+    )
+    assert prepared["passive_mode"] is True
+    assert prepared["rate_limit"] == 7

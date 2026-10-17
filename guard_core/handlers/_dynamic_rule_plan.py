@@ -7,6 +7,7 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any, cast
 
+from guard_core._security_config_batch import apply_config_batch, prepare_config_batch
 from guard_core._security_config_field_validators import (
     canonicalize_cloud_provider_selector,
 )
@@ -110,11 +111,11 @@ class DynamicRulePlanMixin:
         self._plan_rate_limits(plan, rules)
         self._plan_feature_toggles(plan, rules)
         self._plan_emergency_mode(plan, rules)
-        plan.prepared = self.config._prepare_batch(plan.state, plan.validated)
+        plan.prepared = prepare_config_batch(self.config, plan.state, plan.validated)
         return plan
 
     def _swap_config(self, plan: DynamicRulePlan) -> None:
-        self.config._apply_batch(plan.prepared)
+        apply_config_batch(self.config, plan.prepared)
 
     def _plan_countries(self, plan: DynamicRulePlan, rules: DynamicRules) -> None:
         blocked, allowed = rules.blocked_countries, rules.whitelist_countries
@@ -308,4 +309,4 @@ class DynamicRulePlanMixin:
         }
 
     def _restore_config(self, snapshot: dict[str, object]) -> None:
-        self.config._apply_batch(deepcopy(snapshot))
+        apply_config_batch(self.config, deepcopy(snapshot))

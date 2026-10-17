@@ -1,8 +1,7 @@
 import contextvars
 import difflib
 import logging
-from collections.abc import Collection, Mapping
-from copy import deepcopy
+from collections.abc import Mapping
 from pathlib import Path
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
@@ -124,40 +123,6 @@ class SecurityConfig(_SecurityConfigFields):
             setattr(self, name, value)
         finally:
             _skip_revalidation.reset(token)
-
-    def _prepare_batch(
-        self, values: Mapping[str, Any], validated: Collection[str]
-    ) -> dict[str, Any]:
-        prepared = {name: deepcopy(value) for name, value in values.items()}
-        for name in validated:
-            if name in _FIELD_REVALIDATORS:
-                prepared[name] = _FIELD_REVALIDATORS[name](prepared[name])
-        blocked = prepared.get("blocked_countries", self.blocked_countries)
-        allowed = prepared.get("whitelist_countries", self.whitelist_countries)
-        resolved = _resolve_geo_ip_handler(
-            blocked_countries=blocked,
-            whitelist_countries=allowed,
-            geo_ip_handler=self.geo_ip_handler,
-            ipinfo_token=self.ipinfo_token,
-            ipinfo_db_path=self.ipinfo_db_path,
-            geo_ip_db_max_age=self.geo_ip_db_max_age,
-        )
-        if resolved is not self.geo_ip_handler:
-            prepared["geo_ip_handler"] = resolved
-        if (
-            blocked
-            and allowed
-            and (
-                blocked != self.blocked_countries or allowed != self.whitelist_countries
-            )
-        ):
-            _warn_country_allowlist_shadows_blocklist(stacklevel=3)
-        return prepared
-
-    def _apply_batch(self, prepared: Mapping[str, Any]) -> None:
-        self.__dict__.update(prepared)
-        self.__pydantic_fields_set__.update(prepared)
-        object.__setattr__(self, "_revision", self._current_revision() + 1)
 
     @property
     def revision(self) -> int:

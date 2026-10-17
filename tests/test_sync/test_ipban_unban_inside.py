@@ -135,3 +135,36 @@ def test_unban_inside_survives_a_redis_failure(
         ip_ban_manager.unban_inside(["198.51.100.0/24"])
     assert "198.51.100.7" not in ip_ban_manager.banned_ips
     assert "Redis unban of whitelisted ranges failed" in caplog.text
+
+
+def test_unban_inside_ignores_redis_network_keys_that_are_not_networks(
+    real_redis: RedisManager,
+) -> None:
+    real_redis.set_key("banned_networks", "not-a-network", "1", ttl=600)
+    ip_ban_manager.unban_inside(["198.51.100.0/24"])
+    assert real_redis.exists("banned_networks", "not-a-network") is True
+
+
+def test_unban_inside_deletes_redis_keys_in_batches_and_keeps_the_rest(
+    real_redis: RedisManager,
+) -> None:
+    expiry = str(time.time() + 600)
+    with real_redis.get_connection() as conn:
+        with conn.pipeline() as pipe:
+            for index in range(2100):
+                pipe.set(
+                    f"{REDIS_PREFIX}banned_ips:10.9.{index // 256}.{index % 256}",
+                    expiry,
+                    ex=600,
+                )
+            pipe.set(f"{REDIS_PREFIX}banned_ips:10.10.0.1", expiry, ex=600)
+            pipe.execute()
+
+    ip_ban_manager.unban_inside(["10.9.0.0/20"])
+
+    assert real_redis.exists("banned_ips", "10.9.0.0") is False
+    assert real_redis.exists("banned_ips", "10.9.8.51") is False
+    assert real_redis.exists("banned_ips", "10.10.0.1") is True
+    with real_redis.get_connection() as conn:
+        remaining = [key for key in conn.scan_iter(match=f"{REDIS_PREFIX}banned_ips:*")]
+    assert remaining == [f"{REDIS_PREFIX}banned_ips:10.10.0.1"]
