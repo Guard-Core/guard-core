@@ -265,12 +265,16 @@ class _HandlerInitializerStepsMixin:
             await self.redis_handler.initialize_agent(self.agent_handler)
 
         await self.initialize_agent_for_handlers()
+        await self._initialize_behavior_telemetry()
+        await self.initialize_dynamic_rule_manager()
 
+    async def _initialize_behavior_telemetry(self) -> None:
         if self.guard_decorator and hasattr(self.guard_decorator, "initialize_agent"):
             telemetry = self.composite_handler or self.agent_handler
             await self.guard_decorator.initialize_agent(telemetry)
 
-        await self.initialize_dynamic_rule_manager()
+        if self.behavior_tracker is not None:
+            await self.behavior_tracker.initialize_agent(self.composite_handler)
 
     async def shutdown_agent_integrations(self) -> None:
         if self.composite_handler is None:

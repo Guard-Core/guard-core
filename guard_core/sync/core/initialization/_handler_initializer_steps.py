@@ -268,12 +268,16 @@ class _HandlerInitializerStepsMixin:
             self.redis_handler.initialize_agent(self.agent_handler)
 
         self.initialize_agent_for_handlers()
+        self._initialize_behavior_telemetry()
+        self.initialize_dynamic_rule_manager()
 
+    def _initialize_behavior_telemetry(self) -> None:
         if self.guard_decorator and hasattr(self.guard_decorator, "initialize_agent"):
             telemetry = self.composite_handler or self.agent_handler
             self.guard_decorator.initialize_agent(telemetry)
 
-        self.initialize_dynamic_rule_manager()
+        if self.behavior_tracker is not None:
+            self.behavior_tracker.initialize_agent(self.composite_handler)
 
     def shutdown_agent_integrations(self) -> None:
         if self.composite_handler is None:

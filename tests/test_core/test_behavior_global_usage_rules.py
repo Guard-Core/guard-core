@@ -156,3 +156,52 @@ async def test_global_rules_run_without_decorator_and_without_enrichment() -> No
             _request_for("/a"), MagicMock(), "1.2.3.4", [rule]
         )
     assert event_bus.send_middleware_event.call_count == 1
+
+
+class _RecordingAgent:
+    def __init__(self) -> None:
+        self.events: list[Any] = []
+
+    async def start(self) -> None:
+        return None
+
+    async def stop(self) -> None:
+        return None
+
+    async def send_event(self, event: Any) -> None:
+        self.events.append(event)
+
+    async def send_metric(self, _: Any) -> None:
+        return None
+
+    async def initialize_redis(self, _: Any) -> None:
+        return None
+
+
+async def test_global_rule_without_decorator_sends_behavioral_violation() -> None:
+    config = SecurityConfig(
+        enable_redis=False,
+        enable_agent=True,
+        agent_api_key="a" * 10,
+        enable_enrichment=False,
+    )
+    agent = _RecordingAgent()
+    initializer = HandlerInitializer(config=config, agent_handler=agent)
+    await initializer.initialize_agent_integrations()
+    event_bus = MagicMock()
+    event_bus.send_middleware_event = AsyncMock()
+    context = BehavioralContext(
+        config=config,
+        logger=logging.getLogger("test_global_usage"),
+        event_bus=event_bus,
+        guard_decorator=None,
+        behavior_tracker=initializer.behavior_tracker,
+    )
+    processor = BehavioralProcessor(context)
+    rule = BehaviorRule(rule_type="usage", threshold=1, window=60, action="log")
+    for _ in range(2):
+        await processor.process_global_rules(
+            _request_for("/a"), MagicMock(), "1.2.3.4", [rule]
+        )
+    assert [event.event_type for event in agent.events] == ["behavioral_violation"]
+    assert event_bus.send_middleware_event.call_count == 1
