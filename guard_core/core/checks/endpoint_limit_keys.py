@@ -20,12 +20,17 @@ class EndpointLimitKeyMap:
         self.keys = frozenset(keys)
         by_identity: dict[RouteIdentity, set[str]] = {}
         by_path: dict[str, set[str]] = {}
+        unresolved: set[str] = set()
         for key in self.keys:
             by_path.setdefault(normalize_limit_path(key), set()).add(key)
             if resolve_route is None:
                 continue
-            for identity in resolve_route(key):
+            identities = resolve_route(key)
+            if not identities:
+                unresolved.add(key)
+            for identity in identities:
                 by_identity.setdefault(identity, set()).add(key)
+        self.unresolved = frozenset(unresolved)
         self.by_identity = {k: frozenset(v) for k, v in by_identity.items()}
         self.by_path = {k: frozenset(v) for k, v in by_path.items()}
 
