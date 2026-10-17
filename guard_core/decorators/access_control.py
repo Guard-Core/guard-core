@@ -2,7 +2,10 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
-from guard_core.decorators._route_arguments import canonical_cloud_selector
+from guard_core.decorators._route_arguments import (
+    canonical_cloud_selector,
+    invalid_ip_entries,
+)
 from guard_core.decorators.base import BaseSecurityMixin, DecoratedFunction
 from guard_core.models import VALID_BYPASS_CHECKS, VALID_CLOUD_PROVIDERS
 
@@ -19,6 +22,13 @@ class AccessControlMixin(BaseSecurityMixin):
                     "@require_ip received an empty whitelist: an empty list "
                     "restricts nothing, so every address is allowed on this route."
                 )
+            for name, entries in (("whitelist", whitelist), ("blacklist", blacklist)):
+                for entry in invalid_ip_entries(entries):
+                    self._report_misconfiguration(
+                        f"@require_ip {name} entry {entry!r} is not a valid IP "
+                        "address or CIDR network, so requests to this route can "
+                        "be denied by mistake."
+                    )
             route_config = self._ensure_route_config(func)
             if whitelist:
                 route_config.ip_whitelist = whitelist
