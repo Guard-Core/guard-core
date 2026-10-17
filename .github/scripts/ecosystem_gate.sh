@@ -49,8 +49,9 @@ extract_failed_ids() {
 run_pytest_pass() {
   local outfile="$1"
   set +e
+  # --no-sync: a plain `uv run` re-syncs to the lockfile and would put PyPI guard-core back over the PR wheel.
   # shellcheck disable=SC2086 # pytest_args is a deliberate multi-flag string, e.g. "-v --cov=guard --cov-branch"
-  env "${run_env[@]}" uv run pytest $pytest_args -rfE 2>&1 | tee "$outfile"
+  env "${run_env[@]}" uv run --no-sync pytest $pytest_args -rfE 2>&1 | tee "$outfile"
   pass_status="${PIPESTATUS[0]}"
   set -e
 }
@@ -121,6 +122,11 @@ echo "::group::Run $repo's test suite (candidate: PR wheel force-installed)"
 run_pytest_pass "$candidate_output"
 candidate_status="$pass_status"
 echo "candidate pytest run exited with status $candidate_status"
+version_after_run="$(.venv/bin/python -c "import importlib.metadata as m; print(m.version('guard-core'))")"
+if [ "$version_after_run" != "$expected_version" ]; then
+  echo "::error::guard-core was $version_after_run after the candidate run, expected the PR build $expected_version" >&2
+  exit 1
+fi
 echo "::endgroup::"
 
 echo "::group::Diff base vs candidate failures for $repo@$ref"
