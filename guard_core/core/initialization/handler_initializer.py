@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any
 from guard_core.core.initialization._handler_initializer_steps import (
     _HandlerInitializerStepsMixin,
 )
+from guard_core.handlers.behavior_handler import BehaviorTracker
 
 if TYPE_CHECKING:
     from guard_core.core.events.metrics import MetricsCollector
@@ -31,7 +32,9 @@ class HandlerInitializer(_HandlerInitializerStepsMixin):
         self.composite_handler: Any = None
         self.event_filter: Any = None
         self.enricher: Any = None
-        self.behavior_tracker: Any = None
+        self.behavior_tracker: Any = (
+            None if guard_decorator is not None else BehaviorTracker(config)
+        )
         self._lazy_init_task: asyncio.Task[None] | None = None
         self.logger = logging.getLogger("guard_core.core.initialization")
 
@@ -66,12 +69,10 @@ class HandlerInitializer(_HandlerInitializerStepsMixin):
 
             dynamic_rule_handler = DynamicRuleManager(self.config)
 
-        behavior_tracker: Any = None
-        if self.guard_decorator is not None:
+        behavior_tracker = self.behavior_tracker
+        if behavior_tracker is None:
             behavior_tracker = getattr(self.guard_decorator, "behavior_tracker", None)
         if behavior_tracker is None:
-            from guard_core.handlers.behavior_handler import BehaviorTracker
-
             behavior_tracker = BehaviorTracker(self.config)
 
         self.behavior_tracker = behavior_tracker

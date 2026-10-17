@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 from guard_core.models import BehaviorRuleConfig, SecurityConfig
 from guard_core.sync.core.behavioral.context import BehavioralContext
 from guard_core.sync.core.behavioral.processor import BehavioralProcessor
+from guard_core.sync.core.initialization.handler_initializer import HandlerInitializer
 from guard_core.sync.handlers.behavior_handler import BehaviorRule, BehaviorTracker
 from tests.test_sync.conftest import MockGuardResponse
 
@@ -100,18 +101,52 @@ def test_global_return_rule_counts_other_ips_separately() -> None:
     assert event_bus.send_middleware_event.call_count == 0
 
 
-def test_exact_duplicate_global_behavior_rules_are_dropped_from_the_config() -> None:
-    rule = BehaviorRuleConfig(
-        rule_type="return_pattern", threshold=2, pattern="status:404"
-    )
-    other = BehaviorRuleConfig(
-        rule_type="return_pattern", threshold=2, pattern="status:404", action="ban"
-    )
+_DUPLICATE_RULE = BehaviorRuleConfig(
+    rule_type="return_pattern", threshold=2, pattern="status:404"
+)
+_BAN_RULE = BehaviorRuleConfig(
+    rule_type="return_pattern", threshold=2, pattern="status:404", action="ban"
+)
+
+
+def test_exact_duplicate_global_rules_are_dropped_at_construction() -> None:
     config = SecurityConfig(
-        enable_redis=False, global_behavior_rules=(rule, other, rule)
+        enable_redis=False,
+        global_behavior_rules=(_DUPLICATE_RULE, _BAN_RULE, _DUPLICATE_RULE),
     )
-    assert config.global_behavior_rules == (rule, other)
-    config.global_behavior_rules = (other, other)
-    assert config.global_behavior_rules == (other,)
-    copied = config.model_copy(update={"global_behavior_rules": (rule, rule)})
-    assert copied.global_behavior_rules == (rule,)
+    assert config.global_behavior_rules == (_DUPLICATE_RULE, _BAN_RULE)
+
+
+def test_exact_duplicate_global_rules_are_dropped_on_assignment() -> None:
+    config = SecurityConfig(enable_redis=False)
+    config.global_behavior_rules = (_BAN_RULE, _BAN_RULE)
+    assert config.global_behavior_rules == (_BAN_RULE,)
+
+
+def test_exact_duplicate_global_rules_are_dropped_on_model_copy() -> None:
+    config = SecurityConfig(enable_redis=False)
+    copied = config.model_copy(
+        update={"global_behavior_rules": (_DUPLICATE_RULE, _DUPLICATE_RULE)}
+    )
+    assert copied.global_behavior_rules == (_DUPLICATE_RULE,)
+
+
+def test_global_rules_run_without_decorator_and_without_enrichment() -> None:
+    config = SecurityConfig(enable_redis=False, enable_enrichment=False)
+    initializer = HandlerInitializer(config=config, guard_decorator=None)
+    event_bus = MagicMock()
+    event_bus.send_middleware_event = MagicMock()
+    context = BehavioralContext(
+        config=config,
+        logger=logging.getLogger("test_global_usage"),
+        event_bus=event_bus,
+        guard_decorator=None,
+        behavior_tracker=initializer.behavior_tracker,
+    )
+    processor = BehavioralProcessor(context)
+    rule = BehaviorRule(rule_type="usage", threshold=1, window=60, action="log")
+    for _ in range(2):
+        processor.process_global_rules(
+            _request_for("/a"), MagicMock(), "1.2.3.4", [rule]
+        )
+    assert event_bus.send_middleware_event.call_count == 1

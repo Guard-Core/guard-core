@@ -177,7 +177,7 @@ class _HandlerInitializerStepsMixin:
 
         if self.guard_decorator is not None:
             self.guard_decorator.initialize_behavior_tracking(self.redis_handler)
-        elif self.behavior_tracker is not None:
+        if self.behavior_tracker is not None:
             self.behavior_tracker.initialize_redis(self.redis_handler)
 
     def initialize_redis_handlers(self) -> None:
