@@ -55,8 +55,20 @@ class BehavioralProcessor(BehavioralThrottleMixin):
         )
         if not route_throttles and not self._global_throttle_rules():
             return None
+        # A custom_action copy of a throttle rule shares its hit list and has
+        # already recorded this request's hit in the loop above.
+        recorded_rule_ids = frozenset(
+            rule.discriminator()
+            for rule in route_rules
+            if rule.rule_type != "return_pattern" and not is_throttle_rule(rule)
+        )
         return await self._enforce_throttle(
-            behavior_tracker, request, client_ip, endpoint_id, route_throttles
+            behavior_tracker,
+            request,
+            client_ip,
+            endpoint_id,
+            route_throttles,
+            recorded_rule_ids,
         )
 
     async def _evaluate_route_usage_rules(

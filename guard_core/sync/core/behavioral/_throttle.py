@@ -64,9 +64,13 @@ def effective_return_threshold(
     return rule.threshold, False
 
 
-def _route_check(rule: BehaviorRule, endpoint_id: str) -> ThrottleCheck:
+def _route_check(
+    rule: BehaviorRule, endpoint_id: str, recorded_rule_ids: frozenset[str]
+) -> ThrottleCheck:
     if rule.rule_type == "return_pattern":
         return ThrottleCheck(rule, endpoint_id, False, rule.threshold + 1)
+    if rule.discriminator() in recorded_rule_ids:
+        return ThrottleCheck(rule, endpoint_id, True, rule.threshold + 1, True)
     return ThrottleCheck(rule, endpoint_id, True, rule.threshold)
 
 
@@ -81,7 +85,7 @@ def _global_check(
 
 
 def _trip_limit(check: ThrottleCheck) -> int:
-    return check.refuse_at if check.records else check.refuse_at - 1
+    return check.refuse_at if check.writes else check.refuse_at - 1
 
 
 class BehavioralThrottleMixin:
@@ -128,9 +132,16 @@ class BehavioralThrottleMixin:
         return sorted(cat for cat, n in ip_counts.items() if n > 0)
 
     def _throttle_checks(
-        self, client_ip: str, endpoint_id: str, route_throttles: Sequence[BehaviorRule]
+        self,
+        client_ip: str,
+        endpoint_id: str,
+        route_throttles: Sequence[BehaviorRule],
+        recorded_rule_ids: frozenset[str],
     ) -> list[ThrottleCheck]:
-        checks = [_route_check(rule, endpoint_id) for rule in route_throttles]
+        checks = [
+            _route_check(rule, endpoint_id, recorded_rule_ids)
+            for rule in route_throttles
+        ]
         global_throttles = self._global_throttle_rules()
         if global_throttles:
             correlated = self._collect_correlated_categories(client_ip)
@@ -152,8 +163,11 @@ class BehavioralThrottleMixin:
         client_ip: str,
         endpoint_id: str,
         route_throttles: Sequence[BehaviorRule],
+        recorded_rule_ids: frozenset[str] = frozenset(),
     ) -> GuardResponse | None:
-        checks = self._throttle_checks(client_ip, endpoint_id, route_throttles)
+        checks = self._throttle_checks(
+            client_ip, endpoint_id, route_throttles, recorded_rule_ids
+        )
         enforced = self._throttle_enforced()
         try:
             trips: list[ThrottleTrip] = tracker.check_throttle(

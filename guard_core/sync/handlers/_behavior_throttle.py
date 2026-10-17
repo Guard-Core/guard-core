@@ -76,6 +76,13 @@ class ThrottleCheck:
     scope_id: str
     records: bool
     refuse_at: int
+    # The rule's hit list already holds this request's hit (a custom_action copy of
+    # the rule recorded it): count it, do not add a second one.
+    hit_recorded: bool = False
+
+    @property
+    def writes(self) -> bool:
+        return self.records and not self.hit_recorded
 
 
 @dataclass(frozen=True)
@@ -94,7 +101,7 @@ def _record_hits(
 ) -> None:
     recorded: set[int] = set()
     for check, hits in zip(checks, hit_lists, strict=True):
-        if check.records and id(hits) not in recorded:
+        if check.writes and id(hits) not in recorded:
             recorded.add(id(hits))
             hits.append(now)
 
@@ -141,13 +148,13 @@ class BehaviorThrottleMixin:
             for c in checks
         ]
         args: list[Any] = [repr(now), uuid.uuid4().hex, int(record_when_over), "", ""]
-        if any(c.records for c in checks):
+        if any(c.writes for c in checks):
             index_key, max_members = self._rule_hit_index(client_ip)
             keys.append(f"{prefix}{USAGE_NAMESPACE}:{index_key}")
             args[3:5] = [max_members, RECENT_RULE_HITS_WINDOW_SECONDS]
         for check in checks:
             args += [
-                int(check.records),
+                int(check.writes),
                 repr(now - check.rule.window),
                 check.rule.window,
                 check.refuse_at,

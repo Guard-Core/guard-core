@@ -301,3 +301,34 @@ async def test_refused_requests_count_once_in_global_usage_rules_sharing_a_rule_
                 )
             )
     assert fired == [0] * 5 + [2, 2, 2]
+
+
+async def _custom_action(client_ip: str, endpoint_id: str, details: str) -> None:
+    return None
+
+
+@pytest.mark.parametrize(
+    "custom_first", [False, True], ids=["plain-first", "custom-first"]
+)
+@pytest.mark.parametrize("use_redis", _BACKENDS)
+async def test_a_throttle_rule_and_its_custom_action_copy_count_each_request_once(
+    use_redis: bool, custom_first: bool, security_config_redis: SecurityConfig
+) -> None:
+    config = _config(use_redis, security_config_redis)
+    rules = [_throttle(), _throttle(custom_action=_custom_action)]
+    route = _route(*(rules[::-1] if custom_first else rules))
+    async with _engine(use_redis, config, _Middleware()) as (processor, acted):
+        statuses = []
+        custom_fired = []
+        for _ in range(5):
+            before = acted.call_count
+            response = await processor.process_usage_rules(_request(), _IP, route)
+            statuses.append(None if response is None else response.status_code)
+            custom_fired.append(
+                sum(
+                    call.args[0].custom_action is not None
+                    for call in acted.call_args_list[before:]
+                )
+            )
+    assert statuses == [None, None, None, 429, 429]
+    assert custom_fired == [0, 0, 0, 1, 1]
