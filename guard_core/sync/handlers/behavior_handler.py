@@ -1,3 +1,4 @@
+import json
 import logging
 import threading
 import time
@@ -48,6 +49,11 @@ class BehaviorRule:
         self.ban_duration = ban_duration
         self.correlate_with_detection = correlate_with_detection
 
+    def discriminator(self) -> str:
+        return json.dumps(
+            [self.rule_type, self.pattern, self.window, self.threshold, self.action]
+        )
+
 
 _MAX_TRACKED_ENDPOINTS = 10_000
 _MAX_TRACKED_CLIENTS_PER_ENDPOINT = 10_000
@@ -93,11 +99,13 @@ class BehaviorTracker(BehaviorResponsePatternMixin, BehaviorActionDispatchMixin)
     ) -> bool:
         current_time = time.time()
         window_start = current_time - rule.window
+        discriminator = rule.discriminator()
 
         if self.redis_handler:
             key = (
                 f"behavior:usage:{_hash_identity_segment(endpoint_id)}:"
-                f"{_hash_identity_segment(client_ip)}"
+                f"{_hash_identity_segment(client_ip)}:"
+                f"{_hash_identity_segment(discriminator)}"
             )
 
             valid_count: int = self.redis_handler.record_sliding_window_hit(
@@ -106,14 +114,15 @@ class BehaviorTracker(BehaviorResponsePatternMixin, BehaviorActionDispatchMixin)
 
             return valid_count > rule.threshold
 
+        bucket_key = f"{discriminator}|{endpoint_id}"
         with self._lock:
             bucket = _lru_pop_or_create(
                 self.usage_counts,
-                endpoint_id,
+                bucket_key,
                 _MAX_TRACKED_ENDPOINTS,
                 lambda: defaultdict(list),
             )
-            self.usage_counts[endpoint_id] = bucket
+            self.usage_counts[bucket_key] = bucket
             timestamps = _lru_pop_or_create(
                 bucket, client_ip, _MAX_TRACKED_CLIENTS_PER_ENDPOINT, list
             )
@@ -151,7 +160,7 @@ class BehaviorTracker(BehaviorResponsePatternMixin, BehaviorActionDispatchMixin)
             key = (
                 f"behavior:return:{_hash_identity_segment(endpoint_id)}:"
                 f"{_hash_identity_segment(client_ip)}:"
-                f"{_hash_identity_segment(rule.pattern)}"
+                f"{_hash_identity_segment(rule.discriminator())}"
             )
 
             valid_count: int = self.redis_handler.record_sliding_window_hit(
@@ -160,7 +169,7 @@ class BehaviorTracker(BehaviorResponsePatternMixin, BehaviorActionDispatchMixin)
 
             return valid_count > threshold
 
-        pattern_key = f"{endpoint_id}:{rule.pattern}"
+        pattern_key = f"{rule.discriminator()}|{endpoint_id}"
         with self._lock:
             bucket = _lru_pop_or_create(
                 self.return_patterns,

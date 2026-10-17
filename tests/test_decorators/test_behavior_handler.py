@@ -43,6 +43,10 @@ class _BoundedReaderResponse:
         return self._body[:max_bytes]
 
 
+def _rule_bucket(rule: BehaviorRule, endpoint_id: str) -> str:
+    return f"{rule.discriminator()}|{endpoint_id}"
+
+
 def test_behavior_rule_creation() -> None:
     rule = BehaviorRule(
         rule_type="usage",
@@ -136,7 +140,7 @@ async def test_track_endpoint_usage_in_memory(security_config: SecurityConfig) -
 
     assert await tracker.track_endpoint_usage(endpoint_id, client_ip, rule)
 
-    assert len(tracker.usage_counts[endpoint_id][client_ip]) == 4
+    assert len(tracker.usage_counts[_rule_bucket(rule, endpoint_id)][client_ip]) == 4
 
 
 @pytest.mark.asyncio
@@ -151,12 +155,13 @@ async def test_track_endpoint_usage_with_window_cleanup(
 
     current_time = time.time()
     old_time = current_time - 2
-    tracker.usage_counts[endpoint_id][client_ip].append(old_time)
-    tracker.usage_counts[endpoint_id][client_ip].append(old_time)
+    bucket_key = _rule_bucket(rule, endpoint_id)
+    tracker.usage_counts[bucket_key][client_ip].append(old_time)
+    tracker.usage_counts[bucket_key][client_ip].append(old_time)
 
     assert not await tracker.track_endpoint_usage(endpoint_id, client_ip, rule)
 
-    assert len(tracker.usage_counts[endpoint_id][client_ip]) == 1
+    assert len(tracker.usage_counts[bucket_key][client_ip]) == 1
 
 
 @pytest.mark.asyncio
@@ -175,7 +180,7 @@ async def test_track_endpoint_usage_evicts_the_oldest_client_a_touched_client_su
     await tracker.track_endpoint_usage(endpoint_id, "203.0.113.1", rule)
     await tracker.track_endpoint_usage(endpoint_id, "203.0.113.4", rule)
 
-    bucket = tracker.usage_counts[endpoint_id]
+    bucket = tracker.usage_counts[_rule_bucket(rule, endpoint_id)]
     assert len(bucket) == 3
     assert "203.0.113.2" not in bucket
     assert "203.0.113.1" in bucket
@@ -199,9 +204,9 @@ async def test_track_endpoint_usage_evicts_oldest_endpoint_touched_one_survives(
     await tracker.track_endpoint_usage("/api/four", client_ip, rule)
 
     assert len(tracker.usage_counts) == 3
-    assert "/api/two" not in tracker.usage_counts
-    assert "/api/one" in tracker.usage_counts
-    assert "/api/four" in tracker.usage_counts
+    assert _rule_bucket(rule, "/api/two") not in tracker.usage_counts
+    assert _rule_bucket(rule, "/api/one") in tracker.usage_counts
+    assert _rule_bucket(rule, "/api/four") in tracker.usage_counts
 
 
 @pytest.mark.asyncio
@@ -216,8 +221,8 @@ async def test_track_endpoint_usage_many_endpoints_settle_at_default_bound(
         await tracker.track_endpoint_usage(f"/api/endpoint-{i}", client_ip, rule)
 
     assert len(tracker.usage_counts) == 10_000
-    assert "/api/endpoint-0" not in tracker.usage_counts
-    assert "/api/endpoint-14999" in tracker.usage_counts
+    assert _rule_bucket(rule, "/api/endpoint-0") not in tracker.usage_counts
+    assert _rule_bucket(rule, "/api/endpoint-14999") in tracker.usage_counts
 
 
 @pytest.mark.asyncio
@@ -272,7 +277,8 @@ async def test_track_endpoint_usage_redis_key_uses_hashed_segments(
     assert client_ip not in key
     assert key == (
         f"behavior:usage:{_hash_identity_segment(endpoint_id)}:"
-        f"{_hash_identity_segment(client_ip)}"
+        f"{_hash_identity_segment(client_ip)}:"
+        f"{_hash_identity_segment(rule.discriminator())}"
     )
 
     await redis_mgr.close()
@@ -359,7 +365,7 @@ async def test_track_return_pattern_redis_key_uses_hashed_segments(
     assert key == (
         f"behavior:return:{_hash_identity_segment(endpoint_id)}:"
         f"{_hash_identity_segment(client_ip)}:"
-        f"{_hash_identity_segment(rule.pattern)}"
+        f"{_hash_identity_segment(rule.discriminator())}"
     )
 
     await redis_mgr.close()
@@ -1016,7 +1022,7 @@ async def test_track_return_pattern_window_cleanup(
 
     endpoint_id = "/api/test"
     client_ip = "192.168.1.1"
-    pattern_key = f"{endpoint_id}:{rule.pattern}"
+    pattern_key = _rule_bucket(rule, endpoint_id)
 
     current_time = time.time()
     old_time = current_time - 2
@@ -1041,7 +1047,7 @@ async def test_track_return_pattern_evicts_the_oldest_client_a_touched_client_su
         rule_type="return_pattern", threshold=999, window=60, pattern="status:200"
     )
     endpoint_id = "/api/test"
-    pattern_key = f"{endpoint_id}:{rule.pattern}"
+    pattern_key = _rule_bucket(rule, endpoint_id)
     response = MockGuardResponse("success", status_code=200)
 
     for client_ip in ("203.0.113.11", "203.0.113.12", "203.0.113.13"):
@@ -1077,9 +1083,9 @@ async def test_track_return_pattern_evicts_oldest_endpoint_touched_one_survives(
     await tracker.track_return_pattern("/api/four", client_ip, response, rule)
 
     assert len(tracker.return_patterns) == 3
-    assert f"/api/two:{rule.pattern}" not in tracker.return_patterns
-    assert f"/api/one:{rule.pattern}" in tracker.return_patterns
-    assert f"/api/four:{rule.pattern}" in tracker.return_patterns
+    assert _rule_bucket(rule, "/api/two") not in tracker.return_patterns
+    assert _rule_bucket(rule, "/api/one") in tracker.return_patterns
+    assert _rule_bucket(rule, "/api/four") in tracker.return_patterns
 
 
 @pytest.mark.asyncio
@@ -1099,8 +1105,8 @@ async def test_track_return_pattern_many_endpoints_settle_at_default_bound(
         )
 
     assert len(tracker.return_patterns) == 10_000
-    assert f"/api/endpoint-0:{rule.pattern}" not in tracker.return_patterns
-    assert f"/api/endpoint-14999:{rule.pattern}" in tracker.return_patterns
+    assert _rule_bucket(rule, "/api/endpoint-0") not in tracker.return_patterns
+    assert _rule_bucket(rule, "/api/endpoint-14999") in tracker.return_patterns
 
 
 @pytest.mark.asyncio
