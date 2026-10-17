@@ -819,7 +819,7 @@ async def test_update_rules_expiry_restores_deepcopy_independent_mutable_field(
 ) -> None:
     DynamicRuleManager._instance = None
 
-    config.emergency_whitelist = ["base-entry"]
+    config.emergency_whitelist = ["192.0.2.50"]
     original_whitelist = list(config.emergency_whitelist)
 
     manager = DynamicRuleManager(config)
@@ -836,7 +836,7 @@ async def test_update_rules_expiry_restores_deepcopy_independent_mutable_field(
     await manager.update_rules()
 
     assert config.auto_ban_threshold == 7
-    assert config.emergency_whitelist == ["base-entry"]
+    assert config.emergency_whitelist == ["192.0.2.50"]
 
     config.emergency_whitelist.append("corruption")
 

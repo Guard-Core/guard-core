@@ -208,6 +208,14 @@ def _validate_ip_or_cidr_list(
     return tuple(validated)
 
 
+def _validate_emergency_whitelist_value(v: Any) -> list[str]:
+    entries = _validate_str_list_field_value(v, field_name="emergency_whitelist")
+    validated = _validate_ip_or_cidr_list(
+        entries, invalid_message="Invalid IP or CIDR range"
+    )
+    return list(validated)
+
+
 def _validate_whitelist_value(v: Any) -> Any:
     return _validate_ip_or_cidr_list(v, invalid_message="Invalid IP or CIDR range")
 
@@ -472,9 +480,7 @@ _FIELD_REVALIDATORS: dict[str, Callable[[Any], Any]] = {
         _validate_bool_field_value, field_name="enable_rate_limiting"
     ),
     "emergency_mode": partial(_validate_bool_field_value, field_name="emergency_mode"),
-    "emergency_whitelist": partial(
-        _validate_str_list_field_value, field_name="emergency_whitelist"
-    ),
+    "emergency_whitelist": _validate_emergency_whitelist_value,
     "emergency_whitelist_only": partial(
         _validate_bool_field_value, field_name="emergency_whitelist_only"
     ),

@@ -103,11 +103,16 @@ def test_str_list_field_reassignment_rejects_non_str_element(field_name: str) ->
         setattr(config, field_name, ["ok", 2])
 
 
-@pytest.mark.parametrize("field_name", STR_LIST_FIELDS)
-def test_str_list_field_reassignment_accepts_str_list(field_name: str) -> None:
+@pytest.mark.parametrize(
+    ("field_name", "value"),
+    [("blocked_user_agents", ["ok"]), ("emergency_whitelist", ["192.0.2.1"])],
+)
+def test_str_list_field_reassignment_accepts_str_list(
+    field_name: str, value: list[str]
+) -> None:
     config = SecurityConfig()
-    setattr(config, field_name, ["ok"])
-    assert getattr(config, field_name) == ["ok"]
+    setattr(config, field_name, value)
+    assert getattr(config, field_name) == value
 
 
 _CATASTROPHIC_USER_AGENT_PATTERN = r"(?:a+)+$"

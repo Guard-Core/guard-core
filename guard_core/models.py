@@ -163,6 +163,11 @@ class SecurityConfig(_SecurityConfigFields):
     def validate_ip_lists(cls, v: Any) -> Any:
         return _validate_ip_or_cidr_list(v, invalid_message="Invalid IP or CIDR range")
 
+    @field_validator("emergency_whitelist", mode="before")
+    def validate_emergency_whitelist(cls, v: Any) -> list[str]:
+        validated: list[str] = _FIELD_REVALIDATORS["emergency_whitelist"](v)
+        return validated
+
     @field_validator("trusted_proxies", mode="before")
     def validate_trusted_proxies(cls, v: Any) -> Any:
         return _validate_ip_or_cidr_list(
