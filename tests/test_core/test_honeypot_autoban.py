@@ -69,12 +69,12 @@ def _post(
 
 
 def _check(
-    mw: MagicMock, manager: IPBanManager
+    mw: MagicMock, manager: IPBanManager, monkeypatch: pytest.MonkeyPatch
 ) -> tuple[CustomValidatorsCheck, AsyncMock]:
     check = CustomValidatorsCheck(mw)
     check.ip_ban_manager = manager
     spy = AsyncMock(wraps=manager.ban_ip)
-    manager.ban_ip = spy  # type: ignore[method-assign]
+    monkeypatch.setattr(manager, "ban_ip", spy)
     return check, spy
 
 
@@ -88,11 +88,14 @@ TRAPPED = [
 
 @pytest.mark.parametrize(("content_type", "body"), TRAPPED)
 async def test_filled_trap_bans_on_first_hit(
-    fresh_ban_manager: IPBanManager, content_type: str, body: bytes
+    fresh_ban_manager: IPBanManager,
+    monkeypatch: pytest.MonkeyPatch,
+    content_type: str,
+    body: bytes,
 ) -> None:
     mw = _middleware(auto_ban_duration=900)
     route_config = _honeypot_route_config(mw.config)
-    check, spy = _check(mw, fresh_ban_manager)
+    check, spy = _check(mw, fresh_ban_manager, monkeypatch)
 
     response = await check.check(_post(route_config, content_type, body))
 
@@ -105,10 +108,11 @@ async def test_filled_trap_bans_on_first_hit(
 
 async def test_banned_ip_is_blocked_by_ip_security_check(
     fresh_ban_manager: IPBanManager,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mw = _middleware()
     route_config = _honeypot_route_config(mw.config)
-    check, _ = _check(mw, fresh_ban_manager)
+    check, _ = _check(mw, fresh_ban_manager, monkeypatch)
     await check.check(_post(route_config, FORM, b"website=spam"))
 
     ip_check = IpSecurityCheck(mw)
@@ -124,10 +128,11 @@ async def test_banned_ip_is_blocked_by_ip_security_check(
 
 async def test_passive_mode_neither_counts_nor_bans(
     fresh_ban_manager: IPBanManager,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mw = _middleware(passive_mode=True)
     route_config = _honeypot_route_config(mw.config)
-    check, spy = _check(mw, fresh_ban_manager)
+    check, spy = _check(mw, fresh_ban_manager, monkeypatch)
 
     response = await check.check(_post(route_config, FORM, b"website=spam"))
 
@@ -139,10 +144,11 @@ async def test_passive_mode_neither_counts_nor_bans(
 
 async def test_ip_banning_disabled_still_returns_403_without_ban(
     fresh_ban_manager: IPBanManager,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mw = _middleware(enable_ip_banning=False)
     route_config = _honeypot_route_config(mw.config)
-    check, spy = _check(mw, fresh_ban_manager)
+    check, spy = _check(mw, fresh_ban_manager, monkeypatch)
 
     response = await check.check(_post(route_config, FORM, b"website=spam"))
 
@@ -154,12 +160,13 @@ async def test_ip_banning_disabled_still_returns_403_without_ban(
 
 async def test_threat_ban_config_overrides_threshold_and_duration(
     fresh_ban_manager: IPBanManager,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mw = _middleware(
         threat_ban_config={"honeypot": ThreatBanConfig(threshold=3, duration=42)}
     )
     route_config = _honeypot_route_config(mw.config)
-    check, spy = _check(mw, fresh_ban_manager)
+    check, spy = _check(mw, fresh_ban_manager, monkeypatch)
 
     for _ in range(2):
         response = await check.check(_post(route_config, FORM, b"website=spam"))
@@ -181,11 +188,14 @@ async def test_threat_ban_config_overrides_threshold_and_duration(
     ],
 )
 async def test_unfilled_trap_passes_without_count(
-    fresh_ban_manager: IPBanManager, content_type: str, body: bytes
+    fresh_ban_manager: IPBanManager,
+    monkeypatch: pytest.MonkeyPatch,
+    content_type: str,
+    body: bytes,
 ) -> None:
     mw = _middleware()
     route_config = _honeypot_route_config(mw.config)
-    check, spy = _check(mw, fresh_ban_manager)
+    check, spy = _check(mw, fresh_ban_manager, monkeypatch)
 
     assert await check.check(_post(route_config, content_type, body)) is None
     assert mw.suspicious_request_counts == {}
@@ -194,10 +204,11 @@ async def test_unfilled_trap_passes_without_count(
 
 async def test_get_request_without_a_trap_is_unaffected(
     fresh_ban_manager: IPBanManager,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mw = _middleware()
     route_config = _honeypot_route_config(mw.config)
-    check, spy = _check(mw, fresh_ban_manager)
+    check, spy = _check(mw, fresh_ban_manager, monkeypatch)
 
     request = _post(route_config, FORM, b"website=", method="GET")
 
@@ -207,13 +218,14 @@ async def test_get_request_without_a_trap_is_unaffected(
 
 async def test_non_honeypot_validator_rejection_does_not_ban(
     fresh_ban_manager: IPBanManager,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mw = _middleware()
     route_config = RouteConfig()
     route_config.custom_validators = [
         AsyncMock(return_value=MockGuardResponse("no", 403))
     ]
-    check, spy = _check(mw, fresh_ban_manager)
+    check, spy = _check(mw, fresh_ban_manager, monkeypatch)
     request = MockGuardRequest()
     request.state.route_config = route_config
     request.state.client_ip = BOT_IP
@@ -232,10 +244,11 @@ async def test_non_honeypot_validator_rejection_does_not_ban(
 
 async def test_refused_ban_still_returns_403(
     fresh_ban_manager: IPBanManager,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mw = _middleware()
     route_config = _honeypot_route_config(mw.config)
-    check, _ = _check(mw, fresh_ban_manager)
+    check, _ = _check(mw, fresh_ban_manager, monkeypatch)
     request = _post(route_config, FORM, b"website=spam")
     request.state.client_ip = "127.0.0.1"
 
@@ -248,10 +261,11 @@ async def test_refused_ban_still_returns_403(
 
 async def test_missing_client_ip_skips_counting(
     fresh_ban_manager: IPBanManager,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mw = _middleware()
     route_config = _honeypot_route_config(mw.config)
-    check, spy = _check(mw, fresh_ban_manager)
+    check, spy = _check(mw, fresh_ban_manager, monkeypatch)
     request = _post(route_config, FORM, b"website=spam")
     request.state.client_ip = None
 
