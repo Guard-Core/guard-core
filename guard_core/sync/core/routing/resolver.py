@@ -6,6 +6,21 @@ from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 class RouteConfigResolver:
     def __init__(self, context: RoutingContext):
         self.context = context
+        self._warned_foreign_route_ids: set[str] = set()
+
+    def _flag_route_unknown_to_decorator(
+        self, request: SyncGuardRequest, route_id: str
+    ) -> None:
+        request.state.guard_route_unresolved = True
+        if route_id in self._warned_foreign_route_ids:
+            return
+        self._warned_foreign_route_ids.add(route_id)
+        self.context.logger.warning(
+            "Route %r carries a route id that this SecurityDecorator does not "
+            "know: it was decorated by a different SecurityDecorator instance "
+            "than the one the middleware uses, so none of its decorators apply.",
+            route_id,
+        )
 
     def get_route_config(self, request: SyncGuardRequest) -> RouteConfig | None:
         guard_decorator = self.context.guard_decorator
@@ -18,7 +33,10 @@ class RouteConfigResolver:
         if not route_id:
             return None
 
-        return guard_decorator.get_route_config(route_id)
+        route_config = guard_decorator.get_route_config(route_id)
+        if route_config is None:
+            self._flag_route_unknown_to_decorator(request, route_id)
+        return route_config
 
     def should_bypass_check(
         self, check_name: str, route_config: RouteConfig | None

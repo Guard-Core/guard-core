@@ -358,6 +358,10 @@ COVERED_PRODUCERS: dict[str, frozenset[str]] = {
 }
 
 NON_REQUEST_PRODUCERS: dict[str, str] = {
+    "core/routing/resolver.py:RouteConfigResolver._flag_route_unknown_to_decorator": (
+        "logs the route id the adapter stamped on the decorated function, once "
+        "per route id; no request value is interpolated"
+    ),
     "core/checks/implementations/authentication.py:"
     "AuthenticationCheck._verify_credential": (
         "logs the exception type name and traceback of the operator's own "
