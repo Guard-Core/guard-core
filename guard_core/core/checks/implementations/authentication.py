@@ -43,6 +43,7 @@ class AuthenticationCheck(SecurityCheck):
         auth_reason: str,
         route_config: RouteConfig,
         violation_type: str = "require_auth",
+        auth_type: str | None = None,
     ) -> GuardResponse | None:
         await log_activity(
             request,
@@ -60,7 +61,8 @@ class AuthenticationCheck(SecurityCheck):
         )
 
         auth_type = (
-            route_config.auth_required
+            auth_type
+            or route_config.auth_required
             or route_config.authorization_header_required
             or "api_key"
         )
@@ -95,30 +97,69 @@ class AuthenticationCheck(SecurityCheck):
             )
         return None
 
-    async def _resolve_credential(
+    async def _verify_credential(
+        self,
+        request: GuardRequest,
+        route_config: RouteConfig,
+        *,
+        credential: str | None,
+        missing_reason: str,
+        verifier: Any,
+        auth_type: str,
+        violation_type: str,
+    ) -> tuple[bool, GuardResponse | None, Any]:
+        async def fail(reason: str) -> tuple[bool, GuardResponse | None, Any]:
+            response = await self._handle_auth_failure(
+                request,
+                reason,
+                route_config,
+                violation_type=violation_type,
+                auth_type=auth_type,
+            )
+            return True, response, None
+
+        if credential is None:
+            return await fail(missing_reason)
+        if verifier is None:
+            return await fail("No auth verifier configured")
+        try:
+            result = await resolve_verifier_result(verifier(request, credential))
+        except Exception:
+            return await fail("Authentication error")
+        if not result:
+            return await fail("Authentication failed")
+        return False, None, result
+
+    async def _verify_bearer_credential(
         self, request: GuardRequest, route_config: RouteConfig
-    ) -> tuple[GuardResponse | None, Any, str]:
-        if route_config.auth_required:
-            verifier = route_config.auth_verifier or self.config.auth_verifier
-            auth_header = request.headers.get("authorization", "")
-            credential, reason = extract_credential(
-                auth_header, route_config.auth_required
-            )
-            if credential is None:
-                failure = await self._handle_auth_failure(request, reason, route_config)
-                return failure, None, ""
-            return None, verifier, credential
-        verifier = route_config.api_key_verifier or self.config.auth_verifier
-        credential = request.headers.get(route_config.api_key_header or "", "")
-        if not credential:
-            return (
-                await self._handle_auth_failure(
-                    request, "Missing API key", route_config
-                ),
-                None,
-                "",
-            )
-        return None, verifier, credential
+    ) -> tuple[bool, GuardResponse | None, Any]:
+        scheme = route_config.auth_required or ""
+        credential, reason = extract_credential(
+            request.headers.get("authorization", ""), scheme
+        )
+        return await self._verify_credential(
+            request,
+            route_config,
+            credential=credential,
+            missing_reason=reason,
+            verifier=route_config.auth_verifier or self.config.auth_verifier,
+            auth_type=scheme,
+            violation_type="require_auth",
+        )
+
+    async def _verify_api_key_credential(
+        self, request: GuardRequest, route_config: RouteConfig
+    ) -> tuple[bool, GuardResponse | None, Any]:
+        key = request.headers.get(route_config.api_key_header or "", "")
+        return await self._verify_credential(
+            request,
+            route_config,
+            credential=key or None,
+            missing_reason="Missing API key",
+            verifier=route_config.api_key_verifier or self.config.auth_verifier,
+            auth_type="api_key",
+            violation_type="api_key_required",
+        )
 
     async def check(self, request: GuardRequest) -> GuardResponse | None:
         route_config = getattr(request.state, "route_config", None)
@@ -129,30 +170,21 @@ class AuthenticationCheck(SecurityCheck):
         if presence_scheme:
             return await self._check_presence(request, route_config, presence_scheme)
 
-        if not route_config.auth_required and not route_config.api_key_required:
-            return None
-
-        failure, verifier, credential = await self._resolve_credential(
-            request, route_config
-        )
-        if failure is not None:
-            return failure
-
-        if verifier is None:
-            return await self._handle_auth_failure(
-                request, "No auth verifier configured", route_config
+        principal: Any = None
+        if route_config.auth_required:
+            failed, response, principal = await self._verify_bearer_credential(
+                request, route_config
             )
-
-        try:
-            result = await resolve_verifier_result(verifier(request, credential))
-        except Exception:
-            return await self._handle_auth_failure(
-                request, "Authentication error", route_config
+            if failed:
+                return response
+        if route_config.api_key_required:
+            failed, response, key_principal = await self._verify_api_key_credential(
+                request, route_config
             )
-        if not result:
-            return await self._handle_auth_failure(
-                request, "Authentication failed", route_config
-            )
+            if failed:
+                return response
+            principal = principal or key_principal
 
-        request.state.auth_principal = result
+        if principal is not None:
+            request.state.auth_principal = principal
         return None

@@ -50,7 +50,6 @@ class AuthenticationMixin(BaseSecurityMixin):
                     " authenticated routes"
                 )
             route_config.api_key_required = True
-            route_config.required_headers[header_name] = "required"
             route_config.api_key_header = header_name
             route_config.api_key_verifier = verifier
             return self._apply_route_config(func)

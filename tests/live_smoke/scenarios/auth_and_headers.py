@@ -8,7 +8,7 @@ EXCLUDED_HEADERS = ["x-real-ip", "x-forwarded-for"]
 AUTH_BASE_CONFIG = {"excluded_detection_headers": EXCLUDED_HEADERS}
 
 
-@scenario(covers={"require_headers"}, config=AUTH_BASE_CONFIG)
+@scenario(covers={"require_headers", "required_headers"}, config=AUTH_BASE_CONFIG)
 def require_headers_decorator_enforces_exact_values(ctx: ScenarioContext) -> None:
     client = ctx.client
 
@@ -32,16 +32,16 @@ def require_headers_decorator_enforces_exact_values(ctx: ScenarioContext) -> Non
 
 
 @scenario(
-    covers={"api_key_auth", "required_headers", "authentication"},
+    covers={"api_key_auth", "authentication"},
     config=AUTH_BASE_CONFIG,
 )
-def api_key_auth_treats_required_header_as_presence_only(
+def api_key_auth_answers_401_for_a_missing_key(
     ctx: ScenarioContext,
 ) -> None:
     client = ctx.client
 
     missing = client.get("/auth/api-key")
-    assert missing.status_code == 400
+    assert missing.status_code == 401
 
     present = client.get(
         "/auth/api-key", headers={"X-API-Key": "smoke-arbitrary-value"}
