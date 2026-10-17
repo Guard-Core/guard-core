@@ -79,7 +79,17 @@ class BehaviorActionDispatchMixin:
         self, rule: "BehaviorRule", client_ip: str, endpoint_id: str, details: str
     ) -> str:
         if rule.custom_action:
-            await rule.custom_action(client_ip, endpoint_id, details)
+            try:
+                await rule.custom_action(client_ip, endpoint_id, details)
+            except Exception as exc:
+                self.logger.error(
+                    "Behavioral custom_action raised %s for %s on %s",
+                    exc,
+                    client_ip,
+                    endpoint_id,
+                    exc_info=True,
+                )
+                return "tracked"
             return rule.action
 
         if rule.action == "ban":

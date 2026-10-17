@@ -740,6 +740,21 @@ def test_apply_action_ban_silenced_when_log_suspicious_level_none(
         mock_warning.assert_not_called()
 
 
+def test_apply_action_survives_a_raising_custom_action(
+    security_config: SecurityConfig, caplog: pytest.LogCaptureFixture
+) -> None:
+    tracker = BehaviorTracker(security_config)
+    custom_action = MagicMock(side_effect=RuntimeError("boom"))
+    rule = BehaviorRule(rule_type="usage", threshold=5, custom_action=custom_action)
+
+    with caplog.at_level(logging.ERROR, logger="guard_core.sync.handlers.behavior"):
+        tracker.apply_action(rule, "192.168.1.1", "/api/test", "Test violation")
+
+    custom_action.assert_called_once()
+    assert "custom_action" in caplog.text
+    assert "boom" in caplog.text
+
+
 def test_execute_ban_action_returns_false_when_refused(
     security_config: SecurityConfig,
 ) -> None:

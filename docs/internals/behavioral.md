@@ -45,6 +45,8 @@ class BehaviorRule:
 
 **`return_pattern`**: Track how many times a response matches a pattern for a specific client IP and endpoint.
 
+Evaluation phase: `usage` and `frequency` rules run in the request phase, after the security pipeline allowed the request and before the application handles it. `return_pattern` rules run in the response phase, after the response exists. A rule that crosses its threshold acts on the request that crossed it (the request is still served) and the action, such as a ban, applies from the next request. This is intended.
+
 ### Return Pattern Formats
 
 | Format           | Example                       | Matches                                      |
@@ -108,7 +110,7 @@ await tracker.apply_action(rule, client_ip, endpoint_id, details)
 | `log`      | Logs a warning                                             |
 | `throttle` | Logs a warning (throttling is informational; rate limiting handles enforcement) |
 | `alert`    | Logs at CRITICAL level                                     |
-| Custom     | Calls `rule.custom_action(client_ip, endpoint_id, details)` |
+| Custom     | Calls `rule.custom_action(client_ip, endpoint_id, details)`. An exception raised by it is logged at ERROR level and the action is reported as `tracked` |
 
 **Passive mode**: All actions are logged with a `[PASSIVE MODE]` prefix instead of being executed.
 
