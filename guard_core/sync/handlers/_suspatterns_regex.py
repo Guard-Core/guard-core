@@ -189,6 +189,59 @@ def _pattern_should_be_skipped(
     )
 
 
+_APPLICABLE_PATTERN_CACHE_MAX_ENTRIES = 256
+_applicable_pattern_cache: dict[
+    tuple[Any, ...],
+    tuple[
+        list[tuple[re.Pattern, frozenset[str], str]],
+        list[tuple[re.Pattern, frozenset[str], str]],
+        bool,
+    ],
+] = {}
+
+
+def _applicable_patterns(
+    all_patterns: list[tuple[re.Pattern, frozenset[str], str]],
+    *,
+    raw_view_only: bool | None,
+    url_decoded_view_only: bool | None,
+    skip_filter: bool,
+    normalized_context: str,
+    enabled_categories: set[str] | None,
+) -> tuple[list[tuple[re.Pattern, frozenset[str], str]], bool]:
+    key = (
+        raw_view_only,
+        url_decoded_view_only,
+        skip_filter,
+        normalized_context,
+        None if enabled_categories is None else frozenset(enabled_categories),
+    )
+    cached = _applicable_pattern_cache.get(key)
+    if cached is not None and cached[0] == all_patterns:
+        return cached[1], cached[2]
+    applicable = [
+        row
+        for row in all_patterns
+        if not _pattern_should_be_skipped(
+            row[0],
+            row[1],
+            row[2],
+            raw_view_only=raw_view_only,
+            skip_filter=skip_filter,
+            normalized_context=normalized_context,
+            enabled_categories=enabled_categories,
+            url_decoded_view_only=url_decoded_view_only,
+        )
+    ]
+    skipped_tail = bool(all_patterns) and (
+        not applicable or applicable[-1] is not all_patterns[-1]
+    )
+    if len(_applicable_pattern_cache) >= _APPLICABLE_PATTERN_CACHE_MAX_ENTRIES:
+        _applicable_pattern_cache.clear()
+    _applicable_pattern_cache[key] = (list(all_patterns), applicable, skipped_tail)
+    return applicable, skipped_tail
+
+
 _CANDIDATE_REJECTION_VALIDATORS: tuple[
     tuple[str, Callable[[re.Match, str], bool]], ...
 ] = (
@@ -581,33 +634,36 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
         performance_monitor = state.performance_monitor
         binary_prefix = build_binary_prefix(content)
 
+        applicable_patterns, skipped_tail = _applicable_patterns(
+            all_patterns,
+            raw_view_only=raw_view_only,
+            url_decoded_view_only=url_decoded_view_only,
+            skip_filter=skip_filter,
+            normalized_context=normalized,
+            enabled_categories=enabled_categories,
+        )
+
         time_cap = _scan_time_cap.get()
         slice_start, request_scoped = _pass_slice_start()
         mark_token = _open_cpu_pass()
+
+        metric_rows: list[tuple[str, float, int, bool, bool]] = []
+        content_length = len(content)
+
+        def _record_budget_exhaustion() -> None:
+            budget_threat = _scan_time_budget_exhausted_threat(
+                _resolve_pattern_weight(_SCAN_TIME_BUDGET_EXHAUSTED_PATTERN, "custom")
+            )
+            _warn_scan_time_cap_reached_once(ip_address)
+            threats.append(budget_threat)
+            matched_patterns.append(budget_threat["pattern"])
+            timeouts.append(budget_threat["pattern"])
+
         try:
-            for pattern, contexts, category in all_patterns:
+            for pattern, _contexts, category in applicable_patterns:
                 if time_cap is not None and _scan_time_budget_exhausted():
-                    budget_threat = _scan_time_budget_exhausted_threat(
-                        _resolve_pattern_weight(
-                            _SCAN_TIME_BUDGET_EXHAUSTED_PATTERN, "custom"
-                        )
-                    )
-                    _warn_scan_time_cap_reached_once(ip_address)
-                    threats.append(budget_threat)
-                    matched_patterns.append(budget_threat["pattern"])
-                    timeouts.append(budget_threat["pattern"])
+                    _record_budget_exhaustion()
                     break
-                if _pattern_should_be_skipped(
-                    pattern,
-                    contexts,
-                    category,
-                    raw_view_only=raw_view_only,
-                    skip_filter=skip_filter,
-                    normalized_context=normalized,
-                    enabled_categories=enabled_categories,
-                    url_decoded_view_only=url_decoded_view_only,
-                ):
-                    continue
 
                 pattern_start = time.monotonic()
 
@@ -635,17 +691,31 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
                     matched_patterns.append(pattern.pattern)
 
                 if performance_monitor:
-                    performance_monitor.record_metric(
-                        pattern=pattern.pattern,
-                        execution_time=time.monotonic() - pattern_start,
-                        content_length=len(content),
-                        matched=bool(threat),
-                        timeout=timeout_occurred,
-                        agent_handler=self.agent_handler,
-                        correlation_id=correlation_id,
+                    metric_rows.append(
+                        (
+                            pattern.pattern,
+                            time.monotonic() - pattern_start,
+                            content_length,
+                            bool(threat),
+                            timeout_occurred,
+                        )
                     )
+            else:
+                if (
+                    skipped_tail
+                    and time_cap is not None
+                    and _scan_time_budget_exhausted()
+                ):
+                    _record_budget_exhaustion()
 
         finally:
             _close_cpu_pass(mark_token)
+
+        if performance_monitor and metric_rows:
+            performance_monitor.record_metrics(
+                metric_rows,
+                agent_handler=self.agent_handler,
+                correlation_id=correlation_id,
+            )
 
         return threats, matched_patterns, timeouts

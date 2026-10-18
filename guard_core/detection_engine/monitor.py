@@ -66,16 +66,14 @@ class PerformanceMonitor:
         self.anomaly_callbacks: list[Any] = []
         self._lock = asyncio.Lock()
 
-    async def record_metric(
+    def _track_metric(
         self,
         pattern: str,
         execution_time: float,
         content_length: int,
         matched: bool,
-        timeout: bool = False,
-        agent_handler: Any = None,
-        correlation_id: str | None = None,
-    ) -> None:
+        timeout: bool,
+    ) -> tuple[PerformanceMetric, dict[str, Any] | None]:
         MAX_PATTERN_LENGTH = 100
         if len(pattern) > MAX_PATTERN_LENGTH:
             pattern = pattern[:MAX_PATTERN_LENGTH] + "...[truncated]"
@@ -92,39 +90,80 @@ class PerformanceMonitor:
             timeout=timeout,
         )
 
-        async with self._lock:
-            self.recent_metrics.append(metric)
+        self.recent_metrics.append(metric)
 
-            if pattern not in self.pattern_stats:
-                if len(self.pattern_stats) >= self.max_tracked_patterns:
-                    oldest_pattern = next(iter(self.pattern_stats))
-                    del self.pattern_stats[oldest_pattern]
-                self.pattern_stats[pattern] = PatternStats(
-                    pattern=pattern,
-                    recent_times=deque(maxlen=self._recent_times_maxlen),
-                )
+        if pattern not in self.pattern_stats:
+            if len(self.pattern_stats) >= self.max_tracked_patterns:
+                oldest_pattern = next(iter(self.pattern_stats))
+                del self.pattern_stats[oldest_pattern]
+            self.pattern_stats[pattern] = PatternStats(
+                pattern=pattern,
+                recent_times=deque(maxlen=self._recent_times_maxlen),
+            )
 
-            stats = self.pattern_stats[pattern]
-            stats.total_executions += 1
-            if matched:
-                stats.total_matches += 1
-            if timeout:
-                stats.total_timeouts += 1
-            else:
-                stats.recent_times.append(execution_time)
-                stats.max_execution_time = max(stats.max_execution_time, execution_time)
-                stats.min_execution_time = min(stats.min_execution_time, execution_time)
-                stats.avg_execution_time = (
-                    math.fsum(stats.recent_times) / len(stats.recent_times)
-                    if stats.recent_times
-                    else stats.avg_execution_time
-                )
+        stats = self.pattern_stats[pattern]
+        stats.total_executions += 1
+        if matched:
+            stats.total_matches += 1
+        if timeout:
+            stats.total_timeouts += 1
+        else:
+            stats.recent_times.append(execution_time)
+            stats.max_execution_time = max(stats.max_execution_time, execution_time)
+            stats.min_execution_time = min(stats.min_execution_time, execution_time)
+            stats.avg_execution_time = (
+                math.fsum(stats.recent_times) / len(stats.recent_times)
+                if stats.recent_times
+                else stats.avg_execution_time
+            )
 
-            statistical_anomaly = self._detect_statistical_anomaly(metric)
-
-        await self._check_anomalies(
-            metric, statistical_anomaly, agent_handler, correlation_id
+        return metric, self._detect_statistical_anomaly(
+            metric, None if timeout else stats.avg_execution_time
         )
+
+    def _anomaly_check_needed(
+        self, metric: PerformanceMetric, statistical_anomaly: dict[str, Any] | None
+    ) -> bool:
+        return bool(
+            metric.timeout
+            or metric.execution_time > self.slow_pattern_threshold
+            or statistical_anomaly
+        )
+
+    async def record_metric(
+        self,
+        pattern: str,
+        execution_time: float,
+        content_length: int,
+        matched: bool,
+        timeout: bool = False,
+        agent_handler: Any = None,
+        correlation_id: str | None = None,
+    ) -> None:
+        async with self._lock:
+            metric, statistical_anomaly = self._track_metric(
+                pattern, execution_time, content_length, matched, timeout
+            )
+
+        if self._anomaly_check_needed(metric, statistical_anomaly):
+            await self._check_anomalies(
+                metric, statistical_anomaly, agent_handler, correlation_id
+            )
+
+    async def record_metrics(
+        self,
+        rows: list[tuple[str, float, int, bool, bool]],
+        agent_handler: Any = None,
+        correlation_id: str | None = None,
+    ) -> None:
+        async with self._lock:
+            tracked = [self._track_metric(*row) for row in rows]
+
+        for metric, statistical_anomaly in tracked:
+            if self._anomaly_check_needed(metric, statistical_anomaly):
+                await self._check_anomalies(
+                    metric, statistical_anomaly, agent_handler, correlation_id
+                )
 
     def _detect_timeout_anomaly(
         self, metric: PerformanceMetric
@@ -137,11 +176,15 @@ class PerformanceMonitor:
         return detect_slow_execution_anomaly(metric, self.slow_pattern_threshold)
 
     def _detect_statistical_anomaly(
-        self, metric: PerformanceMetric
+        self, metric: PerformanceMetric, avg_time: float | None = None
     ) -> dict[str, Any] | None:
         stats = self.pattern_stats.get(metric.pattern)
         return detect_statistical_anomaly(
-            metric, stats, self.min_samples_for_anomaly, self.anomaly_threshold
+            metric,
+            stats,
+            self.min_samples_for_anomaly,
+            self.anomaly_threshold,
+            avg_time,
         )
 
     async def _send_anomaly_event(

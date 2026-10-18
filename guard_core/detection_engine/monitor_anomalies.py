@@ -35,6 +35,7 @@ def detect_statistical_anomaly(
     stats: PatternStats | None,
     min_samples_for_anomaly: int,
     anomaly_threshold: float,
+    avg_time: float | None = None,
 ) -> dict[str, Any] | None:
     if not stats or len(stats.recent_times) < min_samples_for_anomaly:
         return None
@@ -44,7 +45,8 @@ def detect_statistical_anomaly(
     if sample_count < 2:
         return None
 
-    avg_time = math.fsum(recent_times) / sample_count
+    if avg_time is None:
+        avg_time = math.fsum(recent_times) / sample_count
     if anomaly_threshold >= 0 and metric.execution_time <= avg_time:
         return None
 
