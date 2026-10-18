@@ -710,7 +710,7 @@ def test_is_ip_allowed_invalid_ip(caplog: Any) -> None:
 
 
 def test_is_ip_allowed_general_exception(caplog: Any, mocker: MockerFixture) -> None:
-    config = SecurityConfig()
+    config = SecurityConfig(fail_secure=False)
 
     mock_error = Exception("Unexpected error")
     mocker.patch(
@@ -722,6 +722,19 @@ def test_is_ip_allowed_general_exception(caplog: Any, mocker: MockerFixture) -> 
         assert result
         assert "Error checking IP 192.168.1.1" in caplog.text
         assert "Unexpected error" in caplog.text
+
+
+def test_is_ip_allowed_general_exception_denies_under_fail_secure(
+    mocker: MockerFixture,
+) -> None:
+    config = SecurityConfig()
+
+    mocker.patch(
+        "guard_core.sync._utils.access_control.ip_address",
+        side_effect=Exception("Unexpected error"),
+    )
+
+    assert not is_ip_allowed("192.168.1.1", config)
 
 
 def test_detect_penetration_attempt_body_error() -> None:

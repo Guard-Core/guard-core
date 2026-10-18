@@ -326,6 +326,8 @@ async def check_ip_access(
         return IpAccessResult(False, _GENERIC_LIST_BLOCK_REASON.format(ip=ip))
     except Exception as e:
         logger.error(f"Error checking IP {ip}: {str(e)}")
+        if config.fail_secure:
+            return IpAccessResult(False, _GENERIC_LIST_BLOCK_REASON.format(ip=ip))
         return IpAccessResult(True, "")
 
 
