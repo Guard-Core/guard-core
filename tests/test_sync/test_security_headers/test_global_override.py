@@ -40,6 +40,7 @@ APP_CSP = {"default-src": ["'self'", "https://app.example"]}
 GLOBAL_CSP = {"default-src": ["'self'", "https://global.example"]}
 OTHER_CSP = {"default-src": ["'none'"]}
 CLOCK_MODULE = "guard_core.sync.handlers._security_headers_override_state"
+PULLED_OVERRIDES = override_module.PULLED_OVERRIDES
 REDIS_URL = os.getenv("REDIS_URL") or "redis://localhost:6379"
 
 
@@ -52,6 +53,9 @@ class FakeRedis:
         self.sets = 0
         self.times = 0
         self.round_trips = 0
+        self.get_keys: list[str] = []
+        self.pipeline_options: list[dict[str, Any]] = []
+        self.time_value: tuple[int, int] | None = None
         self.down = False
 
     def get_key(self, namespace: str, key: str) -> Any:
@@ -83,6 +87,7 @@ class FakeRedis:
                 self.commands: list[tuple[str, tuple[Any, ...]]] = []
 
             def get(self, key: str) -> None:
+                redis.get_keys.append(key)
                 self.commands.append(("get", (key,)))
 
             def time(self) -> None:
@@ -97,12 +102,15 @@ class FakeRedis:
                     else:
                         redis.times += 1
                         now = time.time()
-                        results.append((int(now), int((now % 1) * 1_000_000)))
+                        results.append(
+                            redis.time_value or (int(now), int((now % 1) * 1_000_000))
+                        )
                 redis.round_trips += 1
                 return results
 
         class Conn:
-            def pipeline(self, **_options: Any) -> Pipe:
+            def pipeline(self, **options: Any) -> Pipe:
+                redis.pipeline_options.append(options)
                 return Pipe()
 
             def keys(self, pattern: str) -> list[str]:
@@ -2767,3 +2775,202 @@ def test_the_cors_note_registry_holds_exactly_its_limit_with_the_real_constant()
     assert len(seen) == limit
     assert (0, 1.0) not in seen
     assert all(value is None for value in seen.values())
+
+
+def test_the_cache_key_of_a_config_keeps_its_headers_and_adds_the_override() -> None:
+    manager = SecurityHeadersManager.isolated()
+    first = SecurityConfig(
+        enable_redis=False, security_headers={"frame_options": "DENY"}
+    )
+    second = SecurityConfig(
+        enable_redis=False, security_headers={"frame_options": "SAMEORIGIN"}
+    )
+    record = override_module.OverrideRecord(1.0, {"frame_options": "DENY"})
+
+    plain = manager._generate_cache_key(
+        None, first, override_module.OverrideRecord(0.0, {})
+    )
+    with_override = manager._generate_cache_key(None, first, record)
+
+    assert plain.startswith("cfg_")
+    assert with_override.startswith("cfg_")
+    assert with_override != plain
+    assert manager._generate_cache_key(None, second, record) != with_override
+
+
+def test_the_pull_is_one_plain_pipeline_that_reads_the_three_own_state_keys(
+    clock: Clock,
+) -> None:
+    redis = FakeRedis()
+    config = _config()
+    security_headers_manager.initialize_redis(redis, config)
+    app = _app(config, redis=redis)
+    _response(app)
+    redis.get_keys.clear()
+    redis.pipeline_options.clear()
+
+    clock.now += 5.0
+    _response(app)
+
+    own = [k for k in redis.get_keys if not k.startswith("t:security_headers:override")]
+    assert own == [
+        "t:security_headers:csp_config",
+        "t:security_headers:hsts_config",
+        "t:security_headers:custom_headers",
+    ]
+    assert redis.pipeline_options == [{"transaction": False}]
+
+
+def test_the_clock_offset_counts_the_microseconds_of_redis_time(
+    clock: Clock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    redis = FakeRedis()
+    redis.time_value = (100, 500_000)
+    monkeypatch.setattr(override_module, "wall_now", lambda: 100.0)
+    app = _app(redis=redis)
+
+    _response(app)
+
+    assert override_module.PROCESS_OVERRIDE.clock_offset == pytest.approx(0.5)
+
+
+def test_own_state_work_does_nothing_without_a_global_manager(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(SecurityHeadersManager, "_instance", None)
+    manager = SecurityHeadersManager.isolated()
+
+    manager._flush_own_state()
+
+    assert manager._global_sharing_state() is None
+
+
+def test_an_unreadable_shared_own_state_is_logged_and_ignored(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    manager = SecurityHeadersManager.isolated()
+    shared = MagicMock()
+    shared._apply_own_state.side_effect = ValueError("boom")
+
+    with caplog.at_level(logging.WARNING, logger=LOGGER):
+        manager._apply_shared_own_state(shared, ["a", "b", "c"])
+
+    assert [r.getMessage() for r in caplog.records] == [
+        "Ignoring unreadable cached header config in Redis: boom"
+    ]
+
+
+def test_the_reader_override_is_the_pulled_one_only_when_it_orders_later() -> None:
+    manager = SecurityHeadersManager.isolated()
+    first = _config()
+    second = _config(frame_options="SAMEORIGIN")
+    now = time.time()
+    older = override_module.OverrideRecord(now, {"frame_options": "A"})
+    newer = override_module.OverrideRecord(now + 1, {"frame_options": "B"})
+    PULLED_OVERRIDES[override_module.config_fingerprint(first)] = older
+    PULLED_OVERRIDES[override_module.config_fingerprint(second)] = newer
+    try:
+        assert manager.override_for_reader(first) is older
+        assert manager.override_for_reader(second) is newer
+        current = override_module.OverrideRecord(now + 1, {"frame_options": "C"})
+        assert manager.override_for_reader(second, current) is current
+    finally:
+        PULLED_OVERRIDES.clear()
+
+
+def test_the_cors_override_log_lines_have_the_documented_text(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    on = CorsHandler(_cors_config())
+    off = CorsHandler(_config())
+
+    with caplog.at_level(logging.INFO, logger=LOGGER):
+        _override(enable_cors=True, cors_origins=[OLD_ORIGIN, NEW_ORIGIN])
+        on.build_response_headers({"origin": NEW_ORIGIN})
+        _override(enable_cors=True, cors_origins=[])
+        off.build_response_headers({"origin": NEW_ORIGIN})
+        _override(cors_origins=[OLD_ORIGIN])
+        on.build_response_headers({"origin": OLD_ORIGIN})
+        _override(cors_origins=["*"], cors_allow_credentials=True)
+        on.build_response_headers({"origin": OLD_ORIGIN})
+
+    lines = [
+        r.getMessage() for r in caplog.records if "CORS override" in r.getMessage()
+    ]
+    assert lines == [
+        "CORS override widens the CORS of this app: enabled=True, "
+        f"origins={OLD_ORIGIN}, {NEW_ORIGIN}, credentials=False",
+        "CORS override widens the CORS of this app: enabled=True, origins=none, "
+        "credentials=False; the app was built without CORS and may run its own "
+        "CORS layer",
+        "CORS override narrows or keeps the CORS of this app",
+        "CORS override refused for this app, it keeps its own CORS: a wildcard "
+        "origin cannot be combined with credentials",
+    ]
+
+
+def test_the_refusal_event_is_sent_once_per_app_and_version() -> None:
+    agent = MagicMock()
+    agent.send_event = MagicMock()
+    config = _cors_config()
+    app = _app(config, agent=agent)
+    _override(cors_origins=["*"], cors_allow_credentials=True)
+
+    for _ in range(3):
+        app.security_headers_manager.send_cors_override_event(config)
+
+    events = [
+        c.args[0]
+        for c in agent.send_event.call_args_list
+        if c.args[0].action_taken == "cors_override_refused"
+    ]
+    assert len(events) == 1
+    assert events[0].metadata["override_keys"] == [
+        "cors_allow_credentials",
+        "cors_origins",
+    ]
+
+
+def test_reset_advances_the_epoch_by_one_and_orders_after_the_old_override() -> None:
+    manager = security_headers_manager
+    _override(csp=GLOBAL_CSP)
+    before = override_module.PROCESS_OVERRIDE.reset_epoch
+    old = manager.resolve_override().ordered_at()
+
+    manager.reset()
+
+    assert override_module.PROCESS_OVERRIDE.reset_epoch == before + 1
+    assert manager._override.ordered_at() > old
+
+
+def test_the_next_set_time_is_exactly_one_microsecond_after_the_current_record(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manager = SecurityHeadersManager.isolated()
+    manager._override = override_module.OverrideRecord(time.time() + 50, {})
+    monkeypatch.setattr(override_module, "corrected_wall_now", lambda: 0.0)
+    monkeypatch.setattr(f"{CLOCK_MODULE}.corrected_wall_now", lambda: 0.0)
+
+    assert manager._next_set_at() - manager._override.set_at == pytest.approx(
+        1e-6, abs=3e-7
+    )
+
+
+def test_a_cleared_override_in_redis_is_adopted_into_the_process_cache(
+    clock: Clock,
+) -> None:
+    redis = FakeRedis()
+    config = _config()
+    app = _app(config, redis=redis)
+    _override(csp=GLOBAL_CSP)
+    _response(app)
+    manager = app.security_headers_manager
+    assert _in_redis(manager)
+    redis.store.clear()
+
+    clock.now += 5.0
+    _response(app)
+
+    cached = PULLED_OVERRIDES[str(_hash_of(manager))]
+    assert isinstance(cached, override_module.OverrideRecord)
+    assert cached.keys == {}
