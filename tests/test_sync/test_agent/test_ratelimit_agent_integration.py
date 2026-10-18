@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from guard_core.models import SecurityConfig
-from guard_core.sync.handlers.ratelimit_handler import RateLimitManager
+from guard_core.sync.handlers.ratelimit_handler import RateLimitManager, RateLimitTier
 from tests.test_sync.conftest import SyncMockGuardRequest
 
 
@@ -19,25 +19,21 @@ class _FakeErrorResponse:
 
 
 @pytest.fixture(autouse=True)
-def cleanup_ratelimit_singleton() -> Generator[Any, Any, Any]:
-    RateLimitManager._instance = None
-
+def bounded_ratelimit_windows() -> Generator[Any, Any, Any]:
     def custom_new(
         cls: type[RateLimitManager], config: SecurityConfig
     ) -> RateLimitManager:
-        if cls._instance is None:
-            cls._instance = object.__new__(cls)
-            cls._instance.config = config
-            cls._instance.request_timestamps = __import__("collections").defaultdict(
-                lambda: __import__("collections").deque(maxlen=config.rate_limit * 2)
-            )
-            cls._instance.logger = logging.getLogger(__name__)
-            cls._instance.redis_handler = None
-            cls._instance.agent_handler = None
-            cls._instance.rate_limit_script_sha = None
-            cls._instance._lock = threading.Lock()
-        cls._instance.config = config
-        return cls._instance
+        instance = object.__new__(cls)
+        instance.config = config
+        instance.request_timestamps = __import__("collections").defaultdict(
+            lambda: __import__("collections").deque(maxlen=config.rate_limit * 2)
+        )
+        instance.logger = logging.getLogger(__name__)
+        instance.redis_handler = None
+        instance.agent_handler = None
+        instance.rate_limit_script_sha = None
+        instance._lock = threading.Lock()
+        return instance
 
     with (
         patch.object(RateLimitManager, "__new__", custom_new),
@@ -49,8 +45,6 @@ def cleanup_ratelimit_singleton() -> Generator[Any, Any, Any]:
 
         mock_event.side_effect = SecurityEvent
         yield
-
-    RateLimitManager._instance = None
 
 
 def test_initialize_agent() -> None:
@@ -153,7 +147,11 @@ def test_check_rate_limit_agent_event_called() -> None:
         assert result2.headers["Retry-After"] == "60"
 
         mock_send_event.assert_called_once_with(
-            mock_request, "192.168.1.100", 2, config=config
+            mock_request,
+            "192.168.1.100",
+            2,
+            config=config,
+            tier=RateLimitTier("global", 1, 60),
         )
 
 
@@ -172,7 +170,7 @@ def test_check_rate_limit_redis_path_with_agent() -> None:
 
     class MockRedisConnection:
         def __init__(self) -> None:
-            self.evalsha = MagicMock(return_value=15)
+            self.evalsha = MagicMock(return_value=[1, 14, 60])
 
         def __enter__(self) -> Any:
             return self
@@ -252,8 +250,7 @@ def test_handle_rate_limit_exceeded_uses_the_passed_configs_sensitive_sets() -> 
     )
 
     manager = RateLimitManager(config_a)
-    RateLimitManager(config_b)
-    assert manager.config is config_b
+    assert manager.config is config_a
 
     mock_request = SyncMockGuardRequest(path="/api/endpoint", method="GET")
 
@@ -268,9 +265,9 @@ def test_handle_rate_limit_exceeded_uses_the_passed_configs_sensitive_sets() -> 
             "192.168.1.50",
             2,
             mock_error_response,
-            config=config_a,
+            config=config_b,
         )
 
     assert mock_log_activity.call_args.kwargs["sensitive_params"] == frozenset(
-        {"token_a"}
+        {"token_b"}
     )

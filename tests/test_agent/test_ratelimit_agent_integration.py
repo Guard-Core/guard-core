@@ -18,24 +18,20 @@ class _FakeErrorResponse:
 
 
 @pytest.fixture(autouse=True)
-def cleanup_ratelimit_singleton() -> Generator[Any, Any, Any]:
-    RateLimitManager._instance = None
-
+def bounded_ratelimit_windows() -> Generator[Any, Any, Any]:
     def custom_new(
         cls: type[RateLimitManager], config: SecurityConfig
     ) -> RateLimitManager:
-        if cls._instance is None:
-            cls._instance = object.__new__(cls)
-            cls._instance.config = config
-            cls._instance.request_timestamps = __import__("collections").defaultdict(
-                lambda: __import__("collections").deque(maxlen=config.rate_limit * 2)
-            )
-            cls._instance.logger = logging.getLogger(__name__)
-            cls._instance.redis_handler = None
-            cls._instance.agent_handler = None
-            cls._instance.rate_limit_script_sha = None
-        cls._instance.config = config
-        return cls._instance
+        instance = object.__new__(cls)
+        instance.config = config
+        instance.request_timestamps = __import__("collections").defaultdict(
+            lambda: __import__("collections").deque(maxlen=config.rate_limit * 2)
+        )
+        instance.logger = logging.getLogger(__name__)
+        instance.redis_handler = None
+        instance.agent_handler = None
+        instance.rate_limit_script_sha = None
+        return instance
 
     with (
         patch.object(RateLimitManager, "__new__", custom_new),
@@ -47,8 +43,6 @@ def cleanup_ratelimit_singleton() -> Generator[Any, Any, Any]:
 
         mock_event.side_effect = SecurityEvent
         yield
-
-    RateLimitManager._instance = None
 
 
 @pytest.mark.asyncio
@@ -268,8 +262,7 @@ async def test_handle_rate_limit_exceeded_uses_the_passed_configs_sensitive_sets
     )
 
     manager = RateLimitManager(config_a)
-    RateLimitManager(config_b)
-    assert manager.config is config_b
+    assert manager.config is config_a
 
     mock_request = MockGuardRequest(path="/api/endpoint", method="GET")
 
@@ -284,9 +277,9 @@ async def test_handle_rate_limit_exceeded_uses_the_passed_configs_sensitive_sets
             "192.168.1.50",
             2,
             mock_error_response,
-            config=config_a,
+            config=config_b,
         )
 
     assert mock_log_activity.call_args.kwargs["sensitive_params"] == frozenset(
-        {"token_a"}
+        {"token_b"}
     )

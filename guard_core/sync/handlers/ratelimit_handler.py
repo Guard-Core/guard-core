@@ -6,7 +6,7 @@ import time
 from collections import defaultdict, deque
 from collections.abc import Callable, Sequence
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, NamedTuple, Optional
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 from redis.exceptions import NoScriptError, RedisError
 
@@ -377,7 +377,6 @@ def check_rate_limit_by_ip(
 
 
 class RateLimitManager:
-    _instance: Optional["RateLimitManager"] = None
     config: SecurityConfig
     request_timestamps: defaultdict[str, deque[float]]
     logger: logging.Logger
@@ -389,20 +388,15 @@ class RateLimitManager:
     def __new__(
         cls: type["RateLimitManager"], config: SecurityConfig
     ) -> "RateLimitManager":
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance.config = config
-            cls._instance.request_timestamps = defaultdict(deque)
-            cls._instance.logger = logging.getLogger(
-                "guard_core.sync.handlers.ratelimit"
-            )
-            cls._instance.redis_handler = None
-            cls._instance.agent_handler = None
-            cls._instance.rate_limit_script_sha = None
-            cls._instance._lock = threading.Lock()
-
-        cls._instance.config = config
-        return cls._instance
+        instance = super().__new__(cls)
+        instance.config = config
+        instance.request_timestamps = defaultdict(deque)
+        instance.logger = logging.getLogger("guard_core.sync.handlers.ratelimit")
+        instance.redis_handler = None
+        instance.agent_handler = None
+        instance.rate_limit_script_sha = None
+        instance._lock = threading.Lock()
+        return instance
 
     def initialize_redis(self, redis_handler: Any) -> None:
         self.redis_handler = redis_handler

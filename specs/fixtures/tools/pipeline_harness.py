@@ -452,8 +452,7 @@ async def run_case(case: dict[str, Any]) -> list[dict[str, Any]]:
 
     security_headers_manager.headers_cache.clear()
     harness = HarnessCase(case)
-    # RateLimitManager is a process singleton with in-memory window state;
-    # clear it so every case starts from a clean slate.
+    # Clear the manager's window state so every case starts from a clean slate.
     await harness.rate_limit_handler.reset()
     observed: list[dict[str, Any]] = []
     for drive in case["drives"]:

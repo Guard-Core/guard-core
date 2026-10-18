@@ -13,15 +13,14 @@ from guard_core.sync.handlers.ratelimit_handler import (
 
 
 def _fresh_manager(rate_limit: int = 5, rate_limit_window: int = 1) -> RateLimitManager:
-    RateLimitManager._instance = None
     config = SecurityConfig(rate_limit=rate_limit, rate_limit_window=rate_limit_window)
     return RateLimitManager(config)
 
 
-def test_lock_is_set_on_singleton() -> None:
+def test_every_manager_has_its_own_lock() -> None:
     manager = _fresh_manager(rate_limit=10, rate_limit_window=60)
-    assert hasattr(manager, "_lock")
     assert manager._lock is not None
+    assert manager._lock is not _fresh_manager()._lock
 
 
 def test_concurrent_eviction_and_append_does_not_raise() -> None:
@@ -52,7 +51,6 @@ def test_concurrent_eviction_and_append_does_not_raise() -> None:
 
 
 def test_initialize_redis_no_enable_redis() -> None:
-    RateLimitManager._instance = None
     config = SecurityConfig(enable_redis=False)
     manager = RateLimitManager(config)
     mock_redis = MagicMock()
@@ -72,7 +70,6 @@ def test_tier_verdict_without_a_redis_handler_counts_in_memory() -> None:
 
 
 def test_reset_redis_empty_keys() -> None:
-    RateLimitManager._instance = None
     config = SecurityConfig(enable_redis=True)
     manager = RateLimitManager(config)
     mock_redis = MagicMock()
@@ -85,7 +82,6 @@ def test_reset_redis_empty_keys() -> None:
 
 
 def test_reset_redis_none_keys() -> None:
-    RateLimitManager._instance = None
     config = SecurityConfig(enable_redis=True)
     manager = RateLimitManager(config)
     mock_redis: Any = MagicMock()

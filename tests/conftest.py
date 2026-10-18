@@ -37,7 +37,6 @@ from guard_core.handlers.cloud_handler import (
 from guard_core.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.handlers.ipban_handler import IPBanManager
 from guard_core.handlers.ipinfo_handler import IPInfoManager
-from guard_core.handlers.ratelimit_handler import rate_limit_handler
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.handlers.security_headers_handler import SecurityHeadersManager
 from guard_core.handlers.suspatterns_handler import (
@@ -46,9 +45,6 @@ from guard_core.handlers.suspatterns_handler import (
     sus_patterns_handler,
 )
 from guard_core.models import SecurityConfig
-from guard_core.sync.handlers.ratelimit_handler import (
-    rate_limit_handler as _sync_rate_limit_handler,
-)
 
 if TYPE_CHECKING:
     from tests.live_smoke.driver import ScenarioContext, Stack
@@ -467,18 +463,6 @@ async def redis_cleanup() -> AsyncGenerator[None, None]:
         pass
     finally:
         await redis_handler.close()
-
-
-@pytest.fixture(autouse=True)
-async def reset_rate_limiter() -> AsyncGenerator[None, None]:
-    rate_limit_handler._instance = None
-    _sync_rate_limit_handler._instance = None
-    config = SecurityConfig(enable_redis=False)
-    rate_limit = rate_limit_handler(config)
-    await rate_limit.reset()
-    yield
-    rate_limit_handler._instance = None
-    _sync_rate_limit_handler._instance = None
 
 
 @pytest.fixture(autouse=True)

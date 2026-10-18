@@ -707,7 +707,4 @@ async def run_events_case(case: dict[str, Any]) -> list[dict[str, Any]]:
         sus_patterns_handler.agent_handler = None
         ip_ban_manager.agent_handler = None
         security_headers_manager.agent_handler = None
-        rate_limit_singleton = RateLimitManager._instance
-        if rate_limit_singleton is not None:
-            rate_limit_singleton.agent_handler = None
     return harness.sink

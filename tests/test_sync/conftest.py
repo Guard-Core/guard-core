@@ -16,9 +16,6 @@ import pytest
 from guard_agent.models import AgentConfig, SecurityEvent, SecurityMetric
 from pytest import TempPathFactory
 
-from guard_core.handlers.ratelimit_handler import (
-    rate_limit_handler as _async_rate_limit_handler,
-)
 from guard_core.models import SecurityConfig
 from guard_core.sync._utils import body_reader
 from guard_core.sync._utils import detection_scan as _detection_scan_module
@@ -41,7 +38,6 @@ from guard_core.sync.handlers.cloud_handler import (
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.sync.handlers.ipban_handler import IPBanManager
 from guard_core.sync.handlers.ipinfo_handler import IPInfoManager
-from guard_core.sync.handlers.ratelimit_handler import rate_limit_handler
 from guard_core.sync.handlers.redis_handler import RedisManager
 from guard_core.sync.handlers.security_headers_handler import SecurityHeadersManager
 from guard_core.sync.handlers.suspatterns_handler import (
@@ -564,18 +560,6 @@ def redis_cleanup() -> Generator[None, None]:
         pass
     finally:
         redis_handler.close()
-
-
-@pytest.fixture(autouse=True)
-def reset_rate_limiter() -> Generator[None, None]:
-    rate_limit_handler._instance = None
-    _async_rate_limit_handler._instance = None
-    config = SecurityConfig(enable_redis=False)
-    rate_limit = rate_limit_handler(config)
-    rate_limit.reset()
-    yield
-    rate_limit_handler._instance = None
-    _async_rate_limit_handler._instance = None
 
 
 @pytest.fixture

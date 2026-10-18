@@ -1,8 +1,5 @@
 import logging
-from collections.abc import Iterator
 from unittest.mock import MagicMock, Mock
-
-import pytest
 
 from guard_core.models import SecurityConfig
 from guard_core.sync.core.checks.implementations.rate_limit import RateLimitCheck
@@ -33,13 +30,6 @@ def _make_middleware(config: SecurityConfig) -> Mock:
     return middleware
 
 
-@pytest.fixture(autouse=True)
-def _reset_rate_limit_singleton() -> Iterator[None]:
-    RateLimitManager._instance = None
-    yield
-    RateLimitManager._instance = None
-
-
 def _request(ip: str, path: str = "/x") -> SyncMockGuardRequest:
     request = SyncMockGuardRequest(path=path, client_host=ip)
     request.state.client_ip = ip
@@ -59,7 +49,9 @@ def test_two_middlewares_enforce_their_own_rate_limit_interleaved() -> None:
     middleware_tight = _make_middleware(config_tight)
     middleware_loose = _make_middleware(config_loose)
 
-    assert middleware_tight.rate_limit_handler is middleware_loose.rate_limit_handler
+    assert (
+        middleware_tight.rate_limit_handler is not middleware_loose.rate_limit_handler
+    )
 
     check_tight = RateLimitCheck(middleware_tight)
     check_loose = RateLimitCheck(middleware_loose)
@@ -76,7 +68,7 @@ def test_two_middlewares_enforce_their_own_rate_limit_interleaved() -> None:
 
     result = check_tight.check(_request(ip_tight))
     assert result is not None, (
-        "middleware with rate_limit=1 was not enforced; the singleton used "
+        "middleware with rate_limit=1 was not enforced; its manager used "
         "another middleware's rate_limit instead of its own"
     )
     assert result.status_code == 429
