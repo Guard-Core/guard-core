@@ -70,15 +70,21 @@ security_headers_manager.configure(
 
 ### The global `configure()` and the cross-app override
 
-A call to `security_headers_manager.configure(...)` on the global manager sets exactly what it passes (every parameter has a "not passed" marker so the call can tell which keys it passed):
+A call to `security_headers_manager.configure(...)` sets exactly what it passes (every parameter has a "not passed" marker so the call can tell which keys it passed). **A call without `override_apps=True` changes only the manager's own headers and does not reach any guarded app**: the middlewares and every released adapter call it at startup with every key filled in, and that call stays inert for the apps, as in 4.4.0. To change the headers of every guarded app, pass the flag:
+
+```python
+security_headers_manager.configure(
+    csp={"default-src": ["'self'", "https://cdn.example"]},
+    override_apps=True,
+)
+```
 
 - **The manager's own headers** keep the full replace: what the call does not pass is absent (a call with only `csp` also clears HSTS and every default header on the manager).
-- **The cross-app override**: the keys the call passes override the `security_headers` config of every guarded app in the process, from the next response on, for paths already served and paths never served. The keys it does not pass are not overridden, so each app keeps its own value for them. `None` switches that header off for every app, `enabled=False` switches every app off, and `hsts_max_age`, `hsts_include_subdomains` and `hsts_preload` merge sub-key by sub-key over each app's `hsts`. An app whose own `security_headers` is off stays off.
-- **A bare `configure()`** clears the manager and the override. `reset()` (async) also clears the override, in the process and in Redis.
-- **Never silent**: every call that changes the override logs one line and sends the security headers event (`action_taken` `override_changed` or `override_cleared`; metadata `override_keys`, `dropped_keys`, `override_values`, `dropped_values`). A call that drops keys from an active override, a bare call included, logs a WARNING that names the dropped keys. Header names and values go through the request-log redaction, so a custom `X-Auth-Token` value never appears.
-- **Strictly opt-in**: with no call there is no override, and the apps of a process behave exactly as without it. A middleware that fills the manager's own state from its app config calls `configure(..., override_apps=False)`, which records, logs and sends nothing.
+- **The cross-app override** (only with `override_apps=True`): the keys the call passes override the `security_headers` config of every guarded app in the process, from the next response on, for paths already served and paths never served. The keys it does not pass are not overridden, so each app keeps its own value for them. `None` switches that header off for every app. `hsts_max_age`, `hsts_include_subdomains` and `hsts_preload` merge sub-key by sub-key over each app's `hsts`. A passed `enabled` wins in both directions: `enabled=True` switches on an app whose own `security_headers` is off (the default set), `enabled=False` switches every app off; not passed keeps each app's own.
+- **Clearing**: `configure(override_apps=True)` with no other argument clears the override (and resets the manager). `reset()` (async) clears the manager and the override, in the process and in Redis. A write of `security_headers_manager.enabled` is never an override.
+- **Never silent**: every call with the flag that changes the override logs one line and sends the security headers event (`action_taken` `override_changed` or `override_cleared`; metadata `override_keys`, `dropped_keys`, `override_values`, `dropped_values`). A call that drops keys from an active override, a clearing call included, logs a WARNING that names the dropped keys. Header names and values go through the request-log redaction, so a custom `X-Auth-Token` value never appears. A call without the flag logs nothing new.
 
-With Redis on, each guarded app saves the override under `{redis_prefix}security_headers:override:{hash}`, where `hash` is the hash of the startup config that app runs, with no TTL. Each worker pulls it at most once per 5 seconds (through the app's own Redis connection) and applies a newer record, so a call in one worker reaches the others within about 5 seconds. A worker started with another config uses another key and ignores it; a redeploy with another config never serves an older deployment's values. A Redis error keeps the last applied override. A key missing from Redis clears an override the worker took from it. Two services that share a `redis_prefix` and run an identical config share the override: give every service its own prefix.
+With Redis on, the override is persisted by `initialize_redis`, `_load_cached_config` and `_cache_configuration` (the manager's own CSP, HSTS and custom headers keep their 24-hour keys). An app's manager calls `initialize_redis(redis_handler, config)` on its first response, and the override is saved under `{redis_prefix}security_headers:override:{hash}`, where `hash` is the hash of the startup config that app runs, with no TTL. Each worker pulls it at most once per 5 seconds (through the app's own Redis connection) and applies a newer record, so a call in one worker reaches the others within about 5 seconds. A worker started with another config uses another key and ignores it; a redeploy with another config never serves an older deployment's values. A Redis error on pull or save keeps the last applied override and retries after 5 seconds, whatever `redis_fail_open` says. A key missing from Redis clears an override the worker took from it. Two services that share a `redis_prefix` and run an identical config share the override: give every service its own prefix.
 
 ### CSP Configuration
 
@@ -172,4 +178,4 @@ Both validators also run on `custom_headers` loaded back from Redis; a name or v
 
 ### Redis Integration
 
-The override described above is the configuration the middlewares persist: it is saved and pulled through each app's own Redis handler. The manager's own CSP, HSTS and custom headers can also be cached to Redis with a 24-hour TTL (`initialize_redis`); no middleware calls that path, and apps read their headers from their own `SecurityConfig`, so it only matters for a manager you use directly.
+`initialize_redis` loads and saves the manager's own CSP, HSTS and custom headers (24-hour TTL) and, for an app's manager, the override record described above (no TTL).
