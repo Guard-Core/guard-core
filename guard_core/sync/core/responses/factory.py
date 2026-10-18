@@ -11,9 +11,7 @@ from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 from guard_core.sync.utils import extract_client_ip
 
 
-def _drop_other_spellings(headers: MutableMapping[str, str], name: str) -> None:
-    if not isinstance(headers, dict):
-        return
+def _drop_other_spellings(headers: dict[str, str], name: str) -> None:
     lowered = name.lower()
     for key in [key for key in headers if key.lower() == lowered and key != name]:
         del headers[key]

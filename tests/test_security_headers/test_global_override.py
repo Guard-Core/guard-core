@@ -3079,3 +3079,36 @@ def test_a_new_epoch_clears_the_override_just_after_the_one_it_saved(
 
     assert cleared.keys == {}
     assert cleared.set_at == pytest.approx(5.0 + 1e-6, abs=1e-9)
+
+
+async def test_a_forced_header_with_its_exact_name_is_replaced_without_a_drop() -> None:
+    app = _app(_config(frame_options="DENY"))
+    response = MockGuardResponse("ok", 200)
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+
+    result = await app.apply_security_headers(response, "/x")
+
+    assert result.headers["X-Frame-Options"] == "DENY"
+    assert list(result.headers).count("X-Frame-Options") == 1
+
+
+async def test_a_refusal_event_is_not_sent_while_the_override_is_empty() -> None:
+    agent = MagicMock()
+    agent.send_event = AsyncMock()
+    config = _cors_config()
+    app = _app(config, agent=agent)
+
+    await app.security_headers_manager.send_cors_override_event(config)
+
+    agent.send_event.assert_not_called()
+
+
+async def test_get_headers_and_forced_returns_the_forced_names_of_the_headers() -> None:
+    app = _app(_config(frame_options="DENY"))
+
+    headers, forced = await app.security_headers_manager.get_headers_and_forced(
+        "/x", config=app.context.config
+    )
+
+    assert "x-frame-options" in forced
+    assert headers["X-Frame-Options"] == "DENY"
