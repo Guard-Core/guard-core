@@ -269,11 +269,80 @@ def test_a_route_with_its_own_ip_rule_counts_as_a_source_before_rate_limiting() 
     assert _problems(config, guard_decorator=decorator) == []
 
 
-def test_shared_redis_strikes_make_the_bound_unknown() -> None:
+def test_redis_on_with_the_defaults_still_reports() -> None:
     config = _config(enable_redis=True, redis_url="redis://localhost:1")
+
+    assert len(_problems(config, redis_handler=MagicMock())) == 1
+
+
+def test_redis_fail_open_makes_the_bound_unknown() -> None:
+    config = _config(
+        enable_redis=True, redis_url="redis://localhost:1", redis_fail_open=True
+    )
 
     assert _problems(config, redis_handler=MagicMock()) == []
     assert len(_problems(config)) == 1
+
+
+def test_fail_secure_off_makes_the_bound_unknown_with_redis() -> None:
+    config = _config(
+        enable_redis=True, redis_url="redis://localhost:1", fail_secure=False
+    )
+
+    assert _problems(config, redis_handler=MagicMock()) == []
+
+
+def _stopped_redis_pipeline(**fields: Any) -> tuple[Any, Any, str]:
+    from guard_core.sync.handlers.redis_handler import RedisManager
+    from tests.test_sync.test_core.conftest import build_route_pipeline
+
+    config = SecurityConfig(
+        enable_redis=True,
+        redis_url="redis://127.0.0.1:1",
+        enable_penetration_detection=True,
+        enable_ip_banning=True,
+        enable_rate_limiting=True,
+        rate_limit=100,
+        rate_limit_window=60,
+        **fields,
+    )
+    pipeline, middleware, route_id = build_route_pipeline(
+        config, lambda d: d.suspicious_detection(True)
+    )
+    middleware.rate_limit_handler.redis_handler = RedisManager(config)
+    return pipeline, middleware, route_id
+
+
+def _attack(pipeline: Any, route_id: str) -> Any:
+    from tests.test_sync.conftest import SyncMockGuardRequest
+
+    request = SyncMockGuardRequest(
+        path="/x",
+        client_host="203.0.113.50",
+        query_params={"q": "<script>alert(1)</script>"},
+    )
+    request.state.guard_route_id = route_id
+    return pipeline.execute(request)
+
+
+def test_stopped_redis_on_the_defaults_answers_500_and_records_no_strike() -> None:
+    pipeline, middleware, route_id = _stopped_redis_pipeline()
+
+    response = _attack(pipeline, route_id)
+
+    assert response is not None
+    assert response.status_code == 500
+    assert middleware.suspicious_request_counts == {}
+
+
+def test_stopped_redis_with_fail_open_lets_the_request_reach_detection() -> None:
+    pipeline, middleware, route_id = _stopped_redis_pipeline(redis_fail_open=True)
+
+    response = _attack(pipeline, route_id)
+
+    assert response is not None
+    assert response.status_code == 400
+    assert middleware.suspicious_request_counts["203.0.113.50"]["xss"] == 1
 
 
 def test_a_dynamic_rule_that_lowers_the_limit_logs_and_never_raises(

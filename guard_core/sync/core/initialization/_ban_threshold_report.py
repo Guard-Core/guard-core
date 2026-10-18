@@ -52,6 +52,14 @@ def remember_ban_threshold_context(
     _remembered_context = _BanThresholdContext(route_configs, redis_shared)
 
 
+def _redis_outage_lets_requests_past_the_limit(
+    config: "SecurityConfig", context: _BanThresholdContext
+) -> bool:
+    if not context.redis_shared():
+        return False
+    return config.redis_fail_open or not config.fail_secure
+
+
 def _strike_bound(config: "SecurityConfig") -> int:
     window = config.rate_limit_window
     return math.ceil(config.rate_limit * (SUSPICIOUS_COUNT_WINDOW_SECONDS / window + 1))
@@ -62,7 +70,7 @@ def _bound_is_unknown(config: "SecurityConfig", context: _BanThresholdContext) -
         return True
     if config.rate_limit < 1 or config.rate_limit_window < 1 or config.exempt_ips:
         return True
-    if context.redis_shared():
+    if _redis_outage_lets_requests_past_the_limit(config, context):
         return True
     return any(
         "rate_limit" in route.bypassed_checks or "all" in route.bypassed_checks
