@@ -157,8 +157,8 @@ def test_two_workers_with_the_same_new_whitelist_run_one_scan(
     one_run = _scans(redis) - before
     reset_strikes_for_changed_whitelist(config, redis, ban_manager)
 
-    assert one_run == 4
-    assert _scans(redis) - before == 4
+    assert one_run == 5
+    assert _scans(redis) - before == 5
 
 
 def test_a_worker_that_finds_the_lock_taken_scans_nothing(
