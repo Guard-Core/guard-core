@@ -169,17 +169,6 @@ class SecurityHeadersManager(
         )
         return headers
 
-    def _override_after_sync(
-        self, config: SecurityConfig, before: OverrideRecord
-    ) -> OverrideRecord:
-        if (
-            self.redis_handler is None
-            and not config.enable_redis
-            and before.event is None
-        ):
-            return before
-        return self._sync_override(config, before)
-
     def get_headers(
         self,
         request_path: str | None = None,
@@ -187,22 +176,48 @@ class SecurityHeadersManager(
         override: OverrideRecord | None = None,
         checked: bool = False,
     ) -> dict[str, str]:
-        if config is not None:
-            before = self._current_override() if override is None else override
-            override = self._override_after_sync(config, before)
-            if (not checked or override is not before) and self._headers_off(
-                config, override
-            ):
-                return {}
-        elif not self.enabled:
+        if config is None:
+            return self._get_global_headers(request_path)
+        before = self._current_override() if override is None else override
+        override = (
+            before
+            if self.redis_handler is None
+            and not config.enable_redis
+            and before.event is None
+            else self._sync_override(config, before)
+        )
+        if (not checked or override is not before) and self._headers_off(
+            config, override
+        ):
             return {}
 
         cache_key = self._generate_cache_key(request_path, config, override)
-        headers, is_new = self._headers_for(config, cache_key, override)
+        cached = self.headers_cache.get(cache_key)
+        if isinstance(cached, dict):
+            return cached
+        return self._build_headers_and_announce(
+            request_path, config, cache_key, override
+        )
 
+    def _get_global_headers(self, request_path: str | None) -> dict[str, str]:
+        if not self.enabled:
+            return {}
+        cache_key = self._generate_cache_key(request_path, None, None)
+        cached = self.headers_cache.get(cache_key)
+        if isinstance(cached, dict):
+            return cached
+        return self._build_headers_and_announce(request_path, None, cache_key, None)
+
+    def _build_headers_and_announce(
+        self,
+        request_path: str | None,
+        config: SecurityConfig | None,
+        cache_key: str,
+        override: OverrideRecord | None,
+    ) -> dict[str, str]:
+        headers, is_new = self._headers_for(config, cache_key, override)
         if is_new and self.agent_handler and request_path:
             self._send_headers_applied_event(request_path, headers)
-
         return headers
 
     def get_headers_and_forced(

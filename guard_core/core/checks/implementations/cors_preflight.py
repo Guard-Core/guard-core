@@ -3,6 +3,7 @@ from collections.abc import Collection
 from guard_core.core.checks.base import SecurityCheck
 from guard_core.decorators.base import RouteConfig
 from guard_core.handlers.cors_handler import CorsHandler, is_preflight
+from guard_core.handlers.security_headers_handler import SecurityHeadersManager
 from guard_core.models import SecurityConfig
 from guard_core.protocols.middleware_protocol import GuardMiddlewareProtocol
 from guard_core.protocols.request_protocol import GuardRequest
@@ -11,7 +12,10 @@ from guard_core.protocols.response_protocol import GuardResponse
 
 class CorsPreflightCheck(SecurityCheck):
     """Answers a CORS preflight for an app built without CORS that a flagged
-    ``configure(..., enable_cors=True, override_apps=True)`` turned it on for.
+    ``configure(..., enable_cors=True, override_apps=True)`` turned it on for, and
+    sends the refusal event of a refused CORS override on every preflight (an app
+    built with CORS answers its preflights in its adapter, whose CorsHandler cannot
+    await the agent).
 
     It runs after the ban, IP, cloud and user agent checks and before rate limiting,
     so no later check (authentication, API key, required headers) refuses the
@@ -32,10 +36,15 @@ class CorsPreflightCheck(SecurityCheck):
         config: SecurityConfig,
         route_configs: Collection[RouteConfig] | None,
     ) -> bool:
-        return not config.enable_cors
+        return True
 
     async def check(self, request: GuardRequest) -> GuardResponse | None:
         if request.method.upper() != "OPTIONS":
+            return None
+        manager = self.middleware.response_factory.security_headers_manager
+        if isinstance(manager, SecurityHeadersManager):
+            await manager.send_cors_override_event(self.config)
+        if self.config.enable_cors:
             return None
         if self._cors is None:
             self._cors = CorsHandler(self.config)

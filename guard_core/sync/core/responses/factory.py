@@ -2,6 +2,7 @@ import logging
 from collections.abc import Callable, MutableMapping
 from typing import Any
 
+from guard_core._security_headers_override import PROCESS_OVERRIDE, PULLED_OVERRIDES
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.core.responses.context import ResponseContext
 from guard_core.sync.decorators.base import RouteConfig
@@ -16,6 +17,36 @@ def _drop_other_spellings(headers: MutableMapping[str, str], name: str) -> None:
     lowered = name.lower()
     for key in [key for key in headers if key.lower() == lowered and key != name]:
         del headers[key]
+
+
+def _merge_into_foreign_headers(
+    headers: MutableMapping[str, str],
+    security_headers: dict[str, str],
+    forced: frozenset[str],
+) -> None:
+    for name, value in security_headers.items():
+        if name.lower() in forced or name not in headers:
+            headers[name] = value
+
+
+def _merge_security_headers(
+    headers: MutableMapping[str, str],
+    security_headers: dict[str, str],
+    forced: frozenset[str],
+) -> None:
+    if not isinstance(headers, dict):
+        _merge_into_foreign_headers(headers, security_headers, forced)
+        return
+    present = {key.lower() for key in headers}
+    for name, value in security_headers.items():
+        lowered = name.lower()
+        if lowered in present:
+            if lowered not in forced:
+                continue
+            if name not in headers or len(present) < len(headers):
+                _drop_other_spellings(headers, name)
+        headers[name] = value
+        present.add(lowered)
 
 
 class ErrorResponseFactory:
@@ -72,30 +103,14 @@ class ErrorResponseFactory:
     ) -> GuardResponse:
         if not enabled:
             return response
-        (
-            security_headers,
-            forced,
-        ) = self.security_headers_manager.get_headers_and_forced(
+        security_headers = self.security_headers_manager.get_headers(
             request_path,
             config=self.context.config,
             override=override,
             checked=True,
         )
-        headers = response.headers
-        present = (
-            {key.lower() for key in headers} if isinstance(headers, dict) else None
-        )
-        for header_name, header_value in security_headers.items():
-            lowered = header_name.lower()
-            if lowered in forced:
-                _drop_other_spellings(headers, header_name)
-            elif (
-                (lowered in present) if present is not None else header_name in headers
-            ):
-                continue
-            headers[header_name] = header_value
-            if present is not None:
-                present.add(lowered)
+        forced: frozenset[str] = getattr(security_headers, "forced", frozenset())
+        _merge_security_headers(response.headers, security_headers, forced)
         return response
 
     def apply_cors_headers(
@@ -130,6 +145,38 @@ class ErrorResponseFactory:
                     "custom_response_modifier raised %s; returning unmodified response",
                     exc,
                 )
+        return response
+
+    def _apply_response_headers(
+        self, request: SyncGuardRequest, response: GuardResponse
+    ) -> GuardResponse:
+        manager = self.security_headers_manager
+        config = self.context.config
+        # No override ever recorded and no Redis: the fab5abab path, no override or
+        # CORS merge work.
+        quiet = (
+            PROCESS_OVERRIDE.record.set_at,
+            manager._override.set_at,
+            manager._override_epoch,
+            manager.redis_handler is None,
+            config.enable_redis,
+            bool(PULLED_OVERRIDES),
+        ) == (0.0, 0.0, PROCESS_OVERRIDE.reset_epoch, True, False, False)
+        override = manager._override if quiet else manager.resolve_override()
+        enabled = (
+            bool(
+                config.security_headers and config.security_headers.get("enabled", True)
+            )
+            if quiet
+            else manager.headers_enabled_for(config, override)
+        )
+        skip_cors = quiet and not config.enable_cors
+        response = self._apply_security_headers(
+            response, str(request.url_path), override, enabled
+        )
+        origin = request.headers.get("origin")
+        if origin and not skip_cors:
+            response = self._apply_cors_headers(response, origin, override)
         return response
 
     def process_response(
@@ -176,16 +223,7 @@ class ErrorResponseFactory:
             request, response_time, response.status_code
         )
 
-        manager = self.security_headers_manager
-        override = manager.resolve_override()
-        enabled = manager.headers_enabled_for(self.context.config, override)
-        response = self._apply_security_headers(
-            response, str(request.url_path), override, enabled
-        )
-
-        origin = request.headers.get("origin")
-        if origin:
-            response = self._apply_cors_headers(response, origin, override)
+        response = self._apply_response_headers(request, response)
 
         return self.apply_modifier(response)
 

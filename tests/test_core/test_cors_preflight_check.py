@@ -46,12 +46,58 @@ def test_an_app_built_without_cors_has_the_check_before_rate_limiting() -> None:
     assert names.index("cors_preflight") > names.index("ip_security")
 
 
-def test_an_app_built_with_cors_answers_in_its_adapter_not_in_the_pipeline() -> None:
+def test_an_app_built_with_cors_also_has_the_check_for_the_refusal_event() -> None:
     names = _pipeline(
         enable_cors=True, cors_allow_origins=["https://app.example"]
     ).get_check_names()
 
-    assert "cors_preflight" not in names
+    assert "cors_preflight" in names
+
+
+async def test_an_app_built_with_cors_still_answers_its_preflight_in_its_adapter() -> (
+    None
+):
+    pipeline = _pipeline(enable_cors=True, cors_allow_origins=["https://app.example"])
+    security_headers_manager.configure(cors_origins=[ORIGIN], override_apps=True)
+
+    assert await _send(pipeline) is None
+
+
+async def test_a_refused_override_sends_its_event_on_a_preflight_of_either_app() -> (
+    None
+):
+    from unittest.mock import AsyncMock, MagicMock
+
+    from guard_core.handlers.security_headers_handler import SecurityHeadersManager
+
+    for settings in (
+        {},
+        {"enable_cors": True, "cors_allow_origins": ["https://app.example"]},
+    ):
+        config = SecurityConfig(enable_redis=False, **settings)
+        middleware = build_middleware(config, SecurityDecorator(config))
+        manager = SecurityHeadersManager.isolated()
+        manager.agent_handler = MagicMock(send_event=AsyncMock())
+        middleware.response_factory.security_headers_manager = manager
+        pipeline = build_default_pipeline(middleware)
+        security_headers_manager.configure(
+            enable_cors=True,
+            cors_origins=["*"],
+            cors_allow_credentials=True,
+            override_apps=True,
+        )
+
+        await pipeline.execute(
+            MockGuardRequest(
+                path="/api",
+                method="OPTIONS",
+                headers=PREFLIGHT,
+                client_host="198.51.100.9",
+            )
+        )
+
+        sent = [c.args[0] for c in manager.agent_handler.send_event.call_args_list]
+        assert [e.action_taken for e in sent] == ["cors_override_refused"]
 
 
 async def test_without_an_override_a_preflight_is_not_answered_by_the_pipeline() -> (

@@ -147,6 +147,8 @@ class SecurityHeadersOverrideMixin:
         if not self.agent_handler:
             return
         override = self.override_for_reader(config, current)
+        if not override.keys:
+            return
         merged, reason = merge_cors(cors_params_of(config), override.keys)
         if reason is None or not first_time(
             CORS_EVENTED, (id(config), override.set_at)

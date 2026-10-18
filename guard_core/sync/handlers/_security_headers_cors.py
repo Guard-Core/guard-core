@@ -2,7 +2,7 @@ import logging
 from abc import abstractmethod
 from typing import Any
 
-from guard_core._security_headers_override import OverrideRecord
+from guard_core._security_headers_override import PULLED_OVERRIDES, OverrideRecord
 from guard_core.models import SecurityConfig
 
 
@@ -94,7 +94,9 @@ class SecurityHeadersCorsMixin:
         override: OverrideRecord | None = None,
     ) -> dict[str, str]:
         cors_config = self._resolve_cors_state(config, override)
-        if config is not None:
+        if config is not None and (
+            override is None or override.keys or PULLED_OVERRIDES
+        ):
             self.send_cors_override_event(config, override)
         if not cors_config:
             return {}

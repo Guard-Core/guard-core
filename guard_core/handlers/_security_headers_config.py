@@ -13,6 +13,7 @@ from guard_core._security_headers_defaults import (
 from guard_core._security_headers_override import (
     NOT_PASSED,
     PERMISSIONS_POLICY_NOT_PASSED,
+    PULLED_OVERRIDES,
     CorsParams,
     OverrideRecord,
     _NotPassed,
@@ -290,6 +291,15 @@ class SecurityHeadersConfigMixin:
         if config is None:
             return self.cors_config
 
+        if override is not None and not override.keys and not PULLED_OVERRIDES:
+            # No override: the app's own CORS, without the merge.
+            return self._compute_cors_config(
+                list(config.cors_allow_origins or ()) if config.enable_cors else None,
+                bool(config.cors_allow_credentials),
+                list(config.cors_allow_methods or ()),
+                list(config.cors_allow_headers or ()),
+                int(config.cors_max_age),
+            )
         params = self.cors_params_for(config, override)
         return self._compute_cors_config(
             list(params.origins) if params.enabled else None,
