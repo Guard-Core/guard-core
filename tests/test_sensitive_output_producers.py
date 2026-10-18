@@ -997,6 +997,23 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "and ip_address='system', no request data; logger.error fallback "
         "is send-failure text"
     ),
+    "handlers/ratelimit_handler.py:_send_by_ip_event": (
+        "the rate_limited event of the request-free check_rate_limit_by_ip "
+        "primitive: client IP (outside the secret matrix), the limit, window and "
+        "count, and the endpoint_path argument redacted like the pipeline's "
+        "endpoint; logger.error fallback is send-failure text; never called by "
+        "any scenario"
+    ),
+    "handlers/ratelimit_handler.py:_shared_primitive_counts": (
+        "static warning plus the Redis client's own exception text when the "
+        "shared violation counter is unavailable, never request content; the "
+        "standalone check_rate_limit_by_ip primitive, never called by any scenario"
+    ),
+    "core/checks/implementations/rate_limit.py:"
+    "RateLimitCheck._shared_violation_counts": (
+        "static warning plus the Redis client's own exception text when the "
+        "shared violation counter is unavailable, never request content"
+    ),
     "handlers/ratelimit_handler.py:_feed_rate_limit_autoban": (
         "line 185: 'auto-banned %s (rate_limit_exceeded)' interpolates "
         "only the ip argument, outside the secret matrix; this is the "

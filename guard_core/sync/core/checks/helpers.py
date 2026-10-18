@@ -539,8 +539,10 @@ def _try_threshold_ban(
     threat_categories: Collection[str],
     reason: str = "penetration_attempt",
     default_entries: Mapping[str, ThreatBanConfig] | None = None,
+    ip_counts: Mapping[str, int] | None = None,
 ) -> bool:
-    ip_counts = middleware.suspicious_request_counts.get(client_ip, {})
+    if ip_counts is None:
+        ip_counts = middleware.suspicious_request_counts.get(client_ip, {})
     result = _resolve_and_apply_threshold_ban(
         ip_ban_manager=ip_ban_manager,
         ip_counts=ip_counts,

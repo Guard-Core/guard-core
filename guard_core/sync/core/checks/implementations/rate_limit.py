@@ -23,7 +23,12 @@ from guard_core.sync.core.events.event_types import (
 )
 from guard_core.sync.decorators.base import RouteConfig
 from guard_core.sync.handlers.cors_handler import is_preflight
-from guard_core.sync.handlers.ratelimit_handler import RateLimitBlock, RateLimitTier
+from guard_core.sync.handlers.ratelimit_handler import (
+    RateLimitBlock,
+    RateLimitTier,
+    forget_shared_violations,
+    record_shared_violation,
+)
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
 if TYPE_CHECKING:
@@ -173,7 +178,8 @@ class RateLimitCheck(SecurityCheck):
             return
         try:
             _increment_suspicious_counts(self.middleware, client_ip, "rate_limit")
-            _try_threshold_ban(
+            shared = self._shared_violation_counts(client_ip)
+            banned = _try_threshold_ban(
                 request,
                 self.config,
                 self.ip_ban_manager,
@@ -185,11 +191,33 @@ class RateLimitCheck(SecurityCheck):
                 self.config.muted_check_logs,
                 ("rate_limit",),
                 reason="rate_limit_exceeded",
+                ip_counts=shared,
             )
+            if banned and shared is not None:
+                forget_shared_violations(self._shared_redis(), client_ip)
         except Exception:
             _log_exception_safely(
                 self.logger, "rate-limit auto-ban failed for %s", client_ip
             )
+
+    def _shared_redis(self) -> Any:
+        if not self.config.enable_redis:
+            return None
+        return getattr(self.middleware.rate_limit_handler, "redis_handler", None)
+
+    def _shared_violation_counts(self, client_ip: str) -> dict[str, int] | None:
+        redis_handler = self._shared_redis()
+        if not redis_handler:
+            return None
+        try:
+            return {"rate_limit": record_shared_violation(redis_handler, client_ip)}
+        except Exception as error:
+            self.logger.warning(
+                "Shared rate-limit violation counter unavailable, counting this "
+                "violation in this process only: %s",
+                error,
+            )
+            return None
 
     def _log_non_ip_ban_refusal(self, identity: str) -> None:
         global _non_ip_ban_refusal_logged

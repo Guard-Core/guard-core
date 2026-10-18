@@ -214,7 +214,10 @@ def test_redis_backed_over_limit_feeds_autoban_counter(
         )
 
         ip = "192.0.2.107"
-        result = check_rate_limit_by_ip(ip, config, redis_handler=Mock())
+        redis = Mock(
+            record_sliding_window_hit=MagicMock(return_value=1), delete=MagicMock()
+        )
+        result = check_rate_limit_by_ip(ip, config, redis_handler=redis)
 
         assert result is False
         assert ban_calls == [(ip, 111, "rate_limit_exceeded")]

@@ -74,6 +74,7 @@ class RateLimitBlock(NamedTuple):
 
 
 _ALLOWED = RateLimitVerdict(None)
+_VIOLATIONS_NAMESPACE = "rate_limit"
 _KINDS_IN_KEY = frozenset({"endpoint", "route", "geo"})
 
 
@@ -210,7 +211,47 @@ def _in_memory_tier_verdict(
     return _ALLOWED
 
 
-async def _feed_rate_limit_autoban(ip: str, config: SecurityConfig) -> None:
+def _violations_key(client_ip: str) -> str:
+    return f"violations:{client_ip}"
+
+
+async def record_shared_violation(redis_handler: Any, client_ip: str) -> int:
+    from guard_core.core.checks.helpers import SUSPICIOUS_COUNT_WINDOW_SECONDS
+
+    now = time.time()
+    count: int = await redis_handler.record_sliding_window_hit(
+        _VIOLATIONS_NAMESPACE,
+        _violations_key(client_ip),
+        now,
+        now - SUSPICIOUS_COUNT_WINDOW_SECONDS,
+        SUSPICIOUS_COUNT_WINDOW_SECONDS,
+    )
+    return count
+
+
+async def forget_shared_violations(redis_handler: Any, client_ip: str) -> None:
+    await redis_handler.delete(_VIOLATIONS_NAMESPACE, _violations_key(client_ip))
+
+
+async def _shared_primitive_counts(
+    ip: str, config: SecurityConfig, redis_handler: Any
+) -> dict[str, int] | None:
+    if not (config.enable_redis and redis_handler):
+        return None
+    try:
+        return {"rate_limit": await record_shared_violation(redis_handler, ip)}
+    except Exception as error:
+        _by_ip_logger.warning(
+            "Shared rate-limit violation counter unavailable, counting this "
+            "violation in this process only: %s",
+            error,
+        )
+        return None
+
+
+async def _feed_rate_limit_autoban(
+    ip: str, config: SecurityConfig, redis_handler: Any = None
+) -> None:
     """Feed a rate-limited call into the shared auto-ban engine.
 
     Increments a dedicated, per-process, in-memory violation counter keyed by
@@ -222,9 +263,11 @@ async def _feed_rate_limit_autoban(ip: str, config: SecurityConfig) -> None:
     set, and unless ``config.passive_mode`` is False. It also no-ops when ``ip``
     is already banned, short-circuiting before the counter increment, so a
     repeatedly rate-limited banned ip neither refreshes the ban TTL nor grows the
-    counter. Resolution and the actual ``ban_ip`` call are delegated to the same
-    pure helper the middleware auto-ban path uses, so there is one threshold
-    implementation, not two.
+    counter. With Redis enabled the decision uses the Redis violation counter the
+    pipeline path shares across workers instead, and a landed ban clears it.
+    Resolution and the actual ``ban_ip`` call are delegated to the same pure helper
+    the middleware auto-ban path uses, so there is one threshold implementation,
+    not two.
     """
     if not (config.enable_rate_limit_auto_ban and config.enable_ip_banning):
         return
@@ -253,8 +296,9 @@ async def _feed_rate_limit_autoban(ip: str, config: SecurityConfig) -> None:
     ip_counts.expire_before(now - SUSPICIOUS_COUNT_WINDOW_SECONDS)
     ip_counts.record("rate_limit", now, _MAX_RETAINED_EVENTS_PER_CATEGORY)
     _by_ip_autoban_counts[ip] = ip_counts
+    shared = await _shared_primitive_counts(ip, config, redis_handler)
     result = await _resolve_and_apply_threshold_ban(
-        ip_counts,
+        ip_counts if shared is None else shared,
         config,
         ip_ban_manager,
         ip,
@@ -263,6 +307,8 @@ async def _feed_rate_limit_autoban(ip: str, config: SecurityConfig) -> None:
     )
     if result is not None:
         _by_ip_autoban_counts.pop(ip, None)
+        if shared is not None:
+            await forget_shared_violations(redis_handler, ip)
         _by_ip_logger.warning(
             "check_rate_limit_by_ip: auto-banned %s (rate_limit_exceeded)", ip
         )
@@ -440,7 +486,7 @@ async def check_rate_limit_by_ip(
     if not allowed:
         agent = agent_handler or getattr(redis_handler, "agent_handler", None)
         await _report_by_ip_block(ip, config, verdict.request_count, tier, agent)
-        await _feed_rate_limit_autoban(ip, config)
+        await _feed_rate_limit_autoban(ip, config, redis_handler)
 
     return allowed
 
