@@ -7,6 +7,7 @@ EVENT_IP_BLOCKED = "ip_blocked"
 EVENT_IP_BANNED = "ip_banned"
 EVENT_IP_BAN_FAILED = "ip_ban_failed"
 EVENT_IP_BAN_REFUSED = "ip_ban_refused"
+EVENT_IP_BAN_EVICTED = "ip_ban_evicted"
 EVENT_IP_UNBANNED = "ip_unbanned"
 EVENT_CLOUD_BLOCKED = "cloud_blocked"
 EVENT_HTTPS_ENFORCED = "https_enforced"
@@ -51,6 +52,7 @@ EVENT_TYPE_VALUES: frozenset[str] = frozenset(
         EVENT_IP_BANNED,
         EVENT_IP_BAN_FAILED,
         EVENT_IP_BAN_REFUSED,
+        EVENT_IP_BAN_EVICTED,
         EVENT_IP_UNBANNED,
         EVENT_CLOUD_BLOCKED,
         EVENT_HTTPS_ENFORCED,

@@ -34,6 +34,7 @@ __all__ = [
 
 class IPBanManager(IpBanMigrationMixin, IpBanOperationsMixin, IpBanQueryMixin):
     LOCAL_CACHE_TTL_CAP_SECONDS = 3600
+    MAX_LOCAL_BANS = 100_000
     _EVICTION_LOG_EVERY = 100
 
     _instance: "IPBanManager | None" = None
@@ -41,6 +42,7 @@ class IPBanManager(IpBanMigrationMixin, IpBanOperationsMixin, IpBanQueryMixin):
     banned_networks: list[tuple[_Network, float]]
     refused_ban_reported_until: dict[str, float]
     evictions_count: int
+    evicted_to_report: tuple[str, float] | None
     logger: logging.Logger
     config: Any = None
     redis_handler: Any = None
@@ -52,8 +54,9 @@ class IPBanManager(IpBanMigrationMixin, IpBanOperationsMixin, IpBanQueryMixin):
             cls._instance.evictions_count = 0
             cls._instance.logger = logging.getLogger("guard_core.sync.handlers.ipban")
             cls._instance.banned_ips = _BanStore(
-                maxsize=10000, on_evict=cls._instance._on_eviction
+                maxsize=cls.MAX_LOCAL_BANS, on_evict=cls._instance._on_eviction
             )
+            cls._instance.evicted_to_report = None
             cls._instance.banned_networks = []
             cls._instance.refused_ban_reported_until = {}
             cls._instance.rule_exempt_networks = ()
@@ -61,13 +64,16 @@ class IPBanManager(IpBanMigrationMixin, IpBanOperationsMixin, IpBanQueryMixin):
             cls._instance.agent_handler = None
         return cls._instance
 
-    def _on_eviction(self, *_evicted: Any) -> None:
+    def _on_eviction(self, *evicted: Any) -> None:
         self.evictions_count += 1
         if self.evictions_count % self._EVICTION_LOG_EVERY == 0:
             self.logger.warning(
-                "IP ban cache full; %d entries evicted (silent overflow)",
+                "IP ban cache full; %d entries evicted (silent overflow); use "
+                "Redis to keep a large number of bans",
                 self.evictions_count,
             )
+            if evicted:
+                self.evicted_to_report = (evicted[0], evicted[1])
 
 
 ip_ban_manager = IPBanManager()
@@ -81,6 +87,7 @@ def reset_global_state() -> None:
     manager.refused_ban_reported_until = {}
     manager.rule_exempt_networks = ()
     manager.evictions_count = 0
+    manager.evicted_to_report = None
     manager.redis_handler = None
     manager.agent_handler = None
     ip_ban_manager = manager

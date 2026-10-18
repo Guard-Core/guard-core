@@ -22,6 +22,9 @@ class IpBanOperationsMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
     banned_ips: MutableMapping[str, float]
     banned_networks: list[tuple[_Network, float]]
     refused_ban_reported_until: dict[str, float]
+    evictions_count: int
+    evicted_to_report: tuple[str, float] | None
+    MAX_LOCAL_BANS: int
     config: Any = None
     redis_handler: Any = None
     logger: logging.Logger
@@ -75,7 +78,17 @@ class IpBanOperationsMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
                 self._warn_kept_in_this_process(ip, "request failed")
 
         if self.agent_handler:
+            self._report_eviction()
             self._send_ban_event(ip, duration, reason)
+
+    def _report_eviction(self) -> None:
+        evicted = self.evicted_to_report
+        if evicted is None:
+            return
+        self.evicted_to_report = None
+        self._send_ban_evicted_event(
+            evicted[0], evicted[1], self.evictions_count, self.MAX_LOCAL_BANS
+        )
 
     def _target_network(self, ip: str) -> _Network | None:
         try:

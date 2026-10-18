@@ -1,4 +1,5 @@
 import logging
+import time
 from datetime import datetime, timezone
 from typing import Any
 
@@ -59,6 +60,36 @@ class IpBanEventMixin:
             await self.agent_handler.send_event(event)
         except Exception as e:
             self.logger.error("Failed to send ban refused event to agent: %s", e)
+
+    async def _send_ban_evicted_event(
+        self, ip: str, expiry: float, evictions: int, capacity: int
+    ) -> None:
+        from guard_core.core.events.event_types import EVENT_IP_BAN_EVICTED
+
+        try:
+            from guard_core._pydantic_plugin_mute import get_telemetry_model
+
+            SecurityEvent = get_telemetry_model("SecurityEvent")
+
+            event = SecurityEvent(
+                timestamp=datetime.now(timezone.utc),
+                event_type=EVENT_IP_BAN_EVICTED,
+                ip_address=ip,
+                action_taken="ban_evicted",
+                reason=(
+                    "An unexpired ban was evicted because the in-memory ban store "
+                    "is full"
+                ),
+                handler_name=_IP_BAN_HANDLER_NAME,
+                metadata={
+                    "remaining_seconds": max(0, int(expiry - time.time())),
+                    "evictions": evictions,
+                    "capacity": capacity,
+                },
+            )
+            await self.agent_handler.send_event(event)
+        except Exception as e:
+            self.logger.error("Failed to send ban evicted event to agent: %s", e)
 
     async def _send_unban_event(self, ip: str) -> None:
         from guard_core.core.events.event_types import EVENT_IP_UNBANNED

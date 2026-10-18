@@ -861,10 +861,6 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
     "handlers/_dynamic_rule_snapshot.py:DynamicRuleSnapshotMixin._read_redis_payload": (
         "line 73: Redis-read error for the snapshot key, not a request"
     ),
-    "handlers/_ipban_bans.py:IpBanOperationsMixin._clamp_to_local_cap": (
-        "line 33: 'Redis unavailable: ban shortened from Xs to Ys' - "
-        "duration numbers only, no request data"
-    ),
     "handlers/_ipban_bans.py:IpBanOperationsMixin._log_refused_ban": (
         "line 124: logs the ban-target IP and the overlapping loopback/"
         "trusted-proxy CIDR only; client_ip is outside the secret matrix"
@@ -1073,6 +1069,15 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "line 460: warning with the X-Forwarded-For chain passed through "
         "_display_forwarded_chain (non-IP entries shown as [REDACTED]) and "
         "_sanitize_for_log, plus the peer address"
+    ),
+    "handlers/_ipban_bans.py:IpBanOperationsMixin._warn_kept_in_this_process": (
+        "line 37: Redis write failure for a ban, names the banned client identity "
+        "(outside the secret matrix) and says the ban stays in this process"
+    ),
+    "handlers/_ipban_events.py:IpBanEventMixin._send_ban_evicted_event": (
+        "lines 90,92: ip_ban_evicted event carries the evicted identity, its "
+        "remaining seconds and counters, no request data; logger.error fallback "
+        "is send-failure text"
     ),
     "handlers/_ipinfo_events.py:IpInfoEventsMixin._send_geo_event": (
         "line 43: geolocation lookup event carries only ip/country, "

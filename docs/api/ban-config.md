@@ -119,6 +119,8 @@ What remains, and is unchanged by this fix, is the identity trade-off for non-do
 
 Bans live only in the process-local ban store (10,000 entries, each with its own expiry). They are still enforced, but each worker process keeps its own set, so an IP banned by one worker is unknown to the others until it misbehaves there too, and a restart clears every ban. Any positive `duration` is honored in memory (a 24 h ban stays a 24 h ban; it used to be shortened to 3600 s). With Redis attached, the ban is shared across every process and survives restarts.
 
+The in-memory store holds up to 100,000 bans (about 25 MiB when full) and, when it is full, evicts the ban closest to expiry first. An unexpired ban evicted that way is counted, a WARNING is logged every 100 evictions, and an `ip_ban_evicted` event (identity, remaining seconds, eviction count, capacity) is sent at the same cadence. Use Redis for a large fleet of bans.
+
 ### Passive mode
 
 Passive mode never bans. Per-category counters still increment and the detection is still logged and reported, but `_handle_suspicious_passive_mode` returns without calling `ban_ip`, and an already-banned IP is logged with `action_taken="logged_only"` instead of being rejected. Bans also require `enable_ip_banning` to stay `True`.

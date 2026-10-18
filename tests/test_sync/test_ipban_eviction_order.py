@@ -1,0 +1,77 @@
+import logging
+import time
+from collections.abc import Generator
+from typing import Any
+from unittest.mock import MagicMock, Mock
+
+import pytest
+
+from guard_core.sync.handlers._ipban_cache import _BanStore
+from guard_core.sync.handlers.ipban_handler import IPBanManager
+
+
+@pytest.fixture(autouse=True)
+def reset_singleton() -> Generator[None, None, None]:
+    IPBanManager._instance = None
+    yield
+    IPBanManager._instance = None
+
+
+def _manager(maxsize: int) -> IPBanManager:
+    manager = IPBanManager()
+    manager.redis_handler = None
+    manager.agent_handler = Mock(send_event=MagicMock())
+    manager.banned_ips = _BanStore(maxsize=maxsize, on_evict=manager._on_eviction)
+    return manager
+
+
+def _events(manager: IPBanManager) -> list[Any]:
+    sent = [call.args[0] for call in manager.agent_handler.send_event.call_args_list]
+    return [event for event in sent if event.event_type == "ip_ban_evicted"]
+
+
+def test_the_default_store_holds_one_hundred_thousand_bans() -> None:
+    assert IPBanManager().banned_ips.maxsize == 100_000
+
+
+def test_the_ban_closest_to_expiry_is_evicted_first() -> None:
+    manager = _manager(maxsize=3)
+    manager.ban_ip("8.8.0.1", duration=3600, reason="t")
+    manager.ban_ip("8.8.0.2", duration=60, reason="t")
+    manager.ban_ip("8.8.0.3", duration=7200, reason="t")
+
+    manager.ban_ip("8.8.0.4", duration=3600, reason="t")
+
+    assert manager.is_ip_banned("8.8.0.2") is False
+    for survivor in ("8.8.0.1", "8.8.0.3", "8.8.0.4"):
+        assert manager.is_ip_banned(survivor) is True
+
+
+def test_an_expired_ban_makes_room_without_counting_as_an_eviction() -> None:
+    manager = _manager(maxsize=2)
+    manager.banned_ips["8.8.0.1"] = time.time() - 10
+    manager.ban_ip("8.8.0.2", duration=600, reason="t")
+
+    manager.ban_ip("8.8.0.3", duration=600, reason="t")
+
+    assert manager.evictions_count == 0
+    assert _events(manager) == []
+
+
+def test_evicting_unexpired_bans_warns_and_sends_ip_ban_evicted_when_sampled(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    manager = _manager(maxsize=1)
+    caplog.set_level(logging.WARNING, logger="guard_core.sync.handlers.ipban")
+
+    for index in range(102):
+        manager.ban_ip(f"8.8.{index // 256}.{index % 256}", 600 + index, "t")
+
+    assert manager.evictions_count == 101
+    assert len([r for r in caplog.records if "evicted" in r.getMessage()]) == 1
+    [event] = _events(manager)
+    assert event.event_type == "ip_ban_evicted"
+    assert event.action_taken == "ban_evicted"
+    assert event.metadata["evictions"] == 100
+    assert event.metadata["remaining_seconds"] > 0
+    assert event.ip_address == "8.8.0.99"
