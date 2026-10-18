@@ -168,8 +168,11 @@ class IPInfoManager:
                         if isinstance(cached_db, bytes)
                         else cached_db.encode("latin-1")
                     )
-                    self._apply_opened_reader(self._open_database_or_none())
-                    return
+                    reader = self._open_database_or_none()
+                    if reader is not None:
+                        self._apply_opened_reader(reader)
+                        return
+                    self._drop_cached_database(self.redis_handler)
 
             try:
                 if not self.db_path.exists() or self._is_db_outdated():
@@ -195,6 +198,13 @@ class IPInfoManager:
                 self._apply_opened_reader(self._open_database_or_none())
         finally:
             self._initialization_attempted = True
+
+    def _drop_cached_database(self, redis_handler: SyncRedisHandlerProtocol) -> None:
+        self.logger.warning("Cached GeoIP database is unusable, downloading again")
+        try:
+            redis_handler.delete("ipinfo", "database")
+        except Exception as e:
+            self.logger.warning("Cached GeoIP database could not be dropped: %s", e)
 
     def _send_geo_event(
         self,
