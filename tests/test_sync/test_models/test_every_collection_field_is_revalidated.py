@@ -57,7 +57,7 @@ def test_collection_field_is_revalidated_or_immutable(field_name: str) -> None:
 _NEWLY_REGISTERED_FIELDS: tuple[tuple[str, Any, Any], ...] = (
     ("global_behavior_rules", [{"rule_type": "usage", "threshold": 3}], "nope"),
     ("custom_error_responses", {404: "not found"}, "nope"),
-    ("security_headers", {"X-Frame-Options": "DENY"}, "nope"),
+    ("security_headers", {"frame_options": "DENY"}, "nope"),
     ("cors_allow_origins", ["https://a.example"], "nope"),
     ("cors_allow_methods", ["GET"], "nope"),
     ("cors_allow_headers", ["X-Custom"], "nope"),
@@ -110,7 +110,7 @@ def test_global_behavior_rules_reassignment_coerces_dicts_to_model() -> None:
 
 
 def test_security_headers_reassignment_accepts_none() -> None:
-    config = SecurityConfig(security_headers={"X-Frame-Options": "DENY"})
+    config = SecurityConfig(security_headers={"frame_options": "DENY"})
 
     config.security_headers = None
 

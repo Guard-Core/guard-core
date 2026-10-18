@@ -4,6 +4,7 @@ from typing import Any
 
 from cachetools import TTLCache
 
+from guard_core._security_headers_defaults import security_headers_are_off
 from guard_core.handlers._security_headers_cache import SecurityHeadersCacheMixin
 from guard_core.handlers._security_headers_config import SecurityHeadersConfigMixin
 from guard_core.handlers._security_headers_cors import SecurityHeadersCorsMixin
@@ -32,14 +33,13 @@ class SecurityHeadersManager(
     default_headers: dict[str, str] = {
         "X-Content-Type-Options": "nosniff",
         "X-Frame-Options": "SAMEORIGIN",
-        "X-XSS-Protection": "1; mode=block",
+        "X-XSS-Protection": "0",
         "Referrer-Policy": "strict-origin-when-cross-origin",
         "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
         "X-Permitted-Cross-Domain-Policies": "none",
         "X-Download-Options": "noopen",
-        "Cross-Origin-Embedder-Policy": "require-corp",
         "Cross-Origin-Opener-Policy": "same-origin",
-        "Cross-Origin-Resource-Policy": "same-origin",
+        "Cross-Origin-Resource-Policy": "same-site",
     }
 
     def __new__(cls: type["SecurityHeadersManager"]) -> "SecurityHeadersManager":
@@ -109,9 +109,7 @@ class SecurityHeadersManager(
         config: SecurityConfig | None = None,
     ) -> dict[str, str]:
         if config is not None:
-            if not config.security_headers or not config.security_headers.get(
-                "enabled", True
-            ):
+            if security_headers_are_off(config.security_headers):
                 return {}
         elif not self.enabled:
             return {}

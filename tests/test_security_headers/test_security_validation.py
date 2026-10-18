@@ -264,7 +264,7 @@ async def test_reconfigure_with_no_overrides_clears_every_prior_group() -> None:
 
     assert headers["X-Frame-Options"] == "SAMEORIGIN"
     assert headers["X-Content-Type-Options"] == "nosniff"
-    assert headers["X-XSS-Protection"] == "1; mode=block"
+    assert headers["X-XSS-Protection"] == "0"
     assert headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
     assert headers["Permissions-Policy"] == "geolocation=(), microphone=(), camera=()"
 

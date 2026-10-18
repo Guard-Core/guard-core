@@ -4,6 +4,10 @@ from typing import Any
 
 from cachetools import TTLCache
 
+from guard_core._security_headers_defaults import (
+    SECURITY_HEADER_NAMES,
+    effective_security_headers_config,
+)
 from guard_core.models import SecurityConfig
 
 
@@ -217,25 +221,28 @@ class SecurityHeadersConfigMixin:
                 self.custom_headers,
             )
 
-        headers_config = config.security_headers or {}
-        hsts_cfg = headers_config.get("hsts") or {}
+        effective = effective_security_headers_config(config.security_headers) or {}
+        hsts_cfg = effective.get("hsts") or {}
 
-        csp_config = self._compute_csp_config(headers_config.get("csp"))
+        csp_config = self._compute_csp_config(effective.get("csp"))
         hsts_config = self._compute_hsts_config(
             hsts_cfg.get("max_age"),
             hsts_cfg.get("include_subdomains", True),
             hsts_cfg.get("preload", False),
         )
-        default_headers = self._compute_default_headers(
-            headers_config.get("frame_options"),
-            headers_config.get("content_type_options"),
-            headers_config.get("xss_protection"),
-            headers_config.get("referrer_policy"),
-            headers_config.get("permissions_policy", "UNSET"),
-        )
-        custom_headers = self._compute_custom_headers(headers_config.get("custom"))
+        default_headers = self._compute_configured_headers(effective)
+        custom_headers = self._compute_custom_headers(effective.get("custom"))
 
         return csp_config, hsts_config, default_headers, custom_headers
+
+    def _compute_configured_headers(self, effective: dict[str, Any]) -> dict[str, str]:
+        headers: dict[str, str] = {}
+        for key, header_name in SECURITY_HEADER_NAMES.items():
+            value = effective.get(key)
+            if value is None or (key == "permissions_policy" and not value):
+                continue
+            headers[header_name] = self._validate_header_value(value)
+        return headers
 
     def _resolve_cors_state(
         self, config: SecurityConfig | None

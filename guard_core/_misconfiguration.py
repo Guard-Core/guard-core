@@ -2,6 +2,8 @@ import logging
 import warnings
 from typing import TYPE_CHECKING
 
+from guard_core._security_headers_defaults import unknown_security_headers_keys
+
 if TYPE_CHECKING:
     from guard_core.models import SecurityConfig
 
@@ -109,8 +111,17 @@ def _whole_app_exclusion_problems(config: "SecurityConfig") -> list[str]:
     ]
 
 
+def _unknown_security_headers_key_problems(config: "SecurityConfig") -> list[str]:
+    return [
+        f"security_headers key {key!r} is not a known key, so it is ignored "
+        "and has no effect."
+        for key in unknown_security_headers_keys(config.security_headers)
+    ]
+
+
 def config_misconfigurations(config: "SecurityConfig") -> list[str]:
     return [
+        *_unknown_security_headers_key_problems(config),
         *_glob_exclude_path_problems(config),
         *_anomalous_path_problems(config),
         *_whole_app_exclusion_problems(config),

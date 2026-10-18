@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from guard_core._security_config_field_validators import GlobalBehaviorRules
 from guard_core._security_config_validators import ThreatBanConfig
+from guard_core._security_headers_defaults import default_security_headers_config
 from guard_core._staged_defaults import DEFAULT_REDIS_PREFIX
 from guard_core._utils.lru_store import DEFAULT_MAX_TRACKED_KEYS
 from guard_core.handlers.suspatterns_handler import ALL_DETECTION_CATEGORIES
@@ -399,21 +400,7 @@ class _SecurityConfigFields(BaseModel):
     )
 
     security_headers: dict[str, Any] | None = Field(
-        default_factory=lambda: {
-            "enabled": True,
-            "hsts": {
-                "max_age": 31536000,
-                "include_subdomains": True,
-                "preload": False,
-            },
-            "csp": None,
-            "frame_options": "SAMEORIGIN",
-            "content_type_options": "nosniff",
-            "xss_protection": "1; mode=block",
-            "referrer_policy": "strict-origin-when-cross-origin",
-            "permissions_policy": "geolocation=(), microphone=(), camera=()",
-            "custom": None,
-        },
+        default_factory=default_security_headers_config,
         description="Security headers configuration",
     )
 
