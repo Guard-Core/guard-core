@@ -804,6 +804,16 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
     "handlers/_ipban_queries.py:IpBanQueryMixin._unban_redis_inside": (
         "line 151: Redis range-unban failure for SaaS-pushed policy, infra only"
     ),
+    "core/checks/implementations/rate_limit.py:"
+    "RateLimitCheck._log_non_ip_ban_refusal": (
+        "logs the non-IP client identity, always the literal 'unknown', once per "
+        "process; never header, query or body content"
+    ),
+    "handlers/_ipban_events.py:IpBanEventMixin._send_ban_refused_event": (
+        "the event carries the ban-target IP (outside the secret matrix), the "
+        "refusal kind and the caller-supplied ban reason; logger.error fallback is "
+        "send-failure text"
+    ),
     "handlers/_ipban_events.py:IpBanEventMixin._send_unban_event": (
         "line 49: unban is never exercised by any scenario; the event "
         "carries only ip/reason (ip outside the secret matrix, reason is "

@@ -33,6 +33,7 @@ class IPBanManager(IpBanMigrationMixin, IpBanOperationsMixin, IpBanQueryMixin):
     _instance: "IPBanManager | None" = None
     banned_ips: TTLCache
     banned_networks: list[tuple[_Network, float]]
+    refused_ban_reported_until: dict[str, float]
     evictions_count: int
     logger: logging.Logger
     config: Any = None
@@ -50,6 +51,7 @@ class IPBanManager(IpBanMigrationMixin, IpBanOperationsMixin, IpBanQueryMixin):
                 on_evict=cls._instance._on_eviction,
             )
             cls._instance.banned_networks = []
+            cls._instance.refused_ban_reported_until = {}
             cls._instance.rule_exempt_networks = ()
             cls._instance.redis_handler = None
             cls._instance.agent_handler = None
@@ -72,6 +74,7 @@ async def reset_global_state() -> None:
     manager = IPBanManager()
     manager.banned_ips.clear()
     manager.banned_networks = []
+    manager.refused_ban_reported_until = {}
     manager.rule_exempt_networks = ()
     manager.evictions_count = 0
     manager.redis_handler = None

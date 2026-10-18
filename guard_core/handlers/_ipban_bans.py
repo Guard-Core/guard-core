@@ -10,6 +10,8 @@ from guard_core.handlers._ipban_events import IpBanEventMixin
 from guard_core.handlers._ipban_rule_exempt import IpBanRuleExemptionMixin
 from guard_core.utils import _canonicalize_ip
 
+_MAX_TRACKED_REFUSED_BANS = 10_000
+
 _LOOPBACK_NETWORKS: tuple[_Network, ...] = (
     ipaddress.ip_network("127.0.0.0/8"),
     ipaddress.ip_network("::1/128"),
@@ -20,6 +22,7 @@ class IpBanOperationsMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
     LOCAL_CACHE_TTL_CAP_SECONDS: int
     banned_ips: TTLCache
     banned_networks: list[tuple[_Network, float]]
+    refused_ban_reported_until: dict[str, float]
     config: Any = None
     redis_handler: Any = None
     logger: logging.Logger
@@ -130,6 +133,29 @@ class IpBanOperationsMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
             space,
         )
 
+    def _refusal_already_reported(self, ip: str, duration: int) -> bool:
+        now = time.time()
+        reported = self.refused_ban_reported_until
+        if reported.get(ip, 0.0) > now:
+            return True
+        if len(reported) >= _MAX_TRACKED_REFUSED_BANS:
+            for stale in [key for key, until in reported.items() if until <= now]:
+                del reported[stale]
+        if len(reported) >= _MAX_TRACKED_REFUSED_BANS:
+            del reported[next(iter(reported))]
+        reported.pop(ip, None)
+        reported[ip] = now + duration
+        return False
+
+    async def _report_refused_ban(
+        self, ip: str, refusal: str, duration: int, reason: str
+    ) -> None:
+        if self._refusal_already_reported(ip, duration):
+            return
+        self._log_refused_ban(ip, refusal)
+        if self.agent_handler:
+            await self._send_ban_refused_event(ip, duration, reason, refusal)
+
     def _refuse_rule_exempt_target(self, ip: str) -> bool:
         target = self._target_network(ip)
         if target is None or not self._is_rule_exempt_target(target):
@@ -163,7 +189,7 @@ class IpBanOperationsMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
             return False
         refusal = self._self_dos_refusal_reason(ip)
         if refusal is not None:
-            self._log_refused_ban(ip, refusal)
+            await self._report_refused_ban(ip, refusal, duration, reason)
             return False
         self._warn_if_private_target(ip)
         if "/" in ip:

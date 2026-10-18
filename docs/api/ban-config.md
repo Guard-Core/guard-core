@@ -57,6 +57,8 @@ Rate-limit auto-ban
 
 `SecurityConfig.enable_rate_limit_auto_ban` (default `False`, off) feeds rate-limit violations into this same ban policy instead of just penetration detection. When enabled together with `enable_ip_banning`, each active-mode (non-passive) rate-limit violation increments the `rate_limit` category of `suspicious_request_counts` and runs the identical threshold logic described above: `threat_ban_config["rate_limit"]` first if present, otherwise the flat `auto_ban_threshold` / `auto_ban_duration` fallback. The ban lands through `ip_ban_manager.ban_ip` with `reason="rate_limit_exceeded"`, distinct from `"penetration_attempt"` so the two triggers stay separable in telemetry and audit logs. `"rate_limit"` (and `"honeypot"`, see below) is a valid `threat_ban_config` key alongside the detection categories, but it is a pseudo-category, not a member of `ALL_DETECTION_CATEGORIES`, and only ever populated when `enable_rate_limit_auto_ban` is on. Passive mode never feeds this counter, matching the detection path.
 
+A client whose ban the self-DoS guard refuses (a loopback address, or an address inside `trusted_proxies`) keeps getting 429s and is never banned. The refusal is logged once per IP per ban window, where the window is the duration the ban would have had, and sends one `ip_ban_refused` event for the same IP and window, with `duration`, `refusal` (`loopback` or `trusted_proxy`) and `ban_reason` in its metadata. Behind a reverse proxy this almost always means `trusted_proxies` is unset, so every client shares the proxy's address.
+
 ___
 
 Honeypot bans
