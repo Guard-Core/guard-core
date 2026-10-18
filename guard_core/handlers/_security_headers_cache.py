@@ -8,6 +8,7 @@ from cachetools import TTLCache
 
 from guard_core._security_headers_override import (
     OverrideRecord,
+    config_fingerprint,
     override_fingerprint,
 )
 from guard_core._utils.logging_utils import _sanitize_for_log
@@ -25,6 +26,14 @@ class SecurityHeadersCacheMixin:
     hsts_config: dict[str, Any] | None
     cors_config: dict[str, Any] | None
     default_headers: dict[str, str]
+    _startup_hash: str | None
+    _redis_initialized: bool
+
+    @abstractmethod
+    async def _pull_override(self) -> None: ...
+
+    @abstractmethod
+    async def _save_override_record(self) -> None: ...
 
     @abstractmethod
     def _validate_header_name(self, name: str) -> str: ...
@@ -50,72 +59,87 @@ class SecurityHeadersCacheMixin:
         normalized = request_path.lower().strip("/")
         return f"path_{hashlib.sha256(normalized.encode()).hexdigest()[:16]}"
 
-    async def initialize_redis(self, redis_handler: Any) -> None:
+    async def initialize_redis(
+        self, redis_handler: Any, config: SecurityConfig | None = None
+    ) -> None:
         self.redis_handler = redis_handler
+        self._redis_initialized = True
+        if config is not None and self._startup_hash is None:
+            self._startup_hash = config_fingerprint(config)
         await self._load_cached_config()
         await self._cache_configuration()
 
-    async def _load_cached_config(self) -> None:
+    async def _load_cached_config(self, own_state: bool = True) -> None:
         if not self.redis_handler:
             return
 
-        try:
-            csp_config = await self.redis_handler.get_key(
-                "security_headers", "csp_config"
-            )
-            if csp_config:
-                self.csp_config = json.loads(csp_config)
+        if own_state:
+            try:
+                csp_config = await self.redis_handler.get_key(
+                    "security_headers", "csp_config"
+                )
+                if csp_config:
+                    self.csp_config = json.loads(csp_config)
 
-            hsts_config = await self.redis_handler.get_key(
-                "security_headers", "hsts_config"
-            )
-            if hsts_config:
-                self.hsts_config = json.loads(hsts_config)
+                hsts_config = await self.redis_handler.get_key(
+                    "security_headers", "hsts_config"
+                )
+                if hsts_config:
+                    self.hsts_config = json.loads(hsts_config)
 
-            custom_headers = await self.redis_handler.get_key(
-                "security_headers", "custom_headers"
-            )
-            if custom_headers:
-                loaded_custom_headers = json.loads(custom_headers)
-                validated_custom_headers = {
-                    self._validate_header_name(name): self._validate_header_value(value)
-                    for name, value in loaded_custom_headers.items()
-                }
-                self.custom_headers = validated_custom_headers
+                custom_headers = await self.redis_handler.get_key(
+                    "security_headers", "custom_headers"
+                )
+                if custom_headers:
+                    loaded_custom_headers = json.loads(custom_headers)
+                    validated_custom_headers = {
+                        self._validate_header_name(name): self._validate_header_value(
+                            value
+                        )
+                        for name, value in loaded_custom_headers.items()
+                    }
+                    self.custom_headers = validated_custom_headers
 
-        except Exception as e:
-            self.logger.warning(
-                f"Failed to load cached header config: {_sanitize_for_log(str(e))}"
-            )
+            except Exception as e:
+                self.logger.warning(
+                    f"Failed to load cached header config: {_sanitize_for_log(str(e))}"
+                )
 
-    async def _cache_configuration(self) -> None:
+        if self._startup_hash is not None:
+            await self._pull_override()
+
+    async def _cache_configuration(self, own_state: bool = True) -> None:
         if not self.redis_handler:
             return
 
-        try:
-            if self.csp_config:
-                await self.redis_handler.set_key(
-                    "security_headers",
-                    "csp_config",
-                    json.dumps(self.csp_config),
-                    ttl=86400,
-                )
-            if self.hsts_config:
-                await self.redis_handler.set_key(
-                    "security_headers",
-                    "hsts_config",
-                    json.dumps(self.hsts_config),
-                    ttl=86400,
-                )
-            if self.custom_headers:
-                await self.redis_handler.set_key(
-                    "security_headers",
-                    "custom_headers",
-                    json.dumps(self.custom_headers),
-                    ttl=86400,
-                )
-        except Exception as e:
-            self.logger.warning(f"Failed to cache header configuration: {e}")
+        if own_state:
+            try:
+                if self.csp_config:
+                    await self.redis_handler.set_key(
+                        "security_headers",
+                        "csp_config",
+                        json.dumps(self.csp_config),
+                        ttl=86400,
+                    )
+                if self.hsts_config:
+                    await self.redis_handler.set_key(
+                        "security_headers",
+                        "hsts_config",
+                        json.dumps(self.hsts_config),
+                        ttl=86400,
+                    )
+                if self.custom_headers:
+                    await self.redis_handler.set_key(
+                        "security_headers",
+                        "custom_headers",
+                        json.dumps(self.custom_headers),
+                        ttl=86400,
+                    )
+            except Exception as e:
+                self.logger.warning(f"Failed to cache header configuration: {e}")
+
+        if self._startup_hash is not None:
+            await self._save_override_record()
 
     async def reset(self) -> None:
         self.headers_cache.clear()

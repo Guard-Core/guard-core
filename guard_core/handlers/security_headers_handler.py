@@ -144,9 +144,13 @@ class SecurityHeadersManager(
         return headers, True
 
     def _headers_off(self, config: SecurityConfig) -> bool:
-        return security_headers_are_off(config.security_headers) or not (
-            self._current_override().keys.get("enabled", True)
-        )
+        override = self._current_override().keys
+        if "enabled" in override:
+            return not override["enabled"]
+        return security_headers_are_off(config.security_headers)
+
+    def headers_enabled_for(self, config: SecurityConfig) -> bool:
+        return not self._headers_off(config)
 
     def resolve_headers(self, config: SecurityConfig) -> dict[str, str]:
         if self._headers_off(config):

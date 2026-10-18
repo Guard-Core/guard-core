@@ -880,7 +880,7 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "_redact_sensitive_headers; no request data"
     ),
     "handlers/_security_headers_override_state.py:SecurityHeadersOverrideMixin."
-    "_save_override": ("line 158: Redis write failure text, not a request"),
+    "_save_override_record": ("line 158: Redis write failure text, not a request"),
     "handlers/_security_headers_override_state.py:SecurityHeadersOverrideMixin."
     "_send_override_event": (
         "lines 228 and 230: the override event carries the redacted override "

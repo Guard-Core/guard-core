@@ -60,8 +60,7 @@ class ErrorResponseFactory:
     async def apply_security_headers(
         self, response: GuardResponse, request_path: str | None = None
     ) -> GuardResponse:
-        headers_config = self.context.config.security_headers
-        if headers_config and headers_config.get("enabled", True):
+        if self.security_headers_manager.headers_enabled_for(self.context.config):
             resolved = await self.security_headers_manager.get_headers_and_forced(
                 request_path, config=self.context.config
             )
@@ -78,8 +77,7 @@ class ErrorResponseFactory:
     async def apply_cors_headers(
         self, response: GuardResponse, origin: str
     ) -> GuardResponse:
-        headers_config = self.context.config.security_headers
-        if headers_config and headers_config.get("enabled", True):
+        if self.security_headers_manager.headers_enabled_for(self.context.config):
             cors_headers = await self.security_headers_manager.get_cors_headers(
                 origin, config=self.context.config
             )

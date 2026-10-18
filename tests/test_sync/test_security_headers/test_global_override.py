@@ -126,6 +126,10 @@ def _in_redis(manager: SecurityHeadersManager) -> bool:
     return bool(manager._override_in_redis)
 
 
+def _override(**keys: Any) -> None:
+    security_headers_manager.configure(override_apps=True, **keys)
+
+
 def _override_events(agent: Any) -> list[Any]:
     events = [call.args[0] for call in agent.send_event.call_args_list]
     return [e for e in events if e.action_taken.startswith("override_")]
@@ -157,7 +161,7 @@ def test_the_global_call_changes_the_csp_of_a_guarded_app() -> None:
     app = _app()
     assert (_response(app))["Content-Security-Policy"].endswith("app.example")
 
-    security_headers_manager.configure(csp=GLOBAL_CSP)
+    _override(csp=GLOBAL_CSP)
 
     after = _response(app)
     assert (
@@ -169,7 +173,7 @@ def test_a_path_never_requested_gets_the_override_too() -> None:
     app = _app()
     _response(app, "/seen")
 
-    security_headers_manager.configure(csp=GLOBAL_CSP)
+    _override(csp=GLOBAL_CSP)
 
     assert (_response(app, "/never-seen"))["Content-Security-Policy"].endswith(
         "global.example"
@@ -179,7 +183,7 @@ def test_a_path_never_requested_gets_the_override_too() -> None:
 def test_keys_the_call_did_not_pass_keep_the_value_of_the_app() -> None:
     app = _app()
 
-    security_headers_manager.configure(csp=GLOBAL_CSP)
+    _override(csp=GLOBAL_CSP)
 
     after = _response(app)
     assert after["X-Frame-Options"] == "DENY"
@@ -190,14 +194,14 @@ def test_keys_the_call_did_not_pass_keep_the_value_of_the_app() -> None:
 def test_the_override_reaches_every_app_in_the_process() -> None:
     first, second = _app(), _app(_config(frame_options="SAMEORIGIN"))
 
-    security_headers_manager.configure(frame_options="DENY")
+    _override(frame_options="DENY")
 
     assert (_response(first))["X-Frame-Options"] == "DENY"
     assert (_response(second))["X-Frame-Options"] == "DENY"
 
 
 def test_an_app_created_after_the_call_gets_the_override() -> None:
-    security_headers_manager.configure(csp=GLOBAL_CSP)
+    _override(csp=GLOBAL_CSP)
 
     assert (_response(_app()))["Content-Security-Policy"].endswith("global.example")
 
@@ -223,7 +227,7 @@ def test_the_managers_own_headers_keep_the_full_replace() -> None:
 def test_hsts_sub_keys_merge_over_the_hsts_of_the_app() -> None:
     app = _app()
 
-    security_headers_manager.configure(hsts_max_age=100)
+    _override(hsts_max_age=100)
 
     assert (_response(app))["Strict-Transport-Security"] == (
         "max-age=100; includeSubDomains"
@@ -233,7 +237,7 @@ def test_hsts_sub_keys_merge_over_the_hsts_of_the_app() -> None:
 def test_the_call_can_switch_a_header_off_for_every_app() -> None:
     app = _app()
 
-    security_headers_manager.configure(frame_options=None)
+    _override(frame_options=None)
 
     assert "X-Frame-Options" not in _response(app)
 
@@ -241,7 +245,7 @@ def test_the_call_can_switch_a_header_off_for_every_app() -> None:
 def test_an_app_with_headers_off_stays_off() -> None:
     app = _app(SecurityConfig(enable_redis=False, security_headers=None))
 
-    security_headers_manager.configure(csp=GLOBAL_CSP)
+    _override(csp=GLOBAL_CSP)
 
     assert "Content-Security-Policy" not in _response(app)
 
@@ -249,7 +253,7 @@ def test_an_app_with_headers_off_stays_off() -> None:
 def test_enabled_false_in_a_call_switches_every_app_off() -> None:
     app = _app()
 
-    security_headers_manager.configure(enabled=False)
+    _override(enabled=False)
 
     assert _response(app) == {}
 
@@ -258,11 +262,11 @@ def test_a_second_call_that_omits_a_key_drops_it_with_a_warning(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     app = _app()
-    security_headers_manager.configure(csp=GLOBAL_CSP, frame_options="SAMEORIGIN")
+    _override(csp=GLOBAL_CSP, frame_options="SAMEORIGIN")
     assert (_response(app))["X-Frame-Options"] == "SAMEORIGIN"
 
     with caplog.at_level(logging.INFO, logger=LOGGER):
-        security_headers_manager.configure(csp=OTHER_CSP)
+        _override(csp=OTHER_CSP)
 
     after = _response(app)
     assert after["X-Frame-Options"] == "DENY"
@@ -278,10 +282,10 @@ def test_a_bare_call_clears_the_override_with_a_warning(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     app = _app()
-    security_headers_manager.configure(csp=GLOBAL_CSP, frame_options="SAMEORIGIN")
+    _override(csp=GLOBAL_CSP, frame_options="SAMEORIGIN")
 
     with caplog.at_level(logging.INFO, logger=LOGGER):
-        security_headers_manager.configure()
+        _override()
 
     after = _response(app)
     assert after["Content-Security-Policy"].endswith("app.example")
@@ -297,7 +301,7 @@ def test_a_bare_call_with_nothing_to_clear_logs_nothing(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     with caplog.at_level(logging.DEBUG, logger=LOGGER):
-        security_headers_manager.configure()
+        _override()
 
     assert caplog.records == []
 
@@ -306,15 +310,15 @@ def test_every_call_that_changes_the_override_logs_one_line(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     with caplog.at_level(logging.INFO, logger=LOGGER):
-        security_headers_manager.configure(csp=GLOBAL_CSP)
-        security_headers_manager.configure(csp=GLOBAL_CSP)
+        _override(csp=GLOBAL_CSP)
+        _override(csp=GLOBAL_CSP)
 
     assert [r.levelno for r in caplog.records] == [logging.INFO]
 
 
 def test_reset_clears_the_override_in_the_process() -> None:
     app = _app()
-    security_headers_manager.configure(csp=GLOBAL_CSP)
+    _override(csp=GLOBAL_CSP)
 
     security_headers_manager.reset()
 
@@ -329,9 +333,7 @@ def test_values_are_redacted_in_the_log_and_the_event(
     app = _app(agent=agent)
 
     with caplog.at_level(logging.DEBUG, logger=LOGGER):
-        security_headers_manager.configure(
-            custom_headers={"X-Auth-Token": "SEKRET-VALUE", "X-Build": "build-7"}
-        )
+        _override(custom_headers={"X-Auth-Token": "SEKRET-VALUE", "X-Build": "build-7"})
     _response(app)
 
     assert "SEKRET-VALUE" not in caplog.text
@@ -347,12 +349,10 @@ def test_the_event_lists_the_dropped_keys_with_redacted_values() -> None:
     agent = MagicMock()
     agent.send_event = MagicMock()
     app = _app(agent=agent)
-    security_headers_manager.configure(
-        csp=GLOBAL_CSP, custom_headers={"X-Auth-Token": "SEKRET-VALUE"}
-    )
+    _override(csp=GLOBAL_CSP, custom_headers={"X-Auth-Token": "SEKRET-VALUE"})
     _response(app)
 
-    security_headers_manager.configure(csp=GLOBAL_CSP)
+    _override(csp=GLOBAL_CSP)
     _response(app)
 
     event = _override_events(agent)[-1]
@@ -368,11 +368,11 @@ def test_no_override_means_no_redis_traffic_beyond_the_pull(
 
     for _ in range(20):
         _response(app)
-    assert (redis.gets, redis.sets) == (1, 0)
+    assert (redis.gets, redis.sets) == (4, 0)
 
     clock.now += 5.0
     _response(app)
-    assert (redis.gets, redis.sets) == (2, 0)
+    assert (redis.gets, redis.sets) == (5, 0)
 
 
 def test_the_call_is_saved_without_a_ttl_under_the_prefix_and_config_hash(
@@ -380,7 +380,7 @@ def test_the_call_is_saved_without_a_ttl_under_the_prefix_and_config_hash(
 ) -> None:
     redis = FakeRedis("svc:")
     app = _app(redis=redis)
-    security_headers_manager.configure(csp=GLOBAL_CSP)
+    _override(csp=GLOBAL_CSP)
 
     _response(app)
 
@@ -398,7 +398,7 @@ def test_a_second_worker_applies_the_override_within_five_seconds(
     worker_b = _app(redis=redis)
     with other_worker():
         assert (_response(worker_b))["Content-Security-Policy"].endswith("app.example")
-    security_headers_manager.configure(csp=GLOBAL_CSP)
+    _override(csp=GLOBAL_CSP)
     _response(worker_a)
 
     clock.now += 4.9
@@ -416,7 +416,7 @@ def test_a_worker_started_with_another_config_ignores_the_override(
     redis = FakeRedis()
     worker_a = _app(redis=redis)
     worker_b = _app(_config(frame_options="SAMEORIGIN"), redis=redis)
-    security_headers_manager.configure(csp=GLOBAL_CSP)
+    _override(csp=GLOBAL_CSP)
     _response(worker_a)
 
     clock.now += 10.0
@@ -430,7 +430,7 @@ def test_redis_down_keeps_the_last_applied_override(
     redis = FakeRedis()
     worker_a = _app(redis=redis)
     worker_b = _app(redis=redis)
-    security_headers_manager.configure(csp=GLOBAL_CSP)
+    _override(csp=GLOBAL_CSP)
     _response(worker_a)
     with other_worker():
         clock.now += 10.0
@@ -451,7 +451,7 @@ def test_reset_clears_the_override_in_redis_and_other_workers_follow(
     redis = FakeRedis()
     worker_a = _app(redis=redis)
     worker_b = _app(redis=redis)
-    security_headers_manager.configure(csp=GLOBAL_CSP)
+    _override(csp=GLOBAL_CSP)
     _response(worker_a)
     with other_worker():
         clock.now += 10.0
@@ -469,11 +469,11 @@ def test_reset_clears_the_override_in_redis_and_other_workers_follow(
 def test_a_bare_call_deletes_the_saved_override(clock: Clock) -> None:
     redis = FakeRedis()
     app = _app(redis=redis)
-    security_headers_manager.configure(csp=GLOBAL_CSP)
+    _override(csp=GLOBAL_CSP)
     _response(app)
     assert redis.store
 
-    security_headers_manager.configure()
+    _override()
     _response(app)
 
     assert redis.store == {}
@@ -570,7 +570,7 @@ def test_the_config_fingerprint_ignores_object_addresses_and_set_order() -> None
 
 
 def test_a_manager_that_is_not_the_global_one_does_not_set_the_override() -> None:
-    SecurityHeadersManager.isolated().configure(csp=GLOBAL_CSP)
+    SecurityHeadersManager.isolated().configure(csp=GLOBAL_CSP, override_apps=True)
 
     assert override_module.PROCESS_OVERRIDE.record.keys == {}
 
@@ -581,7 +581,7 @@ def test_a_failed_save_is_retried_after_five_seconds(
     redis = FakeRedis()
     redis.down = True
     app = _app(redis=redis)
-    security_headers_manager.configure(csp=GLOBAL_CSP)
+    _override(csp=GLOBAL_CSP)
 
     with caplog.at_level(logging.WARNING, logger=LOGGER):
         _response(app)
@@ -606,7 +606,7 @@ def test_a_failed_pull_is_logged_and_retried_after_five_seconds(
     with caplog.at_level(logging.WARNING, logger=LOGGER):
         _response(app)
         _response(app)
-    assert redis.gets == 1
+    assert redis.gets == 2
     assert "keeping the last applied one" in caplog.text
 
 
@@ -632,7 +632,7 @@ def test_a_pulled_override_older_than_the_local_one_is_ignored(
 ) -> None:
     redis = FakeRedis()
     app = _app(redis=redis)
-    security_headers_manager.configure(csp=GLOBAL_CSP)
+    _override(csp=GLOBAL_CSP)
     _response(app)
     manager = app.security_headers_manager
     stale = override_module.OverrideRecord(1.0, {"csp": OTHER_CSP})
@@ -648,14 +648,14 @@ def test_a_failing_agent_does_not_break_the_response() -> None:
     agent = MagicMock()
     agent.send_event = MagicMock(side_effect=RuntimeError("agent down"))
     app = _app(agent=agent)
-    security_headers_manager.configure(csp=GLOBAL_CSP)
+    _override(csp=GLOBAL_CSP)
 
     assert (_response(app))["Content-Security-Policy"].endswith("global.example")
 
 
 def test_an_app_without_an_agent_still_applies_the_override() -> None:
     app = _app()
-    security_headers_manager.configure(csp=GLOBAL_CSP)
+    _override(csp=GLOBAL_CSP)
 
     assert (_response(app))["Content-Security-Policy"].endswith("global.example")
 
@@ -663,10 +663,10 @@ def test_an_app_without_an_agent_still_applies_the_override() -> None:
 def test_changing_a_value_of_the_same_keys_is_an_info_not_a_warning(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    security_headers_manager.configure(csp=GLOBAL_CSP)
+    _override(csp=GLOBAL_CSP)
 
     with caplog.at_level(logging.INFO, logger=LOGGER):
-        security_headers_manager.configure(csp=OTHER_CSP)
+        _override(csp=OTHER_CSP)
 
     assert [r.levelno for r in caplog.records] == [logging.INFO]
 
@@ -675,16 +675,16 @@ def test_resolve_headers_applies_the_override_and_the_off_switch() -> None:
     manager = SecurityHeadersManager.isolated()
     config = _config()
 
-    security_headers_manager.configure(frame_options="SAMEORIGIN")
+    _override(frame_options="SAMEORIGIN")
     assert manager.resolve_headers(config)["X-Frame-Options"] == "SAMEORIGIN"
 
-    security_headers_manager.configure(enabled=False)
+    _override(enabled=False)
     assert manager.resolve_headers(config) == {}
 
 
 def test_resetting_another_manager_leaves_the_process_override() -> None:
     app = _app()
-    security_headers_manager.configure(csp=GLOBAL_CSP)
+    _override(csp=GLOBAL_CSP)
 
     SecurityHeadersManager.isolated().reset()
 
@@ -695,10 +695,13 @@ def test_an_empty_override_never_touches_a_redis_it_never_wrote(
     clock: Clock,
 ) -> None:
     redis = FakeRedis()
-    security_headers_manager.configure(csp=GLOBAL_CSP)
-    security_headers_manager.configure()
+    _override(csp=GLOBAL_CSP)
+    _override()
     app = _app(redis=redis)
 
+    _response(app)
+    _override(csp=GLOBAL_CSP)
+    _override()
     _response(app)
 
     assert redis.sets == 0
@@ -707,13 +710,13 @@ def test_an_empty_override_never_touches_a_redis_it_never_wrote(
     assert manager._override_saved_at == manager._override.set_at > 0
 
 
-def test_a_call_with_override_apps_false_configures_only_the_manager(
+def test_a_call_without_the_flag_configures_only_the_manager(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     app = _app()
 
     with caplog.at_level(logging.DEBUG, logger=LOGGER):
-        security_headers_manager.configure(csp=GLOBAL_CSP, override_apps=False)
+        security_headers_manager.configure(csp=GLOBAL_CSP)
 
     assert caplog.records == []
     assert override_module.PROCESS_OVERRIDE.record.keys == {}
@@ -924,13 +927,13 @@ def test_the_log_lines_have_the_documented_text(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     with caplog.at_level(logging.INFO, logger=LOGGER):
-        security_headers_manager.configure(
+        _override(
             csp=OTHER_CSP,
             frame_options="SAMEORIGIN",
             custom_headers={"X-Auth-Token": "S"},
         )
-        security_headers_manager.configure(csp=GLOBAL_CSP)
-        security_headers_manager.configure()
+        _override(csp=GLOBAL_CSP)
+        _override()
 
     set_line, drop_line, clear_line = [r.getMessage() for r in caplog.records]
     assert set_line == (
@@ -966,7 +969,7 @@ def test_an_override_event_is_sent_once_per_record() -> None:
     agent = MagicMock()
     agent.send_event = MagicMock()
     app = _app(agent=agent)
-    security_headers_manager.configure(csp=GLOBAL_CSP)
+    _override(csp=GLOBAL_CSP)
 
     for _ in range(3):
         _response(app)
@@ -978,9 +981,9 @@ def test_the_override_events_describe_a_change_and_a_clear() -> None:
     agent = MagicMock()
     agent.send_event = MagicMock()
     app = _app(agent=agent)
-    security_headers_manager.configure(csp=GLOBAL_CSP)
+    _override(csp=GLOBAL_CSP)
     _response(app)
-    security_headers_manager.configure()
+    _override()
     _response(app)
 
     changed, cleared = _override_events(agent)
@@ -1004,7 +1007,7 @@ def test_a_failing_agent_is_logged_at_debug_without_the_error_internals(
     agent = MagicMock()
     agent.send_event = MagicMock(side_effect=RuntimeError("agent down"))
     app = _app(agent=agent)
-    security_headers_manager.configure(csp=GLOBAL_CSP)
+    _override(csp=GLOBAL_CSP)
 
     with caplog.at_level(logging.DEBUG, logger=LOGGER):
         _response(app)
@@ -1020,15 +1023,15 @@ def test_a_failed_save_logs_the_error_and_keeps_the_override_unsaved(
     redis = FakeRedis()
     redis.down = True
     app = _app(redis=redis)
-    security_headers_manager.configure(csp=GLOBAL_CSP)
+    _override(csp=GLOBAL_CSP)
 
     with caplog.at_level(logging.WARNING, logger=LOGGER):
         _response(app)
 
     manager = app.security_headers_manager
-    assert [r.getMessage() for r in caplog.records] == [
+    assert [r.getMessage() for r in caplog.records][-1] == (
         "Failed to save the security headers override: redis is down"
-    ]
+    )
     assert manager._override_saved_at == 0.0
     assert manager._override_in_redis is False
     assert manager._override_save_retry_at == clock.now + 5.0
@@ -1045,8 +1048,9 @@ def test_a_failed_pull_logs_the_error(
         _response(app)
 
     assert [r.getMessage() for r in caplog.records] == [
+        "Failed to load cached header config: redis is down",
         "Failed to pull the security headers override, keeping the last applied "
-        "one: redis is down"
+        "one: redis is down",
     ]
     assert app.security_headers_manager._override_next_pull == clock.now + 5.0
 
@@ -1145,7 +1149,7 @@ def test_a_record_that_vanishes_from_redis_clears_what_was_taken_from_it(
 def test_reset_forgets_every_piece_of_override_state(clock: Clock) -> None:
     redis = FakeRedis()
     app = _app(redis=redis)
-    security_headers_manager.configure(csp=GLOBAL_CSP)
+    _override(csp=GLOBAL_CSP)
     _response(app)
     manager = app.security_headers_manager
     assert _hash_of(manager) is not None
@@ -1184,11 +1188,9 @@ def test_a_callable_without_module_or_name_attributes_still_gets_a_stable_name()
 def test_the_log_lines_join_several_keys_with_a_comma(
     clock: Clock, caplog: pytest.LogCaptureFixture
 ) -> None:
-    security_headers_manager.configure(
-        csp=GLOBAL_CSP, frame_options="DENY", referrer_policy="no-referrer"
-    )
+    _override(csp=GLOBAL_CSP, frame_options="DENY", referrer_policy="no-referrer")
     with caplog.at_level(logging.WARNING, logger=LOGGER):
-        security_headers_manager.configure(csp=GLOBAL_CSP, frame_options="DENY")
+        _override(csp=GLOBAL_CSP, frame_options="DENY")
     assert "override now sets: csp, frame_options; values:" in caplog.text
 
     redis = FakeRedis()
@@ -1284,7 +1286,7 @@ def test_a_record_stamped_far_ahead_does_not_outrank_a_later_call() -> None:
 
     assert (_response(app))["Content-Security-Policy"].endswith("app.example")
 
-    security_headers_manager.configure(csp=GLOBAL_CSP)
+    _override(csp=GLOBAL_CSP)
 
     assert (_response(app))["Content-Security-Policy"].endswith("global.example")
 
@@ -1355,3 +1357,174 @@ def test_the_approximate_clock_follows_the_monotonic_clock() -> None:
 
     assert 0.005 < override_module.approximate_now() - before < 1.0
     assert abs(override_module.approximate_now() - time.time()) < 5.0
+
+
+def _released_startup_call() -> None:
+    # The call every released adapter makes while it initializes (fastapi-guard
+    # v8.1.2 guard/middleware.py:286-304), every key filled in from its config.
+    security_headers_manager.configure(
+        enabled=True,
+        csp={"default-src": ["'self'", "https://startup.example"]},
+        hsts_max_age=31536000,
+        hsts_include_subdomains=True,
+        hsts_preload=False,
+        frame_options="SAMEORIGIN",
+        content_type_options="nosniff",
+        xss_protection="1; mode=block",
+        referrer_policy="strict-origin-when-cross-origin",
+        permissions_policy="UNSET",
+        custom_headers=None,
+        cors_origins=None,
+        cors_allow_credentials=False,
+        cors_allow_methods=None,
+        cors_allow_headers=None,
+    )
+
+
+def test_the_startup_call_of_a_released_adapter_overrides_no_app(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    first = _app()
+    second = _app(_config(csp=OTHER_CSP, xss_protection="0"))
+    _response(first)
+
+    with caplog.at_level(logging.DEBUG, logger=LOGGER):
+        _released_startup_call()
+
+    assert caplog.records == []
+    after = _response(first)
+    assert after["Content-Security-Policy"].endswith("app.example")
+    assert after["X-Frame-Options"] == "DENY"
+    assert after["X-XSS-Protection"] == "0"
+    assert (_response(second))["Content-Security-Policy"] == ("default-src 'none'")
+
+
+def test_the_startup_call_writes_nothing_to_redis(clock: Clock) -> None:
+    redis = FakeRedis()
+    app = _app(redis=redis)
+    _response(app)
+
+    _released_startup_call()
+    clock.now += 5.0
+    _response(app)
+
+    assert redis.sets == 0
+    assert redis.store == {}
+
+
+def test_a_direct_write_of_enabled_is_never_an_override() -> None:
+    app = _app()
+
+    security_headers_manager.enabled = False
+
+    assert (_response(app))["Content-Security-Policy"].endswith("app.example")
+    assert override_module.PROCESS_OVERRIDE.record.keys == {}
+    security_headers_manager.enabled = True
+
+
+def test_a_passed_enabled_true_switches_on_an_app_whose_headers_are_off() -> None:
+    off = _app(SecurityConfig(enable_redis=False, security_headers=None))
+    off_dict = _app(
+        SecurityConfig(enable_redis=False, security_headers={"enabled": False})
+    )
+    assert _response(off) == {}
+
+    _override(enabled=True)
+
+    for app in (off, off_dict):
+        headers = _response(app)
+        assert headers["X-Content-Type-Options"] == "nosniff"
+        assert headers["X-Frame-Options"] == "SAMEORIGIN"
+
+
+def test_a_passed_enabled_false_switches_every_app_off_and_not_passed_keeps() -> None:
+    on = _app()
+    off = _app(SecurityConfig(enable_redis=False, security_headers=None))
+
+    _override(csp=GLOBAL_CSP)
+
+    assert (_response(on))["Content-Security-Policy"].endswith("global.example")
+    assert _response(off) == {}
+
+    _override(enabled=False)
+
+    assert _response(on) == {}
+    assert _response(off) == {}
+
+
+def test_initialize_redis_loads_the_override_record_of_the_app_config(
+    clock: Clock,
+) -> None:
+    redis = FakeRedis()
+    app = _app(redis=redis)
+    manager = app.security_headers_manager
+    config = app.context.config
+    saved = override_module.OverrideRecord(time.time() + 50, {"csp": GLOBAL_CSP})
+    key = f"t:security_headers:override:{override_module.config_fingerprint(config)}"
+    redis.store[key] = saved.to_json()
+
+    manager.initialize_redis(redis, config)
+
+    assert (_response(app))["Content-Security-Policy"].endswith("global.example")
+    assert manager.redis_handler is redis
+
+
+def test_the_override_is_saved_and_pulled_through_the_persistence_methods(
+    clock: Clock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    redis = FakeRedis()
+    app = _app(redis=redis)
+    manager = app.security_headers_manager
+    calls: list[str] = []
+    cache = type(manager)._cache_configuration
+    load = type(manager)._load_cached_config
+
+    def spy_cache(self: Any, *args: Any, **kwargs: Any) -> Any:
+        calls.append("cache")
+        return cache(self, *args, **kwargs)
+
+    def spy_load(self: Any, *args: Any, **kwargs: Any) -> Any:
+        calls.append("load")
+        return load(self, *args, **kwargs)
+
+    monkeypatch.setattr(type(manager), "_cache_configuration", spy_cache)
+    monkeypatch.setattr(type(manager), "_load_cached_config", spy_load)
+
+    _response(app)
+    assert calls[:2] == ["load", "cache"]
+    calls.clear()
+
+    _override(csp=GLOBAL_CSP)
+    _response(app)
+    assert calls == ["cache"]
+    assert len([k for k in redis.store if ":override:" in k]) == 1
+    assert {redis.ttls[k] for k in redis.store} == {None}
+    calls.clear()
+
+    clock.now += 5.0
+    _response(app)
+    assert calls == ["load"]
+
+
+def test_the_managers_own_keys_keep_their_v440_names_and_ttl() -> None:
+    redis = FakeRedis()
+    manager = SecurityHeadersManager.isolated()
+    manager.configure(csp=GLOBAL_CSP, hsts_max_age=100, custom_headers={"X-O": "1"})
+    manager.redis_handler = redis
+
+    manager._cache_configuration()
+
+    assert {k: redis.ttls[k] for k in redis.store} == {
+        "t:security_headers:csp_config": 86400,
+        "t:security_headers:hsts_config": 86400,
+        "t:security_headers:custom_headers": 86400,
+    }
+
+
+def test_an_unbound_manager_reads_exactly_its_three_v440_keys() -> None:
+    redis = FakeRedis()
+    manager = SecurityHeadersManager.isolated()
+
+    manager.initialize_redis(redis)
+
+    assert redis.gets == 3

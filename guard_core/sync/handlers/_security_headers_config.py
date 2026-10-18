@@ -7,6 +7,7 @@ from cachetools import TTLCache
 
 from guard_core._security_headers_defaults import (
     SECURITY_HEADER_NAMES,
+    default_security_headers_config,
     effective_security_headers_config,
 )
 from guard_core._security_headers_override import (
@@ -241,10 +242,11 @@ class SecurityHeadersConfigMixin:
                 self.custom_headers,
             )
 
-        effective = apply_override(
-            effective_security_headers_config(config.security_headers) or {},
-            self._current_override().keys,
-        )
+        override = self._current_override().keys
+        base = effective_security_headers_config(config.security_headers)
+        if base is None:
+            base = default_security_headers_config() if override.get("enabled") else {}
+        effective = apply_override(base, override)
         hsts_cfg = effective.get("hsts") or {}
 
         csp_config = self._compute_csp_config(effective.get("csp"))
@@ -299,7 +301,7 @@ class SecurityHeadersConfigMixin:
         cors_allow_credentials: bool = False,
         cors_allow_methods: list[str] | None = None,
         cors_allow_headers: list[str] | None = None,
-        override_apps: bool = True,
+        override_apps: bool = False,
     ) -> None:
         passed = override_from_call(
             enabled=enabled,

@@ -8,7 +8,6 @@ from guard_core._security_headers_override import (
     OVERRIDE_PULL_INTERVAL_SECONDS,
     PROCESS_OVERRIDE,
     OverrideRecord,
-    config_fingerprint,
     now_monotonic,
     override_display,
     override_event_metadata,
@@ -46,6 +45,11 @@ class SecurityHeadersOverrideMixin:
     _override_next_pull: float
     _override_save_retry_at: float
     _startup_hash: str | None
+    _redis_initialized: bool
+
+    def _persistence(self) -> Any:
+        # the persistence methods live in the cache mixin
+        return self
 
     def _initialize_override_state(self) -> None:
         self._override = OverrideRecord(0.0, {})
@@ -56,6 +60,7 @@ class SecurityHeadersOverrideMixin:
         self._override_next_pull = 0.0
         self._override_save_retry_at = 0.0
         self._startup_hash = None
+        self._redis_initialized = False
 
     def _is_global_manager(self) -> bool:
         return bool(type(self)._instance is self)
@@ -123,32 +128,42 @@ class SecurityHeadersOverrideMixin:
         self._override_in_redis = False
         self._override_next_pull = 0.0
         self._startup_hash = None
+        self._redis_initialized = False
 
     def _override_key(self) -> str:
         return f"override:{self._startup_hash}"
 
     def _sync_override(self, config: SecurityConfig) -> None:
-        if self.redis_handler is not None and self._startup_hash is None:
-            self._startup_hash = config_fingerprint(config)
         current = self._current_override()
         if current.event and current.set_at > self._override_announced_at:
             self._override_announced_at = current.set_at
             self._send_override_event(current)
-        if self.redis_handler is not None:
-            self._sync_override_with_redis(current)
+        if self.redis_handler is None:
+            return
+        if not self._redis_initialized:
+            self._persistence().initialize_redis(self.redis_handler, config)
+            return
+        self._sync_override_with_redis(current)
 
     def _sync_override_with_redis(self, current: OverrideRecord) -> None:
-        now = now_monotonic()
         if current.set_at > self._override_saved_at:
-            if current.keys or self._override_in_redis:
-                if now >= self._override_save_retry_at:
-                    self._save_override(current, now)
+            saving = bool(current.keys) or self._override_in_redis
+            self._persistence()._cache_configuration(own_state=False)
+            if saving:
                 return
-            self._override_saved_at = current.set_at
-        if now >= self._override_next_pull:
-            self._pull_override(now)
+        if now_monotonic() >= self._override_next_pull:
+            self._persistence()._load_cached_config(own_state=False)
 
-    def _save_override(self, record: OverrideRecord, now: float) -> None:
+    def _save_override_record(self) -> None:
+        record = self._current_override()
+        if record.set_at <= self._override_saved_at:
+            return
+        if not record.keys and not self._override_in_redis:
+            self._override_saved_at = record.set_at
+            return
+        now = now_monotonic()
+        if now < self._override_save_retry_at:
+            return
         try:
             if record.keys:
                 self.redis_handler.set_key(
@@ -169,8 +184,8 @@ class SecurityHeadersOverrideMixin:
         self._override_saved_at = record.set_at
         self._override_in_redis = bool(record.keys)
 
-    def _pull_override(self, now: float) -> None:
-        self._override_next_pull = now + OVERRIDE_PULL_INTERVAL_SECONDS
+    def _pull_override(self) -> None:
+        self._override_next_pull = now_monotonic() + OVERRIDE_PULL_INTERVAL_SECONDS
         try:
             raw = self.redis_handler.get_key(_OVERRIDE_NAMESPACE, self._override_key())
         except Exception as e:

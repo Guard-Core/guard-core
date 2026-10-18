@@ -60,10 +60,10 @@ async def test_two_apps_in_one_process_keep_their_own_header_config() -> None:
     assert response_a_again.headers == response_a.headers
 
 
-async def test_reconfiguring_another_manager_does_not_reach_an_app() -> None:
+async def test_reconfiguring_the_shared_singleton_does_not_reach_an_app() -> None:
     app = _factory(_config(frame_options="DENY"))
 
-    SecurityHeadersManager.isolated().configure(enabled=False)
+    security_headers_manager.configure(enabled=False)
     response = await app.apply_security_headers(MockGuardResponse("a", 200))
 
     assert response.headers["X-Frame-Options"] == "DENY"
