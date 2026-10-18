@@ -1,6 +1,7 @@
 from ipaddress import ip_address
 from typing import Any
 
+from guard_core.exceptions import GuardRedisError
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.ip_extraction import (
     _is_trusted_proxy,
@@ -110,6 +111,19 @@ class IpSecurityCheck(SecurityCheck):
     def check_name(self) -> str:
         return "ip_security"
 
+    def _is_banned_failing_open_on_redis_loss(self, client_ip: str) -> bool:
+        try:
+            return self.ip_ban_manager.is_ip_banned(client_ip)
+        except GuardRedisError:
+            if not self.config.redis_fail_open:
+                raise
+            self.logger.warning(
+                "Redis unavailable: ban lookup skipped for %s, the IP lists "
+                "still apply (redis_fail_open=True)",
+                client_ip,
+            )
+            return False
+
     def _check_banned_ip(
         self,
         request: SyncGuardRequest,
@@ -119,7 +133,7 @@ class IpSecurityCheck(SecurityCheck):
         if self.middleware.route_resolver.should_bypass_check("ip_ban", route_config):
             return None
 
-        if not self.ip_ban_manager.is_ip_banned(client_ip):
+        if not self._is_banned_failing_open_on_redis_loss(client_ip):
             return None
 
         log_activity(

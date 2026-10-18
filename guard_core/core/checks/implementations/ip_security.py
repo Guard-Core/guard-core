@@ -17,6 +17,7 @@ from guard_core.core.events.event_types import (
     EVENT_IP_BLOCKED,
 )
 from guard_core.decorators.base import RouteConfig
+from guard_core.exceptions import GuardRedisError
 from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.utils import (
@@ -110,13 +111,26 @@ class IpSecurityCheck(SecurityCheck):
     def check_name(self) -> str:
         return "ip_security"
 
+    async def _is_banned_failing_open_on_redis_loss(self, client_ip: str) -> bool:
+        try:
+            return await self.ip_ban_manager.is_ip_banned(client_ip)
+        except GuardRedisError:
+            if not self.config.redis_fail_open:
+                raise
+            self.logger.warning(
+                "Redis unavailable: ban lookup skipped for %s, the IP lists "
+                "still apply (redis_fail_open=True)",
+                client_ip,
+            )
+            return False
+
     async def _check_banned_ip(
         self, request: GuardRequest, client_ip: str, route_config: RouteConfig | None
     ) -> GuardResponse | None:
         if self.middleware.route_resolver.should_bypass_check("ip_ban", route_config):
             return None
 
-        if not await self.ip_ban_manager.is_ip_banned(client_ip):
+        if not await self._is_banned_failing_open_on_redis_loss(client_ip):
             return None
 
         await log_activity(
