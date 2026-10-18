@@ -12,14 +12,14 @@ from guard_core.sync.utils import _check_whitelist, extract_client_ip, is_ip_all
 from tests.test_sync.conftest import SyncMockGuardRequest
 
 
-def test_whitelist_overrides_blacklist_exact() -> None:
+def test_whitelist_does_not_override_blacklist_exact() -> None:
     config = SecurityConfig(whitelist=["1.2.3.4"], blacklist=["1.2.3.4"])
-    assert is_ip_allowed("1.2.3.4", config) is True
+    assert is_ip_allowed("1.2.3.4", config) is False
 
 
-def test_whitelist_overrides_blacklist_cidr() -> None:
+def test_whitelist_does_not_override_blacklist_cidr() -> None:
     config = SecurityConfig(whitelist=["10.0.0.0/8"], blacklist=["10.0.0.0/8"])
-    assert is_ip_allowed("10.1.2.3", config) is True
+    assert is_ip_allowed("10.1.2.3", config) is False
 
 
 def test_restrictive_whitelist_blocks_unlisted() -> None:

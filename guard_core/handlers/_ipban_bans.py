@@ -73,20 +73,32 @@ class IpBanOperationsMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
             except ValueError as e:
                 raise ValueError(f"Invalid IP address {ip!r}: {e}") from e
 
+        await self._store_ban("banned_ips", ip, duration, reason)
+
+    async def _ban_identity(self, identity: str, duration: int, reason: str) -> None:
+        try:
+            network = ipaddress.ip_network(identity, strict=False)
+        except ValueError as e:
+            raise ValueError(f"Invalid identity {identity!r}: {e}") from e
+        await self._store_ban("banned_identities", str(network), duration, reason)
+
+    async def _store_ban(
+        self, namespace: str, key: str, duration: int, reason: str
+    ) -> None:
         expiry = time.time() + duration
-        self.banned_ips[ip] = expiry
+        self.banned_ips[key] = expiry
 
         if self.redis_handler:
             try:
                 await self.redis_handler.set_key(
-                    "banned_ips", ip, str(expiry), ttl=duration
+                    namespace, key, str(expiry), ttl=duration
                 )
             except Exception:
-                self._warn_kept_in_this_process(ip, "request failed")
+                self._warn_kept_in_this_process(key, "request failed")
 
         if self.agent_handler:
             await self._report_eviction()
-            await self._send_ban_event(ip, duration, reason)
+            await self._send_ban_event(key, duration, reason)
 
     async def _report_eviction(self) -> None:
         evicted = self.evicted_to_report
@@ -189,7 +201,12 @@ class IpBanOperationsMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
         )
 
     async def ban_ip(
-        self, ip: str, duration: int, reason: str = "threshold_exceeded"
+        self,
+        ip: str,
+        duration: int,
+        reason: str = "threshold_exceeded",
+        *,
+        grouped: bool = False,
     ) -> bool:
         ip = _canonicalize_ip(ip)
         self._assert_positive_duration(duration)
@@ -200,7 +217,9 @@ class IpBanOperationsMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
             await self._report_refused_ban(ip, refusal, duration, reason)
             return False
         self._warn_if_private_target(ip)
-        if "/" in ip:
+        if grouped:
+            await self._ban_identity(ip, duration, reason)
+        elif "/" in ip:
             await self._ban_cidr(ip, duration, reason)
         else:
             await self._ban_exact_ip(ip, duration, reason)

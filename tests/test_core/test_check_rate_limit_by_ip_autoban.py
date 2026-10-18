@@ -27,7 +27,11 @@ def _install_recording_ban_manager(
     ban_calls: BanCalls = []
 
     async def fake_ban(
-        ip: str, duration: int, reason: str = "threshold_exceeded"
+        ip: str,
+        duration: int,
+        reason: str = "threshold_exceeded",
+        *,
+        grouped: bool = False,
     ) -> bool:
         ban_calls.append((ip, duration, reason))
         return True
@@ -245,7 +249,11 @@ async def test_already_banned_ip_makes_zero_additional_ban_calls() -> None:
         ban_calls: BanCalls = []
 
         async def fake_ban(
-            ip: str, duration: int, reason: str = "threshold_exceeded"
+            ip: str,
+            duration: int,
+            reason: str = "threshold_exceeded",
+            *,
+            grouped: bool = False,
         ) -> bool:
             ban_calls.append((ip, duration, reason))
             manager.banned_ips[ip] = time.time() + duration

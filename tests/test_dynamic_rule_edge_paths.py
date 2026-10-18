@@ -118,7 +118,15 @@ async def test_unbanning_a_network_removes_the_redis_record() -> None:
     redis.delete = AsyncMock()
     with patch.object(ip_ban_manager, "redis_handler", redis):
         await ip_ban_manager.unban_ip("203.0.113.0/24")
-    redis.delete.assert_awaited_once_with("banned_networks", "203.0.113.0/24")
+    ban_keys = [
+        call.args
+        for call in redis.delete.call_args_list
+        if call.args[0].startswith("banned_")
+    ]
+    assert ban_keys == [
+        ("banned_networks", "203.0.113.0/24"),
+        ("banned_identities", "203.0.113.0/24"),
+    ]
 
 
 @pytest.mark.asyncio

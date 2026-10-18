@@ -1,14 +1,13 @@
 import asyncio
 import ipaddress
 import logging
-import time
 from collections.abc import Callable, Iterable, MutableMapping
 from typing import Any
 
-from guard_core._utils.ip_extraction import MALFORMED_FORWARDED_FOR_PREFIX
 from guard_core.handlers._ipban_cache import _Network
 from guard_core.handlers._ipban_coverage import NetworkCoverage
 from guard_core.handlers._ipban_events import IpBanEventMixin
+from guard_core.handlers._ipban_lookup import IpBanLookupMixin
 from guard_core.handlers._ipban_rule_exempt import IpBanRuleExemptionMixin
 from guard_core.handlers.redis_handler import scan_unlink
 from guard_core.utils import _canonicalize_ip
@@ -19,86 +18,31 @@ _EVENT_BATCH = 100
 _STRIKE_PATTERNS = ("rate_limit:violations:*", "detection:strikes*")
 
 
-def _member_covered(namespace: str, member: str, coverage: NetworkCoverage) -> bool:
-    if namespace == "banned_ips":
-        return coverage.covers_address(member)
+def _network_member_covered(member: str, coverage: NetworkCoverage) -> bool:
     try:
         return coverage.covers_network(ipaddress.ip_network(member, strict=False))
     except ValueError:
         return False
 
 
+def _member_covered(namespace: str, member: str, coverage: NetworkCoverage) -> bool:
+    if namespace == "banned_ips":
+        return coverage.covers_address(member)
+    return _network_member_covered(member, coverage)
+
+
 def _strike_key_inside(coverage: NetworkCoverage, stem: str) -> Callable[[str], bool]:
     def inside(key: str) -> bool:
-        return coverage.covers_address(key[len(stem) :].split("|", 1)[0])
+        return _network_member_covered(key[len(stem) :].split("|", 1)[0], coverage)
 
     return inside
 
 
-class IpBanQueryMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
+class IpBanQueryMixin(IpBanLookupMixin, IpBanEventMixin, IpBanRuleExemptionMixin):
     banned_ips: MutableMapping[str, float]
     banned_networks: list[tuple[_Network, float]]
     redis_handler: Any = None
     logger: logging.Logger
-
-    def _check_network_cache(
-        self, addr: ipaddress.IPv4Address | ipaddress.IPv6Address, now: float
-    ) -> bool:
-        active: list[tuple[_Network, float]] = []
-        hit = False
-        for network, expiry in self.banned_networks:
-            if expiry <= now:
-                continue
-            active.append((network, expiry))
-            if not hit and addr.version == network.version and addr in network:
-                hit = True
-        self.banned_networks = active
-        return hit
-
-    async def _check_redis_exact(self, ip: str, current_time: float) -> bool:
-        expiry = await self.redis_handler.get_key("banned_ips", ip)
-        if not expiry:
-            return False
-        expiry_time = float(expiry)
-        if current_time <= expiry_time:
-            self.banned_ips[ip] = expiry_time
-            return True
-        await self.redis_handler.delete("banned_ips", ip)
-        return False
-
-    def _purge_banned_ip(self, ip: str) -> None:
-        try:
-            del self.banned_ips[ip]
-        except KeyError:
-            return
-
-    async def is_ip_banned(self, ip: str) -> bool:
-        ip = _canonicalize_ip(ip)
-        if self.rule_exempt_networks and self._is_rule_exempt_ip(ip):
-            return False
-        current_time = time.time()
-
-        expiry = self.banned_ips.get(ip)
-        if expiry is not None:
-            if current_time > expiry:
-                self._purge_banned_ip(ip)
-                return False
-            return True
-
-        try:
-            addr = ipaddress.ip_address(ip)
-        except ValueError:
-            if ip.startswith(MALFORMED_FORWARDED_FOR_PREFIX) and self.redis_handler:
-                return await self._check_redis_exact(ip, current_time)
-            return False
-
-        if self._check_network_cache(addr, current_time):
-            return True
-
-        if self.redis_handler:
-            return await self._check_redis_exact(ip, current_time)
-
-        return False
 
     async def _unban_cidr(self, cidr: str, reason: str) -> None:
         network = ipaddress.ip_network(cidr, strict=False)
@@ -107,10 +51,19 @@ class IpBanQueryMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
             for banned, expiry in self.banned_networks
             if banned != network
         ]
+        self._purge_banned_ip(str(network))
         if self.redis_handler:
             await self.redis_handler.delete("banned_networks", str(network))
+            await self.redis_handler.delete("banned_identities", str(network))
+        await self._forget_strikes(str(network))
         if self.agent_handler:
             await self._send_unban_event(str(network), reason)
+
+    async def _unban_identity(self, identity: str) -> None:
+        self._purge_banned_ip(identity)
+        if self.redis_handler:
+            await self.redis_handler.delete("banned_identities", identity)
+        await self._forget_strikes(identity)
 
     async def unban_inside(self, entries: Iterable[str]) -> None:
         networks = [ipaddress.ip_network(entry, strict=False) for entry in entries]
@@ -128,8 +81,7 @@ class IpBanQueryMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
     async def _forget_strikes_of(self, members: list[str]) -> None:
         for start in range(0, len(members), _EVENT_BATCH):
             for member in members[start : start + _EVENT_BATCH]:
-                if "/" not in member:
-                    await self._forget_strikes(member)
+                await self._forget_strikes(member)
             await asyncio.sleep(0)
 
     async def _forget_strikes(self, ip: str, strict: bool = False) -> None:
@@ -224,7 +176,9 @@ class IpBanQueryMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
         keys = list(self.banned_ips)
         for start in range(0, len(keys), _MEMORY_BATCH):
             for ip in keys[start : start + _MEMORY_BATCH]:
-                if coverage.covers_address(ip):
+                if _member_covered(
+                    "banned_identities" if "/" in ip else "banned_ips", ip, coverage
+                ):
                     self._purge_banned_ip(ip)
                     removed.append(ip)
             await asyncio.sleep(0)
@@ -235,7 +189,7 @@ class IpBanQueryMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
         prefix = self.redis_handler.config.redis_prefix
         try:
             async with self.redis_handler.get_connection() as conn:
-                for namespace in ("banned_ips", "banned_networks"):
+                for namespace in ("banned_ips", "banned_networks", "banned_identities"):
                     stem = f"{prefix}{namespace}:"
                     batch: list[str] = []
                     async for key in conn.scan_iter(match=f"{stem}*", count=_BATCH):
@@ -258,12 +212,15 @@ class IpBanQueryMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
             await self._unban_cidr(ip, reason)
             return
         ip = _canonicalize_ip(ip)
+        identity = self._grouped_identity_of(ip)
         self._purge_banned_ip(ip)
 
         if self.redis_handler:
             await self.redis_handler.delete("banned_ips", ip)
 
         await self._forget_strikes(ip)
+        if identity is not None:
+            await self._unban_identity(identity)
 
         if self.agent_handler:
             await self._send_unban_event(ip, reason)
@@ -272,5 +229,7 @@ class IpBanQueryMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
         self.banned_ips.clear()
         self.banned_networks.clear()
         if self.redis_handler:
-            await self._unlink_prefixed(("banned_ips:*", "banned_networks:*"))
+            await self._unlink_prefixed(
+                ("banned_ips:*", "banned_networks:*", "banned_identities:*")
+            )
         await self._forget_all_strikes()

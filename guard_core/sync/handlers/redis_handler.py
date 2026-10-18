@@ -298,6 +298,18 @@ class RedisManager:
 
         return self.safe_operation(_get)
 
+    def get_many(self, pairs: Sequence[tuple[str, str]]) -> list[Any]:
+        if not self.config.enable_redis:
+            return [None] * len(pairs)
+
+        def _get_many(conn: Redis) -> list[Any]:
+            prefix = self.config.redis_prefix
+            return list(
+                conn.mget([f"{prefix}{namespace}:{key}" for namespace, key in pairs])
+            )
+
+        return list(self.safe_operation(_get_many))
+
     def set_key(
         self, namespace: str, key: str, value: Any, ttl: int | None = None
     ) -> bool | None:
