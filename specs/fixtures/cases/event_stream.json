@@ -1144,26 +1144,6 @@
       ],
       "expected": [
         {
-          "event_type": "rate_limited",
-          "ip_address": "203.0.113.10",
-          "country": null,
-          "user_agent": null,
-          "action_taken": "request_blocked",
-          "reason": "Rate limit exceeded: 2 requests in 60s window",
-          "endpoint": "/api",
-          "method": "GET",
-          "status_code": null,
-          "decorator_type": null,
-          "rule_type": null,
-          "pattern_matched": null,
-          "handler_name": "rate_limit",
-          "metadata": {
-            "request_count": 2,
-            "rate_limit": 10,
-            "window": 60
-          }
-        },
-        {
           "event_type": "dynamic_rule_violation",
           "ip_address": "203.0.113.10",
           "country": null,
@@ -1180,6 +1160,26 @@
           "metadata": {
             "rule_type": "endpoint_rate_limit",
             "endpoint": "/api",
+            "rate_limit": 1,
+            "window": 60
+          }
+        },
+        {
+          "event_type": "rate_limited",
+          "ip_address": "203.0.113.10",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "request_blocked",
+          "reason": "Rate limit exceeded: 2 requests in 60s window",
+          "endpoint": "/api",
+          "method": "GET",
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "rate_limit",
+          "metadata": {
+            "request_count": 2,
             "rate_limit": 1,
             "window": 60
           }

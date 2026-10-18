@@ -48,7 +48,7 @@
       },
       "expected": [
         {
-          "key": "guard_core:corpus_rio:rate_limit:rate:203.0.113.20:702acf7c08d3b03b321d97b4903ad2210d87cee61dae07068d060b8d7dcbd693",
+          "key": "guard_core:corpus_rio:rate_limit:rate:203.0.113.20:endpoint:702acf7c08d3b03b321d97b4903ad2210d87cee61dae07068d060b8d7dcbd693",
           "type": "zset",
           "ttl": {
             "set": true,
