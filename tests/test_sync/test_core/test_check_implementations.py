@@ -45,6 +45,7 @@ from guard_core.sync.core.checks.implementations.user_agent import UserAgentChec
 from guard_core.sync.core.events.event_types import EVENT_ROUTE_UNRESOLVED
 from guard_core.sync.decorators.base import RouteConfig
 from guard_core.sync.detection_result import DetectionResult
+from guard_core.sync.handlers.ratelimit_handler import RateLimitBlock
 from guard_core.sync.utils import IpAccessResult
 from tests.test_sync.conftest import MockGuardResponse, SyncMockGuardRequest
 
@@ -80,7 +81,8 @@ def _make_middleware(
     mw.geo_ip_handler = None
     mw.agent_handler = None
     mw.rate_limit_handler = MagicMock()
-    mw.rate_limit_handler.check_rate_limit = MagicMock(return_value=None)
+    mw.rate_limit_handler.report_rate_limit_block = MagicMock()
+    mw.rate_limit_handler.check_rate_limit_tiers = MagicMock(return_value=None)
     mw.suspicious_request_counts = {}
     mw.last_cloud_ip_refresh = 0
     mw.refresh_cloud_ip_ranges = MagicMock()
@@ -1301,7 +1303,10 @@ def test_rate_limit_bypass() -> None:
 def test_rate_limit_endpoint_specific() -> None:
     mw = _make_middleware(endpoint_rate_limits={"/api": (5, 60)})
     blocked_resp = MockGuardResponse("rate limited", 429)
-    mw.rate_limit_handler.check_rate_limit = MagicMock(return_value=blocked_resp)
+    mw.rate_limit_handler.report_rate_limit_block = MagicMock()
+    mw.rate_limit_handler.check_rate_limit_tiers = MagicMock(
+        return_value=RateLimitBlock(0, 6, blocked_resp)
+    )
     check = RateLimitCheck(mw)
     req = SyncMockGuardRequest(path="/api")
     req.state.is_whitelisted = False
@@ -1314,7 +1319,10 @@ def test_rate_limit_endpoint_specific() -> None:
 def test_rate_limit_route_specific() -> None:
     mw = _make_middleware()
     blocked_resp = MockGuardResponse("rate limited", 429)
-    mw.rate_limit_handler.check_rate_limit = MagicMock(return_value=blocked_resp)
+    mw.rate_limit_handler.report_rate_limit_block = MagicMock()
+    mw.rate_limit_handler.check_rate_limit_tiers = MagicMock(
+        return_value=RateLimitBlock(0, 6, blocked_resp)
+    )
     check = RateLimitCheck(mw)
     rc = RouteConfig()
     rc.rate_limit = 10
@@ -1339,7 +1347,10 @@ def test_rate_limit_global() -> None:
 def test_rate_limit_passive_mode() -> None:
     mw = _make_middleware(passive_mode=True, endpoint_rate_limits={"/api": (5, 60)})
     blocked_resp = MockGuardResponse("rate limited", 429)
-    mw.rate_limit_handler.check_rate_limit = MagicMock(return_value=blocked_resp)
+    mw.rate_limit_handler.report_rate_limit_block = MagicMock()
+    mw.rate_limit_handler.check_rate_limit_tiers = MagicMock(
+        return_value=RateLimitBlock(0, 6, blocked_resp)
+    )
     check = RateLimitCheck(mw)
     req = SyncMockGuardRequest(path="/api")
     req.state.is_whitelisted = False
@@ -1351,7 +1362,10 @@ def test_rate_limit_passive_mode() -> None:
 def test_rate_limit_global_passive_mode() -> None:
     mw = _make_middleware(passive_mode=True)
     blocked_resp = MockGuardResponse("rate limited", 429)
-    mw.rate_limit_handler.check_rate_limit = MagicMock(return_value=blocked_resp)
+    mw.rate_limit_handler.report_rate_limit_block = MagicMock()
+    mw.rate_limit_handler.check_rate_limit_tiers = MagicMock(
+        return_value=RateLimitBlock(0, 6, blocked_resp)
+    )
     check = RateLimitCheck(mw)
     req = SyncMockGuardRequest()
     req.state.is_whitelisted = False
@@ -1362,10 +1376,13 @@ def test_rate_limit_global_passive_mode() -> None:
 
 def test_rate_limit_geo_rate_limit() -> None:
     mw = _make_middleware()
-    mw.config.geo_ip_handler = MagicMock()
-    mw.config.geo_ip_handler.get_country = MagicMock(return_value="US")
+    mw.geo_ip_handler = MagicMock()
+    mw.geo_ip_handler.get_country = MagicMock(return_value="US")
     blocked_resp = MockGuardResponse("rate limited", 429)
-    mw.rate_limit_handler.check_rate_limit = MagicMock(return_value=blocked_resp)
+    mw.rate_limit_handler.report_rate_limit_block = MagicMock()
+    mw.rate_limit_handler.check_rate_limit_tiers = MagicMock(
+        return_value=RateLimitBlock(0, 6, blocked_resp)
+    )
     check = RateLimitCheck(mw)
     rc = RouteConfig()
     rc.geo_rate_limits = {"US": (5, 60)}
@@ -1378,10 +1395,13 @@ def test_rate_limit_geo_rate_limit() -> None:
 
 def test_rate_limit_geo_wildcard() -> None:
     mw = _make_middleware()
-    mw.config.geo_ip_handler = MagicMock()
-    mw.config.geo_ip_handler.get_country = MagicMock(return_value="FR")
+    mw.geo_ip_handler = MagicMock()
+    mw.geo_ip_handler.get_country = MagicMock(return_value="FR")
     blocked_resp = MockGuardResponse("rate limited", 429)
-    mw.rate_limit_handler.check_rate_limit = MagicMock(return_value=blocked_resp)
+    mw.rate_limit_handler.report_rate_limit_block = MagicMock()
+    mw.rate_limit_handler.check_rate_limit_tiers = MagicMock(
+        return_value=RateLimitBlock(0, 6, blocked_resp)
+    )
     check = RateLimitCheck(mw)
     rc = RouteConfig()
     rc.geo_rate_limits = {"*": (5, 60)}
@@ -1394,7 +1414,7 @@ def test_rate_limit_geo_wildcard() -> None:
 
 def test_rate_limit_geo_no_handler() -> None:
     mw = _make_middleware()
-    mw.config.geo_ip_handler = None
+    mw.geo_ip_handler = None
     check = RateLimitCheck(mw)
     rc = RouteConfig()
     rc.geo_rate_limits = {"US": (5, 60)}
@@ -1407,8 +1427,8 @@ def test_rate_limit_geo_no_handler() -> None:
 
 def test_rate_limit_geo_no_match() -> None:
     mw = _make_middleware()
-    mw.config.geo_ip_handler = MagicMock()
-    mw.config.geo_ip_handler.get_country = MagicMock(return_value="FR")
+    mw.geo_ip_handler = MagicMock()
+    mw.geo_ip_handler.get_country = MagicMock(return_value="FR")
     check = RateLimitCheck(mw)
     rc = RouteConfig()
     rc.geo_rate_limits = {"US": (5, 60)}
@@ -1579,7 +1599,8 @@ def test_custom_request_passive_mode() -> None:
 
 def test_rate_limit_route_default_window() -> None:
     mw = _make_middleware()
-    mw.rate_limit_handler.check_rate_limit = MagicMock(return_value=None)
+    mw.rate_limit_handler.report_rate_limit_block = MagicMock()
+    mw.rate_limit_handler.check_rate_limit_tiers = MagicMock(return_value=None)
     check = RateLimitCheck(mw)
     rc = RouteConfig()
     rc.rate_limit = 10

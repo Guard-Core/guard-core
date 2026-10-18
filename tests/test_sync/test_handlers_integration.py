@@ -9,7 +9,12 @@ import pytest
 from guard_core.exceptions import GuardRedisError
 from guard_core.models import SecurityConfig
 from guard_core.sync.handlers.ipban_handler import IPBanManager
-from guard_core.sync.handlers.ratelimit_handler import RateLimitManager
+from guard_core.sync.handlers.ratelimit_handler import (
+    RateLimitManager,
+    RateLimitTier,
+    RateLimitVerdict,
+    _in_memory_tier_verdict,
+)
 from guard_core.sync.handlers.security_headers_handler import SecurityHeadersManager
 from tests.test_sync.conftest import REDIS_URL, SyncMockGuardRequest
 
@@ -165,13 +170,17 @@ def test_ratelimit_initialize_redis_exception() -> None:
     assert mgr.rate_limit_script_sha is None
 
 
+def _global_verdict(mgr: RateLimitManager) -> RateLimitVerdict:
+    return mgr._tier_verdict("1.2.3.4", [RateLimitTier("global", 10, 60)], mgr.config)
+
+
 def test_ratelimit_redis_count_with_script() -> None:
     config = SecurityConfig(enable_redis=True, redis_url="redis://localhost:6379")
     mgr = RateLimitManager(config)
     mgr.rate_limit_script_sha = "sha123"
 
     mock_conn = MagicMock()
-    mock_conn.evalsha = MagicMock(return_value=5)
+    mock_conn.evalsha = MagicMock(return_value=[1, 5, 12])
 
     @contextmanager
     def mock_get_connection() -> Generator[MagicMock, None]:
@@ -183,8 +192,11 @@ def test_ratelimit_redis_count_with_script() -> None:
     redis.config.redis_prefix = "test:"
     mgr.redis_handler = redis
 
-    count = mgr._get_redis_request_count("1.2.3.4", time.time(), time.time() - 60)
-    assert count == 5
+    verdict = _global_verdict(mgr)
+    assert verdict == RateLimitVerdict(0, 6, 12)
+    mock_conn.evalsha.assert_called_once_with(
+        "sha123", 1, "test:rate_limit:rate:1.2.3.4", 10, 60
+    )
 
 
 def test_ratelimit_redis_count_without_script() -> None:
@@ -196,10 +208,12 @@ def test_ratelimit_redis_count_without_script() -> None:
     mock_pipeline.zadd = MagicMock()
     mock_pipeline.zremrangebyscore = MagicMock()
     mock_pipeline.zcard = MagicMock()
+    mock_pipeline.zrange = MagicMock()
     mock_pipeline.expire = MagicMock()
-    mock_pipeline.execute = MagicMock(return_value=[1, 0, 3, True])
+    mock_pipeline.execute = MagicMock(side_effect=[[0, 3, []], [1, True]])
 
     mock_conn = MagicMock()
+    mock_conn.time = MagicMock(return_value=(1000, 500000))
     mock_conn.pipeline = MagicMock(return_value=mock_pipeline)
 
     @contextmanager
@@ -212,8 +226,11 @@ def test_ratelimit_redis_count_without_script() -> None:
     redis.config.redis_prefix = "test:"
     mgr.redis_handler = redis
 
-    count = mgr._get_redis_request_count("1.2.3.4", time.time(), time.time() - 60)
-    assert count == 3
+    verdict = _global_verdict(mgr)
+    assert verdict == RateLimitVerdict(None)
+    mock_pipeline.zadd.assert_called_once_with(
+        "test:rate_limit:rate:1.2.3.4", {"1000.5": 1000.5}
+    )
 
 
 def test_ratelimit_redis_error_raises_when_fail_open_false() -> None:
@@ -230,7 +247,7 @@ def test_ratelimit_redis_error_raises_when_fail_open_false() -> None:
     mgr.redis_handler = redis
 
     with pytest.raises(GuardRedisError):
-        mgr._get_redis_request_count("1.2.3.4", time.time(), time.time() - 60)
+        _global_verdict(mgr)
 
 
 def test_ratelimit_redis_error_falls_back_when_fail_open_true() -> None:
@@ -248,8 +265,8 @@ def test_ratelimit_redis_error_falls_back_when_fail_open_true() -> None:
     redis.config.redis_prefix = "test:"
     mgr.redis_handler = redis
 
-    count = mgr._get_redis_request_count("1.2.3.4", time.time(), time.time() - 60)
-    assert count is None
+    assert _global_verdict(mgr) == RateLimitVerdict(None)
+    assert mgr.request_timestamps
 
 
 def test_ratelimit_generic_error_raises_when_fail_open_false() -> None:
@@ -264,7 +281,7 @@ def test_ratelimit_generic_error_raises_when_fail_open_false() -> None:
     mgr.redis_handler = redis
 
     with pytest.raises(GuardRedisError):
-        mgr._get_redis_request_count("1.2.3.4", time.time(), time.time() - 60)
+        _global_verdict(mgr)
 
 
 def test_ratelimit_generic_error_falls_back_when_fail_open_true() -> None:
@@ -280,16 +297,21 @@ def test_ratelimit_generic_error_falls_back_when_fail_open_true() -> None:
     redis.config.redis_prefix = "test:"
     mgr.redis_handler = redis
 
-    count = mgr._get_redis_request_count("1.2.3.4", time.time(), time.time() - 60)
-    assert count is None
+    assert _global_verdict(mgr) == RateLimitVerdict(None)
+    assert mgr.request_timestamps
 
 
 def test_ratelimit_in_memory_with_endpoint() -> None:
     config = SecurityConfig(enable_redis=False)
     mgr = RateLimitManager(config)
-    current = time.time()
-    count = mgr._get_in_memory_request_count("1.2.3.4", current - 60, current, "/api")
-    assert count == 0
+    verdict = _in_memory_tier_verdict(
+        mgr.request_timestamps,
+        "1.2.3.4",
+        [RateLimitTier("endpoint", 10, 60, "/api")],
+        time.time(),
+    )
+    assert verdict == RateLimitVerdict(None)
+    assert len(mgr.request_timestamps) == 1
 
 
 def test_ratelimit_check_disabled() -> None:
@@ -307,7 +329,7 @@ def test_ratelimit_check_redis_exceeded() -> None:
     mgr = RateLimitManager(config)
 
     mock_conn = MagicMock()
-    mock_conn.evalsha = MagicMock(return_value=10)
+    mock_conn.evalsha = MagicMock(return_value=[1, 5, 20])
 
     @contextmanager
     def mock_get_connection() -> Generator[MagicMock, None]:
@@ -338,7 +360,7 @@ def test_ratelimit_check_redis_ok() -> None:
     mgr = RateLimitManager(config)
 
     mock_conn = MagicMock()
-    mock_conn.evalsha = MagicMock(return_value=2)
+    mock_conn.evalsha = MagicMock(return_value=[0, 0, 0])
 
     @contextmanager
     def mock_get_connection() -> Generator[MagicMock, None]:
@@ -453,7 +475,7 @@ def test_ratelimit_redis_count_with_endpoint() -> None:
     mgr.rate_limit_script_sha = "sha123"
 
     mock_conn = MagicMock()
-    mock_conn.evalsha = MagicMock(return_value=2)
+    mock_conn.evalsha = MagicMock(return_value=[0, 0, 0])
 
     @contextmanager
     def mock_get_connection() -> Generator[MagicMock, None]:
@@ -465,10 +487,12 @@ def test_ratelimit_redis_count_with_endpoint() -> None:
     redis.config.redis_prefix = "test:"
     mgr.redis_handler = redis
 
-    count = mgr._get_redis_request_count(
-        "1.2.3.4", time.time(), time.time() - 60, endpoint_path="/api"
+    verdict = mgr._tier_verdict(
+        "1.2.3.4", [RateLimitTier("endpoint", 10, 60, "/api")], config
     )
-    assert count == 2
+    assert verdict == RateLimitVerdict(None)
+    key = mock_conn.evalsha.call_args.args[2]
+    assert key.startswith("test:rate_limit:rate:1.2.3.4:endpoint:")
 
 
 def test_security_headers_cors_wildcard_credentials() -> None:

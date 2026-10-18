@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 from typing import Any
-from unittest.mock import MagicMock, Mock
+from unittest.mock import Mock
 
 import pytest
 
@@ -18,7 +18,6 @@ def check() -> RateLimitCheck:
     middleware = Mock()
     middleware.config = config
     middleware.geo_ip_handler = geo_handler
-    middleware.rate_limit_handler.check_rate_limit = MagicMock(return_value=None)
     return RateLimitCheck(middleware)
 
 
@@ -30,9 +29,14 @@ def _request(path: str, route_id: str) -> Any:
     return request
 
 
-def _bucket_paths(check: RateLimitCheck) -> list[str]:
-    handler = check.middleware.rate_limit_handler.check_rate_limit
-    return [call.kwargs["endpoint_path"] for call in handler.call_args_list]
+def _bucket(check: RateLimitCheck, kind: str, request: Any, route_config: Any) -> str:
+    plan = (
+        check._route_plan(request, route_config)
+        if kind == "route"
+        else check._geo_plan(request, "1.2.3.4", route_config)
+    )
+    assert plan is not None
+    return plan.tier.bucket
 
 
 @pytest.mark.parametrize("kind", ["route", "geo"])
@@ -41,23 +45,24 @@ def test_route_and_geo_buckets_are_keyed_by_route_identity(
 ) -> None:
     route_config = Mock(rate_limit=5, rate_limit_window=60)
     route_config.geo_rate_limits = {"US": (5, 60)}
-    method = (
-        check._check_route_rate_limit
-        if kind == "route"
-        else check._check_geo_rate_limit
-    )
-    for path in SPELLINGS:
-        method(_request(path, "app.users.get"), "1.2.3.4", route_config)
 
-    assert set(_bucket_paths(check)) == {"app.users.get"}
+    buckets = {
+        _bucket(check, kind, _request(path, "app.users.get"), route_config)
+        for path in SPELLINGS
+    }
+
+    assert buckets == {"app.users.get"}
 
 
 def test_two_routes_never_share_a_bucket(check: RateLimitCheck) -> None:
     route_config = Mock(rate_limit=5, rate_limit_window=60)
-    check._check_route_rate_limit(_request("/a", "app.a"), "1.2.3.4", route_config)
-    check._check_route_rate_limit(_request("/a", "app.b"), "1.2.3.4", route_config)
 
-    assert _bucket_paths(check) == ["app.a", "app.b"]
+    buckets = [
+        _bucket(check, "route", _request("/a", route_id), route_config)
+        for route_id in ("app.a", "app.b")
+    ]
+
+    assert buckets == ["app.a", "app.b"]
 
 
 @pytest.mark.parametrize("kind", ["route", "geo"])
@@ -66,15 +71,8 @@ def test_a_request_without_a_route_id_keeps_the_path_bucket(
 ) -> None:
     route_config = Mock(rate_limit=5, rate_limit_window=60)
     route_config.geo_rate_limits = {"US": (5, 60)}
-    method = (
-        check._check_route_rate_limit
-        if kind == "route"
-        else check._check_geo_rate_limit
-    )
     request = Mock()
     request.url_path = "/users/1"
     request.state = SimpleNamespace()
 
-    method(request, "1.2.3.4", route_config)
-
-    assert _bucket_paths(check) == ["/users/1"]
+    assert _bucket(check, kind, request, route_config) == "/users/1"

@@ -6,6 +6,7 @@ from pydantic import ValidationError
 from guard_core.models import SecurityConfig, ThreatBanConfig
 from guard_core.sync.core.checks.implementations.rate_limit import RateLimitCheck
 from guard_core.sync.handlers.ipban_handler import IPBanManager
+from guard_core.sync.handlers.ratelimit_handler import RateLimitBlock
 
 BanCalls = list[tuple[str, int, str]]
 
@@ -22,8 +23,9 @@ def _make_middleware(config: SecurityConfig) -> Mock:
     middleware.geo_ip_handler = None
     middleware.suspicious_request_counts = {}
     middleware.rate_limit_handler = Mock()
-    middleware.rate_limit_handler.check_rate_limit = MagicMock(
-        return_value=Mock(status_code=429)
+    middleware.rate_limit_handler.report_rate_limit_block = MagicMock()
+    middleware.rate_limit_handler.check_rate_limit_tiers = MagicMock(
+        return_value=RateLimitBlock(0, 2, Mock(status_code=429))
     )
     return middleware
 

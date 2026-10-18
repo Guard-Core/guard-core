@@ -8,6 +8,8 @@ from guard_core.core.checks.helpers import SUSPICIOUS_COUNT_WINDOW_SECONDS
 from guard_core.core.checks.implementations.rate_limit import RateLimitCheck
 from guard_core.handlers.ipban_handler import IPBanManager
 from guard_core.handlers.ratelimit_handler import (
+    RateLimitBlock,
+    RateLimitVerdict,
     _by_ip_autoban_counts,
     check_rate_limit_by_ip,
 )
@@ -204,14 +206,14 @@ async def test_redis_backed_over_limit_feeds_autoban_counter(
     _, ban_calls = _install_recording_ban_manager(config)
     try:
 
-        async def fake_redis_count(
+        async def fake_redis_verdict(
             *_args: object, **_kwargs: object
-        ) -> tuple[int, None]:
-            return 5, None
+        ) -> tuple[RateLimitVerdict, None]:
+            return RateLimitVerdict(0, 6, 30), None
 
         monkeypatch.setattr(
-            "guard_core.handlers.ratelimit_handler._redis_request_count",
-            fake_redis_count,
+            "guard_core.handlers.ratelimit_handler._redis_tier_verdict",
+            fake_redis_verdict,
         )
 
         ip = "192.0.2.107"
@@ -280,8 +282,9 @@ def _make_middleware(config: SecurityConfig) -> Mock:
     middleware.geo_ip_handler = None
     middleware.suspicious_request_counts = {}
     middleware.rate_limit_handler = Mock()
-    middleware.rate_limit_handler.check_rate_limit = AsyncMock(
-        return_value=Mock(status_code=429)
+    middleware.rate_limit_handler.report_rate_limit_block = AsyncMock()
+    middleware.rate_limit_handler.check_rate_limit_tiers = AsyncMock(
+        return_value=RateLimitBlock(0, 2, Mock(status_code=429))
     )
     return middleware
 

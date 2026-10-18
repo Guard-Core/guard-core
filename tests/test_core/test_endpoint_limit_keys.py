@@ -1,5 +1,5 @@
 from typing import Any
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
@@ -147,14 +147,7 @@ def test_pipeline_needs_route_identity_follows_its_checks(
 
 
 async def _enforced_keys(check: RateLimitCheck, request: Any) -> list[str]:
-    seen: list[str] = []
-
-    async def apply(*args: Any, **kwargs: Any) -> None:
-        seen.append(kwargs["endpoint_path"])
-
-    with patch.object(check, "_apply_rate_limit_check", apply):
-        await check._check_endpoint_rate_limit(request, "1.2.3.4")
-    return seen
+    return [plan.tier.bucket for plan in check._endpoint_plans(request)]
 
 
 async def test_every_matched_key_is_enforced_in_its_own_bucket(

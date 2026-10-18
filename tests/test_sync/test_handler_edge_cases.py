@@ -8,7 +8,12 @@ from unittest.mock import MagicMock, patch
 from guard_core.models import SecurityConfig
 from guard_core.sync.handlers.cloud_handler import CloudManager
 from guard_core.sync.handlers.ipban_handler import IPBanManager, reset_global_state
-from guard_core.sync.handlers.ratelimit_handler import RateLimitManager
+from guard_core.sync.handlers.ratelimit_handler import (
+    RateLimitManager,
+    RateLimitTier,
+    RateLimitVerdict,
+    _in_memory_tier_verdict,
+)
 from guard_core.sync.handlers.redis_handler import RedisManager
 from guard_core.sync.handlers.security_headers_handler import SecurityHeadersManager
 from tests.test_sync.conftest import (
@@ -49,8 +54,11 @@ def test_ratelimit_popleft_stale_timestamps() -> None:
     old_time = time.time() - 120
     current = time.time()
     mgr.request_timestamps["1.2.3.4"] = deque([old_time, old_time + 1])
-    count = mgr._get_in_memory_request_count("1.2.3.4", current - 60, current)
-    assert count == 0
+    verdict = _in_memory_tier_verdict(
+        mgr.request_timestamps, "1.2.3.4", [RateLimitTier("global", 1, 60)], current
+    )
+    assert verdict == RateLimitVerdict(None)
+    assert list(mgr.request_timestamps["1.2.3.4"]) == [current]
 
 
 def test_cloud_handler_get_details_match() -> None:

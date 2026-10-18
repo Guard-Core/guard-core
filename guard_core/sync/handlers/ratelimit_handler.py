@@ -1,11 +1,12 @@
 import ipaddress
 import logging
+import math
 import threading
 import time
 from collections import defaultdict, deque
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, NamedTuple, Optional
 
 from redis.exceptions import NoScriptError, RedisError
 
@@ -58,64 +59,122 @@ def _resolve_redis_rate_limit_failure(
     raise GuardRedisError(503, "Redis rate limiting unavailable") from error
 
 
-def _redis_request_count(
+class RateLimitTier(NamedTuple):
+    kind: str
+    limit: int
+    window: int
+    bucket: str = ""
+
+
+class RateLimitVerdict(NamedTuple):
+    tier_index: int | None
+    request_count: int = 0
+    retry_after: int = 0
+
+
+class RateLimitBlock(NamedTuple):
+    tier_index: int
+    request_count: int
+    response: GuardResponse
+
+
+_ALLOWED = RateLimitVerdict(None)
+_KINDS_IN_KEY = frozenset({"endpoint", "route", "geo"})
+
+
+def _tier_key(client_ip: str, tier: RateLimitTier) -> str:
+    if tier.kind in _KINDS_IN_KEY:
+        return f"{client_ip}:{tier.kind}:{_hash_identity_segment(tier.bucket)}"
+    if tier.bucket:
+        return f"{client_ip}:{_hash_identity_segment(tier.bucket)}"
+    return client_ip
+
+
+def _retry_after_seconds(oldest: float | None, window: int, now: float) -> int:
+    if oldest is None:
+        return window
+    return max(1, math.ceil(oldest + window - now))
+
+
+def _script_arguments(tiers: Sequence[RateLimitTier]) -> list[int]:
+    return [value for tier in tiers for value in (tier.limit, tier.window)]
+
+
+def _verdict_from_script_result(result: Sequence[Any]) -> RateLimitVerdict:
+    tier_number, count, retry_after = (int(value) for value in result)
+    if tier_number == 0:
+        return _ALLOWED
+    return RateLimitVerdict(tier_number - 1, count + 1, retry_after)
+
+
+def _evalsha_tiers(
+    conn: Any,
+    logger: logging.Logger,
+    script_sha: str,
+    keys: list[str],
+    tiers: Sequence[RateLimitTier],
+    on_script_reloaded: Callable[[], None] | None,
+) -> tuple[Sequence[Any], str]:
+    arguments = _script_arguments(tiers)
+    try:
+        return conn.evalsha(script_sha, len(keys), *keys, *arguments), script_sha
+    except NoScriptError:
+        script_sha = conn.script_load(RATE_LIMIT_SCRIPT)
+        logger.info("Rate limit Lua script reloaded after NOSCRIPT")
+        if on_script_reloaded is not None:
+            on_script_reloaded()
+        return conn.evalsha(script_sha, len(keys), *keys, *arguments), script_sha
+
+
+def _pipeline_tiers_verdict(
+    conn: Any, keys: list[str], tiers: Sequence[RateLimitTier]
+) -> RateLimitVerdict:
+    seconds, microseconds = conn.time()
+    now = int(seconds) + int(microseconds) / 1_000_000
+    inspect = conn.pipeline()
+    for key, tier in zip(keys, tiers, strict=True):
+        inspect.zremrangebyscore(key, 0, now - tier.window)
+        inspect.zcard(key)
+        inspect.zrange(key, 0, 0, withscores=True)
+    results = inspect.execute()
+    for index, tier in enumerate(tiers):
+        count = int(results[index * 3 + 1])
+        if count >= tier.limit:
+            oldest = results[index * 3 + 2]
+            oldest_hit = float(oldest[0][1]) if oldest else None
+            retry_after = _retry_after_seconds(oldest_hit, tier.window, now)
+            return RateLimitVerdict(index, count + 1, retry_after)
+    record = conn.pipeline()
+    for key, tier in zip(keys, tiers, strict=True):
+        record.zadd(key, {str(now): now})
+        record.expire(key, tier.window * 2)
+    record.execute()
+    return _ALLOWED
+
+
+def _redis_tier_verdict(
     redis_handler: Any,
     logger: logging.Logger,
     client_ip: str,
-    current_time: float,
-    window_start: float,
-    rate_limit_window: int,
-    rate_limit: int,
+    tiers: Sequence[RateLimitTier],
     rate_limit_script_sha: str | None,
     on_script_reloaded: Callable[[], None] | None = None,
-    endpoint_path: str = "",
     redis_fail_open: bool = False,
-) -> tuple[int | None, str | None]:
+) -> tuple[RateLimitVerdict | None, str | None]:
     if not redis_handler:
         return None, rate_limit_script_sha
 
-    rate_key = (
-        f"rate:{client_ip}:{_hash_identity_segment(endpoint_path)}"
-        if endpoint_path
-        else f"rate:{client_ip}"
-    )
-    key_name = f"{redis_handler.config.redis_prefix}rate_limit:{rate_key}"
+    prefix = f"{redis_handler.config.redis_prefix}rate_limit:rate:"
+    keys = [f"{prefix}{_tier_key(client_ip, tier)}" for tier in tiers]
 
     try:
-        if rate_limit_script_sha:
-            with redis_handler.get_connection() as conn:
-                try:
-                    count = conn.evalsha(
-                        rate_limit_script_sha,
-                        1,
-                        key_name,
-                        current_time,
-                        rate_limit_window,
-                        rate_limit,
-                    )
-                except NoScriptError:
-                    rate_limit_script_sha = conn.script_load(RATE_LIMIT_SCRIPT)
-                    logger.info("Rate limit Lua script reloaded after NOSCRIPT")
-                    if on_script_reloaded is not None:
-                        on_script_reloaded()
-                    count = conn.evalsha(
-                        rate_limit_script_sha,
-                        1,
-                        key_name,
-                        current_time,
-                        rate_limit_window,
-                        rate_limit,
-                    )
-            return int(count), rate_limit_script_sha
-        else:
-            with redis_handler.get_connection() as conn:
-                pipeline = conn.pipeline()
-                pipeline.zadd(key_name, {str(current_time): current_time})
-                pipeline.zremrangebyscore(key_name, 0, window_start)
-                pipeline.zcard(key_name)
-                pipeline.expire(key_name, rate_limit_window * 2)
-                results = pipeline.execute()
-                return int(results[2]), rate_limit_script_sha
+        with redis_handler.get_connection() as conn:
+            if rate_limit_script_sha:
+                result, rate_limit_script_sha = _evalsha_tiers(
+                    conn, logger, rate_limit_script_sha, keys, tiers, on_script_reloaded
+                )
+                return _verdict_from_script_result(result), rate_limit_script_sha
+            return _pipeline_tiers_verdict(conn, keys, tiers), None
 
     except RedisError as e:
         _resolve_redis_rate_limit_failure(
@@ -129,33 +188,32 @@ def _redis_request_count(
     return None, rate_limit_script_sha
 
 
-def _in_memory_request_count(
+def _in_memory_tier_verdict(
     request_timestamps: defaultdict[str, deque[float]],
-    lock: threading.Lock,
     client_ip: str,
-    window_start: float,
+    tiers: Sequence[RateLimitTier],
     current_time: float,
-    endpoint_path: str = "",
-) -> int:
-    key = (
-        f"{client_ip}:{_hash_identity_segment(endpoint_path)}"
-        if endpoint_path
-        else client_ip
-    )
-
+    lock: threading.Lock = _by_ip_lock,
+) -> RateLimitVerdict:
+    windows = []
     with lock:
-        timestamps = _lru_pop_or_create(
-            request_timestamps, key, _MAX_TRACKED_RATE_LIMIT_KEYS, deque
-        )
-
-        while timestamps and timestamps[0] <= window_start:
-            timestamps.popleft()
-
-        request_count = len(timestamps)
-        timestamps.append(current_time)
-        request_timestamps[key] = timestamps
-
-    return request_count
+        for index, tier in enumerate(tiers):
+            key = _tier_key(client_ip, tier)
+            timestamps = _lru_pop_or_create(
+                request_timestamps, key, _MAX_TRACKED_RATE_LIMIT_KEYS, deque
+            )
+            window_start = current_time - tier.window
+            while timestamps and timestamps[0] <= window_start:
+                timestamps.popleft()
+            request_timestamps[key] = timestamps
+            if len(timestamps) >= tier.limit:
+                oldest = timestamps[0] if timestamps else None
+                retry_after = _retry_after_seconds(oldest, tier.window, current_time)
+                return RateLimitVerdict(index, len(timestamps) + 1, retry_after)
+            windows.append(timestamps)
+        for timestamps in windows:
+            timestamps.append(current_time)
+        return _ALLOWED
 
 
 def _feed_rate_limit_autoban(ip: str, config: SecurityConfig) -> None:
@@ -289,37 +347,28 @@ def check_rate_limit_by_ip(
     if not config.enable_rate_limiting:
         return True
 
-    current_time = time.time()
-    window_start = current_time - config.rate_limit_window
+    tiers = [
+        RateLimitTier("", config.rate_limit, config.rate_limit_window, endpoint_path)
+    ]
 
-    allowed: bool | None = None
+    verdict: RateLimitVerdict | None = None
     if config.enable_redis and redis_handler:
-        count, _ = _redis_request_count(
+        verdict, _ = _redis_tier_verdict(
             redis_handler,
             _by_ip_logger,
             ip,
-            current_time,
-            window_start,
-            config.rate_limit_window,
-            config.rate_limit,
+            tiers,
             None,
             None,
-            endpoint_path,
             config.redis_fail_open,
         )
-        if count is not None:
-            allowed = count <= config.rate_limit
 
-    if allowed is None:
-        request_count = _in_memory_request_count(
-            _by_ip_request_timestamps,
-            _by_ip_lock,
-            ip,
-            window_start,
-            current_time,
-            endpoint_path=endpoint_path,
+    if verdict is None:
+        verdict = _in_memory_tier_verdict(
+            _by_ip_request_timestamps, ip, tiers, time.time(), _by_ip_lock
         )
-        allowed = request_count < config.rate_limit
+
+    allowed = verdict.tier_index is None
 
     if not allowed:
         _feed_rate_limit_autoban(ip, config)
@@ -329,13 +378,13 @@ def check_rate_limit_by_ip(
 
 class RateLimitManager:
     _instance: Optional["RateLimitManager"] = None
-    _lock: threading.Lock
     config: SecurityConfig
     request_timestamps: defaultdict[str, deque[float]]
     logger: logging.Logger
     redis_handler: Any = None
     agent_handler: Any = None
     rate_limit_script_sha: str | None = None
+    _lock: threading.Lock
 
     def __new__(
         cls: type["RateLimitManager"], config: SecurityConfig
@@ -392,33 +441,6 @@ class RateLimitManager:
         except Exception as e:
             self.logger.error(f"Failed to send script-reload event: {e}")
 
-    def _get_redis_request_count(
-        self,
-        client_ip: str,
-        current_time: float,
-        window_start: float,
-        endpoint_path: str = "",
-        rate_limit_window: int | None = None,
-        rate_limit: int | None = None,
-        redis_fail_open: bool | None = None,
-    ) -> int | None:
-        count, self.rate_limit_script_sha = _redis_request_count(
-            self.redis_handler,
-            self.logger,
-            client_ip,
-            current_time,
-            window_start,
-            rate_limit_window or self.config.rate_limit_window,
-            rate_limit if rate_limit is not None else self.config.rate_limit,
-            self.rate_limit_script_sha,
-            self._emit_script_reloaded_event,
-            endpoint_path,
-            redis_fail_open
-            if redis_fail_open is not None
-            else self.config.redis_fail_open,
-        )
-        return count
-
     def _handle_rate_limit_exceeded(
         self,
         request: SyncGuardRequest,
@@ -427,6 +449,7 @@ class RateLimitManager:
         create_error_response: Callable[[int, str], GuardResponse],
         rate_limit_window: int | None = None,
         config: SecurityConfig | None = None,
+        retry_after: int | None = None,
     ) -> GuardResponse:
         display_config = config or self.config
         window = rate_limit_window or display_config.rate_limit_window
@@ -447,33 +470,72 @@ class RateLimitManager:
             sensitive_body_fields=display_config.log_sensitive_body_fields,
         )
 
-        if self.agent_handler:
-            self._send_rate_limit_event(
-                request, client_ip, count, config=display_config
-            )
-
         response = create_error_response(
             429,
             "Too many requests",
         )
-        response.headers["Retry-After"] = str(window)
+        response.headers["Retry-After"] = str(
+            window if retry_after is None else retry_after
+        )
         return response
 
-    def _get_in_memory_request_count(
+    def _tier_verdict(
         self,
         client_ip: str,
-        window_start: float,
-        current_time: float,
-        endpoint_path: str = "",
-    ) -> int:
-        return _in_memory_request_count(
-            self.request_timestamps,
-            self._lock,
-            client_ip,
-            window_start,
-            current_time,
-            endpoint_path=endpoint_path,
+        tiers: Sequence[RateLimitTier],
+        config: SecurityConfig,
+    ) -> RateLimitVerdict:
+        if config.enable_redis and self.redis_handler:
+            verdict, self.rate_limit_script_sha = _redis_tier_verdict(
+                self.redis_handler,
+                self.logger,
+                client_ip,
+                tiers,
+                self.rate_limit_script_sha,
+                self._emit_script_reloaded_event,
+                config.redis_fail_open,
+            )
+            if verdict is not None:
+                return verdict
+        return _in_memory_tier_verdict(
+            self.request_timestamps, client_ip, tiers, time.time(), self._lock
         )
+
+    def check_rate_limit_tiers(
+        self,
+        request: SyncGuardRequest,
+        client_ip: str,
+        create_error_response: Callable[[int, str], GuardResponse],
+        tiers: Sequence[RateLimitTier],
+        config: SecurityConfig | None = None,
+    ) -> RateLimitBlock | None:
+        display_config = config or self.config
+        verdict = self._tier_verdict(client_ip, tiers, display_config)
+        if verdict.tier_index is None:
+            return None
+        response = self._handle_rate_limit_exceeded(
+            request,
+            client_ip,
+            verdict.request_count,
+            create_error_response,
+            rate_limit_window=tiers[verdict.tier_index].window,
+            config=display_config,
+            retry_after=verdict.retry_after,
+        )
+        return RateLimitBlock(verdict.tier_index, verdict.request_count, response)
+
+    def report_rate_limit_block(
+        self,
+        request: SyncGuardRequest,
+        client_ip: str,
+        block: RateLimitBlock,
+        tier: RateLimitTier,
+        config: SecurityConfig | None = None,
+    ) -> None:
+        if self.agent_handler:
+            self._send_rate_limit_event(
+                request, client_ip, block.request_count, config=config, tier=tier
+            )
 
     def check_rate_limit(
         self,
@@ -489,56 +551,21 @@ class RateLimitManager:
         if not display_config.enable_rate_limiting:
             return None
 
-        effective_limit = (
-            rate_limit if rate_limit is not None else display_config.rate_limit
-        )
-        effective_window = (
+        tier = RateLimitTier(
+            "endpoint" if endpoint_path else "global",
+            rate_limit if rate_limit is not None else display_config.rate_limit,
             rate_limit_window
             if rate_limit_window is not None
-            else display_config.rate_limit_window
+            else display_config.rate_limit_window,
+            endpoint_path,
         )
-
-        current_time = time.time()
-        window_start = current_time - effective_window
-
-        if display_config.enable_redis and self.redis_handler:
-            count = self._get_redis_request_count(
-                client_ip,
-                current_time,
-                window_start,
-                endpoint_path=endpoint_path,
-                rate_limit_window=effective_window,
-                rate_limit=effective_limit,
-                redis_fail_open=display_config.redis_fail_open,
-            )
-
-            if count is not None:
-                if count > effective_limit:
-                    return self._handle_rate_limit_exceeded(
-                        request,
-                        client_ip,
-                        count,
-                        create_error_response,
-                        rate_limit_window=effective_window,
-                        config=display_config,
-                    )
-                return None
-
-        request_count = self._get_in_memory_request_count(
-            client_ip, window_start, current_time, endpoint_path=endpoint_path
+        block = self.check_rate_limit_tiers(
+            request, client_ip, create_error_response, [tier], display_config
         )
-
-        if request_count >= effective_limit:
-            return self._handle_rate_limit_exceeded(
-                request,
-                client_ip,
-                request_count + 1,
-                create_error_response,
-                rate_limit_window=effective_window,
-                config=display_config,
-            )
-
-        return None
+        if block is None:
+            return None
+        self.report_rate_limit_block(request, client_ip, block, tier, display_config)
+        return block.response
 
     def _send_rate_limit_event(
         self,
@@ -546,17 +573,20 @@ class RateLimitManager:
         client_ip: str,
         request_count: int,
         config: SecurityConfig | None = None,
+        tier: RateLimitTier | None = None,
     ) -> None:
         display_config = config or self.config
+        limit = tier.limit if tier else display_config.rate_limit
+        window = tier.window if tier else display_config.rate_limit_window
         try:
+            from guard_core.sync.core.events.event_types import EVENT_RATE_LIMITED
+
+            if EVENT_RATE_LIMITED in display_config.muted_event_types:
+                return
             message = "Rate limit exceeded"
-            details = (
-                f"{request_count} requests in "
-                f"{display_config.rate_limit_window}s window"
-            )
+            details = f"{request_count} requests in {window}s window"
 
             from guard_core._pydantic_plugin_mute import get_telemetry_model
-            from guard_core.sync.core.events.event_types import EVENT_RATE_LIMITED
             from guard_core.sync.utils import get_pipeline_response_time
 
             SecurityEvent = get_telemetry_model("SecurityEvent")
@@ -565,7 +595,9 @@ class RateLimitManager:
                 timestamp=datetime.now(timezone.utc),
                 event_type=EVENT_RATE_LIMITED,
                 ip_address=client_ip,
-                action_taken="request_blocked",
+                action_taken=(
+                    "logged_only" if display_config.passive_mode else "request_blocked"
+                ),
                 reason=f"{message}: {details}",
                 endpoint=redact_endpoint_for_display(
                     str(request.url_path),
@@ -578,8 +610,8 @@ class RateLimitManager:
                 handler_name=_RATE_LIMIT_HANDLER_NAME,
                 metadata={
                     "request_count": request_count,
-                    "rate_limit": display_config.rate_limit,
-                    "window": display_config.rate_limit_window,
+                    "rate_limit": limit,
+                    "window": window,
                 },
             )
             self.agent_handler.send_event(event)

@@ -1,6 +1,6 @@
 from collections.abc import Collection
 from ipaddress import ip_address
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple
 
 from guard_core._utils.request_logging import redact_endpoint_for_display
 from guard_core.core.checks.base import SecurityCheck
@@ -11,6 +11,7 @@ from guard_core.core.checks.helpers import (
     _try_threshold_ban,
     emit_decorator_event,
     emit_rate_limit_event,
+    get_guard_decorator,
     route_config_applies,
 )
 from guard_core.core.checks.route_prefixes import warn_unmatched_endpoint_keys
@@ -19,6 +20,7 @@ from guard_core.core.events.event_types import (
     EVENT_DYNAMIC_RULE_VIOLATION,
 )
 from guard_core.decorators.base import RouteConfig
+from guard_core.handlers.ratelimit_handler import RateLimitBlock, RateLimitTier
 from guard_core.models import SecurityConfig
 from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse
@@ -58,6 +60,13 @@ def _route_bucket_key(request: GuardRequest) -> str:
     # A pluggable route resolver can return a route config without a route id.
     route_id = getattr(request.state, "guard_route_id", None)
     return route_id if isinstance(route_id, str) and route_id else request.url_path
+
+
+class _TierPlan(NamedTuple):
+    tier: RateLimitTier
+    event_type: str | None
+    event_kwargs: dict[str, Any]
+    trigger_info: str
 
 
 class RateLimitCheck(SecurityCheck):
@@ -193,62 +202,19 @@ class RateLimitCheck(SecurityCheck):
             identity,
         )
 
-    async def _apply_rate_limit_check(
-        self,
-        request: GuardRequest,
-        client_ip: str,
-        rate_limit: int,
-        window: int,
-        event_type: str,
-        event_kwargs: dict[str, Any],
-        endpoint_path: str = "",
-    ) -> GuardResponse | None:
-        result: (
-            GuardResponse | None
-        ) = await self.middleware.rate_limit_handler.check_rate_limit(
-            request,
-            client_ip,
-            self.middleware.create_error_response,
-            endpoint_path=endpoint_path,
-            rate_limit=rate_limit,
-            rate_limit_window=window,
-            config=self.config,
-        )
-
-        if result is not None:
-            await self._send_rate_limit_event(request, event_type, event_kwargs)
-            if self.config.passive_mode:
-                return None
-            await self._record_rate_limit_autoban(
-                request, client_ip, str(event_kwargs.get("reason", ""))
-            )
-
-        return result
-
-    async def _check_endpoint_rate_limit(
-        self, request: GuardRequest, client_ip: str
-    ) -> GuardResponse | None:
+    def _endpoint_plans(self, request: GuardRequest) -> list[_TierPlan]:
         limits = self.config.endpoint_rate_limits
         if not limits:
-            return None
-
+            return []
         identity = getattr(request.state, "guard_route_identity", None)
-        for key in self._current_endpoint_key_map(limits).matched_keys(
-            identity, request.url_path
-        ):
-            if response := await self._enforce_endpoint_key(
-                request, client_ip, key, limits[key]
-            ):
-                return response
-        return None
+        return [
+            self._endpoint_plan(key, limits[key])
+            for key in self._current_endpoint_key_map(limits).matched_keys(
+                identity, request.url_path
+            )
+        ]
 
-    async def _enforce_endpoint_key(
-        self,
-        request: GuardRequest,
-        client_ip: str,
-        endpoint_key: str,
-        limit: tuple[int, int],
-    ) -> GuardResponse | None:
+    def _endpoint_plan(self, endpoint_key: str, limit: tuple[int, int]) -> _TierPlan:
         rate_limit, window = limit
         safe_endpoint = redact_endpoint_for_display(
             endpoint_key,
@@ -256,54 +222,50 @@ class RateLimitCheck(SecurityCheck):
             self.config.log_sensitive_body_fields,
             self.config.log_sensitive_headers,
         )
-        return await self._apply_rate_limit_check(
-            request,
-            client_ip,
-            rate_limit,
-            window,
+        reason = (
+            f"Endpoint-specific rate limit exceeded: {rate_limit} "
+            f"requests per {window}s for {safe_endpoint}"
+        )
+        return _TierPlan(
+            RateLimitTier("endpoint", rate_limit, window, endpoint_key),
             EVENT_DYNAMIC_RULE_VIOLATION,
             {
-                "reason": (
-                    f"Endpoint-specific rate limit exceeded: {rate_limit} "
-                    f"requests per {window}s for {safe_endpoint}"
-                ),
+                "reason": reason,
                 "rule_type": "endpoint_rate_limit",
                 "endpoint": safe_endpoint,
                 "rate_limit": rate_limit,
                 "window": window,
             },
-            endpoint_path=endpoint_key,
+            reason,
         )
 
-    async def _check_route_rate_limit(
-        self, request: GuardRequest, client_ip: str, route_config: Any
-    ) -> GuardResponse | None:
+    def _route_plan(self, request: GuardRequest, route_config: Any) -> _TierPlan | None:
         if not route_config or route_config.rate_limit is None:
             return None
 
         window = route_config.rate_limit_window or 60
-        return await self._apply_rate_limit_check(
-            request,
-            client_ip,
-            route_config.rate_limit,
-            window,
+        reason = (
+            f"Route-specific rate limit exceeded: "
+            f"{route_config.rate_limit} requests per {window}s"
+        )
+        return _TierPlan(
+            RateLimitTier(
+                "route", route_config.rate_limit, window, _route_bucket_key(request)
+            ),
             EVENT_DECORATOR_VIOLATION,
             {
-                "reason": (
-                    f"Route-specific rate limit exceeded: "
-                    f"{route_config.rate_limit} requests per {window}s"
-                ),
+                "reason": reason,
                 "decorator_type": "rate_limiting",
                 "violation_type": "rate_limit",
                 "rate_limit": route_config.rate_limit,
                 "window": window,
             },
-            endpoint_path=_route_bucket_key(request),
+            reason,
         )
 
-    async def _check_geo_rate_limit(
+    def _geo_plan(
         self, request: GuardRequest, client_ip: str, route_config: Any
-    ) -> GuardResponse | None:
+    ) -> _TierPlan | None:
         if not route_config or not route_config.geo_rate_limits:
             return None
 
@@ -321,49 +283,70 @@ class RateLimitCheck(SecurityCheck):
         else:
             return None
 
-        return await self._apply_rate_limit_check(
-            request,
-            client_ip,
-            rate_limit,
-            window,
+        reason = (
+            f"Geo rate limit exceeded for {country or 'unknown'}: "
+            f"{rate_limit} requests per {window}s"
+        )
+        return _TierPlan(
+            RateLimitTier("geo", rate_limit, window, _route_bucket_key(request)),
             EVENT_DECORATOR_VIOLATION,
             {
-                "reason": (
-                    f"Geo rate limit exceeded for {country or 'unknown'}: "
-                    f"{rate_limit} requests per {window}s"
-                ),
+                "reason": reason,
                 "decorator_type": "geo_rate_limiting",
                 "violation_type": "geo_rate_limit",
                 "rate_limit": rate_limit,
                 "window": window,
             },
-            endpoint_path=_route_bucket_key(request),
+            reason,
         )
 
-    async def _check_global_rate_limit(
-        self, request: GuardRequest, client_ip: str
-    ) -> GuardResponse | None:
-        result: (
-            GuardResponse | None
-        ) = await self.middleware.rate_limit_handler.check_rate_limit(
-            request,
-            client_ip,
-            self.middleware.create_error_response,
-            rate_limit=self.config.rate_limit,
-            rate_limit_window=self.config.rate_limit_window,
-            config=self.config,
-        )
-
-        if result is None:
+    def _global_plan(self) -> _TierPlan | None:
+        if not self.config.enable_rate_limiting:
             return None
-
-        if self.config.passive_mode:
-            return None
-
-        await self._record_rate_limit_autoban(
-            request, client_ip, "Global rate limit exceeded"
+        return _TierPlan(
+            RateLimitTier(
+                "global", self.config.rate_limit, self.config.rate_limit_window
+            ),
+            None,
+            {},
+            "Global rate limit exceeded",
         )
-        return result
+
+    def _tier_plans(
+        self, request: GuardRequest, client_ip: str, route_config: Any
+    ) -> list[_TierPlan]:
+        candidates = [
+            *self._endpoint_plans(request),
+            self._route_plan(request, route_config),
+            self._geo_plan(request, client_ip, route_config),
+            self._global_plan(),
+        ]
+        return [plan for plan in candidates if plan is not None]
+
+    def _decorator_sends_rate_limited(
+        self, request: GuardRequest, plan: _TierPlan
+    ) -> bool:
+        return (
+            plan.event_kwargs.get("decorator_type") == "rate_limiting"
+            and get_guard_decorator(self.middleware, request) is not None
+        )
+
+    async def _report_block(
+        self,
+        request: GuardRequest,
+        client_ip: str,
+        plan: _TierPlan,
+        block: RateLimitBlock,
+    ) -> None:
+        if plan.event_type is not None:
+            await self._send_rate_limit_event(
+                request, plan.event_type, plan.event_kwargs
+            )
+        if self._decorator_sends_rate_limited(request, plan):
+            return
+        await self.middleware.rate_limit_handler.report_rate_limit_block(
+            request, client_ip, block, plan.tier, self.config
+        )
 
     async def check(self, request: GuardRequest) -> GuardResponse | None:
         if (
@@ -383,17 +366,25 @@ class RateLimitCheck(SecurityCheck):
         ):
             return None
 
-        if response := await self._check_endpoint_rate_limit(request, client_ip):
-            return response
+        plans = self._tier_plans(request, client_ip, route_config)
+        if not plans:
+            return None
 
-        if response := await self._check_route_rate_limit(
-            request, client_ip, route_config
-        ):
-            return response
+        block: (
+            RateLimitBlock | None
+        ) = await self.middleware.rate_limit_handler.check_rate_limit_tiers(
+            request,
+            client_ip,
+            self.middleware.create_error_response,
+            [plan.tier for plan in plans],
+            config=self.config,
+        )
+        if block is None:
+            return None
 
-        if response := await self._check_geo_rate_limit(
-            request, client_ip, route_config
-        ):
-            return response
-
-        return await self._check_global_rate_limit(request, client_ip)
+        plan = plans[block.tier_index]
+        await self._report_block(request, client_ip, plan, block)
+        if self.config.passive_mode:
+            return None
+        await self._record_rate_limit_autoban(request, client_ip, plan.trigger_info)
+        return block.response

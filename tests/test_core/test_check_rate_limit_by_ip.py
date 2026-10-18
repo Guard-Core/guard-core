@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import time
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -10,8 +9,10 @@ from guard_core.exceptions import GuardRedisError
 from guard_core.handlers import ratelimit_handler
 from guard_core.handlers.ratelimit_handler import (
     RateLimitManager,
+    RateLimitTier,
+    RateLimitVerdict,
     _by_ip_request_timestamps,
-    _redis_request_count,
+    _redis_tier_verdict,
     check_rate_limit_by_ip,
 )
 from guard_core.handlers.redis_handler import redis_handler
@@ -122,6 +123,16 @@ async def test_redis_error_falls_back_to_in_memory_count_when_fail_open_is_true(
     assert await check_rate_limit_by_ip(ip, config, redis_handler=redis) is False
 
 
+async def _pipeline_hit(
+    pipeline: RateLimitManager, ip: str, endpoint_path: str = ""
+) -> bool:
+    tier = RateLimitTier(
+        "", pipeline.config.rate_limit, pipeline.config.rate_limit_window, endpoint_path
+    )
+    verdict = await pipeline._tier_verdict(ip, [tier], pipeline.config)
+    return verdict.tier_index is None
+
+
 async def test_no_singleton_mutation_regression() -> None:
     config_a = SecurityConfig(enable_redis=False, rate_limit=5, rate_limit_window=60)
     pipeline_manager = RateLimitManager(config_a)
@@ -129,8 +140,8 @@ async def test_no_singleton_mutation_regression() -> None:
     config_b = SecurityConfig(enable_redis=False, rate_limit=1, rate_limit_window=60)
     await check_rate_limit_by_ip("203.0.113.7", config_b)
 
-    assert RateLimitManager._instance is pipeline_manager
     assert pipeline_manager.config is config_a
+    assert not pipeline_manager.request_timestamps
 
 
 async def test_endpoint_path_namespacing_isolates_budgets() -> None:
@@ -154,18 +165,9 @@ async def test_default_endpoint_path_shares_pipeline_bucket_bidirectionally(
         pipeline = RateLimitManager(security_config_redis)
         pipeline.redis_handler = handler
 
-        count = await pipeline._get_redis_request_count(
-            ip, time.time(), time.time() - 60
-        )
-        assert count == 1
-
+        assert await _pipeline_hit(pipeline, ip) is True
         assert await check_rate_limit_by_ip(ip, security_config_redis, handler) is True
-
-        count = await pipeline._get_redis_request_count(
-            ip, time.time(), time.time() - 60
-        )
-        assert count == 3
-
+        assert await _pipeline_hit(pipeline, ip) is True
         assert await check_rate_limit_by_ip(ip, security_config_redis, handler) is False
     finally:
         await handler.close()
@@ -174,7 +176,7 @@ async def test_default_endpoint_path_shares_pipeline_bucket_bidirectionally(
 async def test_endpoint_path_ws_is_disjoint_from_pipeline_bucket(
     security_config_redis: SecurityConfig,
 ) -> None:
-    security_config_redis.rate_limit = 2
+    security_config_redis.rate_limit = 3
     security_config_redis.rate_limit_window = 60
     handler = redis_handler(security_config_redis)
     await handler.initialize()
@@ -183,27 +185,16 @@ async def test_endpoint_path_ws_is_disjoint_from_pipeline_bucket(
         pipeline = RateLimitManager(security_config_redis)
         pipeline.redis_handler = handler
 
-        assert (
-            await pipeline._get_redis_request_count(ip, time.time(), time.time() - 60)
-            == 1
-        )
-        assert (
-            await pipeline._get_redis_request_count(ip, time.time(), time.time() - 60)
-            == 2
-        )
+        assert await _pipeline_hit(pipeline, ip) is True
+        assert await _pipeline_hit(pipeline, ip) is True
 
-        assert (
-            await check_rate_limit_by_ip(
-                ip, security_config_redis, handler, endpoint_path="ws"
+        for _ in range(3):
+            assert (
+                await check_rate_limit_by_ip(
+                    ip, security_config_redis, handler, endpoint_path="ws"
+                )
+                is True
             )
-            is True
-        )
-        assert (
-            await check_rate_limit_by_ip(
-                ip, security_config_redis, handler, endpoint_path="ws"
-            )
-            is True
-        )
         assert (
             await check_rate_limit_by_ip(
                 ip, security_config_redis, handler, endpoint_path="ws"
@@ -211,10 +202,7 @@ async def test_endpoint_path_ws_is_disjoint_from_pipeline_bucket(
             is False
         )
 
-        count = await pipeline._get_redis_request_count(
-            ip, time.time(), time.time() - 60
-        )
-        assert count == 3
+        assert await _pipeline_hit(pipeline, ip) is True
     finally:
         await handler.close()
 
@@ -225,9 +213,9 @@ async def test_enable_rate_limiting_false_returns_true() -> None:
     assert await check_rate_limit_by_ip("203.0.113.10", config) is True
 
 
-async def test_redis_request_count_reload_without_callback() -> None:
+async def test_redis_tier_verdict_reload_without_callback() -> None:
     conn = AsyncMock()
-    conn.evalsha = AsyncMock(side_effect=[NoScriptError("NOSCRIPT"), 1])
+    conn.evalsha = AsyncMock(side_effect=[NoScriptError("NOSCRIPT"), [0, 0, 0]])
     conn.script_load = AsyncMock(return_value="newsha")
 
     cm = AsyncMock()
@@ -237,19 +225,16 @@ async def test_redis_request_count_reload_without_callback() -> None:
     redis.config = MagicMock(redis_prefix="test:")
     redis.get_connection = MagicMock(return_value=cm)
 
-    count, new_sha = await _redis_request_count(
+    verdict, new_sha = await _redis_tier_verdict(
         redis,
         logging.getLogger("test.check_rate_limit_by_ip"),
         "203.0.113.11",
-        time.time(),
-        time.time() - 60,
-        60,
-        10,
+        [RateLimitTier("global", 10, 60)],
         "oldsha",
         None,
     )
 
-    assert count == 1
+    assert verdict == RateLimitVerdict(None)
     assert new_sha == "newsha"
 
 
@@ -439,18 +424,9 @@ async def test_ipv6_shares_pipeline_bucket_bidirectionally(
         pipeline = RateLimitManager(security_config_redis)
         pipeline.redis_handler = handler
 
-        count = await pipeline._get_redis_request_count(
-            ip, time.time(), time.time() - 60
-        )
-        assert count == 1
-
+        assert await _pipeline_hit(pipeline, ip) is True
         assert await check_rate_limit_by_ip(ip, security_config_redis, handler) is True
-
-        count = await pipeline._get_redis_request_count(
-            ip, time.time(), time.time() - 60
-        )
-        assert count == 3
-
+        assert await _pipeline_hit(pipeline, ip) is True
         assert await check_rate_limit_by_ip(ip, security_config_redis, handler) is False
     finally:
         await handler.close()
@@ -467,10 +443,7 @@ async def test_primitive_raises_instead_of_colliding_with_pipeline_bucket(
         pipeline = RateLimitManager(security_config_redis)
         pipeline.redis_handler = handler
 
-        count = await pipeline._get_redis_request_count(
-            "1.2.3.4", time.time(), time.time() - 60, endpoint_path="ws"
-        )
-        assert count == 1
+        assert await _pipeline_hit(pipeline, "1.2.3.4", "ws") is True
 
         try:
             await check_rate_limit_by_ip("1.2.3.4:ws", security_config_redis, handler)
@@ -478,10 +451,8 @@ async def test_primitive_raises_instead_of_colliding_with_pipeline_bucket(
         except ValueError:
             pass
 
-        count = await pipeline._get_redis_request_count(
-            "1.2.3.4", time.time(), time.time() - 60, endpoint_path="ws"
-        )
-        assert count == 2
+        assert await _pipeline_hit(pipeline, "1.2.3.4", "ws") is True
+        assert await _pipeline_hit(pipeline, "1.2.3.4", "ws") is False
     finally:
         await handler.close()
 

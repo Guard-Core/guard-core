@@ -40,6 +40,14 @@ def _reset_rate_limit_singleton() -> Iterator[None]:
     RateLimitManager._instance = None
 
 
+def _request(ip: str, path: str = "/x") -> MockGuardRequest:
+    request = MockGuardRequest(path=path, client_host=ip)
+    request.state.client_ip = ip
+    request.state.route_config = None
+    request.state.is_whitelisted = False
+    return request
+
+
 async def test_two_middlewares_enforce_their_own_rate_limit_interleaved() -> None:
     config_tight = SecurityConfig(
         enable_rate_limiting=True, rate_limit=1, rate_limit_window=60
@@ -59,20 +67,14 @@ async def test_two_middlewares_enforce_their_own_rate_limit_interleaved() -> Non
     ip_tight = "198.51.100.10"
     ip_loose = "198.51.100.20"
 
-    result = await check_tight._check_global_rate_limit(
-        MockGuardRequest(client_host=ip_tight), ip_tight
-    )
+    result = await check_tight.check(_request(ip_tight))
     assert result is None, "middleware with rate_limit=1 blocked its first request"
 
     for _ in range(5):
-        result = await check_loose._check_global_rate_limit(
-            MockGuardRequest(client_host=ip_loose), ip_loose
-        )
+        result = await check_loose.check(_request(ip_loose))
         assert result is None, "middleware with rate_limit=100 blocked too early"
 
-    result = await check_tight._check_global_rate_limit(
-        MockGuardRequest(client_host=ip_tight), ip_tight
-    )
+    result = await check_tight.check(_request(ip_tight))
     assert result is not None, (
         "middleware with rate_limit=1 was not enforced; the singleton used "
         "another middleware's rate_limit instead of its own"
@@ -80,9 +82,7 @@ async def test_two_middlewares_enforce_their_own_rate_limit_interleaved() -> Non
     assert result.status_code == 429
 
     for _ in range(90):
-        result = await check_loose._check_global_rate_limit(
-            MockGuardRequest(client_host=ip_loose), ip_loose
-        )
+        result = await check_loose.check(_request(ip_loose))
         assert result is None, "middleware with rate_limit=100 blocked too early"
 
 
@@ -100,12 +100,8 @@ async def test_endpoint_limit_survives_a_later_middleware_with_rate_limiting_off
     check_limited = RateLimitCheck(middleware_limited)
     ip = "198.51.100.30"
 
-    first = await check_limited._check_endpoint_rate_limit(
-        MockGuardRequest(path="/special", client_host=ip), ip
-    )
-    second = await check_limited._check_endpoint_rate_limit(
-        MockGuardRequest(path="/special", client_host=ip), ip
-    )
+    first = await check_limited.check(_request(ip, "/special"))
+    second = await check_limited.check(_request(ip, "/special"))
     assert first is None
     assert second is not None, (
         "the endpoint limit was skipped because the limiter read the last "

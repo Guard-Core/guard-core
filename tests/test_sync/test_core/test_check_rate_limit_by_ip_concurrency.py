@@ -2,7 +2,10 @@ import sys
 import threading
 
 from guard_core.sync.handlers import ratelimit_handler as ratelimit_handler_module
-from guard_core.sync.handlers.ratelimit_handler import _in_memory_request_count
+from guard_core.sync.handlers.ratelimit_handler import (
+    RateLimitTier,
+    _in_memory_tier_verdict,
+)
 
 
 def test_by_ip_dedicated_store_evict_and_append_is_atomic_under_the_lock() -> None:
@@ -41,7 +44,7 @@ def test_by_ip_dedicated_store_evict_and_append_is_atomic_under_the_lock() -> No
     threads_count = 32
     stale_entries = 200
     key = "203.0.113.14"
-    window_start = 1.0
+    tiers = [RateLimitTier("global", 1_000_000, 999)]
 
     store = ratelimit_handler_module._by_ip_request_timestamps
     lock = ratelimit_handler_module._by_ip_lock
@@ -54,7 +57,7 @@ def test_by_ip_dedicated_store_evict_and_append_is_atomic_under_the_lock() -> No
     def worker(i: int) -> None:
         try:
             barrier.wait()
-            _in_memory_request_count(store, lock, key, window_start, 1000.0 + i)
+            _in_memory_tier_verdict(store, key, tiers, 1000.0 + i, lock)
         except (IndexError, RuntimeError) as e:
             errors.append(e)
 

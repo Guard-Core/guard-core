@@ -8,6 +8,7 @@ from guard_core.core.checks.implementations.suspicious_activity import (
 )
 from guard_core.decorators.base import RouteConfig
 from guard_core.detection_result import DetectionResult
+from guard_core.handlers.ratelimit_handler import RateLimitBlock
 from guard_core.models import SecurityConfig
 
 
@@ -64,14 +65,15 @@ async def test_route_whitelisted_ip_still_rate_limited() -> None:
 
     mw = _mw(cfg)
     mw.rate_limit_handler = Mock()
-    mw.rate_limit_handler.check_rate_limit = AsyncMock(
-        return_value=Mock(status_code=429)
+    mw.rate_limit_handler.report_rate_limit_block = AsyncMock()
+    mw.rate_limit_handler.check_rate_limit_tiers = AsyncMock(
+        return_value=RateLimitBlock(0, 2, Mock(status_code=429))
     )
 
     result = await RateLimitCheck(mw).check(req)
 
     assert result is not None
-    mw.rate_limit_handler.check_rate_limit.assert_awaited_once()
+    mw.rate_limit_handler.check_rate_limit_tiers.assert_awaited_once()
 
 
 @patch("guard_core.core.checks.implementations.suspicious_activity.log_activity")

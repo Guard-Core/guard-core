@@ -12,7 +12,8 @@ from guard_core.handlers.cloud_ip_stores import RedisCloudIpStore
 from guard_core.handlers.ipban_handler import IPBanManager, ip_ban_manager
 from guard_core.handlers.ratelimit_handler import (
     RateLimitManager,
-    _redis_request_count,
+    RateLimitTier,
+    _redis_tier_verdict,
     check_rate_limit_by_ip,
 )
 from guard_core.handlers.redis_handler import RedisManager
@@ -353,6 +354,12 @@ async def bucket_count(redis: RedisManager, client_ip: str) -> int:
         return int(await conn.zcard(f"{PREFIX}rate_limit:rate:{client_ip}"))
 
 
+async def record_hit_and_count(redis: RedisManager, client_ip: str) -> int:
+    tier = RateLimitTier("", RATE_LIMIT_LOOSE, RATE_WINDOW)
+    await _redis_tier_verdict(redis, logger, client_ip, [tier], None)
+    return await bucket_count(redis, client_ip)
+
+
 async def phase_py_exempt_write(
     rep: Reporter, redis: RedisManager, redis_host: str, incoming: dict[str, Any]
 ) -> None:
@@ -555,18 +562,7 @@ async def phase_py_verify(
     )
 
     expected = incoming
-    now = time.time()
-    window_start = now - RATE_WINDOW
-    count_a, _ = await _redis_request_count(
-        redis,
-        logger,
-        BUCKET_A_IP,
-        now,
-        window_start,
-        RATE_WINDOW,
-        RATE_LIMIT_LOOSE,
-        None,
-    )
+    count_a = await record_hit_and_count(redis, BUCKET_A_IP)
     rep.check(
         "rate_continuity",
         "py+go+php:py",
@@ -583,16 +579,7 @@ async def phase_py_verify(
         "bucket A is blocked for py at limit 7",
         blocked is False,
     )
-    count_b, _ = await _redis_request_count(
-        redis,
-        logger,
-        BUCKET_B_IP,
-        time.time(),
-        time.time() - RATE_WINDOW,
-        RATE_WINDOW,
-        RATE_LIMIT_LOOSE,
-        None,
-    )
+    count_b = await record_hit_and_count(redis, BUCKET_B_IP)
     rep.check(
         "rate_continuity",
         "go+php:py",
@@ -600,16 +587,7 @@ async def phase_py_verify(
         count_b == expected.get("b_obs"),
         f"observed={count_b} expected={expected.get('b_obs')}",
     )
-    count_c, _ = await _redis_request_count(
-        redis,
-        logger,
-        BUCKET_C_IP,
-        time.time(),
-        time.time() - RATE_WINDOW,
-        RATE_WINDOW,
-        RATE_LIMIT_LOOSE,
-        None,
-    )
+    count_c = await record_hit_and_count(redis, BUCKET_C_IP)
     rep.check(
         "rate_continuity",
         "php:py",

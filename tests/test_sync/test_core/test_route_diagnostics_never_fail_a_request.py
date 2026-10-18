@@ -17,8 +17,13 @@ def _config(**settings: Any) -> SecurityConfig:
 
 
 class _Handler:
-    def check_rate_limit(self, *args: Any, **kwargs: Any) -> None:
-        return None
+    def __init__(self) -> None:
+        self.tier_buckets: list[list[str]] = []
+
+    def check_rate_limit_tiers(self, *args: Any, **kwargs: Any) -> None:
+        self.tier_buckets.append(
+            [tier.bucket for tier in args[3] if tier.kind == "endpoint"]
+        )
 
 
 class Slotted:
@@ -115,22 +120,16 @@ def test_a_raising_static_route_prefixes_never_fails_the_request(
 
 
 def test_a_raising_resolve_route_never_fails_the_request_and_keeps_the_limit(
-    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     config = _config(endpoint_rate_limits={"/health": (1, 60)}, passive_mode=False)
     middleware = _slotted(config, (), RuntimeError("no app context"))
     check = RateLimitCheck(middleware)
-    seen: list[str] = []
-
-    def apply(*args: Any, **kwargs: Any) -> None:
-        seen.append(kwargs["endpoint_path"])
-
-    monkeypatch.setattr(check, "_apply_rate_limit_check", apply)
     with caplog.at_level(logging.WARNING, logger="guard_core"):
         for _ in range(2):
             assert _through_pipeline(middleware, check) is None
 
-    assert seen == ["/health", "/health"]
+    assert middleware.rate_limit_handler.tier_buckets == [["/health"], ["/health"]]
     raised = [r for r in caplog.records if "resolve_route() raised" in r.message]
     assert len(raised) == 1
     assert "'/health'" in raised[0].message

@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from guard_core.handlers.ratelimit_handler import RateLimitManager
+from guard_core.handlers.ratelimit_handler import RateLimitManager, RateLimitTier
 from guard_core.models import SecurityConfig
 from tests.conftest import MockGuardRequest
 
@@ -159,7 +159,11 @@ async def test_check_rate_limit_agent_event_called() -> None:
         assert result2.headers["Retry-After"] == "60"
 
         mock_send_event.assert_called_once_with(
-            mock_request, "192.168.1.100", 2, config=config
+            mock_request,
+            "192.168.1.100",
+            2,
+            config=config,
+            tier=RateLimitTier("global", 1, 60),
         )
 
 
@@ -179,7 +183,7 @@ async def test_check_rate_limit_redis_path_with_agent() -> None:
 
     class MockRedisConnection:
         def __init__(self) -> None:
-            self.evalsha = AsyncMock(return_value=15)
+            self.evalsha = AsyncMock(return_value=[1, 14, 60])
 
         async def __aenter__(self) -> Any:
             return self

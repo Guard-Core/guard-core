@@ -16,6 +16,7 @@ from guard_core.core.checks.implementations.user_agent import UserAgentCheck
 from guard_core.decorators.base import RouteConfig
 from guard_core.detection_result import DetectionResult
 from guard_core.handlers.cloud_handler import cloud_handler
+from guard_core.handlers.ratelimit_handler import RateLimitBlock
 from guard_core.models import SecurityConfig
 
 EXEMPT_IP = "198.51.100.7"
@@ -170,8 +171,9 @@ async def _run_twice(check: SecurityCheck, **request_fields: Any) -> tuple[Any, 
 async def test_rate_limit_is_skipped_for_an_exempt_request() -> None:
     middleware = _middleware(_config(exempt_ips=[EXEMPT_IP], rate_limit=1))
     middleware.rate_limit_handler = Mock()
-    middleware.rate_limit_handler.check_rate_limit = AsyncMock(
-        return_value=Mock(status_code=429)
+    middleware.rate_limit_handler.report_rate_limit_block = AsyncMock()
+    middleware.rate_limit_handler.check_rate_limit_tiers = AsyncMock(
+        return_value=RateLimitBlock(0, 2, Mock(status_code=429))
     )
     route_config = RouteConfig()
     route_config.rate_limit = 1

@@ -1,17 +1,31 @@
 RATE_LIMIT_SCRIPT = """
-local key = KEYS[1]
-local now = tonumber(ARGV[1])
-local window = tonumber(ARGV[2])
-local limit = tonumber(ARGV[3])
-local window_start = now - window
+pcall(redis.replicate_commands)
 
-redis.call('ZADD', key, now, now)
+local time = redis.call('TIME')
+local now = tonumber(time[1]) + tonumber(time[2]) / 1000000
+local tiers = #KEYS
 
-redis.call('ZREMRANGEBYSCORE', key, 0, window_start)
+for i = 1, tiers do
+    local limit = tonumber(ARGV[2 * i - 1])
+    local window = tonumber(ARGV[2 * i])
 
-local count = redis.call('ZCARD', key)
+    redis.call('ZREMRANGEBYSCORE', KEYS[i], 0, now - window)
 
-redis.call('EXPIRE', key, window * 2)
+    local count = redis.call('ZCARD', KEYS[i])
+    if count >= limit then
+        local retry_after = window
+        local oldest = redis.call('ZRANGE', KEYS[i], 0, 0, 'WITHSCORES')
+        if oldest[2] then
+            retry_after = math.max(1, math.ceil(tonumber(oldest[2]) + window - now))
+        end
+        return {i, count, retry_after}
+    end
+end
 
-return count
+for i = 1, tiers do
+    redis.call('ZADD', KEYS[i], now, now)
+    redis.call('EXPIRE', KEYS[i], tonumber(ARGV[2 * i]) * 2)
+end
+
+return {0, 0, 0}
 """

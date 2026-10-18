@@ -997,7 +997,7 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "standalone check_rate_limit_by_ip primitive, never called by any "
         "scenario"
     ),
-    "handlers/ratelimit_handler.py:_redis_request_count": (
+    "handlers/ratelimit_handler.py:_evalsha_tiers": (
         "line 86: 'Rate limit Lua script reloaded after NOSCRIPT' is a "
         "static message with no interpolation"
     ),

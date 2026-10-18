@@ -10,8 +10,10 @@ from guard_core.models import SecurityConfig
 from guard_core.sync.handlers import ratelimit_handler
 from guard_core.sync.handlers.ratelimit_handler import (
     RateLimitManager,
+    RateLimitTier,
+    RateLimitVerdict,
     _by_ip_request_timestamps,
-    _redis_request_count,
+    _redis_tier_verdict,
     check_rate_limit_by_ip,
 )
 from guard_core.sync.handlers.redis_handler import redis_handler
@@ -119,6 +121,14 @@ def test_redis_error_falls_back_to_in_memory_count_when_fail_open_is_true() -> N
     assert check_rate_limit_by_ip(ip, config, redis_handler=redis) is False
 
 
+def _pipeline_hit(pipeline: RateLimitManager, ip: str, endpoint_path: str = "") -> bool:
+    tier = RateLimitTier(
+        "", pipeline.config.rate_limit, pipeline.config.rate_limit_window, endpoint_path
+    )
+    verdict = pipeline._tier_verdict(ip, [tier], pipeline.config)
+    return verdict.tier_index is None
+
+
 def test_no_singleton_mutation_regression() -> None:
     config_a = SecurityConfig(enable_redis=False, rate_limit=5, rate_limit_window=60)
     pipeline_manager = RateLimitManager(config_a)
@@ -126,8 +136,8 @@ def test_no_singleton_mutation_regression() -> None:
     config_b = SecurityConfig(enable_redis=False, rate_limit=1, rate_limit_window=60)
     check_rate_limit_by_ip("203.0.113.7", config_b)
 
-    assert RateLimitManager._instance is pipeline_manager
     assert pipeline_manager.config is config_a
+    assert not pipeline_manager.request_timestamps
 
 
 def test_endpoint_path_namespacing_isolates_budgets() -> None:
@@ -151,14 +161,9 @@ def test_default_endpoint_path_shares_pipeline_bucket_bidirectionally(
         pipeline = RateLimitManager(security_config_redis)
         pipeline.redis_handler = handler
 
-        count = pipeline._get_redis_request_count(ip, time.time(), time.time() - 60)
-        assert count == 1
-
+        assert _pipeline_hit(pipeline, ip) is True
         assert check_rate_limit_by_ip(ip, security_config_redis, handler) is True
-
-        count = pipeline._get_redis_request_count(ip, time.time(), time.time() - 60)
-        assert count == 3
-
+        assert _pipeline_hit(pipeline, ip) is True
         assert check_rate_limit_by_ip(ip, security_config_redis, handler) is False
     finally:
         handler.close()
@@ -167,7 +172,7 @@ def test_default_endpoint_path_shares_pipeline_bucket_bidirectionally(
 def test_endpoint_path_ws_is_disjoint_from_pipeline_bucket(
     security_config_redis: SecurityConfig,
 ) -> None:
-    security_config_redis.rate_limit = 2
+    security_config_redis.rate_limit = 3
     security_config_redis.rate_limit_window = 60
     handler = redis_handler(security_config_redis)
     handler.initialize()
@@ -176,21 +181,16 @@ def test_endpoint_path_ws_is_disjoint_from_pipeline_bucket(
         pipeline = RateLimitManager(security_config_redis)
         pipeline.redis_handler = handler
 
-        assert pipeline._get_redis_request_count(ip, time.time(), time.time() - 60) == 1
-        assert pipeline._get_redis_request_count(ip, time.time(), time.time() - 60) == 2
+        assert _pipeline_hit(pipeline, ip) is True
+        assert _pipeline_hit(pipeline, ip) is True
 
-        assert (
-            check_rate_limit_by_ip(
-                ip, security_config_redis, handler, endpoint_path="ws"
+        for _ in range(3):
+            assert (
+                check_rate_limit_by_ip(
+                    ip, security_config_redis, handler, endpoint_path="ws"
+                )
+                is True
             )
-            is True
-        )
-        assert (
-            check_rate_limit_by_ip(
-                ip, security_config_redis, handler, endpoint_path="ws"
-            )
-            is True
-        )
         assert (
             check_rate_limit_by_ip(
                 ip, security_config_redis, handler, endpoint_path="ws"
@@ -198,8 +198,7 @@ def test_endpoint_path_ws_is_disjoint_from_pipeline_bucket(
             is False
         )
 
-        count = pipeline._get_redis_request_count(ip, time.time(), time.time() - 60)
-        assert count == 3
+        assert _pipeline_hit(pipeline, ip) is True
     finally:
         handler.close()
 
@@ -210,9 +209,9 @@ def test_enable_rate_limiting_false_returns_true() -> None:
     assert check_rate_limit_by_ip("203.0.113.10", config) is True
 
 
-def test_redis_request_count_reload_without_callback() -> None:
+def test_redis_tier_verdict_reload_without_callback() -> None:
     conn = MagicMock()
-    conn.evalsha = MagicMock(side_effect=[NoScriptError("NOSCRIPT"), 1])
+    conn.evalsha = MagicMock(side_effect=[NoScriptError("NOSCRIPT"), [0, 0, 0]])
     conn.script_load = MagicMock(return_value="newsha")
 
     cm = MagicMock()
@@ -222,19 +221,16 @@ def test_redis_request_count_reload_without_callback() -> None:
     redis.config = MagicMock(redis_prefix="test:")
     redis.get_connection = MagicMock(return_value=cm)
 
-    count, new_sha = _redis_request_count(
+    verdict, new_sha = _redis_tier_verdict(
         redis,
         logging.getLogger("test.check_rate_limit_by_ip"),
         "203.0.113.11",
-        time.time(),
-        time.time() - 60,
-        60,
-        10,
+        [RateLimitTier("global", 10, 60)],
         "oldsha",
         None,
     )
 
-    assert count == 1
+    assert verdict == RateLimitVerdict(None)
     assert new_sha == "newsha"
 
 
@@ -422,14 +418,9 @@ def test_ipv6_shares_pipeline_bucket_bidirectionally(
         pipeline = RateLimitManager(security_config_redis)
         pipeline.redis_handler = handler
 
-        count = pipeline._get_redis_request_count(ip, time.time(), time.time() - 60)
-        assert count == 1
-
+        assert _pipeline_hit(pipeline, ip) is True
         assert check_rate_limit_by_ip(ip, security_config_redis, handler) is True
-
-        count = pipeline._get_redis_request_count(ip, time.time(), time.time() - 60)
-        assert count == 3
-
+        assert _pipeline_hit(pipeline, ip) is True
         assert check_rate_limit_by_ip(ip, security_config_redis, handler) is False
     finally:
         handler.close()
@@ -446,10 +437,7 @@ def test_primitive_raises_instead_of_colliding_with_pipeline_bucket(
         pipeline = RateLimitManager(security_config_redis)
         pipeline.redis_handler = handler
 
-        count = pipeline._get_redis_request_count(
-            "1.2.3.4", time.time(), time.time() - 60, endpoint_path="ws"
-        )
-        assert count == 1
+        assert _pipeline_hit(pipeline, "1.2.3.4", "ws") is True
 
         try:
             check_rate_limit_by_ip("1.2.3.4:ws", security_config_redis, handler)
@@ -457,10 +445,8 @@ def test_primitive_raises_instead_of_colliding_with_pipeline_bucket(
         except ValueError:
             pass
 
-        count = pipeline._get_redis_request_count(
-            "1.2.3.4", time.time(), time.time() - 60, endpoint_path="ws"
-        )
-        assert count == 2
+        assert _pipeline_hit(pipeline, "1.2.3.4", "ws") is True
+        assert _pipeline_hit(pipeline, "1.2.3.4", "ws") is False
     finally:
         handler.close()
 

@@ -8,6 +8,7 @@ from guard_core.sync.core.routing.context import RoutingContext
 from guard_core.sync.core.routing.resolver import RouteConfigResolver
 from guard_core.sync.decorators.base import BaseSecurityDecorator
 from guard_core.sync.handlers.cloud_handler import cloud_handler
+from guard_core.sync.handlers.ratelimit_handler import RateLimitBlock
 from tests.test_sync.conftest import MockGuardResponse, SyncMockGuardRequest
 
 _LOGGER = logging.getLogger("test_pipeline_route_config_revision")
@@ -200,8 +201,10 @@ def test_updating_geo_rate_limit_in_place_runs_eliminated_check() -> None:
     route_config.geo_rate_limits = {}
     route_id = decorator._get_route_id(_route_a)
     middleware = _build_middleware(config, decorator)
-    middleware.rate_limit_handler.check_rate_limit = MagicMock(
-        return_value=MockGuardResponse("rate-limited", 429)
+    middleware.geo_ip_handler = config.geo_ip_handler
+    middleware.rate_limit_handler.report_rate_limit_block = MagicMock()
+    middleware.rate_limit_handler.check_rate_limit_tiers = MagicMock(
+        return_value=RateLimitBlock(0, 1, MockGuardResponse("rate-limited", 429))
     )
 
     pipeline = build_default_pipeline(middleware)

@@ -8,7 +8,11 @@ import pytest
 
 from guard_core.core.events.middleware_events import SecurityEventBus
 from guard_core.handlers.dynamic_rule_handler import DynamicRuleManager
-from guard_core.handlers.ratelimit_handler import RateLimitManager
+from guard_core.handlers.ratelimit_handler import (
+    RateLimitManager,
+    RateLimitTier,
+    RateLimitVerdict,
+)
 from guard_core.handlers.security_headers_handler import SecurityHeadersManager
 from guard_core.handlers.suspatterns_handler import (
     SusPatternsManager,
@@ -51,17 +55,18 @@ async def test_send_rule_received_event_no_agent() -> None:
     assert True
 
 
-async def test_get_redis_request_count_no_redis_handler() -> None:
+async def test_tier_verdict_without_a_redis_handler_counts_in_memory() -> None:
     config = SecurityConfig()
     config.enable_redis = False
     manager = RateLimitManager(config)
     manager.redis_handler = None
 
-    result = await manager._get_redis_request_count(
-        client_ip="127.0.0.1", current_time=1000.0, window_start=900.0
+    result = await manager._tier_verdict(
+        "127.0.0.1", [RateLimitTier("global", 10, 60)], config
     )
 
-    assert result is None
+    assert result == RateLimitVerdict(None)
+    assert len(manager.request_timestamps) == 1
 
 
 async def test_get_validated_cors_config_no_cors_config() -> None:
@@ -302,8 +307,10 @@ async def test_integration_all_edge_cases() -> None:
     await drm._send_rule_received_event(rules)
 
     rlm = RateLimitManager(config)
-    result = await rlm._get_redis_request_count("127.0.0.1", 1000.0, 900.0)
-    assert result is None
+    verdict = await rlm._tier_verdict(
+        "127.0.0.1", [RateLimitTier("global", 10, 60)], config
+    )
+    assert verdict == RateLimitVerdict(None)
 
     shm = SecurityHeadersManager()
     shm.cors_config = None

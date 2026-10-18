@@ -4,7 +4,12 @@ from typing import Any
 from unittest.mock import MagicMock
 
 from guard_core.models import SecurityConfig
-from guard_core.sync.handlers.ratelimit_handler import RateLimitManager
+from guard_core.sync.handlers.ratelimit_handler import (
+    RateLimitManager,
+    RateLimitTier,
+    RateLimitVerdict,
+    _in_memory_tier_verdict,
+)
 
 
 def _fresh_manager(rate_limit: int = 5, rate_limit_window: int = 1) -> RateLimitManager:
@@ -27,8 +32,12 @@ def test_concurrent_eviction_and_append_does_not_raise() -> None:
     def worker() -> None:
         try:
             for _ in range(500):
-                manager._get_in_memory_request_count(
-                    "10.0.0.2", time.time() - 1, time.time()
+                _in_memory_tier_verdict(
+                    manager.request_timestamps,
+                    "10.0.0.2",
+                    [RateLimitTier("global", 5, 1)],
+                    time.time(),
+                    manager._lock,
                 )
         except RuntimeError as e:
             errors.append(e)
@@ -52,11 +61,14 @@ def test_initialize_redis_no_enable_redis() -> None:
     assert manager.rate_limit_script_sha is None
 
 
-def test_get_redis_request_count_no_redis_handler() -> None:
+def test_tier_verdict_without_a_redis_handler_counts_in_memory() -> None:
     manager = _fresh_manager()
     manager.redis_handler = None
-    result = manager._get_redis_request_count("1.2.3.4", time.time(), time.time() - 60)
-    assert result is None
+    verdict = manager._tier_verdict(
+        "1.2.3.4", [RateLimitTier("global", 5, 60)], manager.config
+    )
+    assert verdict == RateLimitVerdict(None)
+    assert len(manager.request_timestamps) == 1
 
 
 def test_reset_redis_empty_keys() -> None:
