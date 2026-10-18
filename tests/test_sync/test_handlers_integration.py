@@ -2,6 +2,7 @@ import logging
 import time
 from collections.abc import Generator
 from contextlib import contextmanager
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -231,6 +232,49 @@ def test_ratelimit_redis_count_without_script() -> None:
     mock_pipeline.zadd.assert_called_once_with(
         "test:rate_limit:rate:1.2.3.4", {"1000.5": 1000.5}
     )
+
+
+def _fallback_redis(zrange_result: list[Any]) -> tuple[MagicMock, MagicMock]:
+    mock_pipeline = MagicMock()
+    mock_pipeline.execute = MagicMock(
+        side_effect=[[0, 2, zrange_result], [1, True, 1, True]]
+    )
+    mock_conn = MagicMock()
+    mock_conn.time = MagicMock(return_value=(1000, 0))
+    mock_conn.pipeline = MagicMock(return_value=mock_pipeline)
+
+    @contextmanager
+    def mock_get_connection() -> Generator[MagicMock, None]:
+        yield mock_conn
+
+    redis = MagicMock()
+    redis.get_connection = mock_get_connection
+    redis.config = MagicMock()
+    redis.config.redis_prefix = "test:"
+    return redis, mock_pipeline
+
+
+def test_ratelimit_fallback_blocks_with_the_oldest_hits_remaining_time() -> None:
+    config = SecurityConfig(enable_redis=True, redis_url="redis://localhost:6379")
+    mgr = RateLimitManager(config)
+    mgr.rate_limit_script_sha = None
+    mgr.redis_handler, pipeline = _fallback_redis([("990.0", 990.0)])
+
+    verdict = mgr._tier_verdict("1.2.3.4", [RateLimitTier("global", 2, 60)], config)
+
+    assert verdict == RateLimitVerdict(0, 3, 50)
+    assert pipeline.execute.call_count == 1
+
+
+def test_ratelimit_fallback_blocks_with_the_full_window_when_it_is_empty() -> None:
+    config = SecurityConfig(enable_redis=True, redis_url="redis://localhost:6379")
+    mgr = RateLimitManager(config)
+    mgr.rate_limit_script_sha = None
+    mgr.redis_handler, _ = _fallback_redis([])
+
+    verdict = mgr._tier_verdict("1.2.3.4", [RateLimitTier("global", 2, 60)], config)
+
+    assert verdict == RateLimitVerdict(0, 3, 60)
 
 
 def test_ratelimit_redis_error_raises_when_fail_open_false() -> None:

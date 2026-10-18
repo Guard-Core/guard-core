@@ -16,9 +16,12 @@ def _clean_primitive_store() -> None:
 
 
 def _config(**settings: object) -> SecurityConfig:
-    return SecurityConfig(
-        enable_redis=False, rate_limit=2, rate_limit_window=60, **settings
-    )
+    defaults: dict[str, object] = {
+        "enable_redis": False,
+        "rate_limit": 2,
+        "rate_limit_window": 60,
+    }
+    return SecurityConfig(**{**defaults, **settings})
 
 
 def _allowed(config: SecurityConfig, *ips: str) -> list[bool]:
@@ -107,3 +110,44 @@ def test_a_muted_event_type_is_not_sent() -> None:
         check_rate_limit_by_ip("203.0.113.12", config, agent_handler=agent)
 
     assert agent.send_event.call_count == 0
+
+
+def test_a_disabled_suspicious_log_level_stays_quiet_but_still_reports(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    agent = Mock(send_event=MagicMock())
+    config = _config(log_suspicious_level=None)
+    with caplog.at_level(logging.WARNING):
+        for _ in range(3):
+            check_rate_limit_by_ip("203.0.113.13", config, agent_handler=agent)
+
+    assert not [r for r in caplog.records if "Rate limit exceeded" in r.getMessage()]
+    assert agent.send_event.call_count == 1
+
+
+def test_a_failing_agent_never_breaks_the_decision(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    agent = Mock(send_event=MagicMock(side_effect=RuntimeError("agent down")))
+    config = _config()
+    with caplog.at_level(logging.ERROR):
+        results = [
+            check_rate_limit_by_ip("203.0.113.14", config, agent_handler=agent)
+            for _ in range(3)
+        ]
+
+    assert results == [True, True, False]
+    assert any(
+        "Failed to send rate limit event to agent: agent down" in r.getMessage()
+        for r in caplog.records
+    )
+
+
+def test_the_event_falls_back_to_the_redis_handlers_agent() -> None:
+    agent = Mock(send_event=MagicMock())
+    redis = Mock(agent_handler=agent)
+    config = _config()
+    for _ in range(3):
+        check_rate_limit_by_ip("203.0.113.15", config, redis_handler=redis)
+
+    assert agent.send_event.call_count == 1

@@ -1,5 +1,6 @@
 import time
-from typing import Any
+from collections.abc import Iterator
+from typing import Any, cast
 
 from guard_core.models import SecurityConfig
 from guard_core.sync.core.checks.factory import build_default_pipeline
@@ -87,3 +88,34 @@ def test_a_banned_ips_preflight_is_still_rejected() -> None:
     ip_ban_manager.banned_ips[IP] = time.time() + 300
 
     assert _status(pipeline, "/api", "OPTIONS", PREFLIGHT_HEADERS) == 403
+
+
+class _TupleIteratingHeaders:
+    """Like werkzeug's Headers: iterating gives pairs, keys() gives the names."""
+
+    def __init__(self, headers: dict[str, str]) -> None:
+        self._headers = headers
+
+    def __iter__(self) -> Iterator[tuple[str, str]]:
+        return iter(self._headers.items())
+
+    def keys(self) -> list[str]:
+        return list(self._headers)
+
+    def get(self, name: str, default: str | None = None) -> str | None:
+        return self._headers.get(name, default)
+
+
+def test_a_preflight_is_recognized_when_headers_iterate_as_pairs() -> None:
+    pipeline = _pipeline()
+
+    for _ in range(4):
+        request = SyncMockGuardRequest(
+            path="/api",
+            method="OPTIONS",
+            client_host=IP,
+            headers=cast(dict[str, str], _TupleIteratingHeaders(PREFLIGHT_HEADERS)),
+        )
+        assert pipeline.execute(request) is None
+
+    assert [_status(pipeline, "/api") for _ in range(3)] == [None, None, 429]

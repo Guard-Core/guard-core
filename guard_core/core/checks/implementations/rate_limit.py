@@ -20,7 +20,7 @@ from guard_core.core.events.event_types import (
     EVENT_DYNAMIC_RULE_VIOLATION,
 )
 from guard_core.decorators.base import RouteConfig
-from guard_core.handlers.cors_handler import is_preflight
+from guard_core.handlers.cors_handler import ALLOWED_PREFLIGHT_REQUEST_HEADER
 from guard_core.handlers.ratelimit_handler import (
     RateLimitBlock,
     RateLimitTier,
@@ -44,6 +44,13 @@ def _is_ip_address(identity: str) -> bool:
     except ValueError:
         return False
     return True
+
+
+def _is_cors_preflight(request: GuardRequest) -> bool:
+    if request.method.upper() != "OPTIONS":
+        return False
+    names = {name.lower() for name in request.headers.keys()}
+    return ALLOWED_PREFLIGHT_REQUEST_HEADER in names
 
 
 def _route_rate_limit_configured(route_config: RouteConfig) -> bool:
@@ -384,7 +391,7 @@ class RateLimitCheck(SecurityCheck):
             or getattr(request.state, "is_exempt", False) is True
         ):
             return True
-        if is_preflight(request.method, request.headers):
+        if _is_cors_preflight(request):
             return True
         return bool(
             route_config

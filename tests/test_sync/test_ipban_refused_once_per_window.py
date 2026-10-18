@@ -121,3 +121,23 @@ def test_the_event_type_is_part_of_the_vocabulary() -> None:
 
     assert EVENT_IP_BAN_REFUSED == "ip_ban_refused"
     assert EVENT_IP_BAN_REFUSED in EVENT_TYPE_VALUES
+
+
+def test_the_refusal_record_stays_within_its_cap(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from guard_core.sync.handlers import _ipban_bans
+
+    manager = _manager()
+    monkeypatch.setattr(_ipban_bans, "_MAX_TRACKED_REFUSED_BANS", 2)
+    now = [1_000_000.0]
+    monkeypatch.setattr(time, "time", lambda: now[0])
+
+    manager.ban_ip("127.0.0.1", 10, "rate_limit_exceeded")
+    manager.ban_ip("127.0.0.2", 600, "rate_limit_exceeded")
+    now[0] += 11
+    manager.ban_ip("127.0.0.3", 600, "rate_limit_exceeded")
+    assert set(manager.refused_ban_reported_until) == {"127.0.0.2", "127.0.0.3"}
+
+    manager.ban_ip("127.0.0.4", 600, "rate_limit_exceeded")
+    assert set(manager.refused_ban_reported_until) == {"127.0.0.3", "127.0.0.4"}
