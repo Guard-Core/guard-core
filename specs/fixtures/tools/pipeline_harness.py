@@ -46,7 +46,7 @@ from typing import Any, cast
 from guard_core.core.behavioral.context import BehavioralContext
 from guard_core.core.behavioral.processor import BehavioralProcessor
 from guard_core.core.checks.factory import build_default_pipeline
-from guard_core.core.checks.implementations import suspicious_activity
+from guard_core.core.checks.implementations import emergency_mode, suspicious_activity
 from guard_core.core.responses.context import ResponseContext
 from guard_core.core.responses.factory import ErrorResponseFactory
 from guard_core.decorators.route_config import RouteConfig, RouteConfigRevision
@@ -442,12 +442,13 @@ class _NullMetrics:
 
 
 def reset_check_samplers() -> None:
-    """Forget which detection-disabled lines were already sampled.
+    """Forget which emergency and detection-disabled lines were already sampled.
 
-    The check samples that line once per client per window in module state, so
+    The checks sample those lines once per client per window in module state, so
     without this a second generation in the same process drops the line the
     first one recorded.
     """
+    emergency_mode._emergency_samples.clear()
     suspicious_activity._disabled_detection_samples.clear()
 
 
