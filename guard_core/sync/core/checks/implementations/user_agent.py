@@ -35,6 +35,7 @@ class UserAgentCheck(SecurityCheck):
     ) -> bool:
         return (
             bool(config.blocked_user_agents)
+            or config.block_empty_user_agent
             or route_config_applies(
                 route_configs, lambda rc: bool(rc.blocked_user_agents)
             )
@@ -51,12 +52,19 @@ class UserAgentCheck(SecurityCheck):
         route_config = getattr(request.state, "route_config", None)
         user_agent = request.headers.get("User-Agent", "")
 
-        if not check_user_agent_allowed(user_agent, route_config, self.config):
-            redacted_user_agent = redact_header_value_for_display(
-                user_agent,
-                self.config.log_sensitive_params,
-                self.config.log_sensitive_body_fields,
-                self.config.log_sensitive_headers,
+        empty_user_agent = self.config.block_empty_user_agent and not user_agent.strip()
+        if empty_user_agent or not check_user_agent_allowed(
+            user_agent, route_config, self.config
+        ):
+            redacted_user_agent = (
+                "(empty)"
+                if empty_user_agent
+                else redact_header_value_for_display(
+                    user_agent,
+                    self.config.log_sensitive_params,
+                    self.config.log_sensitive_body_fields,
+                    self.config.log_sensitive_headers,
+                )
             )
             log_activity(
                 request,

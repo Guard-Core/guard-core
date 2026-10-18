@@ -404,6 +404,21 @@ GEO_CONFIG_WHITELIST = {
 }
 
 
+BLOCK_EMPTY_USER_AGENT_CONFIG = {
+    "block_empty_user_agent": True,
+    "excluded_detection_headers": EXCLUDED_HEADERS,
+}
+
+
+@scenario(covers={"block_empty_user_agent"}, config=BLOCK_EMPTY_USER_AGENT_CONFIG)
+def block_empty_user_agent_denies_a_request_without_a_user_agent(
+    ctx: ScenarioContext,
+) -> None:
+    response = ctx.client.get("/basic/ip", headers={"User-Agent": ""})
+    assert response.status_code == 403
+    assert ctx.client.get("/basic/ip").status_code == 200
+
+
 GEO_CONFIG_PRIVATE_PEER_EXEMPTION = {
     **GEO_CONFIG_WHITELIST,
     "country_rules_exempt_private_peers": True,

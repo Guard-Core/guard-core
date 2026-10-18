@@ -529,6 +529,16 @@ class _SecurityConfigFields(BaseModel):
         ),
     )
 
+    block_empty_user_agent: bool = Field(
+        default=False,
+        description=(
+            "Block a request whose User-Agent header is absent, empty or blank, "
+            "as a global user-agent denial (403, a user_agent_blocked event, and a "
+            "hostile-signal count under ban_on_hostile_signals). Off by default: "
+            "some legitimate clients and health probes send no User-Agent."
+        ),
+    )
+
     cloud_ip_store: CloudIpStoreProtocol | CloudIpStoreFactory | None = Field(
         default=None,
         description=(
