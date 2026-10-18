@@ -40,7 +40,7 @@ def _build(
             is_threat=True, trigger_info="probe", threat_categories=["xss"]
         )
 
-    def ban(ip: str, duration: int, reason: str = "") -> bool:
+    def ban(ip: str, duration: int, reason: str = "", *, grouped: bool = False) -> bool:
         return True
 
     monkeypatch.setattr(

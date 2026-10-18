@@ -48,7 +48,9 @@ def _make_check_with_recording_ban(
     check = RateLimitCheck(middleware)
     ban_calls: BanCalls = []
 
-    async def fake_ban(ip: str, duration: int, reason: str) -> None:
+    async def fake_ban(
+        ip: str, duration: int, reason: str, *, grouped: bool = False
+    ) -> None:
         ban_calls.append((ip, duration, reason))
 
     check.ip_ban_manager = Mock()

@@ -335,7 +335,9 @@ async def test_flat_threshold_met_after_repeated_violations(
         "user_agent",
         "t",
     )
-    ban.ban_ip.assert_called_once_with("7.7.7.7", 300, "penetration_attempt")
+    ban.ban_ip.assert_called_once_with(
+        "7.7.7.7", 300, "penetration_attempt", grouped=False
+    )
 
 
 async def test_first_violation_bans_immediately_when_threshold_is_one(
@@ -361,7 +363,9 @@ async def test_first_violation_bans_immediately_when_threshold_is_one(
         "t",
     )
 
-    ban.ban_ip.assert_called_once_with("11.0.0.1", 60, "penetration_attempt")
+    ban.ban_ip.assert_called_once_with(
+        "11.0.0.1", 60, "penetration_attempt", grouped=False
+    )
 
 
 async def test_per_category_ban_config_overrides_a_high_flat_threshold(
@@ -389,7 +393,9 @@ async def test_per_category_ban_config_overrides_a_high_flat_threshold(
         "IP blocked by blocked_countries",
     )
 
-    ban.ban_ip.assert_called_once_with("9.9.9.9", 99999, "penetration_attempt:xss")
+    ban.ban_ip.assert_called_once_with(
+        "9.9.9.9", 99999, "penetration_attempt:xss", grouped=False
+    )
     assert "9.9.9.9" not in mw.suspicious_request_counts
 
 
@@ -419,7 +425,9 @@ async def test_per_category_ban_takes_priority_over_flat_ban(
         "t",
     )
 
-    ban.ban_ip.assert_called_once_with("9.9.9.10", 99999, "penetration_attempt:xss")
+    ban.ban_ip.assert_called_once_with(
+        "9.9.9.10", 99999, "penetration_attempt:xss", grouped=False
+    )
 
 
 async def test_muted_check_logs_suppresses_log(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -557,7 +565,9 @@ async def test_ban_failure_is_swallowed_logged_and_made_visible(
     )
 
     assert mw.suspicious_request_counts["40.0.0.1"] == {"xss": 1}
-    ban.ban_ip.assert_called_once_with("40.0.0.1", 300, "penetration_attempt")
+    ban.ban_ip.assert_called_once_with(
+        "40.0.0.1", 300, "penetration_attempt", grouped=False
+    )
     logger.exception.assert_called_once()
     assert logger.exception.call_args.args[1] == "40.0.0.1"
 

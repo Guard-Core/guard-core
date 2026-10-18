@@ -56,7 +56,9 @@ class _Worker:
                 is_threat=True, trigger_info="probe", threat_categories=["xss"]
             )
 
-        def ban(ip: str, duration: int, reason: str = "") -> bool:
+        def ban(
+            ip: str, duration: int, reason: str = "", *, grouped: bool = False
+        ) -> bool:
             self.bans.append((ip, duration, reason))
             return True
 
@@ -81,7 +83,7 @@ def test_addresses_of_one_prefix_share_the_strike_count(
         worker.strike(address)
 
     assert [ban[1:] for ban in worker.bans] == [(300, "penetration_attempt")]
-    assert worker.bans[0][0] == SAME_PREFIX[-1]
+    assert worker.bans[0][0] == "2001:db8:0:1::/64"
 
 
 def test_addresses_of_different_prefixes_keep_separate_strikes(

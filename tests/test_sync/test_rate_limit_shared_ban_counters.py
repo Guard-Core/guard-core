@@ -54,7 +54,9 @@ class _Worker:
         self.middleware = middleware
         self.check = RateLimitCheck(middleware)
 
-        def record_ban(ip: str, duration: int, reason: str = "") -> bool:
+        def record_ban(
+            ip: str, duration: int, reason: str = "", *, grouped: bool = False
+        ) -> bool:
             self.bans.append((ip, duration, reason))
             return True
 
@@ -156,7 +158,9 @@ def test_the_by_ip_primitive_counts_in_the_same_shared_counter(
     redis.initialize()
     bans: list[tuple[str, int, str]] = []
 
-    def record_ban(ip: str, duration: int, reason: str = "") -> bool:
+    def record_ban(
+        ip: str, duration: int, reason: str = "", *, grouped: bool = False
+    ) -> bool:
         bans.append((ip, duration, reason))
         return True
 

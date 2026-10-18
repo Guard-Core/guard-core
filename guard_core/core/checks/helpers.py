@@ -594,6 +594,7 @@ async def _resolve_and_apply_threshold_ban(
     """
     if not config.enable_ip_banning:
         return None
+    grouped = "/" in client_ip
     chosen = _longest_crossed_entry(
         ip_counts, config, threat_categories, default_entries
     )
@@ -604,11 +605,15 @@ async def _resolve_and_apply_threshold_ban(
         flat_joins = flat_crossed and total > ip_counts.get(category, 0)
         if not flat_joins or entry.duration >= config.auto_ban_duration:
             ban_reason = f"{reason}:{category}"
-            applied = await ip_ban_manager.ban_ip(client_ip, entry.duration, ban_reason)
+            applied = await ip_ban_manager.ban_ip(
+                client_ip, entry.duration, ban_reason, grouped=grouped
+            )
             return (entry.duration, ban_reason, category) if applied else None
     elif not flat_crossed:
         return None
-    applied = await ip_ban_manager.ban_ip(client_ip, config.auto_ban_duration, reason)
+    applied = await ip_ban_manager.ban_ip(
+        client_ip, config.auto_ban_duration, reason, grouped=grouped
+    )
     if not applied:
         return None
     return config.auto_ban_duration, reason, None
@@ -672,7 +677,7 @@ async def _try_threshold_ban(
         ip_ban_manager=ip_ban_manager,
         ip_counts=ip_counts,
         config=config,
-        client_ip=client_ip,
+        client_ip=strike_key,
         threat_categories=threat_categories,
         reason=reason,
         default_entries=default_entries,

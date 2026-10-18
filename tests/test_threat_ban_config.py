@@ -94,7 +94,9 @@ def _patch_detect_and_ban(
         _make_detect_fn(result),
     )
 
-    async def fake_ban(ip: str, duration: int, reason: str) -> None:
+    async def fake_ban(
+        ip: str, duration: int, reason: str, *, grouped: bool = False
+    ) -> None:
         ban_calls.append((ip, duration, reason))
 
     monkeypatch.setattr(check.ip_ban_manager, "ban_ip", fake_ban)
@@ -510,5 +512,5 @@ async def test_per_category_ban_refused_returns_none() -> None:
 
     assert result is None
     ip_ban_manager.ban_ip.assert_awaited_once_with(
-        "127.0.0.1", 86400, "penetration_attempt:xss"
+        "127.0.0.1", 86400, "penetration_attempt:xss", grouped=False
     )

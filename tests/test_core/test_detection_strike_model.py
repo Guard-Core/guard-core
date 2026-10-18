@@ -33,7 +33,9 @@ class _Harness:
                 threat_categories=list(self.categories),
             )
 
-        async def ban(ip: str, duration: int, reason: str) -> bool:
+        async def ban(
+            ip: str, duration: int, reason: str, *, grouped: bool = False
+        ) -> bool:
             self.bans.append((ip, duration, reason))
             return True
 
@@ -233,7 +235,9 @@ async def test_rate_limit_feed_entry_governs_when_flat_counts_the_same_violation
     bans: list[tuple[str, int, str]] = []
 
     class _Manager:
-        async def ban_ip(self, ip: str, duration: int, reason: str) -> bool:
+        async def ban_ip(
+            self, ip: str, duration: int, reason: str, *, grouped: bool = False
+        ) -> bool:
             bans.append((ip, duration, reason))
             return True
 

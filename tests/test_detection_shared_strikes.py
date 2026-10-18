@@ -66,7 +66,9 @@ class _Worker:
         self.middleware = middleware
         self.check = SuspiciousActivityCheck(middleware)
 
-        async def record_ban(ip: str, duration: int, reason: str = "") -> bool:
+        async def record_ban(
+            ip: str, duration: int, reason: str = "", *, grouped: bool = False
+        ) -> bool:
             self.bans.append((ip, duration, reason))
             return True
 

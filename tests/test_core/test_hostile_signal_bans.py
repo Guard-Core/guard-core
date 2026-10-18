@@ -128,7 +128,9 @@ async def test_hostile_failure_counts_and_bans_at_threshold(
         )
 
     assert all(r is not None and r.status_code != 200 for r in responses)
-    ban_spy.assert_awaited_once_with(BOT_IP, 600, f"{category}_triggered:{category}")
+    ban_spy.assert_awaited_once_with(
+        BOT_IP, 600, f"{category}_triggered:{category}", grouped=False
+    )
     assert BOT_IP not in middleware.suspicious_request_counts
     assert await manager.is_ip_banned(BOT_IP)
 
@@ -198,7 +200,9 @@ async def test_threat_ban_config_overrides_threshold_and_duration() -> None:
             attempts=3,
         )
 
-    ban_spy.assert_awaited_once_with(BOT_IP, 77, "auth_failure_triggered:auth_failure")
+    ban_spy.assert_awaited_once_with(
+        BOT_IP, 77, "auth_failure_triggered:auth_failure", grouped=False
+    )
     assert await manager.is_ip_banned(BOT_IP)
 
 
@@ -210,7 +214,9 @@ async def test_default_duration_is_auto_ban_duration() -> None:
             config, lambda d: d.require_referrer(["example.com"]), {}, attempts=2
         )
 
-    ban_spy.assert_awaited_once_with(BOT_IP, 321, "referrer_triggered:referrer")
+    ban_spy.assert_awaited_once_with(
+        BOT_IP, 321, "referrer_triggered:referrer", grouped=False
+    )
 
 
 async def test_ban_manager_refusal_leaves_request_denied_not_crashed() -> None:

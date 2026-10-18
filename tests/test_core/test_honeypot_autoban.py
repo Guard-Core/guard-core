@@ -102,7 +102,9 @@ async def test_filled_trap_bans_on_first_hit(
     assert response is not None
     assert response.status_code == 403
     assert BOT_IP not in mw.suspicious_request_counts
-    spy.assert_awaited_once_with(BOT_IP, 900, "honeypot_triggered:honeypot")
+    spy.assert_awaited_once_with(
+        BOT_IP, 900, "honeypot_triggered:honeypot", grouped=False
+    )
     assert await fresh_ban_manager.is_ip_banned(BOT_IP)
 
 
@@ -175,7 +177,9 @@ async def test_threat_ban_config_overrides_threshold_and_duration(
         spy.assert_not_awaited()
     await check.check(_post(route_config, FORM, b"website=spam"))
 
-    spy.assert_awaited_once_with(BOT_IP, 42, "honeypot_triggered:honeypot")
+    spy.assert_awaited_once_with(
+        BOT_IP, 42, "honeypot_triggered:honeypot", grouped=False
+    )
     assert await fresh_ban_manager.is_ip_banned(BOT_IP)
 
 

@@ -67,7 +67,7 @@ async def test_default_threshold_argument_applies_when_no_override() -> None:
 
     assert banned is True
     check.ip_ban_manager.ban_ip.assert_awaited_once_with(
-        BOT_IP, 90, "honeypot_triggered:honeypot"
+        BOT_IP, 90, "honeypot_triggered:honeypot", grouped=False
     )
 
 
@@ -85,7 +85,7 @@ async def test_threat_ban_config_entry_beats_default_threshold() -> None:
         check, _request(), "honeypot", "t", 1
     )
     check.ip_ban_manager.ban_ip.assert_awaited_once_with(
-        BOT_IP, 5, "honeypot_triggered:honeypot"
+        BOT_IP, 5, "honeypot_triggered:honeypot", grouped=False
     )
 
 

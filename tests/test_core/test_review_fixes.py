@@ -213,7 +213,9 @@ async def test_the_rate_limit_feed_never_records_detection_strikes(
     middleware = _middleware(config, redis)
     bans: list[str] = []
 
-    async def ban_ip(ip: str, duration: int, reason: str = "") -> bool:
+    async def ban_ip(
+        ip: str, duration: int, reason: str = "", *, grouped: bool = False
+    ) -> bool:
         bans.append(ip)
         return True
 

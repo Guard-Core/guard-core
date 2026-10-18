@@ -109,7 +109,9 @@ def test_global_ip_block_with_threat_repeated_triggers_ban(
         assert ban.ban_ip.call_count == 0
         check._check_global_ip_restrictions(_make_request("21.0.0.1"), "21.0.0.1")
 
-    ban.ban_ip.assert_called_once_with("21.0.0.1", 300, "penetration_attempt")
+    ban.ban_ip.assert_called_once_with(
+        "21.0.0.1", 300, "penetration_attempt", grouped=False
+    )
 
 
 def test_global_ip_block_no_threat_no_counter_change(
@@ -245,7 +247,7 @@ def test_global_whitelist_blocked_by_stricter_route_whitelist_escalates(
     assert request.state.is_whitelisted is False
     assert "203.0.113.55" not in mw.suspicious_request_counts
     ban.ban_ip.assert_called_once_with(
-        "203.0.113.55", config.auto_ban_duration, "penetration_attempt"
+        "203.0.113.55", config.auto_ban_duration, "penetration_attempt", grouped=False
     )
 
 
@@ -282,7 +284,7 @@ def test_global_whitelist_blocked_by_route_blacklist_still_escalates(
     assert result.status_code == 403
     assert "203.0.113.55" not in mw.suspicious_request_counts
     ban.ban_ip.assert_called_once_with(
-        "203.0.113.55", config.auto_ban_duration, "penetration_attempt"
+        "203.0.113.55", config.auto_ban_duration, "penetration_attempt", grouped=False
     )
 
 
@@ -318,7 +320,7 @@ def test_route_blacklist_without_global_whitelist_escalates_as_control(
     assert result.status_code == 403
     assert "203.0.113.55" not in mw.suspicious_request_counts
     ban.ban_ip.assert_called_once_with(
-        "203.0.113.55", config.auto_ban_duration, "penetration_attempt"
+        "203.0.113.55", config.auto_ban_duration, "penetration_attempt", grouped=False
     )
 
 
@@ -488,7 +490,9 @@ def test_user_agent_block_with_threat_repeated_triggers_ban(
     check.check(_make_request("27.0.0.1"))
     assert ban.ban_ip.call_count == 0
     check.check(_make_request("27.0.0.1"))
-    ban.ban_ip.assert_called_once_with("27.0.0.1", 300, "penetration_attempt")
+    ban.ban_ip.assert_called_once_with(
+        "27.0.0.1", 300, "penetration_attempt", grouped=False
+    )
 
 
 def test_user_agent_block_no_threat_no_counter_change(
@@ -642,7 +646,9 @@ def test_global_ip_block_still_returns_403_when_ban_ip_raises(
 
     assert result is not None
     assert result.status_code == 403
-    ban.ban_ip.assert_called_once_with("50.0.0.1", 7200, "penetration_attempt")
+    ban.ban_ip.assert_called_once_with(
+        "50.0.0.1", 7200, "penetration_attempt", grouped=False
+    )
     mw.logger.exception.assert_called_once()
     assert mw.logger.exception.call_args.args[1] == "50.0.0.1"
     event_call = mw.event_bus.send_middleware_event.call_args
@@ -671,7 +677,9 @@ def test_user_agent_block_still_returns_403_when_ban_ip_raises(
 
     assert result is not None
     assert result.status_code == 403
-    ban.ban_ip.assert_called_once_with("51.0.0.1", 7200, "penetration_attempt")
+    ban.ban_ip.assert_called_once_with(
+        "51.0.0.1", 7200, "penetration_attempt", grouped=False
+    )
     mw.logger.exception.assert_called_once()
     assert mw.logger.exception.call_args.args[1] == "51.0.0.1"
     event_call = mw.event_bus.send_middleware_event.call_args
