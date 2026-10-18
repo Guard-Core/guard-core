@@ -204,11 +204,11 @@ class SuspiciousActivityCheck(SecurityCheck):
         trigger_info = result.trigger_info
         threat_categories = list(result.threat_categories)
 
-        _increment_suspicious_counts(self.middleware, client_ip, threat_categories)
-
         if self.config.passive_mode:
             await self._handle_suspicious_passive_mode(request, client_ip, trigger_info)
             return None
+
+        _increment_suspicious_counts(self.middleware, client_ip, threat_categories)
 
         return await self._handle_suspicious_active_mode(
             request, client_ip, trigger_info, threat_categories

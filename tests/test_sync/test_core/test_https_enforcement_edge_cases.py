@@ -396,6 +396,4 @@ def test_suspicious_activity_check_passive_mode_unit() -> None:
         ):
             result = check.check(request)
             assert result is None
-            assert middleware.suspicious_request_counts["1.2.3.4"] == {
-                "uncategorized": 1
-            }
+            assert middleware.suspicious_request_counts == {}

@@ -334,7 +334,7 @@ async def test_passive_mode_with_threat(
     result = await check.check(request)
     assert result is None
     assert ban_calls == []
-    assert check.middleware.suspicious_request_counts["13.0.0.1"]["xss"] == 1
+    assert check.middleware.suspicious_request_counts == {}
 
 
 async def test_no_threat_returns_none(monkeypatch: pytest.MonkeyPatch) -> None:

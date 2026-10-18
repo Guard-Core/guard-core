@@ -284,3 +284,23 @@ def test_event_request_count_falls_back_to_the_category_sum_for_plain_counts(
     }
 
     assert harness.check._total_count_for_ip(CLIENT_IP) == 3
+
+
+def test_passive_mode_never_counts_detection_strikes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = _config(auto_ban_threshold=3, passive_mode=True)
+    harness = _Harness(monkeypatch, config)
+
+    for _ in range(5):
+        harness.hit("xss")
+
+    assert harness.check.middleware.suspicious_request_counts == {}
+    assert harness.bans == []
+
+    config.passive_mode = False
+    harness.hit("xss")
+    assert harness.bans == []
+    harness.hit("xss")
+    harness.hit("xss")
+    assert harness.bans == [(CLIENT_IP, 3600, "penetration_attempt")]
