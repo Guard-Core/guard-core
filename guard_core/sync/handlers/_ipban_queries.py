@@ -209,7 +209,7 @@ class IpBanQueryMixin(IpBanLookupMixin, IpBanEventMixin, IpBanRuleExemptionMixin
             self.logger.warning("Redis unban of whitelisted ranges failed: %s", e)
         return removed
 
-    def unban_ip(self, ip: str, reason: str = "manual_unban") -> None:
+    def unban_ip(self, ip: str, *, reason: str = "manual_unban") -> None:
         if "/" in ip:
             self._unban_cidr(ip, reason)
             return
