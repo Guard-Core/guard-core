@@ -75,3 +75,41 @@ def test_a_blocked_empty_user_agent_is_logged_only_in_passive_mode() -> None:
     assert status is None
     [event] = [e for e in events if e["event_type"] == "user_agent_blocked"]
     assert event["action_taken"] == "logged_only"
+
+
+def test_a_whitelisted_client_is_not_blocked_for_an_empty_user_agent() -> None:
+    status, _ = _outcome({}, block_empty_user_agent=True, whitelist=["203.0.113.5"])
+
+    assert status is None
+
+
+def test_an_exempt_client_is_not_blocked_for_an_empty_user_agent() -> None:
+    status, _ = _outcome({}, block_empty_user_agent=True, exempt_ips=["203.0.113.5"])
+
+    assert status is None
+
+
+def test_the_denial_counts_as_a_user_agent_strike() -> None:
+    from guard_core.sync.handlers.ipban_handler import ip_ban_manager
+
+    ip_ban_manager.banned_ips.clear()
+    config = SecurityConfig(
+        enable_redis=False,
+        enable_penetration_detection=False,
+        enable_rate_limiting=False,
+        block_empty_user_agent=True,
+        ban_on_hostile_signals=True,
+        auto_ban_threshold=2,
+    )
+    middleware = build_middleware(config, SecurityDecorator(config))
+    pipeline = build_default_pipeline(middleware)
+
+    statuses = []
+    for _ in range(3):
+        response = pipeline.execute(
+            SyncMockGuardRequest(path="/x", client_host="203.0.113.5")
+        )
+        statuses.append(None if response is None else response.status_code)
+
+    assert statuses == [403, 403, 403]
+    assert ip_ban_manager.is_ip_banned("203.0.113.5") is True
