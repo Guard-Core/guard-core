@@ -1,7 +1,7 @@
 ---
 
 title: Rate Limiting
-description: RateLimitManager internals, sliding window algorithm, Redis Lua scripts, and per-endpoint rate limits in guard-core
+description: RateLimitManager internals, the sliding window algorithm, the multi-tier Redis Lua script, and per-endpoint rate limits in guard-core
 keywords: rate limiting, sliding window, redis, lua script, guard-core
 ---
 
@@ -13,161 +13,128 @@ Guard-core implements rate limiting using a sliding window algorithm with dual b
 RateLimitManager
 ----------------
 
-### Singleton Pattern
+### One manager per middleware
 
-`RateLimitManager` is a singleton parameterized by `SecurityConfig`:
+Every construction returns its own manager. Two guarded apps in one process (a mounted sub-app, per-tenant configs, a test app) never share windows or config, and `reset()` on one clears only its own in-memory windows:
 
 ```python
 class RateLimitManager:
-    _instance: Optional["RateLimitManager"] = None
-
     def __new__(cls, config: SecurityConfig) -> "RateLimitManager":
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance.config = config
-            cls._instance.request_timestamps = defaultdict(deque)
-            cls._instance.rate_limit_script_sha = None
-        cls._instance.config = config
-        return cls._instance
+        instance = super().__new__(cls)
+        instance.config = config
+        instance.request_timestamps = defaultdict(deque)
+        instance.rate_limit_script_sha = None
+        return instance
 ```
 
-The config is always updated on access, allowing runtime reconfiguration.
-
-### Core Method
+### Core methods
 
 ```python
-async def check_rate_limit(
+async def check_rate_limit_tiers(
     self,
     request: GuardRequest,
     client_ip: str,
     create_error_response: Callable[[int, str], Awaitable[GuardResponse]],
-    endpoint_path: str = "",
-    rate_limit: int | None = None,
-    rate_limit_window: int | None = None,
-) -> GuardResponse | None
+    tiers: Sequence[RateLimitTier],
+    config: SecurityConfig | None = None,
+) -> RateLimitBlock | None
 ```
 
-**Parameters**:
+`RateLimitCheck` builds one `RateLimitTier(kind, limit, window, bucket)` per limit that applies to the request and checks them all in one step. It returns `None` when the request is allowed, or a `RateLimitBlock` (the blocking tier's index, the request count and the 429 response) when a tier blocks.
 
-| Parameter             | Description                                                   |
-|-----------------------|---------------------------------------------------------------|
-| `request`             | The current request object                                    |
-| `client_ip`           | Resolved client IP address                                    |
-| `create_error_response` | Factory callback for creating error responses               |
-| `endpoint_path`       | Optional path for per-endpoint tracking                       |
-| `rate_limit`          | Override for `config.rate_limit`                              |
-| `rate_limit_window`   | Override for `config.rate_limit_window`                       |
-
-**Returns**: `None` if under the limit, or a `429` response if exceeded.
+`check_rate_limit(request, client_ip, create_error_response, endpoint_path="", rate_limit=None, rate_limit_window=None, config=None)` keeps its signature for direct callers: it checks one tier (the global one, or an endpoint tier when `endpoint_path` is given), sends the `rate_limited` event and returns the 429 response or `None`.
 
 ___
 
 Sliding Window Algorithm
 ------------------------
 
+### What counts
+
+A request enters a window only when every tier of the request has room. A request blocked by any tier is recorded in none, so a client that floods the limiter does not grow its own window (300 blocked requests leave `limit` entries, not 300) and a client that keeps retrying is unblocked as soon as its allowed hits leave the window.
+
+A tier blocks when the number of hits in its window is already at least its limit: the `limit`-th request passes and the `limit + 1`-th is blocked. The block reports `hits + 1` as its request count and sets `Retry-After` to the seconds until the oldest hit in the blocking tier's window leaves it (rounded up, at least 1).
+
 ### In-Memory Backend
 
-Uses `collections.defaultdict[str, deque[float]]` keyed by `"{client_ip}:{endpoint_path}"` or just `"{client_ip}"` for global limits.
-
-```python
-def _get_in_memory_request_count(
-    self, client_ip, window_start, current_time, endpoint_path=""
-) -> int:
-    key = f"{client_ip}:{endpoint_path}" if endpoint_path else client_ip
-    while (
-        self.request_timestamps[key] and self.request_timestamps[key][0] <= window_start
-    ):
-        self.request_timestamps[key].popleft()
-    request_count = len(self.request_timestamps[key])
-    self.request_timestamps[key].append(current_time)
-    return request_count
-```
-
-The deque acts as a sliding window. Timestamps older than `current_time - window` are evicted on each call.
+Uses `collections.defaultdict[str, deque[float]]`, one deque per client and tier, keyed by `"{client_ip}"` for the global tier and `"{client_ip}:{kind}:{sha256(bucket)}"` for the others. Stale timestamps (older than `now - window`) are dropped from every tier's deque first; the request is blocked by the first tier whose deque is already at its limit, and otherwise the current time is appended to every tier. The store is LRU-bounded by `rate_limit_max_tracked_keys` (10,000 by default).
 
 ### Redis Backend
 
-Uses a Redis sorted set where:
+Each tier is a Redis sorted set:
 
-- **Key**: `{redis_prefix}rate_limit:rate:{client_ip}:{endpoint_path}`
-- **Members**: Timestamps (as strings)
-- **Scores**: Timestamps (as floats)
-
-Each request:
-
-1. Adds the current timestamp (`ZADD`).
-2. Removes all entries before the window start (`ZREMRANGEBYSCORE`).
-3. Counts remaining entries (`ZCARD`).
-4. Sets a TTL of `window * 2` to prevent key leakage.
+- **Key**: `{redis_prefix}rate_limit:rate:{client_ip}` for the global tier, `{redis_prefix}rate_limit:rate:{client_ip}:{kind}:{sha256(bucket)}` for the endpoint, route and geo tiers (`kind` is `endpoint`, `route` or `geo`, the bucket is the matched endpoint key or the route id).
+- **Members and scores**: the time of the hit as Redis reports it.
+- **TTL**: `window * 2`, refreshed when a hit is recorded.
 
 ___
 
 Lua Script for Atomic Operations
 ---------------------------------
 
-When Redis is available, guard-core loads a Lua script at initialization for atomic rate limit operations:
+When Redis is available, guard-core loads one Lua script at initialization. It takes one key per tier and the limit and window of each, and answers for the whole request in one round trip:
 
 ```lua
-local key = KEYS[1]
-local now = tonumber(ARGV[1])
-local window = tonumber(ARGV[2])
-local limit = tonumber(ARGV[3])
-local window_start = now - window
+local time = redis.call('TIME')
+local now = tonumber(time[1]) + tonumber(time[2]) / 1000000
 
-redis.call('ZADD', key, now, now)
-redis.call('ZREMRANGEBYSCORE', key, 0, window_start)
-local count = redis.call('ZCARD', key)
-redis.call('EXPIRE', key, window * 2)
+-- for each tier: drop hits older than the window, count what is left
+-- if a tier is at its limit: return {tier_number, count, retry_after}, record nothing
 
-return count
+-- no tier blocked: ZADD every tier and refresh every TTL
+return {0, 0, 0}
 ```
 
-The script SHA is cached in `rate_limit_script_sha` and executed with `EVALSHA` on each request.
+The script reads the clock from Redis (`TIME`), never from the calling worker, so a host with a skewed clock cannot purge the hits of its peers. Its SHA is cached in `rate_limit_script_sha` and executed with `EVALSHA` once per request, however many tiers the request has; on `NOSCRIPT` the script is reloaded and the call is retried.
 
 **Advantages of the Lua approach**:
 
-- **Atomicity**: All four operations execute as a single Redis transaction.
-- **Performance**: One round trip instead of four.
-- **Consistency**: No race conditions between concurrent requests.
+- **Atomicity**: the check of every tier and the recording happen as one step, so concurrent requests cannot overshoot a limit.
+- **Performance**: one round trip and one connection checkout per request, not one per tier.
+- **Consistency**: the limit is exact across workers and replicas.
 
 ### Fallback
 
-If the Lua script is not loaded (e.g., script load failed), the Redis backend falls back to a pipeline of individual commands:
+If the Lua script is not loaded (for example, script load failed), or for `check_rate_limit_by_ip`, the Redis backend reads `TIME`, runs one pipeline that counts every tier, and only when no tier blocks runs a second pipeline that records the hit in every tier. The two pipelines are not atomic together, which is why the script is the primary path.
 
-```python
-pipeline = conn.pipeline()
-pipeline.zadd(key_name, {str(current_time): current_time})
-pipeline.zremrangebyscore(key_name, 0, window_start)
-pipeline.zcard(key_name)
-pipeline.expire(key_name, window * 2)
-results = await pipeline.execute()
-```
+If Redis fails entirely (connection error), `redis_fail_open` decides: `False` (the default) raises `GuardRedisError` and the pipeline applies `fail_secure`, `True` falls back to the in-memory window with a log warning.
 
-If Redis fails entirely (connection error), the system falls back to in-memory rate limiting with a log warning.
+### Connection pool
+
+The Redis client uses a blocking connection pool of `redis_max_connections` connections (100 when unset). A burst above the pool size waits up to `redis_pool_timeout` seconds (1.0 by default) for a free connection instead of failing; when the wait times out the call fails like any other Redis error and `redis_fail_open` decides.
 
 ___
 
-Per-Endpoint Rate Limits
-------------------------
+Tiers
+-----
 
-The `RateLimitCheck` pipeline check evaluates rate limits in priority order:
+The `RateLimitCheck` pipeline check builds these tiers in this order, and the first one that blocks decides the response:
 
-| Priority | Source                               | Configuration                                    |
-|----------|--------------------------------------|--------------------------------------------------|
-| 1        | Dynamic endpoint rules               | `config.endpoint_rate_limits[path] = (limit, window)` |
-| 2        | Route decorator                      | `RouteConfig.rate_limit` + `RouteConfig.rate_limit_window` |
-| 3        | Geo-based route limits               | `RouteConfig.geo_rate_limits[country] = (limit, window)` |
-| 4        | Global                               | `config.rate_limit` + `config.rate_limit_window` |
+| Order | Source                               | Configuration                                    | Bucket |
+|-------|--------------------------------------|--------------------------------------------------|--------|
+| 1     | Dynamic endpoint rules               | `config.endpoint_rate_limits[path] = (limit, window)` | the matched key |
+| 2     | Route decorator                      | `RouteConfig.rate_limit` + `RouteConfig.rate_limit_window` | the route id |
+| 3     | Geo-based route limits               | `RouteConfig.geo_rate_limits[country] = (limit, window)` | the route id |
+| 4     | Global                               | `config.rate_limit` + `config.rate_limit_window`, only when `enable_rate_limiting` is on | none |
 
-The first matching tier short-circuits evaluation. For endpoint-specific and route-level limits, the `endpoint_path` parameter is set so that the rate counters are tracked separately from global counters.
+Each tier keeps its own bucket and its own budget, so a route limit and a geo limit on one route never double count. With `enable_rate_limiting=False` the global tier is off and the route, geo and endpoint tiers stay on; startup logs one INFO line naming the routes whose own limits stay on.
+
+The check does not run on excluded paths (`exclude_paths`), and a CORS preflight (`OPTIONS` with `Access-Control-Request-Method`) is never counted. Bans and the IP lists still apply to both, because `ip_security` runs first.
 
 ### Geo-Based Rate Limits
 
-When `RouteConfig.geo_rate_limits` is configured, the check resolves the client's country via `GeoIPHandler`, then looks up the limit:
+When `RouteConfig.geo_rate_limits` is configured, the check resolves the client's country with the middleware's `GeoIPHandler` (the one the IP checks use), then looks up the limit:
 
-1. Exact country match (e.g., `"US"`).
+1. Exact country match (e.g., `"US"`). The decorator uppercases country keys, so `{"us": ...}` and `{"US": ...}` are the same.
 2. Wildcard fallback (`"*"`).
-3. If no match, skips to the next tier.
+3. If no match, the tier is left out.
+
+___
+
+Auto-ban feed
+-------------
+
+With `enable_rate_limit_auto_ban`, each non-passive block counts as one violation toward a ban (see [Rate-limit auto-ban](../api/ban-config.md#rate-limit-auto-ban)). With Redis on, violations are counted in `{redis_prefix}rate_limit:violations:{client_ip}`, a 3600 s sliding window shared by every worker and cleared when the ban lands. A client identity that is not an IP address (the `"unknown"` identity of a request with no client address) is never counted or banned, and an exception in this path is logged while the 429 is kept.
 
 ___
 
@@ -191,4 +158,4 @@ Reset
 await rate_limit_manager.reset()
 ```
 
-Clears the in-memory `request_timestamps` dictionary and deletes all `rate_limit:rate:*` keys from Redis.
+Clears the manager's in-memory `request_timestamps` dictionary and deletes all `rate_limit:rate:*` keys from Redis.

@@ -8,7 +8,28 @@ ___
 [Unreleased]
 ------------
 
+### Added
+
+- **`redis_pool_timeout`, `rate_limit_max_tracked_keys` and `ban_counters_max_tracked_ips`** (`SecurityConfig`). `redis_pool_timeout` (default `1.0`, `> 0`) is how long a Redis call waits for a free pooled connection; the other two (default `10000`, `>= 1`) cap the in-memory rate-limit windows and the auto-ban violation counters one process keeps, so nothing changes by default.
+- **`ip_ban_refused` event.** A ban the self-DoS guard refuses (loopback, a trusted proxy) is reported once per IP per ban window, with `duration`, `refusal` and `ban_reason` in the metadata. guard-agent and the SaaS must accept the new event type.
+- **Startup warnings for two defaults that change in 5.0.0.** Leaving `enable_redis` unset logs one `DeprecationWarning` and one WARNING (5.0.0 turns Redis off by default); leaving `rate_limit` unset while rate limiting is on does the same (5.0.0 raises the default from 10 to 120 requests per 60 s). Every config that enables Redis with the default `redis_prefix` logs a WARNING, because apps on one Redis share bans and rate-limit counters. The values stay as in 4.4.0 until 5.0.0.
+
+### Changed
+
+- **A rejected request is no longer recorded in the rate-limit window** (release note). A request blocked by any tier is recorded in none, so a flooding client does not grow its own window (300 blocked requests used to leave 300 members) and a client that keeps retrying is unblocked once its allowed hits expire. The block still happens at the same request: the `limit`-th request passes and the next one is blocked.
+- **The rate-limit auto-ban counts violations across workers when Redis is on.** The threshold is the configured number of violations whatever the worker count (4 workers used to need 29 429s for a threshold of 8), the counter survives a restart and is cleared when the ban lands. Rate-limit violations and detection hits are counted apart: a flat `auto_ban_threshold` for a rate-limit ban counts only rate-limit violations and the flat threshold of a detection ban never counts them.
+- **Excluded paths and CORS preflights skip rate limiting.** `exclude_paths` entries (health probes, static assets) no longer use up the client's budget or feed the rate-limit auto-ban, and an `OPTIONS` preflight is never counted. Bans and the IP, country and cloud lists still apply to both.
+- **`enable_rate_limiting=False` turns off the global limit only.** `@rate_limit`, `@geo_rate_limit` and `endpoint_rate_limits` stay on, and startup logs one INFO line naming the routes whose limits stay on.
+- **Redis rate-limit keys.** The route, geo and endpoint tiers write `{prefix}rate_limit:rate:{ip}:{kind}:{sha256(bucket)}` (`kind` is `endpoint`, `route` or `geo`), the script reads the clock from Redis `TIME` and checks every tier of a request in one call, and the violation counter is `{prefix}rate_limit:violations:{ip}`. Redis 5 or later (or `redis.replicate_commands()`, which the script calls when it exists) is needed for `TIME` in a script. A mixed 4.4.0 and 4.5.0 fleet on one Redis counts the two key shapes apart until every worker is upgraded.
+- **Redis connection pool.** The client uses a blocking pool of `redis_max_connections` connections (100 when unset), so a burst above the pool size waits instead of failing (200 concurrent requests used to give 100 `GuardRedisError`).
+- **One rate-limit manager per middleware.** `RateLimitManager(config)` returns its own manager with its own windows and config; the class and its constructor are unchanged.
+
 ### Fixed
+
+- **A route or geo limit no longer double counts** when both are set on one route (each tier has its own bucket), `Retry-After` is the time until the blocking tier has room again instead of the full window, and `geo_rate_limit` country keys are uppercased and resolved with the same geo handler as the IP checks.
+- **A request without a client address no longer ends in a permanent 500.** The `"unknown"` identity is neither counted nor banned by the rate-limit auto-ban (logged once), and any exception from that path is logged while the 429 is kept.
+- **`check_rate_limit_by_ip`** canonicalizes the IP, never limits an `exempt_ips` address, and reports a block with the pipeline's log line and one `rate_limited` event (new optional `agent_handler`).
+- **One `rate_limited` event per blocked request**, with the blocking tier's limit and window (it used the global values), `logged_only` in passive mode, and not sent when `rate_limited` is muted.
 
 - **`guard.behavior.recent_event_count` is no longer 0 with Redis** (`docs/architecture/telemetry.md`). The field counts each `usage` or `frequency` behavior rule's hits from the IP that are still inside that rule's own window, summed across all endpoints, within the last 5 minutes, the same quantity as before. With Redis enabled it was always 0: the count read only the in-memory usage counters, and the Redis path never writes them. Every usage or frequency rule key is now also added to a per-IP index set in the same Redis call as the hit, each rule key lives at least 5 minutes (its TTL is now the larger of the rule's window and 300 s), and the enricher reads the sum through the new `BehaviorTracker.count_recent_rule_hits(ip, window_seconds)` (window at most 300 s), so with Redis the field now has the in-memory value. The Guard Core SaaS uses this field in severity scoring, so severity scores change for events from Redis deployments, where the count was 0. `BehaviorTracker.get_recent_event_count(ip, window_seconds)` is unchanged (sync, sums the in-memory usage counters), and the enricher still reads it from a custom tracker that only has that method.
 

@@ -76,7 +76,8 @@ These are the `event_type` strings used throughout guard-core:
 | `dynamic_rule_violation` | `RateLimitCheck` | Endpoint-specific rate limit (from dynamic rules) exceeded |
 | `access_denied` | `BaseSecurityDecorator` | Decorator-level access denial |
 | `authentication_failed` | `BaseSecurityDecorator` | Authentication check failed |
-| `rate_limited` | `BaseSecurityDecorator` | Decorator-level rate limit exceeded |
+| `rate_limited` | `RateLimitManager`, `BaseSecurityDecorator` | A request was blocked by a rate limit: exactly one per blocked request, carrying the blocking tier's limit and window (`logged_only` in passive mode, skipped when muted). The decorator sends it for a route limit when a decorator is attached |
+| `ip_ban_refused` | `IPBanManager` | A ban the self-DoS guard refused (loopback or a trusted proxy), once per IP per ban window, with `duration`, `refusal` (`loopback` or `trusted_proxy`) and `ban_reason` in the metadata |
 | `route_unresolved` | `RouteConfigCheck` | Adapter could not resolve the route, so per-route config could not be applied (only under `route_resolution_strict`) |
 
 ### Specialized Event Methods

@@ -254,6 +254,56 @@ def rate_limit_auto_ban_uses_the_configured_threat_ban_thresholds(
     assert any("IP banned due to rate_limit threshold" in line for line in lines)
 
 
+BAN_REFUSED_CONFIG = {
+    "enable_rate_limiting": True,
+    "rate_limit": 1,
+    "rate_limit_window": 60,
+    "enable_ip_banning": True,
+    "enable_rate_limit_auto_ban": True,
+    "auto_ban_threshold": 2,
+    "auto_ban_duration": 30,
+    "trusted_proxies": ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"],
+    "enable_agent": True,
+    "agent_api_key": "smoke-agent-key",
+    "agent_endpoint": "http://agent-stub:8090",
+    "agent_flush_interval": 2,
+    "excluded_detection_headers": EXCLUDED_HEADERS,
+}
+
+
+def _refused_ban_event(ctx: ScenarioContext) -> list[dict[str, object]] | None:
+    response = ctx.agent.get("/_debug/state")
+    if response.status_code != 200:
+        return None
+    events = [
+        event
+        for event in response.json().get("events", [])
+        if event.get("event_type") == "ip_ban_refused"
+    ]
+    return events or None
+
+
+@scenario(covers={"trusted_proxies"}, config=BAN_REFUSED_CONFIG)
+def a_refused_ban_is_logged_once_and_reported_as_one_ip_ban_refused_event(
+    ctx: ScenarioContext,
+) -> None:
+    ctx.agent.post("/_debug/reset")
+    mark = ctx.stack.logs.mark()
+
+    statuses = [ctx.client.get("/basic/health").status_code for _ in range(8)]
+
+    assert 403 not in statuses, statuses
+    assert statuses.count(429) >= 6, statuses
+    refusals = [
+        line for line in ctx.stack.logs.lines_since(mark) if "Refused to ban" in line
+    ]
+    assert len(refusals) == 1, refusals
+    events = wait_until(lambda: _refused_ban_event(ctx), timeout=20.0)
+    assert events is not None, "no ip_ban_refused event reached the agent stub"
+    assert len(events) == 1, events
+    assert (events[0].get("metadata") or {}).get("refusal") == "trusted_proxy"
+
+
 HOSTILE_SIGNAL_BAN_CONFIG = {
     "blocked_user_agents": ["smoke-blocked-agent"],
     "auto_ban_threshold": 2,

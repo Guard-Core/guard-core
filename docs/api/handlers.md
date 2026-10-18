@@ -78,7 +78,8 @@ class RateLimitManager:
         cls: type["RateLimitManager"], config: SecurityConfig
     ) -> "RateLimitManager":
         """
-        Singleton constructor. Accepts a SecurityConfig instance.
+        Every construction returns its own manager: windows, config, script
+        SHA and agent handler belong to the middleware that built it.
         """
 
     async def initialize_redis(self, redis_handler: Any) -> None:
@@ -103,6 +104,20 @@ class RateLimitManager:
         """
         Check whether the client has exceeded the rate limit.
         Returns a 429 response if exceeded, None otherwise.
+        """
+
+    async def check_rate_limit_tiers(
+        self,
+        request: GuardRequest,
+        client_ip: str,
+        create_error_response: Callable[[int, str], Awaitable[GuardResponse]],
+        tiers: Sequence[RateLimitTier],
+        config: SecurityConfig | None = None,
+    ) -> RateLimitBlock | None:
+        """
+        Check every tier of one request in a single atomic step. Nothing is
+        recorded when any tier blocks. Returns the blocking tier's index,
+        request count and 429 response, or None when the request is allowed.
         """
 
     async def reset(self) -> None:

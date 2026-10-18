@@ -190,16 +190,18 @@ ___
 
 **Purpose**: Enforces request rate limits using a sliding window algorithm.
 
-**Evaluation order** (first match wins):
+**Tiers**, checked together in one call (the first that blocks decides the response):
 
 1. **Endpoint-specific rate limits** from `config.endpoint_rate_limits` (set by dynamic rules).
 2. **Route-level rate limits** from `RouteConfig.rate_limit` and `RouteConfig.rate_limit_window`.
 3. **Geo-based rate limits** from `RouteConfig.geo_rate_limits`.
-4. **Global rate limits** from `config.rate_limit` and `config.rate_limit_window`.
+4. **Global rate limits** from `config.rate_limit` and `config.rate_limit_window`, only when `enable_rate_limiting` is on.
 
-**Response**: `429 Too many requests`
+Each tier has its own bucket, and a request that any tier blocks is recorded in none of them. See [Rate Limiting](rate-limiting.md).
 
-**Skips**: Whitelisted IPs and bypassed routes.
+**Response**: `429 Too many requests` with a `Retry-After` header: the seconds until the blocking tier has room again, at least 1.
+
+**Skips**: Whitelisted and exempt IPs, bypassed routes, excluded paths (`exclude_paths`) and CORS preflights (`OPTIONS` with `Access-Control-Request-Method`). Bans and the IP, country and cloud lists still apply to all of those, because `ip_security` runs first.
 
 ___
 
