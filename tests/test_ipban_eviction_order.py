@@ -70,10 +70,12 @@ async def test_evicting_unexpired_bans_warns_and_sends_ip_ban_evicted_when_sampl
         await manager.ban_ip(f"8.8.{index // 256}.{index % 256}", 600 + index, "t")
 
     assert manager.evictions_count == 101
-    assert len([r for r in caplog.records if "evicted" in r.getMessage()]) == 1
-    [event] = _events(manager)
-    assert event.event_type == "ip_ban_evicted"
-    assert event.action_taken == "ban_evicted"
-    assert event.metadata["evictions"] == 100
-    assert event.metadata["remaining_seconds"] > 0
-    assert event.ip_address == "8.8.0.99"
+    assert len([r for r in caplog.records if "evicted" in r.getMessage()]) == 2
+    first, hundredth = _events(manager)
+    assert first.event_type == "ip_ban_evicted"
+    assert first.action_taken == "ban_evicted"
+    assert first.metadata["evictions"] == 1
+    assert first.ip_address == "8.8.0.0"
+    assert hundredth.metadata["evictions"] == 100
+    assert hundredth.metadata["remaining_seconds"] > 0
+    assert hundredth.ip_address == "8.8.0.99"

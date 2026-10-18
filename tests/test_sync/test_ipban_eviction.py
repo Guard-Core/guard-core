@@ -39,16 +39,17 @@ def test_banned_ips_overflow_increments_eviction_counter_and_logs_at_threshold(
     manager.ban_ip("8.8.0.3", duration=300, reason="t")
 
     assert manager.evictions_count == 1
-    assert not [r for r in caplog.records if r.levelno == logging.WARNING]
+    [first] = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert "1 entries evicted" in first.getMessage()
 
     for i in range(4, 103):
         manager.ban_ip(f"8.8.{i // 256}.{i % 256}", duration=300, reason="t")
 
     assert manager.evictions_count == 100
     warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
-    assert len(warnings) == 1
-    assert "100" in warnings[0].getMessage()
-    assert "silent overflow" in warnings[0].getMessage()
+    assert len(warnings) == 2
+    assert "100" in warnings[1].getMessage()
+    assert "silent overflow" in warnings[1].getMessage()
 
 
 def test_ttl_expiry_does_not_increment_eviction_counter() -> None:

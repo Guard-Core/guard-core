@@ -8,6 +8,8 @@ from cachetools import TTLCache
 
 _Network = ipaddress.IPv4Network | ipaddress.IPv6Network
 
+DEFAULT_MAX_LOCAL_BANS = 100_000
+
 
 class _ObservableTTLCache(TTLCache):
     def __init__(
@@ -69,6 +71,11 @@ class _BanStore(MutableMapping[str, float]):
     def clear(self) -> None:
         self._expiries.clear()
         self._heap.clear()
+
+    def resize(self, maxsize: int) -> None:
+        self.maxsize = maxsize
+        while len(self._expiries) > maxsize:
+            self._evict_closest_to_expiry()
 
     def _evict_closest_to_expiry(self) -> None:
         while self._heap:

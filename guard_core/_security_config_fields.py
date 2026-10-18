@@ -10,6 +10,7 @@ from guard_core._security_config_validators import ThreatBanConfig
 from guard_core._security_headers_defaults import default_security_headers_config
 from guard_core._staged_defaults import DEFAULT_REDIS_PREFIX
 from guard_core._utils.lru_store import DEFAULT_MAX_TRACKED_KEYS
+from guard_core.handlers._ipban_cache import DEFAULT_MAX_LOCAL_BANS
 from guard_core.handlers.suspatterns_handler import ALL_DETECTION_CATEGORIES
 from guard_core.protocols.cloud_ip_store_protocol import (
     CloudIpStoreFactory,
@@ -515,6 +516,18 @@ class _SecurityConfigFields(BaseModel):
         description=(
             "Maximum age in seconds, from the file's modification time, before "
             "the IPInfo MMDB is downloaded again in the background."
+        ),
+    )
+
+    banned_ips_max_entries: int = Field(
+        default=DEFAULT_MAX_LOCAL_BANS,
+        ge=1,
+        description=(
+            "Cap on the bans one process keeps in memory (addresses and grouped "
+            "identities, 100,000 by default, about 25 MiB when full), >= 1. At the "
+            "cap the ban closest to expiry is evicted first, and the first and "
+            "every hundredth unexpired eviction is logged and sent as an "
+            "ip_ban_evicted event. With Redis the bans themselves are not capped."
         ),
     )
 

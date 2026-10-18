@@ -7,6 +7,7 @@ from guard_core.sync.handlers._ipban_bans import (
     IpBanOperationsMixin,
 )
 from guard_core.sync.handlers._ipban_cache import (
+    DEFAULT_MAX_LOCAL_BANS,
     _BanStore,
     _Network,
     _ObservableTTLCache,
@@ -34,7 +35,7 @@ __all__ = [
 
 class IPBanManager(IpBanMigrationMixin, IpBanOperationsMixin, IpBanQueryMixin):
     LOCAL_CACHE_TTL_CAP_SECONDS = 3600
-    MAX_LOCAL_BANS = 100_000
+    MAX_LOCAL_BANS = DEFAULT_MAX_LOCAL_BANS
     _EVICTION_LOG_EVERY = 100
 
     _instance: "IPBanManager | None" = None
@@ -64,9 +65,15 @@ class IPBanManager(IpBanMigrationMixin, IpBanOperationsMixin, IpBanQueryMixin):
             cls._instance.agent_handler = None
         return cls._instance
 
+    def set_capacity(self, entries: int) -> None:
+        if isinstance(self.banned_ips, _BanStore):
+            self.banned_ips.resize(entries)
+
     def _on_eviction(self, *evicted: Any) -> None:
         self.evictions_count += 1
-        if self.evictions_count % self._EVICTION_LOG_EVERY == 0:
+        if self.evictions_count == 1 or (
+            self.evictions_count % self._EVICTION_LOG_EVERY == 0
+        ):
             self.logger.warning(
                 "IP ban cache full; %d entries evicted (silent overflow); use "
                 "Redis to keep a large number of bans",

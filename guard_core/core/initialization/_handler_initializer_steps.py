@@ -68,6 +68,7 @@ class _HandlerInitializerStepsMixin(CloudInitializationMixin):
         from guard_core.handlers.suspatterns_handler import sus_patterns_handler
 
         ip_ban_manager.config = self.config
+        ip_ban_manager.set_capacity(self.config.banned_ips_max_entries)
         sus_patterns_handler.configure(self.config)
         apply_nat64_prefixes(self.config, self.logger)
 

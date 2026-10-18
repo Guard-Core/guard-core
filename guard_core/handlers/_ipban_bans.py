@@ -106,7 +106,10 @@ class IpBanOperationsMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
             return
         self.evicted_to_report = None
         await self._send_ban_evicted_event(
-            evicted[0], evicted[1], self.evictions_count, self.MAX_LOCAL_BANS
+            evicted[0],
+            evicted[1],
+            self.evictions_count,
+            getattr(self.banned_ips, "maxsize", self.MAX_LOCAL_BANS),
         )
 
     def _target_network(self, ip: str) -> _Network | None:

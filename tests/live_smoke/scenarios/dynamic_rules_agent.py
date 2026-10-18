@@ -80,3 +80,37 @@ def _debug_state_with_telemetry(ctx: ScenarioContext) -> dict[str, Any] | None:
     if not (data["events"] or data["status"]):
         return None
     return data
+
+
+BAN_CAPACITY_CONFIG = {
+    **CONFIG,
+    "dynamic_rule_interval": 60,
+    "banned_ips_max_entries": 2,
+}
+RULE_BANNED_ADDRESSES = ["198.51.100.1", "198.51.100.2", "198.51.100.3"]
+
+
+def _eviction_events(ctx: ScenarioContext) -> list[dict[str, Any]] | None:
+    response = ctx.agent.get("/_debug/state")
+    if response.status_code != 200:
+        return None
+    events = [
+        event
+        for event in response.json().get("events", [])
+        if event.get("event_type") == "ip_ban_evicted"
+    ]
+    return events or None
+
+
+@scenario(covers={"banned_ips_max_entries"}, config=BAN_CAPACITY_CONFIG)
+def banned_ips_max_entries_evicts_the_ban_closest_to_expiry(
+    ctx: ScenarioContext,
+) -> None:
+    ctx.agent.post("/_debug/reset")
+    ctx.agent.post("/_debug/rules", json={"ip_blacklist": RULE_BANNED_ADDRESSES})
+
+    events = wait_until(lambda: _eviction_events(ctx), timeout=120.0, interval=2.0)
+
+    assert events is not None, "no ip_ban_evicted event reached the agent stub"
+    assert events[0].get("ip_address") == RULE_BANNED_ADDRESSES[0], events
+    assert (events[0].get("metadata") or {}).get("capacity") == 2, events

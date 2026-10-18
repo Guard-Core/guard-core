@@ -19,6 +19,7 @@ _state: dict[str, list[Any]] = {
 }
 _rule_version = 1
 _rule_suspicious_patterns: list[str] | None = None
+_rule_ip_blacklist: list[str] | None = None
 _delay_seconds = 0.0
 _forced_status: int | None = None
 _in_flight = 0
@@ -154,6 +155,7 @@ class Handler(BaseHTTPRequestHandler):
             version = _rule_version
             _rule_version += 1
             patterns = _rule_suspicious_patterns
+            ip_blacklist = _rule_ip_blacklist
         now = datetime.now(timezone.utc)
         payload: dict[str, Any] = {
             "rule_id": "smoke-rule",
@@ -167,6 +169,9 @@ class Handler(BaseHTTPRequestHandler):
         }
         if patterns is not None:
             payload["suspicious_patterns"] = patterns
+        if ip_blacklist is not None:
+            payload["ip_blacklist"] = ip_blacklist
+            payload["ip_ban_duration"] = 3600
         _send_json(self, 200, payload)
 
     def do_POST(self) -> None:
@@ -217,7 +222,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def _handle_debug_reset(self) -> None:
         global _delay_seconds, _forced_status, _rule_suspicious_patterns
-        global _high_water_mark
+        global _high_water_mark, _rule_ip_blacklist
         with _lock:
             _state["events"].clear()
             _state["metrics"].clear()
@@ -226,6 +231,7 @@ class Handler(BaseHTTPRequestHandler):
             _delay_seconds = 0.0
             _forced_status = None
             _rule_suspicious_patterns = None
+            _rule_ip_blacklist = None
             _high_water_mark = 0
         _send_json(self, 200, {"success": True})
 
@@ -245,11 +251,19 @@ class Handler(BaseHTTPRequestHandler):
         _send_json(self, 200, {"code": _forced_status})
 
     def _handle_debug_rules(self) -> None:
-        global _rule_suspicious_patterns
+        global _rule_suspicious_patterns, _rule_ip_blacklist
         payload = _read_body(self)
         with _lock:
             _rule_suspicious_patterns = payload.get("suspicious_patterns")
-        _send_json(self, 200, {"suspicious_patterns": _rule_suspicious_patterns})
+            _rule_ip_blacklist = payload.get("ip_blacklist")
+        _send_json(
+            self,
+            200,
+            {
+                "suspicious_patterns": _rule_suspicious_patterns,
+                "ip_blacklist": _rule_ip_blacklist,
+            },
+        )
 
 
 def main() -> None:
