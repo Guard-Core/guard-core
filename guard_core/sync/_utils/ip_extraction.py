@@ -308,12 +308,26 @@ def forwarded_for_addresses(forwarded_for: str) -> list[IPv4Address | IPv6Addres
     return addresses
 
 
+def _agent_open_to_suspicious_requests(
+    config: Any, agent_handler: SyncAgentHandlerProtocol | None
+) -> SyncAgentHandlerProtocol | None:
+    from guard_core.sync.core.events.event_types import EVENT_SUSPICIOUS_REQUEST
+
+    if (
+        not config.agent_enable_events
+        or EVENT_SUSPICIOUS_REQUEST in config.muted_event_types
+    ):
+        return None
+    return agent_handler
+
+
 def _handle_untrusted_proxy(
     request: SyncGuardRequest,
     connecting_ip: str,
     canonical_connecting_ip: str,
     forwarded_for: str | None,
     agent_handler: SyncAgentHandlerProtocol | None,
+    config: Any,
 ) -> str:
     if forwarded_for:
         _warn_forwarded_header_preempted(connecting_ip, forwarded_for)
@@ -335,7 +349,7 @@ def _handle_untrusted_proxy(
         from guard_core.sync.core.events.event_types import EVENT_SUSPICIOUS_REQUEST
 
         send_agent_event(
-            agent_handler,
+            _agent_open_to_suspicious_requests(config, agent_handler),
             EVENT_SUSPICIOUS_REQUEST,
             canonical_connecting_ip,
             "spoofing_detected",
@@ -448,6 +462,7 @@ def _malformed_forwarded_for_identity(
     peer: str,
     forwarded_for: str | None,
     agent_handler: SyncAgentHandlerProtocol | None,
+    config: Any,
 ) -> str:
     if observe_sampled_key(
         _untrusted_peers,
@@ -469,7 +484,7 @@ def _malformed_forwarded_for_identity(
         from guard_core.sync.core.events.event_types import EVENT_SUSPICIOUS_REQUEST
 
         send_agent_event(
-            agent_handler,
+            _agent_open_to_suspicious_requests(config, agent_handler),
             EVENT_SUSPICIOUS_REQUEST,
             peer,
             "malformed_forwarded_for",
@@ -500,7 +515,11 @@ def extract_client_ip(
                 )
             except _MalformedForwardedEntry:
                 return _malformed_forwarded_for_identity(
-                    request, UNKNOWN_CLIENT_IDENTITY, forwarded_for, agent_handler
+                    request,
+                    UNKNOWN_CLIENT_IDENTITY,
+                    forwarded_for,
+                    agent_handler,
+                    config,
                 )
         return UNKNOWN_CLIENT_IDENTITY
 
@@ -521,6 +540,7 @@ def extract_client_ip(
             canonical_connecting_ip,
             forwarded_for,
             agent_handler,
+            config,
         )
 
     try:
@@ -532,5 +552,5 @@ def extract_client_ip(
         )
     except _MalformedForwardedEntry:
         return _malformed_forwarded_for_identity(
-            request, canonical_connecting_ip, forwarded_for, agent_handler
+            request, canonical_connecting_ip, forwarded_for, agent_handler, config
         )
