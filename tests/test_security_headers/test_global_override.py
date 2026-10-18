@@ -1,3 +1,4 @@
+import dataclasses
 import gc
 import json
 import logging
@@ -2611,3 +2612,179 @@ def test_the_cors_note_registry_forgets_its_oldest_entry_when_full(
     assert override_module.first_time(seen, (3, 1.0))
 
     assert list(seen) == [(2, 1.0), (3, 1.0)]
+
+
+def _only(**passed: Any) -> dict[str, Any]:
+    blank = {
+        name: override_module.NOT_PASSED
+        for name in (
+            "enabled",
+            "csp",
+            "hsts_max_age",
+            "hsts_include_subdomains",
+            "hsts_preload",
+            "frame_options",
+            "content_type_options",
+            "xss_protection",
+            "referrer_policy",
+            "custom_headers",
+        )
+    }
+    blank["permissions_policy"] = override_module.PERMISSIONS_POLICY_NOT_PASSED
+    return override_module.override_from_call(**{**blank, **passed})
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("enable_cors", True),
+        ("cors_origins", ["https://a.example"]),
+        ("cors_allow_credentials", True),
+        ("cors_allow_methods", ["GET"]),
+        ("cors_allow_headers", ["X-A"]),
+        ("cors_max_age", 30),
+        ("cors_expose_headers", ["X-B"]),
+    ],
+)
+def test_each_cors_key_alone_is_recorded_as_the_override(key: str, value: Any) -> None:
+    assert _only(**{key: value}) == {key: value}
+    assert key in override_module.CORS_OVERRIDE_KEYS
+
+
+@pytest.mark.parametrize(
+    ("key", "bad", "expected"),
+    [
+        ("cors_origins", "x", "a list of strings"),
+        ("cors_allow_methods", [1], "a list of strings"),
+        ("cors_allow_headers", None, "a list of strings"),
+        ("cors_expose_headers", "x", "a list of strings"),
+        ("enable_cors", "yes", "a bool"),
+        ("cors_allow_credentials", 1, "a bool"),
+        ("cors_max_age", -1, "a non-negative integer"),
+        ("cors_max_age", True, "a non-negative integer"),
+        ("cors_max_age", 1.5, "a non-negative integer"),
+    ],
+)
+def test_a_bad_cors_override_value_names_the_key_and_the_expected_type(
+    key: str, bad: Any, expected: str
+) -> None:
+    with pytest.raises(ValueError, match=f"^{key} must be {expected}$"):
+        override_module.validate_cors_override({key: bad})
+
+
+def test_cors_max_age_zero_and_one_are_valid() -> None:
+    override_module.validate_cors_override({"cors_max_age": 0})
+    override_module.validate_cors_override({"cors_max_age": 1})
+
+
+def test_cors_params_of_reads_every_list_from_the_config() -> None:
+    config = SecurityConfig(
+        enable_redis=False,
+        enable_cors=True,
+        cors_allow_origins=["https://a.example"],
+        cors_allow_methods=["GET"],
+        cors_allow_headers=["X-A"],
+        cors_expose_headers=["X-B"],
+        cors_allow_credentials=True,
+        cors_max_age=7,
+    )
+
+    assert override_module.cors_params_of(config) == override_module.CorsParams(
+        enabled=True,
+        origins=("https://a.example",),
+        credentials=True,
+        methods=("GET",),
+        headers=("X-A",),
+        max_age=7,
+        expose=("X-B",),
+    )
+
+
+def test_merge_cors_without_a_cors_key_returns_the_base_itself() -> None:
+    base = override_module.cors_params_of(SecurityConfig(enable_redis=False))
+
+    merged, refused = override_module.merge_cors(base, {"frame_options": "DENY"})
+
+    assert merged is base
+    assert refused is None
+
+
+def test_merge_cors_applies_headers_and_the_other_passed_keys() -> None:
+    base = override_module.cors_params_of(SecurityConfig(enable_redis=False))
+
+    merged, refused = override_module.merge_cors(
+        base,
+        {
+            "cors_allow_headers": ["X-A"],
+            "cors_expose_headers": ["X-B"],
+            "cors_max_age": 9,
+        },
+    )
+
+    assert refused is None
+    assert merged.headers == ("X-A",)
+    assert merged.expose == ("X-B",)
+    assert merged.max_age == 9
+
+
+def test_switching_credentials_on_alone_widens_the_cors() -> None:
+    config = SecurityConfig(
+        enable_redis=False, enable_cors=True, cors_allow_origins=["https://a.example"]
+    )
+    base = override_module.cors_params_of(config)
+    merged, _ = override_module.merge_cors(base, {"cors_allow_credentials": True})
+
+    assert override_module.cors_widens(base, merged)
+    assert not override_module.cors_widens(merged, merged)
+
+
+def test_the_override_record_and_cors_params_are_immutable() -> None:
+    record = override_module.OverrideRecord(1.0, {})
+    params = override_module.cors_params_of(SecurityConfig(enable_redis=False))
+
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        record.__setattr__("set_at", 2.0)
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        params.__setattr__("enabled", True)
+
+
+def test_a_record_equals_another_with_the_same_stamp_and_keys_whatever_its_event() -> (
+    None
+):
+    plain = override_module.OverrideRecord(1.0, {"a": 1})
+
+    assert plain.event is None
+    assert plain == override_module.OverrideRecord(1.0, {"a": 1}, {"x": 1})
+
+
+def test_a_fresh_process_override_starts_empty_at_epoch_and_offset_zero() -> None:
+    fresh = override_module._ProcessOverride()
+
+    assert fresh.record == override_module.OverrideRecord(0.0, {})
+    assert fresh.reset_epoch == 0
+    assert fresh.clock_offset == 0.0
+
+
+def test_a_record_stamped_exactly_one_day_ahead_is_kept_and_later_is_ignored(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(override_module, "approximate_now", lambda: 1000.0)
+    monkeypatch.setattr(override_module.PROCESS_OVERRIDE, "clock_offset", 0.0)
+    day = 86400.0
+
+    assert override_module.OverrideRecord(1000.0 + day, {}).ordered_at() == 1000.0 + day
+    assert override_module.OverrideRecord(1000.0 + day + 0.5, {}).ordered_at() == 0.0
+
+
+def test_the_cors_note_registry_holds_exactly_its_limit_with_the_real_constant() -> (
+    None
+):
+    seen: dict[tuple[int, float], None] = {}
+    limit = override_module.MAX_CORS_NOTES
+
+    for number in range(limit + 1):
+        assert override_module.first_time(seen, (number, 1.0))
+
+    assert len(seen) == limit
+    assert (0, 1.0) not in seen
+    assert all(value is None for value in seen.values())

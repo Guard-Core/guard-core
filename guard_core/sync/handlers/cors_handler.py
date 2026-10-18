@@ -40,6 +40,12 @@ class CorsHandler:
         self._security_headers = SecurityHeadersManager.isolated()
         self._applied_override: object | None = None
         self._enabled = False
+        self._init_disabled()
+        if config.enable_cors:
+            self._check_wildcard_with_credentials(config)
+        self._apply(cors_params_of(config))
+
+    def _init_disabled(self) -> None:
         self._allow_all = False
         self._allow_origins: set[str] = set()
         self._allow_methods: list[str] = []
@@ -48,9 +54,6 @@ class CorsHandler:
         self._allow_credentials = False
         self._max_age = 600
         self._expose_headers: list[str] = []
-        if config.enable_cors:
-            self._check_wildcard_with_credentials(config)
-        self._apply(cors_params_of(config))
 
     def _check_wildcard_with_credentials(self, config: SecurityConfig) -> None:
         if "*" in (config.cors_allow_origins or []) and config.cors_allow_credentials:
@@ -73,16 +76,6 @@ class CorsHandler:
         self._allow_credentials = bool(params.credentials)
         self._max_age = int(params.max_age)
         self._expose_headers = list(params.expose)
-
-    def _init_disabled(self) -> None:
-        self._allow_all = False
-        self._allow_origins = set()
-        self._allow_methods = []
-        self._allow_headers = []
-        self._allow_all_headers = False
-        self._allow_credentials = False
-        self._max_age = 600
-        self._expose_headers = []
 
     def _refresh(self) -> None:
         # The override a flagged configure() set, in this process or pulled from Redis,

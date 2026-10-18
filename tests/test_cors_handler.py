@@ -1,5 +1,6 @@
 import pytest
 
+from guard_core._security_headers_override import CorsParams
 from guard_core.handlers.cors_handler import (
     CorsHandler,
     is_preflight,
@@ -234,3 +235,88 @@ def test_preflight_no_credentials_flag() -> None:
     )
     assert response.status_code == 200
     assert "Access-Control-Allow-Credentials" not in response.headers
+
+
+def test_a_handler_for_an_app_without_cors_holds_the_disabled_defaults() -> None:
+    handler = CorsHandler(SecurityConfig(enable_redis=False))
+
+    assert handler._enabled is False
+    assert handler._allow_all is False
+    assert handler._allow_origins == set()
+    assert handler._allow_methods == []
+    assert handler._allow_headers == []
+    assert handler._allow_all_headers is False
+    assert handler._allow_credentials is False
+    assert handler._max_age == 600
+    assert handler._expose_headers == []
+
+
+def test_the_wildcard_with_credentials_error_names_both_settings() -> None:
+    bad = SecurityConfig(
+        enable_cors=True, cors_allow_origins=["*"], cors_allow_credentials=True
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=r"^CORS misconfiguration: wildcard origin '\*' is incompatible "
+        r"with cors_allow_credentials=True$",
+    ):
+        CorsHandler(bad)
+
+
+def test_a_trailing_slash_is_stripped_from_an_origin_and_nothing_else() -> None:
+    handler = CorsHandler(
+        SecurityConfig(enable_cors=True, cors_allow_origins=["https://boX/"])
+    )
+
+    assert handler.is_origin_allowed("https://boX")
+    assert not handler.is_origin_allowed("https://bo")
+
+
+def test_an_empty_methods_list_allows_get_only() -> None:
+    handler = CorsHandler(
+        SecurityConfig(
+            enable_cors=True,
+            cors_allow_origins=["https://a.example"],
+            cors_allow_methods=[],
+        )
+    )
+
+    assert handler._allow_methods == ["GET"]
+
+
+def test_a_wildcard_preflight_answers_a_star_origin() -> None:
+    handler = CorsHandler(
+        SecurityConfig(
+            enable_cors=True,
+            cors_allow_origins=["*"],
+            cors_allow_credentials=False,
+            cors_allow_methods=["GET"],
+        )
+    )
+
+    response = handler.build_preflight_response(
+        {"origin": "https://x.example", "access-control-request-method": "GET"}
+    )
+
+    assert response.headers["Access-Control-Allow-Origin"] == "*"
+
+
+def test_the_override_is_applied_once_until_its_record_changes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    handler = CorsHandler(SecurityConfig(enable_redis=False))
+    calls: list[object] = []
+    original = handler._apply
+
+    def recording_apply(params: CorsParams) -> None:
+        calls.append(params)
+        original(params)
+
+    monkeypatch.setattr(handler, "_apply", recording_apply)
+
+    handler.is_enabled()
+    handler.is_enabled()
+    handler.is_origin_allowed("https://a.example")
+
+    assert len(calls) == 1
