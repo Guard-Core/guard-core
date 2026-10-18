@@ -100,7 +100,7 @@ class IpBanQueryMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
 
         return False
 
-    async def _unban_cidr(self, cidr: str) -> None:
+    async def _unban_cidr(self, cidr: str, reason: str) -> None:
         network = ipaddress.ip_network(cidr, strict=False)
         self.banned_networks = [
             (banned, expiry)
@@ -109,6 +109,8 @@ class IpBanQueryMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
         ]
         if self.redis_handler:
             await self.redis_handler.delete("banned_networks", str(network))
+        if self.agent_handler:
+            await self._send_unban_event(str(network), reason)
 
     async def unban_inside(self, entries: Iterable[str]) -> None:
         networks = [ipaddress.ip_network(entry, strict=False) for entry in entries]
@@ -121,7 +123,7 @@ class IpBanQueryMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
         members = list(dict.fromkeys(removed))
         await self._forget_strikes_of(members)
         if self.agent_handler:
-            await self._send_unban_events(members)
+            await self._send_unban_events(members, "dynamic_rule_whitelist")
 
     async def _forget_strikes_of(self, members: list[str]) -> None:
         for start in range(0, len(members), _EVENT_BATCH):
@@ -204,10 +206,10 @@ class IpBanQueryMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
             for pattern in patterns:
                 await scan_unlink(conn, f"{prefix}{pattern}")
 
-    async def _send_unban_events(self, members: list[str]) -> None:
+    async def _send_unban_events(self, members: list[str], reason: str) -> None:
         for start in range(0, len(members), _EVENT_BATCH):
             for member in members[start : start + _EVENT_BATCH]:
-                await self._send_unban_event(member)
+                await self._send_unban_event(member, reason)
             await asyncio.sleep(0)
 
     async def _unban_memory_inside(self, coverage: NetworkCoverage) -> list[str]:
@@ -251,9 +253,9 @@ class IpBanQueryMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
             self.logger.warning("Redis unban of whitelisted ranges failed: %s", e)
         return removed
 
-    async def unban_ip(self, ip: str) -> None:
+    async def unban_ip(self, ip: str, reason: str = "manual_unban") -> None:
         if "/" in ip:
-            await self._unban_cidr(ip)
+            await self._unban_cidr(ip, reason)
             return
         ip = _canonicalize_ip(ip)
         self._purge_banned_ip(ip)
@@ -264,11 +266,11 @@ class IpBanQueryMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
         await self._forget_strikes(ip)
 
         if self.agent_handler:
-            await self._send_unban_event(ip)
+            await self._send_unban_event(ip, reason)
 
     async def reset(self) -> None:
         self.banned_ips.clear()
         self.banned_networks.clear()
         if self.redis_handler:
-            await self._unlink_prefixed(("banned_ips:*",))
+            await self._unlink_prefixed(("banned_ips:*", "banned_networks:*"))
         await self._forget_all_strikes()

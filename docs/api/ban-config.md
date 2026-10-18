@@ -121,6 +121,8 @@ Bans live only in the process-local ban store (10,000 entries, each with its own
 
 The in-memory store holds up to 100,000 bans (about 25 MiB when full) and, when it is full, evicts the ban closest to expiry first. An unexpired ban evicted that way is counted, a WARNING is logged every 100 evictions, and an `ip_ban_evicted` event (identity, remaining seconds, eviction count, capacity) is sent at the same cadence. Use Redis for a large fleet of bans.
 
+A CIDR ban (`ban_ip("198.51.100.0/24", ...)`) sends the same `ip_banned` event as an address ban, with the network as `ip_address`, and `unban_ip("198.51.100.0/24")` lifts it (memory and Redis) and sends `ip_unbanned`. The `ip_unbanned` reason is `manual_unban` for a direct call and `dynamic_rule_whitelist` or `dynamic_rule_revoked` when a dynamic rule lifted the ban (`unban_ip(ip, reason=...)` takes the reason). `ip_ban_manager.reset()` clears the Redis CIDR bans as well as the address bans.
+
 ### Passive mode
 
 Passive mode never bans. Per-category counters still increment and the detection is still logged and reported, but `_handle_suspicious_passive_mode` returns without calling `ban_ip`, and an already-banned IP is logged with `action_taken="logged_only"` instead of being rejected. Bans also require `enable_ip_banning` to stay `True`.

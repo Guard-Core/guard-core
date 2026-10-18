@@ -64,7 +64,7 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
 
         for ip in bans:
             try:
-                ip_ban_manager.unban_ip(ip)
+                ip_ban_manager.unban_ip(ip, reason="dynamic_rule_revoked")
                 self.logger.info(f"Dynamic rule: Revoked IP ban {ip}")
             except Exception as e:
                 self.logger.error(f"Failed to revoke IP ban {ip}: {e}")
@@ -129,7 +129,7 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
         for ip in ip_list:
             try:
                 if "/" not in ip:
-                    ip_ban_manager.unban_ip(ip)
+                    ip_ban_manager.unban_ip(ip, reason="dynamic_rule_whitelist")
                 self.logger.info(f"Dynamic rule: Whitelisted IP {ip}")
             except Exception as e:
                 self.logger.error(f"Failed to whitelist IP {ip}: {e}")

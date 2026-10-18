@@ -1193,8 +1193,12 @@ async def test_apply_ip_whitelist_success(
             await manager._apply_ip_whitelist(ip_list)
 
         assert mock_ban_manager.unban_ip.call_count == 2
-        mock_ban_manager.unban_ip.assert_any_call("192.168.1.200")
-        mock_ban_manager.unban_ip.assert_any_call("10.0.0.100")
+        mock_ban_manager.unban_ip.assert_any_call(
+            "192.168.1.200", reason="dynamic_rule_whitelist"
+        )
+        mock_ban_manager.unban_ip.assert_any_call(
+            "10.0.0.100", reason="dynamic_rule_whitelist"
+        )
 
         assert "Dynamic rule: Whitelisted IP 192.168.1.200" in caplog.text
         assert "Dynamic rule: Whitelisted IP 10.0.0.100" in caplog.text

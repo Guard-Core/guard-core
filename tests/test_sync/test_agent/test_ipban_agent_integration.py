@@ -94,7 +94,7 @@ def test_send_unban_event_success(cleanup_ipban_singleton: None) -> None:
     assert sent_event.event_type == "ip_unbanned"
     assert sent_event.ip_address == "172.16.0.1"
     assert sent_event.action_taken == "unbanned"
-    assert sent_event.reason == "dynamic_rule_whitelist"
+    assert sent_event.reason == "manual_unban"
     assert sent_event.metadata == {"action": "unban"}
     assert sent_event.handler_name == "ip_ban"
 

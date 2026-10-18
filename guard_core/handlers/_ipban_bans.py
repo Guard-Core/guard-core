@@ -40,7 +40,7 @@ class IpBanOperationsMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
             ip,
         )
 
-    async def _ban_cidr(self, ip: str, duration: int) -> None:
+    async def _ban_cidr(self, ip: str, duration: int, reason: str) -> None:
         try:
             network = ipaddress.ip_network(ip, strict=False)
         except ValueError as e:
@@ -48,8 +48,13 @@ class IpBanOperationsMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
 
         if self.redis_handler is None:
             self.banned_networks.append((network, time.time() + duration))
-            return
+        else:
+            await self._store_cidr_ban_in_redis(network, duration)
 
+        if self.agent_handler:
+            await self._send_ban_event(str(network), duration, reason)
+
+    async def _store_cidr_ban_in_redis(self, network: _Network, duration: int) -> None:
         try:
             await self.redis_handler.set_key(
                 "banned_networks",
@@ -196,7 +201,7 @@ class IpBanOperationsMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
             return False
         self._warn_if_private_target(ip)
         if "/" in ip:
-            await self._ban_cidr(ip, duration)
+            await self._ban_cidr(ip, duration, reason)
         else:
             await self._ban_exact_ip(ip, duration, reason)
         return True
