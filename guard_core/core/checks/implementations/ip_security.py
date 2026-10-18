@@ -30,6 +30,17 @@ from guard_core.utils import (
 )
 
 
+def _is_private_peer_without_forwarded_for(
+    request: GuardRequest, client_ip: str
+) -> bool:
+    if request.headers.get("X-Forwarded-For"):
+        return False
+    try:
+        return not ip_address(client_ip).is_global
+    except ValueError:
+        return False
+
+
 def _route_overrides_ip_lists(route_config: RouteConfig | None) -> bool:
     return bool(route_config and route_config.ip_whitelist)
 
@@ -231,12 +242,16 @@ class IpSecurityCheck(SecurityCheck):
 
     async def _resolve_global_ip_access(
         self,
+        request: GuardRequest,
         client_ip: str,
         route_config: RouteConfig | None,
     ) -> tuple[IpAccessResult, bool, bool]:
         skip_ip_lists = _route_overrides_ip_lists(route_config)
         skip_countries = _route_country_whitelist_matched(
             client_ip, route_config, self.middleware.geo_ip_handler
+        ) or (
+            self.config.country_rules_exempt_private_peers
+            and _is_private_peer_without_forwarded_for(request, client_ip)
         )
 
         access_result = await check_ip_access(
@@ -266,7 +281,8 @@ class IpSecurityCheck(SecurityCheck):
         precomputed: tuple[IpAccessResult, bool, bool] | None = None,
     ) -> GuardResponse | None:
         access_result, is_whitelisted, is_exempt = (
-            precomputed or await self._resolve_global_ip_access(client_ip, route_config)
+            precomputed
+            or await self._resolve_global_ip_access(request, client_ip, route_config)
         )
         request.state.is_whitelisted = is_whitelisted
         request.state.is_exempt = is_exempt
@@ -398,7 +414,9 @@ class IpSecurityCheck(SecurityCheck):
 
         precomputed = None
         if route_config:
-            precomputed = await self._resolve_global_ip_access(client_ip, route_config)
+            precomputed = await self._resolve_global_ip_access(
+                request, client_ip, route_config
+            )
             route_response = await self._check_route_ip_restrictions(
                 request, client_ip, route_config
             )

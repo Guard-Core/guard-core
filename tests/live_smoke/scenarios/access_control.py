@@ -404,6 +404,23 @@ GEO_CONFIG_WHITELIST = {
 }
 
 
+GEO_CONFIG_PRIVATE_PEER_EXEMPTION = {
+    **GEO_CONFIG_WHITELIST,
+    "country_rules_exempt_private_peers": True,
+}
+
+
+@scenario(
+    covers={"country_rules_exempt_private_peers"},
+    config=GEO_CONFIG_PRIVATE_PEER_EXEMPTION,
+)
+def private_peer_exemption_leaves_a_resolved_country_allowed(
+    ctx: ScenarioContext,
+) -> None:
+    response = ctx.client.get("/basic/ip", params={"q": "hello"})
+    assert response.status_code == 200
+
+
 @scenario(covers={"whitelist_countries"}, config=GEO_CONFIG_WHITELIST)
 def whitelist_countries_allows_a_matching_resolved_country(
     ctx: ScenarioContext,

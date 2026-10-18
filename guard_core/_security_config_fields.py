@@ -517,6 +517,18 @@ class _SecurityConfigFields(BaseModel):
         ),
     )
 
+    country_rules_exempt_private_peers: bool = Field(
+        default=False,
+        description=(
+            "Exempt a private, link-local or carrier-grade-NAT peer from the "
+            "country rules when its request carries no X-Forwarded-For header. "
+            "Off by default: behind Docker Desktop or rootless Docker every "
+            "internet client reaches the app as a private peer without that "
+            "header, so the exemption would switch the country rules off for "
+            "them. A peer that sends X-Forwarded-For is never exempt."
+        ),
+    )
+
     cloud_ip_store: CloudIpStoreProtocol | CloudIpStoreFactory | None = Field(
         default=None,
         description=(
