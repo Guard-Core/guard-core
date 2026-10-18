@@ -213,7 +213,7 @@ These fields tune cold-start and horizontal-scale behaviour for the geo-IP and c
 | Field                | Type                            | Default | Description                                                                  |
 |----------------------|---------------------------------|---------|------------------------------------------------------------------------------|
 | `lazy_init`          | `bool`                          | `True`  | When `True` (default), run the IPInfo MMDB download and cloud-IP provider fetches as a background task during startup instead of awaiting them inline, so app boot never blocks on multi-second network calls. Cloud and geo layers are inert until the task completes. Set to `False` to await them inline for synchronous-init guarantees. |
-| `geo_ip_db_max_age`  | `int`                           | `86400` | Maximum age in seconds for the IPInfo MMDB before re-download. Range 3600 - 604800. |
+| `geo_ip_db_max_age`  | `int`                           | `86400` | Maximum age in seconds, counted from the database file's modification time, before the running process downloads the IPInfo MMDB again in the background; a worker first takes a copy another worker already published to Redis, one worker at a time downloads, and a download is validated before it replaces the working database. A missing database is loaded in the background and retried every 60 s: until it loads, `whitelist_countries` denies every request and `blocked_countries` allows every request. Range 3600 - 604800. |
 | `cloud_ip_store`     | `CloudIpStoreProtocol \| None`  | `None`  | Pluggable cloud-IP backend. `None` uses the in-memory default; auto-upgraded to Redis when Redis is enabled. |
 
 When to use:

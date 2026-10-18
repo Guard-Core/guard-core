@@ -11,10 +11,13 @@ from guard_core.sync.handlers.ipinfo_handler import (
     IPInfoManager,
     _describe_download_error,
 )
+from tests.geo_fixture import country_database_bytes
+
+VALID_DB = country_database_bytes("CN")
 
 
 def _mock_aiohttp(
-    content: bytes = b"test data",
+    content: bytes = VALID_DB,
     side_effect: Exception | None = None,
 ) -> MagicMock:
     mock_session = MagicMock()
@@ -35,7 +38,7 @@ def _mock_aiohttp(
 def test_ipinfo_db(tmp_path: Path) -> None:
     db = IPInfoManager(token="test_token", db_path=tmp_path / "test.mmdb")
 
-    mock_session = _mock_aiohttp(content=b"test data")
+    mock_session = _mock_aiohttp(content=VALID_DB)
 
     with (
         patch(
@@ -108,7 +111,7 @@ def test_download_database_sends_bearer_header_without_url_token(
 ) -> None:
     token = "SECRET_IPINFO_TOKEN_abc123"
     db = IPInfoManager(token=token, db_path=tmp_path / "test.mmdb")
-    mock_session = _mock_aiohttp(content=b"test data")
+    mock_session = _mock_aiohttp(content=VALID_DB)
 
     with patch(
         "guard_core.sync.handlers.ipinfo_handler.requests.Session",
@@ -144,7 +147,7 @@ def test_database_retry_success(tmp_path: Path) -> None:
     call_count = 0
     mock_response = MagicMock()
     mock_response.raise_for_status = MagicMock()
-    mock_response.content = b"test data"
+    mock_response.content = VALID_DB
 
     def get_side_effect(*args: Any, **kwargs: Any) -> MagicMock:
         nonlocal call_count
@@ -168,7 +171,7 @@ def test_database_retry_success(tmp_path: Path) -> None:
         db._download_database()
 
         assert call_count == 2
-        assert db.db_path.read_bytes() == b"test data"
+        assert db.db_path.read_bytes() == VALID_DB
         # Membership, not assert_called_once_with: patching sleep replaces the
         # attribute on the shared module, so this mock records every sleep in
         # the process, including background handler threads left running by
@@ -270,7 +273,10 @@ def test_redis_cache_hit(tmp_path: Path) -> None:
         with open(db.db_path, "rb") as f:
             assert f.read() == b"mock_db_data"
 
-        mock_open.assert_called_once_with(str(db.db_path))
+        assert [call.args for call in mock_open.call_args_list] == [
+            (str(db.db_path) + ".tmp",),
+            (str(db.db_path),),
+        ]
         assert db.reader is mock_reader
 
 
@@ -279,9 +285,16 @@ def test_redis_cache_hit_with_corrupt_database(tmp_path: Path) -> None:
     db.redis_handler = MagicMock()
     db.redis_handler.get_key.return_value = b"mock_db_data"
 
-    with patch(
-        "guard_core.sync.handlers.ipinfo_handler.maxminddb.open_database",
-        side_effect=Exception("corrupt database"),
+    with (
+        patch(
+            "guard_core.sync.handlers.ipinfo_handler.maxminddb.open_database",
+            side_effect=Exception("corrupt database"),
+        ),
+        patch.object(
+            db,
+            "_download_database",
+            MagicMock(side_effect=RuntimeError("network down")),
+        ),
     ):
         db.initialize()
 
@@ -316,7 +329,7 @@ def test_initialize_redis_cache_read_failure_falls_through_to_download(
         side_effect=GuardRedisError(503, "redis unavailable")
     )
 
-    mock_session = _mock_aiohttp(content=b"downloaded_data")
+    mock_session = _mock_aiohttp(content=VALID_DB)
     mock_reader = Mock()
 
     with (
@@ -339,7 +352,7 @@ def test_redis_cache_update(tmp_path: Path) -> None:
     db = IPInfoManager(token="test", db_path=tmp_path / "test.mmdb")
     db.redis_handler = MagicMock()
 
-    mock_session = _mock_aiohttp(content=b"new_db_data")
+    mock_session = _mock_aiohttp(content=VALID_DB)
 
     with (
         patch(
@@ -351,7 +364,7 @@ def test_redis_cache_update(tmp_path: Path) -> None:
         db._download_database()
 
         db.redis_handler.set_key.assert_called_once_with(
-            "ipinfo", "database", b"new_db_data".decode("latin-1"), ttl=86400
+            "ipinfo", "database", VALID_DB.decode("latin-1"), ttl=86400
         )
 
 
@@ -366,7 +379,7 @@ def test_download_database_redis_cache_write_failure_does_not_block_download(
         side_effect=GuardRedisError(503, "redis unavailable")
     )
 
-    mock_session = _mock_aiohttp(content=b"new_db_data")
+    mock_session = _mock_aiohttp(content=VALID_DB)
 
     with (
         caplog.at_level("WARNING", logger="guard_core.sync.handlers.ipinfo"),
@@ -377,7 +390,7 @@ def test_download_database_redis_cache_write_failure_does_not_block_download(
     ):
         db._download_database()
 
-    assert db.db_path.read_bytes() == b"new_db_data"
+    assert db.db_path.read_bytes() == VALID_DB
     assert db.redis_handler is not None
     assert "Failed to cache GeoIP database in Redis" in caplog.text
 
@@ -446,7 +459,7 @@ def test_download_exhausts_retries(tmp_path: Path) -> None:
 def test_redirect_handling(tmp_path: Path) -> None:
     db = IPInfoManager(token="test", db_path=tmp_path / "test.mmdb")
 
-    mock_session = _mock_aiohttp(content=b"valid_db_content")
+    mock_session = _mock_aiohttp(content=VALID_DB)
 
     with patch(
         "guard_core.sync.handlers.ipinfo_handler.requests.Session",
@@ -456,7 +469,7 @@ def test_redirect_handling(tmp_path: Path) -> None:
 
         assert db.db_path.exists()
         with open(db.db_path, "rb") as f:
-            assert f.read() == b"valid_db_content"
+            assert f.read() == VALID_DB
 
         mock_session.get.assert_called_once()
 
@@ -466,7 +479,7 @@ def test_download_database_atomic_replace_leaves_no_temp_file(
 ) -> None:
     db_path = tmp_path / "test.mmdb"
     db = IPInfoManager(token="test", db_path=db_path)
-    mock_session = _mock_aiohttp(content=b"fresh bytes")
+    mock_session = _mock_aiohttp(content=VALID_DB)
 
     with patch(
         "guard_core.sync.handlers.ipinfo_handler.requests.Session",
@@ -474,7 +487,7 @@ def test_download_database_atomic_replace_leaves_no_temp_file(
     ):
         db._download_database()
 
-    assert db_path.read_bytes() == b"fresh bytes"
+    assert db_path.read_bytes() == VALID_DB
     assert not db_path.with_name(db_path.name + ".tmp").exists()
 
 
@@ -485,7 +498,7 @@ def test_download_database_removes_temp_file_when_replace_fails(
     db_path.write_bytes(b"good db bytes")
     db = IPInfoManager(token="test", db_path=db_path)
     db._download_retries = 1
-    mock_session = _mock_aiohttp(content=b"new bytes")
+    mock_session = _mock_aiohttp(content=VALID_DB)
 
     with (
         patch(
@@ -983,7 +996,7 @@ def test_refresh_keeps_previous_database_when_temp_write_fails(
     working_reader.get.return_value = {"country": "US"}
     db.reader = working_reader
 
-    mock_session = _mock_aiohttp(content=b"new bytes")
+    mock_session = _mock_aiohttp(content=VALID_DB)
     real_open = open
 
     def fake_open(path: Any, mode: str = "r", *args: Any, **kwargs: Any) -> Any:

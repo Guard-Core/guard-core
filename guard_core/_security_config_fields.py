@@ -511,7 +511,10 @@ class _SecurityConfigFields(BaseModel):
         default=86400,
         ge=3600,
         le=604800,
-        description="Maximum age in seconds for the IPInfo MMDB before re-download.",
+        description=(
+            "Maximum age in seconds, from the file's modification time, before "
+            "the IPInfo MMDB is downloaded again in the background."
+        ),
     )
 
     cloud_ip_store: CloudIpStoreProtocol | CloudIpStoreFactory | None = Field(

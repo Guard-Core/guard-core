@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -46,6 +47,9 @@ class IPInfoManager:
     _last_attempt_at: float | None = None
     _background_in_flight: bool = False
     _background_task: asyncio.Task[None] | None = None
+    _refresh_due: bool = False
+    _staleness_timer: threading.Timer | None = None
+    _DOWNLOAD_LOCK_SECONDS = 60
 
     def __new__(
         cls: type["IPInfoManager"],
@@ -70,6 +74,8 @@ class IPInfoManager:
             cls._instance._last_attempt_at = None
             cls._instance._background_in_flight = False
             cls._instance._background_task = None
+            cls._instance._refresh_due = False
+            cls._instance._staleness_timer = None
 
         cls._instance.token = token
         if db_path is not None:
@@ -112,12 +118,44 @@ class IPInfoManager:
         if reader is not None:
             self.reader = reader
             self.last_refreshed = datetime.now(timezone.utc)
+            self._refresh_due = False
+            self._arm_staleness_timer()
+
+    def _mark_refresh_due(self) -> None:
+        self._refresh_due = True
+
+    def _cancel_staleness_timer(self) -> None:
+        if self._staleness_timer is not None:
+            self._staleness_timer.cancel()
+            self._staleness_timer = None
+
+    def _arm_staleness_timer(self) -> None:
+        self._cancel_staleness_timer()
+        try:
+            age = time.time() - self.db_path.stat().st_mtime
+        except OSError:
+            return
+        timer = threading.Timer(max(self._max_age - age, 1.0), self._mark_refresh_due)
+        timer.daemon = True
+        timer.start()
+        self._staleness_timer = timer
+
+    def _validate_database_file(self, path: Path) -> None:
+        try:
+            reader = maxminddb.open_database(str(path))
+            try:
+                reader.get("192.0.2.1")
+            finally:
+                reader.close()
+        except Exception as e:
+            raise ValueError(f"not a usable GeoIP database: {e}") from e
 
     def _write_database_atomically(self, content: bytes) -> None:
         tmp_path = self.db_path.with_name(self.db_path.name + ".tmp")
         try:
             with open(tmp_path, "wb") as f:
                 f.write(content)
+            self._validate_database_file(tmp_path)
             os.replace(tmp_path, self.db_path)
         except Exception:
             if tmp_path.exists():
@@ -143,7 +181,10 @@ class IPInfoManager:
 
     async def _load_in_background(self) -> None:
         try:
-            await self.initialize()
+            if self.reader is None:
+                await self.initialize()
+            else:
+                await self.refresh()
         except Exception:
             self.logger.exception("Background GeoIP database load failed")
         finally:
@@ -154,23 +195,8 @@ class IPInfoManager:
         try:
             os.makedirs(self.db_path.parent, exist_ok=True)
 
-            if self.redis_handler:
-                try:
-                    cached_db = await self.redis_handler.get_key("ipinfo", "database")
-                except Exception as e:
-                    self.logger.warning("Cached GeoIP database unavailable: %s", e)
-                    cached_db = None
-                if cached_db:
-                    self._write_database_atomically(
-                        cached_db
-                        if isinstance(cached_db, bytes)
-                        else cached_db.encode("latin-1")
-                    )
-                    reader = self._open_database_or_none()
-                    if reader is not None:
-                        self._apply_opened_reader(reader)
-                        return
-                    await self._drop_cached_database(self.redis_handler)
+            if await self._adopt_redis_copy():
+                return
 
             try:
                 if not self.db_path.exists() or self._is_db_outdated():
@@ -190,12 +216,50 @@ class IPInfoManager:
                             f"{_describe_download_error(e)}"
                         ),
                     )
+                self._warn_country_rules_without_database()
                 return
 
             if self.db_path.exists():
                 self._apply_opened_reader(self._open_database_or_none())
+            self._warn_country_rules_without_database()
         finally:
             self._initialization_attempted = True
+
+    def _warn_country_rules_without_database(self) -> None:
+        if self.reader is not None:
+            return
+        self.logger.warning(
+            "No GeoIP database is loaded: whitelist_countries denies every "
+            "request and blocked_countries allows every request until it loads. "
+            "The load is retried every %d s.",
+            int(self._RETRY_BACKOFF_SECONDS),
+        )
+
+    async def _adopt_redis_copy(self) -> bool:
+        if not self.redis_handler:
+            return False
+        try:
+            cached_db = await self.redis_handler.get_key("ipinfo", "database")
+        except Exception as e:
+            self.logger.warning("Cached GeoIP database unavailable: %s", e)
+            return False
+        if not cached_db:
+            return False
+        try:
+            self._write_database_atomically(
+                cached_db
+                if isinstance(cached_db, bytes)
+                else cached_db.encode("latin-1")
+            )
+        except ValueError:
+            await self._drop_cached_database(self.redis_handler)
+            return False
+        reader = self._open_database_or_none()
+        if reader is None:
+            await self._drop_cached_database(self.redis_handler)
+            return False
+        self._apply_opened_reader(reader)
+        return True
 
     async def _drop_cached_database(self, redis_handler: RedisHandlerProtocol) -> None:
         self.logger.warning("Cached GeoIP database is unusable, downloading again")
@@ -234,7 +298,38 @@ class IPInfoManager:
         except Exception as e:
             self.logger.error(f"Failed to send geo event to agent: {e}")
 
+    async def _claim_download_lock(self) -> bool:
+        redis: Any = self.redis_handler
+        if redis is None:
+            return True
+        try:
+            claimed = await redis.set_key_if_absent(
+                "ipinfo", "download_lock", "1", self._DOWNLOAD_LOCK_SECONDS
+            )
+        except Exception as e:
+            self.logger.warning(
+                "GeoIP download lock unavailable, downloading anyway: %s", e
+            )
+            return True
+        return bool(claimed)
+
     async def _download_database(self) -> None:
+        if not await self._claim_download_lock():
+            self.logger.info(
+                "Another worker is downloading the GeoIP database, "
+                "its copy is picked up from Redis on the next attempt"
+            )
+            return
+        try:
+            await self._fetch_and_store_database()
+        finally:
+            if self.redis_handler is not None:
+                try:
+                    await self.redis_handler.delete("ipinfo", "download_lock")
+                except Exception as e:
+                    self.logger.warning("GeoIP download lock not released: %s", e)
+
+    async def _fetch_and_store_database(self) -> None:
         base_url = "https://ipinfo.io/data/free/country_asn.mmdb"
         headers = {"Authorization": f"Bearer {self.token}"}
         retries = self._download_retries
@@ -293,6 +388,9 @@ class IPInfoManager:
                     "Geo-IP reader uninitialized; returning None for %s", ip
                 )
             return None
+
+        if self._refresh_due:
+            self.schedule_database_load()
 
         try:
             result = self.reader.get(ip)
@@ -354,11 +452,15 @@ class IPInfoManager:
         return True, country
 
     def close(self) -> None:
+        self._cancel_staleness_timer()
         if self.reader:
             self.reader.close()
 
     async def refresh(self) -> None:
+        self._last_attempt_at = time.monotonic()
         try:
+            if await self._adopt_redis_copy():
+                return
             await self._download_database()
         except Exception as e:
             self.logger.error(f"IPInfo refresh failed: {_describe_download_error(e)}")
@@ -369,13 +471,7 @@ class IPInfoManager:
         if not self.db_path.exists():
             return
 
-        reader = self._open_database_or_none()
-        if reader is None:
-            return
-
-        self.close()
-        self.reader = reader
-        self.last_refreshed = datetime.now(timezone.utc)
+        self._apply_opened_reader(self._open_database_or_none())
 
     async def initialize_redis(self, redis_handler: RedisHandlerProtocol) -> None:
         self.redis_handler = redis_handler
