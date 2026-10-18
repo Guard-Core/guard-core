@@ -271,7 +271,7 @@
           "country": null,
           "user_agent": null,
           "action_taken": "unbanned",
-          "reason": "dynamic_rule_whitelist",
+          "reason": "manual_unban",
           "endpoint": null,
           "method": null,
           "status_code": null,

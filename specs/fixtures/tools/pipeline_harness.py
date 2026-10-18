@@ -61,6 +61,7 @@ from guard_core.protocols.response_protocol import GuardResponse
 # the case config is harness-level (geo_countries, routes).
 CONFIG_KEYS = (
     "whitelist",
+    "whitelist_access_only",
     "blacklist",
     "exempt_ips",
     "blocked_user_agents",

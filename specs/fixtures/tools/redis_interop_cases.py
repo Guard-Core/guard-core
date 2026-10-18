@@ -22,6 +22,7 @@ byte-identical results.
 
 from __future__ import annotations
 
+import base64
 import ipaddress
 import json
 import re
@@ -52,7 +53,11 @@ RIO_IP = "203.0.113.20"
 _NUMERIC_SHAPE = r"^[0-9]+\.[0-9]+(e[+-]?[0-9]+)?$"
 _UUID4_HEX_SHAPE = r"^[0-9a-f]{32}$"
 
-FAKE_MMDB_BYTES = b"corpus-mmdb-fixture:\xe9\xff\x00\x80:end"
+# A minimal valid MaxMind DB (one /32 entry, country CN): the engine validates a
+# downloaded database before it replaces the file and before it caches it in Redis.
+FAKE_MMDB_BYTES = base64.b64decode(
+    "AAAgAAABAAAgAAACAAADAAAgAAAEAAAgAAAFAAAgAAAGAAAgAAAHAAAgAAAIAAAgAAAJAAAgAAAKAAAgAAALAAAgAAAMAAAgAAANAAAgAAAOAAAgAAAPAAAgAAAQAAAgAAARAAAgAAASAAAgAAATAAAgAAAUAAAgAAAVAAAgAAAWAAAgAAAgAAAXAAAYAAAgAAAZAAAgAAAaAAAgAAAbAAAgAAAcAAAgAAAdAAAgAAAeAAAgAAAfAAAgAAAgAAAwAAAAAAAAAAAAAAAAAAAAAOFHY291bnRyeUJDTqvN701heE1pbmQuY29t6Upub2RlX2NvdW50wSBLcmVjb3JkX3NpemWhGEppcF92ZXJzaW9uoQRNZGF0YWJhc2VfdHlwZVVndWFyZC1jb3JlLWxpdmUtc21va2VJbGFuZ3VhZ2VzAQRCZW5bYmluYXJ5X2Zvcm1hdF9tYWpvcl92ZXJzaW9uoQJbYmluYXJ5X2Zvcm1hdF9taW5vcl92ZXJzaW9uoEtidWlsZF9lcG9jaAQCZVPxAEtkZXNjcmlwdGlvbuFCZW5VZ3VhcmQtY29yZS1saXZlLXNtb2tl"
+)
 
 FIXED_CSP_CONFIG = {
     "default-src": ["'self'"],

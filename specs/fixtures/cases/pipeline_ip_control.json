@@ -305,6 +305,10 @@
           "is_whitelisted": false,
           "events": [
             [
+              "country_blocked",
+              "request_blocked"
+            ],
+            [
               "ip_blocked",
               "request_blocked"
             ]
@@ -391,6 +395,10 @@
           "is_whitelisted": false,
           "events": [
             [
+              "country_blocked",
+              "request_blocked"
+            ],
+            [
               "ip_blocked",
               "request_blocked"
             ]
@@ -426,6 +434,10 @@
           "is_exempt": false,
           "is_whitelisted": false,
           "events": [
+            [
+              "country_blocked",
+              "request_blocked"
+            ],
             [
               "ip_blocked",
               "request_blocked"
@@ -486,6 +498,10 @@
           "is_whitelisted": false,
           "events": [
             [
+              "country_blocked",
+              "request_blocked"
+            ],
+            [
               "ip_blocked",
               "request_blocked"
             ]
@@ -502,6 +518,308 @@
               "status_code": 403
             }
           ]
+        }
+      ]
+    },
+    {
+      "id": "whitelist_default_skips_user_agent_block",
+      "config": {
+        "whitelist": [
+          "192.0.2.40"
+        ],
+        "whitelist_access_only": false,
+        "blocked_user_agents": [
+          "evilbot/1.0"
+        ]
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "192.0.2.40",
+          "url_path": "/api",
+          "headers": {
+            "User-Agent": "evilbot/1.0"
+          }
+        }
+      ],
+      "expected": [
+        {
+          "status": null,
+          "is_exempt": false,
+          "is_whitelisted": true
+        }
+      ]
+    },
+    {
+      "id": "whitelist_access_only_blocks_user_agent",
+      "config": {
+        "whitelist": [
+          "192.0.2.40"
+        ],
+        "whitelist_access_only": true,
+        "blocked_user_agents": [
+          "evilbot/1.0"
+        ]
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "192.0.2.40",
+          "url_path": "/api",
+          "headers": {
+            "User-Agent": "evilbot/1.0"
+          }
+        }
+      ],
+      "expected": [
+        {
+          "status": 403,
+          "body": "User-Agent not allowed",
+          "headers": {
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "SAMEORIGIN",
+            "X-XSS-Protection": "0",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+            "X-Permitted-Cross-Domain-Policies": "none",
+            "X-Download-Options": "noopen",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Resource-Policy": "same-site",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains"
+          },
+          "is_exempt": false,
+          "is_whitelisted": false,
+          "events": [
+            [
+              "user_agent_blocked",
+              "request_blocked"
+            ]
+          ],
+          "on_block": [
+            {
+              "check_name": "user_agent",
+              "reason": "Blocked user agent: evilbot/1.0",
+              "trigger_info": "",
+              "passive_mode": false,
+              "client_ip": "192.0.2.40",
+              "path": "/api",
+              "method": "GET",
+              "status_code": 403
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "whitelist_access_only_scans_for_attacks",
+      "config": {
+        "whitelist": [
+          "192.0.2.40"
+        ],
+        "whitelist_access_only": true
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "192.0.2.40",
+          "url_path": "/api",
+          "body": "<script>alert(1)</script>"
+        }
+      ],
+      "expected": [
+        {
+          "status": 400,
+          "body": "Suspicious activity detected",
+          "headers": {
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "SAMEORIGIN",
+            "X-XSS-Protection": "0",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+            "X-Permitted-Cross-Domain-Policies": "none",
+            "X-Download-Options": "noopen",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Resource-Policy": "same-site",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains"
+          },
+          "is_exempt": false,
+          "is_whitelisted": false,
+          "events": [
+            [
+              "penetration_attempt",
+              "request_blocked"
+            ]
+          ],
+          "on_block": [
+            {
+              "check_name": "suspicious_activity",
+              "reason": "Suspicious activity detected for IP: 192.0.2.40 - Request body: Value matched pattern '<script[^>]*>[^<]*<\\/script\\s*>'",
+              "trigger_info": "",
+              "passive_mode": false,
+              "client_ip": "192.0.2.40",
+              "path": "/api",
+              "method": "GET",
+              "status_code": 400
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "whitelist_access_only_rate_limits",
+      "config": {
+        "whitelist": [
+          "192.0.2.40"
+        ],
+        "whitelist_access_only": true,
+        "rate_limit": 1,
+        "rate_limit_window": 60
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "192.0.2.40",
+          "url_path": "/api"
+        },
+        {
+          "client_ip": "192.0.2.40",
+          "url_path": "/api"
+        }
+      ],
+      "expected": [
+        {
+          "status": null,
+          "is_exempt": false,
+          "is_whitelisted": false
+        },
+        {
+          "status": 429,
+          "body": "Too many requests",
+          "headers": {
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "SAMEORIGIN",
+            "X-XSS-Protection": "0",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+            "X-Permitted-Cross-Domain-Policies": "none",
+            "X-Download-Options": "noopen",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Resource-Policy": "same-site",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+            "Retry-After": "60"
+          },
+          "is_exempt": false,
+          "is_whitelisted": false,
+          "on_block": [
+            {
+              "check_name": "rate_limit",
+              "reason": "Rate limit exceeded for IP: 192.0.2.40 (2 requests in 60s window)",
+              "trigger_info": "",
+              "passive_mode": false,
+              "client_ip": "192.0.2.40",
+              "path": "/api",
+              "method": "GET",
+              "status_code": 429
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "whitelist_access_only_still_admits_and_refuses",
+      "config": {
+        "whitelist": [
+          "192.0.2.40"
+        ],
+        "whitelist_access_only": true
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "192.0.2.40",
+          "url_path": "/api"
+        },
+        {
+          "client_ip": "192.0.2.11",
+          "url_path": "/api"
+        }
+      ],
+      "expected": [
+        {
+          "status": null,
+          "is_exempt": false,
+          "is_whitelisted": false
+        },
+        {
+          "status": 403,
+          "body": "Forbidden",
+          "headers": {
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "SAMEORIGIN",
+            "X-XSS-Protection": "0",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+            "X-Permitted-Cross-Domain-Policies": "none",
+            "X-Download-Options": "noopen",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Resource-Policy": "same-site",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains"
+          },
+          "is_exempt": false,
+          "is_whitelisted": false,
+          "events": [
+            [
+              "ip_blocked",
+              "request_blocked"
+            ]
+          ],
+          "on_block": [
+            {
+              "check_name": "ip_security",
+              "reason": "IP not allowed: 192.0.2.11 - IP 192.0.2.11 not in global allowlist/blocklist",
+              "trigger_info": "",
+              "passive_mode": false,
+              "client_ip": "192.0.2.11",
+              "path": "/api",
+              "method": "GET",
+              "status_code": 403
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "exempt_ip_skips_user_agent_block_under_access_only_whitelist",
+      "config": {
+        "exempt_ips": [
+          "192.0.2.30"
+        ],
+        "whitelist_access_only": true,
+        "blocked_user_agents": [
+          "evilbot/1.0"
+        ]
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "192.0.2.30",
+          "url_path": "/api",
+          "headers": {
+            "User-Agent": "evilbot/1.0"
+          }
+        }
+      ],
+      "expected": [
+        {
+          "status": null,
+          "is_exempt": true,
+          "is_whitelisted": false
         }
       ]
     },

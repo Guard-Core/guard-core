@@ -105,6 +105,85 @@ PIPELINE_SUITES["pipeline_ip_control"] = [
         "drives": [{"client_ip": IP_GEO_CN, "url_path": "/api"}],
     },
     {
+        "id": "whitelist_default_skips_user_agent_block",
+        "config": {
+            "whitelist": [IP_WHITELISTED],
+            "whitelist_access_only": False,
+            "blocked_user_agents": ["evilbot/1.0"],
+        },
+        "drives": [
+            {
+                "client_ip": IP_WHITELISTED,
+                "url_path": "/api",
+                "headers": {"User-Agent": "evilbot/1.0"},
+            },
+        ],
+    },
+    {
+        "id": "whitelist_access_only_blocks_user_agent",
+        "config": {
+            "whitelist": [IP_WHITELISTED],
+            "whitelist_access_only": True,
+            "blocked_user_agents": ["evilbot/1.0"],
+        },
+        "drives": [
+            {
+                "client_ip": IP_WHITELISTED,
+                "url_path": "/api",
+                "headers": {"User-Agent": "evilbot/1.0"},
+            },
+        ],
+    },
+    {
+        "id": "whitelist_access_only_scans_for_attacks",
+        "config": {
+            "whitelist": [IP_WHITELISTED],
+            "whitelist_access_only": True,
+        },
+        "drives": [
+            {"client_ip": IP_WHITELISTED, "url_path": "/api", "body": ATTACK},
+        ],
+    },
+    {
+        "id": "whitelist_access_only_rate_limits",
+        "config": {
+            "whitelist": [IP_WHITELISTED],
+            "whitelist_access_only": True,
+            "rate_limit": 1,
+            "rate_limit_window": 60,
+        },
+        "drives": [
+            {"client_ip": IP_WHITELISTED, "url_path": "/api"},
+            {"client_ip": IP_WHITELISTED, "url_path": "/api"},
+        ],
+    },
+    {
+        "id": "whitelist_access_only_still_admits_and_refuses",
+        "config": {
+            "whitelist": [IP_WHITELISTED],
+            "whitelist_access_only": True,
+        },
+        "drives": [
+            {"client_ip": IP_WHITELISTED, "url_path": "/api"},
+            {"client_ip": IP_OTHER, "url_path": "/api"},
+        ],
+    },
+    {
+        "id": "exempt_ip_skips_user_agent_block_under_access_only_whitelist",
+        "config": {
+            "exempt_ips": [IP_EXEMPT],
+            "whitelist_access_only": True,
+            "blocked_user_agents": ["evilbot/1.0"],
+        },
+        "drives": [
+            {
+                "client_ip": IP_EXEMPT,
+                "url_path": "/api",
+                "headers": {"User-Agent": "evilbot/1.0"},
+            },
+        ],
+    },
+    {
         "id": "route_ip_whitelist_denies_other_ip",
         "config": {},
         "routes": {"/api/private": {"ip_whitelist": [IP_WHITELISTED]}},
