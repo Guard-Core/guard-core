@@ -1383,7 +1383,7 @@
           "handler_name": "security_headers",
           "metadata": {
             "path": "/api",
-            "headers_count": 11,
+            "headers_count": 10,
             "has_csp": false,
             "has_hsts": true
           }
