@@ -132,7 +132,7 @@ def test_should_bypass_check_not_bypassed(
     assert result is False
 
 
-def test_get_cloud_providers_from_route_config(
+def test_route_cloud_providers_add_to_the_global_ones(
     resolver: RouteConfigResolver,
 ) -> None:
     route_config = RouteConfig()
@@ -140,7 +140,7 @@ def test_get_cloud_providers_from_route_config(
 
     result = resolver.get_cloud_providers_to_check(route_config)
     assert result is not None
-    assert set(result) == {"azure", "digitalocean"}
+    assert set(result) == {"aws", "gcp", "azure", "digitalocean"}
 
 
 def test_get_cloud_providers_from_global_config(

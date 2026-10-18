@@ -64,7 +64,7 @@ IP Management
 |----------------------|-------------------|-------------------|------------------------------------------------|
 | `whitelist`          | `tuple[str, ...] \| None` | `None`          | Allowed IPs/CIDRs. `None` disables (allow all).|
 | `blacklist`          | `tuple[str, ...]`       | `()`              | Blocked IPs/CIDRs. Always denies, also for an IP that matches `whitelist` or a route `ip_whitelist`. |
-| `exempt_ips`         | `tuple[str, ...]`       | `()`              | IPs/CIDRs that skip rate limiting, the user-agent check and per-route `@block_clouds`, as a whitelist match does. Not restrictive: other IPs are checked as usual. The blacklist, dynamic bans, route IP rules, penetration detection and the global `block_cloud_providers` (enforced by the IP check, as for a whitelist match) still apply. |
+| `exempt_ips`         | `tuple[str, ...]`       | `()`              | IPs/CIDRs that skip rate limiting, the user-agent check and cloud-provider blocking (the global `block_cloud_providers` and a route's `@block_clouds`), as a whitelist match does. Not restrictive: other IPs are checked as usual. The blacklist, dynamic bans, route IP rules and penetration detection still apply. |
 | `whitelist_countries`| `frozenset[str]`       | `frozenset()`              | Allowed countries. Non-empty = only listed pass (unknown blocked). Overrides `blocked_countries`. |
 | `blocked_countries`  | `frozenset[str]`       | `frozenset()`              | Country codes always blocked.                  |
 | `blocked_user_agents`| `list[str]`       | `[]`              | Regex patterns for blocked user agents.        |

@@ -136,3 +136,52 @@ def test_the_adapter_refresh_is_kept_when_only_global_providers_are_used() -> No
 
     middleware.refresh_cloud_ip_ranges.assert_called_once()
     fetch_aws.assert_not_called()
+
+
+def _union_pipeline() -> tuple[Any, Any, str]:
+    config = _config(block_cloud_providers={"AWS"})
+    pipeline, middleware, route_id = build_route_pipeline(
+        config, lambda d: d.block_clouds(["GCP"])
+    )
+    with (
+        patch(
+            "guard_core.sync.handlers.cloud_handler.fetch_aws_ip_ranges",
+            new=MagicMock(return_value={AWS_RANGE}),
+        ),
+        patch(
+            "guard_core.sync.handlers.cloud_handler.fetch_gcp_ip_ranges",
+            new=MagicMock(return_value=({GCP_RANGE}, {})),
+        ),
+    ):
+        _initializer(config, middleware.guard_decorator).initialize_redis_handlers()
+    return pipeline, middleware, route_id
+
+
+def test_a_route_block_clouds_adds_to_the_global_providers() -> None:
+    pipeline, _, route_id = _union_pipeline()
+
+    aws = send_request(pipeline, route_id, ip="198.51.100.9")
+    gcp = send_request(pipeline, route_id, ip="203.0.113.9")
+    other = send_request(pipeline, route_id, ip="192.0.2.9")
+
+    assert aws is not None and aws.status_code == 403
+    assert gcp is not None and gcp.status_code == 403
+    assert other is None
+
+
+def test_a_route_without_block_clouds_keeps_the_global_providers() -> None:
+    config = _config(block_cloud_providers={"AWS"})
+    pipeline, middleware, route_id = build_route_pipeline(
+        config, lambda d: d.max_request_size(10**6)
+    )
+    with patch(
+        "guard_core.sync.handlers.cloud_handler.fetch_aws_ip_ranges",
+        new=MagicMock(return_value={AWS_RANGE}),
+    ):
+        _initializer(config, middleware.guard_decorator).initialize_redis_handlers()
+
+    aws = send_request(pipeline, route_id, ip="198.51.100.9")
+    other = send_request(pipeline, route_id, ip="203.0.113.9")
+
+    assert aws is not None and aws.status_code == 403
+    assert other is None
