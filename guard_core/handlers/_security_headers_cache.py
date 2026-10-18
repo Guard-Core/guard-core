@@ -31,13 +31,13 @@ class SecurityHeadersCacheMixin:
     def _generate_cache_key(
         self, request_path: str | None, config: SecurityConfig | None = None
     ) -> str:
+        if config is not None:
+            content = json.dumps(config.security_headers, sort_keys=True, default=str)
+            return f"cfg_{hashlib.sha256(content.encode()).hexdigest()[:32]}"
         if not request_path:
-            base = "default"
-        else:
-            normalized = request_path.lower().strip("/")
-            hash_obj = hashlib.sha256(normalized.encode())
-            base = f"path_{hash_obj.hexdigest()[:16]}"
-        return base if config is None else f"cfg_{id(config)}_{base}"
+            return "default"
+        normalized = request_path.lower().strip("/")
+        return f"path_{hashlib.sha256(normalized.encode()).hexdigest()[:16]}"
 
     async def initialize_redis(self, redis_handler: Any) -> None:
         self.redis_handler = redis_handler

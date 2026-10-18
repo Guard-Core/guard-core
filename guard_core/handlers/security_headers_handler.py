@@ -79,23 +79,12 @@ class SecurityHeadersManager(
             parts.append("preload")
         return "; ".join(parts)
 
-    async def get_headers(
-        self,
-        request_path: str | None = None,
-        config: SecurityConfig | None = None,
-    ) -> dict[str, str]:
-        if config is not None:
-            if not config.security_headers or not config.security_headers.get(
-                "enabled", True
-            ):
-                return {}
-        elif not self.enabled:
-            return {}
-
-        cache_key = self._generate_cache_key(request_path, config)
+    def _headers_for(
+        self, config: SecurityConfig | None, cache_key: str
+    ) -> tuple[dict[str, str], bool]:
         cached = self.headers_cache.get(cache_key)
         if isinstance(cached, dict):
-            return cached
+            return cached, False
 
         csp_config, hsts_config, default_headers, custom_headers = (
             self._resolve_headers_state(config)
@@ -112,8 +101,25 @@ class SecurityHeadersManager(
         headers.update(custom_headers)
 
         self.headers_cache[cache_key] = headers
+        return headers, True
 
-        if self.agent_handler and request_path:
+    async def get_headers(
+        self,
+        request_path: str | None = None,
+        config: SecurityConfig | None = None,
+    ) -> dict[str, str]:
+        if config is not None:
+            if not config.security_headers or not config.security_headers.get(
+                "enabled", True
+            ):
+                return {}
+        elif not self.enabled:
+            return {}
+
+        cache_key = self._generate_cache_key(request_path, config)
+        headers, is_new = self._headers_for(config, cache_key)
+
+        if is_new and self.agent_handler and request_path:
             await self._send_headers_applied_event(request_path, headers)
 
         return headers
