@@ -48,7 +48,7 @@ ___
 
 **Blocks when**: `config.route_resolution_strict` is `True` and the adapter set `request.state.guard_route_unresolved`, meaning it could not match the request to a route. Off by default, in which case this check never blocks.
 
-**Response**: `404` (no route serves the path), `405` (the path is served under another method) or `500` (a matched route whose config the decorator does not know, or a failing route lookup), all with the body `Route resolution failed` (a CORS preflight is not blocked when CORS is on), alongside a suspicious-activity log and a `route_unresolved` event. Under `passive_mode` the log and event still fire and the request proceeds.
+**Response**: `404` (no route serves the path), `405` (the path is served under another method) or `500` (a matched route whose config the decorator does not know, or a failing route lookup), all with the body `Route resolution failed` (a CORS preflight is not blocked when CORS is on), alongside a suspicious-activity log and a `route_unresolved` event. Under `passive_mode` the log and event still fire and the request proceeds. The `405` carries an `Allow` header listing the methods the adapter's optional `allowed_methods(path)` lookup reports for the path (RFC 9110 section 15.5.6); an adapter without that lookup sends the `405` without `Allow`.
 
 **What it does**:
 
