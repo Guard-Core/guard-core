@@ -609,6 +609,12 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "no request in scope"
     ),
     "core/initialization/_handler_initializer_steps.py:"
+    "_HandlerInitializerStepsMixin._report_route_limits_with_global_switch_off": (
+        "line 124: startup INFO naming the route ids whose own rate limits stay "
+        "on while enable_rate_limiting is False; adapter init only, no request "
+        "in scope"
+    ),
+    "core/initialization/_handler_initializer_steps.py:"
     "_HandlerInitializerStepsMixin._run_lazy_init": (
         "lines 39,47: lazy cloud-IP/geo-IP init failure warnings; adapter "
         "init only, no request in scope"

@@ -297,7 +297,7 @@ Rate Limiting
 
 | Field                 | Type             | Default | Description                                        |
 |-----------------------|------------------|---------|---------------------------------------------------|
-| `enable_rate_limiting`| `bool`           | `True`  | Master switch for rate limiting.                   |
+| `enable_rate_limiting`| `bool`           | `True`  | Switch for the global rate limit (`rate_limit` per `rate_limit_window`). With `False` the route limits (`@rate_limit`, `@geo_rate_limit`) and `endpoint_rate_limits` stay on, and startup logs one INFO line naming the routes whose limits stay on. |
 | `rate_limit`          | `int`            | `10`    | Maximum requests per window (global).              |
 | `rate_limit_window`   | `int`            | `60`    | Window duration in seconds (global).               |
 | `endpoint_rate_limits`| `dict[str, tuple[int, int]]` | `{}` | Per-endpoint overrides `{path: (limit, window)}`. |

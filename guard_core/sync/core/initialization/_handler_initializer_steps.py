@@ -110,6 +110,23 @@ class _HandlerInitializerStepsMixin:
                     stacklevel=4,
                 )
 
+    def _report_route_limits_with_global_switch_off(self) -> None:
+        if self.config.enable_rate_limiting or self.guard_decorator is None:
+            return
+        route_configs = getattr(self.guard_decorator, "_route_configs", {})
+        limited = sorted(
+            route_id
+            for route_id, route_config in route_configs.items()
+            if route_config.rate_limit is not None or route_config.geo_rate_limits
+        )
+        if not limited:
+            return
+        self.logger.info(
+            "enable_rate_limiting is False, so the global rate limit is off; the "
+            "rate limits of these routes stay on: %s",
+            ", ".join(limited),
+        )
+
     def _warn_if_lazy_init_is_inert(self) -> None:
         if not (self.config.block_cloud_providers or self.geo_ip_handler is not None):
             return
@@ -183,6 +200,7 @@ class _HandlerInitializerStepsMixin:
     def initialize_redis_handlers(self) -> None:
         self._report_unreachable_ban_thresholds()
         self._report_country_decorators_without_geoip()
+        self._report_route_limits_with_global_switch_off()
         self._configure_detection()
 
         if not (self.config.enable_redis and self.redis_handler):
