@@ -114,6 +114,48 @@ REDIS_SUITES["redis_interop"] = [
         },
     },
     {
+        "id": "rio_ban_grouped_identity",
+        "operation": {
+            "op": "ban_ip",
+            "handler": "ipban_handler.ip_ban_manager",
+            "call": "ban_ip (grouped=True, a native IPv6 /64 identity)",
+            "args": {
+                "ip": "2001:db8:0:1::/64",
+                "duration": 3600,
+                "reason": "rio_ban",
+                "grouped": True,
+            },
+        },
+    },
+    {
+        "id": "rio_ban_recidive_counter",
+        "operation": {
+            "op": "ban_ip",
+            "handler": "ipban_handler.ip_ban_manager",
+            "call": "_ban_ip_escalating (enable_recidive, first ban)",
+            "args": {
+                "ip": "203.0.113.22",
+                "duration": 3600,
+                "reason": "rio_ban",
+                "escalating": True,
+                "config": {"enable_recidive": True},
+            },
+        },
+    },
+    {
+        "id": "rio_behavior_usage_ipv6_identity",
+        "operation": {
+            "op": "behavior_usage",
+            "handler": "behavior_handler.BehaviorTracker",
+            "call": "track_endpoint_usage (an IPv6 client is keyed by its /64)",
+            "args": {
+                "endpoint_id": "corpus.endpoint",
+                "client_ip": "2001:db8:0:1::5",
+                "rule": {"rule_type": "usage", "threshold": 5, "window": 120},
+            },
+        },
+    },
+    {
         "id": "rio_behavior_usage_increment",
         "operation": {
             "op": "behavior_usage",
@@ -371,14 +413,22 @@ async def _op_rate_limit(args: dict[str, Any]) -> None:
 
 async def _op_ban_ip(args: dict[str, Any]) -> None:
     await reset_global_state()
-    config = _rio_config()
+    config = _rio_config(**args.get("config", {}))
     redis_manager = await _redis_manager(config)
     saved_config = ip_ban_manager.config
     ip_ban_manager.config = config
     ip_ban_manager.redis_handler = redis_manager
+    ban = (
+        ip_ban_manager._ban_ip_escalating
+        if args.get("escalating")
+        else ip_ban_manager.ban_ip
+    )
     try:
-        await ip_ban_manager.ban_ip(
-            args["ip"], args["duration"], args.get("reason", "rio_ban")
+        await ban(
+            args["ip"],
+            args["duration"],
+            args.get("reason", "rio_ban"),
+            grouped=args.get("grouped", False),
         )
     finally:
         ip_ban_manager.redis_handler = None

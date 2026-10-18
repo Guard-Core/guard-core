@@ -119,6 +119,109 @@
       ]
     },
     {
+      "id": "rio_ban_grouped_identity",
+      "prefix": "guard_core:corpus_rio:",
+      "operation": {
+        "op": "ban_ip",
+        "handler": "ipban_handler.ip_ban_manager",
+        "call": "ban_ip (grouped=True, a native IPv6 /64 identity)",
+        "args": {
+          "ip": "2001:db8:0:1::/64",
+          "duration": 3600,
+          "reason": "rio_ban",
+          "grouped": true
+        }
+      },
+      "expected": [
+        {
+          "key": "guard_core:corpus_rio:banned_identities:2001:db8:0:1::/64",
+          "type": "string",
+          "ttl": {
+            "set": true,
+            "seconds": 3600
+          },
+          "value_shape": "^[0-9]+\\.[0-9]+(e[+-]?[0-9]+)?$"
+        }
+      ]
+    },
+    {
+      "id": "rio_ban_recidive_counter",
+      "prefix": "guard_core:corpus_rio:",
+      "operation": {
+        "op": "ban_ip",
+        "handler": "ipban_handler.ip_ban_manager",
+        "call": "_ban_ip_escalating (enable_recidive, first ban)",
+        "args": {
+          "ip": "203.0.113.22",
+          "duration": 3600,
+          "reason": "rio_ban",
+          "escalating": true,
+          "config": {
+            "enable_recidive": true
+          }
+        }
+      },
+      "expected": [
+        {
+          "key": "guard_core:corpus_rio:banned_ips:203.0.113.22",
+          "type": "string",
+          "ttl": {
+            "set": true,
+            "seconds": 3600
+          },
+          "value_shape": "^[0-9]+\\.[0-9]+(e[+-]?[0-9]+)?$"
+        },
+        {
+          "key": "guard_core:corpus_rio:recidive:203.0.113.22",
+          "type": "string",
+          "ttl": {
+            "set": true,
+            "seconds": 90000
+          },
+          "value": "1"
+        }
+      ]
+    },
+    {
+      "id": "rio_behavior_usage_ipv6_identity",
+      "prefix": "guard_core:corpus_rio:",
+      "operation": {
+        "op": "behavior_usage",
+        "handler": "behavior_handler.BehaviorTracker",
+        "call": "track_endpoint_usage (an IPv6 client is keyed by its /64)",
+        "args": {
+          "endpoint_id": "corpus.endpoint",
+          "client_ip": "2001:db8:0:1::5",
+          "rule": {
+            "rule_type": "usage",
+            "threshold": 5,
+            "window": 120
+          }
+        }
+      },
+      "expected": [
+        {
+          "key": "guard_core:corpus_rio:behavior_usage:behavior:usage:034a7e52c5c9534b709dc1dba403868399b0949f7c1933a67325c22077ffc221:d501b8a12e0271e9ff7f1fa99b8d2ce532c3e56bf1a88a1e897bba6c7f413c38",
+          "type": "set",
+          "ttl": {
+            "set": true,
+            "seconds": 300
+          }
+        },
+        {
+          "key": "guard_core:corpus_rio:behavior_usage:behavior:usage:ded2c0cf54d6716bb27c96c49bfa9baa37f1fc5f973b780fef5b25e6fcc58118:d501b8a12e0271e9ff7f1fa99b8d2ce532c3e56bf1a88a1e897bba6c7f413c38:298cce2f4cddd39c71abf5ff171b7afa7bfd18068e9d677f5fb38b4185daede8",
+          "type": "zset",
+          "ttl": {
+            "set": true,
+            "seconds": 300
+          },
+          "card": 1,
+          "member_shape": "^[0-9a-f]{32}$",
+          "score_shape": "^[0-9]+\\.[0-9]+(e[+-]?[0-9]+)?$"
+        }
+      ]
+    },
+    {
       "id": "rio_behavior_usage_increment",
       "prefix": "guard_core:corpus_rio:",
       "operation": {
