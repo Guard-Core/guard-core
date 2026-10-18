@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple
 
 from guard_core.models import SecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
+from guard_core.sync._utils.ip_extraction import MALFORMED_FORWARDED_FOR_PREFIX
 from guard_core.sync._utils.request_logging import redact_endpoint_for_display
 from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.core.checks.endpoint_limit_keys import EndpointLimitKeyMap
@@ -41,6 +42,8 @@ _non_ip_ban_refusal_logged = False
 
 
 def _is_ip_address(identity: str) -> bool:
+    if identity.startswith(MALFORMED_FORWARDED_FOR_PREFIX):
+        return True
     try:
         ip_address(identity)
     except ValueError:

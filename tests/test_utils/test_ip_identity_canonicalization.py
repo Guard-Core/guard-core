@@ -78,7 +78,7 @@ async def test_extract_client_ip_canonicalizes_six_forms_via_forwarded_header(
     assert resolved == CANONICAL_BY_RAW_FORM[raw_form]
 
 
-async def test_zone_identifier_link_local_stays_distinct_by_design() -> None:
+async def test_zone_identifier_is_not_part_of_the_identity() -> None:
     with_zone = await extract_client_ip(
         MockGuardRequest(client_host="fe80::1%eth0"), SecurityConfig()
     )
@@ -86,12 +86,11 @@ async def test_zone_identifier_link_local_stays_distinct_by_design() -> None:
         MockGuardRequest(client_host="fe80::1"), SecurityConfig()
     )
 
-    assert with_zone == "fe80::1%eth0"
+    assert with_zone == "fe80::1"
     assert without_zone == "fe80::1"
-    assert with_zone != without_zone
 
 
-async def test_ipv4_mapped_addresses_with_different_zones_stay_distinct_by_design() -> (
+async def test_ipv4_mapped_addresses_with_different_zones_are_one_ipv4_identity() -> (
     None
 ):
     zone_eth0 = await extract_client_ip(
@@ -101,9 +100,8 @@ async def test_ipv4_mapped_addresses_with_different_zones_stay_distinct_by_desig
         MockGuardRequest(client_host="::ffff:1.2.3.4%eth1"), SecurityConfig()
     )
 
-    assert zone_eth0 == "::ffff:1.2.3.4%eth0"
-    assert zone_eth1 == "::ffff:1.2.3.4%eth1"
-    assert zone_eth0 != zone_eth1
+    assert zone_eth0 == "1.2.3.4"
+    assert zone_eth1 == "1.2.3.4"
 
 
 async def test_ipv4_mapped_address_without_zone_still_canonicalizes_to_bare_ipv4() -> (

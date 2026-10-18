@@ -1069,6 +1069,11 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
     "handlers/ipinfo_handler.py:IPInfoManager._open_database_or_none": (
         "line 91: MMDB file-open failure, infra only"
     ),
+    "_utils/ip_extraction.py:_malformed_forwarded_for_identity": (
+        "line 460: warning with the X-Forwarded-For chain passed through "
+        "_display_forwarded_chain (non-IP entries shown as [REDACTED]) and "
+        "_sanitize_for_log, plus the peer address"
+    ),
     "handlers/_ipinfo_events.py:IpInfoEventsMixin._send_geo_event": (
         "line 43: geolocation lookup event carries only ip/country, "
         "client_ip is outside the secret matrix; logger.error fallback "

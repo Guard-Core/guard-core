@@ -21,6 +21,7 @@ from guard_core.protocols.request_protocol import GuardRequest
 logger = logging.getLogger("guard_core")
 
 UNKNOWN_CLIENT_IDENTITY = "unknown"
+MALFORMED_FORWARDED_FOR_PREFIX = "malformed-xff@"
 
 _PER_ADDRESS_IDENTITY_NETWORKS = (
     ip_network("2001::/32"),
@@ -92,9 +93,13 @@ def _strip_forwarded_entry_port(value: str) -> str:
     return value
 
 
+def _strip_zone_id(value: str) -> str:
+    return value.partition("%")[0] if ":" in value else value
+
+
 def _canonicalize_ip(value: str) -> str:
     try:
-        addr = ip_address(_strip_ip_brackets(value))
+        addr = ip_address(_strip_zone_id(_strip_ip_brackets(value)))
     except ValueError:
         return value
     return _canonical_ip_text(addr)
@@ -155,7 +160,7 @@ def _forwarded_header_candidate_addr(
     candidate: str,
 ) -> IPv4Address | IPv6Address | None:
     try:
-        return ip_address(candidate)
+        return ip_address(_strip_zone_id(candidate))
     except ValueError:
         return None
 
@@ -193,6 +198,10 @@ def _forwarded_header_right_side_unlisted_count(
     )
 
 
+class _MalformedForwardedEntry(Exception):
+    pass
+
+
 def _resolve_forwarded_chain_right_to_left(
     ips: list[str], trusted_proxies: list[str]
 ) -> str | None:
@@ -201,7 +210,7 @@ def _resolve_forwarded_chain_right_to_left(
             continue
         addr = _forwarded_header_candidate_addr(entry)
         if addr is None or _forwarded_header_candidate_has_metachar(entry):
-            return None
+            raise _MalformedForwardedEntry
         return _canonical_ip_text(addr)
     return None
 
@@ -423,14 +432,51 @@ def _resolve_client_ip_from_forwarded_chain(
                 return resolved if resolved is not None else canonical_connecting_ip
 
         client_ip = _extract_from_forwarded_header(forwarded_for, proxy_depth)
-        if client_ip:
-            if _is_trusted_proxy(client_ip, trusted_proxies):
-                _warn_forwarded_header_selected_entry_trusted_proxy(client_ip)
-            return client_ip
+        if not client_ip:
+            raise _MalformedForwardedEntry
+        if _is_trusted_proxy(client_ip, trusted_proxies):
+            _warn_forwarded_header_selected_entry_trusted_proxy(client_ip)
+        return client_ip
     except (ValueError, IndexError) as e:
         logger.warning(f"Error processing client IP: {str(e)}")
 
     return canonical_connecting_ip
+
+
+async def _malformed_forwarded_for_identity(
+    request: GuardRequest,
+    peer: str,
+    forwarded_for: str | None,
+    agent_handler: AgentHandlerProtocol | None,
+) -> str:
+    if observe_sampled_key(
+        _untrusted_peers,
+        _untrusted_peer_lock,
+        f"malformed:{peer}",
+        window=_UNTRUSTED_XFF_WINDOW_SECONDS,
+        max_tracked=_MAX_TRACKED_UNTRUSTED_PEERS,
+    ):
+        display = _sanitize_for_log(_display_forwarded_chain(forwarded_for or ""))
+        logger.warning(
+            "The X-Forwarded-For entry selected by trusted_proxy_depth is empty or "
+            "not an IP address (chain %s) from trusted proxy %s; the request is "
+            "attributed to the identity %s%s. Logged once a minute per peer.",
+            display,
+            _sanitize_for_log(peer),
+            MALFORMED_FORWARDED_FOR_PREFIX,
+            _sanitize_for_log(peer),
+        )
+        from guard_core.core.events.event_types import EVENT_SUSPICIOUS_REQUEST
+
+        await send_agent_event(
+            agent_handler,
+            EVENT_SUSPICIOUS_REQUEST,
+            peer,
+            "malformed_forwarded_for",
+            f"Malformed X-Forwarded-For entry from trusted proxy: {display}",
+            request,
+        )
+    return f"{MALFORMED_FORWARDED_FOR_PREFIX}{peer}"
 
 
 async def extract_client_ip(
@@ -445,12 +491,17 @@ async def extract_client_ip(
     if not request.client_host:
         if "unix" in config.trusted_proxies:
             forwarded_for = request.headers.get("X-Forwarded-For")
-            return _resolve_client_ip_from_forwarded_chain(
-                UNKNOWN_CLIENT_IDENTITY,
-                forwarded_for,
-                config.trusted_proxy_depth,
-                config.trusted_proxies,
-            )
+            try:
+                return _resolve_client_ip_from_forwarded_chain(
+                    UNKNOWN_CLIENT_IDENTITY,
+                    forwarded_for,
+                    config.trusted_proxy_depth,
+                    config.trusted_proxies,
+                )
+            except _MalformedForwardedEntry:
+                return await _malformed_forwarded_for_identity(
+                    request, UNKNOWN_CLIENT_IDENTITY, forwarded_for, agent_handler
+                )
         return UNKNOWN_CLIENT_IDENTITY
 
     connecting_ip = request.client_host
@@ -472,9 +523,14 @@ async def extract_client_ip(
             agent_handler,
         )
 
-    return _resolve_client_ip_from_forwarded_chain(
-        canonical_connecting_ip,
-        forwarded_for,
-        config.trusted_proxy_depth,
-        config.trusted_proxies,
-    )
+    try:
+        return _resolve_client_ip_from_forwarded_chain(
+            canonical_connecting_ip,
+            forwarded_for,
+            config.trusted_proxy_depth,
+            config.trusted_proxies,
+        )
+    except _MalformedForwardedEntry:
+        return await _malformed_forwarded_for_identity(
+            request, canonical_connecting_ip, forwarded_for, agent_handler
+        )

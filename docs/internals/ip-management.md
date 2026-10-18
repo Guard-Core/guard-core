@@ -228,6 +228,12 @@ This right-side check trusts an entry by its *value* -- is this IP itself listed
 
 Repeated `X-Forwarded-For` field lines are joined by the adapter before guard-core sees them (guard-core reads the header as a single string); an ASGI adapter that only returns the first field line's value for a duplicate header name is an adapter-layer defect, not something this function can detect or correct.
 
+### Empty or Unparsable Entries and Zone Ids
+
+When the trusted peer's `X-Forwarded-For` has an empty or unparsable entry at the position `trusted_proxy_depth` selects (a trailing comma, a hostname, garbage), guard-core no longer attributes the request to the proxy's own address. With `fail_secure` on (the default) the request is answered `400` with a log line and a `suspicious_request` event (`action_taken="malformed_forwarded_for"`) and no strike. With `fail_secure=False` the request goes on under its own identity, `malformed-xff@<proxy address>`, which is rate limited and banned like an address; the warning and event are sampled to one a minute per peer. A client whose chain is merely shorter than `trusted_proxy_depth` still falls back to the peer, as before.
+
+IPv6 zone ids (`fe80::1%eth0`) are stripped from the connecting peer and from `X-Forwarded-For` entries before matching and before the identity is formed, so every zone spelling of an address is one client. A link-local address (`fe80::/10`) is only unique on one link: clients on different links can present the same address, and they share one identity, one rate-limit window and one ban.
+
 ### Deployment Prerequisite: Disable the App Server's Own Forwarded-Header Handling
 
 `request.client_host` is whatever the ASGI/WSGI server puts in `scope["client"]` (or its WSGI equivalent) by the time it reaches the adapter, guard-core never sees the raw TCP peer. Several app servers rewrite that value themselves from `X-Forwarded-For` before any application code, including guard-core, runs. uvicorn is the clearest example: `proxy_headers=True` and `forwarded_allow_ips="127.0.0.1"` are its defaults, so a reverse proxy connecting from loopback (the common case for a same-host `proxy_pass`) has its `X-Forwarded-For` applied to `scope["client"]` upstream of guard-core. Gunicorn, Hypercorn, and other WSGI/ASGI servers have equivalent forwarded-header options; the same reasoning applies to whichever one is in front of your app.

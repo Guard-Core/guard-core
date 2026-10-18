@@ -6,6 +6,7 @@ from typing import Any
 
 from guard_core.sync._utils.detection_scan import _user_agent_matches_blocked_pattern
 from guard_core.sync._utils.ip_extraction import (
+    MALFORMED_FORWARDED_FOR_PREFIX,
     UNKNOWN_CLIENT_IDENTITY,
     _canonicalize_ip,
 )
@@ -196,6 +197,7 @@ class IpAccessResult:
     denial_category: str | None = None
     country: str | None = None
     country_rule: str | None = None
+    status_code: int = 403
 
 
 _GENERIC_LIST_BLOCK_REASON = "IP {ip} not in global allowlist/blocklist"
@@ -274,6 +276,23 @@ def _check_unknown_identity_access(
     return IpAccessResult(True, "")
 
 
+def _malformed_forwarded_for_result(
+    ip: str, config: Any, skip_ip_lists: bool, skip_countries: bool
+) -> IpAccessResult:
+    if config.fail_secure:
+        return IpAccessResult(
+            False,
+            f"Malformed X-Forwarded-For entry from trusted proxy ({ip})",
+            status_code=400,
+        )
+    allowed_by_lists = (skip_ip_lists or not config.whitelist) and (
+        skip_countries or not config.whitelist_countries
+    )
+    if allowed_by_lists:
+        return IpAccessResult(True, "")
+    return IpAccessResult(False, _GENERIC_LIST_BLOCK_REASON.format(ip=ip))
+
+
 def _check_ip_lists_detail(ip_addr: Any, ip: str, config: Any) -> IpAccessResult | None:
     reason = _GENERIC_LIST_BLOCK_REASON.format(ip=ip)
     if config.whitelist:
@@ -336,6 +355,10 @@ def check_ip_access(
             return result
         return IpAccessResult(True, "")
     except ValueError:
+        if ip.startswith(MALFORMED_FORWARDED_FOR_PREFIX):
+            return _malformed_forwarded_for_result(
+                ip, config, skip_ip_lists, skip_countries
+            )
         return IpAccessResult(False, _GENERIC_LIST_BLOCK_REASON.format(ip=ip))
     except Exception as e:
         logger.error(f"Error checking IP {ip}: {str(e)}")

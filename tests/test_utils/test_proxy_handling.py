@@ -627,7 +627,7 @@ async def test_overcounted_depth_walk_skips_trusted_entries_to_its_right() -> No
     assert ip == "203.0.113.9"
 
 
-async def test_overcounted_depth_walk_falls_back_to_peer_when_first_entry_invalid() -> (
+async def test_overcounted_depth_walk_gives_the_malformed_identity_on_a_bad_entry() -> (
     None
 ):
     config = SecurityConfig(trusted_proxies=["10.0.0.1"], trusted_proxy_depth=2)
@@ -641,7 +641,7 @@ async def test_overcounted_depth_walk_falls_back_to_peer_when_first_entry_invali
 
     ip = await extract_client_ip(request, config)
 
-    assert ip == "10.0.0.1"
+    assert ip == "malformed-xff@10.0.0.1"
 
 
 def test_resolve_forwarded_chain_right_to_left_returns_none_when_all_trusted() -> None:
@@ -652,7 +652,7 @@ def test_resolve_forwarded_chain_right_to_left_returns_none_when_all_trusted() -
     assert resolved is None
 
 
-async def test_invalid_single_entry_chain_falls_back_to_peer_silently(
+async def test_invalid_single_entry_chain_gets_the_malformed_identity_with_one_warning(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     config = SecurityConfig(trusted_proxies=["127.0.0.1"], trusted_proxy_depth=1)
@@ -667,8 +667,8 @@ async def test_invalid_single_entry_chain_falls_back_to_peer_silently(
     with caplog.at_level(logging.WARNING):
         ip = await extract_client_ip(request, config)
 
-    assert ip == "127.0.0.1"
-    assert caplog.text == ""
+    assert ip == "malformed-xff@127.0.0.1"
+    assert caplog.text.count("not an IP address") == 1
 
 
 GLOB_METACHARACTERS = ("*", "?", "[", "]", "\\")
@@ -712,7 +712,7 @@ async def test_extract_from_forwarded_header_rejects_non_ip_entries(
         ("2001:db8::1", 1, "2001:db8::1"),
         ("[::1]", 1, "::1"),
         ("[2001:db8::1]", 1, "2001:db8::1"),
-        ("fe80::1%eth0", 1, "fe80::1%eth0"),
+        ("fe80::1%eth0", 1, "fe80::1"),
         ("1.2.3.4:5678", 1, "1.2.3.4"),
         ("5.6.7.8:1234, 1.2.3.4", 2, "5.6.7.8"),
         ("[2001:db8::1]:5678", 1, "2001:db8::1"),

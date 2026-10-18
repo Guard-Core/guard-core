@@ -6,6 +6,7 @@ from typing import Any
 
 from cachetools import Cache, TTLCache
 
+from guard_core.sync._utils.ip_extraction import MALFORMED_FORWARDED_FOR_PREFIX
 from guard_core.sync.handlers._ipban_cache import _Network
 from guard_core.sync.handlers._ipban_coverage import NetworkCoverage
 from guard_core.sync.handlers._ipban_events import IpBanEventMixin
@@ -88,6 +89,8 @@ class IpBanQueryMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
         try:
             addr = ipaddress.ip_address(ip)
         except ValueError:
+            if ip.startswith(MALFORMED_FORWARDED_FOR_PREFIX) and self.redis_handler:
+                return self._check_redis_exact(ip, current_time)
             return False
 
         if self._check_network_cache(addr, current_time):

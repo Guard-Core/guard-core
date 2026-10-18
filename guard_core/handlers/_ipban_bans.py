@@ -5,6 +5,7 @@ from typing import Any
 
 from cachetools import TTLCache
 
+from guard_core._utils.ip_extraction import MALFORMED_FORWARDED_FOR_PREFIX
 from guard_core.handlers._ipban_cache import _Network
 from guard_core.handlers._ipban_events import IpBanEventMixin
 from guard_core.handlers._ipban_rule_exempt import IpBanRuleExemptionMixin
@@ -66,10 +67,11 @@ class IpBanOperationsMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
             self.banned_networks.append((network, time.time() + duration))
 
     async def _ban_exact_ip(self, ip: str, duration: int, reason: str) -> None:
-        try:
-            ipaddress.ip_address(ip)
-        except ValueError as e:
-            raise ValueError(f"Invalid IP address {ip!r}: {e}") from e
+        if not ip.startswith(MALFORMED_FORWARDED_FOR_PREFIX):
+            try:
+                ipaddress.ip_address(ip)
+            except ValueError as e:
+                raise ValueError(f"Invalid IP address {ip!r}: {e}") from e
 
         if self.redis_handler is None:
             duration = self._clamp_to_local_cap(duration, "not configured")

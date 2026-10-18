@@ -331,8 +331,10 @@ class IpSecurityCheck(SecurityCheck):
                     "ip_blocked",
                 )
             return await self.middleware.create_error_response(
-                status_code=403,
-                default_message="Forbidden",
+                status_code=access_result.status_code,
+                default_message="Malformed forwarded address"
+                if access_result.status_code == 400
+                else "Forbidden",
             )
 
         return None
