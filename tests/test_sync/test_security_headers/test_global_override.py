@@ -2594,7 +2594,7 @@ def test_the_cors_note_registry_forgets_its_oldest_entry_when_full(
 
 
 def _only(**passed: Any) -> dict[str, Any]:
-    blank = {
+    blank: dict[str, Any] = {
         name: override_module.NOT_PASSED
         for name in (
             "enabled",

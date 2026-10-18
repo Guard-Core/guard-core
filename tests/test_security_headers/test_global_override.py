@@ -12,13 +12,13 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from guard_core.core.initialization._headers_manager_attach import (
+    attach_security_headers_manager_to_redis,
+)
 
 from guard_core import _security_headers_override as override_module
 from guard_core._utils.config_registry import REDIS_HANDLERS, ConfigHandlerRegistry
 from guard_core.core.events.metrics import MetricsCollector
-from guard_core.core.initialization._headers_manager_attach import (
-    attach_security_headers_manager_to_redis,
-)
 from guard_core.core.initialization.handler_initializer import HandlerInitializer
 from guard_core.core.responses.context import ResponseContext
 from guard_core.core.responses.factory import ErrorResponseFactory
@@ -2615,7 +2615,7 @@ def test_the_cors_note_registry_forgets_its_oldest_entry_when_full(
 
 
 def _only(**passed: Any) -> dict[str, Any]:
-    blank = {
+    blank: dict[str, Any] = {
         name: override_module.NOT_PASSED
         for name in (
             "enabled",
