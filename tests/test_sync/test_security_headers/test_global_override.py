@@ -1528,3 +1528,63 @@ def test_an_unbound_manager_reads_exactly_its_three_v440_keys() -> None:
     manager.initialize_redis(redis)
 
     assert redis.gets == 3
+
+
+def test_a_sync_round_calls_the_persistence_methods_without_the_managers_own_keys(
+    clock: Clock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    redis = FakeRedis()
+    app = _app(redis=redis)
+    manager = app.security_headers_manager
+    seen: list[tuple[str, Any]] = []
+    cache = type(manager)._cache_configuration
+    load = type(manager)._load_cached_config
+
+    def spy_cache(self: Any, *args: Any, **kwargs: Any) -> Any:
+        seen.append(("cache", kwargs.get("own_state")))
+        return cache(self, *args, **kwargs)
+
+    def spy_load(self: Any, *args: Any, **kwargs: Any) -> Any:
+        seen.append(("load", kwargs.get("own_state")))
+        return load(self, *args, **kwargs)
+
+    _response(app)
+    monkeypatch.setattr(type(manager), "_cache_configuration", spy_cache)
+    monkeypatch.setattr(type(manager), "_load_cached_config", spy_load)
+    _override(csp=GLOBAL_CSP)
+    _response(app)
+    clock.now += 5.0
+    _response(app)
+
+    assert seen == [("cache", False), ("load", False)]
+
+
+def test_the_request_that_saves_the_override_does_not_also_pull(
+    clock: Clock,
+) -> None:
+    redis = FakeRedis()
+    app = _app(redis=redis)
+    _response(app)
+    gets = redis.gets
+
+    _override(csp=GLOBAL_CSP)
+    clock.now += 5.0
+    _response(app)
+
+    assert redis.sets == 1
+    assert redis.gets == gets
+
+
+def test_saving_an_override_that_is_already_saved_writes_nothing(
+    clock: Clock,
+) -> None:
+    redis = FakeRedis()
+    app = _app(redis=redis)
+    _response(app)
+    _override(csp=GLOBAL_CSP)
+    _response(app)
+    assert redis.sets == 1
+
+    app.security_headers_manager._cache_configuration(own_state=False)
+
+    assert redis.sets == 1
