@@ -13,8 +13,8 @@ local counts = {}
 for i = 1, categories do
   redis.call('SADD', KEYS[1], KEYS[i + 3])
   counts[i + 2] = record(KEYS[i + 3], now, base .. ':' .. i, window_start, ttl, cap)
-  redis.call('ZADD', KEYS[2], now, base .. ':total:' .. i)
 end
+redis.call('ZADD', KEYS[2], now, base .. ':total')
 redis.call('ZREMRANGEBYSCORE', KEYS[2], '-inf', '(' .. window_start)
 redis.call('ZREMRANGEBYRANK', KEYS[2], 0, -(cap + 1))
 redis.call('EXPIRE', KEYS[2], ttl)

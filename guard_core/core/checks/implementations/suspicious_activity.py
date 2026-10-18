@@ -68,9 +68,9 @@ class SuspiciousActivityCheck(SecurityCheck):
         )
 
     def _total_count_for_ip(self, client_ip: str) -> int:
-        return sum(
-            self.middleware.suspicious_request_counts.get(client_ip, {}).values()
-        )
+        ip_counts = self.middleware.suspicious_request_counts.get(client_ip, {})
+        request_total = getattr(ip_counts, "request_total", None)
+        return sum(ip_counts.values()) if request_total is None else request_total
 
     async def _handle_suspicious_passive_mode(
         self, request: GuardRequest, client_ip: str, trigger_info: str

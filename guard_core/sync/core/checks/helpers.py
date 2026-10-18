@@ -397,6 +397,9 @@ def get_cached_detection_result(
     return result
 
 
+_RATE_LIMIT_FEED_CATEGORY = "rate_limit"
+
+
 class _WindowedCategoryCounts(dict[str, int]):
     """Per-category counts of the events inside the last ``SUSPICIOUS_COUNT_WINDOW``.
 
@@ -408,8 +411,20 @@ class _WindowedCategoryCounts(dict[str, int]):
     def __init__(self) -> None:
         super().__init__()
         self._event_times: dict[str, deque[float]] = {}
+        self._request_times: deque[float] = deque()
+
+    @property
+    def request_total(self) -> int:
+        return len(self._request_times)
+
+    def record_request(self, now: float, retain: int) -> None:
+        if self._request_times.maxlen != retain:
+            self._request_times = deque(self._request_times, maxlen=retain)
+        self._request_times.append(now)
 
     def expire_before(self, cutoff: float) -> None:
+        while self._request_times and self._request_times[0] <= cutoff:
+            self._request_times.popleft()
         for category in tuple(self._event_times):
             times = self._event_times[category]
             while times and times[0] <= cutoff:
@@ -440,6 +455,8 @@ class _WindowedCategoryCounts(dict[str, int]):
         for category, count in counts.items():
             for _ in range(min(count, retain)):
                 adopted.record(category, now, retain)
+                if category != _RATE_LIMIT_FEED_CATEGORY:
+                    adopted.record_request(now, retain)
         return adopted
 
 
@@ -467,6 +484,10 @@ def _increment_suspicious_counts(
         ip_counts.expire_before(now - SUSPICIOUS_COUNT_WINDOW_SECONDS)
         for category in resolved_categories:
             ip_counts.record(category, now, retain)
+        if any(
+            category != _RATE_LIMIT_FEED_CATEGORY for category in resolved_categories
+        ):
+            ip_counts.record_request(now, retain)
         counts[client_ip] = ip_counts
 
 
@@ -480,7 +501,10 @@ def _forget_suspicious_counts(
 def _flat_threshold_total(
     ip_counts: Mapping[str, int], threat_categories: Collection[str]
 ) -> int:
-    rate_limit_feed = "rate_limit" in threat_categories
+    rate_limit_feed = _RATE_LIMIT_FEED_CATEGORY in threat_categories
+    request_total = getattr(ip_counts, "request_total", None)
+    if request_total is not None and not rate_limit_feed:
+        return int(request_total)
     return sum(
         count
         for category, count in ip_counts.items()
@@ -510,40 +534,59 @@ def _resolve_and_apply_threshold_ban(
 ) -> tuple[int, str, str | None] | None:
     """Pure threshold resolution against ``ip_counts`` plus the ``ban_ip`` call.
 
-    Tries ``threat_ban_config`` per-category entries first (in ``threat_categories``
-    order), then the flat ``auto_ban_threshold``/``auto_ban_duration`` against the
-    total of the categories on the same side of the ``rate_limit`` line: a
-    rate-limit feed counts only ``rate_limit`` violations and every other feed counts
-    everything except them, so old detection hits never push a rate-limit ban over
-    the threshold and rate-limit violations never push a detection ban over it.
-    ``default_entries`` supplies a per-category entry used when the user
-    configured none. Returns
-    ``(duration, ban_reason, category)`` when a ban was applied (``category`` is
-    ``None`` for the flat fallback), or ``None`` when banning is disabled, no
-    threshold crossed, or ``ban_ip`` refused the ban (self-DoS guard). Callers own
-    their own logging: the middleware path logs via ``log_activity``, the
-    request-free ``check_rate_limit_by_ip`` primitive logs via the module logger.
+    A ban fires when a matched category's ``threat_ban_config`` entry (or its
+    ``default_entries`` entry) has crossed its own threshold; the duration is the
+    longest among the crossed entries and a tie goes to the earlier category in
+    ``threat_categories``. The flat ``auto_ban_threshold``/``auto_ban_duration`` rule
+    counts requests (one strike per request) on the same side of the ``rate_limit``
+    line: a rate-limit feed counts only ``rate_limit`` violations and every other
+    feed everything except them. It joins the longest only when its total exceeds
+    the chosen entry's own count, and the entry wins a duration tie. With no entry
+    crossed the flat rule alone decides. Returns ``(duration, ban_reason, category)``
+    when a ban was applied (``category`` is ``None`` for the flat rule), or ``None``
+    when banning is disabled, nothing crossed, or ``ban_ip`` refused the ban
+    (self-DoS guard). Callers own their own logging: the middleware path logs via
+    ``log_activity``, the request-free ``check_rate_limit_by_ip`` primitive logs via
+    the module logger.
     """
     if not config.enable_ip_banning:
         return None
+    chosen = _longest_crossed_entry(
+        ip_counts, config, threat_categories, default_entries
+    )
+    total = _flat_total_or_shared(flat_total, ip_counts, threat_categories)
+    flat_crossed = total >= config.auto_ban_threshold
+    if chosen is not None:
+        category, entry = chosen
+        flat_joins = flat_crossed and total > ip_counts.get(category, 0)
+        if not flat_joins or entry.duration >= config.auto_ban_duration:
+            ban_reason = f"{reason}:{category}"
+            applied = ip_ban_manager.ban_ip(client_ip, entry.duration, ban_reason)
+            return (entry.duration, ban_reason, category) if applied else None
+    elif not flat_crossed:
+        return None
+    applied = ip_ban_manager.ban_ip(client_ip, config.auto_ban_duration, reason)
+    if not applied:
+        return None
+    return config.auto_ban_duration, reason, None
+
+
+def _longest_crossed_entry(
+    ip_counts: Mapping[str, int],
+    config: SecurityConfig,
+    threat_categories: Collection[str],
+    default_entries: Mapping[str, ThreatBanConfig] | None,
+) -> tuple[str, ThreatBanConfig] | None:
+    chosen: tuple[str, ThreatBanConfig] | None = None
     for category in threat_categories:
         entry = config.threat_ban_config.get(category) or (
             default_entries.get(category) if default_entries else None
         )
         if entry is None or ip_counts.get(category, 0) < entry.threshold:
             continue
-        ban_reason = f"{reason}:{category}"
-        applied = ip_ban_manager.ban_ip(client_ip, entry.duration, ban_reason)
-        if not applied:
-            return None
-        return entry.duration, ban_reason, category
-    total = _flat_total_or_shared(flat_total, ip_counts, threat_categories)
-    if total < config.auto_ban_threshold:
-        return None
-    applied = ip_ban_manager.ban_ip(client_ip, config.auto_ban_duration, reason)
-    if not applied:
-        return None
-    return config.auto_ban_duration, reason, None
+        if chosen is None or entry.duration > chosen[1].duration:
+            chosen = (category, entry)
+    return chosen
 
 
 def _try_threshold_ban(

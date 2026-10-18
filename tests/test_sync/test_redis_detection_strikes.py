@@ -46,11 +46,11 @@ def _keys(redis: RedisManager) -> list[str]:
     return sorted(found)
 
 
-def test_one_strike_returns_the_total_and_every_category_count(
+def test_one_strike_returns_the_request_total_and_every_category_count(
     redis: RedisManager,
 ) -> None:
     assert _record(redis, ("xss",)) == (1, 0, {"xss": 1})
-    assert _record(redis, ("xss", "sqli")) == (3, 0, {"xss": 2, "sqli": 1})
+    assert _record(redis, ("xss", "sqli")) == (2, 0, {"xss": 2, "sqli": 1})
 
 
 def test_every_key_is_bounded_to_the_cap(redis: RedisManager) -> None:
