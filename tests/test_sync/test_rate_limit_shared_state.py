@@ -1,5 +1,6 @@
 import gc
 import logging
+import time
 import uuid
 from collections.abc import Generator
 from typing import Any
@@ -133,7 +134,7 @@ def test_a_model_copy_gets_its_own_state() -> None:
     config = _config()
     app = _guarded_app(config)
     _exhaust(app)
-    copied = config.model_copy()
+    copied = config.model_copy(update={"rate_limit": 5})
 
     assert _request_status(RateLimitManager(copied)) == 200
     rate_limit_handler(copied).reset()
@@ -253,12 +254,12 @@ def test_reset_still_clears_the_shared_redis_keys() -> None:
         rate_limit=2,
     )
     manager = _guarded_app(config)
-    redis: Any = Mock(keys=MagicMock(return_value=["k"]), delete_pattern=MagicMock())
+    redis: Any = Mock(delete_pattern=MagicMock())
     manager.initialize_redis(redis)
 
     rate_limit_handler(config).reset()
 
-    redis.delete_pattern.assert_called_once_with("rate_limit:rate:*")
+    redis.delete_pattern.assert_any_call("rate_limit:rate:*")
 
 
 @pytest.mark.parametrize(
@@ -343,16 +344,22 @@ def test_after_the_documented_reset_the_app_still_sends_its_event(
     agent.send_event.assert_called()
 
 
-def test_the_auto_ban_strikes_survive_the_documented_reset(
+def test_the_reset_clears_the_rate_limit_strikes_and_keeps_the_detection_strikes(
     redis_app: tuple[SecurityConfig, RateLimitManager],
 ) -> None:
     config, app = redis_app
     redis = app.redis_handler
     for _ in range(3):
         record_shared_violation(redis, "203.0.113.9")
-    key = f"{config.redis_prefix}rate_limit:violations:203.0.113.9"
+    now = time.time()
+    redis.record_detection_strikes(
+        "203.0.113.9", ("xss",), now, now - 3600, 3600, 10_000
+    )
+    violations = f"{config.redis_prefix}rate_limit:violations:203.0.113.9"
+    detection = f"{config.redis_prefix}detection:strikes:203.0.113.9"
 
     rate_limit_handler(config).reset()
 
     with redis.get_connection() as conn:
-        assert conn.zcard(key) == 3
+        assert conn.exists(violations) == 0
+        assert conn.zcard(detection) == 1

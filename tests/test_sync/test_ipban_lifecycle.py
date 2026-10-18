@@ -4,11 +4,20 @@ import sys
 import time
 from collections.abc import Generator
 from types import ModuleType
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
 
 from guard_core.sync.handlers.ipban_handler import IPBanManager, reset_global_state
+
+
+def _scan_iter_of(keys: list[str]) -> Any:
+    def scan_iter(*_args: Any, **_kwargs: Any) -> Any:
+        for key in keys:
+            yield str(key)
+
+    return scan_iter
 
 
 @pytest.fixture(autouse=True)
@@ -89,7 +98,9 @@ def test_unban_removes_local_entry_and_calls_redis_delete() -> None:
     manager.unban_ip("10.0.0.30")
 
     assert "10.0.0.30" not in manager.banned_ips
-    redis.delete.assert_called_once_with("banned_ips", "10.0.0.30")
+    redis.delete.assert_any_call("banned_ips", "10.0.0.30")
+    redis.delete.assert_any_call("rate_limit", "violations:10.0.0.30")
+    redis.forget_detection_strikes.assert_called_once_with("10.0.0.30")
     agent.send_event.assert_called_once()
     sent = agent.send_event.call_args.args[0]
     assert sent.action_taken == "unbanned"
@@ -166,7 +177,7 @@ def test_reset_clears_local_state_and_redis_keys() -> None:
     redis.config = MagicMock()
     redis.config.redis_prefix = "guard:"
     conn = MagicMock()
-    conn.keys.return_value = [b"guard:banned_ips:1", b"guard:banned_ips:2"]
+    conn.scan_iter = _scan_iter_of(["guard:banned_ips:1", "guard:banned_ips:2"])
     redis.get_connection = MagicMock(
         return_value=MagicMock(
             __enter__=MagicMock(return_value=conn),
@@ -184,7 +195,10 @@ def test_reset_clears_local_state_and_redis_keys() -> None:
 
     assert len(manager.banned_ips) == 0
     assert manager.banned_networks == []
-    conn.delete.assert_called_once()
+    assert conn.unlink.call_args_list[0].args == (
+        "guard:banned_ips:1",
+        "guard:banned_ips:2",
+    )
 
 
 def test_reset_with_no_redis_and_no_keys_skips_delete() -> None:
@@ -194,7 +208,7 @@ def test_reset_with_no_redis_and_no_keys_skips_delete() -> None:
     redis.config = MagicMock()
     redis.config.redis_prefix = "guard:"
     conn = MagicMock()
-    conn.keys.return_value = []
+    conn.scan_iter = _scan_iter_of([])
     redis.get_connection = MagicMock(
         return_value=MagicMock(
             __enter__=MagicMock(return_value=conn),
@@ -205,7 +219,7 @@ def test_reset_with_no_redis_and_no_keys_skips_delete() -> None:
 
     manager.reset()
 
-    conn.delete.assert_not_called()
+    conn.unlink.assert_not_called()
 
 
 def test_reset_without_redis_just_clears_local() -> None:

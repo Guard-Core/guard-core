@@ -483,6 +483,26 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "request-derived text (the path threaded through build_block_payload "
         "is already redacted there, a separately covered producer)"
     ),
+    "core/checks/_strike_forget.py:register_strike_middleware": (
+        "static text about a middleware that cannot be weakly referenced; "
+        "no request content"
+    ),
+    "handlers/_ipban_queries.py:IpBanQueryMixin._forget_strikes": (
+        "logs the unbanned client_ip (outside the secret matrix) and the Redis "
+        "exception text; never header, query or body content"
+    ),
+    "handlers/_ipban_queries.py:IpBanQueryMixin._forget_all_strikes": (
+        "logs only the Redis exception text of the strike clear; never header, "
+        "query or body content"
+    ),
+    "handlers/ratelimit_handler.py:RateLimitManager._clear_redis_state": (
+        "logs only the Redis exception text of the rate-limit reset; never "
+        "header, query or body content"
+    ),
+    "handlers/ratelimit_handler.py:RateLimitManager._guarded_apps_to_reset": (
+        "logs the count of guarded apps and their config object identities "
+        "(memory addresses); never header, query or body content"
+    ),
     "core/checks/_shared_strikes.py:record_shared_detection_strikes": (
         "logs only the Redis exception text of the shared detection strike "
         "counter; never header, query or body content"

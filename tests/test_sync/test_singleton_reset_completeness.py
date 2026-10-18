@@ -52,7 +52,14 @@ def _handler_reference_attribute_names(instance: object) -> list[str]:
 
 
 def _working_handler_reference_mock() -> MagicMock:
-    return MagicMock()
+    def scan_iter(*_args: Any, **_kwargs: Any) -> Any:
+        no_keys: list[str] = []
+        for key in no_keys:
+            yield str(key)
+
+    mock = MagicMock()
+    mock.get_connection.return_value.__enter__.return_value.scan_iter = scan_iter
+    return mock
 
 
 def _instantiate_singleton(cls: type) -> object:

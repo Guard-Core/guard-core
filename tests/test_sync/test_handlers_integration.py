@@ -20,6 +20,14 @@ from guard_core.sync.handlers.security_headers_handler import SecurityHeadersMan
 from tests.test_sync.conftest import REDIS_URL, SyncMockGuardRequest
 
 
+def _scan_iter_of(keys: list[str]) -> Any:
+    def scan_iter(*_args: Any, **_kwargs: Any) -> Any:
+        for key in keys:
+            yield str(key)
+
+    return scan_iter
+
+
 class _FailingConnection:
     def __init__(self, exc: BaseException) -> None:
         self._exc = exc
@@ -68,8 +76,8 @@ def test_ipban_reset_with_redis() -> None:
     mgr.config.redis_prefix = "test:"
 
     mock_conn = MagicMock()
-    mock_conn.keys = MagicMock(return_value=["test:banned_ips:1.2.3.4"])
-    mock_conn.delete = MagicMock()
+    mock_conn.scan_iter = _scan_iter_of(["test:banned_ips:1.2.3.4"])
+    mock_conn.unlink = MagicMock()
 
     @contextmanager
     def mock_get_connection() -> Generator[MagicMock, None]:
@@ -80,7 +88,7 @@ def test_ipban_reset_with_redis() -> None:
     redis.config = mgr.config
     mgr.redis_handler = redis
     mgr.reset()
-    mock_conn.delete.assert_called_once()
+    assert mock_conn.unlink.call_args_list[0].args == ("test:banned_ips:1.2.3.4",)
 
 
 def test_ipban_reset_with_redis_no_keys() -> None:
@@ -90,8 +98,8 @@ def test_ipban_reset_with_redis_no_keys() -> None:
     mgr.config.redis_prefix = "test:"
 
     mock_conn = MagicMock()
-    mock_conn.keys = MagicMock(return_value=[])
-    mock_conn.delete = MagicMock()
+    mock_conn.scan_iter = _scan_iter_of([])
+    mock_conn.unlink = MagicMock()
 
     @contextmanager
     def mock_get_connection() -> Generator[MagicMock, None]:
@@ -102,7 +110,7 @@ def test_ipban_reset_with_redis_no_keys() -> None:
     redis.config = mgr.config
     mgr.redis_handler = redis
     mgr.reset()
-    mock_conn.delete.assert_not_called()
+    mock_conn.unlink.assert_not_called()
 
 
 def test_ipban_unban_with_redis() -> None:
@@ -111,9 +119,12 @@ def test_ipban_unban_with_redis() -> None:
     mgr.banned_ips["1.2.3.4"] = time.time() + 1000
     redis = MagicMock()
     redis.delete = MagicMock()
+    redis.forget_detection_strikes = MagicMock()
     mgr.redis_handler = redis
     mgr.unban_ip("1.2.3.4")
-    redis.delete.assert_called_once()
+    redis.delete.assert_any_call("banned_ips", "1.2.3.4")
+    redis.delete.assert_any_call("rate_limit", "violations:1.2.3.4")
+    redis.forget_detection_strikes.assert_called_once_with("1.2.3.4")
 
 
 def test_ipban_unban_with_agent() -> None:
@@ -471,18 +482,18 @@ def test_ratelimit_reset_redis() -> None:
     config = SecurityConfig(enable_redis=True, redis_url="redis://localhost:6379")
     mgr = RateLimitManager(config)
     redis = MagicMock()
-    redis.keys = MagicMock(return_value=["key1"])
     redis.delete_pattern = MagicMock()
     mgr.redis_handler = redis
     mgr.reset()
-    redis.delete_pattern.assert_called_once()
+    patterns = [call.args[0] for call in redis.delete_pattern.call_args_list]
+    assert patterns == ["rate_limit:rate:*", "rate_limit:violations:*"]
 
 
 def test_ratelimit_reset_redis_exception() -> None:
     config = SecurityConfig(enable_redis=True, redis_url="redis://localhost:6379")
     mgr = RateLimitManager(config)
     redis = MagicMock()
-    redis.keys = MagicMock(side_effect=Exception("fail"))
+    redis.delete_pattern = MagicMock(side_effect=Exception("fail"))
     mgr.redis_handler = redis
     mgr.reset()
 

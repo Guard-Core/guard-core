@@ -57,6 +57,7 @@ def _redact_redis_url(url: str | None) -> str | None:
 
 _REDIS_HANDLER_NAME = "redis"
 _DEFAULT_POOL_SIZE = 100
+_SCAN_BATCH = 500
 
 
 def _build_redis_client(
@@ -542,8 +543,10 @@ class RedisManager:
 
         async def _keys(conn: Redis) -> list[str]:
             full_pattern = f"{self.config.redis_prefix}{pattern}"
-            keys = await conn.keys(full_pattern)
-            return [str(k) for k in keys] if keys else []
+            return [
+                str(key)
+                async for key in conn.scan_iter(match=full_pattern, count=_SCAN_BATCH)
+            ]
 
         result = await self.safe_operation(_keys)
         return result if result is not None else []
@@ -553,15 +556,35 @@ class RedisManager:
             return None
 
         async def _delete_pattern(conn: Redis) -> int:
-            full_pattern = f"{self.config.redis_prefix}{pattern}"
-            keys = await conn.keys(full_pattern)
-            if not keys:
-                return 0
-            result = await conn.delete(*keys)
-            return int(result) if result is not None else 0
+            return await scan_unlink(conn, f"{self.config.redis_prefix}{pattern}")
 
         result = await self.safe_operation(_delete_pattern)
         return int(result) if result is not None else 0
+
+
+async def scan_unlink(conn: Redis, full_pattern: str) -> int:
+    """Delete every key matching full_pattern: one SCAN cursor walk, UNLINK in
+    batches. Never KEYS, which walks the whole keyspace in one blocking command."""
+    removed = 0
+    batch: list[str] = []
+    async for key in conn.scan_iter(match=full_pattern, count=_SCAN_BATCH):
+        batch.append(key)
+        if len(batch) >= _SCAN_BATCH:
+            removed += int(await conn.unlink(*batch))
+            batch.clear()
+    if batch:
+        removed += int(await conn.unlink(*batch))
+    return removed
+
+
+async def scan_unlink_through_new_client(url: str, full_pattern: str) -> int:
+    """scan_unlink on a short-lived client of its own, for a caller that holds no
+    handler of the Redis it must clear (never the RedisManager singleton)."""
+    client = Redis.from_url(url, decode_responses=True)
+    try:
+        return await scan_unlink(client, full_pattern)
+    finally:
+        await client.aclose()
 
 
 redis_handler = RedisManager

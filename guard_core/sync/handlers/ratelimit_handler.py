@@ -21,6 +21,7 @@ from guard_core.sync._utils.lru_store import (
     _lru_pop_or_create,
 )
 from guard_core.sync._utils.request_logging import redact_endpoint_for_display
+from guard_core.sync.handlers.redis_handler import scan_unlink_through_new_client
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 from guard_core.sync.utils import _canonicalize_ip, _ip_in_list, log_activity
 
@@ -83,6 +84,8 @@ class RateLimitBlock(NamedTuple):
 
 _ALLOWED = RateLimitVerdict(None)
 _VIOLATIONS_NAMESPACE = "rate_limit"
+_RATE_WINDOWS_PATTERN = "rate_limit:rate:*"
+_VIOLATIONS_PATTERN = "rate_limit:violations:*"
 _KINDS_IN_KEY = frozenset({"endpoint", "route", "geo"})
 
 
@@ -238,6 +241,16 @@ def record_shared_violation(redis_handler: Any, client_ip: str) -> int:
 
 def forget_shared_violations(redis_handler: Any, client_ip: str) -> None:
     redis_handler.delete(_VIOLATIONS_NAMESPACE, _violations_key(client_ip))
+
+
+def forget_by_ip_strikes(client_ip: str) -> None:
+    with _by_ip_autoban_lock:
+        _by_ip_autoban_counts.pop(client_ip, None)
+
+
+def clear_by_ip_strikes() -> None:
+    with _by_ip_autoban_lock:
+        _by_ip_autoban_counts.clear()
 
 
 def _shared_primitive_counts(
@@ -509,6 +522,13 @@ _managers: weakref.WeakValueDictionary[tuple[type, int], "RateLimitManager"] = (
 _managers_lock = threading.RLock()
 
 
+def _configs_equal(first: SecurityConfig, second: SecurityConfig) -> bool:
+    try:
+        return bool(first == second)
+    except Exception:
+        return False
+
+
 class RateLimitManager:
     config: SecurityConfig
     request_timestamps: defaultdict[str, deque[float]]
@@ -764,21 +784,73 @@ class RateLimitManager:
         except Exception as e:
             self.logger.error(f"Failed to send rate limit event to agent: {e}")
 
+    def _guarded_apps_to_reset(self) -> list["RateLimitManager"]:
+        if self.bound_to_app:
+            return [self]
+        with _managers_lock:
+            equal = [
+                manager
+                for manager in _managers.values()
+                if manager is not self
+                and manager.bound_to_app
+                and _configs_equal(manager.config, self.config)
+            ]
+        if equal:
+            self.logger.warning(
+                "reset() was called on a config object no guarded app was built "
+                "with; resetting the %d guarded app(s) built with an equal "
+                "config: %s",
+                len(equal),
+                ", ".join(f"config {id(manager.config):#x}" for manager in equal),
+            )
+        return equal
+
+    def _clear_redis_state(
+        self, apps: list["RateLimitManager"], patterns: list[str]
+    ) -> None:
+        handler = next(
+            (
+                app.redis_handler
+                for app in (self, *apps)
+                if app.config.enable_redis and app.redis_handler
+            ),
+            None,
+        )
+        try:
+            if handler is not None:
+                for pattern in patterns:
+                    handler.delete_pattern(pattern)
+            elif self.config.enable_redis and self.config.redis_url:
+                for pattern in patterns:
+                    scan_unlink_through_new_client(
+                        self.config.redis_url,
+                        f"{self.config.redis_prefix}{pattern}",
+                    )
+        except Exception as e:
+            self.logger.error(f"Failed to reset Redis rate limits: {str(e)}")
+
     def reset(self) -> None:
-        if not self.bound_to_app:
+        apps = self._guarded_apps_to_reset()
+        self.request_timestamps.clear()
+        for app in apps:
+            app.request_timestamps.clear()
+        has_redis = self.config.enable_redis and (
+            self.redis_handler or self.config.redis_url
+        )
+        if not apps and not has_redis:
             self.logger.warning(
                 "this config object is not the one any guarded app was built "
                 "with; reset() cleared nothing"
             )
-        self.request_timestamps.clear()
+        self._clear_redis_state(apps, [_RATE_WINDOWS_PATTERN, _VIOLATIONS_PATTERN])
+        from guard_core.sync.core.checks._strike_forget import forget_category_strikes
 
-        if self.config.enable_redis and self.redis_handler:
-            try:
-                keys = self.redis_handler.keys("rate_limit:rate:*")
-                if keys and len(keys) > 0:
-                    self.redis_handler.delete_pattern("rate_limit:rate:*")
-            except Exception as e:
-                self.logger.error(f"Failed to reset Redis rate limits: {str(e)}")
+        clear_by_ip_strikes()
+        forget_category_strikes("rate_limit")
+        self.logger.info(
+            "reset() also cleared the rate-limit auto-ban strikes (process memory "
+            "and Redis); detection strikes and active bans are kept"
+        )
 
 
 rate_limit_handler = RateLimitManager

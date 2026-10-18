@@ -11,11 +11,13 @@ from guard_core.handlers._ipban_cache import _Network
 from guard_core.handlers._ipban_coverage import NetworkCoverage
 from guard_core.handlers._ipban_events import IpBanEventMixin
 from guard_core.handlers._ipban_rule_exempt import IpBanRuleExemptionMixin
+from guard_core.handlers.redis_handler import scan_unlink
 from guard_core.utils import _canonicalize_ip
 
 _BATCH = 2000
 _MEMORY_BATCH = 1000
 _EVENT_BATCH = 100
+_STRIKE_PATTERNS = ("rate_limit:violations:*", "detection:strikes*")
 
 
 def _member_covered(namespace: str, member: str, coverage: NetworkCoverage) -> bool:
@@ -108,8 +110,53 @@ class IpBanQueryMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
         removed = await self._unban_memory_inside(coverage)
         if self.redis_handler:
             removed.extend(await self._unban_redis_inside(coverage))
+        members = list(dict.fromkeys(removed))
+        await self._forget_strikes_of(members)
         if self.agent_handler:
-            await self._send_unban_events(list(dict.fromkeys(removed)))
+            await self._send_unban_events(members)
+
+    async def _forget_strikes_of(self, members: list[str]) -> None:
+        for start in range(0, len(members), _EVENT_BATCH):
+            for member in members[start : start + _EVENT_BATCH]:
+                if "/" not in member:
+                    await self._forget_strikes(member)
+            await asyncio.sleep(0)
+
+    async def _forget_strikes(self, ip: str) -> None:
+        from guard_core.core.checks._strike_forget import forget_identity_strikes
+        from guard_core.handlers.ratelimit_handler import (
+            forget_by_ip_strikes,
+            forget_shared_violations,
+        )
+
+        forget_identity_strikes(ip)
+        forget_by_ip_strikes(ip)
+        if not self.redis_handler:
+            return
+        try:
+            await forget_shared_violations(self.redis_handler, ip)
+            await self.redis_handler.forget_detection_strikes(ip)
+        except Exception as e:
+            self.logger.warning("Redis strikes of %s could not be cleared: %s", ip, e)
+
+    async def _forget_all_strikes(self) -> None:
+        from guard_core.core.checks._strike_forget import forget_all_strikes
+        from guard_core.handlers.ratelimit_handler import clear_by_ip_strikes
+
+        forget_all_strikes()
+        clear_by_ip_strikes()
+        if not self.redis_handler:
+            return
+        try:
+            await self._unlink_prefixed(_STRIKE_PATTERNS)
+        except Exception as e:
+            self.logger.warning("Redis strikes could not be cleared: %s", e)
+
+    async def _unlink_prefixed(self, patterns: Iterable[str]) -> None:
+        prefix = self.redis_handler.config.redis_prefix
+        async with self.redis_handler.get_connection() as conn:
+            for pattern in patterns:
+                await scan_unlink(conn, f"{prefix}{pattern}")
 
     async def _send_unban_events(self, members: list[str]) -> None:
         for start in range(0, len(members), _EVENT_BATCH):
@@ -149,11 +196,11 @@ class IpBanQueryMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
                             batch.append(key)
                             removed.append(member)
                         if len(batch) >= _BATCH:
-                            await conn.delete(*batch)
+                            await conn.unlink(*batch)
                             batch.clear()
                             await asyncio.sleep(0)
                     if batch:
-                        await conn.delete(*batch)
+                        await conn.unlink(*batch)
         except Exception as e:
             self.logger.warning("Redis unban of whitelisted ranges failed: %s", e)
         return removed
@@ -168,6 +215,8 @@ class IpBanQueryMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
         if self.redis_handler:
             await self.redis_handler.delete("banned_ips", ip)
 
+        await self._forget_strikes(ip)
+
         if self.agent_handler:
             await self._send_unban_event(ip)
 
@@ -175,9 +224,5 @@ class IpBanQueryMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
         self.banned_ips.clear()
         self.banned_networks.clear()
         if self.redis_handler:
-            async with self.redis_handler.get_connection() as conn:
-                keys = await conn.keys(
-                    f"{self.redis_handler.config.redis_prefix}banned_ips:*"
-                )
-                if keys:
-                    await conn.delete(*keys)
+            await self._unlink_prefixed(("banned_ips:*",))
+        await self._forget_all_strikes()

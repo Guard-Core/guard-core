@@ -475,10 +475,9 @@ def test_a_failing_agent_does_not_fail_the_rate_limit_event(
     ]
 
 
-def test_reset_clears_redis_only_when_redis_is_enabled_and_has_keys() -> None:
+def test_reset_clears_the_windows_and_the_strikes_through_the_handler() -> None:
     enabled = _config(enable_redis=True, redis_url="redis://localhost:1")
     redis = Mock()
-    redis.keys = MagicMock(return_value=["rate_limit:rate:a"])
     redis.delete_pattern = MagicMock()
     manager = RateLimitManager(enabled)
     manager.redis_handler = redis
@@ -487,57 +486,58 @@ def test_reset_clears_redis_only_when_redis_is_enabled_and_has_keys() -> None:
 
     manager.reset()
 
-    redis.keys.assert_called_once_with("rate_limit:rate:*")
-    redis.delete_pattern.assert_called_once_with("rate_limit:rate:*")
+    patterns = [call.args[0] for call in redis.delete_pattern.call_args_list]
+    assert patterns == ["rate_limit:rate:*", "rate_limit:violations:*"]
     assert manager.redis_handler is redis
     assert manager.agent_handler is agent
 
 
-def test_reset_leaves_redis_alone_when_it_is_disabled_or_empty() -> None:
+def test_reset_leaves_redis_alone_when_it_is_disabled() -> None:
     redis = Mock()
-    redis.keys = MagicMock(return_value=[])
     redis.delete_pattern = MagicMock()
     disabled = RateLimitManager(_config())
     disabled.redis_handler = redis
-    disabled.reset()
-    redis.keys.assert_not_called()
 
-    empty = RateLimitManager(_config(enable_redis=True, redis_url="redis://x:1"))
-    empty.redis_handler = redis
-    empty.reset()
-    redis.keys.assert_called_once()
+    disabled.reset()
+
     redis.delete_pattern.assert_not_called()
 
 
-def test_reset_without_a_redis_handler_logs_nothing(
-    caplog: pytest.LogCaptureFixture,
+def test_reset_without_a_handler_clears_redis_through_a_new_client(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    manager = RateLimitManager(_config(enable_redis=True, redis_url="redis://x:1"))
+    cleared: list[tuple[str, str]] = []
+
+    def fake_clear(url: str, pattern: str) -> int:
+        cleared.append((url, pattern))
+        return 0
+
+    monkeypatch.setattr(ratelimit_handler, "scan_unlink_through_new_client", fake_clear)
+    manager = RateLimitManager(
+        _config(enable_redis=True, redis_url="redis://x:1", redis_prefix="p:")
+    )
 
     with caplog.at_level(logging.ERROR, logger=HANDLER_LOGGER):
         manager.reset()
 
+    assert cleared == [
+        ("redis://x:1", "p:rate_limit:rate:*"),
+        ("redis://x:1", "p:rate_limit:violations:*"),
+    ]
     assert caplog.records == []
 
 
-def test_reset_tolerates_a_keys_reply_of_none_and_logs_a_failure(
+def test_reset_logs_a_failed_redis_clear(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     redis = Mock()
-    redis.keys = MagicMock(return_value=None)
-    redis.delete_pattern = MagicMock()
+    redis.delete_pattern = MagicMock(side_effect=RuntimeError("boom"))
     manager = RateLimitManager(_config(enable_redis=True, redis_url="redis://x:1"))
     manager.redis_handler = redis
 
     with caplog.at_level(logging.ERROR, logger=HANDLER_LOGGER):
         manager.reset()
-    assert caplog.records == []
-    redis.delete_pattern.assert_not_called()
 
-    redis.keys = MagicMock(side_effect=RuntimeError("boom"))
-    manager.redis_handler = redis
-    with caplog.at_level(logging.ERROR, logger=HANDLER_LOGGER):
-        manager.reset()
     assert [r.getMessage() for r in caplog.records] == [
         "Failed to reset Redis rate limits: boom"
     ]

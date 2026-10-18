@@ -78,7 +78,8 @@ def test_reset_redis_empty_keys() -> None:
     manager.request_timestamps["1.2.3.4"].append(1.0)
     manager.reset()
     assert len(manager.request_timestamps) == 0
-    mock_redis.delete_pattern.assert_not_called()
+    patterns = [call.args[0] for call in mock_redis.delete_pattern.call_args_list]
+    assert patterns == ["rate_limit:rate:*", "rate_limit:violations:*"]
 
 
 def test_reset_redis_none_keys() -> None:
@@ -88,4 +89,4 @@ def test_reset_redis_none_keys() -> None:
     mock_redis.keys.return_value = None
     manager.redis_handler = mock_redis
     manager.reset()
-    mock_redis.delete_pattern.assert_not_called()
+    assert mock_redis.delete_pattern.call_count == 2

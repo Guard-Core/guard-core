@@ -47,7 +47,7 @@ Stores `(ip, expiry_timestamp)` in both local cache and Redis. Also fires a ban 
 
 **`unban_ip(ip)`**
 
-Removes the IP from both local cache and Redis.
+Removes the IP from both local cache and Redis and clears that identity's auto-ban strikes (both families: the in-process counts of every guarded middleware, the rate-limit violation counter and the detection strike counters in Redis), so strikes from before the unban cannot ban it again. A CIDR argument lifts a network ban and clears no strikes. `unban_inside(entries)` clears the strikes of exactly the addresses it removed.
 
 **`is_ip_banned(ip) -> bool`**
 
@@ -59,7 +59,7 @@ Lookup order:
 
 **`reset()`**
 
-Clears both the local cache and all `{redis_prefix}banned_ips:*` keys from Redis.
+Clears both the local cache and all `{redis_prefix}banned_ips:*` keys from Redis, and every auto-ban strike of both families, in memory and in Redis (`{redis_prefix}rate_limit:violations:*`, `{redis_prefix}detection:strikes*`). Redis is walked with `SCAN` and cleared with `UNLINK` in batches, never `KEYS`.
 
 ### Initialization
 

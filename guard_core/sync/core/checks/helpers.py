@@ -15,6 +15,7 @@ from guard_core.sync.core.checks._shared_strikes import (
     record_shared_detection_strikes,
     strike_categories,
 )
+from guard_core.sync.core.checks._strike_forget import register_strike_middleware
 from guard_core.sync.core.events.event_types import (
     EVENT_IP_BAN_FAILED,
     EVENT_PENETRATION_ATTEMPT,
@@ -419,6 +420,10 @@ class _WindowedCategoryCounts(dict[str, int]):
                 del self._event_times[category]
                 self.pop(category, None)
 
+    def forget(self, category: str) -> None:
+        self._event_times.pop(category, None)
+        self.pop(category, None)
+
     def record(self, category: str, now: float, retain: int) -> None:
         times = self._event_times.get(category)
         if times is None or times.maxlen != retain:
@@ -446,6 +451,7 @@ def _increment_suspicious_counts(
     resolved_categories = strike_categories(categories)
     now = time.monotonic()
     retain = _MAX_RETAINED_EVENTS_PER_CATEGORY
+    register_strike_middleware(middleware)
     with _suspicious_counts_lock:
         counts = middleware.suspicious_request_counts
         existing = counts.pop(client_ip, None)
