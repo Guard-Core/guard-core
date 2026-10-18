@@ -1,9 +1,10 @@
 import hashlib
 from datetime import datetime, timezone
-from ipaddress import ip_address, ip_network
 
 from cachetools import TTLCache
 
+from guard_core.sync._utils.forwarded_proto import request_is_https
+from guard_core.sync._utils.ip_extraction import _is_trusted_proxy
 from guard_core.sync._utils.request_logging import redact_endpoint_for_display
 from guard_core.sync.core.events.event_types import EVENT_PATH_EXCLUDED
 from guard_core.sync.core.validation.context import ValidationContext
@@ -25,28 +26,10 @@ class RequestValidator:
         self._normalized_exclude_paths_source: tuple[str, ...] | None = None
 
     def is_request_https(self, request: SyncGuardRequest) -> bool:
-        is_https = request.url_scheme == "https"
-
-        if (
-            self.context.config.trust_x_forwarded_proto
-            and self.context.config.trusted_proxies
-            and request.client_host
-        ):
-            if self.is_trusted_proxy(request.client_host):
-                forwarded_proto = request.headers.get("X-Forwarded-Proto", "")
-                is_https = is_https or forwarded_proto.lower() == "https"
-
-        return is_https
+        return request_is_https(request, self.context.config)
 
     def is_trusted_proxy(self, connecting_ip: str) -> bool:
-        for proxy in self.context.config.trusted_proxies:
-            if "/" not in proxy:
-                if connecting_ip == proxy:
-                    return True
-            else:
-                if ip_address(connecting_ip) in ip_network(proxy, strict=False):
-                    return True
-        return False
+        return _is_trusted_proxy(connecting_ip, self.context.config.trusted_proxies)
 
     def check_time_window(self, time_restrictions: dict[str, str]) -> bool:
         try:

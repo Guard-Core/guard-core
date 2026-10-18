@@ -1,5 +1,6 @@
 from collections.abc import Collection
 
+from guard_core._utils.forwarded_proto import request_is_https
 from guard_core._utils.ip_extraction import _is_trusted_proxy
 from guard_core.core.checks.base import SecurityCheck
 from guard_core.core.checks.helpers import route_config_applies
@@ -25,18 +26,7 @@ class HttpsEnforcementCheck(SecurityCheck):
         )
 
     def _is_request_https(self, request: GuardRequest) -> bool:
-        is_https = request.url_scheme == "https"
-
-        if (
-            self.config.trust_x_forwarded_proto
-            and self.config.trusted_proxies
-            and request.client_host
-        ):
-            if self._is_trusted_proxy(request.client_host):
-                forwarded_proto = request.headers.get("X-Forwarded-Proto", "")
-                is_https = is_https or forwarded_proto.lower() == "https"
-
-        return is_https
+        return request_is_https(request, self.config)
 
     def _is_trusted_proxy(self, connecting_ip: str) -> bool:
         return _is_trusted_proxy(connecting_ip, self.config.trusted_proxies)

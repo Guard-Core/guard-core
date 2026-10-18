@@ -16,6 +16,7 @@ def mock_config() -> Any:
     config = Mock()
     config.trust_x_forwarded_proto = True
     config.trusted_proxies = ["192.168.1.1", "10.0.0.0/8"]
+    config.trusted_proxy_depth = 1
     config.exclude_paths = ["/health", "/metrics"]
     config.log_sensitive_params = frozenset()
     config.log_sensitive_body_fields = frozenset()
