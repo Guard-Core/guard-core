@@ -53,6 +53,7 @@ def _smoke_apply_overrides() -> None:
     smoke_nonce = overrides.pop("smoke_nonce", smoke_nonce)
     Path("/tmp/smoke_nonce.txt").write_text(smoke_nonce, encoding="utf-8")
     smoke_geoip_db = overrides.pop("smoke_geoip_db", None)
+    smoke_cors_override = overrides.pop("smoke_cors_override", None)
 
     merged = security_config.model_dump()
     merged.update(overrides)
@@ -73,6 +74,13 @@ def _smoke_apply_overrides() -> None:
 
     security_config = SecurityConfig(**merged)
     guard = SecurityDecorator(security_config)
+
+    if smoke_cors_override:
+        from guard_core.handlers.security_headers_handler import (
+            security_headers_manager,
+        )
+
+        security_headers_manager.configure(**smoke_cors_override, override_apps=True)
 
 
 _smoke_apply_overrides()

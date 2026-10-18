@@ -14,6 +14,13 @@ def _lines_mentioning(ctx: ScenarioContext, mark: str, needle: str) -> list[str]
     return [line for line in ctx.stack.logs.lines_since(mark) if needle in line]
 
 
+def _assert_throttle_rules_only_logged(ctx: ScenarioContext) -> None:
+    # one-time warning per process; each scenario's config restarts the app
+    assert (
+        "Behavior throttle rules are only logged" in ctx.stack.logs.current_boot_text()
+    ), "the one-time observe-only throttle warning was never logged"
+
+
 def _unique_config(rate_limit: int) -> dict[str, object]:
     return {**_BASE, "rate_limit": rate_limit}
 
@@ -44,9 +51,10 @@ def suspicious_frequency_throttle_logs_without_blocking(ctx: ScenarioContext) ->
             f"{response.status_code}"
         )
 
-    assert _lines_mentioning(ctx, mark, "Throttling IP"), (
-        "suspicious_frequency never logged a throttle warning"
-    )
+    assert _lines_mentioning(ctx, mark, "Would throttle IP") and _lines_mentioning(
+        ctx, mark, "Throttle threshold reached: 5 calls in 10s"
+    ), "suspicious_frequency never logged the observe-only throttle warning"
+    _assert_throttle_rules_only_logged(ctx)
 
 
 @scenario(covers={"honeypot_detection"}, config=_unique_config(1103))
@@ -89,9 +97,10 @@ def behavior_analysis_logs_frequency_rule_violation(ctx: ScenarioContext) -> Non
             f"request: {response.status_code}"
         )
 
-    assert _lines_mentioning(ctx, mark, "Usage threshold exceeded: 10 calls in 60s"), (
-        "behavior_analysis never logged the frequency rule violation"
-    )
+    assert _lines_mentioning(ctx, mark, "Would throttle IP") and _lines_mentioning(
+        ctx, mark, "Throttle threshold reached: 10 calls in 60s"
+    ), "behavior_analysis never logged the frequency rule violation"
+    _assert_throttle_rules_only_logged(ctx)
 
 
 _GLOBAL_RULE_CONFIG = {

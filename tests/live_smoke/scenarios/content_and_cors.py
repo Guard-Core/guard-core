@@ -1,4 +1,8 @@
-from tests.live_smoke.driver import ScenarioContext
+from typing import Any
+
+import httpx
+
+from tests.live_smoke.driver import ScenarioContext, wait_until
 from tests.live_smoke.registry import scenario
 
 _BASE = {
@@ -256,4 +260,111 @@ def security_headers_override_reflected_in_response(ctx: ScenarioContext) -> Non
     assert response.status_code == 200
     assert response.headers.get("x-smoke-test") == "yes", (
         "security_headers.custom was not applied to the response"
+    )
+
+
+_AGENT_STUB = {
+    "enable_agent": True,
+    "agent_api_key": "smoke-agent-key",
+    "agent_endpoint": "http://agent-stub:8090",
+    "agent_flush_interval": 2,
+    "agent_enable_events": True,
+    "agent_enable_metrics": False,
+}
+_ALLOWED = "https://allowed.example.com"
+_REFUSED_CORS_OVERRIDE = {
+    "enable_cors": True,
+    "cors_origins": ["*"],
+    "cors_allow_credentials": True,
+}
+
+
+def _preflight(ctx: ScenarioContext, origin: str) -> httpx.Response:
+    return ctx.client.options(
+        "/basic/ip",
+        headers={"Origin": origin, "Access-Control-Request-Method": "GET"},
+    )
+
+
+def _refusal_events(ctx: ScenarioContext) -> list[dict[str, Any]]:
+    state = ctx.agent.get("/_debug/state").json()
+    return [
+        event
+        for event in state.get("events", [])
+        if event.get("action_taken") == "cors_override_refused"
+    ]
+
+
+@scenario(
+    covers={"cors_preflight"},
+    config={
+        **_BASE,
+        "enable_cors": False,
+        "smoke_cors_override": {"enable_cors": True, "cors_origins": [_ALLOWED]},
+    },
+)
+def cors_preflight_flagged_override_answers_app_built_without_cors(
+    ctx: ScenarioContext,
+) -> None:
+    allowed = _preflight(ctx, _ALLOWED)
+    assert allowed.status_code == 200, (
+        "an app built without CORS did not answer an allowed preflight after the "
+        f"flagged override: {allowed.status_code} {allowed.text}"
+    )
+    assert allowed.headers.get("access-control-allow-origin") == _ALLOWED
+
+    disallowed = _preflight(ctx, "https://evil.example.com")
+    assert disallowed.status_code == 400, (
+        f"a preflight from a disallowed origin was accepted: {disallowed.status_code}"
+    )
+    assert "access-control-allow-origin" not in disallowed.headers
+
+
+@scenario(
+    covers={"cors_preflight"},
+    config={
+        **_BASE,
+        **_AGENT_STUB,
+        "enable_cors": False,
+        "smoke_cors_override": _REFUSED_CORS_OVERRIDE,
+    },
+)
+def cors_preflight_refused_override_sends_refusal_event_once(
+    ctx: ScenarioContext,
+) -> None:
+    ctx.agent.post("/_debug/reset")
+
+    for _ in range(2):
+        response = _preflight(ctx, _ALLOWED)
+        assert "access-control-allow-origin" not in response.headers, (
+            "a refused wildcard-with-credentials override still opened CORS"
+        )
+
+    events = wait_until(lambda: _refusal_events(ctx), timeout=20.0)
+    assert events, "no cors_override_refused event reached the agent stub"
+    assert len(events) == 1, (
+        f"the refusal event was sent {len(events)} times for one override version"
+    )
+
+
+@scenario(
+    covers={"cors_preflight"},
+    config={
+        **_CORS_CONFIG,
+        **_AGENT_STUB,
+        "smoke_cors_override": _REFUSED_CORS_OVERRIDE,
+    },
+)
+def cors_preflight_app_built_with_cors_keeps_answering_its_own(
+    ctx: ScenarioContext,
+) -> None:
+    ctx.agent.post("/_debug/reset")
+
+    _assert_allowed_preflight(ctx)
+    _assert_disallowed_preflight(ctx)
+
+    events = wait_until(lambda: _refusal_events(ctx), timeout=20.0)
+    assert len(events) == 1, (
+        "an app built with CORS must send the refusal event once on a preflight, "
+        f"got {len(events)}"
     )
