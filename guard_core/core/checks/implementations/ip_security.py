@@ -15,6 +15,7 @@ from guard_core.core.checks.helpers import (
 from guard_core.core.events.event_types import (
     EVENT_COUNTRY_BLOCKED,
     EVENT_DECORATOR_VIOLATION,
+    EVENT_GEO_LOOKUP_FAILED,
     EVENT_IP_BLOCKED,
 )
 from guard_core.decorators.base import RouteConfig
@@ -291,6 +292,9 @@ class IpSecurityCheck(SecurityCheck):
         request.state.is_whitelisted = is_whitelisted
         request.state.is_exempt = is_exempt
 
+        if access_result.geo_failure:
+            await self._report_geo_failure(request, client_ip, access_result)
+
         if access_result.allowed:
             return None
 
@@ -342,6 +346,31 @@ class IpSecurityCheck(SecurityCheck):
             )
 
         return None
+
+    async def _report_geo_failure(
+        self, request: GuardRequest, client_ip: str, access_result: IpAccessResult
+    ) -> None:
+        denied = not access_result.allowed
+        self.logger.warning(
+            "GeoIP lookup failed (%s) for %s: %s",
+            access_result.geo_failure,
+            client_ip,
+            "the request is denied (fail_secure)"
+            if denied and not self.config.passive_mode
+            else "the request is let through",
+        )
+        if denied and not self.config.passive_mode:
+            action_taken = "request_blocked"
+        else:
+            action_taken = "logged_only" if denied else "request_allowed"
+        await self.middleware.event_bus.send_middleware_event(
+            event_type=EVENT_GEO_LOOKUP_FAILED,
+            request=request,
+            action_taken=action_taken,
+            reason=f"GeoIP lookup failed ({access_result.geo_failure})",
+            ip_address=client_ip,
+            error_type=access_result.geo_failure,
+        )
 
     async def _send_country_blocked_event(
         self, request: GuardRequest, client_ip: str, access_result: IpAccessResult

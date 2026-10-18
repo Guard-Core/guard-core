@@ -1,52 +1,147 @@
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from guard_core.core.checks.factory import build_default_pipeline
 from guard_core.decorators import SecurityDecorator
+from guard_core.handlers.ipban_handler import ip_ban_manager
 from guard_core.models import SecurityConfig
 from guard_core.protocols.geo_ip_protocol import GeoIPHandler
 from tests.conftest import MockGuardRequest
 from tests.test_core.conftest import build_middleware
 
+CLIENT = "203.0.113.5"
 
-def _raising_geo() -> MagicMock:
+
+def _raising_geo(error: Exception) -> MagicMock:
     geo = MagicMock(spec=GeoIPHandler)
     geo.is_initialized = True
     geo.initialize = AsyncMock()
-    geo.get_country.side_effect = RuntimeError("lookup exploded")
+    geo.get_country.side_effect = error
     return geo
 
 
-async def _status(**settings: Any) -> int | None:
-    geo = _raising_geo()
+async def _run(
+    error: Exception | None = None, **settings: Any
+) -> tuple[int | None, list[dict[str, Any]]]:
+    geo = _raising_geo(error or RuntimeError("lookup exploded"))
     config = SecurityConfig(
         geo_ip_handler=geo,
         enable_redis=False,
         enable_penetration_detection=False,
         enable_rate_limiting=False,
-        **settings,
+        **{"blocked_countries": ["CN"], **settings},
     )
     middleware = build_middleware(config, SecurityDecorator(config), geo)
-    request = MockGuardRequest(path="/x", client_host="203.0.113.5")
+    request = MockGuardRequest(path="/x", client_host=CLIENT)
     response = await build_default_pipeline(middleware).execute(request)
-    return None if response is None else response.status_code
+    events = [
+        dict(call.kwargs)
+        for call in middleware.event_bus.send_middleware_event.call_args_list
+    ]
+    return (None if response is None else response.status_code), events
+
+
+def _failures(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [e for e in events if e["event_type"] == "geo_lookup_failed"]
 
 
 @pytest.mark.parametrize(
-    "rules", [{"blocked_countries": ["CN"]}, {"whitelist_countries": ["US"]}]
+    "rules",
+    [
+        {"blocked_countries": ["CN"]},
+        {"blocked_countries": [], "whitelist_countries": ["US"]},
+    ],
 )
-async def test_a_raising_geo_handler_denies_under_fail_secure(
+async def test_a_raising_geo_lookup_denies_under_fail_secure(
     rules: dict[str, Any],
 ) -> None:
-    assert await _status(**rules) == 403
+    status, events = await _run(**rules)
+
+    assert status == 403
+    [event] = _failures(events)
+    assert event["action_taken"] == "request_blocked"
 
 
-@pytest.mark.parametrize(
-    "rules", [{"blocked_countries": ["CN"]}, {"whitelist_countries": ["US"]}]
-)
-async def test_a_raising_geo_handler_lets_the_request_through_without_fail_secure(
-    rules: dict[str, Any],
+@pytest.mark.parametrize("error", [RuntimeError("boom"), ValueError("bad value")])
+async def test_a_raising_geo_lookup_passes_without_fail_secure_but_is_reported(
+    error: Exception,
 ) -> None:
-    assert await _status(fail_secure=False, **rules) is None
+    status, events = await _run(error, fail_secure=False)
+
+    assert status is None
+    [event] = _failures(events)
+    assert event["action_taken"] == "request_allowed"
+
+
+async def test_a_value_error_from_the_geo_handler_follows_the_same_rule() -> None:
+    status, _ = await _run(ValueError("bad value"))
+
+    assert status == 403
+
+
+async def test_passive_mode_passes_and_reports_logged_only() -> None:
+    status, events = await _run(passive_mode=True)
+
+    assert status is None
+    [event] = _failures(events)
+    assert event["action_taken"] == "logged_only"
+
+
+async def test_the_failure_is_logged_in_both_branches(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    await _run()
+    await _run(fail_secure=False)
+
+    messages = [r.getMessage() for r in caplog.records if "GeoIP" in r.getMessage()]
+    assert len(messages) >= 2
+
+
+async def test_a_geo_failure_never_counts_toward_a_ban() -> None:
+    ip_ban_manager.banned_ips.clear()
+    for _ in range(4):
+        await _run(ban_on_hostile_signals=True, auto_ban_threshold=1)
+
+    assert not await ip_ban_manager.is_ip_banned(CLIENT)
+
+
+async def test_the_ip_list_result_is_kept_when_the_geo_lookup_would_fail() -> None:
+    status, events = await _run(blacklist=[CLIENT], fail_secure=False)
+
+    assert status == 403
+    assert _failures(events) == []
+
+
+async def test_the_cloud_check_still_runs_after_a_passed_geo_failure() -> None:
+    with patch(
+        "guard_core.handlers.cloud_handler.cloud_handler.is_cloud_ip",
+        return_value=True,
+    ):
+        status, events = await _run(fail_secure=False, block_cloud_providers={"AWS"})
+
+    assert status == 403
+    assert len(_failures(events)) == 1
+
+
+async def test_a_whitelisted_client_never_reaches_the_geo_lookup() -> None:
+    status, events = await _run(whitelist=[CLIENT])
+
+    assert status is None
+    assert _failures(events) == []
+
+
+async def test_an_error_outside_the_geo_lookup_is_not_swallowed() -> None:
+    from guard_core.utils import check_ip_access
+
+    config = SecurityConfig(enable_redis=False, block_cloud_providers={"AWS"})
+
+    with (
+        patch(
+            "guard_core.handlers.cloud_handler.cloud_handler.is_cloud_ip",
+            side_effect=RuntimeError("cloud lookup exploded"),
+        ),
+        pytest.raises(RuntimeError, match="cloud lookup exploded"),
+    ):
+        await check_ip_access(CLIENT, config)

@@ -426,11 +426,6 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "query/body content; client_ip is outside the secret matrix (see "
         "module docstring policy)"
     ),
-    "_utils/access_control.py:_result_for_exception": (
-        "line 290: logs f'Error checking IP {ip}: {error}' where error "
-        "originates from internal IP-list/geo/cloud-provider evaluation "
-        "code, never header/query/body content"
-    ),
     "_utils/agent_events.py:invoke_error_hook": (
         "line 24: logs only the stage name and the on_error hook's own "
         "raised exception text; the hook is caller-authored, not "
@@ -1115,6 +1110,10 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
     "IpSecurityCheck._is_banned_failing_open_on_redis_loss": (
         "line 132: Redis outage warning naming the client_ip, which is outside "
         "the secret matrix (see module docstring policy)"
+    ),
+    "core/checks/implementations/ip_security.py:IpSecurityCheck._report_geo_failure": (
+        "line 351: GeoIP lookup failure naming the client_ip and the error class, "
+        "never the error text or request data"
     ),
     "core/checks/implementations/ip_security.py:"
     "IpSecurityCheck._send_country_blocked_event": (

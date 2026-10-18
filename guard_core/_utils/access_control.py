@@ -1,6 +1,6 @@
 import logging
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from ipaddress import ip_address, ip_network
 from typing import Any
 
@@ -198,9 +198,22 @@ class IpAccessResult:
     country: str | None = None
     country_rule: str | None = None
     status_code: int = 403
+    geo_failure: str | None = None
 
 
 _GENERIC_LIST_BLOCK_REASON = "IP {ip} not in global allowlist/blocklist"
+
+
+class _GeoLookupError(Exception):
+    def __init__(self, kind: str) -> None:
+        super().__init__(kind)
+        self.kind = kind
+
+
+def _result_for_geo_failure(kind: str, config: Any) -> IpAccessResult | None:
+    if config.fail_secure:
+        return IpAccessResult(False, f"GeoIP lookup failed ({kind})", geo_failure=kind)
+    return None
 
 
 async def _check_blocked_countries_detail(
@@ -212,7 +225,10 @@ async def _check_blocked_countries_detail(
     ):
         return None
 
-    is_blocked, country = await _resolve_country_verdict(ip, config, geo_ip_handler)
+    try:
+        is_blocked, country = await _resolve_country_verdict(ip, config, geo_ip_handler)
+    except Exception as error:
+        raise _GeoLookupError(type(error).__name__) from error
     if not is_blocked:
         return None
 
@@ -276,21 +292,6 @@ def _check_unknown_identity_access(
     return IpAccessResult(True, "")
 
 
-def _result_when_the_check_failed(ip: str, config: Any) -> IpAccessResult:
-    if config.fail_secure:
-        return IpAccessResult(False, _GENERIC_LIST_BLOCK_REASON.format(ip=ip))
-    return IpAccessResult(True, "")
-
-
-def _result_for_exception(
-    error: Exception, ip: str, config: Any, skip_ip_lists: bool, skip_countries: bool
-) -> IpAccessResult:
-    if isinstance(error, ValueError):
-        return _unparsable_identity_result(ip, config, skip_ip_lists, skip_countries)
-    logger.error(f"Error checking IP {ip}: {str(error)}")
-    return _result_when_the_check_failed(ip, config)
-
-
 def _unparsable_identity_result(
     ip: str, config: Any, skip_ip_lists: bool, skip_countries: bool
 ) -> IpAccessResult:
@@ -343,15 +344,22 @@ async def _check_country_and_cloud_detail(
     skip_countries: bool,
     skip_clouds: bool,
 ) -> IpAccessResult | None:
+    geo_failure: str | None = None
     if not skip_countries:
-        country_result = await _check_blocked_countries_detail(
-            ip, config, geo_ip_handler
-        )
+        try:
+            country_result = await _check_blocked_countries_detail(
+                ip, config, geo_ip_handler
+            )
+        except _GeoLookupError as failure:
+            geo_failure = failure.kind
+            country_result = _result_for_geo_failure(failure.kind, config)
         if country_result is not None:
             return country_result
-    if skip_clouds or _ip_in_list(ip_addr, ip, config.exempt_ips):
-        return None
-    return await _check_cloud_providers_detail(ip, config)
+    if not (skip_clouds or _ip_in_list(ip_addr, ip, config.exempt_ips)):
+        cloud_result = await _check_cloud_providers_detail(ip, config)
+        if cloud_result is not None:
+            return replace(cloud_result, geo_failure=geo_failure)
+    return IpAccessResult(True, "", geo_failure=geo_failure) if geo_failure else None
 
 
 async def check_ip_access(
@@ -389,9 +397,9 @@ async def check_ip_access(
         if result is not None:
             return result
         return IpAccessResult(True, "")
-    except Exception as error:
-        return _result_for_exception(
-            error, ip, config, skip_ip_lists or skip_whitelist, skip_countries
+    except ValueError:
+        return _unparsable_identity_result(
+            ip, config, skip_ip_lists or skip_whitelist, skip_countries
         )
 
 
