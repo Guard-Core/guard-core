@@ -325,7 +325,9 @@ class RedisManager:
         result = self.safe_operation(_set)
         return False if result is None else bool(result)
 
-    def set_key_if_absent(self, namespace: str, key: str, value: Any, ttl: int) -> bool:
+    def set_key_if_absent(
+        self, namespace: str, key: str, value: Any, ttl: int | None = None
+    ) -> bool:
         if not self.config.enable_redis:
             return False
 
