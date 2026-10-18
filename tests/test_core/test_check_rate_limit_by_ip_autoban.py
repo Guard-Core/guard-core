@@ -283,7 +283,7 @@ def _make_middleware(config: SecurityConfig) -> Mock:
     middleware.route_resolver.should_bypass_check = Mock(return_value=False)
     middleware.geo_ip_handler = None
     middleware.suspicious_request_counts = {}
-    middleware.rate_limit_handler = Mock()
+    middleware.rate_limit_handler = Mock(redis_handler=None)
     middleware.rate_limit_handler.report_rate_limit_block = AsyncMock()
     middleware.rate_limit_handler.check_rate_limit_tiers = AsyncMock(
         return_value=RateLimitBlock(0, 2, Mock(status_code=429))
@@ -423,3 +423,40 @@ async def test_violations_inside_the_window_still_ban_and_clear_the_counter(
     finally:
         IPBanManager._instance = None
         _by_ip_autoban_counts.pop(ip, None)
+
+
+async def test_a_failing_shared_violation_counter_falls_back_to_the_process_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = SecurityConfig(
+        enable_redis=True,
+        rate_limit=1,
+        rate_limit_window=60,
+        enable_rate_limit_auto_ban=True,
+        enable_ip_banning=True,
+        auto_ban_threshold=1,
+        auto_ban_duration=222,
+    )
+    _, ban_calls = _install_recording_ban_manager(config)
+    try:
+        redis = Mock(
+            record_sliding_window_hit=AsyncMock(side_effect=ConnectionError("down")),
+            delete=AsyncMock(),
+        )
+        ip = "192.0.2.111"
+
+        async def no_redis_verdict(
+            *_args: object, **_kwargs: object
+        ) -> tuple[None, None]:
+            return None, None
+
+        monkeypatch.setattr(
+            "guard_core.handlers.ratelimit_handler._redis_tier_verdict",
+            no_redis_verdict,
+        )
+
+        assert await check_rate_limit_by_ip(ip, config, redis_handler=redis) is True
+        assert await check_rate_limit_by_ip(ip, config, redis_handler=redis) is False
+        assert ban_calls == [(ip, 222, "rate_limit_exceeded")]
+    finally:
+        IPBanManager._instance = None

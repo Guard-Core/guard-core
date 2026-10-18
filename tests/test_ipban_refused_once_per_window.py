@@ -143,3 +143,20 @@ async def test_the_refusal_record_stays_within_its_cap(
 
     await manager.ban_ip("127.0.0.4", 600, "rate_limit_exceeded")
     assert set(manager.refused_ban_reported_until) == {"127.0.0.3", "127.0.0.4"}
+
+
+async def test_a_failing_agent_never_breaks_the_refusal(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    manager = _manager()
+    manager.agent_handler = Mock(
+        send_event=AsyncMock(side_effect=RuntimeError("agent down"))
+    )
+    caplog.set_level(logging.ERROR, logger="guard_core.handlers.ipban")
+
+    assert await manager.ban_ip("127.0.0.1", DURATION, "rate_limit_exceeded") is False
+
+    assert any(
+        "Failed to send ban refused event to agent: agent down" in r.getMessage()
+        for r in caplog.records
+    )

@@ -164,9 +164,6 @@ def _redis_tier_verdict(
     on_script_reloaded: Callable[[], None] | None = None,
     redis_fail_open: bool = False,
 ) -> tuple[RateLimitVerdict | None, str | None]:
-    if not redis_handler:
-        return None, rate_limit_script_sha
-
     prefix = f"{redis_handler.config.redis_prefix}rate_limit:rate:"
     keys = [f"{prefix}{_tier_key(client_ip, tier)}" for tier in tiers]
 

@@ -1,3 +1,4 @@
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock, Mock
 
 import pytest
@@ -22,7 +23,7 @@ def _make_middleware(config: SecurityConfig) -> Mock:
     middleware.route_resolver.should_bypass_check = Mock(return_value=False)
     middleware.geo_ip_handler = None
     middleware.suspicious_request_counts = {}
-    middleware.rate_limit_handler = Mock()
+    middleware.rate_limit_handler = Mock(redis_handler=None)
     middleware.rate_limit_handler.report_rate_limit_block = AsyncMock()
     middleware.rate_limit_handler.check_rate_limit_tiers = AsyncMock(
         return_value=RateLimitBlock(0, 2, Mock(status_code=429))
@@ -189,3 +190,30 @@ async def test_enable_ip_banning_false_suppresses_ban() -> None:
     await check.check(_make_request("5.5.5.5"))
 
     assert ban_calls == []
+
+
+async def test_a_failing_shared_violation_counter_falls_back_to_the_process_count() -> (
+    None
+):
+    config = SecurityConfig(
+        enable_rate_limiting=True,
+        rate_limit=1,
+        rate_limit_window=60,
+        enable_rate_limit_auto_ban=True,
+        enable_ip_banning=True,
+        auto_ban_threshold=2,
+        auto_ban_duration=300,
+    )
+    check, ban_calls = _make_check_with_recording_ban(config)
+    check.middleware.rate_limit_handler.redis_handler = Mock(
+        record_sliding_window_hit=AsyncMock(side_effect=ConnectionError("redis down"))
+    )
+    request = _make_request("4.4.4.4")
+
+    await check.check(request)
+    await check.check(request)
+
+    assert ban_calls == [("4.4.4.4", 300, "rate_limit_exceeded")]
+    logger = cast(Mock, check.middleware.logger)
+    assert logger.warning.call_count == 2
+    assert "redis down" in str(logger.warning.call_args)
