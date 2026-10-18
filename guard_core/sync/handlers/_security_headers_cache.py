@@ -6,6 +6,10 @@ from typing import Any
 
 from cachetools import TTLCache
 
+from guard_core._security_headers_override import (
+    OverrideRecord,
+    override_fingerprint,
+)
 from guard_core.models import SecurityConfig
 from guard_core.sync._utils.logging_utils import _sanitize_for_log
 
@@ -26,6 +30,12 @@ class SecurityHeadersCacheMixin:
     def _validate_header_name(self, name: str) -> str: ...
 
     @abstractmethod
+    def _current_override(self) -> OverrideRecord: ...
+
+    @abstractmethod
+    def _reset_override(self) -> None: ...
+
+    @abstractmethod
     def _validate_header_value(self, value: str) -> str: ...
 
     def _generate_cache_key(
@@ -33,6 +43,7 @@ class SecurityHeadersCacheMixin:
     ) -> str:
         if config is not None:
             content = json.dumps(config.security_headers, sort_keys=True, default=str)
+            content += override_fingerprint(self._current_override().keys)
             return f"cfg_{hashlib.sha256(content.encode()).hexdigest()[:32]}"
         if not request_path:
             return "default"
@@ -110,6 +121,7 @@ class SecurityHeadersCacheMixin:
         self.cors_config = None
         self.enabled = True
         self.default_headers = self.__class__.default_headers.copy()
+        self._reset_override()
 
         if self.redis_handler:
             try:

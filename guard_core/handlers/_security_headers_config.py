@@ -8,6 +8,15 @@ from guard_core._security_headers_defaults import (
     SECURITY_HEADER_NAMES,
     effective_security_headers_config,
 )
+from guard_core._security_headers_override import (
+    NOT_PASSED,
+    PERMISSIONS_POLICY_NOT_PASSED,
+    OverrideRecord,
+    _NotPassed,
+    apply_override,
+    override_from_call,
+    passed_or,
+)
 from guard_core.models import SecurityConfig
 
 
@@ -20,6 +29,12 @@ class SecurityHeadersConfigMixin:
     cors_config: dict[str, Any] | None
     default_headers: dict[str, str]
     headers_cache: TTLCache
+
+    def _current_override(self) -> OverrideRecord:
+        raise NotImplementedError
+
+    def _record_override_from_call(self, passed: dict[str, Any]) -> None:
+        raise NotImplementedError
 
     _HEADER_NAME_TOKEN_RE = re.compile(r"[!#$%&'*+.^_`|~0-9A-Za-z-]+")
 
@@ -225,7 +240,10 @@ class SecurityHeadersConfigMixin:
                 self.custom_headers,
             )
 
-        effective = effective_security_headers_config(config.security_headers) or {}
+        effective = apply_override(
+            effective_security_headers_config(config.security_headers) or {},
+            self._current_override().keys,
+        )
         hsts_cfg = effective.get("hsts") or {}
 
         csp_config = self._compute_csp_config(effective.get("csp"))
@@ -265,35 +283,53 @@ class SecurityHeadersConfigMixin:
     def configure(
         self,
         *,
-        enabled: bool = True,
-        csp: dict[str, list[str]] | None = None,
-        hsts_max_age: int | None = None,
-        hsts_include_subdomains: bool = True,
-        hsts_preload: bool = False,
-        frame_options: str | None = None,
-        content_type_options: str | None = None,
-        xss_protection: str | None = None,
-        referrer_policy: str | None = None,
-        permissions_policy: str | None = "UNSET",
-        custom_headers: dict[str, str] | None = None,
+        enabled: bool | _NotPassed = NOT_PASSED,
+        csp: dict[str, list[str]] | None | _NotPassed = NOT_PASSED,
+        hsts_max_age: int | None | _NotPassed = NOT_PASSED,
+        hsts_include_subdomains: bool | _NotPassed = NOT_PASSED,
+        hsts_preload: bool | _NotPassed = NOT_PASSED,
+        frame_options: str | None | _NotPassed = NOT_PASSED,
+        content_type_options: str | None | _NotPassed = NOT_PASSED,
+        xss_protection: str | None | _NotPassed = NOT_PASSED,
+        referrer_policy: str | None | _NotPassed = NOT_PASSED,
+        permissions_policy: str | None = PERMISSIONS_POLICY_NOT_PASSED,
+        custom_headers: dict[str, str] | None | _NotPassed = NOT_PASSED,
         cors_origins: list[str] | None = None,
         cors_allow_credentials: bool = False,
         cors_allow_methods: list[str] | None = None,
         cors_allow_headers: list[str] | None = None,
     ) -> None:
-        self.enabled = enabled
+        passed = override_from_call(
+            enabled=enabled,
+            csp=csp,
+            hsts_max_age=hsts_max_age,
+            hsts_include_subdomains=hsts_include_subdomains,
+            hsts_preload=hsts_preload,
+            frame_options=frame_options,
+            content_type_options=content_type_options,
+            xss_protection=xss_protection,
+            referrer_policy=referrer_policy,
+            permissions_policy=permissions_policy,
+            custom_headers=custom_headers,
+        )
+        self.enabled = passed_or(enabled, True)
         self.headers_cache.clear()
 
-        self._configure_csp(csp)
-        self._configure_hsts(hsts_max_age, hsts_include_subdomains, hsts_preload)
+        self._configure_csp(passed_or(csp, None))
+        self._configure_hsts(
+            passed_or(hsts_max_age, None),
+            passed_or(hsts_include_subdomains, True),
+            passed_or(hsts_preload, False),
+        )
         self._configure_cors(
             cors_origins, cors_allow_credentials, cors_allow_methods, cors_allow_headers
         )
         self._update_default_headers(
-            frame_options,
-            content_type_options,
-            xss_protection,
-            referrer_policy,
+            passed_or(frame_options, None),
+            passed_or(content_type_options, None),
+            passed_or(xss_protection, None),
+            passed_or(referrer_policy, None),
             permissions_policy,
         )
-        self._add_custom_headers(custom_headers)
+        self._add_custom_headers(passed_or(custom_headers, None))
+        self._record_override_from_call(passed)

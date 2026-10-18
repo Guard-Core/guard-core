@@ -28,6 +28,7 @@ SKIP_SRC = {
     "_dynamic_rules.py",
     "_staged_defaults.py",
     "_security_headers_defaults.py",
+    "_security_headers_override.py",
 }
 
 SKIP_TESTS = {

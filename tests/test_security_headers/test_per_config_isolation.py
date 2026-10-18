@@ -3,7 +3,10 @@ from unittest.mock import AsyncMock, MagicMock
 from guard_core.core.events.metrics import MetricsCollector
 from guard_core.core.responses.context import ResponseContext
 from guard_core.core.responses.factory import ErrorResponseFactory
-from guard_core.handlers.security_headers_handler import security_headers_manager
+from guard_core.handlers.security_headers_handler import (
+    SecurityHeadersManager,
+    security_headers_manager,
+)
 from guard_core.models import SecurityConfig
 from tests.conftest import MockGuardResponse, MockGuardResponseFactory
 
@@ -32,14 +35,15 @@ async def test_get_headers_with_explicit_configs_stay_isolated() -> None:
     csp_b = {"default-src": ["'none'"], "script-src": ["'none'"]}
     config_a = _make_config(csp_a)
     config_b = _make_config(csp_b)
+    manager = SecurityHeadersManager.isolated()
 
-    security_headers_manager.configure(enabled=True, csp=csp_a)
-    headers_a = await security_headers_manager.get_headers("/a", config=config_a)
+    manager.configure(enabled=True, csp=csp_a)
+    headers_a = await manager.get_headers("/a", config=config_a)
 
-    security_headers_manager.configure(enabled=True, csp=csp_b)
-    headers_b = await security_headers_manager.get_headers("/b", config=config_b)
+    manager.configure(enabled=True, csp=csp_b)
+    headers_b = await manager.get_headers("/b", config=config_b)
 
-    headers_a_again = await security_headers_manager.get_headers("/a", config=config_a)
+    headers_a_again = await manager.get_headers("/a", config=config_a)
 
     assert headers_a["Content-Security-Policy"] == "default-src 'self'"
     assert (
@@ -55,8 +59,9 @@ async def test_response_factory_headers_survive_a_later_middleware_reconfiguring
     csp_b = {"default-src": ["'none'"], "script-src": ["'none'"]}
     config_a = _make_config(csp_a)
     config_b = _make_config(csp_b)
+    manager = SecurityHeadersManager.isolated()
 
-    security_headers_manager.configure(enabled=True, csp=csp_a)
+    manager.configure(enabled=True, csp=csp_a)
     factory_a = _make_factory(config_a)
 
     response_a_before = await factory_a.apply_security_headers(
@@ -64,7 +69,7 @@ async def test_response_factory_headers_survive_a_later_middleware_reconfiguring
     )
     assert response_a_before.headers["Content-Security-Policy"] == "default-src 'self'"
 
-    security_headers_manager.configure(enabled=True, csp=csp_b)
+    manager.configure(enabled=True, csp=csp_b)
     factory_b = _make_factory(config_b)
     response_b = await factory_b.apply_security_headers(
         MockGuardResponse("ok", 200), "/b"

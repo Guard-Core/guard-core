@@ -865,6 +865,28 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
     "handlers/_security_headers_cache.py:SecurityHeadersCacheMixin.reset": (
         "line 121: Redis-reset failure, not a request"
     ),
+    "handlers/_security_headers_override_state.py:SecurityHeadersOverrideMixin."
+    "_adopt_cleared_override": ("line 206: fixed text, no data"),
+    "handlers/_security_headers_override_state.py:SecurityHeadersOverrideMixin."
+    "_log_override_change": (
+        "lines 95 and 105: operator-configured header names and values of a "
+        "configure() call, every value through _redact_sensitive_headers (name "
+        "tokens and value redaction), then _sanitize_for_log; no request data"
+    ),
+    "handlers/_security_headers_override_state.py:SecurityHeadersOverrideMixin."
+    "_pull_override": (
+        "lines 172, 184 and 193: Redis read failure text, unreadable-record "
+        "text and the pulled override's header names, values through "
+        "_redact_sensitive_headers; no request data"
+    ),
+    "handlers/_security_headers_override_state.py:SecurityHeadersOverrideMixin."
+    "_save_override": ("line 158: Redis write failure text, not a request"),
+    "handlers/_security_headers_override_state.py:SecurityHeadersOverrideMixin."
+    "_send_override_event": (
+        "lines 228 and 230: the override event carries the redacted override "
+        "and dropped values (_redact_sensitive_headers) and key names; the "
+        "failure line carries redacted exception text; no request data"
+    ),
     "handlers/_security_headers_config.py:"
     "SecurityHeadersConfigMixin._compute_cors_config": (
         "line 95: CORS config validation error at construction time or "

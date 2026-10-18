@@ -15,6 +15,7 @@ class ResponseContext:
     metrics_collector: MetricsCollector
 
     agent_handler: Any | None = None
+    redis_handler: Any | None = None
     guard_decorator: BaseSecurityDecorator | None = None
     response_factory: Any = field(default=None)
     security_headers_manager: SecurityHeadersManager = field(

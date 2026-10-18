@@ -30,6 +30,8 @@ class ErrorResponseFactory:
         self.logger = logging.getLogger("guard_core.sync.core.responses.factory")
         self.security_headers_manager = context.security_headers_manager
         self.security_headers_manager.agent_handler = context.agent_handler
+        if context.redis_handler is not None:
+            self.security_headers_manager.redis_handler = context.redis_handler
 
     def create_error_response(
         self, status_code: int, default_message: str

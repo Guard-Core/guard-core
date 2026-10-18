@@ -9,6 +9,9 @@ from guard_core.handlers._security_headers_cache import SecurityHeadersCacheMixi
 from guard_core.handlers._security_headers_config import SecurityHeadersConfigMixin
 from guard_core.handlers._security_headers_cors import SecurityHeadersCorsMixin
 from guard_core.handlers._security_headers_events import SecurityHeadersEventsMixin
+from guard_core.handlers._security_headers_override_state import (
+    SecurityHeadersOverrideMixin,
+)
 from guard_core.models import SecurityConfig
 
 
@@ -17,6 +20,7 @@ class ResolvedHeaders(dict[str, str]):
 
 
 class SecurityHeadersManager(
+    SecurityHeadersOverrideMixin,
     SecurityHeadersConfigMixin,
     SecurityHeadersCacheMixin,
     SecurityHeadersCorsMixin,
@@ -72,6 +76,7 @@ class SecurityHeadersManager(
         self.hsts_config = None
         self.cors_config = None
         self.default_headers = self.__class__.default_headers.copy()
+        self._initialize_override_state()
 
     def _build_csp(self, csp_config: dict[str, list[str]]) -> str:
         directives = []
@@ -138,8 +143,13 @@ class SecurityHeadersManager(
         self.headers_cache[cache_key] = headers
         return headers, True
 
+    def _headers_off(self, config: SecurityConfig) -> bool:
+        return security_headers_are_off(config.security_headers) or not (
+            self._current_override().keys.get("enabled", True)
+        )
+
     def resolve_headers(self, config: SecurityConfig) -> dict[str, str]:
-        if security_headers_are_off(config.security_headers):
+        if self._headers_off(config):
             return {}
         headers, _ = self._headers_for(config, self._generate_cache_key(None, config))
         return headers
@@ -150,7 +160,8 @@ class SecurityHeadersManager(
         config: SecurityConfig | None = None,
     ) -> dict[str, str]:
         if config is not None:
-            if security_headers_are_off(config.security_headers):
+            await self._sync_override(config)
+            if self._headers_off(config):
                 return {}
         elif not self.enabled:
             return {}
