@@ -194,6 +194,8 @@ class IpAccessResult:
     cloud_provider: str | None = None
     network: str | None = None
     denial_category: str | None = None
+    country: str | None = None
+    country_rule: str | None = None
 
 
 _GENERIC_LIST_BLOCK_REASON = "IP {ip} not in global allowlist/blocklist"
@@ -223,6 +225,10 @@ def _check_blocked_countries_detail(
         denial_category=allow_list_miss_category("country")
         if config.whitelist_countries
         else "country",
+        country=country,
+        country_rule="country_whitelist"
+        if config.whitelist_countries
+        else "country_blacklist",
     )
 
 

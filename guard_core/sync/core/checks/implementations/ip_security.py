@@ -15,6 +15,7 @@ from guard_core.sync.core.checks.helpers import (
     report_hostile_signal,
 )
 from guard_core.sync.core.events.event_types import (
+    EVENT_COUNTRY_BLOCKED,
     EVENT_DECORATOR_VIOLATION,
     EVENT_IP_BLOCKED,
 )
@@ -289,6 +290,9 @@ class IpSecurityCheck(SecurityCheck):
             sensitive_body_fields=self.config.log_sensitive_body_fields,
         )
 
+        if access_result.country_rule:
+            self._send_country_blocked_event(request, client_ip, access_result)
+
         self.middleware.event_bus.send_middleware_event(
             event_type=EVENT_IP_BLOCKED,
             request=request,
@@ -298,8 +302,10 @@ class IpSecurityCheck(SecurityCheck):
             reason=access_result.reason,
             ip_address=client_ip,
             filter_type="global",
+            **(
+                {"country": access_result.country} if access_result.country_rule else {}
+            ),
         )
-
         if not self.config.passive_mode:
             if escalate:
                 report_hostile_signal(
@@ -315,6 +321,21 @@ class IpSecurityCheck(SecurityCheck):
             )
 
         return None
+
+    def _send_country_blocked_event(
+        self, request: SyncGuardRequest, client_ip: str, access_result: IpAccessResult
+    ) -> None:
+        self.middleware.event_bus.send_middleware_event(
+            event_type=EVENT_COUNTRY_BLOCKED,
+            request=request,
+            action_taken="request_blocked"
+            if not self.config.passive_mode
+            else "logged_only",
+            reason=access_result.reason,
+            ip_address=client_ip,
+            country=access_result.country,
+            rule_type=access_result.country_rule,
+        )
 
     def _forwarded_for_claims_privileged_address(
         self, forwarded_for: str, route_config: RouteConfig | None
