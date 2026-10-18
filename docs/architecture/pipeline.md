@@ -337,7 +337,7 @@ This check runs first because all subsequent checks depend on `request.state.cli
 | **check_name** | `https_enforcement` |
 | **Module** | `guard_core.core.checks.implementations.https_enforcement` |
 | **Purpose** | Redirects HTTP requests to HTTPS when `config.enforce_https = True` or route requires HTTPS |
-| **Blocks?** | Returns 301 redirect to HTTPS URL |
+| **Blocks?** | Returns a redirect to the HTTPS URL: 301 for GET and HEAD, 308 for every other method so the method and body survive |
 
 ### 4. RequestLoggingCheck
 

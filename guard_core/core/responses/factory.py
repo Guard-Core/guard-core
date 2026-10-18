@@ -74,8 +74,9 @@ class ErrorResponseFactory:
 
     async def create_https_redirect(self, request: GuardRequest) -> GuardResponse:
         https_url = request.url_replace_scheme("https")
+        status_code = 301 if request.method.upper() in ("GET", "HEAD") else 308
         redirect_response = self.context.response_factory.create_redirect_response(
-            str(https_url), 301
+            str(https_url), status_code
         )
 
         return await self.apply_modifier(redirect_response)
