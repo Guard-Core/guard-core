@@ -882,10 +882,20 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
     "handlers/_security_headers_override_state.py:SecurityHeadersOverrideMixin."
     "_save_override_record": ("line 158: Redis write failure text, not a request"),
     "handlers/_security_headers_override_state.py:SecurityHeadersOverrideMixin."
-    "_send_override_event": (
+    "_send_override_event_for": (
         "lines 228 and 230: the override event carries the redacted override "
         "and dropped values (_redact_sensitive_headers) and key names; the "
         "failure line carries redacted exception text; no request data"
+    ),
+    "handlers/_security_headers_override_state.py:SecurityHeadersOverrideMixin."
+    "_apply_shared_own_state": (
+        "line 339: the failure text of unreadable cached own state in Redis, "
+        "redacted by _sanitize_for_log; no request data"
+    ),
+    "handlers/_security_headers_override_state.py:SecurityHeadersOverrideMixin."
+    "_log_cors_override": (
+        "lines 127, 131 and 138: operator-configured CORS origins and flags of "
+        "a flagged configure() call and a fixed reason string; no request data"
     ),
     "handlers/_security_headers_config.py:"
     "SecurityHeadersConfigMixin._compute_cors_config": (

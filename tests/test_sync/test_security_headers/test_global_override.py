@@ -16,6 +16,9 @@ from guard_core import _security_headers_override as override_module
 from guard_core.models import SecurityConfig
 from guard_core.sync._utils.config_registry import REDIS_HANDLERS, ConfigHandlerRegistry
 from guard_core.sync.core.events.metrics import MetricsCollector
+from guard_core.sync.core.initialization._headers_manager_attach import (
+    attach_security_headers_manager_to_redis,
+)
 from guard_core.sync.core.initialization.handler_initializer import HandlerInitializer
 from guard_core.sync.core.responses.context import ResponseContext
 from guard_core.sync.core.responses.factory import ErrorResponseFactory
@@ -2205,7 +2208,7 @@ def test_a_mock_redis_handler_is_not_attached_to_the_headers_manager() -> None:
     config = _config()
     initializer = HandlerInitializer(config=config, redis_handler=MagicMock())
 
-    initializer._attach_security_headers_manager_to_redis()
+    attach_security_headers_manager_to_redis(initializer.redis_handler, config)
 
     assert security_headers_manager.redis_handler is None
 
@@ -2314,3 +2317,261 @@ def test_an_unreadable_shared_own_state_is_logged_and_kept_out(
 
     assert "Ignoring unreadable cached header config in Redis" in caplog.text
     assert security_headers_manager.csp_config is None
+
+
+NEW_ORIGIN = "https://new.example"
+OLD_ORIGIN = "https://app.example"
+
+
+def _cors_config(**overrides: Any) -> SecurityConfig:
+    values: dict[str, Any] = {
+        "enable_redis": False,
+        "enable_cors": True,
+        "cors_allow_origins": [OLD_ORIGIN],
+        "cors_allow_methods": ["GET", "POST"],
+        "security_headers": {"enabled": True},
+    }
+    values.update(overrides)
+    return SecurityConfig(**values)
+
+
+def _preflight(origin: str = NEW_ORIGIN, method: str = "POST") -> dict[str, str]:
+    return {"origin": origin, "access-control-request-method": method}
+
+
+def test_a_cors_only_flagged_call_is_recorded() -> None:
+    security_headers_manager.configure(
+        cors_origins=[NEW_ORIGIN], cors_max_age=60, override_apps=True
+    )
+
+    assert override_module.PROCESS_OVERRIDE.record.keys == {
+        "cors_origins": [NEW_ORIGIN],
+        "cors_max_age": 60,
+    }
+
+
+def test_a_call_without_the_flag_does_not_touch_the_cors_of_an_app() -> None:
+    cors = CorsHandler(_cors_config())
+
+    security_headers_manager.configure(cors_origins=[NEW_ORIGIN])
+
+    assert cors.build_preflight_response(_preflight(OLD_ORIGIN)).status_code == 200
+    assert cors.build_preflight_response(_preflight()).status_code == 400
+
+
+def test_a_flagged_cors_call_changes_both_cors_emitters() -> None:
+    config = _cors_config()
+    cors = CorsHandler(config)
+    app = _app(config)
+    assert cors.build_preflight_response(_preflight()).status_code == 400
+    assert (
+        app.security_headers_manager.get_cors_headers(NEW_ORIGIN, config=config) == {}
+    )
+
+    _override(
+        cors_origins=[NEW_ORIGIN],
+        cors_allow_methods=["PUT"],
+        cors_max_age=77,
+        cors_expose_headers=["X-Seen"],
+    )
+
+    preflight = cors.build_preflight_response(_preflight(method="PUT"))
+    assert preflight.status_code == 200
+    assert preflight.headers["Access-Control-Allow-Origin"] == NEW_ORIGIN
+    assert preflight.headers["Access-Control-Max-Age"] == "77"
+    assert cors.build_preflight_response(_preflight(OLD_ORIGIN)).status_code == 400
+    simple = cors.build_response_headers({"origin": NEW_ORIGIN})
+    assert simple["Access-Control-Expose-Headers"] == "X-Seen"
+    manager_headers = app.security_headers_manager.get_cors_headers(
+        NEW_ORIGIN, config=config
+    )
+    assert manager_headers["Access-Control-Allow-Origin"] == NEW_ORIGIN
+    assert manager_headers["Access-Control-Allow-Methods"] == "PUT"
+    assert manager_headers["Access-Control-Max-Age"] == "77"
+
+
+def test_a_flagged_clear_returns_the_cors_of_the_app() -> None:
+    config = _cors_config()
+    cors = CorsHandler(config)
+    _override(cors_origins=[NEW_ORIGIN])
+    assert cors.build_preflight_response(_preflight()).status_code == 200
+
+    _override()
+
+    assert cors.build_preflight_response(_preflight()).status_code == 400
+    assert cors.build_preflight_response(_preflight(OLD_ORIGIN)).status_code == 200
+
+
+def test_an_app_built_without_cors_needs_enable_cors_in_the_call(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    config = _cors_config(enable_cors=False)
+    cors = CorsHandler(config)
+    app = _app(config)
+
+    _override(cors_origins=[NEW_ORIGIN])
+    assert not cors.is_enabled()
+    assert (
+        app.security_headers_manager.get_cors_headers(NEW_ORIGIN, config=config) == {}
+    )
+
+    with caplog.at_level(logging.INFO, logger=LOGGER):
+        _override(cors_origins=[NEW_ORIGIN], enable_cors=True)
+        assert cors.is_enabled()
+        assert cors.build_preflight_response(_preflight()).status_code == 200
+        cors.build_response_headers({"origin": NEW_ORIGIN})
+
+    warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(warnings) == 1
+    assert "may run its own CORS layer" in warnings[0]
+
+
+def test_a_passed_enable_cors_false_stops_the_cors_of_an_app() -> None:
+    config = _cors_config()
+    cors = CorsHandler(config)
+    app = _app(config)
+
+    _override(enable_cors=False)
+
+    assert not cors.is_enabled()
+    assert cors.build_response_headers({"origin": OLD_ORIGIN}) == {}
+    assert (
+        app.security_headers_manager.get_cors_headers(OLD_ORIGIN, config=config) == {}
+    )
+
+
+def test_the_headers_switch_never_governs_cors() -> None:
+    config = _cors_config(security_headers=None)
+    app = _app(config)
+    request = SyncMockGuardRequest(path="/x", headers={"origin": OLD_ORIGIN})
+
+    response = app.process_response(request, MockGuardResponse("ok", 200), 0.1, None)
+
+    assert response.headers["Access-Control-Allow-Origin"] == OLD_ORIGIN
+    assert "X-Frame-Options" not in response.headers
+
+    _override(enabled=False)
+    off = app.process_response(request, MockGuardResponse("ok", 200), 0.1, None)
+    assert off.headers["Access-Control-Allow-Origin"] == OLD_ORIGIN
+    assert "X-Frame-Options" not in off.headers
+    assert (
+        CorsHandler(config)
+        .build_preflight_response(_preflight(OLD_ORIGIN))
+        .headers["Access-Control-Allow-Origin"]
+        == OLD_ORIGIN
+    )
+
+
+def test_a_wildcard_with_credentials_is_refused_and_the_app_keeps_its_cors(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    agent = MagicMock()
+    agent.send_event = MagicMock()
+    config = _cors_config()
+    cors = CorsHandler(config)
+    app = _app(config, agent=agent)
+
+    with caplog.at_level(logging.WARNING, logger=LOGGER):
+        _override(cors_origins=["*"], cors_allow_credentials=True)
+        assert cors.build_preflight_response(_preflight(OLD_ORIGIN)).status_code == 200
+        assert cors.build_preflight_response(_preflight()).status_code == 400
+        app.security_headers_manager.get_cors_headers(OLD_ORIGIN, config=config)
+        app.security_headers_manager.get_cors_headers(OLD_ORIGIN, config=config)
+
+    refused = [r for r in caplog.records if "refused" in r.getMessage()]
+    assert len(refused) == 1
+    assert (
+        "wildcard origin cannot be combined with credentials" in refused[0].getMessage()
+    )
+    events = [
+        c.args[0]
+        for c in agent.send_event.call_args_list
+        if c.args[0].action_taken == "cors_override_refused"
+    ]
+    assert len(events) == 1
+    assert events[0].metadata["reason"].startswith("a wildcard origin")
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        {"cors_origins": "https://x.example"},
+        {"cors_allow_methods": ["GET", 1]},
+        {"cors_allow_headers": None},
+        {"cors_expose_headers": "X-A"},
+        {"enable_cors": "yes"},
+        {"cors_allow_credentials": 1},
+        {"cors_max_age": -1},
+        {"cors_max_age": True},
+        {"cors_max_age": "60"},
+    ],
+)
+def test_invalid_cors_keys_raise_in_a_flagged_call_and_change_nothing(
+    bad: dict[str, Any],
+) -> None:
+    before = security_headers_manager.cors_config
+
+    with pytest.raises(ValueError):
+        security_headers_manager.configure(override_apps=True, **bad)
+
+    assert override_module.PROCESS_OVERRIDE.record.keys == {}
+    assert security_headers_manager.cors_config == before
+
+
+def test_invalid_cors_keys_are_accepted_by_a_call_without_the_flag() -> None:
+    security_headers_manager.configure(cors_max_age=-1)
+
+
+def test_widening_warns_once_per_app_and_version_and_narrowing_informs(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    config = _cors_config()
+    cors = CorsHandler(config)
+
+    with caplog.at_level(logging.INFO, logger=LOGGER):
+        _override(cors_origins=[OLD_ORIGIN, NEW_ORIGIN])
+        for _ in range(3):
+            cors.build_response_headers({"origin": NEW_ORIGIN})
+        _override(cors_origins=[OLD_ORIGIN], cors_allow_methods=["GET"])
+        cors.build_response_headers({"origin": NEW_ORIGIN})
+
+    cors_lines = [r for r in caplog.records if "CORS override" in r.getMessage()]
+    assert [r.levelno for r in cors_lines] == [logging.WARNING, logging.INFO]
+    assert "widens" in cors_lines[0].getMessage()
+    assert "narrows" in cors_lines[1].getMessage()
+
+
+def test_a_pulled_cors_override_reaches_cors_handler_in_another_worker(
+    clock: Clock,
+) -> None:
+    redis = FakeRedis()
+    config = _cors_config()
+    app = _app(config, redis=redis)
+    _response(app)
+    manager = app.security_headers_manager
+    redis.store[f"t:security_headers:{manager._override_key()}"] = (
+        override_module.OverrideRecord(
+            time.time() + 10, {"cors_origins": [NEW_ORIGIN]}
+        ).to_json()
+    )
+    cors = CorsHandler(config)
+    assert cors.build_preflight_response(_preflight()).status_code == 400
+
+    clock.now += 5.0
+    _response(app)
+
+    assert cors.build_preflight_response(_preflight()).status_code == 200
+
+
+def test_the_cors_note_registry_forgets_its_oldest_entry_when_full(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: dict[tuple[int, float], None] = {}
+    monkeypatch.setattr(override_module, "MAX_CORS_NOTES", 2)
+
+    assert override_module.first_time(seen, (1, 1.0))
+    assert override_module.first_time(seen, (2, 1.0))
+    assert not override_module.first_time(seen, (1, 1.0))
+    assert override_module.first_time(seen, (3, 1.0))
+
+    assert list(seen) == [(2, 1.0), (3, 1.0)]

@@ -2,6 +2,7 @@ import logging
 from abc import abstractmethod
 from typing import Any
 
+from guard_core._security_headers_override import OverrideRecord
 from guard_core.models import SecurityConfig
 
 
@@ -10,8 +11,13 @@ class SecurityHeadersCorsMixin:
     cors_config: dict[str, Any] | None
 
     @abstractmethod
+    async def send_cors_override_event(
+        self, config: SecurityConfig, current: OverrideRecord | None = None
+    ) -> None: ...
+
+    @abstractmethod
     def _resolve_cors_state(
-        self, config: SecurityConfig | None
+        self, config: SecurityConfig | None, override: OverrideRecord | None = None
     ) -> dict[str, Any] | None: ...
 
     def _is_wildcard_with_credentials(
@@ -82,9 +88,14 @@ class SecurityHeadersCorsMixin:
         return cors_headers
 
     async def get_cors_headers(
-        self, origin: str, config: SecurityConfig | None = None
+        self,
+        origin: str,
+        config: SecurityConfig | None = None,
+        override: OverrideRecord | None = None,
     ) -> dict[str, str]:
-        cors_config = self._resolve_cors_state(config)
+        cors_config = self._resolve_cors_state(config, override)
+        if config is not None:
+            await self.send_cors_override_event(config, override)
         if not cors_config:
             return {}
 

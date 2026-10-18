@@ -31,6 +31,7 @@ def test_default_pipeline_contains_all_checks_in_canonical_order(
         "ip_security",
         "cloud_provider",
         "user_agent",
+        "cors_preflight",
         "rate_limit",
         "required_headers",
         "authentication",

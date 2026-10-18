@@ -1,6 +1,7 @@
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
+from guard_core._security_headers_override import CorsParams, cors_params_of
 from guard_core.handlers.security_headers_handler import SecurityHeadersManager
 from guard_core.models import SecurityConfig
 
@@ -37,13 +38,8 @@ class CorsHandler:
     def __init__(self, config: SecurityConfig) -> None:
         self.config = config
         self._security_headers = SecurityHeadersManager.isolated()
-        self._enabled = bool(config.enable_cors)
-        if not self._enabled:
-            self._init_disabled()
-        else:
-            self._init_enabled(config)
-
-    def _init_disabled(self) -> None:
+        self._applied_override: object | None = None
+        self._enabled = False
         self._allow_all = False
         self._allow_origins: set[str] = set()
         self._allow_methods: list[str] = []
@@ -52,26 +48,60 @@ class CorsHandler:
         self._allow_credentials = False
         self._max_age = 600
         self._expose_headers: list[str] = []
+        if config.enable_cors:
+            self._check_wildcard_with_credentials(config)
+        self._apply(cors_params_of(config))
 
-    def _init_enabled(self, config: SecurityConfig) -> None:
-        origins = list(config.cors_allow_origins or [])
-        self._allow_all = "*" in origins
-        if self._allow_all and config.cors_allow_credentials:
+    def _check_wildcard_with_credentials(self, config: SecurityConfig) -> None:
+        if "*" in (config.cors_allow_origins or []) and config.cors_allow_credentials:
             raise ValueError(
                 "CORS misconfiguration: wildcard origin '*' is incompatible "
                 "with cors_allow_credentials=True"
             )
+
+    def _apply(self, params: CorsParams) -> None:
+        self._enabled = params.enabled
+        if not params.enabled:
+            self._init_disabled()
+            return
+        origins = list(params.origins)
+        self._allow_all = "*" in origins
         self._allow_origins = {origin.rstrip("/") for origin in origins}
-        self._allow_methods = [
-            m.upper() for m in (config.cors_allow_methods or ["GET"])
-        ]
-        self._allow_headers = [h.lower() for h in (config.cors_allow_headers or [])]
+        self._allow_methods = [m.upper() for m in (params.methods or ["GET"])]
+        self._allow_headers = [h.lower() for h in params.headers]
         self._allow_all_headers = "*" in self._allow_headers
-        self._allow_credentials = bool(config.cors_allow_credentials)
-        self._max_age = int(config.cors_max_age)
-        self._expose_headers = list(config.cors_expose_headers or [])
+        self._allow_credentials = bool(params.credentials)
+        self._max_age = int(params.max_age)
+        self._expose_headers = list(params.expose)
+
+    def _init_disabled(self) -> None:
+        self._allow_all = False
+        self._allow_origins = set()
+        self._allow_methods = []
+        self._allow_headers = []
+        self._allow_all_headers = False
+        self._allow_credentials = False
+        self._max_age = 600
+        self._expose_headers = []
+
+    def _refresh(self) -> None:
+        # The override a flagged configure() set, in this process or pulled from Redis,
+        # is applied when its record changes (a record is replaced, never edited).
+        override = self._security_headers.override_for_reader(self.config)
+        if override is self._applied_override:
+            return
+        self._applied_override = override
+        self._apply(self._security_headers.cors_params_for(self.config))
+
+    def is_enabled(self) -> bool:
+        self._refresh()
+        return self._enabled
 
     def is_origin_allowed(self, origin: str) -> bool:
+        self._refresh()
+        return self._origin_allowed(origin)
+
+    def _origin_allowed(self, origin: str) -> bool:
         if not self._enabled:
             return False
         if self._allow_all:
@@ -84,7 +114,7 @@ class CorsHandler:
         response_headers: dict[str, str],
         failures: list[str],
     ) -> None:
-        if self.is_origin_allowed(origin):
+        if self._origin_allowed(origin):
             response_headers["Access-Control-Allow-Origin"] = (
                 "*" if self._allow_all and not self._allow_credentials else origin
             )
@@ -115,6 +145,7 @@ class CorsHandler:
     def build_preflight_response(
         self, request_headers: Mapping[str, str]
     ) -> CorsPreflightResponse:
+        self._refresh()
         headers = _lower_headers(request_headers)
         origin = headers.get("origin", "")
         requested_method = headers.get("access-control-request-method", "").upper()
@@ -158,6 +189,7 @@ class CorsHandler:
     def build_response_headers(
         self, request_headers: Mapping[str, str], existing_vary: str | None = None
     ) -> dict[str, str]:
+        self._refresh()
         if not self._enabled:
             return {}
         headers = _lower_headers(request_headers)
@@ -169,7 +201,7 @@ class CorsHandler:
 
         if self._allow_all and not self._allow_credentials:
             result["Access-Control-Allow-Origin"] = "*"
-        elif self.is_origin_allowed(origin):
+        elif self._origin_allowed(origin):
             result["Access-Control-Allow-Origin"] = origin
         else:
             return result

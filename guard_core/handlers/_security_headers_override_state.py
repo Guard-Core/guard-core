@@ -5,12 +5,19 @@ from cachetools import TTLCache
 
 from guard_core import _security_headers_override as clocks
 from guard_core._security_headers_override import (
+    CORS_EVENTED,
+    CORS_LOGGED,
     OVERRIDE_PULL_INTERVAL_SECONDS,
     PROCESS_OVERRIDE,
     PULLED_OVERRIDES,
+    CorsParams,
     OverrideRecord,
     config_fingerprint,
     corrected_wall_now,
+    cors_params_of,
+    cors_widens,
+    first_time,
+    merge_cors,
     now_monotonic,
     override_display,
     override_event_metadata,
@@ -87,8 +94,11 @@ class SecurityHeadersOverrideMixin:
 
     _current_override = resolve_override
 
-    def override_for_reader(self, config: SecurityConfig) -> OverrideRecord:
-        current = self.resolve_override()
+    def override_for_reader(
+        self, config: SecurityConfig, current: OverrideRecord | None = None
+    ) -> OverrideRecord:
+        if current is None:
+            current = self.resolve_override()
         if not PULLED_OVERRIDES:
             return current
         if self._reader_hash is None or self._reader_hash[0] != id(config):
@@ -97,6 +107,55 @@ class SecurityHeadersOverrideMixin:
         if pulled is not None and pulled.ordered_at() > current.ordered_at():
             return pulled
         return current
+
+    def cors_params_for(
+        self, config: SecurityConfig, current: OverrideRecord | None = None
+    ) -> CorsParams:
+        base = cors_params_of(config)
+        override = self.override_for_reader(config, current)
+        merged, reason = merge_cors(base, override.keys)
+        if (merged is not base or reason) and first_time(
+            CORS_LOGGED, (id(config), override.set_at)
+        ):
+            self._log_cors_override(base, merged, reason)
+        return merged
+
+    def _log_cors_override(
+        self, base: CorsParams, merged: CorsParams, reason: str | None
+    ) -> None:
+        if reason is not None:
+            self.logger.warning(
+                "CORS override refused for this app, it keeps its own CORS: %s", reason
+            )
+        elif cors_widens(base, merged):
+            self.logger.warning(
+                "CORS override widens the CORS of this app: enabled=%s, origins=%s, "
+                "credentials=%s%s",
+                merged.enabled,
+                ", ".join(merged.origins) or "none",
+                merged.credentials,
+                "; the app was built without CORS and may run its own CORS layer"
+                if not base.enabled
+                else "",
+            )
+        else:
+            self.logger.info("CORS override narrows or keeps the CORS of this app")
+
+    async def send_cors_override_event(
+        self, config: SecurityConfig, current: OverrideRecord | None = None
+    ) -> None:
+        if not self.agent_handler:
+            return
+        override = self.override_for_reader(config, current)
+        merged, reason = merge_cors(cors_params_of(config), override.keys)
+        if reason is None or not first_time(
+            CORS_EVENTED, (id(config), override.set_at)
+        ):
+            return
+        await self._send_override_event_for(
+            "cors_override_refused",
+            {"reason": reason, "override_keys": sorted(override.keys)},
+        )
 
     def _next_set_at(self) -> float:
         return max(corrected_wall_now(), self._current_override().ordered_at() + 1e-6)
@@ -325,6 +384,14 @@ class SecurityHeadersOverrideMixin:
         self.logger.info("Security headers override cleared in Redis")
 
     async def _send_override_event(self, record: OverrideRecord) -> None:
+        await self._send_override_event_for(
+            "override_cleared" if not record.keys else "override_changed",
+            dict(record.event or {}),
+        )
+
+    async def _send_override_event_for(
+        self, action: str, metadata: dict[str, Any]
+    ) -> None:
         if not self.agent_handler:
             return
         from guard_core.core.events.event_types import EVENT_SECURITY_HEADERS_APPLIED
@@ -338,11 +405,9 @@ class SecurityHeadersOverrideMixin:
             event = SecurityEvent(
                 timestamp=datetime.now(timezone.utc),
                 event_type=EVENT_SECURITY_HEADERS_APPLIED,
-                action_taken="override_cleared"
-                if not record.keys
-                else "override_changed",
+                action_taken=action,
                 handler_name="security_headers",
-                metadata=dict(record.event or {}),
+                metadata=metadata,
             )
             await self.agent_handler.send_event(event)
         except Exception as e:

@@ -7,6 +7,9 @@ from guard_core.core.checks.implementations.cloud_ip_refresh import (
 from guard_core.core.checks.implementations.cloud_provider import (
     CloudProviderCheck,
 )
+from guard_core.core.checks.implementations.cors_preflight import (
+    CorsPreflightCheck,
+)
 from guard_core.core.checks.implementations.custom_request import (
     CustomRequestCheck,
 )
@@ -48,6 +51,7 @@ __all__ = [
     "AuthenticationCheck",
     "CloudIpRefreshCheck",
     "CloudProviderCheck",
+    "CorsPreflightCheck",
     "CustomRequestCheck",
     "CustomValidatorsCheck",
     "EmergencyModeCheck",

@@ -103,21 +103,20 @@ class ErrorResponseFactory:
     async def apply_cors_headers(
         self, response: GuardResponse, origin: str, override: Any = None
     ) -> GuardResponse:
-        manager = self.security_headers_manager
         if override is None:
-            override = manager.resolve_override()
-        enabled = manager.headers_enabled_for(self.context.config, override)
-        return await self._apply_cors_headers(response, origin, enabled)
+            override = self.security_headers_manager.resolve_override()
+        return await self._apply_cors_headers(response, origin, override)
 
     async def _apply_cors_headers(
-        self, response: GuardResponse, origin: str, enabled: bool
+        self, response: GuardResponse, origin: str, override: Any
     ) -> GuardResponse:
-        if enabled:
-            cors_headers = await self.security_headers_manager.get_cors_headers(
-                origin, config=self.context.config
-            )
-            for header_name, header_value in cors_headers.items():
-                response.headers[header_name] = header_value
+        # CORS follows the CORS settings alone: the security headers switch never
+        # governs it.
+        cors_headers = await self.security_headers_manager.get_cors_headers(
+            origin, config=self.context.config, override=override
+        )
+        for header_name, header_value in cors_headers.items():
+            response.headers[header_name] = header_value
 
         return response
 
@@ -190,7 +189,7 @@ class ErrorResponseFactory:
 
         origin = request.headers.get("origin")
         if origin:
-            response = await self._apply_cors_headers(response, origin, enabled)
+            response = await self._apply_cors_headers(response, origin, override)
 
         return await self.apply_modifier(response)
 

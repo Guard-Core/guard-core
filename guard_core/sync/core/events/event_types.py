@@ -106,6 +106,7 @@ CHECK_NAME_VALUES: frozenset[str] = frozenset(
         "authentication",
         "cloud_ip_refresh",
         "cloud_provider",
+        "cors_preflight",
         "custom_request",
         "custom_validators",
         "emergency_mode",

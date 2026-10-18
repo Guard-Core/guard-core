@@ -10,7 +10,7 @@ mirror share one copy.
 import hashlib
 import json
 import time
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -98,6 +98,20 @@ PROCESS_OVERRIDE = _ProcessOverride()
 # hash. A component that never pulls (CorsHandler's manager) reads its override here.
 PULLED_OVERRIDES: dict[str, OverrideRecord] = {}
 
+# (config id, override time) pairs whose CORS effect was already logged or sent.
+CORS_LOGGED: dict[tuple[int, float], None] = {}
+CORS_EVENTED: dict[tuple[int, float], None] = {}
+MAX_CORS_NOTES = 1024
+
+
+def first_time(seen: dict[tuple[int, float], None], key: tuple[int, float]) -> bool:
+    if key in seen:
+        return False
+    if len(seen) >= MAX_CORS_NOTES:
+        seen.pop(next(iter(seen)))
+    seen[key] = None
+    return True
+
 
 def override_from_call(
     *,
@@ -112,6 +126,13 @@ def override_from_call(
     referrer_policy: Any,
     permissions_policy: Any,
     custom_headers: Any,
+    enable_cors: Any = NOT_PASSED,
+    cors_origins: Any = NOT_PASSED,
+    cors_allow_credentials: Any = NOT_PASSED,
+    cors_allow_methods: Any = NOT_PASSED,
+    cors_allow_headers: Any = NOT_PASSED,
+    cors_max_age: Any = NOT_PASSED,
+    cors_expose_headers: Any = NOT_PASSED,
 ) -> dict[str, Any]:
     passed: dict[str, Any] = {}
     for key, value in (
@@ -122,6 +143,13 @@ def override_from_call(
         ("xss_protection", xss_protection),
         ("referrer_policy", referrer_policy),
         ("custom", custom_headers),
+        ("enable_cors", enable_cors),
+        ("cors_origins", cors_origins),
+        ("cors_allow_credentials", cors_allow_credentials),
+        ("cors_allow_methods", cors_allow_methods),
+        ("cors_allow_headers", cors_allow_headers),
+        ("cors_max_age", cors_max_age),
+        ("cors_expose_headers", cors_expose_headers),
     ):
         if value is not NOT_PASSED:
             passed[key] = value
@@ -218,3 +246,105 @@ def override_event_metadata(
         "override_values": dict(values),
         "dropped_values": dict(dropped_values),
     }
+
+
+CORS_OVERRIDE_KEYS = frozenset(
+    {
+        "enable_cors",
+        "cors_origins",
+        "cors_allow_credentials",
+        "cors_allow_methods",
+        "cors_allow_headers",
+        "cors_max_age",
+        "cors_expose_headers",
+    }
+)
+
+
+def _is_string_list(value: Any) -> bool:
+    return isinstance(value, list) and all(isinstance(item, str) for item in value)
+
+
+def _is_bool(value: Any) -> bool:
+    return isinstance(value, bool)
+
+
+def _is_seconds(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+
+_CORS_RULES: dict[str, tuple[Callable[[Any], bool], str]] = {
+    "cors_origins": (_is_string_list, "a list of strings"),
+    "cors_allow_methods": (_is_string_list, "a list of strings"),
+    "cors_allow_headers": (_is_string_list, "a list of strings"),
+    "cors_expose_headers": (_is_string_list, "a list of strings"),
+    "enable_cors": (_is_bool, "a bool"),
+    "cors_allow_credentials": (_is_bool, "a bool"),
+    "cors_max_age": (_is_seconds, "a non-negative integer"),
+}
+
+
+def validate_cors_override(keys: Mapping[str, Any]) -> None:
+    for name, (valid, expected) in _CORS_RULES.items():
+        if name in keys and not valid(keys[name]):
+            raise ValueError(f"{name} must be {expected}")
+
+
+@dataclass(frozen=True)
+class CorsParams:
+    enabled: bool
+    origins: tuple[str, ...]
+    credentials: bool
+    methods: tuple[str, ...]
+    headers: tuple[str, ...]
+    max_age: int
+    expose: tuple[str, ...]
+
+
+def cors_params_of(config: Any) -> CorsParams:
+    return CorsParams(
+        enabled=bool(config.enable_cors),
+        origins=tuple(config.cors_allow_origins or ()),
+        credentials=bool(config.cors_allow_credentials),
+        methods=tuple(config.cors_allow_methods or ()),
+        headers=tuple(config.cors_allow_headers or ()),
+        max_age=int(config.cors_max_age),
+        expose=tuple(config.cors_expose_headers or ()),
+    )
+
+
+def merge_cors(
+    base: CorsParams, keys: Mapping[str, Any]
+) -> tuple[CorsParams, str | None]:
+    """The app's CORS with the override's passed keys applied, and why it was refused.
+
+    A merge that would be a wildcard origin with credentials is refused: the app
+    keeps its own CORS and the reason is returned.
+    """
+    if not CORS_OVERRIDE_KEYS & keys.keys():
+        return base, None
+    merged = CorsParams(
+        enabled=keys.get("enable_cors", base.enabled),
+        origins=tuple(keys.get("cors_origins", base.origins)),
+        credentials=keys.get("cors_allow_credentials", base.credentials),
+        methods=tuple(keys.get("cors_allow_methods", base.methods)),
+        headers=tuple(keys.get("cors_allow_headers", base.headers)),
+        max_age=keys.get("cors_max_age", base.max_age),
+        expose=tuple(keys.get("cors_expose_headers", base.expose)),
+    )
+    if merged.enabled and "*" in merged.origins and merged.credentials:
+        return base, "a wildcard origin cannot be combined with credentials"
+    return merged, None
+
+
+def cors_widens(base: CorsParams, merged: CorsParams) -> bool:
+    if not merged.enabled:
+        return False
+    if not base.enabled:
+        return True
+    added = (
+        set(merged.origins) - set(base.origins),
+        {m.upper() for m in merged.methods} - {m.upper() for m in base.methods},
+        {h.lower() for h in merged.headers} - {h.lower() for h in base.headers},
+    )
+    return (merged.credentials and not base.credentials) or any(added)

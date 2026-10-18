@@ -22,6 +22,7 @@ def test_default_config_builds_minimal_pipeline() -> None:
     assert pipeline.get_check_names() == [
         "route_config",
         "ip_security",
+        "cors_preflight",
         "rate_limit",
         "suspicious_activity",
     ]
@@ -49,6 +50,7 @@ def test_fully_enabled_config_builds_all_checks_in_canonical_order() -> None:
         "ip_security",
         "cloud_provider",
         "user_agent",
+        "cors_preflight",
         "rate_limit",
         "required_headers",
         "authentication",
@@ -79,6 +81,7 @@ def test_enable_dynamic_rules_keeps_mutable_checks_with_every_flag_off() -> None
         "ip_security",
         "cloud_provider",
         "user_agent",
+        "cors_preflight",
         "rate_limit",
         "suspicious_activity",
     ]
@@ -96,6 +99,7 @@ def test_unknown_route_configs_keeps_every_route_driven_check() -> None:
         "ip_security",
         "cloud_provider",
         "user_agent",
+        "cors_preflight",
         "rate_limit",
         "required_headers",
         "authentication",

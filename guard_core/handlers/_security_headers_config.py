@@ -13,11 +13,13 @@ from guard_core._security_headers_defaults import (
 from guard_core._security_headers_override import (
     NOT_PASSED,
     PERMISSIONS_POLICY_NOT_PASSED,
+    CorsParams,
     OverrideRecord,
     _NotPassed,
     apply_override,
     override_from_call,
     passed_or,
+    validate_cors_override,
 )
 from guard_core.models import SecurityConfig
 
@@ -37,6 +39,11 @@ class SecurityHeadersConfigMixin:
 
     @abstractmethod
     def _current_override(self) -> OverrideRecord: ...
+
+    @abstractmethod
+    def cors_params_for(
+        self, config: SecurityConfig, current: OverrideRecord | None = None
+    ) -> CorsParams: ...
 
     @abstractmethod
     def _record_override_from_call(self, passed: dict[str, Any]) -> None: ...
@@ -138,9 +145,14 @@ class SecurityHeadersConfigMixin:
         cors_allow_credentials: bool,
         cors_allow_methods: list[str] | None,
         cors_allow_headers: list[str] | None,
+        cors_max_age: int | None = None,
     ) -> None:
         self.cors_config = self._compute_cors_config(
-            cors_origins, cors_allow_credentials, cors_allow_methods, cors_allow_headers
+            cors_origins,
+            cors_allow_credentials,
+            cors_allow_methods,
+            cors_allow_headers,
+            cors_max_age,
         )
 
     def _reset_or_apply_header(
@@ -273,17 +285,18 @@ class SecurityHeadersConfigMixin:
         return headers
 
     def _resolve_cors_state(
-        self, config: SecurityConfig | None
+        self, config: SecurityConfig | None, override: OverrideRecord | None = None
     ) -> dict[str, Any] | None:
         if config is None:
             return self.cors_config
 
+        params = self.cors_params_for(config, override)
         return self._compute_cors_config(
-            config.cors_allow_origins if config.enable_cors else None,
-            config.cors_allow_credentials,
-            config.cors_allow_methods,
-            config.cors_allow_headers,
-            config.cors_max_age,
+            list(params.origins) if params.enabled else None,
+            params.credentials,
+            list(params.methods),
+            list(params.headers),
+            params.max_age,
         )
 
     def configure(
@@ -300,10 +313,13 @@ class SecurityHeadersConfigMixin:
         referrer_policy: str | None | _NotPassed = NOT_PASSED,
         permissions_policy: str | None = PERMISSIONS_POLICY_NOT_PASSED,
         custom_headers: dict[str, str] | None | _NotPassed = NOT_PASSED,
-        cors_origins: list[str] | None = None,
-        cors_allow_credentials: bool = False,
-        cors_allow_methods: list[str] | None = None,
-        cors_allow_headers: list[str] | None = None,
+        cors_origins: list[str] | None | _NotPassed = NOT_PASSED,
+        cors_allow_credentials: bool | _NotPassed = NOT_PASSED,
+        cors_allow_methods: list[str] | None | _NotPassed = NOT_PASSED,
+        cors_allow_headers: list[str] | None | _NotPassed = NOT_PASSED,
+        enable_cors: bool | _NotPassed = NOT_PASSED,
+        cors_max_age: int | None | _NotPassed = NOT_PASSED,
+        cors_expose_headers: list[str] | None | _NotPassed = NOT_PASSED,
         override_apps: bool = False,
     ) -> None:
         passed = override_from_call(
@@ -318,7 +334,16 @@ class SecurityHeadersConfigMixin:
             referrer_policy=referrer_policy,
             permissions_policy=permissions_policy,
             custom_headers=custom_headers,
+            enable_cors=enable_cors,
+            cors_origins=cors_origins,
+            cors_allow_credentials=cors_allow_credentials,
+            cors_allow_methods=cors_allow_methods,
+            cors_allow_headers=cors_allow_headers,
+            cors_max_age=cors_max_age,
+            cors_expose_headers=cors_expose_headers,
         )
+        if override_apps:
+            validate_cors_override(passed)
         self.enabled = passed_or(enabled, True)
         self.headers_cache.clear()
 
@@ -329,7 +354,11 @@ class SecurityHeadersConfigMixin:
             passed_or(hsts_preload, False),
         )
         self._configure_cors(
-            cors_origins, cors_allow_credentials, cors_allow_methods, cors_allow_headers
+            passed_or(cors_origins, None),
+            passed_or(cors_allow_credentials, False),
+            passed_or(cors_allow_methods, None),
+            passed_or(cors_allow_headers, None),
+            passed_or(cors_max_age, None),
         )
         self._update_default_headers(
             passed_or(frame_options, None),

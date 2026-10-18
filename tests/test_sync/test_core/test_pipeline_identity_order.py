@@ -47,6 +47,7 @@ def test_ip_security_and_rate_limit_run_before_the_identity_checks() -> None:
         "user_agent",
     ]
     assert names[9:] == [
+        "cors_preflight",
         "rate_limit",
         "required_headers",
         "authentication",
