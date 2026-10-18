@@ -287,15 +287,18 @@ async def test_the_keys_helper_returns_the_matching_keys_and_none_when_disabled(
     assert await RedisManager(SecurityConfig(enable_redis=False)).keys("*") is None
 
 
-async def test_the_unbatched_scan_unlink_walks_more_than_one_batch(
+async def test_the_scan_unlink_walks_more_than_one_batch_in_three_unlinks(
     redis: RedisManager,
 ) -> None:
     async with redis.get_connection() as conn:
         for number in range(1200):
             await conn.set(f"{redis.config.redis_prefix}bulk:{number}", "1")
+    unlinks_before = await _command_calls(redis, "unlink")
 
     assert await redis.delete_pattern("bulk:*") == 1200
+
     assert await _keys(redis, "bulk:*") == []
+    assert await _command_calls(redis, "unlink") - unlinks_before == 3
 
 
 def _guarded(config: SecurityConfig) -> RateLimitManager:

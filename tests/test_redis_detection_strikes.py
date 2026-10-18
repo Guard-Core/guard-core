@@ -125,3 +125,28 @@ async def test_a_disabled_redis_records_and_forgets_nothing() -> None:
         {},
     )
     await manager.forget_detection_strikes(IP)
+
+
+async def test_the_category_read_names_the_rate_limit_violations(
+    redis: RedisManager,
+) -> None:
+    await _record(redis, ("xss",))
+    async with redis.get_connection() as conn:
+        key = f"{redis.config.redis_prefix}rate_limit:violations:{IP}"
+        await conn.zadd(key, {"member": time.time()})
+
+    found = await redis.read_detection_categories(IP, time.time() - WINDOW)
+
+    assert found == ["rate_limit", "xss"]
+    other = await redis.read_detection_categories("203.0.113.201", time.time() - 1)
+    assert other == []
+
+
+async def test_the_category_read_drops_categories_outside_the_window(
+    redis: RedisManager,
+) -> None:
+    now = time.time()
+    await _record(redis, ("xss",), at=now - 100)
+
+    assert await redis.read_detection_categories(IP, now - 50) == []
+    assert await redis.read_detection_categories(IP, now - 200) == []

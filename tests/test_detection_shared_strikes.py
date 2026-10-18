@@ -329,3 +329,20 @@ async def test_a_failed_clear_after_the_ban_is_logged_and_the_ban_stands(
 
     assert worker.bans == [(IP, 300, "penetration_attempt")]
     assert any("could not be cleared" in r.getMessage() for r in caplog.records)
+
+
+async def test_passive_mode_never_records_a_shared_strike() -> None:
+    from guard_core.core.checks._shared_strikes import (
+        record_shared_detection_strikes,
+    )
+
+    config = _config(passive_mode=True)
+    middleware = MagicMock()
+    middleware.config = config
+    redis = Mock(record_detection_strikes=AsyncMock(return_value=(1, 0, {"xss": 1})))
+    middleware.rate_limit_handler.redis_handler = redis
+
+    shared = await record_shared_detection_strikes(middleware, IP, ("xss",), 3600, 10)
+
+    assert shared is None
+    redis.record_detection_strikes.assert_not_called()
