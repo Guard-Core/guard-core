@@ -98,7 +98,7 @@ class _HandlerInitializerStepsMixin:
                 route_config.blocked_countries or route_config.whitelist_countries
             ):
                 decorators.append("block_countries or allow_countries")
-            if self.config.geo_ip_handler is None and route_config.geo_rate_limits:
+            if self.geo_ip_handler is None and route_config.geo_rate_limits:
                 decorators.append("geo_rate_limit")
             for decorator in decorators:
                 report_misconfiguration(

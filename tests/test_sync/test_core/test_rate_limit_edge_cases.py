@@ -167,7 +167,7 @@ def test_check_geo_rate_limit_no_geo_handler(
     mock_request: Mock,
     security_config: SecurityConfig,
 ) -> None:
-    security_config.geo_ip_handler = None
+    cast(Mock, rate_limit_check.middleware).geo_ip_handler = None
     route_config = Mock()
     route_config.geo_rate_limits = {"US": (10, 60)}
 
@@ -184,7 +184,7 @@ def test_check_geo_rate_limit_country_match(
 ) -> None:
     geo_handler = Mock()
     geo_handler.get_country.return_value = "US"
-    security_config.geo_ip_handler = geo_handler
+    cast(Mock, rate_limit_check.middleware).geo_ip_handler = geo_handler
 
     route_config = Mock()
     route_config.geo_rate_limits = {"US": (10, 60)}
@@ -208,7 +208,7 @@ def test_check_geo_rate_limit_wildcard_match(
 ) -> None:
     geo_handler = Mock()
     geo_handler.get_country.return_value = "FR"
-    security_config.geo_ip_handler = geo_handler
+    cast(Mock, rate_limit_check.middleware).geo_ip_handler = geo_handler
 
     route_config = Mock()
     route_config.geo_rate_limits = {"US": (10, 60), "*": (5, 30)}
@@ -233,7 +233,7 @@ def test_check_geo_rate_limit_no_match(
 ) -> None:
     geo_handler = Mock()
     geo_handler.get_country.return_value = "FR"
-    security_config.geo_ip_handler = geo_handler
+    cast(Mock, rate_limit_check.middleware).geo_ip_handler = geo_handler
 
     route_config = Mock()
     route_config.geo_rate_limits = {"US": (10, 60)}
@@ -251,7 +251,7 @@ def test_check_geo_rate_limit_no_country(
 ) -> None:
     geo_handler = Mock()
     geo_handler.get_country.return_value = None
-    security_config.geo_ip_handler = geo_handler
+    cast(Mock, rate_limit_check.middleware).geo_ip_handler = geo_handler
 
     route_config = Mock()
     route_config.geo_rate_limits = {"*": (5, 30)}
@@ -273,7 +273,7 @@ def test_check_geo_rate_limit_exceeded_without_decorator_uses_event_bus(
 ) -> None:
     geo_handler = Mock()
     geo_handler.get_country.return_value = "US"
-    security_config.geo_ip_handler = geo_handler
+    cast(Mock, rate_limit_check.middleware).geo_ip_handler = geo_handler
     mock_middleware.rate_limit_handler.check_rate_limit = MagicMock(
         return_value=Mock(status_code=429)
     )
@@ -306,7 +306,7 @@ def test_check_geo_rate_limit_exceeded_with_decorator_uses_send_decorator_event(
 
     geo_handler = Mock()
     geo_handler.get_country.return_value = "US"
-    security_config.geo_ip_handler = geo_handler
+    cast(Mock, rate_limit_check.middleware).geo_ip_handler = geo_handler
     mock_middleware.rate_limit_handler.check_rate_limit = MagicMock(
         return_value=Mock(status_code=429)
     )

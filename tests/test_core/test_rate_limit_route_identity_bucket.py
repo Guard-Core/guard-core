@@ -15,9 +15,9 @@ def check() -> RateLimitCheck:
     config = SecurityConfig(enable_redis=False)
     geo_handler = Mock()
     geo_handler.get_country.return_value = "US"
-    config.geo_ip_handler = geo_handler
     middleware = Mock()
     middleware.config = config
+    middleware.geo_ip_handler = geo_handler
     middleware.rate_limit_handler.check_rate_limit = AsyncMock(return_value=None)
     return RateLimitCheck(middleware)
 

@@ -33,7 +33,9 @@ class RateLimitingMixin(BaseSecurityMixin):
                         "least 1."
                     )
             route_config = self._ensure_route_config(func)
-            route_config.geo_rate_limits = limits
+            route_config.geo_rate_limits = {
+                country.upper(): entry for country, entry in limits.items()
+            }
             return self._apply_route_config(func)
 
         return decorator

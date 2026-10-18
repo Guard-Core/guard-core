@@ -309,7 +309,7 @@ class RateLimitCheck(SecurityCheck):
         if not route_config or not route_config.geo_rate_limits:
             return None
 
-        geo_handler = self.config.geo_ip_handler
+        geo_handler = self.middleware.geo_ip_handler
         if not geo_handler:
             return None
 
