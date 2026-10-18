@@ -13,6 +13,7 @@ from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.core.checks.endpoint_limit_keys import EndpointLimitKeyMap
 from guard_core.sync.core.checks.helpers import (
     _increment_suspicious_counts,
+    _ip_strike_counts,
     _log_exception_safely,
     _try_threshold_ban,
     emit_decorator_event,
@@ -207,7 +208,7 @@ class RateLimitCheck(SecurityCheck):
                 reason="rate_limit_exceeded",
                 ip_counts=shared
                 if shared is not None
-                else self.middleware.suspicious_request_counts.get(identity, {}),
+                else _ip_strike_counts(self.middleware, identity),
             )
             if banned and shared is not None:
                 forget_shared_violations(self._shared_redis(), identity)

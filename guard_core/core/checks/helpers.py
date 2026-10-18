@@ -7,6 +7,7 @@ from ipaddress import ip_address
 from typing import TYPE_CHECKING, Any, cast
 from urllib.parse import urlparse
 
+from guard_core._utils.ip_extraction import _client_identity
 from guard_core.core.checks._shared_strikes import (
     SharedStrikes,
     StrikeReport,
@@ -39,6 +40,20 @@ SUSPICIOUS_COUNT_WINDOW_SECONDS = 3600
 _MAX_RETAINED_EVENTS_PER_CATEGORY = 10_000
 _DETECTION_RESULT_STATE_ATTR = "_guard_detection_result_cache"
 _suspicious_counts_lock = threading.Lock()
+
+
+def _strike_identity(config: SecurityConfig, client_ip: str) -> str:
+    if ":" not in client_ip:
+        return client_ip
+    return _client_identity(client_ip, config.ipv6_prefix_length)
+
+
+def _ip_strike_counts(
+    middleware: "GuardMiddlewareProtocol", client_ip: str
+) -> Mapping[str, int]:
+    return middleware.suspicious_request_counts.get(
+        _strike_identity(middleware.config, client_ip), {}
+    )
 
 
 def get_guard_decorator(middleware: Any, request: GuardRequest) -> Any:
@@ -464,12 +479,13 @@ def _increment_suspicious_counts(
     categories: str | Collection[str],
 ) -> None:
     resolved_categories = strike_categories(categories)
+    strike_key = _strike_identity(middleware.config, client_ip)
     now = time.monotonic()
     retain = _MAX_RETAINED_EVENTS_PER_CATEGORY
     register_strike_middleware(middleware)
     with _suspicious_counts_lock:
         counts = middleware.suspicious_request_counts
-        existing = counts.pop(client_ip, None)
+        existing = counts.pop(strike_key, None)
         if existing is None:
             if len(counts) >= middleware.config.ban_counters_max_tracked_ips:
                 oldest_ip = next(iter(counts))
@@ -486,14 +502,15 @@ def _increment_suspicious_counts(
             category != _RATE_LIMIT_FEED_CATEGORY for category in resolved_categories
         ):
             ip_counts.record_request(now, retain)
-        counts[client_ip] = ip_counts
+        counts[strike_key] = ip_counts
 
 
 def _forget_suspicious_counts(
     middleware: "GuardMiddlewareProtocol", client_ip: str
 ) -> None:
+    strike_key = _strike_identity(middleware.config, client_ip)
     with _suspicious_counts_lock:
-        middleware.suspicious_request_counts.pop(client_ip, None)
+        middleware.suspicious_request_counts.pop(strike_key, None)
 
 
 def _flat_threshold_total(
@@ -604,10 +621,11 @@ async def _try_threshold_ban(
     strikes: StrikeReport | None = None,
 ) -> bool:
     shared: SharedStrikes | None = None
+    strike_key = _strike_identity(config, client_ip)
     if ip_counts is None:
         shared = await record_shared_detection_strikes(
             middleware,
-            client_ip,
+            strike_key,
             threat_categories,
             SUSPICIOUS_COUNT_WINDOW_SECONDS,
             _MAX_RETAINED_EVENTS_PER_CATEGORY,
@@ -615,7 +633,7 @@ async def _try_threshold_ban(
         ip_counts = (
             shared.counts
             if shared is not None
-            else middleware.suspicious_request_counts.get(client_ip, {})
+            else middleware.suspicious_request_counts.get(strike_key, {})
         )
     result = await _resolve_and_apply_threshold_ban(
         ip_ban_manager=ip_ban_manager,
@@ -633,7 +651,7 @@ async def _try_threshold_ban(
         return False
     _forget_suspicious_counts(middleware, client_ip)
     if shared is not None:
-        await forget_shared_detection_strikes(middleware, client_ip)
+        await forget_shared_detection_strikes(middleware, strike_key)
     _, _, category = result
     log_reason = (
         f"IP banned due to {category} threshold: {client_ip} - {trigger_info}"
@@ -791,9 +809,7 @@ async def escalate_identity_violation(
             action_taken="banned" if banned else "tracked",
             reason=f"Identity violation escalated: {trigger_info}",
             request_count=strikes.count_or(
-                lambda: sum(
-                    middleware.suspicious_request_counts.get(client_ip, {}).values()
-                )
+                lambda: sum(_ip_strike_counts(middleware, client_ip).values())
             ),
             trigger_info=trigger_info,
             violation_category=violation_category,

@@ -140,22 +140,31 @@ class BehavioralThrottleMixin:
     def _collect_correlated_categories(self, client_ip: str) -> list[str]:
         if self.context.middleware is None:
             return []
+        from guard_core.sync.core.checks.helpers import _strike_identity
+
         counts = getattr(self.context.middleware, "suspicious_request_counts", {})
-        ip_counts = dict(counts.get(client_ip, {}))
+        ip_counts = dict(
+            counts.get(_strike_identity(self.context.config, client_ip), {})
+        )
         return sorted(cat for cat, n in ip_counts.items() if n > 0)
 
     def _shared_or_process_categories(self, tracker: Any, client_ip: str) -> list[str]:
         from guard_core.sync.core.checks._shared_strikes import (
             read_shared_detection_categories,
         )
-        from guard_core.sync.core.checks.helpers import SUSPICIOUS_COUNT_WINDOW_SECONDS
+        from guard_core.sync.core.checks.helpers import (
+            SUSPICIOUS_COUNT_WINDOW_SECONDS,
+            _strike_identity,
+        )
 
         redis_handler = getattr(tracker, "redis_handler", None)
         if self.context.middleware is not None and (
             redis_handler and redis_handler.config.enable_redis
         ):
             shared = read_shared_detection_categories(
-                redis_handler, client_ip, SUSPICIOUS_COUNT_WINDOW_SECONDS
+                redis_handler,
+                _strike_identity(self.context.config, client_ip),
+                SUSPICIOUS_COUNT_WINDOW_SECONDS,
             )
             if shared is not None:
                 return shared

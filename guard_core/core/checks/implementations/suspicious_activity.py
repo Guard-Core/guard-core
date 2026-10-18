@@ -8,6 +8,7 @@ from guard_core.core.checks._shared_strikes import StrikeReport
 from guard_core.core.checks.base import SecurityCheck
 from guard_core.core.checks.helpers import (
     _increment_suspicious_counts,
+    _ip_strike_counts,
     _try_threshold_ban,
     get_cached_detection_result,
     route_config_applies,
@@ -68,7 +69,7 @@ class SuspiciousActivityCheck(SecurityCheck):
         )
 
     def _total_count_for_ip(self, client_ip: str) -> int:
-        ip_counts = self.middleware.suspicious_request_counts.get(client_ip, {})
+        ip_counts = _ip_strike_counts(self.middleware, client_ip)
         request_total = getattr(ip_counts, "request_total", None)
         return sum(ip_counts.values()) if request_total is None else request_total
 
