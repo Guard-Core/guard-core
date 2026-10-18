@@ -466,6 +466,17 @@ def _forget_suspicious_counts(
         middleware.suspicious_request_counts.pop(client_ip, None)
 
 
+def _flat_threshold_total(
+    ip_counts: Mapping[str, int], threat_categories: Collection[str]
+) -> int:
+    rate_limit_feed = "rate_limit" in threat_categories
+    return sum(
+        count
+        for category, count in ip_counts.items()
+        if (category == "rate_limit") == rate_limit_feed
+    )
+
+
 async def _resolve_and_apply_threshold_ban(
     ip_counts: Mapping[str, int],
     config: SecurityConfig,
@@ -479,8 +490,12 @@ async def _resolve_and_apply_threshold_ban(
 
     Tries ``threat_ban_config`` per-category entries first (in ``threat_categories``
     order), then the flat ``auto_ban_threshold``/``auto_ban_duration`` against the
-    total of all categories in ``ip_counts``. ``default_entries`` supplies a
-    per-category entry used when the user configured none. Returns
+    total of the categories on the same side of the ``rate_limit`` line: a
+    rate-limit feed counts only ``rate_limit`` violations and every other feed counts
+    everything except them, so old detection hits never push a rate-limit ban over
+    the threshold and rate-limit violations never push a detection ban over it.
+    ``default_entries`` supplies a per-category entry used when the user
+    configured none. Returns
     ``(duration, ban_reason, category)`` when a ban was applied (``category`` is
     ``None`` for the flat fallback), or ``None`` when banning is disabled, no
     threshold crossed, or ``ban_ip`` refused the ban (self-DoS guard). Callers own
@@ -500,7 +515,7 @@ async def _resolve_and_apply_threshold_ban(
         if not applied:
             return None
         return entry.duration, ban_reason, category
-    total = sum(ip_counts.values())
+    total = _flat_threshold_total(ip_counts, threat_categories)
     if total < config.auto_ban_threshold:
         return None
     applied = await ip_ban_manager.ban_ip(client_ip, config.auto_ban_duration, reason)
