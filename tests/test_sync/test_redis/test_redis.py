@@ -463,7 +463,7 @@ def test_initialize_when_from_url_returns_none_skips_ping() -> None:
     config = SecurityConfig(enable_redis=True, redis_url="redis://localhost:6379")
     manager = RedisManager(config)
     with patch(
-        "guard_core.sync.handlers.redis_handler.Redis.from_url", return_value=None
+        "guard_core.sync.handlers.redis_handler._build_redis_client", return_value=None
     ):
         manager.initialize()
     assert manager._redis is None
@@ -487,7 +487,7 @@ def test_initialize_twice_closes_previous_client_exactly_once() -> None:
     second_client.close = MagicMock()
 
     with patch(
-        "guard_core.sync.handlers.redis_handler.Redis.from_url",
+        "guard_core.sync.handlers.redis_handler._build_redis_client",
         side_effect=[first_client, second_client],
     ):
         manager.initialize()
@@ -533,7 +533,7 @@ def test_initialize_ping_failure_closes_new_client_before_raising() -> None:
     failing_client.close = MagicMock()
 
     with patch(
-        "guard_core.sync.handlers.redis_handler.Redis.from_url",
+        "guard_core.sync.handlers.redis_handler._build_redis_client",
         return_value=failing_client,
     ):
         with pytest.raises(GuardRedisError):

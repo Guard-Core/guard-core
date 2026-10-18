@@ -40,7 +40,7 @@ redis_manager = RedisManager(config)
 await redis_manager.initialize()
 ```
 
-Creates a `redis.asyncio.Redis` connection from `config.redis_url` with `decode_responses=True`, applying the configured socket timeouts (`redis_socket_timeout`, `redis_socket_connect_timeout`), pool cap (`redis_max_connections`), health-check interval (`redis_health_check_interval`), and, when `redis_retries > 0`, a client-level `Retry` with exponential backoff on connection/timeout errors. Pings to verify connectivity. Raises `GuardRedisError(503)` on failure.
+Creates a `redis.asyncio.Redis` connection from `config.redis_url` with `decode_responses=True`, applying the configured socket timeouts (`redis_socket_timeout`, `redis_socket_connect_timeout`), blocking connection pool (`redis_max_connections` connections, 100 when unset, and `redis_pool_timeout` seconds of waiting for a free one), health-check interval (`redis_health_check_interval`), and, when `redis_retries > 0`, a client-level `Retry` with exponential backoff on connection/timeout errors. Pings to verify connectivity. Raises `GuardRedisError(503)` on failure.
 
 Since `RedisManager` is a singleton, calling `initialize()` again on the same instance (including with `enable_redis=False`, or after a failed connection attempt) first closes whatever client is already there via the same `aclose()` path `close()` uses, so the manager never holds more than one live client at a time. That close is best-effort: a failure (for example a client created on a different event loop than the one closing it) is logged as a warning and does not block creating the replacement.
 
@@ -161,7 +161,8 @@ Configuration
 | `redis_socket_connect_timeout`   | `float \| None`| `2.0`                     | Seconds to wait establishing a TCP connection (must be positive; `None` disables) |
 | `redis_socket_timeout`           | `float \| None`| `2.0`                     | Seconds to wait on a read/write (must be positive; `None` disables) |
 | `redis_health_check_interval`    | `int`          | `30`                      | Seconds between pooled-connection health checks (`0` disables) |
-| `redis_max_connections`          | `int \| None`  | `None`                    | Connection-pool cap (`None` uses redis-py's default) |
+| `redis_max_connections`          | `int \| None`  | `None`                    | Connection-pool cap (`None` uses a pool of 100) |
+| `redis_pool_timeout`             | `float`        | `1.0`                     | Seconds a call waits for a free pooled connection before it fails |
 | `redis_retries`                  | `int`          | `1`                       | Client-level retries with exponential backoff (`0` disables) |
 | `redis_fail_open`                | `bool`         | `False`                   | On Redis outage, skip the failing check instead of honoring `fail_secure` |
 

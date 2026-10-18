@@ -106,8 +106,17 @@ class _SecurityConfigFields(BaseModel):
     redis_max_connections: int | None = Field(
         default=None,
         ge=1,
+        description=("Cap on the Redis connection pool size. None uses a pool of 100."),
+    )
+
+    redis_pool_timeout: float = Field(
+        default=1.0,
+        gt=0.0,
         description=(
-            "Cap on the Redis connection pool size. None uses redis-py's default."
+            "Seconds a Redis call waits for a free connection when every "
+            "connection in the pool is in use, before it fails and "
+            "redis_fail_open decides the outcome. The pool holds "
+            "redis_max_connections connections (100 when that is None)."
         ),
     )
 

@@ -20,7 +20,7 @@ def test_connection_kwargs_from_config() -> None:
     assert kwargs["socket_timeout"] == 0.5
     assert kwargs["socket_connect_timeout"] == 0.25
     assert kwargs["health_check_interval"] == 15
-    assert kwargs["max_connections"] == 20
+    assert "max_connections" not in kwargs
     assert "retry" in kwargs
     assert kwargs["retry_on_error"]
 
@@ -37,7 +37,6 @@ def test_connection_kwargs_retries_disabled() -> None:
 
     assert "retry" not in kwargs
     assert "retry_on_error" not in kwargs
-    assert "max_connections" not in kwargs
 
 
 def test_initialize_passes_connection_kwargs() -> None:
@@ -49,13 +48,52 @@ def test_initialize_passes_connection_kwargs() -> None:
     handler = redis_handler(config)
 
     with patch(
-        "guard_core.sync.handlers.redis_handler.Redis.from_url"
-    ) as mock_from_url:
-        mock_from_url.return_value = MagicMock()
+        "guard_core.sync.handlers.redis_handler._build_redis_client"
+    ) as mock_build:
+        mock_build.return_value = MagicMock()
         handler.initialize()
 
-    _, kwargs = mock_from_url.call_args
-    assert kwargs["decode_responses"] is True
+    args, kwargs = mock_build.call_args
+    assert args == ("redis://localhost:6379", 100, 1.0)
     assert kwargs["socket_timeout"] == 0.5
     assert kwargs["socket_connect_timeout"] == 0.25
     handler.close()
+
+
+def test_initialize_passes_the_pool_size_and_timeout() -> None:
+    config = SecurityConfig(
+        redis_url="redis://localhost:6379",
+        redis_max_connections=20,
+        redis_pool_timeout=0.4,
+    )
+    handler = redis_handler(config)
+
+    with patch(
+        "guard_core.sync.handlers.redis_handler._build_redis_client"
+    ) as mock_build:
+        mock_build.return_value = MagicMock()
+        handler.initialize()
+
+    args, _ = mock_build.call_args
+    assert args == ("redis://localhost:6379", 20, 0.4)
+    handler.close()
+
+
+def test_the_client_is_built_on_a_blocking_pool() -> None:
+    from redis import BlockingConnectionPool
+
+    from guard_core.sync.handlers.redis_handler import _build_redis_client
+
+    client = _build_redis_client(
+        "redis://localhost:6379", 7, 0.5, socket_timeout=0.5, health_check_interval=0
+    )
+    pool = client.connection_pool
+    try:
+        assert isinstance(pool, BlockingConnectionPool)
+        assert pool.max_connections == 7
+        assert pool.timeout == 0.5
+        assert pool.connection_kwargs["decode_responses"] is True
+        assert pool.connection_kwargs["socket_timeout"] == 0.5
+        assert client.auto_close_connection_pool is True
+    finally:
+        client.close()

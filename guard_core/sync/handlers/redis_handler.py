@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
-from redis import Redis
+from redis import BlockingConnectionPool, Redis
 from redis.backoff import ExponentialBackoff
 from redis.exceptions import ConnectionError as RedisConnectionError
 from redis.exceptions import NoScriptError
@@ -51,6 +51,22 @@ def _redact_redis_url(url: str | None) -> str | None:
 
 
 _REDIS_HANDLER_NAME = "redis"
+_DEFAULT_POOL_SIZE = 100
+
+
+def _build_redis_client(
+    url: str, max_connections: int, pool_timeout: float, **connection_kwargs: Any
+) -> Redis:
+    pool = BlockingConnectionPool.from_url(
+        url,
+        max_connections=max_connections,
+        timeout=pool_timeout,
+        decode_responses=True,
+        **connection_kwargs,
+    )
+    return Redis.from_pool(pool)
+
+
 _SLIDING_WINDOW_SHA = hashlib.sha1(
     SLIDING_WINDOW_HIT_SCRIPT.encode(), usedforsecurity=False
 ).hexdigest()
@@ -120,8 +136,6 @@ class RedisManager:
             "socket_timeout": cfg.redis_socket_timeout,
             "health_check_interval": cfg.redis_health_check_interval,
         }
-        if cfg.redis_max_connections is not None:
-            kwargs["max_connections"] = cfg.redis_max_connections
         if cfg.redis_retries > 0:
             kwargs["retry"] = Retry(ExponentialBackoff(), cfg.redis_retries)
             kwargs["retry_on_error"] = [RedisConnectionError, RedisTimeoutError]
@@ -153,9 +167,10 @@ class RedisManager:
             new_redis: Redis | None = None
             try:
                 if config.redis_url is not None:
-                    new_redis = Redis.from_url(
+                    new_redis = _build_redis_client(
                         config.redis_url,
-                        decode_responses=True,
+                        config.redis_max_connections or _DEFAULT_POOL_SIZE,
+                        config.redis_pool_timeout,
                         **self._connection_kwargs(config),
                     )
                     if new_redis is not None:

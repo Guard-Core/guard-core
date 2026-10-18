@@ -121,7 +121,7 @@ def test_initialize_redacts_redis_url_password_on_connect_event() -> None:
     with (
         patch.object(RedisManager, "initialize", _REAL_REDIS_MANAGER_INITIALIZE),
         patch(
-            "guard_core.sync.handlers.redis_handler.Redis.from_url",
+            "guard_core.sync.handlers.redis_handler._build_redis_client",
             return_value=fake_redis,
         ),
     ):
@@ -148,7 +148,7 @@ def test_initialize_redacts_redis_url_password_on_error_event() -> None:
     with (
         patch.object(RedisManager, "initialize", _REAL_REDIS_MANAGER_INITIALIZE),
         patch(
-            "guard_core.sync.handlers.redis_handler.Redis.from_url",
+            "guard_core.sync.handlers.redis_handler._build_redis_client",
             side_effect=Exception("Connection refused"),
         ),
         pytest.raises(GuardRedisError),

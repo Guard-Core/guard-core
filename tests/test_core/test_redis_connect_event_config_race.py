@@ -33,7 +33,8 @@ async def test_connect_success_event_shows_connecting_configs_url() -> None:
     mock_client.ping.side_effect = _ping_after_concurrent_reconfigure
 
     with patch(
-        "guard_core.handlers.redis_handler.Redis.from_url", return_value=mock_client
+        "guard_core.handlers.redis_handler._build_redis_client",
+        return_value=mock_client,
     ):
         await handler.initialize()
 
@@ -61,7 +62,7 @@ async def test_connect_failure_event_shows_connecting_configs_url() -> None:
 
     with (
         patch(
-            "guard_core.handlers.redis_handler.Redis.from_url",
+            "guard_core.handlers.redis_handler._build_redis_client",
             return_value=mock_client,
         ),
         pytest.raises(Exception, match="Redis connection failed"),

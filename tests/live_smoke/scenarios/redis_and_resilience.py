@@ -1,6 +1,7 @@
 import subprocess
 import time
 from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 
 from tests.live_smoke.driver import PROJECT, STACK_DIR, ScenarioContext, wait_until
@@ -68,6 +69,31 @@ def redis_prefix_and_pool_tuning_survive_normal_operation(
 
     keys = wait_until(lambda: ctx.redis.keys("smoke_pool_test:*") or None, timeout=10.0)
     assert keys, "redis_prefix should namespace at least one written Redis key"
+
+
+POOL_BURST_CONFIG = {
+    "enable_redis": True,
+    "redis_prefix": "smoke_pool_burst:",
+    "redis_max_connections": 3,
+    "redis_pool_timeout": 5.0,
+    "enable_rate_limiting": True,
+    "rate_limit": 100000,
+    "rate_limit_window": 60,
+    "excluded_detection_headers": EXCLUDED_HEADERS,
+}
+
+
+@scenario(covers={"redis_pool_timeout"}, config=POOL_BURST_CONFIG)
+def a_burst_above_the_redis_pool_waits_instead_of_failing(
+    ctx: ScenarioContext,
+) -> None:
+    def hit(_: int) -> int:
+        return ctx.client.get("/basic/ip", params={"q": "hello"}).status_code
+
+    with ThreadPoolExecutor(max_workers=40) as executor:
+        statuses = list(executor.map(hit, range(120)))
+
+    assert statuses == [200] * 120, sorted(set(statuses))
 
 
 FAIL_SECURE_CONFIG = {
