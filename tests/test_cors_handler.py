@@ -122,13 +122,13 @@ def test_response_headers_for_disallowed_origin(cfg: SecurityConfig) -> None:
     headers = handler.build_response_headers(
         request_headers={"origin": "https://attacker.example.com"}
     )
-    assert headers == {}
+    assert headers == {"Vary": "Origin"}
 
 
-def test_response_headers_with_no_origin_returns_empty(cfg: SecurityConfig) -> None:
+def test_response_headers_with_no_origin_return_only_vary(cfg: SecurityConfig) -> None:
     handler = CorsHandler(cfg)
     headers = handler.build_response_headers(request_headers={})
-    assert headers == {}
+    assert headers == {"Vary": "Origin"}
 
 
 def test_wildcard_origin_with_credentials_raises_at_init() -> None:

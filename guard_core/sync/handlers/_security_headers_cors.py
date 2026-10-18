@@ -67,9 +67,14 @@ class SecurityHeadersCorsMixin:
         cors_headers = {
             "Access-Control-Allow-Origin": origin if origin in allowed_origins else "*",
             "Access-Control-Allow-Methods": ", ".join(allow_methods),
-            "Access-Control-Allow-Headers": ", ".join(allow_headers),
-            "Access-Control-Max-Age": "3600",
+            "Access-Control-Max-Age": str(
+                effective_cors_config.get("max_age", 3600)
+                if effective_cors_config
+                else 3600
+            ),
         }
+        if allow_headers:
+            cors_headers["Access-Control-Allow-Headers"] = ", ".join(allow_headers)
 
         if effective_cors_config and effective_cors_config.get("allow_credentials"):
             cors_headers["Access-Control-Allow-Credentials"] = "true"

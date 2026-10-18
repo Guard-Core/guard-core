@@ -91,6 +91,7 @@ class SecurityHeadersConfigMixin:
         cors_allow_credentials: bool,
         cors_allow_methods: list[str] | None,
         cors_allow_headers: list[str] | None,
+        cors_max_age: int | None = None,
     ) -> dict[str, Any] | None:
         if not cors_origins:
             return None
@@ -102,10 +103,13 @@ class SecurityHeadersConfigMixin:
             cors_allow_credentials = False
 
         return {
-            "origins": cors_origins,
+            "origins": [origin.rstrip("/") for origin in cors_origins],
             "allow_credentials": cors_allow_credentials,
             "allow_methods": cors_allow_methods or ["GET", "POST"],
-            "allow_headers": cors_allow_headers or ["*"],
+            "allow_headers": ["*"]
+            if cors_allow_headers is None
+            else list(cors_allow_headers),
+            "max_age": 3600 if cors_max_age is None else cors_max_age,
         }
 
     def _configure_cors(
@@ -255,6 +259,7 @@ class SecurityHeadersConfigMixin:
             config.cors_allow_credentials,
             config.cors_allow_methods,
             config.cors_allow_headers,
+            config.cors_max_age,
         )
 
     def configure(

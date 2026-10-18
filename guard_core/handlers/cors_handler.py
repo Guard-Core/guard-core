@@ -23,6 +23,15 @@ def _lower_headers(headers: Mapping[str, str]) -> dict[str, str]:
     return {k.lower(): v for k, v in headers.items()}
 
 
+def _merge_vary(existing: str | None) -> str:
+    if not existing or not existing.strip():
+        return "Origin"
+    tokens = {token.strip().lower() for token in existing.split(",")}
+    if tokens & {"origin", "*"}:
+        return existing
+    return f"{existing}, Origin"
+
+
 class CorsHandler:
     def __init__(self, config: SecurityConfig) -> None:
         self.config = config
@@ -50,14 +59,14 @@ class CorsHandler:
                 "CORS misconfiguration: wildcard origin '*' is incompatible "
                 "with cors_allow_credentials=True"
             )
-        self._allow_origins = set(origins)
+        self._allow_origins = {origin.rstrip("/") for origin in origins}
         self._allow_methods = [
             m.upper() for m in (config.cors_allow_methods or ["GET"])
         ]
         self._allow_headers = [h.lower() for h in (config.cors_allow_headers or [])]
         self._allow_all_headers = "*" in self._allow_headers
         self._allow_credentials = bool(config.cors_allow_credentials)
-        self._max_age = int(config.cors_max_age or 600)
+        self._max_age = int(config.cors_max_age)
         self._expose_headers = list(config.cors_expose_headers or [])
 
     def is_origin_allowed(self, origin: str) -> bool:
@@ -142,23 +151,23 @@ class CorsHandler:
         )
 
     def build_response_headers(
-        self, request_headers: Mapping[str, str]
+        self, request_headers: Mapping[str, str], existing_vary: str | None = None
     ) -> dict[str, str]:
         if not self._enabled:
             return {}
         headers = _lower_headers(request_headers)
         origin = headers.get("origin", "")
-        if not origin:
-            return {}
 
-        result: dict[str, str] = {"Vary": "Origin"}
+        result: dict[str, str] = {"Vary": _merge_vary(existing_vary)}
+        if not origin:
+            return result
 
         if self._allow_all and not self._allow_credentials:
             result["Access-Control-Allow-Origin"] = "*"
         elif self.is_origin_allowed(origin):
             result["Access-Control-Allow-Origin"] = origin
         else:
-            return {}
+            return result
 
         if self._allow_credentials:
             result["Access-Control-Allow-Credentials"] = "true"
