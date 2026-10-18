@@ -157,8 +157,8 @@ async def test_two_workers_with_the_same_new_whitelist_run_one_scan(
     one_run = await _scans(redis) - before
     await reset_strikes_for_changed_whitelist(config, redis, ban_manager)
 
-    assert one_run == 3
-    assert await _scans(redis) - before == 3
+    assert one_run == 4
+    assert await _scans(redis) - before == 4
 
 
 async def test_a_worker_that_finds_the_lock_taken_scans_nothing(
@@ -244,7 +244,7 @@ async def test_a_redis_error_while_reading_the_fingerprint_does_not_stop_the_sta
     assert any("could not be reset" in r.getMessage() for r in caplog.records)
 
 
-async def test_an_empty_whitelist_stores_its_fingerprint_without_a_scan(
+async def test_an_empty_whitelist_stores_its_fingerprint_with_only_the_carve_scan(
     redis: RedisManager, ban_manager: IPBanManager
 ) -> None:
     config = _config(redis_prefix=redis.config.redis_prefix)
@@ -253,7 +253,7 @@ async def test_an_empty_whitelist_stores_its_fingerprint_without_a_scan(
     await reset_strikes_for_changed_whitelist(config, redis, ban_manager)
 
     assert await _keys(redis, "whitelist:strikes_applied")
-    assert await _scans(redis) == before
+    assert await _scans(redis) - before == 1
 
 
 async def test_a_disabled_redis_takes_no_lock() -> None:

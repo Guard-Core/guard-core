@@ -24,7 +24,10 @@ class IpBanMigrationMixin:
     async def initialize_redis(self, redis_handler: Any) -> None:
         self.redis_handler = redis_handler
         await self._migrate_legacy_ban_keys()
-        await enforce_prefix_length_contract(redis_handler, self.config, self.logger)
+        if redis_handler is not None:
+            await enforce_prefix_length_contract(
+                redis_handler, self.config, self.logger
+            )
 
     async def _migrate_legacy_ban_keys(self) -> None:
         if self.redis_handler is None:

@@ -9,6 +9,7 @@ from guard_core.handlers._ipban_cache import (
     _Network,
     _ObservableTTLCache,
 )
+from guard_core.handlers._ipban_carve import IpBanCarveMixin
 from guard_core.handlers._ipban_migration import (
     _BANNED_IPS_NAMESPACE,
     IpBanMigrationMixin,
@@ -30,7 +31,9 @@ __all__ = [
 ]
 
 
-class IPBanManager(IpBanMigrationMixin, IpBanOperationsMixin, IpBanQueryMixin):
+class IPBanManager(
+    IpBanMigrationMixin, IpBanOperationsMixin, IpBanQueryMixin, IpBanCarveMixin
+):
     LOCAL_CACHE_TTL_CAP_SECONDS = 3600
     MAX_LOCAL_BANS = DEFAULT_MAX_LOCAL_BANS
     _EVICTION_LOG_EVERY = 100

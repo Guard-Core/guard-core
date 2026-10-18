@@ -55,6 +55,7 @@ def reset_strikes_for_changed_whitelist(
             return
         try:
             _reset_covered_identities(entries, ip_ban_manager)
+            ip_ban_manager.rewrite_carved_bans_without_whitelist()
             redis_handler.set_key(_NAMESPACE, _APPLIED_KEY, fingerprint)
         finally:
             redis_handler.delete(_NAMESPACE, _LOCK_KEY)

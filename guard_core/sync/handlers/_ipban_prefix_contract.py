@@ -7,6 +7,22 @@ _NAMESPACE = "config"
 _KEY = "ipv6_prefix_length"
 
 
+def _recorded_prefix_length(
+    redis_handler: Any, wanted: int, logger: logging.Logger
+) -> tuple[str | None, str]:
+    key = f"{redis_handler.config.redis_prefix}{_NAMESPACE}:{_KEY}"
+    try:
+        if redis_handler.set_key_if_absent(_NAMESPACE, _KEY, str(wanted)):
+            return None, key
+        recorded = redis_handler.get_key(_NAMESPACE, _KEY)
+    except Exception as error:
+        logger.warning(
+            "The recorded ipv6_prefix_length could not be checked: %s", error
+        )
+        return None, key
+    return (None if recorded is None else str(recorded)), key
+
+
 def enforce_prefix_length_contract(
     redis_handler: Any, config: Any, logger: logging.Logger
 ) -> None:
@@ -20,12 +36,9 @@ def enforce_prefix_length_contract(
     wanted = getattr(config, "ipv6_prefix_length", None)
     if wanted is None:
         return
-    if redis_handler.set_key_if_absent(_NAMESPACE, _KEY, str(wanted)):
+    recorded, key = _recorded_prefix_length(redis_handler, wanted, logger)
+    if recorded is None or recorded == str(wanted):
         return
-    recorded = redis_handler.get_key(_NAMESPACE, _KEY)
-    if recorded is None or str(recorded) == str(wanted):
-        return
-    key = f"{redis_handler.config.redis_prefix}{_NAMESPACE}:{_KEY}"
     report_misconfiguration(
         config,
         f"ipv6_prefix_length is {wanted} here but {recorded} on the workers "

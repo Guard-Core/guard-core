@@ -1078,6 +1078,10 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "remaining seconds and counters, no request data; logger.error fallback "
         "is send-failure text"
     ),
+    "handlers/_ipban_prefix_contract.py:_recorded_prefix_length": (
+        "line 35: the recorded ipv6_prefix_length could not be read, carries the "
+        "Redis error only, no request data"
+    ),
     "handlers/_ipban_version.py:IpBanVersionMixin._bump_ban_version": (
         "line 43: the shared ban version could not be advanced, carries the "
         "Redis error only, no request data"

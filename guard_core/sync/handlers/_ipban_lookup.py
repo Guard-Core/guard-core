@@ -9,6 +9,7 @@ from guard_core.sync._utils.ip_extraction import (
     _canonicalize_ip,
     _client_identity,
 )
+from guard_core.sync._utils.whitelist_match import most_specific_whitelist_entry
 from guard_core.sync.handlers._ipban_cache import _Network
 from guard_core.sync.handlers._ipban_rule_exempt import IpBanRuleExemptionMixin
 from guard_core.sync.handlers._ipban_version import (
@@ -29,9 +30,13 @@ class IpBanLookupMixin(IpBanVersionMixin, IpBanRuleExemptionMixin):
     def _grouped_identity_of(self, ip: str) -> str | None:
         if ":" not in ip:
             return None
-        prefix_length = getattr(self.config, "ipv6_prefix_length", None)
-        identity = _client_identity(ip, prefix_length or _DEFAULT_IPV6_PREFIX_LENGTH)
-        return identity if identity != ip else None
+        prefix_length = self._prefix_length()
+        identity = _client_identity(ip, prefix_length)
+        whitelist = getattr(self.config, "whitelist", None)
+        if identity == ip or not whitelist:
+            return identity if identity != ip else None
+        entry = most_specific_whitelist_entry(ipaddress.ip_address(ip), whitelist)
+        return _client_identity(ip, prefix_length, entry) if entry else identity
 
     def _check_network_cache(
         self, addr: ipaddress.IPv4Address | ipaddress.IPv6Address, now: float
@@ -64,17 +69,17 @@ class IpBanLookupMixin(IpBanVersionMixin, IpBanRuleExemptionMixin):
         if reloaded and addr is not None and self._operator_networks is not None:
             if self._operator_networks.covers(addr, now):
                 return True
-        banned = False
+        banned_keys: list[str] = []
         for (namespace, key), value in zip(namespaces, values, strict=True):
             if not value:
                 continue
             expiry_time = float(value)
             if now <= expiry_time:
                 self.banned_ips[key] = expiry_time
-                banned = True
+                banned_keys.append(key)
             else:
                 self.redis_handler.delete(namespace, key)
-        return banned
+        return bool(banned_keys)
 
     def _local_verdict(self, ip: str, identity: str | None, now: float) -> bool | None:
         for key in (ip, identity):
@@ -88,6 +93,10 @@ class IpBanLookupMixin(IpBanVersionMixin, IpBanRuleExemptionMixin):
                 return False
             return True
         return None
+
+    def _prefix_length(self) -> int:
+        configured = getattr(self.config, "ipv6_prefix_length", None)
+        return configured or _DEFAULT_IPV6_PREFIX_LENGTH
 
     def _cached_positive_survives(self, now: float) -> bool:
         if not self._version_recheck_due(now):
