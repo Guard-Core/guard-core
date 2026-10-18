@@ -634,6 +634,11 @@ def _longest_crossed_entry(
     return chosen
 
 
+def _strike_total(ip_counts: Mapping[str, int]) -> int:
+    request_total = getattr(ip_counts, "request_total", None)
+    return sum(ip_counts.values()) if request_total is None else int(request_total)
+
+
 def _try_threshold_ban(
     request: SyncGuardRequest,
     config: SecurityConfig,
@@ -676,18 +681,18 @@ def _try_threshold_ban(
         flat_total=shared.total if shared is not None else None,
     )
     if strikes is not None:
-        strikes.record(shared, result is not None)
+        strikes.record(shared, result is not None, _strike_total(ip_counts))
     if result is None:
         return False
     _forget_suspicious_counts(middleware, client_ip)
     if shared is not None:
         forget_shared_detection_strikes(middleware, strike_key)
-    _, _, category = result
+    duration, _, category = result
     log_reason = (
         f"IP banned due to {category} threshold: {client_ip} - {trigger_info}"
         if category is not None
         else f"IP banned due to suspicious activity: {client_ip} - {trigger_info}"
-    )
+    ) + f" (ban duration {duration}s)"
     log_activity(
         request,
         logger,

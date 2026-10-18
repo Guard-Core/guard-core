@@ -128,6 +128,14 @@ class SuspiciousActivityCheck(SecurityCheck):
             strikes=strikes,
         )
         if banned:
+            self.middleware.event_bus.send_middleware_event(
+                event_type=EVENT_PENETRATION_ATTEMPT,
+                request=request,
+                action_taken="request_blocked",
+                reason=f"Penetration attempt detected: {trigger_info}",
+                request_count=strikes.banning_count or 0,
+                trigger_info=trigger_info,
+            )
             return self.middleware.create_error_response(
                 status_code=403,
                 default_message="IP has been banned",

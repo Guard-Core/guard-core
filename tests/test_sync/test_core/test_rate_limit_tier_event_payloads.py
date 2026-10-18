@@ -162,7 +162,7 @@ def test_a_global_block_names_the_global_limit_in_the_ban_log() -> None:
     (call,) = middleware.logger.warning.call_args_list
     assert (
         "IP banned due to suspicious activity: 198.51.100.40 - "
-        "Global rate limit exceeded - Headers: {}"
+        "Global rate limit exceeded (ban duration 3600s) - Headers: {}"
     ) in call.args[0]
 
 
