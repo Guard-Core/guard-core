@@ -24,7 +24,7 @@ Core Settings
 | `custom_request_check`    | `Callable \| None`          | `None`   | Global async function for custom request validation.   |
 | `auth_verifier`           | `Any`                       | `None`   | Global default verifier for `require_auth`/`api_key_auth` routes with no per-route `verifier=`: `verifier(request, credential) -> Principal \| None`. Sync or async in async deployments; sync-only under WSGI. |
 | `custom_response_modifier`| `Callable \| None`          | `None`   | Global async function to modify responses.             |
-| `route_resolution_strict` | `bool`                      | `False`  | Block with `500` when the adapter reports it could not resolve the route, instead of running the pipeline with no per-route config. Also turns requests to paths the app does not serve into `500`s rather than `404`s. See [Reporting a Failed Match](../adapters/decorators.md#reporting-a-failed-match). |
+| `route_resolution_strict` | `bool`                      | `False`  | Block when the adapter reports it could not resolve the route, instead of running the pipeline with no per-route config. Also blocks requests to paths the app does not serve: `404` for a path no route serves, `405` for a wrong method (`500` when a matched route's config is unknown to the decorator). CORS preflights are answered before this check. See [Reporting a Failed Match](../adapters/decorators.md#reporting-a-failed-match). |
 | `on_error`                | `Callable[[str, BaseException, dict], None] \| None` | `None` | Best-effort callback invoked when a middleware/agent step fails, receiving `(stage, exception, context)`. `stage` is one of `agent_init`, `geoip`, `transport_send`, `encryption`. Also forwarded to `AgentConfig.on_error` when the agent is enabled; see [Agent / Telemetry](#agent--telemetry). |
 | `on_block`                | `Callable[[GuardRequest, dict[str, Any]], None] \| None` | `None` | Fired exactly once per block decision with `(request, payload)`; in passive mode fires at flag time with `status_code=None`. Payload keys: `check_name`, `reason`, `trigger_info`, `passive_mode`, `client_ip`, `path`, `method`, `status_code`. Not fired for `custom_request`/`custom_validators` (application-authored; a `honeypot_detection` hit is the exception and fires with `check_name="honeypot"`), the HTTPS redirect, or a Redis-unavailable response (use `on_error`). Sync or async under ASGI; sync-only under WSGI (async raises `TypeError`). A raising hook is logged, never propagated. |
 
@@ -339,12 +339,19 @@ Security Headers
     "csp": None,
     "frame_options": "SAMEORIGIN",
     "content_type_options": "nosniff",
-    "xss_protection": "1; mode=block",
+    "xss_protection": "0",
     "referrer_policy": "strict-origin-when-cross-origin",
     "permissions_policy": "geolocation=(), microphone=(), camera=()",
     "custom": None,
+    "permitted_cross_domain_policies": "none",
+    "download_options": "noopen",
+    "cross_origin_embedder_policy": None,
+    "cross_origin_opener_policy": "same-origin",
+    "cross_origin_resource_policy": "same-site",
 }
 ```
+
+A partial dict merges over this default per key. `None`, `{}` and `{"enabled": False}` switch every header off, and a value of `None` switches that header off alone. See [Security Headers](../internals/security-headers.md).
 
 ___
 
@@ -491,6 +498,8 @@ Dynamic Rules
 | `emergency_mode`        | `bool` | `False` | Emergency lockdown mode (set by dynamic rules). |
 | `emergency_whitelist`   | `list[str]` | `[]`| Emergency whitelist IPs (set by dynamic rules). |
 | `emergency_whitelist_only` | `bool` | `True` | During emergency mode, only `emergency_whitelist` IPs get through and every other client gets the 503. `False` keeps the lockdown but also lets `whitelist` and `exempt_ips` IPs through (set by dynamic rules; a rule without the field keeps `True`). |
+
+Every blocked emergency-mode request still gets the 503, which carries `Retry-After: 60`. The suspicious log line and the `emergency_mode_block` agent event are sampled once per client per 60 seconds, and so is the INFO line for a whitelisted client; the `on_block` hook still runs for every blocked request.
 
 **Validator**: `enable_agent` must be `True` when `enable_dynamic_rules` is `True`.
 

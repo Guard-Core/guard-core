@@ -13,9 +13,9 @@ The `SecurityHeadersManager` applies HTTP security headers to responses followin
 SecurityHeadersManager
 ----------------------
 
-### Singleton
+### Singleton and per-middleware instances
 
-Thread-safe singleton using `threading.Lock` for the `__new__` double-checked locking pattern. Pre-instantiated as `security_headers_manager` at module level.
+`SecurityHeadersManager()` is a thread-safe singleton (`threading.Lock`, double-checked `__new__`), pre-instantiated as `security_headers_manager` at module level. Every middleware gets its own manager as well: `ResponseContext.security_headers_manager` defaults to `SecurityHeadersManager.isolated()`, and the `ErrorResponseFactory` built on that context uses it, so two guarded apps in one process keep their own agent handler and header cache. The headers themselves come from the `SecurityConfig` the middleware was built with, never from another app's configuration.
 
 ### Default Headers
 
@@ -25,14 +25,24 @@ Applied to every response when the manager is enabled:
 |----------------------------------|--------------------------------------------------|
 | `X-Content-Type-Options`         | `nosniff`                                        |
 | `X-Frame-Options`                | `SAMEORIGIN`                                     |
-| `X-XSS-Protection`               | `1; mode=block`                                  |
+| `X-XSS-Protection`               | `0`                                              |
 | `Referrer-Policy`                | `strict-origin-when-cross-origin`                |
 | `Permissions-Policy`             | `geolocation=(), microphone=(), camera=()`       |
 | `X-Permitted-Cross-Domain-Policies` | `none`                                        |
 | `X-Download-Options`             | `noopen`                                         |
-| `Cross-Origin-Embedder-Policy`   | `require-corp`                                   |
+| `Cross-Origin-Embedder-Policy`   | not sent (opt in, for example `require-corp`)    |
 | `Cross-Origin-Opener-Policy`     | `same-origin`                                    |
-| `Cross-Origin-Resource-Policy`   | `same-origin`                                    |
+| `Cross-Origin-Resource-Policy`   | `same-site`                                      |
+
+Set `cross_origin_embedder_policy` in `SecurityConfig.security_headers` to send `Cross-Origin-Embedder-Policy`.
+
+### The `security_headers` dictionary
+
+A partial `SecurityConfig.security_headers` dict merges over the defaults key by key (`hsts` sub-key by sub-key), so `{"csp": {...}}` keeps HSTS and every default header. `None`, `{}` and `{"enabled": False}` switch every header off. A value of `None` switches that one header off: `frame_options`, `content_type_options`, `xss_protection`, `referrer_policy`, `permissions_policy`, `permitted_cross_domain_policies`, `download_options`, `cross_origin_embedder_policy`, `cross_origin_opener_policy`, `cross_origin_resource_policy`; `hsts: None` and `csp: None` do the same for those two. An unknown key is reported through `fail_on_misconfiguration` (a warning in 4.5, a startup failure from 5.0).
+
+### Application headers and operator values
+
+A default header is added only when the application did not set that header (compared without case). A value the operator configured replaces the application's: `custom`, `csp`, `hsts`, and any default header whose configured value differs from the built-in one. The merged set is cached by the content of `security_headers` (one entry per distinct configuration, never by object identity or path), so an agent event and an unsafe-CSP warning come once per configuration.
 
 ### Configuration
 
