@@ -386,6 +386,18 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "line 46: warns once about pydantic-plugin instrumentation at import "
         "time; no request in scope"
     ),
+    "_security_config_field_validators.py:_warn_redis_default_on": (
+        "SecurityConfig construction warning about the unset enable_redis flag, "
+        "evaluated before any request, carries no request data"
+    ),
+    "_security_config_field_validators.py:_warn_rate_limit_default_in_effect": (
+        "SecurityConfig construction warning about the unset rate_limit default, "
+        "evaluated before any request, carries no request data"
+    ),
+    "_security_config_field_validators.py:_warn_default_redis_prefix": (
+        "SecurityConfig construction warning about the default redis_prefix, "
+        "evaluated before any request, carries no request data"
+    ),
     "_security_config_field_validators.py:_warn_hostile_signal_bans_default_off": (
         "SecurityConfig construction warning about an unset config flag, "
         "evaluated before any request, carries no request data"

@@ -51,6 +51,8 @@ if TYPE_CHECKING:
 
 _suspatterns_module._legacy_detection_warned = True
 _field_validators_module._hostile_signal_ban_default_warned = True
+_field_validators_module._redis_default_warned = True
+_field_validators_module._rate_limit_default_warned = True
 
 IPINFO_TOKEN = os.getenv("IPINFO_TOKEN") or "test_token"
 REDIS_URL = os.getenv("REDIS_URL") or "redis://localhost:6379"
@@ -378,6 +380,8 @@ async def reset_state() -> AsyncGenerator[None, None]:
     sus_patterns_handler._detection_state = _LEGACY_DETECTION_STATE
     _suspatterns_module._legacy_detection_warned = True
     _field_validators_module._hostile_signal_ban_default_warned = True
+    _field_validators_module._redis_default_warned = True
+    _field_validators_module._rate_limit_default_warned = True
 
     _reset_ip_ban_manager()
     _reset_cloud_handler()

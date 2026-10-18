@@ -5,7 +5,10 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from guard_core._security_config_field_validators import GlobalBehaviorRules
+from guard_core._security_config_field_validators import (
+    DEFAULT_REDIS_PREFIX,
+    GlobalBehaviorRules,
+)
 from guard_core._security_config_validators import ThreatBanConfig
 from guard_core._utils.lru_store import DEFAULT_MAX_TRACKED_KEYS
 from guard_core.handlers.suspatterns_handler import ALL_DETECTION_CATEGORIES
@@ -66,7 +69,7 @@ class _SecurityConfigFields(BaseModel):
     )
 
     redis_prefix: str = Field(
-        default="guard_core:",
+        default=DEFAULT_REDIS_PREFIX,
         description="Prefix for Redis keys to avoid collisions with other apps",
     )
 

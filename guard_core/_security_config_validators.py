@@ -8,6 +8,7 @@ from guard_core._config_capabilities import _extra_installed, cloud_blocking_ena
 from guard_core._security_config_field_validators import (
     _FIELD_REVALIDATORS,
     _GLOBAL_BEHAVIOR_RULE_FIELDS,
+    DEFAULT_REDIS_PREFIX,
     THREAT_BAN_CONFIG_CATEGORIES,
     VALID_CLOUD_PROVIDERS,
     BehaviorRuleConfig,
@@ -32,10 +33,13 @@ from guard_core._security_config_field_validators import (
     _validate_threat_ban_config_value,
     _validate_trusted_proxies_value,
     _validate_whitelist_value,
+    _warn_default_redis_prefix,
     _warn_empty_enabled_detection_categories,
     _warn_exclude_all_paths,
     _warn_exempt_ips_prefix_zero,
     _warn_hostile_signal_bans_default_off,
+    _warn_rate_limit_default_in_effect,
+    _warn_redis_default_on,
     _warn_trusted_proxies_prefix_zero,
     _warn_whitelist_prefix_zero,
     return_pattern_requires_response_body,
@@ -60,6 +64,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger("guard_core.models")
 
 __all__ = [
+    "DEFAULT_REDIS_PREFIX",
     "VALID_CLOUD_PROVIDERS",
     "BehaviorRuleConfig",
     "CloudProvider",
@@ -99,7 +104,10 @@ __all__ = [
     "_warn_empty_enabled_detection_categories",
     "_warn_exempt_ips_prefix_zero",
     "_warn_exclude_all_paths",
+    "_warn_default_redis_prefix",
     "_warn_hostile_signal_bans_default_off",
+    "_warn_rate_limit_default_in_effect",
+    "_warn_redis_default_on",
     "_warn_trusted_proxies_prefix_zero",
     "_warn_whitelist_prefix_zero",
     "cloud_blocking_enabled",

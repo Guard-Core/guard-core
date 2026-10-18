@@ -298,7 +298,7 @@ Rate Limiting
 | Field                 | Type             | Default | Description                                        |
 |-----------------------|------------------|---------|---------------------------------------------------|
 | `enable_rate_limiting`| `bool`           | `True`  | Switch for the global rate limit (`rate_limit` per `rate_limit_window`). With `False` the route limits (`@rate_limit`, `@geo_rate_limit`) and `endpoint_rate_limits` stay on, and startup logs one INFO line naming the routes whose limits stay on. |
-| `rate_limit`          | `int`            | `10`    | Maximum requests per window (global).              |
+| `rate_limit`          | `int`            | `10`    | Maximum requests per window (global). Every request counts, static assets included. guard-core 5.0.0 raises the default to `120` per 60 s; until then leaving `rate_limit` unset (with `enable_rate_limiting` on) logs one `DeprecationWarning` and one WARNING line at startup. Pass `rate_limit=10` to keep today's limit or `rate_limit=120` to opt in now. |
 | `rate_limit_window`   | `int`            | `60`    | Window duration in seconds (global).               |
 | `endpoint_rate_limits`| `dict[str, tuple[int, int]]` | `{}` | Per-endpoint overrides `{path: (limit, window)}`. |
 | `ban_on_hostile_signals` | `bool` | `False` | Count failed authentication, missing required headers, bad referrers, block-list hits and clear `X-Forwarded-For` forgery toward automatic bans. Off by default in 4.5.0; on by default from 5.0.0. Leaving it unset logs one `DeprecationWarning` and one WARNING line at startup. See [Hostile-signal bans](../api/ban-config.md). |
@@ -368,9 +368,9 @@ Redis
 
 | Field                            | Type          | Default                   | Description                                             |
 |----------------------------------|---------------|---------------------------|----------------------------------------------------------|
-| `enable_redis`                   | `bool`        | `True`                    | Master switch for Redis.                                |
+| `enable_redis`                   | `bool`        | `True`                    | Master switch for Redis. guard-core 5.0.0 turns it off by default, so an app that never configured Redis stops connecting to a Redis on localhost; until then leaving `enable_redis` unset logs one `DeprecationWarning` and one WARNING line at startup. Pass `enable_redis=True` to keep using Redis or `enable_redis=False` to opt in to the 5.0.0 default. |
 | `redis_url`                      | `str \| None` | `"redis://localhost:6379"`| Redis connection URL.                                   |
-| `redis_prefix`                   | `str`         | `"guard_core:"`           | Key prefix for namespace isolation.                      |
+| `redis_prefix`                   | `str`         | `"guard_core:"`           | Key prefix for namespace isolation. Every config that enables Redis with the default prefix logs a WARNING: every app on the same Redis that keeps the default shares its bans and rate-limit counters, so set a unique prefix per app. |
 | `redis_socket_connect_timeout`   | `float \| None`| `2.0`                    | Seconds to wait establishing a TCP connection. Must be positive; `None` disables (blocks indefinitely on a partitioned Redis). |
 | `redis_socket_timeout`           | `float \| None`| `2.0`                    | Seconds to wait on a read/write before raising. Must be positive; `None` means no timeout. |
 | `redis_health_check_interval`    | `int`         | `30`                      | Seconds between pooled-connection health checks. `0` disables. |
