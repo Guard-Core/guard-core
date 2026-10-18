@@ -5,6 +5,9 @@ from typing import TYPE_CHECKING, Any, cast
 from guard_core._misconfiguration import report_misconfiguration
 from guard_core.exceptions import GuardRedisError
 from guard_core.sync.core.checks.helpers import _MAX_RETAINED_EVENTS_PER_CATEGORY
+from guard_core.sync.core.initialization._route_limit_report import (
+    report_route_limits_with_global_switch_off,
+)
 from guard_core.sync.protocols.cloud_ip_store_protocol import SyncCloudIpStoreProtocol
 
 if TYPE_CHECKING:
@@ -111,20 +114,8 @@ class _HandlerInitializerStepsMixin:
                 )
 
     def _report_route_limits_with_global_switch_off(self) -> None:
-        if self.config.enable_rate_limiting or self.guard_decorator is None:
-            return
-        route_configs = getattr(self.guard_decorator, "_route_configs", {})
-        limited = sorted(
-            route_id
-            for route_id, route_config in route_configs.items()
-            if route_config.rate_limit is not None or route_config.geo_rate_limits
-        )
-        if not limited:
-            return
-        self.logger.info(
-            "enable_rate_limiting is False, so the global rate limit is off; the "
-            "rate limits of these routes stay on: %s",
-            ", ".join(limited),
+        report_route_limits_with_global_switch_off(
+            self.config, self.guard_decorator, self.logger
         )
 
     def _warn_if_lazy_init_is_inert(self) -> None:

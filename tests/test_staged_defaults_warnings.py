@@ -5,13 +5,17 @@ from typing import Any
 
 import pytest
 
-from guard_core import _security_config_field_validators as validators
+from guard_core import _staged_defaults as validators
 from guard_core.models import SecurityConfig
 
 
 @pytest.fixture(autouse=True)
 def _reset_staged_default_warnings() -> Generator[None, None, None]:
-    names = ("_redis_default_warned", "_rate_limit_default_warned")
+    names = (
+        "_redis_default_warned",
+        "_rate_limit_default_warned",
+        "_default_prefix_warned",
+    )
     saved = {name: getattr(validators, name, True) for name in names}
     for name in names:
         setattr(validators, name, False)
@@ -103,14 +107,14 @@ def _prefix_warnings(caplog: pytest.LogCaptureFixture) -> list[str]:
     ]
 
 
-def test_the_default_redis_prefix_warns_on_every_config_that_uses_redis(
+def test_the_default_redis_prefix_warns_once_when_redis_is_enabled(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     with caplog.at_level(logging.WARNING, logger="guard_core.models"):
         SecurityConfig(enable_redis=True, rate_limit=5)
         SecurityConfig(enable_redis=True, rate_limit=5)
 
-    assert len(_prefix_warnings(caplog)) == 2
+    assert len(_prefix_warnings(caplog)) == 1
     assert "guard_core:" in _prefix_warnings(caplog)[0]
 
 

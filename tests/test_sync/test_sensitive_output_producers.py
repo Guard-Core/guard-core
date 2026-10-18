@@ -386,15 +386,15 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "line 46: warns once about pydantic-plugin instrumentation at import "
         "time; no request in scope"
     ),
-    "_security_config_field_validators.py:_warn_redis_default_on": (
+    "_staged_defaults.py:_warn_redis_default_on": (
         "SecurityConfig construction warning about the unset enable_redis flag, "
         "evaluated before any request, carries no request data"
     ),
-    "_security_config_field_validators.py:_warn_rate_limit_default_in_effect": (
+    "_staged_defaults.py:_warn_rate_limit_default_in_effect": (
         "SecurityConfig construction warning about the unset rate_limit default, "
         "evaluated before any request, carries no request data"
     ),
-    "_security_config_field_validators.py:_warn_default_redis_prefix": (
+    "_staged_defaults.py:_warn_default_redis_prefix": (
         "SecurityConfig construction warning about the default redis_prefix, "
         "evaluated before any request, carries no request data"
     ),
@@ -620,9 +620,9 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "line 92: Redis-unavailable-at-startup error; adapter init only, "
         "no request in scope"
     ),
-    "core/initialization/_handler_initializer_steps.py:"
-    "_HandlerInitializerStepsMixin._report_route_limits_with_global_switch_off": (
-        "line 124: startup INFO naming the route ids whose own rate limits stay "
+    "core/initialization/_route_limit_report.py:"
+    "report_route_limits_with_global_switch_off": (
+        "startup INFO naming the route ids whose own rate limits stay "
         "on while enable_rate_limiting is False; adapter init only, no request "
         "in scope"
     ),

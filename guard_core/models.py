@@ -21,7 +21,6 @@ from guard_core._security_config_validators import (
     _FIELD_REVALIDATORS,
     _GEO_STATE_FIELDS,
     _GLOBAL_BEHAVIOR_RULE_FIELDS,
-    DEFAULT_REDIS_PREFIX,
     _apply_geo_ip_handler_assignment,
     _country_shadow_should_warn,
     _is_prefix_zero_network_entry,
@@ -43,13 +42,10 @@ from guard_core._security_config_validators import (
     _validate_sensitive_name_set_value,
     _validate_threat_ban_config_value,
     _warn_country_allowlist_shadows_blocklist,
-    _warn_default_redis_prefix,
     _warn_empty_enabled_detection_categories,
     _warn_exclude_all_paths,
     _warn_exempt_ips_prefix_zero,
     _warn_hostile_signal_bans_default_off,
-    _warn_rate_limit_default_in_effect,
-    _warn_redis_default_on,
     _warn_trusted_proxies_prefix_zero,
     _warn_whitelist_prefix_zero,
 )
@@ -66,6 +62,7 @@ from guard_core._security_config_validators import (
 from guard_core._security_config_validators import (
     return_pattern_requires_response_body as return_pattern_requires_response_body,
 )
+from guard_core._staged_defaults import _warn_staged_defaults
 from guard_core.exceptions import AgentPackageNotInstalledError
 from guard_core.handlers.suspatterns_handler import (
     ALL_DETECTION_CATEGORIES as ALL_DETECTION_CATEGORIES,
@@ -272,21 +269,8 @@ class SecurityConfig(_SecurityConfigFields):
         return self
 
     @model_validator(mode="after")
-    def warn_redis_default_on(self) -> Self:
-        if "enable_redis" not in self.model_fields_set:
-            _warn_redis_default_on(stacklevel=4)
-        return self
-
-    @model_validator(mode="after")
-    def warn_rate_limit_default_in_effect(self) -> Self:
-        if self.enable_rate_limiting and "rate_limit" not in self.model_fields_set:
-            _warn_rate_limit_default_in_effect(stacklevel=4)
-        return self
-
-    @model_validator(mode="after")
-    def warn_default_redis_prefix(self) -> Self:
-        if self.enable_redis and self.redis_prefix == DEFAULT_REDIS_PREFIX:
-            _warn_default_redis_prefix()
+    def warn_staged_defaults(self) -> Self:
+        _warn_staged_defaults(self, stacklevel=4)
         return self
 
     @model_validator(mode="after")
