@@ -4,7 +4,7 @@ import threading
 import uuid
 from collections import OrderedDict, defaultdict
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any
 
 from redis.exceptions import NoScriptError
@@ -79,6 +79,9 @@ class ThrottleCheck:
     # The rule's hit list already holds this request's hit (a custom_action copy of
     # the rule recorded it): count it, do not add a second one.
     hit_recorded: bool = False
+    # A global return rule with correlate_with_detection: the refuse_at that
+    # applies instead of refuse_at while the IP has detection strikes (0 = none).
+    correlated_refuse_at: int = 0
 
     @property
     def writes(self) -> bool:
@@ -90,6 +93,29 @@ class ThrottleTrip:
     check: ThrottleCheck
     retry_after: int
     first_of_episode: bool
+
+
+class ReturnCorrelation:
+    """A return rule whose threshold drops while the IP has detection strikes.
+
+    The categories are asked for only when the rule's count is above the
+    correlated threshold, the one place they can change the outcome.
+    """
+
+    def __init__(self, threshold: int, lookup: Callable[[], list[str]]) -> None:
+        self.threshold = threshold
+        self.lookup = lookup
+        self.categories: list[str] = []
+
+    @property
+    def active(self) -> bool:
+        return bool(self.categories)
+
+    def threshold_for(self, count: int, default: int) -> int:
+        if count <= self.threshold:
+            return default
+        self.categories = self.lookup()
+        return self.threshold if self.active else default
 
 
 def _retry_after(oldest_needed: float, window: int, now: float) -> int:
@@ -104,6 +130,29 @@ def _record_hits(
         if check.writes and id(hits) not in recorded:
             recorded.add(id(hits))
             hits.append(now)
+
+
+def _with_correlation(
+    checks: list[ThrottleCheck],
+    counts: list[int],
+    process_categories: Callable[[], list[str]] | None,
+) -> list[ThrottleCheck]:
+    # The categories are asked for only when a correlated rule's count sits
+    # where they can change its outcome, and at most once.
+    active: bool | None = None
+    resolved = []
+    for check, count in zip(checks, counts, strict=True):
+        if (
+            process_categories is not None
+            and check.correlated_refuse_at
+            and check.correlated_refuse_at <= count < check.refuse_at
+        ):
+            if active is None:
+                active = bool(process_categories())
+            if active:
+                check = replace(check, refuse_at=check.correlated_refuse_at)
+        resolved.append(check)
+    return resolved
 
 
 class BehaviorThrottleMixin:
@@ -122,20 +171,23 @@ class BehaviorThrottleMixin:
         checks: list[ThrottleCheck],
         now: float,
         record_when_over: bool,
+        process_categories: Callable[[], list[str]] | None = None,
     ) -> list[ThrottleTrip]:
         if self.redis_handler and self.redis_handler.config.enable_redis:
             trips = self._redis_throttle(client_ip, checks, now, record_when_over)
             if trips is not None:
                 return trips
-        return self._memory_throttle(client_ip, checks, now, record_when_over)
+        return self._memory_throttle(
+            client_ip, checks, now, record_when_over, process_categories
+        )
 
-    def _redis_throttle(
+    def _throttle_script_input(
         self,
         client_ip: str,
         checks: list[ThrottleCheck],
         now: float,
         record_when_over: bool,
-    ) -> list[ThrottleTrip] | None:
+    ) -> tuple[list[str], list[Any]]:
         prefix = self.redis_handler.config.redis_prefix
         keys = [
             f"{prefix}{USAGE_NAMESPACE}:{usage_hits_key(c.scope_id, client_ip, c.rule)}"
@@ -147,18 +199,46 @@ class BehaviorThrottleMixin:
             f"{prefix}{TRIP_NAMESPACE}:{trip_marker_key(c.scope_id, client_ip, c.rule)}"
             for c in checks
         ]
-        args: list[Any] = [repr(now), uuid.uuid4().hex, int(record_when_over), "", ""]
+        args: list[Any] = [
+            repr(now),
+            uuid.uuid4().hex,
+            int(record_when_over),
+            "",
+            "",
+            len(checks),
+            "",
+        ]
         if any(c.writes for c in checks):
             index_key, max_members = self._rule_hit_index(client_ip)
             keys.append(f"{prefix}{USAGE_NAMESPACE}:{index_key}")
             args[3:5] = [max_members, RECENT_RULE_HITS_WINDOW_SECONDS]
+        if any(c.correlated_refuse_at for c in checks):
+            from guard_core.sync.core.checks.helpers import (
+                SUSPICIOUS_COUNT_WINDOW_SECONDS,
+            )
+
+            keys += self.redis_handler.detection_correlation_keys(client_ip)
+            args[6] = repr(now - SUSPICIOUS_COUNT_WINDOW_SECONDS)
         for check in checks:
             args += [
                 int(check.writes),
                 repr(now - check.rule.window),
                 check.rule.window,
                 check.refuse_at,
+                check.correlated_refuse_at,
             ]
+        return keys, args
+
+    def _redis_throttle(
+        self,
+        client_ip: str,
+        checks: list[ThrottleCheck],
+        now: float,
+        record_when_over: bool,
+    ) -> list[ThrottleTrip] | None:
+        keys, args = self._throttle_script_input(
+            client_ip, checks, now, record_when_over
+        )
         try:
             raw = self._eval_throttle_script(keys, args)
         except Exception as error:
@@ -170,13 +250,13 @@ class BehaviorThrottleMixin:
             ) from error
         return [
             ThrottleTrip(
-                check=checks[int(raw[i]) - 1],
+                check=replace(checks[int(raw[i]) - 1], refuse_at=int(raw[i + 3])),
                 retry_after=_retry_after(
                     float(raw[i + 1]), checks[int(raw[i]) - 1].rule.window, now
                 ),
                 first_of_episode=int(raw[i + 2]) == 1,
             )
-            for i in range(0, len(raw), 3)
+            for i in range(0, len(raw), 4)
         ]
 
     def _eval_throttle_script(self, keys: list[str], args: list[Any]) -> Any:
@@ -213,6 +293,7 @@ class BehaviorThrottleMixin:
         checks: list[ThrottleCheck],
         now: float,
         record_when_over: bool,
+        process_categories: Callable[[], list[str]] | None = None,
     ) -> list[ThrottleTrip]:
         with self._lock:
             hit_lists = [
@@ -220,6 +301,7 @@ class BehaviorThrottleMixin:
                 for check in checks
             ]
             counts = [len(hits) for hits in hit_lists]
+            checks = _with_correlation(checks, counts, process_categories)
             over = [
                 count >= c.refuse_at for count, c in zip(counts, checks, strict=True)
             ]

@@ -318,7 +318,7 @@ async def test_a_failed_clear_after_the_ban_is_logged_and_the_ban_stands(
     redis = Mock(
         config=config,
         record_detection_strikes=AsyncMock(
-            return_value=(THRESHOLD, {"xss": THRESHOLD})
+            return_value=(THRESHOLD, 0, {"xss": THRESHOLD})
         ),
         forget_detection_strikes=AsyncMock(side_effect=RuntimeError("redis down")),
     )

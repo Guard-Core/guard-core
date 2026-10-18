@@ -1,6 +1,6 @@
 import logging
 import time
-from collections.abc import Collection
+from collections.abc import Callable, Collection
 from typing import TYPE_CHECKING, Any, NamedTuple
 
 if TYPE_CHECKING:
@@ -20,6 +20,26 @@ def strike_categories(categories: str | Collection[str]) -> Collection[str]:
 class SharedStrikes(NamedTuple):
     counts: dict[str, int]
     total: int
+    rate_limit_violations: int = 0
+
+    @property
+    def event_count(self) -> int:
+        return self.total + self.rate_limit_violations
+
+
+class StrikeReport:
+    """Carries the shared strike count of one threshold decision back to the
+    caller that reports it in an event (``None`` when nothing was shared)."""
+
+    def __init__(self) -> None:
+        self.count: int | None = None
+
+    def record(self, shared: SharedStrikes | None, banned: bool) -> None:
+        if shared is not None:
+            self.count = 0 if banned else shared.event_count
+
+    def count_or(self, in_process: Callable[[], int]) -> int:
+        return in_process() if self.count is None else self.count
 
 
 def _shared_strikes_redis(middleware: "GuardMiddlewareProtocol") -> Any:
@@ -41,7 +61,7 @@ async def record_shared_detection_strikes(
         return None
     now = time.time()
     try:
-        total, counts = await redis_handler.record_detection_strikes(
+        total, violations, counts = await redis_handler.record_detection_strikes(
             client_ip,
             tuple(strike_categories(categories)),
             now,
@@ -56,7 +76,7 @@ async def record_shared_detection_strikes(
             error,
         )
         return None
-    return SharedStrikes(counts, total)
+    return SharedStrikes(counts, total, violations)
 
 
 async def forget_shared_detection_strikes(
@@ -72,3 +92,20 @@ async def forget_shared_detection_strikes(
             client_ip,
             error,
         )
+
+
+async def read_shared_detection_categories(
+    redis_handler: Any, client_ip: str, window_seconds: int
+) -> list[str] | None:
+    try:
+        categories: list[str] = await redis_handler.read_detection_categories(
+            client_ip, time.time() - window_seconds
+        )
+    except Exception as error:
+        _logger.warning(
+            "Shared detection categories unavailable, using the categories this "
+            "process saw: %s",
+            error,
+        )
+        return None
+    return categories

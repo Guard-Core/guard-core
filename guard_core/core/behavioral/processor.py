@@ -1,10 +1,10 @@
-from collections.abc import Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from typing import Any
 
 from guard_core._utils.request_logging import redact_endpoint_for_display
 from guard_core.core.behavioral._throttle import (
     BehavioralThrottleMixin,
-    effective_return_threshold,
+    correlated_return_threshold,
     first_of_rule_id,
     global_scope_id,
     is_throttle_rule,
@@ -12,6 +12,7 @@ from guard_core.core.behavioral._throttle import (
 from guard_core.core.behavioral.context import BehavioralContext
 from guard_core.core.events.event_types import EVENT_DECORATOR_VIOLATION
 from guard_core.decorators.base import RouteConfig
+from guard_core.handlers._behavior_throttle import ReturnCorrelation
 from guard_core.handlers.behavior_handler import BehaviorRule
 from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse
@@ -164,7 +165,7 @@ class BehavioralProcessor(BehavioralThrottleMixin):
             return
 
         endpoint_id = self.get_endpoint_id(request)
-        correlated_categories = self._collect_correlated_categories(client_ip)
+        lookup = self._lookup_correlated_categories(tracker, client_ip)
 
         seen: set[str] = set()
         for rule in filter(_counts_in_response_phase, rules):
@@ -177,7 +178,7 @@ class BehavioralProcessor(BehavioralThrottleMixin):
                     client_ip,
                     endpoint_id,
                     rule,
-                    correlated_categories,
+                    lookup,
                     record,
                 )
             else:
@@ -224,27 +225,32 @@ class BehavioralProcessor(BehavioralThrottleMixin):
         client_ip: str,
         endpoint_id: str,
         rule: BehaviorRule,
-        correlated_categories: list[str],
+        lookup: Callable[[], Awaitable[list[str]]],
         record: bool = True,
     ) -> None:
-        effective_threshold, correlation_active = effective_return_threshold(
-            rule, correlated_categories
+        correlation = (
+            ReturnCorrelation(correlated_return_threshold(rule), lookup)
+            if rule.correlate_with_detection
+            else None
         )
-
         pattern_detected = await tracker.track_return_pattern(
             global_scope_id(rule),
             client_ip,
             response,
             rule,
-            effective_threshold=effective_threshold,
             record=record,
+            correlation=correlation,
         )
         if not pattern_detected or is_throttle_rule(rule):
             return
 
+        correlated = (
+            correlation if correlation is not None and correlation.active else None
+        )
+        effective_threshold = correlated.threshold if correlated else rule.threshold
         details = (
             f"{effective_threshold} for '{rule.pattern}' in {rule.window}s"
-            f"{' (correlated)' if correlation_active else ''}"
+            f"{' (correlated)' if correlated else ''}"
         )
 
         await self._report_decorator_violation(
@@ -255,8 +261,8 @@ class BehavioralProcessor(BehavioralThrottleMixin):
             "behavioral_global",
             pattern=rule.pattern,
             threshold=effective_threshold,
-            correlation=correlation_active,
-            correlated_categories=correlated_categories if correlation_active else [],
+            correlation=correlated is not None,
+            correlated_categories=correlated.categories if correlated else [],
         )
         await tracker.apply_action(
             rule,

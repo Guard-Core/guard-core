@@ -4,6 +4,7 @@ from collections.abc import Collection
 from typing import TYPE_CHECKING
 
 from guard_core._utils.sampling import observe_sampled_key
+from guard_core.core.checks._shared_strikes import StrikeReport
 from guard_core.core.checks.base import SecurityCheck
 from guard_core.core.checks.helpers import (
     _increment_suspicious_counts,
@@ -109,6 +110,7 @@ class SuspiciousActivityCheck(SecurityCheck):
         trigger_info: str,
         threat_categories: list[str],
     ) -> GuardResponse:
+        strikes = StrikeReport()
         banned = await _try_threshold_ban(
             request,
             self.config,
@@ -120,6 +122,7 @@ class SuspiciousActivityCheck(SecurityCheck):
             self.check_name,
             self.config.muted_check_logs,
             threat_categories,
+            strikes=strikes,
         )
         if banned:
             return await self.middleware.create_error_response(
@@ -147,7 +150,7 @@ class SuspiciousActivityCheck(SecurityCheck):
             request=request,
             action_taken="request_blocked",
             reason=f"Penetration attempt detected: {trigger_info}",
-            request_count=self._total_count_for_ip(client_ip),
+            request_count=strikes.count_or(lambda: self._total_count_for_ip(client_ip)),
             trigger_info=trigger_info,
         )
 

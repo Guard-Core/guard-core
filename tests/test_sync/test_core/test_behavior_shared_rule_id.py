@@ -1,4 +1,5 @@
 import logging
+import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any
@@ -206,6 +207,13 @@ def test_return_rules_sharing_a_rule_id_apply_their_own_effective_threshold(
     middleware.suspicious_request_counts = {_IP: {"xss": 1}}
     response = MockGuardResponse("missing", status_code=404)
     with _engine(use_redis, config, middleware) as (processor, acted):
+        tracker = processor.context.behavior_tracker
+        assert tracker is not None
+        if use_redis:
+            now = time.time()
+            tracker.redis_handler.record_detection_strikes(
+                _IP, ("xss",), now, now - 3600, 3600, 10_000
+            )
         counts = []
         for _ in range(10):
             before = acted.call_count

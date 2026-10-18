@@ -55,12 +55,16 @@ def is_throttle_rule(rule: BehaviorRule) -> bool:
     return rule.action == "throttle" and rule.custom_action is None
 
 
+def correlated_return_threshold(rule: BehaviorRule) -> int:
+    return max(1, rule.threshold // 2)
+
+
 def effective_return_threshold(
     rule: BehaviorRule, correlated_categories: list[str]
 ) -> tuple[int, bool]:
     correlation_active = rule.correlate_with_detection and bool(correlated_categories)
     if correlation_active:
-        return max(1, rule.threshold // 2), True
+        return correlated_return_threshold(rule), True
     return rule.threshold, False
 
 
@@ -74,13 +78,21 @@ def _route_check(
     return ThrottleCheck(rule, endpoint_id, True, rule.threshold)
 
 
-def _global_check(
-    rule: BehaviorRule, correlated_categories: list[str]
-) -> ThrottleCheck:
+def _global_check(rule: BehaviorRule) -> ThrottleCheck:
     scope_id = global_scope_id(rule)
     if rule.rule_type == "return_pattern":
-        threshold, _ = effective_return_threshold(rule, correlated_categories)
-        return ThrottleCheck(rule, scope_id, False, threshold + 1)
+        correlated_at = (
+            correlated_return_threshold(rule) + 1
+            if rule.correlate_with_detection
+            else 0
+        )
+        return ThrottleCheck(
+            rule,
+            scope_id,
+            False,
+            rule.threshold + 1,
+            correlated_refuse_at=correlated_at,
+        )
     return ThrottleCheck(rule, scope_id, True, rule.threshold)
 
 
@@ -131,6 +143,35 @@ class BehavioralThrottleMixin:
         ip_counts = dict(counts.get(client_ip, {}))
         return sorted(cat for cat, n in ip_counts.items() if n > 0)
 
+    def _shared_or_process_categories(self, tracker: Any, client_ip: str) -> list[str]:
+        from guard_core.sync.core.checks._shared_strikes import (
+            read_shared_detection_categories,
+        )
+        from guard_core.sync.core.checks.helpers import SUSPICIOUS_COUNT_WINDOW_SECONDS
+
+        redis_handler = getattr(tracker, "redis_handler", None)
+        if self.context.middleware is not None and (
+            redis_handler and redis_handler.config.enable_redis
+        ):
+            shared = read_shared_detection_categories(
+                redis_handler, client_ip, SUSPICIOUS_COUNT_WINDOW_SECONDS
+            )
+            if shared is not None:
+                return shared
+        return self._collect_correlated_categories(client_ip)
+
+    def _lookup_correlated_categories(
+        self, tracker: Any, client_ip: str
+    ) -> Callable[[], list[str]]:
+        cached: list[list[str]] = []
+
+        def lookup() -> list[str]:
+            if not cached:
+                cached.append(self._shared_or_process_categories(tracker, client_ip))
+            return cached[0]
+
+        return lookup
+
     def _throttle_checks(
         self,
         client_ip: str,
@@ -142,10 +183,7 @@ class BehavioralThrottleMixin:
             _route_check(rule, endpoint_id, recorded_rule_ids)
             for rule in route_throttles
         ]
-        global_throttles = self._global_throttle_rules()
-        if global_throttles:
-            correlated = self._collect_correlated_categories(client_ip)
-            checks += [_global_check(rule, correlated) for rule in global_throttles]
+        checks += [_global_check(rule) for rule in self._global_throttle_rules()]
         return checks
 
     def _throttle_enforced(self) -> bool:
@@ -175,6 +213,9 @@ class BehavioralThrottleMixin:
                 checks,
                 time.time(),
                 record_when_over=not enforced,
+                process_categories=lambda: self._collect_correlated_categories(
+                    client_ip
+                ),
             )
         except GuardRedisError as error:
             return self._throttle_check_failed(error)

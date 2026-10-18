@@ -21,6 +21,7 @@ from guard_core.handlers._behavior_throttle import (
     RETURN_NAMESPACE,
     USAGE_NAMESPACE,
     BehaviorThrottleMixin,
+    ReturnCorrelation,
     bucket_key,
     return_hits_key,
     rule_hit_ttl,
@@ -215,6 +216,7 @@ class BehaviorTracker(
         rule: BehaviorRule,
         effective_threshold: int | None = None,
         record: bool = True,
+        correlation: ReturnCorrelation | None = None,
     ) -> bool:
         if not rule.pattern:
             return False
@@ -241,7 +243,9 @@ class BehaviorTracker(
                     RETURN_NAMESPACE, key, window_start
                 )
 
-            return valid_count > threshold
+            return valid_count > await self._correlated_threshold(
+                correlation, valid_count, threshold
+            )
 
         pattern_key = bucket_key(endpoint_id, rule)
         with self._lock:
@@ -261,8 +265,19 @@ class BehaviorTracker(
             if record:
                 timestamps.append(current_time)
             bucket[client_ip] = timestamps
+            valid_count = len(timestamps)
 
-            return len(timestamps) > threshold
+        return valid_count > await self._correlated_threshold(
+            correlation, valid_count, threshold
+        )
+
+    @staticmethod
+    async def _correlated_threshold(
+        correlation: ReturnCorrelation | None, count: int, threshold: int
+    ) -> int:
+        if correlation is None:
+            return threshold
+        return await correlation.threshold_for(count, threshold)
 
 
 def config_to_rule(cfg: BehaviorRuleConfig) -> BehaviorRule:

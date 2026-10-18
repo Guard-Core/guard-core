@@ -16,6 +16,7 @@ Unreleased
 ### Changed
 
 - **The detection auto-ban counts across workers when Redis is on.** Every detection strike is also recorded in Redis per IP and per category over the same 3600 s sliding window, in one round trip per strike, so the threshold is the configured number of detections whatever the worker count (4 workers banned after 9, 6 and 10 detections for a threshold of 5). Each key is bounded to 10,000 members, a landed ban clears the IP's shared counters, a Redis error falls back to the process count with a WARNING, and a benign request costs no Redis command.
+- **Every reader of the strike counters sees the shared counts when Redis is on.** The `request_count` of `penetration_attempt` events and the correlated categories of `correlate_with_detection` rules use the detection strikes and rate-limit violations of every worker; a request that cannot change a correlated rule's outcome costs no Redis command.
 - **`RateLimitManager.reset()` keeps the Redis and agent handlers attached.** It clears the request windows only (memory and the Redis `rate_limit:rate:*` keys), not the auto-ban strikes or active bans. A teardown is a new config object or a re-initialization, not `reset()`.
 
 ### Fixed

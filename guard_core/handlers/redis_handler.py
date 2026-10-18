@@ -23,6 +23,7 @@ from guard_core.exceptions import GuardRedisError
 from guard_core.models import SecurityConfig
 from guard_core.scripts.detection_strikes_lua import (
     FORGET_DETECTION_STRIKES_SCRIPT,
+    READ_DETECTION_CATEGORIES_SCRIPT,
     RECORD_DETECTION_STRIKES_SCRIPT,
 )
 from guard_core.scripts.rule_hit_index_lua import SUM_INDEXED_WINDOW_HITS_SCRIPT
@@ -76,6 +77,9 @@ _SLIDING_WINDOW_SHA = hashlib.sha1(
 ).hexdigest()
 _RECORD_DETECTION_STRIKES_SHA = hashlib.sha1(
     RECORD_DETECTION_STRIKES_SCRIPT.encode(), usedforsecurity=False
+).hexdigest()
+_READ_DETECTION_CATEGORIES_SHA = hashlib.sha1(
+    READ_DETECTION_CATEGORIES_SCRIPT.encode(), usedforsecurity=False
 ).hexdigest()
 _FORGET_DETECTION_STRIKES_SHA = hashlib.sha1(
     FORGET_DETECTION_STRIKES_SCRIPT.encode(), usedforsecurity=False
@@ -371,6 +375,15 @@ class RedisManager:
         total = f"{prefix}strikes:{client_ip}"
         return f"{prefix}strikes_index:{client_ip}", total, f"{total}|"
 
+    def detection_correlation_keys(self, client_ip: str) -> list[str]:
+        """The keys a script reads to learn whether the IP has strikes: the
+        category index and the shared rate-limit violations."""
+        index, _, _ = self._detection_strike_keys(client_ip)
+        return [index, self._rate_limit_violations_key(client_ip)]
+
+    def _rate_limit_violations_key(self, client_ip: str) -> str:
+        return f"{self.config.redis_prefix}rate_limit:violations:{client_ip}"
+
     async def record_detection_strikes(
         self,
         client_ip: str,
@@ -379,16 +392,22 @@ class RedisManager:
         window_start: float,
         ttl: int,
         cap: int,
-    ) -> tuple[int, dict[str, int]]:
+    ) -> tuple[int, int, dict[str, int]]:
         """Record one detection strike for the IP under every category in one
-        round trip. Returns the IP's total over all categories and the count of
-        each category of this strike, all inside the sliding window and each
-        key bounded to cap members."""
+        round trip. Returns the IP's total over all categories, the IP's shared
+        rate-limit violations in the window, and the count of each category of
+        this strike, all inside the sliding window and each key bounded to cap
+        members."""
         if not self.config.enable_redis:
-            return 0, {}
+            return 0, 0, {}
 
         index, total, category_prefix = self._detection_strike_keys(client_ip)
-        keys = [index, total, *(f"{category_prefix}{name}" for name in categories)]
+        keys = [
+            index,
+            total,
+            self._rate_limit_violations_key(client_ip),
+            *(f"{category_prefix}{name}" for name in categories),
+        ]
         args: list[Any] = [
             repr(timestamp),
             uuid.uuid4().hex,
@@ -410,7 +429,33 @@ class RedisManager:
             return [int(count) for count in counts]
 
         result = await self.safe_operation(_record)
-        return result[0], dict(zip(categories, result[1:], strict=True))
+        return result[0], result[1], dict(zip(categories, result[2:], strict=True))
+
+    async def read_detection_categories(
+        self, client_ip: str, window_start: float
+    ) -> list[str]:
+        """The detection categories (and "rate_limit" for shared rate-limit
+        violations) the IP has strikes in since window_start, in one round trip."""
+        if not self.config.enable_redis:
+            return []
+
+        _, _, category_prefix = self._detection_strike_keys(client_ip)
+        keys = self.detection_correlation_keys(client_ip)
+
+        async def _read(conn: Redis) -> list[str]:
+            try:
+                found = await conn.evalsha(
+                    _READ_DETECTION_CATEGORIES_SHA, 2, *keys, repr(window_start)
+                )
+            except NoScriptError:
+                await conn.script_load(READ_DETECTION_CATEGORIES_SCRIPT)
+                found = await conn.evalsha(
+                    _READ_DETECTION_CATEGORIES_SHA, 2, *keys, repr(window_start)
+                )
+            return [str(name).removeprefix(category_prefix) for name in found]
+
+        categories: list[str] = await self.safe_operation(_read)
+        return sorted(categories)
 
     async def forget_detection_strikes(self, client_ip: str) -> None:
         """Delete every detection strike counter of the IP in one round trip."""

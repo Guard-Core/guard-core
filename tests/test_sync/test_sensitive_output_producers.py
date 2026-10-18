@@ -487,6 +487,10 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "logs only the Redis exception text of the shared detection strike "
         "counter; never header, query or body content"
     ),
+    "core/checks/_shared_strikes.py:read_shared_detection_categories": (
+        "logs only the Redis exception text of the shared detection category "
+        "read; never header, query or body content"
+    ),
     "core/checks/_shared_strikes.py:forget_shared_detection_strikes": (
         "logs the banned client_ip (outside the secret matrix) and the Redis "
         "exception text; never header, query or body content"

@@ -9,6 +9,7 @@ from urllib.parse import urlparse
 
 from guard_core.core.checks._shared_strikes import (
     SharedStrikes,
+    StrikeReport,
     forget_shared_detection_strikes,
     record_shared_detection_strikes,
     strike_categories,
@@ -551,6 +552,7 @@ async def _try_threshold_ban(
     reason: str = "penetration_attempt",
     default_entries: Mapping[str, ThreatBanConfig] | None = None,
     ip_counts: Mapping[str, int] | None = None,
+    strikes: StrikeReport | None = None,
 ) -> bool:
     shared: SharedStrikes | None = None
     if ip_counts is None:
@@ -576,6 +578,8 @@ async def _try_threshold_ban(
         default_entries=default_entries,
         flat_total=shared.total if shared is not None else None,
     )
+    if strikes is not None:
+        strikes.record(shared, result is not None)
     if result is None:
         return False
     _forget_suspicious_counts(middleware, client_ip)
@@ -717,6 +721,7 @@ async def escalate_identity_violation(
         threat_categories = list(result.threat_categories) or ["uncategorized"]
         _increment_suspicious_counts(middleware, client_ip, threat_categories)
 
+        strikes = StrikeReport()
         banned = await _try_threshold_ban(
             request,
             config,
@@ -728,6 +733,7 @@ async def escalate_identity_violation(
             check_name,
             muted_check_logs,
             threat_categories,
+            strikes=strikes,
         )
 
         await middleware.event_bus.send_middleware_event(
@@ -735,8 +741,10 @@ async def escalate_identity_violation(
             request=request,
             action_taken="banned" if banned else "tracked",
             reason=f"Identity violation escalated: {trigger_info}",
-            request_count=sum(
-                middleware.suspicious_request_counts.get(client_ip, {}).values()
+            request_count=strikes.count_or(
+                lambda: sum(
+                    middleware.suspicious_request_counts.get(client_ip, {}).values()
+                )
             ),
             trigger_info=trigger_info,
             violation_category=violation_category,
