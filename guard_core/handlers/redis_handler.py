@@ -605,4 +605,8 @@ async def scan_unlink_through_new_client(url: str, full_pattern: str) -> int:
         await client.aclose()
 
 
+def is_connected_redis_manager(handler: Any) -> bool:
+    return isinstance(handler, RedisManager) and handler._redis is not None
+
+
 redis_handler = RedisManager

@@ -5,18 +5,13 @@ from collections.abc import Iterable
 from typing import Any
 
 from guard_core.models import SecurityConfig
+from guard_core.sync.handlers.redis_handler import is_connected_redis_manager
 
 _NAMESPACE = "whitelist"
 _APPLIED_KEY = "strikes_applied"
 _LOCK_KEY = "strikes_lock"
 _LOCK_SECONDS = 60
 _logger = logging.getLogger("guard_core.sync.core.initialization.whitelist_strikes")
-
-
-def is_connected_redis_manager(redis_handler: Any) -> bool:
-    from guard_core.sync.handlers.redis_handler import RedisManager
-
-    return isinstance(redis_handler, RedisManager) and redis_handler._redis is not None
 
 
 def whitelist_fingerprint(entries: Iterable[str]) -> str:
