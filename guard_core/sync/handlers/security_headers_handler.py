@@ -153,7 +153,7 @@ class SecurityHeadersManager(
         if "enabled" in keys:
             return bool(keys["enabled"])
         raw = config.security_headers
-        return bool(raw) and bool(raw.get("enabled", True))
+        return bool(raw and raw.get("enabled", True))
 
     def _headers_off(
         self, config: SecurityConfig, override: OverrideRecord | None = None

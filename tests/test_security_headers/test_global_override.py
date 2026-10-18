@@ -98,7 +98,7 @@ class FakeRedis:
                 return results
 
         class Conn:
-            def pipeline(self, transaction: bool = True) -> Pipe:
+            def pipeline(self, **_options: Any) -> Pipe:
                 return Pipe()
 
             async def keys(self, pattern: str) -> list[str]:
@@ -161,6 +161,10 @@ def _app(
 
 def _hash_of(manager: SecurityHeadersManager) -> str | None:
     return manager._startup_hash
+
+
+def _redis_of(manager: SecurityHeadersManager) -> Any:
+    return manager.redis_handler
 
 
 def _in_redis(manager: SecurityHeadersManager) -> bool:
@@ -1918,18 +1922,18 @@ async def test_a_released_adapter_gets_its_redis_found_at_the_pull_boundary(
     )
     factory = _app(config)
     manager = factory.security_headers_manager
-    assert manager.redis_handler is None
+    assert _redis_of(manager) is None
     await _response(factory)
-    assert manager.redis_handler is None
+    assert _redis_of(manager) is None
 
     HandlerInitializer(config=config, redis_handler=redis)
     await _response(factory)
-    assert manager.redis_handler is None
+    assert _redis_of(manager) is None
 
     clock.now += 5.0
     await _response(factory)
 
-    assert manager.redis_handler is redis
+    assert _redis_of(manager) is redis
     _override(csp=GLOBAL_CSP)
     await _response(factory)
     assert len([k for k in redis.store if ":override:" in k]) == 1

@@ -26,6 +26,7 @@ class SecurityHeadersCacheMixin:
     hsts_config: dict[str, Any] | None
     cors_config: dict[str, Any] | None
     default_headers: dict[str, str]
+    _instance: Any
     _startup_hash: str | None
     _redis_initialized: bool
 
