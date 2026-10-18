@@ -23,6 +23,14 @@ from guard_core.handlers._suspatterns_matchers import (
     _template_hash_brace_scan_matches,
     _template_percent_keyword_scan_matches,
 )
+from guard_core.handlers._suspatterns_recall_rows import (
+    _CMD_NEWLINE_COMMAND_DECODED_RE,
+    _CMD_NEWLINE_COMMAND_RE,
+    _HTTP_SPLIT_CRLF_DECODED_RE,
+    _TEMPLATE_FREEMARKER_EXECUTE_RE,
+    _TEMPLATE_OGNL_RE,
+    _TEMPLATE_VELOCITY_SET_RE,
+)
 from guard_core.handlers._suspatterns_sources import (
     _CMD_INJECTION_NEWLINE_SHELL_DASH_C_RE,
     _DESERIALIZATION_DOTNET_B64_RE,
@@ -68,6 +76,10 @@ _PATTERN_SCAN_WINDOW_MATCHERS: dict[
 
 DETECTION_RAW_VIEW_PATTERN_SOURCES: frozenset[str] = frozenset(
     {
+        _CMD_NEWLINE_COMMAND_RE,
+        _TEMPLATE_FREEMARKER_EXECUTE_RE,
+        _TEMPLATE_OGNL_RE,
+        _TEMPLATE_VELOCITY_SET_RE,
         _LDAP_NULL_BYTE_ATTR_RE,
         _LDAP_NULL_BYTE_BARE_RE,
         _HTTP_SPLIT_CRLF_RE,
@@ -89,6 +101,8 @@ DETECTION_RAW_VIEW_PATTERN_SOURCES: frozenset[str] = frozenset(
 
 DETECTION_URL_DECODED_VIEW_PATTERN_SOURCES: frozenset[str] = frozenset(
     {
+        _CMD_NEWLINE_COMMAND_DECODED_RE,
+        _HTTP_SPLIT_CRLF_DECODED_RE,
         _CMD_INJECTION_NEWLINE_SHELL_DASH_C_RE,
         _DIR_TRAVERSAL_ETC_SENSITIVE_RE,
         _DIR_TRAVERSAL_WINDOWS_INI_RE,

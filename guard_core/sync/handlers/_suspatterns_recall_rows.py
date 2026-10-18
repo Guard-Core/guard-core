@@ -1,0 +1,85 @@
+from guard_core.sync.handlers._suspatterns_file_upload import (
+    _FILE_UPLOAD_BENIGN_TERMINAL_ALTERNATION,
+    _FILE_UPLOAD_DOUBLE_EXT_ALTERNATION,
+)
+
+_INTERNAL_IPV4_PREFIX_RE = (
+    r"(?:127(?:\.\d{1,3}){3}|10(?:\.\d{1,3}){3}|192\.168(?:\.\d{1,3}){2}"
+    r"|172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2}|169\.254(?:\.\d{1,3}){2})"
+)
+
+_CMD_EXTENDED_COMMAND_RE = (
+    r"[;|&]\s*(?:sleep\s+\d+"
+    r"|(?-i:env|printenv)\s*(?:[|;&>]|\Z)"
+    r"|cmd(?:\.exe)?\s+/[a-z]"
+    r"|(?:powershell(?:\.exe)?|pwsh)\s+-\w"
+    r"|(?:ping|ncat)\s+-[a-z]"
+    r"|(?:nslookup|dig)\s+[\w.-]+\.[a-z]{2,}"
+    r"|ifconfig\s*(?:[|;&>]|\Z)"
+    r"|telnet\s+[\w.-]+\s+\d+"
+    r"|ssh\s+[\w.-]+@[\w.-]+)"
+)
+_CMD_NEWLINE_COMMAND_RE = r"\n[^\S\n]*(?-i:id|whoami|uname\s+-a)[^\S\n]*(?:[|;&]|\Z)"
+_CMD_NEWLINE_COMMAND_DECODED_RE = _CMD_NEWLINE_COMMAND_RE + r"(?#url-decoded view)"
+_CMD_EXFILTRATION_RE = (
+    r"\bwget\s[^\n|;&]{0,80}--post-file\s*=?\s*\S"
+    r"|\bcurl\s[^\n|;&]{0,80}(?:--upload-file|-T)\s*=?\s*[\"']?/\w"
+    r"|\bcurl\s[^\n|;&]{0,80}(?:--data(?:-binary|-raw|-urlencode)?|-d|--form|-F)"
+    r"\s*=?\s*[\"']?(?:\w+=)?@/\w"
+)
+
+_TEMPLATE_DUNDER_CHAIN_RE = (
+    r"\{\{[^{}]{0,200}__(?:class|globals|init|subclasses|mro|builtins|import|base"
+    r"|bases|getattribute)__"
+)
+_TEMPLATE_FREEMARKER_EXECUTE_RE = (
+    r"<#assign\s+\w+\s*=\s*[\"'][^\"']{0,120}(?:freemarker\.template\.utility"
+    r"|ObjectConstructor|Execute|JythonRuntime)[^\"']{0,60}[\"']\s*\?\s*new\b"
+)
+_TEMPLATE_VELOCITY_SET_RE = (
+    r"#set\s*\(\s*\$\w+\s*=\s*(?:\d+\s*[*+/-]\s*\d+"
+    r"|[^)]{0,80}(?:\.getClass\(|forName\(|Runtime))"
+)
+_TEMPLATE_SPEL_SELECTION_RE = (
+    r"\*\{\s*(?:\d+\s*[*+/-]\s*\d+\s*\}|T\s*\(\s*[A-Za-z_][\w.]*\s*\))"
+)
+_TEMPLATE_OGNL_RE = (
+    r"%\{\s*\(\s*#[\w.]+\s*=|@ognl\.OgnlContext@|#(?:_memberAccess|context)\s*[\[=]"
+)
+
+_SQLI_ERROR_BASED_RE = r"\b(?:extractvalue|updatexml)\s*\(\s*[\w.]+\s*,\s*[^)]{0,80}"
+_SQLI_SCHEMA_SUBSELECT_RE = (
+    r"\(\s*select\b(?:[^()]|\([^()]*\)){0,100}\bfrom\s+information_schema\s*\.\s*"
+    r"(?:tables|columns|schemata)"
+)
+_SQLI_BLIND_SUBSTRING_RE = (
+    r"\b(?:substring|substr|mid)\s*\(\s*\(\s*select\b"
+    r"|\bascii\s*\(\s*(?:substring|substr|mid)\s*\("
+)
+
+_SSRF_WILDCARD_DNS_RE = (
+    r"(?:\A|[/@\s])" + _INTERNAL_IPV4_PREFIX_RE + r"\.(?:nip|sslip|xip)\.io\b"
+)
+
+_DESERIALIZATION_YAML_PYTHON_RE = r"!!(?:python|ruby)/(?:object|name|module)\b"
+_PROTO_POLLUTION_CONSTRUCTOR_PROTOTYPE_RE = (
+    r"[\"']constructor[\"']\s*:\s*\{\s*[\"']prototype[\"']"
+    r"|\bconstructor\s*\.\s*prototype\s*\.\s*\w+\s*="
+)
+
+_FILE_INCLUSION_REMOTE_NULL_TERMINATED_RE = (
+    r"\Ahttps?://[^\s/?#]+/[^\s?#]*\.(?:txt|php\d?|inc|jpg|png|gif|asp|jsp|pl|py|sh)"
+    r"\?\Z"
+)
+
+_HTTP_SPLIT_CRLF_DECODED_RE = (
+    r"[\r\n][^\S\r\n]*(?:HTTP\/[0-9.]+|Location:|Set-Cookie:)(?#url-decoded view)"
+)
+
+_FILE_UPLOAD_BARE_NAME_RE = (
+    r"\A[\w.\-]{0,100}\.(?:"
+    + _FILE_UPLOAD_DOUBLE_EXT_ALTERNATION
+    + r")(?:\.(?:"
+    + _FILE_UPLOAD_BENIGN_TERMINAL_ALTERNATION
+    + r")|;[^/\\]{0,60}|\.|\s+)\Z"
+)

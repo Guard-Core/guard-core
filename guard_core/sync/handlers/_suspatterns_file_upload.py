@@ -2,7 +2,10 @@ import re
 
 from guard_core.sync.detection_engine.scan_window import bounded_finditer
 
-_FILE_UPLOAD_DANGEROUS_EXTENSIONS = frozenset(
+_FILE_UPLOAD_SERVER_CONFIG_EXTENSIONS = frozenset(
+    {"htaccess", "htpasswd", "config", "inc"}
+)
+_FILE_UPLOAD_DANGEROUS_EXTENSIONS = _FILE_UPLOAD_SERVER_CONFIG_EXTENSIONS | frozenset(
     {
         "phar",
         "phtml",
@@ -45,8 +48,10 @@ _FILE_UPLOAD_DANGEROUS_EXT_ALTERNATION = r"php\d*|" + "|".join(
     re.escape(ext)
     for ext in sorted(_FILE_UPLOAD_DANGEROUS_EXTENSIONS, key=lambda c: (-len(c), c))
 )
-_FILE_UPLOAD_DOUBLE_EXT_EXTENSIONS = _FILE_UPLOAD_DANGEROUS_EXTENSIONS - frozenset(
-    {"com"}
+_FILE_UPLOAD_DOUBLE_EXT_EXTENSIONS = (
+    _FILE_UPLOAD_DANGEROUS_EXTENSIONS
+    - _FILE_UPLOAD_SERVER_CONFIG_EXTENSIONS
+    - frozenset({"com"})
 )
 _FILE_UPLOAD_DOUBLE_EXT_ALTERNATION = r"php\d*|" + "|".join(
     re.escape(ext)

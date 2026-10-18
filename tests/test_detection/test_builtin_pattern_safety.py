@@ -457,7 +457,7 @@ def _file_upload_patterns() -> list[str]:
 
 @pytest.mark.parametrize("pat", _file_upload_patterns())
 def test_file_upload_patterns_resist_unclosed_filename_padding(pat: str) -> None:
-    assert len(_file_upload_patterns()) == 4
+    assert len(_file_upload_patterns()) == 5
     sizes = [4000, 8000, 16000]
 
     def mk(n: int) -> str:
