@@ -187,7 +187,7 @@ class RateLimitCheck(SecurityCheck):
         if not _is_ip_address(client_ip):
             self._log_non_ip_ban_refusal(client_ip)
             return
-        identity = self._strike_identity(client_ip)
+        identity = self._strike_identity(request, client_ip)
         try:
             _increment_suspicious_counts(self.middleware, identity, "rate_limit")
             shared = await self._shared_violation_counts(identity)
@@ -214,10 +214,15 @@ class RateLimitCheck(SecurityCheck):
                 self.logger, "rate-limit auto-ban failed for %s", client_ip
             )
 
-    def _strike_identity(self, client_ip: str) -> str:
+    def _strike_identity(self, request: GuardRequest, client_ip: str) -> str:
         if ":" not in client_ip:
             return client_ip
-        return _client_identity(client_ip, self.config.ipv6_prefix_length)
+        entry = (
+            getattr(request.state, "whitelist_entry", None)
+            if self.config.whitelist_access_only
+            else None
+        )
+        return _client_identity(client_ip, self.config.ipv6_prefix_length, entry)
 
     def _shared_redis(self) -> Any:
         if not self.config.enable_redis:
@@ -425,6 +430,11 @@ class RateLimitCheck(SecurityCheck):
         if not plans:
             return None
 
+        carve = (
+            {"window_identity": self._strike_identity(request, client_ip)}
+            if self.config.whitelist_access_only
+            else {}
+        )
         block: (
             RateLimitBlock | None
         ) = await self.middleware.rate_limit_handler.check_rate_limit_tiers(
@@ -433,6 +443,7 @@ class RateLimitCheck(SecurityCheck):
             self.middleware.create_error_response,
             [plan.tier for plan in plans],
             config=self.config,
+            **carve,
         )
         if block is None:
             return None

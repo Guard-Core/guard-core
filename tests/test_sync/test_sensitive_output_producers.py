@@ -396,6 +396,10 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "SecurityConfig construction warning about the unset rate_limit default, "
         "evaluated before any request, carries no request data"
     ),
+    "_staged_defaults.py:_warn_whitelist_access_only_default_off": (
+        "SecurityConfig construction warning about an unset config flag, "
+        "evaluated before any request, carries no request data"
+    ),
     "_staged_defaults.py:_warn_default_redis_prefix": (
         "SecurityConfig construction warning about the default redis_prefix, "
         "evaluated before any request, carries no request data"

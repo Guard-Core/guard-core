@@ -63,7 +63,7 @@ class GuardRequest(Protocol):
 | `headers` | `Mapping[str, str]` | HTTP headers as a read-only mapping. Header names are case-insensitive in HTTP but the mapping implementation determines lookup behavior |
 | `query_params` | `Mapping[str, str]` | URL query parameters as a read-only mapping |
 | `body()` | `async -> bytes` | The raw request body. This is an async method because some frameworks read the body lazily |
-| `state` | `Any` | A mutable state object for attaching per-request data. guard-core stores `client_ip`, `route_config`, and `is_whitelisted` here |
+| `state` | `Any` | A mutable state object for attaching per-request data. guard-core stores `client_ip`, `route_config`, `is_whitelisted` and, with `whitelist_access_only`, `whitelist_entry` here |
 | `scope` | `dict[str, Any]` | ASGI-style scope dict. Must contain `"app"` key for route resolution to work. Also checked for `"route"` key by behavioral processing |
 
 ### Framework Mapping
@@ -89,7 +89,7 @@ This table shows what each property maps to in common frameworks:
 
     - `state.client_ip` -- set by `RouteConfigCheck` (check #1)
     - `state.route_config` -- set by `RouteConfigCheck` (check #1)
-    - `state.is_whitelisted` -- set by `IpSecurityCheck` (check #12)
+    - `state.is_whitelisted` -- set by `IpSecurityCheck` (check #12): `True` for a global `whitelist` match, or always `False` when `whitelist_access_only` is on (the matching entry is then in `state.whitelist_entry`)
 
     Your adapter's `GuardRequest.state` implementation must support arbitrary attribute assignment.
 

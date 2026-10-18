@@ -647,8 +647,9 @@ class RateLimitManager:
         client_ip: str,
         tiers: Sequence[RateLimitTier],
         config: SecurityConfig,
+        window_identity: str | None = None,
     ) -> RateLimitVerdict:
-        identity = (
+        identity = window_identity or (
             _client_identity(client_ip, config.ipv6_prefix_length)
             if ":" in client_ip
             else client_ip
@@ -680,9 +681,12 @@ class RateLimitManager:
         create_error_response: Callable[[int, str], Awaitable[GuardResponse]],
         tiers: Sequence[RateLimitTier],
         config: SecurityConfig | None = None,
+        window_identity: str | None = None,
     ) -> RateLimitBlock | None:
         display_config = config or self.config
-        verdict = await self._tier_verdict(client_ip, tiers, display_config)
+        verdict = await self._tier_verdict(
+            client_ip, tiers, display_config, window_identity
+        )
         if verdict.tier_index is None:
             return None
         response = await self._handle_rate_limit_exceeded(

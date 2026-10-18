@@ -155,7 +155,7 @@ ___
 
 A route setting overrides the global gate only for the aspect it explicitly allows, and the IP and country aspects are evaluated independently: a route `ip_whitelist` match replaces the global whitelist but never lifts the global blacklist, and does not exempt the request from country enforcement, and only an actual `whitelist_countries` match for the resolved country suppresses the global country gate. A route-level deny (`ip_blacklist` / `blocked_countries`) is enforced at the route step and never, by itself, disables the global IP or country rules. Within the IP aspect, a route `ip_whitelist` match wins over that same route's own `ip_blacklist` (v3.2.0 precedence, unchanged).
 
-Also sets `request.state.is_whitelisted`, `True` only for a **global** `config.whitelist` match. A route-level `ip_whitelist` match grants access to that route but does not set `is_whitelisted`; it is access-only and still passes through rate limiting, user-agent filtering, cloud-provider blocking, and suspicious-activity detection.
+Also sets `request.state.is_whitelisted`, `True` only for a **global** `config.whitelist` match and only while `whitelist_access_only` is off (with the flag on it is always `False` and `request.state.whitelist_entry` names the matching entry, so the global whitelist has the same access-only meaning as a route `ip_whitelist`). A route-level `ip_whitelist` match grants access to that route but does not set `is_whitelisted`; it is access-only and still passes through rate limiting, user-agent filtering, cloud-provider blocking, and suspicious-activity detection.
 
 ___
 
@@ -168,7 +168,7 @@ ___
 
 **Response**: `403 Cloud provider IP not allowed`
 
-**Skips**: IPs whitelisted at the **global** level (`request.state.is_whitelisted`), a route-level `ip_whitelist` match alone does not set this, so it does not skip this check.
+**Skips**: IPs whitelisted at the **global** level (`request.state.is_whitelisted`, never set while `whitelist_access_only` is on), a route-level `ip_whitelist` match alone does not set this, so it does not skip this check.
 
 ___
 

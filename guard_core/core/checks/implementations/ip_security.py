@@ -5,6 +5,7 @@ from guard_core._utils.ip_extraction import (
     _is_trusted_proxy,
     forwarded_for_addresses,
 )
+from guard_core._utils.whitelist_match import most_specific_whitelist_entry
 from guard_core.core.checks.base import SecurityCheck
 from guard_core.core.checks.helpers import (
     check_country_access,
@@ -289,7 +290,9 @@ class IpSecurityCheck(SecurityCheck):
             precomputed
             or await self._resolve_global_ip_access(request, client_ip, route_config)
         )
-        request.state.is_whitelisted = is_whitelisted
+        request.state.is_whitelisted = self._trusts_whitelist_match(
+            request, client_ip, is_whitelisted
+        )
         request.state.is_exempt = is_exempt
 
         if access_result.geo_failure:
@@ -346,6 +349,16 @@ class IpSecurityCheck(SecurityCheck):
             )
 
         return None
+
+    def _trusts_whitelist_match(
+        self, request: GuardRequest, client_ip: str, is_whitelisted: bool
+    ) -> bool:
+        if not (is_whitelisted and self.config.whitelist_access_only):
+            return is_whitelisted
+        request.state.whitelist_entry = most_specific_whitelist_entry(
+            ip_address(client_ip), self.config.whitelist or ()
+        )
+        return False
 
     async def _report_geo_failure(
         self, request: GuardRequest, client_ip: str, access_result: IpAccessResult

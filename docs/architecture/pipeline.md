@@ -375,7 +375,7 @@ This check runs first because all subsequent checks depend on `request.state.cli
 | **Module** | `guard_core.core.checks.implementations.ip_security` |
 | **Purpose** | IP ban checks, route-level IP whitelist/blacklist, country-based filtering, and global IP allowlist/blocklist |
 | **Blocks?** | Returns 403 (forbidden) |
-| **Side Effects** | Sets `request.state.is_whitelisted` |
+| **Side Effects** | Sets `request.state.is_whitelisted` (always `False` when `whitelist_access_only` is on, with `request.state.whitelist_entry` naming the matching entry) |
 
 ### 8. CloudProviderCheck
 

@@ -404,6 +404,25 @@ GEO_CONFIG_WHITELIST = {
 }
 
 
+WHITELIST_ACCESS_ONLY_CONFIG = {
+    "whitelist": ["192.168.50.50"],
+    "whitelist_access_only": True,
+    "blocked_user_agents": ["smoke-blocked-agent"],
+    "excluded_detection_headers": EXCLUDED_HEADERS,
+}
+
+
+@scenario(covers={"whitelist_access_only"}, config=WHITELIST_ACCESS_ONLY_CONFIG)
+def whitelist_access_only_still_applies_the_user_agent_check_to_a_whitelisted_ip(
+    ctx: ScenarioContext,
+) -> None:
+    blocked = ctx.client.get(
+        "/basic/ip", headers={"User-Agent": "smoke-blocked-agent/1.0"}
+    )
+    assert blocked.status_code == 403
+    assert ctx.client.get("/basic/ip", params={"q": "hello"}).status_code == 200
+
+
 NAT64_PREFIXES_CONFIG = {
     "nat64_prefixes": ["2001:db8:122:344::/64"],
     "excluded_detection_headers": EXCLUDED_HEADERS,

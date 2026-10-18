@@ -58,6 +58,7 @@ _field_validators_module._hostile_signal_ban_default_warned = True
 _staged_defaults_module._redis_default_warned = True
 _staged_defaults_module._rate_limit_default_warned = True
 _staged_defaults_module._default_prefix_warned = True
+_staged_defaults_module._whitelist_access_only_warned = True
 
 IPINFO_TOKEN = os.getenv("IPINFO_TOKEN") or "test_token"
 REDIS_URL = os.getenv("REDIS_URL") or "redis://localhost:6379"
@@ -389,6 +390,7 @@ async def reset_state() -> AsyncGenerator[None, None]:
     _staged_defaults_module._redis_default_warned = True
     _staged_defaults_module._rate_limit_default_warned = True
     _staged_defaults_module._default_prefix_warned = True
+    _staged_defaults_module._whitelist_access_only_warned = True
 
     _reset_ip_ban_manager()
     _reset_cloud_handler()
