@@ -1,4 +1,6 @@
+from collections import Counter
 from collections.abc import Iterator, Mapping
+from urllib.parse import parse_qsl
 
 from guard_core._utils.body_form_scan import (
     _multipart_part_entries,
@@ -114,6 +116,23 @@ async def _scan_query_param_value(
     return detected, trigger, threats
 
 
+def _query_pairs_with_repeats(request: GuardRequest) -> list[tuple[str, str]]:
+    pairs = list(request.query_params.items())
+    full_url = getattr(request, "url_full", None)
+    if not isinstance(full_url, str):
+        return pairs
+    query = full_url.partition("?")[2].partition("#")[0]
+    if not query:
+        return pairs
+    unscanned = Counter(pairs)
+    for pair in parse_qsl(query, keep_blank_values=True, separator="&"):
+        if unscanned[pair] > 0:
+            unscanned[pair] -= 1
+        else:
+            pairs.append(pair)
+    return pairs
+
+
 async def _scan_query_params(
     request: GuardRequest,
     excluded_params: set[str],
@@ -126,7 +145,7 @@ async def _scan_query_params(
     excluded_body_fields: frozenset[str] = frozenset(),
     sensitive_headers: frozenset[str] = frozenset(),
 ) -> tuple[bool, str, list[dict]]:
-    for key, value in request.query_params.items():
+    for key, value in _query_pairs_with_repeats(request):
         if key.lower() in excluded_params:
             continue
         key_preview = redact_blob_for_display(
