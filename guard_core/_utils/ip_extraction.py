@@ -2,7 +2,14 @@ import logging
 import threading
 from collections import OrderedDict
 from collections.abc import Sequence
-from ipaddress import IPv4Address, IPv6Address, ip_address, ip_network
+from ipaddress import (
+    IPv4Address,
+    IPv4Network,
+    IPv6Address,
+    IPv6Network,
+    ip_address,
+    ip_network,
+)
 from typing import Any
 
 from guard_core._utils.agent_events import send_agent_event
@@ -14,6 +21,14 @@ from guard_core.protocols.request_protocol import GuardRequest
 logger = logging.getLogger("guard_core")
 
 UNKNOWN_CLIENT_IDENTITY = "unknown"
+
+_PER_ADDRESS_IDENTITY_NETWORKS = (
+    ip_network("2001::/32"),
+    ip_network("64:ff9b::/96"),
+    ip_network("64:ff9b:1::/48"),
+)
+_SIX_TO_FOUR_NETWORK = ip_network("2002::/16")
+_SIX_TO_FOUR_IDENTITY_PREFIX_LENGTH = 48
 
 
 def _peer_address_for_matching(value: str) -> IPv4Address | IPv6Address | None:
@@ -83,6 +98,46 @@ def _canonicalize_ip(value: str) -> str:
     except ValueError:
         return value
     return _canonical_ip_text(addr)
+
+
+def _is_per_address_identity(addr: IPv6Address) -> bool:
+    return any(addr in network for network in _PER_ADDRESS_IDENTITY_NETWORKS)
+
+
+def _identity_group_prefix_length(addr: IPv6Address, prefix_length: int) -> int:
+    if addr in _SIX_TO_FOUR_NETWORK:
+        return _SIX_TO_FOUR_IDENTITY_PREFIX_LENGTH
+    return prefix_length
+
+
+def _whitelist_entry_network(
+    whitelist_entry: str | None, addr: IPv4Address | IPv6Address
+) -> IPv4Network | IPv6Network | None:
+    if whitelist_entry is None:
+        return None
+    entry = ip_network(whitelist_entry, strict=False)
+    if addr not in entry:
+        raise ValueError(f"{whitelist_entry} does not contain {addr}")
+    return entry
+
+
+def _client_identity(
+    address: str, prefix_length: int, whitelist_entry: str | None = None
+) -> str:
+    canonical = _canonicalize_ip(address)
+    try:
+        addr = ip_address(canonical)
+    except ValueError:
+        return canonical
+    if prefix_length == 128:
+        return canonical
+    if isinstance(addr, IPv4Address) or _is_per_address_identity(addr):
+        return canonical
+    entry = _whitelist_entry_network(whitelist_entry, addr)
+    group_length = _identity_group_prefix_length(addr, prefix_length)
+    if entry is not None and entry.prefixlen >= group_length:
+        return str(entry)
+    return str(ip_network(f"{canonical}/{group_length}", strict=False))
 
 
 def _forwarded_header_candidate_has_metachar(candidate: str) -> bool:
