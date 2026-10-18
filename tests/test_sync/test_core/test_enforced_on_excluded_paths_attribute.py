@@ -85,7 +85,7 @@ def test_pipeline_runs_check_on_non_excluded_request_regardless_of_flag() -> Non
     assert result.status_code == 403
 
 
-def test_default_check_classes_enforced_on_excluded_paths_is_exactly_three() -> None:
+def test_default_check_classes_enforced_on_excluded_paths_is_exactly_two() -> None:
     middleware = _mock_middleware()
     checks = [cls(middleware) for cls in DEFAULT_CHECK_CLASSES]
 
@@ -93,4 +93,4 @@ def test_default_check_classes_enforced_on_excluded_paths_is_exactly_three() -> 
         check.check_name for check in checks if check.enforced_on_excluded_paths
     }
 
-    assert enforced_names == {"route_config", "ip_security", "rate_limit"}
+    assert enforced_names == {"route_config", "ip_security"}

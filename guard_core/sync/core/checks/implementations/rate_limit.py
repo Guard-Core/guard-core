@@ -22,6 +22,7 @@ from guard_core.sync.core.events.event_types import (
     EVENT_DYNAMIC_RULE_VIOLATION,
 )
 from guard_core.sync.decorators.base import RouteConfig
+from guard_core.sync.handlers.cors_handler import is_preflight
 from guard_core.sync.handlers.ratelimit_handler import RateLimitBlock, RateLimitTier
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
@@ -73,7 +74,6 @@ class _TierPlan(NamedTuple):
 
 class RateLimitCheck(SecurityCheck):
     container_fields: ClassVar[tuple[str, ...]] = ("endpoint_rate_limits",)
-    enforced_on_excluded_paths = True
 
     def __init__(self, middleware: "SyncGuardMiddlewareProtocol") -> None:
         super().__init__(middleware)
@@ -350,22 +350,28 @@ class RateLimitCheck(SecurityCheck):
             request, client_ip, block, plan.tier, self.config
         )
 
-    def check(self, request: SyncGuardRequest) -> GuardResponse | None:
+    def _skips_rate_limiting(
+        self, request: SyncGuardRequest, route_config: Any
+    ) -> bool:
         if (
             getattr(request.state, "is_whitelisted", False)
             or getattr(request.state, "is_exempt", False) is True
         ):
-            return None
+            return True
+        if is_preflight(request.method, request.headers):
+            return True
+        return bool(
+            route_config
+            and self.middleware.route_resolver.should_bypass_check(
+                "rate_limit", route_config
+            )
+        )
 
+    def check(self, request: SyncGuardRequest) -> GuardResponse | None:
         client_ip = getattr(request.state, "client_ip", None)
         route_config = getattr(request.state, "route_config", None)
 
-        if not client_ip:
-            return None
-
-        if route_config and self.middleware.route_resolver.should_bypass_check(
-            "rate_limit", route_config
-        ):
+        if not client_ip or self._skips_rate_limiting(request, route_config):
             return None
 
         plans = self._tier_plans(request, client_ip, route_config)

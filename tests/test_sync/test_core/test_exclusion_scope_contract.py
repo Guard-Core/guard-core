@@ -125,7 +125,7 @@ def test_non_banned_ip_on_excluded_path_passes_through() -> None:
     assert result is None
 
 
-def test_rate_limit_is_enforced_on_excluded_path() -> None:
+def test_rate_limit_is_skipped_on_excluded_path() -> None:
     config = _config(enable_rate_limiting=True, rate_limit=1, rate_limit_window=60)
     config.rate_limit = 0
     middleware = _build_middleware(config)
@@ -136,8 +136,7 @@ def test_rate_limit_is_enforced_on_excluded_path() -> None:
 
     result = pipeline.execute(request)
 
-    assert result is not None
-    assert result.status_code == 429
+    assert result is None
 
 
 def test_detection_does_not_run_on_excluded_path() -> None:
