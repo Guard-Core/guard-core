@@ -57,6 +57,7 @@ from pipeline_harness import (
     _StubResponse,
     _StubRouteResolver,
     create_harness_error_response,
+    reset_check_samplers,
 )
 
 from guard_core.core.bypass.context import BypassContext
@@ -349,6 +350,7 @@ class EventsCase:
 
     async def prepare(self) -> None:
         await reset_global_state()
+        reset_check_samplers()
         security_headers_manager.headers_cache.clear()
         await self.rate_limit_handler.reset()
         await self.rate_limit_handler.initialize_agent(self.agent)
