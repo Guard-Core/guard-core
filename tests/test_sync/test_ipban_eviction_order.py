@@ -1,7 +1,7 @@
 import logging
 import time
 from collections.abc import Generator
-from typing import Any
+from typing import Any, cast
 from unittest.mock import MagicMock, Mock
 
 import pytest
@@ -31,7 +31,9 @@ def _events(manager: IPBanManager) -> list[Any]:
 
 
 def test_the_default_store_holds_one_hundred_thousand_bans() -> None:
-    assert IPBanManager().banned_ips.maxsize == 100_000
+    store = cast(_BanStore, IPBanManager().banned_ips)
+
+    assert store.maxsize == 100_000
 
 
 def test_the_ban_closest_to_expiry_is_evicted_first() -> None:
