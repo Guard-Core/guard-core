@@ -16,6 +16,7 @@ from guard_core.models import SecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.scripts.rate_lua import RATE_LIMIT_SCRIPT
 from guard_core.sync._utils.identity_hash import _hash_identity_segment
+from guard_core.sync._utils.ip_extraction import _client_identity
 from guard_core.sync._utils.lru_store import (
     DEFAULT_MAX_TRACKED_KEYS,
     _lru_pop_or_create,
@@ -495,13 +496,16 @@ def check_rate_limit_by_ip(
 
     tier = RateLimitTier("", config.rate_limit, config.rate_limit_window, endpoint_path)
     tiers = [tier]
+    window_identity = (
+        _client_identity(ip, config.ipv6_prefix_length) if ":" in ip else ip
+    )
 
     verdict: RateLimitVerdict | None = None
     if config.enable_redis and redis_handler:
         verdict, _ = _redis_tier_verdict(
             redis_handler,
             _by_ip_logger,
-            ip,
+            window_identity,
             tiers,
             None,
             None,
@@ -511,7 +515,7 @@ def check_rate_limit_by_ip(
     if verdict is None:
         verdict = _in_memory_tier_verdict(
             _by_ip_request_timestamps,
-            ip,
+            window_identity,
             tiers,
             time.time(),
             config.rate_limit_max_tracked_keys,
@@ -658,11 +662,16 @@ class RateLimitManager:
         tiers: Sequence[RateLimitTier],
         config: SecurityConfig,
     ) -> RateLimitVerdict:
+        identity = (
+            _client_identity(client_ip, config.ipv6_prefix_length)
+            if ":" in client_ip
+            else client_ip
+        )
         if config.enable_redis and self.redis_handler:
             verdict, self.rate_limit_script_sha = _redis_tier_verdict(
                 self.redis_handler,
                 self.logger,
-                client_ip,
+                identity,
                 tiers,
                 self.rate_limit_script_sha,
                 self._emit_script_reloaded_event,
@@ -672,7 +681,7 @@ class RateLimitManager:
                 return verdict
         return _in_memory_tier_verdict(
             self.request_timestamps,
-            client_ip,
+            identity,
             tiers,
             time.time(),
             config.rate_limit_max_tracked_keys,

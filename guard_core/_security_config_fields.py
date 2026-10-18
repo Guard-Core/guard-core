@@ -264,6 +264,22 @@ class _SecurityConfigFields(BaseModel):
         ),
     )
 
+    ipv6_prefix_length: int = Field(
+        default=64,
+        ge=48,
+        le=128,
+        description=(
+            "Prefix length at which a native IPv6 client is one identity for rate "
+            "limits and bans: every address of the same prefix shares one window "
+            "and one ban, so rotating addresses inside an assigned /64 gains "
+            "nothing. 128 keeps one identity per address (4.4.0 behaviour). IPv4 "
+            "clients, Teredo and NAT64 addresses stay per address and 6to4 "
+            "addresses group by their embedded IPv4 site. All workers sharing one "
+            "Redis prefix must use the same value; a rolling change is not "
+            "supported."
+        ),
+    )
+
     global_behavior_rules: GlobalBehaviorRules = Field(
         default_factory=tuple,
         description=(

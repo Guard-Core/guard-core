@@ -154,6 +154,25 @@ def tracked_key_caps_leave_the_limit_enforced_for_a_tracked_client(
     assert statuses[3] == 429, statuses
 
 
+IPV6_PREFIX_LENGTH_CONFIG = {
+    "rate_limit": 3,
+    "rate_limit_window": 60,
+    "enable_rate_limiting": True,
+    "ipv6_prefix_length": 64,
+    "excluded_detection_headers": EXCLUDED_HEADERS,
+}
+
+
+@scenario(covers={"ipv6_prefix_length"}, config=IPV6_PREFIX_LENGTH_CONFIG)
+def ipv6_prefix_length_leaves_an_ipv4_client_limited_per_address(
+    ctx: ScenarioContext,
+) -> None:
+    client = ctx.client
+    statuses = [client.get("/basic/health").status_code for _ in range(4)]
+    assert statuses[:3] == [200, 200, 200], statuses
+    assert statuses[3] == 429, statuses
+
+
 ENDPOINT_RATE_LIMIT_CONFIG = {
     "endpoint_rate_limits": {"/basic/health": [2, 60]},
     "excluded_detection_headers": EXCLUDED_HEADERS,
