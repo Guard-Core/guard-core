@@ -530,6 +530,11 @@ _FIELD_REVALIDATORS: dict[str, Callable[[Any], Any]] = {
         adapter=_STR_LIST_ADAPTER,
         field_name="cors_expose_headers",
     ),
+    "nat64_prefixes": partial(
+        _validate_typed_collection_field_value,
+        adapter=_STR_LIST_ADAPTER,
+        field_name="nat64_prefixes",
+    ),
     "agent_sensitive_headers": partial(
         _validate_typed_collection_field_value,
         adapter=_OPTIONAL_STR_LIST_ADAPTER,

@@ -58,6 +58,7 @@ _NEWLY_REGISTERED_FIELDS: tuple[tuple[str, Any, Any], ...] = (
     ("global_behavior_rules", [{"rule_type": "usage", "threshold": 3}], "nope"),
     ("custom_error_responses", {404: "not found"}, "nope"),
     ("security_headers", {"frame_options": "DENY"}, "nope"),
+    ("nat64_prefixes", ["2001:db8::/32"], "nope"),
     ("cors_allow_origins", ["https://a.example"], "nope"),
     ("cors_allow_methods", ["GET"], "nope"),
     ("cors_allow_headers", ["X-Custom"], "nope"),
