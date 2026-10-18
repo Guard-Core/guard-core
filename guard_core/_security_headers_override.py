@@ -17,6 +17,7 @@ from typing import Any
 from guard_core._security_headers_defaults import SECURITY_HEADER_NAMES
 
 OVERRIDE_PULL_INTERVAL_SECONDS = 5.0
+MAX_CLOCK_SKEW_SECONDS = 86400.0
 PERMISSIONS_POLICY_NOT_PASSED = "UNSET"
 
 
@@ -39,11 +40,28 @@ def now_monotonic() -> float:
     return time.monotonic()
 
 
+_WALL_ANCHOR = time.time()
+_MONOTONIC_ANCHOR = time.monotonic()
+
+
+def approximate_now() -> float:
+    # Wall time without calling time.time(): the wall clock at import plus the
+    # monotonic time elapsed since, so a clock that jumps or is frozen does not move it.
+    return _WALL_ANCHOR + (time.monotonic() - _MONOTONIC_ANCHOR)
+
+
 @dataclass(frozen=True)
 class OverrideRecord:
     set_at: float
     keys: Mapping[str, Any]
     event: Mapping[str, Any] | None = field(default=None, compare=False)
+
+    def ordered_at(self) -> float:
+        # A record stamped further ahead than any plausible clock skew (a clock
+        # that jumped forward, or a frozen one) must not outrank every later call.
+        if self.set_at > approximate_now() + MAX_CLOCK_SKEW_SECONDS:
+            return 0.0
+        return self.set_at
 
     def to_json(self) -> str:
         return json.dumps({"set_at": self.set_at, "keys": dict(self.keys)})
@@ -60,6 +78,7 @@ class OverrideRecord:
 class _ProcessOverride:
     def __init__(self) -> None:
         self.record = OverrideRecord(0.0, {})
+        self.reset_epoch = 0
 
 
 PROCESS_OVERRIDE = _ProcessOverride()

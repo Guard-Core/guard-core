@@ -705,12 +705,16 @@ async def test_an_empty_override_never_touches_a_redis_it_never_wrote(
     clock: Clock,
 ) -> None:
     redis = FakeRedis()
-    await security_headers_manager.reset()
+    security_headers_manager.configure(csp=GLOBAL_CSP)
+    security_headers_manager.configure()
     app = _app(redis=redis)
 
     await _response(app)
 
     assert redis.sets == 0
+    assert redis.store == {}
+    manager = app.security_headers_manager
+    assert manager._override_saved_at == manager._override.set_at > 0
 
 
 async def test_a_call_with_override_apps_false_configures_only_the_manager(
@@ -1280,3 +1284,84 @@ async def test_configure_defaults_the_cors_credentials_to_false() -> None:
 
     assert manager.cors_config is not None
     assert manager.cors_config["allow_credentials"] is False
+
+
+async def test_a_record_stamped_far_ahead_does_not_outrank_a_later_call() -> None:
+    app = _app()
+    override_module.PROCESS_OVERRIDE.record = override_module.OverrideRecord(
+        time.time() + 10**9, {"csp": OTHER_CSP}
+    )
+
+    assert (await _response(app))["Content-Security-Policy"].endswith("app.example")
+
+    security_headers_manager.configure(csp=GLOBAL_CSP)
+
+    assert (await _response(app))["Content-Security-Policy"].endswith("global.example")
+
+
+async def test_a_pulled_record_stamped_far_ahead_is_ignored(clock: Clock) -> None:
+    redis = FakeRedis()
+    app = _app(redis=redis)
+    await _response(app)
+    key = f"t:security_headers:{app.security_headers_manager._override_key()}"
+    redis.store[key] = override_module.OverrideRecord(
+        time.time() + 10**9, {"csp": OTHER_CSP}
+    ).to_json()
+
+    clock.now += 5.0
+
+    assert (await _response(app))["Content-Security-Policy"].endswith("app.example")
+
+
+def test_a_record_ahead_by_less_than_the_skew_keeps_its_time() -> None:
+    near = time.time() + override_module.MAX_CLOCK_SKEW_SECONDS - 60
+    far = time.time() + override_module.MAX_CLOCK_SKEW_SECONDS + 60
+
+    assert override_module.OverrideRecord(near, {}).ordered_at() == near
+    assert override_module.OverrideRecord(far, {}).ordered_at() == 0.0
+
+
+async def test_a_global_reset_clears_an_override_an_app_pulled_from_redis(
+    clock: Clock,
+) -> None:
+    redis = FakeRedis()
+    app = _app(redis=redis)
+    await _response(app)
+    manager = app.security_headers_manager
+    key = f"t:security_headers:{manager._override_key()}"
+    redis.store[key] = override_module.OverrideRecord(
+        time.time() + 100, {"csp": GLOBAL_CSP}
+    ).to_json()
+    clock.now += 5.0
+    assert (await _response(app))["Content-Security-Policy"].endswith("global.example")
+
+    await security_headers_manager.reset()
+
+    assert (await _response(app))["Content-Security-Policy"].endswith("app.example")
+    assert redis.store == {}
+    assert _in_redis(manager) is False
+
+
+async def test_the_response_path_and_reset_never_read_the_wall_clock(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _app()
+    await _response(app)
+
+    def forbidden() -> float:
+        raise AssertionError("time.time() was called")
+
+    monkeypatch.setattr(time, "time", forbidden)
+
+    await security_headers_manager.reset()
+    await app.security_headers_manager.reset()
+    assert "Content-Security-Policy" in await _response(app)
+    assert override_module.OverrideRecord(1.0, {}).ordered_at() == 1.0
+
+
+async def test_the_approximate_clock_follows_the_monotonic_clock() -> None:
+    before = override_module.approximate_now()
+    time.sleep(0.01)
+
+    assert 0.005 < override_module.approximate_now() - before < 1.0
+    assert abs(override_module.approximate_now() - time.time()) < 5.0

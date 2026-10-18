@@ -1,5 +1,6 @@
 import logging
 import re
+from abc import abstractmethod
 from typing import Any
 
 from cachetools import TTLCache
@@ -30,11 +31,11 @@ class SecurityHeadersConfigMixin:
     default_headers: dict[str, str]
     headers_cache: TTLCache
 
-    def _current_override(self) -> OverrideRecord:
-        raise NotImplementedError
+    @abstractmethod
+    def _current_override(self) -> OverrideRecord: ...
 
-    def _record_override_from_call(self, passed: dict[str, Any]) -> None:
-        raise NotImplementedError
+    @abstractmethod
+    def _record_override_from_call(self, passed: dict[str, Any]) -> None: ...
 
     _HEADER_NAME_TOKEN_RE = re.compile(r"[!#$%&'*+.^_`|~0-9A-Za-z-]+")
 

@@ -39,6 +39,7 @@ class SecurityHeadersOverrideMixin:
     logger: logging.Logger
 
     _override: OverrideRecord
+    _override_epoch: int
     _override_saved_at: float
     _override_announced_at: float
     _override_in_redis: bool
@@ -48,6 +49,7 @@ class SecurityHeadersOverrideMixin:
 
     def _initialize_override_state(self) -> None:
         self._override = OverrideRecord(0.0, {})
+        self._override_epoch = PROCESS_OVERRIDE.reset_epoch
         self._override_saved_at = 0.0
         self._override_announced_at = 0.0
         self._override_in_redis = False
@@ -59,13 +61,16 @@ class SecurityHeadersOverrideMixin:
         return bool(type(self)._instance is self)
 
     def _current_override(self) -> OverrideRecord:
+        if PROCESS_OVERRIDE.reset_epoch != self._override_epoch:
+            self._override_epoch = PROCESS_OVERRIDE.reset_epoch
+            self._override = OverrideRecord(self._override_saved_at + 1e-6, {})
         process = PROCESS_OVERRIDE.record
-        if process.set_at > self._override.set_at:
+        if process.ordered_at() > self._override.ordered_at():
             self._override = process
         return self._override
 
     def _next_set_at(self) -> float:
-        return max(time.time(), self._current_override().set_at + 1e-6)
+        return max(time.time(), self._current_override().ordered_at() + 1e-6)
 
     def _record_override_from_call(self, passed: dict[str, Any]) -> None:
         if not self._is_global_manager():
@@ -109,11 +114,12 @@ class SecurityHeadersOverrideMixin:
             )
 
     def _reset_override(self) -> None:
-        empty = OverrideRecord(self._next_set_at(), {})
         if self._is_global_manager():
-            PROCESS_OVERRIDE.record = empty
-        self._override = empty
-        self._override_saved_at = empty.set_at
+            PROCESS_OVERRIDE.reset_epoch += 1
+            PROCESS_OVERRIDE.record = OverrideRecord(0.0, {})
+        self._override_epoch = PROCESS_OVERRIDE.reset_epoch
+        self._override = OverrideRecord(self._override.ordered_at() + 1e-6, {})
+        self._override_saved_at = self._override.set_at
         self._override_in_redis = False
         self._override_next_pull = 0.0
         self._startup_hash = None
@@ -188,7 +194,7 @@ class SecurityHeadersOverrideMixin:
             )
             return
         self._override_in_redis = True
-        if record.set_at > self._current_override().set_at:
+        if record.ordered_at() > self._current_override().ordered_at():
             self._override = record
             self._override_saved_at = record.set_at
             self.logger.info(
