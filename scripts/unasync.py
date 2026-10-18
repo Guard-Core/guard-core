@@ -90,6 +90,7 @@ HAND_MAINTAINED = {
     TEST_SYNC_DIR / "test_logfire_handler_provider_lifecycle.py",
     TEST_SYNC_DIR / "test_isolation_hooks_ordering.py",
     TEST_SYNC_DIR / "test_ratelimit_concurrency.py",
+    TEST_SYNC_DIR / "test_rate_limit_shared_state_threads.py",
     TEST_SYNC_DIR / "test_behavior_tracker_concurrency.py",
     TEST_SYNC_DIR / "test_sync_bypass_and_threads.py",
     TEST_SYNC_DIR / "test_core" / "test_check_rate_limit_by_ip_concurrency.py",

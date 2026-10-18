@@ -13,18 +13,29 @@ Guard-core implements rate limiting using a sliding window algorithm with dual b
 RateLimitManager
 ----------------
 
-### One manager per middleware
+### One manager per config object
 
-Every construction returns its own manager. Two guarded apps in one process (a mounted sub-app, per-tenant configs, a test app) never share windows or config, and `reset()` on one clears only its own in-memory windows:
+`RateLimitManager(config)` returns the live manager for that config object: constructing again with the same object returns the same manager, so the middleware and user code calling `rate_limit_handler(config)` hold the same windows (`request_timestamps`), `redis_handler`, `agent_handler` and `rate_limit_script_sha`. The registry is a `WeakValueDictionary` keyed by (class, identity of the config object), never by value, behind a lock. The manager holds its config, so an identity cannot be reused while the entry lives, and the entry goes when the last holder drops the manager. Two guarded apps in one process (a mounted sub-app, per-tenant configs, a test app) that were built with different config objects never share windows, even when the configs are equal, and a `model_copy()` of a config gets its own manager. Whichever side asks first creates the manager, and a dynamic rule update keeps it, because it mutates the same config object.
+
+To reset the limiter of a guarded app, pass the app's own config object:
+
+```python
+handler = rate_limit_handler(config)  # the config object the app was built with
+await handler.reset()
+```
+
+`reset()` on a manager that no guarded app was built with logs one WARNING (`this config object is not the one any guarded app was built with; reset() cleared nothing`).
 
 ```python
 class RateLimitManager:
     def __new__(cls, config: SecurityConfig) -> "RateLimitManager":
-        instance = super().__new__(cls)
-        instance.config = config
-        instance.request_timestamps = defaultdict(deque)
-        instance.rate_limit_script_sha = None
-        return instance
+        with _managers_lock:
+            existing = _managers.get((cls, id(config)))
+            if existing is not None:
+                return existing
+            instance = cls._build(config)
+            _managers[(cls, id(config))] = instance
+            return instance
 ```
 
 ### Core methods

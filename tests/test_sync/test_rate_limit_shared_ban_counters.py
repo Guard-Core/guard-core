@@ -134,7 +134,7 @@ def test_the_shared_counter_survives_a_restart(
 
 def test_without_redis_each_process_keeps_its_own_counter() -> None:
     config = _config(False)
-    workers = [_Worker(config, None) for _ in range(WORKERS)]
+    workers = [_Worker(config.model_copy(), None) for _ in range(WORKERS)]
     for worker in workers:
         worker.violate()
 

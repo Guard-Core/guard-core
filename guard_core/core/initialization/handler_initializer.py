@@ -31,6 +31,9 @@ class HandlerInitializer(_HandlerInitializerStepsMixin):
         self.agent_handler = agent_handler
         self.geo_ip_handler = geo_ip_handler
         self.rate_limit_handler = rate_limit_handler
+        mark_bound = getattr(rate_limit_handler, "mark_bound_to_app", None)
+        if callable(mark_bound):
+            mark_bound()
         self.guard_decorator = guard_decorator
         self.composite_handler: Any = None
         self.event_filter: Any = None

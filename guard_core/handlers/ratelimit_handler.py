@@ -1,7 +1,9 @@
 import ipaddress
 import logging
 import math
+import threading
 import time
+import weakref
 from collections import defaultdict, deque
 from collections.abc import Awaitable, Callable, Sequence
 from datetime import datetime, timezone
@@ -488,6 +490,12 @@ async def check_rate_limit_by_ip(
     return allowed
 
 
+_managers: weakref.WeakValueDictionary[tuple[type, int], "RateLimitManager"] = (
+    weakref.WeakValueDictionary()
+)
+_managers_lock = threading.RLock()
+
+
 class RateLimitManager:
     config: SecurityConfig
     request_timestamps: defaultdict[str, deque[float]]
@@ -495,10 +503,21 @@ class RateLimitManager:
     redis_handler: Any = None
     agent_handler: Any = None
     rate_limit_script_sha: str | None = None
+    bound_to_app: bool = False
 
     def __new__(
         cls: type["RateLimitManager"], config: SecurityConfig
     ) -> "RateLimitManager":
+        with _managers_lock:
+            existing = _managers.get((cls, id(config)))
+            if existing is not None:
+                return existing
+            instance = cls._build(config)
+            _managers[(cls, id(config))] = instance
+            return instance
+
+    @classmethod
+    def _build(cls, config: SecurityConfig) -> "RateLimitManager":
         instance = super().__new__(cls)
         instance.config = config
         instance.request_timestamps = defaultdict(deque)
@@ -507,6 +526,9 @@ class RateLimitManager:
         instance.agent_handler = None
         instance.rate_limit_script_sha = None
         return instance
+
+    def mark_bound_to_app(self) -> None:
+        self.bound_to_app = True
 
     async def initialize_redis(self, redis_handler: Any) -> None:
         self.redis_handler = redis_handler
@@ -731,6 +753,11 @@ class RateLimitManager:
             self.logger.error(f"Failed to send rate limit event to agent: {e}")
 
     async def reset(self) -> None:
+        if not self.bound_to_app:
+            self.logger.warning(
+                "this config object is not the one any guarded app was built "
+                "with; reset() cleared nothing"
+            )
         self.request_timestamps.clear()
 
         if self.config.enable_redis and self.redis_handler:
