@@ -24,7 +24,7 @@ class IPBanManager:
     def __new__(cls) -> "IPBanManager":
         if cls._instance is None:
             cls._instance = super().__new__(cls)
-            cls._instance.banned_ips = TTLCache(maxsize=10000, ttl=3600)
+            cls._instance.banned_ips = _BanStore(maxsize=10000, on_evict=cls._instance._on_eviction)
             cls._instance.redis_handler = None
             cls._instance.agent_handler = None
         return cls._instance
@@ -36,14 +36,14 @@ The singleton is pre-instantiated as `ip_ban_manager` at module level.
 
 | Layer      | Backend                          | TTL        | Capacity |
 |------------|----------------------------------|------------|----------|
-| Local      | `cachetools.TTLCache`            | 3600s      | 10,000   |
+| Local      | `_BanStore` (per-entry expiry)   | Per-ban    | 10,000   |
 | Distributed| Redis (via `RedisManager`)       | Per-ban    | Unlimited|
 
 ### Key Methods
 
 **`ban_ip(ip, duration, reason="threshold_exceeded")`**
 
-Stores `(ip, expiry_timestamp)` in both local cache and Redis. Also fires a ban event to the agent handler if configured. When `ip` contains `"/"` it is treated as a CIDR network and routed to a separate `banned_networks` list/Redis namespace instead (no agent ban event in that branch). `duration` cannot exceed `LOCAL_CACHE_TTL_CAP_SECONDS` (3600s) when Redis is unavailable, since the local `TTLCache` cannot hold a ban longer than its own TTL; exceeding it raises `ValueError`.
+Stores `(ip, expiry_timestamp)` in both local cache and Redis. Also fires a ban event to the agent handler if configured. When `ip` contains `"/"` it is treated as a CIDR network and routed to a separate `banned_networks` list/Redis namespace instead (no agent ban event in that branch). Every positive `duration` is honored in memory, with or without Redis; a ban that cannot be written to Redis stays in this process for its whole duration and a WARNING says so.
 
 **`unban_ip(ip)`**
 

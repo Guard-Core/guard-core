@@ -1,10 +1,13 @@
 import logging
+from collections.abc import MutableMapping
 from typing import Any
 
-from cachetools import TTLCache
-
 from guard_core.handlers._ipban_bans import _LOOPBACK_NETWORKS, IpBanOperationsMixin
-from guard_core.handlers._ipban_cache import _Network, _ObservableTTLCache
+from guard_core.handlers._ipban_cache import (
+    _BanStore,
+    _Network,
+    _ObservableTTLCache,
+)
 from guard_core.handlers._ipban_migration import (
     _BANNED_IPS_NAMESPACE,
     IpBanMigrationMixin,
@@ -31,7 +34,7 @@ class IPBanManager(IpBanMigrationMixin, IpBanOperationsMixin, IpBanQueryMixin):
     _EVICTION_LOG_EVERY = 100
 
     _instance: "IPBanManager | None" = None
-    banned_ips: TTLCache
+    banned_ips: MutableMapping[str, float]
     banned_networks: list[tuple[_Network, float]]
     refused_ban_reported_until: dict[str, float]
     evictions_count: int
@@ -45,10 +48,8 @@ class IPBanManager(IpBanMigrationMixin, IpBanOperationsMixin, IpBanQueryMixin):
             cls._instance = super().__new__(cls)
             cls._instance.evictions_count = 0
             cls._instance.logger = logging.getLogger("guard_core.handlers.ipban")
-            cls._instance.banned_ips = _ObservableTTLCache(
-                maxsize=10000,
-                ttl=cls.LOCAL_CACHE_TTL_CAP_SECONDS,
-                on_evict=cls._instance._on_eviction,
+            cls._instance.banned_ips = _BanStore(
+                maxsize=10000, on_evict=cls._instance._on_eviction
             )
             cls._instance.banned_networks = []
             cls._instance.refused_ban_reported_until = {}
@@ -57,7 +58,7 @@ class IPBanManager(IpBanMigrationMixin, IpBanOperationsMixin, IpBanQueryMixin):
             cls._instance.agent_handler = None
         return cls._instance
 
-    def _on_eviction(self) -> None:
+    def _on_eviction(self, *_evicted: Any) -> None:
         self.evictions_count += 1
         if self.evictions_count % self._EVICTION_LOG_EVERY == 0:
             self.logger.warning(

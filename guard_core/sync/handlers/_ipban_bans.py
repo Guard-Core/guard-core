@@ -1,9 +1,8 @@
 import ipaddress
 import logging
 import time
+from collections.abc import MutableMapping
 from typing import Any
-
-from cachetools import TTLCache
 
 from guard_core.sync._utils.ip_extraction import MALFORMED_FORWARDED_FOR_PREFIX
 from guard_core.sync.handlers._ipban_cache import _Network
@@ -20,8 +19,7 @@ _LOOPBACK_NETWORKS: tuple[_Network, ...] = (
 
 
 class IpBanOperationsMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
-    LOCAL_CACHE_TTL_CAP_SECONDS: int
-    banned_ips: TTLCache
+    banned_ips: MutableMapping[str, float]
     banned_networks: list[tuple[_Network, float]]
     refused_ban_reported_until: dict[str, float]
     config: Any = None
@@ -32,17 +30,12 @@ class IpBanOperationsMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
         if duration <= 0:
             raise ValueError(f"ban duration must be positive, got {duration}")
 
-    def _clamp_to_local_cap(self, duration: int, cause: str) -> int:
-        if duration <= self.LOCAL_CACHE_TTL_CAP_SECONDS:
-            return duration
+    def _warn_kept_in_this_process(self, ip: str, cause: str) -> None:
         self.logger.warning(
-            "Redis unavailable (%s): ban shortened from %ds to %ds so "
-            "protection still applies",
+            "Redis unavailable (%s): the ban of %s is kept in this process only",
             cause,
-            duration,
-            self.LOCAL_CACHE_TTL_CAP_SECONDS,
+            ip,
         )
-        return self.LOCAL_CACHE_TTL_CAP_SECONDS
 
     def _ban_cidr(self, ip: str, duration: int) -> None:
         try:
@@ -51,7 +44,6 @@ class IpBanOperationsMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
             raise ValueError(f"Invalid CIDR network {ip!r}: {e}") from e
 
         if self.redis_handler is None:
-            duration = self._clamp_to_local_cap(duration, "not configured")
             self.banned_networks.append((network, time.time() + duration))
             return
 
@@ -63,7 +55,7 @@ class IpBanOperationsMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
                 ttl=duration,
             )
         except Exception:
-            duration = self._clamp_to_local_cap(duration, "request failed")
+            self._warn_kept_in_this_process(str(network), "request failed")
             self.banned_networks.append((network, time.time() + duration))
 
     def _ban_exact_ip(self, ip: str, duration: int, reason: str) -> None:
@@ -73,9 +65,6 @@ class IpBanOperationsMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
             except ValueError as e:
                 raise ValueError(f"Invalid IP address {ip!r}: {e}") from e
 
-        if self.redis_handler is None:
-            duration = self._clamp_to_local_cap(duration, "not configured")
-
         expiry = time.time() + duration
         self.banned_ips[ip] = expiry
 
@@ -83,8 +72,7 @@ class IpBanOperationsMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
             try:
                 self.redis_handler.set_key("banned_ips", ip, str(expiry), ttl=duration)
             except Exception:
-                duration = self._clamp_to_local_cap(duration, "request failed")
-                self.banned_ips[ip] = time.time() + duration
+                self._warn_kept_in_this_process(ip, "request failed")
 
         if self.agent_handler:
             self._send_ban_event(ip, duration, reason)

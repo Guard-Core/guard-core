@@ -117,7 +117,7 @@ What remains, and is unchanged by this fix, is the identity trade-off for non-do
 
 ### Without Redis
 
-Bans live only in the process-local `TTLCache` (`maxsize=10000`, `ttl=3600`). They are still enforced, but each worker process keeps its own set, so an IP banned by one worker is unknown to the others until it misbehaves there too, and a restart clears every ban. A `duration` above `LOCAL_CACHE_TTL_CAP_SECONDS` (3600) raises `ValueError` in this mode, since the local cache cannot outlive its own TTL. With Redis attached, the ban is shared across every process and survives restarts.
+Bans live only in the process-local ban store (10,000 entries, each with its own expiry). They are still enforced, but each worker process keeps its own set, so an IP banned by one worker is unknown to the others until it misbehaves there too, and a restart clears every ban. Any positive `duration` is honored in memory (a 24 h ban stays a 24 h ban; it used to be shortened to 3600 s). With Redis attached, the ban is shared across every process and survives restarts.
 
 ### Passive mode
 

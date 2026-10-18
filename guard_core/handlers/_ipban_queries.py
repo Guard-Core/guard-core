@@ -2,10 +2,8 @@ import asyncio
 import ipaddress
 import logging
 import time
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, MutableMapping
 from typing import Any
-
-from cachetools import Cache, TTLCache
 
 from guard_core._utils.ip_extraction import MALFORMED_FORWARDED_FOR_PREFIX
 from guard_core.handlers._ipban_cache import _Network
@@ -38,7 +36,7 @@ def _strike_key_inside(coverage: NetworkCoverage, stem: str) -> Callable[[str], 
 
 
 class IpBanQueryMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
-    banned_ips: TTLCache
+    banned_ips: MutableMapping[str, float]
     banned_networks: list[tuple[_Network, float]]
     redis_handler: Any = None
     logger: logging.Logger
@@ -221,7 +219,7 @@ class IpBanQueryMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
             else:
                 kept.append((banned, expiry))
         self.banned_networks = kept
-        keys = list(Cache.__iter__(self.banned_ips))
+        keys = list(self.banned_ips)
         for start in range(0, len(keys), _MEMORY_BATCH):
             for ip in keys[start : start + _MEMORY_BATCH]:
                 if coverage.covers_address(ip):

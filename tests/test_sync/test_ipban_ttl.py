@@ -46,7 +46,7 @@ def test_ban_at_cap_succeeds_when_redis_unavailable(
     assert not [r for r in caplog.records if r.levelno == logging.WARNING]
 
 
-def test_ban_longer_than_cap_clamps_and_warns_when_redis_unavailable(
+def test_ban_longer_than_the_old_cap_keeps_its_duration_without_redis(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     manager = IPBanManager()
@@ -63,15 +63,10 @@ def test_ban_longer_than_cap_clamps_and_warns_when_redis_unavailable(
     assert "8.8.8.7" in manager.banned_ips
     expiry = manager.banned_ips["8.8.8.7"]
     assert expiry == pytest.approx(
-        time.time() + manager.LOCAL_CACHE_TTL_CAP_SECONDS, abs=2
+        time.time() + manager.LOCAL_CACHE_TTL_CAP_SECONDS + 1, abs=2
     )
     assert manager.is_ip_banned("8.8.8.7") is True
-
-    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
-    assert len(warnings) == 1
-    message = warnings[0].getMessage()
-    assert "not configured" in message
-    assert "3601s to 3600s" in message
+    assert not [r for r in caplog.records if r.levelno == logging.WARNING]
 
 
 def test_ban_zero_or_negative_duration_raises() -> None:
@@ -105,7 +100,7 @@ class _FailingRedisHandler:
         raise Exception("down")
 
 
-def test_ban_exact_ip_longer_than_cap_clamps_and_warns_when_redis_set_key_fails(
+def test_ban_exact_ip_longer_than_cap_keeps_its_duration_when_redis_set_key_fails(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     manager = IPBanManager()
@@ -122,17 +117,17 @@ def test_ban_exact_ip_longer_than_cap_clamps_and_warns_when_redis_set_key_fails(
     assert "8.8.8.11" in manager.banned_ips
     expiry = manager.banned_ips["8.8.8.11"]
     assert expiry == pytest.approx(
-        time.time() + manager.LOCAL_CACHE_TTL_CAP_SECONDS, abs=2
+        time.time() + manager.LOCAL_CACHE_TTL_CAP_SECONDS + 1, abs=2
     )
 
     warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
     assert len(warnings) == 1
     message = warnings[0].getMessage()
     assert "request failed" in message
-    assert "to 3600s" in message
+    assert "this process only" in message
 
 
-def test_ban_exact_ip_at_cap_succeeds_when_redis_set_key_fails(
+def test_ban_exact_ip_at_cap_warns_that_it_is_kept_in_this_process(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     manager = IPBanManager()
@@ -152,4 +147,5 @@ def test_ban_exact_ip_at_cap_succeeds_when_redis_set_key_fails(
         time.time() + manager.LOCAL_CACHE_TTL_CAP_SECONDS, abs=2
     )
 
-    assert not [r for r in caplog.records if r.levelno == logging.WARNING]
+    [warning] = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert "this process only" in warning.getMessage()

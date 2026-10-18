@@ -123,7 +123,7 @@ async def test_cidr_ban_redis_failure_falls_back_to_local() -> None:
 
 
 @pytest.mark.asyncio
-async def test_cidr_ban_redis_failure_exceeds_cap_clamps_and_warns(
+async def test_cidr_ban_redis_failure_keeps_its_duration_and_warns(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     from unittest.mock import AsyncMock
@@ -146,7 +146,7 @@ async def test_cidr_ban_redis_failure_exceeds_cap_clamps_and_warns(
     network, expiry = manager.banned_networks[0]
     assert str(network) == "8.8.8.0/24"
     assert expiry == pytest.approx(
-        time.time() + manager.LOCAL_CACHE_TTL_CAP_SECONDS, abs=2
+        time.time() + manager.LOCAL_CACHE_TTL_CAP_SECONDS + 1, abs=2
     )
     assert await manager.is_ip_banned("8.8.8.5") is True
 
@@ -154,7 +154,7 @@ async def test_cidr_ban_redis_failure_exceeds_cap_clamps_and_warns(
     assert len(warnings) == 1
     message = warnings[0].getMessage()
     assert "request failed" in message
-    assert "3601s to 3600s" in message
+    assert "this process only" in message
 
 
 @pytest.mark.asyncio
@@ -179,7 +179,7 @@ async def test_v4_address_not_in_v6_network() -> None:
 
 
 @pytest.mark.asyncio
-async def test_cidr_ban_no_redis_exceeds_cap_clamps_and_warns(
+async def test_cidr_ban_no_redis_exceeding_the_old_cap_keeps_its_duration(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     manager = IPBanManager()
@@ -198,15 +198,10 @@ async def test_cidr_ban_no_redis_exceeds_cap_clamps_and_warns(
     network, expiry = manager.banned_networks[0]
     assert str(network) == "8.8.8.0/24"
     assert expiry == pytest.approx(
-        time.time() + manager.LOCAL_CACHE_TTL_CAP_SECONDS, abs=2
+        time.time() + manager.LOCAL_CACHE_TTL_CAP_SECONDS + 1, abs=2
     )
     assert await manager.is_ip_banned("8.8.8.5") is True
-
-    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
-    assert len(warnings) == 1
-    message = warnings[0].getMessage()
-    assert "not configured" in message
-    assert "3601s to 3600s" in message
+    assert not [r for r in caplog.records if r.levelno == logging.WARNING]
 
 
 @pytest.mark.asyncio
