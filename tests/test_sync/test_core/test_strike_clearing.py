@@ -489,3 +489,40 @@ def test_a_failed_redis_clear_on_the_ban_reset_is_logged(
         manager._forget_all_strikes()
 
     assert any("could not be cleared" in r.getMessage() for r in caplog.records)
+
+
+def test_the_warning_flag_for_an_unregistrable_middleware_starts_unset() -> None:
+    assert _strike_forget._unregistrable_warned is False
+
+
+def test_the_unregistrable_warning_has_the_exact_text(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class Slotted:
+        __slots__ = ("suspicious_request_counts",)
+
+    monkeypatch.setattr(_strike_forget, "_unregistrable_warned", False)
+
+    with caplog.at_level(logging.WARNING):
+        register_strike_middleware(Slotted())
+
+    assert [(r.name, r.getMessage()) for r in caplog.records] == [
+        (
+            "guard_core.sync.core.checks.strike_forget",
+            "This middleware cannot be weakly referenced, so unban and reset calls "
+            "cannot clear its in-process strike counts. This is logged once.",
+        )
+    ]
+
+
+def test_a_forgotten_category_does_not_come_back_with_the_next_strike() -> None:
+    middleware = MagicMock()
+    middleware.config = SecurityConfig(enable_redis=False)
+    middleware.suspicious_request_counts = {}
+    _increment_suspicious_counts(middleware, IP, "rate_limit")
+    _increment_suspicious_counts(middleware, IP, "xss")
+
+    forget_category_strikes("rate_limit")
+    _increment_suspicious_counts(middleware, IP, "xss")
+
+    assert dict(middleware.suspicious_request_counts[IP]) == {"xss": 2}
