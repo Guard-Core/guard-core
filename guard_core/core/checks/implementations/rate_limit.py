@@ -2,7 +2,10 @@ from collections.abc import Collection
 from ipaddress import ip_address
 from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple
 
-from guard_core._utils.ip_extraction import MALFORMED_FORWARDED_FOR_PREFIX
+from guard_core._utils.ip_extraction import (
+    MALFORMED_FORWARDED_FOR_PREFIX,
+    _client_identity,
+)
 from guard_core._utils.request_logging import redact_endpoint_for_display
 from guard_core.core.checks.base import SecurityCheck
 from guard_core.core.checks.endpoint_limit_keys import EndpointLimitKeyMap
@@ -184,15 +187,16 @@ class RateLimitCheck(SecurityCheck):
         if not _is_ip_address(client_ip):
             self._log_non_ip_ban_refusal(client_ip)
             return
+        identity = self._strike_identity(client_ip)
         try:
-            _increment_suspicious_counts(self.middleware, client_ip, "rate_limit")
-            shared = await self._shared_violation_counts(client_ip)
+            _increment_suspicious_counts(self.middleware, identity, "rate_limit")
+            shared = await self._shared_violation_counts(identity)
             banned = await _try_threshold_ban(
                 request,
                 self.config,
                 self.ip_ban_manager,
                 self.middleware,
-                client_ip,
+                identity,
                 trigger_info,
                 self.logger,
                 self.check_name,
@@ -201,14 +205,19 @@ class RateLimitCheck(SecurityCheck):
                 reason="rate_limit_exceeded",
                 ip_counts=shared
                 if shared is not None
-                else self.middleware.suspicious_request_counts.get(client_ip, {}),
+                else self.middleware.suspicious_request_counts.get(identity, {}),
             )
             if banned and shared is not None:
-                await forget_shared_violations(self._shared_redis(), client_ip)
+                await forget_shared_violations(self._shared_redis(), identity)
         except Exception:
             _log_exception_safely(
                 self.logger, "rate-limit auto-ban failed for %s", client_ip
             )
+
+    def _strike_identity(self, client_ip: str) -> str:
+        if ":" not in client_ip:
+            return client_ip
+        return _client_identity(client_ip, self.config.ipv6_prefix_length)
 
     def _shared_redis(self) -> Any:
         if not self.config.enable_redis:

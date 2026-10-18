@@ -325,31 +325,32 @@ def _feed_rate_limit_autoban(
     if ip_ban_manager.is_ip_banned(ip):
         return
 
+    identity = _by_ip_window_identity(ip, config.ipv6_prefix_length)
     now = time.monotonic()
     with _by_ip_autoban_lock:
         ip_counts = _lru_pop_or_create(
             _by_ip_autoban_counts,
-            ip,
+            identity,
             config.ban_counters_max_tracked_ips,
             _WindowedCategoryCounts,
         )
         ip_counts.expire_before(now - SUSPICIOUS_COUNT_WINDOW_SECONDS)
         ip_counts.record("rate_limit", now, _MAX_RETAINED_EVENTS_PER_CATEGORY)
-        _by_ip_autoban_counts[ip] = ip_counts
+        _by_ip_autoban_counts[identity] = ip_counts
 
-    shared = _shared_primitive_counts(ip, config, redis_handler)
+    shared = _shared_primitive_counts(identity, config, redis_handler)
     result = _resolve_and_apply_threshold_ban(
         ip_counts if shared is None else shared,
         config,
         ip_ban_manager,
-        ip,
+        identity,
         ("rate_limit",),
         "rate_limit_exceeded",
     )
     if result is not None:
-        _by_ip_autoban_counts.pop(ip, None)
+        _by_ip_autoban_counts.pop(identity, None)
         if shared is not None:
-            forget_shared_violations(redis_handler, ip)
+            forget_shared_violations(redis_handler, identity)
         _by_ip_logger.warning(
             "check_rate_limit_by_ip: auto-banned %s (rate_limit_exceeded)", ip
         )
