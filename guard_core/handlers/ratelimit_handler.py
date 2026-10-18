@@ -17,7 +17,7 @@ from guard_core.models import SecurityConfig
 from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.scripts.rate_lua import RATE_LIMIT_SCRIPT
-from guard_core.utils import log_activity
+from guard_core.utils import _canonicalize_ip, _ip_in_list, log_activity
 
 if TYPE_CHECKING:
     from guard_core.core.checks.helpers import _WindowedCategoryCounts
@@ -268,11 +268,70 @@ async def _feed_rate_limit_autoban(ip: str, config: SecurityConfig) -> None:
         )
 
 
+async def _report_by_ip_block(
+    ip: str,
+    config: SecurityConfig,
+    request_count: int,
+    tier: RateLimitTier,
+    agent_handler: Any,
+) -> None:
+    reason = (
+        f"Rate limit exceeded for IP: {ip} "
+        f"({request_count} requests in {tier.window}s window)"
+    )
+    if config.log_suspicious_level and "rate_limit" not in config.muted_check_logs:
+        _by_ip_logger.log(getattr(logging, config.log_suspicious_level), reason)
+    if agent_handler is None:
+        return
+    await _send_by_ip_event(ip, config, reason, request_count, tier, agent_handler)
+
+
+async def _send_by_ip_event(
+    ip: str,
+    config: SecurityConfig,
+    reason: str,
+    request_count: int,
+    tier: RateLimitTier,
+    agent_handler: Any,
+) -> None:
+    try:
+        from guard_core._pydantic_plugin_mute import get_telemetry_model
+        from guard_core.core.events.event_types import EVENT_RATE_LIMITED
+
+        if EVENT_RATE_LIMITED in config.muted_event_types:
+            return
+        SecurityEvent = get_telemetry_model("SecurityEvent")
+        event = SecurityEvent(
+            timestamp=datetime.now(timezone.utc),
+            event_type=EVENT_RATE_LIMITED,
+            ip_address=ip,
+            action_taken="logged_only" if config.passive_mode else "request_blocked",
+            reason=reason,
+            endpoint=redact_endpoint_for_display(
+                tier.bucket,
+                config.log_sensitive_params,
+                config.log_sensitive_body_fields,
+                config.log_sensitive_headers,
+            )
+            or None,
+            handler_name=_RATE_LIMIT_HANDLER_NAME,
+            metadata={
+                "request_count": request_count,
+                "rate_limit": tier.limit,
+                "window": tier.window,
+            },
+        )
+        await agent_handler.send_event(event)
+    except Exception as e:
+        _by_ip_logger.error(f"Failed to send rate limit event to agent: {e}")
+
+
 async def check_rate_limit_by_ip(
     ip: str,
     config: SecurityConfig,
     redis_handler: Any = None,
     endpoint_path: str = "",
+    agent_handler: Any = None,
 ) -> bool:
     """Check and record a rate-limit hit for a raw IP, outside the HTTP pipeline.
 
@@ -306,6 +365,17 @@ async def check_rate_limit_by_ip(
     over-limit calls neither count nor re-ban nor refresh the ban TTL: the first
     threshold-crossing ban fires once and later violations short-circuit.
 
+    ``ip`` is canonicalized first (every spelling of one IPv6 address, and an
+    IPv4-mapped address and its IPv4 form, share one budget), and an address in
+    ``config.exempt_ips`` is never limited. ``config.whitelist`` grants access
+    only, so a whitelisted address is still limited. A blocked call is logged like
+    the pipeline logs a block (``log_suspicious_level``, silenced by
+    ``muted_check_logs``) and sends one ``rate_limited`` event with the limit and
+    window it hit, ``logged_only`` in passive mode and skipped when
+    ``rate_limited`` is in ``muted_event_types``. The event goes to
+    ``agent_handler`` when given, else to the agent of ``redis_handler``; with
+    neither there is no event.
+
     Raises:
         ValueError: if ``ip`` does not parse via ``ipaddress.ip_address``, or if
             ``endpoint_path`` contains a ``:``. Validation runs before any
@@ -337,9 +407,12 @@ async def check_rate_limit_by_ip(
     if not config.enable_rate_limiting:
         return True
 
-    tiers = [
-        RateLimitTier("", config.rate_limit, config.rate_limit_window, endpoint_path)
-    ]
+    ip = _canonicalize_ip(ip)
+    if _ip_in_list(ipaddress.ip_address(ip), ip, config.exempt_ips):
+        return True
+
+    tier = RateLimitTier("", config.rate_limit, config.rate_limit_window, endpoint_path)
+    tiers = [tier]
 
     verdict: RateLimitVerdict | None = None
     if config.enable_redis and redis_handler:
@@ -365,6 +438,8 @@ async def check_rate_limit_by_ip(
     allowed = verdict.tier_index is None
 
     if not allowed:
+        agent = agent_handler or getattr(redis_handler, "agent_handler", None)
+        await _report_by_ip_block(ip, config, verdict.request_count, tier, agent)
         await _feed_rate_limit_autoban(ip, config)
 
     return allowed
