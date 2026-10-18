@@ -137,14 +137,13 @@ async def test_the_third_ban_lasts_four_times_as_long() -> None:
     assert 390 < _remaining(manager, HOST) <= 400
 
 
-async def test_a_ban_while_one_is_active_neither_changes_it_nor_counts() -> None:
+async def test_a_ban_while_one_is_active_replaces_it_without_counting() -> None:
     manager = _manager()
     await manager._ban_ip_escalating(HOST, 100, "t")
-    before = manager.banned_ips[HOST]
 
-    assert await manager._ban_ip_escalating(HOST, 100, "t") is True
+    assert await manager._ban_ip_escalating(HOST, 100, "t") == 200
 
-    assert manager.banned_ips[HOST] == before
+    assert 190 < _remaining(manager, HOST) <= 200
     assert manager.recidive_history[HOST][0] == 1
 
 
@@ -217,7 +216,7 @@ async def test_an_operator_network_ban_neither_escalates_nor_counts() -> None:
 async def test_a_refused_ban_is_not_counted() -> None:
     manager = _manager()
 
-    assert await manager._ban_ip_escalating("127.0.0.1", 100, "t") is False
+    assert await manager._ban_ip_escalating("127.0.0.1", 100, "t") is None
 
     assert manager.recidive_history == {}
 
@@ -482,3 +481,68 @@ async def test_an_unreadable_redis_count_falls_back_to_this_process() -> None:
     await manager._ban_ip_escalating(HOST, 100, "t")
 
     assert 190 < _remaining(manager, HOST) <= 200
+
+
+async def test_an_active_shorter_ban_is_replaced_by_the_escalating_write() -> None:
+    manager = _manager()
+    await manager.ban_ip(HOST, 60, "manual")
+
+    applied = await manager._ban_ip_escalating(HOST, 100, "rate_limit_exceeded")
+
+    assert applied == 100
+    assert 90 < _remaining(manager, HOST) <= 100
+    assert manager.recidive_history == {}
+
+
+async def test_the_escalating_path_returns_the_duration_it_applied() -> None:
+    manager = _manager()
+    first = await manager._ban_ip_escalating(HOST, 100, "t")
+    _expire_naturally(manager, HOST)
+
+    second = await manager._ban_ip_escalating(HOST, 100, "t")
+
+    assert (first, second) == (100, 200)
+
+
+async def test_a_refused_escalating_ban_returns_none() -> None:
+    manager = _manager()
+
+    assert await manager._ban_ip_escalating("127.0.0.1", 100, "t") is None
+
+
+async def test_the_public_ban_returns_a_bool() -> None:
+    manager = _manager()
+
+    assert await manager.ban_ip(HOST, 100, "t") is True
+    assert await manager.ban_ip("127.0.0.1", 100, "t") is False
+
+
+async def test_with_the_flag_off_the_escalating_path_overwrites_like_ban_ip() -> None:
+    manager = IPBanManager()
+    manager.redis_handler = None
+    manager.config = SecurityConfig(enable_redis=False)
+    await manager.ban_ip(HOST, 60, "manual")
+
+    assert await manager._ban_ip_escalating(HOST, 100, "t") == 100
+
+    assert 90 < _remaining(manager, HOST) <= 100
+    assert manager.recidive_history == {}
+
+
+async def test_an_active_ban_in_redis_is_replaced_and_not_counted(
+    live_redis: RedisManager,
+) -> None:
+    manager = _manager()
+    manager.redis_handler = live_redis
+    manager.config = SecurityConfig(
+        redis_url=REDIS_URL,
+        redis_prefix=live_redis.config.redis_prefix,
+        enable_recidive=True,
+    )
+    await manager.ban_ip(HOST, 60, "manual")
+
+    await manager._ban_ip_escalating(HOST, 100, "t")
+
+    stored = float(await live_redis.get_key("banned_ips", HOST))
+    assert 90 < stored - time.time() <= 100
+    assert await live_redis.get_key("recidive", HOST) is None

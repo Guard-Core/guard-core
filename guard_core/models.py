@@ -25,6 +25,7 @@ from guard_core._security_config_validators import (
     _country_shadow_should_warn,
     _is_prefix_zero_network_entry,
     _require_optional_extras,
+    _require_recidive_cap_covers_auto_ban,
     _resolve_geo_ip_handler,
     _revalidate_copied_config,
     _validate_block_cloud_providers_value,
@@ -238,12 +239,8 @@ class SecurityConfig(_SecurityConfigFields):
         return self
 
     @model_validator(mode="after")
-    def validate_recidive_cap_covers_the_auto_ban(self) -> Self:
-        if self.enable_recidive and self.recidive_max_duration < self.auto_ban_duration:
-            raise ValueError(
-                "recidive_max_duration must be >= auto_ban_duration when "
-                "enable_recidive is True"
-            )
+    def validate_recidive_cap(self) -> Self:
+        _require_recidive_cap_covers_auto_ban(self)
         return self
 
     @model_validator(mode="after")

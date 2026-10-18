@@ -7,10 +7,7 @@ from typing import Any
 from guard_core._utils.ip_extraction import MALFORMED_FORWARDED_FOR_PREFIX
 from guard_core.handlers._ipban_cache import _Network
 from guard_core.handlers._ipban_events import IpBanEventMixin
-from guard_core.handlers._ipban_recidive import (
-    IpBanRecidiveMixin,
-    escalated_duration,
-)
+from guard_core.handlers._ipban_recidive import IpBanRecidiveMixin
 from guard_core.handlers._ipban_rule_exempt import IpBanRuleExemptionMixin
 from guard_core.handlers._ipban_version import IpBanVersionMixin
 from guard_core.utils import _canonicalize_ip
@@ -99,7 +96,12 @@ class IpBanOperationsMixin(
         )
 
     async def _store_ban(
-        self, namespace: str, key: str, duration: int, reason: str
+        self,
+        namespace: str,
+        key: str,
+        duration: int,
+        reason: str,
+        recidive_count: int | None = None,
     ) -> None:
         expiry = time.time() + duration
         self.banned_ips[key] = expiry
@@ -112,55 +114,22 @@ class IpBanOperationsMixin(
             except Exception:
                 self._warn_kept_in_this_process(key, "request failed")
 
+        if recidive_count is not None:
+            self.logger.info(
+                "Banned %s for %d seconds (ban %d within the recidive window)",
+                key,
+                duration,
+                recidive_count,
+            )
         if self.agent_handler:
             await self._report_eviction()
-            await self._send_ban_event(key, duration, reason)
+            await self._send_ban_event(key, duration, reason, recidive_count)
 
-    async def _ban_with_recidive(
-        self, ip: str, duration: int, reason: str, grouped: bool
-    ) -> None:
+    def _ban_target(self, ip: str, grouped: bool) -> tuple[str, str]:
         if grouped:
-            namespace, key = "banned_identities", self._identity_ban_key(ip)
-        else:
-            self._assert_valid_exact_ip(ip)
-            namespace, key = "banned_ips", ip
-        prior = await self._recidive_prior_bans(key)
-        applied = escalated_duration(
-            duration,
-            prior,
-            self.config.recidive_factor,
-            self.config.recidive_max_duration,
-        )
-        if not await self._store_new_ban(namespace, key, applied):
-            return
-        count = await self._record_recidive_ban(key, applied)
-        self.logger.info(
-            "Banned %s for %d seconds (ban %d within the recidive window)",
-            key,
-            applied,
-            count,
-        )
-        if self.agent_handler:
-            await self._report_eviction()
-            await self._send_ban_event(key, applied, reason, recidive_count=count)
-
-    async def _store_new_ban(self, namespace: str, key: str, duration: int) -> bool:
-        """Write the ban only when none is active; True for the writer that won."""
-        now = time.time()
-        expiry = now + duration
-        if self.redis_handler:
-            try:
-                won = await self.redis_handler.set_key_if_absent(
-                    namespace, key, str(expiry), ttl=duration
-                )
-            except Exception:
-                self._warn_kept_in_this_process(key, "request failed")
-                won = self.banned_ips.get(key, 0.0) <= now
-        else:
-            won = self.banned_ips.get(key, 0.0) <= now
-        if won:
-            self.banned_ips[key] = expiry
-        return bool(won)
+            return "banned_identities", self._identity_ban_key(ip)
+        self._assert_valid_exact_ip(ip)
+        return "banned_ips", ip
 
     async def _report_eviction(self) -> None:
         evicted = self.evicted_to_report
@@ -273,7 +242,8 @@ class IpBanOperationsMixin(
         *,
         grouped: bool = False,
     ) -> bool:
-        return await self._apply_ban(ip, duration, reason, grouped, escalate=False)
+        applied = await self._apply_ban(ip, duration, reason, grouped, escalate=False)
+        return applied is not None
 
     async def _ban_ip_escalating(
         self,
@@ -282,30 +252,34 @@ class IpBanOperationsMixin(
         reason: str = "threshold_exceeded",
         *,
         grouped: bool = False,
-    ) -> bool:
+    ) -> int | None:
         """The automatic ban engine's entry: a repeat ban lasts longer when
-        ``enable_recidive`` is on. Public ``ban_ip`` is the same body without it, so
+        ``enable_recidive`` is on. Returns the duration applied (None when the ban
+        was refused). Public ``ban_ip`` is the same body without escalation, so
         manual and dynamic-rule bans neither escalate nor count."""
         return await self._apply_ban(ip, duration, reason, grouped, escalate=True)
 
     async def _apply_ban(
         self, ip: str, duration: int, reason: str, grouped: bool, escalate: bool
-    ) -> bool:
+    ) -> int | None:
         ip = _canonicalize_ip(ip)
         self._assert_positive_duration(duration)
         if self._refuse_rule_exempt_target(ip):
-            return False
+            return None
         refusal = self._self_dos_refusal_reason(ip)
         if refusal is not None:
             await self._report_refused_ban(ip, refusal, duration, reason)
-            return False
+            return None
         self._warn_if_private_target(ip)
         if escalate and self._recidive_applies(ip, grouped):
-            await self._ban_with_recidive(ip, duration, reason, grouped)
-        elif grouped:
+            namespace, key = self._ban_target(ip, grouped)
+            applied, count = await self._escalated_ban_terms(namespace, key, duration)
+            await self._store_ban(namespace, key, applied, reason, count)
+            return applied
+        if grouped:
             await self._ban_identity(ip, duration, reason)
         elif "/" in ip:
             await self._ban_cidr(ip, duration, reason)
         else:
             await self._ban_exact_ip(ip, duration, reason)
-        return True
+        return duration

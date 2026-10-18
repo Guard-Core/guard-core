@@ -1,5 +1,6 @@
 import logging
 import time
+from collections.abc import MutableMapping
 from typing import Any
 
 _RECIDIVE_NAMESPACE = "recidive"
@@ -28,6 +29,7 @@ class IpBanRecidiveMixin:
     """
 
     recidive_history: dict[str, tuple[int, float]]
+    banned_ips: MutableMapping[str, float]
     config: Any = None
     redis_handler: Any = None
     logger: logging.Logger
@@ -54,6 +56,43 @@ class IpBanRecidiveMixin:
                     error,
                 )
         return self._recidive_memory_count(identity, now)
+
+    def _escalated_ban_terms(
+        self, namespace: str, key: str, base: int
+    ) -> tuple[int, int | None]:
+        """The duration to apply and the ban's number in the window.
+
+        The number is None when a ban is already active: that write only replaces
+        it, so it is not counted. The claim is a SET NX, so of several workers
+        banning the same client at once exactly one counts.
+        """
+        prior = self._recidive_prior_bans(key)
+        applied = escalated_duration(
+            base,
+            prior,
+            self.config.recidive_factor,
+            self.config.recidive_max_duration,
+        )
+        if not self._claim_ban_key(namespace, key, applied):
+            return applied, None
+        return applied, self._record_recidive_ban(key, applied)
+
+    def _claim_ban_key(self, namespace: str, key: str, duration: int) -> bool:
+        now = time.time()
+        if self.redis_handler:
+            try:
+                return bool(
+                    self.redis_handler.set_key_if_absent(
+                        namespace, key, str(now + duration), ttl=duration
+                    )
+                )
+            except Exception as error:
+                self.logger.warning(
+                    "Redis ban claim of %s failed, using this process's view: %s",
+                    key,
+                    error,
+                )
+        return self.banned_ips.get(key, 0.0) <= now
 
     def _record_recidive_ban(self, identity: str, applied_duration: int) -> int:
         lifetime = self.config.recidive_window + applied_duration

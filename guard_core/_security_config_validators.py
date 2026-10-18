@@ -165,6 +165,17 @@ def _revalidate_copied_config(
     _revalidate_global_behavior_rule_fields(copied, update)
 
 
+def _require_recidive_cap_covers_auto_ban(config: "SecurityConfig") -> None:
+    if (
+        config.enable_recidive
+        and config.recidive_max_duration < config.auto_ban_duration
+    ):
+        raise ValueError(
+            "recidive_max_duration must be >= auto_ban_duration when "
+            "enable_recidive is True"
+        )
+
+
 def _require_optional_extras(config: "SecurityConfig") -> None:
     if config.enable_redis and not _extra_installed("redis"):
         raise ValueError(

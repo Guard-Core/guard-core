@@ -1082,6 +1082,22 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "remaining seconds and counters, no request data; logger.error fallback "
         "is send-failure text"
     ),
+    "handlers/_ipban_bans.py:IpBanOperationsMixin._store_ban": (
+        "INFO line with the banned client identity, the applied duration "
+        "and the recidive count, no request data"
+    ),
+    "handlers/_ipban_recidive.py:IpBanRecidiveMixin._claim_ban_key": (
+        "the Redis ban claim failed, carries the client identity and the Redis "
+        "error only, no request data"
+    ),
+    "handlers/_ipban_recidive.py:IpBanRecidiveMixin._recidive_prior_bans": (
+        "line 51: the Redis recidive count could not be read, carries the "
+        "client identity and the Redis error only, no request data"
+    ),
+    "handlers/_ipban_recidive.py:IpBanRecidiveMixin._record_recidive_ban": (
+        "line 70: the Redis recidive count could not be stored, carries the "
+        "client identity and the Redis error only, no request data"
+    ),
     "handlers/_ipban_prefix_contract.py:_recorded_prefix_length": (
         "line 35: the recorded ipv6_prefix_length could not be read, carries the "
         "Redis error only, no request data"
