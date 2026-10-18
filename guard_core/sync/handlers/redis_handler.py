@@ -2,7 +2,7 @@ import hashlib
 import logging
 import threading
 import uuid
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Any
@@ -17,6 +17,10 @@ from redis.retry import Retry
 
 from guard_core.exceptions import GuardRedisError
 from guard_core.models import SecurityConfig
+from guard_core.scripts.detection_strikes_lua import (
+    FORGET_DETECTION_STRIKES_SCRIPT,
+    RECORD_DETECTION_STRIKES_SCRIPT,
+)
 from guard_core.scripts.rule_hit_index_lua import SUM_INDEXED_WINDOW_HITS_SCRIPT
 from guard_core.scripts.sliding_window_lua import SLIDING_WINDOW_HIT_SCRIPT
 from guard_core.sync.core.events.event_types import (
@@ -70,6 +74,13 @@ def _build_redis_client(
 _SLIDING_WINDOW_SHA = hashlib.sha1(
     SLIDING_WINDOW_HIT_SCRIPT.encode(), usedforsecurity=False
 ).hexdigest()
+_RECORD_DETECTION_STRIKES_SHA = hashlib.sha1(
+    RECORD_DETECTION_STRIKES_SCRIPT.encode(), usedforsecurity=False
+).hexdigest()
+_FORGET_DETECTION_STRIKES_SHA = hashlib.sha1(
+    FORGET_DETECTION_STRIKES_SCRIPT.encode(), usedforsecurity=False
+).hexdigest()
+_DETECTION_NAMESPACE = "detection"
 _SUM_INDEXED_WINDOW_HITS_SHA = hashlib.sha1(
     SUM_INDEXED_WINDOW_HITS_SCRIPT.encode(), usedforsecurity=False
 ).hexdigest()
@@ -352,6 +363,68 @@ class RedisManager:
 
         result = self.safe_operation(_record)
         return int(result) if result is not None else 0
+
+    def _detection_strike_keys(self, client_ip: str) -> tuple[str, str, str]:
+        prefix = f"{self.config.redis_prefix}{_DETECTION_NAMESPACE}:"
+        total = f"{prefix}strikes:{client_ip}"
+        return f"{prefix}strikes_index:{client_ip}", total, f"{total}|"
+
+    def record_detection_strikes(
+        self,
+        client_ip: str,
+        categories: Sequence[str],
+        timestamp: float,
+        window_start: float,
+        ttl: int,
+        cap: int,
+    ) -> tuple[int, dict[str, int]]:
+        """Record one detection strike for the IP under every category in one
+        round trip. Returns the IP's total over all categories and the count of
+        each category of this strike, all inside the sliding window and each
+        key bounded to cap members."""
+        if not self.config.enable_redis:
+            return 0, {}
+
+        index, total, category_prefix = self._detection_strike_keys(client_ip)
+        keys = [index, total, *(f"{category_prefix}{name}" for name in categories)]
+        args: list[Any] = [
+            repr(timestamp),
+            uuid.uuid4().hex,
+            repr(window_start),
+            ttl,
+            cap,
+        ]
+
+        def _record(conn: Redis) -> list[int]:
+            try:
+                counts = conn.evalsha(
+                    _RECORD_DETECTION_STRIKES_SHA, len(keys), *keys, *args
+                )
+            except NoScriptError:
+                conn.script_load(RECORD_DETECTION_STRIKES_SCRIPT)
+                counts = conn.evalsha(
+                    _RECORD_DETECTION_STRIKES_SHA, len(keys), *keys, *args
+                )
+            return [int(count) for count in counts]
+
+        result = self.safe_operation(_record)
+        return result[0], dict(zip(categories, result[1:], strict=True))
+
+    def forget_detection_strikes(self, client_ip: str) -> None:
+        """Delete every detection strike counter of the IP in one round trip."""
+        if not self.config.enable_redis:
+            return
+
+        index, total, _ = self._detection_strike_keys(client_ip)
+
+        def _forget(conn: Redis) -> None:
+            try:
+                conn.evalsha(_FORGET_DETECTION_STRIKES_SHA, 2, index, total)
+            except NoScriptError:
+                conn.script_load(FORGET_DETECTION_STRIKES_SCRIPT)
+                conn.evalsha(_FORGET_DETECTION_STRIKES_SHA, 2, index, total)
+
+        self.safe_operation(_forget)
 
     def count_sliding_window_hits(
         self, namespace: str, key: str, window_start: float

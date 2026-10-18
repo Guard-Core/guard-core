@@ -8,6 +8,12 @@ from typing import TYPE_CHECKING, Any, cast
 from urllib.parse import urlparse
 
 from guard_core.models import SecurityConfig, ThreatBanConfig
+from guard_core.sync.core.checks._shared_strikes import (
+    SharedStrikes,
+    forget_shared_detection_strikes,
+    record_shared_detection_strikes,
+    strike_categories,
+)
 from guard_core.sync.core.events.event_types import (
     EVENT_IP_BAN_FAILED,
     EVENT_PENETRATION_ATTEMPT,
@@ -436,11 +442,7 @@ def _increment_suspicious_counts(
     client_ip: str,
     categories: str | Collection[str],
 ) -> None:
-    resolved_categories: Collection[str] = (
-        (categories,)
-        if isinstance(categories, str)
-        else categories or ("uncategorized",)
-    )
+    resolved_categories = strike_categories(categories)
     now = time.monotonic()
     retain = _MAX_RETAINED_EVENTS_PER_CATEGORY
     with _suspicious_counts_lock:
@@ -479,6 +481,16 @@ def _flat_threshold_total(
     )
 
 
+def _flat_total_or_shared(
+    shared_total: int | None,
+    ip_counts: Mapping[str, int],
+    threat_categories: Collection[str],
+) -> int:
+    if shared_total is not None:
+        return shared_total
+    return _flat_threshold_total(ip_counts, threat_categories)
+
+
 def _resolve_and_apply_threshold_ban(
     ip_counts: Mapping[str, int],
     config: SecurityConfig,
@@ -487,6 +499,7 @@ def _resolve_and_apply_threshold_ban(
     threat_categories: Collection[str],
     reason: str,
     default_entries: Mapping[str, ThreatBanConfig] | None = None,
+    flat_total: int | None = None,
 ) -> tuple[int, str, str | None] | None:
     """Pure threshold resolution against ``ip_counts`` plus the ``ban_ip`` call.
 
@@ -517,7 +530,7 @@ def _resolve_and_apply_threshold_ban(
         if not applied:
             return None
         return entry.duration, ban_reason, category
-    total = _flat_threshold_total(ip_counts, threat_categories)
+    total = _flat_total_or_shared(flat_total, ip_counts, threat_categories)
     if total < config.auto_ban_threshold:
         return None
     applied = ip_ban_manager.ban_ip(client_ip, config.auto_ban_duration, reason)
@@ -541,8 +554,20 @@ def _try_threshold_ban(
     default_entries: Mapping[str, ThreatBanConfig] | None = None,
     ip_counts: Mapping[str, int] | None = None,
 ) -> bool:
+    shared: SharedStrikes | None = None
     if ip_counts is None:
-        ip_counts = middleware.suspicious_request_counts.get(client_ip, {})
+        shared = record_shared_detection_strikes(
+            middleware,
+            client_ip,
+            threat_categories,
+            SUSPICIOUS_COUNT_WINDOW_SECONDS,
+            _MAX_RETAINED_EVENTS_PER_CATEGORY,
+        )
+        ip_counts = (
+            shared.counts
+            if shared is not None
+            else middleware.suspicious_request_counts.get(client_ip, {})
+        )
     result = _resolve_and_apply_threshold_ban(
         ip_ban_manager=ip_ban_manager,
         ip_counts=ip_counts,
@@ -551,10 +576,13 @@ def _try_threshold_ban(
         threat_categories=threat_categories,
         reason=reason,
         default_entries=default_entries,
+        flat_total=shared.total if shared is not None else None,
     )
     if result is None:
         return False
     _forget_suspicious_counts(middleware, client_ip)
+    if shared is not None:
+        forget_shared_detection_strikes(middleware, client_ip)
     _, _, category = result
     log_reason = (
         f"IP banned due to {category} threshold: {client_ip} - {trigger_info}"

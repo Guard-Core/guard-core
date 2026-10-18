@@ -483,6 +483,14 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "request-derived text (the path threaded through build_block_payload "
         "is already redacted there, a separately covered producer)"
     ),
+    "core/checks/_shared_strikes.py:record_shared_detection_strikes": (
+        "logs only the Redis exception text of the shared detection strike "
+        "counter; never header, query or body content"
+    ),
+    "core/checks/_shared_strikes.py:forget_shared_detection_strikes": (
+        "logs the banned client_ip (outside the secret matrix) and the Redis "
+        "exception text; never header, query or body content"
+    ),
     "core/checks/helpers.py:_emit_ban_escalation_failed": (
         "line 335: reason is f'Escalation ban failed for {client_ip}: "
         "{error}' - client_ip plus the ban_ip() call's own exception; "

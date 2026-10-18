@@ -10,6 +10,20 @@ Release Notes
 
 ___
 
+Unreleased
+----------
+
+### Changed
+
+- **The detection auto-ban counts across workers when Redis is on.** Every detection strike is also recorded in Redis per IP and per category over the same 3600 s sliding window, in one round trip per strike, so the threshold is the configured number of detections whatever the worker count (4 workers banned after 9, 6 and 10 detections for a threshold of 5). Each key is bounded to 10,000 members, a landed ban clears the IP's shared counters, a Redis error falls back to the process count with a WARNING, and a benign request costs no Redis command.
+- **`RateLimitManager.reset()` keeps the Redis and agent handlers attached.** It clears the request windows only (memory and the Redis `rate_limit:rate:*` keys), not the auto-ban strikes or active bans. A teardown is a new config object or a re-initialization, not `reset()`.
+
+### Fixed
+
+- **The documented rate-limit reset reaches the app again.** `RateLimitManager(config)` returns the live manager for that config object, so `rate_limit_handler(config).reset()` with the app's own config clears what the app counts. Different config objects keep their own managers, and a reset on a config no guarded app was built with logs one WARNING.
+
+___
+
 v4.4.0 (2026-10-15)
 -------------------
 
