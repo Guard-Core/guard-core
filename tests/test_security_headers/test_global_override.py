@@ -2852,7 +2852,7 @@ async def test_the_clock_offset_counts_the_microseconds_of_redis_time(
 
     await _response(app)
 
-    assert override_module.PROCESS_OVERRIDE.clock_offset == pytest.approx(0.5)
+    assert override_module.PROCESS_OVERRIDE.clock_offset == pytest.approx(0.5, abs=1e-8)
 
 
 async def test_own_state_work_does_nothing_without_a_global_manager(
@@ -3038,7 +3038,7 @@ def test_resetting_an_app_manager_clears_its_state_and_its_process_cache_entry()
     assert vars(manager)["_override_next_lookup"] == 0.0
     assert vars(manager)["_override_next_pull"] == 0.0
     assert manager._override.keys == {}
-    assert manager._override.ordered_at() > before
+    assert manager._override.set_at == pytest.approx(before + 1e-6, abs=1e-9)
     assert manager._override_epoch == override_module.PROCESS_OVERRIDE.reset_epoch
 
 
@@ -3062,3 +3062,20 @@ async def test_an_override_pulled_after_a_global_reset_stays_applied(
 
     assert first["X-Frame-Options"] == "SAMEORIGIN"
     assert second["X-Frame-Options"] == "SAMEORIGIN"
+
+
+def test_a_new_epoch_clears_the_override_just_after_the_one_it_saved(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manager = SecurityHeadersManager.isolated()
+    manager._override_saved_at = 5.0
+    monkeypatch.setattr(
+        override_module.PROCESS_OVERRIDE,
+        "reset_epoch",
+        override_module.PROCESS_OVERRIDE.reset_epoch + 1,
+    )
+
+    cleared = manager.resolve_override()
+
+    assert cleared.keys == {}
+    assert cleared.set_at == pytest.approx(5.0 + 1e-6, abs=1e-9)
