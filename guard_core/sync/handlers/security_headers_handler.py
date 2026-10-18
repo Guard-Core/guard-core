@@ -12,6 +12,10 @@ from guard_core.sync.handlers._security_headers_cors import SecurityHeadersCorsM
 from guard_core.sync.handlers._security_headers_events import SecurityHeadersEventsMixin
 
 
+class ResolvedHeaders(dict[str, str]):
+    forced: frozenset[str] = frozenset()
+
+
 class SecurityHeadersManager(
     SecurityHeadersConfigMixin,
     SecurityHeadersCacheMixin,
@@ -79,6 +83,26 @@ class SecurityHeadersManager(
             parts.append("preload")
         return "; ".join(parts)
 
+    def _forced_header_names(
+        self,
+        csp_config: dict[str, list[str]] | None,
+        hsts_config: dict[str, Any] | None,
+        default_headers: dict[str, str],
+        custom_headers: dict[str, str],
+    ) -> frozenset[str]:
+        class_defaults = self.__class__.default_headers
+        forced = {name.lower() for name in custom_headers}
+        forced.update(
+            name.lower()
+            for name, value in default_headers.items()
+            if class_defaults.get(name) != value
+        )
+        if csp_config:
+            forced.add("content-security-policy")
+        if hsts_config:
+            forced.add("strict-transport-security")
+        return frozenset(forced)
+
     def _headers_for(
         self, config: SecurityConfig | None, cache_key: str
     ) -> tuple[dict[str, str], bool]:
@@ -90,7 +114,7 @@ class SecurityHeadersManager(
             self._resolve_headers_state(config)
         )
 
-        headers = default_headers.copy()
+        headers = ResolvedHeaders(default_headers)
 
         if csp_config:
             headers["Content-Security-Policy"] = self._build_csp(csp_config)
@@ -99,6 +123,9 @@ class SecurityHeadersManager(
             headers["Strict-Transport-Security"] = self._build_hsts(hsts_config)
 
         headers.update(custom_headers)
+        headers.forced = self._forced_header_names(
+            csp_config, hsts_config, default_headers, custom_headers
+        )
 
         self.headers_cache[cache_key] = headers
         return headers, True
@@ -121,6 +148,15 @@ class SecurityHeadersManager(
             self._send_headers_applied_event(request_path, headers)
 
         return headers
+
+    def get_headers_and_forced(
+        self,
+        request_path: str | None = None,
+        config: SecurityConfig | None = None,
+    ) -> tuple[dict[str, str], frozenset[str]]:
+        headers = self.get_headers(request_path, config)
+        forced = headers.forced if isinstance(headers, ResolvedHeaders) else frozenset()
+        return headers, forced
 
 
 security_headers_manager = SecurityHeadersManager()

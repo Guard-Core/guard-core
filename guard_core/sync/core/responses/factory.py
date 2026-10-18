@@ -1,5 +1,5 @@
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, MutableMapping
 
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.core.responses.context import ResponseContext
@@ -8,6 +8,21 @@ from guard_core.sync.handlers.behavior_handler import BehaviorRule, config_to_ru
 from guard_core.sync.handlers.security_headers_handler import security_headers_manager
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 from guard_core.sync.utils import extract_client_ip
+
+
+def _header_present(headers: MutableMapping[str, str], name: str) -> bool:
+    if isinstance(headers, dict):
+        lowered = name.lower()
+        return any(key.lower() == lowered for key in headers)
+    return name in headers
+
+
+def _drop_other_spellings(headers: MutableMapping[str, str], name: str) -> None:
+    if not isinstance(headers, dict):
+        return
+    lowered = name.lower()
+    for key in [key for key in headers if key.lower() == lowered and key != name]:
+        del headers[key]
 
 
 class ErrorResponseFactory:
@@ -44,10 +59,15 @@ class ErrorResponseFactory:
     ) -> GuardResponse:
         headers_config = self.context.config.security_headers
         if headers_config and headers_config.get("enabled", True):
-            security_headers = security_headers_manager.get_headers(
+            resolved = security_headers_manager.get_headers_and_forced(
                 request_path, config=self.context.config
             )
+            security_headers, forced = resolved
             for header_name, header_value in security_headers.items():
+                if header_name.lower() in forced:
+                    _drop_other_spellings(response.headers, header_name)
+                elif _header_present(response.headers, header_name):
+                    continue
                 response.headers[header_name] = header_value
 
         return response
