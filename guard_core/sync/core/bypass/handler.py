@@ -23,7 +23,10 @@ def _warn_no_client_address(logger: Logger, *, rejected: bool) -> None:
     outcome = (
         "the request is rejected with 403 (fail_secure=True)"
         if rejected
-        else 'the pipeline runs with identity "unknown" (fail_secure=False)'
+        else (
+            'the pipeline runs with identity "unknown" (fail_secure=False) and '
+            "all such requests share one rate-limit bucket"
+        )
     )
     logger.warning(
         "no client address on the connection; if the app is served over a "

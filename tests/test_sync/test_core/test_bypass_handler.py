@@ -193,6 +193,44 @@ def test_handle_passthrough_no_client_warns_once(
     assert cast(Mock, bypass_context.logger).warning.call_count == 1
 
 
+def test_fail_open_warning_says_peerless_clients_share_one_bucket(
+    bypass_handler: BypassHandler,
+    mock_request: Mock,
+    call_next: Callable[[Mock], Mock],
+    bypass_context: BypassContext,
+    mock_config: Mock,
+) -> None:
+    mock_config.fail_secure = False
+    mock_request.client_host = None
+
+    bypass_handler.handle_passthrough(
+        mock_request,
+        cast(Callable[[SyncGuardRequest], GuardResponse], call_next),
+    )
+
+    warning = cast(Mock, bypass_context.logger).warning.call_args
+    message = warning.args[0] % warning.args[1:]
+    assert "share one rate-limit bucket" in message
+    assert 'add "unix" to trusted_proxies' in message
+
+
+def test_fail_secure_warning_does_not_mention_the_bucket(
+    bypass_handler: BypassHandler,
+    mock_request: Mock,
+    call_next: Callable[[Mock], Mock],
+    bypass_context: BypassContext,
+) -> None:
+    mock_request.client_host = None
+
+    bypass_handler.handle_passthrough(
+        mock_request,
+        cast(Callable[[SyncGuardRequest], GuardResponse], call_next),
+    )
+
+    warning = cast(Mock, bypass_context.logger).warning.call_args
+    assert "bucket" not in warning.args[0] % warning.args[1:]
+
+
 def test_handle_passthrough_excluded_path_no_client_skips_warning(
     bypass_handler: BypassHandler,
     mock_request: Mock,
