@@ -8,8 +8,12 @@ from guard_core.detection_result import DetectionResult
 from guard_core.models import SecurityConfig, ThreatBanConfig
 
 
-def _make_middleware(counts: dict[str, dict[str, int]] | None = None) -> Any:
+def _make_middleware(
+    counts: dict[str, dict[str, int]] | None = None,
+    cap: int = 10_000,
+) -> Any:
     mw = MagicMock()
+    mw.config = SecurityConfig(enable_redis=False, ban_counters_max_tracked_ips=cap)
     mw.suspicious_request_counts = counts if counts is not None else {}
     mw.route_resolver = MagicMock()
     mw.route_resolver.should_bypass_check = lambda *_: False
@@ -669,9 +673,10 @@ async def test_a_broken_log_sink_never_escapes(
 async def test_bounds_suspicious_request_counts_size(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("guard_core.core.checks.helpers._MAX_TRACKED_SUSPICIOUS_IPS", 2)
     config = SecurityConfig(enable_ip_banning=False)
-    mw = _make_middleware({"1.1.1.1": {"ip_restriction": 1}, "2.2.2.2": {"x": 1}})
+    mw = _make_middleware(
+        {"1.1.1.1": {"ip_restriction": 1}, "2.2.2.2": {"x": 1}}, cap=2
+    )
     ban = AsyncMock()
     _patch_detect(monkeypatch)
 
@@ -698,11 +703,8 @@ async def test_touching_an_entry_protects_it_from_a_fresh_ip_flood(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     cap = 20
-    monkeypatch.setattr(
-        "guard_core.core.checks.helpers._MAX_TRACKED_SUSPICIOUS_IPS", cap
-    )
     config = SecurityConfig(enable_ip_banning=False)
-    mw = _make_middleware()
+    mw = _make_middleware(cap=cap)
     ban = AsyncMock()
     _patch_detect(monkeypatch)
 
@@ -739,9 +741,8 @@ async def test_touching_an_entry_protects_it_from_a_fresh_ip_flood(
 async def test_untouched_entry_is_the_first_evicted_when_over_capacity(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("guard_core.core.checks.helpers._MAX_TRACKED_SUSPICIOUS_IPS", 3)
     config = SecurityConfig(enable_ip_banning=False)
-    mw = _make_middleware()
+    mw = _make_middleware(cap=3)
     ban = AsyncMock()
     _patch_detect(monkeypatch)
 

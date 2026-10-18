@@ -6,7 +6,6 @@ import pytest
 from redis.exceptions import NoScriptError, RedisError
 
 from guard_core.exceptions import GuardRedisError
-from guard_core.handlers import ratelimit_handler
 from guard_core.handlers.ratelimit_handler import (
     RateLimitManager,
     RateLimitTier,
@@ -457,12 +456,14 @@ async def test_primitive_raises_instead_of_colliding_with_pipeline_bucket(
         await handler.close()
 
 
-async def test_in_memory_store_evicts_the_oldest_key_at_capacity(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+async def test_in_memory_store_evicts_the_oldest_key_at_capacity() -> None:
     _by_ip_request_timestamps.clear()
-    monkeypatch.setattr(ratelimit_handler, "_MAX_TRACKED_RATE_LIMIT_KEYS", 3)
-    config = SecurityConfig(enable_redis=False, rate_limit=1000, rate_limit_window=60)
+    config = SecurityConfig(
+        enable_redis=False,
+        rate_limit=1000,
+        rate_limit_window=60,
+        rate_limit_max_tracked_keys=3,
+    )
 
     for ip in ("10.0.0.1", "10.0.0.2", "10.0.0.3"):
         await check_rate_limit_by_ip(ip, config)
@@ -475,12 +476,14 @@ async def test_in_memory_store_evicts_the_oldest_key_at_capacity(
     assert "10.0.0.4" in _by_ip_request_timestamps
 
 
-async def test_in_memory_store_a_touched_key_survives_eviction(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+async def test_in_memory_store_a_touched_key_survives_eviction() -> None:
     _by_ip_request_timestamps.clear()
-    monkeypatch.setattr(ratelimit_handler, "_MAX_TRACKED_RATE_LIMIT_KEYS", 3)
-    config = SecurityConfig(enable_redis=False, rate_limit=1000, rate_limit_window=60)
+    config = SecurityConfig(
+        enable_redis=False,
+        rate_limit=1000,
+        rate_limit_window=60,
+        rate_limit_max_tracked_keys=3,
+    )
 
     for ip in ("10.0.1.1", "10.0.1.2", "10.0.1.3"):
         await check_rate_limit_by_ip(ip, config)

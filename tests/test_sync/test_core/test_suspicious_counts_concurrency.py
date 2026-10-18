@@ -1,11 +1,18 @@
 import threading
 from unittest.mock import MagicMock
 
+from guard_core.models import SecurityConfig
 from guard_core.sync.core.checks.helpers import _increment_suspicious_counts
 
 
-def test_concurrent_threads_do_not_raise_or_lose_counts() -> None:
+def _middleware(cap: int = 10_000) -> MagicMock:
     mw = MagicMock()
+    mw.config = SecurityConfig(enable_redis=False, ban_counters_max_tracked_ips=cap)
+    return mw
+
+
+def test_concurrent_threads_do_not_raise_or_lose_counts() -> None:
+    mw = _middleware()
     mw.suspicious_request_counts = {}
     errors: list[Exception] = []
     n_threads = 32
@@ -33,7 +40,7 @@ def test_concurrent_threads_do_not_raise_or_lose_counts() -> None:
 
 
 def test_concurrent_threads_incrementing_the_same_ip_sum_correctly() -> None:
-    mw = MagicMock()
+    mw = _middleware()
     mw.suspicious_request_counts = {}
     n_threads = 16
     barrier = threading.Barrier(n_threads)
@@ -53,32 +60,25 @@ def test_concurrent_threads_incrementing_the_same_ip_sum_correctly() -> None:
 
 
 def test_capacity_eviction_under_concurrent_threads_stays_within_cap() -> None:
-    import guard_core.sync.core.checks.helpers as sync_helpers
+    mw = _middleware(cap=50)
+    mw.suspicious_request_counts = {f"seed-{i}": {"x": 1} for i in range(50)}
+    errors: list[Exception] = []
+    n_threads = 32
+    barrier = threading.Barrier(n_threads)
 
-    original_cap = sync_helpers._MAX_TRACKED_SUSPICIOUS_IPS
-    sync_helpers._MAX_TRACKED_SUSPICIOUS_IPS = 50
-    try:
-        mw = MagicMock()
-        mw.suspicious_request_counts = {f"seed-{i}": {"x": 1} for i in range(50)}
-        errors: list[Exception] = []
-        n_threads = 32
-        barrier = threading.Barrier(n_threads)
+    def worker(n: int) -> None:
+        barrier.wait()
+        try:
+            for i in range(500):
+                _increment_suspicious_counts(mw, f"thread{n}-ip{i}", "ip_blocked")
+        except Exception as e:
+            errors.append(e)
 
-        def worker(n: int) -> None:
-            barrier.wait()
-            try:
-                for i in range(500):
-                    _increment_suspicious_counts(mw, f"thread{n}-ip{i}", "ip_blocked")
-            except Exception as e:
-                errors.append(e)
+    threads = [threading.Thread(target=worker, args=(n,)) for n in range(n_threads)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
 
-        threads = [threading.Thread(target=worker, args=(n,)) for n in range(n_threads)]
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join()
-
-        assert errors == []
-        assert len(mw.suspicious_request_counts) <= 50
-    finally:
-        sync_helpers._MAX_TRACKED_SUSPICIOUS_IPS = original_cap
+    assert errors == []
+    assert len(mw.suspicious_request_counts) <= 50

@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from guard_core._security_config_field_validators import GlobalBehaviorRules
 from guard_core._security_config_validators import ThreatBanConfig
+from guard_core._utils.lru_store import DEFAULT_MAX_TRACKED_KEYS
 from guard_core.handlers.suspatterns_handler import ALL_DETECTION_CATEGORIES
 from guard_core.protocols.cloud_ip_store_protocol import (
     CloudIpStoreFactory,
@@ -227,6 +228,28 @@ class _SecurityConfigFields(BaseModel):
             "['rate_limit'] override first, then the flat auto_ban_threshold / "
             "auto_ban_duration). Requires enable_ip_banning to actually ban. "
             "Default off: zero behavior change unless enabled."
+        ),
+    )
+
+    rate_limit_max_tracked_keys: int = Field(
+        default=DEFAULT_MAX_TRACKED_KEYS,
+        ge=1,
+        description=(
+            "Cap on the in-memory rate-limit windows one process keeps (one per "
+            "client and limit). The oldest window is dropped when the cap is "
+            "reached, so a client whose window was dropped starts a fresh one: "
+            "size it above the number of distinct clients a process sees within "
+            "the longest rate_limit_window. Redis-backed windows are not capped."
+        ),
+    )
+
+    ban_counters_max_tracked_ips: int = Field(
+        default=DEFAULT_MAX_TRACKED_KEYS,
+        ge=1,
+        description=(
+            "Cap on the client IPs whose automatic-ban violation counters one "
+            "process keeps. The least recently counted IP is dropped when the cap "
+            "is reached and its counters start again from zero."
         ),
     )
 

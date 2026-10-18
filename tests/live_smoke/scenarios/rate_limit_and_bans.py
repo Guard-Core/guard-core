@@ -131,6 +131,29 @@ def global_rate_limit_blocks_after_the_configured_request_count(
     assert statuses[3] == 429, statuses
 
 
+TRACKED_KEY_CAPS_CONFIG = {
+    "rate_limit": 3,
+    "rate_limit_window": 60,
+    "enable_rate_limiting": True,
+    "rate_limit_max_tracked_keys": 5,
+    "ban_counters_max_tracked_ips": 5,
+    "excluded_detection_headers": EXCLUDED_HEADERS,
+}
+
+
+@scenario(
+    covers={"rate_limit_max_tracked_keys", "ban_counters_max_tracked_ips"},
+    config=TRACKED_KEY_CAPS_CONFIG,
+)
+def tracked_key_caps_leave_the_limit_enforced_for_a_tracked_client(
+    ctx: ScenarioContext,
+) -> None:
+    client = ctx.client
+    statuses = [client.get("/basic/health").status_code for _ in range(4)]
+    assert statuses[:3] == [200, 200, 200], statuses
+    assert statuses[3] == 429, statuses
+
+
 ENDPOINT_RATE_LIMIT_CONFIG = {
     "endpoint_rate_limits": {"/basic/health": [2, 60]},
     "excluded_detection_headers": EXCLUDED_HEADERS,

@@ -36,7 +36,7 @@ def test_concurrent_eviction_and_append_does_not_raise() -> None:
                     "10.0.0.2",
                     [RateLimitTier("global", 5, 1)],
                     time.time(),
-                    manager._lock,
+                    lock=manager._lock,
                 )
         except RuntimeError as e:
             errors.append(e)

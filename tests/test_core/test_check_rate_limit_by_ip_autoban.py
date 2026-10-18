@@ -3,7 +3,6 @@ from unittest.mock import AsyncMock, MagicMock, Mock
 
 import pytest
 
-import guard_core.handlers.ratelimit_handler as ratelimit_handler
 from guard_core.core.checks.helpers import SUSPICIOUS_COUNT_WINDOW_SECONDS
 from guard_core.core.checks.implementations.rate_limit import RateLimitCheck
 from guard_core.handlers.ipban_handler import IPBanManager
@@ -334,12 +333,10 @@ async def test_dedicated_counter_isolated_from_middleware_suspicious_counts() ->
         IPBanManager._instance = None
 
 
-async def test_autoban_counter_evicts_the_oldest_ip_a_touched_ip_survives(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+async def test_autoban_counter_evicts_the_oldest_ip_a_touched_ip_survives() -> None:
     _by_ip_autoban_counts.clear()
-    monkeypatch.setattr(ratelimit_handler, "_MAX_TRACKED_RATE_LIMIT_KEYS", 3)
     config = SecurityConfig(
+        ban_counters_max_tracked_ips=3,
         enable_redis=False,
         rate_limit=1,
         rate_limit_window=60,

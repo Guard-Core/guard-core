@@ -57,7 +57,7 @@ def test_by_ip_dedicated_store_evict_and_append_is_atomic_under_the_lock() -> No
     def worker(i: int) -> None:
         try:
             barrier.wait()
-            _in_memory_tier_verdict(store, key, tiers, 1000.0 + i, lock)
+            _in_memory_tier_verdict(store, key, tiers, 1000.0 + i, lock=lock)
         except (IndexError, RuntimeError) as e:
             errors.append(e)
 

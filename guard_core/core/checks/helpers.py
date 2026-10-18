@@ -27,7 +27,6 @@ if TYPE_CHECKING:
     from guard_core.core.checks.base import SecurityCheck
     from guard_core.protocols.middleware_protocol import GuardMiddlewareProtocol
 
-_MAX_TRACKED_SUSPICIOUS_IPS = 10_000
 SUSPICIOUS_COUNT_WINDOW_SECONDS = 3600
 _MAX_RETAINED_EVENTS_PER_CATEGORY = 10_000
 _DETECTION_RESULT_STATE_ATTR = "_guard_detection_result_cache"
@@ -446,7 +445,7 @@ def _increment_suspicious_counts(
         counts = middleware.suspicious_request_counts
         existing = counts.pop(client_ip, None)
         if existing is None:
-            if len(counts) >= _MAX_TRACKED_SUSPICIOUS_IPS:
+            if len(counts) >= middleware.config.ban_counters_max_tracked_ips:
                 oldest_ip = next(iter(counts))
                 del counts[oldest_ip]
             ip_counts = _WindowedCategoryCounts()

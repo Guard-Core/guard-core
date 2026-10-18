@@ -15,7 +15,10 @@ from guard_core.models import SecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.scripts.rate_lua import RATE_LIMIT_SCRIPT
 from guard_core.sync._utils.identity_hash import _hash_identity_segment
-from guard_core.sync._utils.lru_store import _lru_pop_or_create
+from guard_core.sync._utils.lru_store import (
+    DEFAULT_MAX_TRACKED_KEYS,
+    _lru_pop_or_create,
+)
 from guard_core.sync._utils.request_logging import redact_endpoint_for_display
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 from guard_core.sync.utils import log_activity
@@ -29,7 +32,6 @@ _by_ip_request_timestamps: defaultdict[str, deque[float]] = defaultdict(deque)
 _by_ip_lock = threading.Lock()
 _by_ip_autoban_counts: dict[str, "_WindowedCategoryCounts"] = {}
 _by_ip_autoban_lock = threading.Lock()
-_MAX_TRACKED_RATE_LIMIT_KEYS = 10_000
 _redis_fail_open_warned = False
 
 
@@ -193,6 +195,7 @@ def _in_memory_tier_verdict(
     client_ip: str,
     tiers: Sequence[RateLimitTier],
     current_time: float,
+    max_tracked_keys: int = DEFAULT_MAX_TRACKED_KEYS,
     lock: threading.Lock = _by_ip_lock,
 ) -> RateLimitVerdict:
     windows = []
@@ -200,7 +203,7 @@ def _in_memory_tier_verdict(
         for index, tier in enumerate(tiers):
             key = _tier_key(client_ip, tier)
             timestamps = _lru_pop_or_create(
-                request_timestamps, key, _MAX_TRACKED_RATE_LIMIT_KEYS, deque
+                request_timestamps, key, max_tracked_keys, deque
             )
             window_start = current_time - tier.window
             while timestamps and timestamps[0] <= window_start:
@@ -256,7 +259,7 @@ def _feed_rate_limit_autoban(ip: str, config: SecurityConfig) -> None:
         ip_counts = _lru_pop_or_create(
             _by_ip_autoban_counts,
             ip,
-            _MAX_TRACKED_RATE_LIMIT_KEYS,
+            config.ban_counters_max_tracked_ips,
             _WindowedCategoryCounts,
         )
         ip_counts.expire_before(now - SUSPICIOUS_COUNT_WINDOW_SECONDS)
@@ -365,7 +368,12 @@ def check_rate_limit_by_ip(
 
     if verdict is None:
         verdict = _in_memory_tier_verdict(
-            _by_ip_request_timestamps, ip, tiers, time.time(), _by_ip_lock
+            _by_ip_request_timestamps,
+            ip,
+            tiers,
+            time.time(),
+            config.rate_limit_max_tracked_keys,
+            _by_ip_lock,
         )
 
     allowed = verdict.tier_index is None
@@ -492,7 +500,12 @@ class RateLimitManager:
             if verdict is not None:
                 return verdict
         return _in_memory_tier_verdict(
-            self.request_timestamps, client_ip, tiers, time.time(), self._lock
+            self.request_timestamps,
+            client_ip,
+            tiers,
+            time.time(),
+            config.rate_limit_max_tracked_keys,
+            self._lock,
         )
 
     def check_rate_limit_tiers(

@@ -2,8 +2,6 @@ from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock
 
-import pytest
-
 from guard_core.models import SecurityConfig, ThreatBanConfig
 from guard_core.sync.core.checks.helpers import count_hostile_signal_and_maybe_ban
 
@@ -123,12 +121,12 @@ def test_a_broken_log_sink_never_escapes() -> None:
     assert check.logger.exception.call_count == 2
 
 
-def test_tracked_ips_stay_bounded(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        "guard_core.sync.core.checks.helpers._MAX_TRACKED_SUSPICIOUS_IPS", 2
-    )
+def test_tracked_ips_stay_bounded() -> None:
     counts = {"1.1.1.1": {"referrer": 1}, "2.2.2.2": {"referrer": 1}}
-    check = _check(SecurityConfig(auto_ban_threshold=9), counts=counts)
+    check = _check(
+        SecurityConfig(auto_ban_threshold=9, ban_counters_max_tracked_ips=2),
+        counts=counts,
+    )
 
     count_hostile_signal_and_maybe_ban(check, _request("3.3.3.3"), "referrer", "t")
 
@@ -137,14 +135,11 @@ def test_tracked_ips_stay_bounded(monkeypatch: pytest.MonkeyPatch) -> None:
     assert counts["3.3.3.3"] == {"referrer": 1}
 
 
-def test_touching_an_entry_protects_it_from_a_fresh_ip_flood(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_touching_an_entry_protects_it_from_a_fresh_ip_flood() -> None:
     cap = 20
-    monkeypatch.setattr(
-        "guard_core.sync.core.checks.helpers._MAX_TRACKED_SUSPICIOUS_IPS", cap
+    check = _check(
+        SecurityConfig(auto_ban_threshold=1000, ban_counters_max_tracked_ips=cap)
     )
-    check = _check(SecurityConfig(auto_ban_threshold=1000))
 
     def touch(client_ip: str) -> None:
         count_hostile_signal_and_maybe_ban(check, _request(client_ip), "referrer", "t")
