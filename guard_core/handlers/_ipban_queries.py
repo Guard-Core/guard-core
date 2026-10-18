@@ -8,6 +8,7 @@ from guard_core.handlers._ipban_cache import _Network
 from guard_core.handlers._ipban_coverage import NetworkCoverage
 from guard_core.handlers._ipban_events import IpBanEventMixin
 from guard_core.handlers._ipban_lookup import IpBanLookupMixin
+from guard_core.handlers._ipban_recidive import IpBanRecidiveMixin
 from guard_core.handlers._ipban_rule_exempt import IpBanRuleExemptionMixin
 from guard_core.handlers.redis_handler import scan_unlink
 from guard_core.utils import _canonicalize_ip
@@ -15,7 +16,11 @@ from guard_core.utils import _canonicalize_ip
 _BATCH = 2000
 _MEMORY_BATCH = 1000
 _EVENT_BATCH = 100
-_STRIKE_PATTERNS = ("rate_limit:violations:*", "detection:strikes*")
+_STRIKE_PATTERNS = (
+    "rate_limit:violations:*",
+    "detection:strikes*",
+    "recidive:*",
+)
 
 
 def _network_member_covered(member: str, coverage: NetworkCoverage) -> bool:
@@ -38,7 +43,9 @@ def _strike_key_inside(coverage: NetworkCoverage, stem: str) -> Callable[[str], 
     return inside
 
 
-class IpBanQueryMixin(IpBanLookupMixin, IpBanEventMixin, IpBanRuleExemptionMixin):
+class IpBanQueryMixin(
+    IpBanLookupMixin, IpBanEventMixin, IpBanRuleExemptionMixin, IpBanRecidiveMixin
+):
     banned_ips: MutableMapping[str, float]
     banned_networks: list[tuple[_Network, float]]
     redis_handler: Any = None
@@ -95,11 +102,13 @@ class IpBanQueryMixin(IpBanLookupMixin, IpBanEventMixin, IpBanRuleExemptionMixin
 
         forget_identity_strikes(ip)
         forget_by_ip_strikes(ip)
+        self._forget_recidive_in_memory(ip)
         if not self.redis_handler:
             return
         try:
             await forget_shared_violations(self.redis_handler, ip)
             await self.redis_handler.forget_detection_strikes(ip)
+            await self.redis_handler.delete("recidive", ip)
         except Exception as e:
             if strict:
                 raise
@@ -120,6 +129,7 @@ class IpBanQueryMixin(IpBanLookupMixin, IpBanEventMixin, IpBanRuleExemptionMixin
 
         forget_identities_inside(coverage.covers_address)
         forget_by_ip_strikes_inside(coverage.covers_address)
+        self._forget_recidive_inside(coverage)
         if not self.redis_handler:
             return
         try:
@@ -131,6 +141,11 @@ class IpBanQueryMixin(IpBanLookupMixin, IpBanEventMixin, IpBanRuleExemptionMixin
                 "Redis strikes inside a range could not be cleared: %s", e
             )
 
+    def _forget_recidive_inside(self, coverage: NetworkCoverage) -> None:
+        for identity in list(self.recidive_history):
+            if _network_member_covered(identity, coverage):
+                del self.recidive_history[identity]
+
     async def _unlink_strikes_inside(self, coverage: NetworkCoverage) -> None:
         prefix = self.redis_handler.config.redis_prefix
         async with self.redis_handler.get_connection() as conn:
@@ -138,6 +153,7 @@ class IpBanQueryMixin(IpBanLookupMixin, IpBanEventMixin, IpBanRuleExemptionMixin
                 f"{prefix}rate_limit:violations:",
                 f"{prefix}detection:strikes:",
                 f"{prefix}detection:strikes_index:",
+                f"{prefix}recidive:",
             ):
                 await scan_unlink(conn, f"{stem}*", _strike_key_inside(coverage, stem))
 
@@ -147,6 +163,7 @@ class IpBanQueryMixin(IpBanLookupMixin, IpBanEventMixin, IpBanRuleExemptionMixin
 
         forget_all_strikes()
         clear_by_ip_strikes()
+        self.recidive_history.clear()
         if not self.redis_handler:
             return
         try:

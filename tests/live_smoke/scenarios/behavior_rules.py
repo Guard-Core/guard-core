@@ -156,3 +156,40 @@ def global_behavior_rules_bans_after_response_body_pattern_match(
         "no log line recorded the global return_pattern rule match; "
         f"recent lines: {json.dumps(ctx.stack.logs.lines_since(mark)[-10:])}"
     )
+
+
+_RECIDIVE_CONFIG = {
+    **_GLOBAL_RULE_CONFIG,
+    "enable_recidive": True,
+    "recidive_factor": 2.0,
+    "recidive_window": 3600,
+    "recidive_max_duration": 600,
+}
+
+
+def _still_banned_after(ctx: ScenarioContext, seconds: float) -> bool:
+    return not wait_until(lambda: _echo_status(ctx) != 403, timeout=seconds)
+
+
+@scenario(
+    covers={
+        "enable_recidive",
+        "recidive_factor",
+        "recidive_window",
+        "recidive_max_duration",
+    },
+    config=_RECIDIVE_CONFIG,
+)
+def recidive_doubles_a_repeat_behavioral_ban(ctx: ScenarioContext) -> None:
+    for _ in range(4):
+        _echo_status(ctx)
+    assert wait_until(lambda: _banned(ctx), timeout=10.0), "no first ban"
+    assert wait_until(lambda: _echo_status(ctx) != 403, timeout=45.0, interval=1.0), (
+        "the 30 s ban never expired"
+    )
+
+    for _ in range(2):
+        _echo_status(ctx)
+    assert wait_until(lambda: _banned(ctx), timeout=10.0), "no second ban"
+
+    assert _still_banned_after(ctx, 40.0), "the repeat ban lasted no longer than 30 s"

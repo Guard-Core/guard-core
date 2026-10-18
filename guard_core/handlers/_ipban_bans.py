@@ -7,6 +7,10 @@ from typing import Any
 from guard_core._utils.ip_extraction import MALFORMED_FORWARDED_FOR_PREFIX
 from guard_core.handlers._ipban_cache import _Network
 from guard_core.handlers._ipban_events import IpBanEventMixin
+from guard_core.handlers._ipban_recidive import (
+    IpBanRecidiveMixin,
+    escalated_duration,
+)
 from guard_core.handlers._ipban_rule_exempt import IpBanRuleExemptionMixin
 from guard_core.handlers._ipban_version import IpBanVersionMixin
 from guard_core.utils import _canonicalize_ip
@@ -19,7 +23,9 @@ _LOOPBACK_NETWORKS: tuple[_Network, ...] = (
 )
 
 
-class IpBanOperationsMixin(IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptionMixin):
+class IpBanOperationsMixin(
+    IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptionMixin, IpBanRecidiveMixin
+):
     banned_ips: MutableMapping[str, float]
     banned_networks: list[tuple[_Network, float]]
     refused_ban_reported_until: dict[str, float]
@@ -70,20 +76,27 @@ class IpBanOperationsMixin(IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptio
         await self._bump_ban_version()
 
     async def _ban_exact_ip(self, ip: str, duration: int, reason: str) -> None:
-        if not ip.startswith(MALFORMED_FORWARDED_FOR_PREFIX):
-            try:
-                ipaddress.ip_address(ip)
-            except ValueError as e:
-                raise ValueError(f"Invalid IP address {ip!r}: {e}") from e
-
+        self._assert_valid_exact_ip(ip)
         await self._store_ban("banned_ips", ip, duration, reason)
 
-    async def _ban_identity(self, identity: str, duration: int, reason: str) -> None:
+    def _assert_valid_exact_ip(self, ip: str) -> None:
+        if ip.startswith(MALFORMED_FORWARDED_FOR_PREFIX):
+            return
         try:
-            network = ipaddress.ip_network(identity, strict=False)
+            ipaddress.ip_address(ip)
+        except ValueError as e:
+            raise ValueError(f"Invalid IP address {ip!r}: {e}") from e
+
+    def _identity_ban_key(self, identity: str) -> str:
+        try:
+            return str(ipaddress.ip_network(identity, strict=False))
         except ValueError as e:
             raise ValueError(f"Invalid identity {identity!r}: {e}") from e
-        await self._store_ban("banned_identities", str(network), duration, reason)
+
+    async def _ban_identity(self, identity: str, duration: int, reason: str) -> None:
+        await self._store_ban(
+            "banned_identities", self._identity_ban_key(identity), duration, reason
+        )
 
     async def _store_ban(
         self, namespace: str, key: str, duration: int, reason: str
@@ -102,6 +115,52 @@ class IpBanOperationsMixin(IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptio
         if self.agent_handler:
             await self._report_eviction()
             await self._send_ban_event(key, duration, reason)
+
+    async def _ban_with_recidive(
+        self, ip: str, duration: int, reason: str, grouped: bool
+    ) -> None:
+        if grouped:
+            namespace, key = "banned_identities", self._identity_ban_key(ip)
+        else:
+            self._assert_valid_exact_ip(ip)
+            namespace, key = "banned_ips", ip
+        prior = await self._recidive_prior_bans(key)
+        applied = escalated_duration(
+            duration,
+            prior,
+            self.config.recidive_factor,
+            self.config.recidive_max_duration,
+        )
+        if not await self._store_new_ban(namespace, key, applied):
+            return
+        count = await self._record_recidive_ban(key, applied)
+        self.logger.info(
+            "Banned %s for %d seconds (ban %d within the recidive window)",
+            key,
+            applied,
+            count,
+        )
+        if self.agent_handler:
+            await self._report_eviction()
+            await self._send_ban_event(key, applied, reason, recidive_count=count)
+
+    async def _store_new_ban(self, namespace: str, key: str, duration: int) -> bool:
+        """Write the ban only when none is active; True for the writer that won."""
+        now = time.time()
+        expiry = now + duration
+        if self.redis_handler:
+            try:
+                won = await self.redis_handler.set_key_if_absent(
+                    namespace, key, str(expiry), ttl=duration
+                )
+            except Exception:
+                self._warn_kept_in_this_process(key, "request failed")
+                won = self.banned_ips.get(key, 0.0) <= now
+        else:
+            won = self.banned_ips.get(key, 0.0) <= now
+        if won:
+            self.banned_ips[key] = expiry
+        return bool(won)
 
     async def _report_eviction(self) -> None:
         evicted = self.evicted_to_report
@@ -214,6 +273,24 @@ class IpBanOperationsMixin(IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptio
         *,
         grouped: bool = False,
     ) -> bool:
+        return await self._apply_ban(ip, duration, reason, grouped, escalate=False)
+
+    async def _ban_ip_escalating(
+        self,
+        ip: str,
+        duration: int,
+        reason: str = "threshold_exceeded",
+        *,
+        grouped: bool = False,
+    ) -> bool:
+        """The automatic ban engine's entry: a repeat ban lasts longer when
+        ``enable_recidive`` is on. Public ``ban_ip`` is the same body without it, so
+        manual and dynamic-rule bans neither escalate nor count."""
+        return await self._apply_ban(ip, duration, reason, grouped, escalate=True)
+
+    async def _apply_ban(
+        self, ip: str, duration: int, reason: str, grouped: bool, escalate: bool
+    ) -> bool:
         ip = _canonicalize_ip(ip)
         self._assert_positive_duration(duration)
         if self._refuse_rule_exempt_target(ip):
@@ -223,7 +300,9 @@ class IpBanOperationsMixin(IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptio
             await self._report_refused_ban(ip, refusal, duration, reason)
             return False
         self._warn_if_private_target(ip)
-        if grouped:
+        if escalate and self._recidive_applies(ip, grouped):
+            await self._ban_with_recidive(ip, duration, reason, grouped)
+        elif grouped:
             await self._ban_identity(ip, duration, reason)
         elif "/" in ip:
             await self._ban_cidr(ip, duration, reason)

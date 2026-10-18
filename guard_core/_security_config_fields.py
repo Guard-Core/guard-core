@@ -548,6 +548,49 @@ class _SecurityConfigFields(BaseModel):
         ),
     )
 
+    enable_recidive: bool = Field(
+        default=False,
+        description=(
+            "Lengthen the automatic ban of a client that is banned again within "
+            "recidive_window. The k-th earlier ban in the window multiplies the "
+            "duration by recidive_factor ** k, capped at recidive_max_duration "
+            "and never below the duration the call asked for. Counts only the "
+            "bans applied by the automatic ban engine to an address or a grouped "
+            "identity; operator CIDR bans, dynamic-rule bans and manual bans "
+            "neither escalate nor count. Off by default."
+        ),
+    )
+
+    recidive_factor: float = Field(
+        default=2.0,
+        gt=1,
+        description=(
+            "Multiplier per earlier ban in the window, > 1 (a factor of 1 would "
+            "change nothing). Used when enable_recidive is on."
+        ),
+    )
+
+    recidive_window: int = Field(
+        default=86400,
+        ge=1,
+        description=(
+            "Seconds a ban counts toward the next one, measured from the end of "
+            "the last ban. An unban clears the history; a natural expiry keeps it "
+            "for this long. Used when enable_recidive is on."
+        ),
+    )
+
+    recidive_max_duration: int = Field(
+        default=604800,
+        ge=1,
+        description=(
+            "Cap in seconds on an escalated ban duration (7 days by default); "
+            "must be >= auto_ban_duration when enable_recidive is on. A duration "
+            "the call asked for that is already above the cap is applied as it "
+            "is, escalation never shortens a ban."
+        ),
+    )
+
     nat64_prefixes: list[str] = Field(
         default_factory=list,
         description=(

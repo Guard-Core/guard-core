@@ -238,6 +238,15 @@ class SecurityConfig(_SecurityConfigFields):
         return self
 
     @model_validator(mode="after")
+    def validate_recidive_cap_covers_the_auto_ban(self) -> Self:
+        if self.enable_recidive and self.recidive_max_duration < self.auto_ban_duration:
+            raise ValueError(
+                "recidive_max_duration must be >= auto_ban_duration when "
+                "enable_recidive is True"
+            )
+        return self
+
+    @model_validator(mode="after")
     def validate_global_return_pattern_body_scan(self) -> Self:
         for rule in self.global_behavior_rules:
             if rule.rule_type != "return_pattern" or not rule.pattern:

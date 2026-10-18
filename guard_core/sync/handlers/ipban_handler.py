@@ -45,6 +45,7 @@ class IPBanManager(
     banned_ips: MutableMapping[str, float]
     banned_networks: list[tuple[_Network, float]]
     refused_ban_reported_until: dict[str, float]
+    recidive_history: dict[str, tuple[int, float]]
     evictions_count: int
     evicted_to_report: tuple[str, float] | None
     logger: logging.Logger
@@ -63,6 +64,7 @@ class IPBanManager(
             cls._instance.evicted_to_report = None
             cls._instance.banned_networks = []
             cls._instance.refused_ban_reported_until = {}
+            cls._instance.recidive_history = {}
             cls._instance.rule_exempt_networks = ()
             cls._instance.redis_handler = None
             cls._instance.agent_handler = None
@@ -95,6 +97,7 @@ def reset_global_state() -> None:
     manager.banned_ips.clear()
     manager.banned_networks = []
     manager.refused_ban_reported_until = {}
+    manager.recidive_history = {}
     manager.rule_exempt_networks = ()
     manager.evictions_count = 0
     manager.evicted_to_report = None

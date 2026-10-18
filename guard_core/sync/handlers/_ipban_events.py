@@ -13,7 +13,13 @@ class IpBanEventMixin:
     def initialize_agent(self, agent_handler: Any) -> None:
         self.agent_handler = agent_handler
 
-    def _send_ban_event(self, ip: str, duration: int, reason: str) -> None:
+    def _send_ban_event(
+        self,
+        ip: str,
+        duration: int,
+        reason: str,
+        recidive_count: int | None = None,
+    ) -> None:
         from guard_core.sync.core.events.event_types import EVENT_IP_BANNED
 
         try:
@@ -28,7 +34,11 @@ class IpBanEventMixin:
                 action_taken="banned",
                 reason=reason,
                 handler_name=_IP_BAN_HANDLER_NAME,
-                metadata={"duration": duration},
+                metadata=(
+                    {"duration": duration}
+                    if recidive_count is None
+                    else {"duration": duration, "recidive_count": recidive_count}
+                ),
             )
             self.agent_handler.send_event(event)
         except Exception as e:
