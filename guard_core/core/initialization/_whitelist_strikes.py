@@ -13,6 +13,12 @@ _LOCK_SECONDS = 60
 _logger = logging.getLogger("guard_core.core.initialization.whitelist_strikes")
 
 
+def is_connected_redis_manager(redis_handler: Any) -> bool:
+    from guard_core.handlers.redis_handler import RedisManager
+
+    return isinstance(redis_handler, RedisManager) and redis_handler._redis is not None
+
+
 def whitelist_fingerprint(entries: Iterable[str]) -> str:
     canonical = sorted(
         {str(ipaddress.ip_network(entry, strict=False)) for entry in entries}
@@ -31,7 +37,7 @@ async def _claim_changed_whitelist(redis_handler: Any, fingerprint: str) -> bool
 async def _reset_covered_identities(entries: list[str], ip_ban_manager: Any) -> None:
     for entry in entries:
         if "/" not in entry:
-            await ip_ban_manager.forget_strikes_of_ip(entry)
+            await ip_ban_manager.forget_strikes_of_ip(entry, strict=True)
     await ip_ban_manager.forget_strikes_inside(
         [entry for entry in entries if "/" in entry], strict=True
     )
@@ -52,11 +58,21 @@ async def reset_strikes_for_changed_whitelist(
         fingerprint = whitelist_fingerprint(entries)
         if not await _claim_changed_whitelist(redis_handler, fingerprint):
             return
-        await _reset_covered_identities(entries, ip_ban_manager)
-        await redis_handler.set_key(_NAMESPACE, _APPLIED_KEY, fingerprint)
+        try:
+            await _reset_covered_identities(entries, ip_ban_manager)
+            await redis_handler.set_key(_NAMESPACE, _APPLIED_KEY, fingerprint)
+        finally:
+            await redis_handler.delete(_NAMESPACE, _LOCK_KEY)
     except Exception as error:
         _logger.warning(
             "The strikes of the startup whitelist could not be reset, the next "
             "start tries again: %s",
             error,
         )
+
+
+async def reset_startup_whitelist_strikes(
+    config: SecurityConfig, redis_handler: Any, ip_ban_manager: Any
+) -> None:
+    if is_connected_redis_manager(redis_handler):
+        await reset_strikes_for_changed_whitelist(config, redis_handler, ip_ban_manager)

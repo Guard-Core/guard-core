@@ -13,6 +13,12 @@ _LOCK_SECONDS = 60
 _logger = logging.getLogger("guard_core.sync.core.initialization.whitelist_strikes")
 
 
+def is_connected_redis_manager(redis_handler: Any) -> bool:
+    from guard_core.sync.handlers.redis_handler import RedisManager
+
+    return isinstance(redis_handler, RedisManager) and redis_handler._redis is not None
+
+
 def whitelist_fingerprint(entries: Iterable[str]) -> str:
     canonical = sorted(
         {str(ipaddress.ip_network(entry, strict=False)) for entry in entries}
@@ -31,7 +37,7 @@ def _claim_changed_whitelist(redis_handler: Any, fingerprint: str) -> bool:
 def _reset_covered_identities(entries: list[str], ip_ban_manager: Any) -> None:
     for entry in entries:
         if "/" not in entry:
-            ip_ban_manager.forget_strikes_of_ip(entry)
+            ip_ban_manager.forget_strikes_of_ip(entry, strict=True)
     ip_ban_manager.forget_strikes_inside(
         [entry for entry in entries if "/" in entry], strict=True
     )
@@ -52,11 +58,21 @@ def reset_strikes_for_changed_whitelist(
         fingerprint = whitelist_fingerprint(entries)
         if not _claim_changed_whitelist(redis_handler, fingerprint):
             return
-        _reset_covered_identities(entries, ip_ban_manager)
-        redis_handler.set_key(_NAMESPACE, _APPLIED_KEY, fingerprint)
+        try:
+            _reset_covered_identities(entries, ip_ban_manager)
+            redis_handler.set_key(_NAMESPACE, _APPLIED_KEY, fingerprint)
+        finally:
+            redis_handler.delete(_NAMESPACE, _LOCK_KEY)
     except Exception as error:
         _logger.warning(
             "The strikes of the startup whitelist could not be reset, the next "
             "start tries again: %s",
             error,
         )
+
+
+def reset_startup_whitelist_strikes(
+    config: SecurityConfig, redis_handler: Any, ip_ban_manager: Any
+) -> None:
+    if is_connected_redis_manager(redis_handler):
+        reset_strikes_for_changed_whitelist(config, redis_handler, ip_ban_manager)

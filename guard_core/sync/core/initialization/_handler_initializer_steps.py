@@ -12,7 +12,7 @@ from guard_core.sync.core.initialization._route_limit_report import (
     report_route_limits_with_global_switch_off,
 )
 from guard_core.sync.core.initialization._whitelist_strikes import (
-    reset_strikes_for_changed_whitelist,
+    reset_startup_whitelist_strikes,
 )
 from guard_core.sync.protocols.cloud_ip_store_protocol import SyncCloudIpStoreProtocol
 
@@ -184,9 +184,7 @@ class _HandlerInitializerStepsMixin:
 
         self._initialize_cloud_and_geo_redis()
         ip_ban_manager.initialize_redis(self.redis_handler)
-        reset_strikes_for_changed_whitelist(
-            self.config, self.redis_handler, ip_ban_manager
-        )
+        reset_startup_whitelist_strikes(self.config, self.redis_handler, ip_ban_manager)
 
         if self.rate_limit_handler is not None:
             self.rate_limit_handler.initialize_redis(self.redis_handler)

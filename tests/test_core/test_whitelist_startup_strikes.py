@@ -278,3 +278,121 @@ async def test_the_initializer_runs_the_reset_once_redis_is_connected(
 
     assert INSIDE not in middleware.suspicious_request_counts
     assert OUTSIDE in middleware.suspicious_request_counts
+
+
+async def test_two_different_whitelists_within_the_lock_window_both_reset(
+    redis: RedisManager, ban_manager: IPBanManager, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    prefix = redis.config.redis_prefix
+    first = _config(redis_prefix=prefix, whitelist=["203.0.113.0/24"])
+    second = _config(redis_prefix=prefix, whitelist=["198.51.100.0/24"])
+    await reset_strikes_for_changed_whitelist(first, redis, ban_manager)
+    middleware = await _strike(redis, monkeypatch, INSIDE)
+
+    await reset_strikes_for_changed_whitelist(second, redis, ban_manager)
+
+    assert INSIDE not in middleware.suspicious_request_counts
+    assert await _keys(redis, "whitelist:strikes_lock") == []
+
+
+async def test_a_failed_range_scan_inside_the_ban_manager_keeps_the_old_fingerprint(
+    redis: RedisManager, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manager = IPBanManager()
+    manager.redis_handler = Mock(
+        config=redis.config, get_connection=Mock(side_effect=RuntimeError("scan died"))
+    )
+    config = _config(
+        redis_prefix=redis.config.redis_prefix, whitelist=["198.51.100.0/24"]
+    )
+
+    await reset_strikes_for_changed_whitelist(config, redis, manager)
+
+    assert await _keys(redis, "whitelist:strikes_applied") == []
+    assert await _keys(redis, "whitelist:strikes_lock") == []
+
+
+async def test_a_failed_per_ip_forget_keeps_the_old_fingerprint(
+    redis: RedisManager,
+) -> None:
+    manager = IPBanManager()
+    manager.redis_handler = Mock(
+        config=redis.config,
+        delete=AsyncMock(side_effect=RuntimeError("redis down")),
+        forget_detection_strikes=AsyncMock(),
+    )
+    config = _config(redis_prefix=redis.config.redis_prefix, whitelist=[INSIDE])
+
+    await reset_strikes_for_changed_whitelist(config, redis, manager)
+
+    assert await _keys(redis, "whitelist:strikes_applied") == []
+
+
+async def test_the_unban_and_range_calls_keep_their_warning_without_strict(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    manager = IPBanManager()
+    manager.redis_handler = Mock(
+        config=SecurityConfig(enable_redis=False),
+        get_connection=Mock(side_effect=RuntimeError("down")),
+        delete=AsyncMock(side_effect=RuntimeError("down")),
+        forget_detection_strikes=AsyncMock(),
+    )
+
+    with caplog.at_level(logging.WARNING):
+        await manager.forget_strikes_inside(["198.51.100.0/24"])
+        await manager.forget_strikes_of_ip(INSIDE)
+
+    assert (
+        len(
+            [
+                r
+                for r in caplog.records
+                if "could not be cleared" in r.getMessage()
+                or "inside a range" in r.getMessage()
+            ]
+        )
+        == 2
+    )
+
+
+async def test_the_initializer_skips_the_reset_when_redis_never_connected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = _config(whitelist=["198.51.100.0/24"])
+    manager = RedisManager(config)
+    spy = AsyncMock()
+    monkeypatch.setattr(
+        "guard_core.core.initialization._whitelist_strikes."
+        "reset_strikes_for_changed_whitelist",
+        spy,
+    )
+    monkeypatch.setattr(
+        "guard_core.core.initialization._whitelist_strikes.is_connected_redis_manager",
+        lambda _handler: False,
+    )
+    initializer = HandlerInitializer(config, redis_handler=manager)
+    monkeypatch.setattr(initializer, "_initialize_cloud_and_geo_redis", AsyncMock())
+
+    try:
+        await initializer._initialize_connected_redis_handlers()
+    finally:
+        sus_patterns_handler.redis_handler = None
+        IPBanManager().redis_handler = None
+        await manager.close()
+
+    spy.assert_not_called()
+
+
+async def test_the_connected_predicate_needs_a_real_connected_manager(
+    redis: RedisManager, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from guard_core.core.initialization._whitelist_strikes import (
+        is_connected_redis_manager,
+    )
+
+    assert is_connected_redis_manager(redis) is True
+    assert is_connected_redis_manager(Mock(_redis=object())) is False
+    monkeypatch.setattr(redis, "_redis", None)
+    assert is_connected_redis_manager(redis) is False
+    assert is_connected_redis_manager(None) is False

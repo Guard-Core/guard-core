@@ -128,7 +128,7 @@ class IpBanQueryMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
                     self._forget_strikes(member)
             time.sleep(0)
 
-    def _forget_strikes(self, ip: str) -> None:
+    def _forget_strikes(self, ip: str, strict: bool = False) -> None:
         from guard_core.sync.core.checks._strike_forget import forget_identity_strikes
         from guard_core.sync.handlers.ratelimit_handler import (
             forget_by_ip_strikes,
@@ -143,10 +143,12 @@ class IpBanQueryMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
             forget_shared_violations(self.redis_handler, ip)
             self.redis_handler.forget_detection_strikes(ip)
         except Exception as e:
+            if strict:
+                raise
             self.logger.warning("Redis strikes of %s could not be cleared: %s", ip, e)
 
-    def forget_strikes_of_ip(self, ip: str) -> None:
-        self._forget_strikes(_canonicalize_ip(ip))
+    def forget_strikes_of_ip(self, ip: str, strict: bool = False) -> None:
+        self._forget_strikes(_canonicalize_ip(ip), strict)
 
     def forget_strikes_inside(
         self, entries: Iterable[str], strict: bool = False
@@ -167,6 +169,8 @@ class IpBanQueryMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
         try:
             self._unlink_strikes_inside(coverage)
         except Exception as e:
+            if strict:
+                raise
             self.logger.warning(
                 "Redis strikes inside a range could not be cleared: %s", e
             )
