@@ -24,6 +24,8 @@ handler = rate_limit_handler(config)  # the config object the app was built with
 await handler.reset()
 ```
 
+`reset()` clears the request windows only: the in-memory windows and the Redis `rate_limit:rate:*` keys. It does not clear the auto-ban strikes (`rate_limit:violations:*` and the shared detection strikes) or active bans, and the manager keeps its Redis and agent handlers attached, so the app's limiter keeps counting through Redis and keeps sending its events. To tear a limiter down, build a new config object or re-initialize the app; `reset()` is not a teardown.
+
 `reset()` on a manager that no guarded app was built with logs one WARNING (`this config object is not the one any guarded app was built with; reset() cleared nothing`).
 
 ```python

@@ -482,14 +482,15 @@ def test_reset_clears_redis_only_when_redis_is_enabled_and_has_keys() -> None:
     redis.delete_pattern = MagicMock()
     manager = RateLimitManager(enabled)
     manager.redis_handler = redis
-    manager.agent_handler = Mock()
+    agent = Mock()
+    manager.agent_handler = agent
 
     manager.reset()
 
     redis.keys.assert_called_once_with("rate_limit:rate:*")
     redis.delete_pattern.assert_called_once_with("rate_limit:rate:*")
-    assert manager.redis_handler is None
-    assert manager.agent_handler is None
+    assert manager.redis_handler is redis
+    assert manager.agent_handler is agent
 
 
 def test_reset_leaves_redis_alone_when_it_is_disabled_or_empty() -> None:
