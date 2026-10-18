@@ -426,8 +426,8 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "query/body content; client_ip is outside the secret matrix (see "
         "module docstring policy)"
     ),
-    "_utils/access_control.py:check_ip_access": (
-        "line 265: logs f'Error checking IP {ip}: {error}' where error "
+    "_utils/access_control.py:_result_for_exception": (
+        "line 290: logs f'Error checking IP {ip}: {error}' where error "
         "originates from internal IP-list/geo/cloud-provider evaluation "
         "code, never header/query/body content"
     ),

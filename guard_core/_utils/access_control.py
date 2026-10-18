@@ -276,6 +276,31 @@ def _check_unknown_identity_access(
     return IpAccessResult(True, "")
 
 
+def _result_when_the_check_failed(ip: str, config: Any) -> IpAccessResult:
+    if config.fail_secure:
+        return IpAccessResult(False, _GENERIC_LIST_BLOCK_REASON.format(ip=ip))
+    return IpAccessResult(True, "")
+
+
+def _result_for_exception(
+    error: Exception, ip: str, config: Any, skip_ip_lists: bool, skip_countries: bool
+) -> IpAccessResult:
+    if isinstance(error, ValueError):
+        return _unparsable_identity_result(ip, config, skip_ip_lists, skip_countries)
+    logger.error(f"Error checking IP {ip}: {str(error)}")
+    return _result_when_the_check_failed(ip, config)
+
+
+def _unparsable_identity_result(
+    ip: str, config: Any, skip_ip_lists: bool, skip_countries: bool
+) -> IpAccessResult:
+    if ip.startswith(MALFORMED_FORWARDED_FOR_PREFIX):
+        return _malformed_forwarded_for_result(
+            ip, config, skip_ip_lists, skip_countries
+        )
+    return IpAccessResult(False, _GENERIC_LIST_BLOCK_REASON.format(ip=ip))
+
+
 def _malformed_forwarded_for_result(
     ip: str, config: Any, skip_ip_lists: bool, skip_countries: bool
 ) -> IpAccessResult:
@@ -364,17 +389,10 @@ async def check_ip_access(
         if result is not None:
             return result
         return IpAccessResult(True, "")
-    except ValueError:
-        if ip.startswith(MALFORMED_FORWARDED_FOR_PREFIX):
-            return _malformed_forwarded_for_result(
-                ip, config, skip_ip_lists, skip_countries
-            )
-        return IpAccessResult(False, _GENERIC_LIST_BLOCK_REASON.format(ip=ip))
-    except Exception as e:
-        logger.error(f"Error checking IP {ip}: {str(e)}")
-        if config.fail_secure:
-            return IpAccessResult(False, _GENERIC_LIST_BLOCK_REASON.format(ip=ip))
-        return IpAccessResult(True, "")
+    except Exception as error:
+        return _result_for_exception(
+            error, ip, config, skip_ip_lists or skip_whitelist, skip_countries
+        )
 
 
 async def is_ip_allowed(

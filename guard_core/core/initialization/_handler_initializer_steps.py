@@ -1,9 +1,12 @@
 import asyncio
 import logging
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from guard_core._misconfiguration import report_misconfiguration
 from guard_core.core.checks.helpers import _MAX_RETAINED_EVENTS_PER_CATEGORY
+from guard_core.core.initialization._cloud_initialization import (
+    CloudInitializationMixin,
+)
 from guard_core.core.initialization._headers_manager_attach import (
     attach_security_headers_manager_to_redis,
 )
@@ -14,13 +17,12 @@ from guard_core.core.initialization._whitelist_strikes import (
     reset_startup_whitelist_strikes,
 )
 from guard_core.exceptions import GuardRedisError
-from guard_core.protocols.cloud_ip_store_protocol import CloudIpStoreProtocol
 
 if TYPE_CHECKING:
     from guard_core.models import SecurityConfig
 
 
-class _HandlerInitializerStepsMixin:
+class _HandlerInitializerStepsMixin(CloudInitializationMixin):
     config: "SecurityConfig"
     redis_handler: Any = None
     agent_handler: Any = None
@@ -34,13 +36,6 @@ class _HandlerInitializerStepsMixin:
     logger: logging.Logger
 
     def build_composite_handler(self) -> Any: ...
-
-    def _cloud_providers_to_load(self) -> frozenset[str]:
-        providers = set(self.config.block_cloud_providers or ())
-        route_configs = getattr(self.guard_decorator, "_route_configs", {})
-        for route_config in route_configs.values():
-            providers.update(route_config.block_cloud_providers)
-        return frozenset(providers)
 
     def build_event_filter(self) -> Any: ...
 
@@ -66,16 +61,6 @@ class _HandlerInitializerStepsMixin:
                 self.logger.warning(
                     "Lazy geo-IP initialization failed: %s", e, exc_info=True
                 )
-
-    def _resolve_cloud_ip_store(self) -> CloudIpStoreProtocol:
-        store = self.config.cloud_ip_store
-        needs_invocation = isinstance(store, type) or (
-            callable(store) and not isinstance(store, CloudIpStoreProtocol)
-        )
-        if needs_invocation:
-            factory = cast(Any, store)
-            return cast(CloudIpStoreProtocol, factory(self.redis_handler))
-        return cast(CloudIpStoreProtocol, store)
 
     def _configure_detection(self) -> None:
         from guard_core.handlers.ipban_handler import ip_ban_manager
@@ -141,16 +126,6 @@ class _HandlerInitializerStepsMixin:
             "lazy_init's value."
         )
 
-    async def _load_cloud_and_geo_without_redis(self) -> None:
-        from guard_core.handlers.cloud_handler import cloud_handler
-
-        if self.config.cloud_ip_store is not None:
-            cloud_handler.set_store(self._resolve_cloud_ip_store())
-        if providers := self._cloud_providers_to_load():
-            await cloud_handler.refresh(providers)
-        if self.geo_ip_handler is not None:
-            await self.geo_ip_handler.initialize()
-
     async def _connect_redis(self) -> bool:
         try:
             await self.redis_handler.initialize()
@@ -162,21 +137,6 @@ class _HandlerInitializerStepsMixin:
                 raise
             return False
         return True
-
-    async def _initialize_cloud_and_geo_redis(self) -> None:
-        from guard_core.handlers.cloud_handler import cloud_handler
-
-        if self.config.lazy_init:
-            self._lazy_init_task = asyncio.create_task(self._run_lazy_init())
-            return
-        if providers := self._cloud_providers_to_load():
-            await cloud_handler.initialize_redis(
-                self.redis_handler,
-                providers,
-                ttl=self.config.cloud_ip_refresh_interval,
-            )
-        if self.geo_ip_handler is not None:
-            await self.geo_ip_handler.initialize_redis(self.redis_handler)
 
     async def _initialize_connected_redis_handlers(self) -> None:
         from guard_core.handlers.cloud_handler import cloud_handler
