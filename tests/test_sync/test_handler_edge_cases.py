@@ -494,12 +494,11 @@ def test_responses_factory_cors_applies_headers() -> None:
         response_factory=MockGuardResponseFactory(),
     )
     factory = ErrorResponseFactory(ctx)
-    with patch(
-        "guard_core.sync.core.responses.factory.security_headers_manager"
-    ) as mock_shm:
-        mock_shm.get_cors_headers = MagicMock(
-            return_value={"Access-Control-Allow-Origin": "*"}
-        )
+    with patch.object(
+        factory.security_headers_manager,
+        "get_cors_headers",
+        MagicMock(return_value={"Access-Control-Allow-Origin": "*"}),
+    ):
         resp = MockGuardResponse("ok", 200)
         result = factory.apply_cors_headers(resp, "https://example.com")
     assert "Access-Control-Allow-Origin" in result.headers

@@ -5,7 +5,6 @@ from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.core.responses.context import ResponseContext
 from guard_core.sync.decorators.base import RouteConfig
 from guard_core.sync.handlers.behavior_handler import BehaviorRule, config_to_rule
-from guard_core.sync.handlers.security_headers_handler import security_headers_manager
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 from guard_core.sync.utils import extract_client_ip
 
@@ -29,6 +28,8 @@ class ErrorResponseFactory:
     def __init__(self, context: ResponseContext):
         self.context = context
         self.logger = logging.getLogger("guard_core.sync.core.responses.factory")
+        self.security_headers_manager = context.security_headers_manager
+        self.security_headers_manager.agent_handler = context.agent_handler
 
     def create_error_response(
         self, status_code: int, default_message: str
@@ -59,7 +60,7 @@ class ErrorResponseFactory:
     ) -> GuardResponse:
         headers_config = self.context.config.security_headers
         if headers_config and headers_config.get("enabled", True):
-            resolved = security_headers_manager.get_headers_and_forced(
+            resolved = self.security_headers_manager.get_headers_and_forced(
                 request_path, config=self.context.config
             )
             security_headers, forced = resolved
@@ -75,7 +76,7 @@ class ErrorResponseFactory:
     def apply_cors_headers(self, response: GuardResponse, origin: str) -> GuardResponse:
         headers_config = self.context.config.security_headers
         if headers_config and headers_config.get("enabled", True):
-            cors_headers = security_headers_manager.get_cors_headers(
+            cors_headers = self.security_headers_manager.get_cors_headers(
                 origin, config=self.context.config
             )
             for header_name, header_value in cors_headers.items():

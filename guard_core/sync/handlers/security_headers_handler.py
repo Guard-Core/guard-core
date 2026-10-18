@@ -50,20 +50,28 @@ class SecurityHeadersManager(
         if cls._instance is None:
             with cls._lock:
                 if cls._instance is None:
-                    cls._instance = super().__new__(cls)
-                    cls._instance.headers_cache = TTLCache(maxsize=1000, ttl=300)
-                    cls._instance.redis_handler = None
-                    cls._instance.agent_handler = None
-                    cls._instance.logger = logging.getLogger(
-                        "guard_core.sync.handlers.security_headers"
-                    )
-                    cls._instance.enabled = True
-                    cls._instance.custom_headers = {}
-                    cls._instance.csp_config = None
-                    cls._instance.hsts_config = None
-                    cls._instance.cors_config = None
-                    cls._instance.default_headers = cls.default_headers.copy()
+                    instance = super().__new__(cls)
+                    instance._initialize_state()
+                    cls._instance = instance
         return cls._instance
+
+    @classmethod
+    def isolated(cls) -> "SecurityHeadersManager":
+        instance = super().__new__(cls)
+        instance._initialize_state()
+        return instance
+
+    def _initialize_state(self) -> None:
+        self.headers_cache = TTLCache(maxsize=1000, ttl=300)
+        self.redis_handler = None
+        self.agent_handler = None
+        self.logger = logging.getLogger("guard_core.sync.handlers.security_headers")
+        self.enabled = True
+        self.custom_headers = {}
+        self.csp_config = None
+        self.hsts_config = None
+        self.cors_config = None
+        self.default_headers = self.__class__.default_headers.copy()
 
     def _build_csp(self, csp_config: dict[str, list[str]]) -> str:
         directives = []
