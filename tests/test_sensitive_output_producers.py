@@ -513,8 +513,12 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "no request data, since the header is by definition absent on "
         "this path"
     ),
+    "core/checks/implementations/route_config.py:RouteConfigCheck._allow_header": (
+        "line 63: the message is a fixed string, no request data and no "
+        "exception text or traceback"
+    ),
     "core/checks/implementations/route_config.py:RouteConfigCheck._unresolved_status": (
-        "line 62: the message is a fixed string, no request data and no "
+        "line 75: the message is a fixed string, no request data and no "
         "exception text or traceback"
     ),
     "core/checks/implementations/route_config.py:"
