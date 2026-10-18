@@ -273,3 +273,22 @@ def test_missing_client_ip_skips_counting(
     assert response is not None
     assert mw.suspicious_request_counts == {}
     spy.assert_not_called()
+
+
+def test_a_honeypot_hit_from_a_whitelisted_ip_is_refused_but_never_banned(
+    fresh_ban_manager: IPBanManager,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mw = _middleware(whitelist=[BOT_IP])
+    route_config = _honeypot_route_config(mw.config)
+    check, spy = _check(mw, fresh_ban_manager, monkeypatch)
+    request = _post(route_config, FORM, b"website=spam")
+    request.state.is_whitelisted = True
+
+    response = check.check(request)
+
+    assert response is not None
+    assert response.status_code == 403
+    spy.assert_not_called()
+    assert mw.suspicious_request_counts == {}
+    assert not fresh_ban_manager.is_ip_banned(BOT_IP)
