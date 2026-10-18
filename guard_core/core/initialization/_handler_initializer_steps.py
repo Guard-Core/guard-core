@@ -35,16 +35,23 @@ class _HandlerInitializerStepsMixin:
 
     def build_composite_handler(self) -> Any: ...
 
+    def _cloud_providers_to_load(self) -> frozenset[str]:
+        providers = set(self.config.block_cloud_providers or ())
+        route_configs = getattr(self.guard_decorator, "_route_configs", {})
+        for route_config in route_configs.values():
+            providers.update(route_config.block_cloud_providers)
+        return frozenset(providers)
+
     def build_event_filter(self) -> Any: ...
 
     async def _run_lazy_init(self) -> None:
         from guard_core.handlers.cloud_handler import cloud_handler
 
-        if self.config.block_cloud_providers:
+        if providers := self._cloud_providers_to_load():
             try:
                 await cloud_handler.initialize_redis(
                     self.redis_handler,
-                    self.config.block_cloud_providers,
+                    providers,
                     ttl=self.config.cloud_ip_refresh_interval,
                 )
             except Exception as e:
@@ -125,7 +132,7 @@ class _HandlerInitializerStepsMixin:
         )
 
     def _warn_if_lazy_init_is_inert(self) -> None:
-        if not (self.config.block_cloud_providers or self.geo_ip_handler is not None):
+        if not (self._cloud_providers_to_load() or self.geo_ip_handler is not None):
             return
         self.logger.warning(
             "lazy_init has no effect without Redis (enable_redis=True and a "
@@ -139,8 +146,8 @@ class _HandlerInitializerStepsMixin:
 
         if self.config.cloud_ip_store is not None:
             cloud_handler.set_store(self._resolve_cloud_ip_store())
-        if self.config.block_cloud_providers:
-            await cloud_handler.refresh(self.config.block_cloud_providers)
+        if providers := self._cloud_providers_to_load():
+            await cloud_handler.refresh(providers)
         if self.geo_ip_handler is not None:
             await self.geo_ip_handler.initialize()
 
@@ -162,10 +169,10 @@ class _HandlerInitializerStepsMixin:
         if self.config.lazy_init:
             self._lazy_init_task = asyncio.create_task(self._run_lazy_init())
             return
-        if self.config.block_cloud_providers:
+        if providers := self._cloud_providers_to_load():
             await cloud_handler.initialize_redis(
                 self.redis_handler,
-                self.config.block_cloud_providers,
+                providers,
                 ttl=self.config.cloud_ip_refresh_interval,
             )
         if self.geo_ip_handler is not None:
@@ -232,7 +239,7 @@ class _HandlerInitializerStepsMixin:
         await sus_patterns_handler.initialize_agent(telemetry)
         await security_headers_manager.initialize_agent(telemetry)
 
-        if self.config.block_cloud_providers:
+        if self._cloud_providers_to_load():
             await cloud_handler.initialize_agent(telemetry)
 
         if self.geo_ip_handler and hasattr(self.geo_ip_handler, "initialize_agent"):

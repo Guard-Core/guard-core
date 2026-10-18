@@ -51,10 +51,16 @@ class CloudIpRefreshCheck(SecurityCheck):
         ):
             previous_refresh = self.middleware.last_cloud_ip_refresh
             self.middleware.last_cloud_ip_refresh = int(time.time())
+            providers = set(cloud_providers_to_check)
+            adapter_covers_providers = providers <= set(
+                self.config.block_cloud_providers or ()
+            )
             scheduled = await self.cloud_handler.schedule_refresh(
-                set(cloud_providers_to_check),
+                providers,
                 ttl=self.config.cloud_ip_refresh_interval,
-                refresh=self.middleware.refresh_cloud_ip_ranges,
+                refresh=self.middleware.refresh_cloud_ip_ranges
+                if adapter_covers_providers
+                else None,
             )
             if not scheduled:
                 self.middleware.last_cloud_ip_refresh = previous_refresh

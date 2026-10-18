@@ -152,6 +152,8 @@ Uses the `GeoIPHandler` protocol to resolve the country code for an IP, then che
 
 ### Cloud Provider Check
 
+Providers named only by a route's `block_clouds` are loaded like the global ones: at startup, in the on-demand refresh and when the agent is attached, so a route-only rule blocks from the first request. When the refresh covers a provider that only a route names, the engine refreshes it itself instead of calling the adapter's `refresh_cloud_ip_ranges`, which loads only `block_cloud_providers`.
+
 `check_ip_access()` does not evaluate cloud providers. Cloud blocking, global and per route, runs only in `CloudProviderCheck`, which honors the global `whitelist`, `exempt_ips`, `bypass(["clouds"])` and route cloud lists. A global cloud block answers `403` with `Cloud provider IP not allowed`. The provider check calls `CloudManager.is_cloud_ip()`. Before the provider's ranges are populated, `is_cloud_ip()` fails open, `False`, not blocked, and logs a rate-limited `WARNING` so the window is visible.
 
 ### Provider Status
