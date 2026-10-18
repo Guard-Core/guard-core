@@ -1,8 +1,10 @@
 import gc
 import json
 import logging
+import os
 import re
 import time
+import weakref
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from typing import Any
@@ -17,6 +19,8 @@ from guard_core.sync.core.events.metrics import MetricsCollector
 from guard_core.sync.core.initialization.handler_initializer import HandlerInitializer
 from guard_core.sync.core.responses.context import ResponseContext
 from guard_core.sync.core.responses.factory import ErrorResponseFactory
+from guard_core.sync.handlers.cors_handler import CorsHandler
+from guard_core.sync.handlers.redis_handler import RedisManager
 from guard_core.sync.handlers.security_headers_handler import (
     SecurityHeadersManager,
     security_headers_manager,
@@ -32,6 +36,7 @@ APP_CSP = {"default-src": ["'self'", "https://app.example"]}
 GLOBAL_CSP = {"default-src": ["'self'", "https://global.example"]}
 OTHER_CSP = {"default-src": ["'none'"]}
 CLOCK_MODULE = "guard_core.sync.handlers._security_headers_override_state"
+REDIS_URL = os.getenv("REDIS_URL") or "redis://localhost:6379"
 
 
 class FakeRedis:
@@ -404,11 +409,11 @@ def test_no_override_means_no_redis_traffic_beyond_the_pull(
 
     for _ in range(20):
         _response(app)
-    assert (redis.gets, redis.sets) == (4, 0)
+    assert (redis.gets, redis.sets) == (1, 0)
 
     clock.now += 5.0
     _response(app)
-    assert (redis.gets, redis.sets) == (5, 0)
+    assert (redis.gets, redis.sets) == (2, 0)
 
 
 def test_the_call_is_saved_without_a_ttl_under_the_prefix_and_config_hash(
@@ -642,7 +647,7 @@ def test_a_failed_pull_is_logged_and_retried_after_five_seconds(
     with caplog.at_level(logging.WARNING, logger=LOGGER):
         _response(app)
         _response(app)
-    assert redis.gets == 1
+    assert redis.gets == 0
     assert redis.round_trips == 0
     assert "keeping the last applied one" in caplog.text
 
@@ -1085,9 +1090,8 @@ def test_a_failed_pull_logs_the_error(
         _response(app)
 
     assert [r.getMessage() for r in caplog.records] == [
-        "Failed to load cached header config: redis is down",
         "Failed to pull the security headers override, keeping the last applied "
-        "one: redis is down",
+        "one: redis is down"
     ]
     assert app.security_headers_manager._override_next_pull == clock.now + 5.0
 
@@ -1846,7 +1850,7 @@ def test_the_offset_costs_no_round_trip_of_its_own(clock: Clock) -> None:
     app = _app(redis=redis)
 
     _response(app)
-    assert (redis.round_trips, redis.gets, redis.times) == (1, 4, 1)
+    assert (redis.round_trips, redis.gets, redis.times) == (1, 1, 1)
 
     for _ in range(5):
         _response(app)
@@ -1951,3 +1955,358 @@ def test_an_app_without_redis_never_looks_a_handler_up(
     _response(factory)
 
     assert lookups == []
+
+
+def test_the_registry_forgets_a_config_that_was_collected() -> None:
+    registry = ConfigHandlerRegistry()
+
+    class Handler:
+        pass
+
+    handler = Handler()
+    config = _config()
+    registry.register(config, handler)
+    assert registry._entries
+
+    del config
+    gc.collect()
+
+    assert registry._entries == {}
+
+
+def test_the_registry_accepts_a_config_that_cannot_be_weakly_referenced() -> None:
+    class Slotted:
+        __slots__ = ()
+
+    class Handler:
+        pass
+
+    registry = ConfigHandlerRegistry()
+    config, handler = Slotted(), Handler()
+
+    registry.register(config, handler)
+
+    assert registry.lookup(config) is handler
+
+
+def test_the_registry_keeps_kinds_apart_and_a_dead_entry_is_dropped_once() -> None:
+    registry = ConfigHandlerRegistry()
+    config = _config()
+
+    class Handler:
+        pass
+
+    redis, limiter = Handler(), Handler()
+    registry.register(config, redis, "redis")
+    registry.register(config, limiter, "limiter")
+
+    assert registry.lookup(config, "redis") is redis
+    assert registry.lookup(config, "limiter") is limiter
+    assert registry.lookup(config) is None
+
+    del redis
+    gc.collect()
+    assert registry.lookup(config, "redis") is None
+    assert registry.lookup(config, "redis") is None
+
+
+def test_a_cors_handler_sees_the_override_a_manager_pulled(
+    clock: Clock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    redis = FakeRedis()
+    config = SecurityConfig(
+        enable_redis=False,
+        enable_cors=True,
+        cors_allow_origins=["https://app.example"],
+        security_headers={"enabled": True, "frame_options": "DENY"},
+    )
+    app = _app(config, redis=redis)
+    _response(app)
+    saved = override_module.OverrideRecord(
+        time.time() + 10, {"frame_options": "SAMEORIGIN"}
+    )
+    manager = app.security_headers_manager
+    redis.store[f"t:security_headers:{manager._override_key()}"] = saved.to_json()
+    preflight = {
+        "origin": "https://app.example",
+        "access-control-request-method": "GET",
+    }
+    cors = CorsHandler(config)
+    assert cors.build_preflight_response(preflight).headers["X-Frame-Options"] == (
+        "DENY"
+    )
+
+    clock.now += 5.0
+    _response(app)
+
+    assert cors.build_preflight_response(preflight).headers["X-Frame-Options"] == (
+        "SAMEORIGIN"
+    )
+    assert override_module.PULLED_OVERRIDES
+
+    security_headers_manager.reset()
+    assert override_module.PULLED_OVERRIDES == {}
+
+
+def test_a_pulled_clear_reaches_the_cors_handler(
+    clock: Clock,
+) -> None:
+    redis = FakeRedis()
+    config = SecurityConfig(
+        enable_redis=False,
+        enable_cors=True,
+        cors_allow_origins=["https://app.example"],
+        security_headers={"enabled": True, "frame_options": "DENY"},
+    )
+    app = _app(config, redis=redis)
+    _response(app)
+    manager = app.security_headers_manager
+    key = f"t:security_headers:{manager._override_key()}"
+    redis.store[key] = override_module.OverrideRecord(
+        time.time() + 10, {"frame_options": "SAMEORIGIN"}
+    ).to_json()
+    clock.now += 5.0
+    _response(app)
+    del redis.store[key]
+    clock.now += 5.0
+    _response(app)
+    preflight = {
+        "origin": "https://app.example",
+        "access-control-request-method": "GET",
+    }
+
+    cleared = CorsHandler(config).build_preflight_response(preflight)
+
+    assert cleared.headers["X-Frame-Options"] == "DENY"
+
+
+def test_the_own_state_is_tagged_with_the_startup_fingerprint(
+    clock: Clock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    redis = FakeRedis()
+    config = _config()
+    manager = SecurityHeadersManager.isolated()
+    monkeypatch.setattr(SecurityHeadersManager, "_instance", manager)
+    manager.configure(csp=GLOBAL_CSP, custom_headers={"X-Own": "1"})
+
+    manager.initialize_redis(redis, config)
+
+    stored = json.loads(redis.store["t:security_headers:csp_config"])
+    assert stored == {
+        "fingerprint": override_module.config_fingerprint(config),
+        "value": GLOBAL_CSP,
+    }
+    assert redis.ttls["t:security_headers:csp_config"] == 86400
+
+
+def test_a_redeploy_with_another_config_ignores_the_stored_own_state(
+    clock: Clock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    redis = FakeRedis()
+    first = SecurityHeadersManager.isolated()
+    monkeypatch.setattr(SecurityHeadersManager, "_instance", first)
+    first.configure(csp=GLOBAL_CSP)
+    first.initialize_redis(redis, _config())
+
+    redeployed = SecurityHeadersManager.isolated()
+    monkeypatch.setattr(SecurityHeadersManager, "_instance", redeployed)
+    redeployed.configure(csp=OTHER_CSP)
+    redeployed.initialize_redis(redis, _config(frame_options="SAMEORIGIN"))
+
+    assert redeployed.csp_config == OTHER_CSP
+    same = SecurityHeadersManager.isolated()
+    monkeypatch.setattr(SecurityHeadersManager, "_instance", same)
+    same.initialize_redis(redis, _config(frame_options="SAMEORIGIN"))
+    assert same.csp_config == OTHER_CSP
+
+
+def test_an_app_manager_never_reads_or_writes_the_own_state(
+    clock: Clock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    redis = FakeRedis()
+    app = _app(redis=redis)
+    app.security_headers_manager.configure(csp=GLOBAL_CSP)
+
+    _response(app)
+
+    assert not [k for k in redis.store if k.endswith("csp_config")]
+    assert redis.gets == 1
+
+
+def test_the_own_state_pull_rides_the_override_pull(
+    clock: Clock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    redis = FakeRedis()
+    config = _config()
+    shared = security_headers_manager
+    shared.initialize_redis(redis, config)
+    app = _app(config, redis=redis)
+    _response(app)
+    trips = redis.round_trips
+    redis.store["t:security_headers:csp_config"] = json.dumps(
+        {
+            "fingerprint": override_module.config_fingerprint(config),
+            "value": OTHER_CSP,
+        }
+    )
+
+    clock.now += 5.0
+    _response(app)
+
+    assert redis.round_trips == trips + 1
+    assert shared.csp_config == OTHER_CSP
+
+
+def test_a_configure_on_the_attached_manager_is_written_by_the_next_sync(
+    clock: Clock,
+) -> None:
+    redis = FakeRedis()
+    config = _config()
+    shared = security_headers_manager
+    shared.initialize_redis(redis, config)
+    app = _app(config, redis=redis)
+    _response(app)
+    assert not [k for k in redis.store if k.endswith("csp_config")]
+
+    shared.configure(csp=GLOBAL_CSP)
+    _response(app)
+
+    stored = json.loads(redis.store["t:security_headers:csp_config"])
+    assert stored["value"] == GLOBAL_CSP
+    sets = redis.sets
+    _response(app)
+    assert redis.sets == sets
+
+
+def test_the_handler_initializer_attaches_the_headers_manager_to_redis(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = SecurityConfig(
+        enable_redis=True,
+        redis_url=REDIS_URL,
+        redis_prefix="test:wp10fu:",
+        enable_agent=False,
+        security_headers={"enabled": True},
+    )
+    redis = RedisManager(config)
+    initializer = HandlerInitializer(config=config, redis_handler=redis)
+    initializer.initialize_redis_handlers()
+    try:
+        assert security_headers_manager.redis_handler is redis
+    finally:
+        redis.close()
+
+
+def test_a_mock_redis_handler_is_not_attached_to_the_headers_manager() -> None:
+    config = _config()
+    initializer = HandlerInitializer(config=config, redis_handler=MagicMock())
+
+    initializer._attach_security_headers_manager_to_redis()
+
+    assert security_headers_manager.redis_handler is None
+
+
+def test_the_registry_drops_an_entry_whose_handler_is_gone_without_its_callback() -> (
+    None
+):
+    registry = ConfigHandlerRegistry()
+    config = _config()
+
+    class Handler:
+        pass
+
+    handler = Handler()
+    dead = weakref.ref(handler)
+    del handler
+    gc.collect()
+    registry._entries[(None, id(config))] = dead
+
+    assert registry.lookup(config) is None
+    assert registry._entries == {}
+
+
+def test_own_state_with_another_fingerprint_or_nothing_is_ignored(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manager = SecurityHeadersManager.isolated()
+    monkeypatch.setattr(SecurityHeadersManager, "_instance", manager)
+    manager._startup_hash = "mine"
+    tag = json.dumps
+
+    manager._apply_own_state(
+        tag({"fingerprint": "other", "value": GLOBAL_CSP}),
+        tag({"fingerprint": "other", "value": {"max_age": 1}}),
+        tag({"fingerprint": "other", "value": {"X-A": "1"}}),
+    )
+    assert (manager.csp_config, manager.hsts_config, manager.custom_headers) == (
+        None,
+        None,
+        {},
+    )
+
+    manager._apply_own_state(
+        tag({"fingerprint": "mine", "value": GLOBAL_CSP}),
+        tag({"fingerprint": "mine", "value": {"max_age": 1}}),
+        tag({"fingerprint": "mine", "value": {"X-A": "1"}}),
+    )
+    assert manager.csp_config == GLOBAL_CSP
+    assert manager.hsts_config == {"max_age": 1}
+    assert manager.custom_headers == {"X-A": "1"}
+
+    manager._apply_own_state(None, None, None)
+    assert manager.csp_config == GLOBAL_CSP
+
+
+def test_the_cors_reader_resolves_its_config_hash_once_and_ignores_other_hashes(
+    clock: Clock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _config()
+    cors_manager = SecurityHeadersManager.isolated()
+    monkeypatch.setitem(
+        override_module.PULLED_OVERRIDES,
+        "some-other-hash",
+        override_module.OverrideRecord(time.time() + 5, {"frame_options": "DENY"}),
+    )
+
+    assert cors_manager.override_for_reader(config).keys == {}
+    assert cors_manager.override_for_reader(config).keys == {}
+    assert cors_manager._reader_hash == (
+        id(config),
+        override_module.config_fingerprint(config),
+    )
+
+
+def test_a_dirty_global_manager_bound_to_another_config_is_not_flushed(
+    clock: Clock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    redis = FakeRedis()
+    shared = SecurityHeadersManager.isolated()
+    monkeypatch.setattr(SecurityHeadersManager, "_instance", shared)
+    shared.initialize_redis(redis, _config(frame_options="SAMEORIGIN"))
+    shared.configure(csp=GLOBAL_CSP)
+    assert shared._own_state_dirty
+    app = _app(_config(), redis=redis)
+
+    _response(app)
+    _response(app)
+
+    assert shared._own_state_dirty
+    assert not [k for k in redis.store if k.endswith("csp_config")]
+
+
+def test_an_unreadable_shared_own_state_is_logged_and_kept_out(
+    clock: Clock, caplog: pytest.LogCaptureFixture
+) -> None:
+    redis = FakeRedis()
+    config = _config()
+    security_headers_manager.initialize_redis(redis, config)
+    app = _app(config, redis=redis)
+    _response(app)
+    redis.store["t:security_headers:csp_config"] = "not json"
+
+    clock.now += 5.0
+    with caplog.at_level(logging.WARNING, logger=LOGGER):
+        _response(app)
+
+    assert "Ignoring unreadable cached header config in Redis" in caplog.text
+    assert security_headers_manager.csp_config is None

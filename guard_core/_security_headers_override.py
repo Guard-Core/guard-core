@@ -94,6 +94,10 @@ class _ProcessOverride:
 
 PROCESS_OVERRIDE = _ProcessOverride()
 
+# The newest record any manager of this process pulled from Redis, by startup-config
+# hash. A component that never pulls (CorsHandler's manager) reads its override here.
+PULLED_OVERRIDES: dict[str, OverrideRecord] = {}
+
 
 def override_from_call(
     *,

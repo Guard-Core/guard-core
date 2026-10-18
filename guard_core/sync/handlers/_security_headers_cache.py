@@ -71,8 +71,45 @@ class SecurityHeadersCacheMixin:
         self._redis_initialized = True
         if config is not None and self._startup_hash is None:
             self._startup_hash = config_fingerprint(config)
-        self._load_cached_config()
-        self._cache_configuration()
+        own_state = self._owns_state()
+        self._load_cached_config(own_state)
+        self._cache_configuration(own_state)
+
+    def _owns_state(self) -> bool:
+        # An unbound manager keeps the 4.4.0 behavior. Bound to an app's config, only
+        # the process-wide manager owns the cached csp, hsts and custom headers: an
+        # app builds its headers from its config and never reads them.
+        return self._startup_hash is None or bool(type(self)._instance is self)
+
+    def _encode_own_state(self, value: Any) -> str:
+        if self._startup_hash is None:
+            return json.dumps(value)
+        return json.dumps({"fingerprint": self._startup_hash, "value": value})
+
+    def _decode_own_state(self, raw: Any) -> Any:
+        data = json.loads(raw)
+        if self._startup_hash is None:
+            return data
+        if isinstance(data, dict) and data.get("fingerprint") == self._startup_hash:
+            return data.get("value")
+        return None
+
+    def _apply_own_state(self, csp: Any, hsts: Any, custom: Any) -> None:
+        if csp:
+            loaded = self._decode_own_state(csp)
+            if loaded:
+                self.csp_config = loaded
+        if hsts:
+            loaded = self._decode_own_state(hsts)
+            if loaded:
+                self.hsts_config = loaded
+        if custom:
+            loaded = self._decode_own_state(custom)
+            if loaded:
+                self.custom_headers = {
+                    self._validate_header_name(name): self._validate_header_value(value)
+                    for name, value in loaded.items()
+                }
 
     def _load_cached_config(self, own_state: bool = True) -> None:
         if not self.redis_handler:
@@ -80,31 +117,11 @@ class SecurityHeadersCacheMixin:
 
         if own_state:
             try:
-                csp_config = self.redis_handler.get_key(
-                    "security_headers", "csp_config"
+                self._apply_own_state(
+                    self.redis_handler.get_key("security_headers", "csp_config"),
+                    self.redis_handler.get_key("security_headers", "hsts_config"),
+                    self.redis_handler.get_key("security_headers", "custom_headers"),
                 )
-                if csp_config:
-                    self.csp_config = json.loads(csp_config)
-
-                hsts_config = self.redis_handler.get_key(
-                    "security_headers", "hsts_config"
-                )
-                if hsts_config:
-                    self.hsts_config = json.loads(hsts_config)
-
-                custom_headers = self.redis_handler.get_key(
-                    "security_headers", "custom_headers"
-                )
-                if custom_headers:
-                    loaded_custom_headers = json.loads(custom_headers)
-                    validated_custom_headers = {
-                        self._validate_header_name(name): self._validate_header_value(
-                            value
-                        )
-                        for name, value in loaded_custom_headers.items()
-                    }
-                    self.custom_headers = validated_custom_headers
-
             except Exception as e:
                 self.logger.warning(
                     f"Failed to load cached header config: {_sanitize_for_log(str(e))}"
@@ -123,21 +140,21 @@ class SecurityHeadersCacheMixin:
                     self.redis_handler.set_key(
                         "security_headers",
                         "csp_config",
-                        json.dumps(self.csp_config),
+                        self._encode_own_state(self.csp_config),
                         ttl=86400,
                     )
                 if self.hsts_config:
                     self.redis_handler.set_key(
                         "security_headers",
                         "hsts_config",
-                        json.dumps(self.hsts_config),
+                        self._encode_own_state(self.hsts_config),
                         ttl=86400,
                     )
                 if self.custom_headers:
                     self.redis_handler.set_key(
                         "security_headers",
                         "custom_headers",
-                        json.dumps(self.custom_headers),
+                        self._encode_own_state(self.custom_headers),
                         ttl=86400,
                     )
             except Exception as e:

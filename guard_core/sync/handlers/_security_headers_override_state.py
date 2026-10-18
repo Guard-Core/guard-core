@@ -7,7 +7,9 @@ from guard_core import _security_headers_override as clocks
 from guard_core._security_headers_override import (
     OVERRIDE_PULL_INTERVAL_SECONDS,
     PROCESS_OVERRIDE,
+    PULLED_OVERRIDES,
     OverrideRecord,
+    config_fingerprint,
     corrected_wall_now,
     now_monotonic,
     override_display,
@@ -22,6 +24,7 @@ from guard_core.sync._utils.request_logging import (
 )
 
 _OVERRIDE_NAMESPACE = "security_headers"
+_OWN_STATE_KEYS = ("csp_config", "hsts_config", "custom_headers")
 
 
 def _redacted(keys: dict[str, Any]) -> dict[str, str]:
@@ -49,6 +52,8 @@ class SecurityHeadersOverrideMixin:
     _startup_hash: str | None
     _redis_initialized: bool
     _override_next_lookup: float
+    _reader_hash: tuple[int, str] | None
+    _own_state_dirty: bool
 
     def _persistence(self) -> Any:
         # the persistence methods live in the cache mixin
@@ -65,6 +70,8 @@ class SecurityHeadersOverrideMixin:
         self._startup_hash = None
         self._redis_initialized = False
         self._override_next_lookup = 0.0
+        self._reader_hash = None
+        self._own_state_dirty = False
 
     def _is_global_manager(self) -> bool:
         return bool(type(self)._instance is self)
@@ -79,6 +86,17 @@ class SecurityHeadersOverrideMixin:
         return self._override
 
     _current_override = resolve_override
+
+    def override_for_reader(self, config: SecurityConfig) -> OverrideRecord:
+        current = self.resolve_override()
+        if not PULLED_OVERRIDES:
+            return current
+        if self._reader_hash is None or self._reader_hash[0] != id(config):
+            self._reader_hash = (id(config), config_fingerprint(config))
+        pulled = PULLED_OVERRIDES.get(self._reader_hash[1])
+        if pulled is not None and pulled.ordered_at() > current.ordered_at():
+            return pulled
+        return current
 
     def _next_set_at(self) -> float:
         return max(corrected_wall_now(), self._current_override().ordered_at() + 1e-6)
@@ -128,6 +146,9 @@ class SecurityHeadersOverrideMixin:
         if self._is_global_manager():
             PROCESS_OVERRIDE.reset_epoch += 1
             PROCESS_OVERRIDE.record = OverrideRecord(0.0, {})
+            PULLED_OVERRIDES.clear()
+        elif self._startup_hash is not None:
+            PULLED_OVERRIDES.pop(self._startup_hash, None)
         self._override_epoch = PROCESS_OVERRIDE.reset_epoch
         self._override = OverrideRecord(self._override.ordered_at() + 1e-6, {})
         self._override_saved_at = self._override.set_at
@@ -136,6 +157,7 @@ class SecurityHeadersOverrideMixin:
         self._startup_hash = None
         self._redis_initialized = False
         self._override_next_lookup = 0.0
+        self._own_state_dirty = False
 
     def _override_key(self) -> str:
         return f"override:{self._startup_hash}"
@@ -168,7 +190,17 @@ class SecurityHeadersOverrideMixin:
         self._override_next_lookup = now + OVERRIDE_PULL_INTERVAL_SECONDS
         self.redis_handler = REDIS_HANDLERS.lookup(config)
 
+    def _flush_own_state(self) -> None:
+        manager = type(self)._instance
+        if manager is None or manager is self or not manager._own_state_dirty:
+            return
+        shared = self._global_sharing_state()
+        if shared is not None:
+            shared._own_state_dirty = False
+            shared._persistence()._cache_configuration(own_state=True)
+
     def _sync_override_with_redis(self, current: OverrideRecord) -> None:
+        self._flush_own_state()
         if current.set_at > self._override_saved_at:
             saving = bool(current.keys) or self._override_in_redis
             self._persistence()._cache_configuration(own_state=False)
@@ -207,23 +239,47 @@ class SecurityHeadersOverrideMixin:
         self._override_saved_at = record.set_at
         self._override_in_redis = bool(record.keys)
 
+    def _global_sharing_state(self) -> Any:
+        # The process-wide manager, when it is attached to the same Redis and config
+        # as this app's manager: its own csp, hsts and custom headers ride this pull.
+        manager = type(self)._instance
+        if (
+            manager is None
+            or manager is self
+            or manager.redis_handler is None
+            or manager._startup_hash != self._startup_hash
+        ):
+            return None
+        return manager
+
     def _read_override_and_clock(self) -> Any:
         # GET and TIME in one round trip: the offset to Redis time costs no extra trip.
-        key = (
-            f"{self.redis_handler.config.redis_prefix}"
-            f"{_OVERRIDE_NAMESPACE}:{self._override_key()}"
-        )
+        prefix = self.redis_handler.config.redis_prefix
+        shared = self._global_sharing_state()
         before = clocks.wall_now()
         with self.redis_handler.get_connection() as conn:
             pipe = conn.pipeline(transaction=False)
-            pipe.get(key)
+            pipe.get(f"{prefix}{_OVERRIDE_NAMESPACE}:{self._override_key()}")
             pipe.time()
-            raw, (seconds, microseconds) = pipe.execute()
+            if shared is not None:
+                for name in _OWN_STATE_KEYS:
+                    pipe.get(f"{prefix}{_OVERRIDE_NAMESPACE}:{name}")
+            raw, (seconds, microseconds), *own = pipe.execute()
         after = clocks.wall_now()
         PROCESS_OVERRIDE.clock_offset = (
             seconds + microseconds / 1_000_000 - (before + after) / 2
         )
+        if shared is not None:
+            self._apply_shared_own_state(shared, own)
         return raw
+
+    def _apply_shared_own_state(self, shared: Any, own: list[Any]) -> None:
+        try:
+            shared._apply_own_state(*own)
+        except Exception as e:
+            self.logger.warning(
+                "Ignoring unreadable cached header config in Redis: %s", _safe(e)
+            )
 
     def _pull_override(self) -> None:
         self._override_next_pull = now_monotonic() + OVERRIDE_PULL_INTERVAL_SECONDS
@@ -251,6 +307,7 @@ class SecurityHeadersOverrideMixin:
         if record.ordered_at() > self._current_override().ordered_at():
             self._override = record
             self._override_saved_at = record.set_at
+            PULLED_OVERRIDES[str(self._startup_hash)] = record
             self.logger.info(
                 "Security headers override pulled from Redis: keys: %s; values: %s",
                 ", ".join(sorted(record.keys)) or "nothing",
@@ -264,6 +321,7 @@ class SecurityHeadersOverrideMixin:
         cleared = OverrideRecord(self._next_set_at(), {})
         self._override = cleared
         self._override_saved_at = cleared.set_at
+        PULLED_OVERRIDES[str(self._startup_hash)] = cleared
         self.logger.info("Security headers override cleared in Redis")
 
     def _send_override_event(self, record: OverrideRecord) -> None:

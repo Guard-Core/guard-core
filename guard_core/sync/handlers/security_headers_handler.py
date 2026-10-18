@@ -161,7 +161,7 @@ class SecurityHeadersManager(
         return not self.headers_enabled_for(config, override)
 
     def resolve_headers(self, config: SecurityConfig) -> dict[str, str]:
-        override = self._current_override()
+        override = self.override_for_reader(config)
         if self._headers_off(config, override):
             return {}
         headers, _ = self._headers_for(

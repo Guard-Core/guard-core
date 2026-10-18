@@ -31,6 +31,9 @@ class SecurityHeadersConfigMixin:
     cors_config: dict[str, Any] | None
     default_headers: dict[str, str]
     headers_cache: TTLCache
+    redis_handler: Any
+    _startup_hash: str | None
+    _own_state_dirty: bool
 
     @abstractmethod
     def _current_override(self) -> OverrideRecord: ...
@@ -336,5 +339,7 @@ class SecurityHeadersConfigMixin:
             permissions_policy,
         )
         self._add_custom_headers(passed_or(custom_headers, None))
+        if self._startup_hash is not None and self.redis_handler is not None:
+            self._own_state_dirty = True
         if override_apps:
             self._record_override_from_call(passed)

@@ -168,6 +168,17 @@ class _HandlerInitializerStepsMixin:
         if self.geo_ip_handler is not None:
             self.geo_ip_handler.initialize_redis(self.redis_handler)
 
+    def _attach_security_headers_manager_to_redis(self) -> None:
+        from guard_core.sync.handlers.redis_handler import RedisManager
+        from guard_core.sync.handlers.security_headers_handler import (
+            security_headers_manager,
+        )
+
+        if security_headers_manager.redis_handler is None and isinstance(
+            self.redis_handler, RedisManager
+        ):
+            security_headers_manager.initialize_redis(self.redis_handler, self.config)
+
     def _initialize_connected_redis_handlers(self) -> None:
         from guard_core.sync.handlers.cloud_handler import cloud_handler
         from guard_core.sync.handlers.ipban_handler import ip_ban_manager
@@ -182,6 +193,7 @@ class _HandlerInitializerStepsMixin:
         if self.rate_limit_handler is not None:
             self.rate_limit_handler.initialize_redis(self.redis_handler)
         sus_patterns_handler.initialize_redis(self.redis_handler)
+        self._attach_security_headers_manager_to_redis()
 
         if self.guard_decorator is not None:
             self.guard_decorator.initialize_behavior_tracking(self.redis_handler)
