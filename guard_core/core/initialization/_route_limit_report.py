@@ -2,17 +2,25 @@ import logging
 from typing import Any
 
 
+def _has_own_rate_limit(route_config: Any) -> bool:
+    return route_config.rate_limit is not None or bool(route_config.geo_rate_limits)
+
+
+def _routes_with_own_rate_limits(guard_decorator: Any) -> list[str]:
+    route_configs = getattr(guard_decorator, "_route_configs", {})
+    return sorted(
+        route_id
+        for route_id, route_config in route_configs.items()
+        if _has_own_rate_limit(route_config)
+    )
+
+
 def report_route_limits_with_global_switch_off(
     config: Any, guard_decorator: Any, logger: logging.Logger
 ) -> None:
     if config.enable_rate_limiting or guard_decorator is None:
         return
-    route_configs = getattr(guard_decorator, "_route_configs", {})
-    limited = sorted(
-        route_id
-        for route_id, route_config in route_configs.items()
-        if route_config.rate_limit is not None or route_config.geo_rate_limits
-    )
+    limited = _routes_with_own_rate_limits(guard_decorator)
     if not limited:
         return
     logger.info(
