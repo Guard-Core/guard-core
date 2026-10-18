@@ -1,3 +1,4 @@
+import gc
 import json
 import logging
 import re
@@ -10,7 +11,9 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from guard_core import _security_headers_override as override_module
+from guard_core._utils.config_registry import REDIS_HANDLERS, ConfigHandlerRegistry
 from guard_core.core.events.metrics import MetricsCollector
+from guard_core.core.initialization.handler_initializer import HandlerInitializer
 from guard_core.core.responses.context import ResponseContext
 from guard_core.core.responses.factory import ErrorResponseFactory
 from guard_core.handlers.security_headers_handler import (
@@ -39,6 +42,7 @@ class FakeRedis:
         self.gets = 0
         self.sets = 0
         self.times = 0
+        self.round_trips = 0
         self.down = False
 
     async def get_key(self, namespace: str, key: str) -> Any:
@@ -65,11 +69,32 @@ class FakeRedis:
         store = self.store
         redis = self
 
+        class Pipe:
+            def __init__(self) -> None:
+                self.commands: list[tuple[str, tuple[Any, ...]]] = []
+
+            def get(self, key: str) -> None:
+                self.commands.append(("get", (key,)))
+
+            def time(self) -> None:
+                self.commands.append(("time", ()))
+
+            async def execute(self) -> list[Any]:
+                results: list[Any] = []
+                for name, args in self.commands:
+                    if name == "get":
+                        redis.gets += 1
+                        results.append(store.get(args[0]))
+                    else:
+                        redis.times += 1
+                        now = time.time()
+                        results.append((int(now), int((now % 1) * 1_000_000)))
+                redis.round_trips += 1
+                return results
+
         class Conn:
-            async def time(self) -> tuple[int, int]:
-                redis.times += 1
-                now = time.time()
-                return int(now), int((now % 1) * 1_000_000)
+            def pipeline(self, transaction: bool = True) -> Pipe:
+                return Pipe()
 
             async def keys(self, pattern: str) -> list[str]:
                 prefix = pattern.rstrip("*")
@@ -627,7 +652,8 @@ async def test_a_failed_pull_is_logged_and_retried_after_five_seconds(
     with caplog.at_level(logging.WARNING, logger=LOGGER):
         await _response(app)
         await _response(app)
-    assert redis.gets == 2
+    assert redis.gets == 1
+    assert redis.round_trips == 0
     assert "keeping the last applied one" in caplog.text
 
 
@@ -1709,6 +1735,7 @@ async def test_a_response_with_a_cors_origin_resolves_the_override_once(
         return original(self)
 
     monkeypatch.setattr(type(manager), "_current_override", counted)
+    monkeypatch.setattr(type(manager), "resolve_override", counted)
 
     response = await app.process_response(
         request, MockGuardResponse("ok", 200), 0.1, None
@@ -1733,6 +1760,7 @@ async def test_a_response_resolves_the_override_once(
         return original(self)
 
     monkeypatch.setattr(type(manager), "_current_override", counted)
+    monkeypatch.setattr(type(manager), "resolve_override", counted)
 
     await _response(app)
 
@@ -1827,3 +1855,115 @@ async def test_the_far_ahead_guard_works_on_the_corrected_clock(
 
     assert override_module.OverrideRecord(near, {}).ordered_at() == near
     assert override_module.OverrideRecord(far, {}).ordered_at() == 0.0
+
+
+async def test_the_offset_costs_no_round_trip_of_its_own(clock: Clock) -> None:
+    redis = FakeRedis()
+    app = _app(redis=redis)
+
+    await _response(app)
+    assert (redis.round_trips, redis.gets, redis.times) == (1, 4, 1)
+
+    for _ in range(5):
+        await _response(app)
+    assert redis.round_trips == 1
+
+    clock.now += 5.0
+    await _response(app)
+    assert (redis.round_trips, redis.times) == (2, 2)
+
+
+def test_the_registry_finds_a_handler_by_config_and_holds_it_weakly() -> None:
+    registry = ConfigHandlerRegistry()
+    config = _config()
+
+    class Handler:
+        pass
+
+    handler = Handler()
+    assert registry.lookup(config) is None
+
+    registry.register(config, handler)
+    assert registry.lookup(config) is handler
+    assert registry.lookup(_config()) is None
+
+    del handler
+    gc.collect()
+    assert registry.lookup(config) is None
+    assert id(config) not in registry._entries
+
+
+def test_the_handler_initializer_registers_its_redis_handler_under_the_config() -> None:
+    config = _config()
+    redis = FakeRedis()
+
+    HandlerInitializer(config=config, redis_handler=redis)
+    HandlerInitializer(config=_config())
+
+    assert REDIS_HANDLERS.lookup(config) is redis
+
+
+async def test_a_released_adapter_gets_its_redis_found_at_the_pull_boundary(
+    clock: Clock,
+) -> None:
+    redis = FakeRedis()
+    config = SecurityConfig(
+        enable_redis=True,
+        enable_agent=False,
+        security_headers={"enabled": True, "csp": APP_CSP, "frame_options": "DENY"},
+    )
+    factory = _app(config)
+    manager = factory.security_headers_manager
+    assert manager.redis_handler is None
+    await _response(factory)
+    assert manager.redis_handler is None
+
+    HandlerInitializer(config=config, redis_handler=redis)
+    await _response(factory)
+    assert manager.redis_handler is None
+
+    clock.now += 5.0
+    await _response(factory)
+
+    assert manager.redis_handler is redis
+    _override(csp=GLOBAL_CSP)
+    await _response(factory)
+    assert len([k for k in redis.store if ":override:" in k]) == 1
+
+
+async def test_the_lookup_runs_once_per_window_not_per_response(
+    clock: Clock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = SecurityConfig(
+        enable_redis=True, enable_agent=False, security_headers={"enabled": True}
+    )
+    factory = _app(config)
+    lookups: list[int] = []
+    original = REDIS_HANDLERS.lookup
+
+    def counted(cfg: Any) -> Any:
+        lookups.append(1)
+        return original(cfg)
+
+    monkeypatch.setattr(REDIS_HANDLERS, "lookup", counted)
+
+    for _ in range(10):
+        await _response(factory)
+    assert len(lookups) == 1
+
+    clock.now += 5.0
+    await _response(factory)
+    assert len(lookups) == 2
+
+
+async def test_an_app_without_redis_never_looks_a_handler_up(
+    clock: Clock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    factory = _app()
+    lookups: list[int] = []
+    monkeypatch.setattr(REDIS_HANDLERS, "lookup", lambda cfg: lookups.append(1))
+
+    clock.now += 50.0
+    await _response(factory)
+
+    assert lookups == []

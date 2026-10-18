@@ -2,6 +2,7 @@ import logging
 import threading
 from typing import TYPE_CHECKING, Any
 
+from guard_core.sync._utils.config_registry import REDIS_HANDLERS
 from guard_core.sync.core.initialization._handler_initializer_steps import (
     _HandlerInitializerStepsMixin,
 )
@@ -25,6 +26,8 @@ class HandlerInitializer(_HandlerInitializerStepsMixin):
     ):
         self.config = config
         self.redis_handler = redis_handler
+        if redis_handler is not None:
+            REDIS_HANDLERS.register(config, redis_handler)
         self.agent_handler = agent_handler
         self.geo_ip_handler = geo_ip_handler
         self.rate_limit_handler = rate_limit_handler

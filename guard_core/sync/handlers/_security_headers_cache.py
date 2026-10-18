@@ -56,7 +56,8 @@ class SecurityHeadersCacheMixin:
         if config is not None:
             content = json.dumps(config.security_headers, sort_keys=True, default=str)
             current = self._current_override() if override is None else override
-            content += override_fingerprint(current.keys)
+            if current.keys:
+                content += override_fingerprint(current.keys)
             return f"cfg_{hashlib.sha256(content.encode()).hexdigest()[:32]}"
         if not request_path:
             return "default"

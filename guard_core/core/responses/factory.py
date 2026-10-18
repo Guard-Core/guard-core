@@ -10,13 +10,6 @@ from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.utils import extract_client_ip
 
 
-def _header_present(headers: MutableMapping[str, str], name: str) -> bool:
-    if isinstance(headers, dict):
-        lowered = name.lower()
-        return any(key.lower() == lowered for key in headers)
-    return name in headers
-
-
 def _drop_other_spellings(headers: MutableMapping[str, str], name: str) -> None:
     if not isinstance(headers, dict):
         return
@@ -67,18 +60,44 @@ class ErrorResponseFactory:
         manager = self.security_headers_manager
         if override is None:
             override = manager.resolve_override()
-        if manager.headers_enabled_for(self.context.config, override):
-            resolved = await manager.get_headers_and_forced(
-                request_path, config=self.context.config, override=override
-            )
-            security_headers, forced = resolved
-            for header_name, header_value in security_headers.items():
-                if header_name.lower() in forced:
-                    _drop_other_spellings(response.headers, header_name)
-                elif _header_present(response.headers, header_name):
-                    continue
-                response.headers[header_name] = header_value
+        enabled = manager.headers_enabled_for(self.context.config, override)
+        return await self._apply_security_headers(
+            response, request_path, override, enabled
+        )
 
+    async def _apply_security_headers(
+        self,
+        response: GuardResponse,
+        request_path: str | None,
+        override: Any,
+        enabled: bool,
+    ) -> GuardResponse:
+        if not enabled:
+            return response
+        (
+            security_headers,
+            forced,
+        ) = await self.security_headers_manager.get_headers_and_forced(
+            request_path,
+            config=self.context.config,
+            override=override,
+            checked=True,
+        )
+        headers = response.headers
+        present = (
+            {key.lower() for key in headers} if isinstance(headers, dict) else None
+        )
+        for header_name, header_value in security_headers.items():
+            lowered = header_name.lower()
+            if lowered in forced:
+                _drop_other_spellings(headers, header_name)
+            elif (
+                (lowered in present) if present is not None else header_name in headers
+            ):
+                continue
+            headers[header_name] = header_value
+            if present is not None:
+                present.add(lowered)
         return response
 
     async def apply_cors_headers(
@@ -87,7 +106,13 @@ class ErrorResponseFactory:
         manager = self.security_headers_manager
         if override is None:
             override = manager.resolve_override()
-        if manager.headers_enabled_for(self.context.config, override):
+        enabled = manager.headers_enabled_for(self.context.config, override)
+        return await self._apply_cors_headers(response, origin, enabled)
+
+    async def _apply_cors_headers(
+        self, response: GuardResponse, origin: str, enabled: bool
+    ) -> GuardResponse:
+        if enabled:
             cors_headers = await self.security_headers_manager.get_cors_headers(
                 origin, config=self.context.config
             )
@@ -156,14 +181,16 @@ class ErrorResponseFactory:
             request, response_time, response.status_code
         )
 
-        override = self.security_headers_manager.resolve_override()
-        response = await self.apply_security_headers(
-            response, str(request.url_path), override
+        manager = self.security_headers_manager
+        override = manager.resolve_override()
+        enabled = manager.headers_enabled_for(self.context.config, override)
+        response = await self._apply_security_headers(
+            response, str(request.url_path), override, enabled
         )
 
         origin = request.headers.get("origin")
         if origin:
-            response = await self.apply_cors_headers(response, origin, override)
+            response = await self._apply_cors_headers(response, origin, enabled)
 
         return await self.apply_modifier(response)
 

@@ -13,6 +13,7 @@ from guard_core._security_headers_override import (
     override_display,
     override_event_metadata,
 )
+from guard_core._utils.config_registry import REDIS_HANDLERS
 from guard_core._utils.logging_utils import _sanitize_for_log
 from guard_core._utils.request_logging import (
     _redact_sensitive_headers,
@@ -47,6 +48,7 @@ class SecurityHeadersOverrideMixin:
     _override_save_retry_at: float
     _startup_hash: str | None
     _redis_initialized: bool
+    _override_next_lookup: float
 
     def _persistence(self) -> Any:
         # the persistence methods live in the cache mixin
@@ -62,14 +64,12 @@ class SecurityHeadersOverrideMixin:
         self._override_save_retry_at = 0.0
         self._startup_hash = None
         self._redis_initialized = False
+        self._override_next_lookup = 0.0
 
     def _is_global_manager(self) -> bool:
         return bool(type(self)._instance is self)
 
     def resolve_override(self) -> OverrideRecord:
-        return self._current_override()
-
-    def _current_override(self) -> OverrideRecord:
         if PROCESS_OVERRIDE.reset_epoch != self._override_epoch:
             self._override_epoch = PROCESS_OVERRIDE.reset_epoch
             self._override = OverrideRecord(self._override_saved_at + 1e-6, {})
@@ -77,6 +77,8 @@ class SecurityHeadersOverrideMixin:
         if process.set_at > 0.0 and process.ordered_at() > self._override.ordered_at():
             self._override = process
         return self._override
+
+    _current_override = resolve_override
 
     def _next_set_at(self) -> float:
         return max(corrected_wall_now(), self._current_override().ordered_at() + 1e-6)
@@ -133,6 +135,7 @@ class SecurityHeadersOverrideMixin:
         self._override_next_pull = 0.0
         self._startup_hash = None
         self._redis_initialized = False
+        self._override_next_lookup = 0.0
 
     def _override_key(self) -> str:
         return f"override:{self._startup_hash}"
@@ -144,12 +147,26 @@ class SecurityHeadersOverrideMixin:
             self._override_announced_at = current.set_at
             await self._send_override_event(current)
         if self.redis_handler is None:
+            self._find_registered_redis_handler(config)
+        if self.redis_handler is None:
             return current
         if not self._redis_initialized:
             await self._persistence().initialize_redis(self.redis_handler, config)
         else:
             await self._sync_override_with_redis(current)
         return current if self._override is current else self._current_override()
+
+    def _find_registered_redis_handler(self, config: SecurityConfig) -> None:
+        # Released adapters build the response context without their Redis handler;
+        # the handler initializer registered it under the config, found at the pull
+        # boundary only.
+        if not config.enable_redis:
+            return
+        now = now_monotonic()
+        if now < self._override_next_lookup:
+            return
+        self._override_next_lookup = now + OVERRIDE_PULL_INTERVAL_SECONDS
+        self.redis_handler = REDIS_HANDLERS.lookup(config)
 
     async def _sync_override_with_redis(self, current: OverrideRecord) -> None:
         if current.set_at > self._override_saved_at:
@@ -190,25 +207,28 @@ class SecurityHeadersOverrideMixin:
         self._override_saved_at = record.set_at
         self._override_in_redis = bool(record.keys)
 
-    async def _measure_clock_offset(self) -> None:
-        try:
-            before = clocks.wall_now()
-            async with self.redis_handler.get_connection() as conn:
-                seconds, microseconds = await conn.time()
-            after = clocks.wall_now()
-        except Exception:
-            return
+    async def _read_override_and_clock(self) -> Any:
+        # GET and TIME in one round trip: the offset to Redis time costs no extra trip.
+        key = (
+            f"{self.redis_handler.config.redis_prefix}"
+            f"{_OVERRIDE_NAMESPACE}:{self._override_key()}"
+        )
+        before = clocks.wall_now()
+        async with self.redis_handler.get_connection() as conn:
+            pipe = conn.pipeline(transaction=False)
+            pipe.get(key)
+            pipe.time()
+            raw, (seconds, microseconds) = await pipe.execute()
+        after = clocks.wall_now()
         PROCESS_OVERRIDE.clock_offset = (
             seconds + microseconds / 1_000_000 - (before + after) / 2
         )
+        return raw
 
     async def _pull_override(self) -> None:
         self._override_next_pull = now_monotonic() + OVERRIDE_PULL_INTERVAL_SECONDS
-        await self._measure_clock_offset()
         try:
-            raw = await self.redis_handler.get_key(
-                _OVERRIDE_NAMESPACE, self._override_key()
-            )
+            raw = await self._read_override_and_clock()
         except Exception as e:
             self.logger.warning(
                 "Failed to pull the security headers override, keeping the last "

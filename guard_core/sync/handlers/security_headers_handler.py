@@ -4,7 +4,6 @@ from typing import Any
 
 from cachetools import TTLCache
 
-from guard_core._security_headers_defaults import security_headers_are_off
 from guard_core._security_headers_override import OverrideRecord
 from guard_core.models import SecurityConfig
 from guard_core.sync.handlers._security_headers_cache import SecurityHeadersCacheMixin
@@ -147,18 +146,19 @@ class SecurityHeadersManager(
         self.headers_cache[cache_key] = headers
         return headers, True
 
-    def _headers_off(
+    def headers_enabled_for(
         self, config: SecurityConfig, override: OverrideRecord | None = None
     ) -> bool:
         keys = (self._current_override() if override is None else override).keys
         if "enabled" in keys:
-            return not keys["enabled"]
-        return security_headers_are_off(config.security_headers)
+            return bool(keys["enabled"])
+        raw = config.security_headers
+        return bool(raw) and bool(raw.get("enabled", True))
 
-    def headers_enabled_for(
+    def _headers_off(
         self, config: SecurityConfig, override: OverrideRecord | None = None
     ) -> bool:
-        return not self._headers_off(config, override)
+        return not self.headers_enabled_for(config, override)
 
     def resolve_headers(self, config: SecurityConfig) -> dict[str, str]:
         override = self._current_override()
@@ -174,12 +174,21 @@ class SecurityHeadersManager(
         request_path: str | None = None,
         config: SecurityConfig | None = None,
         override: OverrideRecord | None = None,
+        checked: bool = False,
     ) -> dict[str, str]:
         if config is not None:
-            override = self._sync_override(
-                config, self._current_override() if override is None else override
-            )
-            if self._headers_off(config, override):
+            before = self._current_override() if override is None else override
+            if (
+                self.redis_handler is None
+                and not config.enable_redis
+                and before.event is None
+            ):
+                override = before
+            else:
+                override = self._sync_override(config, before)
+            if (not checked or override is not before) and self._headers_off(
+                config, override
+            ):
                 return {}
         elif not self.enabled:
             return {}
@@ -197,8 +206,9 @@ class SecurityHeadersManager(
         request_path: str | None = None,
         config: SecurityConfig | None = None,
         override: OverrideRecord | None = None,
+        checked: bool = False,
     ) -> tuple[dict[str, str], frozenset[str]]:
-        headers = self.get_headers(request_path, config, override)
+        headers = self.get_headers(request_path, config, override, checked)
         forced = headers.forced if isinstance(headers, ResolvedHeaders) else frozenset()
         return headers, forced
 
