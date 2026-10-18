@@ -133,13 +133,14 @@ class SecurityHeadersOverrideMixin:
 
     async def _sync_override_with_redis(self, current: OverrideRecord) -> None:
         now = now_monotonic()
-        if current.set_at <= self._override_saved_at:
-            if now >= self._override_next_pull:
-                await self._pull_override(now)
-        elif not current.keys and not self._override_in_redis:
+        if current.set_at > self._override_saved_at:
+            if current.keys or self._override_in_redis:
+                if now >= self._override_save_retry_at:
+                    await self._save_override(current, now)
+                return
             self._override_saved_at = current.set_at
-        elif now >= self._override_save_retry_at:
-            await self._save_override(current, now)
+        if now >= self._override_next_pull:
+            await self._pull_override(now)
 
     async def _save_override(self, record: OverrideRecord, now: float) -> None:
         try:
@@ -229,5 +230,5 @@ class SecurityHeadersOverrideMixin:
         except Exception as e:
             self.logger.debug(
                 "Failed to send the override event to agent: %s",
-                redact_endpoint_for_display(str(e), None, None),
+                redact_endpoint_for_display(str(e), None),
             )

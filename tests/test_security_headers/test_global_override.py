@@ -118,6 +118,14 @@ def _app(
     return factory
 
 
+def _hash_of(manager: SecurityHeadersManager) -> str | None:
+    return manager._startup_hash
+
+
+def _in_redis(manager: SecurityHeadersManager) -> bool:
+    return bool(manager._override_in_redis)
+
+
 def _override_events(agent: Any) -> list[Any]:
     events = [call.args[0] for call in agent.send_event.call_args_list]
     return [e for e in events if e.action_taken.startswith("override_")]
@@ -718,3 +726,557 @@ async def test_a_call_with_override_apps_false_configures_only_the_manager(
     assert (await _response(app))["Content-Security-Policy"].endswith("app.example")
     manager_headers = await security_headers_manager.get_headers()
     assert manager_headers["Content-Security-Policy"].endswith("global.example")
+
+
+def test_a_record_whose_keys_are_not_an_object_is_refused_with_its_reason() -> None:
+    with pytest.raises(ValueError, match="^override keys must be an object$"):
+        override_module.OverrideRecord.from_json('{"set_at": 1, "keys": [1]}')
+
+
+def test_the_process_override_starts_empty() -> None:
+    record = override_module._ProcessOverride().record
+
+    assert isinstance(record, override_module.OverrideRecord)
+    assert record.set_at == 0.0
+    assert dict(record.keys) == {}
+
+
+def test_every_passed_parameter_becomes_its_key() -> None:
+    passed = override_module.override_from_call(
+        enabled=True,
+        csp={"default-src": ["'self'"]},
+        hsts_max_age=100,
+        hsts_include_subdomains=False,
+        hsts_preload=True,
+        frame_options="DENY",
+        content_type_options="nosniff",
+        xss_protection="0",
+        referrer_policy="no-referrer",
+        permissions_policy="camera=()",
+        custom_headers={"X-A": "1"},
+    )
+
+    assert passed == {
+        "enabled": True,
+        "csp": {"default-src": ["'self'"]},
+        "frame_options": "DENY",
+        "content_type_options": "nosniff",
+        "xss_protection": "0",
+        "referrer_policy": "no-referrer",
+        "custom": {"X-A": "1"},
+        "permissions_policy": "camera=()",
+        "hsts": {"max_age": 100, "include_subdomains": False, "preload": True},
+    }
+
+
+def test_only_the_hsts_sub_keys_a_call_passed_are_recorded() -> None:
+    not_passed = override_module.NOT_PASSED
+
+    assert override_module._hsts_from_call(not_passed, not_passed, True) == {
+        "preload": True
+    }
+    assert override_module._hsts_from_call(7, not_passed, not_passed) == {"max_age": 7}
+    assert override_module._hsts_from_call(7, False, not_passed) == {
+        "max_age": 7,
+        "include_subdomains": False,
+    }
+
+
+def test_the_override_replaces_keys_and_merges_only_hsts() -> None:
+    effective = {
+        "frame_options": "DENY",
+        "csp": {"a": ["1"]},
+        "hsts": {"max_age": 1, "include_subdomains": True},
+        "referrer_policy": "no-referrer",
+    }
+
+    merged = override_module.apply_override(
+        effective,
+        {"csp": {"b": ["2"]}, "hsts": {"max_age": 9}, "frame_options": None},
+    )
+
+    assert merged == {
+        "frame_options": None,
+        "csp": {"b": ["2"]},
+        "hsts": {"max_age": 9, "include_subdomains": True},
+        "referrer_policy": "no-referrer",
+    }
+    assert effective["frame_options"] == "DENY"
+    assert override_module.apply_override({"hsts": None}, {"hsts": {"max_age": 9}}) == {
+        "hsts": {"max_age": 9}
+    }
+    assert override_module.apply_override({"hsts": {"max_age": 1}}, {"hsts": None}) == {
+        "hsts": None
+    }
+
+
+def test_the_override_fingerprint_is_empty_stable_and_sixteen_characters() -> None:
+    assert override_module.override_fingerprint({}) == ""
+    first = override_module.override_fingerprint({"a": 1, "b": {1, 2}})
+    second = override_module.override_fingerprint({"b": {1, 2}, "a": 1})
+    assert first == second
+    assert len(first) == 16
+    assert first != override_module.override_fingerprint({"a": 2, "b": {1, 2}})
+
+
+def test_the_config_fingerprint_is_thirty_two_characters_and_order_free() -> None:
+    config = _config()
+
+    assert len(override_module.config_fingerprint(config)) == 32
+
+    class Reordered:
+        def model_dump(self, mode: str) -> dict[str, int]:
+            assert mode == "python"
+            return {"b": 1, "a": 2}
+
+    class Ordered:
+        def model_dump(self, mode: str) -> dict[str, int]:
+            return {"a": 2, "b": 1}
+
+    assert override_module.config_fingerprint(Reordered()) == (
+        override_module.config_fingerprint(Ordered())
+    )
+
+
+def test_unstable_values_reduce_to_their_qualified_names() -> None:
+    class Check:
+        def __call__(self) -> None:
+            return None
+
+    stable = override_module._stable
+    assert stable({"b", "a"}) == ["a", "b"]
+    assert stable(frozenset({2, 1})) == ["1", "2"]
+    assert stable(len) == "builtins.len"
+    assert stable(Check()) == f"{Check.__module__}.Check"
+    assert stable(object()) == "<builtins.object>"
+
+
+def test_display_values_are_compact_sorted_json_for_dicts_and_str_otherwise() -> None:
+    display = override_module._display_value
+
+    assert display({"b": 1, "a": [2]}) == '{"a": [2], "b": 1}'
+    assert display({"a": {1}}) == '{"a": "{1}"}'
+    assert display("x") == "x"
+    assert display(5) == "5"
+    assert display(None) == "None"
+
+
+def test_the_override_is_displayed_by_header_name() -> None:
+    shown = override_module.override_display(
+        {
+            "custom": {"X-A": "1", "X-B": 2},
+            "csp": {"d": ["s"]},
+            "hsts": {"max_age": 1},
+            "frame_options": "DENY",
+            "unknown_key": "v",
+        }
+    )
+
+    assert shown == {
+        "X-A": "1",
+        "X-B": "2",
+        "Content-Security-Policy": '{"d": ["s"]}',
+        "Strict-Transport-Security": '{"max_age": 1}',
+        "X-Frame-Options": "DENY",
+        "unknown_key": "v",
+    }
+    assert override_module.override_display({"custom": "text"}) == {"custom": "text"}
+
+
+def test_the_event_metadata_has_the_four_documented_fields() -> None:
+    assert override_module.override_event_metadata(
+        ["b", "a"], ["d"], {"X": "1"}, {"Y": "2"}
+    ) == {
+        "override_keys": ["a", "b"],
+        "dropped_keys": ["d"],
+        "override_values": {"X": "1"},
+        "dropped_values": {"Y": "2"},
+    }
+
+
+def test_a_new_manager_starts_with_no_override_state() -> None:
+    manager = SecurityHeadersManager.isolated()
+
+    assert manager._override.set_at == 0.0
+    assert manager._override_saved_at == 0.0
+    assert manager._override_announced_at == 0.0
+    assert _in_redis(manager) is False
+    assert manager._override_next_pull == 0.0
+    assert manager._override_save_retry_at == 0.0
+    assert manager._startup_hash is None
+
+
+def test_a_process_record_with_the_same_time_does_not_replace_the_own_one() -> None:
+    manager = SecurityHeadersManager.isolated()
+    own = override_module.OverrideRecord(5.0, {"csp": APP_CSP})
+    manager._override = own
+    override_module.PROCESS_OVERRIDE.record = override_module.OverrideRecord(
+        5.0, {"csp": OTHER_CSP}
+    )
+
+    assert manager._current_override() is own
+
+
+def test_the_next_set_time_is_just_after_the_current_one() -> None:
+    manager = SecurityHeadersManager.isolated()
+    manager._override = override_module.OverrideRecord(time.time() + 1000, {})
+
+    gap = manager._next_set_at() - manager._override.set_at
+
+    assert 0 < gap <= 1e-5
+
+
+async def test_the_log_lines_have_the_documented_text(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.INFO, logger=LOGGER):
+        security_headers_manager.configure(
+            csp=OTHER_CSP,
+            frame_options="SAMEORIGIN",
+            custom_headers={"X-Auth-Token": "S"},
+        )
+        security_headers_manager.configure(csp=GLOBAL_CSP)
+        security_headers_manager.configure()
+
+    set_line, drop_line, clear_line = [r.getMessage() for r in caplog.records]
+    assert set_line == (
+        "Security headers override set by configure(): keys: csp, custom, "
+        "frame_options; values: {'Content-Security-Policy': "
+        "'{\"default-src\": [\"\\'none\\'\"]}', 'X-Frame-Options': 'SAMEORIGIN', "
+        "'X-Auth-Token': '[REDACTED]'}"
+    )
+    assert drop_line == (
+        "Security headers override changed by configure(): dropped keys: custom, "
+        "frame_options; dropped values: {'X-Frame-Options': 'SAMEORIGIN', "
+        "'X-Auth-Token': '[REDACTED]'}; override now sets: csp; values: "
+        "{'Content-Security-Policy': "
+        '\'{"default-src": ["\\\'self\\\'", "https://global.example"]}\'}'
+    )
+    assert clear_line == (
+        "Security headers override changed by configure(): dropped keys: csp; "
+        "dropped values: {'Content-Security-Policy': "
+        '\'{"default-src": ["\\\'self\\\'", "https://global.example"]}\'}; '
+        "override now sets: nothing; values: {}"
+    )
+
+
+async def test_an_app_without_redis_never_computes_the_startup_hash() -> None:
+    app = _app()
+
+    await _response(app)
+
+    assert app.security_headers_manager._startup_hash is None
+
+
+async def test_an_override_event_is_sent_once_per_record() -> None:
+    agent = MagicMock()
+    agent.send_event = AsyncMock()
+    app = _app(agent=agent)
+    security_headers_manager.configure(csp=GLOBAL_CSP)
+
+    for _ in range(3):
+        await _response(app)
+
+    assert len(_override_events(agent)) == 1
+
+
+async def test_the_override_events_describe_a_change_and_a_clear() -> None:
+    agent = MagicMock()
+    agent.send_event = AsyncMock()
+    app = _app(agent=agent)
+    security_headers_manager.configure(csp=GLOBAL_CSP)
+    await _response(app)
+    security_headers_manager.configure()
+    await _response(app)
+
+    changed, cleared = _override_events(agent)
+
+    assert changed.action_taken == "override_changed"
+    assert cleared.action_taken == "override_cleared"
+    for event in (changed, cleared):
+        assert event.event_type == "security_headers_applied"
+        assert event.handler_name == "security_headers"
+        assert event.timestamp.tzinfo is not None
+    assert cleared.metadata["dropped_keys"] == ["csp"]
+    assert cleared.metadata["override_keys"] == []
+    assert changed.metadata["override_values"] == {
+        "Content-Security-Policy": '{"default-src": ["\'self\'", "https://global.example"]}'
+    }
+
+
+async def test_a_failing_agent_is_logged_at_debug_without_the_error_internals(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    agent = MagicMock()
+    agent.send_event = AsyncMock(side_effect=RuntimeError("agent down"))
+    app = _app(agent=agent)
+    security_headers_manager.configure(csp=GLOBAL_CSP)
+
+    with caplog.at_level(logging.DEBUG, logger=LOGGER):
+        await _response(app)
+
+    assert "Failed to send the override event to agent: agent down" in [
+        r.getMessage() for r in caplog.records
+    ]
+
+
+async def test_a_failed_save_logs_the_error_and_keeps_the_override_unsaved(
+    clock: Clock, caplog: pytest.LogCaptureFixture
+) -> None:
+    redis = FakeRedis()
+    redis.down = True
+    app = _app(redis=redis)
+    security_headers_manager.configure(csp=GLOBAL_CSP)
+
+    with caplog.at_level(logging.WARNING, logger=LOGGER):
+        await _response(app)
+
+    manager = app.security_headers_manager
+    assert [r.getMessage() for r in caplog.records] == [
+        "Failed to save the security headers override: redis is down"
+    ]
+    assert manager._override_saved_at == 0.0
+    assert manager._override_in_redis is False
+    assert manager._override_save_retry_at == clock.now + 5.0
+
+
+async def test_a_failed_pull_logs_the_error(
+    clock: Clock, caplog: pytest.LogCaptureFixture
+) -> None:
+    redis = FakeRedis()
+    redis.down = True
+    app = _app(redis=redis)
+
+    with caplog.at_level(logging.WARNING, logger=LOGGER):
+        await _response(app)
+
+    assert [r.getMessage() for r in caplog.records] == [
+        "Failed to pull the security headers override, keeping the last applied "
+        "one: redis is down"
+    ]
+    assert app.security_headers_manager._override_next_pull == clock.now + 5.0
+
+
+async def test_an_unreadable_record_logs_its_reason(
+    clock: Clock, caplog: pytest.LogCaptureFixture
+) -> None:
+    redis = FakeRedis()
+    app = _app(redis=redis)
+    await _response(app)
+    key = f"t:security_headers:{app.security_headers_manager._override_key()}"
+    redis.store[key] = '{"set_at": 1, "keys": 3}'
+
+    clock.now += 5.0
+    with caplog.at_level(logging.WARNING, logger=LOGGER):
+        await _response(app)
+
+    assert [r.getMessage() for r in caplog.records] == [
+        "Ignoring an unreadable security headers override in Redis: "
+        "override keys must be an object"
+    ]
+
+
+async def test_a_pulled_record_is_adopted_and_logged_once(
+    clock: Clock, caplog: pytest.LogCaptureFixture
+) -> None:
+    redis = FakeRedis()
+    app = _app(redis=redis)
+    await _response(app)
+    manager = app.security_headers_manager
+    key = f"t:security_headers:{manager._override_key()}"
+    record = override_module.OverrideRecord(time.time() + 1000, {"csp": GLOBAL_CSP})
+    redis.store[key] = record.to_json()
+
+    with caplog.at_level(logging.INFO, logger=LOGGER):
+        for _ in range(3):
+            clock.now += 5.0
+            await _response(app)
+
+    assert [r.getMessage() for r in caplog.records] == [
+        "Security headers override pulled from Redis: keys: csp; values: "
+        "{'Content-Security-Policy': "
+        '\'{"default-src": ["\\\'self\\\'", "https://global.example"]}\'}'
+    ]
+    assert manager._override_saved_at == record.set_at
+    assert _in_redis(manager) is True
+
+
+async def test_a_pulled_empty_record_is_logged_as_nothing(
+    clock: Clock, caplog: pytest.LogCaptureFixture
+) -> None:
+    redis = FakeRedis()
+    app = _app(redis=redis)
+    await _response(app)
+    key = f"t:security_headers:{app.security_headers_manager._override_key()}"
+    redis.store[key] = override_module.OverrideRecord(time.time() + 1000, {}).to_json()
+
+    clock.now += 5.0
+    with caplog.at_level(logging.INFO, logger=LOGGER):
+        await _response(app)
+
+    assert [r.getMessage() for r in caplog.records] == [
+        "Security headers override pulled from Redis: keys: nothing; values: {}"
+    ]
+
+
+async def test_a_record_that_vanishes_from_redis_clears_what_was_taken_from_it(
+    clock: Clock, caplog: pytest.LogCaptureFixture
+) -> None:
+    redis = FakeRedis()
+    app = _app(redis=redis)
+    await _response(app)
+    manager = app.security_headers_manager
+    key = f"t:security_headers:{manager._override_key()}"
+    redis.store[key] = override_module.OverrideRecord(
+        time.time() + 1000, {"csp": GLOBAL_CSP}
+    ).to_json()
+    clock.now += 5.0
+    await _response(app)
+    assert _in_redis(manager) is True
+    del redis.store[key]
+
+    clock.now += 5.0
+    with caplog.at_level(logging.INFO, logger=LOGGER):
+        headers = await _response(app)
+
+    assert headers["Content-Security-Policy"].endswith("app.example")
+    assert [r.getMessage() for r in caplog.records] == [
+        "Security headers override cleared in Redis"
+    ]
+    assert _in_redis(manager) is False
+    assert manager._override_saved_at == manager._override.set_at
+    assert manager._override_saved_at is not None
+
+
+async def test_reset_forgets_every_piece_of_override_state(clock: Clock) -> None:
+    redis = FakeRedis()
+    app = _app(redis=redis)
+    security_headers_manager.configure(csp=GLOBAL_CSP)
+    await _response(app)
+    manager = app.security_headers_manager
+    assert _hash_of(manager) is not None
+    assert _in_redis(manager) is True
+
+    await manager.reset()
+
+    assert _hash_of(manager) is None
+    assert _in_redis(manager) is False
+    assert manager._override_next_pull == 0.0
+    assert manager._override_saved_at == manager._override.set_at
+    assert dict(manager._override.keys) == {}
+
+
+def test_a_callable_without_module_or_name_attributes_still_gets_a_stable_name() -> (
+    None
+):
+    class Bare:
+        def __getattribute__(self, name: str) -> object:
+            if name in ("__module__", "__qualname__"):
+                raise AttributeError(name)
+            return object.__getattribute__(self, name)
+
+        def __call__(self) -> None:
+            return None
+
+    class Plain:
+        pass
+
+    assert override_module._stable(Bare()) == ".Bare"
+    assert override_module._stable(Plain()) == (
+        f"<{Plain.__module__}.{Plain.__qualname__}>"
+    )
+
+
+async def test_the_log_lines_join_several_keys_with_a_comma(
+    clock: Clock, caplog: pytest.LogCaptureFixture
+) -> None:
+    security_headers_manager.configure(
+        csp=GLOBAL_CSP, frame_options="DENY", referrer_policy="no-referrer"
+    )
+    with caplog.at_level(logging.WARNING, logger=LOGGER):
+        security_headers_manager.configure(csp=GLOBAL_CSP, frame_options="DENY")
+    assert "override now sets: csp, frame_options; values:" in caplog.text
+
+    redis = FakeRedis()
+    app = _app(redis=redis)
+    await _response(app)
+    key = f"t:security_headers:{app.security_headers_manager._override_key()}"
+    redis.store[key] = override_module.OverrideRecord(
+        time.time() + 1000, {"frame_options": "DENY", "csp": GLOBAL_CSP}
+    ).to_json()
+    clock.now += 5.0
+    caplog.clear()
+    with caplog.at_level(logging.INFO, logger=LOGGER):
+        await _response(app)
+    assert "pulled from Redis: keys: csp, frame_options; values:" in caplog.text
+
+
+async def test_configure_keeps_the_defaults_for_what_a_call_leaves_out() -> None:
+    manager = SecurityHeadersManager.isolated()
+
+    manager.configure(hsts_max_age=100)
+
+    assert manager.hsts_config == {
+        "max_age": 100,
+        "include_subdomains": True,
+        "preload": False,
+    }
+    assert manager.cors_config is None
+    assert manager.enabled is True
+
+    manager.configure(hsts_max_age=31536000)
+
+    assert manager.hsts_config == {
+        "max_age": 31536000,
+        "include_subdomains": True,
+        "preload": False,
+    }
+
+
+async def test_configure_hands_every_parameter_to_the_managers_own_state() -> None:
+    manager = SecurityHeadersManager.isolated()
+
+    manager.configure(
+        enabled=True,
+        csp=GLOBAL_CSP,
+        hsts_max_age=31536000,
+        hsts_include_subdomains=True,
+        hsts_preload=True,
+        frame_options="DENY",
+        content_type_options="custom-nosniff",
+        xss_protection="1",
+        referrer_policy="no-referrer",
+        permissions_policy="camera=()",
+        custom_headers={"X-Own": "1"},
+        cors_origins=["https://a.example"],
+        cors_allow_credentials=True,
+        cors_allow_methods=["PUT"],
+        cors_allow_headers=["X-H"],
+    )
+
+    headers = await manager.get_headers()
+    assert headers["X-Content-Type-Options"] == "custom-nosniff"
+    assert headers["X-XSS-Protection"] == "1"
+    assert headers["X-Frame-Options"] == "DENY"
+    assert headers["Referrer-Policy"] == "no-referrer"
+    assert headers["Permissions-Policy"] == "camera=()"
+    assert headers["X-Own"] == "1"
+    assert headers["Strict-Transport-Security"] == (
+        "max-age=31536000; includeSubDomains; preload"
+    )
+    assert manager.cors_config == {
+        "origins": ["https://a.example"],
+        "allow_credentials": True,
+        "allow_methods": ["PUT"],
+        "allow_headers": ["X-H"],
+        "max_age": 3600,
+    }
+
+
+async def test_configure_defaults_the_cors_credentials_to_false() -> None:
+    manager = SecurityHeadersManager.isolated()
+
+    manager.configure(cors_origins=["https://a.example"])
+
+    assert manager.cors_config is not None
+    assert manager.cors_config["allow_credentials"] is False
