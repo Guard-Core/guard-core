@@ -340,6 +340,10 @@ TEST_SUBS: list[tuple[str, str]] = [
         r"from tests\.(?!test_sync\b)(\w+)\.conftest import (\w+(?:,\s*\w+)*)",
         r"from tests.test_sync.\1.conftest import \2",
     ),
+    (
+        r"from tests\.ipban_redis_fake import",
+        "from tests.test_sync.ipban_redis_fake import",
+    ),
     (r"\bMockGuardRequest\b", "SyncMockGuardRequest"),
     (r"AsyncMock, MagicMock", "MagicMock"),
     (r"MagicMock, AsyncMock", "MagicMock"),

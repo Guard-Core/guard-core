@@ -2,12 +2,14 @@ import sys
 import time
 from collections.abc import Generator
 from types import ModuleType
-from unittest.mock import AsyncMock
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from cachetools import TTLCache
 
 from guard_core.handlers.ipban_handler import IPBanManager
+from tests.ipban_redis_fake import fake_ban_redis
 
 
 @pytest.fixture(autouse=True)
@@ -53,6 +55,19 @@ class _RecordingRedisHandler:
         self.get_key_calls.append((namespace, key))
         return self.expiries.get(key)
 
+    async def get_many(self, pairs: list[tuple[str, str]]) -> list[str | None]:
+        ban_pairs = pairs[:-1]
+        for namespace, key in ban_pairs:
+            self.get_key_calls.append((namespace, key))
+        return [*(self.expiries.get(key) for _, key in ban_pairs), None]
+
+    def get_connection(self) -> Any:
+        return fake_ban_redis().get_connection()
+
+    @property
+    def config(self) -> Any:
+        return MagicMock(redis_prefix="guard:")
+
     async def delete(self, namespace: str, key: str) -> None:
         self.delete_calls.append((namespace, key))
 
@@ -69,6 +84,7 @@ async def test_is_ip_banned_live_entry_decided_with_one_cache_clock_read() -> No
     manager.redis_handler = redis
 
     manager.banned_ips["172.16.10.1"] = time.time() + 60
+    manager._ban_version_checked_at = time.time()
 
     assert await manager.is_ip_banned("172.16.10.1") is True
     assert redis.get_key_calls == []
@@ -85,9 +101,10 @@ async def test_is_ip_banned_expired_at_read_returns_false_without_raising() -> N
     manager.redis_handler = redis
 
     manager.banned_ips["172.16.10.2"] = time.time() + 300
+    manager._ban_version_checked_at = time.time()
 
     assert await manager.is_ip_banned("172.16.10.2") is False
-    assert redis.get_key_calls == [("banned_ips", "172.16.10.2")]
+    assert ("banned_ips", "172.16.10.2") in redis.get_key_calls
 
 
 @pytest.mark.asyncio

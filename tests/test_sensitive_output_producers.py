@@ -1078,6 +1078,14 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "remaining seconds and counters, no request data; logger.error fallback "
         "is send-failure text"
     ),
+    "handlers/_ipban_version.py:IpBanVersionMixin._bump_ban_version": (
+        "line 43: the shared ban version could not be advanced, carries the "
+        "Redis error only, no request data"
+    ),
+    "handlers/_ipban_version.py:IpBanVersionMixin._positive_survives_recheck": (
+        "line 102: the shared ban version could not be read, carries the Redis "
+        "error only, no request data"
+    ),
     "handlers/_ipinfo_events.py:IpInfoEventsMixin._send_geo_event": (
         "line 43: geolocation lookup event carries only ip/country, "
         "client_ip is outside the secret matrix; logger.error fallback "

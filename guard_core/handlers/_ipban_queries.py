@@ -56,6 +56,7 @@ class IpBanQueryMixin(IpBanLookupMixin, IpBanEventMixin, IpBanRuleExemptionMixin
             await self.redis_handler.delete("banned_networks", str(network))
             await self.redis_handler.delete("banned_identities", str(network))
         await self._forget_strikes(str(network))
+        await self._bump_ban_version()
         if self.agent_handler:
             await self._send_unban_event(str(network), reason)
 
@@ -74,6 +75,7 @@ class IpBanQueryMixin(IpBanLookupMixin, IpBanEventMixin, IpBanRuleExemptionMixin
         if self.redis_handler:
             removed.extend(await self._unban_redis_inside(coverage))
         members = list(dict.fromkeys(removed))
+        await self._bump_ban_version()
         await self._forget_strikes_of(members)
         if self.agent_handler:
             await self._send_unban_events(members, "dynamic_rule_whitelist")
@@ -221,6 +223,7 @@ class IpBanQueryMixin(IpBanLookupMixin, IpBanEventMixin, IpBanRuleExemptionMixin
         await self._forget_strikes(ip)
         if identity is not None:
             await self._unban_identity(identity)
+        await self._bump_ban_version()
 
         if self.agent_handler:
             await self._send_unban_event(ip, reason)
@@ -232,4 +235,6 @@ class IpBanQueryMixin(IpBanLookupMixin, IpBanEventMixin, IpBanRuleExemptionMixin
             await self._unlink_prefixed(
                 ("banned_ips:*", "banned_networks:*", "banned_identities:*")
             )
+        await self._bump_ban_version()
+        self._forget_shared_state()
         await self._forget_all_strikes()

@@ -22,6 +22,7 @@ from tests.test_sync.conftest import (
     MockGuardResponseFactory,
     SyncMockGuardRequest,
 )
+from tests.test_sync.ipban_redis_fake import fake_ban_redis
 
 
 def test_ipban_in_memory_expired() -> None:
@@ -539,9 +540,7 @@ def test_is_ip_banned_redis_miss_returns_false() -> None:
 
     manager = IPBanManager()
     manager.banned_ips.clear()
-    manager.redis_handler = MagicMock()
-    manager.redis_handler.get_key = MagicMock(return_value=None)
-    manager.redis_handler.delete = MagicMock()
+    manager.redis_handler = fake_ban_redis(None)
     assert manager.is_ip_banned("99.99.99.99") is False
 
 
@@ -552,10 +551,7 @@ def test_is_ip_banned_redis_stale_expiry_cleanup() -> None:
 
     manager = IPBanManager()
     manager.banned_ips.clear()
-    manager.redis_handler = MagicMock()
-    # expiry in the past
-    manager.redis_handler.get_key = MagicMock(return_value=str(time.time() - 3600))
-    manager.redis_handler.delete = MagicMock()
+    manager.redis_handler = fake_ban_redis(str(time.time() - 3600))
     assert manager.is_ip_banned("1.2.3.4") is False
     manager.redis_handler.delete.assert_called()
 

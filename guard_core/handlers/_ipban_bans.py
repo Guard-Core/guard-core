@@ -8,6 +8,7 @@ from guard_core._utils.ip_extraction import MALFORMED_FORWARDED_FOR_PREFIX
 from guard_core.handlers._ipban_cache import _Network
 from guard_core.handlers._ipban_events import IpBanEventMixin
 from guard_core.handlers._ipban_rule_exempt import IpBanRuleExemptionMixin
+from guard_core.handlers._ipban_version import IpBanVersionMixin
 from guard_core.utils import _canonicalize_ip
 
 _MAX_TRACKED_REFUSED_BANS = 10_000
@@ -18,7 +19,7 @@ _LOOPBACK_NETWORKS: tuple[_Network, ...] = (
 )
 
 
-class IpBanOperationsMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
+class IpBanOperationsMixin(IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptionMixin):
     banned_ips: MutableMapping[str, float]
     banned_networks: list[tuple[_Network, float]]
     refused_ban_reported_until: dict[str, float]
@@ -65,6 +66,8 @@ class IpBanOperationsMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
         except Exception:
             self._warn_kept_in_this_process(str(network), "request failed")
             self.banned_networks.append((network, time.time() + duration))
+            return
+        await self._bump_ban_version()
 
     async def _ban_exact_ip(self, ip: str, duration: int, reason: str) -> None:
         if not ip.startswith(MALFORMED_FORWARDED_FOR_PREFIX):

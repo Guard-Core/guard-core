@@ -86,3 +86,32 @@ class _BanStore(MutableMapping[str, float]):
             if expiry > self._clock():
                 self._on_evict(key, expiry)
             return
+
+
+class _OperatorNetworks:
+    """Operator CIDR bans read back from Redis, answered by prefix length.
+
+    A lookup is one dict probe per distinct prefix length present, so a deployment
+    with 100,000 banned networks costs microseconds per request instead of a scan.
+    """
+
+    def __init__(self, expiries: dict[_Network, float]) -> None:
+        by_length: dict[tuple[int, int], dict[int, float]] = {}
+        for network, expiry in expiries.items():
+            key = (network.version, network.prefixlen)
+            by_length.setdefault(key, {})[int(network.network_address)] = expiry
+        self._buckets: dict[int, list[tuple[int, dict[int, float]]]] = {4: [], 6: []}
+        for (version, prefixlen), members in by_length.items():
+            self._buckets[version].append((prefixlen, members))
+
+    def covers(
+        self, address: ipaddress.IPv4Address | ipaddress.IPv6Address, now: float
+    ) -> bool:
+        value = int(address)
+        bits = address.max_prefixlen
+        for prefixlen, members in self._buckets[address.version]:
+            shift = bits - prefixlen
+            expiry = members.get(value >> shift << shift)
+            if expiry is not None and expiry > now:
+                return True
+        return False

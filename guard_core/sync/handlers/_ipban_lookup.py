@@ -11,11 +11,15 @@ from guard_core.sync._utils.ip_extraction import (
 )
 from guard_core.sync.handlers._ipban_cache import _Network
 from guard_core.sync.handlers._ipban_rule_exempt import IpBanRuleExemptionMixin
+from guard_core.sync.handlers._ipban_version import (
+    _VERSION_PAIR,
+    IpBanVersionMixin,
+)
 
 _DEFAULT_IPV6_PREFIX_LENGTH = 64
 
 
-class IpBanLookupMixin(IpBanRuleExemptionMixin):
+class IpBanLookupMixin(IpBanVersionMixin, IpBanRuleExemptionMixin):
     banned_ips: MutableMapping[str, float]
     banned_networks: list[tuple[_Network, float]]
     redis_handler: Any = None
@@ -49,20 +53,17 @@ class IpBanLookupMixin(IpBanRuleExemptionMixin):
         except KeyError:
             return
 
-    def _local_ban_state(self, key: str, now: float) -> bool | None:
-        expiry = self.banned_ips.get(key)
-        if expiry is None:
-            return None
-        if now > expiry:
-            self._purge_banned_ip(key)
-            return False
-        return True
-
-    def _check_redis_keys(self, namespaces: list[tuple[str, str]], now: float) -> bool:
-        if len(namespaces) == 1:
-            values = [self.redis_handler.get_key(*namespaces[0])]
-        else:
-            values = self.redis_handler.get_many(namespaces)
+    def _check_redis_keys(
+        self,
+        namespaces: list[tuple[str, str]],
+        now: float,
+        addr: ipaddress.IPv4Address | ipaddress.IPv6Address | None = None,
+    ) -> bool:
+        values = self.redis_handler.get_many([*namespaces, _VERSION_PAIR])
+        reloaded = self._adopt_version(values.pop(), now)
+        if reloaded and addr is not None and self._operator_networks is not None:
+            if self._operator_networks.covers(addr, now):
+                return True
         banned = False
         for (namespace, key), value in zip(namespaces, values, strict=True):
             if not value:
@@ -75,37 +76,77 @@ class IpBanLookupMixin(IpBanRuleExemptionMixin):
                 self.redis_handler.delete(namespace, key)
         return banned
 
+    def _local_verdict(self, ip: str, identity: str | None, now: float) -> bool | None:
+        for key in (ip, identity):
+            if key is None:
+                continue
+            expiry = self.banned_ips.get(key)
+            if expiry is None:
+                continue
+            if now > expiry:
+                self._purge_banned_ip(key)
+                return False
+            return True
+        return None
+
+    def _cached_positive_survives(self, now: float) -> bool:
+        if not self._version_recheck_due(now):
+            return True
+        return self._positive_survives_recheck(now)
+
+    def _operator_network_bans(
+        self, addr: ipaddress.IPv4Address | ipaddress.IPv6Address, now: float
+    ) -> bool:
+        if self._operator_networks is None:
+            self._reload_operator_networks()
+        networks = self._operator_networks
+        if networks is None or not networks.covers(addr, now):
+            return False
+        if self._cached_positive_survives(now):
+            return True
+        return self._operator_networks is not None and self._operator_networks.covers(
+            addr, now
+        )
+
     def is_ip_banned(self, ip: str) -> bool:
         ip = _canonicalize_ip(ip)
         if self.rule_exempt_networks and self._is_rule_exempt_ip(ip):
             return False
         now = time.time()
-        identity = self._grouped_identity_of(ip)
+        identity = self._grouped_identity_of(ip) if ":" in ip else None
 
-        state = self._local_ban_state(ip, now)
-        if state is not None:
-            return state
-        if identity is not None:
-            state = self._local_ban_state(identity, now)
-            if state is not None:
-                return state
+        verdict = self._local_verdict(ip, identity, now)
+        if verdict is False:
+            return False
+        if verdict is True and self._cached_positive_survives(now):
+            return True
 
         try:
             addr = ipaddress.ip_address(ip)
         except ValueError:
             return self._malformed_identity_banned(ip, now)
 
+        return self._networks_or_redis_ban(addr, ip, identity, now)
+
+    def _networks_or_redis_ban(
+        self,
+        addr: ipaddress.IPv4Address | ipaddress.IPv6Address,
+        ip: str,
+        identity: str | None,
+        now: float,
+    ) -> bool:
         if self._check_network_cache(addr, now):
             return True
-
         if not self.redis_handler:
             return False
+        if self._operator_network_bans(addr, now):
+            return True
         keys = [("banned_ips", ip)]
         if identity is not None:
             keys.append(("banned_identities", identity))
-        return self._check_redis_keys(keys, now)
+        return self._check_redis_keys(keys, now, addr)
 
     def _malformed_identity_banned(self, ip: str, now: float) -> bool:
         if ip.startswith(MALFORMED_FORWARDED_FOR_PREFIX) and self.redis_handler:
-            return self._check_redis_keys([("banned_ips", ip)], now)
+            return self._check_redis_keys([("banned_ips", ip)], now, None)
         return False

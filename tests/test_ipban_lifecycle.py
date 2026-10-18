@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from guard_core.handlers.ipban_handler import IPBanManager, reset_global_state
+from tests.ipban_redis_fake import fake_ban_redis
 
 
 def _scan_iter_of(keys: list[str]) -> Any:
@@ -152,20 +153,19 @@ async def test_is_ip_banned_clears_expired_local_entry_and_returns_false() -> No
 @pytest.mark.asyncio
 async def test_is_ip_banned_uses_redis_when_local_miss() -> None:
     manager = IPBanManager()
-    redis = AsyncMock()
-    redis.get_key.return_value = str(time.time() + 60)
+    redis = fake_ban_redis(str(time.time() + 60))
     manager.redis_handler = redis
 
     assert await manager.is_ip_banned("10.0.0.41") is True
-    redis.get_key.assert_awaited_once_with("banned_ips", "10.0.0.41")
+    redis.get_many.assert_awaited_once_with(
+        [("banned_ips", "10.0.0.41"), ("ban_version", "counter")]
+    )
 
 
 @pytest.mark.asyncio
 async def test_check_redis_exact_returns_false_when_no_entry() -> None:
     manager = IPBanManager()
-    redis = AsyncMock()
-    redis.get_key.return_value = None
-    manager.redis_handler = redis
+    manager.redis_handler = fake_ban_redis(None)
 
     assert await manager.is_ip_banned("10.0.0.42") is False
 
@@ -173,8 +173,7 @@ async def test_check_redis_exact_returns_false_when_no_entry() -> None:
 @pytest.mark.asyncio
 async def test_check_redis_exact_deletes_expired_entry_and_returns_false() -> None:
     manager = IPBanManager()
-    redis = AsyncMock()
-    redis.get_key.return_value = str(time.time() - 10)
+    redis = fake_ban_redis(str(time.time() - 10))
     manager.redis_handler = redis
 
     assert await manager.is_ip_banned("10.0.0.43") is False

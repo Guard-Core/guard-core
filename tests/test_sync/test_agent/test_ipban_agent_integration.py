@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from guard_core.sync.handlers.ipban_handler import IPBanManager
+from tests.test_sync.ipban_redis_fake import fake_ban_redis
 
 
 @pytest.fixture
@@ -65,7 +66,7 @@ def test_unban_ip_with_agent(cleanup_ipban_singleton: None) -> None:
 
     manager = IPBanManager()
     manager.agent_handler = MagicMock()
-    manager.redis_handler = MagicMock()
+    manager.redis_handler = fake_ban_redis(None)
 
     manager.ban_ip("192.168.1.103", 3600, "test_reason")
     manager.agent_handler.send_event.reset_mock()
@@ -74,7 +75,7 @@ def test_unban_ip_with_agent(cleanup_ipban_singleton: None) -> None:
 
     assert manager.is_ip_banned("192.168.1.103") is False
 
-    manager.redis_handler.delete.assert_called_with("banned_ips", "192.168.1.103")
+    manager.redis_handler.delete.assert_any_call("banned_ips", "192.168.1.103")
 
     manager.agent_handler.send_event.assert_called_once()
 

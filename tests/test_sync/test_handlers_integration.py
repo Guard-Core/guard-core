@@ -18,6 +18,7 @@ from guard_core.sync.handlers.ratelimit_handler import (
 )
 from guard_core.sync.handlers.security_headers_handler import SecurityHeadersManager
 from tests.test_sync.conftest import REDIS_URL, SyncMockGuardRequest
+from tests.test_sync.ipban_redis_fake import fake_ban_redis
 
 
 def _scan_iter_of(keys: list[str]) -> Any:
@@ -50,9 +51,7 @@ def test_ipban_initialize_redis() -> None:
 def test_ipban_is_banned_redis_expired() -> None:
     IPBanManager._instance = None
     mgr = IPBanManager()
-    redis = MagicMock()
-    redis.get_key = MagicMock(return_value=str(time.time() - 100))
-    redis.delete = MagicMock()
+    redis = fake_ban_redis(str(time.time() - 100))
     mgr.redis_handler = redis
     result = mgr.is_ip_banned("1.2.3.4")
     assert result is False
@@ -62,9 +61,7 @@ def test_ipban_is_banned_redis_expired() -> None:
 def test_ipban_is_banned_redis_valid() -> None:
     IPBanManager._instance = None
     mgr = IPBanManager()
-    redis = MagicMock()
-    redis.get_key = MagicMock(return_value=str(time.time() + 1000))
-    mgr.redis_handler = redis
+    mgr.redis_handler = fake_ban_redis(str(time.time() + 1000))
     result = mgr.is_ip_banned("5.5.5.5")
     assert result is True
 

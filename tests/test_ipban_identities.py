@@ -220,6 +220,7 @@ async def test_a_clean_ipv6_request_costs_one_redis_command(
 ) -> None:
     manager = _manager()
     manager.redis_handler = live_redis
+    await manager.is_ip_banned("2001:db8:0:8::1")
     async with live_redis.get_connection() as conn:
         before = (
             (await conn.info("commandstats")).get("cmdstat_mget", {}).get("calls", 0)

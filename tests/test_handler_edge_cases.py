@@ -22,6 +22,7 @@ from tests.conftest import (
     MockGuardResponse,
     MockGuardResponseFactory,
 )
+from tests.ipban_redis_fake import fake_ban_redis
 
 
 async def test_ipban_in_memory_expired() -> None:
@@ -526,30 +527,22 @@ async def test_is_ip_banned_not_in_memory_and_no_redis() -> None:
 
 
 async def test_is_ip_banned_redis_miss_returns_false() -> None:
-    from unittest.mock import AsyncMock
-
     from guard_core.handlers.ipban_handler import IPBanManager
 
     manager = IPBanManager()
     manager.banned_ips.clear()
-    manager.redis_handler = AsyncMock()
-    manager.redis_handler.get_key = AsyncMock(return_value=None)
-    manager.redis_handler.delete = AsyncMock()
+    manager.redis_handler = fake_ban_redis(None)
     assert await manager.is_ip_banned("99.99.99.99") is False
 
 
 async def test_is_ip_banned_redis_stale_expiry_cleanup() -> None:
     import time
-    from unittest.mock import AsyncMock
 
     from guard_core.handlers.ipban_handler import IPBanManager
 
     manager = IPBanManager()
     manager.banned_ips.clear()
-    manager.redis_handler = AsyncMock()
-    # expiry in the past
-    manager.redis_handler.get_key = AsyncMock(return_value=str(time.time() - 3600))
-    manager.redis_handler.delete = AsyncMock()
+    manager.redis_handler = fake_ban_redis(str(time.time() - 3600))
     assert await manager.is_ip_banned("1.2.3.4") is False
     manager.redis_handler.delete.assert_awaited()
 
