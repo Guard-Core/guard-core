@@ -138,6 +138,12 @@ class SecurityHeadersManager(
         self.headers_cache[cache_key] = headers
         return headers, True
 
+    def resolve_headers(self, config: SecurityConfig) -> dict[str, str]:
+        if security_headers_are_off(config.security_headers):
+            return {}
+        headers, _ = self._headers_for(config, self._generate_cache_key(None, config))
+        return headers
+
     def get_headers(
         self,
         request_path: str | None = None,

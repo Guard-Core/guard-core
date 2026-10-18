@@ -1,6 +1,7 @@
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
+from guard_core.handlers.security_headers_handler import SecurityHeadersManager
 from guard_core.models import SecurityConfig
 
 ALLOWED_PREFLIGHT_REQUEST_HEADER = "access-control-request-method"
@@ -35,6 +36,7 @@ def _merge_vary(existing: str | None) -> str:
 class CorsHandler:
     def __init__(self, config: SecurityConfig) -> None:
         self.config = config
+        self._security_headers = SecurityHeadersManager.isolated()
         self._enabled = bool(config.enable_cors)
         if not self._enabled:
             self._init_disabled()
@@ -122,7 +124,10 @@ class CorsHandler:
         ]
 
         failures: list[str] = []
-        response_headers: dict[str, str] = {"Vary": "Origin"}
+        response_headers: dict[str, str] = {
+            **self._security_headers.resolve_headers(self.config),
+            "Vary": "Origin",
+        }
 
         self._validate_preflight_origin(origin, response_headers, failures)
         self._validate_preflight_method(requested_method, failures)
