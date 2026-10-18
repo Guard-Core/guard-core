@@ -26,6 +26,7 @@ import ipaddress
 import json
 import re
 import shutil
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -464,7 +465,7 @@ async def _op_ipinfo_database(args: dict[str, Any]) -> None:
         handler.reader,
         handler._initialization_attempted,
     )
-    scratch = Path("/tmp/guard_core_corpus_rio_scratch")
+    scratch = Path(tempfile.mkdtemp(prefix="guard_core_corpus_rio_"))
     redis_manager = await _redis_manager(_rio_config())
     handler.redis_handler = redis_manager
     handler.db_path = scratch / "corpus.mmdb"

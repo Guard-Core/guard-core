@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import logging
 import shutil
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, cast
@@ -512,7 +513,7 @@ class EventsCase:
             handler._initialization_attempted,
         )
         handler.agent_handler = self.agent  # type: ignore[assignment]
-        scratch = Path("/tmp/guard_core_corpus_geo_scratch")
+        scratch = Path(tempfile.mkdtemp(prefix="guard_core_corpus_geo_"))
         handler.db_path = scratch / "corpus.mmdb"
         handler._initialization_attempted = False
         handler.reader = None
