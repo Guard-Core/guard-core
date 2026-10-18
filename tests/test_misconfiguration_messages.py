@@ -247,7 +247,11 @@ async def test_startup_report_text_and_location_for_an_unreachable_ban_threshold
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     config = SecurityConfig(
-        enable_redis=False, enable_penetration_detection=False, auto_ban_threshold=10001
+        enable_redis=False,
+        enable_penetration_detection=False,
+        rate_limit=10,
+        rate_limit_window=60,
+        auto_ban_threshold=10001,
     )
 
     with caplog.at_level("WARNING"), warnings.catch_warnings(record=True) as caught:
@@ -255,8 +259,10 @@ async def test_startup_report_text_and_location_for_an_unreachable_ban_threshold
         await HandlerInitializer(config).initialize_redis_handlers()
 
     problem = (
-        "auto_ban_threshold is 10001, above the 10,000 events retained per "
-        "category, so this ban threshold can never fire. Lower it to at most 10,000."
+        "auto_ban_threshold is 10001, above the 610 strikes one client can "
+        "produce in 3600 s with rate_limit=10 per 60 s (rate_limit x (3600 / "
+        "rate_limit_window + 1)), so this ban threshold can never fire. Lower it "
+        "to at most 610 or raise rate_limit."
     )
     assert [r.name for r in caplog.records if problem in r.getMessage()] == [
         "guard_core.core.initialization"

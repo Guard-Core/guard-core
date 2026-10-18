@@ -5,6 +5,11 @@ from typing import TYPE_CHECKING, Any
 from guard_core._misconfiguration import report_misconfiguration
 from guard_core._staged_defaults import _warn_whitelist_without_access_only
 from guard_core.core.checks.helpers import _MAX_RETAINED_EVENTS_PER_CATEGORY
+from guard_core.core.initialization._ban_threshold_report import (
+    _BanThresholdContext,
+    remember_ban_threshold_context,
+    report_unreachable_ban_thresholds,
+)
 from guard_core.core.initialization._cloud_initialization import (
     CloudInitializationMixin,
 )
@@ -75,24 +80,14 @@ class _HandlerInitializerStepsMixin(CloudInitializationMixin):
         apply_nat64_prefixes(self.config, self.logger)
 
     def _report_unreachable_ban_thresholds(self) -> None:
-        thresholds = {"auto_ban_threshold": self.config.auto_ban_threshold}
-        thresholds.update(
-            {
-                f"threat_ban_config['{category}']": entry.threshold
-                for category, entry in self.config.threat_ban_config.items()
-            }
+        context = _BanThresholdContext(
+            lambda: tuple(getattr(self.guard_decorator, "_route_configs", {}).values()),
+            lambda: bool(self.config.enable_redis and self.redis_handler),
         )
-        cap = f"{_MAX_RETAINED_EVENTS_PER_CATEGORY:,}"
-        for field, value in thresholds.items():
-            if value > _MAX_RETAINED_EVENTS_PER_CATEGORY:
-                report_misconfiguration(
-                    self.config,
-                    f"{field} is {value}, above the {cap} events retained per "
-                    f"category, so this ban threshold can never fire. Lower it "
-                    f"to at most {cap}.",
-                    logger=self.logger,
-                    stacklevel=4,
-                )
+        remember_ban_threshold_context(context.route_configs, context.redis_shared)
+        report_unreachable_ban_thresholds(
+            self.config, context, self.logger, stacklevel=5
+        )
 
     def _report_country_decorators_without_geoip(self) -> None:
         if self.guard_decorator is None:

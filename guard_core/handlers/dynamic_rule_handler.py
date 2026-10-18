@@ -186,6 +186,31 @@ class DynamicRuleManager(
             return False
         return datetime.now(timezone.utc) > _coerce_naive_utc(rules.expires_at)
 
+    _BAN_THRESHOLD_LIMIT_FIELDS = (
+        "auto_ban_threshold",
+        "rate_limit",
+        "rate_limit_window",
+        "enable_rate_limiting",
+        "exempt_ips",
+    )
+
+    def _log_unreachable_ban_thresholds_after_swap(
+        self, base: dict[str, object], plan: Any
+    ) -> None:
+        if all(
+            base.get(name) == plan.state.get(name)
+            for name in self._BAN_THRESHOLD_LIMIT_FIELDS
+        ):
+            return
+        from guard_core.core.initialization._ban_threshold_report import (
+            log_unreachable_ban_thresholds_after_rule_change,
+        )
+
+        try:
+            log_unreachable_ban_thresholds_after_rule_change(self.config, self.logger)
+        except Exception:
+            self.logger.exception("Checking the ban thresholds after a rule failed")
+
     async def _apply_rules(self, rules: DynamicRules) -> list[str]:
         async with self._lock:
             base = self._active_base_snapshot
@@ -204,6 +229,7 @@ class DynamicRuleManager(
                 self.logger.error(f"Failed to apply dynamic rules: {e}")
                 raise
             self._active_base_snapshot = base
+            self._log_unreachable_ban_thresholds_after_swap(base, plan)
             await self._revoke_stale_side_effects(rules, effects)
             await self._announce_plan(plan)
             await self._persist_last_known_rules(rules)
