@@ -2213,6 +2213,21 @@ def test_a_mock_redis_handler_is_not_attached_to_the_headers_manager() -> None:
     assert security_headers_manager.redis_handler is None
 
 
+def test_a_redis_handler_that_never_connected_is_not_attached() -> None:
+    config = SecurityConfig(
+        enable_redis=True,
+        redis_url=REDIS_URL,
+        redis_prefix="test:wp10fu:",
+        enable_agent=False,
+    )
+    redis = RedisManager(config)
+    redis._redis = None
+
+    attach_security_headers_manager_to_redis(redis, config)
+
+    assert security_headers_manager.redis_handler is None
+
+
 def test_the_registry_drops_an_entry_whose_handler_is_gone_without_its_callback() -> (
     None
 ):
