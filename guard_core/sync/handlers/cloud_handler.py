@@ -41,6 +41,7 @@ from guard_core.sync.handlers._cloud_provider_registry import (
     _encode_cached,
     _parse_cloud_selectors,
 )
+from guard_core.sync.handlers._cloud_range_index import NetworkIndex
 from guard_core.sync.handlers.cloud_ip_stores import InMemoryCloudIpStore
 from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol
 from guard_core.sync.protocols.cloud_ip_store_protocol import SyncCloudIpStoreProtocol
@@ -116,6 +117,7 @@ class CloudManager:
     _refresh_in_flight: bool
     _refresh_lock: threading.Lock
     _empty_ranges_warned_at: dict[str, float]
+    _range_indexes: dict[str, NetworkIndex]
     _EMPTY_RANGES_WARNING_COOLDOWN = 300.0
 
     def __new__(cls: type["CloudManager"]) -> "CloudManager":
@@ -141,7 +143,16 @@ class CloudManager:
             cls._instance._refresh_in_flight = False
             cls._instance._refresh_lock = threading.Lock()
             cls._instance._empty_ranges_warned_at = {}
+            cls._instance._range_indexes = {}
         return cls._instance
+
+    def _index_of(self, provider: str) -> NetworkIndex:
+        networks = self.ip_ranges[provider]
+        index = self._range_indexes.get(provider)
+        if index is None or not index.describes(networks):
+            index = NetworkIndex(networks)
+            self._range_indexes[provider] = index
+        return index
 
     def set_store(self, store: SyncCloudIpStoreProtocol) -> None:
         self._store = store
@@ -337,13 +348,12 @@ class CloudManager:
                     self._warn_empty_ranges(provider)
                 allowed_regions = carveouts.get(provider)
                 provider_regions = self.network_regions.get(provider, {})
-                for network in self.ip_ranges[provider]:
-                    if ip_obj in network:
-                        if allowed_regions and (
-                            provider_regions.get(str(network)) in allowed_regions
-                        ):
-                            continue
-                        return True
+                for network in self._index_of(provider).containing(ip_obj):
+                    if allowed_regions and (
+                        provider_regions.get(str(network)) in allowed_regions
+                    ):
+                        continue
+                    return True
             return False
         except ValueError:
             self.logger.error(f"Invalid IP address: {ip}")
@@ -366,9 +376,8 @@ class CloudManager:
             ip_obj = ipaddress.ip_address(ip)
             for provider in _bare_provider_names(providers):
                 if provider in self.ip_ranges:
-                    for network in self.ip_ranges[provider]:
-                        if ip_obj in network:
-                            return (provider, str(network))
+                    for network in self._index_of(provider).containing(ip_obj):
+                        return (provider, str(network))
             return None
         except ValueError:
             self.logger.error(f"Invalid IP address: {ip}")
