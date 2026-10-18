@@ -14,7 +14,11 @@ _PREFLIGHT_HEADERS = {
 }
 
 
-def _middleware(resolved_paths: set[str] | None, **config: Any) -> MagicMock:
+def _middleware(
+    resolved_paths: set[str] | None,
+    allowed: dict[str, tuple[str, ...]] | None = None,
+    **config: Any,
+) -> MagicMock:
     mw = MagicMock()
     mw.config = SecurityConfig(
         enable_redis=False, route_resolution_strict=True, **config
@@ -27,6 +31,9 @@ def _middleware(resolved_paths: set[str] | None, **config: Any) -> MagicMock:
         side_effect=lambda status_code, default_message: MockGuardResponse(
             default_message, status_code
         )
+    )
+    mw.allowed_methods = MagicMock(
+        side_effect=lambda path: (allowed or {}).get(path, ())
     )
     if resolved_paths is None:
         del mw.resolve_route
@@ -62,6 +69,50 @@ async def test_a_wrong_method_on_a_served_path_is_answered_405() -> None:
 
     assert response is not None
     assert response.status_code == 405
+
+
+async def test_a_405_lists_the_methods_the_route_accepts_in_allow() -> None:
+    mw = _middleware({"/ok"}, {"/ok": ("POST", "GET", "HEAD")})
+
+    response = await _check(mw, MockGuardRequest(path="/ok", method="DELETE"))
+
+    assert response is not None
+    assert response.status_code == 405
+    assert response.headers["Allow"] == "GET, HEAD, POST"
+    mw.allowed_methods.assert_called_once_with("/ok")
+
+
+async def test_a_404_carries_no_allow() -> None:
+    mw = _middleware({"/ok"}, {"/ok": ("GET",)})
+
+    response = await _check(mw, MockGuardRequest(path="/nope"))
+
+    assert response is not None
+    assert "Allow" not in response.headers
+    mw.allowed_methods.assert_not_called()
+
+
+async def test_a_405_from_an_adapter_without_method_lookup_has_no_allow() -> None:
+    mw = _middleware({"/ok"})
+    del mw.allowed_methods
+
+    response = await _check(mw, MockGuardRequest(path="/ok", method="POST"))
+
+    assert response is not None
+    assert response.status_code == 405
+    assert "Allow" not in response.headers
+
+
+async def test_a_failing_method_lookup_keeps_the_405_and_logs_it() -> None:
+    mw = _middleware({"/ok"})
+    mw.allowed_methods = MagicMock(side_effect=RuntimeError("router gone"))
+
+    response = await _check(mw, MockGuardRequest(path="/ok", method="POST"))
+
+    assert response is not None
+    assert response.status_code == 405
+    assert "Allow" not in response.headers
+    mw.logger.error.assert_called_once_with("allowed_methods failed; omitting Allow")
 
 
 async def test_an_adapter_without_route_lookup_gets_404() -> None:
