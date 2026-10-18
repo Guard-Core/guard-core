@@ -22,6 +22,7 @@ Unreleased
 
 ### Fixed
 
+- **A whitelisted range resets the strikes of every identity it covers**, in memory and in Redis, once per changed dynamic rule. The rate-limit auto-ban never records detection strikes, and `keys()` lists a key once.
 - **The documented rate-limit reset reaches the app again.** `RateLimitManager(config)` returns the live manager for that config object, so `rate_limit_handler(config).reset()` with the app's own config clears what the app counts. Different config objects keep their own managers, and a reset on a config no guarded app was built with logs one WARNING.
 
 ___

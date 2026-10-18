@@ -2,7 +2,7 @@ import asyncio
 import hashlib
 import logging
 import uuid
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Callable, Sequence
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Any
@@ -543,10 +543,11 @@ class RedisManager:
 
         async def _keys(conn: Redis) -> list[str]:
             full_pattern = f"{self.config.redis_prefix}{pattern}"
-            return [
+            found = [
                 str(key)
                 async for key in conn.scan_iter(match=full_pattern, count=_SCAN_BATCH)
             ]
+            return list(dict.fromkeys(found))
 
         result = await self.safe_operation(_keys)
         return result if result is not None else []
@@ -562,12 +563,17 @@ class RedisManager:
         return int(result) if result is not None else 0
 
 
-async def scan_unlink(conn: Redis, full_pattern: str) -> int:
-    """Delete every key matching full_pattern: one SCAN cursor walk, UNLINK in
-    batches. Never KEYS, which walks the whole keyspace in one blocking command."""
+async def scan_unlink(
+    conn: Redis, full_pattern: str, select: Callable[[str], bool] | None = None
+) -> int:
+    """Delete every key matching full_pattern (and select, when given): one SCAN
+    cursor walk, UNLINK in batches. Never KEYS, which walks the whole keyspace in
+    one blocking command."""
     removed = 0
     batch: list[str] = []
     async for key in conn.scan_iter(match=full_pattern, count=_SCAN_BATCH):
+        if select is not None and not select(key):
+            continue
         batch.append(key)
         if len(batch) >= _SCAN_BATCH:
             removed += int(await conn.unlink(*batch))

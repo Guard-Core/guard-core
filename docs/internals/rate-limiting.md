@@ -38,7 +38,7 @@ Which app a reset reaches, in this order:
 1. The app built from that config object (pass the app's own config object).
 2. Otherwise every guarded app built with an equal config (`==` on the config objects): one WARNING with the count and the apps. An equal config resets every equal app.
 3. Otherwise, with Redis on, the Redis windows and strikes under `{redis_prefix}` are cleared through a short-lived Redis client of their own (never the shared `RedisManager`).
-4. Otherwise one WARNING (`this config object is not the one any guarded app was built with; reset() cleared nothing`).
+4. Otherwise one WARNING (`this config object is not the one any guarded app was built with; reset() cleared nothing`). The rate-limit strikes of the process are cleared in every case, and the log line after the reset names Redis only when Redis was cleared.
 
 ```python
 class RateLimitManager:

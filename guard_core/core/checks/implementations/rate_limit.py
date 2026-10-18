@@ -196,7 +196,9 @@ class RateLimitCheck(SecurityCheck):
                 self.config.muted_check_logs,
                 ("rate_limit",),
                 reason="rate_limit_exceeded",
-                ip_counts=shared,
+                ip_counts=shared
+                if shared is not None
+                else self.middleware.suspicious_request_counts.get(client_ip, {}),
             )
             if banned and shared is not None:
                 await forget_shared_violations(self._shared_redis(), client_ip)

@@ -49,6 +49,10 @@ Stores `(ip, expiry_timestamp)` in both local cache and Redis. Also fires a ban 
 
 Removes the IP from both local cache and Redis and clears that identity's auto-ban strikes (both families: the in-process counts of every guarded middleware, the rate-limit violation counter and the detection strike counters in Redis), so strikes from before the unban cannot ban it again. A CIDR argument lifts a network ban and clears no strikes. `unban_inside(entries)` clears the strikes of exactly the addresses it removed.
 
+**`forget_strikes_inside(entries)`**
+
+Resets the auto-ban strikes of every identity the entries (CIDR ranges or single addresses) cover, banned or not: the process counts of every guarded middleware and the by-IP counter, and in Redis every `rate_limit:violations:*`, `detection:strikes:*` and `detection:strikes_index:*` key whose address lies inside a range (found with one `SCAN`, removed with `UNLINK`). A dynamic rule `ip_whitelist` entry runs it once per changed rule, so `10.0.0.5` and `10.0.0.5/32` give the same result.
+
 **`is_ip_banned(ip) -> bool`**
 
 Lookup order:

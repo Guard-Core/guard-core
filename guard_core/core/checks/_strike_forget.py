@@ -1,6 +1,7 @@
 import logging
 import threading
 import weakref
+from collections.abc import Callable
 from typing import Any
 
 _registered: "weakref.WeakSet[Any]" = weakref.WeakSet()
@@ -50,6 +51,17 @@ def forget_category_strikes(category: str) -> None:
                 else:
                     forget(category)
                 if not ip_counts:
+                    del counts[client_ip]
+
+
+def forget_identities_inside(covers: Callable[[str], bool]) -> None:
+    from guard_core.core.checks.helpers import _suspicious_counts_lock
+
+    for middleware in _registered_middlewares():
+        with _suspicious_counts_lock:
+            counts = middleware.suspicious_request_counts
+            for client_ip in tuple(counts):
+                if covers(client_ip):
                     del counts[client_ip]
 
 

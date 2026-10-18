@@ -123,6 +123,7 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
         if ranges:
             try:
                 await ip_ban_manager.unban_inside(ranges)
+                await ip_ban_manager.forget_strikes_inside(ranges)
             except Exception as e:
                 self.logger.error(f"Failed to whitelist ranges {ranges}: {e}")
         for ip in ip_list:

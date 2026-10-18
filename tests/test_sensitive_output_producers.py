@@ -491,6 +491,10 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "logs the unbanned client_ip (outside the secret matrix) and the Redis "
         "exception text; never header, query or body content"
     ),
+    "handlers/_ipban_queries.py:IpBanQueryMixin.forget_strikes_inside": (
+        "logs only the Redis exception text of the range strike clear; never "
+        "header, query or body content"
+    ),
     "handlers/_ipban_queries.py:IpBanQueryMixin._forget_all_strikes": (
         "logs only the Redis exception text of the strike clear; never header, "
         "query or body content"

@@ -243,6 +243,12 @@ def clear_by_ip_strikes() -> None:
     _by_ip_autoban_counts.clear()
 
 
+def forget_by_ip_strikes_inside(covers: Callable[[str], bool]) -> None:
+    for client_ip in tuple(_by_ip_autoban_counts):
+        if covers(client_ip):
+            del _by_ip_autoban_counts[client_ip]
+
+
 async def _shared_primitive_counts(
     ip: str, config: SecurityConfig, redis_handler: Any
 ) -> dict[str, int] | None:
@@ -793,7 +799,7 @@ class RateLimitManager:
 
     async def _clear_redis_state(
         self, apps: list["RateLimitManager"], patterns: list[str]
-    ) -> None:
+    ) -> bool:
         handler = next(
             (
                 app.redis_handler
@@ -806,39 +812,45 @@ class RateLimitManager:
             if handler is not None:
                 for pattern in patterns:
                     await handler.delete_pattern(pattern)
-            elif self.config.enable_redis and self.config.redis_url:
+                return True
+            if self.config.enable_redis and self.config.redis_url:
                 for pattern in patterns:
                     await scan_unlink_through_new_client(
                         self.config.redis_url,
                         f"{self.config.redis_prefix}{pattern}",
                     )
+                return True
         except Exception as e:
             self.logger.error(f"Failed to reset Redis rate limits: {str(e)}")
+        return False
 
     async def reset(self) -> None:
         apps = self._guarded_apps_to_reset()
         self.request_timestamps.clear()
         for app in apps:
             app.request_timestamps.clear()
-        has_redis = self.config.enable_redis and (
-            self.redis_handler or self.config.redis_url
+        redis_cleared = await self._clear_redis_state(
+            apps, [_RATE_WINDOWS_PATTERN, _VIOLATIONS_PATTERN]
         )
-        if not apps and not has_redis:
+        if not apps and not redis_cleared:
             self.logger.warning(
                 "this config object is not the one any guarded app was built "
                 "with; reset() cleared nothing"
             )
-        await self._clear_redis_state(
-            apps, [_RATE_WINDOWS_PATTERN, _VIOLATIONS_PATTERN]
-        )
         from guard_core.core.checks._strike_forget import forget_category_strikes
 
         clear_by_ip_strikes()
         forget_category_strikes("rate_limit")
-        self.logger.info(
-            "reset() also cleared the rate-limit auto-ban strikes (process memory "
-            "and Redis); detection strikes and active bans are kept"
-        )
+        if redis_cleared:
+            self.logger.info(
+                "reset() also cleared the rate-limit auto-ban strikes (process "
+                "memory and Redis); detection strikes and active bans are kept"
+            )
+        else:
+            self.logger.info(
+                "reset() also cleared the rate-limit auto-ban strikes (process "
+                "memory); detection strikes and active bans are kept"
+            )
 
 
 rate_limit_handler = RateLimitManager

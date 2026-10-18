@@ -1,7 +1,7 @@
 import ipaddress
 import logging
 import time
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from typing import Any
 
 from cachetools import Cache, TTLCache
@@ -26,6 +26,13 @@ def _member_covered(namespace: str, member: str, coverage: NetworkCoverage) -> b
         return coverage.covers_network(ipaddress.ip_network(member, strict=False))
     except ValueError:
         return False
+
+
+def _strike_key_inside(coverage: NetworkCoverage, stem: str) -> Callable[[str], bool]:
+    def inside(key: str) -> bool:
+        return coverage.covers_address(key[len(stem) :].split("|", 1)[0])
+
+    return inside
 
 
 class IpBanQueryMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
@@ -137,6 +144,37 @@ class IpBanQueryMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
             self.redis_handler.forget_detection_strikes(ip)
         except Exception as e:
             self.logger.warning("Redis strikes of %s could not be cleared: %s", ip, e)
+
+    def forget_strikes_inside(self, entries: Iterable[str]) -> None:
+        networks = [ipaddress.ip_network(entry, strict=False) for entry in entries]
+        if not networks:
+            return
+        coverage = NetworkCoverage(networks)
+        from guard_core.sync.core.checks._strike_forget import forget_identities_inside
+        from guard_core.sync.handlers.ratelimit_handler import (
+            forget_by_ip_strikes_inside,
+        )
+
+        forget_identities_inside(coverage.covers_address)
+        forget_by_ip_strikes_inside(coverage.covers_address)
+        if not self.redis_handler:
+            return
+        try:
+            self._unlink_strikes_inside(coverage)
+        except Exception as e:
+            self.logger.warning(
+                "Redis strikes inside a range could not be cleared: %s", e
+            )
+
+    def _unlink_strikes_inside(self, coverage: NetworkCoverage) -> None:
+        prefix = self.redis_handler.config.redis_prefix
+        with self.redis_handler.get_connection() as conn:
+            for stem in (
+                f"{prefix}rate_limit:violations:",
+                f"{prefix}detection:strikes:",
+                f"{prefix}detection:strikes_index:",
+            ):
+                scan_unlink(conn, f"{stem}*", _strike_key_inside(coverage, stem))
 
     def _forget_all_strikes(self) -> None:
         from guard_core.sync.core.checks._strike_forget import forget_all_strikes
