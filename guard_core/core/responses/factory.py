@@ -1,5 +1,6 @@
 import logging
 from collections.abc import Awaitable, Callable, MutableMapping
+from typing import Any
 
 from guard_core.core.responses.context import ResponseContext
 from guard_core.decorators.base import RouteConfig
@@ -58,10 +59,14 @@ class ErrorResponseFactory:
         return await self.apply_modifier(redirect_response)
 
     async def apply_security_headers(
-        self, response: GuardResponse, request_path: str | None = None
+        self,
+        response: GuardResponse,
+        request_path: str | None = None,
+        override: Any = None,
     ) -> GuardResponse:
         manager = self.security_headers_manager
-        override = manager.resolve_override()
+        if override is None:
+            override = manager.resolve_override()
         if manager.headers_enabled_for(self.context.config, override):
             resolved = await manager.get_headers_and_forced(
                 request_path, config=self.context.config, override=override
@@ -77,9 +82,12 @@ class ErrorResponseFactory:
         return response
 
     async def apply_cors_headers(
-        self, response: GuardResponse, origin: str
+        self, response: GuardResponse, origin: str, override: Any = None
     ) -> GuardResponse:
-        if self.security_headers_manager.headers_enabled_for(self.context.config):
+        manager = self.security_headers_manager
+        if override is None:
+            override = manager.resolve_override()
+        if manager.headers_enabled_for(self.context.config, override):
             cors_headers = await self.security_headers_manager.get_cors_headers(
                 origin, config=self.context.config
             )
@@ -148,11 +156,14 @@ class ErrorResponseFactory:
             request, response_time, response.status_code
         )
 
-        response = await self.apply_security_headers(response, str(request.url_path))
+        override = self.security_headers_manager.resolve_override()
+        response = await self.apply_security_headers(
+            response, str(request.url_path), override
+        )
 
         origin = request.headers.get("origin")
         if origin:
-            response = await self.apply_cors_headers(response, origin)
+            response = await self.apply_cors_headers(response, origin, override)
 
         return await self.apply_modifier(response)
 

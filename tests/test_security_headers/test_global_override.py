@@ -18,7 +18,11 @@ from guard_core.handlers.security_headers_handler import (
     security_headers_manager,
 )
 from guard_core.models import SecurityConfig
-from tests.conftest import MockGuardResponse, MockGuardResponseFactory
+from tests.conftest import (
+    MockGuardRequest,
+    MockGuardResponse,
+    MockGuardResponseFactory,
+)
 
 LOGGER = "guard_core.handlers.security_headers"
 APP_CSP = {"default-src": ["'self'", "https://app.example"]}
@@ -1680,6 +1684,38 @@ async def test_the_newer_call_wins_whatever_the_skew_of_the_worker_clocks(
         assert (await _response(apps["older"]))["Content-Security-Policy"].endswith(
             "global.example"
         )
+
+
+async def test_a_response_with_a_cors_origin_resolves_the_override_once(
+    clock: Clock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    app = _app(
+        SecurityConfig(
+            enable_redis=False,
+            enable_cors=True,
+            cors_allow_origins=["https://a.example"],
+            security_headers={"enabled": True},
+        )
+    )
+    _override(csp=GLOBAL_CSP)
+    request = MockGuardRequest(path="/x", headers={"origin": "https://a.example"})
+    await app.process_response(request, MockGuardResponse("ok", 200), 0.1, None)
+    manager = app.security_headers_manager
+    calls: list[int] = []
+    original = type(manager)._current_override
+
+    def counted(self: Any) -> Any:
+        calls.append(1)
+        return original(self)
+
+    monkeypatch.setattr(type(manager), "_current_override", counted)
+
+    response = await app.process_response(
+        request, MockGuardResponse("ok", 200), 0.1, None
+    )
+
+    assert response.headers["Content-Security-Policy"].endswith("global.example")
+    assert len(calls) == 1
 
 
 async def test_a_response_resolves_the_override_once(
