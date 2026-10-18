@@ -1,13 +1,14 @@
 import logging
-import time
 from typing import Any
 
 from cachetools import TTLCache
 
+from guard_core import _security_headers_override as clocks
 from guard_core._security_headers_override import (
     OVERRIDE_PULL_INTERVAL_SECONDS,
     PROCESS_OVERRIDE,
     OverrideRecord,
+    corrected_wall_now,
     now_monotonic,
     override_display,
     override_event_metadata,
@@ -65,17 +66,20 @@ class SecurityHeadersOverrideMixin:
     def _is_global_manager(self) -> bool:
         return bool(type(self)._instance is self)
 
+    def resolve_override(self) -> OverrideRecord:
+        return self._current_override()
+
     def _current_override(self) -> OverrideRecord:
         if PROCESS_OVERRIDE.reset_epoch != self._override_epoch:
             self._override_epoch = PROCESS_OVERRIDE.reset_epoch
             self._override = OverrideRecord(self._override_saved_at + 1e-6, {})
         process = PROCESS_OVERRIDE.record
-        if process.ordered_at() > self._override.ordered_at():
+        if process.set_at > 0.0 and process.ordered_at() > self._override.ordered_at():
             self._override = process
         return self._override
 
     def _next_set_at(self) -> float:
-        return max(time.time(), self._current_override().ordered_at() + 1e-6)
+        return max(corrected_wall_now(), self._current_override().ordered_at() + 1e-6)
 
     def _record_override_from_call(self, passed: dict[str, Any]) -> None:
         if not self._is_global_manager():
@@ -133,17 +137,19 @@ class SecurityHeadersOverrideMixin:
     def _override_key(self) -> str:
         return f"override:{self._startup_hash}"
 
-    def _sync_override(self, config: SecurityConfig) -> None:
-        current = self._current_override()
+    def _sync_override(
+        self, config: SecurityConfig, current: OverrideRecord
+    ) -> OverrideRecord:
         if current.event and current.set_at > self._override_announced_at:
             self._override_announced_at = current.set_at
             self._send_override_event(current)
         if self.redis_handler is None:
-            return
+            return current
         if not self._redis_initialized:
             self._persistence().initialize_redis(self.redis_handler, config)
-            return
-        self._sync_override_with_redis(current)
+        else:
+            self._sync_override_with_redis(current)
+        return current if self._override is current else self._current_override()
 
     def _sync_override_with_redis(self, current: OverrideRecord) -> None:
         if current.set_at > self._override_saved_at:
@@ -184,8 +190,21 @@ class SecurityHeadersOverrideMixin:
         self._override_saved_at = record.set_at
         self._override_in_redis = bool(record.keys)
 
+    def _measure_clock_offset(self) -> None:
+        try:
+            before = clocks.wall_now()
+            with self.redis_handler.get_connection() as conn:
+                seconds, microseconds = conn.time()
+            after = clocks.wall_now()
+        except Exception:
+            return
+        PROCESS_OVERRIDE.clock_offset = (
+            seconds + microseconds / 1_000_000 - (before + after) / 2
+        )
+
     def _pull_override(self) -> None:
         self._override_next_pull = now_monotonic() + OVERRIDE_PULL_INTERVAL_SECONDS
+        self._measure_clock_offset()
         try:
             raw = self.redis_handler.get_key(_OVERRIDE_NAMESPACE, self._override_key())
         except Exception as e:

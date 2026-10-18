@@ -3,7 +3,7 @@ import logging
 import re
 import time
 from collections.abc import Callable, Iterator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, contextmanager
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -34,6 +34,7 @@ class FakeRedis:
         self.ttls: dict[str, int | None] = {}
         self.gets = 0
         self.sets = 0
+        self.times = 0
         self.down = False
 
     async def get_key(self, namespace: str, key: str) -> Any:
@@ -58,8 +59,14 @@ class FakeRedis:
         if self.down:
             raise ConnectionError("redis is down")
         store = self.store
+        redis = self
 
         class Conn:
+            async def time(self) -> tuple[int, int]:
+                redis.times += 1
+                now = time.time()
+                return int(now), int((now % 1) * 1_000_000)
+
             async def keys(self, pattern: str) -> list[str]:
                 prefix = pattern.rstrip("*")
                 return [key for key in store if key.startswith(prefix)]
@@ -1602,3 +1609,185 @@ async def test_saving_an_override_that_is_already_saved_writes_nothing(
     await app.security_headers_manager._cache_configuration(own_state=False)
 
     assert redis.sets == 1
+
+
+class Worker:
+    """One simulated worker: its own override state and a local clock that is skewed."""
+
+    def __init__(self, skew: float) -> None:
+        self.skew = skew
+        self.record = override_module.OverrideRecord(0.0, {})
+        self.global_record = override_module.OverrideRecord(0.0, {})
+        self.offset = 0.0
+
+    @contextmanager
+    def acting(self, monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+        holder = override_module.PROCESS_OVERRIDE
+        saved = (holder.record, getattr(holder, "clock_offset", 0.0))
+        holder.record = self.record
+        holder.clock_offset = self.offset
+        saved_global = security_headers_manager._override
+        security_headers_manager._override = self.global_record
+        real = time.time
+
+        def skewed() -> float:
+            return real() + self.skew
+
+        with monkeypatch.context() as patch:
+            patch.setattr(override_module, "wall_now", skewed, raising=False)
+            try:
+                yield
+            finally:
+                self.record = holder.record
+                self.global_record = security_headers_manager._override
+                self.offset = getattr(holder, "clock_offset", 0.0)
+                security_headers_manager._override = saved_global
+                holder.record, holder.clock_offset = saved
+
+
+@pytest.mark.parametrize(
+    ("older_skew", "newer_skew"), [(3600.0, 0.0), (0.0, -3600.0), (3600.0, -3600.0)]
+)
+async def test_the_newer_call_wins_whatever_the_skew_of_the_worker_clocks(
+    clock: Clock,
+    monkeypatch: pytest.MonkeyPatch,
+    older_skew: float,
+    newer_skew: float,
+) -> None:
+    redis = FakeRedis()
+    older, newer, observer = Worker(older_skew), Worker(newer_skew), Worker(0.0)
+    apps = {}
+    for name, worker in (("older", older), ("newer", newer), ("observer", observer)):
+        with worker.acting(monkeypatch):
+            apps[name] = _app(redis=redis)
+            await _response(apps[name])
+    with older.acting(monkeypatch):
+        _override(csp=OTHER_CSP)
+        await _response(apps["older"])
+    time.sleep(0.05)
+    with newer.acting(monkeypatch):
+        _override(csp=GLOBAL_CSP)
+        await _response(apps["newer"])
+    for _ in range(2):
+        clock.now += 5.0
+        with older.acting(monkeypatch):
+            await _response(apps["older"])
+        with observer.acting(monkeypatch):
+            seen = await _response(apps["observer"])
+
+    assert seen["Content-Security-Policy"].endswith("global.example")
+    with older.acting(monkeypatch):
+        assert (await _response(apps["older"]))["Content-Security-Policy"].endswith(
+            "global.example"
+        )
+
+
+async def test_a_response_resolves_the_override_once(
+    clock: Clock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    app = _app()
+    _override(csp=GLOBAL_CSP)
+    await _response(app)
+    manager = app.security_headers_manager
+    calls: list[int] = []
+    original = type(manager)._current_override
+
+    def counted(self: Any) -> Any:
+        calls.append(1)
+        return original(self)
+
+    monkeypatch.setattr(type(manager), "_current_override", counted)
+
+    await _response(app)
+
+    assert len(calls) == 1
+
+
+async def test_without_any_override_a_response_reads_no_clock(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _app()
+    await _response(app)
+    reads: list[int] = []
+    real = override_module.approximate_now
+
+    def counted() -> float:
+        reads.append(1)
+        return real()
+
+    monkeypatch.setattr(override_module, "approximate_now", counted)
+
+    await _response(app)
+
+    assert reads == []
+
+
+async def test_the_clock_offset_is_measured_at_initialization_and_on_each_pull(
+    clock: Clock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    redis = FakeRedis()
+    worker = Worker(7200.0)
+    with worker.acting(monkeypatch):
+        app = _app(redis=redis)
+        await _response(app)
+    assert redis.times == 1
+    assert worker.offset == pytest.approx(-7200.0, abs=1.0)
+
+    with worker.acting(monkeypatch):
+        for _ in range(5):
+            await _response(app)
+    assert redis.times == 1
+
+    clock.now += 5.0
+    with worker.acting(monkeypatch):
+        await _response(app)
+    assert redis.times == 2
+
+
+async def test_a_redis_error_keeps_the_last_clock_offset(
+    clock: Clock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    redis = FakeRedis()
+    worker = Worker(-1800.0)
+    with worker.acting(monkeypatch):
+        app = _app(redis=redis)
+        await _response(app)
+    measured = worker.offset
+    assert measured == pytest.approx(1800.0, abs=1.0)
+
+    redis.down = True
+    clock.now += 5.0
+    with worker.acting(monkeypatch):
+        await _response(app)
+
+    assert worker.offset == measured
+
+
+async def test_a_call_is_stamped_on_redis_time(
+    clock: Clock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    redis = FakeRedis()
+    worker = Worker(3600.0)
+    with worker.acting(monkeypatch):
+        app = _app(redis=redis)
+        await _response(app)
+        _override(csp=GLOBAL_CSP)
+        stamp = override_module.PROCESS_OVERRIDE.record.set_at
+        await _response(app)
+
+    assert stamp == pytest.approx(time.time(), abs=2.0)
+    saved = next(iter(v for k, v in redis.store.items() if ":override:" in k))
+    assert json.loads(saved)["set_at"] == pytest.approx(time.time(), abs=2.0)
+
+
+async def test_the_far_ahead_guard_works_on_the_corrected_clock(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    holder = override_module.PROCESS_OVERRIDE
+    monkeypatch.setattr(holder, "clock_offset", 5000.0)
+    skew = override_module.MAX_CLOCK_SKEW_SECONDS
+    near = override_module.approximate_now() + 5000.0 + skew - 60
+    far = override_module.approximate_now() + 5000.0 + skew + 60
+
+    assert override_module.OverrideRecord(near, {}).ordered_at() == near
+    assert override_module.OverrideRecord(far, {}).ordered_at() == 0.0

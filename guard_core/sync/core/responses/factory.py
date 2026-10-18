@@ -60,9 +60,11 @@ class ErrorResponseFactory:
     def apply_security_headers(
         self, response: GuardResponse, request_path: str | None = None
     ) -> GuardResponse:
-        if self.security_headers_manager.headers_enabled_for(self.context.config):
-            resolved = self.security_headers_manager.get_headers_and_forced(
-                request_path, config=self.context.config
+        manager = self.security_headers_manager
+        override = manager.resolve_override()
+        if manager.headers_enabled_for(self.context.config, override):
+            resolved = manager.get_headers_and_forced(
+                request_path, config=self.context.config, override=override
             )
             security_headers, forced = resolved
             for header_name, header_value in security_headers.items():

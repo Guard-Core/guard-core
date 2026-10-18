@@ -5,6 +5,7 @@ from typing import Any
 from cachetools import TTLCache
 
 from guard_core._security_headers_defaults import security_headers_are_off
+from guard_core._security_headers_override import OverrideRecord
 from guard_core.models import SecurityConfig
 from guard_core.sync.handlers._security_headers_cache import SecurityHeadersCacheMixin
 from guard_core.sync.handlers._security_headers_config import SecurityHeadersConfigMixin
@@ -117,14 +118,17 @@ class SecurityHeadersManager(
         return frozenset(forced)
 
     def _headers_for(
-        self, config: SecurityConfig | None, cache_key: str
+        self,
+        config: SecurityConfig | None,
+        cache_key: str,
+        override: OverrideRecord | None = None,
     ) -> tuple[dict[str, str], bool]:
         cached = self.headers_cache.get(cache_key)
         if isinstance(cached, dict):
             return cached, False
 
         csp_config, hsts_config, default_headers, custom_headers = (
-            self._resolve_headers_state(config)
+            self._resolve_headers_state(config, override)
         )
 
         headers = ResolvedHeaders(default_headers)
@@ -143,35 +147,45 @@ class SecurityHeadersManager(
         self.headers_cache[cache_key] = headers
         return headers, True
 
-    def _headers_off(self, config: SecurityConfig) -> bool:
-        override = self._current_override().keys
-        if "enabled" in override:
-            return not override["enabled"]
+    def _headers_off(
+        self, config: SecurityConfig, override: OverrideRecord | None = None
+    ) -> bool:
+        keys = (self._current_override() if override is None else override).keys
+        if "enabled" in keys:
+            return not keys["enabled"]
         return security_headers_are_off(config.security_headers)
 
-    def headers_enabled_for(self, config: SecurityConfig) -> bool:
-        return not self._headers_off(config)
+    def headers_enabled_for(
+        self, config: SecurityConfig, override: OverrideRecord | None = None
+    ) -> bool:
+        return not self._headers_off(config, override)
 
     def resolve_headers(self, config: SecurityConfig) -> dict[str, str]:
-        if self._headers_off(config):
+        override = self._current_override()
+        if self._headers_off(config, override):
             return {}
-        headers, _ = self._headers_for(config, self._generate_cache_key(None, config))
+        headers, _ = self._headers_for(
+            config, self._generate_cache_key(None, config, override), override
+        )
         return headers
 
     def get_headers(
         self,
         request_path: str | None = None,
         config: SecurityConfig | None = None,
+        override: OverrideRecord | None = None,
     ) -> dict[str, str]:
         if config is not None:
-            self._sync_override(config)
-            if self._headers_off(config):
+            override = self._sync_override(
+                config, self._current_override() if override is None else override
+            )
+            if self._headers_off(config, override):
                 return {}
         elif not self.enabled:
             return {}
 
-        cache_key = self._generate_cache_key(request_path, config)
-        headers, is_new = self._headers_for(config, cache_key)
+        cache_key = self._generate_cache_key(request_path, config, override)
+        headers, is_new = self._headers_for(config, cache_key, override)
 
         if is_new and self.agent_handler and request_path:
             self._send_headers_applied_event(request_path, headers)
@@ -182,8 +196,9 @@ class SecurityHeadersManager(
         self,
         request_path: str | None = None,
         config: SecurityConfig | None = None,
+        override: OverrideRecord | None = None,
     ) -> tuple[dict[str, str], frozenset[str]]:
-        headers = self.get_headers(request_path, config)
+        headers = self.get_headers(request_path, config, override)
         forced = headers.forced if isinstance(headers, ResolvedHeaders) else frozenset()
         return headers, forced
 

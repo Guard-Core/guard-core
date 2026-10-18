@@ -48,11 +48,15 @@ class SecurityHeadersCacheMixin:
     def _validate_header_value(self, value: str) -> str: ...
 
     def _generate_cache_key(
-        self, request_path: str | None, config: SecurityConfig | None = None
+        self,
+        request_path: str | None,
+        config: SecurityConfig | None = None,
+        override: OverrideRecord | None = None,
     ) -> str:
         if config is not None:
             content = json.dumps(config.security_headers, sort_keys=True, default=str)
-            content += override_fingerprint(self._current_override().keys)
+            current = self._current_override() if override is None else override
+            content += override_fingerprint(current.keys)
             return f"cfg_{hashlib.sha256(content.encode()).hexdigest()[:32]}"
         if not request_path:
             return "default"

@@ -40,6 +40,15 @@ def now_monotonic() -> float:
     return time.monotonic()
 
 
+def wall_now() -> float:
+    return time.time()
+
+
+def corrected_wall_now() -> float:
+    # The local wall clock moved onto Redis time by the offset the worker measured.
+    return wall_now() + PROCESS_OVERRIDE.clock_offset
+
+
 _WALL_ANCHOR = time.time()
 _MONOTONIC_ANCHOR = time.monotonic()
 
@@ -59,7 +68,8 @@ class OverrideRecord:
     def ordered_at(self) -> float:
         # A record stamped further ahead than any plausible clock skew (a clock
         # that jumped forward, or a frozen one) must not outrank every later call.
-        if self.set_at > approximate_now() + MAX_CLOCK_SKEW_SECONDS:
+        corrected = approximate_now() + PROCESS_OVERRIDE.clock_offset
+        if self.set_at > corrected + MAX_CLOCK_SKEW_SECONDS:
             return 0.0
         return self.set_at
 
@@ -79,6 +89,7 @@ class _ProcessOverride:
     def __init__(self) -> None:
         self.record = OverrideRecord(0.0, {})
         self.reset_epoch = 0
+        self.clock_offset = 0.0
 
 
 PROCESS_OVERRIDE = _ProcessOverride()

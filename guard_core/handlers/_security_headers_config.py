@@ -227,7 +227,7 @@ class SecurityHeadersConfigMixin:
         self.custom_headers = self._compute_custom_headers(custom_headers)
 
     def _resolve_headers_state(
-        self, config: SecurityConfig | None
+        self, config: SecurityConfig | None, current: OverrideRecord | None = None
     ) -> tuple[
         dict[str, list[str]] | None,
         dict[str, Any] | None,
@@ -242,7 +242,7 @@ class SecurityHeadersConfigMixin:
                 self.custom_headers,
             )
 
-        override = self._current_override().keys
+        override = (self._current_override() if current is None else current).keys
         base = effective_security_headers_config(config.security_headers)
         if base is None:
             base = default_security_headers_config() if override.get("enabled") else {}
