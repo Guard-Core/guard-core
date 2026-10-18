@@ -10,6 +10,9 @@ from guard_core.core.initialization._headers_manager_attach import (
 from guard_core.core.initialization._route_limit_report import (
     report_route_limits_with_global_switch_off,
 )
+from guard_core.core.initialization._whitelist_strikes import (
+    reset_strikes_for_changed_whitelist,
+)
 from guard_core.exceptions import GuardRedisError
 from guard_core.protocols.cloud_ip_store_protocol import CloudIpStoreProtocol
 
@@ -178,6 +181,9 @@ class _HandlerInitializerStepsMixin:
 
         await self._initialize_cloud_and_geo_redis()
         await ip_ban_manager.initialize_redis(self.redis_handler)
+        await reset_strikes_for_changed_whitelist(
+            self.config, self.redis_handler, ip_ban_manager
+        )
 
         if self.rate_limit_handler is not None:
             await self.rate_limit_handler.initialize_redis(self.redis_handler)

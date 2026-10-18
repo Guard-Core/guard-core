@@ -253,6 +253,11 @@ def clear_by_ip_strikes() -> None:
         _by_ip_autoban_counts.clear()
 
 
+def clear_by_ip_request_windows() -> None:
+    with _by_ip_lock:
+        _by_ip_request_timestamps.clear()
+
+
 def forget_by_ip_strikes_inside(covers: Callable[[str], bool]) -> None:
     with _by_ip_autoban_lock:
         for client_ip in tuple(_by_ip_autoban_counts):
@@ -839,19 +844,32 @@ class RateLimitManager:
             self.logger.error(f"Failed to reset Redis rate limits: {str(e)}")
         return False
 
+    def _process_state_to_clear(self) -> list[str]:
+        from guard_core.sync.core.checks._strike_forget import has_category_strikes
+
+        parts = []
+        if self.request_timestamps:
+            parts.append("this config object's own request windows")
+        if _by_ip_request_timestamps:
+            parts.append("the by-IP primitive's request windows")
+        if _by_ip_autoban_counts or has_category_strikes("rate_limit"):
+            parts.append("the process-wide rate-limit strikes")
+        return parts
+
     def reset(self) -> None:
         apps = self._guarded_apps_to_reset()
+        cleared = self._process_state_to_clear()
         self.request_timestamps.clear()
         for app in apps:
             app.request_timestamps.clear()
+        clear_by_ip_request_windows()
         redis_cleared = self._clear_redis_state(
             apps, [_RATE_WINDOWS_PATTERN, _VIOLATIONS_PATTERN]
         )
-        if not apps and not redis_cleared:
-            self.logger.warning(
-                "this config object is not the one any guarded app was built "
-                "with; reset() cleared nothing"
-            )
+        if redis_cleared:
+            cleared.append("the Redis rate-limit windows and strikes")
+        if not apps:
+            self._warn_unbound_reset(cleared)
         from guard_core.sync.core.checks._strike_forget import forget_category_strikes
 
         clear_by_ip_strikes()
@@ -866,6 +884,20 @@ class RateLimitManager:
                 "reset() also cleared the rate-limit auto-ban strikes (process "
                 "memory); detection strikes and active bans are kept"
             )
+
+    def _warn_unbound_reset(self, cleared: list[str]) -> None:
+        if not cleared:
+            self.logger.warning(
+                "this config object is not the one any guarded app was built "
+                "with; reset() cleared nothing"
+            )
+            return
+        self.logger.warning(
+            "this config object is not the one any guarded app was built "
+            "with; no in-process request window of a guarded app was cleared "
+            "(cleared: %s)",
+            ", ".join(cleared),
+        )
 
 
 rate_limit_handler = RateLimitManager

@@ -21,6 +21,17 @@ from guard_core.models import SecurityConfig
 from tests.conftest import REDIS_URL, MockGuardRequest, MockGuardResponse
 
 DETECT = "guard_core.core.checks.implementations.suspicious_activity"
+
+
+@pytest.fixture(autouse=True)
+def clean_rate_limit_process_state() -> None:
+    from guard_core.core.checks._strike_forget import forget_category_strikes
+
+    ratelimit_handler.clear_by_ip_strikes()
+    ratelimit_handler.clear_by_ip_request_windows()
+    forget_category_strikes("rate_limit")
+
+
 INSIDE = "198.51.100.10"
 OUTSIDE = "203.0.113.10"
 

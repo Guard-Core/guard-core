@@ -146,7 +146,12 @@ class IpBanQueryMixin(IpBanEventMixin, IpBanRuleExemptionMixin):
         except Exception as e:
             self.logger.warning("Redis strikes of %s could not be cleared: %s", ip, e)
 
-    async def forget_strikes_inside(self, entries: Iterable[str]) -> None:
+    async def forget_strikes_of_ip(self, ip: str) -> None:
+        await self._forget_strikes(_canonicalize_ip(ip))
+
+    async def forget_strikes_inside(
+        self, entries: Iterable[str], strict: bool = False
+    ) -> None:
         networks = [ipaddress.ip_network(entry, strict=False) for entry in entries]
         if not networks:
             return

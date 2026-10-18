@@ -54,6 +54,19 @@ def forget_category_strikes(category: str) -> None:
                     del counts[client_ip]
 
 
+def has_category_strikes(category: str) -> bool:
+    from guard_core.sync.core.checks.helpers import _suspicious_counts_lock
+
+    for middleware in _registered_middlewares():
+        with _suspicious_counts_lock:
+            if any(
+                category in ip_counts
+                for ip_counts in middleware.suspicious_request_counts.values()
+            ):
+                return True
+    return False
+
+
 def forget_identities_inside(covers: Callable[[str], bool]) -> None:
     from guard_core.sync.core.checks.helpers import _suspicious_counts_lock
 

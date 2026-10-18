@@ -495,6 +495,14 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "logs only the Redis exception text of the range strike clear; never "
         "header, query or body content"
     ),
+    "core/initialization/_whitelist_strikes.py:reset_strikes_for_changed_whitelist": (
+        "logs only the Redis exception text of the startup whitelist strike "
+        "reset; never header, query or body content"
+    ),
+    "handlers/ratelimit_handler.py:RateLimitManager._warn_unbound_reset": (
+        "static text plus the list of what the reset cleared (fixed phrases); "
+        "never header, query or body content"
+    ),
     "handlers/_ipban_queries.py:IpBanQueryMixin._forget_all_strikes": (
         "logs only the Redis exception text of the strike clear; never header, "
         "query or body content"

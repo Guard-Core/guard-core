@@ -26,7 +26,7 @@ await handler.reset()
 
 `reset()` clears the request windows and the rate-limit auto-ban strikes, and nothing else:
 
-- Request windows: the in-memory windows and the Redis `{redis_prefix}rate_limit:rate:*` keys.
+- Request windows: the in-memory windows, the in-memory windows of the public `check_rate_limit_by_ip` primitive (process-wide, so it gives the same result with and without Redis) and the Redis `{redis_prefix}rate_limit:rate:*` keys.
 - Rate-limit strikes: the process-wide in-memory counters (`check_rate_limit_by_ip`'s own counter and the `rate_limit` category of every guarded middleware's `suspicious_request_counts`) and the Redis `{redis_prefix}rate_limit:violations:*` keys, so one more 429 cannot ban an IP on strikes from before the reset. One log line says so.
 - Not cleared: the detection strikes (`{redis_prefix}detection:strikes*` and the detection categories in memory) and the active bans. `ip_ban_manager.reset()` and `unban_ip()` clear those, bans and strikes of both families together.
 - Process-wide and across workers: the memory part reaches the whole process, the Redis part every worker that shares the Redis prefix. Redis is walked with `SCAN` and cleared with `UNLINK` in batches, never `KEYS`.
@@ -38,7 +38,7 @@ Which app a reset reaches, in this order:
 1. The app built from that config object (pass the app's own config object).
 2. Otherwise every guarded app built with an equal config (`==` on the config objects): one WARNING with the count and the apps. An equal config resets every equal app.
 3. Otherwise, with Redis on, the Redis windows and strikes under `{redis_prefix}` are cleared through a short-lived Redis client of their own (never the shared `RedisManager`).
-4. Otherwise one WARNING (`this config object is not the one any guarded app was built with; reset() cleared nothing`). The rate-limit strikes of the process are cleared in every case, and the log line after the reset names Redis only when Redis was cleared.
+4. Otherwise one WARNING that begins `this config object is not the one any guarded app was built with;`. When nothing at all was cleared it ends `reset() cleared nothing`; otherwise it says that no in-process request window of a guarded app was cleared and lists what was (this config object's own windows, the by-IP primitive's windows, the process-wide rate-limit strikes, the Redis windows and strikes). The log line after the reset names Redis only when Redis was cleared.
 
 ```python
 class RateLimitManager:

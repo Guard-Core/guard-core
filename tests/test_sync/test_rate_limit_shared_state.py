@@ -21,6 +21,16 @@ from guard_core.sync.handlers.ratelimit_handler import (
 from guard_core.sync.handlers.redis_handler import RedisManager
 from tests.test_sync.conftest import REDIS_URL, MockGuardResponse, SyncMockGuardRequest
 
+
+@pytest.fixture(autouse=True)
+def clean_rate_limit_process_state() -> None:
+    from guard_core.sync.core.checks._strike_forget import forget_category_strikes
+
+    ratelimit_handler.clear_by_ip_strikes()
+    ratelimit_handler.clear_by_ip_request_windows()
+    forget_category_strikes("rate_limit")
+
+
 UNBOUND_RESET_WARNING = (
     "this config object is not the one any guarded app was built with; "
     "reset() cleared nothing"

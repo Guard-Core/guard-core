@@ -24,6 +24,17 @@ from guard_core.sync.handlers.redis_handler import RedisManager
 from tests.test_sync.conftest import REDIS_URL, MockGuardResponse, SyncMockGuardRequest
 
 DETECT = "guard_core.sync.core.checks.implementations.suspicious_activity"
+
+
+@pytest.fixture(autouse=True)
+def clean_rate_limit_process_state() -> None:
+    from guard_core.sync.core.checks._strike_forget import forget_category_strikes
+
+    ratelimit_handler.clear_by_ip_strikes()
+    ratelimit_handler.clear_by_ip_request_windows()
+    forget_category_strikes("rate_limit")
+
+
 INSIDE = "198.51.100.10"
 OUTSIDE = "203.0.113.10"
 

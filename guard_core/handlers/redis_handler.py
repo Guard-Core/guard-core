@@ -313,6 +313,18 @@ class RedisManager:
         result = await self.safe_operation(_set)
         return False if result is None else bool(result)
 
+    async def set_key_if_absent(
+        self, namespace: str, key: str, value: Any, ttl: int
+    ) -> bool:
+        if not self.config.enable_redis:
+            return False
+
+        async def _set(conn: Redis) -> bool:
+            full_key = f"{self.config.redis_prefix}{namespace}:{key}"
+            return bool(await conn.set(full_key, value, nx=True, ex=ttl))
+
+        return bool(await self.safe_operation(_set))
+
     async def incr(
         self, namespace: str, key: str, ttl: int | None = None
     ) -> int | None:

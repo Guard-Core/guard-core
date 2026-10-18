@@ -39,6 +39,15 @@ DETECT = "guard_core.sync.core.checks.implementations.suspicious_activity"
 THRESHOLD = 5
 
 
+@pytest.fixture(autouse=True)
+def clean_rate_limit_process_state() -> None:
+    from guard_core.sync.core.checks._strike_forget import forget_category_strikes
+
+    ratelimit_handler.clear_by_ip_strikes()
+    ratelimit_handler.clear_by_ip_request_windows()
+    forget_category_strikes("rate_limit")
+
+
 def _config(**overrides: Any) -> SecurityConfig:
     values: dict[str, Any] = {
         "enable_redis": True,
