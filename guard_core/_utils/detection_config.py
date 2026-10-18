@@ -105,6 +105,8 @@ _GENERIC_EXCLUDED_HEADER_SKIP_CATEGORIES: frozenset[str] = frozenset()
 _HEADER_CATEGORY_EXCLUSIONS: dict[str, frozenset[str]] = {
     "host": _ADDRESS_HEADER_SKIP_CATEGORIES,
     "origin": _ADDRESS_HEADER_SKIP_CATEGORIES,
+    "referer": _ADDRESS_HEADER_SKIP_CATEGORIES,
+    "user-agent": _ADDRESS_HEADER_SKIP_CATEGORIES,
     "x-forwarded-for": _ADDRESS_HEADER_SKIP_CATEGORIES,
     "x-forwarded-host": _ADDRESS_HEADER_SKIP_CATEGORIES,
     "x-real-ip": _ADDRESS_HEADER_SKIP_CATEGORIES,
