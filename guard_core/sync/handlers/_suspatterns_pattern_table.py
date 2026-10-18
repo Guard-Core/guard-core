@@ -137,6 +137,13 @@ NOISE_PRONE_PATTERN_SOURCES: frozenset[str] = frozenset(
 
 _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
     (r"<script[^>]*>[^<]*<\/script\s*>", _CTX_XSS, "xss"),
+    (
+        r"<script(?=[\s/>])(?![^<]{0,256}<\/script\s*>)(?:[^>]{0,256}\bsrc\s*="
+        r"|[^>]{0,256}>\s*(?:(?:var|let|const|new|function|await|return)\s+)?"
+        r"[\w$.]+\s*[(=.\[])",
+        _CTX_XSS,
+        "xss",
+    ),
     (r"javascript:\s*[^\s]+", _CTX_XSS, "xss"),
     (_XSS_JS_SCHEME_CTRL_CHAR_RE, _CTX_XSS, "xss"),
     (
