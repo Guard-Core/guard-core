@@ -1101,7 +1101,7 @@ async def test_a_failed_save_logs_the_error_and_keeps_the_override_unsaved(
         "Failed to save the security headers override: redis is down"
     )
     assert manager._override_saved_at == 0.0
-    assert manager._override_in_redis is False
+    assert vars(manager)["_override_in_redis"] is False
     assert manager._override_save_retry_at == clock.now + 5.0
 
 
@@ -2997,3 +2997,68 @@ async def test_a_cleared_override_in_redis_is_adopted_into_the_process_cache(
     cached = PULLED_OVERRIDES[str(_hash_of(manager))]
     assert isinstance(cached, override_module.OverrideRecord)
     assert cached.keys == {}
+
+
+@pytest.mark.parametrize(
+    ("startup_hash", "handler", "dirty"),
+    [("abc", None, False), (None, FakeRedis(), False), ("abc", FakeRedis(), True)],
+)
+def test_a_configure_marks_the_own_state_dirty_only_when_bound_to_redis(
+    startup_hash: str | None, handler: Any, dirty: bool
+) -> None:
+    manager = SecurityHeadersManager.isolated()
+    manager._startup_hash = startup_hash
+    manager.redis_handler = handler
+
+    manager.configure(csp=GLOBAL_CSP)
+
+    assert manager._own_state_dirty is dirty
+
+
+def test_resetting_an_app_manager_clears_its_state_and_its_process_cache_entry() -> (
+    None
+):
+    manager = SecurityHeadersManager.isolated()
+    manager._startup_hash = "abc"
+    manager._redis_initialized = True
+    manager._own_state_dirty = True
+    manager._override_in_redis = True
+    manager._override_next_lookup = 99.0
+    manager._override_next_pull = 99.0
+    PULLED_OVERRIDES["abc"] = override_module.OverrideRecord(time.time(), {"a": 1})
+    before = manager._override.ordered_at()
+
+    manager._reset_override()
+
+    assert "abc" not in PULLED_OVERRIDES
+    assert _hash_of(manager) is None
+    assert vars(manager)["_redis_initialized"] is False
+    assert vars(manager)["_own_state_dirty"] is False
+    assert vars(manager)["_override_in_redis"] is False
+    assert vars(manager)["_override_next_lookup"] == 0.0
+    assert vars(manager)["_override_next_pull"] == 0.0
+    assert manager._override.keys == {}
+    assert manager._override.ordered_at() > before
+    assert manager._override_epoch == override_module.PROCESS_OVERRIDE.reset_epoch
+
+
+async def test_an_override_pulled_after_a_global_reset_stays_applied(
+    clock: Clock,
+) -> None:
+    redis = FakeRedis()
+    config = _config()
+    app = _app(config, redis=redis)
+    await _response(app)
+    await security_headers_manager.reset()
+    redis.store[
+        f"t:security_headers:override:{_hash_of(app.security_headers_manager)}"
+    ] = override_module.OverrideRecord(
+        time.time() + 10, {"frame_options": "SAMEORIGIN"}
+    ).to_json()
+    clock.now += 5.0
+
+    first = await _response(app)
+    second = await _response(app)
+
+    assert first["X-Frame-Options"] == "SAMEORIGIN"
+    assert second["X-Frame-Options"] == "SAMEORIGIN"
