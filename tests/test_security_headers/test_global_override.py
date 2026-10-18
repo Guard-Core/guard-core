@@ -703,3 +703,18 @@ async def test_an_empty_override_never_touches_a_redis_it_never_wrote(
     await _response(app)
 
     assert redis.sets == 0
+
+
+async def test_a_call_with_override_apps_false_configures_only_the_manager(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    app = _app()
+
+    with caplog.at_level(logging.DEBUG, logger=LOGGER):
+        security_headers_manager.configure(csp=GLOBAL_CSP, override_apps=False)
+
+    assert caplog.records == []
+    assert override_module.PROCESS_OVERRIDE.record.keys == {}
+    assert (await _response(app))["Content-Security-Policy"].endswith("app.example")
+    manager_headers = await security_headers_manager.get_headers()
+    assert manager_headers["Content-Security-Policy"].endswith("global.example")

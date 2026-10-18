@@ -298,6 +298,7 @@ class SecurityHeadersConfigMixin:
         cors_allow_credentials: bool = False,
         cors_allow_methods: list[str] | None = None,
         cors_allow_headers: list[str] | None = None,
+        override_apps: bool = True,
     ) -> None:
         passed = override_from_call(
             enabled=enabled,
@@ -332,4 +333,5 @@ class SecurityHeadersConfigMixin:
             permissions_policy,
         )
         self._add_custom_headers(passed_or(custom_headers, None))
-        self._record_override_from_call(passed)
+        if override_apps:
+            self._record_override_from_call(passed)
