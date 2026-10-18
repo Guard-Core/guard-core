@@ -94,6 +94,14 @@ def _evaluate_country_access(country: str, config: Any) -> tuple[bool, str]:
     return False, "not_affected"
 
 
+async def _load_geo_database(geo_ip_handler: GeoIPHandler) -> None:
+    schedule_database_load = getattr(geo_ip_handler, "schedule_database_load", None)
+    if schedule_database_load is None:
+        await geo_ip_handler.initialize()
+        return
+    schedule_database_load()
+
+
 async def _resolve_country_verdict(
     ip: str, config: Any, geo_ip_handler: GeoIPHandler
 ) -> tuple[bool, str | None]:
@@ -106,7 +114,7 @@ async def _resolve_country_verdict(
         return False, None
 
     if not geo_ip_handler.is_initialized:
-        await geo_ip_handler.initialize()
+        await _load_geo_database(geo_ip_handler)
 
     country = geo_ip_handler.get_country(ip)
 

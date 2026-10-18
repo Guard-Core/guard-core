@@ -42,6 +42,10 @@ class IPInfoManager:
     _max_age: int
     last_refreshed: datetime | None = None
     _initialization_attempted: bool = False
+    _RETRY_BACKOFF_SECONDS: float = 60.0
+    _last_attempt_at: float | None = None
+    _background_in_flight: bool = False
+    _background_task: asyncio.Task[None] | None = None
 
     def __new__(
         cls: type["IPInfoManager"],
@@ -63,6 +67,9 @@ class IPInfoManager:
             cls._instance._max_age = max_age
             cls._instance.last_refreshed = None
             cls._instance._initialization_attempted = False
+            cls._instance._last_attempt_at = None
+            cls._instance._background_in_flight = False
+            cls._instance._background_task = None
 
         cls._instance.token = token
         if db_path is not None:
@@ -117,7 +124,33 @@ class IPInfoManager:
                 tmp_path.unlink()
             raise
 
+    def _is_backing_off(self) -> bool:
+        return (
+            self._last_attempt_at is not None
+            and time.monotonic() - self._last_attempt_at < self._RETRY_BACKOFF_SECONDS
+        )
+
+    def schedule_database_load(self) -> None:
+        if self._background_in_flight or self._is_backing_off():
+            return
+        self._background_in_flight = True
+        load = self._load_in_background
+        try:
+            self._background_task = asyncio.create_task(load())
+        except RuntimeError:
+            self.logger.exception("Could not schedule the GeoIP database load")
+            self._background_in_flight = False
+
+    async def _load_in_background(self) -> None:
+        try:
+            await self.initialize()
+        except Exception:
+            self.logger.exception("Background GeoIP database load failed")
+        finally:
+            self._background_in_flight = False
+
     async def initialize(self) -> None:
+        self._last_attempt_at = time.monotonic()
         try:
             os.makedirs(self.db_path.parent, exist_ok=True)
 
