@@ -132,6 +132,7 @@ def test_unban_survives_expiry_between_membership_check_and_delete() -> None:
         ("banned_ips", "172.16.10.4"),
         ("rate_limit", "violations:172.16.10.4"),
         ("detection_strikes", "172.16.10.4"),
+        ("recidive", "172.16.10.4"),
     ]
     agent.send_event.assert_called_once()
 
@@ -155,5 +156,6 @@ def test_unban_expired_entry_is_noop_and_side_effects_still_run() -> None:
         ("banned_ips", "172.16.10.5"),
         ("rate_limit", "violations:172.16.10.5"),
         ("detection_strikes", "172.16.10.5"),
+        ("recidive", "172.16.10.5"),
     ]
     agent.send_event.assert_called_once()

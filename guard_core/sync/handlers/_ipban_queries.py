@@ -108,8 +108,7 @@ class IpBanQueryMixin(
         try:
             forget_shared_violations(self.redis_handler, ip)
             self.redis_handler.forget_detection_strikes(ip)
-            if getattr(self.config, "enable_recidive", False):
-                self.redis_handler.delete("recidive", ip)
+            self.redis_handler.delete("recidive", ip)
         except Exception as e:
             if strict:
                 raise

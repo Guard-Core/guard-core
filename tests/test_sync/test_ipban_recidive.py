@@ -544,3 +544,23 @@ def test_an_active_ban_in_redis_is_replaced_and_not_counted(
     stored = float(live_redis.get_key("banned_ips", HOST))
     assert 90 < stored - time.time() <= 100
     assert live_redis.get_key("recidive", HOST) is None
+
+
+def test_an_unban_while_the_flag_is_off_still_forgets_the_history(
+    live_redis: RedisManager,
+) -> None:
+    prefix = live_redis.config.redis_prefix
+    on = SecurityConfig(redis_url=REDIS_URL, redis_prefix=prefix, enable_recidive=True)
+    off = SecurityConfig(redis_url=REDIS_URL, redis_prefix=prefix)
+    manager = _manager()
+    manager.redis_handler = live_redis
+    manager.config = on
+    manager._ban_ip_escalating(HOST, 100, "t")
+    manager.config = off
+
+    manager.unban_ip(HOST)
+    manager.config = on
+    manager._ban_ip_escalating(HOST, 100, "t")
+
+    stored = float(live_redis.get_key("banned_ips", HOST))
+    assert 90 < stored - time.time() <= 100
