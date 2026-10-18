@@ -544,3 +544,21 @@ async def test_reset_tolerates_a_keys_reply_of_none_and_logs_a_failure(
     assert [r.getMessage() for r in caplog.records] == [
         "Failed to reset Redis rate limits: boom"
     ]
+
+
+async def test_the_script_is_loaded_only_when_redis_is_enabled_and_present(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    disabled = RateLimitManager(_config())
+    handler = _RedisHandler(conn=MagicMock())
+    handler.conn.script_load = AsyncMock(return_value="sha")
+    absent = RateLimitManager(_config(enable_redis=True, redis_url="redis://x:1"))
+
+    with caplog.at_level(logging.INFO, logger=HANDLER_LOGGER):
+        await disabled.initialize_redis(handler)
+        await absent.initialize_redis(None)
+
+    handler.conn.script_load.assert_not_awaited()
+    assert disabled.rate_limit_script_sha is None
+    assert absent.rate_limit_script_sha is None
+    assert caplog.records == []
