@@ -217,8 +217,9 @@ class CloudManager:
                     self.last_updated[provider] = datetime.now(timezone.utc)
             except Exception as e:
                 self.logger.error(f"Failed to fetch {provider} IP ranges: {str(e)}")
-                self.ip_ranges[provider] = set()
-                self.network_regions[provider] = {}
+                if provider not in self.ip_ranges:
+                    self.ip_ranges[provider] = set()
+                    self.network_regions[provider] = {}
 
     def initialize_redis(
         self,
