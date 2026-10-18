@@ -88,6 +88,26 @@ def test_apply_security_headers_none() -> None:
     assert result is resp
 
 
+def test_apply_security_headers_with_a_resolved_override() -> None:
+    factory = _make_factory(security_headers={"enabled": True})
+    override = factory.security_headers_manager.resolve_override()
+    resp = MockGuardResponse("ok", 200)
+    result = factory.apply_security_headers(resp, "/test", override)
+    assert result.headers["X-Content-Type-Options"] == "nosniff"
+
+
+def test_apply_cors_headers_with_a_resolved_override() -> None:
+    factory = _make_factory(
+        security_headers={"enabled": True},
+        enable_cors=True,
+        cors_allow_origins=["https://example.com"],
+    )
+    override = factory.security_headers_manager.resolve_override()
+    resp = MockGuardResponse("ok", 200)
+    result = factory.apply_cors_headers(resp, "https://example.com", override)
+    assert result.headers["Access-Control-Allow-Origin"] == "https://example.com"
+
+
 def test_apply_cors_headers() -> None:
     factory = _make_factory(
         security_headers={"enabled": True},
