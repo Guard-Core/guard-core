@@ -676,12 +676,12 @@ async def test_apply_action_ban(security_config: SecurityConfig) -> None:
         patch("guard_core.handlers.ipban_handler.ip_ban_manager") as mock_ban_manager,
         patch.object(tracker.logger, "warning") as mock_logger,
     ):
-        mock_ban_manager.ban_ip = AsyncMock()
+        mock_ban_manager._ban_ip_escalating = AsyncMock()
 
         await tracker.apply_action(rule, "192.168.1.1", "/api/test", "Test violation")
 
-        mock_ban_manager.ban_ip.assert_awaited_once_with(
-            "192.168.1.1", 3600, "behavioral_violation"
+        mock_ban_manager._ban_ip_escalating.assert_awaited_once_with(
+            "192.168.1.1", 3600, "behavioral_violation", grouped=False
         )
         mock_logger.assert_called_once()
 
@@ -747,7 +747,7 @@ async def test_apply_action_ban_respects_log_suspicious_level(
         patch("guard_core.handlers.ipban_handler.ip_ban_manager") as mock_ban_manager,
         patch.object(tracker.logger, "error") as mock_logger,
     ):
-        mock_ban_manager.ban_ip = AsyncMock()
+        mock_ban_manager._ban_ip_escalating = AsyncMock()
 
         await tracker.apply_action(rule, "192.168.1.1", "/api/test", "Test violation")
 
@@ -766,12 +766,12 @@ async def test_apply_action_ban_silenced_when_log_suspicious_level_none(
         patch("guard_core.handlers.ipban_handler.ip_ban_manager") as mock_ban_manager,
         patch.object(tracker.logger, "warning") as mock_warning,
     ):
-        mock_ban_manager.ban_ip = AsyncMock()
+        mock_ban_manager._ban_ip_escalating = AsyncMock()
 
         await tracker.apply_action(rule, "192.168.1.1", "/api/test", "Test violation")
 
-        mock_ban_manager.ban_ip.assert_awaited_once_with(
-            "192.168.1.1", 3600, "behavioral_violation"
+        mock_ban_manager._ban_ip_escalating.assert_awaited_once_with(
+            "192.168.1.1", 3600, "behavioral_violation", grouped=False
         )
         mock_warning.assert_not_called()
 
@@ -799,7 +799,7 @@ async def test_execute_ban_action_returns_false_when_refused(
     tracker = BehaviorTracker(security_config)
 
     with patch("guard_core.handlers.ipban_handler.ip_ban_manager") as mock_ban_manager:
-        mock_ban_manager.ban_ip = AsyncMock(return_value=False)
+        mock_ban_manager._ban_ip_escalating = AsyncMock(return_value=False)
 
         result = await tracker._execute_ban_action("192.168.1.1", "Test violation")
 
@@ -812,12 +812,12 @@ async def test_execute_ban_action_skips_ban_when_ip_banning_disabled() -> None:
     tracker = BehaviorTracker(config)
 
     with patch("guard_core.handlers.ipban_handler.ip_ban_manager") as mock_ban_manager:
-        mock_ban_manager.ban_ip = AsyncMock(return_value=True)
+        mock_ban_manager._ban_ip_escalating = AsyncMock(return_value=True)
 
         result = await tracker._execute_ban_action("192.168.1.1", "Test violation")
 
         assert result == "tracked"
-        mock_ban_manager.ban_ip.assert_not_awaited()
+        mock_ban_manager._ban_ip_escalating.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -827,7 +827,7 @@ async def test_execute_ban_action_returns_true_when_applied(
     tracker = BehaviorTracker(security_config)
 
     with patch("guard_core.handlers.ipban_handler.ip_ban_manager") as mock_ban_manager:
-        mock_ban_manager.ban_ip = AsyncMock(return_value=True)
+        mock_ban_manager._ban_ip_escalating = AsyncMock(return_value=True)
 
         result = await tracker._execute_ban_action("192.168.1.1", "Test violation")
 
@@ -845,12 +845,12 @@ async def test_apply_action_ban_refused_does_not_log_success(
         patch("guard_core.handlers.ipban_handler.ip_ban_manager") as mock_ban_manager,
         patch.object(tracker.logger, "warning") as mock_logger,
     ):
-        mock_ban_manager.ban_ip = AsyncMock(return_value=False)
+        mock_ban_manager._ban_ip_escalating = AsyncMock(return_value=False)
 
         await tracker.apply_action(rule, "192.168.1.1", "/api/test", "Test violation")
 
-        mock_ban_manager.ban_ip.assert_awaited_once_with(
-            "192.168.1.1", 3600, "behavioral_violation"
+        mock_ban_manager._ban_ip_escalating.assert_awaited_once_with(
+            "192.168.1.1", 3600, "behavioral_violation", grouped=False
         )
         mock_logger.assert_not_called()
 
@@ -864,7 +864,7 @@ async def test_apply_action_ban_refused_reports_tracked_in_event(
     rule = BehaviorRule(rule_type="usage", threshold=5, action="ban")
 
     with patch("guard_core.handlers.ipban_handler.ip_ban_manager") as mock_ban_manager:
-        mock_ban_manager.ban_ip = AsyncMock(return_value=False)
+        mock_ban_manager._ban_ip_escalating = AsyncMock(return_value=False)
 
         await tracker.apply_action(rule, "192.168.1.1", "/api/test", "Test violation")
 
@@ -882,7 +882,7 @@ async def test_apply_action_ban_applied_reports_ban_in_event(
     rule = BehaviorRule(rule_type="usage", threshold=5, action="ban")
 
     with patch("guard_core.handlers.ipban_handler.ip_ban_manager") as mock_ban_manager:
-        mock_ban_manager.ban_ip = AsyncMock(return_value=True)
+        mock_ban_manager._ban_ip_escalating = AsyncMock(return_value=True)
 
         await tracker.apply_action(rule, "192.168.1.1", "/api/test", "Test violation")
 

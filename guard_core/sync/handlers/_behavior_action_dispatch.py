@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from guard_core.models import SecurityConfig
+from guard_core.sync.handlers._behavior_throttle import behavior_client_identity
 from guard_core.sync.utils import _log_at_level
 
 if TYPE_CHECKING:
@@ -67,7 +68,10 @@ class BehaviorActionDispatchMixin:
             if rule is not None and rule.ban_duration is not None
             else 3600
         )
-        applied = ip_ban_manager.ban_ip(client_ip, duration, "behavioral_violation")
+        identity = behavior_client_identity(self.config, client_ip)
+        applied = ip_ban_manager._ban_ip_escalating(
+            identity, duration, "behavioral_violation", grouped="/" in identity
+        )
         if not applied:
             return "tracked"
         level = self.config.log_suspicious_level
@@ -75,7 +79,8 @@ class BehaviorActionDispatchMixin:
             _log_at_level(
                 self.logger,
                 level,
-                f"IP {client_ip} banned for behavioral violation: {details}",
+                f"IP {client_ip} banned for {applied} seconds for behavioral "
+                f"violation: {details}",
             )
         return "ban"
 

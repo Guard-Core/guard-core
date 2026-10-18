@@ -26,6 +26,7 @@ from guard_core.sync.handlers._behavior_throttle import (
     USAGE_NAMESPACE,
     BehaviorThrottleMixin,
     ReturnCorrelation,
+    behavior_client_identity,
     bucket_key,
     return_hits_key,
     rule_hit_ttl,
@@ -131,6 +132,7 @@ class BehaviorTracker(
     def get_recent_event_count(self, ip: str, window_seconds: int) -> int:
         if not ip:
             return 0
+        ip = behavior_client_identity(self.config, ip)
         cutoff = time.time() - window_seconds
         count = 0
         with self._lock:
@@ -156,6 +158,7 @@ class BehaviorTracker(
             return self.get_recent_event_count(ip, window_seconds)
         if not ip:
             return 0
+        ip = behavior_client_identity(self.config, ip)
         count: int = self.redis_handler.sum_indexed_window_hits(
             USAGE_NAMESPACE, self._rule_hit_index(ip)[0], time.time() - window_seconds
         )
@@ -168,6 +171,7 @@ class BehaviorTracker(
         rule: BehaviorRule,
         record: bool = True,
     ) -> bool:
+        client_ip = behavior_client_identity(self.config, client_ip)
         current_time = time.time()
         window_start = current_time - rule.window
 
@@ -223,6 +227,7 @@ class BehaviorTracker(
         if not rule.pattern:
             return False
 
+        client_ip = behavior_client_identity(self.config, client_ip)
         threshold = (
             effective_threshold if effective_threshold is not None else rule.threshold
         )

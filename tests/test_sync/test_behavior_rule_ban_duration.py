@@ -33,13 +33,13 @@ def test_execute_ban_action_uses_rule_ban_duration(
     )
     captured: dict[str, object] = {}
 
-    def fake_ban(ip: str, duration: int, reason: str) -> None:
+    def fake_ban(ip: str, duration: int, reason: str, *, grouped: bool = False) -> None:
         captured["ip"] = ip
         captured["duration"] = duration
         captured["reason"] = reason
 
     monkeypatch.setattr(
-        "guard_core.sync.handlers.ipban_handler.ip_ban_manager.ban_ip",
+        "guard_core.sync.handlers.ipban_handler.ip_ban_manager._ban_ip_escalating",
         fake_ban,
     )
     tracker._execute_ban_action("1.2.3.4", "details", rule)
@@ -53,11 +53,11 @@ def test_execute_ban_action_defaults_to_3600_when_rule_has_none(
     rule = BehaviorRule(rule_type="usage", threshold=1, action="ban")
     captured: dict[str, object] = {}
 
-    def fake_ban(ip: str, duration: int, reason: str) -> None:
+    def fake_ban(ip: str, duration: int, reason: str, *, grouped: bool = False) -> None:
         captured["duration"] = duration
 
     monkeypatch.setattr(
-        "guard_core.sync.handlers.ipban_handler.ip_ban_manager.ban_ip",
+        "guard_core.sync.handlers.ipban_handler.ip_ban_manager._ban_ip_escalating",
         fake_ban,
     )
     tracker._execute_ban_action("1.2.3.4", "details", rule)
@@ -70,11 +70,11 @@ def test_execute_ban_action_defaults_to_3600_when_no_rule_passed(
     tracker = BehaviorTracker(SecurityConfig())
     captured: dict[str, object] = {}
 
-    def fake_ban(ip: str, duration: int, reason: str) -> None:
+    def fake_ban(ip: str, duration: int, reason: str, *, grouped: bool = False) -> None:
         captured["duration"] = duration
 
     monkeypatch.setattr(
-        "guard_core.sync.handlers.ipban_handler.ip_ban_manager.ban_ip",
+        "guard_core.sync.handlers.ipban_handler.ip_ban_manager._ban_ip_escalating",
         fake_ban,
     )
     tracker._execute_ban_action("1.2.3.4", "details")

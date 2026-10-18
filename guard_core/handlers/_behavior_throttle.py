@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any
 from redis.exceptions import NoScriptError
 
 from guard_core._utils.identity_hash import _hash_identity_segment
+from guard_core._utils.ip_extraction import _client_identity
 from guard_core._utils.lru_store import _lru_pop_or_create
 from guard_core.exceptions import GuardRedisError
 from guard_core.models import SecurityConfig
@@ -40,6 +41,14 @@ def _warn_throttle_fail_open() -> None:
         "window (redis_fail_open=True); with several workers the effective "
         "limit is workers x threshold"
     )
+
+
+def behavior_client_identity(config: SecurityConfig, client_ip: str) -> str:
+    """The client every behavior counter, key and ban is kept under: the address
+    for IPv4 and ``ipv6_prefix_length`` 128, the network's CIDR text otherwise."""
+    if ":" not in client_ip:
+        return client_ip
+    return _client_identity(client_ip, config.ipv6_prefix_length)
 
 
 def _identity_suffix(scope_id: str, client_ip: str, rule: "BehaviorRule") -> str:
@@ -175,6 +184,7 @@ class BehaviorThrottleMixin:
         record_when_over: bool,
         process_categories: Callable[[], list[str]] | None = None,
     ) -> list[ThrottleTrip]:
+        client_ip = behavior_client_identity(self.config, client_ip)
         if self.redis_handler and self.redis_handler.config.enable_redis:
             trips = await self._redis_throttle(client_ip, checks, now, record_when_over)
             if trips is not None:

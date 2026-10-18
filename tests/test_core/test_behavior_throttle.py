@@ -1028,3 +1028,19 @@ async def test_route_return_throttle_refuses_over_redis(
             _throttle_rule(2, rule_type="return_pattern", pattern="status:404")
         )
         assert await _serve_404s(processor, clock, route, 4) == [404, 404, 404, 429]
+
+
+async def test_every_address_of_one_network_shares_one_throttle_episode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _Clock(monkeypatch)
+    config = _config()
+    processor, _, _ = _processor(config, BehaviorTracker(config))
+    rule = _throttle_rule(1, window=3600)
+    for ip in ("2001:db8:0:1::5", "2001:db8:0:1:ffff::9"):
+        for _ in range(3):
+            await processor.process_usage_rules(_request(), ip, _route(rule))
+
+    assert list(processor._throttle_refusals) == [
+        _behavior_throttle.trip_marker_key(_ENDPOINT, "2001:db8:0:1::/64", rule)
+    ]

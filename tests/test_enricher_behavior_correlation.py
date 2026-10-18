@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import pytest
 
 from guard_core.core.events.enricher import EnrichmentContext, EventEnricher
-from guard_core.handlers.behavior_handler import BehaviorTracker
+from guard_core.handlers.behavior_handler import BehaviorRule, BehaviorTracker
 from guard_core.models import SecurityConfig
 
 
@@ -149,3 +149,18 @@ async def test_enrich_event_reads_a_tracker_with_only_the_sync_method() -> None:
     assert event.metadata["guard.behavior.recent_event_count"] == 7
     assert tracker.calls == [("1.2.3.4", 300)]
     assert len(event.metadata["guard.behavior.correlation_key"]) == 16
+
+
+@pytest.mark.asyncio
+async def test_an_ipv6_clients_behavioral_hits_give_a_recent_event_count() -> None:
+    tracker = BehaviorTracker(SecurityConfig())
+    rule = BehaviorRule(rule_type="usage", threshold=100, window=60)
+    for client in ("2001:db8:0:1::5", "2001:db8:0:1:ffff::9"):
+        await tracker.track_endpoint_usage("/api", client, rule)
+    event = SimpleNamespace(
+        event_type="penetration_attempt", ip_address="2001:db8:0:1::5", metadata={}
+    )
+
+    await _enricher(tracker).enrich_event(event)
+
+    assert event.metadata["guard.behavior.recent_event_count"] == 2

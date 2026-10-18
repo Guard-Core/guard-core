@@ -14,6 +14,7 @@ from guard_core.sync.core.behavioral.context import BehavioralContext
 from guard_core.sync.handlers._behavior_throttle import (
     ThrottleCheck,
     ThrottleTrip,
+    behavior_client_identity,
     trip_marker_key,
 )
 from guard_core.sync.handlers.behavior_handler import BehaviorRule, config_to_rule
@@ -286,7 +287,12 @@ class BehavioralThrottleMixin:
         check = trip.check
         rule = check.rule
         refusals = self._refusals_to_report(
-            trip_marker_key(check.scope_id, client_ip, rule), trip.first_of_episode
+            trip_marker_key(
+                check.scope_id,
+                behavior_client_identity(self.context.config, client_ip),
+                rule,
+            ),
+            trip.first_of_episode,
         )
         if refusals is None:
             return
