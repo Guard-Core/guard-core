@@ -169,6 +169,17 @@ class SecurityHeadersManager(
         )
         return headers
 
+    async def _override_after_sync(
+        self, config: SecurityConfig, before: OverrideRecord
+    ) -> OverrideRecord:
+        if (
+            self.redis_handler is None
+            and not config.enable_redis
+            and before.event is None
+        ):
+            return before
+        return await self._sync_override(config, before)
+
     async def get_headers(
         self,
         request_path: str | None = None,
@@ -178,14 +189,7 @@ class SecurityHeadersManager(
     ) -> dict[str, str]:
         if config is not None:
             before = self._current_override() if override is None else override
-            if (
-                self.redis_handler is None
-                and not config.enable_redis
-                and before.event is None
-            ):
-                override = before
-            else:
-                override = await self._sync_override(config, before)
+            override = await self._override_after_sync(config, before)
             if (not checked or override is not before) and self._headers_off(
                 config, override
             ):
