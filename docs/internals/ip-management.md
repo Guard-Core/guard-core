@@ -24,7 +24,9 @@ class IPBanManager:
     def __new__(cls) -> "IPBanManager":
         if cls._instance is None:
             cls._instance = super().__new__(cls)
-            cls._instance.banned_ips = _BanStore(maxsize=10000, on_evict=cls._instance._on_eviction)
+            cls._instance.banned_ips = _BanStore(
+                maxsize=10000, on_evict=cls._instance._on_eviction
+            )
             cls._instance.redis_handler = None
             cls._instance.agent_handler = None
         return cls._instance
