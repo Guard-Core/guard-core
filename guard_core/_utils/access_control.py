@@ -294,16 +294,19 @@ def _malformed_forwarded_for_result(
 
 
 async def _check_ip_lists_detail(
-    ip_addr: Any, ip: str, config: Any
+    ip_addr: Any, ip: str, config: Any, skip_whitelist: bool = False
 ) -> IpAccessResult | None:
     reason = _GENERIC_LIST_BLOCK_REASON.format(ip=ip)
-    if config.whitelist:
-        if not await _check_whitelist(ip_addr, ip, config):
-            return IpAccessResult(
-                False, reason, denial_category=allow_list_miss_category("ip_list")
-            )
-    elif not await _check_blacklist(ip_addr, ip, config):
+    if config.blacklist and not await _check_blacklist(ip_addr, ip, config):
         return IpAccessResult(False, reason, denial_category="ip_list")
+    if (
+        config.whitelist
+        and not skip_whitelist
+        and not await _check_whitelist(ip_addr, ip, config)
+    ):
+        return IpAccessResult(
+            False, reason, denial_category=allow_list_miss_category("ip_list")
+        )
     return None
 
 
@@ -334,9 +337,10 @@ async def check_ip_access(
     skip_ip_lists: bool = False,
     skip_countries: bool = False,
     skip_clouds: bool = False,
+    skip_whitelist: bool = False,
 ) -> IpAccessResult:
     unknown_result = _check_unknown_identity_access(
-        ip, config, skip_ip_lists, skip_countries
+        ip, config, skip_ip_lists or skip_whitelist, skip_countries
     )
     if unknown_result is not None:
         return unknown_result
@@ -345,10 +349,12 @@ async def check_ip_access(
         ip_addr = ip_address(ip)
 
         if not skip_ip_lists:
-            list_result = await _check_ip_lists_detail(ip_addr, ip, config)
+            list_result = await _check_ip_lists_detail(
+                ip_addr, ip, config, skip_whitelist
+            )
             if list_result is not None:
                 return list_result
-            if _ip_in_list(ip_addr, ip, config.whitelist):
+            if not skip_whitelist and _ip_in_list(ip_addr, ip, config.whitelist):
                 skip_countries = True
                 skip_clouds = True
 
@@ -379,6 +385,7 @@ async def is_ip_allowed(
     skip_ip_lists: bool = False,
     skip_countries: bool = False,
     skip_clouds: bool = False,
+    skip_whitelist: bool = False,
 ) -> bool:
     result = await check_ip_access(
         ip,
@@ -387,5 +394,6 @@ async def is_ip_allowed(
         skip_ip_lists=skip_ip_lists,
         skip_countries=skip_countries,
         skip_clouds=skip_clouds,
+        skip_whitelist=skip_whitelist,
     )
     return result.allowed

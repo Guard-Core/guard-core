@@ -77,7 +77,7 @@ async def test_decorated_route_still_enforces_global_blacklist(
     assert event_call.kwargs["event_type"] == "ip_blocked"
 
 
-async def test_route_ip_whitelist_overrides_global_blacklist(
+async def test_route_ip_whitelist_does_not_override_global_blacklist(
     ip_security_check: IpSecurityCheck, security_config: SecurityConfig
 ) -> None:
     security_config.blacklist = ("1.2.3.4",)
@@ -87,7 +87,7 @@ async def test_route_ip_whitelist_overrides_global_blacklist(
 
     result = await ip_security_check.check(request)
 
-    assert result is None
+    assert result is not None
     assert request.state.is_whitelisted is False
 
 

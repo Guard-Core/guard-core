@@ -247,7 +247,7 @@ class IpSecurityCheck(SecurityCheck):
         client_ip: str,
         route_config: RouteConfig | None,
     ) -> tuple[IpAccessResult, bool, bool]:
-        skip_ip_lists = _route_overrides_ip_lists(route_config)
+        route_overrides_whitelist = _route_overrides_ip_lists(route_config)
         skip_countries = _route_country_whitelist_matched(
             client_ip, route_config, self.middleware.geo_ip_handler
         ) or (
@@ -259,16 +259,20 @@ class IpSecurityCheck(SecurityCheck):
             client_ip,
             self.config,
             self.middleware.geo_ip_handler,
-            skip_ip_lists=skip_ip_lists,
+            skip_whitelist=route_overrides_whitelist,
             skip_countries=skip_countries,
             skip_clouds=True,
         )
 
         is_whitelisted = _resolve_is_whitelisted(
-            client_ip, route_config, self.config, access_result.allowed, skip_ip_lists
+            client_ip,
+            route_config,
+            self.config,
+            access_result.allowed,
+            route_overrides_whitelist,
         )
         is_exempt = _resolve_is_exempt(
-            client_ip, self.config, access_result.allowed, skip_ip_lists
+            client_ip, self.config, access_result.allowed, route_overrides_whitelist
         )
         return access_result, is_whitelisted, is_exempt
 

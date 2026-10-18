@@ -393,15 +393,15 @@ def test_check_ip_access_whitelist_block_keeps_existing_reason() -> None:
     assert result.reason == "IP 192.168.1.1 not in global allowlist/blocklist"
 
 
-def test_check_ip_access_prefix_zero_whitelist_overrides_blacklist() -> None:
+def test_check_ip_access_prefix_zero_whitelist_does_not_override_blacklist() -> None:
     from guard_core.sync.utils import check_ip_access
 
     config = SecurityConfig(whitelist=["0.0.0.0/0"], blacklist=["1.2.3.4"])
 
     result = check_ip_access("1.2.3.4", config)
 
-    assert result.allowed is True
-    assert result.reason == ""
+    assert result.allowed is False
+    assert result.denial_category == "ip_list"
 
 
 def test_check_ip_access_loopback_passes_whitelist_countries_without_geoip() -> None:
@@ -556,6 +556,7 @@ def test_is_ip_allowed_signature_unchanged() -> None:
         "skip_ip_lists",
         "skip_countries",
         "skip_clouds",
+        "skip_whitelist",
     ]
     assert params["ip"].kind == inspect.Parameter.POSITIONAL_OR_KEYWORD
     assert params["config"].kind == inspect.Parameter.POSITIONAL_OR_KEYWORD
@@ -566,6 +567,8 @@ def test_is_ip_allowed_signature_unchanged() -> None:
     assert params["skip_countries"].default is False
     assert params["skip_clouds"].kind == inspect.Parameter.KEYWORD_ONLY
     assert params["skip_clouds"].default is False
+    assert params["skip_whitelist"].kind == inspect.Parameter.KEYWORD_ONLY
+    assert params["skip_whitelist"].default is False
     assert sig.return_annotation is bool
 
 

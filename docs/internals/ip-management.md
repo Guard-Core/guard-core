@@ -111,7 +111,7 @@ flowchart TD
 
 Step 5 is skipped with `skip_clouds=True`, for an IP in `config.whitelist`, and for an IP in `config.exempt_ips`, the same IPs `CloudProviderCheck` lets through.
 
-When `config.whitelist` is configured, it alone governs the IP-list gate, a whitelist match is allowed even if the same IP also falls inside `config.blacklist` (explicit allow overrides deny, since v3.2.0). The blacklist is only consulted when no whitelist is configured.
+The global blacklist always denies: an IP inside `config.blacklist` is denied even when it also matches `config.whitelist` or a route `ip_whitelist`. When `config.whitelist` is configured, an IP that is not on the blacklist must also match the whitelist. `bypass(["ip"])` on a route stays the one explicit override.
 
 ### Blacklist Check
 

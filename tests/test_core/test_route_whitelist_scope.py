@@ -39,7 +39,6 @@ def _req(rc: RouteConfig, ip: str = "1.2.3.4") -> Mock:
 async def test_route_whitelist_is_not_global_trust(_mock_log: Any) -> None:
     cfg = SecurityConfig()
     cfg.passive_mode = False
-    cfg.blacklist = ("1.2.3.4",)
     rc = RouteConfig()
     rc.ip_whitelist = ["1.2.3.4"]
     rc.rate_limit = 1
@@ -52,6 +51,24 @@ async def test_route_whitelist_is_not_global_trust(_mock_log: Any) -> None:
 
     assert result is None
     assert req.state.is_whitelisted is False
+
+
+@patch("guard_core.core.checks.implementations.ip_security.log_activity")
+async def test_route_whitelist_does_not_lift_the_global_blacklist(
+    _mock_log: Any,
+) -> None:
+    cfg = SecurityConfig()
+    cfg.passive_mode = False
+    cfg.blacklist = ("1.2.3.4",)
+    rc = RouteConfig()
+    rc.ip_whitelist = ["1.2.3.4"]
+
+    check = IpSecurityCheck(_mw(cfg))
+    with patch.object(check, "ip_ban_manager") as mock_ban_manager:
+        mock_ban_manager.is_ip_banned = AsyncMock(return_value=False)
+        result = await check.check(_req(rc))
+
+    assert result is not None
 
 
 async def test_route_whitelisted_ip_still_rate_limited() -> None:

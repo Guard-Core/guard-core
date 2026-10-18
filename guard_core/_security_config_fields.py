@@ -136,7 +136,8 @@ class _SecurityConfigFields(BaseModel):
         description=(
             "Allowed IP addresses or CIDR ranges. A non-empty whitelist is "
             "restrictive: only listed IPs pass the global IP check. An explicit "
-            "whitelist match overrides the blacklist; dynamic IP bans still apply."
+            "whitelist match does not lift the blacklist: a blacklisted entry is "
+            "denied under any allow-list, and dynamic IP bans still apply."
         ),
     )
 
