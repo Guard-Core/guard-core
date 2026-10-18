@@ -15,18 +15,21 @@ def _reset_singleton() -> Generator[None, None, None]:
     IPInfoManager._instance = None
 
 
-def _manager_with_cached_copy(tmp_path: Path, cached: bytes) -> IPInfoManager:
+def _manager_with_cached_copy(
+    tmp_path: Path, cached: bytes | str
+) -> tuple[IPInfoManager, Mock]:
     manager = IPInfoManager(token="tok", db_path=tmp_path / "db.mmdb")
-    manager.redis_handler = Mock()
-    manager.redis_handler.get_key = AsyncMock(return_value=cached)
-    manager.redis_handler.delete = AsyncMock(return_value=1)
-    return manager
+    redis = Mock()
+    redis.get_key = AsyncMock(return_value=cached)
+    redis.delete = AsyncMock(return_value=1)
+    manager.redis_handler = redis
+    return manager, redis
 
 
 async def test_a_corrupt_cached_database_is_dropped_and_downloaded_again(
     tmp_path: Path,
 ) -> None:
-    manager = _manager_with_cached_copy(tmp_path, b"not a database")
+    manager, redis = _manager_with_cached_copy(tmp_path, b"not a database")
     good_copy = country_database_bytes("CN")
 
     async def download() -> None:
@@ -37,13 +40,13 @@ async def test_a_corrupt_cached_database_is_dropped_and_downloaded_again(
 
     assert manager.is_initialized
     assert manager.get_country(CLIENT_IP) == "CN"
-    manager.redis_handler.delete.assert_awaited_once_with("ipinfo", "database")
+    redis.delete.assert_awaited_once_with("ipinfo", "database")
 
 
 async def test_a_valid_cached_database_is_used_without_a_download(
     tmp_path: Path,
 ) -> None:
-    manager = _manager_with_cached_copy(
+    manager, redis = _manager_with_cached_copy(
         tmp_path, country_database_bytes("CN").decode("latin-1")
     )
     download = AsyncMock()
@@ -53,4 +56,4 @@ async def test_a_valid_cached_database_is_used_without_a_download(
 
     assert manager.get_country(CLIENT_IP) == "CN"
     download.assert_not_awaited()
-    manager.redis_handler.delete.assert_not_awaited()
+    redis.delete.assert_not_awaited()

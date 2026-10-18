@@ -11,13 +11,13 @@ import requests
 from maxminddb import Reader
 
 from guard_core.sync.core.events.event_types import (
-    EVENT_COUNTRY_BLOCKED,
     EVENT_GEO_LOOKUP_FAILED,
 )
+from guard_core.sync.handlers._ipinfo_background import IpInfoBackgroundMixin
+from guard_core.sync.handlers._ipinfo_events import IpInfoEventsMixin
+from guard_core.sync.handlers._ipinfo_redis_copy import IpInfoRedisCopyMixin
 from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol
 from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
-
-_IPINFO_HANDLER_NAME = "ipinfo"
 
 
 def _describe_download_error(exc: BaseException) -> str:
@@ -30,7 +30,7 @@ def _describe_download_error(exc: BaseException) -> str:
     return type(exc).__name__
 
 
-class IPInfoManager:
+class IPInfoManager(IpInfoBackgroundMixin, IpInfoRedisCopyMixin, IpInfoEventsMixin):
     _instance = None
     _download_retries: int = 3
     token: str
@@ -120,25 +120,6 @@ class IPInfoManager:
             self._refresh_due = False
             self._arm_staleness_timer()
 
-    def _mark_refresh_due(self) -> None:
-        self._refresh_due = True
-
-    def _cancel_staleness_timer(self) -> None:
-        if self._staleness_timer is not None:
-            self._staleness_timer.cancel()
-            self._staleness_timer = None
-
-    def _arm_staleness_timer(self) -> None:
-        self._cancel_staleness_timer()
-        try:
-            age = time.time() - self.db_path.stat().st_mtime
-        except OSError:
-            return
-        timer = threading.Timer(max(self._max_age - age, 1.0), self._mark_refresh_due)
-        timer.daemon = True
-        timer.start()
-        self._staleness_timer = timer
-
     def _validate_database_file(self, path: Path) -> None:
         try:
             reader = maxminddb.open_database(str(path))
@@ -160,36 +141,6 @@ class IPInfoManager:
             if tmp_path.exists():
                 tmp_path.unlink()
             raise
-
-    def _is_backing_off(self) -> bool:
-        return (
-            self._last_attempt_at is not None
-            and time.monotonic() - self._last_attempt_at < self._RETRY_BACKOFF_SECONDS
-        )
-
-    def schedule_database_load(self) -> None:
-        if self._background_in_flight or self._is_backing_off():
-            return
-        self._background_in_flight = True
-        load = self._load_in_background
-        try:
-            self._background_task = threading.Thread(target=load, daemon=True)
-
-            self._background_task.start()
-        except RuntimeError:
-            self.logger.exception("Could not schedule the GeoIP database load")
-            self._background_in_flight = False
-
-    def _load_in_background(self) -> None:
-        try:
-            if self.reader is None:
-                self.initialize()
-            else:
-                self.refresh()
-        except Exception:
-            self.logger.exception("Background GeoIP database load failed")
-        finally:
-            self._background_in_flight = False
 
     def initialize(self) -> None:
         self._last_attempt_at = time.monotonic()
@@ -235,84 +186,6 @@ class IPInfoManager:
             "The load is retried every %d s.",
             int(self._RETRY_BACKOFF_SECONDS),
         )
-
-    def _adopt_redis_copy(self) -> bool:
-        if not self.redis_handler:
-            return False
-        try:
-            cached_db = self.redis_handler.get_key("ipinfo", "database")
-        except Exception as e:
-            self.logger.warning("Cached GeoIP database unavailable: %s", e)
-            return False
-        if not cached_db:
-            return False
-        try:
-            self._write_database_atomically(
-                cached_db
-                if isinstance(cached_db, bytes)
-                else cached_db.encode("latin-1")
-            )
-        except ValueError:
-            self._drop_cached_database(self.redis_handler)
-            return False
-        reader = self._open_database_or_none()
-        if reader is None:
-            self._drop_cached_database(self.redis_handler)
-            return False
-        self._apply_opened_reader(reader)
-        return True
-
-    def _drop_cached_database(self, redis_handler: SyncRedisHandlerProtocol) -> None:
-        self.logger.warning("Cached GeoIP database is unusable, downloading again")
-        try:
-            redis_handler.delete("ipinfo", "database")
-        except Exception as e:
-            self.logger.warning("Cached GeoIP database could not be dropped: %s", e)
-
-    def _send_geo_event(
-        self,
-        event_type: str,
-        ip_address: str,
-        action_taken: str,
-        reason: str,
-        **kwargs: Any,
-    ) -> None:
-        if not self.agent_handler:
-            return
-
-        try:
-            from guard_core._pydantic_plugin_mute import get_telemetry_model
-
-            SecurityEvent = get_telemetry_model("SecurityEvent")
-
-            event = SecurityEvent(
-                timestamp=datetime.now(timezone.utc),
-                event_type=event_type,
-                ip_address=ip_address,
-                action_taken=action_taken,
-                reason=reason,
-                rule_type=kwargs.get("rule_type"),
-                handler_name=_IPINFO_HANDLER_NAME,
-                metadata=kwargs,
-            )
-            self.agent_handler.send_event(event)
-        except Exception as e:
-            self.logger.error(f"Failed to send geo event to agent: {e}")
-
-    def _claim_download_lock(self) -> bool:
-        redis: Any = self.redis_handler
-        if redis is None:
-            return True
-        try:
-            claimed = redis.set_key_if_absent(
-                "ipinfo", "download_lock", "1", self._DOWNLOAD_LOCK_SECONDS
-            )
-        except Exception as e:
-            self.logger.warning(
-                "GeoIP download lock unavailable, downloading anyway: %s", e
-            )
-            return True
-        return bool(claimed)
 
     def _download_database(self) -> None:
         if not self._claim_download_lock():
@@ -408,43 +281,6 @@ class IPInfoManager:
                     reason=f"Geographic lookup failed: {type(e).__name__}",
                 )
             return None
-
-    def check_country_access(
-        self,
-        ip: str,
-        blocked_countries: list[str],
-        whitelist_countries: list[str] | None = None,
-    ) -> tuple[bool, str | None]:
-        country = self.get_country(ip)
-
-        if not country:
-            if whitelist_countries:
-                return False, None
-            return True, None
-
-        if whitelist_countries and country not in whitelist_countries:
-            self._send_geo_event(
-                event_type=EVENT_COUNTRY_BLOCKED,
-                ip_address=ip,
-                action_taken="request_blocked",
-                reason=f"Country {country} not in allowed list",
-                country=country,
-                rule_type="country_whitelist",
-            )
-            return False, country
-
-        if country in blocked_countries:
-            self._send_geo_event(
-                event_type=EVENT_COUNTRY_BLOCKED,
-                ip_address=ip,
-                action_taken="request_blocked",
-                reason=f"Country {country} is blocked",
-                country=country,
-                rule_type="country_blacklist",
-            )
-            return False, country
-
-        return True, country
 
     def close(self) -> None:
         self._cancel_staleness_timer()

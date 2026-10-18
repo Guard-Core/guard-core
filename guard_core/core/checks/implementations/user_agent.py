@@ -51,71 +51,81 @@ class UserAgentCheck(SecurityCheck):
 
         route_config = getattr(request.state, "route_config", None)
         user_agent = request.headers.get("User-Agent", "")
-
         empty_user_agent = self.config.block_empty_user_agent and not user_agent.strip()
-        if empty_user_agent or not await check_user_agent_allowed(
+
+        if not empty_user_agent and await check_user_agent_allowed(
             user_agent, route_config, self.config
         ):
-            redacted_user_agent = (
-                "(empty)"
-                if empty_user_agent
-                else redact_header_value_for_display(
-                    user_agent,
-                    self.config.log_sensitive_params,
-                    self.config.log_sensitive_body_fields,
-                    self.config.log_sensitive_headers,
-                )
+            return None
+        return await self._deny(request, route_config, user_agent, empty_user_agent)
+
+    async def _deny(
+        self,
+        request: GuardRequest,
+        route_config: RouteConfig | None,
+        user_agent: str,
+        empty_user_agent: bool,
+    ) -> GuardResponse | None:
+        redacted_user_agent = (
+            "(empty)"
+            if empty_user_agent
+            else redact_header_value_for_display(
+                user_agent,
+                self.config.log_sensitive_params,
+                self.config.log_sensitive_body_fields,
+                self.config.log_sensitive_headers,
             )
-            await log_activity(
+        )
+        await log_activity(
+            request,
+            self.logger,
+            log_type="suspicious",
+            reason=f"Blocked user agent: {redacted_user_agent}",
+            level=self.config.log_suspicious_level,
+            passive_mode=self.config.passive_mode,
+            check_name=self.check_name,
+            muted_check_logs=self.config.muted_check_logs,
+            on_block=self.config.on_block,
+            sensitive_headers=self.config.log_sensitive_headers,
+            sensitive_params=self.config.log_sensitive_params,
+            sensitive_body_fields=self.config.log_sensitive_body_fields,
+        )
+
+        if route_config and route_config.blocked_user_agents:
+            await emit_decorator_event(
+                self.middleware,
                 request,
-                self.logger,
-                log_type="suspicious",
-                reason=f"Blocked user agent: {redacted_user_agent}",
-                level=self.config.log_suspicious_level,
-                passive_mode=self.config.passive_mode,
-                check_name=self.check_name,
-                muted_check_logs=self.config.muted_check_logs,
-                on_block=self.config.on_block,
-                sensitive_headers=self.config.log_sensitive_headers,
-                sensitive_params=self.config.log_sensitive_params,
-                sensitive_body_fields=self.config.log_sensitive_body_fields,
+                event_type=EVENT_DECORATOR_VIOLATION,
+                action_taken="request_blocked"
+                if not self.config.passive_mode
+                else "logged_only",
+                reason=f"User agent '{redacted_user_agent}' blocked",
+                decorator_type="access_control",
+                violation_type="user_agent",
+                blocked_user_agent=redacted_user_agent,
+            )
+        else:
+            await self.middleware.event_bus.send_middleware_event(
+                event_type=EVENT_USER_AGENT_BLOCKED,
+                request=request,
+                action_taken="request_blocked"
+                if not self.config.passive_mode
+                else "logged_only",
+                reason=f"User agent '{redacted_user_agent}' in global blocklist",
+                user_agent=redacted_user_agent,
+                filter_type="global",
             )
 
-            if route_config and route_config.blocked_user_agents:
-                await emit_decorator_event(
-                    self.middleware,
-                    request,
-                    event_type=EVENT_DECORATOR_VIOLATION,
-                    action_taken="request_blocked"
-                    if not self.config.passive_mode
-                    else "logged_only",
-                    reason=f"User agent '{redacted_user_agent}' blocked",
-                    decorator_type="access_control",
-                    violation_type="user_agent",
-                    blocked_user_agent=redacted_user_agent,
-                )
-            else:
-                await self.middleware.event_bus.send_middleware_event(
-                    event_type=EVENT_USER_AGENT_BLOCKED,
-                    request=request,
-                    action_taken="request_blocked"
-                    if not self.config.passive_mode
-                    else "logged_only",
-                    reason=f"User agent '{redacted_user_agent}' in global blocklist",
-                    user_agent=redacted_user_agent,
-                    filter_type="global",
-                )
-
-            if not self.config.passive_mode:
-                await report_hostile_signal(
-                    self,
-                    request,
-                    "user_agent",
-                    f"Blocked user agent: {redacted_user_agent}",
-                    "user_agent",
-                )
-                return await self.middleware.create_error_response(
-                    status_code=403,
-                    default_message="User-Agent not allowed",
-                )
-        return None
+        if self.config.passive_mode:
+            return None
+        await report_hostile_signal(
+            self,
+            request,
+            "user_agent",
+            f"Blocked user agent: {redacted_user_agent}",
+            "user_agent",
+        )
+        return await self.middleware.create_error_response(
+            status_code=403,
+            default_message="User-Agent not allowed",
+        )

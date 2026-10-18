@@ -265,7 +265,7 @@ COVERED_PRODUCERS: dict[str, frozenset[str]] = {
     "core/checks/implementations/time_window.py:TimeWindowCheck.check": frozenset(
         {"time_window_closed"}
     ),
-    "core/checks/implementations/user_agent.py:UserAgentCheck.check": frozenset(
+    "core/checks/implementations/user_agent.py:UserAgentCheck._deny": frozenset(
         {"user_agent_block"}
     ),
     "core/checks/pipeline.py:SecurityCheckPipeline._fire_block_hook": frozenset(
@@ -1069,10 +1069,43 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
     "handlers/ipinfo_handler.py:IPInfoManager._open_database_or_none": (
         "line 91: MMDB file-open failure, infra only"
     ),
-    "handlers/ipinfo_handler.py:IPInfoManager._send_geo_event": (
-        "line 182: geolocation lookup event carries only ip/country, "
+    "handlers/_ipinfo_events.py:IpInfoEventsMixin._send_geo_event": (
+        "line 43: geolocation lookup event carries only ip/country, "
         "client_ip is outside the secret matrix; logger.error fallback "
         "is send-failure text"
+    ),
+    "handlers/_ipinfo_background.py:IpInfoBackgroundMixin._load_in_background": (
+        "line 48: background GeoIP database load failure with its traceback, "
+        "infra only, no request data"
+    ),
+    "handlers/_ipinfo_background.py:IpInfoBackgroundMixin.schedule_database_load": (
+        "line 38: GeoIP background load could not be scheduled, infra only"
+    ),
+    "handlers/_ipinfo_redis_copy.py:IpInfoRedisCopyMixin._adopt_redis_copy": (
+        "line 28: Redis-cached GeoIP database unavailable, infra only"
+    ),
+    "handlers/_ipinfo_redis_copy.py:IpInfoRedisCopyMixin._claim_download_lock": (
+        "line 64: GeoIP download lock unavailable, infra only"
+    ),
+    "handlers/_ipinfo_redis_copy.py:IpInfoRedisCopyMixin._drop_cached_database": (
+        "lines 49,53: unusable cached GeoIP database dropped, infra only"
+    ),
+    "handlers/ipinfo_handler.py:IPInfoManager._fetch_and_store_database": (
+        "line 232: failure to cache the GeoIP database in Redis, infra only"
+    ),
+    "handlers/ipinfo_handler.py:IPInfoManager._warn_country_rules_without_database": (
+        "line 184: states what country rules do without a GeoIP database, "
+        "static text, no request data"
+    ),
+    "core/checks/implementations/ip_security.py:"
+    "IpSecurityCheck._is_banned_failing_open_on_redis_loss": (
+        "line 132: Redis outage warning naming the client_ip, which is outside "
+        "the secret matrix (see module docstring policy)"
+    ),
+    "core/checks/implementations/ip_security.py:"
+    "IpSecurityCheck._send_country_blocked_event": (
+        "line 345: country_blocked event carries only client_ip, the country "
+        "code and the rule name, outside the secret matrix"
     ),
     "handlers/ipinfo_handler.py:IPInfoManager.get_country": (
         "lines 234,241: interpolates only the ip argument (client_ip), "

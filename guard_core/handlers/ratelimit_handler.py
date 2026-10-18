@@ -84,6 +84,10 @@ _VIOLATIONS_PATTERN = "rate_limit:violations:*"
 _KINDS_IN_KEY = frozenset({"endpoint", "route", "geo"})
 
 
+def _by_ip_window_identity(ip: str, prefix_length: int) -> str:
+    return _client_identity(ip, prefix_length) if ":" in ip else ip
+
+
 def _tier_key(client_ip: str, tier: RateLimitTier) -> str:
     if tier.kind in _KINDS_IN_KEY:
         return f"{client_ip}:{tier.kind}:{_hash_identity_segment(tier.bucket)}"
@@ -480,9 +484,7 @@ async def check_rate_limit_by_ip(
 
     tier = RateLimitTier("", config.rate_limit, config.rate_limit_window, endpoint_path)
     tiers = [tier]
-    window_identity = (
-        _client_identity(ip, config.ipv6_prefix_length) if ":" in ip else ip
-    )
+    window_identity = _by_ip_window_identity(ip, config.ipv6_prefix_length)
 
     verdict: RateLimitVerdict | None = None
     if config.enable_redis and redis_handler:
