@@ -404,6 +404,18 @@ GEO_CONFIG_WHITELIST = {
 }
 
 
+NAT64_PREFIXES_CONFIG = {
+    "nat64_prefixes": ["2001:db8:122:344::/64"],
+    "excluded_detection_headers": EXCLUDED_HEADERS,
+}
+
+
+@scenario(covers={"nat64_prefixes"}, config=NAT64_PREFIXES_CONFIG)
+def nat64_prefixes_leave_an_ipv4_client_untouched(ctx: ScenarioContext) -> None:
+    response = ctx.client.get("/basic/ip", params={"q": "hello"})
+    assert response.status_code == 200
+
+
 BLOCK_EMPTY_USER_AGENT_CONFIG = {
     "block_empty_user_agent": True,
     "excluded_detection_headers": EXCLUDED_HEADERS,

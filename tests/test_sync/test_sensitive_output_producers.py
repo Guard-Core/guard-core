@@ -1065,6 +1065,10 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
     "handlers/ipinfo_handler.py:IPInfoManager._open_database_or_none": (
         "line 91: MMDB file-open failure, infra only"
     ),
+    "_utils/nat64.py:_unwrap_nat64": (
+        "line 58: sampled warning naming the non-global IPv4 address embedded "
+        "in a translated client address, an IP outside the secret matrix"
+    ),
     "_utils/ip_extraction.py:_malformed_forwarded_for_identity": (
         "line 460: warning with the X-Forwarded-For chain passed through "
         "_display_forwarded_chain (non-IP entries shown as [REDACTED]) and "

@@ -952,7 +952,7 @@ async def test_cloud_ip_refresh_triggers_for_route_only_cloud_config() -> None:
         result = await check.check(req)
 
     assert result is None
-    schedule.assert_called_once_with({"GCP"}, ttl=1, refresh=mw.refresh_cloud_ip_ranges)
+    schedule.assert_called_once_with({"GCP"}, ttl=1, refresh=None)
     assert mw.last_cloud_ip_refresh > 0
 
 

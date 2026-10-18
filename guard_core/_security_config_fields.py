@@ -518,6 +518,20 @@ class _SecurityConfigFields(BaseModel):
         ),
     )
 
+    nat64_prefixes: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Network-specific NAT64 prefixes (RFC 6052, lengths /32, /40, /48, /56, "
+            "/64 and /96) of the translator in front of the app. A client "
+            "arriving as an address inside one is attributed to the global IPv4 "
+            "address embedded in it, so IPv4 lists, cloud ranges, bans and rate "
+            "limits see the real client. The well-known prefix 64:ff9b::/96 is "
+            "always decoded; an embedded non-global IPv4 address (10.0.0.5) is "
+            "never unwrapped. An entry of another length or family is reported "
+            "as a misconfiguration at startup and ignored."
+        ),
+    )
+
     country_rules_exempt_private_peers: bool = Field(
         default=False,
         description=(

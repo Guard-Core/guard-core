@@ -14,6 +14,7 @@ from typing import Any
 
 from guard_core._utils.agent_events import send_agent_event
 from guard_core._utils.logging_utils import _sanitize_for_log
+from guard_core._utils.nat64 import _unwrap_nat64
 from guard_core._utils.sampling import observe_sampled_key
 from guard_core.protocols.agent_protocol import AgentHandlerProtocol
 from guard_core.protocols.request_protocol import GuardRequest
@@ -42,6 +43,8 @@ def _peer_address_for_matching(value: str) -> IPv4Address | IPv6Address | None:
         return None
     if isinstance(addr, IPv6Address) and addr.ipv4_mapped is not None:
         return addr.ipv4_mapped
+    if isinstance(addr, IPv6Address):
+        return _unwrap_nat64(addr) or addr
     return addr
 
 
@@ -68,6 +71,10 @@ def _canonical_ip_text(addr: IPv4Address | IPv6Address) -> str:
         and addr.scope_id is None
     ):
         return str(addr.ipv4_mapped)
+    if isinstance(addr, IPv6Address) and addr.scope_id is None:
+        unwrapped = _unwrap_nat64(addr)
+        if unwrapped is not None:
+            return str(unwrapped)
     return str(addr)
 
 

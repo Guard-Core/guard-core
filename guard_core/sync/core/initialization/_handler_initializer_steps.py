@@ -11,6 +11,7 @@ from guard_core.sync.core.initialization._cloud_initialization import (
 from guard_core.sync.core.initialization._headers_manager_attach import (
     attach_security_headers_manager_to_redis,
 )
+from guard_core.sync.core.initialization._nat64 import apply_nat64_prefixes
 from guard_core.sync.core.initialization._route_limit_report import (
     report_route_limits_with_global_switch_off,
 )
@@ -68,6 +69,7 @@ class _HandlerInitializerStepsMixin(CloudInitializationMixin):
 
         ip_ban_manager.config = self.config
         sus_patterns_handler.configure(self.config)
+        apply_nat64_prefixes(self.config, self.logger)
 
     def _report_unreachable_ban_thresholds(self) -> None:
         thresholds = {"auto_ban_threshold": self.config.auto_ban_threshold}
