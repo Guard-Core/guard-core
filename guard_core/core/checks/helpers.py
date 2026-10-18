@@ -1,6 +1,7 @@
 import logging
 import threading
 import time
+import weakref
 from collections import deque
 from collections.abc import Callable, Collection, Mapping
 from ipaddress import ip_address
@@ -40,6 +41,33 @@ SUSPICIOUS_COUNT_WINDOW_SECONDS = 3600
 _MAX_RETAINED_EVENTS_PER_CATEGORY = 10_000
 _DETECTION_RESULT_STATE_ATTR = "_guard_detection_result_cache"
 _suspicious_counts_lock = threading.Lock()
+_strike_cap_cache: dict[int, tuple[weakref.ref[SecurityConfig], int, int]] = {}
+
+
+def _strike_cap_forgetter(key: int) -> Callable[[Any], None]:
+    def forget(_ref: Any) -> None:
+        _strike_cap_cache.pop(key, None)
+
+    return forget
+
+
+def _retained_strike_cap(config: SecurityConfig) -> int:
+    key = id(config)
+    revision = config.revision
+    cached = _strike_cap_cache.get(key)
+    if cached is not None and cached[0]() is config and cached[1] == revision:
+        return cached[2]
+    cap = max(
+        _MAX_RETAINED_EVENTS_PER_CATEGORY,
+        config.auto_ban_threshold,
+        *(entry.threshold for entry in config.threat_ban_config.values()),
+    )
+    _strike_cap_cache[key] = (
+        weakref.ref(config, _strike_cap_forgetter(key)),
+        revision,
+        cap,
+    )
+    return cap
 
 
 def _strike_identity(config: SecurityConfig, client_ip: str) -> str:
@@ -481,7 +509,7 @@ def _increment_suspicious_counts(
     resolved_categories = strike_categories(categories)
     strike_key = _strike_identity(middleware.config, client_ip)
     now = time.monotonic()
-    retain = _MAX_RETAINED_EVENTS_PER_CATEGORY
+    retain = _retained_strike_cap(middleware.config)
     register_strike_middleware(middleware)
     with _suspicious_counts_lock:
         counts = middleware.suspicious_request_counts
@@ -628,7 +656,7 @@ async def _try_threshold_ban(
             strike_key,
             threat_categories,
             SUSPICIOUS_COUNT_WINDOW_SECONDS,
-            _MAX_RETAINED_EVENTS_PER_CATEGORY,
+            _retained_strike_cap(config),
         )
         ip_counts = (
             shared.counts

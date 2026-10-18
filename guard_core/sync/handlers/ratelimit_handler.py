@@ -314,9 +314,9 @@ def _feed_rate_limit_autoban(
         return
 
     from guard_core.sync.core.checks.helpers import (
-        _MAX_RETAINED_EVENTS_PER_CATEGORY,
         SUSPICIOUS_COUNT_WINDOW_SECONDS,
         _resolve_and_apply_threshold_ban,
+        _retained_strike_cap,
         _WindowedCategoryCounts,
     )
     from guard_core.sync.handlers.ipban_handler import IPBanManager
@@ -335,7 +335,7 @@ def _feed_rate_limit_autoban(
             _WindowedCategoryCounts,
         )
         ip_counts.expire_before(now - SUSPICIOUS_COUNT_WINDOW_SECONDS)
-        ip_counts.record("rate_limit", now, _MAX_RETAINED_EVENTS_PER_CATEGORY)
+        ip_counts.record("rate_limit", now, _retained_strike_cap(config))
         _by_ip_autoban_counts[identity] = ip_counts
 
     shared = _shared_primitive_counts(identity, config, redis_handler)
