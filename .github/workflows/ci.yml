@@ -56,6 +56,17 @@ jobs:
       - run: uv sync --extra dev --extra otel --extra logfire
       - run: make quality
 
+  sdist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.10'
+      - run: pip install uv
+      - run: uv build --sdist --out-dir dist
+      - run: python scripts/check_sdist_contents.py dist/*.tar.gz
+
   test:
     runs-on: ubuntu-latest
 

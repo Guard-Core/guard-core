@@ -89,22 +89,7 @@ build-backend = "hatchling.build"
 packages = ["guard_core"]
 
 [tool.hatch.build.targets.sdist]
-exclude = [
-    ".env",
-    ".envrc",
-    ".venv/",
-    ".github/",
-    ".claude/",
-    "CLAUDE.md",
-    ".pre-commit-config.yaml",
-    "compose.yml",
-    "Dockerfile",
-    "Makefile",
-    "mkdocs.yml",
-    "vulture_whitelist.py",
-    "tests/",
-    "docs/",
-]
+include = ["/guard_core", "/LICENSE", "/README.md", "/pyproject.toml"]
 
 [tool.hatch.metadata]
 allow-direct-references = true
