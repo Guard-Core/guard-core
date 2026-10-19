@@ -95,6 +95,7 @@ All keys are prefixed with `config.redis_prefix` (default: `"guard_core:"`) and 
 | Rate limit counter                 | `guard_core:rate_limit:rate:10.0.0.1`  |
 | Cloud IP cache                     | `guard_core:cloud_ranges:AWS`          |
 | Custom patterns                    | `guard_core:patterns:custom`           |
+| Custom patterns, exact list (JSON) | `guard_core:patterns:custom_list`      |
 | Security headers config            | `guard_core:security_headers:csp_config` |
 | Behavioral tracking                | `guard_core:behavior_usage:behavior:usage:{sha256(endpoint_id)}:{sha256(client_ip)}` (a sorted set, one key per identity pair; its TTL is the larger of the rule's window and 300 s, refreshed on every hit) |
 | Behavioral rule-key index          | `guard_core:behavior_usage:behavior:usage:{sha256("recent")}:{sha256(client_ip)}` (a set of the client's `behavior_usage` rule keys, at most 10,000 members, same TTL as the rule key, read by `guard.behavior.recent_event_count`) |

@@ -1,5 +1,4 @@
 import concurrent.futures
-import json
 import logging
 import re
 import time
@@ -166,13 +165,13 @@ def test_redis_pattern_persistence(security_config_redis: SecurityConfig) -> Non
     sus_patterns_handler.add_pattern(test_pattern, custom=True)
 
     cached_patterns = redis_handler.get_key("patterns", "custom")
-    assert test_pattern in json.loads(cached_patterns)
+    assert test_pattern in cached_patterns.split(",")
 
     result = sus_patterns_handler.remove_pattern(test_pattern, custom=True)
     assert result is True
 
     cached_patterns = redis_handler.get_key("patterns", "custom")
-    assert not cached_patterns or test_pattern not in json.loads(cached_patterns)
+    assert not cached_patterns or test_pattern not in cached_patterns.split(",")
 
     redis_handler.close()
 
@@ -997,11 +996,11 @@ def test_add_custom_pattern_writes_to_redis_when_configured() -> None:
     SusPatternsManager._instance = None
     mgr = SusPatternsManager()
     redis_handler = MagicMock()
-    redis_handler.set_key = MagicMock()
+    redis_handler.write_atomically = MagicMock()
     mgr.redis_handler = redis_handler
 
     mgr.add_pattern(r"custom_test_redis_add", custom=True)
-    redis_handler.set_key.assert_called()
+    redis_handler.write_atomically.assert_called()
 
 
 def test_remove_custom_pattern_writes_to_redis_when_configured() -> None:
@@ -1012,11 +1011,11 @@ def test_remove_custom_pattern_writes_to_redis_when_configured() -> None:
     mgr.add_pattern(r"custom_test_redis_remove", custom=True)
 
     redis_handler = MagicMock()
-    redis_handler.set_key = MagicMock()
+    redis_handler.write_atomically = MagicMock()
     mgr.redis_handler = redis_handler
 
     assert mgr._remove_custom_pattern(r"custom_test_redis_remove") is True
-    redis_handler.set_key.assert_called()
+    redis_handler.write_atomically.assert_called()
 
 
 def test_initialize_redis_with_cached_patterns_empty() -> None:
@@ -1025,7 +1024,7 @@ def test_initialize_redis_with_cached_patterns_empty() -> None:
     SusPatternsManager._instance = None
     mgr = SusPatternsManager()
     redis_handler = MagicMock()
-    redis_handler.get_key = MagicMock(return_value=None)
+    redis_handler.get_many = MagicMock(return_value=[None, None])
     mgr.initialize_redis(redis_handler)
     assert mgr.redis_handler is redis_handler
 
@@ -1037,7 +1036,7 @@ def test_initialize_redis_skips_patterns_already_in_custom() -> None:
     mgr = SusPatternsManager()
     mgr.custom_patterns.add("existing_pattern")
     redis_handler = MagicMock()
-    redis_handler.get_key = MagicMock(return_value="existing_pattern")
+    redis_handler.get_many = MagicMock(return_value=["existing_pattern", None])
     mgr.initialize_redis(redis_handler)
     assert "existing_pattern" in mgr.custom_patterns
 
@@ -1049,7 +1048,7 @@ def test_initialize_redis_logs_and_returns_when_get_key_raises() -> None:
     SusPatternsManager._instance = None
     mgr = SusPatternsManager()
     redis_handler = MagicMock()
-    redis_handler.get_key = MagicMock(
+    redis_handler.get_many = MagicMock(
         side_effect=GuardRedisError(503, "redis unavailable")
     )
     mgr.initialize_redis(redis_handler)
@@ -1064,7 +1063,7 @@ def test_initialize_redis_warns_on_rejected_persisted_pattern(
     SusPatternsManager._instance = None
     mgr = SusPatternsManager()
     redis_handler = MagicMock()
-    redis_handler.get_key = MagicMock(return_value="invalid(regex")
+    redis_handler.get_many = MagicMock(return_value=["invalid(regex", None])
 
     with caplog.at_level(logging.WARNING):
         mgr.initialize_redis(redis_handler)

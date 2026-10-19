@@ -17,18 +17,46 @@ logger = logging.getLogger("guard_core.sync.handlers.suspatterns")
 _SUS_PATTERNS_HANDLER_NAME = "sus_patterns"
 
 
-def _encode_custom_patterns(patterns: Any) -> str:
-    return json.dumps(sorted(patterns))
+_LEGACY_CUSTOM_KEY = ("patterns", "custom")
+_LISTED_CUSTOM_KEY = ("patterns", "custom_list")
 
 
-def _decode_custom_patterns(stored: str) -> list[str]:
+def _stored_custom_pattern_writes(
+    patterns: Any,
+) -> list[tuple[str, str, Any, int | None]]:
+    ordered = sorted(patterns)
+    return [
+        (*_LEGACY_CUSTOM_KEY, ",".join(ordered), None),
+        (*_LISTED_CUSTOM_KEY, json.dumps(ordered), None),
+    ]
+
+
+def _decode_listed_custom_patterns(stored: Any) -> list[str] | None:
     try:
         decoded = json.loads(stored)
-    except ValueError:
-        return stored.split(",")
+    except (TypeError, ValueError):
+        return None
     if isinstance(decoded, list) and all(isinstance(item, str) for item in decoded):
         return decoded
-    return stored.split(",")
+    return None
+
+
+def _fragments(joined: str) -> set[str]:
+    return set(joined.split(",")) if joined else set()
+
+
+def _reconciled_custom_patterns(legacy: Any, listed: Any) -> list[str]:
+    legacy_text = legacy or ""
+    decoded = _decode_listed_custom_patterns(listed) if listed is not None else None
+    if decoded is not None and _fragments(",".join(decoded)) == _fragments(legacy_text):
+        return decoded
+    if listed is not None:
+        logger.warning(
+            "patterns:custom_list is not what patterns:custom splits into "
+            "(an engine that predates the list key wrote the legacy key last, "
+            "or the list is not a JSON list of strings); using patterns:custom"
+        )
+    return legacy_text.split(",") if legacy_text else []
 
 
 class _SusPatternsRegistryMixin:
@@ -88,17 +116,17 @@ class _SusPatternsRegistryMixin:
         if not self.redis_handler:
             return
         try:
-            cached_patterns = self.redis_handler.get_key("patterns", "custom")
-            if cached_patterns:
-                patterns = _decode_custom_patterns(cached_patterns)
-                for pattern in patterns:
-                    if pattern not in self.custom_patterns:
-                        restored = self.add_pattern(pattern, custom=True)
-                        if not restored:
-                            logger.warning(
-                                f"Skipped restoring persisted pattern: "
-                                f"{_redact_pattern_source(pattern)[:50]}..."
-                            )
+            legacy, listed = self.redis_handler.get_many(
+                [_LEGACY_CUSTOM_KEY, _LISTED_CUSTOM_KEY]
+            )
+            for pattern in _reconciled_custom_patterns(legacy, listed):
+                if pattern not in self.custom_patterns:
+                    restored = self.add_pattern(pattern, custom=True)
+                    if not restored:
+                        logger.warning(
+                            f"Skipped restoring persisted pattern: "
+                            f"{_redact_pattern_source(pattern)[:50]}..."
+                        )
         except Exception as e:
             logger.warning("Custom pattern restore skipped: %s", e)
 
@@ -130,10 +158,8 @@ class _SusPatternsRegistryMixin:
             instance.custom_patterns.add(pattern)
 
             if instance.redis_handler:
-                instance.redis_handler.set_key(
-                    "patterns",
-                    "custom",
-                    _encode_custom_patterns(instance.custom_patterns),
+                instance.redis_handler.write_atomically(
+                    sets=_stored_custom_pattern_writes(instance.custom_patterns)
                 )
         else:
             instance.compiled_patterns.append(compiled_tuple)
@@ -173,8 +199,8 @@ class _SusPatternsRegistryMixin:
         }
 
         if self.redis_handler:
-            self.redis_handler.set_key(
-                "patterns", "custom", _encode_custom_patterns(self.custom_patterns)
+            self.redis_handler.write_atomically(
+                sets=_stored_custom_pattern_writes(self.custom_patterns)
             )
 
         return True
