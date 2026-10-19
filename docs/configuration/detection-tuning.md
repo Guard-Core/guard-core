@@ -97,7 +97,7 @@ Minimum score from the `SemanticAnalyzer` to classify content as a threat. The s
 
 **Type**: `set[str]` | **Default**: `set()`
 
-Opt-in list of header names whose values skip the semantic analyzer only, matched case-insensitively. Regex category scanning of those headers is unchanged, and `excluded_detection_headers` keeps its meaning (it never silences a header). The semantic analyzer counts base64 as obfuscation and encoding layers, so JWT session cookies and bearer tokens can score close to `detection_semantic_threshold` (0.30 to 0.59 measured on sample cookies, 0.71 reported). For apps with JWT sessions, set `excluded_semantic_detection_headers={"cookie", "authorization"}` instead of raising the global threshold. A route can add names with `@security.detection_exclusion(semantic_headers={...})`.
+Opt-in list of header names whose values skip the semantic analyzer only, matched case-insensitively. Regex category scanning of those headers is unchanged, and `excluded_detection_headers` keeps its own meaning (a listed header is not scanned at all). The semantic analyzer counts base64 as obfuscation and encoding layers, so JWT session cookies and bearer tokens can score close to `detection_semantic_threshold` (0.30 to 0.59 measured on sample cookies, 0.71 reported). For apps with JWT sessions, set `excluded_semantic_detection_headers={"cookie", "authorization"}` instead of raising the global threshold. A route can add names with `@security.detection_exclusion(semantic_headers={...})`.
 
 ### `detection_anomaly_threshold`
 

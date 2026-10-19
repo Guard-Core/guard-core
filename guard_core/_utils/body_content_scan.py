@@ -339,8 +339,11 @@ async def _scan_headers(
     sensitive_body_fields: frozenset[str] = frozenset(),
     excluded_body_fields: frozenset[str] = frozenset(),
     sensitive_params: frozenset[str] = frozenset(),
+    operator_excluded_headers: frozenset[str] = frozenset(),
 ) -> tuple[bool, str, list[dict]]:
     for key, value in _header_items_to_scan(request.headers):
+        if key.strip().lower() in operator_excluded_headers:
+            continue
         if name_is_sensitive(key, sensitive_headers):
             hit = await _scan_sensitive_header(
                 key,

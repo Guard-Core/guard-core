@@ -98,6 +98,17 @@ def _resolve_excluded_headers(
     return excluded
 
 
+def _resolve_operator_excluded_headers(
+    config: "SecurityConfig | None", route_config: "RouteConfig | None"
+) -> frozenset[str]:
+    listed: set[str] = set()
+    if config is not None:
+        listed |= {h.strip().lower() for h in config.excluded_detection_headers}
+    if route_config is not None and route_config.excluded_detection_headers is not None:
+        listed |= {h.strip().lower() for h in route_config.excluded_detection_headers}
+    return frozenset(listed)
+
+
 _ADDRESS_HEADER_SKIP_CATEGORIES: frozenset[str] = frozenset({"ssrf"})
 
 _GENERIC_EXCLUDED_HEADER_SKIP_CATEGORIES: frozenset[str] = frozenset()

