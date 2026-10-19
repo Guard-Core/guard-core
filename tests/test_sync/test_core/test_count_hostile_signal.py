@@ -53,7 +53,7 @@ def test_banning_disabled_neither_counts_nor_bans() -> None:
 
     assert not count_hostile_signal_and_maybe_ban(check, _request(), "referrer", "t")
     assert check.middleware.suspicious_request_counts == {}
-    check.ip_ban_manager.ban_ip.assert_not_called()
+    check.ip_ban_manager._ban_ip_escalating.assert_not_called()
 
 
 def test_default_threshold_argument_applies_when_no_override() -> None:
@@ -62,7 +62,7 @@ def test_default_threshold_argument_applies_when_no_override() -> None:
     banned = count_hostile_signal_and_maybe_ban(check, _request(), "honeypot", "t", 1)
 
     assert banned is True
-    check.ip_ban_manager.ban_ip.assert_called_once_with(
+    check.ip_ban_manager._ban_ip_escalating.assert_called_once_with(
         BOT_IP, 90, "honeypot_triggered:honeypot", grouped=False
     )
 
@@ -76,14 +76,14 @@ def test_threat_ban_config_entry_beats_default_threshold() -> None:
 
     assert not count_hostile_signal_and_maybe_ban(check, _request(), "honeypot", "t", 1)
     assert count_hostile_signal_and_maybe_ban(check, _request(), "honeypot", "t", 1)
-    check.ip_ban_manager.ban_ip.assert_called_once_with(
+    check.ip_ban_manager._ban_ip_escalating.assert_called_once_with(
         BOT_IP, 5, "honeypot_triggered:honeypot", grouped=False
     )
 
 
 def test_ban_failure_is_swallowed_logged_and_made_visible() -> None:
     ban = MagicMock()
-    ban.ban_ip = MagicMock(side_effect=ConnectionError("redis unavailable"))
+    ban._ban_ip_escalating = MagicMock(side_effect=ConnectionError("redis unavailable"))
     check = _check(SecurityConfig(auto_ban_threshold=1), ban)
 
     banned = count_hostile_signal_and_maybe_ban(check, _request(), "referrer", "t")
@@ -98,7 +98,7 @@ def test_ban_failure_is_swallowed_logged_and_made_visible() -> None:
 
 def test_ban_and_event_bus_both_failing_does_not_raise() -> None:
     ban = MagicMock()
-    ban.ban_ip = MagicMock(side_effect=RuntimeError("redis down"))
+    ban._ban_ip_escalating = MagicMock(side_effect=RuntimeError("redis down"))
     check = _check(SecurityConfig(auto_ban_threshold=1), ban)
     check.middleware.event_bus.send_middleware_event = MagicMock(
         side_effect=ConnectionError("event bus down too")
@@ -110,7 +110,7 @@ def test_ban_and_event_bus_both_failing_does_not_raise() -> None:
 
 def test_a_broken_log_sink_never_escapes() -> None:
     ban = MagicMock()
-    ban.ban_ip = MagicMock(side_effect=RuntimeError("redis down"))
+    ban._ban_ip_escalating = MagicMock(side_effect=RuntimeError("redis down"))
     check = _check(SecurityConfig(auto_ban_threshold=1), ban)
     check.middleware.event_bus.send_middleware_event = MagicMock(
         side_effect=ConnectionError("event bus down too")

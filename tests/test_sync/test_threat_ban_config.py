@@ -97,7 +97,7 @@ def _patch_detect_and_ban(
     def fake_ban(ip: str, duration: int, reason: str, *, grouped: bool = False) -> None:
         ban_calls.append((ip, duration, reason))
 
-    monkeypatch.setattr(check.ip_ban_manager, "ban_ip", fake_ban)
+    monkeypatch.setattr(check.ip_ban_manager, "_ban_ip_escalating", fake_ban)
 
 
 def _make_request(client_ip: str) -> MagicMock:
@@ -497,7 +497,7 @@ def test_per_category_ban_refused_returns_none() -> None:
         threat_ban_config={"xss": ThreatBanConfig(threshold=1, duration=86400)},
     )
     ip_ban_manager = MagicMock()
-    ip_ban_manager.ban_ip = MagicMock(return_value=False)
+    ip_ban_manager._ban_ip_escalating = MagicMock(return_value=None)
 
     result = _resolve_and_apply_threshold_ban(
         {"xss": 1},
@@ -509,6 +509,6 @@ def test_per_category_ban_refused_returns_none() -> None:
     )
 
     assert result is None
-    ip_ban_manager.ban_ip.assert_called_once_with(
+    ip_ban_manager._ban_ip_escalating.assert_called_once_with(
         "127.0.0.1", 86400, "penetration_attempt:xss", grouped=False
     )

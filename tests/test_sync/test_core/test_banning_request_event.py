@@ -41,14 +41,14 @@ def _build(
         )
 
     def ban(ip: str, duration: int, reason: str = "", *, grouped: bool = False) -> bool:
-        return True
+        return duration
 
     monkeypatch.setattr(
         "guard_core.sync.core.checks.implementations.suspicious_activity"
         ".get_cached_detection_result",
         detect,
     )
-    monkeypatch.setattr(check.ip_ban_manager, "ban_ip", ban)
+    monkeypatch.setattr(check.ip_ban_manager, "_ban_ip_escalating", ban)
     return check, send_event
 
 

@@ -267,6 +267,7 @@ def test_a_whitelisted_host_that_attacks_is_banned_at_its_own_identity() -> None
 
     _run(config, ip=host, count=5)
 
+    ip_ban_manager.config = config
     assert ip_ban_manager.is_ip_banned(host) is True
     assert ip_ban_manager.is_ip_banned(neighbour) is False
 

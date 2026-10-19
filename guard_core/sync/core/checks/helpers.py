@@ -587,9 +587,10 @@ def _resolve_and_apply_threshold_ban(
     line: a rate-limit feed counts only ``rate_limit`` violations and every other
     feed everything except them. It joins the longest only when its total exceeds
     the chosen entry's own count, and the entry wins a duration tie. With no entry
-    crossed the flat rule alone decides. Returns ``(duration, ban_reason, category)``
-    when a ban was applied (``category`` is ``None`` for the flat rule), or ``None``
-    when banning is disabled, nothing crossed, or ``ban_ip`` refused the ban
+    crossed the flat rule alone decides. Returns
+    ``(applied duration, ban_reason, category)`` when a ban was applied
+    (``category`` is ``None`` for the flat rule), or ``None`` when banning is
+    disabled, nothing crossed, or the ban was refused
     (self-DoS guard). Callers own their own logging: the middleware path logs via
     ``log_activity``, the request-free ``check_rate_limit_by_ip`` primitive logs via
     the module logger.
@@ -607,18 +608,16 @@ def _resolve_and_apply_threshold_ban(
         flat_joins = flat_crossed and total > ip_counts.get(category, 0)
         if not flat_joins or entry.duration >= config.auto_ban_duration:
             ban_reason = f"{reason}:{category}"
-            applied = ip_ban_manager.ban_ip(
+            applied = ip_ban_manager._ban_ip_escalating(
                 client_ip, entry.duration, ban_reason, grouped=grouped
             )
-            return (entry.duration, ban_reason, category) if applied else None
+            return None if applied is None else (applied, ban_reason, category)
     elif not flat_crossed:
         return None
-    applied = ip_ban_manager.ban_ip(
+    applied = ip_ban_manager._ban_ip_escalating(
         client_ip, config.auto_ban_duration, reason, grouped=grouped
     )
-    if not applied:
-        return None
-    return config.auto_ban_duration, reason, None
+    return None if applied is None else (applied, reason, None)
 
 
 def _longest_crossed_entry(
@@ -686,7 +685,12 @@ def _try_threshold_ban(
         flat_total=shared.total if shared is not None else None,
     )
     if strikes is not None:
-        strikes.record(shared, result is not None, _strike_total(ip_counts))
+        strikes.record(
+            shared,
+            result is not None,
+            _strike_total(ip_counts),
+            None if result is None else result[0],
+        )
     if result is None:
         return False
     _forget_suspicious_counts(middleware, client_ip)

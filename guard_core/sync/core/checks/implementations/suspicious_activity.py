@@ -134,6 +134,7 @@ class SuspiciousActivityCheck(SecurityCheck):
                 action_taken="request_blocked",
                 reason=f"Penetration attempt detected: {trigger_info}",
                 request_count=strikes.banning_count or 0,
+                ban_duration=strikes.banned_duration,
                 trigger_info=trigger_info,
             )
             return self.middleware.create_error_response(

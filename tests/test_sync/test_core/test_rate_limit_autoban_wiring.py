@@ -52,7 +52,7 @@ def _make_check_with_recording_ban(
         ban_calls.append((ip, duration, reason))
 
     check.ip_ban_manager = Mock()
-    check.ip_ban_manager.ban_ip = fake_ban
+    check.ip_ban_manager._ban_ip_escalating = fake_ban
     return check, ban_calls
 
 

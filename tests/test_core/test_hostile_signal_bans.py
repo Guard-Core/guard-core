@@ -122,7 +122,9 @@ async def test_hostile_failure_counts_and_bans_at_threshold(
 ) -> None:
     config = _config()
     manager = ipban_handler.ip_ban_manager
-    with patch.object(manager, "ban_ip", wraps=manager.ban_ip) as ban_spy:
+    with patch.object(
+        manager, "_ban_ip_escalating", wraps=manager._ban_ip_escalating
+    ) as ban_spy:
         middleware, responses = await _hit_until_banned(
             config, factory, request_kwargs, attempts=2
         )
@@ -192,7 +194,9 @@ async def test_threat_ban_config_overrides_threshold_and_duration() -> None:
         threat_ban_config={"auth_failure": ThreatBanConfig(threshold=3, duration=77)},
     )
     manager = ipban_handler.ip_ban_manager
-    with patch.object(manager, "ban_ip", wraps=manager.ban_ip) as ban_spy:
+    with patch.object(
+        manager, "_ban_ip_escalating", wraps=manager._ban_ip_escalating
+    ) as ban_spy:
         await _hit_until_banned(
             config,
             lambda d: d.api_key_auth(verifier=lambda r, k: False),
@@ -209,7 +213,9 @@ async def test_threat_ban_config_overrides_threshold_and_duration() -> None:
 async def test_default_duration_is_auto_ban_duration() -> None:
     config = _config(auto_ban_duration=321)
     manager = ipban_handler.ip_ban_manager
-    with patch.object(manager, "ban_ip", wraps=manager.ban_ip) as ban_spy:
+    with patch.object(
+        manager, "_ban_ip_escalating", wraps=manager._ban_ip_escalating
+    ) as ban_spy:
         await _hit_until_banned(
             config, lambda d: d.require_referrer(["example.com"]), {}, attempts=2
         )

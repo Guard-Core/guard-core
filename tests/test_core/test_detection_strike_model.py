@@ -37,14 +37,14 @@ class _Harness:
             ip: str, duration: int, reason: str, *, grouped: bool = False
         ) -> bool:
             self.bans.append((ip, duration, reason))
-            return True
+            return duration
 
         monkeypatch.setattr(
             "guard_core.core.checks.implementations.suspicious_activity"
             ".get_cached_detection_result",
             detect,
         )
-        monkeypatch.setattr(self.check.ip_ban_manager, "ban_ip", ban)
+        monkeypatch.setattr(self.check.ip_ban_manager, "_ban_ip_escalating", ban)
 
     async def hit(self, *categories: str) -> None:
         self.categories = list(categories)
@@ -235,11 +235,11 @@ async def test_rate_limit_feed_entry_governs_when_flat_counts_the_same_violation
     bans: list[tuple[str, int, str]] = []
 
     class _Manager:
-        async def ban_ip(
+        async def _ban_ip_escalating(
             self, ip: str, duration: int, reason: str, *, grouped: bool = False
         ) -> bool:
             bans.append((ip, duration, reason))
-            return True
+            return duration
 
     result = await _resolve_and_apply_threshold_ban(
         {"rate_limit": 10},

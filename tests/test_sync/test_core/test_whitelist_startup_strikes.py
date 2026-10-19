@@ -76,7 +76,7 @@ def _strike(
     middleware.create_error_response = MagicMock(return_value=MagicMock())
     middleware.route_resolver.should_bypass_check = lambda *_: False
     check = SuspiciousActivityCheck(middleware)
-    check.ip_ban_manager = Mock(ban_ip=MagicMock(return_value=True))
+    check.ip_ban_manager = Mock(_ban_ip_escalating=MagicMock(return_value=True))
     result = DetectionResult(
         is_threat=True,
         trigger_info="probe",

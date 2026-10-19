@@ -58,9 +58,9 @@ class _Worker:
             ip: str, duration: int, reason: str = "", *, grouped: bool = False
         ) -> bool:
             self.bans.append((ip, duration, reason))
-            return True
+            return duration
 
-        self.check.ip_ban_manager = Mock(ban_ip=record_ban)
+        self.check.ip_ban_manager = Mock(_ban_ip_escalating=record_ban)
 
     async def violate(self) -> Any:
         request = MockGuardRequest(path="/x", client_host=IP)
@@ -162,9 +162,9 @@ async def test_the_by_ip_primitive_counts_in_the_same_shared_counter(
         ip: str, duration: int, reason: str = "", *, grouped: bool = False
     ) -> bool:
         bans.append((ip, duration, reason))
-        return True
+        return duration
 
-    monkeypatch.setattr(IPBanManager(), "ban_ip", record_ban)
+    monkeypatch.setattr(IPBanManager(), "_ban_ip_escalating", record_ban)
     key = f"{config.redis_prefix}rate_limit:violations:{IP}"
 
     async def stored() -> int:

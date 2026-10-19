@@ -28,11 +28,11 @@ class _RecordingBans:
     def __init__(self) -> None:
         self.calls: list[tuple[str, int, str]] = []
 
-    async def ban_ip(
+    async def _ban_ip_escalating(
         self, ip: str, duration: int, reason: str = "", *, grouped: bool = False
     ) -> bool:
         self.calls.append((ip, duration, reason))
-        return True
+        return duration
 
 
 @pytest.fixture(autouse=True)
@@ -142,7 +142,7 @@ async def test_a_rate_limit_feed_threshold_above_the_floor_is_reachable() -> Non
     manager.redis_handler = None
     manager.config = config
     bans = _RecordingBans()
-    manager.ban_ip = bans.ban_ip  # type: ignore[method-assign]
+    manager._ban_ip_escalating = bans._ban_ip_escalating  # type: ignore[method-assign]
     ip = "192.0.2.77"
     _by_ip_autoban_counts.clear()
     try:

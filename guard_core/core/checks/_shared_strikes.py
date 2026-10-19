@@ -34,10 +34,16 @@ class StrikeReport:
     def __init__(self) -> None:
         self.count: int | None = None
         self.banning_count: int | None = None
+        self.banned_duration: int | None = None
 
     def record(
-        self, shared: SharedStrikes | None, banned: bool, counted: int | None = None
+        self,
+        shared: SharedStrikes | None,
+        banned: bool,
+        counted: int | None = None,
+        duration: int | None = None,
     ) -> None:
+        self.banned_duration = duration
         self.banning_count = counted if shared is None else shared.event_count
         if shared is not None:
             self.count = 0 if banned else shared.event_count

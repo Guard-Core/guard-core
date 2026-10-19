@@ -73,7 +73,7 @@ def test_whitelisted_ip_is_never_escalated(
     )
 
     assert mw.suspicious_request_counts == {}
-    ban.ban_ip.assert_not_called()
+    ban._ban_ip_escalating.assert_not_called()
     mw.event_bus.send_middleware_event.assert_not_called()
 
 
@@ -97,7 +97,7 @@ def test_falsy_client_ip_is_noop(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
     assert mw.suspicious_request_counts == {}
-    ban.ban_ip.assert_not_called()
+    ban._ban_ip_escalating.assert_not_called()
 
 
 def test_no_threat_no_counter_change_no_ban(
@@ -122,7 +122,7 @@ def test_no_threat_no_counter_change_no_ban(
     )
 
     assert mw.suspicious_request_counts == {}
-    ban.ban_ip.assert_not_called()
+    ban._ban_ip_escalating.assert_not_called()
     mw.event_bus.send_middleware_event.assert_not_called()
 
 
@@ -146,7 +146,7 @@ def test_disabled_by_decorator_is_noop(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
     assert mw.suspicious_request_counts == {}
-    ban.ban_ip.assert_not_called()
+    ban._ban_ip_escalating.assert_not_called()
 
 
 def test_never_reads_the_detection_pipeline_when_not_configured(
@@ -176,7 +176,7 @@ def test_never_reads_the_detection_pipeline_when_not_configured(
     )
 
     detect_mock.assert_not_called()
-    ban.ban_ip.assert_not_called()
+    ban._ban_ip_escalating.assert_not_called()
     assert mw.suspicious_request_counts == {}
 
 
@@ -202,7 +202,7 @@ def test_increments_the_real_detected_threat_category_not_the_synthetic_label(
     )
 
     assert mw.suspicious_request_counts["2.2.2.2"] == {"xss": 1}
-    ban.ban_ip.assert_not_called()
+    ban._ban_ip_escalating.assert_not_called()
 
 
 def test_increments_every_real_detected_category_in_one_call(
@@ -273,7 +273,7 @@ def test_ip_banning_disabled_no_ban(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
     assert mw.suspicious_request_counts["3.3.3.3"] == {"xss": 1}
-    ban.ban_ip.assert_not_called()
+    ban._ban_ip_escalating.assert_not_called()
 
 
 def test_below_flat_threshold_no_ban(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -296,7 +296,7 @@ def test_below_flat_threshold_no_ban(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
     assert mw.suspicious_request_counts["4.4.4.4"] == {"xss": 1}
-    ban.ban_ip.assert_not_called()
+    ban._ban_ip_escalating.assert_not_called()
 
 
 def test_flat_threshold_met_after_repeated_violations(
@@ -321,7 +321,7 @@ def test_flat_threshold_met_after_repeated_violations(
         "user_agent",
         "t",
     )
-    assert ban.ban_ip.call_count == 0
+    assert ban._ban_ip_escalating.call_count == 0
 
     escalate_identity_violation(
         mw,
@@ -335,7 +335,7 @@ def test_flat_threshold_met_after_repeated_violations(
         "user_agent",
         "t",
     )
-    ban.ban_ip.assert_called_once_with(
+    ban._ban_ip_escalating.assert_called_once_with(
         "7.7.7.7", 300, "penetration_attempt", grouped=False
     )
 
@@ -363,7 +363,7 @@ def test_first_violation_bans_immediately_when_threshold_is_one(
         "t",
     )
 
-    ban.ban_ip.assert_called_once_with(
+    ban._ban_ip_escalating.assert_called_once_with(
         "11.0.0.1", 60, "penetration_attempt", grouped=False
     )
 
@@ -393,7 +393,7 @@ def test_per_category_ban_config_overrides_a_high_flat_threshold(
         "IP blocked by blocked_countries",
     )
 
-    ban.ban_ip.assert_called_once_with(
+    ban._ban_ip_escalating.assert_called_once_with(
         "9.9.9.9", 99999, "penetration_attempt:xss", grouped=False
     )
     assert "9.9.9.9" not in mw.suspicious_request_counts
@@ -425,7 +425,7 @@ def test_per_category_ban_takes_priority_over_flat_ban(
         "t",
     )
 
-    ban.ban_ip.assert_called_once_with(
+    ban._ban_ip_escalating.assert_called_once_with(
         "9.9.9.10", 99999, "penetration_attempt:xss", grouped=False
     )
 
@@ -453,7 +453,7 @@ def test_muted_check_logs_suppresses_log(monkeypatch: pytest.MonkeyPatch) -> Non
         "t",
     )
 
-    ban.ban_ip.assert_called_once()
+    ban._ban_ip_escalating.assert_called_once()
     log_mock.assert_called_once()
     assert log_mock.call_args.kwargs["muted_check_logs"] == {"ip_security"}
 
@@ -547,7 +547,9 @@ def test_ban_failure_is_swallowed_logged_and_made_visible(
     )
     mw = _make_middleware()
     ban = MagicMock()
-    ban.ban_ip = MagicMock(side_effect=ValueError("duration exceeds local cap"))
+    ban._ban_ip_escalating = MagicMock(
+        side_effect=ValueError("duration exceeds local cap")
+    )
     logger = MagicMock()
     _patch_detect(monkeypatch)
 
@@ -565,7 +567,7 @@ def test_ban_failure_is_swallowed_logged_and_made_visible(
     )
 
     assert mw.suspicious_request_counts["40.0.0.1"] == {"xss": 1}
-    ban.ban_ip.assert_called_once_with(
+    ban._ban_ip_escalating.assert_called_once_with(
         "40.0.0.1", 300, "penetration_attempt", grouped=False
     )
     logger.exception.assert_called_once()
@@ -585,7 +587,7 @@ def test_redis_error_during_ban_is_swallowed_logged_and_made_visible(
     )
     mw = _make_middleware()
     ban = MagicMock()
-    ban.ban_ip = MagicMock(side_effect=ConnectionError("redis unavailable"))
+    ban._ban_ip_escalating = MagicMock(side_effect=ConnectionError("redis unavailable"))
     logger = MagicMock()
     _patch_detect(monkeypatch)
 
@@ -616,7 +618,9 @@ def test_ban_and_event_bus_both_failing_does_not_raise(
     )
     mw = _make_middleware()
     ban = MagicMock()
-    ban.ban_ip = MagicMock(side_effect=RuntimeError("redis down, ban not applied"))
+    ban._ban_ip_escalating = MagicMock(
+        side_effect=RuntimeError("redis down, ban not applied")
+    )
     logger = MagicMock()
     _patch_detect(monkeypatch)
 
@@ -640,7 +644,7 @@ def test_ban_and_event_bus_both_failing_does_not_raise(
     )
 
     assert mw.suspicious_request_counts["43.0.0.1"] == {"xss": 1}
-    ban.ban_ip.assert_called_once()
+    ban._ban_ip_escalating.assert_called_once()
     assert logger.exception.call_count == 2
 
 
@@ -659,7 +663,7 @@ def test_a_broken_log_sink_never_escapes(
         side_effect=ConnectionError("event bus down too")
     )
     ban = MagicMock()
-    ban.ban_ip = MagicMock(side_effect=RuntimeError("redis down"))
+    ban._ban_ip_escalating = MagicMock(side_effect=RuntimeError("redis down"))
     logger = MagicMock()
     logger.exception = MagicMock(side_effect=OSError("log sink unavailable"))
     _patch_detect(monkeypatch)

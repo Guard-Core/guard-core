@@ -76,7 +76,7 @@ async def _strike(
     middleware.create_error_response = AsyncMock(return_value=MagicMock())
     middleware.route_resolver.should_bypass_check = lambda *_: False
     check = SuspiciousActivityCheck(middleware)
-    check.ip_ban_manager = Mock(ban_ip=AsyncMock(return_value=True))
+    check.ip_ban_manager = Mock(_ban_ip_escalating=AsyncMock(return_value=True))
     result = DetectionResult(
         is_threat=True,
         trigger_info="probe",

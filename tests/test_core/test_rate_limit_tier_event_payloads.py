@@ -155,7 +155,7 @@ async def test_a_global_block_names_the_global_limit_in_the_ban_log() -> None:
     middleware = _middleware(config)
     check = RateLimitCheck(middleware)
     check.ip_ban_manager = Mock()
-    check.ip_ban_manager.ban_ip = AsyncMock()
+    check.ip_ban_manager._ban_ip_escalating = AsyncMock(return_value=3600)
 
     await check.check(_request())
 
@@ -197,7 +197,7 @@ async def test_an_unavailable_shared_counter_is_logged_and_counted_locally() -> 
     middleware.rate_limit_handler.redis_handler = Mock()
     check = RateLimitCheck(middleware)
     check.ip_ban_manager = Mock()
-    check.ip_ban_manager.ban_ip = AsyncMock()
+    check.ip_ban_manager._ban_ip_escalating = AsyncMock(return_value=3600)
 
     with patch.object(
         rate_limit_module,

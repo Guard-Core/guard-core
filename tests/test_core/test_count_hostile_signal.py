@@ -55,7 +55,7 @@ async def test_banning_disabled_neither_counts_nor_bans() -> None:
         check, _request(), "referrer", "t"
     )
     assert check.middleware.suspicious_request_counts == {}
-    check.ip_ban_manager.ban_ip.assert_not_called()
+    check.ip_ban_manager._ban_ip_escalating.assert_not_called()
 
 
 async def test_default_threshold_argument_applies_when_no_override() -> None:
@@ -66,7 +66,7 @@ async def test_default_threshold_argument_applies_when_no_override() -> None:
     )
 
     assert banned is True
-    check.ip_ban_manager.ban_ip.assert_awaited_once_with(
+    check.ip_ban_manager._ban_ip_escalating.assert_awaited_once_with(
         BOT_IP, 90, "honeypot_triggered:honeypot", grouped=False
     )
 
@@ -84,14 +84,14 @@ async def test_threat_ban_config_entry_beats_default_threshold() -> None:
     assert await count_hostile_signal_and_maybe_ban(
         check, _request(), "honeypot", "t", 1
     )
-    check.ip_ban_manager.ban_ip.assert_awaited_once_with(
+    check.ip_ban_manager._ban_ip_escalating.assert_awaited_once_with(
         BOT_IP, 5, "honeypot_triggered:honeypot", grouped=False
     )
 
 
 async def test_ban_failure_is_swallowed_logged_and_made_visible() -> None:
     ban = AsyncMock()
-    ban.ban_ip = AsyncMock(side_effect=ConnectionError("redis unavailable"))
+    ban._ban_ip_escalating = AsyncMock(side_effect=ConnectionError("redis unavailable"))
     check = _check(SecurityConfig(auto_ban_threshold=1), ban)
 
     banned = await count_hostile_signal_and_maybe_ban(
@@ -108,7 +108,7 @@ async def test_ban_failure_is_swallowed_logged_and_made_visible() -> None:
 
 async def test_ban_and_event_bus_both_failing_does_not_raise() -> None:
     ban = AsyncMock()
-    ban.ban_ip = AsyncMock(side_effect=RuntimeError("redis down"))
+    ban._ban_ip_escalating = AsyncMock(side_effect=RuntimeError("redis down"))
     check = _check(SecurityConfig(auto_ban_threshold=1), ban)
     check.middleware.event_bus.send_middleware_event = AsyncMock(
         side_effect=ConnectionError("event bus down too")
@@ -122,7 +122,7 @@ async def test_ban_and_event_bus_both_failing_does_not_raise() -> None:
 
 async def test_a_broken_log_sink_never_escapes() -> None:
     ban = AsyncMock()
-    ban.ban_ip = AsyncMock(side_effect=RuntimeError("redis down"))
+    ban._ban_ip_escalating = AsyncMock(side_effect=RuntimeError("redis down"))
     check = _check(SecurityConfig(auto_ban_threshold=1), ban)
     check.middleware.event_bus.send_middleware_event = AsyncMock(
         side_effect=ConnectionError("event bus down too")

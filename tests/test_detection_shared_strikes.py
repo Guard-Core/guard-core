@@ -70,9 +70,9 @@ class _Worker:
             ip: str, duration: int, reason: str = "", *, grouped: bool = False
         ) -> bool:
             self.bans.append((ip, duration, reason))
-            return True
+            return duration
 
-        self.check.ip_ban_manager = Mock(ban_ip=record_ban)
+        self.check.ip_ban_manager = Mock(_ban_ip_escalating=record_ban)
         self.result = result
         self.monkeypatch = monkeypatch
 

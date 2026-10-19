@@ -119,7 +119,7 @@ def _seed(
 ) -> tuple[MagicMock, IPBanManager, DynamicRuleManager]:
     middleware = _middleware(redis.config, redis)
     check = SuspiciousActivityCheck(middleware)
-    check.ip_ban_manager = Mock(ban_ip=MagicMock(return_value=True))
+    check.ip_ban_manager = Mock(_ban_ip_escalating=MagicMock(return_value=True))
     for ip in (INSIDE, OUTSIDE):
         _detect(check, monkeypatch, ip)
         ratelimit_handler.check_rate_limit_by_ip(ip, redis.config, redis)
@@ -158,7 +158,7 @@ def test_a_range_covering_two_addresses_resets_both_but_not_a_neighbour(
 ) -> None:
     middleware, _, rules = _seed(redis, monkeypatch)
     check = SuspiciousActivityCheck(middleware)
-    check.ip_ban_manager = Mock(ban_ip=MagicMock(return_value=True))
+    check.ip_ban_manager = Mock(_ban_ip_escalating=MagicMock(return_value=True))
     _detect(check, monkeypatch, "198.51.101.1")
 
     rules._apply_ip_whitelist(["198.51.100.0/24"])
@@ -172,7 +172,7 @@ def test_the_range_reset_reads_an_ipv6_address_by_stripping_the_prefix(
 ) -> None:
     middleware = _middleware(redis.config, redis)
     check = SuspiciousActivityCheck(middleware)
-    check.ip_ban_manager = Mock(ban_ip=MagicMock(return_value=True))
+    check.ip_ban_manager = Mock(_ban_ip_escalating=MagicMock(return_value=True))
     for ip in ("2001:db8::1", "2001:db9::1"):
         _detect(check, monkeypatch, ip)
 
@@ -220,10 +220,10 @@ def test_the_rate_limit_feed_never_records_detection_strikes(
         ip: str, duration: int, reason: str = "", *, grouped: bool = False
     ) -> bool:
         bans.append(ip)
-        return True
+        return duration
 
     check = RateLimitCheck(middleware)
-    check.ip_ban_manager = Mock(ban_ip=ban_ip)
+    check.ip_ban_manager = Mock(_ban_ip_escalating=ban_ip)
     calls = {"count": 0}
     real = ratelimit_handler.record_shared_violation
 

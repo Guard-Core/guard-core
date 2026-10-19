@@ -73,8 +73,8 @@ def _check(
 ) -> tuple[CustomValidatorsCheck, MagicMock]:
     check = CustomValidatorsCheck(mw)
     check.ip_ban_manager = manager
-    spy = MagicMock(wraps=manager.ban_ip)
-    monkeypatch.setattr(manager, "ban_ip", spy)
+    spy = MagicMock(wraps=manager._ban_ip_escalating)
+    monkeypatch.setattr(manager, "_ban_ip_escalating", spy)
     return check, spy
 
 

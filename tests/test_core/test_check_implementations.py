@@ -1560,7 +1560,7 @@ async def test_suspicious_activity_auto_ban() -> None:
         return_value=DetectionResult(is_threat=True, trigger_info="sqli"),
     ):
         with patch.object(check, "ip_ban_manager") as mock_ban:
-            mock_ban.ban_ip = AsyncMock()
+            mock_ban._ban_ip_escalating = AsyncMock()
             with patch(
                 f"{_IMPL}.suspicious_activity.log_activity", new_callable=AsyncMock
             ):

@@ -9,11 +9,11 @@ class _Bans:
     def __init__(self) -> None:
         self.calls: list[tuple[str, int, str]] = []
 
-    def ban_ip(
+    def _ban_ip_escalating(
         self, ip: str, duration: int, reason: str = "", *, grouped: bool = False
     ) -> bool:
         self.calls.append((ip, duration, reason))
-        return True
+        return duration
 
 
 def _config() -> SecurityConfig:

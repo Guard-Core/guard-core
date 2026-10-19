@@ -34,9 +34,9 @@ def _install_recording_ban_manager(
         grouped: bool = False,
     ) -> bool:
         ban_calls.append((ip, duration, reason))
-        return True
+        return duration
 
-    manager.ban_ip = fake_ban  # type: ignore[method-assign]
+    manager._ban_ip_escalating = fake_ban  # type: ignore[method-assign]
     return manager, ban_calls
 
 
@@ -259,7 +259,7 @@ async def test_already_banned_ip_makes_zero_additional_ban_calls() -> None:
             manager.banned_ips[ip] = time.time() + duration
             return True
 
-        manager.ban_ip = fake_ban  # type: ignore[method-assign]
+        manager._ban_ip_escalating = fake_ban  # type: ignore[method-assign]
 
         ip = "192.0.2.110"
 
@@ -326,7 +326,7 @@ async def test_dedicated_counter_isolated_from_middleware_suspicious_counts() ->
         middleware = _make_middleware(config)
         check = RateLimitCheck(middleware)
         check.ip_ban_manager = Mock()
-        check.ip_ban_manager.ban_ip = AsyncMock()
+        check.ip_ban_manager._ban_ip_escalating = AsyncMock()
 
         await check.check(_make_request("192.0.2.108"))
 

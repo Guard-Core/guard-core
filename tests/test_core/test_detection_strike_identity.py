@@ -60,10 +60,10 @@ class _Worker:
             ip: str, duration: int, reason: str = "", *, grouped: bool = False
         ) -> bool:
             self.bans.append((ip, duration, reason))
-            return True
+            return duration
 
         monkeypatch.setattr(f"{DETECT_MODULE}.get_cached_detection_result", detect)
-        monkeypatch.setattr(self.check.ip_ban_manager, "ban_ip", ban)
+        monkeypatch.setattr(self.check.ip_ban_manager, "_ban_ip_escalating", ban)
 
     async def strike(self, client_ip: str) -> None:
         request = MagicMock()

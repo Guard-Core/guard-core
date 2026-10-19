@@ -59,7 +59,7 @@ def test_a_peerless_client_is_rate_limited_and_never_turned_into_a_500(
         banned.append(ip)
         return True
 
-    monkeypatch.setattr(ip_ban_manager, "ban_ip", record_ban)
+    monkeypatch.setattr(ip_ban_manager, "_ban_ip_escalating", record_ban)
     pipeline = _global_pipeline(SecurityConfig(**GLOBAL_LIMIT_1))
 
     statuses = _statuses(pipeline, None, 5)
@@ -89,7 +89,7 @@ def test_an_exception_from_ban_ip_keeps_the_429(
     def explode(*args: Any, **kwargs: Any) -> bool:
         raise RuntimeError("ban store down")
 
-    monkeypatch.setattr(ip_ban_manager, "ban_ip", explode)
+    monkeypatch.setattr(ip_ban_manager, "_ban_ip_escalating", explode)
     pipeline = _global_pipeline(SecurityConfig(**GLOBAL_LIMIT_1))
 
     with caplog.at_level(logging.ERROR):
