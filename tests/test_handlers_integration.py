@@ -116,10 +116,15 @@ async def test_ipban_unban_with_redis() -> None:
     mgr.banned_ips["1.2.3.4"] = time.time() + 1000
     redis = MagicMock()
     redis.delete = AsyncMock()
+    redis.write_atomically = AsyncMock()
     redis.forget_detection_strikes = AsyncMock()
     mgr.redis_handler = redis
     await mgr.unban_ip("1.2.3.4")
-    redis.delete.assert_any_call("banned_ips", "1.2.3.4")
+    redis.write_atomically.assert_awaited_once_with(
+        sets=(),
+        deletes=[("banned_ips", "1.2.3.4")],
+        increment=("ban_version", "counter"),
+    )
     redis.delete.assert_any_call("rate_limit", "violations:1.2.3.4")
     redis.forget_detection_strikes.assert_called_once_with("1.2.3.4")
 

@@ -12,6 +12,7 @@ from guard_core.sync.handlers.ipban_handler import IPBanManager
 from guard_core.sync.handlers.redis_handler import RedisManager
 from tests.test_sync.ipban_redis_fake import (
     fake_ban_redis,
+    pipeline_of,
     redis_with_connection,
     scanning,
 )
@@ -180,14 +181,20 @@ def test_a_carve_keeps_a_longer_ban_of_its_base_identity() -> None:
     connection.scan_iter = scanning(f"guard:banned_identities:{CARVED}")
     connection.get = MagicMock(return_value="123.0")
     connection.pttl = MagicMock(side_effect=[5000, 90000])
-    connection.set = MagicMock()
-    connection.delete = MagicMock()
+    pipe = MagicMock()
+    pipe.set = MagicMock()
+    pipe.delete = MagicMock()
+    pipe.incr = MagicMock()
+    pipe.execute = MagicMock()
+    connection.pipeline = pipeline_of(pipe)
     manager = _carve_manager(connection)
 
     assert manager._rewrite_redis_carves() == 1
 
-    connection.set.assert_not_called()
-    connection.delete.assert_called_once_with(f"guard:banned_identities:{CARVED}")
+    pipe.set.assert_not_called()
+    pipe.delete.assert_called_once_with(f"guard:banned_identities:{CARVED}")
+    pipe.incr.assert_called_once_with("guard:ban_version:counter")
+    pipe.execute.assert_called_once()
 
 
 def test_a_carve_the_whitelist_still_produces_is_left_in_redis() -> None:

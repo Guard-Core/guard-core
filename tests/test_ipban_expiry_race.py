@@ -71,6 +71,15 @@ class _RecordingRedisHandler:
     async def delete(self, namespace: str, key: str) -> None:
         self.delete_calls.append((namespace, key))
 
+    async def write_atomically(
+        self,
+        *,
+        sets: Any = (),
+        deletes: Any = (),
+        increment: Any = None,
+    ) -> None:
+        self.delete_calls.extend(deletes)
+
     async def forget_detection_strikes(self, client_ip: str) -> None:
         self.delete_calls.append(("detection_strikes", client_ip))
 

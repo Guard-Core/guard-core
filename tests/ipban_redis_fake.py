@@ -36,6 +36,15 @@ def scanning(*keys: str) -> Any:
     return scan_iter
 
 
+def pipeline_of(pipe: Any) -> Any:
+    return MagicMock(
+        return_value=AsyncMock(
+            __aenter__=AsyncMock(return_value=pipe),
+            __aexit__=AsyncMock(return_value=None),
+        )
+    )
+
+
 def redis_with_connection(connection: Any) -> Any:
     redis = AsyncMock()
     redis.config = MagicMock(redis_prefix="guard:")

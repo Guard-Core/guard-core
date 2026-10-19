@@ -473,7 +473,8 @@ async def test_a_failed_redis_clear_on_unban_is_logged_and_the_unban_stands(
     manager = IPBanManager()
     manager.banned_ips[IP] = time.time() + 60
     redis = Mock(
-        delete=AsyncMock(side_effect=[None, RuntimeError("redis down")]),
+        write_atomically=AsyncMock(),
+        delete=AsyncMock(side_effect=RuntimeError("redis down")),
         forget_detection_strikes=AsyncMock(),
     )
     manager.redis_handler = redis

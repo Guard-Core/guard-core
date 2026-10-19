@@ -99,7 +99,11 @@ def test_unban_removes_local_entry_and_calls_redis_delete() -> None:
     manager.unban_ip("10.0.0.30")
 
     assert "10.0.0.30" not in manager.banned_ips
-    redis.delete.assert_any_call("banned_ips", "10.0.0.30")
+    redis.write_atomically.assert_called_once_with(
+        sets=(),
+        deletes=[("banned_ips", "10.0.0.30")],
+        increment=("ban_version", "counter"),
+    )
     redis.delete.assert_any_call("rate_limit", "violations:10.0.0.30")
     redis.forget_detection_strikes.assert_called_once_with("10.0.0.30")
     agent.send_event.assert_called_once()

@@ -75,7 +75,11 @@ def test_unban_ip_with_agent(cleanup_ipban_singleton: None) -> None:
 
     assert manager.is_ip_banned("192.168.1.103") is False
 
-    manager.redis_handler.delete.assert_any_call("banned_ips", "192.168.1.103")
+    manager.redis_handler.write_atomically.assert_any_call(
+        sets=(),
+        deletes=[("banned_ips", "192.168.1.103")],
+        increment=("ban_version", "counter"),
+    )
 
     manager.agent_handler.send_event.assert_called_once()
 

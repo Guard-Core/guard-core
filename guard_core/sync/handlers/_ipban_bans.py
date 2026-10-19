@@ -60,17 +60,19 @@ class IpBanOperationsMixin(
 
     def _store_cidr_ban_in_redis(self, network: _Network, duration: int) -> None:
         try:
-            self.redis_handler.set_key(
-                "banned_networks",
-                str(network),
-                str(time.time() + duration),
-                ttl=duration,
+            self._write_with_version_bump(
+                sets=[
+                    (
+                        "banned_networks",
+                        str(network),
+                        str(time.time() + duration),
+                        duration,
+                    )
+                ]
             )
         except Exception:
             self._warn_kept_in_this_process(str(network), "request failed")
             self.banned_networks.append((network, time.time() + duration))
-            return
-        self._bump_ban_version()
 
     def _ban_exact_ip(self, ip: str, duration: int, reason: str) -> None:
         self._assert_valid_exact_ip(ip)

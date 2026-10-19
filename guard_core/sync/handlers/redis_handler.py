@@ -358,6 +358,34 @@ class RedisManager:
         result = self.safe_operation(_incr)
         return int(result) if result is not None else 0
 
+    def write_atomically(
+        self,
+        *,
+        sets: Sequence[tuple[str, str, Any, int | None]] = (),
+        deletes: Sequence[tuple[str, str]] = (),
+        increment: tuple[str, str] | None = None,
+    ) -> None:
+        """Apply sets, deletes and one counter increment in one MULTI/EXEC.
+
+        Either all of it lands or none of it does, and no other command runs in
+        between, so a worker that sees the new counter sees the writes.
+        """
+        if not self.config.enable_redis:
+            return
+
+        def _write(conn: Redis) -> None:
+            prefix = self.config.redis_prefix
+            with conn.pipeline(transaction=True) as pipe:
+                for namespace, key, value, ttl in sets:
+                    pipe.set(f"{prefix}{namespace}:{key}", value, ex=ttl)
+                for namespace, key in deletes:
+                    pipe.delete(f"{prefix}{namespace}:{key}")
+                if increment is not None:
+                    pipe.incr(f"{prefix}{increment[0]}:{increment[1]}")
+                pipe.execute()
+
+        self.safe_operation(_write)
+
     def record_sliding_window_hit(
         self,
         namespace: str,

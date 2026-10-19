@@ -111,17 +111,17 @@ def test_clearing_the_persisted_rules_deletes_the_redis_key() -> None:
 def test_unbanning_a_network_removes_the_redis_record() -> None:
     redis = MagicMock()
     redis.delete = MagicMock()
+    redis.write_atomically = MagicMock()
     with patch.object(ip_ban_manager, "redis_handler", redis):
         ip_ban_manager.unban_ip("203.0.113.0/24")
-    ban_keys = [
-        call.args
-        for call in redis.delete.call_args_list
-        if call.args[0].startswith("banned_")
-    ]
-    assert ban_keys == [
-        ("banned_networks", "203.0.113.0/24"),
-        ("banned_identities", "203.0.113.0/24"),
-    ]
+    redis.write_atomically.assert_called_once_with(
+        sets=(),
+        deletes=[
+            ("banned_networks", "203.0.113.0/24"),
+            ("banned_identities", "203.0.113.0/24"),
+        ],
+        increment=("ban_version", "counter"),
+    )
 
 
 def test_a_non_ip_value_is_never_rule_exempt() -> None:

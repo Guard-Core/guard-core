@@ -1,7 +1,7 @@
 import ipaddress
 import logging
 import time
-from collections.abc import MutableMapping
+from collections.abc import MutableMapping, Sequence
 from typing import Any
 
 from guard_core.handlers._ipban_cache import _Network, _OperatorNetworks
@@ -45,6 +45,28 @@ class IpBanVersionMixin:
                 "a lifted or new ban until their next reload: %s",
                 error,
             )
+
+    async def _write_with_version_bump(
+        self,
+        *,
+        sets: Sequence[tuple[str, str, Any, int | None]] = (),
+        deletes: Sequence[tuple[str, str]] = (),
+    ) -> None:
+        """The ban writes and the version INCR in one MULTI/EXEC: a worker that
+        sees the new version sees the writes, and a failure leaves neither."""
+        await self.redis_handler.write_atomically(
+            sets=sets, deletes=deletes, increment=_VERSION_PAIR
+        )
+
+    def _version_redis_key(self) -> str:
+        prefix = self.redis_handler.config.redis_prefix
+        return f"{prefix}{_VERSION_PAIR[0]}:{_VERSION_PAIR[1]}"
+
+    async def _unlink_with_version_bump(self, conn: Any, keys: list[str]) -> None:
+        async with conn.pipeline(transaction=True) as pipe:
+            await pipe.unlink(*keys)
+            await pipe.incr(self._version_redis_key())
+            await pipe.execute()
 
     def _forget_shared_state(self) -> None:
         self._operator_networks = None

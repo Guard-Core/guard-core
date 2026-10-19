@@ -60,18 +60,15 @@ class IpBanQueryMixin(
         ]
         self._purge_banned_ip(str(network))
         if self.redis_handler:
-            self.redis_handler.delete("banned_networks", str(network))
-            self.redis_handler.delete("banned_identities", str(network))
+            self._write_with_version_bump(
+                deletes=[
+                    ("banned_networks", str(network)),
+                    ("banned_identities", str(network)),
+                ]
+            )
         self._forget_strikes(str(network))
-        self._bump_ban_version()
         if self.agent_handler:
             self._send_unban_event(str(network), reason)
-
-    def _unban_identity(self, identity: str) -> None:
-        self._purge_banned_ip(identity)
-        if self.redis_handler:
-            self.redis_handler.delete("banned_identities", identity)
-        self._forget_strikes(identity)
 
     def unban_inside(self, entries: Iterable[str]) -> None:
         networks = [ipaddress.ip_network(entry, strict=False) for entry in entries]
@@ -82,7 +79,6 @@ class IpBanQueryMixin(
         if self.redis_handler:
             removed.extend(self._unban_redis_inside(coverage))
         members = list(dict.fromkeys(removed))
-        self._bump_ban_version()
         self._forget_strikes_of(members)
         if self.agent_handler:
             self._send_unban_events(members, "dynamic_rule_whitelist")
@@ -219,11 +215,11 @@ class IpBanQueryMixin(
                             batch.append(key)
                             removed.append(member)
                         if len(batch) >= _BATCH:
-                            conn.unlink(*batch)
+                            self._unlink_with_version_bump(conn, batch)
                             batch.clear()
                             time.sleep(0)
                     if batch:
-                        conn.unlink(*batch)
+                        self._unlink_with_version_bump(conn, batch)
         except Exception as e:
             self.logger.warning("Redis unban of whitelisted ranges failed: %s", e)
         return removed
@@ -235,14 +231,17 @@ class IpBanQueryMixin(
         ip = _canonicalize_ip(ip)
         identity = self._grouped_identity_of(ip, self.config)
         self._purge_banned_ip(ip)
+        deletes = [("banned_ips", ip)]
+        if identity is not None:
+            self._purge_banned_ip(identity)
+            deletes.append(("banned_identities", identity))
 
         if self.redis_handler:
-            self.redis_handler.delete("banned_ips", ip)
+            self._write_with_version_bump(deletes=deletes)
 
         self._forget_strikes(ip)
         if identity is not None:
-            self._unban_identity(identity)
-        self._bump_ban_version()
+            self._forget_strikes(identity)
 
         if self.agent_handler:
             self._send_unban_event(ip, reason)

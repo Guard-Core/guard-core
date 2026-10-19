@@ -133,7 +133,9 @@ def test_only_operator_bans_and_unbans_bump_the_version(
     assert _version(live_redis) == 2
     worker.unban_ip(OPERATOR_NETWORK)
     assert _version(live_redis) == 3
-    worker.unban_inside(["203.0.113.0/24"])
+    worker.ban_ip("198.51.100.77", 600, "threshold_exceeded")
+    assert _version(live_redis) == 3
+    worker.unban_inside(["198.51.100.0/24"])
     assert _version(live_redis) == 4
     worker.reset()
     assert _version(live_redis) == 5

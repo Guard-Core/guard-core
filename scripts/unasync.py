@@ -38,6 +38,7 @@ SKIP_TESTS = {
     "test_dynamic_rule_swap_atomicity.py",
     "test_redis_prefix_isolation.py",
     "test_ipban_unban_inside_async.py",
+    "test_ipban_atomic_version.py",
     "test_module_imports_standalone.py",
     "test_suspatterns_handler_module_surface.py",
     "test_gc_per_test_opt_in.py",

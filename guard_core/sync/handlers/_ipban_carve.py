@@ -86,7 +86,10 @@ class IpBanCarveMixin(IpBanLookupMixin):
     ) -> None:
         target_key = f"{stem}{target}"
         existing = conn.pttl(target_key)
-        if existing < pttl:
-            conn.set(target_key, value, px=pttl)
-        conn.delete(key)
+        with conn.pipeline(transaction=True) as pipe:
+            if existing < pttl:
+                pipe.set(target_key, value, px=pttl)
+            pipe.delete(key)
+            pipe.incr(self._version_redis_key())
+            pipe.execute()
         self._purge_banned_ip(key[len(stem) :])

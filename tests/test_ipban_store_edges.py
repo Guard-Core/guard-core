@@ -10,7 +10,12 @@ from guard_core.handlers._ipban_cache import _BanStore
 from guard_core.handlers.ipban_handler import IPBanManager
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import SecurityConfig
-from tests.ipban_redis_fake import fake_ban_redis, redis_with_connection, scanning
+from tests.ipban_redis_fake import (
+    fake_ban_redis,
+    pipeline_of,
+    redis_with_connection,
+    scanning,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -176,14 +181,20 @@ async def test_a_carve_keeps_a_longer_ban_of_its_base_identity() -> None:
     connection.scan_iter = scanning(f"guard:banned_identities:{CARVED}")
     connection.get = AsyncMock(return_value="123.0")
     connection.pttl = AsyncMock(side_effect=[5000, 90000])
-    connection.set = AsyncMock()
-    connection.delete = AsyncMock()
+    pipe = MagicMock()
+    pipe.set = AsyncMock()
+    pipe.delete = AsyncMock()
+    pipe.incr = AsyncMock()
+    pipe.execute = AsyncMock()
+    connection.pipeline = pipeline_of(pipe)
     manager = _carve_manager(connection)
 
     assert await manager._rewrite_redis_carves() == 1
 
-    connection.set.assert_not_awaited()
-    connection.delete.assert_awaited_once_with(f"guard:banned_identities:{CARVED}")
+    pipe.set.assert_not_awaited()
+    pipe.delete.assert_awaited_once_with(f"guard:banned_identities:{CARVED}")
+    pipe.incr.assert_awaited_once_with("guard:ban_version:counter")
+    pipe.execute.assert_awaited_once()
 
 
 async def test_a_carve_the_whitelist_still_produces_is_left_in_redis() -> None:
