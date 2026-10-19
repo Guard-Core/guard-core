@@ -200,3 +200,11 @@ def test_a_carve_the_whitelist_still_produces_is_left_in_redis() -> None:
     assert manager._rewrite_redis_carves() == 0
 
     connection.get.assert_not_called()
+
+
+def test_a_grouped_ban_of_text_that_is_not_a_network_is_refused() -> None:
+    manager = IPBanManager()
+    manager.redis_handler = None
+
+    with pytest.raises(ValueError, match="Invalid identity"):
+        manager.ban_ip("not-a-network", 60, "t", grouped=True)

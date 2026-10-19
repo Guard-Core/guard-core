@@ -214,3 +214,23 @@ def test_the_startup_whitelist_scan_runs_the_rewrite(
 
     assert live_redis.get_key("banned_identities", "2002:c000:204::/48")
     assert not live_redis.get_key("banned_identities", carve)
+
+
+def test_the_real_initialization_gives_the_ban_manager_the_whitelist() -> None:
+    from guard_core.sync.core.initialization.handler_initializer import (
+        HandlerInitializer,
+    )
+    from guard_core.sync.handlers.ipban_handler import ip_ban_manager
+
+    config = SecurityConfig(enable_redis=False, lazy_init=False, whitelist=[HOST])
+    saved_config = ip_ban_manager.config
+    try:
+        HandlerInitializer(config=config).initialize_redis_handlers()
+        ip_ban_manager.ban_ip(IDENTITY, 600, "t", grouped=True)
+
+        assert ip_ban_manager.config is config
+        assert ip_ban_manager.is_ip_banned(HOST) is False
+        assert ip_ban_manager.is_ip_banned(NEIGHBOUR) is True
+    finally:
+        ip_ban_manager.reset()
+        ip_ban_manager.config = saved_config
