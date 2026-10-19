@@ -24,6 +24,7 @@ from guard_core.sync.handlers._suspatterns_recall_rows import (
     _SQLI_BLIND_SUBSTRING_RE,
     _SQLI_ERROR_BASED_RE,
     _SQLI_SCHEMA_SUBSELECT_RE,
+    _SSRF_FRAGMENT_USERINFO_RE,
     _SSRF_WILDCARD_DNS_RE,
     _TEMPLATE_DUNDER_CHAIN_RE,
     _TEMPLATE_FREEMARKER_EXECUTE_RE,
@@ -447,6 +448,7 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
     ),
     (_LEGACY_IPV4_HOST_RE, _CTX_SSRF, "ssrf"),
     (_SSRF_WILDCARD_DNS_RE, _CTX_SSRF, "ssrf"),
+    (_SSRF_FRAGMENT_USERINFO_RE, _CTX_SSRF, "ssrf"),
     (r"(?:file|dict|gopher|jar|tftp)://[^\s]+", _CTX_SSRF, "ssrf"),
     (
         _FILE_INCLUSION_REMOTE_NULL_TERMINATED_RE,

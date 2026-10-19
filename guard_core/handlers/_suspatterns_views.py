@@ -147,6 +147,43 @@ class _SusPatternsViewsMixin(_SusPatternsRegexMixin):
         )
         return threats, matched, timeouts, decode_budget_exhausted_flag
 
+    def _comment_dropped_view(
+        self,
+        precomputed_decoded: str | None,
+        processed_content: str,
+        state: _DetectionState,
+    ) -> str | None:
+        preprocessor = state.preprocessor
+        if not preprocessor or precomputed_decoded is None:
+            return None
+        return preprocessor.preprocess_comment_dropped_view(
+            precomputed_decoded, processed_content
+        )
+
+    async def _check_comment_dropped_view_patterns(
+        self,
+        dropped_view: str | None,
+        ip_address: str,
+        context: str,
+        correlation_id: str | None,
+        enabled_categories: set[str] | None,
+        state: _DetectionState,
+    ) -> tuple[list[dict], list[str], list[str]]:
+        if dropped_view is None:
+            return [], [], []
+        if enabled_categories is not None and "sqli" not in enabled_categories:
+            return [], [], []
+
+        return await self._check_regex_patterns(
+            dropped_view,
+            ip_address,
+            correlation_id,
+            context,
+            {"sqli"},
+            state=state,
+            raw_view_only=False,
+        )
+
     async def _check_short_base64_additive_view_patterns(
         self,
         content: str,

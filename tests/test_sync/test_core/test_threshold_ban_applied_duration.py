@@ -54,9 +54,7 @@ def _threshold_ban(
     )
 
 
-def test_the_second_threshold_ban_inside_the_window_reports_twice_the_duration() -> (
-    None
-):
+def test_a_second_threshold_ban_in_the_window_reports_twice_the_duration() -> None:
     config = _config(enable_recidive=True)
     manager = _manager(config)
 

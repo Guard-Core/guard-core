@@ -67,6 +67,8 @@ class ContentPreprocessor:
         r"(?<!\w)/\*(?!!)(.*?)\*/|/\*(?!!)(.*?)\*/(?!\w)", re.DOTALL
     )
     _SQL_LINE_COMMENT_MARKER_RE = re.compile(r"--|#")
+    _SQL_LINE_COMMENT_DROP_RE = re.compile(r"--(?=[\s\x00-\x1f]|\Z)[^\n]*|#[^\n]*")
+    _SQL_COMMENT_MARKERS = ("--", "#", "/*")
 
     async def _send_preprocessor_event(
         self,
@@ -297,8 +299,28 @@ class ContentPreprocessor:
             if decode_budget_exhausted is not None:
                 decode_budget_exhausted[0] = True
 
-        content = self._strip_sql_comments(content)
         return content
+
+    def drop_sql_comments(self, content: str) -> str | None:
+        if not any(marker in content for marker in self._SQL_COMMENT_MARKERS):
+            return None
+
+        def _replace_block_comment(match: re.Match[str]) -> str:
+            body = match.group(1) if match.group(1) is not None else match.group(2)
+            return f" {body} "
+
+        content = self._SQL_BLOCK_COMMENT_STRIP_RE.sub(_replace_block_comment, content)
+        return self._SQL_LINE_COMMENT_DROP_RE.sub("", content)
+
+    def preprocess_comment_dropped_view(
+        self, decoded: str, processed: str
+    ) -> str | None:
+        dropped = self.drop_sql_comments(decoded)
+        if dropped is None:
+            return None
+        view = self.remove_excessive_whitespace(self.remove_null_bytes(dropped))
+        view = self.truncate_safely(view)
+        return None if view == processed else view
 
     async def preprocess(
         self, content: str, decode_budget_exhausted: list[bool] | None = None

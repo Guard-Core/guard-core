@@ -379,43 +379,43 @@ async def test_truncate_preserves_tail_content_after_attack_region(
 
 
 @pytest.mark.asyncio
-async def test_sql_line_comment_no_longer_discards_xss_payload_after_marker(
+async def test_preprocess_keeps_the_xss_payload_after_a_line_comment_marker(
     pp: ContentPreprocessor,
 ) -> None:
     result = await pp.preprocess("x-- <script>alert(1)</script>")
-    assert result == "x <script>alert(1)</script>"
+    assert result == "x-- <script>alert(1)</script>"
 
 
 @pytest.mark.asyncio
-async def test_sql_line_comment_no_longer_discards_command_substitution_after_marker(
+async def test_preprocess_keeps_the_command_substitution_after_a_marker(
     pp: ContentPreprocessor,
 ) -> None:
     result = await pp.preprocess("a--$(whoami)")
-    assert result == "a $(whoami)"
+    assert result == "a--$(whoami)"
 
 
 @pytest.mark.asyncio
-async def test_sql_line_comment_no_longer_discards_union_select_after_marker(
+async def test_preprocess_keeps_the_union_select_after_a_marker(
     pp: ContentPreprocessor,
 ) -> None:
     result = await pp.preprocess("q=1-- OR 1=1 UNION SELECT password")
-    assert result == "q=1 OR 1=1 UNION SELECT password"
+    assert result == "q=1-- OR 1=1 UNION SELECT password"
 
 
 @pytest.mark.asyncio
-async def test_sql_line_comment_at_end_of_input_still_stripped(
+async def test_preprocess_keeps_a_trailing_line_comment_marker(
     pp: ContentPreprocessor,
 ) -> None:
     result = await pp.preprocess("' OR 1=1 --")
-    assert result == "' OR 1=1"
+    assert result == "' OR 1=1 --"
 
 
 @pytest.mark.asyncio
-async def test_double_dash_cli_flag_no_longer_truncates_rest_of_command(
+async def test_preprocess_keeps_the_double_dash_of_a_cli_flag(
     pp: ContentPreprocessor,
 ) -> None:
     result = await pp.preprocess("`docker run --rm -it alpine sh`")
-    assert result == "`docker run rm -it alpine sh`"
+    assert result == "`docker run --rm -it alpine sh`"
 
 
 def test_strip_sql_comments_standalone_block_comment_preserves_interior(

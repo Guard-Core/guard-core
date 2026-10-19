@@ -54,7 +54,7 @@ async def _threshold_ban(
     )
 
 
-async def test_the_second_threshold_ban_inside_the_window_reports_twice_the_duration() -> (
+async def test_a_second_threshold_ban_in_the_window_reports_twice_the_duration() -> (
     None
 ):
     config = _config(enable_recidive=True)

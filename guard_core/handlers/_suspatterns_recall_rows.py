@@ -61,6 +61,16 @@ _SSRF_WILDCARD_DNS_RE = (
     r"(?:\A|[/@\s])" + _INTERNAL_IPV4_PREFIX_RE + r"\.(?:nip|sslip|xip)\.io\b"
 )
 
+_SSRF_INTERNAL_HOST_RE = (
+    r"(?:localhost\.?|127(?:\.\d{1,3}){3}|0\.0\.0\.0|\[::1?\]|10(?:\.\d{1,3}){3}"
+    r"|192\.168(?:\.\d{1,3}){2}|172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2}"
+    r"|169\.254(?:\.\d{1,3}){2}|metadata\.google\.internal)"
+)
+_SSRF_FRAGMENT_USERINFO_RE = (
+    r"://" + _SSRF_INTERNAL_HOST_RE + r"(?::\d+)?#@[^\s/@#]+"
+    r"|://[^\s/@#]+#@" + _SSRF_INTERNAL_HOST_RE + r"(?::\d+)?(?:[/?\s]|\Z)"
+)
+
 _DESERIALIZATION_YAML_PYTHON_RE = r"!!(?:python|ruby)/(?:object|name|module)\b"
 _PROTO_POLLUTION_CONSTRUCTOR_PROTOTYPE_RE = (
     r"[\"']constructor[\"']\s*:\s*\{\s*[\"']prototype[\"']"

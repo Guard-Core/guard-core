@@ -893,6 +893,16 @@ class SusPatternsManager(_SusPatternsViewsMixin):
             regex_threats, matched_patterns, timeouts, raw_view_results
         )
 
+        dropped_view = self._comment_dropped_view(
+            precomputed_decoded, processed_content, state
+        )
+        dropped_view_results = await self._check_comment_dropped_view_patterns(
+            dropped_view, ip_address, context, correlation_id, enabled_categories, state
+        )
+        regex_threats, matched_patterns, timeouts = _merge_raw_view_results(
+            regex_threats, matched_patterns, timeouts, dropped_view_results
+        )
+
         decoded_view_threat = await self._check_decoded_view_path_traversal(
             processed_content, content, context, enabled_categories, state
         )
@@ -937,9 +947,15 @@ class SusPatternsManager(_SusPatternsViewsMixin):
 
         semantic_threats: list[dict] = []
         if not _context_header_is_semantic_excluded(context):
-            semantic_threats, _semantic_score = await self._check_semantic_threats(
+            semantic_threats, semantic_score = await self._check_semantic_threats(
                 processed_content, state=state, raw_content=original_content
             )
+            if dropped_view is not None:
+                dropped_threats, dropped_score = await self._check_semantic_threats(
+                    dropped_view, state=state, raw_content=original_content
+                )
+                if dropped_score > semantic_score:
+                    semantic_threats = dropped_threats
 
         threats = regex_threats + semantic_threats
         is_threat = (
