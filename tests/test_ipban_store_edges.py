@@ -1,6 +1,8 @@
 import logging
+import os
 import time
-from collections.abc import Generator
+import uuid
+from collections.abc import AsyncGenerator, Generator
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -215,3 +217,51 @@ async def test_a_grouped_ban_of_text_that_is_not_a_network_is_refused() -> None:
 
     with pytest.raises(ValueError, match="Invalid identity"):
         await manager.ban_ip("not-a-network", 60, "t", grouped=True)
+
+
+@pytest.fixture
+async def live_redis() -> AsyncGenerator[RedisManager, None]:
+    config = SecurityConfig(
+        redis_url=os.environ.get("REDIS_URL", "redis://localhost:6379"),
+        redis_prefix=f"wp6-edges:{uuid.uuid4().hex}:",
+    )
+    manager = RedisManager(config)
+    await manager.initialize()
+    yield manager
+    await manager.delete_pattern("*")
+    await manager.close()
+
+
+async def test_write_atomically_does_nothing_when_redis_is_off() -> None:
+    redis = RedisManager(SecurityConfig(enable_redis=False))
+
+    await redis.write_atomically(sets=[("ns", "k", "v", None)], deletes=[("ns", "j")])
+
+    assert await redis.get_key("ns", "k") is None
+
+
+async def test_write_atomically_sets_and_deletes_without_a_counter(
+    live_redis: RedisManager,
+) -> None:
+    await live_redis.set_key("ns", "old", "1")
+
+    await live_redis.write_atomically(
+        sets=[("ns", "new", "2", 60)], deletes=[("ns", "old")]
+    )
+
+    assert await live_redis.get_key("ns", "new") == "2"
+    assert await live_redis.get_key("ns", "old") is None
+    assert await live_redis.get_key("ban_version", "counter") is None
+
+
+async def test_a_failed_version_bump_is_logged(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    manager = IPBanManager()
+    manager.redis_handler = AsyncMock()
+    manager.redis_handler.incr = AsyncMock(side_effect=OSError("down"))
+
+    with caplog.at_level(logging.WARNING, logger="guard_core.handlers.ipban"):
+        await manager._bump_ban_version()
+
+    assert any("could not be advanced" in message for message in caplog.messages)
