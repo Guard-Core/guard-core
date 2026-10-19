@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import signal
 import subprocess
 import sys
 import time
@@ -38,9 +39,12 @@ _STRAY_FALLBACK_CANDIDATES: tuple[str, ...] = (
 )
 _STRAY_CANDIDATE_CAP = 16
 _STRAY_VERIFY_FILL_COUNTS = (1, 2, 8)
-_STRAY_VERIFY_TIMEOUT_SECONDS = 0.5
+_STRAY_VERIFY_TIMEOUT_SECONDS = 30.0
+_STRAY_VERIFY_CPU_BUDGET_SECONDS = 0.5
 _STRAY_VERIFY_CHILD_SCRIPT = (
-    "import json, re, sys\n"
+    "import json, re, signal, sys\n"
+    "if hasattr(signal, 'setitimer'):\n"
+    f"    signal.setitimer(signal.ITIMER_PROF, {_STRAY_VERIFY_CPU_BUDGET_SECONDS})\n"
     "pattern, flags, cases = json.loads(sys.stdin.read())\n"
     "try:\n"
     "    compiled = re.compile(pattern, flags)\n"
@@ -205,7 +209,18 @@ def _choose_stray(
 def _first_bounded_forcing_candidate(
     ctx: _StrayContext, candidates: list[str], probes: list[list[str]]
 ) -> str | None:
-    """Verify candidates in a killable child, never against untrusted regex inline."""
+    """Verify candidates in a killable child, never against untrusted regex inline.
+
+    The child bounds its own CPU time (ITIMER_PROF, whose default action ends the
+    process), so a safe pattern is never rejected because the machine is slow to
+    start the child; the wall timeout only catches a child that never runs.
+    """
+    return _run_stray_verification_child(ctx, candidates, probes)
+
+
+def _run_stray_verification_child(
+    ctx: _StrayContext, candidates: list[str], probes: list[list[str]]
+) -> str | None:
     timeout = _stray_verification_timeout(ctx)
     try:
         completed = subprocess.run(
@@ -226,6 +241,11 @@ def _first_bounded_forcing_candidate(
         raise TimeoutError(
             "Pattern validation stray verification killable-subprocess failed to run"
         ) from exc
+    cpu_signal = getattr(signal, "SIGPROF", None)
+    if cpu_signal is not None and completed.returncode == -cpu_signal:
+        raise TimeoutError(
+            "Pattern validation stray verification exceeded its CPU budget"
+        )
     if completed.returncode != 0:
         raise TimeoutError(
             "Pattern validation stray verification "
