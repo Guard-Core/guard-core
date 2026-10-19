@@ -293,3 +293,150 @@ async def test_a_literal_next_to_a_parameter_still_declares_the_probe_token(
     path: str, template: str
 ) -> None:
     assert await _flagged(path, template) is False
+
+
+def _static_check(
+    served: Any,
+) -> tuple[SuspiciousActivityCheck, MagicMock]:
+    check, middleware, _ = _check(None)
+    lookup = AsyncMock(side_effect=served if callable(served) else None)
+    if not callable(served):
+        lookup.return_value = served
+    middleware.static_file_exists = lookup
+    return check, lookup
+
+
+STATIC_CLEAN_PATHS = (
+    "/hls/live/segment_001.ts",
+    "/static/js/app.4f3a.js.map",
+    "/hls/live/SEGMENT_001.TS",
+    "/static/js/app.js.MAP",
+    "/hls/live/segment_001.ts;jsessionid=1",
+)
+
+
+@pytest.mark.parametrize("path", STATIC_CLEAN_PATHS)
+async def test_a_ts_or_map_file_that_exists_in_a_static_mount_is_clean(
+    path: str,
+) -> None:
+    check, lookup = _static_check(True)
+
+    assert await check.check(_stamped(path)) is None
+    lookup.assert_awaited_once_with(path)
+
+
+@pytest.mark.parametrize("path", STATIC_CLEAN_PATHS)
+async def test_a_ts_or_map_file_that_is_missing_from_the_mount_is_flagged(
+    path: str,
+) -> None:
+    check, lookup = _static_check(False)
+
+    response = await check.check(_stamped(path))
+
+    assert response is not None
+    assert response.status_code == 400
+    lookup.assert_awaited_once()
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/static/app.py",
+        "/static/dump.sql",
+        "/static/index.php",
+        "/static/Main.java",
+        "/static/run.sh",
+        "/static/app.tsx",
+        "/static/page.jsp",
+        "/static/main.go",
+    ],
+)
+async def test_a_source_or_dump_file_is_flagged_even_when_it_exists_in_the_mount(
+    path: str,
+) -> None:
+    check, lookup = _static_check(True)
+
+    response = await check.check(_stamped(path))
+
+    assert response is not None
+    lookup.assert_not_awaited()
+
+
+@pytest.mark.parametrize("path", ["/api/items", "/static/app.js", "/static/a.tsv"])
+async def test_the_prefilter_never_asks_the_mount_about_an_ordinary_path(
+    path: str,
+) -> None:
+    check, lookup = _static_check(True)
+
+    assert await check.check(_stamped(path)) is None
+    lookup.assert_not_awaited()
+
+
+async def test_an_existing_static_file_does_not_clear_a_traversal() -> None:
+    check, _ = _static_check(True)
+
+    response = await check.check(_stamped("/static/../../etc/passwd"))
+
+    assert response is not None
+
+
+async def test_an_unresolved_route_is_not_asked_about_a_static_file() -> None:
+    check, lookup = _static_check(True)
+    request = _stamped("/hls/seg.ts")
+    request.state.guard_route_unresolved = True
+
+    response = await check.check(request)
+
+    assert response is not None
+    lookup.assert_not_awaited()
+
+
+async def test_the_answer_is_not_cached_between_requests() -> None:
+    check, lookup = _static_check(True)
+
+    assert await check.check(_stamped("/hls/seg.ts")) is None
+    lookup.return_value = False
+    assert await check.check(_stamped("/hls/seg.ts")) is not None
+    assert lookup.await_count == 2
+
+
+async def test_a_failing_static_lookup_is_logged_and_the_path_stays_flagged(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    def _boom(path: str) -> bool:
+        raise OSError("disk exploded")
+
+    check, _ = _static_check(_boom)
+
+    with caplog.at_level(logging.ERROR, logger="guard_core"):
+        response = await check.check(_stamped("/hls/seg.ts"))
+
+    assert response is not None
+    assert "static_file_exists failed" in caplog.text
+
+
+@pytest.mark.parametrize("answer", [None, "yes", 1])
+async def test_only_true_counts_as_an_existing_static_file(answer: Any) -> None:
+    check, _ = _static_check(answer)
+
+    assert await check.check(_stamped("/hls/seg.ts")) is not None
+
+
+async def test_an_adapter_without_static_knowledge_is_judged_as_in_v440() -> None:
+    check, middleware, _ = _check(None)
+    del middleware.static_file_exists
+
+    assert await check.check(_stamped("/hls/seg.ts")) is not None
+
+
+async def test_an_existing_static_file_does_not_clear_a_query_attack() -> None:
+    check, _ = _static_check(True)
+    request = MockGuardRequest(
+        path="/hls/seg.ts", query_params={"next": "<script>alert(1)</script>"}
+    )
+    request.state.client_ip = CLIENT
+    request.state.route_config = None
+
+    response = await check.check(request)
+
+    assert response is not None

@@ -133,6 +133,10 @@ Optional, and what lets an app serve a page that looks like a probe (D-75). A pa
 - Or implement `route_template(path) -> str | None` on the middleware. guard-core calls it only for a path that passes an O(1) prefilter, once per request, and records the answer. Keep an LRU in the adapter and clear it when the route set changes.
 - A value in a query or body carries no route and keeps the v4.4.0 behavior.
 
+### Static files
+
+Optional (D-80 item 2). A `.ts` or `.map` URL path under a static-file mount is a served file, not a probe, when the file exists in that mount. Implement `static_file_exists(path) -> bool` on the middleware (`async def` in the async tree, a plain method in the sync tree). guard-core calls it once per request, only when the last segment of the path (case-insensitive, `;params` stripped, a trailing `/` ignored) ends in `.ts` or `.map`, and never when the adapter recorded `guard_route_unresolved`. Answer `True` only when the matched route is a static-file mount and the framework's own traversal-safe lookup finds a regular file in it (Starlette `StaticFiles.lookup_path`, Flask `safe_join` with `os.path.isfile`, Django `safe_join` with `is_file`, Tornado `StaticFileHandler.get_absolute_path` with the root-prefix check of `validate_absolute_path`); any other answer, a non-`True` value or an exception leaves the path flagged. Do not cache the answer: a file that appears or disappears is seen on the next request. The source and dump extensions (`.py`, `.sql`, `.php`, `.java`, `.sh`, `.tsx` and the rest) stay flagged even when the file exists. guard-core records a `True` answer as `request.state.guard_static_file_served`.
+
 ___
 
 GuardResponse

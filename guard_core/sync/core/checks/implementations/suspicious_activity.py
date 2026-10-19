@@ -7,7 +7,9 @@ from guard_core.models import SecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.route_gate import (
     ROUTE_TEMPLATE_STATE_ATTR,
+    STATIC_FILE_STATE_ATTR,
     might_be_a_gated_probe,
+    might_be_a_static_file,
 )
 from guard_core.sync._utils.sampling import observe_sampled_key
 from guard_core.sync.core.checks._shared_strikes import StrikeReport
@@ -234,6 +236,26 @@ class SuspiciousActivityCheck(SecurityCheck):
         if isinstance(template, str):
             setattr(state, ROUTE_TEMPLATE_STATE_ATTR, template)
 
+    def _record_served_static_file(self, request: SyncGuardRequest) -> None:
+        state = request.state
+        if getattr(state, STATIC_FILE_STATE_ATTR, None) is not None:
+            return
+        if getattr(state, "guard_route_unresolved", False) is True:
+            return
+        lookup = getattr(self.middleware, "static_file_exists", None)
+        path = str(request.url_path)
+        if not callable(lookup) or not might_be_a_static_file(path):
+            return
+        try:
+            served = lookup(path)
+        except Exception:
+            self.logger.error(
+                "static_file_exists failed; the path is judged without it"
+            )
+            return
+        if served is True:
+            setattr(state, STATIC_FILE_STATE_ATTR, True)
+
     def check(self, request: SyncGuardRequest) -> GuardResponse | None:
         if getattr(request.state, "is_whitelisted", False):
             return None
@@ -245,6 +267,7 @@ class SuspiciousActivityCheck(SecurityCheck):
             return None
 
         self._record_route_template(request)
+        self._record_served_static_file(request)
         result = get_cached_detection_result(
             request,
             route_config,

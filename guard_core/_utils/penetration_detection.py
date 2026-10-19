@@ -42,7 +42,11 @@ from guard_core._utils.ip_extraction import (
 )
 from guard_core._utils.request_logging import redact_url_for_display
 from guard_core._utils.request_path import resolve_dot_and_empty_segments
-from guard_core._utils.route_gate import route_knowledge, route_state_template
+from guard_core._utils.route_gate import (
+    route_knowledge,
+    route_state_template,
+    static_file_state_served,
+)
 from guard_core.detection_result import DetectionResult
 from guard_core.exceptions import BodyReadFailedError, BodyReadStalledError
 from guard_core.protocols.request_protocol import GuardRequest
@@ -250,7 +254,10 @@ async def detect_penetration_attempt(
     semantic_excluded_headers = _resolve_semantic_excluded_headers(config, route_config)
 
     with (
-        route_knowledge(route_state_template(request.state)),
+        route_knowledge(
+            route_state_template(request.state),
+            static_file_state_served(request.state),
+        ),
         _scan_value_budget(
             max_scan_values,
             max_json_depth,

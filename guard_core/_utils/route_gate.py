@@ -5,6 +5,8 @@ from contextlib import contextmanager
 from typing import Any
 
 ROUTE_TEMPLATE_STATE_ATTR = "guard_route_template"
+STATIC_FILE_STATE_ATTR = "guard_static_file_served"
+STATIC_FILE_EXTENSIONS = frozenset({"ts", "map"})
 
 FLOOR_EXTENSIONS = frozenset(
     "ts tsx jsx py rb java go rs php pl sh sql asp aspx jsp jsa jhtml shtml cfm cgi "
@@ -14,6 +16,9 @@ FLOOR_EXTENSIONS = frozenset(
 
 _matched_route_template: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "guard_core_matched_route_template", default=None
+)
+_static_file_served: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "guard_core_static_file_served", default=False
 )
 _UNESCAPED_DOT_RE = re.compile(r"\\\.|\[\.\]")
 _LAST_SEGMENT_RE = re.compile(r"[^/\\]*$")
@@ -33,6 +38,11 @@ def floor_extension_token(path: str) -> str | None:
         return None
     extension = last.rsplit(".", 1)[1]
     return f".{extension}" if extension in FLOOR_EXTENSIONS else None
+
+
+def might_be_a_static_file(path: str) -> bool:
+    last = normalized_last_segment(path)
+    return "." in last and last.rsplit(".", 1)[1] in STATIC_FILE_EXTENSIONS
 
 
 _NAMED_PROBE_TOKENS = (
@@ -57,13 +67,21 @@ def route_state_template(state: Any) -> str | None:
     return template if isinstance(template, str) else None
 
 
+def static_file_state_served(state: Any) -> bool:
+    return getattr(state, STATIC_FILE_STATE_ATTR, False) is True
+
+
 @contextmanager
-def route_knowledge(template: str | None) -> Iterator[None]:
-    token = _matched_route_template.set(template)
+def route_knowledge(
+    template: str | None, static_file_served: bool = False
+) -> Iterator[None]:
+    template_token = _matched_route_template.set(template)
+    static_token = _static_file_served.set(static_file_served)
     try:
         yield
     finally:
-        _matched_route_template.reset(token)
+        _static_file_served.reset(static_token)
+        _matched_route_template.reset(template_token)
 
 
 def route_declares(probe_token: str) -> bool:
@@ -76,7 +94,11 @@ def route_declares(probe_token: str) -> bool:
 
 def path_probe_is_not_the_apps_own_route(path: str) -> bool:
     token = floor_extension_token(path)
-    return token is None or not route_declares(token)
+    if token is None:
+        return True
+    if token[1:] in STATIC_FILE_EXTENSIONS and _static_file_served.get():
+        return False
+    return not route_declares(token)
 
 
 def named_probe_is_not_the_apps_own_route(token: str) -> bool:
