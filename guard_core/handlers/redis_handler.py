@@ -26,7 +26,10 @@ from guard_core.handlers._dynamic_rule_persistence import (
     OWNED_BANS_KEY,
 )
 from guard_core.models import SecurityConfig
-from guard_core.scripts.ban_write_lua import EXTEND_ONLY_BAN_WRITE_SCRIPT
+from guard_core.scripts.ban_write_lua import (
+    EXTEND_ONLY_BAN_WRITE_SCRIPT,
+    PURGE_OWNED_BAN_SCRIPT,
+)
 from guard_core.scripts.detection_strikes_lua import (
     FORGET_DETECTION_STRIKES_SCRIPT,
     READ_DETECTION_CATEGORIES_SCRIPT,
@@ -93,6 +96,9 @@ _FORGET_DETECTION_STRIKES_SHA = hashlib.sha1(
 ).hexdigest()
 _EXTEND_ONLY_BAN_WRITE_SHA = hashlib.sha1(
     EXTEND_ONLY_BAN_WRITE_SCRIPT.encode(), usedforsecurity=False
+).hexdigest()
+_PURGE_OWNED_BAN_SHA = hashlib.sha1(
+    PURGE_OWNED_BAN_SCRIPT.encode(), usedforsecurity=False
 ).hexdigest()
 _DETECTION_NAMESPACE = "detection"
 _SUM_INDEXED_WINDOW_HITS_SHA = hashlib.sha1(
@@ -448,6 +454,33 @@ class RedisManager:
 
     def ban_floor_key(self, namespace: str, key: str) -> str:
         return f"{self.config.redis_prefix}{BAN_FLOORS_NAMESPACE}:{namespace}:{key}"
+
+    async def owned_ban_members(self) -> list[str]:
+        """The full ban keys the dynamic rules own, as the owned set holds them."""
+        if not self.config.enable_redis:
+            return []
+
+        async def _members(conn: Redis) -> list[str]:
+            return [str(m) for m in await conn.zrange(self._owned_bans_key(), 0, -1)]
+
+        return list(await self.safe_operation(_members) or [])
+
+    async def purge_owned_ban(self, member: str) -> int:
+        """Lift one owned ban down to its floor, or off, in one script call, and
+        drop it from the owned set. Returns 0 (already gone), 1 (deleted),
+        2 (rewritten to its floor) or 3 (a longer ban replaced it, left alone)."""
+        prefix = self.config.redis_prefix
+        floor = f"{prefix}{BAN_FLOORS_NAMESPACE}:{member[len(prefix) :]}"
+        keys = [member, self._owned_bans_key(), floor]
+
+        async def _purge(conn: Redis) -> int:
+            try:
+                return int(await conn.evalsha(_PURGE_OWNED_BAN_SHA, len(keys), *keys))
+            except NoScriptError:
+                await conn.script_load(PURGE_OWNED_BAN_SCRIPT)
+                return int(await conn.evalsha(_PURGE_OWNED_BAN_SHA, len(keys), *keys))
+
+        return int(await self.safe_operation(_purge) or 0)
 
     def _owned_bans_key(self) -> str:
         return (

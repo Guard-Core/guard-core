@@ -922,6 +922,51 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
     "handlers/_dynamic_rule_snapshot.py:DynamicRuleSnapshotMixin._read_redis_payload": (
         "line 73: Redis-read error for the snapshot key, not a request"
     ),
+    "core/events/composite_handler.py:CompositeAgentHandler.get_status": (
+        "line 110: logs.exception for a failing handler's get_status call, no "
+        "request content"
+    ),
+    "core/initialization/_handler_initializer_steps.py:"
+    "_HandlerInitializerStepsMixin._purge_configured_dynamic_rules": (
+        "line 181: logs.exception when the start-time purge of a configured rule "
+        "set fails, no request content"
+    ),
+    "handlers/_dynamic_rule_purge.py:"
+    "DynamicRulePurgeMixin._agent_status_with_rules_check_time": (
+        "line 250: failure reading the agent status, no request content"
+    ),
+    "handlers/_dynamic_rule_purge.py:DynamicRulePurgeMixin._clear_purge_marker": (
+        "line 195: Redis failure deleting the purge marker, no request content"
+    ),
+    "handlers/_dynamic_rule_purge.py:DynamicRulePurgeMixin._parse_if_holding": (
+        "line 115: a parse error on the policy snapshot while purging, not a request"
+    ),
+    "handlers/_dynamic_rule_purge.py:DynamicRulePurgeMixin._read_purge_marker": (
+        "line 181: an unusable purge marker value, not a request"
+    ),
+    "handlers/_dynamic_rule_purge.py:DynamicRulePurgeMixin._remove_purged_patterns": (
+        "line 129: failure removing a purged pattern; the message carries the "
+        "error only, not the pattern or a request"
+    ),
+    "handlers/_dynamic_rule_purge.py:DynamicRulePurgeMixin._revert_if_purged": (
+        "lines 226,227: failure removing a purged pattern (error only) and the "
+        "rule id and version a worker reverted from, not a request"
+    ),
+    "handlers/_dynamic_rule_purge.py:DynamicRulePurgeMixin._write_purge_marker": (
+        "line 157: Redis failure writing the purge marker, no request content"
+    ),
+    "handlers/_dynamic_rule_purge.py:"
+    "DynamicRulePurgeMixin.purge_configured_dynamic_rules": (
+        "line 62: the start WARNING naming the configured rule_id:version, not a "
+        "request"
+    ),
+    "handlers/_dynamic_rule_purge.py:DynamicRulePurgeMixin.purge_dynamic_rules": (
+        "line 90: the purge INFO with rule id, version and ban counts, not a request"
+    ),
+    "handlers/_ipban_bans.py:IpBanOperationsMixin.purge_rule_owned_bans": (
+        "line 191: a failed rule-ban purge logs the ban key and the error; the "
+        "key is a ban-target address, outside the secret matrix"
+    ),
     "handlers/_ipban_bans.py:IpBanOperationsMixin._log_refused_ban": (
         "line 124: logs the ban-target IP and the overlapping loopback/"
         "trusted-proxy CIDR only; client_ip is outside the secret matrix"

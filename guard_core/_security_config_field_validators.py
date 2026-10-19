@@ -27,6 +27,7 @@ from guard_core._security_config_typed_validators import (
     _STR_SET_OR_CATEGORY_MAP_ADAPTER,
     _validate_typed_collection_field_value,
 )
+from guard_core.handlers._dynamic_rule_persistence import parse_purge_target
 from guard_core.handlers.suspatterns_handler import ALL_DETECTION_CATEGORIES
 
 if TYPE_CHECKING:
@@ -129,6 +130,14 @@ def _drop_exact_duplicate_rules(
             unique.append(rule)
     return tuple(unique)
 
+
+def _validate_purge_target(value: str | None) -> str | None:
+    if value is not None:
+        parse_purge_target(value)
+    return value
+
+
+PurgeTarget = Annotated[str | None, AfterValidator(_validate_purge_target)]
 
 GlobalBehaviorRules = Annotated[
     tuple[BehaviorRuleConfig, ...], AfterValidator(_drop_exact_duplicate_rules)

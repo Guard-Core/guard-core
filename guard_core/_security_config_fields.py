@@ -8,6 +8,7 @@ from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
 from guard_core._security_config_field_validators import (
     EmergencyExemptPaths,
     GlobalBehaviorRules,
+    PurgeTarget,
 )
 from guard_core._security_config_validators import (
     ThreatBanConfig,
@@ -948,6 +949,19 @@ class _SecurityConfigFields(BaseModel):
         default=300,
         ge=60,
         description="Interval in seconds between dynamic rule updates",
+    )
+
+    purge_dynamic_rules_on_start: PurgeTarget = Field(
+        default=None,
+        description=(
+            "'rule_id:version' of a dashboard rule set to drop locally at every "
+            "start, whatever enable_dynamic_rules says: when the last-known "
+            "snapshot holds that set, the bans it owns are lifted (down to a "
+            "shorter ban they hid, if any), its patterns removed and its "
+            "snapshots deleted, and a marker keeps every worker from applying it "
+            "again until the SaaS answers a fresh check. A WARNING at every start "
+            "reminds you to unset it once the SaaS is back."
+        ),
     )
 
     dynamic_rules_cache_path: Path | None = Field(

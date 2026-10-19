@@ -121,3 +121,16 @@ def banned_ips_max_entries_warns_and_keeps_the_redis_ban_of_an_evicted_entry(
     assert _eviction_events(ctx) is None, (
         "an ip_ban_evicted event was sent for a ban that Redis also holds"
     )
+
+
+PURGE_CONFIG = {**CONFIG, "purge_dynamic_rules_on_start": "smoke-rule:1"}
+
+
+@scenario(covers={"purge_dynamic_rules_on_start"}, config=PURGE_CONFIG)
+def purge_dynamic_rules_on_start_warns_at_every_start(ctx: ScenarioContext) -> None:
+    boot = ctx.stack.logs.current_boot_text()
+
+    assert "purge_dynamic_rules_on_start='smoke-rule:1' is set and" in boot, (
+        "no start WARNING named purge_dynamic_rules_on_start"
+    )
+    assert "Purging the dynamic rules at start failed" not in boot

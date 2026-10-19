@@ -50,6 +50,7 @@ class DynamicRuleManager(
     _owned_bans: list[str]
     _owned_patterns: list[str]
     _restored_ownership: tuple[list[str], list[str]]
+    _reverted_rules: DynamicRules | None
 
     def __new__(
         cls: type["DynamicRuleManager"], config: SecurityConfig
@@ -76,6 +77,7 @@ class DynamicRuleManager(
             cls._instance._owned_bans = []
             cls._instance._owned_patterns = []
             cls._instance._restored_ownership = ([], [])
+            cls._instance._reverted_rules = None
         return cls._instance
 
     def initialize_agent(self, agent_handler: Any) -> None:

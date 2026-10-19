@@ -167,18 +167,30 @@ class _HandlerInitializerStepsMixin(CloudInitializationMixin):
         self._report_route_limits_with_global_switch_off()
         self._configure_detection()
 
-        if not (self.config.enable_redis and self.redis_handler):
-            if self.config.lazy_init:
-                self._warn_if_lazy_init_is_inert()
-                return
+        without_redis = not (self.config.enable_redis and self.redis_handler)
+        if without_redis and self.config.lazy_init:
+            self._warn_if_lazy_init_is_inert()
+        elif without_redis or not await self._connect_redis():
             await self._load_cloud_and_geo_without_redis()
+        else:
+            await self._initialize_connected_redis_handlers()
+
+        await self._purge_configured_dynamic_rules()
+
+    async def _purge_configured_dynamic_rules(self) -> None:
+        if self.config.purge_dynamic_rules_on_start is None:
             return
 
-        if not await self._connect_redis():
-            await self._load_cloud_and_geo_without_redis()
-            return
+        from guard_core.handlers.dynamic_rule_handler import DynamicRuleManager
+        from guard_core.handlers.redis_handler import is_connected_redis_manager
 
-        await self._initialize_connected_redis_handlers()
+        manager = DynamicRuleManager(self.config)
+        if is_connected_redis_manager(self.redis_handler):
+            await manager.initialize_redis(self.redis_handler)
+        try:
+            await manager.purge_configured_dynamic_rules()
+        except Exception:
+            self.logger.exception("Purging the dynamic rules at start failed")
 
     async def initialize_agent_for_handlers(self) -> None:
         telemetry = self.composite_handler or self.agent_handler

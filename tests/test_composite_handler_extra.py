@@ -124,3 +124,31 @@ def test_degraded_true_when_started_with_failed_handlers() -> None:
     composite._failed_handlers = ["handler_a"]
     assert composite.degraded is True
     assert composite.failed_handlers == ["handler_a"]
+
+
+class _NoStatus:
+    pass
+
+
+async def test_get_status_returns_the_first_handler_status(
+    handler_a: AsyncMock, handler_b: AsyncMock
+) -> None:
+    handler_a.get_status = AsyncMock(return_value="status-a")
+    handler_b.get_status = AsyncMock(return_value="status-b")
+    composite = CompositeAgentHandler([_NoStatus(), handler_a, handler_b])
+
+    assert await composite.get_status() == "status-a"
+
+
+async def test_get_status_skips_a_failing_handler(
+    handler_a: AsyncMock, handler_b: AsyncMock
+) -> None:
+    handler_a.get_status = AsyncMock(side_effect=RuntimeError("down"))
+    handler_b.get_status = AsyncMock(return_value="status-b")
+    composite = CompositeAgentHandler([handler_a, handler_b])
+
+    assert await composite.get_status() == "status-b"
+
+
+async def test_get_status_is_none_when_no_handler_reports_one() -> None:
+    assert await CompositeAgentHandler([_NoStatus()]).get_status() is None

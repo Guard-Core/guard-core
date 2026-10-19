@@ -173,6 +173,35 @@ class IpBanOperationsMixin(
             namespace, key = "banned_ips", ip
         self.redis_handler.disown_ban(namespace, key)
 
+    def purge_rule_owned_bans(self) -> dict[str, int]:
+        """Lift every ban a dynamic rule owns: down to the foreign ban it hid
+        (its floor) or off, leaving a ban that something longer replaced. One
+        script call per owned ban, then the local copies go and the ban version
+        advances once, so every worker reloads."""
+        counts = {"gone": 0, "deleted": 0, "rewritten": 0, "kept": 0, "failed": 0}
+        if not self.redis_handler:
+            return counts
+        prefix = self.redis_handler.config.redis_prefix
+        outcomes = ("gone", "deleted", "rewritten", "kept")
+        for member in self.redis_handler.owned_ban_members():
+            try:
+                counts[outcomes[self.redis_handler.purge_owned_ban(member)]] += 1
+            except Exception as error:
+                counts["failed"] += 1
+                self.logger.error("Purging the rule ban %s failed: %s", member, error)
+                continue
+            self._drop_local_ban(member[len(prefix) :])
+        self._bump_ban_version()
+        return counts
+
+    def _drop_local_ban(self, namespaced_key: str) -> None:
+        namespace, _, key = namespaced_key.partition(":")
+        if namespace == "banned_networks":
+            self.banned_networks = [
+                entry for entry in self.banned_networks if str(entry[0]) != key
+            ]
+        self.banned_ips.pop(key, None)
+
     def _target_network(self, ip: str) -> _Network | None:
         try:
             if "/" in ip:

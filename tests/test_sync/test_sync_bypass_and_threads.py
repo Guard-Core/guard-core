@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from guard_core.models import SecurityConfig
+from guard_core.scripts import ban_write_lua as manager_ban_write_lua
 from guard_core.scripts import detection_strikes_lua as manager_detection_strikes_lua
 from guard_core.scripts import rule_hit_index_lua as manager_rule_hit_index_lua
 from guard_core.scripts.behavior_throttle_lua import (
@@ -17,7 +18,11 @@ from guard_core.scripts.sliding_window_lua import (
 from guard_core.sync.core.bypass.context import BypassContext
 from guard_core.sync.core.bypass.handler import BypassHandler
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
-from guard_core.sync.scripts import detection_strikes_lua, rule_hit_index_lua
+from guard_core.sync.scripts import (
+    ban_write_lua,
+    detection_strikes_lua,
+    rule_hit_index_lua,
+)
 from guard_core.sync.scripts.behavior_throttle_lua import BEHAVIOR_THROTTLE_SCRIPT
 from guard_core.sync.scripts.rate_lua import RATE_LIMIT_SCRIPT
 from guard_core.sync.scripts.sliding_window_lua import SLIDING_WINDOW_HIT_SCRIPT
@@ -197,3 +202,14 @@ def test_dynamic_rule_manager_stop_with_active_thread() -> None:
 
     DynamicRuleManager._instance = None
     assert manager.update_task is None
+
+
+def test_generated_sync_ban_scripts_match_the_ones_the_manager_loads() -> None:
+    assert (
+        ban_write_lua.EXTEND_ONLY_BAN_WRITE_SCRIPT
+        == manager_ban_write_lua.EXTEND_ONLY_BAN_WRITE_SCRIPT
+    )
+    assert (
+        ban_write_lua.PURGE_OWNED_BAN_SCRIPT
+        == manager_ban_write_lua.PURGE_OWNED_BAN_SCRIPT
+    )

@@ -39,3 +39,30 @@ if ARGV[4] == '1' then
 end
 return {1, ARGV[1]}
 """
+
+PURGE_OWNED_BAN_SCRIPT = """
+local now_parts = redis.call('TIME')
+local now = tonumber(now_parts[1]) + tonumber(now_parts[2]) / 1000000
+local score = redis.call('ZSCORE', KEYS[2], KEYS[1])
+local outcome = 0
+if score and tonumber(score) > now then
+  local live = redis.call('GET', KEYS[1])
+  if live and tonumber(live) == tonumber(score) then
+    local floor = redis.call('GET', KEYS[3])
+    local floor_expiry = floor and tonumber(floor)
+    if floor_expiry and floor_expiry > now then
+      redis.call('SET', KEYS[1], floor)
+      redis.call('PEXPIREAT', KEYS[1], math.floor(floor_expiry * 1000))
+      outcome = 2
+    else
+      redis.call('DEL', KEYS[1])
+      outcome = 1
+    end
+  elseif live then
+    outcome = 3
+  end
+end
+redis.call('DEL', KEYS[3])
+redis.call('ZREM', KEYS[2], KEYS[1])
+return outcome
+"""

@@ -99,6 +99,17 @@ class CompositeAgentHandler:
                 logger.exception("handler.get_dynamic_rules failed")
         return None
 
+    async def get_status(self) -> Any | None:
+        for handler in self._handlers:
+            get_status = getattr(handler, "get_status", None)
+            if get_status is None:
+                continue
+            try:
+                return await get_status()
+            except Exception:
+                logger.exception("handler.get_status failed")
+        return None
+
     async def health_check(self) -> bool:
         if not self._handlers:
             return True

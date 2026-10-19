@@ -17,10 +17,14 @@ from guard_core.handlers._dynamic_rule_persistence import (
     LAST_KNOWN_RULES_KEY,
     resolve_redis_value,
 )
+from guard_core.handlers._dynamic_rule_purge import (
+    DynamicRulePurgeMixin,
+    purge_fingerprint,
+)
 from guard_core.models import DynamicRules, SecurityConfig
 
 
-class DynamicRuleSnapshotMixin:
+class DynamicRuleSnapshotMixin(DynamicRulePurgeMixin):
     config: SecurityConfig
     redis_handler: Any = None
     logger: logging.Logger
@@ -60,11 +64,18 @@ class DynamicRuleSnapshotMixin:
     async def _load_last_known_rules(self) -> DynamicRules | None:
         redis_payload = await self._read_redis_payload()
         file_payload = self._read_file_payload()
+        marker = await self._read_purge_marker()
         for payload in (redis_payload, file_payload):
             if payload is None:
                 continue
             rules = self._parse_last_known_rules(payload)
             if rules is None:
+                continue
+            if marker is not None and purge_fingerprint(rules) == marker.fingerprint:
+                self.logger.warning(
+                    f"Discarding last-known dynamic rules {rules.rule_id} "
+                    f"v{rules.version}: they were purged"
+                )
                 continue
             if self._has_rule_expired(rules):
                 self.logger.error(

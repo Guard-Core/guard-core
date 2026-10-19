@@ -11,6 +11,21 @@ _SIX_TO_FOUR = ipaddress.ip_network("2002::/16")
 _SCAN_COUNT = 2000
 
 
+async def _plan_floor_move(
+    conn: Any, stem: str, key: str, target: str
+) -> tuple[str, str, str | None, int]:
+    """The floor keys of a carved ban and of its base identity, and the floor to
+    write at the base (None when the carve has none or the base keeps a later)."""
+    floor_stem = (
+        f"{stem.removesuffix('banned_identities:')}{BAN_FLOORS_NAMESPACE}:"
+        "banned_identities:"
+    )
+    floor_key, floor_target = f"{floor_stem}{key[len(stem) :]}", f"{floor_stem}{target}"
+    floor, floor_pttl = await conn.get(floor_key), await conn.pttl(floor_key)
+    moves = floor is not None and floor_pttl > await conn.pttl(floor_target)
+    return floor_key, floor_target, floor if moves else None, floor_pttl
+
+
 class IpBanCarveMixin(IpBanLookupMixin):
     """Moves an active ban back to its base identity when its carve is gone.
 
@@ -89,18 +104,13 @@ class IpBanCarveMixin(IpBanLookupMixin):
     ) -> None:
         target_key = f"{stem}{target}"
         existing = await conn.pttl(target_key)
-        prefix = stem.removesuffix("banned_identities:")
-        floor_stem = f"{prefix}{BAN_FLOORS_NAMESPACE}:banned_identities:"
-        floor_key, floor_target = (
-            f"{floor_stem}{key[len(stem) :]}",
-            f"{floor_stem}{target}",
+        floor_key, floor_target, floor, floor_pttl = await _plan_floor_move(
+            conn, stem, key, target
         )
-        floor, floor_pttl = await conn.get(floor_key), await conn.pttl(floor_key)
-        floor_moves = floor is not None and floor_pttl > await conn.pttl(floor_target)
         async with conn.pipeline(transaction=True) as pipe:
             if existing < pttl:
                 await pipe.set(target_key, value, px=pttl)
-            if floor_moves:
+            if floor is not None:
                 await pipe.set(floor_target, floor, px=floor_pttl)
             await pipe.delete(key, floor_key)
             await pipe.incr(self._version_redis_key())

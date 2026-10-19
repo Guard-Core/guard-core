@@ -5,11 +5,12 @@ from typing import Any
 
 from guard_core._dynamic_rules import content_fingerprint
 from guard_core.handlers._dynamic_rule_events import DynamicRuleEventSenderMixin
+from guard_core.handlers._dynamic_rule_purge import DynamicRulePurgeMixin
 from guard_core.handlers._dynamic_rule_validation import find_malformed_values
 from guard_core.models import DynamicRules, SecurityConfig
 
 
-class DynamicRuleIntakeMixin(DynamicRuleEventSenderMixin):
+class DynamicRuleIntakeMixin(DynamicRuleEventSenderMixin, DynamicRulePurgeMixin):
     config: SecurityConfig
     agent_handler: Any
     logger: logging.Logger
@@ -87,8 +88,10 @@ class DynamicRuleIntakeMixin(DynamicRuleEventSenderMixin):
         try:
             await self._check_rule_expiry()
 
+            marker = await self._read_marker_and_revert_if_purged()
+
             rules = await self.agent_handler.get_dynamic_rules()
-            if not rules:
+            if not await self._has_applicable_answer(rules, marker):
                 return
 
             if self._ignore_platform_default(rules):
