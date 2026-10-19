@@ -17,7 +17,7 @@ BLOCKED_NETWORK = "198.51.100.0/24"
 
 @pytest.fixture
 def cloud_check() -> CloudProviderCheck:
-    config = SecurityConfig()
+    config = SecurityConfig(ban_on_hostile_signals=False)
     config.block_cloud_providers = frozenset({"AWS"})
     middleware = Mock()
     middleware.config = config

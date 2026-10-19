@@ -118,6 +118,7 @@ EVENT_VOLATILE_METADATA: dict[str, tuple[str, ...]] = {
 EVENTS_CONFIG_KEYS = PIPELINE_CONFIG_KEYS + (
     "agent_api_key",
     "auto_ban_duration",
+    "ban_on_hostile_signals",
     "enable_agent",
     "block_cloud_providers",
     "custom_request_check",  # harness marker, not a SecurityConfig field

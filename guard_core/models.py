@@ -46,7 +46,6 @@ from guard_core._security_config_validators import (
     _warn_empty_enabled_detection_categories,
     _warn_exclude_all_paths,
     _warn_exempt_ips_prefix_zero,
-    _warn_hostile_signal_bans_default_off,
     _warn_trusted_proxies_prefix_zero,
     _warn_whitelist_prefix_zero,
 )
@@ -282,12 +281,6 @@ class SecurityConfig(_SecurityConfigFields):
     @model_validator(mode="after")
     def warn_staged_defaults(self) -> Self:
         _warn_staged_defaults(self, stacklevel=4)
-        return self
-
-    @model_validator(mode="after")
-    def warn_hostile_signal_bans_default_off(self) -> Self:
-        if "ban_on_hostile_signals" not in self.model_fields_set:
-            _warn_hostile_signal_bans_default_off(stacklevel=4)
         return self
 
     @model_validator(mode="after")

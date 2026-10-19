@@ -285,29 +285,6 @@ def _warn_exempt_ips_prefix_zero(entries: tuple[str, ...]) -> None:
     )
 
 
-_hostile_signal_ban_default_warned = False
-
-_HOSTILE_SIGNAL_BAN_DEFAULT_WARNING = (
-    "ban_on_hostile_signals is not set. guard-core 5.0.0 turns it on: failed "
-    "authentication, missing required headers, bad referrers, block-list hits "
-    "and clear X-Forwarded-For forgery will then count toward automatic IP "
-    "bans. Pass ban_on_hostile_signals=True to SecurityConfig now to opt in, or "
-    "ban_on_hostile_signals=False to state that you want today's behavior. This "
-    "warning is logged once."
-)
-
-
-def _warn_hostile_signal_bans_default_off(*, stacklevel: int) -> None:
-    global _hostile_signal_ban_default_warned
-    if _hostile_signal_ban_default_warned:
-        return
-    _hostile_signal_ban_default_warned = True
-    logger.warning(_HOSTILE_SIGNAL_BAN_DEFAULT_WARNING)
-    warnings.warn(
-        _HOSTILE_SIGNAL_BAN_DEFAULT_WARNING, DeprecationWarning, stacklevel=stacklevel
-    )
-
-
 def _warn_empty_enabled_detection_categories() -> None:
     logger.warning(
         "enabled_detection_categories is empty while "

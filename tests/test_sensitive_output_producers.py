@@ -462,10 +462,6 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "SecurityConfig construction warning about the default redis_prefix, "
         "evaluated before any request, carries no request data"
     ),
-    "_security_config_field_validators.py:_warn_hostile_signal_bans_default_off": (
-        "SecurityConfig construction warning about an unset config flag, "
-        "evaluated before any request, carries no request data"
-    ),
     "_security_config_field_validators.py:_warn_empty_enabled_detection_categories": (
         "line 211: SecurityConfig field-validator warning about the config "
         "value itself, evaluated at config construction, before any request"

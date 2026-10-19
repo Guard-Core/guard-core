@@ -226,11 +226,12 @@ class _SecurityConfigFields(BaseModel):
     )
 
     ban_on_hostile_signals: bool = Field(
-        default=False,
+        default=True,
         description=(
             "Count failed authentication, missing required headers, bad "
             "referrers, block-list hits and clear X-Forwarded-For forgery toward "
-            "automatic bans. Off by default in 4.5.0; on by default from 5.0.0."
+            "automatic bans. On by default since 5.0.0 (it was off before); pass "
+            "ban_on_hostile_signals=False to restore the old behavior."
         ),
     )
 

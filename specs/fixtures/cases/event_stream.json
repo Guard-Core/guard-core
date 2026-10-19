@@ -184,7 +184,8 @@
           "203.0.113.13"
         ],
         "enable_ip_banning": true,
-        "auto_ban_threshold": 1
+        "auto_ban_threshold": 1,
+        "ban_on_hostile_signals": false
       },
       "geo_countries": {},
       "routes": {},

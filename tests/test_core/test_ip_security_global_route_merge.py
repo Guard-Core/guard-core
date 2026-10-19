@@ -11,7 +11,7 @@ from guard_core.models import SecurityConfig
 
 @pytest.fixture
 def security_config() -> SecurityConfig:
-    config = SecurityConfig()
+    config = SecurityConfig(ban_on_hostile_signals=False)
     config.passive_mode = False
     return config
 

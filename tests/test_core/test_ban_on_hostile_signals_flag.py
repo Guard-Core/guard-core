@@ -1,11 +1,9 @@
-import warnings
 from collections.abc import Callable
 from typing import Any
 from unittest.mock import patch
 
 import pytest
 
-from guard_core import _security_config_field_validators as field_validators
 from guard_core.decorators import SecurityDecorator
 from guard_core.handlers import ipban_handler
 from guard_core.models import SecurityConfig
@@ -173,45 +171,3 @@ async def test_flag_off_cloud_denial_keeps_global_escalation_only() -> None:
     assert response is not None
     assert response.status_code == 403
     assert set(middleware.suspicious_request_counts[BOT_IP]) == {"sqli"}
-
-
-def test_flag_defaults_to_off() -> None:
-    assert SecurityConfig(ban_on_hostile_signals=False).ban_on_hostile_signals is False
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DeprecationWarning)
-        assert SecurityConfig().ban_on_hostile_signals is False
-
-
-@pytest.fixture
-def armed_deprecation(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(field_validators, "_hostile_signal_ban_default_warned", False)
-
-
-@pytest.mark.usefixtures("armed_deprecation")
-def test_unset_flag_warns_once_with_a_deprecation_warning_and_a_log_line(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    with caplog.at_level("WARNING", logger="guard_core"):
-        with pytest.warns(DeprecationWarning, match="guard-core 5.0.0 turns it on"):
-            SecurityConfig()
-        with warnings.catch_warnings():
-            warnings.simplefilter("error")
-            SecurityConfig()
-
-    messages = [
-        record.getMessage()
-        for record in caplog.records
-        if "ban_on_hostile_signals" in record.getMessage()
-    ]
-    assert len(messages) == 1
-    assert "ban_on_hostile_signals=True" in messages[0]
-
-
-@pytest.mark.usefixtures("armed_deprecation")
-@pytest.mark.parametrize("value", [True, False])
-def test_explicit_flag_never_warns(value: bool) -> None:
-    with warnings.catch_warnings():
-        warnings.simplefilter("error")
-        SecurityConfig(ban_on_hostile_signals=value)
-
-    assert field_validators._hostile_signal_ban_default_warned is False

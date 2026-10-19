@@ -60,7 +60,10 @@ def test_global_ip_block_with_threat_increments_counter(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = SecurityConfig(
-        passive_mode=False, enable_ip_banning=True, auto_ban_threshold=1000
+        ban_on_hostile_signals=False,
+        passive_mode=False,
+        enable_ip_banning=True,
+        auto_ban_threshold=1000,
     )
     mw = _make_middleware(config)
     check = IpSecurityCheck(mw)
@@ -87,6 +90,7 @@ def test_global_ip_block_with_threat_repeated_triggers_ban(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = SecurityConfig(
+        ban_on_hostile_signals=False,
         passive_mode=False,
         enable_ip_banning=True,
         auto_ban_threshold=2,
@@ -118,7 +122,10 @@ def test_global_ip_block_no_threat_no_counter_change(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = SecurityConfig(
-        passive_mode=False, enable_ip_banning=True, auto_ban_threshold=1
+        ban_on_hostile_signals=False,
+        passive_mode=False,
+        enable_ip_banning=True,
+        auto_ban_threshold=1,
     )
     mw = _make_middleware(config)
     check = IpSecurityCheck(mw)
@@ -146,7 +153,10 @@ def test_global_ip_block_passive_mode_no_escalation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = SecurityConfig(
-        passive_mode=True, enable_ip_banning=True, auto_ban_threshold=1
+        ban_on_hostile_signals=False,
+        passive_mode=True,
+        enable_ip_banning=True,
+        auto_ban_threshold=1,
     )
     mw = _make_middleware(config)
     check = IpSecurityCheck(mw)
@@ -186,6 +196,7 @@ def test_globally_whitelisted_ip_blocked_by_route_whitelist_is_not_whitelisted(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = SecurityConfig(
+        ban_on_hostile_signals=False,
         passive_mode=False,
         enable_ip_banning=True,
         auto_ban_threshold=1,
@@ -217,6 +228,7 @@ def test_global_whitelist_blocked_by_stricter_route_whitelist_escalates(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = SecurityConfig(
+        ban_on_hostile_signals=False,
         passive_mode=False,
         enable_ip_banning=True,
         auto_ban_threshold=1,
@@ -255,6 +267,7 @@ def test_global_whitelist_blocked_by_route_blacklist_still_escalates(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = SecurityConfig(
+        ban_on_hostile_signals=False,
         passive_mode=False,
         enable_ip_banning=True,
         auto_ban_threshold=1,
@@ -292,6 +305,7 @@ def test_route_blacklist_without_global_whitelist_escalates_as_control(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = SecurityConfig(
+        ban_on_hostile_signals=False,
         passive_mode=False,
         enable_ip_banning=True,
         auto_ban_threshold=1,
@@ -328,6 +342,7 @@ def test_global_whitelist_and_route_whitelist_both_containing_ip_is_allowed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = SecurityConfig(
+        ban_on_hostile_signals=False,
         passive_mode=False,
         enable_ip_banning=True,
         auto_ban_threshold=1,
@@ -357,7 +372,10 @@ def test_route_ip_block_with_threat_increments_counter(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = SecurityConfig(
-        passive_mode=False, enable_ip_banning=True, auto_ban_threshold=1000
+        ban_on_hostile_signals=False,
+        passive_mode=False,
+        enable_ip_banning=True,
+        auto_ban_threshold=1000,
     )
     mw = _make_middleware(config)
     check = IpSecurityCheck(mw)
@@ -384,7 +402,10 @@ def test_route_ip_block_no_threat_no_counter_change(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = SecurityConfig(
-        passive_mode=False, enable_ip_banning=True, auto_ban_threshold=1
+        ban_on_hostile_signals=False,
+        passive_mode=False,
+        enable_ip_banning=True,
+        auto_ban_threshold=1,
     )
     mw = _make_middleware(config)
     check = IpSecurityCheck(mw)
@@ -412,7 +433,10 @@ def test_route_ip_block_passive_mode_no_escalation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = SecurityConfig(
-        passive_mode=True, enable_ip_banning=True, auto_ban_threshold=1
+        ban_on_hostile_signals=False,
+        passive_mode=True,
+        enable_ip_banning=True,
+        auto_ban_threshold=1,
     )
     mw = _make_middleware(config)
     check = IpSecurityCheck(mw)
@@ -451,6 +475,7 @@ def test_user_agent_block_with_threat_increments_counter(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = SecurityConfig(
+        ban_on_hostile_signals=False,
         passive_mode=False,
         enable_ip_banning=True,
         auto_ban_threshold=1000,
@@ -474,6 +499,7 @@ def test_user_agent_block_with_threat_repeated_triggers_ban(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = SecurityConfig(
+        ban_on_hostile_signals=False,
         passive_mode=False,
         enable_ip_banning=True,
         auto_ban_threshold=2,
@@ -499,6 +525,7 @@ def test_user_agent_block_no_threat_no_counter_change(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = SecurityConfig(
+        ban_on_hostile_signals=False,
         passive_mode=False,
         enable_ip_banning=True,
         auto_ban_threshold=1,
@@ -522,6 +549,7 @@ def test_user_agent_block_passive_mode_no_escalation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = SecurityConfig(
+        ban_on_hostile_signals=False,
         passive_mode=True,
         enable_ip_banning=True,
         auto_ban_threshold=1,
@@ -555,6 +583,7 @@ def test_user_agent_block_no_client_ip_skips_escalation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = SecurityConfig(
+        ban_on_hostile_signals=False,
         passive_mode=False,
         enable_ip_banning=True,
         auto_ban_threshold=1,
@@ -588,6 +617,7 @@ def test_no_double_count_blocked_probe_increments_once(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = SecurityConfig(
+        ban_on_hostile_signals=False,
         passive_mode=False,
         enable_ip_banning=True,
         auto_ban_threshold=1000,
@@ -620,6 +650,7 @@ def test_global_ip_block_still_returns_403_when_ban_ip_raises(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = SecurityConfig(
+        ban_on_hostile_signals=False,
         passive_mode=False,
         enable_ip_banning=True,
         auto_ban_threshold=1,
@@ -661,6 +692,7 @@ def test_user_agent_block_still_returns_403_when_ban_ip_raises(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = SecurityConfig(
+        ban_on_hostile_signals=False,
         passive_mode=False,
         enable_ip_banning=True,
         auto_ban_threshold=1,
@@ -694,6 +726,7 @@ def test_global_ip_block_survives_ban_and_event_bus_both_failing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = SecurityConfig(
+        ban_on_hostile_signals=False,
         passive_mode=False,
         enable_ip_banning=True,
         auto_ban_threshold=1,

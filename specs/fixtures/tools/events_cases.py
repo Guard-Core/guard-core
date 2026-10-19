@@ -52,6 +52,7 @@ EVENTS_SUITES["event_stream"] = [
             "blacklist": ["203.0.113.13"],
             "enable_ip_banning": True,
             "auto_ban_threshold": 1,
+            "ban_on_hostile_signals": False,
         },
         "drives": [
             {"call": "ipban_fault"},

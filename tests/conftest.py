@@ -17,7 +17,6 @@ import pytest
 from guard_agent.models import AgentConfig, SecurityEvent, SecurityMetric
 from pytest import TempPathFactory
 
-from guard_core import _security_config_field_validators as _field_validators_module
 from guard_core import _staged_defaults as _staged_defaults_module
 from guard_core._utils import body_reader
 from guard_core._utils import detection_scan as _detection_scan_module
@@ -55,7 +54,6 @@ if TYPE_CHECKING:
     from tests.live_smoke.driver import ScenarioContext, Stack
 
 _suspatterns_module._legacy_detection_warned = True
-_field_validators_module._hostile_signal_ban_default_warned = True
 _staged_defaults_module._redis_default_warned = True
 _staged_defaults_module._rate_limit_default_warned = True
 _staged_defaults_module._default_prefix_warned = True
@@ -397,7 +395,6 @@ async def reset_state() -> AsyncGenerator[None, None]:
     sus_patterns_handler.compiled_custom_patterns = set()
     sus_patterns_handler._detection_state = _LEGACY_DETECTION_STATE
     _suspatterns_module._legacy_detection_warned = True
-    _field_validators_module._hostile_signal_ban_default_warned = True
     _staged_defaults_module._redis_default_warned = True
     _staged_defaults_module._rate_limit_default_warned = True
     _staged_defaults_module._default_prefix_warned = True
