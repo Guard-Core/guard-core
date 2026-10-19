@@ -8,17 +8,8 @@ logger = logging.getLogger("guard_core.models")
 
 DEFAULT_REDIS_PREFIX = "guard_core:"
 
-_rate_limit_default_warned = False
 _default_prefix_warned = False
 _whitelist_access_only_warned = False
-
-_RATE_LIMIT_DEFAULT_WARNING = (
-    "rate_limit is not set, so the default of 10 requests per rate_limit_window "
-    "(60 s) applies. guard-core 5.0.0 raises the default to 120 requests per 60 s. "
-    "Pass rate_limit=10 to SecurityConfig to keep today's limit, or rate_limit=120 "
-    "to opt in now. This warning is logged once."
-)
-
 
 _WHITELIST_ACCESS_ONLY_WARNING = (
     "whitelist_access_only is not set. guard-core 5.0.0 turns it on: the global "
@@ -31,17 +22,6 @@ _WHITELIST_ACCESS_ONLY_WARNING = (
     "SecurityConfig now to opt in, or whitelist_access_only=False to keep today's "
     "behavior. This warning is logged once."
 )
-
-
-def _warn_rate_limit_default_in_effect(*, stacklevel: int) -> None:
-    global _rate_limit_default_warned
-    if _rate_limit_default_warned:
-        return
-    _rate_limit_default_warned = True
-    logger.warning(_RATE_LIMIT_DEFAULT_WARNING)
-    warnings.warn(
-        _RATE_LIMIT_DEFAULT_WARNING, DeprecationWarning, stacklevel=stacklevel
-    )
 
 
 def _warn_whitelist_access_only_default_off(*, stacklevel: int) -> None:
@@ -74,8 +54,6 @@ def _warn_whitelist_without_access_only(config: Any, *, stacklevel: int) -> None
 
 
 def _warn_staged_defaults(config: Any, *, stacklevel: int) -> None:
-    if config.enable_rate_limiting and "rate_limit" not in config.model_fields_set:
-        _warn_rate_limit_default_in_effect(stacklevel=stacklevel + 1)
     _warn_whitelist_without_access_only(config, stacklevel=stacklevel + 1)
     if redis_is_configured(config) and config.redis_prefix == DEFAULT_REDIS_PREFIX:
         _warn_default_redis_prefix()

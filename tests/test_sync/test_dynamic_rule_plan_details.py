@@ -208,12 +208,13 @@ def test_a_value_the_validators_reject_fails_the_plan_before_any_change() -> Non
     rules = _rules(global_rate_limit=50, global_rate_window=60, auto_ban_threshold=7)
     rules.auto_ban_threshold = 0
     before = manager.config.auto_ban_threshold
+    rate_limit_before = manager.config.rate_limit
 
     with pytest.raises(ValueError, match="auto_ban_threshold must be >= 1"):
         _plan(manager, rules)
 
     assert manager.config.auto_ban_threshold == before
-    assert manager.config.rate_limit == 10
+    assert manager.config.rate_limit == rate_limit_before
 
 
 def test_the_swap_writes_one_prepared_batch_and_bumps_the_revision_once() -> None:

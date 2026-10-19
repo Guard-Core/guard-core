@@ -446,10 +446,6 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "line 46: warns once about pydantic-plugin instrumentation at import "
         "time; no request in scope"
     ),
-    "_staged_defaults.py:_warn_rate_limit_default_in_effect": (
-        "SecurityConfig construction warning about the unset rate_limit default, "
-        "evaluated before any request, carries no request data"
-    ),
     "_staged_defaults.py:_warn_whitelist_access_only_default_off": (
         "SecurityConfig construction warning about an unset config flag, "
         "evaluated before any request, carries no request data"

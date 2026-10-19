@@ -547,7 +547,11 @@ class _SecurityConfigFields(BaseModel):
     )
 
     rate_limit: int = Field(
-        default=10, description="Maximum requests per rate_limit_window"
+        default=120,
+        description=(
+            "Maximum requests per rate_limit_window. The default is 120 per 60 s "
+            "since 5.0.0 (it was 10); pass rate_limit=10 to restore that."
+        ),
     )
 
     rate_limit_window: int = Field(
