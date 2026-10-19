@@ -23,6 +23,10 @@ from guard_core.sync._utils.detection_scan import (
     _timed_in_worker,
     _warn_scan_time_cap_reached_once,
 )
+from guard_core.sync._utils.route_gate import (
+    named_probe_is_not_the_apps_own_route,
+    path_probe_is_not_the_apps_own_route,
+)
 from guard_core.sync.detection_engine.binary_prefix import (
     build_binary_prefix,
     match_is_binary_dense,
@@ -109,9 +113,14 @@ from guard_core.sync.handlers._suspatterns_sources import (
     _LDAP_PAREN_CONJUNCTION_RE,
     _LDAP_WILDCARD_CHAIN_RE,
     _LDAP_WILDCARD_EQUALS_RE,
+    _RECON_EXTENSION_PATH_RE,
+    _RECON_FLOOR_PATH_RE,
     _SELECT_FROM_RE,
     _SELECT_STAR_RE,
     _SENSITIVE_SOURCE_EXTENSION_PATH_RE,
+    _SENSITIVE_SOURCE_FLOOR_PATH_RE,
+    _SYSTEM_LOG_PATH_RE,
+    _VERSION_ROOT_PATH_RE,
     _WHERE_CLAUSE_RE,
     _XML_XXE_PUBLIC_EXTERNAL_DTD_RE,
     ALL_DETECTION_CATEGORIES,
@@ -125,6 +134,25 @@ from guard_core.sync.handlers._suspatterns_xml_xxe import (
 )
 
 logger = logging.getLogger("guard_core.sync.handlers.suspatterns")
+
+
+def _is_the_request_url_path(context: str) -> bool:
+    return context.startswith("url_path") and _source_extension_path_is_probe(context)
+
+
+def _floor_probe_is_not_the_apps_own_route(match: re.Match, context: str) -> bool:
+    return _is_the_request_url_path(context) and path_probe_is_not_the_apps_own_route(
+        match.group()
+    )
+
+
+def _extension_probe_is_not_the_apps_own_route(match: re.Match, context: str) -> bool:
+    if not _source_extension_path_is_probe(context):
+        return False
+    return not context.startswith("url_path") or (
+        path_probe_is_not_the_apps_own_route(match.group())
+    )
+
 
 DETECTION_CATEGORY_WEIGHTS: dict[str, float] = {
     category: 1.0 for category in ALL_DETECTION_CATEGORIES
@@ -178,7 +206,36 @@ _CANDIDATE_REJECTION_VALIDATORS: tuple[
     ),
     (
         _SENSITIVE_SOURCE_EXTENSION_PATH_RE,
-        lambda _m, context: _source_extension_path_is_probe(context),
+        lambda m, context: _extension_probe_is_not_the_apps_own_route(m, context),
+    ),
+    (
+        _RECON_EXTENSION_PATH_RE,
+        lambda m, context: (
+            not context.startswith("url_path")
+            or path_probe_is_not_the_apps_own_route(m.group())
+        ),
+    ),
+    (
+        _SENSITIVE_SOURCE_FLOOR_PATH_RE,
+        lambda m, context: _floor_probe_is_not_the_apps_own_route(m, context),
+    ),
+    (
+        _RECON_FLOOR_PATH_RE,
+        lambda m, context: _floor_probe_is_not_the_apps_own_route(m, context),
+    ),
+    (
+        _VERSION_ROOT_PATH_RE,
+        lambda _m, context: (
+            context.startswith("url_path")
+            and named_probe_is_not_the_apps_own_route("version")
+        ),
+    ),
+    (
+        _SYSTEM_LOG_PATH_RE,
+        lambda _m, context: (
+            context.startswith("url_path")
+            and named_probe_is_not_the_apps_own_route("system/log")
+        ),
     ),
     (_GLUED_DOLLAR_SUBSTITUTION_CANDIDATE_RE, _dollar_substitution_pair_is_injection),
     (

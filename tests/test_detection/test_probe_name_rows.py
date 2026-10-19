@@ -9,7 +9,7 @@ from guard_core.handlers._suspatterns_pattern_table import _PATTERN_DEFINITIONS
 from guard_core.handlers._suspatterns_probe_chains import PROBE_CHAIN_ROW
 from guard_core.models import SecurityConfig
 from guard_core.utils import detect_penetration_attempt
-from tests.conftest import MockGuardRequest
+from tests.conftest import MockGuardRequest, declare_route
 from tests.wordlists.fetch import git_blob_sha
 from tests.wordlists.probe_regex import any_depth_regexes, upload_only_regexes
 
@@ -40,10 +40,11 @@ UPLOAD_ONLY = [
 NAMED_AT_ANY_DEPTH_BY_OLDER_ROWS = {"phpinfo.php", "test.php"}
 
 
-async def _flagged(path: str) -> bool:
-    result = await detect_penetration_attempt(
-        MockGuardRequest(path=path), SecurityConfig()
-    )
+async def _flagged(path: str, route: str | None = None) -> bool:
+    request = MockGuardRequest(path=path)
+    if route is not None:
+        declare_route(request, route)
+    result = await detect_penetration_attempt(request, SecurityConfig())
     return result.is_threat
 
 
@@ -122,7 +123,7 @@ async def test_names_that_are_also_application_files_are_flagged_only_in_uploads
     missed = []
     for name in UPLOAD_ONLY:
         if name not in NAMED_AT_ANY_DEPTH_BY_OLDER_ROWS and await _flagged(
-            f"/api/{name}"
+            f"/api/{name}", route=f"/api/{name}"
         ):
             wrongly_flagged.append(name)
         if not await _flagged(f"/uploads/{name}"):
@@ -269,19 +270,10 @@ async def test_named_probe_chains_are_flagged(path: str) -> None:
 async def test_ordinary_routes_sharing_a_chain_prefix_are_not_flagged(
     path: str,
 ) -> None:
-    assert await _flagged(path) is False
+    assert await _flagged(path, route=path) is False
 
 
-async def test_the_quickhits_baseline_is_flagged_or_excluded_with_a_reason() -> None:
-    excluded = EXCLUSIONS["excluded"]
-    assert all(reason.strip() for reason in excluded.values())
-    still_flagged = [name for name in BASELINE["flagged"] if await _flagged("/" + name)]
-    lost = sorted(set(BASELINE["flagged"]) - set(still_flagged))
-    assert lost == sorted(excluded)
-
-
-async def test_the_excluded_entries_stay_unflagged_so_a_stale_reason_fails() -> None:
-    flagged_now = [
-        name for name in EXCLUSIONS["excluded"] if await _flagged("/" + name)
-    ]
-    assert flagged_now == []
+async def test_every_quickhits_baseline_entry_is_flagged_without_routes() -> None:
+    assert EXCLUSIONS["excluded"] == {}
+    lost = [name for name in BASELINE["flagged"] if not await _flagged("/" + name)]
+    assert lost == []

@@ -43,6 +43,7 @@ from guard_core.sync._utils.ip_extraction import (
 )
 from guard_core.sync._utils.request_logging import redact_url_for_display
 from guard_core.sync._utils.request_path import resolve_dot_and_empty_segments
+from guard_core.sync._utils.route_gate import route_knowledge, route_state_template
 from guard_core.sync.detection_result import DetectionResult
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
@@ -248,13 +249,16 @@ def detect_penetration_attempt(
     max_scan_seconds = _resolve_max_scan_seconds(config)
     semantic_excluded_headers = _resolve_semantic_excluded_headers(config, route_config)
 
-    with _scan_value_budget(
-        max_scan_values,
-        max_json_depth,
-        max_scan_chars,
-        binary_min_run,
-        max_scan_seconds,
-        semantic_excluded_headers,
+    with (
+        route_knowledge(route_state_template(request.state)),
+        _scan_value_budget(
+            max_scan_values,
+            max_json_depth,
+            max_scan_chars,
+            binary_min_run,
+            max_scan_seconds,
+            semantic_excluded_headers,
+        ),
     ):
         surface_hit = _scan_request_surface(
             request,

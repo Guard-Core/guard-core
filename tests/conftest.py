@@ -262,6 +262,11 @@ def _parse_query_params(query: str) -> dict[str, str]:
     return dict(parse_qsl(query, keep_blank_values=True))
 
 
+def declare_route(request: Any, template: str) -> Any:
+    request.state.guard_route_template = template
+    return request
+
+
 class MockGuardRequest:
     def __init__(
         self,

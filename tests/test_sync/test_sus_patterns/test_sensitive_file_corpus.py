@@ -1,5 +1,6 @@
 import pytest
 
+from guard_core.sync._utils.route_gate import route_knowledge
 from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
 
 SENSITIVE_FILE_PATHS_FLAGGED = [
@@ -70,15 +71,32 @@ def test_sensitive_file_path_flagged(payload: str) -> None:
 
 
 @pytest.mark.parametrize("payload", NESTED_SOURCE_PATHS_NOT_PROBES)
-def test_nested_source_path_is_not_a_root_probe(payload: str) -> None:
-    # LEDGER 4.04, D-17, D-59: the source and source-map rows match root probe
-    # shapes; a nested file is a probe only through a named row (settings.py,
-    # config.php, eval-stdin.php, webshell kits). A nested source map is caught only
-    # by an opt-in return_pattern status:404 behavior rule.
-    result = sus_patterns_handler.detect(
-        content=payload, ip_address="203.0.113.9", context="url_path"
-    )
+def test_nested_source_path_is_not_a_probe_when_the_app_declares_it(
+    payload: str,
+) -> None:
+    # D-75: a nested script path is flagged by default and clean when the matched
+    # route template literally contains the file extension. A nested source map
+    # has no extension row and stays clean (opt-in return_pattern status:404).
+    with route_knowledge(payload):
+        result = sus_patterns_handler.detect(
+            content=payload, ip_address="203.0.113.9", context="url_path"
+        )
     assert result["is_threat"] is False
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [case for case in NESTED_SOURCE_PATHS_NOT_PROBES if "map" not in case.id],
+)
+@pytest.mark.parametrize("template", [None, "/{page:path}", "/api/{name}"])
+def test_nested_source_path_without_its_own_route_is_flagged_as_in_v440(
+    payload: str, template: str | None
+) -> None:
+    with route_knowledge(template):
+        result = sus_patterns_handler.detect(
+            content=payload, ip_address="203.0.113.9", context="url_path"
+        )
+    assert result["is_threat"] is True
 
 
 @pytest.mark.parametrize("payload", MULTILINE_CONTENT_WITH_EMBEDDED_PATH_NOT_FLAGGED)

@@ -3,6 +3,10 @@ from collections import OrderedDict
 from collections.abc import Collection
 from typing import TYPE_CHECKING
 
+from guard_core._utils.route_gate import (
+    ROUTE_TEMPLATE_STATE_ATTR,
+    might_be_a_gated_probe,
+)
 from guard_core._utils.sampling import observe_sampled_key
 from guard_core.core.checks._shared_strikes import StrikeReport
 from guard_core.core.checks.base import SecurityCheck
@@ -210,6 +214,24 @@ class SuspiciousActivityCheck(SecurityCheck):
             status_code=400, default_message="Request body could not be read"
         )
 
+    def _record_route_template(self, request: GuardRequest) -> None:
+        state = request.state
+        if getattr(state, ROUTE_TEMPLATE_STATE_ATTR, None) is not None:
+            return
+        if getattr(state, "guard_route_unresolved", False) is True:
+            return
+        lookup = getattr(self.middleware, "route_template", None)
+        path = str(request.url_path)
+        if not callable(lookup) or not might_be_a_gated_probe(path):
+            return
+        try:
+            template = lookup(path)
+        except Exception:
+            self.logger.error("route_template failed; the path is judged without it")
+            return
+        if isinstance(template, str):
+            setattr(state, ROUTE_TEMPLATE_STATE_ATTR, template)
+
     async def check(self, request: GuardRequest) -> GuardResponse | None:
         if getattr(request.state, "is_whitelisted", False):
             return None
@@ -220,6 +242,7 @@ class SuspiciousActivityCheck(SecurityCheck):
         if not client_ip:
             return None
 
+        self._record_route_template(request)
         result = await get_cached_detection_result(
             request,
             route_config,

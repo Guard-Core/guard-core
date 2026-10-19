@@ -1,9 +1,5 @@
 {
   "seclists_commit": "60e43f4d2b0251330ff18ea4fa76aabec0515dcb",
-  "comment": "quickhits.txt entries flagged at 5c38dc89 (engine level, path surface) and not flagged at the head. D-74: no reason-based exclusion is allowed; the three left are exact collisions with a benign route and wait for a mechanism from the peers.",
-  "excluded": {
-    "version": "D-74 open, pending the peers: the same path is a benign route, tests/test_sus_patterns/test_detection_benchmark.py:2962 and ledger_gaps/repro/benign_classes.py:18 (/version, RSSHub /minecraft/version at rsshub-route-examples.json:2265 is the nested twin)",
-    "system/log/": "D-74 open, pending the peers: the same path is a benign route, tests/test_sus_patterns/test_detection_benchmark.py:2987 (/system/log)",
-    "system/logs/": "D-74 open, pending the peers: the same path is a benign route, tests/test_sus_patterns/test_detection_benchmark.py:2988 (/system/logs)"
-  }
+  "comment": "D-74: no quickhits entry may be excluded with a written reason; every entry flagged at 5c38dc89 is flagged by the head with no route knowledge.",
+  "excluded": {}
 }

@@ -2,7 +2,7 @@ import pytest
 
 from guard_core.models import SecurityConfig
 from guard_core.utils import detect_penetration_attempt
-from tests.conftest import MockGuardRequest
+from tests.conftest import MockGuardRequest, declare_route
 
 PROBES = [
     "/cgi-bin/",
@@ -100,11 +100,25 @@ ORDINARY_ROUTES = [
 ]
 
 
-async def _flagged(path: str) -> bool:
-    result = await detect_penetration_attempt(
-        MockGuardRequest(path=path), SecurityConfig()
-    )
+async def _flagged(path: str, route: str | None = None) -> bool:
+    request = MockGuardRequest(path=path)
+    if route is not None:
+        declare_route(request, route)
+    result = await detect_penetration_attempt(request, SecurityConfig())
     return result.is_threat
+
+
+ROUTE_GATED = [
+    "/system/log/",
+    "/system/logs/",
+    "/version",
+    "/assets/main.py",
+    "/downloads/setup.sh",
+    "/news/index.jsp",
+    "/tools/shell.php",
+    "/api/cmd.php",
+    "/agency/news/c100001/page_a.shtml",
+]
 
 
 @pytest.mark.parametrize("path", PROBES)
@@ -114,7 +128,15 @@ async def test_root_probe_shapes_and_named_probes_stay_flagged(path: str) -> Non
 
 @pytest.mark.parametrize("path", ORDINARY_ROUTES)
 async def test_ordinary_application_routes_are_not_probes(path: str) -> None:
-    assert await _flagged(path) is False
+    assert await _flagged(path, route=path) is False
+
+
+@pytest.mark.parametrize("path", ROUTE_GATED)
+@pytest.mark.parametrize("route", [None, "/{page:path}", "/api/{name}", "/docs"])
+async def test_a_gated_route_is_a_probe_unless_the_app_declares_it(
+    path: str, route: str | None
+) -> None:
+    assert await _flagged(path, route=route) is True
 
 
 async def test_a_wordpress_probe_outside_the_uploads_tree_stays_flagged() -> None:

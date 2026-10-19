@@ -122,9 +122,11 @@ from guard_core.sync.handlers._suspatterns_sources import (
     _PROTO_POLLUTION_PROTOTYPE_ASSIGN_RE,
     _PROTO_POLLUTION_SET_PROTOTYPE_OF_RE,
     _RECON_EXTENSION_PATH_RE,
+    _RECON_FLOOR_PATH_RE,
     _SELECT_FROM_RE,
     _SELECT_STAR_RE,
     _SENSITIVE_SOURCE_EXTENSION_PATH_RE,
+    _SENSITIVE_SOURCE_FLOOR_PATH_RE,
     _SQLI_COMMENT_TERMINATOR_RE,
     _SQLI_EXEC_STRONG_RE,
     _SQLI_ORDER_BY_STRONG_RE,
@@ -133,8 +135,10 @@ from guard_core.sync.handlers._suspatterns_sources import (
     _SQLI_WAITFOR_RE,
     _SSRF_BARE_METADATA_ALIAS_RE,
     _SSTI_HASH_BRACE_SHAPE_RE,
+    _SYSTEM_LOG_PATH_RE,
     _TERMINAL_PATH_SUFFIX_RE,
     _TOP_LEVEL_PATH_PREFIX_RE,
+    _VERSION_ROOT_PATH_RE,
     _WHERE_CLAUSE_RE,
     _XML_XXE_PUBLIC_EXTERNAL_DTD_RE,
     _XSS_JS_SCHEME_CTRL_CHAR_RE,
@@ -605,6 +609,7 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
         _CTX_SENSITIVE_FILE,
         "sensitive_file",
     ),
+    (_SENSITIVE_SOURCE_FLOOR_PATH_RE, _CTX_URL_PATH_ONLY, "sensitive_file"),
     (
         _path_only_pattern(
             r"(?:(?:local_settings|settings|config|secrets|configuration)\.py"
@@ -718,6 +723,9 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
         _CTX_RECON,
         "recon",
     ),
+    (_RECON_FLOOR_PATH_RE, _CTX_URL_PATH_ONLY, "recon"),
+    (_SYSTEM_LOG_PATH_RE, _CTX_URL_PATH_ONLY, "recon"),
+    (_VERSION_ROOT_PATH_RE, _CTX_URL_PATH_ONLY, "recon"),
     (
         _nested_path_pattern(r"config_dump"),
         _CTX_RECON,

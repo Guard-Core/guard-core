@@ -181,7 +181,7 @@ async def test_ordinary_paths_and_the_browser_fakepath_are_not_flagged(
 
 async def test_a_path_value_is_not_a_url_path_rule() -> None:
     assert await _categories("/usr/bin/python", "path") is None
-    assert await _categories("/var/www/app/main.go", "path") is None
+    assert await _categories("/var/www/app/main.go", "path") == ["sensitive_file"]
 
 
 async def test_a_wp_config_and_a_settings_file_under_home_keep_their_categories() -> (

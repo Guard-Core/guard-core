@@ -270,6 +270,11 @@ class MockState:
             self._attrs[name] = value
 
 
+def declare_route(request: Any, template: str) -> Any:
+    request.state.guard_route_template = template
+    return request
+
+
 class SyncMockGuardRequest:
     def __init__(
         self,

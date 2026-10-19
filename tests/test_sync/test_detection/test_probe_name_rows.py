@@ -9,7 +9,7 @@ from guard_core.sync.handlers import _suspatterns_probe_names as generated
 from guard_core.sync.handlers._suspatterns_pattern_table import _PATTERN_DEFINITIONS
 from guard_core.sync.handlers._suspatterns_probe_chains import PROBE_CHAIN_ROW
 from guard_core.sync.utils import detect_penetration_attempt
-from tests.test_sync.conftest import SyncMockGuardRequest
+from tests.test_sync.conftest import SyncMockGuardRequest, declare_route
 from tests.wordlists.fetch import git_blob_sha
 from tests.wordlists.probe_regex import any_depth_regexes, upload_only_regexes
 
@@ -40,10 +40,11 @@ UPLOAD_ONLY = [
 NAMED_AT_ANY_DEPTH_BY_OLDER_ROWS = {"phpinfo.php", "test.php"}
 
 
-def _flagged(path: str) -> bool:
-    result = detect_penetration_attempt(
-        SyncMockGuardRequest(path=path), SecurityConfig()
-    )
+def _flagged(path: str, route: str | None = None) -> bool:
+    request = SyncMockGuardRequest(path=path)
+    if route is not None:
+        declare_route(request, route)
+    result = detect_penetration_attempt(request, SecurityConfig())
     return result.is_threat
 
 
@@ -119,7 +120,9 @@ def test_names_that_are_also_application_files_are_flagged_only_in_uploads() -> 
     wrongly_flagged = []
     missed = []
     for name in UPLOAD_ONLY:
-        if name not in NAMED_AT_ANY_DEPTH_BY_OLDER_ROWS and _flagged(f"/api/{name}"):
+        if name not in NAMED_AT_ANY_DEPTH_BY_OLDER_ROWS and _flagged(
+            f"/api/{name}", route=f"/api/{name}"
+        ):
             wrongly_flagged.append(name)
         if not _flagged(f"/uploads/{name}"):
             missed.append(name)
@@ -265,17 +268,10 @@ def test_named_probe_chains_are_flagged(path: str) -> None:
 def test_ordinary_routes_sharing_a_chain_prefix_are_not_flagged(
     path: str,
 ) -> None:
-    assert _flagged(path) is False
+    assert _flagged(path, route=path) is False
 
 
-def test_the_quickhits_baseline_is_flagged_or_excluded_with_a_reason() -> None:
-    excluded = EXCLUSIONS["excluded"]
-    assert all(reason.strip() for reason in excluded.values())
-    still_flagged = [name for name in BASELINE["flagged"] if _flagged("/" + name)]
-    lost = sorted(set(BASELINE["flagged"]) - set(still_flagged))
-    assert lost == sorted(excluded)
-
-
-def test_the_excluded_entries_stay_unflagged_so_a_stale_reason_fails() -> None:
-    flagged_now = [name for name in EXCLUSIONS["excluded"] if _flagged("/" + name)]
-    assert flagged_now == []
+def test_every_quickhits_baseline_entry_is_flagged_without_routes() -> None:
+    assert EXCLUSIONS["excluded"] == {}
+    lost = [name for name in BASELINE["flagged"] if not _flagged("/" + name)]
+    assert lost == []

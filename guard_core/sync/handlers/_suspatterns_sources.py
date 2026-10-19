@@ -182,12 +182,30 @@ def _path_only_extension_pattern(required: str) -> str:
     )
 
 
-_SENSITIVE_SOURCE_EXTENSION_PATH_RE = _root_extension_pattern(
-    r"\.(?:ts|tsx|jsx|py|rb|java|go|rs|php|pl|sh|sql)"
+_SENSITIVE_SOURCE_EXTENSIONS = r"\.(?:ts|tsx|jsx|py|rb|java|go|rs|php|pl|sh|sql)"
+_RECON_EXTENSIONS = (
+    r"\.(?:asp|aspx|jsp|jsa|jhtml|shtml|cfm|cgi|do|action|lua|inc|woa|nsf|esp)"
 )
 
-_RECON_EXTENSION_PATH_RE = _root_extension_pattern(
-    r"\.(?:asp|aspx|jsp|jsa|jhtml|shtml|cfm|cgi|do|action|lua|inc|woa|nsf|esp)"
+_SENSITIVE_SOURCE_EXTENSION_PATH_RE = _root_extension_pattern(
+    _SENSITIVE_SOURCE_EXTENSIONS
+)
+
+_RECON_EXTENSION_PATH_RE = _root_extension_pattern(_RECON_EXTENSIONS)
+
+_SENSITIVE_SOURCE_FLOOR_PATH_RE = _path_only_extension_pattern(
+    _SENSITIVE_SOURCE_EXTENSIONS
+)
+
+_RECON_FLOOR_PATH_RE = _path_only_extension_pattern(_RECON_EXTENSIONS)
+
+_VERSION_ROOT_PATH_RE = (
+    rf"\A{_PATH_ONLY_SEP_RE}?version{_PATH_ONLY_SEP_RE}?(?:\?\S*)?\s*\Z"
+)
+
+_SYSTEM_LOG_PATH_RE = (
+    rf"\A{_PATH_ONLY_SEP_RE}?system{_PATH_ONLY_SEP_RE}logs?"
+    rf"{_PATH_ONLY_SEP_RE}?(?:\?\S*)?\s*\Z"
 )
 
 

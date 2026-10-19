@@ -179,7 +179,7 @@ def test_ordinary_paths_and_the_browser_fakepath_are_not_flagged(
 
 def test_a_path_value_is_not_a_url_path_rule() -> None:
     assert _categories("/usr/bin/python", "path") is None
-    assert _categories("/var/www/app/main.go", "path") is None
+    assert _categories("/var/www/app/main.go", "path") == ["sensitive_file"]
 
 
 def test_a_wp_config_and_a_settings_file_under_home_keep_their_categories() -> None:

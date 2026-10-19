@@ -33,7 +33,7 @@ from tests.test_sus_patterns.test_detection_benchmark import (
     BENIGN_CORPUS,
     MALICIOUS_CORPUS,
 )
-from tests.test_sync.conftest import SyncMockGuardRequest
+from tests.test_sync.conftest import SyncMockGuardRequest, declare_route
 
 _CONFIG = SecurityConfig()
 
@@ -838,8 +838,10 @@ def _mechanism_for_case_id(mechanisms: tuple[str, ...], case_id: str) -> str:
     return mechanisms[zlib.crc32(case_id.encode()) % len(mechanisms)]
 
 
-def _detected_via(mechanism: str, payload: str) -> bool:
+def _detected_via(mechanism: str, payload: str, app_serves_it: bool = False) -> bool:
     request = _MECHANISM_BUILDERS[mechanism](payload)
+    if app_serves_it and mechanism == "url_path":
+        declare_route(request, payload)
     result = detect_penetration_attempt(request, _CONFIG)
     return result.is_threat
 
@@ -1056,7 +1058,7 @@ def test_detect_penetration_attempt_recall_and_false_positive_rate(
         for benign_case in _PRODUCTION_BENIGN_CASES:
             mechanism = _mechanism_for_case_id(_ALL_MECHANISMS, benign_case.case_id)
             mechanisms_exercised.add(mechanism)
-            if _detected_via(mechanism, benign_case.payload):
+            if _detected_via(mechanism, benign_case.payload, True):
                 benign_flagged += 1
                 pin_key = f"{benign_case.case_id}[{mechanism}]"
                 if pin_key in _KNOWN_E2E_FALSE_POSITIVES:
@@ -1279,7 +1281,7 @@ def test_detect_penetration_attempt_legacy_smoke() -> None:
         benign_flagged = 0
         for benign_case in _PRODUCTION_BENIGN_CASES:
             mechanism = _mechanism_for_case_id(_ALL_MECHANISMS, benign_case.case_id)
-            if _detected_via(mechanism, benign_case.payload):
+            if _detected_via(mechanism, benign_case.payload, True):
                 benign_flagged += 1
 
         assert malicious_detected >= _LEGACY_BASELINE_MALICIOUS_DETECTED_TOTAL, (
@@ -1335,7 +1337,7 @@ def test_known_e2e_false_positive_pins_are_all_non_vacuous() -> None:
             f"{case_id}: pinned mechanism {mechanism!r} no longer matches the "
             f"case-id-derived mechanism {derived_mechanism!r}"
         )
-        assert _detected_via(mechanism, payload_by_case_id[case_id]), (
+        assert _detected_via(mechanism, payload_by_case_id[case_id], True), (
             f"{case_id}[{mechanism}]: pin is vacuous, this mechanism does not "
             "flag the payload"
         )

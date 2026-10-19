@@ -18,7 +18,7 @@ from guard_core.handlers.suspatterns_handler import (
 )
 from guard_core.models import SecurityConfig
 from guard_core.utils import detect_penetration_attempt
-from tests.conftest import MockGuardRequest
+from tests.conftest import MockGuardRequest, declare_route
 from tests.test_sus_patterns.test_detection_benchmark import (
     _ENV_VAR_PREFIXED_SHELL_DASH_C_CI_CONFIG_KNOWN_FP_REASON,
     _RFI_TARGET_EXTENSION_DOWNLOAD_LINK_KNOWN_FP_REASON,
@@ -838,8 +838,12 @@ async def _mechanism_for_case_id(mechanisms: tuple[str, ...], case_id: str) -> s
     return mechanisms[zlib.crc32(case_id.encode()) % len(mechanisms)]
 
 
-async def _detected_via(mechanism: str, payload: str) -> bool:
+async def _detected_via(
+    mechanism: str, payload: str, app_serves_it: bool = False
+) -> bool:
     request = _MECHANISM_BUILDERS[mechanism](payload)
+    if app_serves_it and mechanism == "url_path":
+        declare_route(request, payload)
     result = await detect_penetration_attempt(request, _CONFIG)
     return result.is_threat
 
@@ -1059,7 +1063,7 @@ async def test_detect_penetration_attempt_recall_and_false_positive_rate(
                 _ALL_MECHANISMS, benign_case.case_id
             )
             mechanisms_exercised.add(mechanism)
-            if await _detected_via(mechanism, benign_case.payload):
+            if await _detected_via(mechanism, benign_case.payload, True):
                 benign_flagged += 1
                 pin_key = f"{benign_case.case_id}[{mechanism}]"
                 if pin_key in _KNOWN_E2E_FALSE_POSITIVES:
@@ -1285,7 +1289,7 @@ async def test_detect_penetration_attempt_legacy_smoke() -> None:
             mechanism = await _mechanism_for_case_id(
                 _ALL_MECHANISMS, benign_case.case_id
             )
-            if await _detected_via(mechanism, benign_case.payload):
+            if await _detected_via(mechanism, benign_case.payload, True):
                 benign_flagged += 1
 
         assert malicious_detected >= _LEGACY_BASELINE_MALICIOUS_DETECTED_TOTAL, (
@@ -1347,7 +1351,7 @@ async def test_known_e2e_false_positive_pins_are_all_non_vacuous() -> None:
             f"{case_id}: pinned mechanism {mechanism!r} no longer matches the "
             f"case-id-derived mechanism {derived_mechanism!r}"
         )
-        assert await _detected_via(mechanism, payload_by_case_id[case_id]), (
+        assert await _detected_via(mechanism, payload_by_case_id[case_id], True), (
             f"{case_id}[{mechanism}]: pin is vacuous, this mechanism does not "
             "flag the payload"
         )
