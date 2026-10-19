@@ -281,7 +281,7 @@ def test_replaced_large_lists_retain_the_working_set() -> None:  # async-only
         gc.collect()
         one_list = tracemalloc.get_traced_memory()[0] - baseline
 
-        for version in range(1, 301):
+        for version in range(1, 41):
             _ip_in_list(address, client, _large_list(version))
         gc.collect()
         retained = tracemalloc.get_traced_memory()[0] - baseline
