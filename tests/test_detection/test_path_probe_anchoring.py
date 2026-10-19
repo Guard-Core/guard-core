@@ -50,6 +50,17 @@ PROBES = [
     "/api/appsettings.Production.json",
     "/wp-content/themes/default",
     "/language/Swedish${IFS}&&cd${IFS}/tmp",
+    "/language/Swedish%24%7BIFS%7D%26%26cd%24%7BIFS%7D/tmp",
+    "/page.shtml",
+    "/CHANGELOG",
+    "/ChangeLog",
+    "/CHANGELOG?x=1",
+    "/system/cron/cron.txt",
+    "/system/error.txt",
+    "/wp-content/uploads/",
+    "/wp-content/uploads",
+    "/wp-content/uploads/2024/shell.php",
+    "/blog/wp-content/uploads/x/a.php",
 ]
 
 ORDINARY_ROUTES = [
@@ -59,6 +70,10 @@ ORDINARY_ROUTES = [
     "/blog/language/python",
     "/docs/changelog",
     "/changelog",
+    "/Changelog",
+    "/docs/CHANGELOG",
+    "/system/log/",
+    "/system/logs/",
     "/docs/README.md",
     "/version",
     "/system/status",
@@ -104,4 +119,4 @@ async def test_ordinary_application_routes_are_not_probes(path: str) -> None:
 
 async def test_a_wordpress_probe_outside_the_uploads_tree_stays_flagged() -> None:
     assert await _flagged("/blog/wp-content/plugins/x/readme.txt") is True
-    assert await _flagged("/wp-content/uploads/") is False
+    assert await _flagged("/wp-content/uploads/2024/a.jpg") is False

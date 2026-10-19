@@ -16,11 +16,15 @@ from guard_core.handlers._suspatterns_recall_rows import (
     _CMD_EXTENDED_COMMAND_RE,
     _CMD_NEWLINE_COMMAND_DECODED_RE,
     _CMD_NEWLINE_COMMAND_RE,
+    _CMS_UPLOADS_DIRECTORY_RE,
+    _CMS_UPLOADS_SCRIPT_RE,
     _DESERIALIZATION_YAML_PYTHON_RE,
     _FILE_INCLUSION_REMOTE_NULL_TERMINATED_RE,
     _FILE_UPLOAD_BARE_NAME_RE,
     _HTTP_SPLIT_CRLF_DECODED_RE,
     _PROTO_POLLUTION_CONSTRUCTOR_PROTOTYPE_RE,
+    _RECON_CHANGELOG_BARE_RE,
+    _RECON_SYSTEM_PROBE_FILES_RE,
     _SQLI_BLIND_SUBSTRING_RE,
     _SQLI_ERROR_BASED_RE,
     _SQLI_SCHEMA_SUBSELECT_RE,
@@ -612,6 +616,8 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
         _CTX_SENSITIVE_FILE,
         "sensitive_file",
     ),
+    (_CMS_UPLOADS_SCRIPT_RE, _CTX_CMS_PROBING, "cms_probing"),
+    (_CMS_UPLOADS_DIRECTORY_RE, _CTX_CMS_PROBING, "cms_probing"),
     (
         _path_only_pattern(
             r"(?:wp-(?:admin|login|includes|config)"
@@ -683,6 +689,8 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
         _CTX_RECON,
         "recon",
     ),
+    (_RECON_SYSTEM_PROBE_FILES_RE, _CTX_RECON, "recon"),
+    (_RECON_CHANGELOG_BARE_RE, _CTX_RECON, "recon"),
     (
         _path_only_pattern(r"(?:actuator|server-status|telescope)"),
         _CTX_RECON,

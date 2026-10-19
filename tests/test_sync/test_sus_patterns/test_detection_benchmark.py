@@ -1553,6 +1553,38 @@ MALICIOUS_CORPUS: list[MaliciousCase] = [
         "sensitive_file",
         "/api/appsettings.Production.json",
     ),
+    # LEDGER 4.04, D-62: root legacy-tech names are probes (a root .shtml sits next to
+    # 1205 root .asp names in raft-small-files.txt); /language/<injection> is the IoT
+    # language-endpoint RCE shape; CHANGELOG and ChangeLog (case-sensitive) are the
+    # extensionless root probes of quickhits.txt:939-940; wp-content/uploads is a
+    # probe when it is the bare directory or a script (.php) below it; the two
+    # /system files are quickhits.txt:2238-2239.
+    MaliciousCase("recon_root_shtml_legacy_page", "recon", "/page.shtml"),
+    MaliciousCase(
+        "recon_language_ifs_injection",
+        "recon",
+        "/language/Swedish${IFS}&&cd${IFS}/tmp",
+    ),
+    MaliciousCase(
+        "recon_language_ifs_injection_url_encoded",
+        "recon",
+        "/language/Swedish%24%7BIFS%7D%26%26cd%24%7BIFS%7D/tmp",
+        "encoding_aware",
+    ),
+    MaliciousCase("recon_changelog_upper_root", "recon", "/CHANGELOG"),
+    MaliciousCase("recon_changelog_camel_root", "recon", "/ChangeLog"),
+    MaliciousCase("recon_system_cron_txt", "recon", "/system/cron/cron.txt"),
+    MaliciousCase("recon_system_error_txt", "recon", "/system/error.txt"),
+    MaliciousCase(
+        "cms_probing_wp_content_uploads_directory",
+        "cms_probing",
+        "/wp-content/uploads/",
+    ),
+    MaliciousCase(
+        "cms_probing_wp_content_uploads_script",
+        "cms_probing",
+        "/wp-content/uploads/2024/shell.php",
+    ),
 ]
 
 BENIGN_CORPUS: list[BenignCase] = [
@@ -2938,6 +2970,12 @@ BENIGN_CORPUS: list[BenignCase] = [
     # upload-like directory stay clean (hits count toward bans, D-17).
     BenignCase("path_nested_shell_php_outside_uploads", "/tools/shell.php"),
     BenignCase("path_nested_cmd_php_outside_uploads", "/api/cmd.php"),
+    # LEDGER 4.04, D-62: same route shape as /system/status, a false positive here is a
+    # ban strike; case-sensitive CHANGELOG rows leave the lowercase page route alone.
+    BenignCase("path_system_log_directory", "/system/log/"),
+    BenignCase("path_system_logs_directory", "/system/logs/"),
+    BenignCase("path_changelog_title_case_page", "/Changelog"),
+    BenignCase("path_nested_upper_changelog", "/docs/CHANGELOG"),
 ]
 
 BASELINE_MALICIOUS_DETECTED_BY_CATEGORY: dict[str, int] = {

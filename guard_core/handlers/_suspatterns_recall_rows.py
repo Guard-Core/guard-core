@@ -93,3 +93,15 @@ _FILE_UPLOAD_BARE_NAME_RE = (
     + _FILE_UPLOAD_BENIGN_TERMINAL_ALTERNATION
     + r")|;[^/\\]{0,60}|\.|\s+)\Z"
 )
+
+_RECON_CHANGELOG_BARE_RE = r"\A[/\\]?(?-i:CHANGELOG|ChangeLog)(?:\?\S*)?\s*\Z"
+_RECON_SYSTEM_PROBE_FILES_RE = (
+    r"\A[/\\]system[/\\](?:cron[/\\]cron\.txt|error\.txt)(?:\?\S*)?\s*\Z"
+)
+_CMS_UPLOADS_SCRIPT_RE = (
+    r"\A[/\\]?(?:[\w.\-~%]+[/\\])*wp-content[/\\]uploads[/\\]"
+    r"(?:[\w.\-~%]+[/\\])*[\w.\-~%]*\.php(?:\?\S*)?\s*\Z"
+)
+_CMS_UPLOADS_DIRECTORY_RE = (
+    r"\A[/\\]?(?:[\w.\-~%]+[/\\])*wp-content[/\\]uploads[/\\]?(?:\?\S*)?\s*\Z"
+)
