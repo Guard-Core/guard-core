@@ -2,6 +2,7 @@ import re
 
 from guard_core._utils.route_gate import (
     named_probe_is_not_the_apps_own_route,
+    normalized_last_segment,
     path_probe_is_not_the_apps_own_route,
     route_declares,
 )
@@ -42,8 +43,10 @@ _V440_LANGUAGE_ROW = _path_only_pattern(r"(?:language|languages)")
 _V440_README_ROW = _path_only_pattern(_README, r"(?:\.[\w.\-~%]*)?")
 _V440_INICIO_ROW = _path_only_pattern(r"inicio\.html?")
 
+CMS_TOKEN_PATTERN = re.compile(_CMS_TOKENS, re.IGNORECASE)
+
 NAMED_FLOOR_TOKEN_PATTERNS: dict[str, re.Pattern[str]] = {
-    _V440_CMS_ROW: re.compile(_CMS_TOKENS, re.IGNORECASE),
+    _V440_CMS_ROW: CMS_TOKEN_PATTERN,
     _V440_MANAGEMENT_ROW: re.compile(_MANAGEMENT_TOKENS, re.IGNORECASE),
     _V440_SYSTEM_VERSION_ROOT_ROW: re.compile(r"system|version", re.IGNORECASE),
     _V440_LANGUAGE_ROW: re.compile(r"language|languages", re.IGNORECASE),
@@ -94,6 +97,13 @@ def named_floor_row_is_not_the_apps_own_route(
         return True
     tokens = _declared_tokens(source, match)
     return not tokens or not all(route_declares(token) for token in tokens)
+
+
+def last_segment_is_not_the_apps_own_route(match: re.Match, context: str) -> bool:
+    if not is_the_request_url_path(context):
+        return True
+    segment = normalized_last_segment(match.group())
+    return not segment or not route_declares(segment)
 
 
 def named_probe_row_is_not_the_apps_own_route(token: str, context: str) -> bool:

@@ -51,6 +51,12 @@ def _flagged(path: str, template: str | None = None, **state: Any) -> bool:
         ("/wp-content/uploads/2024/a.jpg", "/wp-content/uploads/{name}"),
         ("/service/credentials", "/service/credentials"),
         ("/system/status", "/system/{name}"),
+        ("/wp-admin/about.php", "/wp-admin/{name}.php"),
+        ("/wp-admin/", "/wp-admin/{path}"),
+        ("/blog/config.php", "/blog/config.php"),
+        ("/Controller/Test.php", "/Controller/Test.php"),
+        ("/core/CHANGELOG.txt", "/core/CHANGELOG.txt"),
+        ("/wp-content/themes/default", "/wp-content/themes/{name}"),
     ],
 )
 def test_a_path_the_app_declares_as_a_route_is_not_a_probe(
@@ -78,6 +84,10 @@ def test_a_path_the_app_declares_as_a_route_is_not_a_probe(
         "/wp-content/uploads/2024/a.jpg",
         "/service/credentials",
         "/system/status",
+        "/wp-admin/about.php",
+        "/blog/config.php",
+        "/Controller/Test.php",
+        "/wp-content/themes/default",
     ],
 )
 @pytest.mark.parametrize(

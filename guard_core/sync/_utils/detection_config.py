@@ -125,8 +125,6 @@ _GENERIC_EXCLUDED_HEADER_SKIP_CATEGORIES: frozenset[str] = frozenset()
 _HEADER_CATEGORY_EXCLUSIONS: dict[str, frozenset[str]] = {
     "host": _ADDRESS_HEADER_SKIP_CATEGORIES,
     "origin": _ADDRESS_HEADER_SKIP_CATEGORIES,
-    "referer": _ADDRESS_HEADER_SKIP_CATEGORIES,
-    "user-agent": _ADDRESS_HEADER_SKIP_CATEGORIES,
     "x-forwarded-for": _ADDRESS_HEADER_SKIP_CATEGORIES,
     "x-forwarded-host": _ADDRESS_HEADER_SKIP_CATEGORIES,
     "x-real-ip": _ADDRESS_HEADER_SKIP_CATEGORIES,
@@ -159,20 +157,56 @@ def _value_looks_like_address_chain(value: str) -> bool:
     return all(_address_chain_token_is_address(token) for token in tokens)
 
 
-def _excluded_header_skip_categories(key: str, value: str) -> frozenset[str]:
+_INTERNAL_HOST_HEADER_EXCLUSIONS: dict[str, frozenset[str]] = {
+    "referer": _ADDRESS_HEADER_SKIP_CATEGORIES,
+    "user-agent": _ADDRESS_HEADER_SKIP_CATEGORIES,
+}
+_INTERNAL_HOST_SUFFIXES = (".localhost", ".local", ".internal", ".lan", ".home.arpa")
+
+
+def _host_header_names_an_internal_host(host: str) -> bool:
+    from ipaddress import ip_address
+
+    name = host.strip().lower()
+    if name.startswith("["):
+        name = name[1:].split("]", 1)[0]
+    elif name.count(":") == 1:
+        name = name.split(":", 1)[0]
+    if name == "localhost" or name.endswith(_INTERNAL_HOST_SUFFIXES):
+        return True
+    try:
+        address = ip_address(name)
+    except ValueError:
+        return False
+    return (
+        address.is_loopback
+        or address.is_private
+        or address.is_link_local
+        or address.is_unspecified
+    )
+
+
+def _excluded_header_skip_categories(
+    key: str, value: str, internal_host: bool = False
+) -> frozenset[str]:
     normalized = key.strip().lower()
     mapped = _HEADER_CATEGORY_EXCLUSIONS.get(normalized)
     if mapped is not None:
         return mapped
+    if internal_host and normalized in _INTERNAL_HOST_HEADER_EXCLUSIONS:
+        return _INTERNAL_HOST_HEADER_EXCLUSIONS[normalized]
     if _value_looks_like_address_chain(value):
         return _ADDRESS_HEADER_SKIP_CATEGORIES
     return _GENERIC_EXCLUDED_HEADER_SKIP_CATEGORIES
 
 
 def _excluded_header_effective_categories(
-    key: str, value: str, enabled_categories: set[str] | None
+    key: str,
+    value: str,
+    enabled_categories: set[str] | None,
+    internal_host: bool = False,
 ) -> set[str] | None:
-    skip = _excluded_header_skip_categories(key, value)
+    skip = _excluded_header_skip_categories(key, value, internal_host)
     if not skip:
         return enabled_categories
     return _categories_without(enabled_categories, skip)

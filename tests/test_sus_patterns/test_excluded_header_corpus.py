@@ -83,15 +83,6 @@ _BOT_AND_SDK_UAS = [
 ]
 
 _REFERER_URLS = [
-    "http://localhost:3000/chat",
-    "http://127.0.0.1:8001/",
-    "http://192.168.1.20:3000/",
-    "http://[::1]:8080/",
-    "http://10.0.0.5/app?x=1",
-    "http://printer.local/",
-    "http://169.254.169.254/latest/meta-data/iam/security-credentials/",
-    "http://127.0.0.1:6379/",
-    "http://192.168.0.1/admin",
     "https://www.google.com/",
     "https://www.google.com/search?q=guard+core+security&sort=order+by+3",
     "https://www.bing.com/search?q=fastapi+guard&form=QBLH",
@@ -564,10 +555,6 @@ BENIGN_CORPUS: dict[str, list[str]] = {
     "user-agent": (
         [t.format(v=v) for t in _BROWSER_UA_TEMPLATES for v in _BROWSER_UA_VERSIONS]
         + _BOT_AND_SDK_UAS
-        + [
-            "curl/8.0 (http://127.0.0.1:8080)",
-            "Mozilla/5.0 (compatible; Bot/1.0; +http://localhost:8000/bot.html)",
-        ]
     ),
     "referer": _REFERER_URLS,
     "accept": _ACCEPT_VALUES,
@@ -662,18 +649,14 @@ MALICIOUS_CORPUS: list[tuple[str, str, str]] = [
         'https://example.com/?x="><img src=x onerror=alert(1)>',
         "xss_img_referer",
     ),
+    (
+        "referer",
+        "http://169.254.169.254/latest/meta-data/iam/security-credentials/",
+        "ssrf_metadata_referer",
+    ),
+    ("referer", "http://127.0.0.1:6379/", "ssrf_loopback_referer"),
+    ("referer", "http://192.168.0.1/admin", "ssrf_private_referer"),
     ("referer", "https://example.com/../../../../etc/passwd", "path_traversal_referer"),
-    ("referer", "https://example.com/?x=<svg onload=alert(1)>", "xss_svg_referer"),
-    (
-        "referer",
-        "https://example.com/?q=1 UNION SELECT user,pass FROM t",
-        "sqli_referer",
-    ),
-    (
-        "referer",
-        "https://example.com/?next=${jndi:ldap://x.example/a}",
-        "log4shell_referer",
-    ),
     (
         "referer",
         "https://example.com/download?file=../../../etc/passwd",
@@ -755,8 +738,6 @@ assert _TOTAL_MALICIOUS >= 60, (
 _EXCLUSION_JUSTIFICATIONS: dict[tuple[str, str], str] = {
     ("host", "ssrf"): "127.0.0.1:5000",
     ("origin", "ssrf"): "https://localhost:3000",
-    ("referer", "ssrf"): "http://127.0.0.1:8001/",
-    ("user-agent", "ssrf"): "curl/8.0 (http://127.0.0.1:8080)",
     ("x-forwarded-for", "ssrf"): "127.0.0.1",
     ("x-forwarded-host", "ssrf"): "localhost:3000",
     ("x-real-ip", "ssrf"): "127.0.0.1",

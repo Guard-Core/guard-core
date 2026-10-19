@@ -11,7 +11,11 @@ from guard_core.sync.handlers._suspatterns_matchers import (
     _HTML_TAG_OPEN_RE,
     _SQLI_LOAD_FILE_RE,
 )
-from guard_core.sync.handlers._suspatterns_named_floor import NAMED_FLOOR_ROWS
+from guard_core.sync.handlers._suspatterns_named_floor import (
+    CMS_TOKEN_PATTERN,
+    NAMED_FLOOR_ROWS,
+    NAMED_FLOOR_TOKEN_PATTERNS,
+)
 from guard_core.sync.handlers._suspatterns_probe_chains import PROBE_CHAIN_ROW
 from guard_core.sync.handlers._suspatterns_probe_names import (
     SCRIPT_NAMES_ANY_DEPTH_RES,
@@ -930,6 +934,33 @@ RECON_OPTIONAL_SEPARATOR_PATTERN_SOURCES: frozenset[str] = frozenset(
     source
     for source, _contexts, category in _PATTERN_DEFINITIONS
     if category == "recon" and source.startswith(_TOP_LEVEL_PATH_PREFIX_RE)
+)
+
+# Path-anchored probe rows that a URL path clears when the app declares the same
+# page as a route (D-75): every sensitive_file, recon and cms_probing row that has
+# no gate of its own, except the unconditional chain row of named probes.
+for _source, _contexts, _category in _PATTERN_DEFINITIONS:
+    if _category == "cms_probing" and (
+        "wp-(?:admin|login|includes|config)|administrator|xmlrpc" in _source
+        or "wp-content(?!" in _source
+    ):
+        NAMED_FLOOR_TOKEN_PATTERNS.setdefault(_source, CMS_TOKEN_PATTERN)
+
+ROUTE_GATED_PATH_SOURCES: frozenset[str] = frozenset(
+    source
+    for source, _contexts, category in _PATTERN_DEFINITIONS
+    if category in {"sensitive_file", "recon", "cms_probing"}
+    and source.startswith(r"\A[/\\]")
+    and source
+    not in {
+        PROBE_CHAIN_ROW,
+        _SENSITIVE_SOURCE_EXTENSION_PATH_RE,
+        _RECON_EXTENSION_PATH_RE,
+        _MAP_FILE_PATH_RE,
+        _VERSION_ROOT_PATH_RE,
+        _SYSTEM_LOG_PATH_RE,
+        *NAMED_FLOOR_TOKEN_PATTERNS,
+    }
 )
 
 # Recon rows additionally scanned against the signal-preserving raw view. The

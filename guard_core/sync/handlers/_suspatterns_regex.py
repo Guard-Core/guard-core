@@ -65,7 +65,8 @@ from guard_core.sync.handlers._suspatterns_matchers import (
     _quote_splice_finditer,
 )
 from guard_core.sync.handlers._suspatterns_named_floor import (
-    NAMED_FLOOR_ROWS,
+    NAMED_FLOOR_TOKEN_PATTERNS,
+    last_segment_is_not_the_apps_own_route,
     named_floor_row_is_not_the_apps_own_route,
     named_probe_row_is_not_the_apps_own_route,
     recon_path_is_a_probe,
@@ -77,6 +78,7 @@ from guard_core.sync.handlers._suspatterns_pattern_table import (
     BACKTICK_WHOLE_VALUE_RE,
     NOISE_PRONE_PATTERN_SOURCES,
     RECON_OPTIONAL_SEPARATOR_PATTERN_SOURCES,
+    ROUTE_GATED_PATH_SOURCES,
 )
 from guard_core.sync.handlers._suspatterns_pickle import (
     _pickle_global_candidate_is_injection,
@@ -176,7 +178,7 @@ _CANDIDATE_REJECTION_VALIDATORS: tuple[
 ] = (
     *(
         (source, partial(named_floor_row_is_not_the_apps_own_route, source))
-        for source, _contexts, _category in NAMED_FLOOR_ROWS
+        for source in NAMED_FLOOR_TOKEN_PATTERNS
     ),
     (_LEGACY_IPV4_HOST_RE, lambda m, _c: _legacy_ipv4_match_is_blocked(m)),
     (_LDAP_WILDCARD_CHAIN_RE, lambda m, _c: _ldap_wildcard_chain_is_injection(m)),
@@ -270,6 +272,10 @@ def _build_regex_threat(
     for candidate, is_valid_threat in _CANDIDATE_REJECTION_VALIDATORS:
         if pattern.pattern == candidate and not is_valid_threat(match, context):
             return None
+    if pattern.pattern in ROUTE_GATED_PATH_SOURCES and not (
+        last_segment_is_not_the_apps_own_route(match, context)
+    ):
+        return None
     if pattern.pattern in RECON_OPTIONAL_SEPARATOR_PATTERN_SOURCES and not (
         _recon_path_value_is_probe(match, context)
     ):

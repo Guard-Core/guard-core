@@ -22,6 +22,7 @@ from guard_core.sync._utils.body_json_scan import (
 )
 from guard_core.sync._utils.detection_config import (
     _excluded_header_effective_categories,
+    _host_header_names_an_internal_host,
     _param_scan_categories,
 )
 from guard_core.sync._utils.detection_scan import (
@@ -221,6 +222,7 @@ def _scan_excluded_header_component(
     sensitive_body_fields: frozenset[str] = frozenset(),
     excluded_body_fields: frozenset[str] = frozenset(),
     sensitive_headers: frozenset[str] = frozenset(),
+    internal_host: bool = False,
 ) -> tuple[bool, str, list[dict]] | None:
     if enabled_categories is None or "cmd_injection" in enabled_categories:
         detected, trigger, threats = _check_always_scan_header(key)
@@ -236,7 +238,7 @@ def _scan_excluded_header_component(
             return True, f"Header '{key}': {trigger}", threats
 
     effective_categories = _excluded_header_effective_categories(
-        key, value, enabled_categories
+        key, value, enabled_categories, internal_host
     )
     if effective_categories is not None and not effective_categories:
         return None
@@ -365,7 +367,12 @@ def _scan_headers(
     sensitive_params: frozenset[str] = frozenset(),
     operator_excluded_headers: frozenset[str] = frozenset(),
 ) -> tuple[bool, str, list[dict]]:
-    for key, value in _header_items_to_scan(request.headers):
+    items = list(_header_items_to_scan(request.headers))
+    internal_host = any(
+        key.strip().lower() == "host" and _host_header_names_an_internal_host(value)
+        for key, value in items
+    )
+    for key, value in items:
         if key.strip().lower() in operator_excluded_headers:
             continue
         if name_is_sensitive(key, sensitive_headers):
@@ -392,6 +399,7 @@ def _scan_headers(
                 sensitive_body_fields,
                 excluded_body_fields,
                 sensitive_headers,
+                internal_host,
             )
         else:
             hit = _scan_normal_header_component(

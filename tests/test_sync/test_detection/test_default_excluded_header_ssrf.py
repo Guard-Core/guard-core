@@ -16,8 +16,13 @@ INTERNAL_URLS = [
 CLEAN_URLS = ["https://example.com/", "http://printer.local/"]
 
 
-def _scan(header: str, value: str) -> tuple[bool, list[str]]:
-    request = SyncMockGuardRequest(path="/x", headers={header: value})
+def _scan(
+    header: str, value: str, host: str = "localhost:8000"
+) -> tuple[bool, list[str]]:
+    headers = {header: value}
+    if host:
+        headers["host"] = host
+    request = SyncMockGuardRequest(path="/x", headers=headers)
     result = detect_penetration_attempt(request, SecurityConfig())
     return result.is_threat, result.threat_categories
 
@@ -72,3 +77,41 @@ def test_an_attack_in_a_default_excluded_header_is_still_flagged(
     assert threat is True
     assert "xss" in categories
     assert "ssrf" not in categories
+
+
+@pytest.mark.parametrize("host", ["", "api.example.com", "93.184.216.34:8000"])
+@pytest.mark.parametrize(
+    "value",
+    [
+        "http://169.254.169.254/latest/meta-data/",
+        "http://127.0.0.1:6379/",
+        "http://192.168.0.1/admin",
+    ],
+)
+def test_an_internal_referer_is_ssrf_when_the_server_is_not_internal(
+    value: str, host: str
+) -> None:
+    threat, categories = _scan("referer", value, host)
+
+    assert threat is True
+    assert "ssrf" in categories
+
+
+@pytest.mark.parametrize(
+    "host",
+    [
+        "localhost",
+        "localhost:3000",
+        "127.0.0.1:8000",
+        "[::1]:8000",
+        "192.168.1.5:80",
+        "10.0.0.7",
+        "api.internal",
+        "printer.local:631",
+        "dev.localhost",
+    ],
+)
+def test_an_internal_referer_is_clean_when_the_server_is_internal(
+    host: str,
+) -> None:
+    assert _scan("referer", "http://localhost:3000/chat", host) == (False, [])

