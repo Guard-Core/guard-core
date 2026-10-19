@@ -17,6 +17,7 @@ _matched_route_template: contextvars.ContextVar[str | None] = contextvars.Contex
 )
 _UNESCAPED_DOT_RE = re.compile(r"\\\.|\[\.\]")
 _LAST_SEGMENT_RE = re.compile(r"[^/\\]*$")
+_PARAMETER_RE = re.compile(r"\{[^}]*\}|<[^>]*>")
 
 
 def normalized_last_segment(path: str) -> str:
@@ -69,7 +70,8 @@ def route_declares(probe_token: str) -> bool:
     template = _matched_route_template.get()
     if template is None:
         return False
-    return probe_token.lower() in _UNESCAPED_DOT_RE.sub(".", template).lower()
+    literal = _PARAMETER_RE.sub("/", template)
+    return probe_token.lower() in _UNESCAPED_DOT_RE.sub(".", literal).lower()
 
 
 def path_probe_is_not_the_apps_own_route(path: str) -> bool:

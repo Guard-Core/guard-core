@@ -254,3 +254,42 @@ async def test_expansion_extension_is_clean_when_the_app_declares_it(
 ) -> None:
     template = f"/shop/a.{extension}"
     assert await _flagged(f"/shop/a.{extension}", template) is False
+
+
+@pytest.mark.parametrize(
+    ("path", "template"),
+    [
+        ("/language/news", "/{language}/news"),
+        ("/language/news", "/<language>/news"),
+        ("/language/news", "<str:language>/news"),
+        ("/language/news", "/(?P<language>[^/]+)/news"),
+        ("/version", "/{version}"),
+        ("/system/info", "/{system}/info"),
+        ("/credentials", "/{credentials}"),
+        ("/wp-admin/x", "/{wp-admin}/x"),
+        ("/shop/cart.php", "/shop/{cart.php}"),
+        ("/shop/cart.php", "/shop/<cart.php>"),
+        ("/shop/cart.php", "/{p:path}"),
+    ],
+)
+async def test_a_parameter_named_like_a_probe_token_does_not_declare_it(
+    path: str, template: str
+) -> None:
+    assert await _flagged(path, template) is True
+
+
+@pytest.mark.parametrize(
+    ("path", "template"),
+    [
+        ("/shop/cart.php", "/shop/cart.php"),
+        ("/shop/cart.php", "/shop/{page}.php"),
+        ("/api/version/users", "/api/version/{item}"),
+        ("/language/news", "/language/{item}"),
+        ("/x/y.php", r"/(.*)\.php"),
+        ("/x/y.php", r"/(?P<name>.*)\.php"),
+    ],
+)
+async def test_a_literal_next_to_a_parameter_still_declares_the_probe_token(
+    path: str, template: str
+) -> None:
+    assert await _flagged(path, template) is False
