@@ -1,12 +1,15 @@
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
 
 from guard_core._security_config_field_validators import GlobalBehaviorRules
-from guard_core._security_config_validators import ThreatBanConfig
+from guard_core._security_config_validators import (
+    ThreatBanConfig,
+    _validate_excluded_detection_params_value,
+)
 from guard_core._security_headers_defaults import default_security_headers_config
 from guard_core._staged_defaults import DEFAULT_REDIS_PREFIX
 from guard_core._utils.lru_store import DEFAULT_MAX_TRACKED_KEYS
@@ -1311,7 +1314,10 @@ class _SecurityConfigFields(BaseModel):
             "cookie, authorization). Default empty."
         ),
     )
-    excluded_detection_params: set[str] | dict[str, set[str]] = Field(
+    excluded_detection_params: Annotated[
+        set[str] | dict[str, set[str]],
+        BeforeValidator(_validate_excluded_detection_params_value),
+    ] = Field(
         default_factory=set,
         description=(
             "Query parameters to exclude from penetration detection scanning. "

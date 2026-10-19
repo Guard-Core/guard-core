@@ -28,6 +28,14 @@ _CMD_EXFILTRATION_RE = (
     r"\s*=?\s*[\"']?(?:\w+=)?@/\w"
 )
 
+_CMD_PATH_SEPARATOR_COMMAND_RE = (
+    r"[;|&]\s*(?:ls|cat|rm|id|whoami|uname|wget|curl|nc|netcat|socat|bash|sh"
+    r"|python|perl)(?![\w.=:/\\-])"
+    r"(?!\s+(?:is|are|was|were|be|am|has|have|had|does|do|did|will|would|can|could"
+    r"|should|may|might|and|or|the|a|an|to|of|in|on|for|as|at|by|it|its|that|this"
+    r"|which|with|from|not|but|if|so)\s)"
+)
+
 _TEMPLATE_DUNDER_CHAIN_RE = (
     r"\{\{[^{}]{0,200}__(?:class|globals|init|subclasses|mro|builtins|import|base"
     r"|bases|getattribute)__"

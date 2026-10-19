@@ -34,7 +34,6 @@ from guard_core._security_config_validators import (
     _validate_dynamic_rules_cache_path_value,
     _validate_enabled_detection_categories_value,
     _validate_exclude_paths_value,
-    _validate_excluded_detection_params_value,
     _validate_global_behavior_rule_assignment,
     _validate_ip_or_cidr_list,
     _validate_muted_check_logs_value,
@@ -308,12 +307,6 @@ class SecurityConfig(_SecurityConfigFields):
     @field_validator("enabled_detection_categories", mode="before")
     def validate_enabled_detection_categories(cls, v: Any) -> frozenset[str]:
         return _validate_enabled_detection_categories_value(v)
-
-    @field_validator("excluded_detection_params", mode="before")
-    def validate_excluded_detection_params(
-        cls, v: Any
-    ) -> set[str] | dict[str, set[str]]:
-        return _validate_excluded_detection_params_value(v)
 
     @field_validator("threat_ban_config", mode="before")
     def validate_threat_ban_config(cls, v: Any) -> MappingProxyType[str, Any]:

@@ -1,4 +1,5 @@
 import concurrent.futures
+import json
 import logging
 import re
 import time
@@ -165,13 +166,13 @@ def test_redis_pattern_persistence(security_config_redis: SecurityConfig) -> Non
     sus_patterns_handler.add_pattern(test_pattern, custom=True)
 
     cached_patterns = redis_handler.get_key("patterns", "custom")
-    assert test_pattern in cached_patterns.split(",")
+    assert test_pattern in json.loads(cached_patterns)
 
     result = sus_patterns_handler.remove_pattern(test_pattern, custom=True)
     assert result is True
 
     cached_patterns = redis_handler.get_key("patterns", "custom")
-    assert not cached_patterns or test_pattern not in cached_patterns.split(",")
+    assert not cached_patterns or test_pattern not in json.loads(cached_patterns)
 
     redis_handler.close()
 
