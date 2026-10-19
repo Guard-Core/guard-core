@@ -1,4 +1,5 @@
 import functools
+import json
 import logging
 import re
 from datetime import datetime, timezone
@@ -14,6 +15,20 @@ from guard_core.sync.handlers._suspatterns_sources import (
 logger = logging.getLogger("guard_core.sync.handlers.suspatterns")
 
 _SUS_PATTERNS_HANDLER_NAME = "sus_patterns"
+
+
+def _encode_custom_patterns(patterns: Any) -> str:
+    return json.dumps(sorted(patterns))
+
+
+def _decode_custom_patterns(stored: str) -> list[str]:
+    try:
+        decoded = json.loads(stored)
+    except ValueError:
+        return stored.split(",")
+    if isinstance(decoded, list) and all(isinstance(item, str) for item in decoded):
+        return decoded
+    return stored.split(",")
 
 
 class _SusPatternsRegistryMixin:
@@ -75,7 +90,7 @@ class _SusPatternsRegistryMixin:
         try:
             cached_patterns = self.redis_handler.get_key("patterns", "custom")
             if cached_patterns:
-                patterns = cached_patterns.split(",")
+                patterns = _decode_custom_patterns(cached_patterns)
                 for pattern in patterns:
                     if pattern not in self.custom_patterns:
                         restored = self.add_pattern(pattern, custom=True)
@@ -116,7 +131,9 @@ class _SusPatternsRegistryMixin:
 
             if instance.redis_handler:
                 instance.redis_handler.set_key(
-                    "patterns", "custom", ",".join(instance.custom_patterns)
+                    "patterns",
+                    "custom",
+                    _encode_custom_patterns(instance.custom_patterns),
                 )
         else:
             instance.compiled_patterns.append(compiled_tuple)
@@ -157,7 +174,7 @@ class _SusPatternsRegistryMixin:
 
         if self.redis_handler:
             self.redis_handler.set_key(
-                "patterns", "custom", ",".join(self.custom_patterns)
+                "patterns", "custom", _encode_custom_patterns(self.custom_patterns)
             )
 
         return True
