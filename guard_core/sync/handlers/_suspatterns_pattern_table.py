@@ -17,10 +17,12 @@ from guard_core.sync.handlers._suspatterns_probe_names import (
     SCRIPT_NAMES_UPLOAD_ONLY_RES,
 )
 from guard_core.sync.handlers._suspatterns_recall_rows import (
+    _ABSOLUTE_PATH_VALUE_RE,
     _CMD_EXFILTRATION_RE,
     _CMD_EXTENDED_COMMAND_RE,
     _CMD_NEWLINE_COMMAND_DECODED_RE,
     _CMD_NEWLINE_COMMAND_RE,
+    _CMD_PATH_CODE_EXECUTION_RE,
     _CMD_PATH_SEPARATOR_COMMAND_RE,
     _CMS_UPLOADS_DIRECTORY_RE,
     _CMS_UPLOADS_SCRIPT_RE,
@@ -146,6 +148,16 @@ from guard_core.sync.handlers._suspatterns_state import (
 )
 
 _UPLOAD_DIRECTORY_RE = r"(?:uploads?|files|images|media|tmp)"
+_CTX_VALUE_PATH = frozenset({"query_param", "request_body", "unknown"})
+_MAP_FILE_PATH_RE = _root_path_pattern(rf"{_PATH_ONLY_CHAR_RE}*\.map")
+
+BACKTICK_WHOLE_VALUE_RE = (
+    r"\A\s*(?:[;&|]\s*)*`\s*(?:[A-Za-z0-9_./~]|\$[({])"
+    r"(?:[^`\\\n]|\\.)*(?:\n\s*)?`"
+    r"(?:\s*[;&|]\s*`\s*(?:[A-Za-z0-9_./~]|\$[({])"
+    r"(?:[^`\\\n]|\\.)*(?:\n\s*)?`)*"
+    r"\s*(?:[;&|]\s*)*\Z"
+)
 
 _SHELL_KEYWORD_COMMAND_RE = (
     r"[;|&]\s*(?:ls|cat|rm|id|whoami|uname|wget|curl|nc|netcat|socat|bash|sh|"
@@ -227,7 +239,10 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
     (
         r"(?i)UNION\s+(?:ALL\s+)?SELECT\s*(?:/\*.{0,40}?\*/\s*){0,3}"
         r"(?:null\b|[\d@'\"`(*\[+~!-]"
-        r"|[\w.$`\"]+\s*(?:,|\(|\bfrom\b|\)|--|#|/\*|;|\Z))",
+        r"|[\w.$`\"]+\s*(?:,|\(|\bfrom\b|\)|--|#|/\*|;)"
+        r"|(?:current_user|session_user|system_user|user|current_role"
+        r"|current_schema|current_date|current_time|current_timestamp|localtime"
+        r"|localtimestamp)\s*\Z)",
         _CTX_SQLI,
         "sqli",
     ),
@@ -316,20 +331,14 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
     (_CMD_NEWLINE_COMMAND_DECODED_RE, _CTX_CMD_INJECTION, "cmd_injection"),
     (_CMD_EXFILTRATION_RE, _CTX_CMD_INJECTION, "cmd_injection"),
     (_CMD_PATH_SEPARATOR_COMMAND_RE, _CTX_URL_PATH_ONLY, "cmd_injection"),
+    (_CMD_PATH_CODE_EXECUTION_RE, _CTX_URL_PATH_ONLY, "cmd_injection"),
+    (_ABSOLUTE_PATH_VALUE_RE, _CTX_VALUE_PATH, "dir_traversal"),
     (
         _CMD_INJECTION_DOLLAR_SUBSTITUTION_RE,
         _CTX_CMD_INJECTION,
         "cmd_injection",
     ),
-    (
-        r"\A\s*(?:[;&|]\s*)*`\s*(?:[A-Za-z0-9_./~]|\$[({])"
-        r"(?:[^`\\\n]|\\.)*(?:\n\s*)?`"
-        r"(?:\s*[;&|]\s*`\s*(?:[A-Za-z0-9_./~]|\$[({])"
-        r"(?:[^`\\\n]|\\.)*(?:\n\s*)?`)*"
-        r"\s*(?:[;&|]\s*)*\Z",
-        _CTX_CMD_INJECTION,
-        "cmd_injection",
-    ),
+    (BACKTICK_WHOLE_VALUE_RE, _CTX_CMD_INJECTION, "cmd_injection"),
     (
         _GLUED_BACKTICK_CANDIDATE_RE,
         _CTX_CMD_INJECTION_WITH_URL_PATH,
@@ -587,7 +596,7 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
         "sensitive_file",
     ),
     (
-        _root_path_pattern(rf"{_PATH_ONLY_CHAR_RE}*\.map"),
+        _MAP_FILE_PATH_RE,
         _CTX_SENSITIVE_FILE,
         "sensitive_file",
     ),
@@ -915,7 +924,7 @@ RECON_OPTIONAL_SEPARATOR_PATTERN_SOURCES: frozenset[str] = frozenset(
     source
     for source, _contexts, category in _PATTERN_DEFINITIONS
     if category == "recon" and source.startswith(_TOP_LEVEL_PATH_PREFIX_RE)
-)
+) | {_SENSITIVE_SOURCE_EXTENSION_PATH_RE, _MAP_FILE_PATH_RE}
 
 # Recon rows additionally scanned against the signal-preserving raw view. The
 # processed views fold LDAP hex escapes ("\de" -> "Þ") before the pattern
@@ -924,9 +933,10 @@ RECON_OPTIONAL_SEPARATOR_PATTERN_SOURCES: frozenset[str] = frozenset(
 # intact; the leading-separator gate still decides which matches are probes,
 # so bare words stay innocent exactly as on the processed views. The file
 # exfiltration command row joins them: the base64 candidate decoder rewrites an
-# option such as "--data-binary" into junk on the processed views.
+# option such as "--data-binary" into junk on the processed views, and the
+# absolute path row joins them for the same reason ("D:\data" becomes "D:Úta").
 DETECTION_RECON_RAW_VIEW_PATTERN_SOURCES: frozenset[str] = frozenset(
     source
     for source, _contexts, category in _PATTERN_DEFINITIONS
     if category == "recon"
-) | {_CMD_EXFILTRATION_RE}
+) | {_CMD_EXFILTRATION_RE, _ABSOLUTE_PATH_VALUE_RE}

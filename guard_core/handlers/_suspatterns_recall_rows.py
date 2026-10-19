@@ -36,6 +36,28 @@ _CMD_PATH_SEPARATOR_COMMAND_RE = (
     r"|which|with|from|not|but|if|so)\s)"
 )
 
+_CMD_PATH_CODE_EXECUTION_RE = (
+    r"`[^`\n]{1,200}`|\b(?:eval|system|exec)\s*\(|\b(?:ba|z|da|k)?sh\s+-c\b"
+)
+
+_ABSOLUTE_PATH_VALUE_RE = (
+    r"\A\s*(?:"
+    r"/(?:etc|proc|root|boot)/[^/\s]"
+    r"|/dev/(?:mem|kmem|port|null|zero|full|random|urandom|shm|mapper|disk|pts|tty"
+    r"|console|fd|stdin|stdout|stderr|kvm|fuse|net|loop|sd[a-z]|hd[a-z]|vd[a-z]"
+    r"|xvd[a-z]|nvme|snd|input|dri|watchdog|rtc|tun|usb|bus)"
+    r"|/sys/(?:kernel|class|devices|fs|power|module|firmware|bus|block|dev"
+    r"|hypervisor)(?:/|\s*\Z)"
+    r"|/(?:var|usr)/(?:account|cache|crash|games|lib|lib32|lib64|libexec|lock|log"
+    r"|mail|opt|run|spool|tmp|yp|bin|include|local|sbin|share|src|www|backups|db"
+    r"|empty|adm)(?:/|\s*\Z)"
+    r"|/home/(?:[^/\s]+/){0,12}\.[^/.\s][^/\s]*"
+    r"|/(?:opt|srv)/(?:[^/\s]+/){0,12}(?:\.[^/.\s][^/\s]*|[^/\s]*\.\w{1,8})"
+    r"(?:/|\s*\Z)"
+    r"|(?!c:[/\\]fakepath[/\\])[a-z]:[/\\]\S"
+    r"|\\\\[\w.$-]+\\[\w.$-]+)"
+)
+
 _TEMPLATE_DUNDER_CHAIN_RE = (
     r"\{\{[^{}]{0,200}__(?:class|globals|init|subclasses|mro|builtins|import|base"
     r"|bases|getattribute)__"

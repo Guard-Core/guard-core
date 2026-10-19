@@ -19,7 +19,6 @@ from guard_core.sync.handlers.suspatterns_handler import (
 )
 from guard_core.sync.utils import detect_penetration_attempt
 from tests.test_sus_patterns.test_detection_benchmark import (
-    _AMBIGUOUS_DOLLAR_SUBSTITUTION_QUERY_URL_KNOWN_FP_REASON,
     _ENV_VAR_PREFIXED_SHELL_DASH_C_CI_CONFIG_KNOWN_FP_REASON,
     _RFI_TARGET_EXTENSION_DOWNLOAD_LINK_KNOWN_FP_REASON,
     _SEMICOLON_BARE_SHELL_CONTROL_KNOWN_FP_REASON,
@@ -706,38 +705,38 @@ _ROUND6_CMD_SUBSTITUTION_TARGETED_CASES: list[TargetedCase] = [
 
 _DOLLAR_FP_AND_LOG4SHELL_BONUS_TARGETED_CASES: list[TargetedCase] = [
     TargetedCase(
-        "disclosed_fp_shell_docs_var_expansion_query_param",
+        "former_fp_shell_docs_var_expansion_query_param",
         _query_param_request("export PATH=${HOME}/bin"),
-        True,
+        False,
     ),
     TargetedCase(
-        "disclosed_fp_shell_docs_var_expansion_url_path",
+        "former_fp_shell_docs_var_expansion_url_path",
         _url_path_request("export PATH=${HOME}/bin"),
-        True,
+        False,
     ),
     TargetedCase(
-        "disclosed_fp_template_dollar_brace_var_query_param",
+        "former_fp_template_dollar_brace_var_query_param",
         _query_param_request("Set the amount with ${amount} in the template."),
-        True,
+        False,
     ),
     TargetedCase(
-        "disclosed_fp_template_dollar_brace_var_url_path",
+        "former_fp_template_dollar_brace_var_url_path",
         _url_path_request("Set the amount with ${amount} in the template."),
-        True,
+        False,
     ),
     TargetedCase(
-        "disclosed_fp_template_makefile_variable_query_param",
+        "former_fp_template_makefile_variable_query_param",
         _query_param_request(
             "The Makefile references $(CC) and $(CFLAGS) for the compiler."
         ),
-        True,
+        False,
     ),
     TargetedCase(
-        "disclosed_fp_template_makefile_variable_url_path",
+        "former_fp_template_makefile_variable_url_path",
         _url_path_request(
             "The Makefile references $(CC) and $(CFLAGS) for the compiler."
         ),
-        True,
+        False,
     ),
     TargetedCase(
         "disclosed_fp_jquery_selector_bare_id_call_query_param",
@@ -750,14 +749,14 @@ _DOLLAR_FP_AND_LOG4SHELL_BONUS_TARGETED_CASES: list[TargetedCase] = [
         True,
     ),
     TargetedCase(
-        "disclosed_fp_jquery_selector_hash_id_call_query_param",
+        "former_fp_jquery_selector_hash_id_call_query_param",
         _query_param_request("$('#submit-button').on('click', handleSubmit);"),
-        True,
+        False,
     ),
     TargetedCase(
-        "disclosed_fp_jquery_selector_hash_id_call_url_path",
+        "former_fp_jquery_selector_hash_id_call_url_path",
         _url_path_request("$('#submit-button').on('click', handleSubmit);"),
-        True,
+        False,
     ),
     TargetedCase(
         "log4shell_url_path_bonus_obfuscated_lower_bare",
@@ -858,7 +857,41 @@ _GLUED_KEBAB_IDENTIFIER_BACKTICK_KNOWN_FP_REASON = (
     "stays correctly benign in request_body, where the branch never fires"
 )
 
+_ABSOLUTE_PATH_VALUE_KNOWN_FP_REASON = (
+    "an absolute /var/www path as a value is flagged dir_traversal by the "
+    "decided path rule v2, which accepts that benign document-root paths in "
+    "values are flagged because the same shape is how a probe names a web "
+    "root file"
+)
+
+_URL_PATH_CODE_EXECUTION_KNOWN_FP_REASON = (
+    "the url_path-only code-execution row (decided in D-70 4.14) flags a "
+    "backtick pair or an sh -c in a URL path, so prose or SQL that carries "
+    "one inside a path is flagged on purpose because a real path never holds "
+    "either, and the row never runs in a body or query value"
+)
+
 _KNOWN_E2E_FALSE_POSITIVE_SOURCES: dict[str, tuple[str, str]] = {
+    "cmd_injection_markdown_ls_mention": (
+        _URL_PATH_CODE_EXECUTION_KNOWN_FP_REASON,
+        "url_path",
+    ),
+    "cmd_injection_sql_dotted_qualified_identifier": (
+        _URL_PATH_CODE_EXECUTION_KNOWN_FP_REASON,
+        "url_path",
+    ),
+    "sensitive_file_benign_settings_yml_mention": (
+        _URL_PATH_CODE_EXECUTION_KNOWN_FP_REASON,
+        "url_path",
+    ),
+    "cmd_injection_crontab_env_prefixed_backup_line": (
+        _URL_PATH_CODE_EXECUTION_KNOWN_FP_REASON,
+        "url_path",
+    ),
+    "benign_file_path_var_www_html": (
+        _ABSOLUTE_PATH_VALUE_KNOWN_FP_REASON,
+        "form_body",
+    ),
     "template_fp_call_branch_helper_format": (
         _SSTI_HASH_BRACE_CALL_SYNTAX_KNOWN_FP_REASON,
         "query_param",
@@ -909,18 +942,6 @@ _KNOWN_E2E_FALSE_POSITIVE_SOURCES: dict[str, tuple[str, str]] = {
     ),
     "cmd_injection_makefile_env_prefixed_recipe": (
         _ENV_VAR_PREFIXED_SHELL_DASH_C_CI_CONFIG_KNOWN_FP_REASON,
-        "query_param",
-    ),
-    "cmd_injection_glued_kebab_identifier_config_well_known": (
-        _GLUED_KEBAB_IDENTIFIER_BACKTICK_KNOWN_FP_REASON,
-        "query_param",
-    ),
-    "cmd_injection_shell_docs_var_expansion": (
-        _AMBIGUOUS_DOLLAR_SUBSTITUTION_QUERY_URL_KNOWN_FP_REASON,
-        "url_path",
-    ),
-    "cmd_injection_jquery_selector_hash_id_call": (
-        _AMBIGUOUS_DOLLAR_SUBSTITUTION_QUERY_URL_KNOWN_FP_REASON,
         "query_param",
     ),
     "file_inclusion_benign_readme_txt_link": (

@@ -138,6 +138,22 @@ _BARE_SHELL_PARAMETER_NAME_RE = re.compile(
     r"\A[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*\Z"
 )
 _SHELL_SPECIAL_PARAMETER_NAMES = frozenset({"ifs"})
+_SHELL_PLAIN_IDENTIFIER_RE = re.compile(r"\A[A-Za-z_][\w-]*\Z")
+_SHELL_SELECTOR_STRING_RE = re.compile(r"\A(['\"])[#.\[][^'\"]*\1\Z")
+_SHELL_BRACE_SLICE_RE = re.compile(
+    r"\A(?:[A-Za-z_]\w*|@|\*|#)?\s*:\s*-?\d+(?:\s*:\s*-?\d+)?\Z"
+)
+_SHELL_KNOWN_COMMAND_RE = re.compile(
+    r"(?:(?i:ls|cat|id|whoami|uname|wget|curl|nc|ncat|netcat|socat|bash|sh|zsh|dash"
+    r"|python|python3|perl|ruby|php|node|env|printenv|ifconfig|ip|ping|nslookup|dig"
+    r"|sleep|echo|date|ps|who|w|last|groups|head|tail|base64|chmod|chown|kill|uptime"
+    r"|nmap|telnet|ssh|scp|ftp|tftp|xxd|od|tr|sed|awk|find|grep|dir|type|reboot"
+    r"|shutdown|halt|poweroff|systemctl|service|mount|umount|useradd|userdel|usermod"
+    r"|passwd|su|sudo|crontab|nohup|chroot|dd|mkfifo|mknod|touch|mkdir|mv|cp|ln|tar"
+    r"|gzip|gunzip|unzip|zip|openssl|powershell|pwsh|cmd|eval|exec|source|set|history"
+    r"|msfconsole|msfvenom|certutil|bitsadmin|aria2c)"
+    r"|(?-i:rm|pwd|hostname))\Z"
+)
 _AMBIGUOUS_BACKTICK_INJECTION_CONTEXTS = frozenset({"query_param", "url_path"})
 _CTX_CMD_INJECTION_WITH_URL_PATH = frozenset(
     {"query_param", "header", "url_path", "request_body", "unknown"}

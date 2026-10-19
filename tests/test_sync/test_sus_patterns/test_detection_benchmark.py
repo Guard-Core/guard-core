@@ -24,6 +24,13 @@ class MaliciousCase(NamedTuple):
     known_gap_reason: str = ""
 
 
+_ABSOLUTE_PATH_VALUE_KNOWN_FP_REASON = (
+    "D-71 path rule v2: an absolute filesystem path under /var/www or /usr/local and "
+    "a drive letter path (except C:\\fakepath\\) is a dir_traversal value by "
+    "decision, a pinned trade-off, outside a JSON leaf and a url_path"
+)
+
+
 class BenignCase(NamedTuple):
     case_id: str
     payload: str
@@ -1710,6 +1717,7 @@ BENIGN_CORPUS: list[BenignCase] = [
     BenignCase(
         "dir_traversal_windows_path_no_dotdot",
         "C:\\Users\\alice\\Documents\\report.docx",
+        known_false_positive_reason=_ABSOLUTE_PATH_VALUE_KNOWN_FP_REASON,
     ),
     BenignCase("dir_traversal_relative_path_no_dotdot", "./assets/images/logo.png"),
     BenignCase(
@@ -2258,7 +2266,11 @@ BENIGN_CORPUS: list[BenignCase] = [
         "benign_cdn_jsdelivr_url",
         "https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js",
     ),
-    BenignCase("benign_file_path_var_www_html", "/var/www/html/index.html"),
+    BenignCase(
+        "benign_file_path_var_www_html",
+        "/var/www/html/index.html",
+        known_false_positive_reason=_ABSOLUTE_PATH_VALUE_KNOWN_FP_REASON,
+    ),
     BenignCase(
         "benign_webhook_payment_succeeded",
         '{"event": "payment.succeeded", "data": {"amount": 4999, "currency": "usd"}}',
@@ -3004,12 +3016,13 @@ BASELINE_MALICIOUS_DETECTED_TOTAL_LEGACY_SMOKE = 378
 
 BASELINE_BENIGN_FALSE_POSITIVE_BY_CATEGORY: dict[str, int] = {
     "cmd_injection": 10,
+    "dir_traversal": 3,
     "file_inclusion": 3,
     "sqli": 6,
     "ssrf": 4,
     "template": 1,
 }
-BASELINE_BENIGN_FALSE_POSITIVE_TOTAL = 23
+BASELINE_BENIGN_FALSE_POSITIVE_TOTAL = 25
 
 _WALL_TIME_CEILING_SECONDS = 40.0
 
@@ -3350,29 +3363,9 @@ _AMBIGUOUS_DOLLAR_SUBSTITUTION_QUERY_URL_KNOWN_FP_REASON = (
 
 _DOLLAR_SUBSTITUTION_DISCLOSED_FALSE_POSITIVES = [
     pytest.param(
-        "cmd_injection_shell_docs_var_expansion",
-        "export PATH=${HOME}/bin",
-        id="shell_docs_var_expansion",
-    ),
-    pytest.param(
-        "template_benign_dollar_brace_var",
-        "Set the amount with ${amount} in the template.",
-        id="template_dollar_brace_var",
-    ),
-    pytest.param(
-        "template_benign_makefile_variable",
-        "The Makefile references $(CC) and $(CFLAGS) for the compiler.",
-        id="template_makefile_variable",
-    ),
-    pytest.param(
         "cmd_injection_jquery_selector_bare_id_call",
         "$(id).addClass('active');",
         id="jquery_selector_bare_id_call",
-    ),
-    pytest.param(
-        "cmd_injection_jquery_selector_hash_id_call",
-        "$('#submit-button').on('click', handleSubmit);",
-        id="jquery_selector_hash_id_call",
     ),
 ]
 
@@ -3391,6 +3384,33 @@ def test_dollar_substitution_disclosed_false_positive_detected(
         f"{case_id} expected to be a disclosed false positive in {context}: "
         f"{_AMBIGUOUS_DOLLAR_SUBSTITUTION_QUERY_URL_KNOWN_FP_REASON}"
     )
+
+
+_DOLLAR_SUBSTITUTION_FORMER_FALSE_POSITIVES = [
+    pytest.param("export PATH=${HOME}/bin", id="shell_docs_var_expansion"),
+    pytest.param(
+        "Set the amount with ${amount} in the template.", id="template_dollar_brace_var"
+    ),
+    pytest.param(
+        "The Makefile references $(CC) and $(CFLAGS) for the compiler.",
+        id="template_makefile_variable",
+    ),
+    pytest.param(
+        "$('#submit-button').on('click', handleSubmit);",
+        id="jquery_selector_hash_id_call",
+    ),
+]
+
+
+@pytest.mark.parametrize("payload", _DOLLAR_SUBSTITUTION_FORMER_FALSE_POSITIVES)
+@pytest.mark.parametrize("context", ["query_param", "url_path"])
+def test_dollar_substitution_former_false_positive_is_clean(
+    payload: str, context: str
+) -> None:
+    result = _PRODUCTION_MANAGER.detect(
+        content=payload, ip_address="203.0.113.9", context=context
+    )
+    assert result["is_threat"] is False
 
 
 _LOG4SHELL_URL_PATH_BONUS_PAYLOADS = [

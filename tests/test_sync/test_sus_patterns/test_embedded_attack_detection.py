@@ -334,7 +334,7 @@ def test_adversarial_ambiguous_token_exempted_at_keyword_window_boundary() -> No
     payload = (
         "SELECT "
         + ("z" * _SQL_KEYWORD_EXEMPTION_WINDOW_FILLER_CHARS)
-        + (" search`value`")
+        + (" search`whoami`")
     )
     assert "cmd_injection" not in _detected_categories(payload)
 
@@ -343,7 +343,7 @@ def test_adversarial_ambiguous_token_detected_past_keyword_window_boundary() -> 
     payload = (
         "SELECT "
         + ("z" * (_SQL_KEYWORD_EXEMPTION_WINDOW_FILLER_CHARS + 1))
-        + (" search`value`")
+        + (" search`whoami`")
     )
     assert "cmd_injection" in _detected_categories(payload, "query_param")
 
@@ -352,6 +352,6 @@ def test_adversarial_ambiguous_token_past_window_boundary_benign_in_body() -> No
     payload = (
         "SELECT "
         + ("z" * (_SQL_KEYWORD_EXEMPTION_WINDOW_FILLER_CHARS + 1))
-        + (" search`value`")
+        + (" search`whoami`")
     )
     assert "cmd_injection" not in _detected_categories(payload)

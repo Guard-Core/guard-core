@@ -64,6 +64,9 @@ from guard_core.sync.handlers._suspatterns_matchers import (
     _quote_splice_finditer,
 )
 from guard_core.sync.handlers._suspatterns_pattern_table import (
+    _ABSOLUTE_PATH_VALUE_RE,
+    _CMD_PATH_CODE_EXECUTION_RE,
+    BACKTICK_WHOLE_VALUE_RE,
     NOISE_PRONE_PATTERN_SOURCES,
     RECON_OPTIONAL_SEPARATOR_PATTERN_SOURCES,
 )
@@ -89,6 +92,7 @@ from guard_core.sync.handlers._suspatterns_shell_validators import (
     _glob_wildcard_token_is_dangerous_command,
     _glued_backtick_pair_is_injection,
     _quote_splice_token_is_dangerous_command,
+    _whole_value_backtick_pairs_are_injection,
 )
 from guard_core.sync.handlers._suspatterns_sources import (
     _CMD_INJECTION_NEWLINE_SHELL_DASH_C_RE,
@@ -166,6 +170,12 @@ _CANDIDATE_REJECTION_VALIDATORS: tuple[
         lambda m, _c: _ldap_paren_conjunction_is_injection(m),
     ),
     (_GLUED_BACKTICK_CANDIDATE_RE, _glued_backtick_pair_is_injection),
+    (BACKTICK_WHOLE_VALUE_RE, _whole_value_backtick_pairs_are_injection),
+    (_CMD_PATH_CODE_EXECUTION_RE, lambda _m, context: context.startswith("url_path")),
+    (
+        _ABSOLUTE_PATH_VALUE_RE,
+        lambda _m, context: _source_extension_path_is_probe(context),
+    ),
     (
         _SENSITIVE_SOURCE_EXTENSION_PATH_RE,
         lambda _m, context: _source_extension_path_is_probe(context),

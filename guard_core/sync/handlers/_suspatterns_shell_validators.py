@@ -4,12 +4,15 @@ from guard_core.sync.handlers._suspatterns_shell_sources import (
     _AMBIGUOUS_BACKTICK_INJECTION_CONTEXTS,
     _BACKTICK_WINDOW_DELIMITER_CHARS,
     _BACKTICK_WINDOW_DELIMITER_RE,
-    _BARE_SHELL_PARAMETER_NAME_RE,
     _GLOB_WILDCARD_CHAR_RE,
     _GLUED_BACKTICK_ASCII_WORD_RE,
     _IMPLAUSIBLE_DOLLAR_PAREN_TOKEN_CHARS_RE,
     _IMPLAUSIBLE_SQL_IDENTIFIER_CHARS_RE,
+    _SHELL_BRACE_SLICE_RE,
     _SHELL_CHAIN_OPERATOR_RE,
+    _SHELL_KNOWN_COMMAND_RE,
+    _SHELL_PLAIN_IDENTIFIER_RE,
+    _SHELL_SELECTOR_STRING_RE,
     _SHELL_SPECIAL_PARAMETER_NAMES,
     _STRONG_SQL_KEYWORD_GLUED_PREFIX_RE,
     _STRONG_SQL_KEYWORD_GLUED_SUFFIX_RE,
@@ -113,15 +116,41 @@ def _glued_backtick_pair_is_injection(match: re.Match, context: str) -> bool:
     if _strong_sql_keyword_glued_to_pair(content, start, end):
         return False
     normalized = context.split(":", 1)[0]
-    return normalized in _AMBIGUOUS_BACKTICK_INJECTION_CONTEXTS or appended_clause
+    return (
+        normalized in _AMBIGUOUS_BACKTICK_INJECTION_CONTEXTS or appended_clause
+    ) and _shell_token_is_command_with_arguments_or_known(token)
+
+
+def _whole_value_backtick_pairs_are_injection(match: re.Match, _context: str) -> bool:
+    return any(
+        _shell_token_is_command_with_arguments_or_known(token)
+        or _backtick_token_has_chained_shell_operators(token)
+        for token in re.findall(r"`([^`]*)`", match.group())
+    )
+
+
+def _shell_token_is_command_with_arguments_or_known(token: str) -> bool:
+    if _SHELL_SELECTOR_STRING_RE.match(token.strip()):
+        return False
+    words = token.split()
+    if len(words) > 1:
+        return True
+    if not words:
+        return False
+    if _SHELL_PLAIN_IDENTIFIER_RE.match(words[0]) is None:
+        return True
+    return _SHELL_KNOWN_COMMAND_RE.match(words[0]) is not None
 
 
 def _dollar_substitution_token_is_implausible(token: str, delimiter: str) -> bool:
-    stripped = token.strip().lower()
-    if stripped in _SHELL_SPECIAL_PARAMETER_NAMES:
-        return True
+    stripped = token.strip()
     if delimiter == "{":
-        return not _BARE_SHELL_PARAMETER_NAME_RE.match(token.strip())
+        leading = re.match(r"[A-Za-z_]\w*", stripped)
+        return bool(
+            (leading and leading.group().lower() in _SHELL_SPECIAL_PARAMETER_NAMES)
+            or _SHELL_BRACE_SLICE_RE.match(stripped)
+            or stripped == "@"
+        )
     return bool(_IMPLAUSIBLE_DOLLAR_PAREN_TOKEN_CHARS_RE.search(token))
 
 
@@ -144,7 +173,11 @@ def _dollar_substitution_pair_is_injection(match: re.Match, context: str) -> boo
         return True
     if _strong_sql_keyword_glued_to_pair(content, start, end):
         return False
-    return context.split(":", 1)[0] in _AMBIGUOUS_BACKTICK_INJECTION_CONTEXTS
+    return (
+        delimiter == "("
+        and context.split(":", 1)[0] in _AMBIGUOUS_BACKTICK_INJECTION_CONTEXTS
+        and _shell_token_is_command_with_arguments_or_known(token)
+    )
 
 
 def _quote_splice_token_is_dangerous_command(match: re.Match) -> bool:

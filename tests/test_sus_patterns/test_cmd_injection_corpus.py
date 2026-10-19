@@ -827,13 +827,32 @@ async def test_glued_kebab_identifier_backtick_payload_not_flagged_in_request_bo
 
 
 @pytest.mark.asyncio
-async def test_glued_kebab_identifier_backtick_payload_flagged_in_query_param() -> None:
+async def test_glued_kebab_identifier_backtick_is_clean_in_query_param() -> None:
     result = await sus_patterns_handler.detect(
         content="header`x-forwarded-for`value",
         ip_address="203.0.113.9",
         context="query_param",
     )
-    assert result["is_threat"] is True
+    assert result["is_threat"] is False
+
+
+PLAIN_PARAMETER_EXPANSION_CLEAN = [
+    pytest.param("${whoami}", id="dollar_brace_bare_whoami"),
+    pytest.param("${name}", id="dollar_brace_bare_name"),
+    pytest.param("${count}", id="dollar_brace_bare_count"),
+]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("payload", PLAIN_PARAMETER_EXPANSION_CLEAN)
+@pytest.mark.parametrize("context", ["query_param", "url_path"])
+async def test_plain_parameter_expansion_is_not_flagged(
+    payload: str, context: str
+) -> None:
+    result = await sus_patterns_handler.detect(
+        content=payload, ip_address="203.0.113.9", context=context
+    )
+    assert result["is_threat"] is False
 
 
 PUNCTUATION_GLUED_QUERY_STRING_BACKTICK_NOT_FLAGGED = [
@@ -890,7 +909,6 @@ UNAMBIGUOUS_DOLLAR_SUBSTITUTION_PAYLOADS = [
 BARE_DOLLAR_SUBSTITUTION_OR_GLUED_BACKTICK_AMBIGUOUS_BY_DESIGN = [
     pytest.param("$(whoami)", id="dollar_paren_bare_whoami"),
     pytest.param("foo$(whoami)bar", id="dollar_paren_glued_wrapped_whoami"),
-    pytest.param("${whoami}", id="dollar_brace_bare_whoami"),
     pytest.param("x`nmap`", id="glued_backtick_denylist_nmap"),
     pytest.param("x`socat`", id="glued_backtick_denylist_socat"),
     pytest.param("x`msfconsole`", id="glued_backtick_denylist_msfconsole"),
@@ -977,9 +995,7 @@ async def test_bare_shell_command_dollar_substitution_detected(
 
 GLUED_AMBIGUOUS_TOKEN_DOLLAR_SUBSTITUTION_PAYLOADS = [
     pytest.param("$(id)", id="dollar_paren_bare_id"),
-    pytest.param("${name}", id="dollar_brace_bare_name"),
     pytest.param("search$(id)", id="dollar_paren_glued_prefix_search_id"),
-    pytest.param("${count}", id="dollar_brace_bare_count"),
 ]
 
 
