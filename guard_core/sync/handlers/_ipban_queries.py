@@ -125,8 +125,8 @@ class IpBanQueryMixin(
             forget_by_ip_strikes_inside,
         )
 
-        forget_identities_inside(coverage.covers_address)
-        forget_by_ip_strikes_inside(coverage.covers_address)
+        forget_identities_inside(coverage.covers_member)
+        forget_by_ip_strikes_inside(coverage.covers_member)
         self._forget_recidive_inside(coverage)
         if not self.redis_handler:
             return

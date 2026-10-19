@@ -123,8 +123,8 @@ class IpBanQueryMixin(
         from guard_core.core.checks._strike_forget import forget_identities_inside
         from guard_core.handlers.ratelimit_handler import forget_by_ip_strikes_inside
 
-        forget_identities_inside(coverage.covers_address)
-        forget_by_ip_strikes_inside(coverage.covers_address)
+        forget_identities_inside(coverage.covers_member)
+        forget_by_ip_strikes_inside(coverage.covers_member)
         self._forget_recidive_inside(coverage)
         if not self.redis_handler:
             return

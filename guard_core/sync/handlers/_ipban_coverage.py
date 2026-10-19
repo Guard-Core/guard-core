@@ -36,6 +36,13 @@ class NetworkCoverage:
         value = int(address)
         return self._covers(address.version, value, value)
 
+    def covers_member(self, text: str) -> bool:
+        try:
+            network = ipaddress.ip_network(text, strict=False)
+        except ValueError:
+            return False
+        return self.covers_network(network)
+
     def covers_network(self, network: _Network) -> bool:
         return self._covers(
             network.version,
