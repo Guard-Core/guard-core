@@ -176,9 +176,21 @@ def _path_only_extension_pattern(required: str) -> str:
     )
 
 
-_SENSITIVE_SOURCE_EXTENSIONS = r"\.(?:ts|tsx|jsx|py|rb|java|go|rs|php|pl|sh|sql)"
+# Expansion over v4.4.0 (D-75 step 4): alternate server-side extensions, and the
+# suffix tricks that make a server run a file under another name (";params",
+# "%00", trailing dots, "::$DATA", a trailing image extension). They sit
+# behind the same route gate as the v4.4.0 extensions.
+_EXTENSION_TRICK_SUFFIX = (
+    r"(?:;[^/\\?\s]*|\.+|::\$(?:DATA|INDEX_ALLOCATION)|%00[^/\\?\s]*"
+    r"|\.(?:jpe?g|png|gif|ico|bmp))?"
+)
+_SENSITIVE_SOURCE_EXTENSIONS = (
+    r"\.(?:ts|tsx|jsx|py|rb|java|go|rs|php|pl|sh|sql|phtml|php[3-8]|pht|phps|phar)"
+    + _EXTENSION_TRICK_SUFFIX
+)
 _RECON_EXTENSIONS = (
-    r"\.(?:asp|aspx|jsp|jsa|jhtml|shtml|cfm|cgi|do|action|lua|inc|woa|nsf|esp)"
+    r"\.(?:asp|aspx|jsp|jsa|jhtml|shtml|cfm|cgi|do|action|lua|inc|woa|nsf|esp"
+    r"|asa|cer|ashx|asmx|ascx)" + _EXTENSION_TRICK_SUFFIX
 )
 
 _SENSITIVE_SOURCE_EXTENSION_PATH_RE = _path_only_extension_pattern(

@@ -8,7 +8,8 @@ ROUTE_TEMPLATE_STATE_ATTR = "guard_route_template"
 
 FLOOR_EXTENSIONS = frozenset(
     "ts tsx jsx py rb java go rs php pl sh sql asp aspx jsp jsa jhtml shtml cfm cgi "
-    "do action lua inc woa nsf esp map".split()
+    "do action lua inc woa nsf esp map phtml php3 php4 php5 php6 php7 php8 pht phps "
+    "phar asa cer ashx asmx ascx".split()
 )
 
 _matched_route_template: contextvars.ContextVar[str | None] = contextvars.ContextVar(

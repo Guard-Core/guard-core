@@ -205,3 +205,36 @@ def test_a_middleware_without_a_template_method_is_judged_as_in_v440() -> None:
     response = check.check(_stamped("/shop/cart.php"))
 
     assert response is not None
+
+
+EXPANSION_EXTENSIONS = (
+    "phtml php3 php4 php5 php6 php7 php8 pht phps phar asa cer ashx asmx ascx".split()
+)
+EXPANSION_TRICKS = (
+    "/a.{e}",
+    "/a.{e};jsessionid=1",
+    "/a.{e}%00.jpg",
+    "/a.{e}.",
+    "/a.{e}::$DATA",
+    "/shop/a.{e}.jpg",
+    "/a.{e}.png",
+    "/x/y/a.{e}%00",
+)
+
+
+@pytest.mark.parametrize("extension", EXPANSION_EXTENSIONS)
+@pytest.mark.parametrize("trick", EXPANSION_TRICKS)
+def test_expansion_extension_variants_are_flagged_without_route_knowledge(
+    extension: str, trick: str
+) -> None:
+    path = trick.format(e=extension)
+    assert _flagged(path) is True
+    assert _flagged(path, "/{path:path}") is True
+
+
+@pytest.mark.parametrize("extension", EXPANSION_EXTENSIONS)
+def test_expansion_extension_is_clean_when_the_app_declares_it(
+    extension: str,
+) -> None:
+    template = f"/shop/a.{extension}"
+    assert _flagged(f"/shop/a.{extension}", template) is False
