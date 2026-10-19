@@ -312,7 +312,7 @@
           },
           {
             "type": "regex",
-            "pattern": "\\A[/\\\\]?(?:[\\w.\\-~%]+[/\\\\])*[\\w.\\-~%]*\\.(?:ts|tsx|jsx|py|rb|java|go|rs|php|pl|sh|sql)(?:[/\\\\][\\w.\\-~%]*)*(?:\\?\\S*)?\\s*\\Z",
+            "pattern": "\\A[/\\\\]?(?:[\\w.\\-~%]+[/\\\\])*[\\w.\\-~%]*\\.(?:ts|tsx|jsx|py|rb|java|go|rs|php|pl|sh|sql|phtml|php[3-8]|pht|phps|phar)(?:;[^/\\\\?\\s]*|\\.+|::\\$(?:DATA|INDEX_ALLOCATION)|%00[^/\\\\?\\s]*|\\.(?:jpe?g|png|gif|ico|bmp))?(?:[/\\\\][\\w.\\-~%]*)*(?:\\?\\S*)?\\s*\\Z",
             "match": "/wp-login.php",
             "position": 0,
             "category": "sensitive_file",
@@ -352,7 +352,7 @@
           },
           {
             "type": "regex",
-            "pattern": "\\A[/\\\\]?(?:[\\w.\\-~%]+[/\\\\])*[\\w.\\-~%]*\\.(?:ts|tsx|jsx|py|rb|java|go|rs|php|pl|sh|sql)(?:[/\\\\][\\w.\\-~%]*)*(?:\\?\\S*)?\\s*\\Z",
+            "pattern": "\\A[/\\\\]?(?:[\\w.\\-~%]+[/\\\\])*[\\w.\\-~%]*\\.(?:ts|tsx|jsx|py|rb|java|go|rs|php|pl|sh|sql|phtml|php[3-8]|pht|phps|phar)(?:;[^/\\\\?\\s]*|\\.+|::\\$(?:DATA|INDEX_ALLOCATION)|%00[^/\\\\?\\s]*|\\.(?:jpe?g|png|gif|ico|bmp))?(?:[/\\\\][\\w.\\-~%]*)*(?:\\?\\S*)?\\s*\\Z",
             "match": "/wp-admin/setup-config.php",
             "position": 0,
             "category": "sensitive_file",
@@ -376,7 +376,7 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "\\A[/\\\\]?(?:[\\w.\\-~%]+[/\\\\])*[\\w.\\-~%]*\\.(?:ts|tsx|jsx|py|rb|java|go|rs|php|pl|sh|sql)(?:[/\\\\][\\w.\\-~%]*)*(?:\\?\\S*)?\\s*\\Z",
+            "pattern": "\\A[/\\\\]?(?:[\\w.\\-~%]+[/\\\\])*[\\w.\\-~%]*\\.(?:ts|tsx|jsx|py|rb|java|go|rs|php|pl|sh|sql|phtml|php[3-8]|pht|phps|phar)(?:;[^/\\\\?\\s]*|\\.+|::\\$(?:DATA|INDEX_ALLOCATION)|%00[^/\\\\?\\s]*|\\.(?:jpe?g|png|gif|ico|bmp))?(?:[/\\\\][\\w.\\-~%]*)*(?:\\?\\S*)?\\s*\\Z",
             "match": "/phpmyadmin/index.php",
             "position": 0,
             "category": "sensitive_file",
@@ -400,7 +400,7 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "\\A[/\\\\]?(?:[\\w.\\-~%]+[/\\\\])*[\\w.\\-~%]*\\.(?:ts|tsx|jsx|py|rb|java|go|rs|php|pl|sh|sql)(?:[/\\\\][\\w.\\-~%]*)*(?:\\?\\S*)?\\s*\\Z",
+            "pattern": "\\A[/\\\\]?(?:[\\w.\\-~%]+[/\\\\])*[\\w.\\-~%]*\\.(?:ts|tsx|jsx|py|rb|java|go|rs|php|pl|sh|sql|phtml|php[3-8]|pht|phps|phar)(?:;[^/\\\\?\\s]*|\\.+|::\\$(?:DATA|INDEX_ALLOCATION)|%00[^/\\\\?\\s]*|\\.(?:jpe?g|png|gif|ico|bmp))?(?:[/\\\\][\\w.\\-~%]*)*(?:\\?\\S*)?\\s*\\Z",
             "match": "/installation/index.php",
             "position": 0,
             "category": "sensitive_file",

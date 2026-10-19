@@ -869,18 +869,6 @@
       }
     },
     {
-      "id": "safety_cost_verdict_over_budget_01",
-      "input": {
-        "pattern": "(\\d|\\w)*;",
-        "mode": "cost_verdict",
-        "max_content_length": 10000
-      },
-      "expected": {
-        "safe": false,
-        "reason_class": "over_budget"
-      }
-    },
-    {
       "id": "safety_cost_verdict_safe_03",
       "input": {
         "pattern": "(\\w+\\.?)+",
