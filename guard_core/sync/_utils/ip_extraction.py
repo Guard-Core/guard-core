@@ -17,6 +17,7 @@ from guard_core.sync._utils.agent_events import send_agent_event
 from guard_core.sync._utils.logging_utils import _sanitize_for_log
 from guard_core.sync._utils.nat64 import _unwrap_nat64
 from guard_core.sync._utils.sampling import observe_sampled_key
+from guard_core.sync._utils.whitelist_match import is_listed
 from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
@@ -49,18 +50,12 @@ def _peer_address_for_matching(value: str) -> IPv4Address | IPv6Address | None:
     return addr
 
 
-def _proxy_matches(peer_address: IPv4Address | IPv6Address, proxy: str) -> bool:
-    if "/" in proxy:
-        return peer_address in ip_network(proxy, strict=False)
-    return peer_address == _peer_address_for_matching(proxy)
-
-
 def _is_trusted_proxy(connecting_ip: str, trusted_proxies: Sequence[str]) -> bool:
     peer_address = _peer_address_for_matching(connecting_ip)
     if peer_address is None:
         return False
     try:
-        return any(_proxy_matches(peer_address, proxy) for proxy in trusted_proxies)
+        return is_listed(peer_address, peer_address, trusted_proxies, "proxy")
     except ValueError:
         return False
 

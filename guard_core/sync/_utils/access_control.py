@@ -1,7 +1,7 @@
 import logging
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
-from ipaddress import ip_address, ip_network
+from ipaddress import ip_address
 from typing import Any
 
 from guard_core.sync._utils.detection_scan import _user_agent_matches_blocked_pattern
@@ -11,6 +11,7 @@ from guard_core.sync._utils.ip_extraction import (
     _canonicalize_ip,
 )
 from guard_core.sync._utils.logging_utils import _log_at_level
+from guard_core.sync._utils.whitelist_match import is_listed
 from guard_core.sync.protocols.geo_ip_protocol import SyncGeoIPHandler
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
@@ -145,14 +146,7 @@ def check_ip_country(
 def _ip_in_list(ip_addr: Any, ip: str, entries: Sequence[str] | None) -> bool:
     if not entries:
         return False
-    canonical_ip = _canonicalize_ip(ip)
-    for entry in entries:
-        if "/" in entry:
-            if ip_addr in ip_network(entry, strict=False):
-                return True
-        elif canonical_ip == _canonicalize_ip(entry):
-            return True
-    return False
+    return is_listed(ip_addr, _canonicalize_ip(ip), entries, "list")
 
 
 def _check_blacklist(ip_addr: Any, ip: str, config: Any) -> bool:

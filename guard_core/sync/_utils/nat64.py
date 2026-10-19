@@ -28,8 +28,10 @@ def configure_nat64_prefixes(prefixes: Iterable[IPv6Network]) -> None:
     global _nat64_prefixes
     _nat64_prefixes = tuple(prefixes)
     from guard_core.sync._utils.ip_extraction import _client_identity
+    from guard_core.sync._utils.whitelist_match import clear_entry_indexes
 
     _client_identity.cache_clear()
+    clear_entry_indexes()
 
 
 def _decode_nat64_embedded_ipv4(addr: IPv6Address, prefix: IPv6Network) -> IPv4Address:

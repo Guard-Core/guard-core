@@ -5,6 +5,7 @@ from collections.abc import MutableMapping
 from typing import Any
 
 from guard_core._utils.ip_extraction import MALFORMED_FORWARDED_FOR_PREFIX
+from guard_core._utils.whitelist_match import parsed_networks
 from guard_core.handlers._ipban_cache import _BanStore, _Network
 from guard_core.handlers._ipban_events import IpBanEventMixin
 from guard_core.handlers._ipban_recidive import IpBanRecidiveMixin
@@ -150,13 +151,7 @@ class IpBanOperationsMixin(
 
     def _trusted_proxy_networks(self) -> list[_Network]:
         trusted_proxies = getattr(self.config, "trusted_proxies", None) or ()
-        networks = []
-        for entry in trusted_proxies:
-            try:
-                networks.append(ipaddress.ip_network(entry, strict=False))
-            except ValueError:
-                continue
-        return networks
+        return list(parsed_networks(tuple(trusted_proxies)))
 
     def _self_dos_refusal_reason(self, ip: str) -> str | None:
         target = self._target_network(ip)
