@@ -58,8 +58,6 @@ def normalize_url_path(raw_path: str) -> str | None:
 
 
 def _is_subtree_or_equal(path: str, excluded: str) -> bool:
-    if excluded == "/":
-        return True
     return path == excluded or path.startswith(excluded + "/")
 
 

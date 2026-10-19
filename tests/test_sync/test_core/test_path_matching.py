@@ -63,8 +63,8 @@ def test_path_is_excluded_empty_exclude_list_excludes_nothing() -> None:
     assert path_is_excluded("/anything/at/all", []) is False
 
 
-def test_path_is_excluded_root_exclusion_matches_every_path() -> None:
-    assert path_is_excluded("/anything", ["/"]) is True
+def test_path_is_excluded_root_exclusion_matches_only_the_root_page() -> None:
+    assert path_is_excluded("/anything", ["/"]) is False
     assert path_is_excluded("/", ["/"]) is True
 
 

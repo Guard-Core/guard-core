@@ -111,7 +111,7 @@ def _revalidate_exclude_paths_field(
     copied: "SecurityConfig", update: Mapping[str, Any]
 ) -> None:
     if "exclude_paths" in update:
-        _validate_exclude_paths_value(copied.exclude_paths, stacklevel=5)
+        _validate_exclude_paths_value(copied.exclude_paths)
 
 
 def _revalidate_country_shadow_fields(

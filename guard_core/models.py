@@ -323,7 +323,7 @@ class SecurityConfig(_SecurityConfigFields):
 
     @field_validator("exclude_paths")
     def validate_exclude_paths(cls, v: list[str]) -> list[str]:
-        return _validate_exclude_paths_value(v, stacklevel=4)
+        return _validate_exclude_paths_value(v)
 
     @field_validator("dynamic_rules_cache_path", mode="before")
     def validate_dynamic_rules_cache_path(cls, v: Any) -> Path | None:

@@ -763,17 +763,22 @@ class _SecurityConfigFields(BaseModel):
 
     exclude_paths: list[str] = Field(
         default_factory=lambda: list(DEFAULT_EXCLUDE_PATHS),
-        description="Paths to exclude from security checks",
+        description=(
+            "Paths to exclude from security checks. An entry covers that path "
+            "and everything under it; the literal '/' entry covers only the "
+            "root page since 5.0.0 (before, it covered the whole application: "
+            "use exclude_all_paths=True to keep that)."
+        ),
     )
 
     exclude_all_paths: bool = Field(
         default=False,
         description=(
-            "Skip every security check for every request, exactly like the "
-            "literal '/' entry in exclude_paths does today. Use it to keep that "
-            "behavior explicitly: from guard-core 5.0.0 the '/' entry covers "
-            "only the root page. A request path with a routing anomaly is still "
-            "never excluded."
+            "Skip every security check for every request. Before 5.0.0 the "
+            "literal '/' entry in exclude_paths did this; since 5.0.0 that "
+            "entry covers only the root page, and this field is how to exclude "
+            "the whole application. A request path with a routing anomaly is "
+            "still never excluded."
         ),
     )
 

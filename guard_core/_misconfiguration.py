@@ -88,16 +88,6 @@ def _anomalous_path_problems(config: "SecurityConfig") -> list[str]:
     ]
 
 
-def _whole_app_exclusion_problems(config: "SecurityConfig") -> list[str]:
-    if "/" not in config.exclude_paths:
-        return []
-    return [
-        "exclude_paths entry '/' excludes every check for the whole application, "
-        "and guard-core 5.0.0 will make '/' cover only the root page. Use "
-        "exclude_all_paths=True to keep this."
-    ]
-
-
 def _unknown_security_headers_key_problems(config: "SecurityConfig") -> list[str]:
     return [
         f"security_headers key {key!r} is not a known key, so it is ignored "
@@ -111,7 +101,6 @@ def config_misconfigurations(config: "SecurityConfig") -> list[str]:
         *_unknown_security_headers_key_problems(config),
         *_glob_exclude_path_problems(config),
         *_anomalous_path_problems(config),
-        *_whole_app_exclusion_problems(config),
         *_non_positive_rate_limit_problems(config),
         *_zero_detection_threshold_problems(config),
     ]

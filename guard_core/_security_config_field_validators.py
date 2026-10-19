@@ -56,7 +56,7 @@ _GLOBAL_BEHAVIOR_RULE_FIELDS = frozenset(
 )
 
 
-def _validate_exclude_paths_value(v: list[str], *, stacklevel: int) -> list[str]:
+def _validate_exclude_paths_value(v: list[str]) -> list[str]:
     from guard_core.core.validation.path_matching import normalize_url_path
 
     if not isinstance(v, list) or not all(isinstance(entry, str) for entry in v):
@@ -70,23 +70,13 @@ def _validate_exclude_paths_value(v: list[str], *, stacklevel: int) -> list[str]
                 "(malformed percent-encoding or invalid UTF-8); it would "
                 "silently exclude nothing at request time. Fix or remove it."
             )
-        if normalized != "/":
-            continue
-        if entry != "/":
+        if normalized == "/" and entry != "/":
             raise ValueError(
                 f"exclude_paths entry {entry!r} normalizes to the root "
-                "path '/', which would exclude the entire application "
-                "from all security checks. Remove it, or configure the "
-                "literal '/' if you really intend to exclude everything."
+                "path '/', which would exclude the root page. Write the "
+                "literal '/' if you really intend that, or "
+                "exclude_all_paths=True to exclude the whole application."
             )
-        warnings.warn(
-            "exclude_paths contains the literal '/' entry, which "
-            "excludes the entire application from all security checks "
-            "(IP banning, rate limiting, penetration detection, "
-            "everything). Confirm this is intentional.",
-            UserWarning,
-            stacklevel=stacklevel,
-        )
     return v
 
 
@@ -513,7 +503,7 @@ _FIELD_REVALIDATORS: dict[str, Callable[[Any], Any]] = {
         _validate_bool_field_value, field_name="enable_rate_limit_auto_ban"
     ),
     "dynamic_rules_cache_path": _validate_dynamic_rules_cache_path_value,
-    "exclude_paths": partial(_validate_exclude_paths_value, stacklevel=3),
+    "exclude_paths": _validate_exclude_paths_value,
     "global_behavior_rules": partial(
         _validate_typed_collection_field_value,
         adapter=_GLOBAL_BEHAVIOR_RULES_ADAPTER,
