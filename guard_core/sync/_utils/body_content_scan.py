@@ -25,9 +25,11 @@ from guard_core.sync._utils.detection_config import (
     _param_scan_categories,
 )
 from guard_core.sync._utils.detection_scan import (
+    LazyPreview,
     _check_always_scan_header,
     _check_request_component,
     _log_detected_component,
+    _resolve_preview,
     _scan_component_name,
 )
 from guard_core.sync._utils.request_logging import redact_blob_for_display
@@ -78,6 +80,19 @@ def _non_sensitive_display(
     return redacted, False
 
 
+def _lazy_display(
+    value: str,
+    sensitive_params: frozenset[str],
+    sensitive_body_fields: frozenset[str],
+    sensitive_headers: frozenset[str] = frozenset(),
+) -> LazyPreview:
+    return LazyPreview(
+        lambda: _non_sensitive_display(
+            value, sensitive_params, sensitive_body_fields, sensitive_headers
+        )[0]
+    )
+
+
 def _scan_query_param_value(
     key: str,
     key_preview: str,
@@ -97,13 +112,14 @@ def _scan_query_param_value(
         or normalized_key in sensitive_headers
         or has_sensitive_name_token(key.strip())
     )
-    content_preview, json_redact_all = (
-        ("[REDACTED]", None)
+    content_preview: str | LazyPreview = (
+        "[REDACTED]"
         if is_sensitive
-        else _non_sensitive_display(
+        else _lazy_display(
             value, sensitive_params, sensitive_body_fields, sensitive_headers
         )
     )
+    json_redact_all = None if is_sensitive else False
     detected, trigger, threats = _check_request_component(
         value,
         f"query_param:{key_preview}",
@@ -245,7 +261,7 @@ def _scan_normal_header_component(
     client_ip: str,
     correlation_id: str,
     log_level: str | None,
-    content_preview: str | None = None,
+    content_preview: str | LazyPreview | None = None,
     sensitive_body_fields: frozenset[str] = frozenset(),
     excluded_body_fields: frozenset[str] = frozenset(),
     sensitive_params: frozenset[str] = frozenset(),
@@ -264,9 +280,10 @@ def _scan_normal_header_component(
         return True, f"Header name '{key}': {trigger}", threats
     json_redact_all = None
     if content_preview is None:
-        content_preview, json_redact_all = _non_sensitive_display(
+        content_preview = _lazy_display(
             value, sensitive_params, sensitive_body_fields, sensitive_headers
         )
+        json_redact_all = False
     detected, trigger, threats = _check_request_component(
         value,
         f"header:{key}",
@@ -416,11 +433,11 @@ def _scan_body_field(
     sensitive_params: frozenset[str] = frozenset(),
 ) -> tuple[bool, str, list[dict]]:
     is_sensitive = name_is_sensitive(label, sensitive_body_fields)
-    if preview_override is None and display is None and not is_sensitive:
-        display, _ = _non_sensitive_display(
-            value, sensitive_params, sensitive_body_fields
-        )
-    log_value = _field_log_value(preview_override, is_sensitive, display)
+    log_value: str | LazyPreview | None = _field_log_value(
+        preview_override, is_sensitive, display
+    )
+    if log_value is None and not is_sensitive:
+        log_value = _lazy_display(value, sensitive_params, sensitive_body_fields)
     detected, trigger, threats = _check_request_component(
         value,
         context,
@@ -435,7 +452,10 @@ def _scan_body_field(
     if not detected:
         return False, "", []
     if log_value is not None:
-        _log_detected_component(log_value, label, client_ip, log_level)
+        resolved = _resolve_preview(log_value)
+        _log_detected_component(
+            resolved if resolved is not None else value, label, client_ip, log_level
+        )
     return True, f"Request body field '{label}': {trigger}", threats
 
 
@@ -449,10 +469,14 @@ def _scan_blob_body(
     sensitive_body_fields: frozenset[str] = frozenset(),
     force_redacted: bool = False,
 ) -> tuple[bool, str, list[dict]]:
-    content_preview = (
+    content_preview: str | LazyPreview = (
         "[REDACTED]"
         if force_redacted
-        else redact_blob_for_display(raw_body, sensitive_params, sensitive_body_fields)
+        else LazyPreview(
+            lambda: redact_blob_for_display(
+                raw_body, sensitive_params, sensitive_body_fields
+            )
+        )
     )
     detected, trigger, threats = _check_request_component(
         raw_body,

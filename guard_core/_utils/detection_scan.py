@@ -350,8 +350,29 @@ async def _fallback_pattern_check(
         _close_cpu_pass(mark_token)
 
 
+class LazyPreview:
+    """A log and event preview that is only built when a threat is reported."""
+
+    __slots__ = ("_build", "_resolved", "_value")
+
+    def __init__(self, build: Callable[[], str | None]) -> None:
+        self._build = build
+        self._resolved = False
+        self._value: str | None = None
+
+    def resolve(self) -> str | None:
+        if not self._resolved:
+            self._value = self._build()
+            self._resolved = True
+        return self._value
+
+
+def _resolve_preview(preview: "str | LazyPreview | None") -> str | None:
+    return preview.resolve() if isinstance(preview, LazyPreview) else preview
+
+
 def _resolve_json_redact_all(
-    content_preview: str | None, json_redact_all: bool | None
+    content_preview: "str | LazyPreview | None", json_redact_all: bool | None
 ) -> bool:
     if json_redact_all is not None:
         return json_redact_all
@@ -365,7 +386,7 @@ async def _check_embedded_json_if_applicable(
     correlation_id: str,
     enabled_categories: set[str] | None,
     scan_embedded_json: bool,
-    content_preview: str | None,
+    content_preview: "str | LazyPreview | None",
     sensitive_body_fields: frozenset[str],
     excluded_body_fields: frozenset[str],
     json_redact_all: bool | None,
@@ -399,7 +420,7 @@ async def _check_value_enhanced(
     correlation_id: str,
     enabled_categories: set[str] | None = None,
     scan_embedded_json: bool = True,
-    content_preview: str | None = None,
+    content_preview: "str | LazyPreview | None" = None,
     sensitive_body_fields: frozenset[str] = frozenset(),
     excluded_body_fields: frozenset[str] = frozenset(),
     json_redact_all: bool | None = None,
@@ -477,7 +498,7 @@ async def _check_request_component(
     enabled_categories: set[str] | None,
     log_level: str | None,
     scan_embedded_json: bool = True,
-    content_preview: str | None = None,
+    content_preview: "str | LazyPreview | None" = None,
     sensitive_body_fields: frozenset[str] = frozenset(),
     excluded_body_fields: frozenset[str] = frozenset(),
     json_redact_all: bool | None = None,
@@ -497,7 +518,8 @@ async def _check_request_component(
         sensitive_params=sensitive_params,
     )
     if detected:
-        fallback = content_preview if content_preview is not None else value
+        resolved = _resolve_preview(content_preview)
+        fallback = resolved if resolved is not None else value
         _log_detected_component(
             log_override if log_override is not None else fallback,
             component_name,
@@ -515,7 +537,7 @@ async def _scan_component_name(
     client_ip: str,
     correlation_id: str,
     log_level: str | None,
-    content_preview: str | None = None,
+    content_preview: "str | LazyPreview | None" = None,
 ) -> tuple[bool, str, list[dict]]:
     return await _check_request_component(
         name,

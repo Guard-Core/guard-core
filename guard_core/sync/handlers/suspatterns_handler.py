@@ -16,7 +16,10 @@ from datetime import timezone as timezone
 from typing import Any
 from typing import NamedTuple as NamedTuple
 
-from guard_core.sync._utils.detection_scan import _context_header_is_semantic_excluded
+from guard_core.sync._utils.detection_scan import (
+    LazyPreview,
+    _context_header_is_semantic_excluded,
+)
 from guard_core.sync.detection_engine import (
     ContentPreprocessor,
     PatternCompiler,
@@ -883,7 +886,7 @@ class SusPatternsManager(_SusPatternsViewsMixin):
         correlation_id: str | None = None,
         enabled_categories: set[str] | None = None,
         *,
-        content_preview: str | None = None,
+        content_preview: "str | LazyPreview | None" = None,
     ) -> dict[str, Any]:
         original_content = content
         execution_start = time.monotonic()
@@ -1036,9 +1039,12 @@ class SusPatternsManager(_SusPatternsViewsMixin):
         execution_time: float,
         correlation_id: str | None,
         detection_method: str | None = None,
-        content_preview: str | None = None,
+        content_preview: "str | LazyPreview | None" = None,
     ) -> None:
-        from guard_core.sync._utils.detection_scan import _redact_pattern_source
+        from guard_core.sync._utils.detection_scan import (
+            _redact_pattern_source,
+            _resolve_preview,
+        )
         from guard_core.sync.core.events.event_types import EVENT_PATTERN_DETECTED
 
         if detection_method is None:
@@ -1050,7 +1056,8 @@ class SusPatternsManager(_SusPatternsViewsMixin):
         elif semantic_threats:
             pattern_info = f"semantic:{semantic_threats[0]['attack_type']}"
 
-        preview_source = content_preview if content_preview is not None else content
+        resolved_preview = _resolve_preview(content_preview)
+        preview_source = resolved_preview if resolved_preview is not None else content
         capped_preview = (
             preview_source[:100] if len(preview_source) > 100 else preview_source
         )

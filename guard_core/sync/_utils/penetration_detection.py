@@ -30,6 +30,7 @@ from guard_core.sync._utils.detection_result_builders import (
     _build_detection_miss,
 )
 from guard_core.sync._utils.detection_scan import (
+    LazyPreview,
     _check_request_component,
     _scan_value_budget,
 )
@@ -50,7 +51,7 @@ if TYPE_CHECKING:
 
 def _scan_url_path_variants(
     request: SyncGuardRequest,
-    redacted_url_path: str,
+    redacted_url_path: LazyPreview,
     client_ip: str,
     correlation_id: str,
     enabled_categories: set[str] | None,
@@ -114,8 +115,13 @@ def _scan_request_surface(
     if detected:
         return _build_detection_hit(trigger, threats)
 
-    redacted_url_path = redact_url_for_display(
-        request.url_path, sensitive_params, sensitive_body_fields, sensitive_headers
+    redacted_url_path = LazyPreview(
+        lambda: redact_url_for_display(
+            request.url_path,
+            sensitive_params,
+            sensitive_body_fields,
+            sensitive_headers,
+        )
     )
     detected, trigger, threats = _scan_url_path_variants(
         request,
