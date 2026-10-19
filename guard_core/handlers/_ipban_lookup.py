@@ -27,12 +27,12 @@ class IpBanLookupMixin(IpBanVersionMixin, IpBanRuleExemptionMixin):
     config: Any = None
     logger: logging.Logger
 
-    def _grouped_identity_of(self, ip: str) -> str | None:
+    def _grouped_identity_of(self, ip: str, config: Any) -> str | None:
         if ":" not in ip:
             return None
-        prefix_length = self._prefix_length()
+        prefix_length = self._prefix_length(config)
         identity = _client_identity(ip, prefix_length)
-        whitelist = getattr(self.config, "whitelist", None)
+        whitelist = getattr(config, "whitelist", None)
         if identity == ip or not whitelist:
             return identity if identity != ip else None
         entry = most_specific_whitelist_entry(ipaddress.ip_address(ip), whitelist)
@@ -94,8 +94,8 @@ class IpBanLookupMixin(IpBanVersionMixin, IpBanRuleExemptionMixin):
             return True
         return None
 
-    def _prefix_length(self) -> int:
-        configured = getattr(self.config, "ipv6_prefix_length", None)
+    def _prefix_length(self, config: Any) -> int:
+        configured = getattr(config, "ipv6_prefix_length", None)
         return configured or _DEFAULT_IPV6_PREFIX_LENGTH
 
     async def _cached_positive_survives(self, now: float) -> bool:
@@ -118,11 +118,17 @@ class IpBanLookupMixin(IpBanVersionMixin, IpBanRuleExemptionMixin):
         )
 
     async def is_ip_banned(self, ip: str) -> bool:
+        return await self._is_ip_banned_under(ip, self.config)
+
+    async def _is_ip_banned_under(self, ip: str, config: Any) -> bool:
+        """The ban lookup with the identity prefix and whitelist taken from
+        ``config``: a caller outside the pipeline (the out-of-band rate-limit
+        primitive) passes its own config without touching the manager's."""
         ip = _canonicalize_ip(ip)
         if self.rule_exempt_networks and self._is_rule_exempt_ip(ip):
             return False
         now = time.time()
-        identity = self._grouped_identity_of(ip) if ":" in ip else None
+        identity = self._grouped_identity_of(ip, config) if ":" in ip else None
 
         verdict = self._local_verdict(ip, identity, now)
         if verdict is False:

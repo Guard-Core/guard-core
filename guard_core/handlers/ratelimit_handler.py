@@ -308,7 +308,7 @@ async def _feed_rate_limit_autoban(
     from guard_core.handlers.ipban_handler import IPBanManager
 
     ip_ban_manager = IPBanManager()
-    if await ip_ban_manager.is_ip_banned(ip):
+    if await ip_ban_manager._is_ip_banned_under(ip, config):
         return
 
     identity = _by_ip_window_identity(ip, config.ipv6_prefix_length)

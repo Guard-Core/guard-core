@@ -28,7 +28,7 @@ class IpBanCarveMixin(IpBanLookupMixin):
         group_length = (
             _SIX_TO_FOUR_GROUP_LENGTH
             if network.network_address in _SIX_TO_FOUR
-            else self._prefix_length()
+            else self._prefix_length(self.config)
         )
         if network.version != 6 or network.prefixlen <= group_length:
             return None
@@ -39,10 +39,10 @@ class IpBanCarveMixin(IpBanLookupMixin):
         text = str(address)
         if (
             entry is not None
-            and _client_identity(text, self._prefix_length(), entry) == key
+            and _client_identity(text, self._prefix_length(self.config), entry) == key
         ):
             return None
-        return _client_identity(text, self._prefix_length())
+        return _client_identity(text, self._prefix_length(self.config))
 
     def rewrite_carved_bans_without_whitelist(self) -> int:
         moved = self._rewrite_memory_carves()

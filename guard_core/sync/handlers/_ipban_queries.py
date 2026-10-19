@@ -233,7 +233,7 @@ class IpBanQueryMixin(
             self._unban_cidr(ip, reason)
             return
         ip = _canonicalize_ip(ip)
-        identity = self._grouped_identity_of(ip)
+        identity = self._grouped_identity_of(ip, self.config)
         self._purge_banned_ip(ip)
 
         if self.redis_handler:
