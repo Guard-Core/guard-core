@@ -30,6 +30,7 @@ SKIP_SRC = {
     "_security_headers_defaults.py",
     "_security_headers_override.py",
     "_emergency_exemptions.py",
+    "_security_headers_record_validation.py",
 }
 
 SKIP_TESTS = {

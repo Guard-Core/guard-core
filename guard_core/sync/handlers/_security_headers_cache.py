@@ -2,6 +2,7 @@ import hashlib
 import json
 import logging
 from abc import abstractmethod
+from collections.abc import Callable
 from typing import Any
 
 from cachetools import TTLCache
@@ -10,6 +11,10 @@ from guard_core._security_headers_override import (
     OverrideRecord,
     config_fingerprint,
     override_fingerprint,
+)
+from guard_core._security_headers_record_validation import (
+    validate_cached_csp,
+    validate_cached_hsts,
 )
 from guard_core.models import SecurityConfig
 from guard_core.sync._utils.logging_utils import _sanitize_for_log
@@ -95,15 +100,38 @@ class SecurityHeadersCacheMixin:
             return data.get("value")
         return None
 
+    def _validated_cached_record(
+        self, name: str, loaded: Any, validate: Callable[[Any], Any]
+    ) -> Any:
+        try:
+            return validate(loaded)
+        except ValueError as error:
+            self.logger.warning(
+                "Ignored cached %s from Redis, keeping this manager's own config: %s",
+                name,
+                _sanitize_for_log(str(error)),
+            )
+            return None
+
     def _apply_own_state(self, csp: Any, hsts: Any, custom: Any) -> None:
         if csp:
             loaded = self._decode_own_state(csp)
             if loaded:
-                self.csp_config = loaded
+                self.csp_config = (
+                    self._validated_cached_record(
+                        "csp_config", loaded, validate_cached_csp
+                    )
+                    or self.csp_config
+                )
         if hsts:
             loaded = self._decode_own_state(hsts)
             if loaded:
-                self.hsts_config = loaded
+                self.hsts_config = (
+                    self._validated_cached_record(
+                        "hsts_config", loaded, validate_cached_hsts
+                    )
+                    or self.hsts_config
+                )
         if custom:
             loaded = self._decode_own_state(custom)
             if loaded:

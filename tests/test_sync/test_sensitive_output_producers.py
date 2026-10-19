@@ -404,6 +404,12 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "does not cover, logged when emergency mode turns on; operator "
         "configuration only, no request value is interpolated"
     ),
+    "handlers/_security_headers_cache.py:"
+    "SecurityHeadersCacheMixin._validated_cached_record": (
+        "warns that a CSP or HSTS record read back from Redis was ignored; names "
+        "the record and the fixed validation reason, sanitised for the log, no "
+        "request value is interpolated"
+    ),
     "_misconfiguration.py:report_misconfiguration": (
         "startup advisory naming a config field or decorator "
         "argument and its configured value; startup only, no request in scope"
