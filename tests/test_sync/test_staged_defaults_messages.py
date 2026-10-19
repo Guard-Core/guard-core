@@ -16,12 +16,6 @@ from guard_core.sync.core.initialization._route_limit_report import (
 )
 from guard_core.sync.decorators.base import RouteConfig
 
-REDIS_MESSAGE = (
-    "enable_redis is not set. guard-core 5.0.0 turns it off by default, so an app "
-    "that never configured Redis stops connecting to a Redis on localhost. Pass "
-    "enable_redis=True to SecurityConfig now to keep using Redis, or "
-    "enable_redis=False to opt in to the 5.0.0 default. This warning is logged once."
-)
 RATE_LIMIT_MESSAGE = (
     "rate_limit is not set, so the default of 10 requests per rate_limit_window "
     "(60 s) applies. guard-core 5.0.0 raises the default to 120 requests per 60 s. "
@@ -38,7 +32,6 @@ PREFIX_MESSAGE = (
 @pytest.fixture(autouse=True)
 def _reset_flags() -> Generator[None, None, None]:
     names = (
-        "_redis_default_warned",
         "_rate_limit_default_warned",
         "_default_prefix_warned",
     )
@@ -70,7 +63,6 @@ def _build(**settings: Any) -> list[warnings.WarningMessage]:
 def test_every_warning_flag_starts_unset_in_a_fresh_process() -> None:
     fresh = _fresh_module()
 
-    assert fresh._redis_default_warned is False
     assert fresh._rate_limit_default_warned is False
     assert fresh._default_prefix_warned is False
     assert fresh.logger.name == "guard_core.models"
@@ -80,7 +72,7 @@ def test_every_warning_flag_starts_unset_in_a_fresh_process() -> None:
 def test_the_warnings_carry_their_exact_text() -> None:
     caught = _build()
 
-    assert [str(w.message) for w in caught] == [REDIS_MESSAGE, RATE_LIMIT_MESSAGE]
+    assert [str(w.message) for w in caught] == [RATE_LIMIT_MESSAGE]
 
 
 def test_the_warnings_point_at_the_line_that_builds_the_config() -> None:
@@ -92,14 +84,14 @@ def test_the_warnings_point_at_the_line_that_builds_the_config() -> None:
         SecurityConfig()
 
     deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
-    assert [(w.filename, w.lineno) for w in deprecations] == [(__file__, line)] * 2
+    assert [(w.filename, w.lineno) for w in deprecations] == [(__file__, line)]
 
 
 def test_each_warning_is_given_once_per_process() -> None:
     first = _build()
     second = _build()
 
-    assert len(first) == 2
+    assert len(first) == 1
     assert second == []
 
 
@@ -110,7 +102,7 @@ def test_the_logged_copies_carry_the_same_text(
         _build()
 
     messages = [r.getMessage() for r in caplog.records]
-    assert messages == [REDIS_MESSAGE, RATE_LIMIT_MESSAGE, PREFIX_MESSAGE]
+    assert messages == [RATE_LIMIT_MESSAGE]
 
 
 def test_the_default_prefix_warning_is_given_once(

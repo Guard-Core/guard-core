@@ -4,6 +4,7 @@ from typing import Any
 
 from cachetools import TTLCache
 
+from guard_core._redis_enablement import redis_is_configured
 from guard_core._security_headers_override import OverrideRecord
 from guard_core.models import SecurityConfig
 from guard_core.sync.handlers._security_headers_cache import SecurityHeadersCacheMixin
@@ -182,7 +183,7 @@ class SecurityHeadersManager(
         override = (
             before
             if self.redis_handler is None
-            and not config.enable_redis
+            and not redis_is_configured(config)
             and before.event is None
             else self._sync_override(config, before)
         )

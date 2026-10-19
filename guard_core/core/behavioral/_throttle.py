@@ -5,6 +5,7 @@ from collections import OrderedDict
 from collections.abc import Awaitable, Callable, Sequence
 from typing import Any
 
+from guard_core._redis_enablement import redis_is_configured
 from guard_core._utils.block_events import fire_block_hook
 from guard_core._utils.request_logging import redact_header_value_for_display
 from guard_core._utils.sampling import observe_sampled_key
@@ -179,7 +180,7 @@ class BehavioralThrottleMixin:
 
         redis_handler = getattr(tracker, "redis_handler", None)
         if self.context.middleware is not None and (
-            redis_handler and redis_handler.config.enable_redis
+            redis_handler and redis_is_configured(redis_handler.config)
         ):
             shared = await read_shared_detection_categories(
                 redis_handler,

@@ -4,6 +4,7 @@ from typing import Any
 from cachetools import TTLCache
 
 from guard_core import _security_headers_override as clocks
+from guard_core._redis_enablement import redis_is_configured
 from guard_core._security_headers_override import (
     CORS_EVENTED,
     CORS_LOGGED,
@@ -243,7 +244,7 @@ class SecurityHeadersOverrideMixin:
         # Released adapters build the response context without their Redis handler;
         # the handler initializer registered it under the config, found at the pull
         # boundary only.
-        if not config.enable_redis:
+        if not redis_is_configured(config):
             return
         now = now_monotonic()
         if now < self._override_next_lookup:

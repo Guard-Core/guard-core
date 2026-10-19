@@ -15,6 +15,7 @@ from redis.exceptions import ConnectionError as RedisConnectionError
 from redis.exceptions import NoScriptError
 from redis.exceptions import TimeoutError as RedisTimeoutError
 
+from guard_core._redis_enablement import configured_redis_url, redis_is_configured
 from guard_core.core.events.event_types import (
     EVENT_REDIS_CONNECTION,
     EVENT_REDIS_ERROR,
@@ -192,7 +193,10 @@ class RedisManager:
 
     async def initialize(self) -> None:
         config = self.config
-        if not config.enable_redis:
+        url = configured_redis_url(config)
+        if url is None:
+            if config.enable_redis:
+                self.logger.warning("Redis URL is None, skipping connection")
             async with self._connection_lock:
                 await self._discard_client()
             return
@@ -204,26 +208,23 @@ class RedisManager:
 
             new_redis: Redis | None = None
             try:
-                if config.redis_url is not None:
-                    new_redis = _build_redis_client(
-                        config.redis_url,
-                        config.redis_max_connections or _DEFAULT_POOL_SIZE,
-                        config.redis_pool_timeout,
-                        **self._connection_kwargs(config),
-                    )
-                    if new_redis is not None:
-                        await new_redis.ping()
-                        self._redis = new_redis
-                        self.logger.info("Redis connection established")
+                new_redis = _build_redis_client(
+                    url,
+                    config.redis_max_connections or _DEFAULT_POOL_SIZE,
+                    config.redis_pool_timeout,
+                    **self._connection_kwargs(config),
+                )
+                if new_redis is not None:
+                    await new_redis.ping()
+                    self._redis = new_redis
+                    self.logger.info("Redis connection established")
 
-                        await self._send_redis_event(
-                            event_type=EVENT_REDIS_CONNECTION,
-                            action_taken="connection_established",
-                            reason="Redis connection successfully established",
-                            redis_url=_redact_redis_url(config.redis_url),
-                        )
-                else:
-                    self.logger.warning("Redis URL is None, skipping connection")
+                    await self._send_redis_event(
+                        event_type=EVENT_REDIS_CONNECTION,
+                        action_taken="connection_established",
+                        reason="Redis connection successfully established",
+                        redis_url=_redact_redis_url(url),
+                    )
 
             except Exception as e:
                 self.logger.error(f"Redis connection failed: {str(e)}")
@@ -232,7 +233,7 @@ class RedisManager:
                     event_type=EVENT_REDIS_ERROR,
                     action_taken="connection_failed",
                     reason=f"Redis connection failed: {str(e)}",
-                    redis_url=_redact_redis_url(config.redis_url),
+                    redis_url=_redact_redis_url(url),
                     error_type="connection_error",
                 )
 
@@ -304,7 +305,7 @@ class RedisManager:
         raise GuardRedisError(503, "Redis operation failed") from error
 
     async def safe_operation(self, func: Any, *args: Any, **kwargs: Any) -> Any:
-        if not self.config.enable_redis:
+        if not redis_is_configured(self.config):
             return None
 
         try:
@@ -314,7 +315,7 @@ class RedisManager:
             await self._raise_operation_failure(e, getattr(func, "__name__", "unknown"))
 
     async def get_key(self, namespace: str, key: str) -> Any:
-        if not self.config.enable_redis:
+        if not redis_is_configured(self.config):
             return None
 
         async def _get(conn: Redis) -> Any:
@@ -324,7 +325,7 @@ class RedisManager:
         return await self.safe_operation(_get)
 
     async def get_many(self, pairs: Sequence[tuple[str, str]]) -> list[Any]:
-        if not self.config.enable_redis:
+        if not redis_is_configured(self.config):
             return [None] * len(pairs)
 
         prefix = self.config.redis_prefix
@@ -342,7 +343,7 @@ class RedisManager:
     async def set_key(
         self, namespace: str, key: str, value: Any, ttl: int | None = None
     ) -> bool | None:
-        if not self.config.enable_redis:
+        if not redis_is_configured(self.config):
             return None
 
         async def _set(conn: Redis) -> bool:
@@ -357,7 +358,7 @@ class RedisManager:
     async def set_key_if_absent(
         self, namespace: str, key: str, value: Any, ttl: int | None = None
     ) -> bool:
-        if not self.config.enable_redis:
+        if not redis_is_configured(self.config):
             return False
 
         async def _set(conn: Redis) -> bool:
@@ -374,7 +375,7 @@ class RedisManager:
         # committed it, over-counting by one. For the counter use here that
         # fails closed (mildly over-restrictive, self-heals next window). A
         # caller needing exactly-once semantics should not build on incr().
-        if not self.config.enable_redis:
+        if not redis_is_configured(self.config):
             return None
 
         async def _incr(conn: Redis) -> int:
@@ -401,7 +402,7 @@ class RedisManager:
         Either all of it lands or none of it does, and no other command runs in
         between, so a worker that sees the new counter sees the writes.
         """
-        if not self.config.enable_redis:
+        if not redis_is_configured(self.config):
             return
 
         async def _write(conn: Redis) -> None:
@@ -433,7 +434,7 @@ class RedisManager:
         expiry text the caller formatted once. advance_version increments the
         version counter in the same call when the ban was written; rule_owned
         records the ban in the owned set with that same text as its score."""
-        if not self.config.enable_redis:
+        if not redis_is_configured(self.config):
             return float(expiry)
 
         prefix = self.config.redis_prefix
@@ -469,7 +470,7 @@ class RedisManager:
 
     async def owned_ban_members(self) -> list[str]:
         """The full ban keys the dynamic rules own, as the owned set holds them."""
-        if not self.config.enable_redis:
+        if not redis_is_configured(self.config):
             return []
 
         async def _members(conn: Redis) -> list[str]:
@@ -482,7 +483,7 @@ class RedisManager:
     ) -> tuple[float | None, float | None]:
         """The expiry the rule wrote for one ban (its score in the owned set)
         and the expiry the ban holds now, read in one round trip."""
-        if not self.config.enable_redis:
+        if not redis_is_configured(self.config):
             return None, None
         prefix = self.config.redis_prefix
         member = f"{prefix}{namespace}:{key}"
@@ -527,7 +528,7 @@ class RedisManager:
 
     async def disown_ban(self, namespace: str, key: str) -> None:
         """Remove the ban from the set of bans a dynamic rule owns."""
-        if not self.config.enable_redis:
+        if not redis_is_configured(self.config):
             return
 
         member = f"{self.config.redis_prefix}{namespace}:{key}"
@@ -553,7 +554,7 @@ class RedisManager:
         with the key's ttl, in the same round trip. At the index's cap the key is
         not indexed (the hit still counts here); when index_refused is given, True
         is appended to it in that case."""
-        if not self.config.enable_redis:
+        if not redis_is_configured(self.config):
             return 0
 
         prefix = f"{self.config.redis_prefix}{namespace}:"
@@ -611,7 +612,7 @@ class RedisManager:
         rate-limit violations in the window, and the count of each category of
         this strike, all inside the sliding window and each key bounded to cap
         members."""
-        if not self.config.enable_redis:
+        if not redis_is_configured(self.config):
             return 0, 0, {}
 
         index, total, category_prefix = self._detection_strike_keys(client_ip)
@@ -649,7 +650,7 @@ class RedisManager:
     ) -> list[str]:
         """The detection categories (and "rate_limit" for shared rate-limit
         violations) the IP has strikes in since window_start, in one round trip."""
-        if not self.config.enable_redis:
+        if not redis_is_configured(self.config):
             return []
 
         _, _, category_prefix = self._detection_strike_keys(client_ip)
@@ -672,7 +673,7 @@ class RedisManager:
 
     async def forget_detection_strikes(self, client_ip: str) -> None:
         """Delete every detection strike counter of the IP in one round trip."""
-        if not self.config.enable_redis:
+        if not redis_is_configured(self.config):
             return
 
         index, total, _ = self._detection_strike_keys(client_ip)
@@ -690,7 +691,7 @@ class RedisManager:
         self, namespace: str, key: str, window_start: float
     ) -> int:
         """The key's hits at or after window_start, without recording one."""
-        if not self.config.enable_redis:
+        if not redis_is_configured(self.config):
             return 0
 
         full_key = f"{self.config.redis_prefix}{namespace}:{key}"
@@ -706,7 +707,7 @@ class RedisManager:
     ) -> int:
         """Sum the hits at or after window_start over every key in the index set,
         dropping members whose key has expired, in one round trip."""
-        if not self.config.enable_redis:
+        if not redis_is_configured(self.config):
             return 0
 
         full_index = f"{self.config.redis_prefix}{namespace}:{index_key}"
@@ -727,7 +728,7 @@ class RedisManager:
         return int(result) if result is not None else 0
 
     async def exists(self, namespace: str, key: str) -> bool | None:
-        if not self.config.enable_redis:
+        if not redis_is_configured(self.config):
             return None
 
         async def _exists(conn: Redis) -> bool:
@@ -738,7 +739,7 @@ class RedisManager:
         return False if result is None else bool(result)
 
     async def delete(self, namespace: str, key: str) -> int | None:
-        if not self.config.enable_redis:
+        if not redis_is_configured(self.config):
             return None
 
         async def _delete(conn: Redis) -> int:
@@ -750,7 +751,7 @@ class RedisManager:
         return int(result) if result is not None else 0
 
     async def keys(self, pattern: str) -> list[str] | None:
-        if not self.config.enable_redis:
+        if not redis_is_configured(self.config):
             return None
 
         async def _keys(conn: Redis) -> list[str]:
@@ -765,7 +766,7 @@ class RedisManager:
         return result if result is not None else []
 
     async def delete_pattern(self, pattern: str) -> int | None:
-        if not self.config.enable_redis:
+        if not redis_is_configured(self.config):
             return None
 
         async def _delete_pattern(conn: Redis) -> int:

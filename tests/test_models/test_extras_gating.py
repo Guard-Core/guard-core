@@ -82,15 +82,23 @@ def test_custom_geo_ip_handler_without_country_rules_or_maxminddb_validates_clea
     assert config.geo_ip_handler is handler
 
 
-def test_enable_redis_default_without_redis_package_raises_named_extra(
+def test_an_unset_enable_redis_with_a_connection_field_raises_named_extra(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr("importlib.util.find_spec", _blocking_find_spec("redis"))
 
     with pytest.raises(ValidationError) as exc_info:
-        SecurityConfig()
+        SecurityConfig(redis_prefix="app:")
 
     assert "pip install guard-core[redis]" in str(exc_info.value)
+
+
+def test_an_unset_enable_redis_without_a_connection_field_needs_no_redis_package(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("importlib.util.find_spec", _blocking_find_spec("redis"))
+
+    assert SecurityConfig().enable_redis is False
 
 
 def test_enable_redis_false_without_redis_package_does_not_raise(

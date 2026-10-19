@@ -2,21 +2,15 @@ import logging
 import warnings
 from typing import Any
 
+from guard_core._redis_enablement import redis_is_configured
+
 logger = logging.getLogger("guard_core.models")
 
 DEFAULT_REDIS_PREFIX = "guard_core:"
 
-_redis_default_warned = False
 _rate_limit_default_warned = False
 _default_prefix_warned = False
 _whitelist_access_only_warned = False
-
-_REDIS_DEFAULT_WARNING = (
-    "enable_redis is not set. guard-core 5.0.0 turns it off by default, so an app "
-    "that never configured Redis stops connecting to a Redis on localhost. Pass "
-    "enable_redis=True to SecurityConfig now to keep using Redis, or "
-    "enable_redis=False to opt in to the 5.0.0 default. This warning is logged once."
-)
 
 _RATE_LIMIT_DEFAULT_WARNING = (
     "rate_limit is not set, so the default of 10 requests per rate_limit_window "
@@ -37,15 +31,6 @@ _WHITELIST_ACCESS_ONLY_WARNING = (
     "SecurityConfig now to opt in, or whitelist_access_only=False to keep today's "
     "behavior. This warning is logged once."
 )
-
-
-def _warn_redis_default_on(*, stacklevel: int) -> None:
-    global _redis_default_warned
-    if _redis_default_warned:
-        return
-    _redis_default_warned = True
-    logger.warning(_REDIS_DEFAULT_WARNING)
-    warnings.warn(_REDIS_DEFAULT_WARNING, DeprecationWarning, stacklevel=stacklevel)
 
 
 def _warn_rate_limit_default_in_effect(*, stacklevel: int) -> None:
@@ -89,10 +74,8 @@ def _warn_whitelist_without_access_only(config: Any, *, stacklevel: int) -> None
 
 
 def _warn_staged_defaults(config: Any, *, stacklevel: int) -> None:
-    if "enable_redis" not in config.model_fields_set:
-        _warn_redis_default_on(stacklevel=stacklevel + 1)
     if config.enable_rate_limiting and "rate_limit" not in config.model_fields_set:
         _warn_rate_limit_default_in_effect(stacklevel=stacklevel + 1)
     _warn_whitelist_without_access_only(config, stacklevel=stacklevel + 1)
-    if config.enable_redis and config.redis_prefix == DEFAULT_REDIS_PREFIX:
+    if redis_is_configured(config) and config.redis_prefix == DEFAULT_REDIS_PREFIX:
         _warn_default_redis_prefix()

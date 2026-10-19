@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any
 from pydantic import BaseModel
 
 from guard_core._config_capabilities import _extra_installed, cloud_blocking_enabled
+from guard_core._redis_enablement import redis_is_configured, resolve_enable_redis
 from guard_core._security_config_field_validators import (
     _FIELD_REVALIDATORS,
     _GLOBAL_BEHAVIOR_RULE_FIELDS,
@@ -158,6 +159,7 @@ def _revalidate_changed_fields(
 def _revalidate_copied_config(
     copied: "SecurityConfig", update: Mapping[str, Any]
 ) -> None:
+    resolve_enable_redis(copied)
     _revalidate_exclude_paths_field(copied, update)
     _revalidate_country_shadow_fields(copied, update)
     _revalidate_geo_state_fields(copied, update)
@@ -177,7 +179,7 @@ def _require_recidive_cap_covers_auto_ban(config: "SecurityConfig") -> None:
 
 
 def _require_optional_extras(config: "SecurityConfig") -> None:
-    if config.enable_redis and not _extra_installed("redis"):
+    if redis_is_configured(config) and not _extra_installed("redis"):
         raise ValueError(
             "enable_redis=True requires the 'redis' package. "
             "Install it with: pip install guard-core[redis]"

@@ -5,6 +5,7 @@ from collections import OrderedDict
 from collections.abc import Callable, Sequence
 from typing import Any
 
+from guard_core._redis_enablement import redis_is_configured
 from guard_core.exceptions import GuardRedisError
 from guard_core.models import BehaviorRuleConfig
 from guard_core.protocols.response_protocol import GuardResponse
@@ -177,7 +178,7 @@ class BehavioralThrottleMixin:
 
         redis_handler = getattr(tracker, "redis_handler", None)
         if self.context.middleware is not None and (
-            redis_handler and redis_handler.config.enable_redis
+            redis_handler and redis_is_configured(redis_handler.config)
         ):
             shared = read_shared_detection_categories(
                 redis_handler,

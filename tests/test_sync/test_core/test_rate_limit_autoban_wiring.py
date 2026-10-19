@@ -194,6 +194,7 @@ def test_enable_ip_banning_false_suppresses_ban() -> None:
 
 def test_a_failing_shared_violation_counter_falls_back_to_the_process_count() -> None:
     config = SecurityConfig(
+        enable_redis=True,
         enable_rate_limiting=True,
         rate_limit=1,
         rate_limit_window=60,

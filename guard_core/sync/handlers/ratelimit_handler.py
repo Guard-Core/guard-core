@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 
 from redis.exceptions import NoScriptError, RedisError
 
+from guard_core._redis_enablement import configured_redis_url, redis_is_configured
 from guard_core.exceptions import GuardRedisError
 from guard_core.models import SecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
@@ -274,7 +275,7 @@ def forget_by_ip_strikes_inside(covers: Callable[[str], bool]) -> None:
 def _shared_primitive_counts(
     ip: str, config: SecurityConfig, redis_handler: Any
 ) -> dict[str, int] | None:
-    if not (config.enable_redis and redis_handler):
+    if not (redis_is_configured(config) and redis_handler):
         return None
     try:
         return {"rate_limit": record_shared_violation(redis_handler, ip)}
@@ -505,7 +506,7 @@ def check_rate_limit_by_ip(
     window_identity = _by_ip_window_identity(ip, config.ipv6_prefix_length)
 
     verdict: RateLimitVerdict | None = None
-    if config.enable_redis and redis_handler:
+    if redis_is_configured(config) and redis_handler:
         verdict, _ = _redis_tier_verdict(
             redis_handler,
             _by_ip_logger,
@@ -588,7 +589,7 @@ class RateLimitManager:
     def initialize_redis(self, redis_handler: Any) -> None:
         self.redis_handler = redis_handler
 
-        if self.redis_handler and self.config.enable_redis:
+        if self.redis_handler and redis_is_configured(self.config):
             try:
                 with self.redis_handler.get_connection() as conn:
                     self.rate_limit_script_sha = conn.script_load(RATE_LIMIT_SCRIPT)
@@ -672,7 +673,7 @@ class RateLimitManager:
             if ":" in client_ip
             else client_ip
         )
-        if config.enable_redis and self.redis_handler:
+        if redis_is_configured(config) and self.redis_handler:
             verdict, self.rate_limit_script_sha = _redis_tier_verdict(
                 self.redis_handler,
                 self.logger,
@@ -848,7 +849,7 @@ class RateLimitManager:
             (
                 app.redis_handler
                 for app in (self, *apps)
-                if app.config.enable_redis and app.redis_handler
+                if redis_is_configured(app.config) and app.redis_handler
             ),
             None,
         )
@@ -857,11 +858,11 @@ class RateLimitManager:
                 for pattern in patterns:
                     handler.delete_pattern(pattern)
                 return True
-            if self.config.enable_redis and self.config.redis_url:
+            url = configured_redis_url(self.config)
+            if url is not None:
                 for pattern in patterns:
                     scan_unlink_through_new_client(
-                        self.config.redis_url,
-                        f"{self.config.redis_prefix}{pattern}",
+                        url, f"{self.config.redis_prefix}{pattern}"
                     )
                 return True
         except Exception as e:

@@ -2,6 +2,7 @@ import logging
 from collections.abc import Callable, MutableMapping
 from typing import Any
 
+from guard_core._redis_enablement import redis_is_configured
 from guard_core._security_headers_override import PROCESS_OVERRIDE, PULLED_OVERRIDES
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.core.responses.context import ResponseContext
@@ -158,7 +159,7 @@ class ErrorResponseFactory:
             manager._override.set_at,
             manager._override_epoch,
             manager.redis_handler is None,
-            config.enable_redis,
+            redis_is_configured(config),
             bool(PULLED_OVERRIDES),
         ) == (0.0, 0.0, PROCESS_OVERRIDE.reset_epoch, True, False, False)
         override = manager._override if quiet else manager.resolve_override()

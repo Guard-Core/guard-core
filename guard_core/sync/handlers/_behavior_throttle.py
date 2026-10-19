@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 from redis.exceptions import NoScriptError
 
+from guard_core._redis_enablement import redis_is_configured
 from guard_core.exceptions import GuardRedisError
 from guard_core.models import SecurityConfig
 from guard_core.scripts.behavior_throttle_lua import BEHAVIOR_THROTTLE_SCRIPT
@@ -185,7 +186,7 @@ class BehaviorThrottleMixin(BehaviorEvictionMixin):
     ) -> list[ThrottleTrip]:
         client_ip = behavior_client_identity(self.config, client_ip)
         trips = None
-        if self.redis_handler and self.redis_handler.config.enable_redis:
+        if self.redis_handler and redis_is_configured(self.redis_handler.config):
             trips = self._redis_throttle(client_ip, checks, now, record_when_over)
         if trips is None:
             trips = self._memory_throttle(

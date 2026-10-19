@@ -2,6 +2,7 @@ from collections.abc import Collection
 from ipaddress import ip_address
 from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple
 
+from guard_core._redis_enablement import redis_is_configured
 from guard_core.models import SecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.agent_events import agent_receives_events
@@ -232,7 +233,7 @@ class RateLimitCheck(SecurityCheck):
         return _client_identity(client_ip, self.config.ipv6_prefix_length, entry)
 
     def _shared_redis(self) -> Any:
-        if not self.config.enable_redis:
+        if not redis_is_configured(self.config):
             return None
         return getattr(self.middleware.rate_limit_handler, "redis_handler", None)
 

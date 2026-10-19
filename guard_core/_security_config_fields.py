@@ -5,8 +5,16 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    model_validator,
+)
+from typing_extensions import Self
 
+from guard_core._redis_enablement import REDIS_CONNECTION_FIELDS, resolve_enable_redis
 from guard_core._security_config_field_validators import (
     EmergencyExemptPaths,
     GlobalBehaviorRules,
@@ -73,8 +81,19 @@ class _SecurityConfigFields(BaseModel):
     )
 
     enable_redis: bool = Field(
-        default=True,
-        description="Enable/disable Redis for distributed state management",
+        default=False,
+        description=(
+            "Enable/disable Redis for distributed state management. Left unset "
+            "since 5.0.0, Redis is on exactly when at least one Redis connection "
+            "field was set explicitly (redis_url, redis_prefix, "
+            "redis_socket_connect_timeout, redis_socket_timeout, "
+            "redis_health_check_interval, redis_max_connections, "
+            "redis_pool_timeout, redis_retries or redis_fail_open) and off "
+            "otherwise (before, it was always on); a field assigned after "
+            "construction counts, and an explicit enable_redis always wins. A "
+            "falsy redis_url means no Redis whatever enable_redis says. Pass "
+            "enable_redis=True to restore the old default."
+        ),
     )
 
     redis_url: str | None = Field(
@@ -1503,3 +1522,13 @@ class _SecurityConfigFields(BaseModel):
             f"Valid values: {sorted(ALL_DETECTION_CATEGORIES)}"
         ),
     )
+
+    @model_validator(mode="after")
+    def resolve_enable_redis_default(self) -> Self:
+        resolve_enable_redis(self)
+        return self
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        super().__setattr__(name, value)
+        if name in REDIS_CONNECTION_FIELDS:
+            resolve_enable_redis(self)

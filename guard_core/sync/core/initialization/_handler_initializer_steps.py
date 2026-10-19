@@ -3,6 +3,7 @@ import threading
 from typing import TYPE_CHECKING, Any
 
 from guard_core._misconfiguration import report_misconfiguration
+from guard_core._redis_enablement import redis_is_configured, resolve_enable_redis
 from guard_core._staged_defaults import _warn_whitelist_without_access_only
 from guard_core.exceptions import GuardRedisError
 from guard_core.sync.core.initialization._ban_threshold_report import (
@@ -72,6 +73,7 @@ class _HandlerInitializerStepsMixin(CloudInitializationMixin):
         from guard_core.sync.handlers.ipban_handler import ip_ban_manager
         from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
 
+        resolve_enable_redis(self.config)
         ip_ban_manager.config = self.config
         _warn_whitelist_without_access_only(self.config, stacklevel=3)
         ip_ban_manager.set_capacity(self.config.banned_ips_max_entries)
@@ -81,7 +83,7 @@ class _HandlerInitializerStepsMixin(CloudInitializationMixin):
     def _report_unreachable_ban_thresholds(self) -> None:
         context = _BanThresholdContext(
             lambda: tuple(getattr(self.guard_decorator, "_route_configs", {}).values()),
-            lambda: bool(self.config.enable_redis and self.redis_handler),
+            lambda: bool(redis_is_configured(self.config) and self.redis_handler),
         )
         remember_ban_threshold_context(context.route_configs, context.redis_shared)
         report_unreachable_ban_thresholds(
@@ -165,7 +167,7 @@ class _HandlerInitializerStepsMixin(CloudInitializationMixin):
         self._report_route_limits_with_global_switch_off()
         self._configure_detection()
 
-        without_redis = not (self.config.enable_redis and self.redis_handler)
+        without_redis = not (redis_is_configured(self.config) and self.redis_handler)
         if without_redis and self.config.lazy_init:
             self._warn_if_lazy_init_is_inert()
         elif without_redis or not self._connect_redis():
