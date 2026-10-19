@@ -27,6 +27,9 @@ _NON_GLOBAL_WARNING_WINDOW_SECONDS = 60
 def configure_nat64_prefixes(prefixes: Iterable[IPv6Network]) -> None:
     global _nat64_prefixes
     _nat64_prefixes = tuple(prefixes)
+    from guard_core._utils.ip_extraction import _client_identity
+
+    _client_identity.cache_clear()
 
 
 def _decode_nat64_embedded_ipv4(addr: IPv6Address, prefix: IPv6Network) -> IPv4Address:

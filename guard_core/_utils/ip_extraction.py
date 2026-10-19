@@ -2,6 +2,7 @@ import logging
 import threading
 from collections import OrderedDict
 from collections.abc import Sequence
+from functools import lru_cache
 from ipaddress import (
     IPv4Address,
     IPv4Network,
@@ -64,18 +65,16 @@ def _is_trusted_proxy(connecting_ip: str, trusted_proxies: Sequence[str]) -> boo
         return False
 
 
-def _canonical_ip_text(addr: IPv4Address | IPv6Address) -> str:
-    if (
-        isinstance(addr, IPv6Address)
-        and addr.ipv4_mapped is not None
-        and addr.scope_id is None
-    ):
-        return str(addr.ipv4_mapped)
+def _canonical_ip_address(addr: IPv4Address | IPv6Address) -> IPv4Address | IPv6Address:
     if isinstance(addr, IPv6Address) and addr.scope_id is None:
-        unwrapped = _unwrap_nat64(addr)
-        if unwrapped is not None:
-            return str(unwrapped)
-    return str(addr)
+        if addr.ipv4_mapped is not None:
+            return addr.ipv4_mapped
+        return _unwrap_nat64(addr) or addr
+    return addr
+
+
+def _canonical_ip_text(addr: IPv4Address | IPv6Address) -> str:
+    return str(_canonical_ip_address(addr))
 
 
 def _strip_ip_brackets(value: str) -> str:
@@ -133,14 +132,24 @@ def _whitelist_entry_network(
     return entry
 
 
+def _network_text(addr: IPv6Address, prefix_length: int) -> str:
+    shift = 128 - prefix_length
+    return str(IPv6Network(((int(addr) >> shift) << shift, prefix_length)))
+
+
+_IDENTITY_CACHE_ENTRIES = 4096
+
+
+@lru_cache(maxsize=_IDENTITY_CACHE_ENTRIES)
 def _client_identity(
     address: str, prefix_length: int, whitelist_entry: str | None = None
 ) -> str:
-    canonical = _canonicalize_ip(address)
     try:
-        addr = ip_address(canonical)
+        parsed = ip_address(_strip_zone_id(_strip_ip_brackets(address)))
     except ValueError:
-        return canonical
+        return address
+    addr = _canonical_ip_address(parsed)
+    canonical = str(addr)
     if prefix_length == 128:
         return canonical
     if isinstance(addr, IPv4Address) or _is_per_address_identity(addr):
@@ -149,7 +158,7 @@ def _client_identity(
     group_length = _identity_group_prefix_length(addr, prefix_length)
     if entry is not None and entry.prefixlen >= group_length:
         return str(entry)
-    return str(ip_network(f"{canonical}/{group_length}", strict=False))
+    return _network_text(addr, group_length)
 
 
 def _forwarded_header_candidate_has_metachar(candidate: str) -> bool:
