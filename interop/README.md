@@ -26,7 +26,7 @@ every run, so runs are idempotent and a host Redis is left clean.
 python3 interop/run.py
 ```
 
-Requirements: host Redis on 6379, Docker (golang:1.25-alpine, php:8.3-cli
+Requirements: host Redis on 6379, Docker (golang:1.26-alpine, php:8.3-cli
 images), uv on PATH. Exits 0 with every check green; writes
 `interop/last_run.json` and per-phase JSON reports to `interop/reports/`.
 
@@ -205,7 +205,7 @@ malformed bodies).
 
 Participants: Python in-process (`py_body_surface.py`, rebuilt from the
 engine's own helpers), Go via the tag-gated in-package probe
-(`probes/guardcore_body_probe_test.go`, docker `golang:1.25-alpine`), PHP
+(`probes/guardcore_body_probe_test.go`, docker `golang:1.26-alpine`), PHP
 via `probes/guardcore_body_probe.php` (docker `php:8.3-cli`), TS via
 `probes/guardcore_body_probe.test.ts` (a recording fake manager driven
 through the real `scanRequestWithManager` routing, local vitest), Rust via

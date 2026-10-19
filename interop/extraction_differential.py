@@ -215,7 +215,7 @@ def _go_run(vectors: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "INTEROP_EXTRACTION_OUTPUT=/interop/reports/go_extraction_output.json",
                 "-e",
                 "GOCACHE=/tmp/gocache",
-                "golang:1.25-alpine",
+                "golang:1.26-alpine",
                 "go",
                 "test",
                 "-tags",
@@ -437,7 +437,7 @@ def main() -> int:
 
     vectors = probe_input_bytes(cases)
 
-    print("go probe (docker golang:1.25-alpine)...")
+    print("go probe (docker golang:1.26-alpine)...")
     go_verdicts = _go_run(vectors)
     go_by_label: dict[str, list[dict[str, Any]]] = {}
     for entry in go_verdicts:

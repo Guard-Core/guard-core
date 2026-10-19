@@ -26,7 +26,7 @@ input (detect_penetration_attempt), never hardcoded.
 Participants:
   Python  in-process (interop/py_body_surface.body_verdict)
   Go      the detect mode of interop/probes/guardcore_body_probe_test.go
-          (docker golang:1.25-alpine against a checkout root)
+          (docker golang:1.26-alpine against a checkout root)
   PHP     the detect mode of interop/probes/guardcore_body_probe.php
           (docker php:8.3-cli against a checkout root with vendor/)
   TS      the pipeline mode of interop/probes/guardcore_body_probe.test.ts
@@ -377,7 +377,7 @@ def _go_detect(vectors_in: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
                 "INTEROP_BODY_DETECT_OUTPUT=/interop/reports/go_bodydetect_output.json",
                 "-e",
                 "GOCACHE=/tmp/gocache",
-                "golang:1.25-alpine",
+                "golang:1.26-alpine",
                 "go",
                 "test",
                 "-tags",

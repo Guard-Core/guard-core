@@ -190,7 +190,7 @@ def _go_checks() -> dict[str, dict[str, Any]]:
                 "INTEROP_MIDDLEWARE_OUTPUT=/interop/reports/go_middleware_output.json",
                 "-e",
                 "GOCACHE=/tmp/gocache",
-                "golang:1.25-alpine",
+                "golang:1.26-alpine",
                 "go",
                 "test",
                 "-tags",

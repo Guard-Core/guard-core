@@ -316,7 +316,7 @@ def _run_go_probe(vectors: list[dict[str, Any]]) -> list[dict[str, Any]]:
         "INTEROP_VECTORS_OUTPUT=/interop/reports/go_probe_output.json",
         "-e",
         "GOCACHE=/tmp/gocache",
-        "golang:1.25-alpine",
+        "golang:1.26-alpine",
         "go",
         "test",
         "-tags",
