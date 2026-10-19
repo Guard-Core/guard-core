@@ -108,7 +108,7 @@ def outcome(call: Any, *args: Any) -> tuple[str, Any]:
     try:
         return "verdict", call(*args)
     except ValueError as error:
-        return "error", type(error)
+        return "error", (type(error), str(error))
 
 
 def address_of(client: str) -> Any:
@@ -264,3 +264,23 @@ def _large_list(version: int) -> list[str]:
         f"10.{(index >> 8) & 255}.{index & 255}.0/24" for index in range(10_000)
     ]
     return [*networks, f"203.0.{version // 256}.{version % 256}"]
+
+
+def test_a_whitelist_with_an_invalid_entry_is_refused_by_the_carve_index() -> None:
+    from guard_core.sync._utils.whitelist_match import most_specific_whitelist_entry
+
+    clear_entry_indexes()
+
+    with pytest.raises(ValueError, match="does not appear to be an IPv4 or IPv6"):
+        most_specific_whitelist_entry(ip_address("1.2.3.4"), ["10.0.0.0/8", "bad/33"])
+
+
+def test_the_evicted_hashes_stay_bounded_when_many_lists_are_replaced() -> None:
+    cache: ContentCache[int, int] = ContentCache(lambda key: key)
+    replaced = 4096 * 3
+
+    for update in range(replaced):
+        cache.get(update)
+
+    assert len(cache._evicted) <= max(4096, 4 * cache._capacity)
+    assert len(cache._evicted) > INITIAL_CACHE_SIZE

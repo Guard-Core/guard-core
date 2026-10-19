@@ -144,10 +144,10 @@ def _build_entry_index(key: tuple[tuple[str, ...], str]) -> EntryIndex:
             continue
         try:
             network = ip_network(entry, strict=False)
-        except ValueError:
+        except ValueError as error:
             if mode == "network":
                 raise
-            invalid = (position, entry)
+            invalid = (position, str(error))
             break
         members = by_length.setdefault((network.version, network.prefixlen), {})
         members.setdefault(int(network.network_address), (position, str(network)))
@@ -208,7 +208,6 @@ def is_listed(
     index = entry_index(tuple(entries), mode)
     match = _first_match(index, address, exact_lookup)
     if index.invalid is not None and (match is None or match[0] > index.invalid[0]):
-        ip_network(index.invalid[1], strict=False)
         raise ValueError(index.invalid[1])
     return match is not None
 
