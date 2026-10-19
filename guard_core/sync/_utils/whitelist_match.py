@@ -26,7 +26,7 @@ _Buckets = tuple[tuple[int, dict[int, tuple[int, str]]], ...]
 
 _Key = TypeVar("_Key", bound=Hashable)
 _Value = TypeVar("_Value")
-INITIAL_CACHE_SIZE = 256
+INITIAL_CACHE_SIZE = 8
 
 
 class _Slot(Generic[_Value]):
@@ -44,17 +44,19 @@ class ContentCache(Generic[_Key, _Value]):
     ``trusted_proxies``, the emergency whitelist) plus two per IP-restricted route,
     so no fixed size is right: a cache smaller than that working set re-parses a
     list on every use (300 us instead of 0.8 us). At capacity a miss evicts the
-    oldest entry nothing has hit since the last sweep and remembers its key. A miss
-    on a remembered key means the working set is larger than the cache, so the
-    capacity grows by one slot. A list that dynamic rules replace is never asked
-    for again, is evicted and forgotten, and never makes the cache grow, so the
+    oldest entry nothing has hit since the last sweep and remembers only the hash
+    of its key, never the key (a 10,000 entry list is 1.6 MiB). A miss on a
+    remembered hash means the working set is larger than the cache, so the capacity
+    grows by one slot; a hash collision only grows it by one slot too. The cache
+    starts at 8 slots and a list that dynamic rules replace is never asked for
+    again, is evicted and forgotten, and never makes the cache grow, so the
     capacity tracks the lists held and not the number of updates.
     """
 
     def __init__(self, build: Callable[[_Key], _Value]) -> None:
         self._build = build
         self._slots: dict[_Key, _Slot[_Value]] = {}
-        self._evicted: dict[_Key, None] = {}
+        self._evicted: dict[int, None] = {}
         self._capacity = INITIAL_CACHE_SIZE
         self._lock = threading.Lock()
 
@@ -65,8 +67,8 @@ class ContentCache(Generic[_Key, _Value]):
             return slot.value
         built = self._build(key)
         with self._lock:
-            if key in self._evicted:
-                del self._evicted[key]
+            if hash(key) in self._evicted:
+                del self._evicted[hash(key)]
                 self._capacity = max(self._capacity, len(self._slots) + 1)
             if len(self._slots) >= self._capacity:
                 self._evict_one()
@@ -80,7 +82,7 @@ class ContentCache(Generic[_Key, _Value]):
                 slot.used = False
             victim = next(iter(self._slots))
         del self._slots[victim]
-        self._evicted[victim] = None
+        self._evicted[hash(victim)] = None
         if len(self._evicted) > max(4096, 4 * self._capacity):
             del self._evicted[next(iter(self._evicted))]
 

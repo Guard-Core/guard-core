@@ -187,7 +187,7 @@ def test_more_lists_than_any_fixed_size_are_not_re_indexed_every_round() -> None
         return key
 
     cache: ContentCache[int, int] = ContentCache(build)
-    lists = INITIAL_CACHE_SIZE * 12
+    lists = 3072
 
     for key in range(lists):
         cache.get(key)
@@ -206,7 +206,7 @@ def test_replaced_lists_leave_the_cache_without_growing_it() -> None:
     cache: ContentCache[int, int] = ContentCache(lambda key: key)
     live = [0, 1, 2, 3, 4]
 
-    for update in range(5, INITIAL_CACHE_SIZE * 10):
+    for update in range(5, 3000):
         for key in live:
             cache.get(key)
         cache.get(update)
@@ -257,3 +257,37 @@ def test_the_trusted_proxy_networks_of_a_ban_are_parsed_once_per_list(
     assert first == second == [ip_network("10.0.0.0/8")]
     assert parsed == ["10.0.0.0/8", "not-a-network"]
     IPBanManager._instance = None
+
+
+def _large_list(version: int) -> list[str]:
+    networks = [
+        f"10.{(index >> 8) & 255}.{index & 255}.0/24" for index in range(10_000)
+    ]
+    return [*networks, f"203.0.{version // 256}.{version % 256}"]
+
+
+def test_replaced_large_lists_retain_the_working_set() -> None:  # async-only
+    import gc
+    import tracemalloc
+
+    clear_entry_indexes()
+    client = "8.8.8.8"
+    address = ip_address(client)
+    tracemalloc.start()
+    try:
+        gc.collect()
+        baseline = tracemalloc.get_traced_memory()[0]
+        _ip_in_list(address, client, _large_list(0))
+        gc.collect()
+        one_list = tracemalloc.get_traced_memory()[0] - baseline
+
+        for version in range(1, 301):
+            _ip_in_list(address, client, _large_list(version))
+        gc.collect()
+        retained = tracemalloc.get_traced_memory()[0] - baseline
+    finally:
+        tracemalloc.stop()
+        clear_entry_indexes()
+
+    assert one_list > 500_000
+    assert retained < 12 * one_list
