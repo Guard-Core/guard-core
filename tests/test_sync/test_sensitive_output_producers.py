@@ -356,6 +356,17 @@ COVERED_PRODUCERS: dict[str, frozenset[str]] = {
 }
 
 NON_REQUEST_PRODUCERS: dict[str, str] = {
+    "core/initialization/_ban_threshold_report.py:"
+    "log_unreachable_ban_thresholds_after_rule_change": (
+        "advisory naming the configured rate limit, window and ban thresholds "
+        "after a dynamic rule changed them; configuration values only, no "
+        "request in scope"
+    ),
+    "handlers/dynamic_rule_handler.py:"
+    "DynamicRuleManager._log_unreachable_ban_thresholds_after_swap": (
+        "logs the exception of the threshold advisory after a rule swap; the "
+        "traceback names configuration values only, no request in scope"
+    ),
     "core/routing/resolver.py:RouteConfigResolver._flag_route_unknown_to_decorator": (
         "logs the route id the adapter stamped on the decorated function, once "
         "per route id; no request value is interpolated"

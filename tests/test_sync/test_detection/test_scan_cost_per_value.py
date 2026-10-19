@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 from guard_core.models import SecurityConfig
 from guard_core.sync.detection_engine.monitor import PerformanceMonitor
-from guard_core.sync.handlers import _suspatterns_regex
+from guard_core.sync.handlers import _suspatterns_applicable
 from guard_core.sync.utils import detect_penetration_attempt
 from tests.test_sync.conftest import SyncMockGuardRequest
 
@@ -38,13 +38,13 @@ def test_repeated_scan_does_not_refilter_the_pattern_table() -> None:
     config = SecurityConfig()
     _scan_benign_request(config)
     calls: list[int] = []
-    original = _suspatterns_regex._pattern_should_be_skipped
+    original = _suspatterns_applicable._pattern_should_be_skipped
 
     def spy(*args: Any, **kwargs: Any) -> bool:
         calls.append(1)
         return original(*args, **kwargs)
 
-    with patch.object(_suspatterns_regex, "_pattern_should_be_skipped", spy):
+    with patch.object(_suspatterns_applicable, "_pattern_should_be_skipped", spy):
         _scan_benign_request(config)
 
     assert calls == []
@@ -64,21 +64,25 @@ def test_pattern_table_filter_is_reused_and_bounded() -> None:
         "normalized_context": "query_param",
         "enabled_categories": None,
     }
-    _suspatterns_regex._applicable_pattern_cache.clear()
-    first, first_tail = _suspatterns_regex._applicable_patterns(table, **arguments)
-    again, again_tail = _suspatterns_regex._applicable_patterns(table, **arguments)
+    _suspatterns_applicable._applicable_pattern_cache.clear()
+    first, first_tail = _suspatterns_applicable._applicable_patterns(table, **arguments)
+    again, again_tail = _suspatterns_applicable._applicable_patterns(table, **arguments)
     assert first == [table[0]] and first_tail is True
     assert again is first and again_tail is True
 
     grown = [*table, (re.compile("c"), frozenset({"query_param"}), "xss")]
-    regrown, regrown_tail = _suspatterns_regex._applicable_patterns(grown, **arguments)
+    regrown, regrown_tail = _suspatterns_applicable._applicable_patterns(
+        grown, **arguments
+    )
     assert regrown == [grown[0], grown[2]] and regrown_tail is False
 
-    with patch.object(_suspatterns_regex, "_APPLICABLE_PATTERN_CACHE_MAX_ENTRIES", 1):
-        _suspatterns_regex._applicable_patterns(
+    with patch.object(
+        _suspatterns_applicable, "_APPLICABLE_PATTERN_CACHE_MAX_ENTRIES", 1
+    ):
+        _suspatterns_applicable._applicable_patterns(
             table, **{**arguments, "normalized_context": "header"}
         )
-    assert len(_suspatterns_regex._applicable_pattern_cache) == 1
+    assert len(_suspatterns_applicable._applicable_pattern_cache) == 1
 
 
 def test_exhausted_time_budget_still_flags_a_pass_with_no_applicable_row() -> None:

@@ -34,6 +34,15 @@ from guard_core.detection_engine.compiler import (
     report_scan_timeout,
     shared_regex_executor,
 )
+from guard_core.handlers._suspatterns_applicable import (
+    _applicable_patterns,
+)
+from guard_core.handlers._suspatterns_applicable import (
+    _pattern_excluded_from_view as _pattern_excluded_from_view,
+)
+from guard_core.handlers._suspatterns_applicable import (
+    _pattern_should_be_skipped as _pattern_should_be_skipped,
+)
 from guard_core.handlers._suspatterns_enhanced import _SusPatternsEnhancedMixin
 from guard_core.handlers._suspatterns_ldap_ipv4 import (
     _LEGACY_IPV4_HOST_RE,
@@ -51,7 +60,6 @@ from guard_core.handlers._suspatterns_matchers import (
     _quote_splice_finditer,
 )
 from guard_core.handlers._suspatterns_pattern_table import (
-    DETECTION_RECON_RAW_VIEW_PATTERN_SOURCES,
     NOISE_PRONE_PATTERN_SOURCES,
     RECON_OPTIONAL_SEPARATOR_PATTERN_SOURCES,
 )
@@ -71,8 +79,6 @@ from guard_core.handlers._suspatterns_shell_sources import (
     _PATTERN_SCAN_WINDOW_MATCHERS,
     _QUOTE_SPLICE_CANDIDATE_COMPILED_RE,
     _QUOTE_SPLICE_CANDIDATE_RE,
-    DETECTION_RAW_VIEW_PATTERN_SOURCES,
-    DETECTION_URL_DECODED_VIEW_PATTERN_SOURCES,
 )
 from guard_core.handlers._suspatterns_shell_validators import (
     _dollar_substitution_pair_is_injection,
@@ -142,104 +148,6 @@ def _decode_budget_exhausted_threat() -> dict[str, Any]:
         "category": "custom",
         "weight": _resolve_pattern_weight(_DECODE_BUDGET_EXHAUSTED_PATTERN, "custom"),
     }
-
-
-def _pattern_excluded_from_view(
-    pattern: re.Pattern,
-    raw_view_only: bool | None,
-    url_decoded_view_only: bool | None = None,
-) -> bool:
-    is_raw_view_pattern = pattern.pattern in DETECTION_RAW_VIEW_PATTERN_SOURCES
-    is_url_decoded_view_pattern = (
-        pattern.pattern in DETECTION_URL_DECODED_VIEW_PATTERN_SOURCES
-    )
-    is_recon_raw_view_pattern = (
-        pattern.pattern in DETECTION_RECON_RAW_VIEW_PATTERN_SOURCES
-    )
-    if raw_view_only is True:
-        return is_url_decoded_view_pattern or not (
-            is_raw_view_pattern or is_recon_raw_view_pattern
-        )
-    if url_decoded_view_only is True:
-        return is_raw_view_pattern or not is_url_decoded_view_pattern
-    if raw_view_only is False:
-        return is_raw_view_pattern or is_url_decoded_view_pattern
-    return False
-
-
-def _pattern_should_be_skipped(
-    pattern: re.Pattern,
-    contexts: frozenset[str],
-    category: str,
-    *,
-    raw_view_only: bool | None,
-    skip_filter: bool,
-    normalized_context: str,
-    enabled_categories: set[str] | None,
-    url_decoded_view_only: bool | None = None,
-) -> bool:
-    if _pattern_excluded_from_view(pattern, raw_view_only, url_decoded_view_only):
-        return True
-    if not skip_filter and normalized_context not in contexts:
-        return True
-    return (
-        enabled_categories is not None
-        and category != "custom"
-        and category not in enabled_categories
-    )
-
-
-_APPLICABLE_PATTERN_CACHE_MAX_ENTRIES = 256
-_applicable_pattern_cache: dict[
-    tuple[Any, ...],
-    tuple[
-        list[tuple[re.Pattern, frozenset[str], str]],
-        list[tuple[re.Pattern, frozenset[str], str]],
-        bool,
-    ],
-] = {}
-
-
-def _applicable_patterns(
-    all_patterns: list[tuple[re.Pattern, frozenset[str], str]],
-    *,
-    raw_view_only: bool | None,
-    url_decoded_view_only: bool | None,
-    skip_filter: bool,
-    normalized_context: str,
-    enabled_categories: set[str] | None,
-) -> tuple[list[tuple[re.Pattern, frozenset[str], str]], bool]:
-    key = (
-        raw_view_only,
-        url_decoded_view_only,
-        skip_filter,
-        normalized_context,
-        None if enabled_categories is None else frozenset(enabled_categories),
-    )
-    cached = _applicable_pattern_cache.get(key)
-    if cached is not None and cached[0] == all_patterns:
-        return cached[1], cached[2]
-    applicable = [
-        row
-        for row in all_patterns
-        if not _pattern_should_be_skipped(
-            row[0],
-            row[1],
-            row[2],
-            raw_view_only=raw_view_only,
-            skip_filter=skip_filter,
-            normalized_context=normalized_context,
-            enabled_categories=enabled_categories,
-            url_decoded_view_only=url_decoded_view_only,
-        )
-    ]
-    skipped_tail = bool(all_patterns) and (
-        not applicable or applicable[-1] is not all_patterns[-1]
-    )
-    if len(_applicable_pattern_cache) >= _APPLICABLE_PATTERN_CACHE_MAX_ENTRIES:
-        _applicable_pattern_cache.clear()
-    _applicable_pattern_cache[key] = (list(all_patterns), applicable, skipped_tail)
-    return applicable, skipped_tail
 
 
 _CANDIDATE_REJECTION_VALIDATORS: tuple[

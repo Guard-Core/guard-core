@@ -1,15 +1,12 @@
 import logging
-import threading
-import time
+import time as time  # the strike-window tests patch the clock through this module
 import weakref
-from collections import deque
 from collections.abc import Callable, Collection, Mapping
 from ipaddress import ip_address
 from typing import TYPE_CHECKING, Any, cast
 from urllib.parse import urlparse
 
 from guard_core.models import SecurityConfig, ThreatBanConfig
-from guard_core.sync._utils.ip_extraction import _client_identity
 from guard_core.sync.core.checks._shared_strikes import (
     SharedStrikes,
     StrikeReport,
@@ -17,7 +14,40 @@ from guard_core.sync.core.checks._shared_strikes import (
     record_shared_detection_strikes,
     strike_categories,
 )
+from guard_core.sync.core.checks._strike_counts import (
+    _RATE_LIMIT_FEED_CATEGORY as _RATE_LIMIT_FEED_CATEGORY,
+)
+from guard_core.sync.core.checks._strike_counts import (
+    _forget_suspicious_counts as _forget_suspicious_counts,
+)
+from guard_core.sync.core.checks._strike_counts import (
+    _ip_strike_counts as _ip_strike_counts,
+)
+from guard_core.sync.core.checks._strike_counts import (
+    _strike_identity as _strike_identity,
+)
+from guard_core.sync.core.checks._strike_counts import (
+    _suspicious_counts_lock as _suspicious_counts_lock,
+)
+from guard_core.sync.core.checks._strike_counts import (
+    _WindowedCategoryCounts as _WindowedCategoryCounts,
+)
 from guard_core.sync.core.checks._strike_forget import register_strike_middleware
+from guard_core.sync.core.checks._threshold_ban import (
+    _flat_threshold_total as _flat_threshold_total,
+)
+from guard_core.sync.core.checks._threshold_ban import (
+    _flat_total_or_shared as _flat_total_or_shared,
+)
+from guard_core.sync.core.checks._threshold_ban import (
+    _longest_crossed_entry as _longest_crossed_entry,
+)
+from guard_core.sync.core.checks._threshold_ban import (
+    _resolve_and_apply_threshold_ban as _resolve_and_apply_threshold_ban,
+)
+from guard_core.sync.core.checks._threshold_ban import (
+    _strike_total as _strike_total,
+)
 from guard_core.sync.core.events.event_types import (
     EVENT_IP_BAN_FAILED,
     EVENT_PENETRATION_ATTEMPT,
@@ -40,9 +70,8 @@ if TYPE_CHECKING:
     )
 
 SUSPICIOUS_COUNT_WINDOW_SECONDS = 3600
-_MAX_RETAINED_EVENTS_PER_CATEGORY = 10_000
 _DETECTION_RESULT_STATE_ATTR = "_guard_detection_result_cache"
-_suspicious_counts_lock = threading.Lock()
+_MAX_RETAINED_EVENTS_PER_CATEGORY = 10_000
 _strike_cap_cache: dict[int, tuple[weakref.ref[SecurityConfig], int, int]] = {}
 
 
@@ -72,18 +101,36 @@ def _retained_strike_cap(config: SecurityConfig) -> int:
     return cap
 
 
-def _strike_identity(config: SecurityConfig, client_ip: str) -> str:
-    if ":" not in client_ip:
-        return client_ip
-    return _client_identity(client_ip, config.ipv6_prefix_length)
-
-
-def _ip_strike_counts(
-    middleware: "SyncGuardMiddlewareProtocol", client_ip: str
-) -> Mapping[str, int]:
-    return middleware.suspicious_request_counts.get(
-        _strike_identity(middleware.config, client_ip), {}
-    )
+def _increment_suspicious_counts(
+    middleware: "SyncGuardMiddlewareProtocol",
+    client_ip: str,
+    categories: str | Collection[str],
+) -> None:
+    resolved_categories = strike_categories(categories)
+    strike_key = _strike_identity(middleware.config, client_ip)
+    now = time.monotonic()
+    retain = _retained_strike_cap(middleware.config)
+    register_strike_middleware(middleware)
+    with _suspicious_counts_lock:
+        counts = middleware.suspicious_request_counts
+        existing = counts.pop(strike_key, None)
+        if existing is None:
+            if len(counts) >= middleware.config.ban_counters_max_tracked_ips:
+                oldest_ip = next(iter(counts))
+                del counts[oldest_ip]
+            ip_counts = _WindowedCategoryCounts()
+        elif isinstance(existing, _WindowedCategoryCounts):
+            ip_counts = existing
+        else:
+            ip_counts = _WindowedCategoryCounts.adopting(existing, now, retain)
+        ip_counts.expire_before(now - SUSPICIOUS_COUNT_WINDOW_SECONDS)
+        for category in resolved_categories:
+            ip_counts.record(category, now, retain)
+        if any(
+            category != _RATE_LIMIT_FEED_CATEGORY for category in resolved_categories
+        ):
+            ip_counts.record_request(now, retain)
+        counts[strike_key] = ip_counts
 
 
 def get_guard_decorator(middleware: Any, request: SyncGuardRequest) -> Any:
@@ -438,209 +485,6 @@ def get_cached_detection_result(
         request.state, _DETECTION_RESULT_STATE_ATTR, (request, route_config, result)
     )
     return result
-
-
-_RATE_LIMIT_FEED_CATEGORY = "rate_limit"
-
-
-class _WindowedCategoryCounts(dict[str, int]):
-    """Per-category counts of the events inside the last ``SUSPICIOUS_COUNT_WINDOW``.
-
-    The dict itself holds the live count per category, so every reader of
-    ``suspicious_request_counts`` keeps seeing ``{category: int}``. The event
-    times behind the counts are kept in a bounded deque per category.
-    """
-
-    def __init__(self) -> None:
-        super().__init__()
-        self._event_times: dict[str, deque[float]] = {}
-        self._request_times: deque[float] = deque()
-
-    @property
-    def request_total(self) -> int:
-        return len(self._request_times)
-
-    def record_request(self, now: float, retain: int) -> None:
-        if self._request_times.maxlen != retain:
-            self._request_times = deque(self._request_times, maxlen=retain)
-        self._request_times.append(now)
-
-    def expire_before(self, cutoff: float) -> None:
-        while self._request_times and self._request_times[0] <= cutoff:
-            self._request_times.popleft()
-        for category in tuple(self._event_times):
-            times = self._event_times[category]
-            while times and times[0] <= cutoff:
-                times.popleft()
-            if times:
-                self[category] = len(times)
-            else:
-                del self._event_times[category]
-                self.pop(category, None)
-
-    def forget(self, category: str) -> None:
-        self._event_times.pop(category, None)
-        self.pop(category, None)
-
-    def record(self, category: str, now: float, retain: int) -> None:
-        times = self._event_times.get(category)
-        if times is None or times.maxlen != retain:
-            times = deque(times or (), maxlen=retain)
-            self._event_times[category] = times
-        times.append(now)
-        self[category] = len(times)
-
-    @classmethod
-    def adopting(
-        cls, counts: Mapping[str, int], now: float, retain: int
-    ) -> "_WindowedCategoryCounts":
-        adopted = cls()
-        for category, count in counts.items():
-            for _ in range(min(count, retain)):
-                adopted.record(category, now, retain)
-                if category != _RATE_LIMIT_FEED_CATEGORY:
-                    adopted.record_request(now, retain)
-        return adopted
-
-
-def _increment_suspicious_counts(
-    middleware: "SyncGuardMiddlewareProtocol",
-    client_ip: str,
-    categories: str | Collection[str],
-) -> None:
-    resolved_categories = strike_categories(categories)
-    strike_key = _strike_identity(middleware.config, client_ip)
-    now = time.monotonic()
-    retain = _retained_strike_cap(middleware.config)
-    register_strike_middleware(middleware)
-    with _suspicious_counts_lock:
-        counts = middleware.suspicious_request_counts
-        existing = counts.pop(strike_key, None)
-        if existing is None:
-            if len(counts) >= middleware.config.ban_counters_max_tracked_ips:
-                oldest_ip = next(iter(counts))
-                del counts[oldest_ip]
-            ip_counts = _WindowedCategoryCounts()
-        elif isinstance(existing, _WindowedCategoryCounts):
-            ip_counts = existing
-        else:
-            ip_counts = _WindowedCategoryCounts.adopting(existing, now, retain)
-        ip_counts.expire_before(now - SUSPICIOUS_COUNT_WINDOW_SECONDS)
-        for category in resolved_categories:
-            ip_counts.record(category, now, retain)
-        if any(
-            category != _RATE_LIMIT_FEED_CATEGORY for category in resolved_categories
-        ):
-            ip_counts.record_request(now, retain)
-        counts[strike_key] = ip_counts
-
-
-def _forget_suspicious_counts(
-    middleware: "SyncGuardMiddlewareProtocol", client_ip: str
-) -> None:
-    strike_key = _strike_identity(middleware.config, client_ip)
-    with _suspicious_counts_lock:
-        middleware.suspicious_request_counts.pop(strike_key, None)
-
-
-def _flat_threshold_total(
-    ip_counts: Mapping[str, int], threat_categories: Collection[str]
-) -> int:
-    rate_limit_feed = _RATE_LIMIT_FEED_CATEGORY in threat_categories
-    request_total = getattr(ip_counts, "request_total", None)
-    if request_total is not None and not rate_limit_feed:
-        return int(request_total)
-    return sum(
-        count
-        for category, count in ip_counts.items()
-        if (category == "rate_limit") == rate_limit_feed
-    )
-
-
-def _flat_total_or_shared(
-    shared_total: int | None,
-    ip_counts: Mapping[str, int],
-    threat_categories: Collection[str],
-) -> int:
-    if shared_total is not None:
-        return shared_total
-    return _flat_threshold_total(ip_counts, threat_categories)
-
-
-def _resolve_and_apply_threshold_ban(
-    ip_counts: Mapping[str, int],
-    config: SecurityConfig,
-    ip_ban_manager: Any,
-    client_ip: str,
-    threat_categories: Collection[str],
-    reason: str,
-    default_entries: Mapping[str, ThreatBanConfig] | None = None,
-    flat_total: int | None = None,
-) -> tuple[int, str, str | None] | None:
-    """Pure threshold resolution against ``ip_counts`` plus the ``ban_ip`` call.
-
-    A ban fires when a matched category's ``threat_ban_config`` entry (or its
-    ``default_entries`` entry) has crossed its own threshold; the duration is the
-    longest among the crossed entries and a tie goes to the earlier category in
-    ``threat_categories``. The flat ``auto_ban_threshold``/``auto_ban_duration`` rule
-    counts requests (one strike per request) on the same side of the ``rate_limit``
-    line: a rate-limit feed counts only ``rate_limit`` violations and every other
-    feed everything except them. It joins the longest only when its total exceeds
-    the chosen entry's own count, and the entry wins a duration tie. With no entry
-    crossed the flat rule alone decides. Returns
-    ``(applied duration, ban_reason, category)`` when a ban was applied
-    (``category`` is ``None`` for the flat rule), or ``None`` when banning is
-    disabled, nothing crossed, or the ban was refused
-    (self-DoS guard). Callers own their own logging: the middleware path logs via
-    ``log_activity``, the request-free ``check_rate_limit_by_ip`` primitive logs via
-    the module logger.
-    """
-    if not config.enable_ip_banning:
-        return None
-    grouped = "/" in client_ip
-    chosen = _longest_crossed_entry(
-        ip_counts, config, threat_categories, default_entries
-    )
-    total = _flat_total_or_shared(flat_total, ip_counts, threat_categories)
-    flat_crossed = total >= config.auto_ban_threshold
-    if chosen is not None:
-        category, entry = chosen
-        flat_joins = flat_crossed and total > ip_counts.get(category, 0)
-        if not flat_joins or entry.duration >= config.auto_ban_duration:
-            ban_reason = f"{reason}:{category}"
-            applied = ip_ban_manager._ban_ip_escalating(
-                client_ip, entry.duration, ban_reason, grouped=grouped
-            )
-            return None if applied is None else (applied, ban_reason, category)
-    elif not flat_crossed:
-        return None
-    applied = ip_ban_manager._ban_ip_escalating(
-        client_ip, config.auto_ban_duration, reason, grouped=grouped
-    )
-    return None if applied is None else (applied, reason, None)
-
-
-def _longest_crossed_entry(
-    ip_counts: Mapping[str, int],
-    config: SecurityConfig,
-    threat_categories: Collection[str],
-    default_entries: Mapping[str, ThreatBanConfig] | None,
-) -> tuple[str, ThreatBanConfig] | None:
-    chosen: tuple[str, ThreatBanConfig] | None = None
-    for category in threat_categories:
-        entry = config.threat_ban_config.get(category) or (
-            default_entries.get(category) if default_entries else None
-        )
-        if entry is None or ip_counts.get(category, 0) < entry.threshold:
-            continue
-        if chosen is None or entry.duration > chosen[1].duration:
-            chosen = (category, entry)
-    return chosen
-
-
-def _strike_total(ip_counts: Mapping[str, int]) -> int:
-    request_total = getattr(ip_counts, "request_total", None)
-    return sum(ip_counts.values()) if request_total is None else int(request_total)
 
 
 def _try_threshold_ban(
