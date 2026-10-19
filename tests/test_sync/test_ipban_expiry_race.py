@@ -139,6 +139,7 @@ def test_unban_survives_expiry_between_membership_check_and_delete() -> None:
 
     assert redis.delete_calls == [
         ("banned_ips", "172.16.10.4"),
+        ("ban_floors:banned_ips", "172.16.10.4"),
         ("rate_limit", "violations:172.16.10.4"),
         ("detection_strikes", "172.16.10.4"),
         ("recidive", "172.16.10.4"),
@@ -163,6 +164,7 @@ def test_unban_expired_entry_is_noop_and_side_effects_still_run() -> None:
     assert "172.16.10.5" not in manager.banned_ips
     assert redis.delete_calls == [
         ("banned_ips", "172.16.10.5"),
+        ("ban_floors:banned_ips", "172.16.10.5"),
         ("rate_limit", "violations:172.16.10.5"),
         ("detection_strikes", "172.16.10.5"),
         ("recidive", "172.16.10.5"),

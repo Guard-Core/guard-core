@@ -4,6 +4,7 @@ import time
 from collections.abc import Callable, Iterable, MutableMapping
 from typing import Any
 
+from guard_core.sync.handlers._dynamic_rule_persistence import BAN_FLOORS_NAMESPACE
 from guard_core.sync.handlers._ipban_cache import _Network
 from guard_core.sync.handlers._ipban_coverage import NetworkCoverage
 from guard_core.sync.handlers._ipban_events import IpBanEventMixin
@@ -36,6 +37,10 @@ def _member_covered(namespace: str, member: str, coverage: NetworkCoverage) -> b
     return _network_member_covered(member, coverage)
 
 
+def _floors_of(deletes: Iterable[tuple[str, str]]) -> list[tuple[str, str]]:
+    return [(f"{BAN_FLOORS_NAMESPACE}:{namespace}", key) for namespace, key in deletes]
+
+
 def _strike_key_inside(coverage: NetworkCoverage, stem: str) -> Callable[[str], bool]:
     def inside(key: str) -> bool:
         return _network_member_covered(key[len(stem) :].split("|", 1)[0], coverage)
@@ -60,12 +65,11 @@ class IpBanQueryMixin(
         ]
         self._purge_banned_ip(str(network))
         if self.redis_handler:
-            self._write_with_version_bump(
-                deletes=[
-                    ("banned_networks", str(network)),
-                    ("banned_identities", str(network)),
-                ]
-            )
+            bans = [
+                ("banned_networks", str(network)),
+                ("banned_identities", str(network)),
+            ]
+            self._write_with_version_bump(deletes=[*bans, *_floors_of(bans)])
         self._forget_strikes(str(network))
         if self.agent_handler:
             self._send_unban_event(str(network), reason)
@@ -212,7 +216,12 @@ class IpBanQueryMixin(
                     for key in conn.scan_iter(match=f"{stem}*", count=_BATCH):
                         member = key[len(stem) :]
                         if _member_covered(namespace, member, coverage):
-                            batch.append(key)
+                            batch.extend(
+                                (
+                                    key,
+                                    f"{prefix}{BAN_FLOORS_NAMESPACE}:{namespace}:{member}",
+                                )
+                            )
                             removed.append(member)
                         if len(batch) >= _BATCH:
                             self._unlink_with_version_bump(conn, batch)
@@ -235,6 +244,7 @@ class IpBanQueryMixin(
         if identity is not None:
             self._purge_banned_ip(identity)
             deletes.append(("banned_identities", identity))
+        deletes.extend(_floors_of(deletes))
 
         if self.redis_handler:
             self._write_with_version_bump(deletes=deletes)
@@ -251,7 +261,12 @@ class IpBanQueryMixin(
         self.banned_networks.clear()
         if self.redis_handler:
             self._unlink_prefixed(
-                ("banned_ips:*", "banned_networks:*", "banned_identities:*")
+                (
+                    "banned_ips:*",
+                    "banned_networks:*",
+                    "banned_identities:*",
+                    f"{BAN_FLOORS_NAMESPACE}:*",
+                )
             )
         self._bump_ban_version()
         self._forget_shared_state()

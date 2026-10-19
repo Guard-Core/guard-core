@@ -3,6 +3,8 @@ from collections.abc import Iterable
 
 from guard_core.sync.handlers._ipban_cache import _Network
 
+DYNAMIC_RULE_BAN_REASON = "dynamic_rule"
+
 
 class IpBanRuleExemptionMixin:
     rule_exempt_networks: tuple[_Network, ...] = ()

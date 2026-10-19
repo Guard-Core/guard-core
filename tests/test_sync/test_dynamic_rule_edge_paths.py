@@ -119,6 +119,8 @@ def test_unbanning_a_network_removes_the_redis_record() -> None:
         deletes=[
             ("banned_networks", "203.0.113.0/24"),
             ("banned_identities", "203.0.113.0/24"),
+            ("ban_floors:banned_networks", "203.0.113.0/24"),
+            ("ban_floors:banned_identities", "203.0.113.0/24"),
         ],
         increment=("ban_version", "counter"),
     )

@@ -106,7 +106,10 @@ async def test_unban_removes_local_entry_and_calls_redis_delete() -> None:
     assert "10.0.0.30" not in manager.banned_ips
     redis.write_atomically.assert_awaited_once_with(
         sets=(),
-        deletes=[("banned_ips", "10.0.0.30")],
+        deletes=[
+            ("banned_ips", "10.0.0.30"),
+            ("ban_floors:banned_ips", "10.0.0.30"),
+        ],
         increment=("ban_version", "counter"),
     )
     redis.delete.assert_any_call("rate_limit", "violations:10.0.0.30")

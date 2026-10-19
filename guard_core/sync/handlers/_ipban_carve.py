@@ -3,6 +3,7 @@ from typing import Any
 
 from guard_core.sync._utils.ip_extraction import _client_identity
 from guard_core.sync._utils.whitelist_match import most_specific_whitelist_entry
+from guard_core.sync.handlers._dynamic_rule_persistence import BAN_FLOORS_NAMESPACE
 from guard_core.sync.handlers._ipban_lookup import IpBanLookupMixin
 
 _SIX_TO_FOUR_GROUP_LENGTH = 48
@@ -86,10 +87,20 @@ class IpBanCarveMixin(IpBanLookupMixin):
     ) -> None:
         target_key = f"{stem}{target}"
         existing = conn.pttl(target_key)
+        prefix = stem.removesuffix("banned_identities:")
+        floor_stem = f"{prefix}{BAN_FLOORS_NAMESPACE}:banned_identities:"
+        floor_key, floor_target = (
+            f"{floor_stem}{key[len(stem) :]}",
+            f"{floor_stem}{target}",
+        )
+        floor, floor_pttl = conn.get(floor_key), conn.pttl(floor_key)
+        floor_moves = floor is not None and floor_pttl > conn.pttl(floor_target)
         with conn.pipeline(transaction=True) as pipe:
             if existing < pttl:
                 pipe.set(target_key, value, px=pttl)
-            pipe.delete(key)
+            if floor_moves:
+                pipe.set(floor_target, floor, px=floor_pttl)
+            pipe.delete(key, floor_key)
             pipe.incr(self._version_redis_key())
             pipe.execute()
         self._purge_banned_ip(key[len(stem) :])

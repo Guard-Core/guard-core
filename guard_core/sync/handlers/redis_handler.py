@@ -29,6 +29,11 @@ from guard_core.sync.core.events.event_types import (
     EVENT_REDIS_CONNECTION,
     EVENT_REDIS_ERROR,
 )
+from guard_core.sync.handlers._dynamic_rule_persistence import (
+    BAN_FLOORS_NAMESPACE,
+    DYNAMIC_RULES_REDIS_NAMESPACE,
+    OWNED_BANS_KEY,
+)
 
 
 def _unparseable_redis_url(url: str, scheme: str = "") -> str:
@@ -397,21 +402,31 @@ class RedisManager:
         expiry: str,
         duration: int,
         *,
-        advance_version: tuple[str, str] | None = None,
+        version: tuple[str, str],
+        advance_version: bool = False,
+        rule_owned: bool = False,
     ) -> float:
         """Write the ban only when it outlasts the live one, in one script call,
         and return the expiry the ban key holds afterwards. The value is the
-        expiry text the caller formatted once; advance_version (namespace, key)
-        is incremented in the same call when the ban was written."""
+        expiry text the caller formatted once. advance_version increments the
+        version counter in the same call when the ban was written; rule_owned
+        records the ban in the owned set with that same text as its score."""
         if not self.config.enable_redis:
             return float(expiry)
 
         prefix = self.config.redis_prefix
-        keys = [f"{prefix}{namespace}:{key}"]
-        args: list[Any] = [expiry, duration]
-        args.append("0" if advance_version is None else "1")
-        if advance_version is not None:
-            keys.append(f"{prefix}{advance_version[0]}:{advance_version[1]}")
+        keys = [
+            f"{prefix}{namespace}:{key}",
+            f"{prefix}{version[0]}:{version[1]}",
+            self._owned_bans_key(),
+            self.ban_floor_key(namespace, key),
+        ]
+        args: list[Any] = [
+            expiry,
+            duration,
+            "1" if advance_version else "0",
+            "1" if rule_owned else "0",
+        ]
 
         def _write(conn: Redis) -> float:
             try:
@@ -426,6 +441,27 @@ class RedisManager:
             return float(answer[1])
 
         return float(self.safe_operation(_write))
+
+    def ban_floor_key(self, namespace: str, key: str) -> str:
+        return f"{self.config.redis_prefix}{BAN_FLOORS_NAMESPACE}:{namespace}:{key}"
+
+    def _owned_bans_key(self) -> str:
+        return (
+            f"{self.config.redis_prefix}{DYNAMIC_RULES_REDIS_NAMESPACE}:"
+            f"{OWNED_BANS_KEY}"
+        )
+
+    def disown_ban(self, namespace: str, key: str) -> None:
+        """Remove the ban from the set of bans a dynamic rule owns."""
+        if not self.config.enable_redis:
+            return
+
+        member = f"{self.config.redis_prefix}{namespace}:{key}"
+
+        def _disown(conn: Redis) -> None:
+            conn.zrem(self._owned_bans_key(), member)
+
+        self.safe_operation(_disown)
 
     def record_sliding_window_hit(
         self,

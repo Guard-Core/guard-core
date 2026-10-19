@@ -104,7 +104,8 @@ async def test_cidr_ban_redis_path_stores_network() -> None:
     call = manager.redis_handler.write_ban_extending_only.call_args
     namespace, key, _expiry, ttl = call.args
     assert (namespace, key, ttl) == ("banned_networks", "10.0.0.0/24", 300)
-    assert call.kwargs["advance_version"] == ("ban_version", "counter")
+    assert call.kwargs["version"] == ("ban_version", "counter")
+    assert call.kwargs["advance_version"] is True
 
 
 @pytest.mark.asyncio

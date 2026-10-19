@@ -182,7 +182,7 @@ async def test_a_carve_keeps_a_longer_ban_of_its_base_identity() -> None:
     connection = MagicMock()
     connection.scan_iter = scanning(f"guard:banned_identities:{CARVED}")
     connection.get = AsyncMock(return_value="123.0")
-    connection.pttl = AsyncMock(side_effect=[5000, 90000])
+    connection.pttl = AsyncMock(side_effect=[5000, 90000, -2, -2])
     pipe = MagicMock()
     pipe.set = AsyncMock()
     pipe.delete = AsyncMock()
@@ -194,7 +194,10 @@ async def test_a_carve_keeps_a_longer_ban_of_its_base_identity() -> None:
     assert await manager._rewrite_redis_carves() == 1
 
     pipe.set.assert_not_awaited()
-    pipe.delete.assert_awaited_once_with(f"guard:banned_identities:{CARVED}")
+    pipe.delete.assert_awaited_once_with(
+        f"guard:banned_identities:{CARVED}",
+        f"guard:ban_floors:banned_identities:{CARVED}",
+    )
     pipe.incr.assert_awaited_once_with("guard:ban_version:counter")
     pipe.execute.assert_awaited_once()
 

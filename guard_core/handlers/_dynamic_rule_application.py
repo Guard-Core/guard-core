@@ -5,6 +5,7 @@ from guard_core._emergency_exemptions import warn_unexempted_probe_paths
 from guard_core._utils.detection_scan import _redact_pattern_source
 from guard_core.handlers._dynamic_rule_events import DynamicRuleEventSenderMixin
 from guard_core.handlers._dynamic_rule_plan import DynamicRulePlan
+from guard_core.handlers._ipban_rule_exempt import DYNAMIC_RULE_BAN_REASON
 from guard_core.models import DynamicRules, SecurityConfig
 from guard_core.utils import _canonicalize_ip
 
@@ -66,6 +67,7 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
         for ip in bans:
             try:
                 await ip_ban_manager.unban_ip(ip, reason="dynamic_rule_revoked")
+                await ip_ban_manager.disown_rule_ban(ip)
                 self.logger.info(f"Dynamic rule: Revoked IP ban {ip}")
             except Exception as e:
                 self.logger.error(f"Failed to revoke IP ban {ip}: {e}")
@@ -105,12 +107,13 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
         from guard_core.handlers.ipban_handler import ip_ban_manager
 
         canonical = _canonicalize_ip(ip)
-        owned = canonical in self._owned_bans
-        if not owned and await ip_ban_manager.is_ip_banned(canonical):
-            return
-        if await ip_ban_manager.ban_ip(ip, duration, "dynamic_rule"):
+        takes_ownership = (
+            canonical not in self._owned_bans
+            and not await ip_ban_manager.is_ip_banned(canonical)
+        )
+        if await ip_ban_manager.ban_ip(ip, duration, DYNAMIC_RULE_BAN_REASON):
             self.logger.info(f"Dynamic rule: Banned IP {ip} for {duration}s")
-            if not owned and canonical not in created:
+            if takes_ownership and canonical not in created:
                 created.append(canonical)
             return
         refusal = ip_ban_manager._self_dos_refusal_reason(canonical)

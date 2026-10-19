@@ -122,7 +122,10 @@ def test_ipban_unban_with_redis() -> None:
     mgr.unban_ip("1.2.3.4")
     redis.write_atomically.assert_called_once_with(
         sets=(),
-        deletes=[("banned_ips", "1.2.3.4")],
+        deletes=[
+            ("banned_ips", "1.2.3.4"),
+            ("ban_floors:banned_ips", "1.2.3.4"),
+        ],
         increment=("ban_version", "counter"),
     )
     redis.delete.assert_any_call("rate_limit", "violations:1.2.3.4")
