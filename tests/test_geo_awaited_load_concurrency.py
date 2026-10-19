@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from guard_core._utils.access_control import check_ip_country
+from guard_core.exceptions import GeoDatabaseLoadError
 from guard_core.handlers.ipinfo_handler import IPInfoManager
 from guard_core.models import SecurityConfig
 from guard_core.protocols.redis_protocol import RedisHandlerProtocol
@@ -80,6 +81,35 @@ async def test_five_concurrent_first_requests_share_one_load(
 
     assert verdicts == [True] * 5
     assert download.await_count == 1
+
+
+async def test_five_concurrent_first_requests_all_fail_on_one_raising_load(
+    tmp_path: Path,
+) -> None:
+    manager = _manager_without_database(tmp_path)
+    started, release = asyncio.Event(), asyncio.Event()
+
+    async def raising_load() -> bool:
+        started.set()
+        await release.wait()
+        raise OSError("disk gone")
+
+    load = AsyncMock(side_effect=raising_load)
+
+    with patch.object(manager, "_adopt_redis_copy", load):
+        requests = [
+            asyncio.create_task(
+                check_ip_country(CLIENT_IP, _blocking_config(manager), manager)
+            )
+            for _ in range(5)
+        ]
+        await asyncio.wait_for(started.wait(), timeout=5)
+        release.set()
+        outcomes = await asyncio.gather(*requests, return_exceptions=True)
+
+    assert [type(outcome) for outcome in outcomes] == [GeoDatabaseLoadError] * 5
+    assert len({id(outcome) for outcome in outcomes}) == 5
+    assert load.await_count == 1
 
 
 async def test_a_cancelled_waiter_does_not_cancel_the_shared_load(

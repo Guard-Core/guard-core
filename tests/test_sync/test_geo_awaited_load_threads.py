@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from guard_core.exceptions import GeoDatabaseLoadError
 from guard_core.models import SecurityConfig
 from guard_core.sync._utils.access_control import check_ip_country
 from guard_core.sync.handlers.ipinfo_handler import IPInfoManager
@@ -53,3 +54,46 @@ def test_concurrent_first_requests_join_one_load_without_a_timeout(
 
     assert verdicts == [True] * 5
     assert len(downloads) == 1
+
+
+def test_concurrent_first_requests_all_fail_on_one_raising_load(
+    tmp_path: Path,
+) -> None:
+    manager = IPInfoManager(token="tok", db_path=tmp_path / "geo.mmdb")
+    config = SecurityConfig(
+        enable_redis=False,
+        ipinfo_token="tok",
+        ipinfo_db_path=manager.db_path,
+        blocked_countries=["CN"],
+    )
+    started, release = threading.Event(), threading.Event()
+    loads: list[int] = []
+
+    def raising_load() -> bool:
+        loads.append(1)
+        started.set()
+        release.wait()
+        raise OSError("disk gone")
+
+    outcomes: list[BaseException | bool] = []
+
+    def request() -> None:
+        try:
+            outcomes.append(check_ip_country(CLIENT_IP, config, manager))
+        except GeoDatabaseLoadError as error:
+            outcomes.append(error)
+
+    with patch.object(
+        manager, "_adopt_redis_copy", MagicMock(side_effect=raising_load)
+    ):
+        requests = [threading.Thread(target=request) for _ in range(5)]
+        for thread in requests:
+            thread.start()
+        assert started.wait(timeout=5)
+        release.set()
+        for thread in requests:
+            thread.join(timeout=5)
+
+    assert [type(outcome) for outcome in outcomes] == [GeoDatabaseLoadError] * 5
+    assert len({id(outcome) for outcome in outcomes}) == 5
+    assert len(loads) == 1

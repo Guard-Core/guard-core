@@ -13,6 +13,18 @@ class AgentPackageNotInstalledError(GuardCoreError):
     pass
 
 
+class GeoDatabaseLoadError(GuardCoreError):
+    """Loading the GeoIP database raised, so a country rule cannot be evaluated.
+
+    Raised for every request that needs the database until a later attempt
+    succeeds, so ``fail_secure`` answers it as it answered the load error itself.
+    """
+
+    def __init__(self, failure: BaseException) -> None:
+        self.detail = f"GeoIP database load failed: {type(failure).__name__}: {failure}"
+        super().__init__(self.detail)
+
+
 class BodyReadStalledError(GuardCoreError):
     """The client stopped sending the request body for longer than the idle timeout.
 

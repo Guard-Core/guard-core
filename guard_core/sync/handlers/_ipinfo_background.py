@@ -4,6 +4,8 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
+from guard_core.exceptions import GeoDatabaseLoadError
+
 
 class IpInfoBackgroundMixin:
     db_path: Path
@@ -45,10 +47,20 @@ class IpInfoBackgroundMixin:
             self._background_task.start()
             return self._background_task
 
+    _last_load_error: Exception | None = None
+
     def ensure_database_loaded(self) -> None:
-        if self.reader is not None or self._is_backing_off():
+        if self.reader is not None:
             return
-        self._start_or_join_load(self._initialize_database).join()
+        if not self._is_backing_off():
+            self._start_or_join_load(self._initialize_database).join()
+        self._raise_last_load_error()
+
+    def _raise_last_load_error(self) -> None:
+        # A fresh error per request: re-raising the stored one grows its traceback.
+        failure = self._last_load_error
+        if failure is not None:
+            raise GeoDatabaseLoadError(failure) from failure
 
     def schedule_database_load(self) -> None:
         if self._is_backing_off():
@@ -63,9 +75,11 @@ class IpInfoBackgroundMixin:
             self._background_in_flight = False
 
     def _load_in_background(self, work: Callable[[], None]) -> None:
+        self._last_load_error = None
         try:
             work()
-        except Exception:
+        except Exception as failure:
+            self._last_load_error = failure
             self.logger.exception("Background GeoIP database load failed")
         finally:
             self._background_in_flight = False
