@@ -604,6 +604,17 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "fixed string with no interpolation of any kind"
     ),
     "core/checks/implementations/suspicious_activity.py:"
+    "SuspiciousActivityCheck._record_served_static_file": (
+        "logs the fixed text 'static_file_exists failed; the path is judged without "
+        "it' when an adapter's static_file_exists raises; no request value is "
+        "interpolated"
+    ),
+    "handlers/_suspatterns_registry.py:_reconciled_custom_patterns": (
+        "logs the fixed text that patterns:custom_list is not what "
+        "patterns:custom splits into and that patterns:custom is used; no stored "
+        "pattern and no request value is interpolated"
+    ),
+    "core/checks/implementations/suspicious_activity.py:"
     "SuspiciousActivityCheck._record_route_template": (
         "logs the fixed text 'route_template failed; the path is judged without "
         "it' when an adapter's route_template raises; no request value is "
