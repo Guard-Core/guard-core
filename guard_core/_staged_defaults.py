@@ -83,12 +83,16 @@ def _warn_default_redis_prefix() -> None:
     )
 
 
+def _warn_whitelist_without_access_only(config: Any, *, stacklevel: int) -> None:
+    if config.whitelist and "whitelist_access_only" not in config.model_fields_set:
+        _warn_whitelist_access_only_default_off(stacklevel=stacklevel + 1)
+
+
 def _warn_staged_defaults(config: Any, *, stacklevel: int) -> None:
     if "enable_redis" not in config.model_fields_set:
         _warn_redis_default_on(stacklevel=stacklevel + 1)
     if config.enable_rate_limiting and "rate_limit" not in config.model_fields_set:
         _warn_rate_limit_default_in_effect(stacklevel=stacklevel + 1)
-    if config.whitelist and "whitelist_access_only" not in config.model_fields_set:
-        _warn_whitelist_access_only_default_off(stacklevel=stacklevel + 1)
+    _warn_whitelist_without_access_only(config, stacklevel=stacklevel + 1)
     if config.enable_redis and config.redis_prefix == DEFAULT_REDIS_PREFIX:
         _warn_default_redis_prefix()

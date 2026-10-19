@@ -3,6 +3,7 @@ import threading
 from typing import TYPE_CHECKING, Any
 
 from guard_core._misconfiguration import report_misconfiguration
+from guard_core._staged_defaults import _warn_whitelist_without_access_only
 from guard_core.exceptions import GuardRedisError
 from guard_core.sync.core.checks.helpers import _MAX_RETAINED_EVENTS_PER_CATEGORY
 from guard_core.sync.core.initialization._cloud_initialization import (
@@ -68,6 +69,7 @@ class _HandlerInitializerStepsMixin(CloudInitializationMixin):
         from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
 
         ip_ban_manager.config = self.config
+        _warn_whitelist_without_access_only(self.config, stacklevel=3)
         ip_ban_manager.set_capacity(self.config.banned_ips_max_entries)
         sus_patterns_handler.configure(self.config)
         apply_nat64_prefixes(self.config, self.logger)
