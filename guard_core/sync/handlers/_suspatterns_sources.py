@@ -132,11 +132,19 @@ CATEGORY_CONTEXT_MAP: dict[str, frozenset[str]] = {
     "deserialization": _CTX_DESERIALIZATION,
 }
 
-_SELECT_FROM_RE = r"(?i)\bSELECT\b(?:(?!\bSELECT\b)[\w\s,\*().])*?\bFROM\b"
+_PROSE_DETERMINER_RE = (
+    r"(?:the|a|an|my|our|your|his|her|its|their|this|that|these|those|which|what"
+    r"|any|some|each|every|many|more|most)"
+)
+_SELECT_FROM_RE = (
+    r"(?i)\bSELECT\b(?:(?!\bSELECT\b)[\w\s,\*().])*?\bFROM\b"
+    rf"(?!\s+{_PROSE_DETERMINER_RE}\b)"
+)
 _SELECT_STAR_RE = r"(?i)SELECT\s+\*"
 _WHERE_CLAUSE_RE = r'(?i)\bWHERE\s+[\w."]+\s*(?:=|<|>|<=|>=|LIKE|IN)\b'
 _SQLI_TAUTOLOGY_RE = (
     r"(?i)\b(?:OR|AND)\s*(\d+|'[^']*'|\"[^\"]*\"|[@:$][A-Za-z_]\w*)\s*=\s*\1\b"
+    r"(?!\s+(?:is|are|was|means|equals|always|holds|being)\b)"
 )
 
 _PATH_ONLY_CHAR_RE = r"[\w.\-~%]"

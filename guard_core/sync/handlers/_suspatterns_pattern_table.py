@@ -146,6 +146,9 @@ from guard_core.sync.handlers._suspatterns_state import (
 _SHELL_KEYWORD_COMMAND_RE = (
     r"[;|&]\s*(?:ls|cat|rm|id|whoami|uname|wget|curl|nc|netcat|socat|bash|sh|"
     r"python|perl)\b"
+    r"(?!\s+(?:is|are|was|were|be|am|has|have|had|does|do|did|will|would|can|could"
+    r"|should|may|might|and|or|the|a|an|to|of|in|on|for|as|at|by|it|its|that|this"
+    r"|which|with|from|not|but|if|so)\s)"
 )
 
 NOISE_PRONE_PATTERN_SOURCES: frozenset[str] = frozenset(
@@ -216,7 +219,13 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
     (_SELECT_STAR_RE, _CTX_SQLI, "sqli"),
     (_WHERE_CLAUSE_RE, _CTX_SQLI, "sqli"),
     (_SQLI_TAUTOLOGY_RE, _CTX_SQLI, "sqli"),
-    (r"(?i)UNION\s+(?:ALL\s+)?SELECT", _CTX_SQLI, "sqli"),
+    (
+        r"(?i)UNION\s+(?:ALL\s+)?SELECT\s*(?:/\*.{0,40}?\*/\s*)*"
+        r"(?:null\b|[\d@'\"`(*\[+~!-]"
+        r"|[\w.$`\"]+\s*(?:,|\(|\bfrom\b|\)|--|#|/\*|;|\Z))",
+        _CTX_SQLI,
+        "sqli",
+    ),
     (
         r"(?i)('\s*(?:OR|AND)[\s(]*'?(?:[@:$][A-Za-z_]\w*|[\d\w]+)\s*"
         r"(?:LIKE|[<>]=?|=)[\s(]*'?(?:[@:$][A-Za-z_]\w*|[\d\w]+))",
@@ -232,7 +241,12 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
     (r"(?i)(?:INTO\s+(?:OUTFILE|DUMPFILE)\s+'[^']+')", _CTX_SQLI, "sqli"),
     (_SQLI_LOAD_FILE_RE, _CTX_SQLI, "sqli"),
     (r"(?i)(?:BENCHMARK\s*\(\s*\d+\s*,)", _CTX_SQLI, "sqli"),
-    (r"(?i)(?:SLEEP\s*\(\s*\d+\s*\))", _CTX_SQLI, "sqli"),
+    (
+        r"(?i)(?:\A|[^\w\s]\s*|\b(?:AND|OR|XOR|NOT|IF|SELECT|THEN|ELSE|WHEN|CASE"
+        r"|WHERE|HAVING|BY|AS|UNION|ALL|LIMIT|OFFSET)\s+)SLEEP\s*\(\s*\d+\s*\)",
+        _CTX_SQLI,
+        "sqli",
+    ),
     (
         r"(?i)(?:\/\*![0-9]*\s*(?:OR|AND|UNION|SELECT|INSERT|DELETE|DROP|"
         r"CONCAT|CHAR|UPDATE)\b)",
