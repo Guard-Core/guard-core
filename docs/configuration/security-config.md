@@ -182,7 +182,7 @@ These fields opt request components out of penetration detection. The header set
 |------------------------------------|-------------|----------------------------------|----------------------------------------------------------------------------|
 | `excluded_detection_headers`       | `set[str]`  | `set()`                          | Headers the operator lists are not scanned in any category, name or value, like `excluded_detection_params` and `excluded_detection_body_fields`. The built-in default set (identity and proxy headers such as `X-Forwarded-For`, `X-Real-IP`, `Host`, `Origin`, `Referer`, `User-Agent` and `Via`) stays scanned for every category except `ssrf`, unless you list the name too. Merged with the route-level set from `@security.detection_exclusion(headers=...)`, which excludes the same way. |
 | `excluded_semantic_detection_headers` | `set[str]`  | `set()`                          | Opt-in. Header names (case-insensitive) whose values skip the semantic analyzer only; regex category scanning of these headers is unchanged, and `excluded_detection_headers` semantics are untouched. Use it when a header legitimately carries high-entropy encoded data, for example `cookie` or `authorization` for apps with JWT sessions, whose base64 segments score close to `detection_semantic_threshold`. Merged with the route-level set from `@security.detection_exclusion(semantic_headers=...)`. |
-| `excluded_detection_params`        | `set[str]`  | `set()`                          | Query parameter names skipped by detection.                                |
+| `excluded_detection_params`        | `set[str] \| dict[str, set[str]]` | `set()`              | Query parameter names skipped by detection. A set skips every category; a mapping of name to a set of categories skips only those categories for that parameter, for example `{"q": {"sqli"}}` (an unknown category or an empty set is rejected). |
 | `excluded_detection_body_fields`   | `set[str]`  | `set()`                          | Top-level JSON body keys skipped by detection.                             |
 | `enabled_detection_categories`     | `frozenset[str]`  | full `ALL_DETECTION_CATEGORIES`  | Categories scanned for. Validator rejects unknown labels.                  |
 
@@ -198,6 +198,7 @@ from guard_core.models import SecurityConfig
 
 config = SecurityConfig(
     excluded_detection_params={"q", "search", "filter"},
+    # or only some categories for one parameter: {"q": {"sqli"}}
     excluded_detection_body_fields={"description", "markdown"},
     enabled_detection_categories={"sqli", "xss", "cmd_injection", "ssrf"},
 )

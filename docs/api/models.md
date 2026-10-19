@@ -49,7 +49,7 @@ class SecurityConfig(BaseModel):
 
     excluded_detection_headers: set[str] = Field(default_factory=set)
     excluded_semantic_detection_headers: set[str] = Field(default_factory=set)
-    excluded_detection_params: set[str] = Field(default_factory=set)
+    excluded_detection_params: set[str] | dict[str, set[str]] = Field(default_factory=set)
     excluded_detection_body_fields: set[str] = Field(default_factory=set)
     enabled_detection_categories: frozenset[str] = Field(
         default_factory=lambda: frozenset(ALL_DETECTION_CATEGORIES)
@@ -189,7 +189,7 @@ These fields opt specific request components out of penetration detection. The h
 |------------------------------------|-------------|----------------------------------|----------------------------------------------------------------------------|
 | `excluded_detection_headers`       | `set[str]`  | `set()`                          | Headers exempted only from the categories known to false-positive on their typical values: identity and proxy headers such as `X-Forwarded-For`, `X-Real-IP`, `Host`, `Origin` and `Via` skip `ssrf` only, and every other category (sqli, xss, cmd_injection, template, Log4Shell) still scans them. A name outside the built-in identity set inherits the same rule when its value looks like an address chain, otherwise it gets no exclusion at all. Merged with the hardcoded default list. |
 | `excluded_semantic_detection_headers` | `set[str]`  | `set()`                          | Opt-in. Header names (case-insensitive) whose values skip the semantic analyzer only; regex category scanning of these headers is unchanged, and `excluded_detection_headers` semantics are untouched. Use it when a header legitimately carries high-entropy encoded data, for example `cookie` or `authorization` for apps with JWT sessions, whose base64 segments score close to `detection_semantic_threshold`. Merged with the route-level set from `@security.detection_exclusion(semantic_headers=...)`. |
-| `excluded_detection_params`        | `set[str]`  | `set()`                          | Query parameter names skipped by detection.                                |
+| `excluded_detection_params`        | `set[str] \| dict[str, set[str]]` | `set()`              | Query parameter names skipped by detection. A set skips every category; a mapping of name to a set of categories skips only those categories for that parameter, for example `{"q": {"sqli"}}` (an unknown category or an empty set is rejected). |
 | `excluded_detection_body_fields`   | `set[str]`  | `set()`                          | Top-level JSON body keys skipped by detection.                             |
 | `enabled_detection_categories`     | `frozenset[str]`  | `frozenset(ALL_DETECTION_CATEGORIES)`  | Categories scanned for. Validator rejects unknown labels.                  |
 

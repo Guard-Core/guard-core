@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
 from guard_core._utils.body_content_scan import (
@@ -86,7 +87,7 @@ async def _scan_url_path_variants(
 
 async def _scan_request_surface(
     request: GuardRequest,
-    excluded_params: set[str],
+    excluded_params: Mapping[str, frozenset[str]],
     excluded_headers: set[str],
     enabled_categories: set[str] | None,
     client_ip: str,

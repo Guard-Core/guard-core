@@ -1,3 +1,4 @@
+from collections.abc import Collection, Mapping
 from typing import TYPE_CHECKING
 
 from guard_core._utils.request_logging import (
@@ -11,14 +12,22 @@ if TYPE_CHECKING:
     from guard_core.models import SecurityConfig
 
 
+def _excluded_params_by_name(
+    listed: "Collection[str] | Mapping[str, Collection[str]]",
+) -> dict[str, frozenset[str]]:
+    if isinstance(listed, Mapping):
+        return {name.lower(): frozenset(listed[name]) for name in listed}
+    return {name.lower(): frozenset() for name in listed}
+
+
 def _resolve_excluded_params(
     config: "SecurityConfig | None", route_config: "RouteConfig | None"
-) -> set[str]:
+) -> dict[str, frozenset[str]]:
     if route_config is not None and route_config.excluded_detection_params is not None:
-        return {k.lower() for k in route_config.excluded_detection_params}
+        return _excluded_params_by_name(route_config.excluded_detection_params)
     if config is not None:
-        return {k.lower() for k in config.excluded_detection_params}
-    return set()
+        return _excluded_params_by_name(config.excluded_detection_params)
+    return {}
 
 
 def _resolve_excluded_body_fields(
@@ -166,7 +175,12 @@ def _excluded_header_effective_categories(
     skip = _excluded_header_skip_categories(key, value)
     if not skip:
         return enabled_categories
+    return _categories_without(enabled_categories, skip)
 
+
+def _categories_without(
+    enabled_categories: set[str] | None, skipped: frozenset[str]
+) -> set[str]:
     from guard_core.handlers.suspatterns_handler import ALL_DETECTION_CATEGORIES
 
     base = (
@@ -174,7 +188,24 @@ def _excluded_header_effective_categories(
         if enabled_categories is not None
         else set(ALL_DETECTION_CATEGORIES)
     )
-    return base - skip
+    return base - skipped
+
+
+def _param_scan_categories(
+    key: str,
+    excluded_params: "Collection[str] | Mapping[str, frozenset[str]]",
+    enabled_categories: set[str] | None,
+) -> tuple[bool, set[str] | None]:
+    name = key.lower()
+    if isinstance(excluded_params, Mapping):
+        skipped = excluded_params.get(name)
+    else:
+        skipped = frozenset() if name in excluded_params else None
+    if skipped is None:
+        return True, enabled_categories
+    if not skipped:
+        return False, enabled_categories
+    return True, _categories_without(enabled_categories, skipped)
 
 
 def _resolve_log_level(config: "SecurityConfig | None") -> str | None:

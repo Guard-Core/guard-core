@@ -5,7 +5,7 @@ from functools import partial
 from ipaddress import ip_address, ip_network
 from pathlib import Path
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Annotated, Any, Literal, get_args
+from typing import TYPE_CHECKING, Annotated, Any, Literal, cast, get_args
 
 from pydantic import AfterValidator, BaseModel, Field, TypeAdapter
 
@@ -24,6 +24,7 @@ from guard_core._security_config_typed_validators import (
     _STR_KEYED_STR_DICT_ADAPTER,
     _STR_LIST_ADAPTER,
     _STR_SET_ADAPTER,
+    _STR_SET_OR_CATEGORY_MAP_ADAPTER,
     _validate_typed_collection_field_value,
 )
 from guard_core.handlers.suspatterns_handler import ALL_DETECTION_CATEGORIES
@@ -334,6 +335,36 @@ def _validate_enabled_detection_categories_value(v: Any) -> frozenset[str]:
     return result
 
 
+def _validate_excluded_detection_params_value(
+    v: Any,
+) -> set[str] | dict[str, set[str]]:
+    result = _validate_typed_collection_field_value(
+        v,
+        adapter=_STR_SET_OR_CATEGORY_MAP_ADAPTER,
+        field_name="excluded_detection_params",
+    )
+    if isinstance(result, dict):
+        _check_excluded_params_categories(result)
+    return cast(set[str] | dict[str, set[str]], result)
+
+
+def _check_excluded_params_categories(mapping: dict[str, set[str]]) -> None:
+    for param, categories in mapping.items():
+        if not categories:
+            raise ValueError(
+                f"excluded_detection_params lists no category for {param!r}: "
+                "name at least one, or list the parameter in a plain set to "
+                "exclude every category"
+            )
+        unknown = categories - ALL_DETECTION_CATEGORIES
+        if unknown:
+            raise ValueError(
+                f"Unknown detection categories for excluded_detection_params "
+                f"{param!r}: {sorted(unknown)}. Valid: "
+                f"{sorted(ALL_DETECTION_CATEGORIES)}"
+            )
+
+
 def _validate_muted_event_types_value(v: Any) -> frozenset[str]:
     from guard_core.core.events.event_types import EVENT_TYPE_VALUES
 
@@ -555,11 +586,7 @@ _FIELD_REVALIDATORS: dict[str, Callable[[Any], Any]] = {
         adapter=_STR_SET_ADAPTER,
         field_name="excluded_semantic_detection_headers",
     ),
-    "excluded_detection_params": partial(
-        _validate_typed_collection_field_value,
-        adapter=_STR_SET_ADAPTER,
-        field_name="excluded_detection_params",
-    ),
+    "excluded_detection_params": _validate_excluded_detection_params_value,
     "excluded_detection_body_fields": partial(
         _validate_typed_collection_field_value,
         adapter=_STR_SET_ADAPTER,

@@ -80,7 +80,7 @@ class ContentFilteringMixin(BaseSecurityMixin):
     def detection_exclusion(
         self,
         headers: set[str] | None = None,
-        params: set[str] | None = None,
+        params: set[str] | dict[str, set[str]] | None = None,
         body_fields: set[str] | None = None,
         categories: set[str] | None = None,
         scan_body: bool | None = None,
@@ -93,7 +93,13 @@ class ContentFilteringMixin(BaseSecurityMixin):
             if semantic_headers is not None:
                 route_config.excluded_semantic_detection_headers = set(semantic_headers)
             if params is not None:
-                route_config.excluded_detection_params = set(params)
+                from guard_core._security_config_validators import (
+                    _validate_excluded_detection_params_value,
+                )
+
+                route_config.excluded_detection_params = (
+                    _validate_excluded_detection_params_value(params)
+                )
             if body_fields is not None:
                 route_config.excluded_detection_body_fields = set(body_fields)
             if categories is not None:

@@ -1308,10 +1308,13 @@ class _SecurityConfigFields(BaseModel):
             "cookie, authorization). Default empty."
         ),
     )
-    excluded_detection_params: set[str] = Field(
+    excluded_detection_params: set[str] | dict[str, set[str]] = Field(
         default_factory=set,
         description=(
-            "Query parameters to exclude from penetration detection scanning."
+            "Query parameters to exclude from penetration detection scanning. "
+            "A set of names excludes every category; a mapping of name to a "
+            "set of detection categories excludes only those categories for "
+            "that parameter, for example {'q': {'sqli'}}."
         ),
     )
     excluded_detection_body_fields: set[str] = Field(

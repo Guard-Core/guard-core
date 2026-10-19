@@ -289,7 +289,7 @@ class RouteConfig:
         self.geo_rate_limits: dict[str, tuple[int, int]] | None = None
         self.excluded_detection_headers: set[str] | None = None
         self.excluded_semantic_detection_headers: set[str] | None = None
-        self.excluded_detection_params: set[str] | None = None
+        self.excluded_detection_params: set[str] | dict[str, set[str]] | None = None
         self.excluded_detection_body_fields: set[str] | None = None
         self.enabled_detection_categories: set[str] | None = None
         self.detection_scan_body: bool | None = None

@@ -1,5 +1,5 @@
 from collections import Counter
-from collections.abc import Iterator, Mapping
+from collections.abc import Collection, Iterator, Mapping
 from urllib.parse import parse_qsl
 
 from guard_core._utils.body_form_scan import (
@@ -20,7 +20,10 @@ from guard_core._utils.body_json_scan import (
     _scan_json_entry_frame,
     _scan_json_value,
 )
-from guard_core._utils.detection_config import _excluded_header_effective_categories
+from guard_core._utils.detection_config import (
+    _excluded_header_effective_categories,
+    _param_scan_categories,
+)
 from guard_core._utils.detection_scan import (
     _check_always_scan_header,
     _check_request_component,
@@ -141,7 +144,7 @@ def _query_pairs_with_repeats(request: GuardRequest) -> list[tuple[str, str]]:
 
 async def _scan_query_params(
     request: GuardRequest,
-    excluded_params: set[str],
+    excluded_params: Collection[str] | Mapping[str, frozenset[str]],
     enabled_categories: set[str] | None,
     client_ip: str,
     correlation_id: str,
@@ -151,8 +154,12 @@ async def _scan_query_params(
     excluded_body_fields: frozenset[str] = frozenset(),
     sensitive_headers: frozenset[str] = frozenset(),
 ) -> tuple[bool, str, list[dict]]:
+    all_enabled_categories = enabled_categories
     for key, value in _query_pairs_with_repeats(request):
-        if key.lower() in excluded_params:
+        scanned, enabled_categories = _param_scan_categories(
+            key, excluded_params, all_enabled_categories
+        )
+        if not scanned:
             continue
         key_preview = redact_blob_for_display(
             key, sensitive_params, sensitive_body_fields, sensitive_headers
