@@ -154,7 +154,6 @@ class AuthenticationCheck(SecurityCheck):
         auth_type: str,
         violation_type: str,
         missing_metadata: dict[str, Any] | None = None,
-        verifier_input: str | None = None,
     ) -> tuple[bool, GuardResponse | None, Any]:
         missing_metadata = missing_metadata or {}
 
@@ -177,11 +176,7 @@ class AuthenticationCheck(SecurityCheck):
         if verifier is None:
             return fail("No auth verifier configured")
         try:
-            result = resolve_verifier_result(
-                verifier(
-                    request, credential if verifier_input is None else verifier_input
-                )
-            )
+            result = resolve_verifier_result(verifier(request, credential))
         except Exception as exc:
             self.logger.error(
                 "%s", _describe_verifier_error(exc, credential, auth_type)
@@ -197,8 +192,6 @@ class AuthenticationCheck(SecurityCheck):
         scheme = route_config.auth_required or ""
         auth_header = request.headers.get("authorization", "")
         credential, reason = extract_credential(auth_header, scheme)
-        # D-34: a capitalized built-in type keeps the 4.4.0 verifier input until 5.0.0.
-        whole_header = getattr(route_config, "_verifier_receives_whole_header", False)
         return self._verify_credential(
             request,
             route_config,
@@ -207,7 +200,6 @@ class AuthenticationCheck(SecurityCheck):
             verifier=route_config.auth_verifier or self.config.auth_verifier,
             auth_type=scheme,
             violation_type="require_auth",
-            verifier_input=auth_header if whole_header is True else None,
         )
 
     def _verify_api_key_credential(

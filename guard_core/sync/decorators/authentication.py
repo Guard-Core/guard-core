@@ -1,16 +1,18 @@
-import warnings
+import logging
 from collections.abc import Callable
 from typing import Any
 
 from guard_core.sync.decorators._route_arguments import (
     canonical_auth_scheme,
-    whole_header_verifier_note,
+    capitalized_scheme_note,
 )
 from guard_core.sync.decorators.base import (
     AuthVerifier,
     BaseSecurityMixin,
     DecoratedFunction,
 )
+
+logger = logging.getLogger("guard_core.sync.decorators")
 
 
 class AuthenticationMixin(BaseSecurityMixin):
@@ -37,13 +39,8 @@ class AuthenticationMixin(BaseSecurityMixin):
                 )
             scheme = canonical_auth_scheme(type)
             if scheme != type:
-                warnings.warn(
-                    whole_header_verifier_note(type, scheme),
-                    DeprecationWarning,
-                    stacklevel=2,
-                )
+                logger.warning(capitalized_scheme_note(func.__qualname__, type, scheme))
             route_config.auth_required = scheme
-            route_config._verifier_receives_whole_header = scheme != type
             route_config.auth_verifier = verifier
             return self._apply_route_config(func)
 

@@ -11,13 +11,14 @@ def canonical_auth_scheme(scheme: str) -> str:
     return folded if folded in BUILT_IN_AUTH_SCHEMES else scheme
 
 
-def whole_header_verifier_note(declared: str, scheme: str) -> str:
+def capitalized_scheme_note(route: str, declared: str, scheme: str) -> str:
     return (
-        f"require_auth(type={declared!r}) uses the built-in {scheme!r} scheme, as "
-        "HTTP auth scheme names are case-insensitive, and its verifier still "
-        "receives the whole Authorization header, as in guard-core 4.4.0. "
-        "guard-core 5.0.0 passes the verifier only the credential, as for "
-        f"type={scheme!r}; use type={scheme!r} to get that now."
+        f"require_auth(type={declared!r}) on {route} uses the built-in {scheme!r} "
+        "scheme, as HTTP auth scheme names are case-insensitive. Its verifier "
+        "receives only the credential, as for "
+        f"type={scheme!r}; guard-core 4.x handed it the whole Authorization "
+        "header, so a verifier that parses that header must read the credential "
+        f"instead. Write type={scheme!r} to say it plainly."
     )
 
 

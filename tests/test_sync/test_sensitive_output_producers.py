@@ -768,6 +768,11 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "the @bypass(...) decorator argument, evaluated once at "
         "route-definition time, never per-request"
     ),
+    "decorators/authentication.py:AuthenticationMixin.require_auth.decorator": (
+        "startup note naming the decorated function and the configured "
+        "require_auth type, evaluated once at route-definition time, never "
+        "per-request, no request value is interpolated"
+    ),
     "decorators/advanced.py:_log_unparsable_json": (
         "logs a fixed message for a too-deeply-nested body, or the "
         "JSONDecodeError str(), which is built from parse-position numbers "
