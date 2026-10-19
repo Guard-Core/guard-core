@@ -50,6 +50,10 @@ from guard_core.sync.handlers._suspatterns_ldap_ipv4 import (
     _ldap_wildcard_chain_is_injection,
     _legacy_ipv4_match_is_blocked,
 )
+from guard_core.sync.handlers._suspatterns_literals import (
+    fold_for_literals,
+    rows_with_required_literal,
+)
 from guard_core.sync.handlers._suspatterns_matchers import (
     _CMD_INJECTION_NEWLINE_SHELL_DASH_C_COMPILED_RE,
     _DESERIALIZATION_PICKLE_GLOBAL_GENERIC_COMPILED_RE,
@@ -321,6 +325,13 @@ def _yield_once_slice_elapsed(slice_start: float, request_scoped: bool) -> float
     return slice_start
 
 
+_LITERAL_EXCLUDED_SOURCES = (
+    frozenset(_WINDOWED_PATTERN_FINDERS)
+    | frozenset(_PATTERN_SCAN_WINDOW_MATCHERS)
+    | frozenset(_SCAN_WINDOW_PATTERNS)
+)
+
+
 class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixin):
     def _check_regex_pattern(
         self,
@@ -588,7 +599,11 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
             timeouts.append(budget_threat["pattern"])
 
         try:
-            for pattern, _contexts, category in applicable_patterns:
+            for pattern, _contexts, category in rows_with_required_literal(
+                applicable_patterns,
+                fold_for_literals(content),
+                _LITERAL_EXCLUDED_SOURCES,
+            ):
                 if _scan_budget_spent(time_cap):
                     _record_budget_exhaustion()
                     break
