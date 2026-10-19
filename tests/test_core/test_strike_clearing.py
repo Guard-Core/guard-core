@@ -84,7 +84,7 @@ class _Worker:
 
         async def record_ban(
             ip: str, duration: int, reason: str = "", *, grouped: bool = False
-        ) -> bool:
+        ) -> int | None:
             self.bans.append(ip)
             return True
 

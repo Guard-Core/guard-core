@@ -32,7 +32,7 @@ def _install_recording_ban_manager(
         reason: str = "threshold_exceeded",
         *,
         grouped: bool = False,
-    ) -> bool:
+    ) -> int | None:
         ban_calls.append((ip, duration, reason))
         return duration
 

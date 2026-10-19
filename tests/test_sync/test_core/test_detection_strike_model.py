@@ -33,7 +33,9 @@ class _Harness:
                 threat_categories=list(self.categories),
             )
 
-        def ban(ip: str, duration: int, reason: str, *, grouped: bool = False) -> bool:
+        def ban(
+            ip: str, duration: int, reason: str, *, grouped: bool = False
+        ) -> int | None:
             self.bans.append((ip, duration, reason))
             return duration
 
@@ -233,7 +235,7 @@ def test_rate_limit_feed_entry_governs_when_flat_counts_the_same_violations() ->
     class _Manager:
         def _ban_ip_escalating(
             self, ip: str, duration: int, reason: str, *, grouped: bool = False
-        ) -> bool:
+        ) -> int | None:
             bans.append((ip, duration, reason))
             return duration
 

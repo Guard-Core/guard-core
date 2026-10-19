@@ -56,7 +56,7 @@ class _Worker:
 
         async def record_ban(
             ip: str, duration: int, reason: str = "", *, grouped: bool = False
-        ) -> bool:
+        ) -> int | None:
             self.bans.append((ip, duration, reason))
             return duration
 
@@ -160,7 +160,7 @@ async def test_the_by_ip_primitive_counts_in_the_same_shared_counter(
 
     async def record_ban(
         ip: str, duration: int, reason: str = "", *, grouped: bool = False
-    ) -> bool:
+    ) -> int | None:
         bans.append((ip, duration, reason))
         return duration
 

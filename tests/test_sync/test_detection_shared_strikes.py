@@ -68,7 +68,7 @@ class _Worker:
 
         def record_ban(
             ip: str, duration: int, reason: str = "", *, grouped: bool = False
-        ) -> bool:
+        ) -> int | None:
             self.bans.append((ip, duration, reason))
             return duration
 

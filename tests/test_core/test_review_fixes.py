@@ -215,7 +215,7 @@ async def test_the_rate_limit_feed_never_records_detection_strikes(
 
     async def ban_ip(
         ip: str, duration: int, reason: str = "", *, grouped: bool = False
-    ) -> bool:
+    ) -> int | None:
         bans.append(ip)
         return duration
 

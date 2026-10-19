@@ -42,7 +42,7 @@ def _build(
 
     async def ban(
         ip: str, duration: int, reason: str = "", *, grouped: bool = False
-    ) -> bool:
+    ) -> int | None:
         return duration
 
     monkeypatch.setattr(

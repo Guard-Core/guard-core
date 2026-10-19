@@ -35,7 +35,7 @@ class _Harness:
 
         async def ban(
             ip: str, duration: int, reason: str, *, grouped: bool = False
-        ) -> bool:
+        ) -> int | None:
             self.bans.append((ip, duration, reason))
             return duration
 
@@ -237,7 +237,7 @@ async def test_rate_limit_feed_entry_governs_when_flat_counts_the_same_violation
     class _Manager:
         async def _ban_ip_escalating(
             self, ip: str, duration: int, reason: str, *, grouped: bool = False
-        ) -> bool:
+        ) -> int | None:
             bans.append((ip, duration, reason))
             return duration
 
