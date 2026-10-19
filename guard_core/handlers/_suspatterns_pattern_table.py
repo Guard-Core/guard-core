@@ -922,9 +922,11 @@ RECON_OPTIONAL_SEPARATOR_PATTERN_SOURCES: frozenset[str] = frozenset(
 # tables run, so separator-prefixed probes such as "\default" or
 # "\default.asp" never reach a recon row there. The raw view keeps them
 # intact; the leading-separator gate still decides which matches are probes,
-# so bare words stay innocent exactly as on the processed views.
+# so bare words stay innocent exactly as on the processed views. The file
+# exfiltration command row joins them: the base64 candidate decoder rewrites an
+# option such as "--data-binary" into junk on the processed views.
 DETECTION_RECON_RAW_VIEW_PATTERN_SOURCES: frozenset[str] = frozenset(
     source
     for source, _contexts, category in _PATTERN_DEFINITIONS
     if category == "recon"
-)
+) | {_CMD_EXFILTRATION_RE}
