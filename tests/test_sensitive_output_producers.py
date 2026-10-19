@@ -399,6 +399,11 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "logs the exception type name and traceback of the operator's own "
         "verifier; no request value is interpolated by guard_core"
     ),
+    "_emergency_exemptions.py:warn_unexempted_probe_paths": (
+        "advisory naming the exclude_paths entries that emergency_exempt_paths "
+        "does not cover, logged when emergency mode turns on; operator "
+        "configuration only, no request value is interpolated"
+    ),
     "_misconfiguration.py:report_misconfiguration": (
         "startup advisory naming a config field or decorator "
         "argument and its configured value; startup only, no request in scope"

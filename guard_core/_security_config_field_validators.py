@@ -7,7 +7,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Annotated, Any, Literal, cast, get_args
 
-from pydantic import AfterValidator, BaseModel, Field, TypeAdapter
+from pydantic import AfterValidator, BaseModel, BeforeValidator, Field, TypeAdapter
 
 from guard_core._config_field_revalidators import (
     _validate_bool_field_value,
@@ -215,6 +215,32 @@ def _validate_emergency_whitelist_value(v: Any) -> list[str]:
         entries, invalid_message="Invalid IP or CIDR range"
     )
     return list(validated)
+
+
+def _validate_emergency_exempt_paths_value(v: Any) -> list[str]:
+    from guard_core.core.validation.path_matching import normalize_url_path
+
+    entries = _validate_str_list_field_value(v, field_name="emergency_exempt_paths")
+    for entry in entries:
+        normalized = normalize_url_path(entry)
+        if normalized is None:
+            raise ValueError(
+                f"emergency_exempt_paths entry {entry!r} could not be normalized "
+                "(malformed percent-encoding or invalid UTF-8); it would exempt "
+                "nothing at request time. Fix or remove it."
+            )
+        if normalized == "/":
+            raise ValueError(
+                f"emergency_exempt_paths entry {entry!r} is the root path '/', "
+                "which would leave the whole application open during an "
+                "emergency lockdown. List the probe paths only."
+            )
+    return entries
+
+
+EmergencyExemptPaths = Annotated[
+    list[str], BeforeValidator(_validate_emergency_exempt_paths_value)
+]
 
 
 def _validate_whitelist_value(v: Any) -> Any:
@@ -512,6 +538,7 @@ _FIELD_REVALIDATORS: dict[str, Callable[[Any], Any]] = {
     ),
     "emergency_mode": partial(_validate_bool_field_value, field_name="emergency_mode"),
     "emergency_whitelist": _validate_emergency_whitelist_value,
+    "emergency_exempt_paths": _validate_emergency_exempt_paths_value,
     "emergency_whitelist_only": partial(
         _validate_bool_field_value, field_name="emergency_whitelist_only"
     ),

@@ -5,7 +5,10 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
 
-from guard_core._security_config_field_validators import GlobalBehaviorRules
+from guard_core._security_config_field_validators import (
+    EmergencyExemptPaths,
+    GlobalBehaviorRules,
+)
 from guard_core._security_config_validators import (
     ThreatBanConfig,
     _validate_excluded_detection_params_value,
@@ -977,6 +980,14 @@ class _SecurityConfigFields(BaseModel):
         description="During emergency mode, admit only emergency_whitelist IPs. "
         "False keeps the lockdown but also admits whitelist and exempt_ips "
         "(set by dynamic rules)",
+    )
+
+    emergency_exempt_paths: EmergencyExemptPaths = Field(
+        default_factory=list,
+        description="Paths (and their subtrees) that emergency mode leaves open "
+        "to every client, such as a health probe path. Emergency mode covers "
+        "every other path, exclude_paths entries included. Loopback is never "
+        "exempted automatically.",
     )
 
     endpoint_rate_limits: dict[str, tuple[int, int]] = Field(

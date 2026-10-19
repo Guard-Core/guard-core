@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Any
 
+from guard_core._emergency_exemptions import warn_unexempted_probe_paths
 from guard_core._utils.detection_scan import _redact_pattern_source
 from guard_core.handlers._dynamic_rule_events import DynamicRuleEventSenderMixin
 from guard_core.handlers._dynamic_rule_plan import DynamicRulePlan
@@ -172,6 +173,7 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
         self.logger.critical(
             "[EMERGENCY MODE] ACTIVATED - Enhanced security posture enabled"
         )
+        warn_unexempted_probe_paths(self.config, self.logger)
         if self.agent_handler:
             await self._send_emergency_event(whitelist)
 

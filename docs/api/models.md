@@ -137,6 +137,7 @@ class SecurityConfig(BaseModel):
     emergency_mode: bool = Field(default=False)
     emergency_whitelist: list[str] = Field(default_factory=list)
     emergency_whitelist_only: bool = Field(default=True)
+    emergency_exempt_paths: list[str] = Field(default_factory=list)
     endpoint_rate_limits: dict[str, tuple[int, int]] = Field(default_factory=dict)
 
     detection_compiler_timeout: float = Field(default=2.0, ge=0.1, le=10.0)
@@ -333,6 +334,7 @@ class DynamicRules(BaseModel):
     emergency_mode: bool = Field(default=False)
     emergency_whitelist: list[str] = Field(default_factory=list)
     emergency_whitelist_only: bool = Field(default=True)
+    emergency_exempt_paths: list[str] = Field(default_factory=list)
 ```
 
 | Field                         | Type            | Default | Description                                                                 |

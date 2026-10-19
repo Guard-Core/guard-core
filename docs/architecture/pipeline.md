@@ -327,7 +327,7 @@ This check runs first because all subsequent checks depend on `request.state.cli
 |---|---|
 | **check_name** | `emergency_mode` |
 | **Module** | `guard_core.core.checks.implementations.emergency_mode` |
-| **Purpose** | Blocks all requests when `config.emergency_mode = True`, except IPs in `config.emergency_whitelist` (plus `config.whitelist` and `config.exempt_ips` when `config.emergency_whitelist_only = False`) |
+| **Purpose** | Blocks all requests, on excluded paths too except those in `config.emergency_exempt_paths`, when `config.emergency_mode = True`, except IPs in `config.emergency_whitelist` (plus `config.whitelist` and `config.exempt_ips` when `config.emergency_whitelist_only = False`) |
 | **Blocks?** | Returns 503 for non-whitelisted IPs (unless passive mode) |
 
 ### 3. HttpsEnforcementCheck

@@ -6,6 +6,7 @@ from ipaddress import ip_address
 from guard_core._utils.sampling import observe_sampled_key
 from guard_core.core.checks.base import SecurityCheck
 from guard_core.core.events.event_types import EVENT_EMERGENCY_MODE_BLOCK
+from guard_core.core.validation.path_matching import path_is_excluded
 from guard_core.decorators.base import RouteConfig
 from guard_core.models import SecurityConfig
 from guard_core.protocols.request_protocol import GuardRequest
@@ -30,6 +31,8 @@ def _sample_emergency_line(kind: str, client_ip: str) -> bool:
 
 
 class EmergencyModeCheck(SecurityCheck):
+    enforced_on_excluded_paths = True
+
     @property
     def check_name(self) -> str:
         return "emergency_mode"
@@ -72,6 +75,9 @@ class EmergencyModeCheck(SecurityCheck):
         )
 
         if not is_whitelisted:
+            exempt_paths = self.config.emergency_exempt_paths
+            if exempt_paths and path_is_excluded(request.url_path, exempt_paths):
+                return None
             return await self._deny(request, client_ip)
         await self._log_allowed(request, client_ip)
         return None

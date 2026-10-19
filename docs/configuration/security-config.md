@@ -510,6 +510,18 @@ Dynamic Rules
 | `emergency_mode`        | `bool` | `False` | Emergency lockdown mode (set by dynamic rules). |
 | `emergency_whitelist`   | `list[str]` | `[]`| Emergency whitelist IPs (set by dynamic rules). |
 | `emergency_whitelist_only` | `bool` | `True` | During emergency mode, only `emergency_whitelist` IPs get through and every other client gets the 503. `False` keeps the lockdown but also lets `whitelist` and `exempt_ips` IPs through (set by dynamic rules; a rule without the field keeps `True`). |
+| `emergency_exempt_paths` | `list[str]` | `[]` | Paths, and everything under them, that emergency mode leaves open to every client. Emergency mode covers every path, the `exclude_paths` entries included, so an excluded health probe is blocked for a client outside the emergency whitelist unless it is listed here. Loopback is never exempted automatically. An entry that normalizes to `/` is rejected, and a request path with a routing anomaly (dot segments, empty segments, encoded separators) is never exempt. |
+
+Emergency mode covers every path, including the ones in `exclude_paths`. To keep a probe path reachable during a lockdown, put it in `emergency_exempt_paths`:
+
+```python
+config = SecurityConfig(
+    exclude_paths=["/healthz"],
+    emergency_exempt_paths=["/healthz"],  # put your probe path here
+)
+```
+
+When emergency mode turns on, from the static config or from a dynamic rule, and `exclude_paths` holds a health-like path (a segment such as `health`, `healthz`, `ping`, `ready`, `live` or `status`) that `emergency_exempt_paths` does not cover, one WARNING names it.
 
 Every blocked emergency-mode request still gets the 503, which carries `Retry-After: 60`. The suspicious log line and the `emergency_mode_block` agent event are sampled once per client per 60 seconds, and so is the INFO line for a whitelisted client; the `on_block` hook still runs for every blocked request.
 
