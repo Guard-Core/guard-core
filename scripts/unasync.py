@@ -376,6 +376,7 @@ TEST_SKIP_DIRS = {
     "detection_gate",
     "live_smoke",
     "redaction_gate",
+    "wordlists",
 }
 
 

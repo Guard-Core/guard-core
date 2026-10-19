@@ -1,0 +1,6763 @@
+{
+ "blob_shas": {
+  "Common-PHP-Filenames.txt": "09a09a7287942d20ab8ea70fa6f8c7683bd9da75",
+  "CommonBackdoors-ASP.fuzz.txt": "e5044178dada3cd37669a849cf392d489a53f129",
+  "CommonBackdoors-JSP.fuzz.txt": "563f5ac22d34c8f70684b18881a24d052bf112e0",
+  "CommonBackdoors-PHP.fuzz.txt": "e6c18b3dcc45fedf4606cf9af86a825faf2bd49d",
+  "CommonBackdoors-PL.fuzz.txt": "ed8a929e5cf47bf1ec79b54260a5e3ef508f6918",
+  "backdoor_list.txt": "c7f2456e0c6709c07c7ef05db8f5052e64707cf2",
+  "raft-large-files.txt": "46c7ee6077250aeba7954b143809a238f8181b7b",
+  "svndigger-asp.txt": "12c11441909e26c174da92dd6e0b510903db5e31",
+  "svndigger-aspx.txt": "eb70188f762ce6f629c99006dc6247663b36cf02",
+  "svndigger-jsp.txt": "21ab8cd29e511cb44d987b41d838b91bf7f1a34b",
+  "svndigger-pl.txt": "5a5e2a10adb8cee33dc2863838d5212b52e27628",
+  "trickest-drupal-all-levels.txt": "de91ec8f27a14148589537456fe9c3111e148695",
+  "trickest-joomla-all-levels.txt": "59e73f872d433e55c52e56c8e063bb2f15819955",
+  "trickest-tomcat-all-levels.txt": "a0c01f8c3fe51d74f1d2ebf7af6c1bbd7ce1cd46",
+  "wordpress.fuzz.txt": "c0ed4c4b2370b5e15ca38c09885bc1fedfcb6f0d"
+ },
+ "fixed_any_depth": [
+  "c99.php",
+  "r57.php"
+ ],
+ "generator": "tests/wordlists/classify.py",
+ "names": [
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "upload_only",
+   "name": "023.jsp",
+   "restricted_by": [
+    "numeric stem"
+   ]
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "08小组内部交流专用.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "0byt3m1n1.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "upload_only",
+   "name": "1.php",
+   "restricted_by": [
+    "raft-large-files.txt",
+    "Common-PHP-Filenames.txt",
+    "numeric stem"
+   ]
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "upload_only",
+   "name": "12309.php",
+   "restricted_by": [
+    "numeric stem"
+   ]
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "upload_only",
+   "name": "150.php",
+   "restricted_by": [
+    "numeric stem"
+   ]
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "upload_only",
+   "name": "2008.php",
+   "restricted_by": [
+    "numeric stem"
+   ]
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "3fexe Shell.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-ASP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "3fexe.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "404 infiltrate team.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "404 Not Found.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "upload_only",
+   "name": "404.php",
+   "restricted_by": [
+    "platform:php",
+    "raft-large-files.txt",
+    "Common-PHP-Filenames.txt",
+    "numeric stem"
+   ]
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "404super.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "404webshell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "upload_only",
+   "name": "529.php",
+   "restricted_by": [
+    "numeric stem"
+   ]
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "80sec内部专用过世界杀软休积最小功能超强超猛宇宙第一.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "__init__.py",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "A robust backdoor script made by Daniel Berliner.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "a_gedit.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "accept_language.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "acid.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Adminer - Compact database management.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Ajax_PHP Command Shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Ajax_PHP_Command_Shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "AK-74 Security Team Web Shell Beta Version.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "AK-74 Security Team.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "AK-74.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "ak47shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "ak74shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "alfa.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "alfa3.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "alfav3.0.1.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "andela 1c3 v3 (private release 2017).php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "andela.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "angel.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Ani-Shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "anonexploitershell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Antak Webshell.aspx",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Antichat Shell v1.3.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Antichat Shell. Modified by Go0o$E.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Antichat Shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Antichat Socks5 Server v 1.0.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "antichat socks5 server.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "antichat.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Antichat_Shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Antichat_Shell_v1.3.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Aria cPanel cracker version 1.0 - Edited By KingDefacer.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "ASP Cmd Shell On IIS 5.1.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "asp wget drag database.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "ASP.NET Web BackDoor.aspx",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "AspRootkit 1.0 by BloodSword.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "aspSH.v1.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "ASPX one line Code Client by amxku.aspx",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "ASPX Shell.aspx",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-ASP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "aspxSH.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-ASP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "aspxshell.aspx",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "ASPXspy by NightRunner.aspx",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "ASPXspy.aspx",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "AspxSpy2014Final.aspx",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "ASPX小马 - 黑兵社团.aspx",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-ASP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "ASpy.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-ASP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "aspydrv.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "aspydrv.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "ASPYDrvsInfo.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "ASPYDrvsInfo.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "autoroot.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "ava Server Faces MiniWebCmdShell 0.2 by HeartLESS.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "AventGrup-Sincap 1.0.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Aventis KlasVayv 1.0.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "awen asp.net webshell.aspx",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Ayyildiz Tim -AYT- Shell v 2.1 Biz.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "ayyildiz tim shell (private shell 2017).php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Ayyildiz_Tim.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "azrail 1.0 by C-W-M.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "aZRaiLPhp v1.0.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "aZRaiLPhp_v1.0.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "b37.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "B374k Beta ShElL V1.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "b374k-mini-shell-php.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "b374k-mini-shell-php.php.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "b374k.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "b374k.php.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "b374kv2.1.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "b374v2.8-b374k.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Back Connect.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Backdoor php v0.1 Coded By Charlichaplin.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "backdoor1.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "backdoorfr.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "BackerHack JSP Manage-System 1.0.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Backup script on server.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "upload_only",
+   "name": "backup.php",
+   "restricted_by": [
+    "raft-large-files.txt",
+    "Common-PHP-Filenames.txt"
+   ]
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "backupsql.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "bayz21-priv-shell-v1.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "bayz21-priv-shell-v2.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "bayz21-priv-shell-v3.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "bdotw44shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "bdshell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "berandal-owlsquad.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "bitwise.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "BLaSTER.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "bloodsecv4.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Bnkqbakq.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "boffmax_v1.0_web_shell_by_the-c0de_team(1).php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-JSP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "browser.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "upload_only",
+   "name": "bug.php",
+   "restricted_by": [
+    "raft-large-files.txt"
+   ]
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "by Bagheera.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "by EJDER.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "by.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "bypass safemodel.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "bypass-iisuser-p.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "bypass-login.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "bypass403.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "bypass529.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "c0derz shell [csh] v. 0.1.1 release.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "c100.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "c2007.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "c37.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "c66.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "c99-shadows-mod.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "c99-Ultimate.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "c99.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "c999shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "c99_locus7s.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "c99_madnet.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "c99_PSych0.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "c99_w4cking.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "c99_webshell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "C99madShell v. 2.0 madnet edition.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "c99madshell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "c99madshell_v2.0.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "c99madshell_v2.1.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "c99php.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "c99shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "c99shell_v1.0.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "c99ud.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "c99unlimited.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "c99v2.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "caidao.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Carbylamine PHP Encoder.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "CasuS 1.5.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "CasuS-1.5.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "casus15.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "cat.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "cbfphpsh.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "cfExec.cfm",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "cfmShell.cfm",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "cfSQL.cfm",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "cgi-python.py",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "cgitelnet.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PL.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Cgitelnet.pl",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "upload_only",
+   "name": "change.php",
+   "restricted_by": [
+    "raft-large-files.txt",
+    "Common-PHP-Filenames.txt"
+   ]
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Changing CHMOD Permissions Exploit.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "cihshell_fix.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "upload_only",
+   "name": "client.php",
+   "restricted_by": [
+    "raft-large-files.txt",
+    "Common-PHP-Filenames.txt"
+   ]
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "client.py",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "client1.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "client2.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "cls_Base.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "cmd-asp-5.1.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "cmd-simple.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-ASP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "upload_only",
+   "name": "cmd.asp",
+   "restricted_by": [
+    "raft-large-files.txt"
+   ]
+  },
+  {
+   "lists": [
+    "CommonBackdoors-ASP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "cmd.aspx",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "cmd.cfm",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-JSP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "cmd.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "upload_only",
+   "name": "cmd.php",
+   "restricted_by": [
+    "raft-large-files.txt"
+   ]
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PL.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "cmd.pl",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "cmd.sh",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-JSP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "cmd_win32.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "cmdasp.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "cmdasp.aspx",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-ASP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "cmdexec.aspx",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "cmdjsp.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "CmdServlet.java",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "cmdsql.aspx",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "co.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Code by Bin.aspx",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "upload_only",
+   "name": "code.php",
+   "restricted_by": [
+    "raft-large-files.txt",
+    "Common-PHP-Filenames.txt"
+   ]
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Command Execution (win32).jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Command Shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Command.aspx",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "con7ext-shell-v.2-l o l.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "upload_only",
+   "name": "config.inc.php",
+   "restricted_by": [
+    "raft-large-files.txt",
+    "Common-PHP-Filenames.txt"
+   ]
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "configkillerionkros.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Confusion to encrypt php webshell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "connect-back.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "console.py",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Coppermine Photo Gallery = 1.4.3 remote cmmnds xctn.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "upload_only",
+   "name": "cpanel.php",
+   "restricted_by": [
+    "platform:php",
+    "raft-large-files.txt",
+    "Common-PHP-Filenames.txt"
+   ]
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "cpg_143_incl_xpl.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "crystal.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "CrystalShell v.1.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "CrystalShell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "csh.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "css.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "css1.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "ctt_sh.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "upload_only",
+   "name": "cw.php",
+   "restricted_by": [
+    "raft-large-files.txt"
+   ]
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "CWShellDumper.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "cyber shell (v 1.0).php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Cyber Shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "cyberlords_sql.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "cybershell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "CyberSpy5.Asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "d00r_py3.py",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "DAws.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "db_mysql.class.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "db_mysql_error.inc.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PL.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "dc.pl",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "dC3 Security Crew Shell PRiV.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "dC3_Security.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "dC3_Security_Crew_Shell_PRiV.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "DDoS attack.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "ddos.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Deface Keeper 0.2.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "dev_core.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "devilzShell.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "devilzShell.aspx",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "devilzShell.cgi",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "devilzShell.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "devilzShell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "devshell.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "devshell.cfm",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Dive Shell 1.0 - Emperor Hacking Team.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Dive_Shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Dive_Shell_1.0_Emperor_Hacking_Team.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "DJ团队.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "dns.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "dns.aspx",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "upload_only",
+   "name": "dns.php",
+   "restricted_by": [
+    "raft-large-files.txt",
+    "Common-PHP-Filenames.txt"
+   ]
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "download 下载文件.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "dq.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "dra.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "DTool Pro.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "DTool_Pro.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Dx.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "dxshell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Edited By KingDefacer.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-ASP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "EFSO.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "egy.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "EgY_SpIdEr ShElL V2.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Ekin0x.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Elmali Seker.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "ELMALISEKER Backd00r.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-ASP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "elmaliseker.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "engineers security (private php shell 2017).php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "erne.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "ex0shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "exim.pl",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "upload_only",
+   "name": "exp.php",
+   "restricted_by": [
+    "raft-large-files.txt"
+   ]
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Expdoor.com ASP专用小马.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "FaTaL Shell v1.0 - Edited By KingDefacer.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "upload_only",
+   "name": "fatal.php",
+   "restricted_by": [
+    "platform:php"
+   ]
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "FaTaLisTiCz_Fx.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "fatalshell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "File upload.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "upload_only",
+   "name": "file.asp",
+   "restricted_by": [
+    "platform:asp_jsp",
+    "raft-large-files.txt"
+   ]
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "upload_only",
+   "name": "file.aspx",
+   "restricted_by": [
+    "raft-large-files.txt"
+   ]
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "upload_only",
+   "name": "file.php",
+   "restricted_by": [
+    "platform:php",
+    "raft-large-files.txt",
+    "Common-PHP-Filenames.txt"
+   ]
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "filesman.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-ASP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "filesystembrowser.aspx",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-ASP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "upload_only",
+   "name": "fileupload.aspx",
+   "restricted_by": [
+    "platform:asp_jsp",
+    "raft-large-files.txt"
+   ]
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "forever5pi.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "upload_only",
+   "name": "framer.php",
+   "restricted_by": [
+    "raft-large-files.txt"
+   ]
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "from_the_wild1.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "ftpsearch.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "fuckphpshell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "g-security-webshell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "g00nshell-v1.3.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "g00nv13.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "G5.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Gamma Web Shell.cgi",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Gamma Web Shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Gamma_Web_Shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "gdog.py",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "upload_only",
+   "name": "get.php",
+   "restricted_by": [
+    "platform:php",
+    "raft-large-files.txt"
+   ]
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "GFS web-shell ver 3.1.7 - PRiV8.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "gfs_sh.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "GFS_web-shell_ver_3.1.7_-_PRiV8.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "gif89a.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "GO.cgi.pl",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "GRP WebShell 2.0 release build 2018 (C)2006,Great.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "GRP_WebShell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "h4ck_Door.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "h4ntu shell [powered by tsoi].php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "h4ntu shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "h4ntu_shell_[powered_by_tsoi].php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "hacker.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "hahahaha小马.JSp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "hec.aspx",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "hector-uploader.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "hiddens shell v1.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "hidshell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "hkmjj.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "hkrkoz.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "hmass (priv8 mass defacor).pl",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "upload_only",
+   "name": "host.php",
+   "restricted_by": [
+    "raft-large-files.txt",
+    "Common-PHP-Filenames.txt"
+   ]
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "I-47 v1.3.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "I.N.F HACKING CENTER.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "ice.cfm",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "icmpsh-m.pl",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "icmpsh_m.py",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "upload_only",
+   "name": "img.php",
+   "restricted_by": [
+    "raft-large-files.txt",
+    "Common-PHP-Filenames.txt"
+   ]
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "iMHaPFtp.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "inc.pl",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "includer.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "upload_only",
+   "name": "index.php",
+   "restricted_by": [
+    "platform:php",
+    "raft-large-files.txt",
+    "Common-PHP-Filenames.txt"
+   ]
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "inDEXER And ReaDer.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "indoxploit-mass-defacer.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "indoxploit.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "upload_only",
+   "name": "ipcheck.php",
+   "restricted_by": [
+    "raft-large-files.txt"
+   ]
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PL.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "irc.pl",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "ironshell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "isko.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "iskorpitx.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "itsecteam_shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "jav-shellv1.1-maqlo.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "jca.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "JFIF.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "JFoler 1.0.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "jpg_payload.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "jshell ver 0.1.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "jshell ver 1.0.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "JSP Backdoor Reverse Shell.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "JSP Shell 岁月联盟专用版本.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "jsp-reverse.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-JSP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "jspbd.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "JspDo Code By Xiao.3.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "JspHelper Codz By - Leo.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-JSP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "jspshell.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "JspSpy Codz By - Ninty.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "JspSpy Codz By - Ninty_1.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "JspSpy Private Codz By - Ninty.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "JspSpy Private Codz By - Ninty_encode.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Jspspy web~shell V1.0 ※MADE by 孤水绕城 QQ540410588.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "JspSpy.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "jspspy_k8.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "JspTqz.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-JSP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "JspWebshell 1.2.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "JspWebShell By 绝对零度.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "JspWebshell_1.2.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "jspy.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "k2ll33d.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "ka0tic.pl",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "KA_uShell 0.1.6.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "ka_ushell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "KA_uShell_0.1.6.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "KAdot Universal Shell v0.1.6.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "KAdot_Universal_Shell_v0.1.6.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "killnc.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Knull Shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "KOA ASP类 WebShell扫描工具.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "kolang-bypass.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "kral.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "kuda.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "lama's'hell v. 3.0.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "lamashell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "laudanum.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "lifkas.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "upload_only",
+   "name": "list.asp",
+   "restricted_by": [
+    "platform:asp_jsp",
+    "raft-large-files.txt"
+   ]
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "list.cfm",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-JSP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "upload_only",
+   "name": "list.jsp",
+   "restricted_by": [
+    "raft-large-files.txt"
+   ]
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "upload_only",
+   "name": "list.php",
+   "restricted_by": [
+    "platform:php",
+    "raft-large-files.txt",
+    "Common-PHP-Filenames.txt"
+   ]
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PL.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "list.pl",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "list.sh",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "listfile.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "ListServlet.java",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "litteryixx.ASP",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "livehack.py",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "liveterm.py",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Liz0ziM Private Safe Mode Command Execuriton Bypass Exploit.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "liz0zim.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "llehs.py",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "load_shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Loader'z WEB Shell v 0.1.0.2.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Loaderz WEB Shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Loaderz_WEB_Shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "locus.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Locus7s.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "upload_only",
+   "name": "log.php",
+   "restricted_by": [
+    "platform:php",
+    "raft-large-files.txt",
+    "Common-PHP-Filenames.txt"
+   ]
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "logger.py",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "logger小马.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "upload_only",
+   "name": "login.jsp",
+   "restricted_by": [
+    "platform:asp_jsp",
+    "raft-large-files.txt"
+   ]
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "lolipop.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Lolipop.php - Edited By KingDefacer.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "lostDC shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "lostDC.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "LOTFREE PHP Backdoor v1.5.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "lotfree.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "lurm_safemod_on.cgi.pl",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Macker's Private PHPShell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Mackers_Private_Shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "mailer3.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "make2.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "makewar.sh",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "marion001.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Matamu Mat.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "matamu.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "megabor.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Micro_Webshell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "upload_only",
+   "name": "mini.php",
+   "restricted_by": [
+    "platform:php"
+   ]
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "mma.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "upload_only",
+   "name": "mmm.php",
+   "restricted_by": [
+    "raft-large-files.txt"
+   ]
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "mof提权带回显带清楚命令版本.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "moon_1php.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Moroccan Spamers Ma-EditioN By GhOsT.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Moroccan_Spamers.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Moroccan_Spamers_Ma-EditioN_By_GhOsT.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "msf_webacoo_module.rb",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "mssql.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "mssql.aspx",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "MSSQL控制程序.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "mycode12.cfm",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "myshell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Mysql Database.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Mysql interface v1.0.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "MYSQL Manager -Asp.net Silic Group Hacker Army专用版本.aspx",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Mysql udf by M4ster.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "MySQL Web Interface Version 0.8.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "MySQL Web Shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "mysql.aspx",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "upload_only",
+   "name": "mysql.php",
+   "restricted_by": [
+    "platform:php",
+    "raft-large-files.txt",
+    "Common-PHP-Filenames.txt"
+   ]
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Mysql_interface_v1.0.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "mysql_shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "mysql_tool.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "mysql脱库.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "navicat_tunnel.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "NCC Shell v1.0.0.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "NCC-Shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "upload_only",
+   "name": "network.php",
+   "restricted_by": [
+    "platform:php",
+    "raft-large-files.txt",
+    "Common-PHP-Filenames.txt"
+   ]
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "NetworkFileManagerPHP.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "nfm.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "NGH.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "nix remote web-shell v.0.5 alpha lite public version.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "nixrem.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "nobody-uploader.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Non-alphanumeric.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "nshell (1).php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "nShell v1.0.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "nshell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "nsT View.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "nst.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "nstview.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "NTDaddy v1.9.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "NTDaddy v1.9.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-ASP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "ntdaddy.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "NTDaddy_v1.9.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "upload_only",
+   "name": "ntunnel_mysql.php",
+   "restricted_by": [
+    "raft-large-files.txt"
+   ]
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "obfuscated-phpshell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "obfuscated-punknopass.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "upload_only",
+   "name": "one.jsp",
+   "restricted_by": [
+    "platform:asp_jsp"
+   ]
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "one1.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Oracle Database.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "oracle.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "p0wny-shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "pas.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Password Hasher for PHP Shell 2.1.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "PcAnywhere提权 Bin版本.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Perl Web Shell by RST-GHC.pl",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "perl-reverse-shell.pl",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "perlcmd.cgi",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PL.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "PerlWebShellbyRST-GHC.pl",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "PH Vayv.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "PH_Vayv.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "PHANTASMA.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "php backdoor connect.pl.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Php Backdoor v 1.0 by ^Jerem.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "php MySQL Database Backup Script.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "PHP Shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "PHP Web Shell by oTTo.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "PHP 搜索可读可写目录脚本.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "php-backdoor.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "php-findsock-shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "php-include-w-shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "php-reverse-shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Php_Backdoor.txt.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "PHP_Shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "phpbackdoor15.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "upload_only",
+   "name": "phpinfo.php",
+   "restricted_by": [
+    "raft-large-files.txt",
+    "Common-PHP-Filenames.txt"
+   ]
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "pHpINJ.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "PHPJackal v1.9.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "phpjackal.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "PHPRemoteView.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "PhpShell 2.0.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "phpshell17.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "PhpSpy Ver 2006.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "PhpSpy.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "phpwebbackup.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "pHp一句话扫描脚本程序.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "PHP小马 - ExpDoor.com.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "PHP整站打包程序-By DoDo.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "PHP检测文件夹权限.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "php版iisspy.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "php读取iis.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "PHVayv.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "phvayvv.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Phyton Shell.py",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "pinoy lulzsec (private shell 2017).php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "plugin-shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "PostgreSQL数据库操纵.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "pps-v1.0.pl",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "pps-v3.0.pl",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "pps-v3.5.pl",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "pps-v4.0.pl",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Predator.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "priv8.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Private x0rg Web Hosting Bypass.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "private-i3lue.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "proxy.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "upload_only",
+   "name": "proxy.php",
+   "restricted_by": [
+    "raft-large-files.txt"
+   ]
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "punk-nopass.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "punkholic.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "pwnshell - an interactive jsp shell.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "pws.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PL.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "pws.pl",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "pyspy.py",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "qsd-backdoor.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "qsd-php-backdoor.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "r00t.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "r00ts小组过防火墙马.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "r00ts无FSO组建大马.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "r57 shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "r57.biz Dq99Shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "r57.php",
+   "restricted_by": [
+    "Common-PHP-Filenames.txt"
+   ]
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "r577.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "r57_iFX.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "r57_kartal.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "r57_Mohajer22.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "r57shell v.1.42 - Edited By KingDefacer.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "r57shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "r57shell127.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "r58.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "radhat.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "rcpexp.pl",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "RedHat Hacker.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "RedHat Hacker.asp明文版.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "reGeorgSocksProxy.py",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "rem view.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-ASP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "RemExp.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "remot shell.pl",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Remote Explorer.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "reverse.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "reverseshell-poc.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "revsshclient.py",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "revsshserver.py",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "RHTOOLS 1.5 BETA(PVT) Edited By KingDefacer.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "RHTOOLS 1.5 BETA(PVT).asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "upload_only",
+   "name": "robot.php",
+   "restricted_by": [
+    "raft-large-files.txt"
+   ]
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "upload_only",
+   "name": "root.php",
+   "restricted_by": [
+    "raft-large-files.txt"
+   ]
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "rootshell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Rootshell.v.1.0.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "rst_sql.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "ru24_post_sh.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "run.sh",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "upload_only",
+   "name": "russian.php",
+   "restricted_by": [
+    "Common-PHP-Filenames.txt"
+   ]
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "upload_only",
+   "name": "s.php",
+   "restricted_by": [
+    "raft-large-files.txt",
+    "Common-PHP-Filenames.txt"
+   ]
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "s72 Shell v1.0 Codinf by Cr@zy_King.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "s72 Shell v1.1 Coding.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "s72_Shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "s72_Shell_v1.1_Coding.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "sadrazam.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Safe mode breaker.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Safe0ver Shell -Safe Mod Bypass By Evilc0der.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "safe0ver.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Safe0ver_Shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Safe_Mode Bypass PHP 4.4.2 and PHP 5.1.2.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Safe_Mode_Bypass.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Safe_Mode_Bypass_PHP_4.4.2_and_PHP_5.1.2.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "upload_only",
+   "name": "scanner.php",
+   "restricted_by": [
+    "Common-PHP-Filenames.txt"
+   ]
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Security House - Shell Center - Edited By KingDefacer.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "securityghost-priv-zero5.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Serv-U本地权限提升工具.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Server Variables.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "upload_only",
+   "name": "server.php",
+   "restricted_by": [
+    "platform:php",
+    "raft-large-files.txt",
+    "Common-PHP-Filenames.txt"
+   ]
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "server.py",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "server1.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "server2.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "upload_only",
+   "name": "settings.php",
+   "restricted_by": [
+    "platform:php",
+    "raft-large-files.txt",
+    "Common-PHP-Filenames.txt"
+   ]
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "setup.py",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "sh.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "shankar.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Shell [ci] .Biz was here.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Shell Commander.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "shell.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "shell.aspx",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "shell.cfm",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "shell.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "upload_only",
+   "name": "shell.php",
+   "restricted_by": [
+    "platform:php",
+    "raft-large-files.txt",
+    "Common-PHP-Filenames.txt"
+   ]
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "shellcode_generate.py",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "shor7cut shell (beta killer).php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Silic Group Hacker Army - BlackBap.Org.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Silic Group php Webshell v3.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Silic Group.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Silic Group_cgi.pl",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "SimAttacker - Version 1.0.0 - Edited By KingDefacer.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "SimAttacker - Vrsion 1.0.0 - priv8 4 My friend.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "simattacker.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "simple-backdoor.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "simple-php-backdoor.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "simple-shell.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "simple-shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "simple-upload.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "simple-uploadv2.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "simple.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "simple_cmd.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Simple_PHP_backdoor.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Simple_PHP_backdoor_by_DK.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "SimShell 1.0 - Simorgh Security MGZ.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "SimShell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "SimShell_1.0_-_Simorgh_Security_MGZ.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Sincap 1.0.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "sincap.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Sincap_1.0.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "SJavaWebManageV1.4.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Small Shell - Edited By KingDefacer.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Small Web Shell by ZaCo.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "small.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Small_Web_Shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "smevk.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "smtpd.py",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "upload_only",
+   "name": "sniffer.php",
+   "restricted_by": [
+    "platform:php"
+   ]
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "sniper.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "SnIpEr_SA Shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "sniper_sa.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "sniper_sa_shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "socket_live8.py",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "soldierofallah.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Sosyete Safe Mode Bypass Shell - Edited By KingDefacer.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "sosyete.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "specialshell_99.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-ASP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "spexec.aspx",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Spider PHP Shell (SPS-3.0).php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "spjspshell.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "SPS-3.0免杀.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "upload_only",
+   "name": "spy.php",
+   "restricted_by": [
+    "raft-large-files.txt"
+   ]
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "spygrup.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "spyshell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-ASP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "SQL.aspx",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "upload_only",
+   "name": "sql.php",
+   "restricted_by": [
+    "platform:php",
+    "raft-large-files.txt",
+    "Common-PHP-Filenames.txt"
+   ]
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "sses.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "SST Sheller.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "STHx 渗透小组专用 ASP小马.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "STNC WebShell v0.8.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "stnc.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "STNC_WebShell_v0.8.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Stored Procedure Execute.aspx",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "stres.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "struct.py",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "stupidc0de shell (2017).php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "sure.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "sym.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "sys32.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "t57shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "telnet.cgi.pl",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "telnet.pl",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "upload_only",
+   "name": "test.php",
+   "restricted_by": [
+    "platform:php",
+    "raft-large-files.txt",
+    "Common-PHP-Filenames.txt"
+   ]
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "tiny.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "TNTHK加密小马.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "toby57解析加密一句话木马.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-ASP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "tool.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-ASP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "toolaspshell.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "tryag.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "tunnel.aspx",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "tunnel.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "tunnel.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "tunnel.tomcat.5.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "udf.dll 专用网马.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "udp.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "udpio.py",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "UnKnown 高级Vip防删收费版.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-ASP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "upload_only",
+   "name": "up.asp",
+   "restricted_by": [
+    "raft-large-files.txt"
+   ]
+  },
+  {
+   "lists": [
+    "CommonBackdoors-JSP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "up.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "upload_only",
+   "name": "up.php",
+   "restricted_by": [
+    "raft-large-files.txt"
+   ]
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PL.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "up.pl",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "up.sh",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-JSP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "up_win32.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "upfile_write.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "upl0ader.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "upload_only",
+   "name": "Uploader.php",
+   "restricted_by": [
+    "raft-large-files.txt",
+    "Common-PHP-Filenames.txt"
+   ]
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Uploading.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "UpServlet.java",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Utils.java",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "upload_only",
+   "name": "view.aspx",
+   "restricted_by": [
+    "platform:asp_jsp",
+    "raft-large-files.txt"
+   ]
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "upload_only",
+   "name": "w.php",
+   "restricted_by": [
+    "raft-large-files.txt",
+    "Common-PHP-Filenames.txt"
+   ]
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "W3D Shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "w3d.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "w4k.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "wacking.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Web Shell.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Web Sniffer.aspx",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Web-shell (c)ShAnKaR.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "webacoo.pl",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "WebAdmin 2.X Final.aspx",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "upload_only",
+   "name": "webadmin.php",
+   "restricted_by": [
+    "raft-large-files.txt"
+   ]
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Webcommander by Cr4sh_aka_RKL v0.3.9 NGH edition.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "webllehs.py",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "WebShell.cgi.pl",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "WebShell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "webshell.rb",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "WebSniff 1.0 Powered by C.C.T.aspx",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "weevely.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Welcome To AK Team.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PL.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "wewo.pl",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "wh_bindshell.py",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "who am i - mzrp105 (private php shell).php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Win MOF Shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "WinX Shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "WinX_Shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "wordpress backdoor.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "wordpress mass defacer (fud 2017).php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "WordPress Shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "upload_only",
+   "name": "wordpress.php",
+   "restricted_by": [
+    "platform:php",
+    "raft-large-files.txt"
+   ]
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Worse Linux Shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Worse Linux Shell.php.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "Worse_Linux_Shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "wp-conf.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "wp-conten1_pass_KoR345Ker78DSa.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "wso-latest.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "wso.aspx",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "wso.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "WSO2.7 404 Error Web Shell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "wso2.7.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "wso2.8.5.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "wso2.8.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "www.zjjv.com.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "xinfo.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "xl.cfm",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "upload_only",
+   "name": "xml.asp",
+   "restricted_by": [
+    "platform:asp_jsp",
+    "raft-large-files.txt"
+   ]
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "upload_only",
+   "name": "xml.aspx",
+   "restricted_by": [
+    "raft-large-files.txt"
+   ]
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "upload_only",
+   "name": "xml.php",
+   "restricted_by": [
+    "platform:php",
+    "raft-large-files.txt",
+    "Common-PHP-Filenames.txt"
+   ]
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "xnonymoux_webshell_ver_1.0.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "xslt.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "xslt.aspx",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "xslt.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "xx.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "XXOO.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "xxooxx.aspx",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "xynu-Normal University.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "zaco.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "zacosmall.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-ASP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "zehir.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-ASP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "zehir.aspx",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-ASP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "zehir4.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-ASP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "zehir4.aspx",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt"
+   ],
+   "mode": "any_depth",
+   "name": "zehir4.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "ZehirIV.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "upload_only",
+   "name": "zip.func.php",
+   "restricted_by": [
+    "Common-PHP-Filenames.txt"
+   ]
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "ZoRBaCK Connect.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "CommonBackdoors-PHP.fuzz.txt",
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "ZyklonShell.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "上传小马.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "上传小马.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "上传马.aspx",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "上传马.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "不灭之魂.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "不灭之魂2013改进版本.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "专版aspx汗血宝马.aspx",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "中国木马资源网- WwW.7jyewu.Cn.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "中国木马资源网-WwW.MumaSec.TK.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "从注册表中读存在路径.aspx",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "仗剑孤行搜索可读可写目录脚本.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "传说中的hcker.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "传说中的草泥马4.0.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "修改属性.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "内网扫描header.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "内网探测.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "冰锋刺客.aspx",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "凝聚科技专用AspX大马 Bysunue.aspx",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "啊D小工具 - 目录读写检测 [ASP版].asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "国外牛逼大马.aspx",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "土司搞基asp大马.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "在线exp专用免杀版.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "在线数据库管理工具 1.5.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "密码:889.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "小强asp木马.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "小红帽.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "小马.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "很好用的扫可读可写目录asp脚本xwdir.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "新型JSP小马支持上传任意格式文件.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "旁注 - 网站小助手.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "星外-华众-新网-虚拟主机提权专用Webshell Mumaasp.com发布.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "星外-华众-新网-虚拟主机提权专用Webshell.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "木马帮V1.1-火舌版.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "极其隐蔽的pHp小马穿插在正常页面中.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "法克僵尸大马.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "海阳顶端网ASP木马@2006PLUS - By Marcos.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "火狐NEW WebShell.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "灭天远程管理.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "炽天使.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "牛逼免杀提权隐藏大马.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "目录扫描.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "目录扫描读写马.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "红狼ASP木马--Anfly免杀版.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "老V.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "脱库工具.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "苦咖啡专用.jsp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "草莓webshell.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "菊花聊天室.php",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "虚拟主机提权专用Webshell去后门版.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "虚拟机主机提权大马.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "银河舰队大马_2014版.asp",
+   "restricted_by": []
+  },
+  {
+   "lists": [
+    "backdoor_list.txt"
+   ],
+   "mode": "any_depth",
+   "name": "银河舰队大马_2015专版asp大马.asp",
+   "restricted_by": []
+  }
+ ],
+ "seclists_commit": "60e43f4d2b0251330ff18ea4fa76aabec0515dcb"
+}

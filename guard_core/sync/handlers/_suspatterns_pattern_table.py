@@ -11,6 +11,11 @@ from guard_core.sync.handlers._suspatterns_matchers import (
     _HTML_TAG_OPEN_RE,
     _SQLI_LOAD_FILE_RE,
 )
+from guard_core.sync.handlers._suspatterns_probe_chains import PROBE_CHAIN_ROW
+from guard_core.sync.handlers._suspatterns_probe_names import (
+    SCRIPT_NAMES_ANY_DEPTH_RE,
+    SCRIPT_NAMES_UPLOAD_ONLY_RE,
+)
 from guard_core.sync.handlers._suspatterns_recall_rows import (
     _CMD_EXFILTRATION_RE,
     _CMD_EXTENDED_COMMAND_RE,
@@ -690,6 +695,9 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
         "recon",
     ),
     (_RECON_SYSTEM_PROBE_FILES_RE, _CTX_RECON, "recon"),
+    (SCRIPT_NAMES_ANY_DEPTH_RE, _CTX_RECON, "recon"),
+    (SCRIPT_NAMES_UPLOAD_ONLY_RE, _CTX_RECON, "recon"),
+    (PROBE_CHAIN_ROW, _CTX_RECON, "recon"),
     (_RECON_CHANGELOG_BARE_RE, _CTX_RECON, "recon"),
     (
         _path_only_pattern(r"(?:actuator|server-status|telescope)"),

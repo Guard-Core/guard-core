@@ -1,0 +1,109 @@
+{
+  "commit": "60e43f4d2b0251330ff18ea4fa76aabec0515dcb",
+  "files": {
+    "Common-PHP-Filenames.txt": {
+      "git_blob_sha": "09a09a7287942d20ab8ea70fa6f8c7683bd9da75",
+      "path": "Discovery/Web-Content/Programming-Language-Specific/Common-PHP-Filenames.txt",
+      "size": 75713,
+      "vendored": true
+    },
+    "CommonBackdoors-ASP.fuzz.txt": {
+      "git_blob_sha": "e5044178dada3cd37669a849cf392d489a53f129",
+      "path": "Discovery/Web-Content/Programming-Language-Specific/ASP.NET/CommonBackdoors-ASP.fuzz.txt",
+      "size": 272,
+      "vendored": true
+    },
+    "CommonBackdoors-JSP.fuzz.txt": {
+      "git_blob_sha": "563f5ac22d34c8f70684b18881a24d052bf112e0",
+      "path": "Discovery/Web-Content/Programming-Language-Specific/CommonBackdoors-JSP.fuzz.txt",
+      "size": 106,
+      "vendored": true
+    },
+    "CommonBackdoors-PHP.fuzz.txt": {
+      "git_blob_sha": "e6c18b3dcc45fedf4606cf9af86a825faf2bd49d",
+      "path": "Discovery/Web-Content/Programming-Language-Specific/CommonBackdoors-PHP.fuzz.txt",
+      "size": 7875,
+      "vendored": true
+    },
+    "CommonBackdoors-PL.fuzz.txt": {
+      "git_blob_sha": "ed8a929e5cf47bf1ec79b54260a5e3ef508f6918",
+      "path": "Discovery/Web-Content/Programming-Language-Specific/CommonBackdoors-PL.fuzz.txt",
+      "size": 87,
+      "vendored": true
+    },
+    "LICENSE-SecLists.txt": {
+      "git_blob_sha": "fbd3be5da1b5c7363ab6d581e4cc6a22a8893683",
+      "path": "LICENSE",
+      "size": 1072,
+      "vendored": true
+    },
+    "backdoor_list.txt": {
+      "git_blob_sha": "c7f2456e0c6709c07c7ef05db8f5052e64707cf2",
+      "path": "Web-Shells/backdoor_list.txt",
+      "size": 14703,
+      "vendored": true
+    },
+    "quickhits.txt": {
+      "git_blob_sha": "f40268ee7021346267c2ed8b6515bb3118680276",
+      "path": "Discovery/Web-Content/quickhits.txt",
+      "size": 40214,
+      "vendored": true
+    },
+    "raft-large-files.txt": {
+      "git_blob_sha": "46c7ee6077250aeba7954b143809a238f8181b7b",
+      "path": "Discovery/Web-Content/raft-large-files.txt",
+      "size": 493618,
+      "vendored": false
+    },
+    "svndigger-asp.txt": {
+      "git_blob_sha": "12c11441909e26c174da92dd6e0b510903db5e31",
+      "path": "Discovery/Web-Content/File-Extensions-Universal-SVNDigger-Project/cat/Language/asp.txt",
+      "size": 8873,
+      "vendored": false
+    },
+    "svndigger-aspx.txt": {
+      "git_blob_sha": "eb70188f762ce6f629c99006dc6247663b36cf02",
+      "path": "Discovery/Web-Content/File-Extensions-Universal-SVNDigger-Project/cat/Language/aspx.txt",
+      "size": 3340,
+      "vendored": false
+    },
+    "svndigger-jsp.txt": {
+      "git_blob_sha": "21ab8cd29e511cb44d987b41d838b91bf7f1a34b",
+      "path": "Discovery/Web-Content/File-Extensions-Universal-SVNDigger-Project/cat/Language/jsp.txt",
+      "size": 198,
+      "vendored": false
+    },
+    "svndigger-pl.txt": {
+      "git_blob_sha": "5a5e2a10adb8cee33dc2863838d5212b52e27628",
+      "path": "Discovery/Web-Content/File-Extensions-Universal-SVNDigger-Project/cat/Language/pl.txt",
+      "size": 1940,
+      "vendored": false
+    },
+    "trickest-drupal-all-levels.txt": {
+      "git_blob_sha": "de91ec8f27a14148589537456fe9c3111e148695",
+      "path": "Discovery/Web-Content/CMS/trickest-cms-wordlist/drupal-all-levels.txt",
+      "size": 5538740,
+      "vendored": false
+    },
+    "trickest-joomla-all-levels.txt": {
+      "git_blob_sha": "59e73f872d433e55c52e56c8e063bb2f15819955",
+      "path": "Discovery/Web-Content/CMS/trickest-cms-wordlist/joomla-all-levels.txt",
+      "size": 975127,
+      "vendored": false
+    },
+    "trickest-tomcat-all-levels.txt": {
+      "git_blob_sha": "a0c01f8c3fe51d74f1d2ebf7af6c1bbd7ce1cd46",
+      "path": "Discovery/Web-Content/CMS/trickest-cms-wordlist/tomcat-all-levels.txt",
+      "size": 1206656,
+      "vendored": false
+    },
+    "wordpress.fuzz.txt": {
+      "git_blob_sha": "c0ed4c4b2370b5e15ca38c09885bc1fedfcb6f0d",
+      "path": "Discovery/Web-Content/CMS/wordpress.fuzz.txt",
+      "size": 58959,
+      "vendored": true
+    }
+  },
+  "license": "MIT (SecLists LICENSE, vendored as LICENSE-SecLists.txt)",
+  "repository": "https://github.com/danielmiessler/SecLists"
+}
