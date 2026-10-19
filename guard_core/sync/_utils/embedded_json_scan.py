@@ -6,6 +6,7 @@ from guard_core.sync._utils.body_json_scan import (
     _scan_json_value,
 )
 from guard_core.sync._utils.detection_scan import (
+    _embedded_json_scan,
     _json_depth_cap_value,
     _warn_json_depth_cap_reached_once,
 )
@@ -59,20 +60,21 @@ def _check_embedded_json(
     if data is None:
         return None
 
-    detected, trigger, threats = _scan_json_value(
-        data,
-        "",
-        set(excluded_body_fields),
-        enabled_categories,
-        client_ip,
-        correlation_id,
-        None,
-        sensitive_body_fields,
-        context=f"{context}{_EMBEDDED_JSON_LEAF_CONTEXT_SUFFIX}",
-        preview_override="[REDACTED]" if redact_all else None,
-        redact_keys=redact_all,
-        sensitive_params=sensitive_params,
-    )
+    with _embedded_json_scan():
+        detected, trigger, threats = _scan_json_value(
+            data,
+            "",
+            set(excluded_body_fields),
+            enabled_categories,
+            client_ip,
+            correlation_id,
+            None,
+            sensitive_body_fields,
+            context=f"{context}{_EMBEDDED_JSON_LEAF_CONTEXT_SUFFIX}",
+            preview_override="[REDACTED]" if redact_all else None,
+            redact_keys=redact_all,
+            sensitive_params=sensitive_params,
+        )
     if not detected:
         return False, "", [], None
 

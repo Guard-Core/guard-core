@@ -59,6 +59,30 @@ _scan_cpu_mark: contextvars.ContextVar[float | None] = contextvars.ContextVar(
 _scan_slice_start: contextvars.ContextVar[float | None] = contextvars.ContextVar(
     "guard_core_detection_scan_slice_start", default=None
 )
+
+
+class _ScanSkips:
+    """The values of one request whose scan the value or char budget skipped.
+
+    ``categories`` and ``semantic_excluded`` describe the most recent skipped
+    value, so the surface that owns the item can group it with the same
+    detection settings it would have been scanned with.
+    """
+
+    __slots__ = ("categories", "count", "semantic_excluded")
+
+    def __init__(self) -> None:
+        self.count = 0
+        self.categories: frozenset[str] | None = None
+        self.semantic_excluded = False
+
+
+_scan_skips: contextvars.ContextVar[_ScanSkips | None] = contextvars.ContextVar(
+    "guard_core_detection_scan_skips", default=None
+)
+_inside_embedded_json: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "guard_core_detection_inside_embedded_json", default=False
+)
 _semantic_excluded_headers: contextvars.ContextVar[frozenset[str]] = (
     contextvars.ContextVar(
         "guard_core_detection_semantic_excluded_headers", default=frozenset()
@@ -88,6 +112,7 @@ def _scan_value_budget(
     time_warned_token = _scan_time_cap_warned.set(False)
     slice_token = _scan_slice_start.set(time.monotonic())
     semantic_token = _semantic_excluded_headers.set(semantic_excluded_headers)
+    skips_token = _scan_skips.set(_ScanSkips())
     try:
         yield
     finally:
@@ -104,6 +129,7 @@ def _scan_value_budget(
         _scan_time_cap_warned.reset(time_warned_token)
         _scan_slice_start.reset(slice_token)
         _semantic_excluded_headers.reset(semantic_token)
+        _scan_skips.reset(skips_token)
 
 
 def _binary_island_min_run_length() -> int:
@@ -249,6 +275,171 @@ def _scan_budget_exhausted(client_ip: str, value: str) -> bool:
     if _scan_value_budget_exhausted(client_ip):
         return True
     return _scan_char_budget_exhausted(client_ip, len(value))
+
+
+def _scan_budget_spent() -> bool:
+    return (
+        _scanned_value_count.get() >= _scan_value_cap.get()
+        or _scanned_char_count.get() >= _scan_char_cap.get()
+    )
+
+
+@contextmanager
+def _fresh_value_budget() -> Iterator[None]:
+    count_token = _scanned_value_count.set(0)
+    char_token = _scanned_char_count.set(0)
+    try:
+        yield
+    finally:
+        _scanned_value_count.reset(count_token)
+        _scanned_char_count.reset(char_token)
+
+
+@contextmanager
+def _budget_that_is_never_spent() -> Iterator[None]:
+    if not _scan_budget_spent():
+        yield
+        return
+    with _fresh_value_budget():
+        yield
+
+
+def _skipped_values_so_far() -> int:
+    skips = _scan_skips.get()
+    return 0 if skips is None else skips.count
+
+
+@contextmanager
+def _embedded_json_scan() -> Iterator[None]:
+    token = _inside_embedded_json.set(True)
+    try:
+        yield
+    finally:
+        _inside_embedded_json.reset(token)
+
+
+def _note_skipped_value(context: str, enabled_categories: set[str] | None) -> None:
+    skips = _scan_skips.get()
+    if skips is None or _inside_embedded_json.get():
+        return
+    skips.count += 1
+    skips.categories = (
+        None if enabled_categories is None else frozenset(enabled_categories)
+    )
+    skips.semantic_excluded = _context_header_is_semantic_excluded(context)
+
+
+_RemainderKey = tuple[frozenset[str] | None, bool]
+_REDACTED_PIECE = "[REDACTED]"
+_REMAINDER_PREVIEW_CHARS = 1024
+
+
+class _SurfaceRemainder:
+    """The items of one surface the budgets skipped, grouped by scan settings.
+
+    A group is every skipped item that would have been scanned with the same
+    categories and the same semantic exclusion, so its block gets exactly the
+    settings the walk would have used for each of its items. A piece flagged
+    sensitive is scanned like any other but never shown in a log or an event.
+    """
+
+    __slots__ = ("_groups",)
+
+    def __init__(self) -> None:
+        self._groups: dict[_RemainderKey, list[tuple[str, bool]]] = {}
+
+    def add(self, piece: str, sensitive: bool = False) -> None:
+        skips = _scan_skips.get()
+        assert skips is not None
+        key = (skips.categories, skips.semantic_excluded)
+        self._groups.setdefault(key, []).append((piece, sensitive))
+
+    def __bool__(self) -> bool:
+        return bool(self._groups)
+
+    def groups(self) -> Iterator[tuple[_RemainderKey, list[tuple[str, bool]]]]:
+        yield from self._groups.items()
+
+
+def _wire_pair(name: str, value: str) -> str:
+    """One query or form pair as it sits in a block joined by ``&``.
+
+    Only ``%`` and ``&`` are escaped, the characters that would change where a pair
+    ends or how it decodes. Escaping more (``/``, ``.``, space) made a plain
+    ``../relative`` value decode to a traversal the raw text never held.
+    """
+    return (
+        f"{name.replace('%', '%25').replace('&', '%26')}"
+        f"={value.replace('%', '%25').replace('&', '%26')}"
+    )
+
+
+def _body_remainder_display(
+    sensitive_params: frozenset[str], sensitive_body_fields: frozenset[str]
+) -> Callable[[str], str | None]:
+    from guard_core._utils.request_logging import redact_blob_for_display
+
+    return lambda piece: redact_blob_for_display(
+        piece, sensitive_params, sensitive_body_fields
+    )
+
+
+def _remainder_preview(
+    pieces: list[tuple[str, bool]],
+    separator: str,
+    preview_of: Callable[[str], str | None],
+) -> "LazyPreview":
+    def build() -> str:
+        shown: list[str] = []
+        length = 0
+        for piece, sensitive in pieces:
+            shown.append(_REDACTED_PIECE if sensitive else (preview_of(piece) or piece))
+            length += len(shown[-1])
+            if length >= _REMAINDER_PREVIEW_CHARS:
+                break
+        return separator.join(shown)
+
+    return LazyPreview(build)
+
+
+async def _scan_surface_remainder(
+    remainder: _SurfaceRemainder,
+    separator: str,
+    context_kind: str,
+    component_name: str,
+    client_ip: str,
+    correlation_id: str,
+    log_level: str | None,
+    preview_of: Callable[[str], str | None],
+) -> tuple[bool, str, list[dict]]:
+    logger.info(
+        "%s skipped past the scan budget for client %s; scanning them once "
+        "more as one block",
+        component_name,
+        client_ip,
+    )
+    for (categories, semantic_excluded), pieces in remainder.groups():
+        excluded_name = next(iter(_semantic_excluded_headers.get()), "")
+        context = (
+            f"{context_kind}:{excluded_name}"
+            if semantic_excluded
+            else f"{context_kind}:remainder block"
+        )
+        with _fresh_value_budget():
+            detected, trigger, threats = await _check_request_component(
+                separator.join(piece for piece, _ in pieces),
+                context,
+                component_name,
+                client_ip,
+                correlation_id,
+                None if categories is None else set(categories),
+                log_level,
+                scan_embedded_json=False,
+                content_preview=_remainder_preview(pieces, separator, preview_of),
+            )
+        if detected:
+            return True, f"{component_name}: {trigger}", threats
+    return False, "", []
 
 
 def _json_depth_cap_value() -> int:
@@ -443,6 +634,7 @@ async def _check_value_enhanced(
     from guard_core.handlers.suspatterns_handler import sus_patterns_handler
 
     if _scan_budget_exhausted(client_ip, value):
+        _note_skipped_value(context, enabled_categories)
         return False, "", [], None
 
     json_hit = await _check_embedded_json_if_applicable(

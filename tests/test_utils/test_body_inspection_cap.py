@@ -49,7 +49,7 @@ class _BoundedBodyReaderRequest(_BodyRequest):
         return self._body[:max_bytes]
 
 
-async def test_over_cap_declared_length_no_bounded_reader_skips_and_warns(
+async def test_over_cap_declared_length_no_bounded_reader_flags_and_warns(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     request = _BodyRequest(body=_SQLI_BODY, content_length=10_000_000)
@@ -60,6 +60,8 @@ async def test_over_cap_declared_length_no_bounded_reader_skips_and_warns(
 
     assert request.body_read is False
     assert result.is_threat is False
+    assert result.body_read_error == "failed"
+    assert "past detection_max_body_inspect_bytes (1024)" in result.body_read_detail
     assert "detection_max_body_inspect_bytes (1024) reached" in caplog.text
     assert "does not implement a bounded reader" in caplog.text
 

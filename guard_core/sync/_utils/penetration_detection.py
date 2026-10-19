@@ -33,6 +33,7 @@ from guard_core.sync._utils.detection_result_builders import (
 )
 from guard_core.sync._utils.detection_scan import (
     LazyPreview,
+    _budget_that_is_never_spent,
     _check_request_component,
     _scan_value_budget,
 )
@@ -75,19 +76,20 @@ def _scan_url_path_variants(
     )
     detected, trigger, threats = False, "", list[dict]()
     for variant in variants:
-        detected, trigger, threats = _check_request_component(
-            variant,
-            "url_path",
-            "URL path",
-            client_ip,
-            correlation_id,
-            enabled_categories,
-            log_level,
-            content_preview=redacted_url_path,
-            sensitive_body_fields=sensitive_body_fields,
-            excluded_body_fields=excluded_body_fields,
-            json_redact_all=False,
-        )
+        with _budget_that_is_never_spent():
+            detected, trigger, threats = _check_request_component(
+                variant,
+                "url_path",
+                "URL path",
+                client_ip,
+                correlation_id,
+                enabled_categories,
+                log_level,
+                content_preview=redacted_url_path,
+                sensitive_body_fields=sensitive_body_fields,
+                excluded_body_fields=excluded_body_fields,
+                json_redact_all=False,
+            )
         if detected:
             break
     return detected, trigger, threats

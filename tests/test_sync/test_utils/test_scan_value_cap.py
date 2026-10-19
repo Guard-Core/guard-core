@@ -40,7 +40,7 @@ def test_payload_within_the_cap_is_still_detected() -> None:
     assert result.is_threat is True
 
 
-def test_payload_past_the_cap_is_not_scanned() -> None:
+def test_payload_past_the_cap_is_scanned_as_one_block() -> None:
     config = SecurityConfig(detection_max_scan_values=2)
     params = {f"pad{i}": "benign" for i in range(20)}
     params["payload"] = _SQLI_PAYLOAD
@@ -48,7 +48,8 @@ def test_payload_past_the_cap_is_not_scanned() -> None:
 
     result = detect_penetration_attempt(request, config)
 
-    assert result.is_threat is False
+    assert result.is_threat is True
+    assert result.trigger_info.startswith("Remaining query params")
 
 
 def test_cap_reached_logs_a_single_warning_naming_the_client_ip(
@@ -152,7 +153,8 @@ def test_json_embedded_scan_calls_detect_no_more_than_the_cap(
 
     def counting_detect(*args: Any, **kwargs: Any) -> dict[str, Any]:
         nonlocal call_count
-        call_count += 1
+        if kwargs["context"].startswith("query_param"):
+            call_count += 1
         return original_detect(*args, **kwargs)
 
     monkeypatch.setattr(sus_patterns_handler, "detect", counting_detect)

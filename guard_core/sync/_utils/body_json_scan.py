@@ -3,8 +3,12 @@ import re
 from typing import Any
 
 from guard_core.sync._utils.detection_scan import (
+    _body_remainder_display,
     _json_depth_cap_value,
     _scan_component_name,
+    _scan_surface_remainder,
+    _skipped_values_so_far,
+    _SurfaceRemainder,
     _warn_json_depth_cap_reached_once,
 )
 from guard_core.sync._utils.logging_utils import (
@@ -206,6 +210,86 @@ def _scan_json_entry_frame(
     return None
 
 
+def _json_skipped_text(kind: str, first: Any) -> str:
+    if kind != "entry" and isinstance(first, dict | list):
+        return json.dumps(first, separators=(",", ":"), ensure_ascii=False)
+    return str(first)
+
+
+def _scan_json_frame(
+    kind: str,
+    first: Any,
+    second: Any,
+    depth: int,
+    redact: bool,
+    max_depth: int,
+    stack: list[tuple[str, Any, Any, int, bool]],
+    excluded_body_fields: set[str],
+    enabled_categories: set[str] | None,
+    client_ip: str,
+    correlation_id: str,
+    log_level: str | None,
+    sensitive_body_fields: frozenset[str],
+    context: str,
+    preview_override: str | None,
+    redact_keys: bool,
+    sensitive_params: frozenset[str],
+) -> tuple[bool, str, list[dict]] | None:
+    from guard_core.sync._utils.body_content_scan import _scan_body_field
+
+    if kind == "entry":
+        return _scan_json_entry_frame(
+            first,
+            second,
+            depth,
+            redact,
+            stack,
+            excluded_body_fields,
+            enabled_categories,
+            client_ip,
+            correlation_id,
+            log_level,
+            sensitive_body_fields,
+            context,
+            redact_keys,
+        )
+    if isinstance(first, dict | list):
+        return _scan_json_container_frame(
+            first,
+            second,
+            depth,
+            redact,
+            max_depth,
+            stack,
+            enabled_categories,
+            client_ip,
+            correlation_id,
+            log_level,
+            sensitive_body_fields,
+            context,
+            preview_override,
+            sensitive_params,
+        )
+    leaf_preview = (
+        preview_override
+        if preview_override is not None
+        else ("[REDACTED]" if redact else None)
+    )
+    scalar_hit = _scan_body_field(
+        str(first),
+        second,
+        enabled_categories,
+        client_ip,
+        correlation_id,
+        log_level,
+        sensitive_body_fields,
+        context=context,
+        preview_override=leaf_preview,
+        sensitive_params=sensitive_params,
+    )
+    return scalar_hit if scalar_hit[0] else None
+
+
 def _scan_json_value(
     value: Any,
     key_label: str,
@@ -220,74 +304,49 @@ def _scan_json_value(
     redact_keys: bool = False,
     sensitive_params: frozenset[str] = frozenset(),
 ) -> tuple[bool, str, list[dict]]:
-    from guard_core.sync._utils.body_content_scan import _scan_body_field
-
     max_depth = _json_depth_cap_value()
     stack: list[tuple[str, Any, Any, int, bool]] = [
         ("value", value, key_label, 1, False)
     ]
+    remainder = _SurfaceRemainder()
     while stack:
         kind, first, second, depth, redact = stack.pop()
-        if kind == "entry":
-            hit = _scan_json_entry_frame(
-                first,
-                second,
-                depth,
-                redact,
-                stack,
-                excluded_body_fields,
-                enabled_categories,
-                client_ip,
-                correlation_id,
-                log_level,
-                sensitive_body_fields,
-                context,
-                redact_keys,
-            )
-            if hit is not None:
-                return hit
-            continue
-        current, label = first, second
-        if isinstance(current, dict | list):
-            hit = _scan_json_container_frame(
-                current,
-                label,
-                depth,
-                redact,
-                max_depth,
-                stack,
-                enabled_categories,
-                client_ip,
-                correlation_id,
-                log_level,
-                sensitive_body_fields,
-                context,
-                preview_override,
-                sensitive_params,
-            )
-            if hit is not None:
-                return hit
-            continue
-        leaf_preview = (
-            preview_override
-            if preview_override is not None
-            else ("[REDACTED]" if redact else None)
-        )
-        scalar_hit = _scan_body_field(
-            str(current),
-            label,
+        skipped_before = _skipped_values_so_far()
+        hit = _scan_json_frame(
+            kind,
+            first,
+            second,
+            depth,
+            redact,
+            max_depth,
+            stack,
+            excluded_body_fields,
             enabled_categories,
             client_ip,
             correlation_id,
             log_level,
             sensitive_body_fields,
-            context=context,
-            preview_override=leaf_preview,
-            sensitive_params=sensitive_params,
+            context,
+            preview_override,
+            redact_keys,
+            sensitive_params,
         )
-        if scalar_hit[0]:
-            return scalar_hit
-    return False, "", []
+        if hit is not None:
+            return hit
+        if _skipped_values_so_far() != skipped_before:
+            remainder.add(_json_skipped_text(kind, first), kind != "entry" and redact)
+    if not remainder:
+        return False, "", []
+    return _scan_surface_remainder(
+        remainder,
+        "\n",
+        "request_body",
+        "Remaining request body",
+        client_ip,
+        correlation_id,
+        log_level,
+        _body_remainder_display(sensitive_params, sensitive_body_fields),
+    )
 
 
 def _scan_json_content(

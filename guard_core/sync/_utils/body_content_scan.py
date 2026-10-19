@@ -27,11 +27,16 @@ from guard_core.sync._utils.detection_config import (
 )
 from guard_core.sync._utils.detection_scan import (
     LazyPreview,
+    _budget_that_is_never_spent,
     _check_always_scan_header,
     _check_request_component,
     _log_detected_component,
     _resolve_preview,
     _scan_component_name,
+    _scan_surface_remainder,
+    _skipped_values_so_far,
+    _SurfaceRemainder,
+    _wire_pair,
 )
 from guard_core.sync._utils.request_logging import redact_blob_for_display
 from guard_core.sync._utils.sensitive_names import (
@@ -94,6 +99,17 @@ def _lazy_display(
     )
 
 
+def _query_name_is_sensitive(
+    key: str, sensitive_params: frozenset[str], sensitive_headers: frozenset[str]
+) -> bool:
+    normalized_key = key.strip().lower()
+    return (
+        normalized_key in sensitive_params
+        or normalized_key in sensitive_headers
+        or has_sensitive_name_token(key.strip())
+    )
+
+
 def _scan_query_param_value(
     key: str,
     key_preview: str,
@@ -107,12 +123,7 @@ def _scan_query_param_value(
     excluded_body_fields: frozenset[str] = frozenset(),
     sensitive_headers: frozenset[str] = frozenset(),
 ) -> tuple[bool, str, list[dict]]:
-    normalized_key = key.strip().lower()
-    is_sensitive = (
-        normalized_key in sensitive_params
-        or normalized_key in sensitive_headers
-        or has_sensitive_name_token(key.strip())
-    )
+    is_sensitive = _query_name_is_sensitive(key, sensitive_params, sensitive_headers)
     content_preview: str | LazyPreview = (
         "[REDACTED]"
         if is_sensitive
@@ -159,6 +170,51 @@ def _query_pairs_with_repeats(request: SyncGuardRequest) -> list[tuple[str, str]
     return pairs
 
 
+def _scan_query_pair(
+    key: str,
+    value: str,
+    enabled_categories: set[str] | None,
+    client_ip: str,
+    correlation_id: str,
+    log_level: str | None,
+    sensitive_params: frozenset[str],
+    sensitive_body_fields: frozenset[str],
+    excluded_body_fields: frozenset[str],
+    sensitive_headers: frozenset[str],
+) -> tuple[bool, str, list[dict]] | None:
+    key_preview = redact_blob_for_display(
+        key, sensitive_params, sensitive_body_fields, sensitive_headers
+    )
+    detected, trigger, threats = _scan_component_name(
+        key,
+        f"query_param:{key_preview}",
+        f"query param name '{key_preview}'",
+        enabled_categories,
+        client_ip,
+        correlation_id,
+        log_level,
+        content_preview=key_preview,
+    )
+    if detected:
+        return True, f"Query param name '{key_preview}': {trigger}", threats
+    detected, trigger, threats = _scan_query_param_value(
+        key,
+        key_preview,
+        value,
+        enabled_categories,
+        client_ip,
+        correlation_id,
+        log_level,
+        sensitive_params,
+        sensitive_body_fields,
+        excluded_body_fields,
+        sensitive_headers,
+    )
+    if detected:
+        return True, f"Query param '{key_preview}': {trigger}", threats
+    return None
+
+
 def _scan_query_params(
     request: SyncGuardRequest,
     excluded_params: Collection[str] | Mapping[str, frozenset[str]],
@@ -172,30 +228,16 @@ def _scan_query_params(
     sensitive_headers: frozenset[str] = frozenset(),
 ) -> tuple[bool, str, list[dict]]:
     all_enabled_categories = enabled_categories
+    remainder = _SurfaceRemainder()
     for key, value in _query_pairs_with_repeats(request):
         scanned, enabled_categories = _param_scan_categories(
             key, excluded_params, all_enabled_categories
         )
         if not scanned:
             continue
-        key_preview = redact_blob_for_display(
-            key, sensitive_params, sensitive_body_fields, sensitive_headers
-        )
-        detected, trigger, threats = _scan_component_name(
+        skipped_before = _skipped_values_so_far()
+        hit = _scan_query_pair(
             key,
-            f"query_param:{key_preview}",
-            f"query param name '{key_preview}'",
-            enabled_categories,
-            client_ip,
-            correlation_id,
-            log_level,
-            content_preview=key_preview,
-        )
-        if detected:
-            return True, f"Query param name '{key_preview}': {trigger}", threats
-        detected, trigger, threats = _scan_query_param_value(
-            key,
-            key_preview,
             value,
             enabled_categories,
             client_ip,
@@ -206,9 +248,27 @@ def _scan_query_params(
             excluded_body_fields,
             sensitive_headers,
         )
-        if detected:
-            return True, f"Query param '{key_preview}': {trigger}", threats
-    return False, "", []
+        if hit is not None:
+            return hit
+        if _skipped_values_so_far() != skipped_before:
+            remainder.add(
+                _wire_pair(key, value),
+                _query_name_is_sensitive(key, sensitive_params, sensitive_headers),
+            )
+    if not remainder:
+        return False, "", []
+    return _scan_surface_remainder(
+        remainder,
+        "&",
+        "query_param",
+        "Remaining query params",
+        client_ip,
+        correlation_id,
+        log_level,
+        lambda piece: redact_blob_for_display(
+            piece, sensitive_params, sensitive_body_fields, sensitive_headers
+        ),
+    )
 
 
 def _scan_excluded_header_component(
@@ -354,6 +414,60 @@ def _header_items_to_scan(headers: Mapping[str, str]) -> Iterator[tuple[str, str
                 yield key, stripped
 
 
+def _scan_header_item(
+    key: str,
+    value: str,
+    internal_host: bool,
+    excluded_headers: set[str],
+    enabled_categories: set[str] | None,
+    client_ip: str,
+    correlation_id: str,
+    log_level: str | None,
+    sensitive_headers: frozenset[str],
+    sensitive_body_fields: frozenset[str],
+    excluded_body_fields: frozenset[str],
+    sensitive_params: frozenset[str],
+) -> tuple[bool, str, list[dict]] | None:
+    if name_is_sensitive(key, sensitive_headers):
+        return _scan_sensitive_header(
+            key,
+            value,
+            excluded_headers,
+            enabled_categories,
+            client_ip,
+            correlation_id,
+            log_level,
+            sensitive_body_fields,
+            excluded_body_fields,
+        )
+    if key.strip().lower() in excluded_headers:
+        return _scan_excluded_header_component(
+            key,
+            value,
+            enabled_categories,
+            client_ip,
+            correlation_id,
+            log_level,
+            sensitive_params,
+            sensitive_body_fields,
+            excluded_body_fields,
+            sensitive_headers,
+            internal_host,
+        )
+    return _scan_normal_header_component(
+        key,
+        value,
+        enabled_categories,
+        client_ip,
+        correlation_id,
+        log_level,
+        sensitive_body_fields=sensitive_body_fields,
+        excluded_body_fields=excluded_body_fields,
+        sensitive_params=sensitive_params,
+        sensitive_headers=sensitive_headers,
+    )
+
+
 def _scan_headers(
     request: SyncGuardRequest,
     excluded_headers: set[str],
@@ -372,51 +486,45 @@ def _scan_headers(
         key.strip().lower() == "host" and _host_header_names_an_internal_host(value)
         for key, value in items
     )
+    remainder = _SurfaceRemainder()
     for key, value in items:
         if key.strip().lower() in operator_excluded_headers:
             continue
-        if name_is_sensitive(key, sensitive_headers):
-            hit = _scan_sensitive_header(
-                key,
-                value,
-                excluded_headers,
-                enabled_categories,
-                client_ip,
-                correlation_id,
-                log_level,
-                sensitive_body_fields,
-                excluded_body_fields,
-            )
-        elif key.strip().lower() in excluded_headers:
-            hit = _scan_excluded_header_component(
-                key,
-                value,
-                enabled_categories,
-                client_ip,
-                correlation_id,
-                log_level,
-                sensitive_params,
-                sensitive_body_fields,
-                excluded_body_fields,
-                sensitive_headers,
-                internal_host,
-            )
-        else:
-            hit = _scan_normal_header_component(
-                key,
-                value,
-                enabled_categories,
-                client_ip,
-                correlation_id,
-                log_level,
-                sensitive_body_fields=sensitive_body_fields,
-                excluded_body_fields=excluded_body_fields,
-                sensitive_params=sensitive_params,
-                sensitive_headers=sensitive_headers,
-            )
+        skipped_before = _skipped_values_so_far()
+        hit = _scan_header_item(
+            key,
+            value,
+            internal_host,
+            excluded_headers,
+            enabled_categories,
+            client_ip,
+            correlation_id,
+            log_level,
+            sensitive_headers,
+            sensitive_body_fields,
+            excluded_body_fields,
+            sensitive_params,
+        )
         if hit is not None:
             return hit
-    return False, "", []
+        if _skipped_values_so_far() != skipped_before:
+            remainder.add(
+                f"{key}: {value}\r\n", name_is_sensitive(key, sensitive_headers)
+            )
+    if not remainder:
+        return False, "", []
+    return _scan_surface_remainder(
+        remainder,
+        "",
+        "header",
+        "Remaining headers",
+        client_ip,
+        correlation_id,
+        log_level,
+        lambda piece: redact_blob_for_display(
+            piece, sensitive_params, sensitive_body_fields, sensitive_headers
+        ),
+    )
 
 
 def _field_log_value(
@@ -485,16 +593,17 @@ def _scan_blob_body(
             )
         )
     )
-    detected, trigger, threats = _check_request_component(
-        raw_body,
-        "request_body",
-        "request body",
-        client_ip,
-        correlation_id,
-        enabled_categories,
-        log_level,
-        content_preview=content_preview,
-    )
+    with _budget_that_is_never_spent():
+        detected, trigger, threats = _check_request_component(
+            raw_body,
+            "request_body",
+            "request body",
+            client_ip,
+            correlation_id,
+            enabled_categories,
+            log_level,
+            content_preview=content_preview,
+        )
     if detected:
         return True, f"Request body: {trigger}", threats
     return False, "", []

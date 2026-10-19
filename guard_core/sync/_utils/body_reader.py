@@ -272,7 +272,10 @@ def _read_oversized_declared_body(
     kind = _body_reader_kind(request)
     if kind == _FULL_BODY:
         _warn_body_inspect_bytes_cap_reached_no_bounded_reader(max_bytes, client_ip)
-        return None
+        raise BodyReadFailedError(
+            f"the body is past detection_max_body_inspect_bytes ({max_bytes}) "
+            "and the adapter has no bounded reader, so it cannot be scanned"
+        )
 
     _warn_body_inspect_bytes_cap_reached(max_bytes, client_ip)
     return _read_bounded_prefix(request, kind, max_bytes, timeout, max_concurrent)
