@@ -13,6 +13,33 @@ from guard_core._utils.logging_utils import (
 )
 from guard_core._utils.sensitive_names import name_is_sensitive
 
+
+class _RepeatedKey(str):
+    """A key an object repeated: equal to no other key, so the dict keeps it.
+
+    ``json.loads`` keeps only the last value of a repeated key, so a backend that
+    keeps the first one would receive a payload the walk never saw.
+    """
+
+    __slots__ = ()
+
+    def __eq__(self, other: object) -> bool:
+        return self is other
+
+    def __hash__(self) -> int:
+        return id(self)
+
+
+def _json_object_with_every_pair(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    merged = dict(pairs)
+    if len(merged) == len(pairs):
+        return merged
+    every_pair: dict[str, Any] = {}
+    for key, value in pairs:
+        every_pair[_RepeatedKey(key) if key in every_pair else key] = value
+    return every_pair
+
+
 _MONGO_OPERATOR_KEY_RE = re.compile(
     r"^\$(?:ne|gt|gte|lt|lte|eq|in|nin|nor|and|or|not|all|size|exists|type|"
     r"mod|options|where|regex|expr|function|elemMatch)$"
@@ -274,7 +301,9 @@ async def _scan_json_content(
     sensitive_params: frozenset[str] = frozenset(),
 ) -> tuple[bool, str, list[dict]] | None:
     try:
-        parsed_body = json.loads(raw_body)
+        parsed_body = json.loads(
+            raw_body, object_pairs_hook=_json_object_with_every_pair
+        )
     except Exception:
         parsed_body = None
     if isinstance(parsed_body, dict | list):
