@@ -81,29 +81,40 @@ def detection_compiler_timeout_cuts_off_a_slow_pattern_match(
 
 BODY_READ_TIMEOUT_CONFIG = {
     "body_read_timeout": 0.5,
+    "fail_secure": True,
     "excluded_detection_headers": EXCLUDED_HEADERS,
 }
 
 
 @scenario(covers={"body_read_timeout"}, config=BODY_READ_TIMEOUT_CONFIG)
-def body_read_timeout_skips_detection_on_a_stalled_body(ctx: ScenarioContext) -> None:
+def body_read_timeout_answers_408_on_an_idle_body(ctx: ScenarioContext) -> None:
     payload = b'{"note": "<script>alert(1)</script>"}'
+    headers = {"Content-Type": "application/json"}
 
     fast_status, _headers, _body = send_slow_body(
-        "/basic/echo", {"Content-Type": "application/json"}, payload, stall_seconds=0.0
+        "/basic/echo", headers, payload, stall_seconds=0.0
     )
     assert fast_status == 400, (
         "the same body without a stall should still be blocked by detection, "
         f"got {fast_status}"
     )
 
-    slow_status, _headers, slow_body = send_slow_body(
-        "/basic/echo", {"Content-Type": "application/json"}, payload, stall_seconds=2.0
+    brief_status, _headers, _body = send_slow_body(
+        "/basic/echo", headers, payload, stall_seconds=0.2
     )
-    assert slow_status == 200, (
-        "body_read_timeout=0.5 with a 2s stalled body should let the request "
-        "through: guard-core's own body read gives up and treats the body as "
-        f"unavailable for detection; got {slow_status} body={slow_body!r}"
+    assert brief_status == 400, (
+        "a pause shorter than body_read_timeout=0.5 is not idle: the body is "
+        f"read and scanned, got {brief_status}"
+    )
+
+    idle_status, _headers, idle_body = send_slow_body(
+        "/basic/echo", headers, payload, stall_seconds=2.0
+    )
+    assert idle_status == 408, (
+        "body_read_timeout=0.5 is an idle timeout: a client that sends no body "
+        "byte for 2s makes the adapter's read_body_prefix_until_idle raise "
+        "BodyReadStalledError, and guard-core answers 408 under fail_secure "
+        f"instead of skipping detection; got {idle_status} body={idle_body!r}"
     )
 
 
