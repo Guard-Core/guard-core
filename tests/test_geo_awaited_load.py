@@ -261,7 +261,7 @@ class _CountryCheck(SecurityCheck):
         return None
 
 
-async def _pipeline_verdict(manager: IPInfoManager, **fields: Any) -> Mock:
+async def _pipeline_verdict(manager: IPInfoManager, **fields: Any) -> AsyncMock:
     config = SecurityConfig(
         enable_redis=False,
         ipinfo_token="tok",
@@ -269,17 +269,18 @@ async def _pipeline_verdict(manager: IPInfoManager, **fields: Any) -> Mock:
         blocked_countries=["CN"],
         **fields,
     )
+    error_response = AsyncMock(return_value=Mock(status_code=500))
     middleware = Mock()
     middleware.config = config
     middleware.logger = Mock()
-    middleware.create_error_response = AsyncMock(return_value=Mock(status_code=500))
+    middleware.create_error_response = error_response
     request = Mock()
     request.url_path = "/x"
     request.method = "GET"
     request.state = type("S", (), {})()
     pipeline = SecurityCheckPipeline([_CountryCheck(middleware, manager)])
     await pipeline.execute(request)
-    return middleware.create_error_response
+    return error_response
 
 
 @pytest.mark.parametrize(
@@ -323,3 +324,14 @@ async def test_a_failed_stale_refresh_is_not_retried_inside_the_backoff(
 
     assert download.await_count == 1
     assert await check_ip_country(CLIENT_IP, _blocking_config(manager), manager)
+
+
+async def test_a_loaded_database_is_not_loaded_again(tmp_path: Path) -> None:
+    manager = _manager_with_local_file(tmp_path)
+    await manager.initialize()
+    load = AsyncMock()
+
+    with patch.object(manager, "_initialize_database", load):
+        await manager.ensure_database_loaded()
+
+    assert load.await_count == 0

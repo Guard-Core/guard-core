@@ -258,7 +258,7 @@ class _CountryCheck(SecurityCheck):
         return None
 
 
-def _pipeline_verdict(manager: IPInfoManager, **fields: Any) -> Mock:
+def _pipeline_verdict(manager: IPInfoManager, **fields: Any) -> MagicMock:
     config = SecurityConfig(
         enable_redis=False,
         ipinfo_token="tok",
@@ -266,17 +266,18 @@ def _pipeline_verdict(manager: IPInfoManager, **fields: Any) -> Mock:
         blocked_countries=["CN"],
         **fields,
     )
+    error_response = MagicMock(return_value=Mock(status_code=500))
     middleware = Mock()
     middleware.config = config
     middleware.logger = Mock()
-    middleware.create_error_response = MagicMock(return_value=Mock(status_code=500))
+    middleware.create_error_response = error_response
     request = Mock()
     request.url_path = "/x"
     request.method = "GET"
     request.state = type("S", (), {})()
     pipeline = SecurityCheckPipeline([_CountryCheck(middleware, manager)])
     pipeline.execute(request)
-    return middleware.create_error_response
+    return error_response
 
 
 @pytest.mark.parametrize(
@@ -320,3 +321,14 @@ def test_a_failed_stale_refresh_is_not_retried_inside_the_backoff(
 
     assert download.call_count == 1
     assert check_ip_country(CLIENT_IP, _blocking_config(manager), manager)
+
+
+def test_a_loaded_database_is_not_loaded_again(tmp_path: Path) -> None:
+    manager = _manager_with_local_file(tmp_path)
+    manager.initialize()
+    load = MagicMock()
+
+    with patch.object(manager, "_initialize_database", load):
+        manager.ensure_database_loaded()
+
+    assert load.call_count == 0
