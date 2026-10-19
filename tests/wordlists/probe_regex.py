@@ -38,21 +38,30 @@ def factored_alternation(names: list[str]) -> str:
     return "(?:" + _render(_trie(sorted({name.lower() for name in names}))) + ")"
 
 
-def _extension_gate(names: list[str]) -> str:
-    extensions = sorted({name.rsplit(".", 1)[1].lower() for name in names})
-    return rf"(?=[^?]*\.(?:{'|'.join(extensions)}))"
-
-
 def any_depth_regex(names: list[str]) -> str:
     return (
-        rf"\A{PATH_SEP}?{_extension_gate(names)}(?:{PATH_CHAR}+{PATH_SEP})*"
+        rf"\A{PATH_SEP}?(?:{PATH_CHAR}+{PATH_SEP})*"
         rf"{factored_alternation(names)}{PATH_SUFFIX}"
     )
 
 
 def upload_only_regex(names: list[str]) -> str:
     return (
-        rf"\A{PATH_SEP}{_extension_gate(names)}(?:{PATH_CHAR}+{PATH_SEP})*"
+        rf"\A{PATH_SEP}(?:(?!{UPLOAD_DIRECTORIES}{PATH_SEP}){PATH_CHAR}+{PATH_SEP})*"
         rf"{UPLOAD_DIRECTORIES}{PATH_SEP}(?:{PATH_CHAR}+{PATH_SEP})*"
         rf"{factored_alternation(names)}{PATH_SUFFIX}"
     )
+
+
+def split_names(names: list[str], parts: int = 2) -> list[list[str]]:
+    ordered = sorted({name.lower() for name in names})
+    size = -(-len(ordered) // parts)
+    return [ordered[start : start + size] for start in range(0, len(ordered), size)]
+
+
+def any_depth_regexes(names: list[str]) -> list[str]:
+    return [any_depth_regex(part) for part in split_names(names)]
+
+
+def upload_only_regexes(names: list[str]) -> list[str]:
+    return [upload_only_regex(part) for part in split_names(names)]

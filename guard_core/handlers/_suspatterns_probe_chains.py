@@ -21,6 +21,6 @@ _NESTED_CHAINS = (
 _ROOT_TMP_SCRIPT = rf"tmp{_SEP}{_CHAR}+\.{_SCRIPT_EXTENSIONS}(?:\?\S*)?\s*\Z"
 
 PROBE_CHAIN_ROW = (
-    rf"\A{_SEP}?(?=[^?]*\.{_SCRIPT_EXTENSIONS})(?:{_ROOT_TMP_SCRIPT}"
+    rf"\A{_SEP}?(?:{_ROOT_TMP_SCRIPT}"
     rf"|{_SEGMENTS}(?:{'|'.join(_NESTED_CHAINS)}){_SUFFIX})"
 )

@@ -287,7 +287,7 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "\\A[/\\\\]?(?:(?!(?:wp-(?:admin|login|includes|config)|wp-content(?![/\\\\]uploads(?:[/\\\\]|\\Z))|administrator|xmlrpc)\\.?(?:php)?(?:[/\\\\]|\\Z))[\\w.\\-~%]+[/\\\\])*(?:wp-(?:admin|login|includes|config)|wp-content(?![/\\\\]uploads(?:[/\\\\]|\\Z))|administrator|xmlrpc)\\.?(?:php)?(?:[/\\\\][\\w.\\-~%]*)*(?:\\?\\S*)?\\s*\\Z",
+            "pattern": "\\A[/\\\\]?(?:(?!(?:wp-(?:admin|login|includes|config)|administrator|xmlrpc)\\.?(?:php)?(?:[/\\\\]|\\Z))[\\w.\\-~%]+[/\\\\])*(?:wp-(?:admin|login|includes|config)|administrator|xmlrpc)\\.?(?:php)?(?:[/\\\\][\\w.\\-~%]*)*(?:\\?\\S*)?\\s*\\Z",
             "match": "/wp-login.php",
             "position": 0,
             "category": "cms_probing",
@@ -319,7 +319,7 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "\\A[/\\\\]?(?:(?!(?:wp-(?:admin|login|includes|config)|wp-content(?![/\\\\]uploads(?:[/\\\\]|\\Z))|administrator|xmlrpc)\\.?(?:php)?(?:[/\\\\]|\\Z))[\\w.\\-~%]+[/\\\\])*(?:wp-(?:admin|login|includes|config)|wp-content(?![/\\\\]uploads(?:[/\\\\]|\\Z))|administrator|xmlrpc)\\.?(?:php)?(?:[/\\\\][\\w.\\-~%]*)*(?:\\?\\S*)?\\s*\\Z",
+            "pattern": "\\A[/\\\\]?(?:(?!(?:wp-(?:admin|login|includes|config)|administrator|xmlrpc)\\.?(?:php)?(?:[/\\\\]|\\Z))[\\w.\\-~%]+[/\\\\])*(?:wp-(?:admin|login|includes|config)|administrator|xmlrpc)\\.?(?:php)?(?:[/\\\\][\\w.\\-~%]*)*(?:\\?\\S*)?\\s*\\Z",
             "match": "/wp-admin/setup-config.php",
             "position": 0,
             "category": "cms_probing",

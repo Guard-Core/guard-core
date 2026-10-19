@@ -34,7 +34,7 @@ import unicodedata
 from pathlib import Path
 
 from tests.wordlists.fetch import git_blob_sha
-from tests.wordlists.probe_regex import any_depth_regex, upload_only_regex
+from tests.wordlists.probe_regex import any_depth_regexes, upload_only_regexes
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
@@ -197,6 +197,14 @@ def literal_lines(value: str, width: int = 78) -> str:
     return "(\n" + "".join(f"    {piece}\n" for piece in pieces) + ")"
 
 
+def literal_tuple(values: list[str]) -> str:
+    pieces = []
+    for value in values:
+        body = literal_lines(value).replace("\n", "\n    ")
+        pieces.append(f"    {body},\n")
+    return "(\n" + "".join(pieces) + ")"
+
+
 def render_module(rows: list[dict]) -> str:
     any_depth = [row["name"] for row in rows if row["mode"] == "any_depth"]
     upload_only = [row["name"] for row in rows if row["mode"] == "upload_only"]
@@ -205,9 +213,12 @@ def render_module(rows: list[dict]) -> str:
         "# SecLists at commit 60e43f4d2b0251330ff18ea4fa76aabec0515dcb (MIT). Do not\n"
         "# edit by hand: tests/test_detection/test_probe_name_rows.py rebuilds these\n"
         "# strings from tests/wordlists/classification.json and fails on any drift.\n\n"
-        f"SCRIPT_NAMES_ANY_DEPTH_RE = {literal_lines(any_depth_regex(any_depth))}\n\n"
-        "SCRIPT_NAMES_UPLOAD_ONLY_RE = "
-        f"{literal_lines(upload_only_regex(upload_only))}\n"
+        "SCRIPT_NAMES_ANY_DEPTH_RES = "
+        f"{literal_tuple(any_depth_regexes(any_depth))}\n\n"
+        'SCRIPT_NAMES_ANY_DEPTH_RE = "|".join(SCRIPT_NAMES_ANY_DEPTH_RES)\n\n'
+        "SCRIPT_NAMES_UPLOAD_ONLY_RES = "
+        f"{literal_tuple(upload_only_regexes(upload_only))}\n\n"
+        'SCRIPT_NAMES_UPLOAD_ONLY_RE = "|".join(SCRIPT_NAMES_UPLOAD_ONLY_RES)\n'
     )
 
 

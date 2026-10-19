@@ -13,8 +13,8 @@ from guard_core.sync.handlers._suspatterns_matchers import (
 )
 from guard_core.sync.handlers._suspatterns_probe_chains import PROBE_CHAIN_ROW
 from guard_core.sync.handlers._suspatterns_probe_names import (
-    SCRIPT_NAMES_ANY_DEPTH_RE,
-    SCRIPT_NAMES_UPLOAD_ONLY_RE,
+    SCRIPT_NAMES_ANY_DEPTH_RES,
+    SCRIPT_NAMES_UPLOAD_ONLY_RES,
 )
 from guard_core.sync.handlers._suspatterns_recall_rows import (
     _CMD_EXFILTRATION_RE,
@@ -145,6 +145,8 @@ from guard_core.sync.handlers._suspatterns_state import (
     _HTML_EVENT_HANDLER_ALTERNATION,
 )
 
+_UPLOAD_DIRECTORY_RE = r"(?:uploads?|files|images|media|tmp)"
+
 _SHELL_KEYWORD_COMMAND_RE = (
     r"[;|&]\s*(?:ls|cat|rm|id|whoami|uname|wget|curl|nc|netcat|socat|bash|sh|"
     r"python|perl)\b"
@@ -223,7 +225,7 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
     (_WHERE_CLAUSE_RE, _CTX_SQLI, "sqli"),
     (_SQLI_TAUTOLOGY_RE, _CTX_SQLI, "sqli"),
     (
-        r"(?i)UNION\s+(?:ALL\s+)?SELECT\s*(?:/\*.{0,40}?\*/\s*)*"
+        r"(?i)UNION\s+(?:ALL\s+)?SELECT\s*(?:/\*.{0,40}?\*/\s*){0,3}"
         r"(?:null\b|[\d@'\"`(*\[+~!-]"
         r"|[\w.$`\"]+\s*(?:,|\(|\bfrom\b|\)|--|#|/\*|;|\Z))",
         _CTX_SQLI,
@@ -609,9 +611,12 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
         "recon",
     ),
     (
-        rf"\A{_PATH_ONLY_SEP_RE}(?:{_PATH_ONLY_CHAR_RE}+{_PATH_ONLY_SEP_RE})*"
-        rf"(?:uploads?|files|images|media|tmp){_PATH_ONLY_SEP_RE}"
-        rf"(?:{_PATH_ONLY_CHAR_RE}+{_PATH_ONLY_SEP_RE})*(?:shell|cmd)\.php"
+        rf"\A{_PATH_ONLY_SEP_RE}"
+        rf"(?:(?!{_UPLOAD_DIRECTORY_RE}{_PATH_ONLY_SEP_RE})"
+        rf"{_PATH_ONLY_CHAR_RE}+{_PATH_ONLY_SEP_RE})*"
+        rf"{_UPLOAD_DIRECTORY_RE}{_PATH_ONLY_SEP_RE}"
+        rf"(?:(?!(?:shell|cmd)\.php(?:{_PATH_ONLY_SEP_RE}|\Z))"
+        rf"{_PATH_ONLY_CHAR_RE}+{_PATH_ONLY_SEP_RE})*(?:shell|cmd)\.php"
         + _PATH_ONLY_SUFFIX_RE,
         _CTX_RECON,
         "recon",
@@ -643,11 +648,18 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
     (_CMS_UPLOADS_DIRECTORY_RE, _CTX_CMS_PROBING, "cms_probing"),
     (
         _path_only_pattern(
-            r"(?:wp-(?:admin|login|includes|config)"
-            rf"|wp-content(?!{_PATH_ONLY_SEP_RE}uploads(?:{_PATH_ONLY_SEP_RE}|\Z))"
-            r"|administrator|xmlrpc)"
+            r"(?:wp-(?:admin|login|includes|config)|administrator|xmlrpc)"
             r"\.?(?:php)?"
         ),
+        _CTX_CMS_PROBING,
+        "cms_probing",
+    ),
+    (
+        rf"\A{_PATH_ONLY_SEP_RE}?"
+        rf"(?:(?!wp-content\.?(?:php)?(?:{_PATH_ONLY_SEP_RE}|\Z))"
+        rf"{_PATH_ONLY_CHAR_RE}+{_PATH_ONLY_SEP_RE})*"
+        rf"wp-content(?!{_PATH_ONLY_SEP_RE}uploads(?:{_PATH_ONLY_SEP_RE}|\Z))"
+        r"\.?(?:php)?" + _PATH_ONLY_SUFFIX_RE,
         _CTX_CMS_PROBING,
         "cms_probing",
     ),
@@ -713,8 +725,8 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
         "recon",
     ),
     (_RECON_SYSTEM_PROBE_FILES_RE, _CTX_RECON, "recon"),
-    (SCRIPT_NAMES_ANY_DEPTH_RE, _CTX_RECON, "recon"),
-    (SCRIPT_NAMES_UPLOAD_ONLY_RE, _CTX_RECON, "recon"),
+    *((names_row, _CTX_RECON, "recon") for names_row in SCRIPT_NAMES_ANY_DEPTH_RES),
+    *((names_row, _CTX_RECON, "recon") for names_row in SCRIPT_NAMES_UPLOAD_ONLY_RES),
     (PROBE_CHAIN_ROW, _CTX_RECON, "recon"),
     (_RECON_CHANGELOG_BARE_RE, _CTX_RECON, "recon"),
     (

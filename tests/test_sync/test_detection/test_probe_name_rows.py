@@ -11,7 +11,7 @@ from guard_core.sync.handlers._suspatterns_probe_chains import PROBE_CHAIN_ROW
 from guard_core.sync.utils import detect_penetration_attempt
 from tests.test_sync.conftest import SyncMockGuardRequest
 from tests.wordlists.fetch import git_blob_sha
-from tests.wordlists.probe_regex import any_depth_regex, upload_only_regex
+from tests.wordlists.probe_regex import any_depth_regexes, upload_only_regexes
 
 WORDLISTS = (
     next(p for p in Path(__file__).resolve().parents if p.name == "tests") / "wordlists"
@@ -66,14 +66,25 @@ def test_classification_records_the_pinned_commit_and_blob_shas() -> None:
 
 
 def test_the_generated_rows_are_rebuilt_from_the_classification_table() -> None:
-    assert generated.SCRIPT_NAMES_ANY_DEPTH_RE == any_depth_regex(ANY_DEPTH)
-    assert generated.SCRIPT_NAMES_UPLOAD_ONLY_RE == upload_only_regex(UPLOAD_ONLY)
+    assert list(generated.SCRIPT_NAMES_ANY_DEPTH_RES) == any_depth_regexes(ANY_DEPTH)
+    assert list(generated.SCRIPT_NAMES_UPLOAD_ONLY_RES) == upload_only_regexes(
+        UPLOAD_ONLY
+    )
+
+
+def test_the_joined_constants_are_the_halves_in_one_alternation() -> None:
+    assert generated.SCRIPT_NAMES_ANY_DEPTH_RE == "|".join(
+        generated.SCRIPT_NAMES_ANY_DEPTH_RES
+    )
+    assert generated.SCRIPT_NAMES_UPLOAD_ONLY_RE == "|".join(
+        generated.SCRIPT_NAMES_UPLOAD_ONLY_RES
+    )
 
 
 def test_the_pattern_table_carries_the_generated_rows_and_the_one_chain_row() -> None:
     sources = {definition[0] for definition in _PATTERN_DEFINITIONS}
-    assert generated.SCRIPT_NAMES_ANY_DEPTH_RE in sources
-    assert generated.SCRIPT_NAMES_UPLOAD_ONLY_RE in sources
+    assert set(generated.SCRIPT_NAMES_ANY_DEPTH_RES) <= sources
+    assert set(generated.SCRIPT_NAMES_UPLOAD_ONLY_RES) <= sources
     assert PROBE_CHAIN_ROW in sources
 
 

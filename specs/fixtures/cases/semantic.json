@@ -85,7 +85,7 @@
           },
           {
             "type": "regex",
-            "pattern": "(?i)UNION\\s+(?:ALL\\s+)?SELECT\\s*(?:/\\*.{0,40}?\\*/\\s*)*(?:null\\b|[\\d@'\\\"`(*\\[+~!-]|[\\w.$`\\\"]+\\s*(?:,|\\(|\\bfrom\\b|\\)|--|#|/\\*|;|\\Z))",
+            "pattern": "(?i)UNION\\s+(?:ALL\\s+)?SELECT\\s*(?:/\\*.{0,40}?\\*/\\s*){0,3}(?:null\\b|[\\d@'\\\"`(*\\[+~!-]|[\\w.$`\\\"]+\\s*(?:,|\\(|\\bfrom\\b|\\)|--|#|/\\*|;|\\Z))",
             "match": "union select concat(",
             "position": 51,
             "category": "sqli",

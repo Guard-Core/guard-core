@@ -176,7 +176,7 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "(?i)UNION\\s+(?:ALL\\s+)?SELECT\\s*(?:/\\*.{0,40}?\\*/\\s*)*(?:null\\b|[\\d@'\\\"`(*\\[+~!-]|[\\w.$`\\\"]+\\s*(?:,|\\(|\\bfrom\\b|\\)|--|#|/\\*|;|\\Z))",
+            "pattern": "(?i)UNION\\s+(?:ALL\\s+)?SELECT\\s*(?:/\\*.{0,40}?\\*/\\s*){0,3}(?:null\\b|[\\d@'\\\"`(*\\[+~!-]|[\\w.$`\\\"]+\\s*(?:,|\\(|\\bfrom\\b|\\)|--|#|/\\*|;|\\Z))",
             "match": "UNION SELECT password FROM",
             "position": 2,
             "category": "sqli",
@@ -208,7 +208,7 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "(?i)UNION\\s+(?:ALL\\s+)?SELECT\\s*(?:/\\*.{0,40}?\\*/\\s*)*(?:null\\b|[\\d@'\\\"`(*\\[+~!-]|[\\w.$`\\\"]+\\s*(?:,|\\(|\\bfrom\\b|\\)|--|#|/\\*|;|\\Z))",
+            "pattern": "(?i)UNION\\s+(?:ALL\\s+)?SELECT\\s*(?:/\\*.{0,40}?\\*/\\s*){0,3}(?:null\\b|[\\d@'\\\"`(*\\[+~!-]|[\\w.$`\\\"]+\\s*(?:,|\\(|\\bfrom\\b|\\)|--|#|/\\*|;|\\Z))",
             "match": "UNION SELECT password FROM",
             "position": 2,
             "category": "sqli",

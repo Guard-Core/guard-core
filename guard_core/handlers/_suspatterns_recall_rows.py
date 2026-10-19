@@ -22,10 +22,10 @@ _CMD_EXTENDED_COMMAND_RE = (
 _CMD_NEWLINE_COMMAND_RE = r"\n[^\S\n]*(?-i:id|whoami|uname\s+-a)[^\S\n]*(?:[|;&]|\Z)"
 _CMD_NEWLINE_COMMAND_DECODED_RE = _CMD_NEWLINE_COMMAND_RE + r"(?#url-decoded view)"
 _CMD_EXFILTRATION_RE = (
-    r"\bwget\s[^\n|;&]{0,80}--post-file\s*=?\s*\S"
-    r"|\bcurl\s[^\n|;&]{0,80}(?:--upload-file|-T)\s*=?\s*[\"']?/\w"
+    r"\bwget\s[^\n|;&]{0,80}--post-file(?:\s+|\s*=\s*)\S"
+    r"|\bcurl\s[^\n|;&]{0,80}(?:--upload-file|-T)(?:\s+|\s*=\s*)[\"']?/\w"
     r"|\bcurl\s[^\n|;&]{0,80}(?:--data(?:-binary|-raw|-urlencode)?|-d|--form|-F)"
-    r"\s*=?\s*[\"']?(?:\w+=)?@/\w"
+    r"(?:\s+|\s*=\s*)[\"']?(?:\w+=)?@/\w"
 )
 
 _CMD_PATH_SEPARATOR_COMMAND_RE = (
