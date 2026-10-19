@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from guard_core._utils.route_gate import normalized_last_segment
 from guard_core.core.checks.implementations.suspicious_activity import (
     SuspiciousActivityCheck,
 )
@@ -440,3 +441,21 @@ async def test_an_existing_static_file_does_not_clear_a_query_attack() -> None:
     response = await check.check(request)
 
     assert response is not None
+
+
+@pytest.mark.parametrize(
+    ("path", "segment"),
+    [
+        ("/a/b/C.PHP;x=1?q=2", "c.php"),
+        ("a\\b\\c.php/", "c.php"),
+        ("/a/b\\c.php//", "c.php"),
+        ("/", ""),
+        ("", ""),
+        ("c.php", "c.php"),
+        ("/hls/seg.ts;jsessionid=1", "seg.ts"),
+    ],
+)
+def test_the_last_segment_is_what_follows_the_last_separator(
+    path: str, segment: str
+) -> None:
+    assert normalized_last_segment(path) == segment

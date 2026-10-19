@@ -21,14 +21,12 @@ _static_file_served: contextvars.ContextVar[bool] = contextvars.ContextVar(
     "guard_core_static_file_served", default=False
 )
 _UNESCAPED_DOT_RE = re.compile(r"\\\.|\[\.\]")
-_LAST_SEGMENT_RE = re.compile(r"[^/\\]*$")
 _PARAMETER_RE = re.compile(r"\{[^}]*\}|<[^>]*>")
 
 
 def normalized_last_segment(path: str) -> str:
     stripped = path.split("?", 1)[0].rstrip("/\\")
-    segment = _LAST_SEGMENT_RE.search(stripped)
-    last = segment.group() if segment else ""
+    last = stripped.rpartition("/")[2].rpartition("\\")[2]
     return last.split(";", 1)[0].lower()
 
 
