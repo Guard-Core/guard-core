@@ -36,7 +36,7 @@ PIPELINE_SUITES["pipeline_ip_control"] = [
     },
     {
         "id": "ip_whitelist_skips_detection",
-        "config": {"whitelist": [IP_WHITELISTED]},
+        "config": {"whitelist": [IP_WHITELISTED], "whitelist_access_only": False},
         "drives": [
             {"client_ip": IP_WHITELISTED, "url_path": "/api", "body": ATTACK},
         ],

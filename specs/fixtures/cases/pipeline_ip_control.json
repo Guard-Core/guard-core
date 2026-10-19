@@ -105,7 +105,8 @@
       "config": {
         "whitelist": [
           "192.0.2.40"
-        ]
+        ],
+        "whitelist_access_only": false
       },
       "geo_countries": {},
       "routes": {},

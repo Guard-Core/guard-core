@@ -141,7 +141,9 @@ async def test_authenticated_request_still_carries_the_principal() -> None:
 
 
 async def test_whitelisted_client_is_not_counted_for_identity_failures() -> None:
-    config = _config(whitelist=[BOT_IP], ban_on_hostile_signals=True)
+    config = _config(
+        whitelist=[BOT_IP], ban_on_hostile_signals=True, whitelist_access_only=False
+    )
     pipeline, middleware, route_id = build_route_pipeline(
         config, lambda d: d.require_referrer(["example.com"])
     )

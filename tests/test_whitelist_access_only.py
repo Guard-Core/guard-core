@@ -1,11 +1,9 @@
-import warnings
 from collections.abc import Generator
 from typing import Any
 from unittest.mock import patch
 
 import pytest
 
-from guard_core import _staged_defaults
 from guard_core.core.checks.factory import build_default_pipeline
 from guard_core.decorators import SecurityDecorator
 from guard_core.handlers.ipban_handler import ip_ban_manager
@@ -72,8 +70,8 @@ async def test_the_whitelist_still_admits_and_still_refuses_both_ways(
     assert await _run(config, ip=OTHER) == [403]
 
 
-async def test_the_field_defaults_to_false() -> None:
-    assert SecurityConfig(enable_redis=False).whitelist_access_only is False
+async def test_the_field_defaults_to_true() -> None:
+    assert SecurityConfig(enable_redis=False).whitelist_access_only is True
 
 
 BAD_AGENT = {"User-Agent": "badbot/1.0"}
@@ -272,30 +270,3 @@ async def test_a_whitelisted_host_that_attacks_is_banned_at_its_own_identity() -
     ip_ban_manager.config = config
     assert await ip_ban_manager.is_ip_banned(host) is True
     assert await ip_ban_manager.is_ip_banned(neighbour) is False
-
-
-def test_unset_flag_warns_once_when_a_whitelist_is_configured() -> None:
-    _staged_defaults._whitelist_access_only_warned = False
-
-    with pytest.warns(DeprecationWarning, match="whitelist_access_only") as caught:
-        SecurityConfig(enable_redis=False, whitelist=[CLIENT])
-
-    message = str(caught[0].message)
-    assert "5.0.0" in message
-    assert "exempt_ips" in message
-    assert "whitelist_access_only=True" in message
-    assert "whitelist_access_only=False" in message
-    with warnings.catch_warnings():
-        warnings.simplefilter("error")
-        SecurityConfig(enable_redis=False, whitelist=[CLIENT])
-
-
-def test_an_explicit_flag_or_no_whitelist_does_not_warn() -> None:
-    _staged_defaults._whitelist_access_only_warned = False
-
-    with warnings.catch_warnings():
-        warnings.simplefilter("error", DeprecationWarning)
-        SecurityConfig(
-            enable_redis=False, whitelist=[CLIENT], whitelist_access_only=False
-        )
-        SecurityConfig(enable_redis=False)

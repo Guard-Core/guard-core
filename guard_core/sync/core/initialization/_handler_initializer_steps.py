@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING, Any
 
 from guard_core._misconfiguration import report_misconfiguration
 from guard_core._redis_enablement import redis_is_configured, resolve_enable_redis
-from guard_core._staged_defaults import _warn_whitelist_without_access_only
 from guard_core.exceptions import GuardRedisError
 from guard_core.sync.core.initialization._ban_threshold_report import (
     _BanThresholdContext,
@@ -75,7 +74,6 @@ class _HandlerInitializerStepsMixin(CloudInitializationMixin):
 
         resolve_enable_redis(self.config)
         ip_ban_manager.config = self.config
-        _warn_whitelist_without_access_only(self.config, stacklevel=3)
         ip_ban_manager.set_capacity(self.config.banned_ips_max_entries)
         sus_patterns_handler.configure(self.config)
         apply_nat64_prefixes(self.config, self.logger)

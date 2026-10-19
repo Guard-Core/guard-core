@@ -361,7 +361,9 @@ def test_global_cloud_denial_counts_and_bans() -> None:
 @pytest.mark.parametrize(
     "config_settings",
     [
-        pytest.param({"whitelist": [CLOUD_IP]}, id="whitelist"),
+        pytest.param(
+            {"whitelist": [CLOUD_IP], "whitelist_access_only": False}, id="whitelist"
+        ),
         pytest.param({"exempt_ips": [CLOUD_IP]}, id="exempt-ips"),
     ],
 )

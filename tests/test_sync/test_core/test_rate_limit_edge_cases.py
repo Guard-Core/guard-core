@@ -123,7 +123,23 @@ def test_check_passes_every_tier_in_one_call_with_its_own_config(
             "global", security_config.rate_limit, security_config.rate_limit_window
         ),
     ]
-    assert kwargs == {"config": security_config}
+    assert kwargs == {"config": security_config, "window_identity": "1.2.3.4"}
+
+
+def test_the_old_whitelist_value_passes_no_window_identity(
+    rate_limit_check: RateLimitCheck,
+    mock_request: Mock,
+    security_config: SecurityConfig,
+) -> None:
+    security_config.whitelist_access_only = False
+    mock_request.state.route_config = Mock(
+        rate_limit=7, rate_limit_window=30, geo_rate_limits=None
+    )
+    handler = _tiers_handler(rate_limit_check)
+
+    rate_limit_check.check(mock_request)
+
+    assert handler.call_args.kwargs == {"config": security_config}
 
 
 def test_the_global_tier_is_left_out_when_rate_limiting_is_off(

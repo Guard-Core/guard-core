@@ -665,19 +665,18 @@ class _SecurityConfigFields(BaseModel):
     )
 
     whitelist_access_only: bool = Field(
-        default=False,
+        default=True,
         description=(
             "Make the global whitelist access-only: it admits a listed IP and "
-            "nothing more. Off by default in 4.5.0, where a whitelisted IP also "
-            "skips rate limiting, the user-agent check, the cloud-provider check "
-            "and attack detection (request.state.is_whitelisted is True for it); "
-            "on, the IP is checked by all of them like any other client "
-            "(request.state.is_whitelisted is False and request.state."
-            "whitelist_entry names the matching entry), collects hostile-signal "
-            "strikes, and a whitelisted address or CIDR can be banned and the ban "
-            "is enforced. exempt_ips keeps its skips. Emergency mode keeps its own "
-            "whitelist. On by default from 5.0.0: leaving it unset logs one "
-            "DeprecationWarning and one WARNING at startup when a whitelist is set."
+            "nothing more. On since 5.0.0: the IP is checked by rate limiting, the "
+            "user-agent check, the cloud-provider check and attack detection like "
+            "any other client (request.state.is_whitelisted is False and request."
+            "state.whitelist_entry names the matching entry), collects "
+            "hostile-signal strikes, and a whitelisted address or CIDR can be "
+            "banned and the ban is enforced. exempt_ips keeps its skips. Emergency "
+            "mode keeps its own whitelist. Pass whitelist_access_only=False to "
+            "restore the old behavior, where a whitelisted IP also skips those "
+            "checks (request.state.is_whitelisted is True for it)."
         ),
     )
 

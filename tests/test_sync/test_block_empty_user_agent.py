@@ -78,7 +78,12 @@ def test_a_blocked_empty_user_agent_is_logged_only_in_passive_mode() -> None:
 
 
 def test_a_whitelisted_client_is_not_blocked_for_an_empty_user_agent() -> None:
-    status, _ = _outcome({}, block_empty_user_agent=True, whitelist=["203.0.113.5"])
+    status, _ = _outcome(
+        {},
+        block_empty_user_agent=True,
+        whitelist=["203.0.113.5"],
+        whitelist_access_only=False,
+    )
 
     assert status is None
 

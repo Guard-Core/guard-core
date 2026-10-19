@@ -280,7 +280,7 @@ class SecurityConfig(_SecurityConfigFields):
 
     @model_validator(mode="after")
     def warn_staged_defaults(self) -> Self:
-        _warn_staged_defaults(self, stacklevel=4)
+        _warn_staged_defaults(self)
         return self
 
     @model_validator(mode="after")

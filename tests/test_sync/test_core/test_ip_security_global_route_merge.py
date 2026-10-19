@@ -132,6 +132,7 @@ def test_global_whitelist_match_sets_is_whitelisted_with_route_config(
     ip_security_check: IpSecurityCheck, security_config: SecurityConfig
 ) -> None:
     security_config.whitelist = ("1.2.3.4",)
+    security_config.whitelist_access_only = False
     route_config = RouteConfig()
     route_config.rate_limit = 5
     request = _request_for(route_config)
@@ -211,6 +212,7 @@ def test_route_blacklist_only_allows_globally_whitelisted_client(
     ip_security_check: IpSecurityCheck, security_config: SecurityConfig
 ) -> None:
     security_config.whitelist = ("1.2.3.4",)
+    security_config.whitelist_access_only = False
     route_config = RouteConfig()
     route_config.ip_blacklist = ["6.6.6.6"]
     request = _request_for(route_config)

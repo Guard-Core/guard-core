@@ -1,5 +1,4 @@
 import logging
-import warnings
 from typing import Any
 
 from guard_core._redis_enablement import redis_is_configured
@@ -9,30 +8,6 @@ logger = logging.getLogger("guard_core.models")
 DEFAULT_REDIS_PREFIX = "guard_core:"
 
 _default_prefix_warned = False
-_whitelist_access_only_warned = False
-
-_WHITELIST_ACCESS_ONLY_WARNING = (
-    "whitelist_access_only is not set. guard-core 5.0.0 turns it on: the global "
-    "whitelist then only admits an IP and no longer skips rate limiting, the "
-    "user-agent check, the cloud-provider check or attack detection, so a "
-    "whitelisted IP collects hostile-signal strikes and identity escalation like "
-    "any other client, a whitelisted address or CIDR can be banned and the ban is "
-    "enforced, and all of it reaches every admitted request. Move the hosts that "
-    "need those skips to exempt_ips. Pass whitelist_access_only=True to "
-    "SecurityConfig now to opt in, or whitelist_access_only=False to keep today's "
-    "behavior. This warning is logged once."
-)
-
-
-def _warn_whitelist_access_only_default_off(*, stacklevel: int) -> None:
-    global _whitelist_access_only_warned
-    if _whitelist_access_only_warned:
-        return
-    _whitelist_access_only_warned = True
-    logger.warning(_WHITELIST_ACCESS_ONLY_WARNING)
-    warnings.warn(
-        _WHITELIST_ACCESS_ONLY_WARNING, DeprecationWarning, stacklevel=stacklevel
-    )
 
 
 def _warn_default_redis_prefix() -> None:
@@ -48,12 +23,6 @@ def _warn_default_redis_prefix() -> None:
     )
 
 
-def _warn_whitelist_without_access_only(config: Any, *, stacklevel: int) -> None:
-    if config.whitelist and "whitelist_access_only" not in config.model_fields_set:
-        _warn_whitelist_access_only_default_off(stacklevel=stacklevel + 1)
-
-
-def _warn_staged_defaults(config: Any, *, stacklevel: int) -> None:
-    _warn_whitelist_without_access_only(config, stacklevel=stacklevel + 1)
+def _warn_staged_defaults(config: Any) -> None:
     if redis_is_configured(config) and config.redis_prefix == DEFAULT_REDIS_PREFIX:
         _warn_default_redis_prefix()

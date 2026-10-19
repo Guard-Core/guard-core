@@ -13,7 +13,12 @@ BLOCKED = object()
 
 
 def _config(**settings: Any) -> SecurityConfig:
-    return SecurityConfig(enable_redis=False, ban_on_hostile_signals=False, **settings)
+    return SecurityConfig(
+        enable_redis=False,
+        ban_on_hostile_signals=False,
+        whitelist_access_only=False,
+        **settings,
+    )
 
 
 class _Handler:
