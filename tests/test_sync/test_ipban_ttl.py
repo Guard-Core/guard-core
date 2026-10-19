@@ -88,11 +88,12 @@ def test_ban_longer_than_cap_succeeds_when_redis_available() -> None:
     manager.banned_ips.clear()
 
     duration = manager.LOCAL_CACHE_TTL_CAP_SECONDS + 1
+    manager.redis_handler.write_ban_extending_only.return_value = time.time() + duration
     manager.ban_ip("10.0.0.10", duration=duration, reason="test")
 
     assert "10.0.0.10" in manager.banned_ips
-    manager.redis_handler.set_key.assert_called_once()
-    assert manager.redis_handler.set_key.call_args.kwargs["ttl"] == duration
+    manager.redis_handler.write_ban_extending_only.assert_called_once()
+    assert manager.redis_handler.write_ban_extending_only.call_args.args[3] == duration
 
 
 class _FailingRedisHandler:

@@ -10,7 +10,7 @@ from guard_core.sync.handlers._ipban_cache import _BanStore, _Network
 from guard_core.sync.handlers._ipban_events import IpBanEventMixin
 from guard_core.sync.handlers._ipban_recidive import IpBanRecidiveMixin
 from guard_core.sync.handlers._ipban_rule_exempt import IpBanRuleExemptionMixin
-from guard_core.sync.handlers._ipban_version import IpBanVersionMixin
+from guard_core.sync.handlers._ipban_version import _VERSION_PAIR, IpBanVersionMixin
 from guard_core.sync.utils import _canonicalize_ip
 
 _MAX_TRACKED_REFUSED_BANS = 10_000
@@ -52,28 +52,33 @@ class IpBanOperationsMixin(
             raise ValueError(f"Invalid CIDR network {ip!r}: {e}") from e
 
         if self.redis_handler is None:
-            self.banned_networks.append((network, time.time() + duration))
+            self._remember_network_ban(network, time.time() + duration)
         else:
             self._store_cidr_ban_in_redis(network, duration)
 
         if self.agent_handler:
             self._send_ban_event(str(network), duration, reason)
 
+    def _remember_network_ban(self, network: _Network, expiry: float) -> None:
+        held = [until for banned, until in self.banned_networks if banned == network]
+        self.banned_networks = [
+            entry for entry in self.banned_networks if entry[0] != network
+        ]
+        self.banned_networks.append((network, max([expiry, *held])))
+
     def _store_cidr_ban_in_redis(self, network: _Network, duration: int) -> None:
+        expiry = time.time() + duration
         try:
-            self._write_with_version_bump(
-                sets=[
-                    (
-                        "banned_networks",
-                        str(network),
-                        str(time.time() + duration),
-                        duration,
-                    )
-                ]
+            self.redis_handler.write_ban_extending_only(
+                "banned_networks",
+                str(network),
+                str(expiry),
+                duration,
+                advance_version=_VERSION_PAIR,
             )
         except Exception:
             self._warn_kept_in_this_process(str(network), "request failed")
-            self.banned_networks.append((network, time.time() + duration))
+            self._remember_network_ban(network, expiry)
 
     def _ban_exact_ip(self, ip: str, duration: int, reason: str) -> None:
         self._assert_valid_exact_ip(ip)
@@ -112,7 +117,10 @@ class IpBanOperationsMixin(
 
         if backed:
             try:
-                self.redis_handler.set_key(namespace, key, str(expiry), ttl=duration)
+                kept = self.redis_handler.write_ban_extending_only(
+                    namespace, key, str(expiry), duration
+                )
+                self._remember_ban(key, kept, True)
             except Exception:
                 self._warn_kept_in_this_process(key, "request failed")
                 self._remember_ban(key, expiry, False)
@@ -135,7 +143,8 @@ class IpBanOperationsMixin(
         return "banned_ips", ip
 
     def _remember_ban(self, key: str, expiry: float, backed_by_redis: bool) -> None:
-        self.banned_ips[key] = self._local_expiry(expiry) if backed_by_redis else expiry
+        local = self._local_expiry(expiry) if backed_by_redis else expiry
+        self.banned_ips[key] = max(local, self.banned_ips.get(key, 0.0))
         if not backed_by_redis and isinstance(self.banned_ips, _BanStore):
             self.banned_ips.mark_memory_only(key)
 

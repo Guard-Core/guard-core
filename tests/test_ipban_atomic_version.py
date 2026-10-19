@@ -15,6 +15,7 @@ REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379")
 NETWORK = "198.51.100.0/24"
 HOST = "203.0.113.20"
 EXEC = "redis.asyncio.client.Pipeline.execute"
+EVALSHA = "redis.asyncio.client.Redis.evalsha"
 
 
 @pytest.fixture(autouse=True)
@@ -53,7 +54,7 @@ async def test_a_failed_exec_leaves_no_unannounced_cidr_ban(
 ) -> None:
     worker = _worker(live_redis)
 
-    with patch(EXEC, side_effect=RedisConnectionError("lost")):
+    with patch(EVALSHA, side_effect=RedisConnectionError("lost")):
         await worker.ban_ip(NETWORK, 600, "operator")
 
     assert await live_redis.get_key("banned_networks", NETWORK) is None

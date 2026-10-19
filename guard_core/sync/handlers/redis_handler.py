@@ -17,6 +17,7 @@ from redis.retry import Retry
 
 from guard_core.exceptions import GuardRedisError
 from guard_core.models import SecurityConfig
+from guard_core.scripts.ban_write_lua import EXTEND_ONLY_BAN_WRITE_SCRIPT
 from guard_core.scripts.detection_strikes_lua import (
     FORGET_DETECTION_STRIKES_SCRIPT,
     READ_DETECTION_CATEGORIES_SCRIPT,
@@ -84,6 +85,9 @@ _READ_DETECTION_CATEGORIES_SHA = hashlib.sha1(
 ).hexdigest()
 _FORGET_DETECTION_STRIKES_SHA = hashlib.sha1(
     FORGET_DETECTION_STRIKES_SCRIPT.encode(), usedforsecurity=False
+).hexdigest()
+_EXTEND_ONLY_BAN_WRITE_SHA = hashlib.sha1(
+    EXTEND_ONLY_BAN_WRITE_SCRIPT.encode(), usedforsecurity=False
 ).hexdigest()
 _DETECTION_NAMESPACE = "detection"
 _SUM_INDEXED_WINDOW_HITS_SHA = hashlib.sha1(
@@ -385,6 +389,43 @@ class RedisManager:
                 pipe.execute()
 
         self.safe_operation(_write)
+
+    def write_ban_extending_only(
+        self,
+        namespace: str,
+        key: str,
+        expiry: str,
+        duration: int,
+        *,
+        advance_version: tuple[str, str] | None = None,
+    ) -> float:
+        """Write the ban only when it outlasts the live one, in one script call,
+        and return the expiry the ban key holds afterwards. The value is the
+        expiry text the caller formatted once; advance_version (namespace, key)
+        is incremented in the same call when the ban was written."""
+        if not self.config.enable_redis:
+            return float(expiry)
+
+        prefix = self.config.redis_prefix
+        keys = [f"{prefix}{namespace}:{key}"]
+        args: list[Any] = [expiry, duration]
+        args.append("0" if advance_version is None else "1")
+        if advance_version is not None:
+            keys.append(f"{prefix}{advance_version[0]}:{advance_version[1]}")
+
+        def _write(conn: Redis) -> float:
+            try:
+                answer = conn.evalsha(
+                    _EXTEND_ONLY_BAN_WRITE_SHA, len(keys), *keys, *args
+                )
+            except NoScriptError:
+                conn.script_load(EXTEND_ONLY_BAN_WRITE_SCRIPT)
+                answer = conn.evalsha(
+                    _EXTEND_ONLY_BAN_WRITE_SHA, len(keys), *keys, *args
+                )
+            return float(answer[1])
+
+        return float(self.safe_operation(_write))
 
     def record_sliding_window_hit(
         self,

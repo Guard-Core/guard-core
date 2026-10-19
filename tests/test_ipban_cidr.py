@@ -100,11 +100,11 @@ async def test_cidr_ban_redis_path_stores_network() -> None:
 
     await manager.ban_ip("10.0.0.0/24", duration=300, reason="cidr_redis")
 
-    manager.redis_handler.write_atomically.assert_awaited_once()
-    call = manager.redis_handler.write_atomically.call_args
-    namespace, key, _expiry, ttl = call.kwargs["sets"][0]
+    manager.redis_handler.write_ban_extending_only.assert_awaited_once()
+    call = manager.redis_handler.write_ban_extending_only.call_args
+    namespace, key, _expiry, ttl = call.args
     assert (namespace, key, ttl) == ("banned_networks", "10.0.0.0/24", 300)
-    assert call.kwargs["increment"] == ("ban_version", "counter")
+    assert call.kwargs["advance_version"] == ("ban_version", "counter")
 
 
 @pytest.mark.asyncio
@@ -113,7 +113,7 @@ async def test_cidr_ban_redis_failure_falls_back_to_local() -> None:
 
     manager = IPBanManager()
     redis_mock = AsyncMock()
-    redis_mock.write_atomically.side_effect = OSError("Redis down")
+    redis_mock.write_ban_extending_only.side_effect = OSError("Redis down")
     manager.redis_handler = redis_mock
     manager.banned_ips.clear()
     manager.banned_networks.clear()
@@ -131,7 +131,7 @@ async def test_cidr_ban_redis_failure_keeps_its_duration_and_warns(
 
     manager = IPBanManager()
     redis_mock = AsyncMock()
-    redis_mock.write_atomically.side_effect = OSError("Redis down")
+    redis_mock.write_ban_extending_only.side_effect = OSError("Redis down")
     manager.redis_handler = redis_mock
     manager.banned_ips.clear()
     manager.banned_networks.clear()
