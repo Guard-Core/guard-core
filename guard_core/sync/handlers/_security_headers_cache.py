@@ -18,6 +18,7 @@ from guard_core._security_headers_record_validation import (
 )
 from guard_core.models import SecurityConfig
 from guard_core.sync._utils.logging_utils import _sanitize_for_log
+from guard_core.sync.handlers.redis_handler import scan_unlink
 
 
 class SecurityHeadersCacheMixin:
@@ -205,11 +206,10 @@ class SecurityHeadersCacheMixin:
         if self.redis_handler:
             try:
                 with self.redis_handler.get_connection() as conn:
-                    keys = conn.keys(
-                        f"{self.redis_handler.config.redis_prefix}security_headers:*"
+                    scan_unlink(
+                        conn,
+                        f"{self.redis_handler.config.redis_prefix}security_headers:*",
                     )
-                    if keys:
-                        conn.delete(*keys)
             except Exception as e:
                 self.logger.warning(f"Failed to clear Redis cache: {e}")
 

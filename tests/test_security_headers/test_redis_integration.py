@@ -1,5 +1,5 @@
 import json
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, AsyncIterator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -8,6 +8,19 @@ from guard_core.handlers.security_headers_handler import (
     SecurityHeadersManager,
     security_headers_manager,
 )
+
+
+def _scanning_connection(keys: list[str]) -> MagicMock:
+    async def scan_iter(match: str, count: int) -> AsyncIterator[str]:
+        pending = list(keys)
+        while pending:
+            yield pending.pop(0)
+
+    conn = MagicMock()
+    conn.scan_iter = MagicMock(side_effect=scan_iter)
+    conn.unlink = AsyncMock(return_value=len(keys))
+    conn.keys = AsyncMock()
+    return conn
 
 
 @pytest.fixture
@@ -261,14 +274,12 @@ async def test_reset_with_redis_proper_async(
     headers_manager: SecurityHeadersManager,
 ) -> None:
     with patch.object(headers_manager, "redis_handler") as mock_redis:
-        mock_conn = AsyncMock()
-        mock_conn.keys = AsyncMock(
-            return_value=[
-                b"fastapi_guard:security_headers:csp_config",
-                b"fastapi_guard:security_headers:custom_headers",
+        mock_conn = _scanning_connection(
+            [
+                "fastapi_guard:security_headers:csp_config",
+                "fastapi_guard:security_headers:custom_headers",
             ]
         )
-        mock_conn.delete = AsyncMock()
 
         mock_context = AsyncMock()
         mock_context.__aenter__ = AsyncMock(return_value=mock_conn)
@@ -291,9 +302,7 @@ async def test_reset_with_empty_redis_keys(
     headers_manager: SecurityHeadersManager,
 ) -> None:
     with patch.object(headers_manager, "redis_handler") as mock_redis:
-        mock_conn = AsyncMock()
-        mock_conn.keys = AsyncMock(return_value=[])
-        mock_conn.delete = AsyncMock()
+        mock_conn = _scanning_connection([])
 
         mock_context = AsyncMock()
         mock_context.__aenter__ = AsyncMock(return_value=mock_conn)
@@ -308,8 +317,11 @@ async def test_reset_with_empty_redis_keys(
 
         assert len(headers_manager.custom_headers) == 0
 
-        mock_conn.keys.assert_called_once_with("fastapi_guard:security_headers:*")
-        mock_conn.delete.assert_not_called()
+        mock_conn.scan_iter.assert_called_once_with(
+            match="fastapi_guard:security_headers:*", count=500
+        )
+        mock_conn.keys.assert_not_called()
+        mock_conn.unlink.assert_not_called()
 
 
 @pytest.mark.asyncio

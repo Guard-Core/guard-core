@@ -113,13 +113,18 @@ class FakeRedis:
                 redis.pipeline_options.append(options)
                 return Pipe()
 
-            def keys(self, pattern: str) -> list[str]:
-                prefix = pattern.rstrip("*")
-                return [key for key in store if key.startswith(prefix)]
+            def scan_iter(self, match: str, count: int | None = None) -> Iterator[str]:
+                prefix = match.rstrip("*")
+                pending = [key for key in store if key.startswith(prefix)]
+                while pending:
+                    yield pending.pop(0)
 
             def delete(self, *keys: str) -> None:
                 for key in keys:
                     store.pop(key, None)
+
+            def unlink(self, *keys: str) -> int:
+                return sum(store.pop(key, None) is not None for key in keys)
 
         yield Conn()
 

@@ -6,7 +6,7 @@ import os
 import re
 import time
 import weakref
-from collections.abc import Callable, Iterator
+from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import asynccontextmanager, contextmanager
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -113,13 +113,20 @@ class FakeRedis:
                 redis.pipeline_options.append(options)
                 return Pipe()
 
-            async def keys(self, pattern: str) -> list[str]:
-                prefix = pattern.rstrip("*")
-                return [key for key in store if key.startswith(prefix)]
+            async def scan_iter(
+                self, match: str, count: int | None = None
+            ) -> AsyncIterator[str]:
+                prefix = match.rstrip("*")
+                pending = [key for key in store if key.startswith(prefix)]
+                while pending:
+                    yield pending.pop(0)
 
             async def delete(self, *keys: str) -> None:
                 for key in keys:
                     store.pop(key, None)
+
+            async def unlink(self, *keys: str) -> int:
+                return sum(store.pop(key, None) is not None for key in keys)
 
         yield Conn()
 
