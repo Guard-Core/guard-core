@@ -358,14 +358,17 @@ class _SecurityConfigFields(BaseModel):
     sync_body_read_max_concurrent: int = Field(
         default=64,
         description=(
-            "Maximum number of daemon threads the SYNC guard_core tree may "
-            "have blocked at once inside an adapter's read_body_prefix or "
-            "body call. A blocking sync read cannot be cancelled, so each "
-            "attempt runs on its own daemon thread and waits up to "
-            "body_read_timeout for it; once this many threads are already "
-            "blocked on a stalled read, further attempts queue for the same "
-            "budget and then give up and log the exhaustion, keeping the "
-            "thread count bounded instead of growing without limit."
+            "Maximum number of request-body and response-body reads that may "
+            "be in flight at once inside an adapter's read_body_prefix or "
+            "body call. In the SYNC guard_core tree a blocking read cannot be "
+            "cancelled, so each attempt runs on its own daemon thread and "
+            "this bounds the threads blocked on a stalled read; in the ASYNC "
+            "tree it bounds the reads awaiting at once. Once the limit is "
+            "reached, a further attempt waits for a slot for up to "
+            "body_read_timeout, then gives up, logs the exhaustion and treats "
+            "the body as unavailable for detection, keeping the count bounded "
+            "instead of growing without limit. The bound is per process; "
+            "event loops on several threads share it as a soft limit."
         ),
         ge=1,
         le=10000,

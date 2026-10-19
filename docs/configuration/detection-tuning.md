@@ -67,7 +67,7 @@ Distinct from `detection_max_content_length` (the regex scan window over already
 
 Seconds to wait for an adapter's `read_body_prefix`/`body` call before treating the body as unavailable to detection. In `guard_core` (async) this bounds the wait via `asyncio.wait_for`, against a stalled or misbehaving adapter/stream.
 
-In `guard_core.sync`, a blocking call cannot be cancelled from the outside, so each read attempt runs on its own daemon thread and `body_read_timeout` bounds how long the caller joins that thread; the thread itself keeps running in the background until the adapter's call returns, only the caller stops waiting for it. `sync_body_read_max_concurrent` (default `64`) caps how many such threads may be blocked at once; once that budget is exhausted, further attempts queue for it and give up (logging the exhaustion) rather than spawning without limit.
+In `guard_core.sync`, a blocking call cannot be cancelled from the outside, so each read attempt runs on its own daemon thread and `body_read_timeout` bounds how long the caller joins that thread; the thread itself keeps running in the background until the adapter's call returns, only the caller stops waiting for it. `sync_body_read_max_concurrent` (default `64`) caps how many such threads may be blocked at once; once that budget is exhausted, further attempts queue for it and give up (logging the exhaustion) rather than spawning without limit. The async tree applies the same cap to the reads it awaits at once.
 
 ### `detection_preserve_attack_patterns`
 

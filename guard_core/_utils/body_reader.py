@@ -32,15 +32,34 @@ _DEFAULT_BODY_READ_MAX_CONCURRENT = 64
 _MAX_STRADDLE_OVERLAP_BYTES = 256
 
 
+_BODY_READ_SLOT_POLL_SECONDS = 0.005
+_body_read_slots: dict[int, list[None]] = {}
+
+
 async def _safe_read(
     reader: Callable[[], Awaitable[bytes]],
     timeout: float,
     max_concurrent: int = _DEFAULT_BODY_READ_MAX_CONCURRENT,
 ) -> bytes | None:
+    deadline = asyncio.get_running_loop().time() + timeout
+    slots = _body_read_slots.setdefault(max_concurrent, [])
+    while len(slots) >= max_concurrent:
+        if asyncio.get_running_loop().time() >= deadline:
+            logger.warning(
+                "Body read concurrency limit reached (max_concurrent=%d); "
+                "treating the body as unavailable for detection",
+                max_concurrent,
+            )
+            return None
+        await asyncio.sleep(_BODY_READ_SLOT_POLL_SECONDS)
+    slots.append(None)
     try:
-        return await asyncio.wait_for(reader(), timeout=timeout)
+        remaining = max(deadline - asyncio.get_running_loop().time(), 0.0)
+        return await asyncio.wait_for(reader(), timeout=remaining)
     except Exception:
         return None
+    finally:
+        slots.pop()
 
 
 async def _straddle_overlap_bytes() -> int:

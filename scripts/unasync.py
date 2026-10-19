@@ -98,15 +98,34 @@ HAND_MAINTAINED = {
 }
 
 _ASYNC_SAFE_READ_SRC = (
+    "_BODY_READ_SLOT_POLL_SECONDS = 0.005\n"
+    "_body_read_slots: dict[int, list[None]] = {}\n"
+    "\n"
+    "\n"
     "async def _safe_read(\n"
     "    reader: Callable[[], Awaitable[bytes]],\n"
     "    timeout: float,\n"
     "    max_concurrent: int = _DEFAULT_BODY_READ_MAX_CONCURRENT,\n"
     ") -> bytes | None:\n"
+    "    deadline = asyncio.get_running_loop().time() + timeout\n"
+    "    slots = _body_read_slots.setdefault(max_concurrent, [])\n"
+    "    while len(slots) >= max_concurrent:\n"
+    "        if asyncio.get_running_loop().time() >= deadline:\n"
+    "            logger.warning(\n"
+    '                "Body read concurrency limit reached (max_concurrent=%d); "\n'
+    '                "treating the body as unavailable for detection",\n'
+    "                max_concurrent,\n"
+    "            )\n"
+    "            return None\n"
+    "        await asyncio.sleep(_BODY_READ_SLOT_POLL_SECONDS)\n"
+    "    slots.append(None)\n"
     "    try:\n"
-    "        return await asyncio.wait_for(reader(), timeout=timeout)\n"
+    "        remaining = max(deadline - asyncio.get_running_loop().time(), 0.0)\n"
+    "        return await asyncio.wait_for(reader(), timeout=remaining)\n"
     "    except Exception:\n"
     "        return None\n"
+    "    finally:\n"
+    "        slots.pop()\n"
 )
 
 _SYNC_SAFE_READ_REPLACEMENT = (
