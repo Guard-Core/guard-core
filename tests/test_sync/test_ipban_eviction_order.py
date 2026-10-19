@@ -60,7 +60,7 @@ def test_an_expired_ban_makes_room_without_counting_as_an_eviction() -> None:
     assert _events(manager) == []
 
 
-def test_evicting_unexpired_bans_warns_and_sends_ip_ban_evicted_when_sampled(
+def test_evicting_unexpired_bans_sends_every_event_and_samples_the_warning(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     manager = _manager(maxsize=1)
@@ -71,7 +71,9 @@ def test_evicting_unexpired_bans_warns_and_sends_ip_ban_evicted_when_sampled(
 
     assert manager.evictions_count == 101
     assert len([r for r in caplog.records if "evicted" in r.getMessage()]) == 2
-    first, hundredth = _events(manager)
+    events = _events(manager)
+    assert len(events) == 101
+    first, hundredth = events[0], events[99]
     assert first.event_type == "ip_ban_evicted"
     assert first.action_taken == "ban_evicted"
     assert first.metadata["evictions"] == 1

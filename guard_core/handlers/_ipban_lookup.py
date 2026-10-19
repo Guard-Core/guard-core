@@ -75,7 +75,9 @@ class IpBanLookupMixin(IpBanVersionMixin, IpBanRuleExemptionMixin):
                 continue
             expiry_time = float(value)
             if now <= expiry_time:
-                self.banned_ips[key] = expiry_time
+                self.banned_ips[key] = min(
+                    expiry_time, now + self.LOCAL_CACHE_TTL_CAP_SECONDS
+                )
                 banned_keys.append(key)
             else:
                 await self.redis_handler.delete(namespace, key)
@@ -90,7 +92,7 @@ class IpBanLookupMixin(IpBanVersionMixin, IpBanRuleExemptionMixin):
                 continue
             if now > expiry:
                 self._purge_banned_ip(key)
-                return False
+                return None if self.redis_handler else False
             return True
         return None
 

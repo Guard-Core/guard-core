@@ -106,15 +106,17 @@ class IpBanOperationsMixin(
         recidive_count: int | None = None,
     ) -> None:
         expiry = time.time() + duration
-        self.banned_ips[key] = expiry
+        backed = bool(self.redis_handler)
+        self._remember_ban(key, expiry, backed)
 
-        if self.redis_handler:
+        if backed:
             try:
                 await self.redis_handler.set_key(
                     namespace, key, str(expiry), ttl=duration
                 )
             except Exception:
                 self._warn_kept_in_this_process(key, "request failed")
+                self._remember_ban(key, expiry, False)
 
         if recidive_count is not None:
             self.logger.info(
@@ -132,6 +134,11 @@ class IpBanOperationsMixin(
             return "banned_identities", self._identity_ban_key(ip)
         self._assert_valid_exact_ip(ip)
         return "banned_ips", ip
+
+    def _remember_ban(self, key: str, expiry: float, backed_by_redis: bool) -> None:
+        self.banned_ips[key] = self._local_expiry(expiry) if backed_by_redis else expiry
+        if not backed_by_redis and hasattr(self.banned_ips, "mark_memory_only"):
+            self.banned_ips.mark_memory_only(key)
 
     async def _report_eviction(self) -> None:
         evicted = self.evicted_to_report

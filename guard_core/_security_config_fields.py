@@ -542,9 +542,10 @@ class _SecurityConfigFields(BaseModel):
         description=(
             "Cap on the bans one process keeps in memory (addresses and grouped "
             "identities, 100,000 by default, about 25 MiB when full), >= 1. At the "
-            "cap the ban closest to expiry is evicted first, and the first and "
-            "every hundredth unexpired eviction is logged and sent as an "
-            "ip_ban_evicted event. With Redis the bans themselves are not capped."
+            "cap the ban closest to expiry is evicted first, the first and "
+            "every hundredth unexpired eviction is logged, and every eviction of "
+            "a ban that has no Redis copy is sent as an ip_ban_evicted event. "
+            "With Redis the bans themselves are not capped."
         ),
     )
 

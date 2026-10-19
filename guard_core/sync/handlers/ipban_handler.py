@@ -84,8 +84,13 @@ class IPBanManager(
                 "Redis to keep a large number of bans",
                 self.evictions_count,
             )
-            if evicted:
-                self.evicted_to_report = (evicted[0], evicted[1])
+        store = self.banned_ips
+        if (
+            evicted
+            and isinstance(store, _BanStore)
+            and store.is_memory_only(evicted[0])
+        ):
+            self.evicted_to_report = (evicted[0], evicted[1])
 
 
 ip_ban_manager = IPBanManager()

@@ -46,6 +46,14 @@ class _BanStore(MutableMapping[str, float]):
         self._clock = clock
         self._expiries: dict[str, float] = {}
         self._heap: list[tuple[float, str]] = []
+        self._memory_only: set[str] = set()
+
+    def mark_memory_only(self, key: str) -> None:
+        """Record that no Redis copy backs this ban, so an eviction loses it."""
+        self._memory_only.add(key)
+
+    def is_memory_only(self, key: str) -> bool:
+        return key in self._memory_only
 
     def __getitem__(self, key: str) -> float:
         return self._expiries[key]
@@ -60,6 +68,7 @@ class _BanStore(MutableMapping[str, float]):
         if key not in self._expiries and len(self._expiries) >= self.maxsize:
             self._evict_closest_to_expiry()
         self._expiries[key] = expiry
+        self._memory_only.discard(key)
         heapq.heappush(self._heap, (expiry, key))
         if len(self._heap) > 2 * len(self._expiries) + 1024:
             self._heap = [(value, name) for name, value in self._expiries.items()]
@@ -67,10 +76,12 @@ class _BanStore(MutableMapping[str, float]):
 
     def __delitem__(self, key: str) -> None:
         del self._expiries[key]
+        self._memory_only.discard(key)
 
     def clear(self) -> None:
         self._expiries.clear()
         self._heap.clear()
+        self._memory_only.clear()
 
     def resize(self, maxsize: int) -> None:
         self.maxsize = maxsize
@@ -85,6 +96,7 @@ class _BanStore(MutableMapping[str, float]):
             del self._expiries[key]
             if expiry > self._clock():
                 self._on_evict(key, expiry)
+            self._memory_only.discard(key)
             return
 
 

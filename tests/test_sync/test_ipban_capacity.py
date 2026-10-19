@@ -62,7 +62,7 @@ def test_lowering_the_cap_evicts_the_bans_closest_to_expiry() -> None:
     assert manager.is_ip_banned("8.8.0.3") is False
 
 
-def test_the_first_unexpired_eviction_is_reported_and_then_every_hundredth(
+def test_every_memory_only_eviction_is_reported_and_the_warning_is_sampled(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     manager = IPBanManager()
@@ -78,7 +78,7 @@ def test_the_first_unexpired_eviction_is_reported_and_then_every_hundredth(
 
     sent = [call.args[0] for call in manager.agent_handler.send_event.call_args_list]
     evictions = [event for event in sent if event.event_type == "ip_ban_evicted"]
-    assert [event.metadata["evictions"] for event in evictions] == [1, 100]
+    assert [event.metadata["evictions"] for event in evictions] == list(range(1, 102))
     warnings = [r for r in caplog.records if "evicted" in r.getMessage()]
     assert len(warnings) == 2
 

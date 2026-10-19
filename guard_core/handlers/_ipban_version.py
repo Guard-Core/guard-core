@@ -25,6 +25,7 @@ class IpBanVersionMixin:
     """
 
     _VERSION_RECHECK_SECONDS = 1.0
+    LOCAL_CACHE_TTL_CAP_SECONDS: int
 
     banned_ips: MutableMapping[str, float]
     banned_networks: list[tuple[_Network, float]]
@@ -45,6 +46,13 @@ class IpBanVersionMixin:
                 "a lifted or new ban until their next reload: %s",
                 error,
             )
+
+    def _local_expiry(self, expiry: float) -> float:
+        """What this worker keeps of a ban that Redis also holds: at most
+        LOCAL_CACHE_TTL_CAP_SECONDS, so a key removed out of band (a port that
+        deletes without moving the version) stops being enforced here within that
+        time. A ban held only in memory keeps its full duration."""
+        return min(expiry, time.time() + self.LOCAL_CACHE_TTL_CAP_SECONDS)
 
     async def _write_with_version_bump(
         self,
