@@ -24,3 +24,25 @@ def fake_ban_redis(ban_value: str | None = None, version: str | None = None) -> 
         )
     )
     return redis
+
+
+def scanning(*keys: str) -> Any:
+    def scan_iter(*_args: Any, **_kwargs: Any) -> Any:
+        position = 0
+        while position < len(keys):
+            yield keys[position]
+            position += 1
+
+    return scan_iter
+
+
+def redis_with_connection(connection: Any) -> Any:
+    redis = MagicMock()
+    redis.config = MagicMock(redis_prefix="guard:")
+    redis.get_connection = MagicMock(
+        return_value=MagicMock(
+            __enter__=MagicMock(return_value=connection),
+            __exit__=MagicMock(return_value=None),
+        )
+    )
+    return redis
