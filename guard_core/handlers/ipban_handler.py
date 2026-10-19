@@ -44,7 +44,7 @@ class IPBanManager(
     refused_ban_reported_until: dict[str, float]
     recidive_history: dict[str, tuple[int, float]]
     evictions_count: int
-    evicted_to_report: tuple[str, float] | None
+    evicted_to_report: list[tuple[str, float, int]]
     logger: logging.Logger
     config: Any = None
     redis_handler: Any = None
@@ -58,7 +58,7 @@ class IPBanManager(
             cls._instance.banned_ips = _BanStore(
                 maxsize=cls.MAX_LOCAL_BANS, on_evict=cls._instance._on_eviction
             )
-            cls._instance.evicted_to_report = None
+            cls._instance.evicted_to_report = []
             cls._instance.banned_networks = []
             cls._instance.refused_ban_reported_until = {}
             cls._instance.recidive_history = {}
@@ -68,6 +68,8 @@ class IPBanManager(
         return cls._instance
 
     def set_capacity(self, entries: int) -> None:
+        """Resize the store. The memory-only bans it evicts are queued in
+        ``evicted_to_report`` and sent by the next ban or Redis-hit insert."""
         if isinstance(self.banned_ips, _BanStore):
             self.banned_ips.resize(entries)
 
@@ -84,10 +86,13 @@ class IPBanManager(
         store = self.banned_ips
         if (
             evicted
+            and self.agent_handler
             and isinstance(store, _BanStore)
             and store.is_memory_only(evicted[0])
         ):
-            self.evicted_to_report = (evicted[0], evicted[1])
+            self.evicted_to_report.append(
+                (evicted[0], evicted[1], self.evictions_count)
+            )
 
 
 ip_ban_manager = IPBanManager()
@@ -102,7 +107,7 @@ async def reset_global_state() -> None:
     manager.recidive_history = {}
     manager.rule_exempt_networks = ()
     manager.evictions_count = 0
-    manager.evicted_to_report = None
+    manager.evicted_to_report = []
     manager.redis_handler = None
     manager.agent_handler = None
     ip_ban_manager = manager

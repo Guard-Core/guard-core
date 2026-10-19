@@ -1,4 +1,5 @@
 import os
+import time
 import uuid
 from collections.abc import Generator
 from unittest.mock import MagicMock
@@ -90,3 +91,31 @@ def test_the_event_carries_the_remaining_expiry() -> None:
     events = [call.args[0] for call in manager.agent_handler.send_event.call_args_list]
     event = next(e for e in events if e.event_type == "ip_ban_evicted")
     assert event.metadata["remaining_seconds"] == pytest.approx(600, abs=2)
+
+
+def test_the_evictions_of_a_resize_and_of_the_next_ban_are_all_reported() -> None:
+    manager = _manager(None)
+    manager.set_capacity(3)
+    for index, duration in enumerate((100, 200, 300)):
+        manager.ban_ip(ADDRESSES[index], duration, "t")
+    manager.set_capacity(1)
+
+    manager.ban_ip(ADDRESSES[3], 400, "t")
+
+    assert sorted(_evicted(manager)) == sorted(ADDRESSES[:3])
+    assert manager.evictions_count == 3
+    assert manager.evicted_to_report == []
+
+
+def test_a_redis_hit_that_evicts_a_memory_only_ban_reports_it(
+    live_redis: RedisManager,
+) -> None:
+    manager = _manager(None)
+    manager.set_capacity(1)
+    manager.ban_ip(ADDRESSES[0], 600, "t")
+    manager.redis_handler = live_redis
+    live_redis.set_key("banned_ips", ADDRESSES[1], str(time.time() + 900), 900)
+
+    assert manager.is_ip_banned(ADDRESSES[1]) is True
+
+    assert _evicted(manager) == [ADDRESSES[0]]

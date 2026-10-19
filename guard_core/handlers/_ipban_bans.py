@@ -5,7 +5,7 @@ from collections.abc import MutableMapping
 from typing import Any
 
 from guard_core._utils.ip_extraction import MALFORMED_FORWARDED_FOR_PREFIX
-from guard_core.handlers._ipban_cache import _Network
+from guard_core.handlers._ipban_cache import _BanStore, _Network
 from guard_core.handlers._ipban_events import IpBanEventMixin
 from guard_core.handlers._ipban_recidive import IpBanRecidiveMixin
 from guard_core.handlers._ipban_rule_exempt import IpBanRuleExemptionMixin
@@ -27,7 +27,7 @@ class IpBanOperationsMixin(
     banned_networks: list[tuple[_Network, float]]
     refused_ban_reported_until: dict[str, float]
     evictions_count: int
-    evicted_to_report: tuple[str, float] | None
+    evicted_to_report: list[tuple[str, float, int]]
     MAX_LOCAL_BANS: int
     config: Any = None
     redis_handler: Any = None
@@ -126,7 +126,7 @@ class IpBanOperationsMixin(
                 recidive_count,
             )
         if self.agent_handler:
-            await self._report_eviction()
+            await self._report_evictions()
             await self._send_ban_event(key, duration, reason, recidive_count)
 
     def _ban_target(self, ip: str, grouped: bool) -> tuple[str, str]:
@@ -137,20 +137,8 @@ class IpBanOperationsMixin(
 
     def _remember_ban(self, key: str, expiry: float, backed_by_redis: bool) -> None:
         self.banned_ips[key] = self._local_expiry(expiry) if backed_by_redis else expiry
-        if not backed_by_redis and hasattr(self.banned_ips, "mark_memory_only"):
+        if not backed_by_redis and isinstance(self.banned_ips, _BanStore):
             self.banned_ips.mark_memory_only(key)
-
-    async def _report_eviction(self) -> None:
-        evicted = self.evicted_to_report
-        if evicted is None:
-            return
-        self.evicted_to_report = None
-        await self._send_ban_evicted_event(
-            evicted[0],
-            evicted[1],
-            self.evictions_count,
-            getattr(self.banned_ips, "maxsize", self.MAX_LOCAL_BANS),
-        )
 
     def _target_network(self, ip: str) -> _Network | None:
         try:

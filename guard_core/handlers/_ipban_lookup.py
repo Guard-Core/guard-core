@@ -11,6 +11,7 @@ from guard_core._utils.ip_extraction import (
 )
 from guard_core._utils.whitelist_match import most_specific_whitelist_entry
 from guard_core.handlers._ipban_cache import _Network
+from guard_core.handlers._ipban_events import IpBanEventMixin
 from guard_core.handlers._ipban_rule_exempt import IpBanRuleExemptionMixin
 from guard_core.handlers._ipban_version import (
     _VERSION_PAIR,
@@ -20,7 +21,7 @@ from guard_core.handlers._ipban_version import (
 _DEFAULT_IPV6_PREFIX_LENGTH = 64
 
 
-class IpBanLookupMixin(IpBanVersionMixin, IpBanRuleExemptionMixin):
+class IpBanLookupMixin(IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptionMixin):
     banned_ips: MutableMapping[str, float]
     banned_networks: list[tuple[_Network, float]]
     redis_handler: Any = None
@@ -75,12 +76,12 @@ class IpBanLookupMixin(IpBanVersionMixin, IpBanRuleExemptionMixin):
                 continue
             expiry_time = float(value)
             if now <= expiry_time:
-                self.banned_ips[key] = min(
-                    expiry_time, now + self.LOCAL_CACHE_TTL_CAP_SECONDS
-                )
+                self.banned_ips[key] = self._local_expiry(expiry_time)
                 banned_keys.append(key)
             else:
                 await self.redis_handler.delete(namespace, key)
+        if self.agent_handler:
+            await self._report_evictions()
         return bool(banned_keys)
 
     def _local_verdict(self, ip: str, identity: str | None, now: float) -> bool | None:

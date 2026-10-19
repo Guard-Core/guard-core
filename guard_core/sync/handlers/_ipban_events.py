@@ -1,5 +1,6 @@
 import logging
 import time
+from collections.abc import MutableMapping
 from datetime import datetime, timezone
 from typing import Any
 
@@ -9,6 +10,18 @@ _IP_BAN_HANDLER_NAME = "ip_ban"
 class IpBanEventMixin:
     agent_handler: Any = None
     logger: logging.Logger
+    banned_ips: MutableMapping[str, float]
+    evicted_to_report: list[tuple[str, float, int]]
+    MAX_LOCAL_BANS: int
+
+    def _report_evictions(self) -> None:
+        """Send one ip_ban_evicted event for every memory-only ban evicted since
+        the last report. Called after every insert that can evict: a ban written
+        by _store_ban and a Redis hit cached by the lookup."""
+        pending, self.evicted_to_report = self.evicted_to_report, []
+        capacity = getattr(self.banned_ips, "maxsize", self.MAX_LOCAL_BANS)
+        for identity, expiry, evictions in pending:
+            self._send_ban_evicted_event(identity, expiry, evictions, capacity)
 
     def initialize_agent(self, agent_handler: Any) -> None:
         self.agent_handler = agent_handler
