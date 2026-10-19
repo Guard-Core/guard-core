@@ -436,7 +436,7 @@ async def _scan_body_field(
     log_value: str | LazyPreview | None = _field_log_value(
         preview_override, is_sensitive, display
     )
-    if log_value is None and not is_sensitive:
+    if log_value is None:
         log_value = _lazy_display(value, sensitive_params, sensitive_body_fields)
     detected, trigger, threats = await _check_request_component(
         value,
@@ -445,17 +445,16 @@ async def _scan_body_field(
         client_ip,
         correlation_id,
         enabled_categories,
-        None if log_value is not None else log_level,
+        None,
         content_preview=log_value,
         sensitive_params=sensitive_params,
     )
     if not detected:
         return False, "", []
-    if log_value is not None:
-        resolved = _resolve_preview(log_value)
-        _log_detected_component(
-            resolved if resolved is not None else value, label, client_ip, log_level
-        )
+    resolved = _resolve_preview(log_value)
+    _log_detected_component(
+        resolved if resolved is not None else value, label, client_ip, log_level
+    )
     return True, f"Request body field '{label}': {trigger}", threats
 
 

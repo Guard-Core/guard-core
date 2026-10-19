@@ -267,6 +267,11 @@ def test_inline_cpu_is_accounted_per_pass_not_per_pattern() -> None:
         patch.object(detection_scan, "_thread_cpu_seconds", counting_clock),
         patch.object(manager, "_check_regex_pattern", counting),
         patch.object(_suspatterns_regex, "_EVENT_LOOP_SLICE_SECONDS", float("inf")),
+        patch.object(
+            _suspatterns_regex,
+            "rows_with_required_literal",
+            lambda rows, *_args: iter(rows),
+        ),
         _scan_value_budget(512, max_scan_seconds=1000.0),
     ):
         manager.detect("hello world", "127.0.0.1", "query_param:q")

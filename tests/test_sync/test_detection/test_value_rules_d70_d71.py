@@ -1,6 +1,9 @@
 import pytest
 
 from guard_core.models import SecurityConfig
+from guard_core.sync.handlers._suspatterns_shell_validators import (
+    _shell_token_is_command_with_arguments_or_known,
+)
 from guard_core.sync.utils import detect_penetration_attempt
 from tests.test_sync.conftest import SyncMockGuardRequest
 
@@ -221,3 +224,8 @@ def test_a_bare_base64_segment_and_ordinary_words_stay_clean_in_the_path(
     path: str,
 ) -> None:
     assert _categories(path, "path") is None
+
+
+@pytest.mark.parametrize("token", ["", "   ", "\t"])
+def test_an_empty_token_between_backticks_is_not_a_command(token: str) -> None:
+    assert _shell_token_is_command_with_arguments_or_known(token) is False
