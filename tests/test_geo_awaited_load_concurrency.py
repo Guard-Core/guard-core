@@ -112,6 +112,32 @@ async def test_five_concurrent_first_requests_all_fail_on_one_raising_load(
     assert load.await_count == 1
 
 
+async def test_an_in_flight_retry_keeps_the_previous_failure_visible(
+    tmp_path: Path,
+) -> None:
+    manager = _manager_without_database(tmp_path)
+    with patch.object(
+        manager, "_adopt_redis_copy", AsyncMock(side_effect=OSError("disk gone"))
+    ):
+        with pytest.raises(GeoDatabaseLoadError):
+            await check_ip_country(CLIENT_IP, _blocking_config(manager), manager)
+    started, release = asyncio.Event(), asyncio.Event()
+
+    async def held_retry() -> None:
+        started.set()
+        await release.wait()
+
+    manager._last_attempt_at = None
+    retry = manager._start_or_join_load(held_retry)
+    await asyncio.wait_for(started.wait(), timeout=5)
+
+    with pytest.raises(GeoDatabaseLoadError):
+        manager._raise_last_load_error()
+    release.set()
+    await retry
+    assert manager._last_load_error is None
+
+
 async def test_a_cancelled_waiter_does_not_cancel_the_shared_load(
     tmp_path: Path,
 ) -> None:

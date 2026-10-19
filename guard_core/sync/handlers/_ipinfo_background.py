@@ -47,7 +47,7 @@ class IpInfoBackgroundMixin:
             self._background_task.start()
             return self._background_task
 
-    _last_load_error: Exception | None = None
+    _last_load_error: str | None = None
 
     def ensure_database_loaded(self) -> None:
         if self.reader is not None:
@@ -57,10 +57,9 @@ class IpInfoBackgroundMixin:
         self._raise_last_load_error()
 
     def _raise_last_load_error(self) -> None:
-        # A fresh error per request: re-raising the stored one grows its traceback.
         failure = self._last_load_error
         if failure is not None:
-            raise GeoDatabaseLoadError(failure) from failure
+            raise GeoDatabaseLoadError(failure)
 
     def schedule_database_load(self) -> None:
         if self._is_backing_off():
@@ -75,12 +74,16 @@ class IpInfoBackgroundMixin:
             self._background_in_flight = False
 
     def _load_in_background(self, work: Callable[[], None]) -> None:
-        self._last_load_error = None
+        # The outcome is written when the attempt ends, so a request that reads it
+        # while a retry is in flight still sees the previous failure; only the text
+        # is kept, since the exception's frames hold the failed load's buffers.
         try:
             work()
         except Exception as failure:
-            self._last_load_error = failure
             self.logger.exception("Background GeoIP database load failed")
+            self._last_load_error = f"{type(failure).__name__}: {failure}"
+        else:
+            self._last_load_error = None
         finally:
             self._background_in_flight = False
         self._back_off_unless_loaded()

@@ -97,3 +97,35 @@ def test_concurrent_first_requests_all_fail_on_one_raising_load(
     assert [type(outcome) for outcome in outcomes] == [GeoDatabaseLoadError] * 5
     assert len({id(outcome) for outcome in outcomes}) == 5
     assert len(loads) == 1
+
+
+def test_an_in_flight_retry_keeps_the_previous_failure_visible(
+    tmp_path: Path,
+) -> None:
+    manager = IPInfoManager(token="tok", db_path=tmp_path / "geo.mmdb")
+    config = SecurityConfig(
+        enable_redis=False,
+        ipinfo_token="tok",
+        ipinfo_db_path=manager.db_path,
+        blocked_countries=["CN"],
+    )
+    with patch.object(
+        manager, "_adopt_redis_copy", MagicMock(side_effect=OSError("disk gone"))
+    ):
+        with pytest.raises(GeoDatabaseLoadError):
+            check_ip_country(CLIENT_IP, config, manager)
+    started, release = threading.Event(), threading.Event()
+
+    def held_retry() -> None:
+        started.set()
+        release.wait()
+
+    manager._last_attempt_at = None
+    retry = manager._start_or_join_load(held_retry)
+    assert started.wait(timeout=5)
+
+    with pytest.raises(GeoDatabaseLoadError):
+        manager._raise_last_load_error()
+    release.set()
+    retry.join(timeout=5)
+    assert manager._last_load_error is None

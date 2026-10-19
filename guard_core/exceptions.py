@@ -20,8 +20,8 @@ class GeoDatabaseLoadError(GuardCoreError):
     succeeds, so ``fail_secure`` answers it as it answered the load error itself.
     """
 
-    def __init__(self, failure: BaseException) -> None:
-        self.detail = f"GeoIP database load failed: {type(failure).__name__}: {failure}"
+    def __init__(self, failure: str) -> None:
+        self.detail = f"GeoIP database load failed: {failure}"
         super().__init__(self.detail)
 
 

@@ -1,7 +1,8 @@
 import asyncio
+import gc
+import weakref
 from collections.abc import Generator
 from pathlib import Path
-from types import TracebackType
 from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -185,13 +186,8 @@ def _broken_load() -> Any:
     return AsyncMock(side_effect=OSError("disk gone"))
 
 
-def _traceback_depth(error: BaseException | None) -> int:
-    depth = 0
-    frame: TracebackType | None = error.__traceback__ if error else None
-    while frame is not None:
-        depth += 1
-        frame = frame.tb_next
-    return depth
+class _LoadBuffer:
+    pass
 
 
 async def test_a_load_that_raises_fails_every_country_check_inside_the_backoff(
@@ -204,30 +200,33 @@ async def test_a_load_that_raises_fails_every_country_check_inside_the_backoff(
         for config in (_blocking_config(manager), _allow_list_config(manager)):
             with pytest.raises(GeoDatabaseLoadError) as raised:
                 await check_ip_country(CLIENT_IP, config, manager)
-            assert isinstance(raised.value.__cause__, OSError)
-            assert "OSError: disk gone" in str(raised.value)
+            assert str(raised.value) == "GeoIP database load failed: OSError: disk gone"
             assert not isinstance(raised.value, GuardRedisError)
 
     assert broken.await_count == 1
     assert any("Background GeoIP database load failed" in m for m in caplog.messages)
 
 
-async def test_requests_inside_the_backoff_never_grow_the_stored_load_error(
+async def test_a_failed_load_keeps_no_exception_or_its_frames_alive(
     tmp_path: Path,
 ) -> None:
     manager = _manager_without_database(tmp_path)
+    held: list[weakref.ref[_LoadBuffer]] = []
 
-    with patch.object(manager, "_adopt_redis_copy", _broken_load()):
-        with pytest.raises(GeoDatabaseLoadError):
-            await check_ip_country(CLIENT_IP, _blocking_config(manager), manager)
-        stored = manager._last_load_error
-        depth = _traceback_depth(stored)
-        for _ in range(1000):
+    async def load_holding_a_buffer() -> bool:
+        buffer = _LoadBuffer()
+        held.append(weakref.ref(buffer))
+        raise OSError("disk gone")
+
+    load = AsyncMock(side_effect=load_holding_a_buffer)
+    with patch.object(manager, "_adopt_redis_copy", load):
+        with patch.object(manager.logger, "propagate", False):
             with pytest.raises(GeoDatabaseLoadError):
                 await check_ip_country(CLIENT_IP, _blocking_config(manager), manager)
+    gc.collect()
 
-    assert manager._last_load_error is stored
-    assert _traceback_depth(stored) == depth
+    assert manager._last_load_error == "OSError: disk gone"
+    assert held[0]() is None
 
 
 async def test_a_raising_load_recovers_once_the_backoff_ends(tmp_path: Path) -> None:
