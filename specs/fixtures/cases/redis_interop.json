@@ -389,6 +389,14 @@
       "expected": [
         {
           "key": "guard_core:corpus_rio:patterns:custom",
+          "type": "string",
+          "ttl": {
+            "set": false
+          },
+          "value": "corpuspattern-[a-z]+"
+        },
+        {
+          "key": "guard_core:corpus_rio:patterns:custom_list",
           "type": "json",
           "ttl": {
             "set": false
