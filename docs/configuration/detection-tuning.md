@@ -63,11 +63,25 @@ Distinct from `detection_max_content_length` (the regex scan window over already
 
 ### `body_read_timeout`
 
-**Type**: `float` | **Default**: `3.0` | **Range**: 0.0 (exclusive) - 30.0 | **Scope**: both trees
+**Type**: `float` | **Default**: `3.0` | **Range**: 0.0 (exclusive) - 30.0
 
-Seconds to wait for an adapter's `read_body_prefix`/`body` call before treating the body as unavailable to detection. In `guard_core` (async) this bounds the wait via `asyncio.wait_for`, against a stalled or misbehaving adapter/stream.
+Seconds a request-body read may sit idle. Detection reads the body through the adapter's `read_body_prefix_until_idle(max_bytes, idle_timeout)` and passes this value as `idle_timeout`. A client that keeps sending is never cut off, however large the upload. A client that stops sending for this long is: the adapter raises `BodyReadStalledError` and guard-core answers `408` when `fail_secure` is on, or logs it, sends an event and lets the request through when it is off. A read that fails (a dropped connection, an adapter error) answers `400` under `fail_secure`. Neither outcome counts as a strike.
 
-In `guard_core.sync`, a blocking call cannot be cancelled from the outside, so each read attempt runs on its own daemon thread and `body_read_timeout` bounds how long the caller joins that thread; the thread itself keeps running in the background until the adapter's call returns, only the caller stops waiting for it. `sync_body_read_max_concurrent` (default `64`) caps how many such threads may be blocked at once; once that budget is exhausted, further attempts queue for it and give up (logging the exhaustion) rather than spawning without limit. The async tree applies the same cap to the reads it awaits at once.
+An adapter that has no `read_body_prefix_until_idle` is read through `read_body_prefix`, then `body`, awaited in full with no deadline of its own. One warning per adapter class names the missing method, and the server's own timeout is the only bound on such a read. `guard_core.sync` reads on the request thread and never on another thread, so no read is abandoned half-way; a sync adapter applies the idle timeout to its stream or maps the server's socket timeout to `BodyReadStalledError`.
+
+The same value is how long a read waits for a free slot when a slot limit is set (`async_body_read_max_concurrent`, `sync_body_read_max_concurrent`). The async tree also uses it as the `asyncio.wait_for` bound on the response-body read of a `return_pattern` rule.
+
+### `async_body_read_max_concurrent`
+
+**Type**: `int | None` | **Default**: `None` | **Range**: 1 - 10000 | **Scope**: async tree
+
+`None` means no limit, as in v4.4.0: a request-body read never waits for a slot, so a flood of slow clients is bounded by `body_read_timeout` and the server's own limits only. When set to `N`, the `N+1`th concurrent read waits for a slot for up to `body_read_timeout`, then gets the `fail_secure` outcome: `408` with a log line and an event and no strike when `fail_secure` is on, a log line and an event and the request passes unscanned when it is off, never a silent skip. Size it with care: N slow clients that hold every slot make each other body wait for one. The bound is per process; event loops on several threads share it as a soft limit.
+
+### `sync_body_read_max_concurrent`
+
+**Type**: `int` | **Default**: `64` | **Range**: 1 - 10000 | **Scope**: sync tree
+
+Request bodies the sync tree reads at once, each on its own request thread. A further request waits for a slot for up to `body_read_timeout`, then gets the same `fail_secure` outcome as above. The async tree does not read this field.
 
 ### `detection_preserve_attack_patterns`
 

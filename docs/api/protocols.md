@@ -94,14 +94,36 @@ class BoundedBodyReader(Protocol):
 
 An adapter that only implements `GuardRequest` is still fully valid; guard-core treats the absence of `BoundedBodyReader` as "cannot bound the read" and skips the body rather than reading it in full.
 
-!!! warning "The call is timeout-bounded in the async tree only"
-    In `guard_core` (async), guard-core waits at most `SecurityConfig.body_read_timeout` seconds (default `3.0`) for `read_body_prefix` to return, whether the adapter is implementing `BoundedBodyReader` or `GuardRequest.body`. A stalled adapter (a stuck SSE producer, a long-poll that never yields, a buggy implementation) degrades to the same fail-closed "body unavailable" outcome a raising reader already produces, instead of hanging the request indefinitely. The stalled call itself cannot be cancelled -- `asyncio` cannot safely kill a call mid-flight -- so it keeps running in the background after guard-core gives up waiting on it; the timeout bounds guard-core's own wait, not the adapter's work. In `guard_core.sync`, `read_body_prefix`/`body` is called directly with no bound at all: `body_read_timeout` is ignored, and a stalled sync adapter blocks the request for as long as it takes, exactly like any other slow call in a WSGI application. Bound it at the WSGI server instead (gunicorn `--timeout`, uWSGI `harakiri`); guard-core does not and cannot safely cancel a blocking call from the outside without spawning unbounded background threads, which an earlier release of this protocol did and removed after it proved to leak threads under a sustained stall and silently drop detection under ordinary concurrent load once its fixed thread pool was exhausted.
+!!! warning "`read_body_prefix` has no engine deadline"
+    guard-core awaits `read_body_prefix` (and `GuardRequest.body`) in full with no deadline of its own, because cancelling or abandoning a read half-way can drop bytes the application still needs (`asyncio` cannot safely cancel a call mid-flight, and a blocking call cannot be cancelled from the outside at all). An adapter that wants a stalled client cut off implements [`IdleBoundedBodyReader`](#idleboundedbodyreader). Without it, a client that stops sending holds the request until the server's own timeout (uvicorn has no request-body read timeout, so that is the reverse proxy's or the WSGI server's: gunicorn `--timeout`, uWSGI `harakiri`). guard-core logs one warning per adapter class that names the missing method.
 
 !!! warning "Detection only sees the prefix"
     Whichever mechanism produces the bytes to scan (`Content-Length` under the cap, or `read_body_prefix`), detection only ever inspects the leading `detection_max_body_inspect_bytes` bytes of the body. A payload placed after that many bytes of filler, or a signature split across the boundary, is not detected. This is the deliberate memory/detection tradeoff of bounded-memory scanning, not a bug, and it is not equivalent to full-body scanning.
 
 !!! danger "Implementations must enforce the bound themselves"
     guard-core defensively slices the returned bytes to `max_bytes`, but that slice only trims what `read_body_prefix` already returned -- it cannot stop an implementation from reading or buffering more than `max_bytes` internally first. An implementation that ignores `max_bytes` and reads the full body before returning defeats the memory bound this protocol exists to provide (see [GHSA-xv6g-49vj-7w9c](https://github.com/Guard-Core/guard-core/security/advisories/GHSA-xv6g-49vj-7w9c)). Implementations **must not** buffer more than `max_bytes` while producing the prefix.
+
+### IdleBoundedBodyReader
+
+```python
+@runtime_checkable
+class IdleBoundedBodyReader(Protocol):
+    async def read_body_prefix_until_idle(
+        self, max_bytes: int, idle_timeout: float
+    ) -> bytes: ...
+```
+
+| Member                          | Return Type     | Description                                                                 |
+|---------------------------------|-----------------|-----------------------------------------------------------------------------|
+| `read_body_prefix_until_idle()` | `bytes` (async) | Read at most `max_bytes` of the body, or raise when the client goes idle.   |
+
+Optional, and consulted first. guard-core resolves the choice once per adapter class: `read_body_prefix_until_idle`, then `read_body_prefix`, then `body`. The deadline measures idle time, not total time: a client that keeps sending is never cut off, however large the upload, and a client that sends no byte for `idle_timeout` seconds is. guard-core passes `SecurityConfig.body_read_timeout` as `idle_timeout`.
+
+- Raise `guard_core.exceptions.BodyReadStalledError` when no byte arrives for `idle_timeout` seconds. guard-core answers `408` when `fail_secure` is on, and logs it, sends a `suspicious_request` event and lets the request through when it is off. Neither counts as a strike.
+- Raise `guard_core.exceptions.BodyReadFailedError` when the read fails, such as a dropped connection. guard-core answers `400` under `fail_secure`. Any other exception from the method is treated the same way.
+- Never drop consumed bytes: every byte read must still reach the application, so buffer the prefix and replay it before the untouched remainder of the stream.
+- The memory obligation of `BoundedBodyReader` applies: do not buffer more than `max_bytes`.
+- `SyncIdleBoundedBodyReader` is the blocking mirror. The sync tree calls it on the request thread and never moves the read to another thread. A blocking read cannot be timed from the outside, so a sync adapter applies `idle_timeout` to its stream (Flask and Django map the server's socket timeout to `BodyReadStalledError`).
 
 ___
 
