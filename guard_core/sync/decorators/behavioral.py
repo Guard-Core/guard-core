@@ -71,6 +71,13 @@ class BehavioralMixin(BaseSecurityMixin):
         action: Literal["ban", "log", "throttle", "alert"] = "ban",
     ) -> Callable[[Callable[..., Any]], DecoratedFunction]:
         def decorator(func: Callable[..., Any]) -> DecoratedFunction:
+            if max_frequency * window < 1:
+                self._report_misconfiguration(
+                    f"@suspicious_frequency(max_frequency={max_frequency}, "
+                    f"window={window}): max_frequency times window is below 1, "
+                    "so the threshold becomes 0 and every request would trip the "
+                    "rule."
+                )
             route_config = self._ensure_route_config(func)
             max_calls = int(max_frequency * window)
 
