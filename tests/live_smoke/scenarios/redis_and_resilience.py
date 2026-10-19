@@ -87,8 +87,14 @@ POOL_BURST_CONFIG = {
 def a_burst_above_the_redis_pool_waits_instead_of_failing(
     ctx: ScenarioContext,
 ) -> None:
+    # The burst measures the guard's pool wait, so it must not meet nginx's own
+    # 30 r/s limit (a fast app lets 40 threads exceed it and nginx answers 503).
     def hit(_: int) -> int:
-        return ctx.client.get("/basic/ip", params={"q": "hello"}).status_code
+        return ctx.client.get(
+            "/basic/ip",
+            params={"q": "hello"},
+            headers={"X-Smoke-Unlimited": "1"},
+        ).status_code
 
     with ThreadPoolExecutor(max_workers=40) as executor:
         statuses = list(executor.map(hit, range(120)))
