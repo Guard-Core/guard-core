@@ -103,14 +103,21 @@ def _eviction_events(ctx: ScenarioContext) -> list[dict[str, Any]] | None:
 
 
 @scenario(covers={"banned_ips_max_entries"}, config=BAN_CAPACITY_CONFIG)
-def banned_ips_max_entries_evicts_the_ban_closest_to_expiry(
+def banned_ips_max_entries_warns_and_keeps_the_redis_ban_of_an_evicted_entry(
     ctx: ScenarioContext,
 ) -> None:
     ctx.agent.post("/_debug/reset")
     ctx.agent.post("/_debug/rules", json={"ip_blacklist": RULE_BANNED_ADDRESSES})
+    mark = ctx.stack.logs.mark()
+    ctx.stack.restart_with(BAN_CAPACITY_CONFIG, force=True)
 
-    events = wait_until(lambda: _eviction_events(ctx), timeout=120.0, interval=2.0)
+    warned = wait_until(
+        lambda: ctx.stack.logs.lines_since(mark, kind="IP ban cache full"),
+        timeout=60.0,
+        interval=2.0,
+    )
 
-    assert events is not None, "no ip_ban_evicted event reached the agent stub"
-    assert events[0].get("ip_address") == RULE_BANNED_ADDRESSES[0], events
-    assert (events[0].get("metadata") or {}).get("capacity") == 2, events
+    assert warned, "no WARNING said the in-memory ban cache is full"
+    assert _eviction_events(ctx) is None, (
+        "an ip_ban_evicted event was sent for a ban that Redis also holds"
+    )

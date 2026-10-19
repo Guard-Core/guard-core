@@ -405,7 +405,7 @@ GEO_CONFIG_WHITELIST = {
 
 
 WHITELIST_ACCESS_ONLY_CONFIG = {
-    "whitelist": ["192.168.50.50"],
+    "whitelist": [CLIENT_IP, "127.0.0.1"],
     "whitelist_access_only": True,
     "blocked_user_agents": ["smoke-blocked-agent"],
     "excluded_detection_headers": EXCLUDED_HEADERS,
