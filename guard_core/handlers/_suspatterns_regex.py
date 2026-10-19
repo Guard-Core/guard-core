@@ -624,7 +624,7 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
         if performance_monitor and metric_rows:
             await performance_monitor.record_metrics(
                 metric_rows,
-                agent_handler=self.agent_handler,
+                agent_handler=self._events_agent_handler,
                 correlation_id=correlation_id,
             )
 

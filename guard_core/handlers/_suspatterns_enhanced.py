@@ -19,6 +19,7 @@ from guard_core.handlers._suspatterns_state import (
 class _SusPatternsEnhancedMixin:
     _config: Any = None
     agent_handler: Any = None
+    _events_agent_handler: Any
     _detection_state: _DetectionState
     _performance_monitor: PerformanceMonitor | None
     _semantic_threshold: float
@@ -64,7 +65,7 @@ class _SusPatternsEnhancedMixin:
         context_preprocessor = ContentPreprocessor(
             max_content_length=preprocessor.max_content_length,
             preserve_attack_patterns=preprocessor.preserve_attack_patterns,
-            agent_handler=self.agent_handler,
+            agent_handler=self._events_agent_handler,
             correlation_id=correlation_id,
             max_full_scan_bytes=preprocessor._MAX_FULL_SCAN_BYTES,
         )

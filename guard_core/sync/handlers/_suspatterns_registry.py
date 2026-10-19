@@ -28,6 +28,12 @@ class _SusPatternsRegistryMixin:
     _compiler: PatternCompiler | None
     _performance_monitor: PerformanceMonitor | None
 
+    @property
+    def _events_agent_handler(self) -> Any:
+        if not getattr(self._config, "agent_enable_events", True):
+            return None
+        return self.agent_handler
+
     def _send_pattern_event(
         self,
         event_type: str,
@@ -37,7 +43,10 @@ class _SusPatternsRegistryMixin:
         pattern_matched: str | None = None,
         **kwargs: Any,
     ) -> None:
-        if not self.agent_handler:
+        agent_handler = self._events_agent_handler
+        if not agent_handler or event_type in getattr(
+            self._config, "muted_event_types", ()
+        ):
             return
 
         try:
@@ -55,7 +64,7 @@ class _SusPatternsRegistryMixin:
                 handler_name=_SUS_PATTERNS_HANDLER_NAME,
                 metadata=kwargs,
             )
-            self.agent_handler.send_event(event)
+            agent_handler.send_event(event)
         except Exception as e:
             logger.error(f"Failed to send pattern event to agent: {e}")
 
