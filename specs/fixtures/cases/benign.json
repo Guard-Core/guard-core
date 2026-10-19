@@ -165,7 +165,7 @@
         "threat_score": 0.0,
         "threats": [],
         "original_length": 30,
-        "processed_length": 27,
+        "processed_length": 29,
         "detection_method": "enhanced"
       }
     },

@@ -288,9 +288,9 @@
           },
           {
             "type": "regex",
-            "pattern": "(?i)(?:SLEEP\\s*\\(\\s*\\d+\\s*\\))",
-            "match": "sleep(5000)",
-            "position": 12,
+            "pattern": "(?i)(?:\\A|[^\\w\\s]\\s*|\\b(?:AND|OR|XOR|NOT|IF|SELECT|THEN|ELSE|WHEN|CASE|WHERE|HAVING|BY|AS|UNION|ALL|LIMIT|OFFSET)\\s+)SLEEP\\s*\\(\\s*\\d+\\s*\\)",
+            "match": "\"sleep(5000)",
+            "position": 11,
             "category": "sqli",
             "weight": 1.0
           }
@@ -418,9 +418,18 @@
         "context": "request_body"
       },
       "expected": {
-        "is_threat": false,
-        "threat_score": 0.0,
-        "threats": [],
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "!!(?:python|ruby)/(?:object|name|module)\\b",
+            "match": "!!python/object",
+            "position": 0,
+            "category": "deserialization",
+            "weight": 1.0
+          }
+        ],
         "original_length": 38,
         "processed_length": 38,
         "detection_method": "enhanced"
@@ -481,9 +490,18 @@
         "context": "request_body"
       },
       "expected": {
-        "is_threat": false,
-        "threat_score": 0.0,
-        "threats": [],
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "[\\\"']constructor[\\\"']\\s*:\\s*\\{\\s*[\\\"']prototype[\\\"']|\\bconstructor\\s*\\.\\s*prototype\\s*\\.\\s*\\w+\\s*=",
+            "match": "\"constructor\": {\"prototype\"",
+            "position": 1,
+            "category": "proto_pollution",
+            "weight": 1.0
+          }
+        ],
         "original_length": 49,
         "processed_length": 49,
         "detection_method": "enhanced"
@@ -502,6 +520,14 @@
           {
             "type": "regex",
             "pattern": "[\\r\\n][^\\S\\r\\n]*(?:HTTP\\/[0-9.]+|Location:|Set-Cookie:)",
+            "match": "\nSet-Cookie:",
+            "position": 3,
+            "category": "http_split",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "[\\r\\n][^\\S\\r\\n]*(?:HTTP\\/[0-9.]+|Location:|Set-Cookie:)(?#url-decoded view)",
             "match": "\nSet-Cookie:",
             "position": 3,
             "category": "http_split",
@@ -719,11 +745,20 @@
         "context": "request_body"
       },
       "expected": {
-        "is_threat": false,
-        "threat_score": 0.0,
-        "threats": [],
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "#set\\s*\\(\\s*\\$\\w+\\s*=\\s*(?:\\d+\\s*[*+/-]\\s*\\d+|[^)]{0,80}(?:\\.getClass\\(|forName\\(|Runtime))",
+            "match": "#set($x = 7 * 7",
+            "position": 0,
+            "category": "template",
+            "weight": 1.0
+          }
+        ],
         "original_length": 18,
-        "processed_length": 17,
+        "processed_length": 18,
         "detection_method": "enhanced"
       }
     },
@@ -811,7 +846,7 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "(?:\\A|[;,:\\n])\\s*filename\\s*=\\s*[\\\"'][^\\\"']*\\.(?:php\\d*|phtml|shtml|asax|ascx|ashx|asmx|aspx|bash|jspx|phar|phps|asa|asp|bat|cer|cfc|cfm|cgi|cmd|com|exe|hta|jsp|msi|pht|vbe|vbs|war|wsf|js|pl|py|rb|sh|ws)[\\\"']",
+            "pattern": "(?:\\A|[;,:\\n])\\s*filename\\s*=\\s*[\\\"'][^\\\"']*\\.(?:php\\d*|htaccess|htpasswd|config|phtml|shtml|asax|ascx|ashx|asmx|aspx|bash|jspx|phar|phps|asa|asp|bat|cer|cfc|cfm|cgi|cmd|com|exe|hta|inc|jsp|msi|pht|vbe|vbs|war|wsf|js|pl|py|rb|sh|ws)[\\\"']",
             "match": "filename=\"shell.phtml\"",
             "position": 0,
             "category": "file_upload",
@@ -830,9 +865,18 @@
         "context": "request_body"
       },
       "expected": {
-        "is_threat": false,
-        "threat_score": 0.0,
-        "threats": [],
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?:\\A|[;,:\\n])\\s*filename\\s*=\\s*[\\\"'][^\\\"']*\\.(?:php\\d*|htaccess|htpasswd|config|phtml|shtml|asax|ascx|ashx|asmx|aspx|bash|jspx|phar|phps|asa|asp|bat|cer|cfc|cfm|cgi|cmd|com|exe|hta|inc|jsp|msi|pht|vbe|vbs|war|wsf|js|pl|py|rb|sh|ws)[\\\"']",
+            "match": "filename=\".htaccess\"",
+            "position": 0,
+            "category": "file_upload",
+            "weight": 1.0
+          }
+        ],
         "original_length": 20,
         "processed_length": 20,
         "detection_method": "enhanced"

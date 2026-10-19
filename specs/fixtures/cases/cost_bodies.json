@@ -120,7 +120,7 @@
      }
     ],
     "original_length": 8192,
-    "processed_length": 6655,
+    "processed_length": 8191,
     "detection_method": "enhanced"
    },
    "note": "reject path is not cheaper than the pass path"
@@ -145,7 +145,7 @@
      }
     ],
     "original_length": 260608,
-    "processed_length": 260511,
+    "processed_length": 260607,
     "detection_method": "enhanced"
    },
    "note": "attack inside the final 4 KiB: cap_with_tail must keep it"

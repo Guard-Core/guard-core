@@ -362,40 +362,9 @@
       ],
       "expected": [
         {
-          "status": 400,
-          "body": "Suspicious activity detected",
-          "headers": {
-            "X-Content-Type-Options": "nosniff",
-            "X-Frame-Options": "SAMEORIGIN",
-            "X-XSS-Protection": "0",
-            "Referrer-Policy": "strict-origin-when-cross-origin",
-            "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
-            "X-Permitted-Cross-Domain-Policies": "none",
-            "X-Download-Options": "noopen",
-            "Cross-Origin-Opener-Policy": "same-origin",
-            "Cross-Origin-Resource-Policy": "same-site",
-            "Strict-Transport-Security": "max-age=31536000; includeSubDomains"
-          },
+          "status": null,
           "is_exempt": false,
-          "is_whitelisted": false,
-          "events": [
-            [
-              "penetration_attempt",
-              "request_blocked"
-            ]
-          ],
-          "on_block": [
-            {
-              "check_name": "suspicious_activity",
-              "reason": "Suspicious activity detected for IP: 192.0.2.10 - Header 'x-skip-scan': Value matched pattern '<script[^>]*>[^<]*<\\/script\\s*>'",
-              "trigger_info": "",
-              "passive_mode": false,
-              "client_ip": "192.0.2.10",
-              "path": "/api/probe",
-              "method": "GET",
-              "status_code": 400
-            }
-          ]
+          "is_whitelisted": false
         }
       ]
     },

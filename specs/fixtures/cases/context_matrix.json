@@ -176,15 +176,15 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "(?i)UNION\\s+(?:ALL\\s+)?SELECT",
-            "match": "UNION SELECT",
+            "pattern": "(?i)UNION\\s+(?:ALL\\s+)?SELECT\\s*(?:/\\*.{0,40}?\\*/\\s*)*(?:null\\b|[\\d@'\\\"`(*\\[+~!-]|[\\w.$`\\\"]+\\s*(?:,|\\(|\\bfrom\\b|\\)|--|#|/\\*|;|\\Z))",
+            "match": "UNION SELECT password FROM",
             "position": 2,
             "category": "sqli",
             "weight": 1.0
           },
           {
             "type": "regex",
-            "pattern": "(?i)\\bSELECT\\b(?:(?!\\bSELECT\\b)[\\w\\s,\\*().])*?\\bFROM\\b",
+            "pattern": "(?i)\\bSELECT\\b(?:(?!\\bSELECT\\b)[\\w\\s,\\*().])*?\\bFROM\\b(?!\\s+(?:the|a|an|my|our|your|his|her|its|their|this|that|these|those|which|what|any|some|each|every|many|more|most)\\b)",
             "match": "SELECT password FROM",
             "position": 8,
             "category": "sqli",
@@ -192,7 +192,7 @@
           }
         ],
         "original_length": 36,
-        "processed_length": 34,
+        "processed_length": 36,
         "detection_method": "enhanced"
       }
     },
@@ -208,15 +208,15 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "(?i)UNION\\s+(?:ALL\\s+)?SELECT",
-            "match": "UNION SELECT",
+            "pattern": "(?i)UNION\\s+(?:ALL\\s+)?SELECT\\s*(?:/\\*.{0,40}?\\*/\\s*)*(?:null\\b|[\\d@'\\\"`(*\\[+~!-]|[\\w.$`\\\"]+\\s*(?:,|\\(|\\bfrom\\b|\\)|--|#|/\\*|;|\\Z))",
+            "match": "UNION SELECT password FROM",
             "position": 2,
             "category": "sqli",
             "weight": 1.0
           },
           {
             "type": "regex",
-            "pattern": "(?i)\\bSELECT\\b(?:(?!\\bSELECT\\b)[\\w\\s,\\*().])*?\\bFROM\\b",
+            "pattern": "(?i)\\bSELECT\\b(?:(?!\\bSELECT\\b)[\\w\\s,\\*().])*?\\bFROM\\b(?!\\s+(?:the|a|an|my|our|your|his|her|its|their|this|that|these|those|which|what|any|some|each|every|many|more|most)\\b)",
             "match": "SELECT password FROM",
             "position": 8,
             "category": "sqli",
@@ -224,7 +224,7 @@
           }
         ],
         "original_length": 36,
-        "processed_length": 34,
+        "processed_length": 36,
         "detection_method": "enhanced"
       }
     },

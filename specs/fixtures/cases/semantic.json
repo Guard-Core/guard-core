@@ -85,15 +85,15 @@
           },
           {
             "type": "regex",
-            "pattern": "(?i)UNION\\s+(?:ALL\\s+)?SELECT",
-            "match": "union select",
+            "pattern": "(?i)UNION\\s+(?:ALL\\s+)?SELECT\\s*(?:/\\*.{0,40}?\\*/\\s*)*(?:null\\b|[\\d@'\\\"`(*\\[+~!-]|[\\w.$`\\\"]+\\s*(?:,|\\(|\\bfrom\\b|\\)|--|#|/\\*|;|\\Z))",
+            "match": "union select concat(",
             "position": 51,
             "category": "sqli",
             "weight": 1.0
           },
           {
             "type": "regex",
-            "pattern": "(?i)\\bSELECT\\b(?:(?!\\bSELECT\\b)[\\w\\s,\\*().])*?\\bFROM\\b",
+            "pattern": "(?i)\\bSELECT\\b(?:(?!\\bSELECT\\b)[\\w\\s,\\*().])*?\\bFROM\\b(?!\\s+(?:the|a|an|my|our|your|his|her|its|their|this|that|these|those|which|what|any|some|each|every|many|more|most)\\b)",
             "match": "select concat(database(),table_name) from",
             "position": 57,
             "category": "sqli",

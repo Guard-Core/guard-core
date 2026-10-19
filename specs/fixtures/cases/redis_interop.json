@@ -389,11 +389,11 @@
       "expected": [
         {
           "key": "guard_core:corpus_rio:patterns:custom",
-          "type": "string",
+          "type": "json",
           "ttl": {
             "set": false
           },
-          "value": "corpuspattern-[a-z]+"
+          "value": "[\"corpuspattern-[a-z]+\"]"
         }
       ]
     },

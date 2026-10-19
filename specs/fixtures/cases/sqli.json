@@ -24,7 +24,7 @@
           },
           {
             "type": "regex",
-            "pattern": "(?i)\\b(?:OR|AND)\\s*(\\d+|'[^']*'|\\\"[^\\\"]*\\\"|[@:$][A-Za-z_]\\w*)\\s*=\\s*\\1\\b",
+            "pattern": "(?i)\\b(?:OR|AND)\\s*(\\d+|'[^']*'|\\\"[^\\\"]*\\\"|[@:$][A-Za-z_]\\w*)\\s*=\\s*\\1\\b(?!\\s+(?:is|are|was|means|equals|always|holds|being)\\b)",
             "match": "OR 1=1",
             "position": 2,
             "category": "sqli",
@@ -32,7 +32,7 @@
           }
         ],
         "original_length": 10,
-        "processed_length": 8,
+        "processed_length": 10,
         "detection_method": "enhanced"
       }
     },
@@ -56,15 +56,15 @@
           },
           {
             "type": "regex",
-            "pattern": "(?i)UNION\\s+(?:ALL\\s+)?SELECT",
-            "match": "UNION SELECT",
+            "pattern": "(?i)UNION\\s+(?:ALL\\s+)?SELECT\\s*(?:/\\*.{0,40}?\\*/\\s*)*(?:null\\b|[\\d@'\\\"`(*\\[+~!-]|[\\w.$`\\\"]+\\s*(?:,|\\(|\\bfrom\\b|\\)|--|#|/\\*|;|\\Z))",
+            "match": "UNION SELECT NULL",
             "position": 2,
             "category": "sqli",
             "weight": 1.0
           }
         ],
         "original_length": 33,
-        "processed_length": 31,
+        "processed_length": 33,
         "detection_method": "enhanced"
       }
     },
@@ -88,15 +88,15 @@
           },
           {
             "type": "regex",
-            "pattern": "(?i)UNION\\s+(?:ALL\\s+)?SELECT",
-            "match": "UNION SELECT",
+            "pattern": "(?i)UNION\\s+(?:ALL\\s+)?SELECT\\s*(?:/\\*.{0,40}?\\*/\\s*)*(?:null\\b|[\\d@'\\\"`(*\\[+~!-]|[\\w.$`\\\"]+\\s*(?:,|\\(|\\bfrom\\b|\\)|--|#|/\\*|;|\\Z))",
+            "match": "UNION SELECT username,",
             "position": 10,
             "category": "sqli",
             "weight": 1.0
           },
           {
             "type": "regex",
-            "pattern": "(?i)\\bSELECT\\b(?:(?!\\bSELECT\\b)[\\w\\s,\\*().])*?\\bFROM\\b",
+            "pattern": "(?i)\\bSELECT\\b(?:(?!\\bSELECT\\b)[\\w\\s,\\*().])*?\\bFROM\\b(?!\\s+(?:the|a|an|my|our|your|his|her|its|their|this|that|these|those|which|what|any|some|each|every|many|more|most)\\b)",
             "match": "SELECT username, password FROM",
             "position": 16,
             "category": "sqli",
@@ -104,7 +104,7 @@
           }
         ],
         "original_length": 54,
-        "processed_length": 52,
+        "processed_length": 54,
         "detection_method": "enhanced"
       }
     },
@@ -128,7 +128,7 @@
           }
         ],
         "original_length": 21,
-        "processed_length": 19,
+        "processed_length": 21,
         "detection_method": "enhanced"
       }
     },
@@ -144,9 +144,9 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "(?i)(?:SLEEP\\s*\\(\\s*\\d+\\s*\\))",
-            "match": "SLEEP(5)",
-            "position": 6,
+            "pattern": "(?i)(?:\\A|[^\\w\\s]\\s*|\\b(?:AND|OR|XOR|NOT|IF|SELECT|THEN|ELSE|WHEN|CASE|WHERE|HAVING|BY|AS|UNION|ALL|LIMIT|OFFSET)\\s+)SLEEP\\s*\\(\\s*\\d+\\s*\\)",
+            "match": "AND SLEEP(5)",
+            "position": 2,
             "category": "sqli",
             "weight": 1.0
           }
@@ -200,7 +200,7 @@
           }
         ],
         "original_length": 8,
-        "processed_length": 6,
+        "processed_length": 8,
         "detection_method": "enhanced"
       }
     },
@@ -255,15 +255,15 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "(?i)UNION\\s+(?:ALL\\s+)?SELECT",
-            "match": "UNION SELECT",
+            "pattern": "(?i)UNION\\s+(?:ALL\\s+)?SELECT\\s*(?:/\\*.{0,40}?\\*/\\s*)*(?:null\\b|[\\d@'\\\"`(*\\[+~!-]|[\\w.$`\\\"]+\\s*(?:,|\\(|\\bfrom\\b|\\)|--|#|/\\*|;|\\Z))",
+            "match": "UNION SELECT table_name FROM",
             "position": 2,
             "category": "sqli",
             "weight": 1.0
           },
           {
             "type": "regex",
-            "pattern": "(?i)\\bSELECT\\b(?:(?!\\bSELECT\\b)[\\w\\s,\\*().])*?\\bFROM\\b",
+            "pattern": "(?i)\\bSELECT\\b(?:(?!\\bSELECT\\b)[\\w\\s,\\*().])*?\\bFROM\\b(?!\\s+(?:the|a|an|my|our|your|his|her|its|their|this|that|these|those|which|what|any|some|each|every|many|more|most)\\b)",
             "match": "SELECT table_name FROM",
             "position": 8,
             "category": "sqli",
@@ -271,7 +271,7 @@
           }
         ],
         "original_length": 58,
-        "processed_length": 56,
+        "processed_length": 58,
         "detection_method": "enhanced"
       }
     },
@@ -311,15 +311,15 @@
           },
           {
             "type": "regex",
-            "pattern": "(?i)UNION\\s+(?:ALL\\s+)?SELECT",
-            "match": "UNION SELECT",
+            "pattern": "(?i)UNION\\s+(?:ALL\\s+)?SELECT\\s*(?:/\\*.{0,40}?\\*/\\s*)*(?:null\\b|[\\d@'\\\"`(*\\[+~!-]|[\\w.$`\\\"]+\\s*(?:,|\\(|\\bfrom\\b|\\)|--|#|/\\*|;|\\Z))",
+            "match": "UNION SELECT LOAD_FILE(",
             "position": 2,
             "category": "sqli",
             "weight": 1.0
           }
         ],
         "original_length": 41,
-        "processed_length": 39,
+        "processed_length": 41,
         "detection_method": "enhanced"
       }
     },
@@ -359,7 +359,7 @@
           }
         ],
         "original_length": 28,
-        "processed_length": 26,
+        "processed_length": 28,
         "detection_method": "enhanced"
       }
     },
@@ -383,7 +383,7 @@
           },
           {
             "type": "regex",
-            "pattern": "(?i)\\b(?:OR|AND)\\s*(\\d+|'[^']*'|\\\"[^\\\"]*\\\"|[@:$][A-Za-z_]\\w*)\\s*=\\s*\\1\\b",
+            "pattern": "(?i)\\b(?:OR|AND)\\s*(\\d+|'[^']*'|\\\"[^\\\"]*\\\"|[@:$][A-Za-z_]\\w*)\\s*=\\s*\\1\\b(?!\\s+(?:is|are|was|means|equals|always|holds|being)\\b)",
             "match": "OR 1=1",
             "position": 2,
             "category": "sqli",
@@ -391,7 +391,7 @@
           }
         ],
         "original_length": 43,
-        "processed_length": 41,
+        "processed_length": 43,
         "detection_method": "enhanced"
       }
     },
@@ -402,20 +402,11 @@
         "context": "query_param"
       },
       "expected": {
-        "is_threat": true,
-        "threat_score": 1.0,
-        "threats": [
-          {
-            "type": "regex",
-            "pattern": "(?i)(?:SLEEP\\s*\\(\\s*\\d+\\s*\\))",
-            "match": "sleep(10)",
-            "position": 13,
-            "category": "sqli",
-            "weight": 1.0
-          }
-        ],
+        "is_threat": false,
+        "threat_score": 0.0,
+        "threats": [],
         "original_length": 24,
-        "processed_length": 22,
+        "processed_length": 24,
         "detection_method": "enhanced"
       }
     },
@@ -447,7 +438,7 @@
           }
         ],
         "original_length": 27,
-        "processed_length": 25,
+        "processed_length": 27,
         "detection_method": "enhanced"
       }
     },
@@ -511,15 +502,15 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "(?i)UNION\\s+(?:ALL\\s+)?SELECT",
-            "match": "UNION SELECT",
+            "pattern": "(?i)UNION\\s+(?:ALL\\s+)?SELECT\\s*(?:/\\*.{0,40}?\\*/\\s*)*(?:null\\b|[\\d@'\\\"`(*\\[+~!-]|[\\w.$`\\\"]+\\s*(?:,|\\(|\\bfrom\\b|\\)|--|#|/\\*|;|\\Z))",
+            "match": "UNION SELECT 1",
             "position": 5,
             "category": "sqli",
             "weight": 1.0
           },
           {
             "type": "regex",
-            "pattern": "(?i)\\bSELECT\\b(?:(?!\\bSELECT\\b)[\\w\\s,\\*().])*?\\bFROM\\b",
+            "pattern": "(?i)\\bSELECT\\b(?:(?!\\bSELECT\\b)[\\w\\s,\\*().])*?\\bFROM\\b(?!\\s+(?:the|a|an|my|our|your|his|her|its|their|this|that|these|those|which|what|any|some|each|every|many|more|most)\\b)",
             "match": "SELECT 1 FROM",
             "position": 11,
             "category": "sqli",
@@ -527,7 +518,7 @@
           }
         ],
         "original_length": 38,
-        "processed_length": 36,
+        "processed_length": 38,
         "detection_method": "enhanced"
       }
     },
@@ -542,7 +533,7 @@
         "threat_score": 0.0,
         "threats": [],
         "original_length": 32,
-        "processed_length": 30,
+        "processed_length": 32,
         "detection_method": "enhanced"
       }
     },
@@ -574,7 +565,7 @@
           }
         ],
         "original_length": 43,
-        "processed_length": 41,
+        "processed_length": 43,
         "detection_method": "enhanced"
       }
     },

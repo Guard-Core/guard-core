@@ -16,7 +16,15 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "[;|&]\\s*(?:ls|cat|rm|id|whoami|uname|wget|curl|nc|netcat|socat|bash|sh|python|perl)\\b",
+            "pattern": "[;|&]\\s*(?:ls|cat|rm|id|whoami|uname|wget|curl|nc|netcat|socat|bash|sh|python|perl)(?![\\w.=:/\\\\-])(?!\\s+(?:is|are|was|were|be|am|has|have|had|does|do|did|will|would|can|could|should|may|might|and|or|the|a|an|to|of|in|on|for|as|at|by|it|its|that|this|which|with|from|not|but|if|so)\\s)",
+            "match": "; cat",
+            "position": 0,
+            "category": "cmd_injection",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "[;|&]\\s*(?:ls|cat|rm|id|whoami|uname|wget|curl|nc|netcat|socat|bash|sh|python|perl)\\b(?!\\s+(?:is|are|was|were|be|am|has|have|had|does|do|did|will|would|can|could|should|may|might|and|or|the|a|an|to|of|in|on|for|as|at|by|it|its|that|this|which|with|from|not|but|if|so)\\s)",
             "match": "; cat",
             "position": 0,
             "category": "cmd_injection",
@@ -96,7 +104,15 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "[;|&]\\s*(?:ls|cat|rm|id|whoami|uname|wget|curl|nc|netcat|socat|bash|sh|python|perl)\\b",
+            "pattern": "[;|&]\\s*(?:ls|cat|rm|id|whoami|uname|wget|curl|nc|netcat|socat|bash|sh|python|perl)(?![\\w.=:/\\\\-])(?!\\s+(?:is|are|was|were|be|am|has|have|had|does|do|did|will|would|can|could|should|may|might|and|or|the|a|an|to|of|in|on|for|as|at|by|it|its|that|this|which|with|from|not|but|if|so)\\s)",
+            "match": "| nc",
+            "position": 0,
+            "category": "cmd_injection",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "[;|&]\\s*(?:ls|cat|rm|id|whoami|uname|wget|curl|nc|netcat|socat|bash|sh|python|perl)\\b(?!\\s+(?:is|are|was|were|be|am|has|have|had|does|do|did|will|would|can|could|should|may|might|and|or|the|a|an|to|of|in|on|for|as|at|by|it|its|that|this|which|with|from|not|but|if|so)\\s)",
             "match": "| nc",
             "position": 0,
             "category": "cmd_injection",
@@ -128,7 +144,15 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "[;|&]\\s*(?:ls|cat|rm|id|whoami|uname|wget|curl|nc|netcat|socat|bash|sh|python|perl)\\b",
+            "pattern": "[;|&]\\s*(?:ls|cat|rm|id|whoami|uname|wget|curl|nc|netcat|socat|bash|sh|python|perl)(?![\\w.=:/\\\\-])(?!\\s+(?:is|are|was|were|be|am|has|have|had|does|do|did|will|would|can|could|should|may|might|and|or|the|a|an|to|of|in|on|for|as|at|by|it|its|that|this|which|with|from|not|but|if|so)\\s)",
+            "match": "& rm",
+            "position": 1,
+            "category": "cmd_injection",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "[;|&]\\s*(?:ls|cat|rm|id|whoami|uname|wget|curl|nc|netcat|socat|bash|sh|python|perl)\\b(?!\\s+(?:is|are|was|were|be|am|has|have|had|does|do|did|will|would|can|could|should|may|might|and|or|the|a|an|to|of|in|on|for|as|at|by|it|its|that|this|which|with|from|not|but|if|so)\\s)",
             "match": "& rm",
             "position": 1,
             "category": "cmd_injection",
@@ -152,7 +176,15 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "[;|&]\\s*(?:ls|cat|rm|id|whoami|uname|wget|curl|nc|netcat|socat|bash|sh|python|perl)\\b",
+            "pattern": "[;|&]\\s*(?:ls|cat|rm|id|whoami|uname|wget|curl|nc|netcat|socat|bash|sh|python|perl)(?![\\w.=:/\\\\-])(?!\\s+(?:is|are|was|were|be|am|has|have|had|does|do|did|will|would|can|could|should|may|might|and|or|the|a|an|to|of|in|on|for|as|at|by|it|its|that|this|which|with|from|not|but|if|so)\\s)",
+            "match": "; curl",
+            "position": 0,
+            "category": "cmd_injection",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "[;|&]\\s*(?:ls|cat|rm|id|whoami|uname|wget|curl|nc|netcat|socat|bash|sh|python|perl)\\b(?!\\s+(?:is|are|was|were|be|am|has|have|had|does|do|did|will|would|can|could|should|may|might|and|or|the|a|an|to|of|in|on|for|as|at|by|it|its|that|this|which|with|from|not|but|if|so)\\s)",
             "match": "; curl",
             "position": 0,
             "category": "cmd_injection",

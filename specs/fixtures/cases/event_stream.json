@@ -69,7 +69,7 @@
           "pattern_matched": null,
           "handler_name": "middleware",
           "metadata": {
-            "request_count": 1,
+            "request_count": 0,
             "passive_mode": true,
             "trigger_info": "Request body: Value matched pattern '<script[^>]*>[^<]*<\\/script\\s*>'"
           }
@@ -211,12 +211,12 @@
           }
         },
         {
-          "event_type": "ip_ban_failed",
+          "event_type": "penetration_attempt",
           "ip_address": "203.0.113.13",
           "country": null,
           "user_agent": null,
-          "action_taken": "ban_not_applied",
-          "reason": "Escalation ban failed for 203.0.113.13: corpus injected ban failure",
+          "action_taken": "banned",
+          "reason": "Identity violation escalated: IP 203.0.113.13 not in global allowlist/blocklist",
           "endpoint": "/api",
           "method": "GET",
           "status_code": null,
@@ -225,7 +225,9 @@
           "pattern_matched": null,
           "handler_name": "middleware",
           "metadata": {
-            "ip_address": "203.0.113.13"
+            "request_count": 0,
+            "trigger_info": "IP 203.0.113.13 not in global allowlist/blocklist",
+            "violation_category": "ip_blocked"
           }
         }
       ]
