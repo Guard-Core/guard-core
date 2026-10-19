@@ -125,6 +125,14 @@ Optional, and consulted first. guard-core resolves the choice once per adapter c
 - The memory obligation of `BoundedBodyReader` applies: do not buffer more than `max_bytes`.
 - `SyncIdleBoundedBodyReader` is the blocking mirror. The sync tree calls it on the request thread and never moves the read to another thread. A blocking read cannot be timed from the outside, so a sync adapter applies `idle_timeout` to its stream (Flask and Django map the server's socket timeout to `BodyReadStalledError`).
 
+### Route knowledge
+
+Optional, and what lets an app serve a page that looks like a probe (D-75). A path that a script-extension row (`.php`, `.asp`, `.jsp`, `.py`, `.sh` and the other v4.4.0 extensions), a source-map row or a named probe row (`/management`, `/system/log`, `/language/en`, `wp-admin`, `README.md`, `/en/inicio.html`) matches is flagged by default. It is clean when the route template the adapter matched for the request literally contains the probe token: the extension, the named segment, or the matched last segment. A catch-all or converter such as Starlette `{p:path}` or Flask `<path:filename>` carries no token and does not clear it. An adapter that gives no route knowledge behaves exactly as v4.4.0.
+
+- Record the matched template as `request.state.guard_route_template` (a `str`) next to `guard_route_unresolved` before the pipeline runs. `\.` and `[.]` are unescaped before the test, so a Tornado `r"/(.*)\.php"` declares `.php`.
+- Or implement `route_template(path) -> str | None` on the middleware. guard-core calls it only for a path that passes an O(1) prefilter, once per request, and records the answer. Keep an LRU in the adapter and clear it when the route set changes.
+- A value in a query or body carries no route and keeps the v4.4.0 behavior.
+
 ___
 
 GuardResponse

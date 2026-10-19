@@ -186,6 +186,7 @@ Added with the idle body read (not counted in the totals above, which are a 3.12
 
 - `IdleBoundedBodyReader` and `SyncIdleBoundedBodyReader` (`guard_core.protocols`, `guard_core.sync.protocols`): the optional `read_body_prefix_until_idle(max_bytes, idle_timeout) -> bytes` request method, tried before `read_body_prefix` and `body`. Not exported from the top-level `guard_core` namespace, so the 24-symbol `__all__` is unchanged. **Keep.**
 - `BodyReadStalledError`, `BodyReadSlotsExhaustedError` (a `BodyReadStalledError`: no body-read slot became free within `body_read_timeout`) and `BodyReadFailedError` (`guard_core.exceptions`): what an adapter raises, and what the engine raises on slot expiry. A stall answers 408 and a failure 400 under `fail_secure`. **Keep.**
+- `request.state.guard_route_template` (text) and the optional middleware method `route_template(path) -> str | None`: the route gate's input (D-75). An adapter that matches routes before the pipeline records the matched template next to `guard_route_unresolved` (Starlette `route.path`, Flask `rule.rule`, Django `match.route`); an adapter that does not (Tornado) implements `route_template`, which `SuspiciousActivityCheck` calls only for a path that passes its extension and named-segment prefilter. **Keep.**
 - `DetectionResult.body_read_error` (`"stalled"` or `"failed"`, `None` otherwise) and `DetectionResult.body_read_detail`. **Keep.**
 
 ## Validators & methods (reference)
