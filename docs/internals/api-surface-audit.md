@@ -47,6 +47,8 @@ Ordered by domain, then by field name.
 | `behavior_scan_response_body` | `bool` | `False` | behavioral | Keep |
 | `behavior_max_response_body_inspect_bytes` | `int` | `262144` | behavioral | Keep |
 | `body_read_timeout` | `float` | `3.0` | behavioral | Keep |
+| `sync_body_read_max_concurrent` | `int` | `64` | behavioral | Keep |
+| `async_body_read_max_concurrent` | `int \| None` | `None` | behavioral | Keep |
 | `block_cloud_providers` | `frozenset[str] \| None` | `None` | cloud | Keep |
 | `cloud_ip_refresh_interval` | `int` | `3600` | cloud | Keep |
 | `cloud_ip_store` | `CloudIpStoreProtocol \| CloudIpStoreFactory \| None` | `None` | cloud | Keep |
@@ -177,6 +179,14 @@ Recommendation: defer. If pursued, do it as an additive alias layer behind its o
 `fastapi-guard/guard/__init__.py` `__all__`: the 24 above + the fastapi-guard-only `SecurityMiddleware` and `__version__`, if the derivation this section describes still holds -- not independently re-verified against the fastapi-guard repository as part of this update.
 
 Single source of truth: fastapi-guard derives its `__all__` from `guard_core.__all__` plus its two locals, and a test asserts every exported name is importable, so a new guard-core export can't silently go missing downstream. `IPInfoManager` stays exported even though `ipinfo_*` config is deprecated; custom `geo_ip_handler` implementations may still construct it directly. `BoundedBodyReader` and `BoundedResponseBodyReader` are optional capability protocols (bounded body reading for requests and responses respectively), not part of the required `GuardRequest`/`GuardResponse` surface; see [Protocols](../api/protocols.md).
+
+## Adapter protocols and errors
+
+Added with the idle body read (not counted in the totals above, which are a 3.12.0 snapshot):
+
+- `IdleBoundedBodyReader` and `SyncIdleBoundedBodyReader` (`guard_core.protocols`, `guard_core.sync.protocols`): the optional `read_body_prefix_until_idle(max_bytes, idle_timeout) -> bytes` request method, tried before `read_body_prefix` and `body`. Not exported from the top-level `guard_core` namespace, so the 24-symbol `__all__` is unchanged. **Keep.**
+- `BodyReadStalledError`, `BodyReadSlotsExhaustedError` (a `BodyReadStalledError`: no body-read slot became free within `body_read_timeout`) and `BodyReadFailedError` (`guard_core.exceptions`): what an adapter raises, and what the engine raises on slot expiry. A stall answers 408 and a failure 400 under `fail_secure`. **Keep.**
+- `DetectionResult.body_read_error` (`"stalled"` or `"failed"`, `None` otherwise) and `DetectionResult.body_read_detail`. **Keep.**
 
 ## Validators & methods (reference)
 
