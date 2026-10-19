@@ -858,6 +858,10 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "lines 59,61,66,71: revoking SaaS-pushed bans and patterns, not a request"
     ),
     "handlers/_dynamic_rule_application.py:"
+    "DynamicRuleApplicationMixin._stale_rule_bans": (
+        "line 221: listing the bans a SaaS-pushed rule owns, not a request"
+    ),
+    "handlers/_dynamic_rule_application.py:"
     "DynamicRuleApplicationMixin._announce_emergency_mode": (
         "line 65: reports on a SaaS-pushed emergency-mode policy change, "
         "never an inbound HTTP request"

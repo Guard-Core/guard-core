@@ -2,8 +2,20 @@ import ipaddress
 from collections.abc import Iterable
 
 from guard_core.handlers._ipban_cache import _Network
+from guard_core.utils import _canonicalize_ip
 
 DYNAMIC_RULE_BAN_REASON = "dynamic_rule"
+
+
+def rule_ban_target(ip: str) -> tuple[str, str]:
+    """The Redis namespace and key a rule ban on ip is stored under: the
+    canonical address, or the normalized network for a CIDR."""
+    try:
+        if "/" in ip:
+            return "banned_networks", str(ipaddress.ip_network(ip, strict=False))
+    except ValueError:
+        pass
+    return "banned_ips", _canonicalize_ip(ip)
 
 
 class IpBanRuleExemptionMixin:

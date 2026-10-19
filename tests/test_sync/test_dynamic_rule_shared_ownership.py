@@ -1,7 +1,7 @@
 import os
 import uuid
 from collections.abc import Generator
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -157,12 +157,19 @@ def test_a_failed_owned_removal_is_logged_and_does_not_stop_the_revoke(
     live_redis: RedisManager, caplog: pytest.LogCaptureFixture
 ) -> None:
     worker = _worker(live_redis)
-    _apply(worker, [RULE_IP], 3600)
+    _apply(worker, [RULE_IP, OTHER_RULE_IP], 3600)
+    purge = RedisManager.purge_owned_ban
+    failed: list[str] = []
 
-    with patch.object(
-        RedisManager, "disown_ban", MagicMock(side_effect=OSError("down"))
-    ):
-        worker._revoke_owned([RULE_IP], [])
+    def fail_the_first(self: RedisManager, member: str) -> int:
+        if not failed:
+            failed.append(member)
+            raise OSError("down")
+        return purge(self, member)
+
+    with patch.object(RedisManager, "purge_owned_ban", fail_the_first):
+        worker._revoke_owned([RULE_IP, OTHER_RULE_IP], [])
 
     assert "Failed to revoke IP ban" in caplog.text
-    assert ip_ban_manager.is_ip_banned(RULE_IP) is False
+    assert ip_ban_manager.is_ip_banned(RULE_IP) is True
+    assert ip_ban_manager.is_ip_banned(OTHER_RULE_IP) is False

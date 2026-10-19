@@ -66,6 +66,8 @@ class IPBanManager(
             cls._instance.refused_ban_reported_until = {}
             cls._instance.recidive_history = {}
             cls._instance.rule_exempt_networks = ()
+            cls._instance._rule_owned_expiries = {}
+            cls._instance._rule_floor_expiries = {}
             cls._instance.redis_handler = None
             cls._instance.agent_handler = None
         return cls._instance
@@ -109,6 +111,8 @@ def reset_global_state() -> None:
     manager.refused_ban_reported_until = {}
     manager.recidive_history = {}
     manager.rule_exempt_networks = ()
+    manager._rule_owned_expiries = {}
+    manager._rule_floor_expiries = {}
     manager.evictions_count = 0
     manager.evicted_to_report = []
     manager.redis_handler = None

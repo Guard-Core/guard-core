@@ -114,7 +114,9 @@ class IpBanEventMixin:
         except Exception as e:
             self.logger.error("Failed to send ban evicted event to agent: %s", e)
 
-    async def _send_unban_event(self, ip: str, reason: str) -> None:
+    async def _send_unban_event(
+        self, ip: str, reason: str, details: dict[str, Any] | None = None
+    ) -> None:
         from guard_core.core.events.event_types import EVENT_IP_UNBANNED
 
         try:
@@ -129,7 +131,7 @@ class IpBanEventMixin:
                 action_taken="unbanned",
                 reason=reason,
                 handler_name=_IP_BAN_HANDLER_NAME,
-                metadata={"action": "unban"},
+                metadata={"action": "unban", **(details or {})},
             )
             await self.agent_handler.send_event(event)
         except Exception as e:

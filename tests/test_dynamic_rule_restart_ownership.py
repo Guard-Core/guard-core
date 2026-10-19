@@ -1,3 +1,4 @@
+import time
 from collections.abc import AsyncIterator, Iterator
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -141,7 +142,7 @@ async def test_a_snapshot_written_by_4_4_0_owns_nothing(
     assert '"owned"' not in legacy_payload
     assert load_last_known_ownership(legacy_payload) == ([], [])
     await redis.set_key("dynamic_rules", "last_known", legacy_payload)
-    await ip_ban_manager.ban_ip(RULE_IP, 3600, "dynamic_rule")
+    await redis.set_key("banned_ips", RULE_IP, str(time.time() + 3600), 3600)
 
     manager = _manager(config, redis)
     await manager._hydrate_last_known_rules()

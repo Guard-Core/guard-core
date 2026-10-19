@@ -50,7 +50,9 @@ async def test_revoking_logs_a_failing_unban_and_a_failing_pattern_removal(
     manager = _manager()
     with (
         patch.object(
-            ip_ban_manager, "unban_ip", AsyncMock(side_effect=RuntimeError("redis"))
+            ip_ban_manager,
+            "revoke_rule_ban",
+            AsyncMock(side_effect=RuntimeError("redis")),
         ),
         patch.object(
             sus_patterns_handler,

@@ -13,6 +13,7 @@ from guard_core.sync.handlers._ipban_rule_exempt import (
     DYNAMIC_RULE_BAN_REASON,
     IpBanRuleExemptionMixin,
 )
+from guard_core.sync.handlers._ipban_rule_revoke import IpBanRuleRevokeMixin
 from guard_core.sync.handlers._ipban_version import _VERSION_PAIR, IpBanVersionMixin
 from guard_core.sync.utils import _canonicalize_ip
 
@@ -25,7 +26,11 @@ _LOOPBACK_NETWORKS: tuple[_Network, ...] = (
 
 
 class IpBanOperationsMixin(
-    IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptionMixin, IpBanRecidiveMixin
+    IpBanRuleRevokeMixin,
+    IpBanVersionMixin,
+    IpBanEventMixin,
+    IpBanRuleExemptionMixin,
+    IpBanRecidiveMixin,
 ):
     banned_ips: MutableMapping[str, float]
     banned_networks: list[tuple[_Network, float]]
@@ -55,14 +60,19 @@ class IpBanOperationsMixin(
             raise ValueError(f"Invalid CIDR network {ip!r}: {e}") from e
 
         if self.redis_handler is None:
-            self._remember_network_ban(network, time.time() + duration)
+            self._remember_network_ban(
+                network, time.time() + duration, reason == DYNAMIC_RULE_BAN_REASON
+            )
         else:
             self._store_cidr_ban_in_redis(network, duration, reason)
 
         if self.agent_handler:
             self._send_ban_event(str(network), duration, reason)
 
-    def _remember_network_ban(self, network: _Network, expiry: float) -> None:
+    def _remember_network_ban(
+        self, network: _Network, expiry: float, rule_owned: bool = False
+    ) -> None:
+        self._note_memory_ban_write("banned_networks", str(network), expiry, rule_owned)
         held = [until for banned, until in self.banned_networks if banned == network]
         self.banned_networks = [
             entry for entry in self.banned_networks if entry[0] != network
@@ -85,7 +95,9 @@ class IpBanOperationsMixin(
             )
         except Exception:
             self._warn_kept_in_this_process(str(network), "request failed")
-            self._remember_network_ban(network, expiry)
+            self._remember_network_ban(
+                network, expiry, reason == DYNAMIC_RULE_BAN_REASON
+            )
 
     def _ban_exact_ip(self, ip: str, duration: int, reason: str) -> None:
         self._assert_valid_exact_ip(ip)
@@ -120,6 +132,9 @@ class IpBanOperationsMixin(
     ) -> None:
         expiry = time.time() + duration
         backed = bool(self.redis_handler)
+        rule_owned = reason == DYNAMIC_RULE_BAN_REASON
+        if not backed:
+            self._note_memory_ban_write(namespace, key, expiry, rule_owned)
         self._remember_ban(key, expiry, backed)
 
         if backed:
@@ -130,7 +145,7 @@ class IpBanOperationsMixin(
                     str(expiry),
                     duration,
                     version=_VERSION_PAIR,
-                    rule_owned=reason == DYNAMIC_RULE_BAN_REASON,
+                    rule_owned=rule_owned,
                 )
                 self._remember_ban(key, kept, True)
             except Exception:

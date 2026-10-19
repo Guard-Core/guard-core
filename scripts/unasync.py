@@ -48,6 +48,7 @@ SKIP_TESTS = {
     "test_maintainability_rank.py",
     "test_config_docs_parity.py",
     "test_dynamic_rule_two_processes.py",
+    "test_dynamic_rule_revoke_second_worker.py",
     "test_nested_conftest_defines_no_fixtures.py",
 }
 
@@ -73,6 +74,8 @@ HAND_MAINTAINED = {
     TEST_SYNC_DIR / "test_agent" / "test_ratelimit_agent_integration.py",
     TEST_SYNC_DIR / "test_dynamic_rule_atomicity.py",
     TEST_SYNC_DIR / "test_dynamic_rule_persistence.py",
+    TEST_SYNC_DIR / "test_dynamic_rule_two_processes.py",
+    TEST_SYNC_DIR / "test_dynamic_rule_revoke_second_worker.py",
     TEST_SYNC_DIR / "test_cloud_ips" / "test_nonblocking_refresh.py",
     TEST_SYNC_DIR / "test_detection" / "test_builtin_pattern_safety.py",
     TEST_SYNC_DIR / "test_detection" / "test_builtin_redos_protection.py",

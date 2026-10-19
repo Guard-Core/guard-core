@@ -6,8 +6,11 @@ from guard_core.models import DynamicRules, SecurityConfig
 from guard_core.sync._utils.detection_scan import _redact_pattern_source
 from guard_core.sync.handlers._dynamic_rule_events import DynamicRuleEventSenderMixin
 from guard_core.sync.handlers._dynamic_rule_plan import DynamicRulePlan
-from guard_core.sync.handlers._ipban_rule_exempt import DYNAMIC_RULE_BAN_REASON
-from guard_core.sync.utils import _canonicalize_ip
+from guard_core.sync.handlers._ipban_rule_exempt import (
+    DYNAMIC_RULE_BAN_REASON,
+    rule_ban_target,
+)
+from guard_core.sync.handlers._ipban_rule_revoke import _LIFTED, REVOKE_REWRITTEN
 
 
 def _redact_pattern_list(patterns: list[str]) -> list[str]:
@@ -64,13 +67,26 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
         from guard_core.sync.handlers.ipban_handler import ip_ban_manager
         from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
 
+        revoked: list[tuple[str, int]] = []
         for ip in bans:
             try:
-                ip_ban_manager.unban_ip(ip, reason="dynamic_rule_revoked")
-                ip_ban_manager.disown_rule_ban(ip)
-                self.logger.info(f"Dynamic rule: Revoked IP ban {ip}")
+                outcome = ip_ban_manager.revoke_rule_ban(ip)
             except Exception as e:
                 self.logger.error(f"Failed to revoke IP ban {ip}: {e}")
+                continue
+            revoked.append((ip, outcome))
+            if outcome in _LIFTED:
+                self.logger.info(f"Dynamic rule: Revoked IP ban {ip}")
+            if outcome == REVOKE_REWRITTEN:
+                self.logger.info(
+                    f"Dynamic rule: IP ban {ip} left at the shorter ban it hid"
+                )
+            if outcome not in _LIFTED:
+                self.logger.info(
+                    f"Dynamic rule: IP ban {ip} left in place (gone, or a longer ban "
+                    "replaced it)"
+                )
+        ip_ban_manager.settle_rule_revocations(revoked)
 
         for pattern in patterns:
             try:
@@ -106,7 +122,7 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
     ) -> None:
         from guard_core.sync.handlers.ipban_handler import ip_ban_manager
 
-        canonical = _canonicalize_ip(ip)
+        canonical = rule_ban_target(ip)[1]
         takes_ownership = (
             canonical not in self._owned_bans
             and not ip_ban_manager.is_ip_banned(canonical)
@@ -183,23 +199,35 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
     def _revoke_stale_side_effects(
         self, rules: DynamicRules, effects: RuleSideEffects
     ) -> None:
-        bans = self._owned_after(
-            [_canonicalize_ip(ip) for ip in rules.ip_blacklist],
-            self._owned_bans,
-            effects.created_bans,
-        )
+        listed = [rule_ban_target(ip)[1] for ip in rules.ip_blacklist]
+        previous = [rule_ban_target(ip)[1] for ip in self._owned_bans]
+        bans = self._owned_after(listed, previous, effects.created_bans)
         patterns = self._owned_after(
             rules.suspicious_patterns, self._owned_patterns, effects.created_patterns
         )
-        stale_bans = [ip for ip in self._owned_bans if ip not in bans]
+        stale_bans = self._stale_rule_bans(set(listed))
         stale_patterns = [p for p in self._owned_patterns if p not in patterns]
         self._owned_bans, self._owned_patterns = bans, patterns
         self._revoke_owned(stale_bans, stale_patterns)
 
+    def _stale_rule_bans(self, listed: set[str]) -> list[str]:
+        """The bans a rule owns, here or in Redis (a worker that restarted or
+        never applied the earlier set owns nothing locally), that the new set
+        does not list."""
+        from guard_core.sync.handlers.ipban_handler import ip_ban_manager
+
+        owned = [rule_ban_target(ip)[1] for ip in self._owned_bans]
+        try:
+            owned.extend(ip_ban_manager.owned_rule_ban_targets())
+        except Exception as e:
+            self.logger.error(f"Failed to list the bans a dynamic rule owns: {e}")
+        return [ip for ip in dict.fromkeys(owned) if ip not in listed]
+
     def _revoke_all_owned(self) -> None:
-        bans, patterns = self._owned_bans, self._owned_patterns
+        stale_bans = self._stale_rule_bans(set())
+        patterns = self._owned_patterns
         self._owned_bans, self._owned_patterns = [], []
-        self._revoke_owned(bans, patterns)
+        self._revoke_owned(stale_bans, patterns)
 
     def _announce_plan(self, plan: DynamicRulePlan) -> None:
         for level, message in plan.messages:
