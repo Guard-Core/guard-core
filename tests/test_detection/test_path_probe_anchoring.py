@@ -93,10 +93,10 @@ ORDINARY_ROUTES = [
     "/wp-content/uploads/2024/a.jpg",
     "/tools/shell.php",
     "/api/cmd.php",
-    "/gov/csrc/news/c101975/zfxxgk_zdgk.shtml",
-    "/claude/code/changelog",
-    "/chinadaily/language/thelatest",
-    "/github/file/DIYgod/RSSHub/master/README.md",
+    "/agency/news/c100001/page_a.shtml",
+    "/vendor/tool/changelog",
+    "/news-site/language/latest",
+    "/repo/file/owner/project/main/README.md",
 ]
 
 
