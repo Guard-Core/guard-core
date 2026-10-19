@@ -177,10 +177,10 @@ async def test_the_range_reset_reads_an_ipv6_address_by_stripping_the_prefix(
 
     await DynamicRuleManager(redis.config)._apply_ip_whitelist(["2001:db8::/32"])
 
-    assert "2001:db8::1" not in middleware.suspicious_request_counts
-    assert "2001:db9::1" in middleware.suspicious_request_counts
-    assert await _keys(redis, "detection:strikes:2001:db8::1*") == []
-    assert await _keys(redis, "detection:strikes:2001:db9::1|*")
+    assert "2001:db8::/64" not in middleware.suspicious_request_counts
+    assert "2001:db9::/64" in middleware.suspicious_request_counts
+    assert await _keys(redis, "detection:strikes:2001:db8::/64*") == []
+    assert await _keys(redis, "detection:strikes:2001:db9::/64|*")
 
 
 async def test_an_empty_range_list_clears_nothing(redis: RedisManager) -> None:

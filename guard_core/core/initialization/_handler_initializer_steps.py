@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING, Any
 
 from guard_core._misconfiguration import report_misconfiguration
 from guard_core._staged_defaults import _warn_whitelist_without_access_only
-from guard_core.core.checks.helpers import _MAX_RETAINED_EVENTS_PER_CATEGORY
 from guard_core.core.initialization._ban_threshold_report import (
     _BanThresholdContext,
     remember_ban_threshold_context,
