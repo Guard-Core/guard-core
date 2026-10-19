@@ -341,7 +341,21 @@ _SQLI_ORDER_BY_STRONG_RE = (
     r"|\bORDER\s+BY\s+\d+\s*(?:--|#|/\*)"
 )
 _SQLI_EXEC_STRONG_RE = r"(?i)(?:\A|[;'\"])\s*EXEC(?:UTE)?\s+(?:xp_\w+|sp_\w+)"
-_SQLI_COMMENT_TERMINATOR_RE = r"'\s*(?:[\);]+\s*)?--|'[\);]*#(?:\n|\Z)"
+_SQLI_COMMENT_TERMINATOR_RE = (
+    r"'\s*(?:[\);]+\s*)?(?:--|/\*(?![^*]+\*/))"
+    r"|'[\);]*#(?:\n|\Z)|'[\);]*[^\S\n]+#[^\S\n]*\Z"
+)
+_SQLI_INLINE_COMMENT_RE = r"/\*[^*]{0,40}\*/"
+_SQLI_GAP_RE = rf"(?:\s|{_SQLI_INLINE_COMMENT_RE})"
+_SQLI_OPEN_GAP_RE = rf"(?:\s|\(|{_SQLI_INLINE_COMMENT_RE})"
+_SQLI_QUOTED_TAUTOLOGY_RE = (
+    r"(?i)(?:OR|AND)\s+(?:'[\w\d]*'='[\w\d]*'?|"
+    r"[@:$][A-Za-z_]\w*\s*=\s*[@:$][A-Za-z_]\w*)"
+    rf"|\b(?:OR|AND){_SQLI_OPEN_GAP_RE}*(?:'\w*'|\"\w*\")"
+    rf"{_SQLI_GAP_RE}*(?:=|!=|<>|LIKE){_SQLI_OPEN_GAP_RE}*(?:'\w*'?|\"\w*\"?)"
+    rf"|['\")]{_SQLI_GAP_RE}*\b(?:OR|AND){_SQLI_GAP_RE}+TRUE\b"
+    rf"(?:{_SQLI_GAP_RE}*(?:--|/\*(?![^*]+\*/))|[^\S\n]*#[^\S\n]*(?:\n|\Z))"
+)
 _SQLI_WAITFOR_RE = (
     r"(?i)\bWAITFOR\s+(?:DELAY|TIME)\s+'\d{1,2}:\d{1,2}:\d{1,2}(?:\.\d+)?'"
 )

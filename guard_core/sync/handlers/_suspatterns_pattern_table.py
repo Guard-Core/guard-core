@@ -141,6 +141,7 @@ from guard_core.sync.handlers._suspatterns_sources import (
     _SQLI_EXEC_STRONG_RE,
     _SQLI_ORDER_BY_STRONG_RE,
     _SQLI_ORDER_BY_TERMINATOR_RE,
+    _SQLI_QUOTED_TAUTOLOGY_RE,
     _SQLI_TAUTOLOGY_RE,
     _SQLI_WAITFOR_RE,
     _SSRF_BARE_METADATA_ALIAS_RE,
@@ -287,12 +288,7 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
         "sqli",
     ),
     (r"\w/\*(?!!)[^*]*\*/\w", _CTX_SQLI_NARROW, "sqli"),
-    (
-        r"(?i)(?:OR|AND)\s+(?:'[\w\d]*'='[\w\d]*'?|"
-        r"[@:$][A-Za-z_]\w*\s*=\s*[@:$][A-Za-z_]\w*)",
-        _CTX_SQLI,
-        "sqli",
-    ),
+    (_SQLI_QUOTED_TAUTOLOGY_RE, _CTX_SQLI, "sqli"),
     (
         r"(?i);\s*(?:DROP|TRUNCATE|ALTER|CREATE)\s+(?:TABLE|DATABASE|SCHEMA)\b",
         _CTX_SQLI,
