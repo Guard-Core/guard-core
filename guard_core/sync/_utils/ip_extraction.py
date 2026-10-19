@@ -272,15 +272,30 @@ def _warn_forwarded_header_preempted(
     )
 
 
+MAX_INSPECTED_FORWARDED_ENTRIES = 32
+
+
+def _bounded_forwarded_entries(value: str) -> tuple[list[str], int]:
+    """The first MAX_INSPECTED_FORWARDED_ENTRIES entries of an X-Forwarded-For
+    value and how many more it holds, bounded before any entry is parsed: a 16 KiB
+    header has about 2,000 entries and parsing them all costs milliseconds."""
+    parts = value.split(",", MAX_INSPECTED_FORWARDED_ENTRIES)
+    if len(parts) <= MAX_INSPECTED_FORWARDED_ENTRIES:
+        return parts, 0
+    return parts[:-1], parts[-1].count(",") + 1
+
+
 def _display_forwarded_chain(value: str) -> str:
+    parts, more = _bounded_forwarded_entries(value)
     displayed = []
-    for part in value.split(","):
+    for part in parts:
         candidate = _strip_forwarded_entry_port(part.strip())
         if _forwarded_header_candidate_addr(candidate) is not None:
             displayed.append(part)
         else:
             displayed.append("[REDACTED]")
-    return ",".join(displayed)
+    suffix = f", ... and {more} more" if more else ""
+    return ",".join(displayed) + suffix
 
 
 _UNTRUSTED_XFF_WINDOW_SECONDS = 60
@@ -312,7 +327,7 @@ def _observe_untrusted_forwarded_for(peer: str) -> bool:
 
 def forwarded_for_addresses(forwarded_for: str) -> list[IPv4Address | IPv6Address]:
     addresses = []
-    for entry in forwarded_for.split(","):
+    for entry in _bounded_forwarded_entries(forwarded_for)[0]:
         address = _peer_address_for_matching(_strip_forwarded_entry_port(entry.strip()))
         if address is not None:
             addresses.append(address)
