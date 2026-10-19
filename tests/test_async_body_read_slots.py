@@ -1,5 +1,7 @@
 import asyncio
 import logging
+import socket
+import time
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -10,7 +12,7 @@ from guard_core._utils.body_reader import _read_capped_body, _read_capped_body_o
 from guard_core.core.checks.implementations.suspicious_activity import (
     SuspiciousActivityCheck,
 )
-from guard_core.exceptions import BodyReadSlotsExhaustedError
+from guard_core.exceptions import BodyReadSlotsExhaustedError, BodyReadStalledError
 from guard_core.models import SecurityConfig
 from guard_core.utils import detect_penetration_attempt
 from tests.conftest import MockGuardRequest
@@ -207,3 +209,52 @@ def test_the_generated_sync_body_reader_reads_the_sync_slot_field() -> None:
 
     assert "config.sync_body_read_max_concurrent" in generated
     assert "async_body_read_max_concurrent" not in generated
+
+
+async def test_a_stalled_client_socket_answers_408() -> None:
+    server_sock, client_sock = socket.socketpair()
+    reader, writer = await asyncio.open_connection(sock=server_sock)
+    config = SecurityConfig(enable_redis=False, fail_secure=True, body_read_timeout=0.1)
+
+    class _StreamRequest(MockGuardRequest):
+        def __init__(self) -> None:
+            super().__init__(
+                method="POST",
+                path="/x",
+                headers={"content-type": "text/plain", "content-length": "4"},
+            )
+
+        async def read_body_prefix_until_idle(
+            self, max_bytes: int, idle_timeout: float
+        ) -> bytes:
+            try:
+                return await asyncio.wait_for(reader.read(max_bytes), idle_timeout)
+            except asyncio.TimeoutError as exc:
+                raise BodyReadStalledError() from exc
+
+    middleware = MagicMock()
+    middleware.config = config
+    middleware.logger = logging.getLogger("test_async_body_read_slots")
+    middleware.suspicious_request_counts = {}
+    middleware.event_bus.send_middleware_event = AsyncMock()
+    middleware.create_error_response = AsyncMock(
+        side_effect=lambda status_code, default_message: MagicMock(
+            status_code=status_code
+        )
+    )
+    middleware.route_resolver.should_bypass_check = lambda *_: False
+    request = _StreamRequest()
+    request.state.client_ip = "203.0.113.11"
+    request.state.route_config = None
+    try:
+        started = time.monotonic()
+        response = await SuspiciousActivityCheck(middleware).check(request)
+        elapsed = time.monotonic() - started
+    finally:
+        writer.close()
+        client_sock.close()
+
+    assert response is not None
+    assert response.status_code == 408
+    assert elapsed < 2.0
+    assert middleware.suspicious_request_counts == {}
