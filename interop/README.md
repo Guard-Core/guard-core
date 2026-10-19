@@ -106,6 +106,42 @@ The float-string rule (spec 08) is exercised everywhere: every ban expiry
 written by any implementation is read back byte-exactly and float-parsed by
 the others, and all values carry non-integer fractions (microseconds).
 
+## Custom-pattern mixed-fleet case (guard-core 5.0.0 next to 4.4.x readers)
+
+```bash
+GUARD_CORE_LEGACY_TREE=/path/to/guard-core-v4.4.0 \
+GUARD_CORE_LEGACY_PYTHON=/path/to/guard-core-v4.4.0/.venv/bin/python \
+GUARD_CORE_INTEROP_REDIS_PORT=6379 \
+python3 interop/run.py custom-patterns
+```
+
+Specs/08 (`patterns:custom` and `patterns:custom_list`): the Python head writes
+the custom patterns to the legacy comma-joined key and to the JSON list key in
+one MULTI. Every older reader still reads only the legacy key. The case proves
+the ports read the head's state as a real v4.4.0 Python engine does:
+
+1. `py_custom_patterns_write`: the head adds `zq_marker_hit`, `alpha_pattern`
+   and `\bacct\d{1,3}\b` (a pattern with a comma) under four prefixes
+   (`mf_v440`, `mf_go`, `mf_php`, `mf_py`) and asserts both raw values.
+2. `v440_custom_patterns_read`: a real v4.4.0 checkout (its own interpreter,
+   `interop/v440_participant.py`) restores `mf_v440` and reports its pattern set
+   (the comma pattern arrives split into two fragments) and its verdicts.
+3. `go_custom_patterns_read` and `php_custom_patterns_read`: the Go and PHP
+   engines restore `mf_go` and `mf_php` and must report the same set and the
+   same verdicts as step 2. Neither repo is written: Go runs
+   `interop/probes/mixedfleet_custom_patterns_probe_test.go` through
+   `go test -overlay` on a read-only mount, PHP runs
+   `interop/probes/mixedfleet_custom_patterns_probe.php` (loading `src/`
+   directly when there is no `vendor/`).
+4. `py_custom_patterns_verify`: the head restores `mf_py` whole (the comma
+   pattern intact) and the list key of the three old-reader prefixes is still
+   what the head wrote.
+
+`GUARD_CORE_INTEROP_REDIS_PORT` (default 6379) moves the orchestrator, the
+Python participants and these probes to another Redis port. The rate-limit, ban,
+cloud and exempt phases keep running the Go and PHP runners, which connect to
+6379 inside their own repos, so the default run refuses a port other than 6379.
+
 ## Known contract boundaries (documented by checks, not bugs)
 
 + `banned_networks:*` has NO reader in any implementation, including the

@@ -1,6 +1,7 @@
 import json
 import os
 import subprocess
+import sys
 import time
 from pathlib import Path
 from typing import Any
@@ -19,6 +20,10 @@ PHP_REPO = Path(
         "GUARD_CORE_PHP_REPO", str(ECOSYSTEM_ROOT / "PHP" / "guard-core-php")
     )
 )
+
+REDIS_PORT = os.environ.get("GUARD_CORE_INTEROP_REDIS_PORT", "6379")
+LEGACY_TREE = os.environ.get("GUARD_CORE_LEGACY_TREE", "")
+LEGACY_PYTHON = os.environ.get("GUARD_CORE_LEGACY_PYTHON", "")
 
 PREFIX = "guard_core_interop:"
 RATE_WINDOW = 120
@@ -47,7 +52,19 @@ PHASES = [
     "php_exempt_read_then_write",
     "py_exempt_verify",
 ]
+CUSTOM_PATTERN_PHASES = [
+    "py_custom_patterns_write",
+    "v440_custom_patterns_read",
+    "go_custom_patterns_read",
+    "php_custom_patterns_read",
+    "py_custom_patterns_verify",
+]
 PHASE_PARTICIPANT = {
+    "py_custom_patterns_write": "python",
+    "v440_custom_patterns_read": "python_v440",
+    "go_custom_patterns_read": "go",
+    "php_custom_patterns_read": "php",
+    "py_custom_patterns_verify": "python",
     "py_write": "python",
     "go_read_then_write": "go",
     "php_read_then_write": "php",
@@ -59,9 +76,20 @@ PHASE_PARTICIPANT = {
 }
 
 
-def preflight() -> None:
+def preflight(case: str) -> None:
+    if case == "custom-patterns" and not (LEGACY_TREE and LEGACY_PYTHON):
+        raise SystemExit(
+            "custom-patterns needs GUARD_CORE_LEGACY_TREE (a guard-core v4.4.0 "
+            "checkout) and GUARD_CORE_LEGACY_PYTHON (its own interpreter)"
+        )
+    if case == "all" and REDIS_PORT != "6379":
+        raise SystemExit(
+            "the rate-limit, ban, cloud and exempt phases run the Go and PHP "
+            "runners, which connect to port 6379 inside their own repos; set "
+            "GUARD_CORE_INTEROP_REDIS_PORT only with the custom-patterns case"
+        )
     for command in (
-        ["redis-cli", "-h", "127.0.0.1", "-p", "6379", "ping"],
+        ["redis-cli", "-h", "127.0.0.1", "-p", REDIS_PORT, "ping"],
         ["docker", "info"],
         ["uv", "--version"],
     ):
@@ -76,7 +104,15 @@ def preflight() -> None:
 
 def flush_prefix() -> int:
     scanned = subprocess.run(
-        ["redis-cli", "--raw", "--scan", "--pattern", f"{PREFIX}*"],
+        [
+            "redis-cli",
+            "-p",
+            REDIS_PORT,
+            "--raw",
+            "--scan",
+            "--pattern",
+            f"{PREFIX}*",
+        ],
         capture_output=True,
         text=True,
         check=True,
@@ -84,7 +120,10 @@ def flush_prefix() -> int:
     if not scanned:
         return 0
     subprocess.run(
-        ["redis-cli", "del", *scanned], capture_output=True, text=True, check=True
+        ["redis-cli", "-p", REDIS_PORT, "del", *scanned],
+        capture_output=True,
+        text=True,
+        check=True,
     )
     return len(scanned)
 
@@ -100,6 +139,77 @@ def participant_command(
             str(GUARD_CORE_ROOT),
             "python",
             str(INTEROP_DIR / "py_participant.py"),
+        ]
+    if participant == "python_v440":
+        return [LEGACY_PYTHON, str(INTEROP_DIR / "v440_participant.py")]
+    if participant == "go" and phase == "go_custom_patterns_read":
+        overlay = REPORTS_DIR / "go_overlay.json"
+        overlay.write_text(
+            json.dumps(
+                {
+                    "Replace": {
+                        "/app/guardcore/mixedfleet_custom_patterns_probe_test.go": (
+                            "/interop/probes/mixedfleet_custom_patterns_probe_test.go"
+                        )
+                    }
+                }
+            )
+        )
+        return [
+            "docker",
+            "run",
+            "--rm",
+            "-v",
+            f"{GO_REPO}:/app:ro",
+            "-v",
+            f"{INTEROP_DIR}:/interop",
+            "-w",
+            "/app",
+            "-e",
+            "REDIS_HOST=host.docker.internal",
+            "-e",
+            f"REDIS_PORT={REDIS_PORT}",
+            "-e",
+            f"INTEROP_INPUT={json.dumps(incoming)}",
+            "-e",
+            f"INTEROP_REPORT_FILE=/interop/reports/{report_path.name}",
+            "-e",
+            "GOCACHE=/tmp/gocache",
+            "-e",
+            "GOFLAGS=-mod=readonly",
+            "golang:1.25-alpine",
+            "go",
+            "test",
+            "-overlay",
+            "/interop/reports/go_overlay.json",
+            "-v",
+            "-run",
+            "^TestMixedFleetCustomPatternsProbe$",
+            "-count=1",
+            "./guardcore",
+        ]
+    if participant == "php" and phase == "php_custom_patterns_read":
+        return [
+            "docker",
+            "run",
+            "--rm",
+            "-v",
+            f"{PHP_REPO}:/app:ro",
+            "-v",
+            f"{INTEROP_DIR}:/interop",
+            "-w",
+            "/app",
+            "-e",
+            "REDIS_HOST=host.docker.internal",
+            "-e",
+            f"REDIS_PORT={REDIS_PORT}",
+            "-e",
+            f"INTEROP_INPUT={json.dumps(incoming)}",
+            "-e",
+            f"INTEROP_REPORT_FILE=/interop/reports/{report_path.name}",
+            "php:8.3-cli",
+            "php",
+            "/interop/probes/mixedfleet_custom_patterns_probe.php",
         ]
     if participant == "go":
         return [
@@ -166,8 +276,12 @@ def participant_env(
     env["INTEROP_PHASE"] = phase
     env["INTEROP_INPUT"] = json.dumps(incoming)
     env["INTEROP_REPORT_FILE"] = str(report_path)
+    env["REDIS_PORT"] = REDIS_PORT
     if participant == "python":
         env["REDIS_HOST"] = "127.0.0.1"
+    if participant == "python_v440":
+        env["PYTHONPATH"] = LEGACY_TREE
+        env["IPINFO_TOKEN"] = "x"
     return env
 
 
@@ -229,6 +343,13 @@ def verify_ledger(phase: str, report: dict[str, Any]) -> None:
         "py_write": ["py_ban_expiry_raw", "legacy_value_raw", "aws_payload_raw"],
         "go_read_then_write": ["go_ban_expiry_raw", "gcp_payload_raw"],
         "php_read_then_write": ["php_ban_expiry_raw", "azure_payload_raw"],
+        "py_custom_patterns_write": [
+            f"{scope}_custom_list_raw"
+            for scope in ("mf_v440", "mf_go", "mf_php", "mf_py")
+        ],
+        "v440_custom_patterns_read": ["v440_patterns", "v440_flagged"],
+        "go_custom_patterns_read": ["go_patterns"],
+        "php_custom_patterns_read": ["php_patterns"],
         "py_exempt_write": ["exempt_n_after_py", "exempt_limit"],
         "go_exempt_read_then_write": ["exempt_n_after_go"],
         "php_exempt_read_then_write": ["exempt_n_after_php"],
@@ -273,8 +394,9 @@ def print_matrix(matrix: dict[str, dict[str, dict[str, int]]]) -> None:
     print("-" * len(header))
 
 
-def main() -> int:
-    preflight()
+def main(case: str = "all") -> int:
+    preflight(case)
+    phases = CUSTOM_PATTERN_PHASES if case == "custom-patterns" else PHASES
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     removed = flush_prefix()
     print(f"pre-run flush: removed {removed} keys under {PREFIX}*")
@@ -282,8 +404,13 @@ def main() -> int:
     artifacts: dict[str, str] = {}
     reports: list[dict[str, Any]] = []
     started = time.monotonic()
-    for phase in PHASES:
-        report = run_phase(phase, build_incoming(artifacts))
+    for phase in phases:
+        incoming = (
+            {**artifacts, "prefix_root": PREFIX}
+            if case == "custom-patterns"
+            else build_incoming(artifacts)
+        )
+        report = run_phase(phase, incoming)
         verify_ledger(phase, report)
         reports.append(report)
         artifacts.update(report.get("artifacts", {}))
@@ -321,7 +448,12 @@ def main() -> int:
         "totals": totals,
         "matrix": matrix,
     }
-    last_run_path = INTEROP_DIR / "last_run.json"
+    last_run_name = (
+        "last_run_custom_patterns.json"
+        if case == "custom-patterns"
+        else "last_run.json"
+    )
+    last_run_path = INTEROP_DIR / last_run_name
     last_run_path.write_text(json.dumps(last_run, indent=2))
     print(f"wrote {last_run_path}")
 
@@ -333,4 +465,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    if sys.argv[1:] not in ([], ["custom-patterns"]):
+        raise SystemExit("usage: run.py [custom-patterns]")
+    raise SystemExit(main("custom-patterns" if sys.argv[1:] else "all"))

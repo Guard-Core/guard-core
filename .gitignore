@@ -228,5 +228,6 @@ scratchpad/
 
 # interop harness run artifacts (code + README are tracked)
 interop/last_run.json
+interop/last_run_custom_patterns.json
 interop/reports/
 interop/__pycache__/

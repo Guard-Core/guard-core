@@ -17,10 +17,15 @@ from guard_core.handlers.ratelimit_handler import (
     check_rate_limit_by_ip,
 )
 from guard_core.handlers.redis_handler import RedisManager
+from guard_core.handlers.suspatterns_handler import (
+    SusPatternsManager,
+    sus_patterns_handler,
+)
 from guard_core.models import SecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 
 PREFIX = "guard_core_interop:"
+REDIS_PORT = os.environ.get("REDIS_PORT", "6379")
 RATE_WINDOW = 120
 RATE_LIMIT_LOOSE = 10000
 BAN_DURATION = 900
@@ -113,7 +118,7 @@ def has_fraction(value: str | None) -> bool:
 
 def make_config(redis_host: str, rate_limit: int) -> SecurityConfig:
     return SecurityConfig(
-        redis_url=f"redis://{redis_host}:6379",
+        redis_url=f"redis://{redis_host}:{REDIS_PORT}",
         redis_prefix=PREFIX,
         enable_redis=True,
         enable_rate_limiting=True,
@@ -325,7 +330,7 @@ class _PipelineRequest:
 
 def make_exempt_config(redis_host: str, rate_limit: int) -> SecurityConfig:
     return SecurityConfig(
-        redis_url=f"redis://{redis_host}:6379",
+        redis_url=f"redis://{redis_host}:{REDIS_PORT}",
         redis_prefix=PREFIX,
         enable_redis=True,
         enable_rate_limiting=True,
@@ -679,6 +684,102 @@ async def phase_py_verify(
     )
 
 
+CUSTOM_PATTERNS = ["zq_marker_hit", "alpha_pattern", r"\bacct\d{1,3}\b"]
+CUSTOM_READER_SCOPES = ("mf_v440", "mf_go", "mf_php", "mf_py")
+
+
+async def custom_patterns_engine(
+    redis_host: str, scope: str, act: Any = None
+) -> set[str]:
+    config = SecurityConfig(
+        redis_url=f"redis://{redis_host}:{REDIS_PORT}",
+        redis_prefix=f"{PREFIX}{scope}:",
+        enable_redis=True,
+        rate_limit=10000,
+        ban_on_hostile_signals=False,
+    )
+    redis = RedisManager(config)
+    await redis.initialize()
+    await SusPatternsManager.reset()
+    sus_patterns_handler.configure(config)
+    await sus_patterns_handler.initialize_redis(redis)
+    if act is not None:
+        await act()
+    restored = set(sus_patterns_handler.custom_patterns)
+    await SusPatternsManager.reset()
+    await redis.close()
+    return restored
+
+
+async def phase_py_custom_patterns_write(rep: Reporter, redis_host: str) -> None:
+    async def write_all() -> None:
+        for pattern in CUSTOM_PATTERNS:
+            await sus_patterns_handler.add_pattern(pattern, custom=True)
+
+    for scope in CUSTOM_READER_SCOPES:
+        await custom_patterns_engine(redis_host, scope, write_all)
+        redis = RedisManager(
+            SecurityConfig(
+                redis_url=f"redis://{redis_host}:{REDIS_PORT}",
+                redis_prefix=f"{PREFIX}{scope}:",
+                enable_redis=True,
+            )
+        )
+        await redis.initialize()
+        legacy = await redis.get_key("patterns", "custom")
+        listed = await redis.get_key("patterns", "custom_list")
+        await redis.close()
+        rep.check(
+            "custom_patterns_wire",
+            "py:py",
+            f"{scope}: patterns:custom is the comma-joined legacy string",
+            legacy == ",".join(sorted(CUSTOM_PATTERNS)),
+            legacy or "",
+        )
+        rep.check(
+            "custom_patterns_wire",
+            "py:py",
+            f"{scope}: patterns:custom_list is the JSON list, comma pattern whole",
+            listed == json.dumps(sorted(CUSTOM_PATTERNS)),
+            listed or "",
+        )
+        rep.artifacts[f"{scope}_custom_raw"] = legacy or ""
+        rep.artifacts[f"{scope}_custom_list_raw"] = listed or ""
+
+
+async def phase_py_custom_patterns_verify(
+    rep: Reporter, redis_host: str, incoming: dict[str, Any]
+) -> None:
+    restored = await custom_patterns_engine(redis_host, "mf_py")
+    rep.check(
+        "custom_patterns_head_read",
+        "py:py",
+        "the head restores its own list whole, comma pattern intact",
+        restored == set(CUSTOM_PATTERNS),
+        json.dumps(sorted(restored)),
+    )
+    for scope in ("mf_v440", "mf_go", "mf_php"):
+        redis = RedisManager(
+            SecurityConfig(
+                redis_url=f"redis://{redis_host}:{REDIS_PORT}",
+                redis_prefix=f"{PREFIX}{scope}:",
+                enable_redis=True,
+            )
+        )
+        await redis.initialize()
+        legacy = await redis.get_key("patterns", "custom")
+        listed = await redis.get_key("patterns", "custom_list")
+        await redis.close()
+        rep.check(
+            "custom_patterns_list_survives_old_readers",
+            "py:py",
+            f"{scope}: the list key is still what the head wrote",
+            listed == incoming.get(f"{scope}_custom_list_raw"),
+            listed or "",
+        )
+        rep.artifacts[f"{scope}_custom_raw_after"] = legacy or ""
+
+
 async def run() -> int:
     phase = os.environ["INTEROP_PHASE"]
     redis_host = os.environ.get("REDIS_HOST", "127.0.0.1")
@@ -694,6 +795,10 @@ async def run() -> int:
         await phase_py_exempt_write(rep, redis, redis_host, incoming)
     elif phase == "py_exempt_verify":
         await phase_py_exempt_verify(rep, redis, redis_host, incoming)
+    elif phase == "py_custom_patterns_write":
+        await phase_py_custom_patterns_write(rep, redis_host)
+    elif phase == "py_custom_patterns_verify":
+        await phase_py_custom_patterns_verify(rep, redis_host, incoming)
     else:
         raise SystemExit(f"py_participant does not serve phase {phase!r}")
     write_report(rep)
