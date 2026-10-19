@@ -250,6 +250,7 @@ def cloud_provider_checks_do_not_block_a_private_ip(ctx: ScenarioContext) -> Non
 
 EMERGENCY_BLOCKED_CONFIG = {
     "emergency_mode": True,
+    "emergency_exempt_paths": ["/health"],
     "emergency_whitelist": [],
     "excluded_detection_headers": EXCLUDED_HEADERS,
 }
@@ -265,8 +266,32 @@ def emergency_mode_blocks_non_whitelisted_traffic(ctx: ScenarioContext) -> None:
     assert any("[EMERGENCY MODE] Access denied" in line for line in lines)
 
 
+EMERGENCY_EXEMPT_CONFIG = {
+    "emergency_mode": True,
+    "emergency_whitelist": [],
+    "emergency_exempt_paths": ["/health"],
+    "excluded_detection_headers": EXCLUDED_HEADERS,
+}
+
+
+@scenario(covers={"emergency_exempt_paths"}, config=EMERGENCY_EXEMPT_CONFIG)
+def emergency_exempt_paths_keep_only_the_listed_probe_open(
+    ctx: ScenarioContext,
+) -> None:
+    exempt = ctx.client.get("/health")
+    assert exempt.status_code == 200, exempt.status_code
+
+    for path in ("/basic/ip", "/docs", "/ready"):
+        response = ctx.client.get(path, params={"q": "hello"})
+        assert response.status_code == 503, (path, response.status_code)
+
+    boot = ctx.stack.logs.current_boot_text()
+    assert "exclude_paths holds '/ready'" in boot
+
+
 EMERGENCY_WHITELIST_CONFIG = {
     "emergency_mode": True,
+    "emergency_exempt_paths": ["/health"],
     "emergency_whitelist": [CLIENT_IP],
     "excluded_detection_headers": EXCLUDED_HEADERS,
 }
@@ -286,6 +311,7 @@ def emergency_whitelist_allows_listed_ip_through(ctx: ScenarioContext) -> None:
 
 EMERGENCY_WHITELIST_ONLY_ON_CONFIG = {
     "emergency_mode": True,
+    "emergency_exempt_paths": ["/health"],
     "emergency_whitelist": [],
     "emergency_whitelist_only": True,
     "whitelist": [CLIENT_IP, "127.0.0.1"],
@@ -309,6 +335,7 @@ def emergency_whitelist_only_admits_only_the_emergency_whitelist(
 
 EMERGENCY_WHITELIST_ONLY_OFF_CONFIG = {
     "emergency_mode": True,
+    "emergency_exempt_paths": ["/health"],
     "emergency_whitelist": [],
     "emergency_whitelist_only": False,
     "whitelist": [CLIENT_IP, "127.0.0.1"],
