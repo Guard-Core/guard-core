@@ -17,7 +17,10 @@ from guard_core._utils.pair_redaction import (
     _redact_pairs_in_text,
 )
 from guard_core._utils.pair_value_scan import _QUOTE_CHARS
-from guard_core._utils.sensitive_names import has_sensitive_name_token
+from guard_core._utils.sensitive_names import (
+    has_sensitive_name_token,
+    name_is_sensitive,
+)
 from guard_core.protocols.request_protocol import GuardRequest
 
 _DEFAULT_SENSITIVE_LOG_HEADERS: frozenset[str] = frozenset(
@@ -274,7 +277,7 @@ _XML_ELEMENT_RE = re.compile(r"<([A-Za-z_][\w.:-]*)>([^<]*)</\1>")
 def _redact_xml_elements(text: str, sensitive: frozenset[str]) -> str:
     def _redact(match: re.Match[str]) -> str:
         name = match.group(1)
-        if name.lower() not in sensitive:
+        if not name_is_sensitive(name, sensitive):
             return match.group(0)
         return f"<{name}>[REDACTED]</{name}>"
 

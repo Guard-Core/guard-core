@@ -28,6 +28,10 @@ from guard_core._utils.detection_scan import (
     _scan_component_name,
 )
 from guard_core._utils.request_logging import redact_blob_for_display
+from guard_core._utils.sensitive_names import (
+    has_sensitive_name_token,
+    name_is_sensitive,
+)
 from guard_core.protocols.request_protocol import GuardRequest
 
 __all__ = [
@@ -86,7 +90,9 @@ async def _scan_query_param_value(
 ) -> tuple[bool, str, list[dict]]:
     normalized_key = key.strip().lower()
     is_sensitive = (
-        normalized_key in sensitive_params or normalized_key in sensitive_headers
+        normalized_key in sensitive_params
+        or normalized_key in sensitive_headers
+        or has_sensitive_name_token(key.strip())
     )
     content_preview, json_redact_all = (
         ("[REDACTED]", None)
@@ -335,7 +341,7 @@ async def _scan_headers(
     sensitive_params: frozenset[str] = frozenset(),
 ) -> tuple[bool, str, list[dict]]:
     for key, value in _header_items_to_scan(request.headers):
-        if key.strip().lower() in sensitive_headers:
+        if name_is_sensitive(key, sensitive_headers):
             hit = await _scan_sensitive_header(
                 key,
                 value,
@@ -391,7 +397,7 @@ async def _scan_body_field(
     preview_override: str | None = None,
     sensitive_params: frozenset[str] = frozenset(),
 ) -> tuple[bool, str, list[dict]]:
-    is_sensitive = label.lower() in sensitive_body_fields
+    is_sensitive = name_is_sensitive(label, sensitive_body_fields)
     if preview_override is None and display is None and not is_sensitive:
         display, _ = _non_sensitive_display(
             value, sensitive_params, sensitive_body_fields

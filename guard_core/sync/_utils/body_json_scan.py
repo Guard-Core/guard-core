@@ -11,6 +11,7 @@ from guard_core.sync._utils.logging_utils import (
     _redact_sensitive_json,
     _sanitize_for_reporting,
 )
+from guard_core.sync._utils.sensitive_names import name_is_sensitive
 
 _MONGO_OPERATOR_KEY_RE = re.compile(
     r"^\$(?:ne|gt|gte|lt|lte|eq|in|nin|nor|and|or|not|all|size|exists|type|"
@@ -173,7 +174,7 @@ def _scan_json_entry_frame(
     if key_result[0]:
         return key_result
     key_str = str(key)
-    own_redact = redact or key_str.lower() in sensitive_body_fields
+    own_redact = redact or name_is_sensitive(key_str, sensitive_body_fields)
     stack.append(("value", item, key_str, depth + 1, own_redact))
     return None
 

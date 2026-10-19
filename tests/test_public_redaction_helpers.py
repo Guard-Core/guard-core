@@ -28,11 +28,11 @@ def test_json_context_secret_is_redacted_with_defaults() -> None:
 
 
 def test_extra_header_name_extends_default_set() -> None:
-    text = f"x-auth-token={_SECRET}"
+    text = f"x-internal-ref={_SECRET}"
 
     assert _SECRET in redact_blob_for_display(text, None, None)
     assert _SECRET not in redact_blob_for_display(
-        text, None, None, frozenset({"x-auth-token"})
+        text, None, None, frozenset({"x-internal-ref"})
     )
 
 
@@ -70,8 +70,8 @@ _ANGLE_BRACKET_VALUE_CASES = (
     ("token=<sk_live_51ABC xyz>&user=bob", "token=[REDACTED]&user=bob"),
     ("password=<my secret value>&next=step", "password=[REDACTED]&next=step"),
     (
-        "token=<oops&session_id=abc123>&next=ok",
-        "token=[REDACTED]&session_id=abc123>&next=ok",
+        "token=<oops&item_id=abc123>&next=ok",
+        "token=[REDACTED]&item_id=abc123>&next=ok",
     ),
     ("token=<x/next=ok", "token=[REDACTED]/next=ok"),
     ("token=<x)password=y", "token=[REDACTED])password=[REDACTED]"),

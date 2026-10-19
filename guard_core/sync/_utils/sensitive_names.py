@@ -1,4 +1,5 @@
 import re
+from collections.abc import Collection
 from functools import lru_cache
 
 SENSITIVE_NAME_TOKENS: frozenset[str] = frozenset(
@@ -27,3 +28,15 @@ def has_sensitive_name_token(name: str) -> bool:
         if lowered in SENSITIVE_NAME_TOKENS or lowered in SENSITIVE_COMPOUND_NAMES:
             return True
     return False
+
+
+_PLAIN_NAME = re.compile(r"[\w.\-]+")
+
+
+def name_is_sensitive(name: str, names: Collection[str]) -> bool:
+    stripped = name.strip()
+    if stripped.lower() in names:
+        return True
+    return _PLAIN_NAME.fullmatch(stripped) is not None and has_sensitive_name_token(
+        stripped
+    )

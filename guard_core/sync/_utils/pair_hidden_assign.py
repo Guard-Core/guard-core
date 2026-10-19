@@ -12,6 +12,7 @@ from guard_core.sync._utils.pair_value_scan import (
     _redact_sensitive_pair_value,
     _skip_soft_whitespace,
 )
+from guard_core.sync._utils.sensitive_names import name_is_sensitive
 
 _REDACTED_MARKER = "[REDACTED]"
 
@@ -127,7 +128,7 @@ def _hidden_pair_split(token: str) -> tuple[str, int] | None:
         return None
     split_pos = min(candidates)
     value_pos = _skip_assign_run_tail(token, split_pos)
-    return token[:split_pos].strip().lower(), value_pos
+    return token[:split_pos].strip(), value_pos
 
 
 def _redact_adjacent_sensitive_value(text: str, pos: int) -> tuple[str, int] | None:
@@ -208,7 +209,7 @@ def _redact_hidden_encoded_pair(
         if split is None:
             continue
         name, value_pos = split
-        if name in sensitive or _has_undecoded_percent_escape(name):
+        if name_is_sensitive(name, sensitive) or _has_undecoded_percent_escape(name):
             if len(tokens) == 1 and value_pos >= len(token):
                 adjacent = _redact_adjacent_sensitive_value(text, run_end)
                 if adjacent is not None:

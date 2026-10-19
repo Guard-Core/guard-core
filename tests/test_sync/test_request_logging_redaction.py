@@ -168,8 +168,8 @@ def test_redact_blob_for_display_comma_list_of_benign_values_unchanged() -> None
 
 
 def test_redact_blob_for_display_space_around_equals_non_sensitive_unchanged() -> None:
-    result = redact_blob_for_display("key = value", frozenset(), frozenset())
-    assert result == "key = value"
+    result = redact_blob_for_display("note = value", frozenset(), frozenset())
+    assert result == "note = value"
 
 
 def test_redact_url_for_display_comma_separated_query_pair_redacts_secret() -> None:

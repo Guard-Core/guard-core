@@ -10,6 +10,7 @@ from guard_core.sync._utils.pair_value_scan import (
     _redact_sensitive_pair_value,
     _try_redact_json_span,
 )
+from guard_core.sync._utils.sensitive_names import name_is_sensitive
 
 _MAX_DECODE_ROUNDS = 3
 
@@ -46,7 +47,7 @@ _NAME_BOUNDARY_RE = re.compile(rf"[^A-Za-z0-9_.\-%{_PLUS_SENTINEL}]")
 
 
 def _finish_name_segment(segment: str) -> str:
-    return segment.replace(_PLUS_SENTINEL, " ").strip().lower()
+    return segment.replace(_PLUS_SENTINEL, " ").strip()
 
 
 def _decode_pair_name_slow(bare_name: str, sensitive: frozenset[str]) -> str:
@@ -62,7 +63,7 @@ def _decode_pair_name_slow(bare_name: str, sensitive: frozenset[str]) -> str:
         for start, end in zip(starts, ends, strict=True)
     ]
     for candidate in candidates:
-        if candidate and candidate in sensitive:
+        if candidate and name_is_sensitive(candidate, sensitive):
             return candidate
     return candidates[-1] if candidates[-1] else candidates[0]
 
@@ -88,7 +89,7 @@ def _resolve_pair_result(
     sensitive_body_fields: frozenset[str],
     max_depth: int,
 ) -> tuple[str, int] | None:
-    if decoded_name in sensitive or (
+    if name_is_sensitive(decoded_name, sensitive) or (
         "%" in decoded_name and _PERCENT_ESCAPE_RE.search(decoded_name) is not None
     ):
         return _redact_sensitive_pair_value(text, value_start)
@@ -140,7 +141,7 @@ def _redact_pairs_in_text_ex(
             value_start = assign_end
         bare_name = raw_run[1:-1] if raw_run[:1] in _QUOTE_CHARS else raw_run
         decoded_name = (
-            bare_name.lower()
+            bare_name
             if "%" not in bare_name and "+" not in bare_name
             else _decode_pair_name_slow(bare_name, sensitive)
         )

@@ -4,6 +4,7 @@ import logging
 from typing import Any
 
 from guard_core.sync._utils.pair_value_scan import _bounded_percent_decode
+from guard_core.sync._utils.sensitive_names import name_is_sensitive
 
 logger = logging.getLogger("guard_core")
 
@@ -107,7 +108,7 @@ def _redact_json_child(
     sensitive_body_fields: frozenset[str],
     stack: list[tuple[Any, Any, int]],
 ) -> Any:
-    if source_is_dict and str(key).lower() in sensitive_body_fields:
+    if source_is_dict and name_is_sensitive(str(key), sensitive_body_fields):
         return "[REDACTED]"
     if isinstance(item, str):
         return _redact_json_string_leaf(
