@@ -11,6 +11,7 @@ from guard_core.handlers._suspatterns_matchers import (
     _HTML_TAG_OPEN_RE,
     _SQLI_LOAD_FILE_RE,
 )
+from guard_core.handlers._suspatterns_named_floor import NAMED_FLOOR_ROWS
 from guard_core.handlers._suspatterns_probe_chains import PROBE_CHAIN_ROW
 from guard_core.handlers._suspatterns_probe_names import (
     SCRIPT_NAMES_ANY_DEPTH_RES,
@@ -113,6 +114,7 @@ from guard_core.handlers._suspatterns_sources import (
     _LDAP_PAREN_CONJUNCTION_RE,
     _LDAP_WILDCARD_CHAIN_RE,
     _LDAP_WILDCARD_EQUALS_RE,
+    _MAP_FILE_PATH_RE,
     _PATH_ONLY_CHAR_RE,
     _PATH_ONLY_PREFIX_RE,
     _PATH_ONLY_SEP_RE,
@@ -122,11 +124,9 @@ from guard_core.handlers._suspatterns_sources import (
     _PROTO_POLLUTION_PROTOTYPE_ASSIGN_RE,
     _PROTO_POLLUTION_SET_PROTOTYPE_OF_RE,
     _RECON_EXTENSION_PATH_RE,
-    _RECON_FLOOR_PATH_RE,
     _SELECT_FROM_RE,
     _SELECT_STAR_RE,
     _SENSITIVE_SOURCE_EXTENSION_PATH_RE,
-    _SENSITIVE_SOURCE_FLOOR_PATH_RE,
     _SQLI_COMMENT_TERMINATOR_RE,
     _SQLI_EXEC_STRONG_RE,
     _SQLI_ORDER_BY_STRONG_RE,
@@ -153,7 +153,6 @@ from guard_core.handlers._suspatterns_state import (
 
 _UPLOAD_DIRECTORY_RE = r"(?:uploads?|files|images|media|tmp)"
 _CTX_VALUE_PATH = frozenset({"query_param", "request_body", "unknown"})
-_MAP_FILE_PATH_RE = _root_path_pattern(rf"{_PATH_ONLY_CHAR_RE}*\.map")
 
 BACKTICK_WHOLE_VALUE_RE = (
     r"\A\s*(?:[;&|]\s*)*`\s*(?:[A-Za-z0-9_./~]|\$[({])"
@@ -609,7 +608,6 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
         _CTX_SENSITIVE_FILE,
         "sensitive_file",
     ),
-    (_SENSITIVE_SOURCE_FLOOR_PATH_RE, _CTX_URL_PATH_ONLY, "sensitive_file"),
     (
         _path_only_pattern(
             r"(?:(?:local_settings|settings|config|secrets|configuration)\.py"
@@ -723,7 +721,6 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
         _CTX_RECON,
         "recon",
     ),
-    (_RECON_FLOOR_PATH_RE, _CTX_URL_PATH_ONLY, "recon"),
     (_SYSTEM_LOG_PATH_RE, _CTX_URL_PATH_ONLY, "recon"),
     (_VERSION_ROOT_PATH_RE, _CTX_URL_PATH_ONLY, "recon"),
     (
@@ -924,6 +921,7 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
     (r'C:\d+:"', _CTX_DESERIALIZATION, "deserialization"),
     (r'E:\d+:"', _CTX_DESERIALIZATION, "deserialization"),
     (r"<ObjectDataProvider\b", _CTX_DESERIALIZATION, "deserialization"),
+    *NAMED_FLOOR_ROWS,
 ]
 
 # Whole-value recon rows whose leading path separator is optional: outside a URL
@@ -932,7 +930,7 @@ RECON_OPTIONAL_SEPARATOR_PATTERN_SOURCES: frozenset[str] = frozenset(
     source
     for source, _contexts, category in _PATTERN_DEFINITIONS
     if category == "recon" and source.startswith(_TOP_LEVEL_PATH_PREFIX_RE)
-) | {_SENSITIVE_SOURCE_EXTENSION_PATH_RE, _MAP_FILE_PATH_RE}
+)
 
 # Recon rows additionally scanned against the signal-preserving raw view. The
 # processed views fold LDAP hex escapes ("\de" -> "Þ") before the pattern

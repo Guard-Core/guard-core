@@ -89,7 +89,7 @@ async def test_nested_source_path_is_not_a_probe_when_the_app_declares_it(
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "payload",
-    [case for case in NESTED_SOURCE_PATHS_NOT_PROBES if "map" not in case.id],
+    [case for case in NESTED_SOURCE_PATHS_NOT_PROBES if "map" not in str(case.id)],
 )
 @pytest.mark.parametrize("template", [None, "/{page:path}", "/api/{name}"])
 async def test_nested_source_path_without_its_own_route_is_flagged_as_in_v440(

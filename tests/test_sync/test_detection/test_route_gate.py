@@ -41,6 +41,16 @@ def _flagged(path: str, template: str | None = None, **state: Any) -> bool:
         ("/system/log/", "/system/log/"),
         ("/system/logs", "/system/logs"),
         ("/version", "/version"),
+        ("/api/management", "/api/management/{item}"),
+        ("/management", "/management"),
+        ("/en/inicio.html", "/en/inicio.html"),
+        ("/v2/system/version", "/v2/system/version"),
+        ("/blog/language/python", "/blog/language/{name}"),
+        ("/docs/README.md", "/docs/README.md"),
+        ("/docs/CHANGELOG", "/docs/CHANGELOG"),
+        ("/wp-content/uploads/2024/a.jpg", "/wp-content/uploads/{name}"),
+        ("/service/credentials", "/service/credentials"),
+        ("/system/status", "/system/{name}"),
     ],
 )
 def test_a_path_the_app_declares_as_a_route_is_not_a_probe(
@@ -59,6 +69,15 @@ def test_a_path_the_app_declares_as_a_route_is_not_a_probe(
         "/news/index.jsp",
         "/system/log/",
         "/version",
+        "/api/management",
+        "/management",
+        "/en/inicio.html",
+        "/v2/system/version",
+        "/blog/language/python",
+        "/docs/README.md",
+        "/wp-content/uploads/2024/a.jpg",
+        "/service/credentials",
+        "/system/status",
     ],
 )
 @pytest.mark.parametrize(

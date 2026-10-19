@@ -8,7 +8,7 @@ ROUTE_TEMPLATE_STATE_ATTR = "guard_route_template"
 
 FLOOR_EXTENSIONS = frozenset(
     "ts tsx jsx py rb java go rs php pl sh sql asp aspx jsp jsa jhtml shtml cfm cgi "
-    "do action lua inc woa nsf esp".split()
+    "do action lua inc woa nsf esp map".split()
 )
 
 _matched_route_template: contextvars.ContextVar[str | None] = contextvars.ContextVar(
@@ -33,14 +33,19 @@ def floor_extension_token(path: str) -> str | None:
     return f".{extension}" if extension in FLOOR_EXTENSIONS else None
 
 
-_NAMED_PROBE_PATHS = frozenset({"system/log", "system/logs", "version"})
+_NAMED_PROBE_TOKENS = (
+    "wp-admin wp-login wp-content wp-includes wp-config administrator xmlrpc "
+    "management config_dump credentials system version language readme.txt "
+    "readme.md changelog pom.xml build.gradle appsettings.json crossdomain.xml "
+    "inicio.htm"
+).split()
 
 
 def might_be_a_gated_probe(path: str) -> bool:
     if floor_extension_token(path) is not None:
         return True
-    stripped = path.split("?", 1)[0].strip("/\\").lower()
-    return stripped in _NAMED_PROBE_PATHS
+    lowered = path.split("?", 1)[0].lower()
+    return any(token in lowered for token in _NAMED_PROBE_TOKENS)
 
 
 def route_state_template(state: Any) -> str | None:

@@ -51,11 +51,14 @@ def _generated_paths() -> list[str]:
 
 
 @pytest.mark.parametrize("_category,required,current", _PATTERNS)
-def test_extension_path_regex_matches_the_root_anchored_language(
+def test_extension_path_regex_matches_previous_language(
     _category: str, required: str, current: str
 ) -> None:
     previous = re.compile(
-        rf"\A{_PATH_ONLY_SEP_RE}?{required}{_PATH_ONLY_SUFFIX_RE}",
+        rf"\A{_PATH_ONLY_SEP_RE}?"
+        rf"(?:(?!{required}(?:{_PATH_ONLY_SEP_RE}|\Z))"
+        rf"{_PATH_ONLY_CHAR_RE}+{_PATH_ONLY_SEP_RE})*"
+        rf"{required}{_PATH_ONLY_SUFFIX_RE}",
         _FLAGS,
     )
     optimized = re.compile(current, _FLAGS)

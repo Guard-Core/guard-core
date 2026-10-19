@@ -873,7 +873,77 @@ _URL_PATH_CODE_EXECUTION_KNOWN_FP_REASON = (
     "either, and the row never runs in a body or query value"
 )
 
+_V440_NAMED_VALUE_KNOWN_FP_REASON = (
+    "D-74 and D-75: v4.4.0 flags this named route path; in a URL path the route "
+    "template decides, and a value in a header, query or body carries no route, "
+    "so it stays flagged exactly as in v4.4.0"
+)
+
 _KNOWN_E2E_FALSE_POSITIVE_SOURCES: dict[str, tuple[str, str]] = {
+    "path_version_top_level": (
+        _V440_NAMED_VALUE_KNOWN_FP_REASON,
+        "form_body",
+    ),
+    "path_management_nested_under_api": (
+        _V440_NAMED_VALUE_KNOWN_FP_REASON,
+        "form_body",
+    ),
+    "path_credentials_nested_under_service": (
+        _V440_NAMED_VALUE_KNOWN_FP_REASON,
+        "raw_body",
+    ),
+    "path_nested_inicio_html": (
+        _V440_NAMED_VALUE_KNOWN_FP_REASON,
+        "form_body",
+    ),
+    "path_nested_app_sourcemap": (
+        _V440_NAMED_VALUE_KNOWN_FP_REASON,
+        "multipart_body",
+    ),
+    "path_nested_source_extension_py": (
+        _V440_NAMED_VALUE_KNOWN_FP_REASON,
+        "multipart_body",
+    ),
+    "path_nested_source_extension_sh": (
+        _V440_NAMED_VALUE_KNOWN_FP_REASON,
+        "multipart_body",
+    ),
+    "path_nested_readme_md": (
+        _V440_NAMED_VALUE_KNOWN_FP_REASON,
+        "form_body",
+    ),
+    "path_language_route": (
+        _V440_NAMED_VALUE_KNOWN_FP_REASON,
+        "query_param",
+    ),
+    "path_system_status_route": (
+        _V440_NAMED_VALUE_KNOWN_FP_REASON,
+        "form_body",
+    ),
+    "path_nested_jsp_page": (
+        _V440_NAMED_VALUE_KNOWN_FP_REASON,
+        "query_param",
+    ),
+    "path_wp_content_uploads_media": (
+        _V440_NAMED_VALUE_KNOWN_FP_REASON,
+        "raw_body",
+    ),
+    "path_nested_shell_php_outside_uploads": (
+        _V440_NAMED_VALUE_KNOWN_FP_REASON,
+        "form_body",
+    ),
+    "path_nested_cmd_php_outside_uploads": (
+        _V440_NAMED_VALUE_KNOWN_FP_REASON,
+        "form_body",
+    ),
+    "path_system_logs_directory": (
+        _V440_NAMED_VALUE_KNOWN_FP_REASON,
+        "raw_body",
+    ),
+    "path_changelog_title_case_page": (
+        _V440_NAMED_VALUE_KNOWN_FP_REASON,
+        "query_param",
+    ),
     "cmd_injection_markdown_ls_mention": (
         _URL_PATH_CODE_EXECUTION_KNOWN_FP_REASON,
         "url_path",

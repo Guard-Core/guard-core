@@ -3,6 +3,7 @@ import logging
 import re
 import time
 from collections.abc import Callable, Iterator
+from functools import partial
 from typing import Any
 
 from guard_core._utils.detection_scan import (
@@ -22,10 +23,6 @@ from guard_core._utils.detection_scan import (
     _suspended,
     _timed_in_worker,
     _warn_scan_time_cap_reached_once,
-)
-from guard_core._utils.route_gate import (
-    named_probe_is_not_the_apps_own_route,
-    path_probe_is_not_the_apps_own_route,
 )
 from guard_core.detection_engine.binary_prefix import (
     build_binary_prefix,
@@ -66,6 +63,13 @@ from guard_core.handlers._suspatterns_matchers import (
     _ldap_null_byte_attr_finditer,
     _pickle_global_generic_finditer,
     _quote_splice_finditer,
+)
+from guard_core.handlers._suspatterns_named_floor import (
+    NAMED_FLOOR_ROWS,
+    named_floor_row_is_not_the_apps_own_route,
+    named_probe_row_is_not_the_apps_own_route,
+    recon_path_is_a_probe,
+    source_path_is_a_probe,
 )
 from guard_core.handlers._suspatterns_pattern_table import (
     _ABSOLUTE_PATH_VALUE_RE,
@@ -113,12 +117,11 @@ from guard_core.handlers._suspatterns_sources import (
     _LDAP_PAREN_CONJUNCTION_RE,
     _LDAP_WILDCARD_CHAIN_RE,
     _LDAP_WILDCARD_EQUALS_RE,
+    _MAP_FILE_PATH_RE,
     _RECON_EXTENSION_PATH_RE,
-    _RECON_FLOOR_PATH_RE,
     _SELECT_FROM_RE,
     _SELECT_STAR_RE,
     _SENSITIVE_SOURCE_EXTENSION_PATH_RE,
-    _SENSITIVE_SOURCE_FLOOR_PATH_RE,
     _SYSTEM_LOG_PATH_RE,
     _VERSION_ROOT_PATH_RE,
     _WHERE_CLAUSE_RE,
@@ -134,24 +137,6 @@ from guard_core.handlers._suspatterns_xml_xxe import (
 )
 
 logger = logging.getLogger("guard_core.handlers.suspatterns")
-
-
-def _is_the_request_url_path(context: str) -> bool:
-    return context.startswith("url_path") and _source_extension_path_is_probe(context)
-
-
-def _floor_probe_is_not_the_apps_own_route(match: re.Match, context: str) -> bool:
-    return _is_the_request_url_path(context) and path_probe_is_not_the_apps_own_route(
-        match.group()
-    )
-
-
-def _extension_probe_is_not_the_apps_own_route(match: re.Match, context: str) -> bool:
-    if not _source_extension_path_is_probe(context):
-        return False
-    return not context.startswith("url_path") or (
-        path_probe_is_not_the_apps_own_route(match.group())
-    )
 
 
 DETECTION_CATEGORY_WEIGHTS: dict[str, float] = {
@@ -189,6 +174,10 @@ def _decode_budget_exhausted_threat() -> dict[str, Any]:
 _CANDIDATE_REJECTION_VALIDATORS: tuple[
     tuple[str, Callable[[re.Match, str], bool]], ...
 ] = (
+    *(
+        (source, partial(named_floor_row_is_not_the_apps_own_route, source))
+        for source, _contexts, _category in NAMED_FLOOR_ROWS
+    ),
     (_LEGACY_IPV4_HOST_RE, lambda m, _c: _legacy_ipv4_match_is_blocked(m)),
     (_LDAP_WILDCARD_CHAIN_RE, lambda m, _c: _ldap_wildcard_chain_is_injection(m)),
     (_LDAP_WILDCARD_EQUALS_RE, lambda m, _c: _ldap_wildcard_chain_is_injection(m)),
@@ -204,37 +193,19 @@ _CANDIDATE_REJECTION_VALIDATORS: tuple[
         _ABSOLUTE_PATH_VALUE_RE,
         lambda _m, context: _source_extension_path_is_probe(context),
     ),
-    (
-        _SENSITIVE_SOURCE_EXTENSION_PATH_RE,
-        lambda m, context: _extension_probe_is_not_the_apps_own_route(m, context),
-    ),
-    (
-        _RECON_EXTENSION_PATH_RE,
-        lambda m, context: (
-            not context.startswith("url_path")
-            or path_probe_is_not_the_apps_own_route(m.group())
-        ),
-    ),
-    (
-        _SENSITIVE_SOURCE_FLOOR_PATH_RE,
-        lambda m, context: _floor_probe_is_not_the_apps_own_route(m, context),
-    ),
-    (
-        _RECON_FLOOR_PATH_RE,
-        lambda m, context: _floor_probe_is_not_the_apps_own_route(m, context),
-    ),
+    (_SENSITIVE_SOURCE_EXTENSION_PATH_RE, source_path_is_a_probe),
+    (_MAP_FILE_PATH_RE, source_path_is_a_probe),
+    (_RECON_EXTENSION_PATH_RE, recon_path_is_a_probe),
     (
         _VERSION_ROOT_PATH_RE,
-        lambda _m, context: (
-            context.startswith("url_path")
-            and named_probe_is_not_the_apps_own_route("version")
+        lambda _m, context: named_probe_row_is_not_the_apps_own_route(
+            "version", context
         ),
     ),
     (
         _SYSTEM_LOG_PATH_RE,
-        lambda _m, context: (
-            context.startswith("url_path")
-            and named_probe_is_not_the_apps_own_route("system/log")
+        lambda _m, context: named_probe_row_is_not_the_apps_own_route(
+            "system/log", context
         ),
     ),
     (_GLUED_DOLLAR_SUBSTITUTION_CANDIDATE_RE, _dollar_substitution_pair_is_injection),

@@ -141,7 +141,11 @@ def test_a_gated_route_is_a_probe_unless_the_app_declares_it(
 
 def test_a_wordpress_probe_outside_the_uploads_tree_stays_flagged() -> None:
     assert _flagged("/blog/wp-content/plugins/x/readme.txt") is True
-    assert _flagged("/wp-content/uploads/2024/a.jpg") is False
+    assert _flagged("/wp-content/uploads/2024/a.jpg") is True
+    assert (
+        _flagged("/wp-content/uploads/2024/a.jpg", route="/wp-content/uploads/{name}")
+        is False
+    )
 
 
 def test_the_nested_extension_builder_matches_at_any_depth() -> None:

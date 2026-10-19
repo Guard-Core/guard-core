@@ -604,6 +604,12 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "fixed string with no interpolation of any kind"
     ),
     "core/checks/implementations/suspicious_activity.py:"
+    "SuspiciousActivityCheck._record_route_template": (
+        "logs the fixed text 'route_template failed; the path is judged without "
+        "it' when an adapter's route_template raises; no request value is "
+        "interpolated"
+    ),
+    "core/checks/implementations/suspicious_activity.py:"
     "SuspiciousActivityCheck.check": (
         "line 158 (disabled_by_decorator branch): reason is the static "
         "string 'Suspicious pattern detection disabled by route decorator'"

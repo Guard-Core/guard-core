@@ -168,12 +168,6 @@ def _root_path_pattern(required: str, trailing: str = "") -> str:
     return rf"\A{_PATH_ONLY_SEP_RE}?{required}{trailing}{_PATH_ONLY_SUFFIX_RE}"
 
 
-def _root_extension_pattern(required: str) -> str:
-    return (
-        rf"\A{_PATH_ONLY_SEP_RE}?{_PATH_ONLY_CHAR_RE}*{required}{_PATH_ONLY_SUFFIX_RE}"
-    )
-
-
 def _path_only_extension_pattern(required: str) -> str:
     return (
         rf"\A{_PATH_ONLY_SEP_RE}?"
@@ -187,17 +181,13 @@ _RECON_EXTENSIONS = (
     r"\.(?:asp|aspx|jsp|jsa|jhtml|shtml|cfm|cgi|do|action|lua|inc|woa|nsf|esp)"
 )
 
-_SENSITIVE_SOURCE_EXTENSION_PATH_RE = _root_extension_pattern(
+_SENSITIVE_SOURCE_EXTENSION_PATH_RE = _path_only_extension_pattern(
     _SENSITIVE_SOURCE_EXTENSIONS
 )
 
-_RECON_EXTENSION_PATH_RE = _root_extension_pattern(_RECON_EXTENSIONS)
+_RECON_EXTENSION_PATH_RE = _path_only_extension_pattern(_RECON_EXTENSIONS)
 
-_SENSITIVE_SOURCE_FLOOR_PATH_RE = _path_only_extension_pattern(
-    _SENSITIVE_SOURCE_EXTENSIONS
-)
-
-_RECON_FLOOR_PATH_RE = _path_only_extension_pattern(_RECON_EXTENSIONS)
+_MAP_FILE_PATH_RE = _path_only_pattern(rf"{_PATH_ONLY_CHAR_RE}*\.map")
 
 _VERSION_ROOT_PATH_RE = (
     rf"\A{_PATH_ONLY_SEP_RE}?version{_PATH_ONLY_SEP_RE}?(?:\?\S*)?\s*\Z"
