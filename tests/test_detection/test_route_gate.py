@@ -159,6 +159,18 @@ async def test_a_late_template_without_the_extension_leaves_the_path_flagged() -
     lookup.assert_called_once()
 
 
+async def test_an_adapter_that_cannot_match_the_path_leaves_it_flagged() -> None:
+    check, _, lookup = _check(None)
+    request = _stamped("/shop/cart.php")
+
+    response = await check.check(request)
+
+    assert response is not None
+    assert response.status_code == 400
+    lookup.assert_called_once()
+    assert getattr(request.state, "guard_route_template", None) is None
+
+
 async def test_the_prefilter_never_asks_for_an_ordinary_path() -> None:
     check, _, lookup = _check("/api/items")
 
