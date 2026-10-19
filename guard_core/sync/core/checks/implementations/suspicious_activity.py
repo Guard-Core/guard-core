@@ -18,8 +18,10 @@ from guard_core.sync.core.checks.helpers import (
 from guard_core.sync.core.events.event_types import (
     EVENT_DECORATOR_VIOLATION,
     EVENT_PENETRATION_ATTEMPT,
+    EVENT_SUSPICIOUS_REQUEST,
 )
 from guard_core.sync.decorators.base import RouteConfig
+from guard_core.sync.detection_result import BODY_READ_STALLED, DetectionResult
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 from guard_core.sync.utils import log_activity
 
@@ -171,6 +173,45 @@ class SuspiciousActivityCheck(SecurityCheck):
             default_message="Suspicious activity detected",
         )
 
+    def _handle_body_read_error(
+        self, request: SyncGuardRequest, client_ip: str, result: DetectionResult
+    ) -> GuardResponse | None:
+        stalled = result.body_read_error == BODY_READ_STALLED
+        outcome = "stalled" if stalled else "failed"
+        blocks = self.config.fail_secure and not self.config.passive_mode
+        log_activity(
+            request,
+            self.logger,
+            log_type="suspicious",
+            reason=f"Request body read {outcome} for IP: {client_ip}",
+            passive_mode=self.config.passive_mode,
+            trigger_info=result.body_read_detail,
+            level=self.config.log_suspicious_level,
+            check_name=self.check_name,
+            muted_check_logs=self.config.muted_check_logs,
+            on_block=self.config.on_block,
+            sensitive_headers=self.config.log_sensitive_headers,
+            sensitive_params=self.config.log_sensitive_params,
+            sensitive_body_fields=self.config.log_sensitive_body_fields,
+        )
+        self.middleware.event_bus.send_middleware_event(
+            event_type=EVENT_SUSPICIOUS_REQUEST,
+            request=request,
+            action_taken="request_blocked" if blocks else "logged_only",
+            reason=f"Request body read {outcome}: {result.body_read_detail}",
+            passive_mode=self.config.passive_mode,
+            trigger_info=result.body_read_detail,
+        )
+        if not blocks:
+            return None
+        if stalled:
+            return self.middleware.create_error_response(
+                status_code=408, default_message="Request body read timed out"
+            )
+        return self.middleware.create_error_response(
+            status_code=400, default_message="Request body could not be read"
+        )
+
     def check(self, request: SyncGuardRequest) -> GuardResponse | None:
         if getattr(request.state, "is_whitelisted", False):
             return None
@@ -200,6 +241,9 @@ class SuspiciousActivityCheck(SecurityCheck):
                     violation_type="suspicious_detection_disabled",
                 )
             return None
+
+        if result.body_read_error is not None:
+            return self._handle_body_read_error(request, client_ip, result)
 
         if not result.is_threat:
             return None

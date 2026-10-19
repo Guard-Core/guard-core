@@ -5,6 +5,7 @@ from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
 from guard_core.sync.protocols.request_protocol import (
     SyncBoundedBodyReader,
     SyncGuardRequest,
+    SyncIdleBoundedBodyReader,
 )
 from guard_core.sync.protocols.response_protocol import (
     GuardResponse,
@@ -21,6 +22,7 @@ __all__ = [
     "SyncGeoIPHandler",
     "SyncGuardMiddlewareProtocol",
     "SyncGuardRequest",
+    "SyncIdleBoundedBodyReader",
     "GuardResponse",
     "GuardResponseFactory",
     "SyncRedisHandlerProtocol",

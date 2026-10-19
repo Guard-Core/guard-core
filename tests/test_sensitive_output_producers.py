@@ -356,10 +356,28 @@ COVERED_PRODUCERS: dict[str, frozenset[str]] = {
 }
 
 NON_REQUEST_PRODUCERS: dict[str, str] = {
-    "_utils/body_reader.py:_safe_read": (
+    "_utils/body_reader.py:_body_read_slot": (
         "logs the configured max_concurrent of body reads when the limit is "
         "reached; a number from the configuration, no request value is "
         "interpolated"
+    ),
+    "_utils/body_reader.py:_resolve_body_reader_kind": (
+        "logs the adapter class name, once per adapter class, when it lacks "
+        "read_body_prefix_until_idle; a class name from the adapter's own "
+        "code, no request value is interpolated"
+    ),
+    "_utils/body_reader.py:_read_capped_body": (
+        "logs the typed body-read error on the honeypot path: a fixed message "
+        "or the exception class name the engine built, never a request value"
+    ),
+    "core/checks/implementations/suspicious_activity.py:"
+    "SuspiciousActivityCheck._handle_body_read_error": (
+        "logs 'Request body read stalled|failed for IP: <client identity>' "
+        "and sends the matching event; the detail is the typed error's own "
+        "fixed text, and the request goes through log_activity and "
+        "send_middleware_event, which apply the same redaction as every "
+        "other producer in this module, with no header, parameter, URL or "
+        "body value interpolated"
     ),
     "core/initialization/_ban_threshold_report.py:"
     "log_unreachable_ban_thresholds_after_rule_change": (

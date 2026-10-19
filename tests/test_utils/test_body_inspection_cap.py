@@ -5,6 +5,7 @@ from typing import cast
 
 import pytest
 
+from guard_core.exceptions import BodyReadStalledError
 from guard_core.models import SecurityConfig
 from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.utils import (
@@ -143,9 +144,11 @@ async def test_missing_content_length_bounded_reader_error_not_scanned() -> None
 
 async def test_missing_content_length_stall_degrades() -> None:  # async-only
     class _StallingReader(_BodyRequest):
-        async def read_body_prefix(self, max_bytes: int) -> bytes:
-            await asyncio.sleep(5)
-            return self._body
+        async def read_body_prefix_until_idle(
+            self, max_bytes: int, idle_timeout: float
+        ) -> bytes:
+            await asyncio.sleep(idle_timeout)
+            raise BodyReadStalledError()
 
     request = _StallingReader(body=_SQLI_BODY, content_length=None)
     config = SecurityConfig(
@@ -159,14 +162,17 @@ async def test_missing_content_length_stall_degrades() -> None:  # async-only
     assert elapsed < 1.0
     assert request.body_read is False
     assert result.is_threat is False
+    assert result.body_read_error == "stalled"
 
 
 async def test_content_length_present_stall_degrades() -> None:  # async-only
     class _StallingBodyRequest(_BodyRequest):
-        async def body(self) -> bytes:
+        async def read_body_prefix_until_idle(
+            self, max_bytes: int, idle_timeout: float
+        ) -> bytes:
             self.body_read = True
-            await asyncio.sleep(5)
-            return self._body
+            await asyncio.sleep(idle_timeout)
+            raise BodyReadStalledError()
 
     request = _StallingBodyRequest(body=_SQLI_BODY, content_length=len(_SQLI_BODY))
     config = SecurityConfig(
@@ -179,6 +185,43 @@ async def test_content_length_present_stall_degrades() -> None:  # async-only
 
     assert elapsed < 1.0
     assert result.is_threat is False
+    assert result.body_read_error == "stalled"
+
+
+async def test_a_slow_read_prefix_has_no_engine_deadline_and_is_scanned(  # async-only
+) -> None:
+    class _SlowReader(_BodyRequest):
+        async def read_body_prefix(self, max_bytes: int) -> bytes:
+            await asyncio.sleep(0.3)
+            return self._body
+
+    request = _SlowReader(body=_SQLI_BODY, content_length=None)
+    config = SecurityConfig(
+        detection_max_body_inspect_bytes=1024, body_read_timeout=0.05
+    )
+
+    result = await detect_penetration_attempt(cast(GuardRequest, request), config)
+
+    assert result.is_threat is True
+    assert result.body_read_error is None
+
+
+async def test_a_slow_body_has_no_engine_deadline_and_is_scanned(  # async-only
+) -> None:
+    class _SlowBodyRequest(_BodyRequest):
+        async def body(self) -> bytes:
+            await asyncio.sleep(0.3)
+            return self._body
+
+    request = _SlowBodyRequest(body=_SQLI_BODY, content_length=len(_SQLI_BODY))
+    config = SecurityConfig(
+        detection_max_body_inspect_bytes=1024, body_read_timeout=0.05
+    )
+
+    result = await detect_penetration_attempt(cast(GuardRequest, request), config)
+
+    assert result.is_threat is True
+    assert result.body_read_error is None
 
 
 async def test_at_cap_body_invalid_utf8_is_read_and_scanned_lossily() -> None:

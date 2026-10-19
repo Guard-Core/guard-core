@@ -336,23 +336,26 @@ class _SecurityConfigFields(BaseModel):
     body_read_timeout: float = Field(
         default=3.0,
         description=(
-            "Seconds to wait for an adapter's read_body_prefix or body call "
-            "before giving up. Applies to both the ASYNC guard_core tree "
-            "(guard_core.utils, guard_core.handlers.behavior_handler), where "
-            "it bounds the read via asyncio.wait_for, and the SYNC tree "
-            "(guard_core.sync), where a blocking call cannot be cancelled "
-            "from the outside, so each read attempt instead runs on its own "
-            "daemon thread and this value bounds how long the caller joins "
-            "that thread (see sync_body_read_max_concurrent for the thread "
-            "budget). In both trees it bounds the request-body detection "
-            "read and the response-body behaviour-rule read against a "
-            "stalled or misbehaving adapter/stream (a stalled SSE producer, "
-            "a long-poll that never yields, a buggy implementation); on "
-            "timeout the body is treated as unavailable, the same "
-            "fail-closed outcome already used when the adapter raises. The "
-            "sync tree's timed-out thread keeps running in the background "
-            "until the adapter's call itself returns; only the caller stops "
-            "waiting for it."
+            "Seconds a request-body read may sit idle. Detection reads the body "
+            "through the adapter's read_body_prefix_until_idle(max_bytes, "
+            "idle_timeout) and passes this value as idle_timeout, so a client "
+            "that keeps sending is never cut off and a client that stops "
+            "sending for this long is: the adapter raises BodyReadStalledError "
+            "and guard-core answers 408 when fail_secure is on, or logs it, "
+            "sends an event and lets the request through when it is off (no "
+            "strike either way). A read that fails, such as a dropped "
+            "connection or an adapter error, answers 400 under fail_secure. An "
+            "adapter without that method is read through read_body_prefix, "
+            "then body, awaited in full with no deadline of its own, and one "
+            "warning names the missing method; the server's own timeout is the "
+            "only bound there. In both trees this is also how long a read "
+            "waits for a free slot (async_body_read_max_concurrent, "
+            "sync_body_read_max_concurrent) before the same 408 outcome. The "
+            "sync tree reads on the request thread and never on another "
+            "thread: a sync adapter applies the idle timeout to its stream or "
+            "maps the server's socket timeout to BodyReadStalledError. The "
+            "async tree also bounds the response-body behaviour-rule read with "
+            "asyncio.wait_for."
         ),
         gt=0.0,
         le=30.0,
@@ -361,17 +364,35 @@ class _SecurityConfigFields(BaseModel):
     sync_body_read_max_concurrent: int = Field(
         default=64,
         description=(
-            "Maximum number of request-body and response-body reads that may "
-            "be in flight at once inside an adapter's read_body_prefix or "
-            "body call. In the SYNC guard_core tree a blocking read cannot be "
-            "cancelled, so each attempt runs on its own daemon thread and "
-            "this bounds the threads blocked on a stalled read; in the ASYNC "
-            "tree it bounds the reads awaiting at once. Once the limit is "
-            "reached, a further attempt waits for a slot for up to "
-            "body_read_timeout, then gives up, logs the exhaustion and treats "
-            "the body as unavailable for detection, keeping the count bounded "
-            "instead of growing without limit. The bound is per process; "
-            "event loops on several threads share it as a soft limit."
+            "Maximum number of request bodies the sync tree (guard_core.sync) "
+            "reads at once, each on its own request thread. Once the limit is "
+            "reached, a further request waits for a slot for up to "
+            "body_read_timeout, then gets the fail_secure outcome: 408 with a "
+            "log line and an event and no strike when fail_secure is on, a log "
+            "line and an event and the request passes unscanned when it is "
+            "off. The async tree does not read this field; it is bounded by "
+            "async_body_read_max_concurrent. The bound is per process."
+        ),
+        ge=1,
+        le=10000,
+    )
+
+    async_body_read_max_concurrent: int | None = Field(
+        default=None,
+        description=(
+            "Maximum number of request bodies the async tree reads at once. "
+            "None (the default) means no limit, as in v4.4.0: a read never "
+            "waits for a slot, so a flood of slow clients is bounded by "
+            "body_read_timeout and the server's own limits only. When set to "
+            "N, the (N+1)th concurrent read waits for a slot for up to "
+            "body_read_timeout, then gets the fail_secure outcome: 408 with a "
+            "log line and an event and no strike when fail_secure is on, a "
+            "log line and an event and the request passes unscanned when it "
+            "is off, never a silent skip. Size it with care: N slow clients "
+            "that hold every slot make each other body wait for one. The sync "
+            "tree reads sync_body_read_max_concurrent instead. The bound is "
+            "per process; event loops on several threads share it as a soft "
+            "limit."
         ),
         ge=1,
         le=10000,

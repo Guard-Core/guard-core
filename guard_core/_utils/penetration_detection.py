@@ -6,7 +6,7 @@ from guard_core._utils.body_content_scan import (
     _scan_query_params,
     _scan_request_body,
 )
-from guard_core._utils.body_reader import _read_capped_body
+from guard_core._utils.body_reader import _read_capped_body_or_raise
 from guard_core._utils.detection_config import (
     _resolve_binary_min_run_length,
     _resolve_enabled_categories,
@@ -26,6 +26,7 @@ from guard_core._utils.detection_config import (
     _resolve_sensitive_log_params,
 )
 from guard_core._utils.detection_result_builders import (
+    _build_body_read_error,
     _build_detection_hit,
     _build_detection_miss,
 )
@@ -42,6 +43,7 @@ from guard_core._utils.ip_extraction import (
 from guard_core._utils.request_logging import redact_url_for_display
 from guard_core._utils.request_path import resolve_dot_and_empty_segments
 from guard_core.detection_result import DetectionResult
+from guard_core.exceptions import BodyReadFailedError, BodyReadStalledError
 from guard_core.protocols.request_protocol import GuardRequest
 
 if TYPE_CHECKING:
@@ -170,7 +172,12 @@ async def _scan_body_surface(
     if not _resolve_scan_body(config, route_config):
         return _build_detection_miss()
 
-    body_bytes = await _read_capped_body(request, config, client_ip)
+    try:
+        body_bytes = await _read_capped_body_or_raise(request, config, client_ip)
+    except BodyReadStalledError as error:
+        return _build_body_read_error(True, error.detail)
+    except BodyReadFailedError as error:
+        return _build_body_read_error(False, error.detail)
     if body_bytes is None:
         return _build_detection_miss()
 

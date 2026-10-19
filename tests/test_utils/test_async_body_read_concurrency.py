@@ -3,9 +3,7 @@ import logging
 
 import pytest
 
-from guard_core._utils.body_reader import _read_capped_body, _safe_read
-from guard_core.models import SecurityConfig
-from tests.conftest import MockGuardRequest
+from guard_core._utils.body_reader import _safe_read
 
 
 class _Probe:
@@ -85,22 +83,3 @@ async def test_a_cancelled_read_releases_its_slot(  # async-only
         await task
 
     assert _body_read_slots[4] == []
-
-
-async def test_the_configured_limit_bounds_the_request_body_reads(  # async-only
-) -> None:
-    config = SecurityConfig(sync_body_read_max_concurrent=1, body_read_timeout=5.0)
-    probe = _Probe(hold=0.03)
-
-    class _Request(MockGuardRequest):
-        async def body(self) -> bytes:
-            return await probe.read()
-
-    requests = [
-        _Request(method="POST", headers={"content-length": "4"}) for _ in range(4)
-    ]
-
-    results = await asyncio.gather(*(_read_capped_body(r, config) for r in requests))
-
-    assert results == [b"body"] * 4
-    assert probe.peak == 1

@@ -33,6 +33,7 @@ SKIP_SRC = {
 
 SKIP_TESTS = {
     "test_scan_event_loop_yield.py",
+    "test_async_body_read_slots.py",
     "test_dynamic_rule_user_agent_offloop.py",
     "test_dynamic_rule_atomic_swap.py",
     "test_dynamic_rule_swap_atomicity.py",
@@ -99,14 +100,17 @@ HAND_MAINTAINED = {
 
 _ASYNC_SAFE_READ_SRC = (
     "_BODY_READ_SLOT_POLL_SECONDS = 0.005\n"
+    "_NO_CONFIG_MAX_CONCURRENT: int | None = None\n"
     "_body_read_slots: dict[int, list[None]] = {}\n"
     "\n"
     "\n"
-    "async def _safe_read(\n"
-    "    reader: Callable[[], Awaitable[bytes]],\n"
-    "    timeout: float,\n"
-    "    max_concurrent: int = _DEFAULT_BODY_READ_MAX_CONCURRENT,\n"
-    ") -> bytes | None:\n"
+    "@asynccontextmanager\n"
+    "async def _body_read_slot(\n"
+    "    max_concurrent: int | None, timeout: float\n"
+    ") -> AsyncIterator[None]:\n"
+    "    if max_concurrent is None:\n"
+    "        yield\n"
+    "        return\n"
     "    deadline = asyncio.get_running_loop().time() + timeout\n"
     "    slots = _body_read_slots.setdefault(max_concurrent, [])\n"
     "    while len(slots) >= max_concurrent:\n"
@@ -116,21 +120,33 @@ _ASYNC_SAFE_READ_SRC = (
     '                "treating the body as unavailable for detection",\n'
     "                max_concurrent,\n"
     "            )\n"
-    "            return None\n"
+    "            raise BodyReadSlotsExhaustedError(max_concurrent)\n"
     "        await asyncio.sleep(_BODY_READ_SLOT_POLL_SECONDS)\n"
     "    slots.append(None)\n"
     "    try:\n"
-    "        remaining = max(deadline - asyncio.get_running_loop().time(), 0.0)\n"
-    "        return await asyncio.wait_for(reader(), timeout=remaining)\n"
-    "    except Exception:\n"
-    "        return None\n"
+    "        yield\n"
     "    finally:\n"
     "        slots.pop()\n"
+    "\n"
+    "\n"
+    "async def _safe_read(\n"
+    "    reader: Callable[[], Awaitable[bytes]],\n"
+    "    timeout: float,\n"
+    "    max_concurrent: int | None = None,\n"
+    ") -> bytes | None:\n"
+    "    deadline = asyncio.get_running_loop().time() + timeout\n"
+    "    try:\n"
+    "        async with _body_read_slot(max_concurrent, timeout):\n"
+    "            remaining = max(deadline - asyncio.get_running_loop().time(), 0.0)\n"
+    "            return await asyncio.wait_for(reader(), timeout=remaining)\n"
+    "    except Exception:\n"
+    "        return None\n"
 )
 
 _SYNC_SAFE_READ_REPLACEMENT = (
     "_sync_body_read_semaphores: dict[int, threading.Semaphore] = {}\n"
     "_sync_body_read_semaphores_lock = threading.Lock()\n"
+    "_NO_CONFIG_MAX_CONCURRENT: int | None = _DEFAULT_BODY_READ_MAX_CONCURRENT\n"
     "\n"
     "\n"
     "def _sync_body_read_semaphore(max_concurrent: int) -> threading.Semaphore:\n"
@@ -142,41 +158,37 @@ _SYNC_SAFE_READ_REPLACEMENT = (
     "        return semaphore\n"
     "\n"
     "\n"
-    "def _safe_read(\n"
-    "    reader: Callable[[], bytes],\n"
-    "    timeout: float,\n"
-    "    max_concurrent: int = _DEFAULT_BODY_READ_MAX_CONCURRENT,\n"
-    ") -> bytes | None:\n"
-    "    deadline = time.monotonic() + timeout\n"
+    "@contextmanager\n"
+    "def _body_read_slot(\n"
+    "    max_concurrent: int | None, timeout: float\n"
+    ") -> Iterator[None]:\n"
+    "    if max_concurrent is None:\n"
+    "        yield\n"
+    "        return\n"
     "    semaphore = _sync_body_read_semaphore(max_concurrent)\n"
-    "\n"
-    "    if not semaphore.acquire(timeout=max(deadline - time.monotonic(), 0.0)):\n"
+    "    if not semaphore.acquire(timeout=max(timeout, 0.0)):\n"
     "        logger.warning(\n"
     '            "Sync body read concurrency limit reached (max_concurrent=%d); "\n'
     '            "treating the body as unavailable for detection",\n'
     "            max_concurrent,\n"
     "        )\n"
+    "        raise BodyReadSlotsExhaustedError(max_concurrent)\n"
+    "    try:\n"
+    "        yield\n"
+    "    finally:\n"
+    "        semaphore.release()\n"
+    "\n"
+    "\n"
+    "def _safe_read(\n"
+    "    reader: Callable[[], bytes],\n"
+    "    timeout: float,\n"
+    "    max_concurrent: int | None = None,\n"
+    ") -> bytes | None:\n"
+    "    try:\n"
+    "        with _body_read_slot(max_concurrent, timeout):\n"
+    "            return reader()\n"
+    "    except Exception:\n"
     "        return None\n"
-    "\n"
-    "    result: bytes | None = None\n"
-    "    failed = False\n"
-    "\n"
-    "    def _run() -> None:\n"
-    "        nonlocal result, failed\n"
-    "        try:\n"
-    "            result = reader()\n"
-    "        except Exception:\n"
-    "            failed = True\n"
-    "        finally:\n"
-    "            semaphore.release()\n"
-    "\n"
-    '    thread = threading.Thread(target=_run, name="guard-body-read", daemon=True)\n'
-    "    thread.start()\n"
-    "    thread.join(timeout=max(deadline - time.monotonic(), 0.0))\n"
-    "\n"
-    "    if thread.is_alive() or failed:\n"
-    "        return None\n"
-    "    return result\n"
 )
 
 _ASYNC_AWAIT_REGEX_FUTURE_SRC = (
@@ -212,6 +224,10 @@ SUBS: list[tuple[str, str]] = [
     (
         re.escape(_ASYNC_SAFE_READ_SRC),
         _SYNC_SAFE_READ_REPLACEMENT.replace("\\", "\\\\"),
+    ),
+    (
+        r"config\.async_body_read_max_concurrent",
+        "config.sync_body_read_max_concurrent",
     ),
     (
         r"from guard_core\.protocols\.request_protocol import GuardRequest",

@@ -179,6 +179,77 @@ def sync_body_read_max_concurrent_serializes_reads(ctx: ScenarioContext) -> None
     )
 
 
+_ASYNC_SLOT_PROBE = """
+import asyncio
+import json
+import logging
+import types
+
+logging.disable(logging.CRITICAL)
+
+from guard_core._utils.body_reader import _read_capped_body_or_raise
+from guard_core.exceptions import BodyReadSlotsExhaustedError
+from guard_core.models import SecurityConfig
+
+
+class _Request:
+    headers = {"content-length": "4"}
+
+    def __init__(self):
+        self.state = types.SimpleNamespace()
+
+    async def read_body_prefix_until_idle(self, max_bytes, idle_timeout):
+        await asyncio.sleep(1.0)
+        return b"slow"
+
+
+async def attempt(config):
+    try:
+        body = await _read_capped_body_or_raise(_Request(), config)
+        return "read" if body else "empty"
+    except BodyReadSlotsExhaustedError:
+        return "slot_wait_expired"
+
+
+async def run(limit):
+    config = SecurityConfig(
+        enable_redis=False, async_body_read_max_concurrent=limit, body_read_timeout=0.3
+    )
+    first = asyncio.ensure_future(attempt(config))
+    await asyncio.sleep(0.1)
+    second = await attempt(config)
+    return [await first, second]
+
+
+print("SMOKE_ASYNC_SLOT_PROBE " + json.dumps(
+    {"limit_1": asyncio.run(run(1)), "no_limit": asyncio.run(run(None))}
+))
+"""
+
+_ASYNC_SLOT_PROBE_MARKER = re.compile(r"SMOKE_ASYNC_SLOT_PROBE (\{.*\})")
+
+
+@scenario(
+    covers={"async_body_read_max_concurrent"},
+    config={"excluded_detection_headers": EXCLUDED_HEADERS},
+)
+def async_body_read_max_concurrent_gives_the_slot_wait_outcome(
+    ctx: ScenarioContext,
+) -> None:
+    result = run_in_app_container(_ASYNC_SLOT_PROBE, timeout=20.0)
+    match = _ASYNC_SLOT_PROBE_MARKER.search(result.stdout + result.stderr)
+    assert match, "the async_body_read_max_concurrent probe produced no parsable output"
+    outcomes: dict[str, list[str]] = json.loads(match.group(1))
+
+    assert outcomes["limit_1"] == ["read", "slot_wait_expired"], (
+        "with one slot, the second read must wait past body_read_timeout and "
+        f"give the slot-wait outcome, not a silent skip: {outcomes}"
+    )
+    assert outcomes["no_limit"] == ["read", "read"], (
+        f"the default has no limit, so both reads must run at once: {outcomes}"
+    )
+
+
 _SCAN_BUDGET_PROBE = """
 import asyncio
 import logging

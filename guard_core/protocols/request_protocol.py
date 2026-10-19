@@ -104,3 +104,41 @@ class BoundedBodyReader(Protocol):
     async def read_body_prefix(self, max_bytes: int) -> bytes:
         """Return up to ``max_bytes`` of the body, read from its start."""
         ...
+
+
+@runtime_checkable
+class IdleBoundedBodyReader(Protocol):
+    """Optional capability: read a body prefix, giving up on an idle client.
+
+    WHAT: ``read_body_prefix(max_bytes)`` plus a deadline that measures idle
+    time, not total time. A client that sends a large upload steadily is
+    never cut off; a client that stops sending for ``idle_timeout`` seconds is.
+    WHEN: consulted first, before ``BoundedBodyReader.read_body_prefix`` and
+    before ``GuardRequest.body``. guard-core resolves the choice once per
+    adapter class. An adapter without this method still works: guard-core
+    awaits ``read_body_prefix`` (then ``body``) in full with no deadline of its
+    own and logs one warning that names the missing method.
+    HOW: read from the underlying stream, stop at ``max_bytes`` or at the end of
+    the body, and raise ``guard_core.exceptions.BodyReadStalledError`` when no
+    byte arrives for ``idle_timeout`` seconds. Raise
+    ``guard_core.exceptions.BodyReadFailedError`` when the connection drops.
+    guard-core answers 408 for a stall and 400 for a failure when
+    ``fail_secure`` is on, and logs and lets the request through when it is off.
+    Neither outcome counts as a strike.
+
+    NEVER DROP CONSUMED BYTES: every byte read here must still reach the
+    application, exactly as if this method had never been called. Buffer the
+    prefix and replay it before the untouched remainder of the stream.
+
+    MEMORY OBLIGATION (see GHSA-xv6g-49vj-7w9c): implementations MUST NOT
+    buffer more than ``max_bytes`` while producing the prefix.
+
+    DETECTION LIMIT: only the returned prefix is ever scanned, the same
+    tradeoff as ``BoundedBodyReader``.
+    """
+
+    async def read_body_prefix_until_idle(
+        self, max_bytes: int, idle_timeout: float
+    ) -> bytes:
+        """Return up to ``max_bytes`` of the body, or raise when it stalls."""
+        ...

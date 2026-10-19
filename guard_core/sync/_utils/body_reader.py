@@ -1,10 +1,16 @@
 import logging
 import re
 import threading
-import time
-from collections.abc import Callable
-from typing import TYPE_CHECKING, Protocol, runtime_checkable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
+from typing import TYPE_CHECKING, Protocol, cast, runtime_checkable
+from weakref import WeakKeyDictionary
 
+from guard_core.exceptions import (
+    BodyReadFailedError,
+    BodyReadSlotsExhaustedError,
+    BodyReadStalledError,
+)
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
 if TYPE_CHECKING:
@@ -28,6 +34,13 @@ class _BoundedBodyReader(Protocol):
     def read_body_prefix(self, max_bytes: int) -> bytes: ...
 
 
+@runtime_checkable
+class _IdleBoundedBodyReader(Protocol):
+    def read_body_prefix_until_idle(
+        self, max_bytes: int, idle_timeout: float
+    ) -> bytes: ...
+
+
 _DEFAULT_BODY_READ_TIMEOUT = 3.0
 _DEFAULT_BODY_READ_MAX_CONCURRENT = 64
 _MAX_STRADDLE_OVERLAP_BYTES = 256
@@ -35,6 +48,7 @@ _MAX_STRADDLE_OVERLAP_BYTES = 256
 
 _sync_body_read_semaphores: dict[int, threading.Semaphore] = {}
 _sync_body_read_semaphores_lock = threading.Lock()
+_NO_CONFIG_MAX_CONCURRENT: int | None = _DEFAULT_BODY_READ_MAX_CONCURRENT
 
 
 def _sync_body_read_semaphore(max_concurrent: int) -> threading.Semaphore:
@@ -46,41 +60,99 @@ def _sync_body_read_semaphore(max_concurrent: int) -> threading.Semaphore:
         return semaphore
 
 
-def _safe_read(
-    reader: Callable[[], bytes],
-    timeout: float,
-    max_concurrent: int = _DEFAULT_BODY_READ_MAX_CONCURRENT,
-) -> bytes | None:
-    deadline = time.monotonic() + timeout
+@contextmanager
+def _body_read_slot(max_concurrent: int | None, timeout: float) -> Iterator[None]:
+    if max_concurrent is None:
+        yield
+        return
     semaphore = _sync_body_read_semaphore(max_concurrent)
-
-    if not semaphore.acquire(timeout=max(deadline - time.monotonic(), 0.0)):
+    if not semaphore.acquire(timeout=max(timeout, 0.0)):
         logger.warning(
             "Sync body read concurrency limit reached (max_concurrent=%d); "
             "treating the body as unavailable for detection",
             max_concurrent,
         )
+        raise BodyReadSlotsExhaustedError(max_concurrent)
+    try:
+        yield
+    finally:
+        semaphore.release()
+
+
+def _safe_read(
+    reader: Callable[[], bytes],
+    timeout: float,
+    max_concurrent: int | None = None,
+) -> bytes | None:
+    try:
+        with _body_read_slot(max_concurrent, timeout):
+            return reader()
+    except Exception:
         return None
 
-    result: bytes | None = None
-    failed = False
 
-    def _run() -> None:
-        nonlocal result, failed
+_PREFIX_UNTIL_IDLE = "read_body_prefix_until_idle"
+_PREFIX = "read_body_prefix"
+_FULL_BODY = "body"
+
+_reader_kind_by_class: WeakKeyDictionary[type, str] = WeakKeyDictionary()
+
+
+def _resolve_body_reader_kind(request: SyncGuardRequest) -> str:
+    adapter = type(request).__name__
+    if isinstance(request, _IdleBoundedBodyReader):
+        return _PREFIX_UNTIL_IDLE
+    if isinstance(request, _BoundedBodyReader):
+        logger.warning(
+            "%s has no read_body_prefix_until_idle; its read_body_prefix is "
+            "read in full with no idle deadline, so a client that stops sending "
+            "holds the request until the server's own timeout",
+            adapter,
+        )
+        return _PREFIX
+    logger.warning(
+        "%s has neither read_body_prefix_until_idle nor read_body_prefix; "
+        "body() is read in full with no idle deadline, so a client that "
+        "stops sending holds the request until the server's own timeout",
+        adapter,
+    )
+    return _FULL_BODY
+
+
+def _body_reader_kind(request: SyncGuardRequest) -> str:
+    kind = _reader_kind_by_class.get(type(request))
+    if kind is None:
+        kind = _resolve_body_reader_kind(request)
+        _reader_kind_by_class[type(request)] = kind
+    return kind
+
+
+def _body_reader_call(
+    request: SyncGuardRequest, kind: str, max_bytes: int, idle_timeout: float
+) -> Callable[[], bytes]:
+    if kind == _PREFIX_UNTIL_IDLE:
+        idle_reader = cast(_IdleBoundedBodyReader, request)
+        return lambda: idle_reader.read_body_prefix_until_idle(max_bytes, idle_timeout)
+    if kind == _PREFIX:
+        prefix_reader = cast(_BoundedBodyReader, request)
+        return lambda: prefix_reader.read_body_prefix(max_bytes)
+    return request.body
+
+
+def _read_under_slot(
+    reader: Callable[[], bytes],
+    timeout: float,
+    max_concurrent: int | None,
+) -> object:
+    with _body_read_slot(max_concurrent, timeout):
         try:
-            result = reader()
-        except Exception:
-            failed = True
-        finally:
-            semaphore.release()
-
-    thread = threading.Thread(target=_run, name="guard-body-read", daemon=True)
-    thread.start()
-    thread.join(timeout=max(deadline - time.monotonic(), 0.0))
-
-    if thread.is_alive() or failed:
-        return None
-    return result
+            return reader()
+        except (BodyReadStalledError, BodyReadFailedError):
+            raise
+        except Exception as exc:
+            raise BodyReadFailedError(
+                f"the adapter's body read raised {type(exc).__name__}"
+            ) from exc
 
 
 def _straddle_overlap_bytes() -> int:
@@ -107,26 +179,26 @@ def _read_and_cache_body(
     timeout: float,
     reader: Callable[[], bytes],
     accessor: str,
-    max_concurrent: int,
+    max_concurrent: int | None,
 ) -> bytes | None:
     cached = getattr(request.state, _CAPPED_BODY_PREFIX_STATE_ATTR, None)
     if cached is not None and cached[0] is request and cached[1] >= max_bytes:
         cached_bytes: bytes = cached[2]
         return cached_bytes[:max_bytes]
 
-    prefix: object = _safe_read(reader, timeout, max_concurrent)
-    if prefix is None:
-        return None
+    prefix = _read_under_slot(reader, timeout, max_concurrent)
 
     if not isinstance(prefix, bytes):
         logger.warning(
-            "%s.%s returned %s, not bytes; treating the "
-            "body as unavailable for detection",
+            "%s.%s returned %s, not bytes; treating the body as unavailable "
+            "for detection",
             type(request).__name__,
             accessor,
             type(prefix).__name__,
         )
-        return None
+        raise BodyReadFailedError(
+            f"the adapter's body read returned {type(prefix).__name__}, not bytes"
+        )
 
     capped = prefix[:max_bytes]
     setattr(request.state, _CAPPED_BODY_PREFIX_STATE_ATTR, (request, max_bytes, capped))
@@ -137,21 +209,35 @@ def _capped_body_fetch_size(max_bytes: int) -> int:
     return max_bytes + _straddle_overlap_bytes()
 
 
-def _read_capped_body_prefix(
-    request: SyncGuardRequest, max_bytes: int, timeout: float, max_concurrent: int
+def _read_bounded_prefix(
+    request: SyncGuardRequest,
+    kind: str,
+    max_bytes: int,
+    timeout: float,
+    max_concurrent: int | None,
 ) -> bytes | None:
-    if not isinstance(request, _BoundedBodyReader):
-        return None
-
     fetch_bytes = _capped_body_fetch_size(max_bytes)
     return _read_and_cache_body(
         request,
         fetch_bytes,
         timeout,
-        lambda: request.read_body_prefix(fetch_bytes),
-        "read_body_prefix",
+        _body_reader_call(request, kind, fetch_bytes, timeout),
+        kind,
         max_concurrent,
     )
+
+
+def _read_capped_body_prefix(
+    request: SyncGuardRequest,
+    max_bytes: int,
+    timeout: float,
+    max_concurrent: int | None,
+) -> bytes | None:
+    kind = _body_reader_kind(request)
+    if kind == _FULL_BODY:
+        return None
+
+    return _read_bounded_prefix(request, kind, max_bytes, timeout, max_concurrent)
 
 
 def _warn_body_inspect_bytes_cap_reached(max_bytes: int, client_ip: str) -> None:
@@ -180,32 +266,43 @@ def _read_oversized_declared_body(
     request: SyncGuardRequest,
     max_bytes: int,
     timeout: float,
-    max_concurrent: int,
+    max_concurrent: int | None,
     client_ip: str,
 ) -> bytes | None:
-    if not isinstance(request, _BoundedBodyReader):
+    kind = _body_reader_kind(request)
+    if kind == _FULL_BODY:
         _warn_body_inspect_bytes_cap_reached_no_bounded_reader(max_bytes, client_ip)
         return None
 
     _warn_body_inspect_bytes_cap_reached(max_bytes, client_ip)
-    fetch_bytes = _capped_body_fetch_size(max_bytes)
+    return _read_bounded_prefix(request, kind, max_bytes, timeout, max_concurrent)
+
+
+def _read_declared_body(
+    request: SyncGuardRequest,
+    max_bytes: int,
+    timeout: float,
+    max_concurrent: int | None,
+) -> bytes | None:
+    kind = _body_reader_kind(request)
     return _read_and_cache_body(
         request,
-        fetch_bytes,
+        max_bytes,
         timeout,
-        lambda: request.read_body_prefix(fetch_bytes),
-        "read_body_prefix",
+        _body_reader_call(request, kind, max_bytes, timeout),
+        kind,
         max_concurrent,
     )
 
 
-def _read_capped_body(
+def _read_capped_body_or_raise(
     request: SyncGuardRequest, config: "SecurityConfig | None", client_ip: str = ""
 ) -> bytes | None:
     if config is None:
-        return _safe_read(
-            request.body, _DEFAULT_BODY_READ_TIMEOUT, _DEFAULT_BODY_READ_MAX_CONCURRENT
+        prefix = _read_under_slot(
+            request.body, _DEFAULT_BODY_READ_TIMEOUT, _NO_CONFIG_MAX_CONCURRENT
         )
+        return prefix if isinstance(prefix, bytes) else None
 
     max_bytes = config.detection_max_body_inspect_bytes
     timeout = config.body_read_timeout
@@ -219,8 +316,16 @@ def _read_capped_body(
                 return _read_oversized_declared_body(
                     request, max_bytes, timeout, max_concurrent, client_ip
                 )
-            return _read_and_cache_body(
-                request, max_bytes, timeout, request.body, "body", max_concurrent
-            )
+            return _read_declared_body(request, max_bytes, timeout, max_concurrent)
 
     return _read_capped_body_prefix(request, max_bytes, timeout, max_concurrent)
+
+
+def _read_capped_body(
+    request: SyncGuardRequest, config: "SecurityConfig | None", client_ip: str = ""
+) -> bytes | None:
+    try:
+        return _read_capped_body_or_raise(request, config, client_ip)
+    except (BodyReadStalledError, BodyReadFailedError) as exc:
+        logger.warning("%s; the body is treated as unavailable", exc)
+        return None

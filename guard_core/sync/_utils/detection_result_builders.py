@@ -1,5 +1,9 @@
 from guard_core.sync._utils.logging_utils import _sanitize_for_reporting
-from guard_core.sync.detection_result import DetectionResult
+from guard_core.sync.detection_result import (
+    BODY_READ_FAILED,
+    BODY_READ_STALLED,
+    DetectionResult,
+)
 
 
 def _threat_category(threat: dict) -> str | None:
@@ -41,3 +45,12 @@ def _build_detection_hit(trigger: str, threats: list[dict]) -> DetectionResult:
 
 def _build_detection_miss() -> DetectionResult:
     return DetectionResult(is_threat=False, trigger_info="")
+
+
+def _build_body_read_error(stalled: bool, detail: str) -> DetectionResult:
+    return DetectionResult(
+        is_threat=False,
+        trigger_info="",
+        body_read_error=BODY_READ_STALLED if stalled else BODY_READ_FAILED,
+        body_read_detail=_sanitize_for_reporting(detail),
+    )
