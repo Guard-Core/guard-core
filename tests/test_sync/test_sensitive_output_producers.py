@@ -356,6 +356,11 @@ COVERED_PRODUCERS: dict[str, frozenset[str]] = {
 }
 
 NON_REQUEST_PRODUCERS: dict[str, str] = {
+    "_utils/body_reader.py:_safe_read": (
+        "logs the configured max_concurrent of body reads when the limit is "
+        "reached; a number from the configuration, no request value is "
+        "interpolated"
+    ),
     "core/initialization/_ban_threshold_report.py:"
     "log_unreachable_ban_thresholds_after_rule_change": (
         "advisory naming the configured rate limit, window and ban thresholds "

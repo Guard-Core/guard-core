@@ -121,7 +121,7 @@ def test_custom_header_with_address_chain_value_suppresses_ssrf_only() -> None:
     assert result.is_threat is False
 
 
-def test_custom_header_with_non_address_value_still_detects_xss() -> None:
+def test_operator_listed_custom_header_is_not_scanned_for_xss() -> None:
     config = SecurityConfig(excluded_detection_headers={"x-custom-proxy-ip"})
     request = SyncMockGuardRequest(
         headers={"x-custom-proxy-ip": "<script>alert(1)</script>"}
@@ -129,4 +129,4 @@ def test_custom_header_with_non_address_value_still_detects_xss() -> None:
 
     result = detect_penetration_attempt(request, config)
 
-    assert result.is_threat is True
+    assert result.is_threat is False

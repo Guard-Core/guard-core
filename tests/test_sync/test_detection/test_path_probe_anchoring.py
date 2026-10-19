@@ -120,3 +120,17 @@ def test_ordinary_application_routes_are_not_probes(path: str) -> None:
 def test_a_wordpress_probe_outside_the_uploads_tree_stays_flagged() -> None:
     assert _flagged("/blog/wp-content/plugins/x/readme.txt") is True
     assert _flagged("/wp-content/uploads/2024/a.jpg") is False
+
+
+def test_the_nested_extension_builder_matches_at_any_depth() -> None:
+    import re
+
+    from guard_core.sync.handlers._suspatterns_sources import (
+        _path_only_extension_pattern,
+    )
+
+    pattern = re.compile(_path_only_extension_pattern(r"\.(?:py|go)"), re.IGNORECASE)
+
+    assert pattern.search("/a/b/main.go")
+    assert pattern.search("/main.py")
+    assert not pattern.search("/a/b/main.txt")
