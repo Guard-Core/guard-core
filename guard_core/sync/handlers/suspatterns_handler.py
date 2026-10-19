@@ -855,6 +855,26 @@ class SusPatternsManager(_SusPatternsViewsMixin):
     def initialize_agent(self, agent_handler: Any) -> None:
         self.agent_handler = agent_handler
 
+    def _semantic_threats_of_views(
+        self,
+        context: str,
+        processed_content: str,
+        dropped_view: str | None,
+        original_content: str,
+        state: _DetectionState,
+    ) -> list[dict]:
+        if _context_header_is_semantic_excluded(context):
+            return []
+        semantic_threats, semantic_score = self._check_semantic_threats(
+            processed_content, state=state, raw_content=original_content
+        )
+        if dropped_view is None:
+            return semantic_threats
+        dropped_threats, dropped_score = self._check_semantic_threats(
+            dropped_view, state=state, raw_content=original_content
+        )
+        return dropped_threats if dropped_score > semantic_score else semantic_threats
+
     def detect(
         self,
         content: str,
@@ -945,17 +965,9 @@ class SusPatternsManager(_SusPatternsViewsMixin):
         matched_patterns = matched_patterns + short_base64_matched
         timeouts = timeouts + short_base64_timeouts
 
-        semantic_threats: list[dict] = []
-        if not _context_header_is_semantic_excluded(context):
-            semantic_threats, semantic_score = self._check_semantic_threats(
-                processed_content, state=state, raw_content=original_content
-            )
-            if dropped_view is not None:
-                dropped_threats, dropped_score = self._check_semantic_threats(
-                    dropped_view, state=state, raw_content=original_content
-                )
-                if dropped_score > semantic_score:
-                    semantic_threats = dropped_threats
+        semantic_threats = self._semantic_threats_of_views(
+            context, processed_content, dropped_view, original_content, state
+        )
 
         threats = regex_threats + semantic_threats
         is_threat = (

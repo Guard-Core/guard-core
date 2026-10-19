@@ -394,6 +394,14 @@ async def _scan_headers(
     return False, "", []
 
 
+def _field_log_value(
+    preview_override: str | None, is_sensitive: bool, display: str | None
+) -> str | None:
+    if preview_override is not None:
+        return preview_override
+    return "[REDACTED]" if is_sensitive else display
+
+
 async def _scan_body_field(
     value: str,
     label: str,
@@ -412,11 +420,7 @@ async def _scan_body_field(
         display, _ = _non_sensitive_display(
             value, sensitive_params, sensitive_body_fields
         )
-    log_value = (
-        preview_override
-        if preview_override is not None
-        else ("[REDACTED]" if is_sensitive else display)
-    )
+    log_value = _field_log_value(preview_override, is_sensitive, display)
     detected, trigger, threats = await _check_request_component(
         value,
         context,

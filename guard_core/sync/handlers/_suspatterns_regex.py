@@ -247,6 +247,30 @@ def _build_regex_threat(
     }
 
 
+def _scan_budget_spent(time_cap: float | None) -> bool:
+    return time_cap is not None and _scan_time_budget_exhausted()
+
+
+def _validator_context(context: str, normalized: str) -> str:
+    if context.endswith(_EMBEDDED_JSON_LEAF_CONTEXT_SUFFIX):
+        return f"{normalized}{_EMBEDDED_JSON_LEAF_CONTEXT_SUFFIX}"
+    return normalized
+
+
+def _threat_after_timeout(
+    threat: dict[str, Any] | None,
+    timeout_occurred: bool,
+    pattern: re.Pattern,
+    category: str,
+    pattern_start: float,
+    timeouts: list[str],
+) -> dict[str, Any] | None:
+    if not timeout_occurred:
+        return threat
+    timeouts.append(pattern.pattern)
+    return threat or _build_timeout_threat(pattern, category, pattern_start)
+
+
 def _build_timeout_threat(
     pattern: re.Pattern, category: str, pattern_start: float
 ) -> dict[str, Any]:
@@ -533,11 +557,7 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
 
         all_patterns = self.get_all_compiled_patterns()
         normalized = self._normalize_context(context)
-        validator_context = (
-            f"{normalized}{_EMBEDDED_JSON_LEAF_CONTEXT_SUFFIX}"
-            if context.endswith(_EMBEDDED_JSON_LEAF_CONTEXT_SUFFIX)
-            else normalized
-        )
+        validator_context = _validator_context(context, normalized)
         skip_filter = normalized in ("unknown", "request_body")
         performance_monitor = state.performance_monitor
         binary_prefix = build_binary_prefix(content)
@@ -569,7 +589,7 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
 
         try:
             for pattern, _contexts, category in applicable_patterns:
-                if time_cap is not None and _scan_time_budget_exhausted():
+                if _scan_budget_spent(time_cap):
                     _record_budget_exhaustion()
                     break
 
@@ -589,10 +609,9 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
 
                 slice_start = _yield_once_slice_elapsed(slice_start, request_scoped)
 
-                if timeout_occurred:
-                    timeouts.append(pattern.pattern)
-                    if not threat:
-                        threat = _build_timeout_threat(pattern, category, pattern_start)
+                threat = _threat_after_timeout(
+                    threat, timeout_occurred, pattern, category, pattern_start, timeouts
+                )
 
                 if threat:
                     threats.append(threat)
@@ -609,11 +628,7 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
                         )
                     )
             else:
-                if (
-                    skipped_tail
-                    and time_cap is not None
-                    and _scan_time_budget_exhausted()
-                ):
+                if skipped_tail and _scan_budget_spent(time_cap):
                     _record_budget_exhaustion()
 
         finally:

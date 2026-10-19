@@ -49,7 +49,9 @@ class SecurityConfig(BaseModel):
 
     excluded_detection_headers: set[str] = Field(default_factory=set)
     excluded_semantic_detection_headers: set[str] = Field(default_factory=set)
-    excluded_detection_params: set[str] | dict[str, set[str]] = Field(default_factory=set)
+    excluded_detection_params: set[str] | dict[str, set[str]] = Field(
+        default_factory=set
+    )
     excluded_detection_body_fields: set[str] = Field(default_factory=set)
     enabled_detection_categories: frozenset[str] = Field(
         default_factory=lambda: frozenset(ALL_DETECTION_CATEGORIES)

@@ -10,6 +10,10 @@ from guard_core.handlers._suspatterns_shell_sources import (
 )
 
 
+def _excluded_from_raw_only(raw: bool, url_decoded: bool, recon_raw: bool) -> bool:
+    return url_decoded or not (raw or recon_raw)
+
+
 def _pattern_excluded_from_view(
     pattern: re.Pattern,
     raw_view_only: bool | None,
@@ -23,14 +27,22 @@ def _pattern_excluded_from_view(
         pattern.pattern in DETECTION_RECON_RAW_VIEW_PATTERN_SOURCES
     )
     if raw_view_only is True:
-        return is_url_decoded_view_pattern or not (
-            is_raw_view_pattern or is_recon_raw_view_pattern
+        return _excluded_from_raw_only(
+            is_raw_view_pattern, is_url_decoded_view_pattern, is_recon_raw_view_pattern
         )
     if url_decoded_view_only is True:
         return is_raw_view_pattern or not is_url_decoded_view_pattern
-    if raw_view_only is False:
-        return is_raw_view_pattern or is_url_decoded_view_pattern
-    return False
+    return raw_view_only is False and (
+        is_raw_view_pattern or is_url_decoded_view_pattern
+    )
+
+
+def _category_disabled(category: str, enabled_categories: set[str] | None) -> bool:
+    return (
+        enabled_categories is not None
+        and category != "custom"
+        and category not in enabled_categories
+    )
 
 
 def _pattern_should_be_skipped(
@@ -48,11 +60,7 @@ def _pattern_should_be_skipped(
         return True
     if not skip_filter and normalized_context not in contexts:
         return True
-    return (
-        enabled_categories is not None
-        and category != "custom"
-        and category not in enabled_categories
-    )
+    return _category_disabled(category, enabled_categories)
 
 
 _APPLICABLE_PATTERN_CACHE_MAX_ENTRIES = 256
@@ -66,6 +74,31 @@ _applicable_pattern_cache: dict[
 ] = {}
 
 
+def _applicable_cache_key(
+    raw_view_only: bool | None,
+    url_decoded_view_only: bool | None,
+    skip_filter: bool,
+    normalized_context: str,
+    enabled_categories: set[str] | None,
+) -> tuple[Any, ...]:
+    return (
+        raw_view_only,
+        url_decoded_view_only,
+        skip_filter,
+        normalized_context,
+        None if enabled_categories is None else frozenset(enabled_categories),
+    )
+
+
+def _tail_was_skipped(
+    all_patterns: list[tuple[re.Pattern, frozenset[str], str]],
+    applicable: list[tuple[re.Pattern, frozenset[str], str]],
+) -> bool:
+    return bool(all_patterns) and (
+        not applicable or applicable[-1] is not all_patterns[-1]
+    )
+
+
 def _applicable_patterns(
     all_patterns: list[tuple[re.Pattern, frozenset[str], str]],
     *,
@@ -75,12 +108,12 @@ def _applicable_patterns(
     normalized_context: str,
     enabled_categories: set[str] | None,
 ) -> tuple[list[tuple[re.Pattern, frozenset[str], str]], bool]:
-    key = (
+    key = _applicable_cache_key(
         raw_view_only,
         url_decoded_view_only,
         skip_filter,
         normalized_context,
-        None if enabled_categories is None else frozenset(enabled_categories),
+        enabled_categories,
     )
     cached = _applicable_pattern_cache.get(key)
     if cached is not None and cached[0] == all_patterns:
@@ -99,9 +132,7 @@ def _applicable_patterns(
             url_decoded_view_only=url_decoded_view_only,
         )
     ]
-    skipped_tail = bool(all_patterns) and (
-        not applicable or applicable[-1] is not all_patterns[-1]
-    )
+    skipped_tail = _tail_was_skipped(all_patterns, applicable)
     if len(_applicable_pattern_cache) >= _APPLICABLE_PATTERN_CACHE_MAX_ENTRIES:
         _applicable_pattern_cache.clear()
     _applicable_pattern_cache[key] = (list(all_patterns), applicable, skipped_tail)

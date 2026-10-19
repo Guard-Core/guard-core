@@ -64,27 +64,46 @@ async def _resolve_and_apply_threshold_ban(
     """
     if not config.enable_ip_banning:
         return None
-    grouped = "/" in client_ip
     chosen = _longest_crossed_entry(
         ip_counts, config, threat_categories, default_entries
     )
     total = _flat_total_or_shared(flat_total, ip_counts, threat_categories)
-    flat_crossed = total >= config.auto_ban_threshold
-    if chosen is not None:
-        category, entry = chosen
-        flat_joins = flat_crossed and total > ip_counts.get(category, 0)
-        if not flat_joins or entry.duration >= config.auto_ban_duration:
-            ban_reason = f"{reason}:{category}"
-            applied = await ip_ban_manager._ban_ip_escalating(
-                client_ip, entry.duration, ban_reason, grouped=grouped
-            )
-            return None if applied is None else (applied, ban_reason, category)
-    elif not flat_crossed:
+    choice = _threshold_ban_choice(chosen, total, ip_counts, config, reason)
+    if choice is None:
         return None
+    duration, ban_reason, category = choice
     applied = await ip_ban_manager._ban_ip_escalating(
-        client_ip, config.auto_ban_duration, reason, grouped=grouped
+        client_ip, duration, ban_reason, grouped="/" in client_ip
     )
-    return None if applied is None else (applied, reason, None)
+    return None if applied is None else (applied, ban_reason, category)
+
+
+def _threshold_ban_choice(
+    chosen: tuple[str, ThreatBanConfig] | None,
+    total: int,
+    ip_counts: Mapping[str, int],
+    config: SecurityConfig,
+    reason: str,
+) -> tuple[int, str, str | None] | None:
+    flat_crossed = total >= config.auto_ban_threshold
+    if chosen is None:
+        return (config.auto_ban_duration, reason, None) if flat_crossed else None
+    category, entry = chosen
+    flat_joins = flat_crossed and total > ip_counts.get(category, 0)
+    if flat_joins and entry.duration < config.auto_ban_duration:
+        return config.auto_ban_duration, reason, None
+    return entry.duration, f"{reason}:{category}", category
+
+
+def _entry_for(
+    config: SecurityConfig,
+    category: str,
+    default_entries: Mapping[str, ThreatBanConfig] | None,
+) -> ThreatBanConfig | None:
+    entry = config.threat_ban_config.get(category)
+    if entry is None and default_entries:
+        return default_entries.get(category)
+    return entry
 
 
 def _longest_crossed_entry(
@@ -95,9 +114,7 @@ def _longest_crossed_entry(
 ) -> tuple[str, ThreatBanConfig] | None:
     chosen: tuple[str, ThreatBanConfig] | None = None
     for category in threat_categories:
-        entry = config.threat_ban_config.get(category) or (
-            default_entries.get(category) if default_entries else None
-        )
+        entry = _entry_for(config, category, default_entries)
         if entry is None or ip_counts.get(category, 0) < entry.threshold:
             continue
         if chosen is None or entry.duration > chosen[1].duration:
