@@ -9,16 +9,23 @@ SENSITIVE_FILE_PATHS_FLAGGED = [
     pytest.param("/config.yml", id="config_yml"),
     pytest.param("/nested/path/db-config.json", id="config_json_nested"),
     pytest.param("/config.yml?download=1", id="config_yml_with_query"),
-    pytest.param("/static/bundle.js.map", id="sourcemap"),
+    pytest.param("/bundle.js.map", id="sourcemap"),
     pytest.param("/app/settings.py", id="python_source"),
     pytest.param("/app/settings.py?debug=1", id="python_source_with_query"),
-    pytest.param("/services/payments/handler.go", id="go_source_nested"),
-    pytest.param("/scripts/deploy.sh", id="shell_script"),
-    pytest.param("/db/migrate.sql", id="sql_script"),
+    pytest.param("/handler.go", id="go_source_root"),
+    pytest.param("/deploy.sh", id="shell_script"),
+    pytest.param("/migrate.sql", id="sql_script"),
     pytest.param("/.git/config", id="git_dir"),
     pytest.param("/.svn/entries", id="svn_dir"),
     pytest.param("/.hg/store", id="hg_dir"),
     pytest.param("/.bzr/README", id="bzr_dir"),
+]
+
+NESTED_SOURCE_PATHS_NOT_PROBES = [
+    pytest.param("/static/bundle.js.map", id="sourcemap_nested"),
+    pytest.param("/services/payments/handler.go", id="go_source_nested"),
+    pytest.param("/scripts/deploy.sh", id="shell_script_nested"),
+    pytest.param("/db/migrate.sql", id="sql_script_nested"),
 ]
 
 MULTILINE_CONTENT_WITH_EMBEDDED_PATH_NOT_FLAGGED = [
@@ -61,6 +68,19 @@ async def test_sensitive_file_path_flagged(payload: str) -> None:
     assert any(
         threat.get("category") == "sensitive_file" for threat in result["threats"]
     )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("payload", NESTED_SOURCE_PATHS_NOT_PROBES)
+async def test_nested_source_path_is_not_a_root_probe(payload: str) -> None:
+    # LEDGER 4.04, D-17, D-59: the source and source-map rows match root probe
+    # shapes; a nested file is a probe only through a named row (settings.py,
+    # config.php, eval-stdin.php, webshell kits). A nested source map is caught only
+    # by an opt-in return_pattern status:404 behavior rule.
+    result = await sus_patterns_handler.detect(
+        content=payload, ip_address="203.0.113.9", context="url_path"
+    )
+    assert result["is_threat"] is False
 
 
 @pytest.mark.asyncio

@@ -127,6 +127,7 @@ from guard_core.sync.handlers._suspatterns_sources import (
     _embedded_prose_pattern,
     _nested_path_pattern,
     _path_only_pattern,
+    _root_path_pattern,
 )
 from guard_core.sync.handlers._suspatterns_state import (
     _HTML_EVENT_HANDLER_ALTERNATION,
@@ -555,7 +556,7 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
         "sensitive_file",
     ),
     (
-        _path_only_pattern(rf"{_PATH_ONLY_CHAR_RE}*\.map"),
+        _root_path_pattern(rf"{_PATH_ONLY_CHAR_RE}*\.map"),
         _CTX_SENSITIVE_FILE,
         "sensitive_file",
     ),
@@ -563,6 +564,36 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
         _SENSITIVE_SOURCE_EXTENSION_PATH_RE,
         _CTX_SENSITIVE_FILE,
         "sensitive_file",
+    ),
+    (
+        _path_only_pattern(
+            r"(?:(?:local_settings|settings|config|secrets|configuration)\.py"
+            r"|(?:wp-config|config|configuration)\.php"
+            r"|database\.ya?ml|appsettings(?:\.\w+)?\.json)"
+        ),
+        _CTX_SENSITIVE_FILE,
+        "sensitive_file",
+    ),
+    (
+        _path_only_pattern(r"(?:c99|r57)\.php"),
+        _CTX_RECON,
+        "recon",
+    ),
+    (
+        rf"\A{_PATH_ONLY_SEP_RE}(?:{_PATH_ONLY_CHAR_RE}+{_PATH_ONLY_SEP_RE})*"
+        rf"(?:uploads?|files|images|media|tmp){_PATH_ONLY_SEP_RE}"
+        rf"(?:{_PATH_ONLY_CHAR_RE}+{_PATH_ONLY_SEP_RE})*(?:shell|cmd)\.php"
+        + _PATH_ONLY_SUFFIX_RE,
+        _CTX_RECON,
+        "recon",
+    ),
+    (
+        rf"\A{_PATH_ONLY_SEP_RE}?(?:{_PATH_ONLY_CHAR_RE}+{_PATH_ONLY_SEP_RE})*"
+        rf"phpunit{_PATH_ONLY_SEP_RE}(?:{_PATH_ONLY_CHAR_RE}+{_PATH_ONLY_SEP_RE})*"
+        rf"src{_PATH_ONLY_SEP_RE}Util{_PATH_ONLY_SEP_RE}PHP{_PATH_ONLY_SEP_RE}"
+        r"eval-stdin\.php" + _PATH_ONLY_SUFFIX_RE,
+        _CTX_RECON,
+        "recon",
     ),
     (
         _path_only_pattern(r"\.(?:git|svn|hg|bzr)"),
@@ -581,7 +612,9 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
     ),
     (
         _path_only_pattern(
-            r"(?:wp-(?:admin|login|content|includes|config)|administrator|xmlrpc)"
+            r"(?:wp-(?:admin|login|includes|config)"
+            rf"|wp-content(?!{_PATH_ONLY_SEP_RE}uploads(?:{_PATH_ONLY_SEP_RE}|\Z))"
+            r"|administrator|xmlrpc)"
             r"\.?(?:php)?"
         ),
         _CTX_CMS_PROBING,
@@ -634,15 +667,17 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
         "recon",
     ),
     (
-        _nested_path_pattern(
-            rf"(?:management|config_dump|credentials|system{_PATH_ONLY_SEP_RE}version"
-            rf"|version{_PATH_ONLY_SEP_RE}system)"
-        ),
+        _nested_path_pattern(r"config_dump"),
         _CTX_RECON,
         "recon",
     ),
     (
-        rf"\A{_PATH_ONLY_SEP_RE}(?:system|version)" + _PATH_ONLY_SUFFIX_RE,
+        rf"\A{_PATH_ONLY_SEP_RE}credentials" + _PATH_ONLY_SUFFIX_RE,
+        _CTX_RECON,
+        "recon",
+    ),
+    (
+        rf"\A{_PATH_ONLY_SEP_RE}system" + _TERMINAL_PATH_SUFFIX_RE,
         _CTX_RECON,
         "recon",
     ),
@@ -679,13 +714,14 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
         "recon",
     ),
     (
-        _path_only_pattern(r"(?:language|languages)"),
+        rf"\A{_PATH_ONLY_SEP_RE}(?:language|languages){_PATH_ONLY_SEP_RE}"
+        r"[^/\\\s]*[;&|`$<>(){}'\"]",
         _CTX_RECON,
         "recon",
     ),
     (
-        _path_only_pattern(
-            r"(?:readme\.txt|README\.md|CHANGELOG|pom\.xml"
+        _root_path_pattern(
+            r"(?:readme\.txt|README\.md|CHANGELOG\.\w+|pom\.xml"
             r"|build\.gradle|appsettings\.json|crossdomain\.xml)",
             trailing=rf"(?:\.{_PATH_ONLY_CHAR_RE}*)?",
         ),
@@ -716,7 +752,7 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
         "recon",
     ),
     (
-        _path_only_pattern(r"inicio\.html?"),
+        _root_path_pattern(r"inicio\.html?"),
         _CTX_RECON,
         "recon",
     ),

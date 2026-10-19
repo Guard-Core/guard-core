@@ -140,7 +140,6 @@ def test_recon_path_segment_amid_unrelated_path_stays_unflagged(
         "/default/",
         "/inicio.html",
         "/localstart.asp",
-        "/management",
         "/credentials",
         "/config_dump",
     ],
@@ -165,15 +164,26 @@ def test_recon_bare_rest_convention_routes_stay_unflagged(
     assert "recon" not in _detected_categories(payload)
 
 
-def test_recon_system_and_version_paired_probe_still_detected() -> None:
-    assert "recon" in _detected_categories("/v2/system/version")
+def test_nested_system_and_version_route_is_an_ordinary_route() -> None:
+    assert "recon" not in _detected_categories("/v2/system/version")
+
+
+def test_top_level_management_is_an_ordinary_route() -> None:
+    assert "recon" not in _detected_categories("/management")
+
+
+def test_root_credentials_probe_is_still_detected() -> None:
+    assert "recon" in _detected_categories("/credentials/rotate")
+
+
+def test_nested_inicio_html_is_an_ordinary_route() -> None:
+    assert "recon" not in _detected_categories("/en/inicio.html")
 
 
 @pytest.mark.parametrize(
     ("case_id", "payload"),
     [
         ("cms_probing_nested_wp_content_themes_default", "/wp-content/themes/default"),
-        ("recon_nested_inicio_html", "/en/inicio.html"),
     ],
 )
 def test_recon_nested_default_style_probes_are_detected(

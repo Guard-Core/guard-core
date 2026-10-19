@@ -156,6 +156,16 @@ def _path_only_pattern(required: str, trailing: str = "") -> str:
     )
 
 
+def _root_path_pattern(required: str, trailing: str = "") -> str:
+    return rf"\A{_PATH_ONLY_SEP_RE}?{required}{trailing}{_PATH_ONLY_SUFFIX_RE}"
+
+
+def _root_extension_pattern(required: str) -> str:
+    return (
+        rf"\A{_PATH_ONLY_SEP_RE}?{_PATH_ONLY_CHAR_RE}*{required}{_PATH_ONLY_SUFFIX_RE}"
+    )
+
+
 def _path_only_extension_pattern(required: str) -> str:
     return (
         rf"\A{_PATH_ONLY_SEP_RE}?"
@@ -164,11 +174,11 @@ def _path_only_extension_pattern(required: str) -> str:
     )
 
 
-_SENSITIVE_SOURCE_EXTENSION_PATH_RE = _path_only_extension_pattern(
+_SENSITIVE_SOURCE_EXTENSION_PATH_RE = _root_extension_pattern(
     r"\.(?:ts|tsx|jsx|py|rb|java|go|rs|php|pl|sh|sql)"
 )
 
-_RECON_EXTENSION_PATH_RE = _path_only_extension_pattern(
+_RECON_EXTENSION_PATH_RE = _root_extension_pattern(
     r"\.(?:asp|aspx|jsp|jsa|jhtml|shtml|cfm|cgi|do|action|lua|inc|woa|nsf|esp)"
 )
 

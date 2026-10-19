@@ -500,9 +500,9 @@ _TARGETED_CASES: list[TargetedCase] = [
         True,
     ),
     TargetedCase(
-        "recon_nested_inicio_html_url_path",
+        "recon_nested_inicio_html_url_path_benign",
         _url_path_request("/en/inicio.html"),
-        True,
+        False,
     ),
     TargetedCase(
         "rest_path_k8s_namespace_pods_url_path_benign",

@@ -549,8 +549,13 @@ def test_builtin_pattern_table_redaction_count() -> None:
         else:
             assert redacted == pattern
 
-    assert len(_PATTERN_DEFINITIONS) == 176
-    assert sorted(redacted_categories) == ["http_split", "http_split", "recon"]
+    assert len(_PATTERN_DEFINITIONS) == 181
+    assert sorted(redacted_categories) == [
+        "http_split",
+        "http_split",
+        "recon",
+        "sensitive_file",
+    ]
 
 
 async def test_concurrent_configure_redacts_both_custom_names(  # async-only

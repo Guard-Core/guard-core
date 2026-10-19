@@ -926,9 +926,6 @@ MALICIOUS_CORPUS: list[MaliciousCase] = [
     MaliciousCase("sensitive_file_dotenv_root", "sensitive_file", "/.env"),
     MaliciousCase("sensitive_file_dotenv_local", "sensitive_file", "/.env.local"),
     MaliciousCase("sensitive_file_config_yml", "sensitive_file", "/app-config.yml"),
-    MaliciousCase(
-        "sensitive_file_sourcemap", "sensitive_file", "/static/bundle.js.map"
-    ),
     MaliciousCase("sensitive_file_python_source", "sensitive_file", "/app/settings.py"),
     MaliciousCase("sensitive_file_git_dir", "sensitive_file", "/.git/config"),
     MaliciousCase(
@@ -978,23 +975,11 @@ MALICIOUS_CORPUS: list[MaliciousCase] = [
         "/infra/docker-compose.yml?raw=1",
     ),
     MaliciousCase("recon_secrets_nested_path", "recon", "/config/app-secrets.yml"),
-    MaliciousCase("recon_management_top_level_control", "recon", "/management"),
-    MaliciousCase(
-        "recon_management_nested_under_app", "recon", "/app/management/health"
-    ),
-    MaliciousCase(
-        "recon_system_and_version_both_nested", "recon", "/v2/system/version"
-    ),
-    MaliciousCase("recon_management_nested_under_api", "recon", "/api/management"),
-    MaliciousCase(
-        "recon_credentials_nested_under_service", "recon", "/service/credentials"
-    ),
     MaliciousCase(
         "recon_config_dump_nested_under_backend", "recon", "/backend/config_dump"
     ),
     MaliciousCase("recon_actuator_env_probe", "recon", "/actuator/env"),
     MaliciousCase("recon_config_dump_top_level", "recon", "/config_dump"),
-    MaliciousCase("recon_bare_version_top_level", "recon", "/version"),
     MaliciousCase("recon_bare_system_top_level", "recon", "/system"),
     MaliciousCase(
         "proto_pollution_isadmin_key",
@@ -1227,7 +1212,6 @@ MALICIOUS_CORPUS: list[MaliciousCase] = [
         "cms_probing",
         "/wp-content/themes/default",
     ),
-    MaliciousCase("recon_nested_inicio_html", "recon", "/en/inicio.html"),
     MaliciousCase("ldap_null_byte_single_paren_attr_uid", "ldap", "uid=*)%00"),
     MaliciousCase("ldap_null_byte_single_paren_filter_uid", "ldap", "(uid=*)%00"),
     MaliciousCase("ldap_null_byte_single_paren_attr_mail", "ldap", "mail=*)%00"),
@@ -1515,6 +1499,59 @@ MALICIOUS_CORPUS: list[MaliciousCase] = [
         '<System:String xmlns:System="clr-namespace:System;assembly=mscorlib">'
         "cmd /c calc</System:String></ObjectDataProvider.MethodParameters>"
         "</ObjectDataProvider>",
+    ),
+    # LEDGER 4.04, D-59 (4.04 B): scanner probes that only a path-extension row
+    # catches. Neither benign path set holds a PHP-app path, so a PHP-app benign
+    # set is owed in the port phase.
+    MaliciousCase("recon_backup_sql_probe", "sensitive_file", "/backup.sql"),
+    MaliciousCase("recon_dump_sql_probe", "sensitive_file", "/dump.sql"),
+    MaliciousCase("recon_db_sql_probe", "sensitive_file", "/db.sql"),
+    MaliciousCase("recon_webshell_shell_php", "sensitive_file", "/shell.php"),
+    MaliciousCase("recon_webshell_cmd_php", "sensitive_file", "/cmd.php"),
+    MaliciousCase("recon_webshell_c99_php", "recon", "/c99.php"),
+    MaliciousCase("recon_webshell_r57_php", "recon", "/r57.php"),
+    MaliciousCase("recon_webshell_c99_nested", "recon", "/tools/c99.php"),
+    MaliciousCase("recon_webshell_shell_in_uploads", "recon", "/uploads/shell.php"),
+    MaliciousCase(
+        "recon_webshell_cmd_in_wp_uploads", "recon", "/wp-content/uploads/2024/cmd.php"
+    ),
+    MaliciousCase("recon_admin_php_probe", "sensitive_file", "/admin.php"),
+    MaliciousCase(
+        "recon_phpunit_eval_stdin",
+        "recon",
+        "/vendor/phpunit/phpunit/src/Util/PHP/eval-stdin.php",
+    ),
+    MaliciousCase(
+        "recon_phpunit_eval_stdin_under_prefix",
+        "recon",
+        "/app/vendor/phpunit/phpunit/src/Util/PHP/eval-stdin.php",
+    ),
+    MaliciousCase("recon_manage_py_probe", "sensitive_file", "/manage.py"),
+    MaliciousCase("recon_wsgi_py_probe", "sensitive_file", "/wsgi.py"),
+    MaliciousCase("recon_app_py_probe", "sensitive_file", "/app.py"),
+    MaliciousCase("recon_main_go_probe", "sensitive_file", "/main.go"),
+    MaliciousCase("recon_deploy_sh_probe", "sensitive_file", "/deploy.sh"),
+    MaliciousCase("recon_backup_sh_probe", "sensitive_file", "/backup.sh"),
+    MaliciousCase(
+        "sensitive_file_nested_settings_py", "sensitive_file", "/srv/app/settings.py"
+    ),
+    MaliciousCase(
+        "sensitive_file_nested_local_settings",
+        "sensitive_file",
+        "/app/local_settings.py",
+    ),
+    MaliciousCase(
+        "sensitive_file_nested_wp_config_php", "sensitive_file", "/blog/wp-config.php"
+    ),
+    MaliciousCase(
+        "sensitive_file_nested_database_yml",
+        "sensitive_file",
+        "/app/config/database.yml",
+    ),
+    MaliciousCase(
+        "sensitive_file_nested_appsettings_json",
+        "sensitive_file",
+        "/api/appsettings.Production.json",
     ),
 ]
 
@@ -2873,6 +2910,34 @@ BENIGN_CORPUS: list[BenignCase] = [
         "sqli_boolean_bare_columns_or",
         "SELECT id FROM sessions WHERE active OR admin",
     ),
+    # LEDGER 4.04, D-17, D-19, D-59: ordinary routes. The first six moved from
+    # MALICIOUS_CORPUS (indistinguishable from the benign paths of the same row and
+    # nested, so not root probe shapes); /static/bundle.js.map is caught only by an
+    # opt-in return_pattern status:404 behavior rule (global_behavior_rules is empty
+    # by default).
+    BenignCase("path_version_top_level", "/version"),
+    BenignCase("path_management_top_level", "/management"),
+    BenignCase("path_management_nested_under_app", "/app/management/health"),
+    BenignCase("path_management_nested_under_api", "/api/management"),
+    BenignCase("path_system_and_version_both_nested", "/v2/system/version"),
+    BenignCase("path_credentials_nested_under_service", "/service/credentials"),
+    BenignCase("path_nested_inicio_html", "/en/inicio.html"),
+    BenignCase("path_nested_sourcemap", "/static/bundle.js.map"),
+    BenignCase("path_nested_app_sourcemap", "/static/app.js.map"),
+    BenignCase("path_nested_source_extension_py", "/assets/main.py"),
+    BenignCase("path_nested_source_extension_sh", "/downloads/setup.sh"),
+    BenignCase("path_nested_changelog", "/docs/changelog"),
+    BenignCase("path_top_level_changelog_page", "/changelog"),
+    BenignCase("path_nested_readme_md", "/docs/README.md"),
+    BenignCase("path_language_route", "/language/en"),
+    BenignCase("path_languages_route", "/languages"),
+    BenignCase("path_system_status_route", "/system/status"),
+    BenignCase("path_nested_jsp_page", "/news/index.jsp"),
+    BenignCase("path_wp_content_uploads_media", "/wp-content/uploads/2024/a.jpg"),
+    # Named webshell rows are scoped: nested shell.php and cmd.php outside an
+    # upload-like directory stay clean (hits count toward bans, D-17).
+    BenignCase("path_nested_shell_php_outside_uploads", "/tools/shell.php"),
+    BenignCase("path_nested_cmd_php_outside_uploads", "/api/cmd.php"),
 ]
 
 BASELINE_MALICIOUS_DETECTED_BY_CATEGORY: dict[str, int] = {

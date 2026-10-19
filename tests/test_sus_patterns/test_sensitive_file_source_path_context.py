@@ -28,7 +28,7 @@ async def test_source_path_json_leaf_in_a_query_param_is_not_a_probe() -> None:
 
 
 async def test_source_path_as_the_url_path_is_still_a_sensitive_file_probe() -> None:
-    request = MockGuardRequest(path="/opt/app/worker.py")
+    request = MockGuardRequest(path="/worker.py")
     assert "sensitive_file" in await _threat_categories(request)
 
 

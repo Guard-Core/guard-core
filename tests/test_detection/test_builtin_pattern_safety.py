@@ -352,7 +352,7 @@ def test_union_select_null_resists_unterminated_separator_padding() -> None:
 
 def test_recon_ext_still_matches_real_probe() -> None:
     rx = _compiled("recon", r"(?:asp|aspx")
-    assert rx.search("/admin/config.aspx")
+    assert rx.search("/config.aspx")
     assert rx.search("/shell.jsp?x=1")
 
 
@@ -526,7 +526,7 @@ def test_recon_secrets_still_matches_multidot_filenames(path: str) -> None:
 @pytest.mark.parametrize(
     "path",
     [
-        "/static/js/main.abc123.js.map",
+        "/main.abc123.js.map",
     ],
 )
 def test_sensitive_file_map_still_matches_multidot_filenames(path: str) -> None:
