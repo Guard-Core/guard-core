@@ -1,3 +1,5 @@
+import re
+
 from guard_core.sync.handlers._suspatterns_ldap_ipv4 import (
     _LEGACY_IPV4_HOST_RE,
     _LOG4SHELL_JNDI_LOOKUP_RE,
@@ -15,6 +17,10 @@ from guard_core.sync.handlers._suspatterns_named_floor import (
     CMS_TOKEN_PATTERN,
     NAMED_FLOOR_ROWS,
     NAMED_FLOOR_TOKEN_PATTERNS,
+    SUPERSEDING_ROWS,
+    V440_INICIO_ROW,
+    V440_MANAGEMENT_ROW,
+    V440_README_ROW,
 )
 from guard_core.sync.handlers._suspatterns_probe_chains import PROBE_CHAIN_ROW
 from guard_core.sync.handlers._suspatterns_probe_names import (
@@ -945,6 +951,22 @@ for _source, _contexts, _category in _PATTERN_DEFINITIONS:
         or "wp-content(?!" in _source
     ):
         NAMED_FLOOR_TOKEN_PATTERNS.setdefault(_source, CMS_TOKEN_PATTERN)
+
+# A narrow root row that reports the same path unconditionally supersedes the
+# gated v4.4.0 row for it, so the path is reported once.
+_NARROW_ROW_MARKERS: dict[str, tuple[str, ...]] = {
+    V440_README_ROW: (r"CHANGELOG\.\w+", r"(?-i:CHANGELOG"),
+    V440_INICIO_ROW: (r"\A[/\\]?inicio",),
+    V440_MANAGEMENT_ROW: ("config_dump", r"\A[/\\]credentials"),
+}
+for _floor, _markers in _NARROW_ROW_MARKERS.items():
+    SUPERSEDING_ROWS[_floor] = tuple(
+        re.compile(_source, re.IGNORECASE)
+        for _source, _contexts, _category in _PATTERN_DEFINITIONS
+        if _category == "recon"
+        and _source != _floor
+        and any(marker in _source for marker in _markers)
+    )
 
 ROUTE_GATED_PATH_SOURCES: frozenset[str] = frozenset(
     source

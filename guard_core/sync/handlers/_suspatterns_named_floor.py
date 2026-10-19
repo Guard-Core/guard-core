@@ -33,34 +33,36 @@ _README_TOKENS = (
     r"|appsettings\.json|crossdomain\.xml"
 )
 
-_V440_CMS_ROW = _path_only_pattern(_CMS)
-_V440_MANAGEMENT_ROW = _nested_path_pattern(_MANAGEMENT)
-_V440_SYSTEM_VERSION_ROOT_ROW = (
+V440_CMS_ROW = _path_only_pattern(_CMS)
+V440_MANAGEMENT_ROW = _nested_path_pattern(_MANAGEMENT)
+V440_SYSTEM_VERSION_ROOT_ROW = (
     rf"\A{_PATH_ONLY_SEP_RE}(?:system|version)"
     rf"(?:{_PATH_ONLY_SEP_RE}{_PATH_ONLY_CHAR_RE}*)*(?:\?\S*)?\s*\Z"
 )
-_V440_LANGUAGE_ROW = _path_only_pattern(r"(?:language|languages)")
-_V440_README_ROW = _path_only_pattern(_README, r"(?:\.[\w.\-~%]*)?")
-_V440_INICIO_ROW = _path_only_pattern(r"inicio\.html?")
+V440_LANGUAGE_ROW = _path_only_pattern(r"(?:language|languages)")
+V440_README_ROW = _path_only_pattern(_README, r"(?:\.[\w.\-~%]*)?")
+V440_INICIO_ROW = _path_only_pattern(r"inicio\.html?")
 
 CMS_TOKEN_PATTERN = re.compile(_CMS_TOKENS, re.IGNORECASE)
 
 NAMED_FLOOR_TOKEN_PATTERNS: dict[str, re.Pattern[str]] = {
-    _V440_CMS_ROW: CMS_TOKEN_PATTERN,
-    _V440_MANAGEMENT_ROW: re.compile(_MANAGEMENT_TOKENS, re.IGNORECASE),
-    _V440_SYSTEM_VERSION_ROOT_ROW: re.compile(r"system|version", re.IGNORECASE),
-    _V440_LANGUAGE_ROW: re.compile(r"language|languages", re.IGNORECASE),
-    _V440_README_ROW: re.compile(_README_TOKENS, re.IGNORECASE),
-    _V440_INICIO_ROW: re.compile(r"inicio\.html?", re.IGNORECASE),
+    V440_CMS_ROW: CMS_TOKEN_PATTERN,
+    V440_MANAGEMENT_ROW: re.compile(_MANAGEMENT_TOKENS, re.IGNORECASE),
+    V440_SYSTEM_VERSION_ROOT_ROW: re.compile(r"system|version", re.IGNORECASE),
+    V440_LANGUAGE_ROW: re.compile(r"language|languages", re.IGNORECASE),
+    V440_README_ROW: re.compile(_README_TOKENS, re.IGNORECASE),
+    V440_INICIO_ROW: re.compile(r"inicio\.html?", re.IGNORECASE),
 }
 
+SUPERSEDING_ROWS: dict[str, tuple[re.Pattern[str], ...]] = {}
+
 NAMED_FLOOR_ROWS: tuple[tuple[str, frozenset[str], str], ...] = (
-    (_V440_CMS_ROW, _CTX_CMS_PROBING, "cms_probing"),
-    (_V440_MANAGEMENT_ROW, _CTX_RECON, "recon"),
-    (_V440_SYSTEM_VERSION_ROOT_ROW, _CTX_RECON, "recon"),
-    (_V440_LANGUAGE_ROW, _CTX_RECON, "recon"),
-    (_V440_README_ROW, _CTX_RECON, "recon"),
-    (_V440_INICIO_ROW, _CTX_RECON, "recon"),
+    (V440_CMS_ROW, _CTX_CMS_PROBING, "cms_probing"),
+    (V440_MANAGEMENT_ROW, _CTX_RECON, "recon"),
+    (V440_SYSTEM_VERSION_ROOT_ROW, _CTX_RECON, "recon"),
+    (V440_LANGUAGE_ROW, _CTX_RECON, "recon"),
+    (V440_README_ROW, _CTX_RECON, "recon"),
+    (V440_INICIO_ROW, _CTX_RECON, "recon"),
 )
 
 
@@ -93,6 +95,8 @@ def _declared_tokens(source: str, match: re.Match) -> set[str]:
 def named_floor_row_is_not_the_apps_own_route(
     source: str, match: re.Match, context: str
 ) -> bool:
+    if any(row.search(match.group()) for row in SUPERSEDING_ROWS.get(source, ())):
+        return False
     if not is_the_request_url_path(context):
         return True
     tokens = _declared_tokens(source, match)
