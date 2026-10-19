@@ -34,6 +34,7 @@ SKIP_SRC = {
 }
 
 SKIP_TESTS = {
+    "test_geo_awaited_load_concurrency.py",
     "test_scan_event_loop_yield.py",
     "test_async_body_read_slots.py",
     "test_dynamic_rule_user_agent_offloop.py",
@@ -67,6 +68,7 @@ TEMPLATE_FILES = {
 }
 
 HAND_MAINTAINED = {
+    TEST_SYNC_DIR / "test_geo_awaited_load_threads.py",
     SYNC_DIR / "handlers" / "ratelimit_handler.py",
     SYNC_DIR / "handlers" / "_dynamic_rule_persistence.py",
     TEST_SYNC_DIR / "test_core" / "test_check_rate_limit_by_ip_autoban.py",
@@ -221,7 +223,45 @@ _ASYNC_YIELD_SRC = (
 
 _SYNC_YIELD_REPLACEMENT = "def _yield_to_event_loop() -> None:\n    return None\n"
 
+_ASYNC_START_OR_JOIN_LOAD_SRC = (
+    "    _load_loop: asyncio.AbstractEventLoop | None = None\n"
+    "\n"
+    "    def _start_or_join_load(\n"
+    "        self, work: Callable[[], Awaitable[None]]\n"
+    "    ) -> asyncio.Task[None]:\n"
+    "        loop = asyncio.get_running_loop()\n"
+    "        task = self._background_task\n"
+    "        if task is not None and not task.done() and self._load_loop is loop:\n"
+    "            return task\n"
+    "        self._load_loop = loop\n"
+    "        self._background_in_flight = True\n"
+    "        self._background_task = asyncio.create_task("
+    "self._load_in_background(work))\n"
+    "        return self._background_task\n"
+)
+
+_SYNC_START_OR_JOIN_LOAD_REPLACEMENT = (
+    "    _load_lock = threading.Lock()\n"
+    "\n"
+    "    def _start_or_join_load(self, work: Callable[[], None]) -> threading.Thread:\n"
+    "        with self._load_lock:\n"
+    "            running = self._background_task\n"
+    "            if running is not None and running.is_alive():\n"
+    "                return running\n"
+    "            self._background_in_flight = True\n"
+    "            self._background_task = threading.Thread(\n"
+    "                target=self._load_in_background, args=(work,), daemon=True\n"
+    "            )\n"
+    "            self._background_task.start()\n"
+    "            return self._background_task\n"
+)
+
 SUBS: list[tuple[str, str]] = [
+    (
+        re.escape(_ASYNC_START_OR_JOIN_LOAD_SRC),
+        _SYNC_START_OR_JOIN_LOAD_REPLACEMENT.replace("\\", "\\\\"),
+    ),
+    (r"await asyncio\.shield\((.+)\)$", r"\1.join()"),
     (re.escape(_ASYNC_YIELD_SRC), _SYNC_YIELD_REPLACEMENT),
     (
         re.escape(_ASYNC_AWAIT_REGEX_FUTURE_SRC),

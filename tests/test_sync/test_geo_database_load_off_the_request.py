@@ -43,7 +43,7 @@ def test_a_missing_database_is_downloaded_once_per_backoff_window(
     assert download.call_count == 1
 
 
-def test_a_request_does_not_wait_for_the_download(tmp_path: Path) -> None:
+def test_a_first_request_waits_for_the_download(tmp_path: Path) -> None:
     manager = IPInfoManager(token="tok", db_path=tmp_path / "missing.mmdb")
     finished: list[bool] = []
 
@@ -58,7 +58,7 @@ def test_a_request_does_not_wait_for_the_download(tmp_path: Path) -> None:
         _finish_background_load(manager)
 
     assert blocked is True
-    assert finished_before_the_answer is False
+    assert finished_before_the_answer is True
     assert finished == [True]
 
 

@@ -49,10 +49,9 @@ async def test_a_background_load_that_raises_is_logged_and_released(
     manager._background_in_flight = True
 
     with (
-        patch.object(manager, "initialize", AsyncMock(side_effect=RuntimeError("x"))),
         caplog.at_level(logging.ERROR, logger="guard_core.handlers.ipinfo"),
     ):
-        await manager._load_in_background()
+        await manager._load_in_background(AsyncMock(side_effect=RuntimeError("x")))
 
     assert manager._background_in_flight is False
     assert any("Background GeoIP database load failed" in m for m in caplog.messages)

@@ -144,7 +144,9 @@ class IPInfoManager(IpInfoBackgroundMixin, IpInfoRedisCopyMixin, IpInfoEventsMix
             raise
 
     async def initialize(self) -> None:
-        self._last_attempt_at = time.monotonic()
+        await asyncio.shield(self._start_or_join_load(self._initialize_database))
+
+    async def _initialize_database(self) -> None:
         try:
             os.makedirs(self.db_path.parent, exist_ok=True)
 
@@ -295,7 +297,9 @@ class IPInfoManager(IpInfoBackgroundMixin, IpInfoRedisCopyMixin, IpInfoEventsMix
             self.reader.close()
 
     async def refresh(self) -> None:
-        self._last_attempt_at = time.monotonic()
+        await asyncio.shield(self._start_or_join_load(self._refresh_database))
+
+    async def _refresh_database(self) -> None:
         try:
             if await self._adopt_redis_copy():
                 return

@@ -100,11 +100,11 @@ def _evaluate_country_access(country: str, config: Any) -> tuple[bool, str]:
 
 
 def _load_geo_database(geo_ip_handler: SyncGeoIPHandler) -> None:
-    schedule_database_load = getattr(geo_ip_handler, "schedule_database_load", None)
-    if schedule_database_load is None:
+    ensure_database_loaded = getattr(geo_ip_handler, "ensure_database_loaded", None)
+    if ensure_database_loaded is None:
         geo_ip_handler.initialize()
         return
-    schedule_database_load()
+    ensure_database_loaded()
 
 
 def _resolve_country_verdict(

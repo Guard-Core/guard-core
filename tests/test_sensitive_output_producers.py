@@ -1267,10 +1267,10 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "lines 234,241: interpolates only the ip argument (client_ip), "
         "outside the secret matrix"
     ),
-    "handlers/ipinfo_handler.py:IPInfoManager.initialize": (
+    "handlers/ipinfo_handler.py:IPInfoManager._initialize_database": (
         "lines 122,137: MMDB reader initialization failure, infra only"
     ),
-    "handlers/ipinfo_handler.py:IPInfoManager.refresh": (
+    "handlers/ipinfo_handler.py:IPInfoManager._refresh_database": (
         "line 313: MMDB refresh failure, infra only"
     ),
     "handlers/ratelimit_handler.py:RateLimitManager.initialize_redis": (

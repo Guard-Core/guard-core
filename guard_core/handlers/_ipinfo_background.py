@@ -2,6 +2,7 @@ import asyncio
 import logging
 import threading
 import time
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 
 
@@ -21,33 +22,59 @@ class IpInfoBackgroundMixin:
 
     async def refresh(self) -> None: ...
 
+    async def _initialize_database(self) -> None: ...
+
+    async def _refresh_database(self) -> None: ...
+
     def _is_backing_off(self) -> bool:
         return (
             self._last_attempt_at is not None
             and time.monotonic() - self._last_attempt_at < self._RETRY_BACKOFF_SECONDS
         )
 
-    def schedule_database_load(self) -> None:
-        if self._background_in_flight or self._is_backing_off():
-            return
+    _load_loop: asyncio.AbstractEventLoop | None = None
+
+    def _start_or_join_load(
+        self, work: Callable[[], Awaitable[None]]
+    ) -> asyncio.Task[None]:
+        loop = asyncio.get_running_loop()
+        task = self._background_task
+        if task is not None and not task.done() and self._load_loop is loop:
+            return task
+        self._load_loop = loop
         self._background_in_flight = True
-        load = self._load_in_background
+        self._background_task = asyncio.create_task(self._load_in_background(work))
+        return self._background_task
+
+    async def ensure_database_loaded(self) -> None:
+        if self.reader is not None or self._is_backing_off():
+            return
+        await asyncio.shield(self._start_or_join_load(self._initialize_database))
+
+    def schedule_database_load(self) -> None:
+        if self._is_backing_off():
+            return
+        work = (
+            self._initialize_database if self.reader is None else self._refresh_database
+        )
         try:
-            self._background_task = asyncio.create_task(load())
+            self._start_or_join_load(work)
         except RuntimeError:
             self.logger.exception("Could not schedule the GeoIP database load")
             self._background_in_flight = False
 
-    async def _load_in_background(self) -> None:
+    async def _load_in_background(self, work: Callable[[], Awaitable[None]]) -> None:
         try:
-            if self.reader is None:
-                await self.initialize()
-            else:
-                await self.refresh()
+            await work()
         except Exception:
             self.logger.exception("Background GeoIP database load failed")
         finally:
             self._background_in_flight = False
+        self._back_off_unless_loaded()
+
+    def _back_off_unless_loaded(self) -> None:
+        if self.reader is None or self._refresh_due:
+            self._last_attempt_at = time.monotonic()
 
     def _mark_refresh_due(self) -> None:
         self._refresh_due = True

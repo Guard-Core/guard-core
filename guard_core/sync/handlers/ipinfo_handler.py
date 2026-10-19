@@ -143,7 +143,9 @@ class IPInfoManager(IpInfoBackgroundMixin, IpInfoRedisCopyMixin, IpInfoEventsMix
             raise
 
     def initialize(self) -> None:
-        self._last_attempt_at = time.monotonic()
+        self._start_or_join_load(self._initialize_database).join()
+
+    def _initialize_database(self) -> None:
         try:
             os.makedirs(self.db_path.parent, exist_ok=True)
 
@@ -288,7 +290,9 @@ class IPInfoManager(IpInfoBackgroundMixin, IpInfoRedisCopyMixin, IpInfoEventsMix
             self.reader.close()
 
     def refresh(self) -> None:
-        self._last_attempt_at = time.monotonic()
+        self._start_or_join_load(self._refresh_database).join()
+
+    def _refresh_database(self) -> None:
         try:
             if self._adopt_redis_copy():
                 return
