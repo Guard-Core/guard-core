@@ -25,20 +25,16 @@ async def _initialize(**overrides: Any) -> None:
 async def _startup_warnings(
     caplog: pytest.LogCaptureFixture, **overrides: Any
 ) -> list[str]:
+    overrides.setdefault("fail_on_misconfiguration", False)
     with caplog.at_level(logging.WARNING, logger="guard_core"):
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
             await _initialize(**overrides)
-    messages = [
-        str(item.message) for item in caught if "can never fire" in str(item.message)
-    ]
-    logged = [
+    return [
         record.getMessage()
         for record in caplog.records
         if "can never fire" in record.getMessage()
     ]
-    assert logged == messages
-    return messages
 
 
 async def test_auto_ban_threshold_at_the_cap_does_not_warn(
@@ -56,7 +52,7 @@ async def test_auto_ban_threshold_above_the_cap_warns_once_naming_the_field(
     assert "auto_ban_threshold" in messages[0]
     assert str(CAP + 1) in messages[0]
     assert "610" in messages[0]
-    assert "fail_on_misconfiguration is not set" in messages[0]
+    assert "fail_on_misconfiguration=False keeps starting" in messages[0]
 
 
 async def test_threat_ban_config_threshold_at_the_cap_does_not_warn(
@@ -80,6 +76,13 @@ async def test_threat_ban_config_threshold_above_the_cap_warns_naming_the_catego
     assert "610" in messages[0]
 
 
+async def test_an_unset_flag_makes_an_unreachable_auto_ban_threshold_fatal() -> None:
+    with pytest.raises(ValueError, match="auto_ban_threshold") as caught:
+        await _initialize(auto_ban_threshold=CAP + 1)
+
+    assert "fail_on_misconfiguration=False" in str(caught.value)
+
+
 async def test_flag_true_makes_an_unreachable_auto_ban_threshold_fatal() -> None:
     with pytest.raises(ValueError, match="auto_ban_threshold") as caught:
         await _initialize(fail_on_misconfiguration=True, auto_ban_threshold=CAP + 1)
@@ -100,7 +103,7 @@ async def test_flag_true_accepts_thresholds_at_the_cap() -> None:
         await _initialize(fail_on_misconfiguration=True, auto_ban_threshold=CAP)
 
 
-async def test_flag_false_warns_without_the_not_set_part(
+async def test_flag_false_logs_one_warning_and_starts(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     messages = await _startup_warnings(
@@ -108,7 +111,6 @@ async def test_flag_false_warns_without_the_not_set_part(
     )
 
     assert len(messages) == 1
-    assert "is not set" not in messages[0]
     assert "fail_on_misconfiguration=False keeps starting" in messages[0]
 
 
@@ -116,12 +118,27 @@ def _unreachable(messages: list[str]) -> list[str]:
     return [message for message in messages if "can never fire" in message]
 
 
+class _Messages(logging.Handler):
+    def __init__(self) -> None:
+        super().__init__(logging.WARNING)
+        self.messages: list[str] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.messages.append(record.getMessage())
+
+
 def _problems(config: SecurityConfig, **parts: Any) -> list[str]:
     initializer = HandlerInitializer(config, **parts)
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        initializer._report_unreachable_ban_thresholds()
-    return _unreachable([str(item.message) for item in caught])
+    capture = _Messages()
+    package_logger = logging.getLogger("guard_core")
+    package_logger.addHandler(capture)
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            initializer._report_unreachable_ban_thresholds()
+    finally:
+        package_logger.removeHandler(capture)
+    return _unreachable(capture.messages)
 
 
 def _config(**overrides: Any) -> SecurityConfig:

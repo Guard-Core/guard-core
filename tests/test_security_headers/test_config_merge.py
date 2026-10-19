@@ -65,16 +65,24 @@ def test_an_unknown_key_is_reported_as_misconfiguration(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     with caplog.at_level(logging.WARNING, logger="guard_core.models"):
-        with pytest.warns(DeprecationWarning, match="frame_option"):
-            config = SecurityConfig(
-                enable_redis=False,
-                security_headers={"enabled": True, "frame_option": "DENY"},
-            )
+        config = SecurityConfig(
+            enable_redis=False,
+            fail_on_misconfiguration=False,
+            security_headers={"enabled": True, "frame_option": "DENY"},
+        )
 
     problems = _unknown_key_problems(config)
     assert len(problems) == 1
     assert "'frame_option'" in problems[0]
     assert any("frame_option" in record.getMessage() for record in caplog.records)
+
+
+def test_an_unknown_key_fails_startup_by_default() -> None:
+    with pytest.raises(ValueError, match="frame_option"):
+        SecurityConfig(
+            enable_redis=False,
+            security_headers={"enabled": True, "frame_option": "DENY"},
+        )
 
 
 def test_an_unknown_key_fails_startup_with_the_flag() -> None:
@@ -87,11 +95,11 @@ def test_an_unknown_key_fails_startup_with_the_flag() -> None:
 
 
 def test_an_unknown_key_in_the_hsts_dict_is_reported() -> None:
-    with pytest.warns(DeprecationWarning, match="max_ag"):
-        config = SecurityConfig(
-            enable_redis=False,
-            security_headers={"hsts": {"max_ag": 5}},
-        )
+    config = SecurityConfig(
+        enable_redis=False,
+        fail_on_misconfiguration=False,
+        security_headers={"hsts": {"max_ag": 5}},
+    )
     assert "max_ag" in _unknown_key_problems(config)[0]
 
 

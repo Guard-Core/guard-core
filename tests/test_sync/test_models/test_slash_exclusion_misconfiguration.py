@@ -1,5 +1,4 @@
 import logging
-import warnings
 from typing import Any
 
 import pytest
@@ -17,27 +16,12 @@ def _build(**settings: Any) -> SecurityConfig:
     return SecurityConfig(enable_redis=False, **settings)
 
 
-def test_unset_flag_warns_and_keeps_the_v440_user_warning(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    with caplog.at_level(logging.WARNING, logger="guard_core"):
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-            _build(exclude_paths=["/"])
+def test_unset_flag_refuses_naming_the_old_value() -> None:
+    with pytest.warns(UserWarning), pytest.raises(ValueError) as caught:
+        _build(exclude_paths=["/"])
 
-    messages = [(w.category, str(w.message)) for w in caught]
-    assert any(
-        category is UserWarning
-        and "excludes the entire application from all security checks" in text
-        for category, text in messages
-    )
-    assert any(
-        category is DeprecationWarning
-        and PROBLEM in text
-        and "fail_on_misconfiguration=True" in text
-        for category, text in messages
-    )
-    assert any(PROBLEM in r.getMessage() for r in caplog.records)
+    assert PROBLEM in str(caught.value)
+    assert "fail_on_misconfiguration=False" in str(caught.value)
 
 
 def test_true_raises() -> None:
@@ -48,14 +32,16 @@ def test_true_raises() -> None:
         _build(fail_on_misconfiguration=True, exclude_paths=["/"])
 
 
-def test_false_warns_without_the_not_set_part() -> None:
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        _build(fail_on_misconfiguration=False, exclude_paths=["/"])
+def test_false_logs_one_warning_and_keeps_the_v440_user_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING, logger="guard_core"):
+        with pytest.warns(UserWarning, match="excludes the entire application"):
+            _build(fail_on_misconfiguration=False, exclude_paths=["/"])
 
-    texts = [str(w.message) for w in caught if w.category is DeprecationWarning]
-    assert any("keeps starting" in text for text in texts)
-    assert all("is not set" not in text for text in texts)
+    messages = [r.getMessage() for r in caplog.records if PROBLEM in r.getMessage()]
+    assert len(messages) == 1
+    assert "keeps starting" in messages[0]
 
 
 def test_the_slash_entry_still_excludes_every_path() -> None:
@@ -64,6 +50,8 @@ def test_the_slash_entry_still_excludes_every_path() -> None:
 
 
 def test_other_entries_do_not_report() -> None:
+    import warnings
+
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         _build(fail_on_misconfiguration=True, exclude_paths=["/health", "/static"])

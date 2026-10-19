@@ -55,12 +55,12 @@ class _SyncComposedDecorator(
     pass
 
 
-def _async_decorator() -> _AsyncComposedDecorator:
-    return _AsyncComposedDecorator(SecurityConfig(enable_redis=False))
+def _async_decorator(**flag: bool) -> _AsyncComposedDecorator:
+    return _AsyncComposedDecorator(SecurityConfig(enable_redis=False, **flag))
 
 
-def _sync_decorator() -> _SyncComposedDecorator:
-    return _SyncComposedDecorator(SecurityConfig(enable_redis=False))
+def _sync_decorator(**flag: bool) -> _SyncComposedDecorator:
+    return _SyncComposedDecorator(SecurityConfig(enable_redis=False, **flag))
 
 
 def _sample_func() -> None:
@@ -102,10 +102,9 @@ def test_async_block_clouds_with_valid_list() -> None:
 def test_async_block_clouds_filters_unknown_and_warns(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    d = _async_decorator()
+    d = _async_decorator(fail_on_misconfiguration=False)
     caplog.set_level(logging.WARNING, logger="guard_core.sync.decorators")
-    with pytest.warns(DeprecationWarning, match="ignored unknown cloud providers"):
-        decorated = d.block_clouds(["AWS", "Bogus"])(_third_sample_func)
+    decorated = d.block_clouds(["AWS", "Bogus"])(_third_sample_func)
     rc = d.get_route_config(decorated._guard_route_id)
     assert rc is not None
     assert rc.block_cloud_providers == {"AWS"}
@@ -124,10 +123,9 @@ def test_sync_block_clouds_default_uses_all_supported() -> None:
 def test_sync_block_clouds_filters_unknown_and_warns(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    d = _sync_decorator()
+    d = _sync_decorator(fail_on_misconfiguration=False)
     caplog.set_level(logging.WARNING, logger="guard_core.sync.decorators")
-    with pytest.warns(DeprecationWarning, match="ignored unknown cloud providers"):
-        decorated = d.block_clouds(["AWS", "Bogus"])(_fifth_sample_func)
+    decorated = d.block_clouds(["AWS", "Bogus"])(_fifth_sample_func)
     rc = d.get_route_config(decorated._guard_route_id)
     assert rc is not None
     assert rc.block_cloud_providers == {"AWS"}

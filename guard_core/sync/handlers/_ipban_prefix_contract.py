@@ -30,8 +30,8 @@ def enforce_prefix_length_contract(
 
     The first worker records its value with SET NX. A worker whose value differs
     would key bans and rate-limit windows differently from the others, so it is
-    reported through the staged misconfiguration flag (a warning in 4.5.0, fatal
-    once the flag is on) and the recorded value is left alone.
+    reported through fail_on_misconfiguration (fatal by default, a warning when it
+    is False) and the recorded value is left alone.
     """
     wanted = getattr(config, "ipv6_prefix_length", None)
     if wanted is None:

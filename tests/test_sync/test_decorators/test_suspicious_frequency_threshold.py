@@ -1,3 +1,4 @@
+import logging
 import warnings
 from typing import Any
 
@@ -24,19 +25,19 @@ BAD_VALUES = [(0.001, 300), (0.5, 1), (0, 300), (1.0, 0), (-1.0, 300)]
 
 @pytest.mark.parametrize(("frequency", "window"), BAD_VALUES)
 class TestThresholdBelowOne:
-    def test_unset_flag_warns_naming_the_values(
+    def test_unset_flag_refuses_naming_the_values_and_the_old_value(
         self, frequency: float, window: int
     ) -> None:
-        with pytest.warns(DeprecationWarning) as caught:
+        with pytest.raises(ValueError) as caught:
             _decorate(_decorator(), frequency, window)
 
-        message = str(caught[0].message)
+        message = str(caught.value)
         assert (
             f"@suspicious_frequency(max_frequency={frequency}, window={window})"
             in message
         )
         assert "every request would trip the rule" in message
-        assert "fail_on_misconfiguration is not set" in message
+        assert "fail_on_misconfiguration=False" in message
 
     def test_true_raises_and_leaves_no_route_config(
         self, frequency: float, window: int
@@ -48,20 +49,29 @@ class TestThresholdBelowOne:
 
         assert decorator._route_configs == {}
 
-    def test_false_warns_without_the_not_set_part(
-        self, frequency: float, window: int
+    def test_false_logs_one_warning_and_starts(
+        self, frequency: float, window: int, caplog: pytest.LogCaptureFixture
     ) -> None:
-        with pytest.warns(DeprecationWarning, match="keeps starting") as caught:
-            _decorate(_decorator(fail_on_misconfiguration=False), frequency, window)
+        with caplog.at_level(logging.WARNING, logger="guard_core"):
+            with warnings.catch_warnings():
+                warnings.simplefilter("error")
+                _decorate(_decorator(fail_on_misconfiguration=False), frequency, window)
 
-        assert "is not set" not in str(caught[0].message)
+        messages = [
+            r.getMessage()
+            for r in caplog.records
+            if "@suspicious_frequency" in r.getMessage()
+        ]
+        assert len(messages) == 1
+        assert "keeps starting" in messages[0]
 
     def test_the_rule_is_still_built_with_the_truncated_threshold(
         self, frequency: float, window: int
     ) -> None:
         decorator = _decorator(fail_on_misconfiguration=False)
 
-        with pytest.warns(DeprecationWarning):
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
             decorated = _decorate(decorator, frequency, window)
 
         config = decorator.get_route_config(decorated._guard_route_id)

@@ -34,27 +34,32 @@ def _settings(field: str, path: str) -> dict[str, Any]:
 @pytest.mark.parametrize("field", ["exclude_paths", "endpoint_rate_limits"])
 @pytest.mark.parametrize("path", ANOMALOUS_PATHS)
 class TestAnomalousPathSpelling:
-    def test_unset_flag_warns_naming_the_entry_and_the_opt_in(
-        self, field: str, path: str, caplog: pytest.LogCaptureFixture
+    def test_unset_flag_refuses_naming_the_entry_and_the_old_value(
+        self, field: str, path: str
     ) -> None:
-        with caplog.at_level(logging.WARNING, logger="guard_core"):
-            with pytest.warns(DeprecationWarning) as caught:
-                _build(**_settings(field, path))
+        with pytest.raises(ValueError) as caught:
+            _build(**_settings(field, path))
 
-        message = str(caught[0].message)
+        message = str(caught.value)
         assert field in message
         assert repr(path) in message
-        assert "fail_on_misconfiguration=True" in message
-        assert any(repr(path) in r.getMessage() for r in caplog.records)
+        assert "fail_on_misconfiguration=False" in message
 
     def test_true_raises(self, field: str, path: str) -> None:
         with pytest.raises(ValueError, match=field):
             _build(fail_on_misconfiguration=True, **_settings(field, path))
 
-    def test_false_warns_without_the_not_set_part(self, field: str, path: str) -> None:
-        with pytest.warns(DeprecationWarning, match="keeps starting") as caught:
-            _build(fail_on_misconfiguration=False, **_settings(field, path))
-        assert "is not set" not in str(caught[0].message)
+    def test_false_logs_one_warning_and_starts(
+        self, field: str, path: str, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        with caplog.at_level(logging.WARNING, logger="guard_core"):
+            with warnings.catch_warnings():
+                warnings.simplefilter("error")
+                _build(fail_on_misconfiguration=False, **_settings(field, path))
+
+        messages = [r.getMessage() for r in caplog.records if repr(path) in r.message]
+        assert len(messages) == 1
+        assert "keeps starting" in messages[0]
 
 
 @pytest.mark.parametrize("field", ["exclude_paths", "endpoint_rate_limits"])
@@ -84,6 +89,5 @@ def test_the_default_exclude_paths_never_warn() -> None:
 
 
 def test_a_dot_dot_entry_still_normalizes_and_matches_as_before() -> None:
-    with pytest.warns(DeprecationWarning):
-        config = _build(fail_on_misconfiguration=False, exclude_paths=["/a/../b"])
+    config = _build(fail_on_misconfiguration=False, exclude_paths=["/a/../b"])
     assert config.exclude_paths == ["/a/../b"]

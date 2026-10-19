@@ -8,16 +8,7 @@ from guard_core.models import SecurityConfig
 from guard_core.sync.core.initialization.handler_initializer import HandlerInitializer
 from guard_core.sync.decorators import SecurityDecorator
 
-NOT_SET = (
-    "fail_on_misconfiguration is not set. guard-core 5.0.0 will refuse to start "
-    "with this misconfiguration. Pass fail_on_misconfiguration=True to "
-    "SecurityConfig now to opt in, or fail_on_misconfiguration=False to keep "
-    "starting with it."
-)
-FALSE_NOTE = (
-    "fail_on_misconfiguration=False keeps starting with it. guard-core 5.0.0 "
-    "will refuse to start with this misconfiguration unless that setting is False."
-)
+FALSE_NOTE = "fail_on_misconfiguration=False keeps starting with it."
 TRUE_NOTE = "Set fail_on_misconfiguration=False to start with it anyway."
 
 CONFIG_PROBLEMS: list[tuple[dict[str, Any], str]] = [
@@ -68,29 +59,17 @@ CONFIG_PROBLEMS: list[tuple[dict[str, Any], str]] = [
 def test_config_misconfiguration_text_and_location(
     settings: dict[str, Any], problem: str, caplog: pytest.LogCaptureFixture
 ) -> None:
-    with caplog.at_level("WARNING"), pytest.warns(DeprecationWarning):
-        SecurityConfig(enable_redis=False, **settings)
-    assert [r.name for r in caplog.records if problem in r.getMessage()] == [
-        "guard_core.models"
-    ]
+    with caplog.at_level("WARNING"), warnings.catch_warnings():
+        warnings.simplefilter("error")
+        SecurityConfig(enable_redis=False, fail_on_misconfiguration=False, **settings)
+    assert [
+        (r.name, r.getMessage()) for r in caplog.records if problem in r.getMessage()
+    ] == [("guard_core.models", f"{problem} {FALSE_NOTE}")]
 
-    for flag, note in (
-        ({}, NOT_SET),
-        ({"fail_on_misconfiguration": False}, FALSE_NOTE),
-    ):
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+    for flag in ({}, {"fail_on_misconfiguration": True}):
+        with pytest.raises(ValueError) as error:
             SecurityConfig(enable_redis=False, **settings, **flag)
-
-        matching = [w for w in caught if problem in str(w.message)]
-        assert len(matching) == 1
-        assert str(matching[0].message) == f"{problem} {note}"
-        assert matching[0].category is DeprecationWarning
-        assert matching[0].filename == __file__
-
-    with pytest.raises(ValueError) as error:
-        SecurityConfig(enable_redis=False, fail_on_misconfiguration=True, **settings)
-    assert f"{problem} {TRUE_NOTE}" in str(error.value)
+        assert f"{problem} {TRUE_NOTE}" in str(error.value)
 
 
 def test_semantic_and_threat_thresholds_at_a_small_positive_value_do_not_warn() -> None:
@@ -180,28 +159,28 @@ def test_decorator_misconfiguration_text_and_location(
     problem: str,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    decorator = SecurityDecorator(SecurityConfig(enable_redis=False))
+    lenient = SecurityDecorator(
+        SecurityConfig(enable_redis=False, fail_on_misconfiguration=False)
+    )
 
     def route() -> None:
         pass
 
-    with caplog.at_level("WARNING"), warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        make(decorator)(route)
+    with caplog.at_level("WARNING"), warnings.catch_warnings():
+        warnings.simplefilter("error")
+        make(lenient)(route)
 
-    assert [r.name for r in caplog.records if problem in r.getMessage()] == [
-        "guard_core.sync.decorators"
-    ]
-    assert len(caught) == 1
-    assert str(caught[0].message) == f"{problem} {NOT_SET}"
-    assert caught[0].filename == __file__
+    assert [
+        (r.name, r.getMessage()) for r in caplog.records if problem in r.getMessage()
+    ] == [("guard_core.sync.decorators", f"{problem} {FALSE_NOTE}")]
 
-    strict = SecurityDecorator(
-        SecurityConfig(enable_redis=False, fail_on_misconfiguration=True)
-    )
-    with pytest.raises(ValueError) as error:
-        make(strict)(route)
-    assert str(error.value) == f"{problem} {TRUE_NOTE}"
+    for config in (
+        SecurityConfig(enable_redis=False),
+        SecurityConfig(enable_redis=False, fail_on_misconfiguration=True),
+    ):
+        with pytest.raises(ValueError) as error:
+            make(SecurityDecorator(config))(route)
+        assert str(error.value) == f"{problem} {TRUE_NOTE}"
 
 
 @pytest.mark.parametrize(
@@ -217,7 +196,7 @@ def test_startup_report_text_and_location_for_country_decorators(
     decorator_text: str,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(enable_redis=False)
+    config = SecurityConfig(enable_redis=False, fail_on_misconfiguration=False)
     decorator = SecurityDecorator(config)
 
     def country_route() -> None:
@@ -226,8 +205,8 @@ def test_startup_report_text_and_location_for_country_decorators(
     decorated = make(decorator)(country_route)
     initializer = HandlerInitializer(config, guard_decorator=decorator)
 
-    with caplog.at_level("WARNING"), warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
+    with caplog.at_level("WARNING"), warnings.catch_warnings():
+        warnings.simplefilter("error")
         initializer.initialize_redis_handlers()
 
     problem = (
@@ -235,12 +214,9 @@ def test_startup_report_text_and_location_for_country_decorators(
         "database is configured (geo_ip_handler is None; set ipinfo_token or "
         "geo_ip_handler), so the country rule is ignored."
     )
-    assert [r.name for r in caplog.records if problem in r.getMessage()] == [
-        "guard_core.sync.core.initialization"
-    ]
-    assert len(caught) == 1
-    assert str(caught[0].message) == f"{problem} {NOT_SET}"
-    assert caught[0].filename == __file__
+    assert [
+        (r.name, r.getMessage()) for r in caplog.records if problem in r.getMessage()
+    ] == [("guard_core.sync.core.initialization", f"{problem} {FALSE_NOTE}")]
 
 
 def test_startup_report_text_and_location_for_an_unreachable_ban_threshold(
@@ -252,10 +228,11 @@ def test_startup_report_text_and_location_for_an_unreachable_ban_threshold(
         rate_limit=10,
         rate_limit_window=60,
         auto_ban_threshold=10001,
+        fail_on_misconfiguration=False,
     )
 
-    with caplog.at_level("WARNING"), warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
+    with caplog.at_level("WARNING"), warnings.catch_warnings():
+        warnings.simplefilter("error")
         HandlerInitializer(config).initialize_redis_handlers()
 
     problem = (
@@ -264,9 +241,6 @@ def test_startup_report_text_and_location_for_an_unreachable_ban_threshold(
         "rate_limit_window + 1)), so this ban threshold can never fire. Lower it "
         "to at most 610 or raise rate_limit."
     )
-    assert [r.name for r in caplog.records if problem in r.getMessage()] == [
-        "guard_core.sync.core.initialization"
-    ]
-    assert len(caught) == 1
-    assert str(caught[0].message) == f"{problem} {NOT_SET}"
-    assert caught[0].filename == __file__
+    assert [
+        (r.name, r.getMessage()) for r in caplog.records if problem in r.getMessage()
+    ] == [("guard_core.sync.core.initialization", f"{problem} {FALSE_NOTE}")]

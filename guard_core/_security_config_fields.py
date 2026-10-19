@@ -236,13 +236,16 @@ class _SecurityConfigFields(BaseModel):
     )
 
     fail_on_misconfiguration: bool = Field(
-        default=False,
+        default=True,
         description=(
             "Refuse to start when the configuration or a route decorator is "
             "misconfigured (a rate limit below 1, a zero detection threshold, an "
-            "empty route allow-list and the like). Off by default in 4.5.0: each "
-            "misconfiguration logs one WARNING line and raises one "
-            "DeprecationWarning at startup; on by default from 5.0.0."
+            "empty route allow-list and the like). On by default since 5.0.0 "
+            "(it was off before, and a misconfiguration only logged a WARNING); "
+            "pass fail_on_misconfiguration=False to restore that: each "
+            "misconfiguration then logs one WARNING line and the app starts. The "
+            "WARNING record names the line that builds the config, registers the "
+            "route or binds the middleware (pathname and lineno)."
         ),
     )
 

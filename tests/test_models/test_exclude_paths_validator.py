@@ -50,9 +50,8 @@ def test_exclude_paths_rejects_root_entry_alongside_valid_entries() -> None:
 
 
 def test_exclude_paths_accepts_literal_root_with_loud_warning() -> None:
-    with pytest.warns(DeprecationWarning, match="whole application"):
-        with pytest.warns(UserWarning, match="excludes the entire application"):
-            config = SecurityConfig(exclude_paths=["/"])
+    with pytest.warns(UserWarning, match="excludes the entire application"):
+        config = SecurityConfig(exclude_paths=["/"], fail_on_misconfiguration=False)
     assert config.exclude_paths == ["/"]
 
 
@@ -60,7 +59,7 @@ def test_exclude_paths_construction_warning_points_at_constructor_call_site() ->
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         expected_lineno = _current_lineno() + 1
-        SecurityConfig(exclude_paths=["/"])
+        SecurityConfig(exclude_paths=["/"], fail_on_misconfiguration=False)
 
     matches = [w for w in caught if "excludes the entire application" in str(w.message)]
     assert len(matches) == 1

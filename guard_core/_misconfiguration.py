@@ -1,5 +1,4 @@
 import logging
-import warnings
 from typing import TYPE_CHECKING
 
 from guard_core._emergency_exemptions import warn_unexempted_probe_paths
@@ -12,15 +11,7 @@ config_logger = logging.getLogger("guard_core.models")
 
 FLAG_NAME = "fail_on_misconfiguration"
 
-_NOT_SET_NOTE = (
-    f"{FLAG_NAME} is not set. guard-core 5.0.0 will refuse to start with this "
-    f"misconfiguration. Pass {FLAG_NAME}=True to SecurityConfig now to opt in, "
-    f"or {FLAG_NAME}=False to keep starting with it."
-)
-_FALSE_NOTE = (
-    f"{FLAG_NAME}=False keeps starting with it. guard-core 5.0.0 will refuse to "
-    "start with this misconfiguration unless that setting is False."
-)
+_FALSE_NOTE = f"{FLAG_NAME}=False keeps starting with it."
 _TRUE_NOTE = f"Set {FLAG_NAME}=False to start with it anyway."
 
 
@@ -31,14 +22,9 @@ def report_misconfiguration(
     logger: logging.Logger,
     stacklevel: int,
 ) -> None:
-    if FLAG_NAME not in config.model_fields_set:
-        message = f"{problem} {_NOT_SET_NOTE}"
-    elif config.fail_on_misconfiguration:
+    if config.fail_on_misconfiguration:
         raise ValueError(f"{problem} {_TRUE_NOTE}")
-    else:
-        message = f"{problem} {_FALSE_NOTE}"
-    logger.warning(message)
-    warnings.warn(message, DeprecationWarning, stacklevel=stacklevel)
+    logger.warning(f"{problem} {_FALSE_NOTE}", stacklevel=stacklevel)
 
 
 def _non_positive_rate_limit_problems(config: "SecurityConfig") -> list[str]:

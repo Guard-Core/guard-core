@@ -5,6 +5,8 @@ from typing import Any
 import pytest
 
 from guard_core.models import SecurityConfig
+from guard_core.sync.core.initialization.handler_initializer import HandlerInitializer
+from guard_core.sync.decorators import SecurityDecorator
 
 
 def _build(**settings: Any) -> SecurityConfig:
@@ -29,22 +31,14 @@ def _build(**settings: Any) -> SecurityConfig:
     ],
 )
 class TestNonPositiveRateLimit:
-    def test_unset_flag_warns_naming_the_field_the_value_and_the_opt_in(
-        self,
-        settings: dict[str, Any],
-        named_value: str,
-        caplog: pytest.LogCaptureFixture,
+    def test_an_unset_flag_refuses_to_start_naming_the_problem_and_the_old_value(
+        self, settings: dict[str, Any], named_value: str
     ) -> None:
-        with caplog.at_level(logging.WARNING, logger="guard_core"):
-            with pytest.warns(DeprecationWarning) as caught:
-                _build(**settings)
+        with pytest.raises(ValueError) as caught:
+            _build(**settings)
 
-        message = str(caught[0].message)
-        assert named_value in message
-        assert "fail_on_misconfiguration is not set" in message
-        assert "guard-core 5.0.0 will refuse to start" in message
-        assert "fail_on_misconfiguration=True" in message
-        assert any(named_value in record.getMessage() for record in caplog.records)
+        assert named_value in str(caught.value)
+        assert "fail_on_misconfiguration=False" in str(caught.value)
 
     def test_true_raises_with_the_same_problem_text(
         self, settings: dict[str, Any], named_value: str
@@ -55,26 +49,59 @@ class TestNonPositiveRateLimit:
             _build(fail_on_misconfiguration=True, **settings)
         assert named_value in str(caught.value)
 
-    def test_false_warns_without_the_not_set_part(
-        self, settings: dict[str, Any], named_value: str
+    def test_false_logs_one_warning_and_starts(
+        self,
+        settings: dict[str, Any],
+        named_value: str,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
-        with pytest.warns(DeprecationWarning) as caught:
-            _build(fail_on_misconfiguration=False, **settings)
+        with caplog.at_level(logging.WARNING, logger="guard_core"):
+            with warnings.catch_warnings():
+                warnings.simplefilter("error")
+                config = _build(fail_on_misconfiguration=False, **settings)
 
-        message = str(caught[0].message)
-        assert named_value in message
-        assert "is not set" not in message
-        assert "fail_on_misconfiguration=False keeps starting" in message
+        assert config.fail_on_misconfiguration is False
+        messages = [r.getMessage() for r in caplog.records if named_value in r.message]
+        assert len(messages) == 1
+        assert "fail_on_misconfiguration=False keeps starting" in messages[0]
 
 
-def test_valid_rate_limits_never_warn_whatever_the_flag() -> None:
+def test_valid_rate_limits_never_raise_whatever_the_flag() -> None:
     for flag in ({}, {"fail_on_misconfiguration": True}):
         with warnings.catch_warnings():
             warnings.simplefilter("error")
             _build(rate_limit=1, rate_limit_window=1, **flag)
 
 
-def test_flag_defaults_to_false_when_unset() -> None:
-    with pytest.warns(DeprecationWarning):
-        config = _build(rate_limit=0)
-    assert config.fail_on_misconfiguration is False
+def test_flag_defaults_to_true_when_unset() -> None:
+    assert _build().fail_on_misconfiguration is True
+
+
+def test_an_unset_flag_refuses_a_misconfigured_decorator() -> None:
+    decorator = SecurityDecorator(_build())
+
+    def route() -> None:
+        pass
+
+    with pytest.raises(ValueError, match="fail_on_misconfiguration=False"):
+        decorator.rate_limit(requests=0, window=60)(route)
+
+
+def test_an_unset_flag_refuses_an_unreachable_ban_threshold_at_bind() -> None:
+    config = _build(auto_ban_threshold=10**9, lazy_init=False)
+
+    with pytest.raises(ValueError, match="fail_on_misconfiguration=False"):
+        HandlerInitializer(config=config).initialize_redis_handlers()
+
+
+def test_the_old_value_keeps_starting_at_bind(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    config = _build(
+        auto_ban_threshold=10**9, lazy_init=False, fail_on_misconfiguration=False
+    )
+
+    with caplog.at_level(logging.WARNING, logger="guard_core"):
+        HandlerInitializer(config=config).initialize_redis_handlers()
+
+    assert any("can never fire" in r.getMessage() for r in caplog.records)

@@ -208,11 +208,13 @@ def test_an_invalid_prefix_is_a_misconfiguration_at_startup(prefix: str) -> None
         HandlerInitializer(config=config).initialize_redis_handlers()
 
 
-def test_an_invalid_prefix_only_warns_by_default_and_is_ignored() -> None:
-    config = _config(nat64_prefixes=["2001:db8::/60", "2001:db8:122:344::/64"])
+def test_an_invalid_prefix_only_logs_when_the_flag_is_off_and_is_ignored() -> None:
+    config = _config(
+        nat64_prefixes=["2001:db8::/60", "2001:db8:122:344::/64"],
+        fail_on_misconfiguration=False,
+    )
 
-    with pytest.warns(DeprecationWarning, match="nat64_prefixes"):
-        HandlerInitializer(config=config).initialize_redis_handlers()
+    HandlerInitializer(config=config).initialize_redis_handlers()
 
     assert _canonicalize_ip(_encode("2001:db8:122:344::/64", PUBLIC_V4)) == PUBLIC_V4
 

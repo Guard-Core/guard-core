@@ -10,19 +10,16 @@ GLOBS = ["/static/*", "/static/**", "/h*", "/health?x=1", "/a#frag"]
 
 @pytest.mark.parametrize("entry", GLOBS)
 class TestGlobEntry:
-    def test_unset_flag_warns_that_the_entry_excludes_nothing(
-        self, entry: str, caplog: pytest.LogCaptureFixture
+    def test_unset_flag_refuses_an_entry_that_excludes_nothing(
+        self, entry: str
     ) -> None:
-        with caplog.at_level(logging.WARNING, logger="guard_core"):
-            with pytest.warns(DeprecationWarning) as caught:
-                config = SecurityConfig(enable_redis=False, exclude_paths=[entry])
+        with pytest.raises(ValueError) as caught:
+            SecurityConfig(enable_redis=False, exclude_paths=[entry])
 
-        message = str(caught[0].message)
+        message = str(caught.value)
         assert f"exclude_paths entry {entry!r}" in message
         assert "excludes nothing" in message
-        assert "fail_on_misconfiguration is not set" in message
-        assert any(repr(entry) in r.getMessage() for r in caplog.records)
-        assert config.exclude_paths == [entry]
+        assert "fail_on_misconfiguration=False" in message
 
     def test_true_raises(self, entry: str) -> None:
         with pytest.raises(ValueError, match="excludes nothing"):
@@ -30,21 +27,33 @@ class TestGlobEntry:
                 enable_redis=False, exclude_paths=[entry], fail_on_misconfiguration=True
             )
 
-    def test_false_warns_without_the_not_set_part(self, entry: str) -> None:
-        with pytest.warns(DeprecationWarning, match="keeps starting") as caught:
-            SecurityConfig(
-                enable_redis=False,
-                exclude_paths=[entry],
-                fail_on_misconfiguration=False,
-            )
-        assert "is not set" not in str(caught[0].message)
+    def test_false_logs_one_warning_and_starts(
+        self, entry: str, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        with caplog.at_level(logging.WARNING, logger="guard_core"):
+            with warnings.catch_warnings():
+                warnings.simplefilter("error")
+                config = SecurityConfig(
+                    enable_redis=False,
+                    exclude_paths=[entry],
+                    fail_on_misconfiguration=False,
+                )
+
+        messages = [r.getMessage() for r in caplog.records if repr(entry) in r.message]
+        assert len(messages) == 1
+        assert "keeps starting" in messages[0]
+        assert config.exclude_paths == [entry]
 
 
-def test_each_glob_entry_is_reported_once() -> None:
-    with pytest.warns(DeprecationWarning) as caught:
-        SecurityConfig(enable_redis=False, exclude_paths=["/a/*", "/B", "/ok", "/c?"])
+def test_each_glob_entry_is_reported_once(caplog: pytest.LogCaptureFixture) -> None:
+    with caplog.at_level(logging.WARNING, logger="guard_core"):
+        SecurityConfig(
+            enable_redis=False,
+            fail_on_misconfiguration=False,
+            exclude_paths=["/a/*", "/B", "/ok", "/c?"],
+        )
 
-    assert len(caught) == 2
+    assert len([r for r in caplog.records if "is not a glob" in r.message]) == 2
 
 
 def test_literal_entries_never_warn_even_with_upper_case() -> None:

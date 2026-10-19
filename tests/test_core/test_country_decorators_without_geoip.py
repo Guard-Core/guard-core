@@ -1,3 +1,4 @@
+import logging
 import warnings
 from collections.abc import Callable
 from typing import Any
@@ -32,19 +33,19 @@ COUNTRY_DECORATORS: list[Callable[[SecurityDecorator], Any]] = [
 
 @pytest.mark.parametrize("make", COUNTRY_DECORATORS)
 class TestCountryDecoratorWithoutGeoIp:
-    async def test_unset_flag_warns_naming_the_route(
+    async def test_unset_flag_refuses_naming_the_route(
         self, make: Callable[[SecurityDecorator], Any]
     ) -> None:
         config, decorator, route_id = _decorated(make)
         initializer = HandlerInitializer(config, guard_decorator=decorator)
 
-        with pytest.warns(DeprecationWarning) as caught:
+        with pytest.raises(ValueError) as caught:
             await initializer.initialize_redis_handlers()
 
-        message = str(caught[0].message)
+        message = str(caught.value)
         assert route_id in message
         assert "no GeoIP database" in message
-        assert "fail_on_misconfiguration is not set" in message
+        assert "fail_on_misconfiguration=False" in message
 
     async def test_true_raises_at_startup(
         self, make: Callable[[SecurityDecorator], Any]
@@ -55,16 +56,22 @@ class TestCountryDecoratorWithoutGeoIp:
         with pytest.raises(ValueError, match="no GeoIP database"):
             await initializer.initialize_redis_handlers()
 
-    async def test_false_warns_without_the_not_set_part(
-        self, make: Callable[[SecurityDecorator], Any]
+    async def test_false_logs_one_warning_and_starts(
+        self,
+        make: Callable[[SecurityDecorator], Any],
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         config, decorator, _ = _decorated(make, fail_on_misconfiguration=False)
         initializer = HandlerInitializer(config, guard_decorator=decorator)
 
-        with pytest.warns(DeprecationWarning, match="keeps starting") as caught:
-            await initializer.initialize_redis_handlers()
+        with caplog.at_level(logging.WARNING, logger="guard_core"):
+            with warnings.catch_warnings():
+                warnings.simplefilter("error")
+                await initializer.initialize_redis_handlers()
 
-        assert "is not set" not in str(caught[0].message)
+        messages = [r.getMessage() for r in caplog.records if "GeoIP" in r.message]
+        assert len(messages) == 1
+        assert "keeps starting" in messages[0]
 
     async def test_a_geoip_handler_means_no_report(
         self, make: Callable[[SecurityDecorator], Any]
@@ -99,12 +106,17 @@ async def test_other_decorators_and_no_decorator_never_report() -> None:
         await HandlerInitializer(config).initialize_redis_handlers()
 
 
-async def test_the_report_names_the_decorator_in_use() -> None:
-    config, decorator, _ = _decorated(lambda d: d.geo_rate_limit({"*": (5, 60)}))
+async def test_the_report_names_the_decorator_in_use(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    config, decorator, _ = _decorated(
+        lambda d: d.geo_rate_limit({"*": (5, 60)}), fail_on_misconfiguration=False
+    )
 
-    with pytest.warns(DeprecationWarning, match="geo_rate_limit") as caught:
+    with caplog.at_level(logging.WARNING, logger="guard_core"):
         await HandlerInitializer(
             config, guard_decorator=decorator
         ).initialize_redis_handlers()
 
-    assert "block_countries" not in str(caught[0].message)
+    assert "geo_rate_limit" in caplog.text
+    assert "block_countries" not in caplog.text

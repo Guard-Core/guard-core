@@ -1,3 +1,4 @@
+import logging
 import os
 import uuid
 import warnings
@@ -59,19 +60,28 @@ def test_a_worker_with_the_same_prefix_length_starts_silently(
 
 
 def test_a_different_prefix_length_warns_and_names_the_key_and_the_steps(
-    live_redis: RedisManager,
+    live_redis: RedisManager, caplog: pytest.LogCaptureFixture
 ) -> None:
     _worker(64).initialize_redis(live_redis)
 
-    with pytest.warns(DeprecationWarning) as caught:
-        _worker(56).initialize_redis(live_redis)
+    with caplog.at_level(logging.WARNING):
+        _worker(56, fail_on_misconfiguration=False).initialize_redis(live_redis)
 
-    message = str(caught[0].message)
+    message = caplog.text
     assert "ipv6_prefix_length" in message
     assert "config:ipv6_prefix_length" in message
     assert "56" in message and "64" in message
     assert "stop all workers" in message
     assert "redis_prefix" in message
+
+
+def test_a_different_prefix_length_is_fatal_by_default(
+    live_redis: RedisManager,
+) -> None:
+    _worker(64).initialize_redis(live_redis)
+
+    with pytest.raises(ValueError, match="config:ipv6_prefix_length"):
+        _worker(56).initialize_redis(live_redis)
 
 
 def test_a_different_prefix_length_is_fatal_under_the_misconfiguration_flag(
@@ -88,7 +98,6 @@ def test_the_recorded_value_is_kept_when_a_second_worker_disagrees(
 ) -> None:
     _worker(64).initialize_redis(live_redis)
 
-    with pytest.warns(DeprecationWarning):
-        _worker(56).initialize_redis(live_redis)
+    _worker(56, fail_on_misconfiguration=False).initialize_redis(live_redis)
 
     assert live_redis.get_key("config", "ipv6_prefix_length") == "64"

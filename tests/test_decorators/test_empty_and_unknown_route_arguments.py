@@ -38,21 +38,15 @@ EMPTY_LISTS: list[tuple[str, Callable[[SecurityDecorator], Any], str]] = [
 
 @pytest.mark.parametrize(("name", "make", "problem"), EMPTY_LISTS)
 class TestEmptyAllowList:
-    def test_unset_flag_warns_and_logs_the_misconfiguration(
-        self,
-        name: str,
-        make: Callable[[SecurityDecorator], Any],
-        problem: str,
-        caplog: pytest.LogCaptureFixture,
+    def test_unset_flag_refuses_naming_the_problem_and_the_old_value(
+        self, name: str, make: Callable[[SecurityDecorator], Any], problem: str
     ) -> None:
-        with caplog.at_level(logging.WARNING, logger="guard_core"):
-            with pytest.warns(DeprecationWarning) as caught:
-                _decorate(_decorator(), make)
+        with pytest.raises(ValueError) as caught:
+            _decorate(_decorator(), make)
 
-        message = str(caught[0].message)
+        message = str(caught.value)
         assert problem in message
-        assert "fail_on_misconfiguration is not set" in message
-        assert any(problem in record.getMessage() for record in caplog.records)
+        assert "fail_on_misconfiguration=False" in message
 
     def test_true_raises_before_the_route_config_is_touched(
         self, name: str, make: Callable[[SecurityDecorator], Any], problem: str
@@ -64,20 +58,27 @@ class TestEmptyAllowList:
 
         assert decorator._route_configs == {}
 
-    def test_false_warns_without_the_not_set_part(
-        self, name: str, make: Callable[[SecurityDecorator], Any], problem: str
+    def test_false_logs_one_warning_and_starts(
+        self,
+        name: str,
+        make: Callable[[SecurityDecorator], Any],
+        problem: str,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
-        with pytest.warns(DeprecationWarning, match="keeps starting") as caught:
-            _decorate(_decorator(fail_on_misconfiguration=False), make)
+        with caplog.at_level(logging.WARNING, logger="guard_core"):
+            with warnings.catch_warnings():
+                warnings.simplefilter("error")
+                _decorate(_decorator(fail_on_misconfiguration=False), make)
 
-        assert "is not set" not in str(caught[0].message)
+        messages = [r.getMessage() for r in caplog.records if problem in r.message]
+        assert len(messages) == 1
+        assert "keeps starting" in messages[0]
 
 
 def test_empty_whitelist_still_applies_no_restriction_when_only_warned() -> None:
     decorator = _decorator(fail_on_misconfiguration=False)
 
-    with pytest.warns(DeprecationWarning):
-        route = _decorate(decorator, lambda d: d.require_ip(whitelist=[]))
+    route = _decorate(decorator, lambda d: d.require_ip(whitelist=[]))
 
     route_config = decorator.get_route_config(route._guard_route_id)
     assert route_config is not None
@@ -103,18 +104,23 @@ def test_a_non_empty_or_unrelated_argument_never_warns(
 
 
 class TestUnknownCloudProvider:
-    def test_unset_flag_warns_naming_the_unknown_provider(
+    def test_unset_flag_refuses_naming_the_unknown_provider(self) -> None:
+        with pytest.raises(ValueError) as caught:
+            _decorate(_decorator(), lambda d: d.block_clouds(["AWS", "Bogus"]))
+
+        message = str(caught.value)
+        assert "ignored unknown cloud providers ['Bogus']" in message
+        assert "fail_on_misconfiguration=False" in message
+
+    def test_false_filters_the_unknown_provider_and_logs_it(
         self, caplog: pytest.LogCaptureFixture
     ) -> None:
-        decorator = _decorator()
+        decorator = _decorator(fail_on_misconfiguration=False)
 
         with caplog.at_level(logging.WARNING, logger="guard_core"):
-            with pytest.warns(DeprecationWarning) as caught:
-                route = _decorate(decorator, lambda d: d.block_clouds(["AWS", "Bogus"]))
+            route = _decorate(decorator, lambda d: d.block_clouds(["AWS", "Bogus"]))
 
-        message = str(caught[0].message)
-        assert "ignored unknown cloud providers ['Bogus']" in message
-        assert "fail_on_misconfiguration is not set" in message
+        assert "ignored unknown cloud providers ['Bogus']" in caplog.text
         route_config = decorator.get_route_config(route._guard_route_id)
         assert route_config is not None
         assert route_config.block_cloud_providers == {"AWS"}
@@ -127,11 +133,15 @@ class TestUnknownCloudProvider:
 
         assert decorator._route_configs == {}
 
-    def test_every_provider_unknown_is_reported(self) -> None:
+    def test_every_provider_unknown_is_reported(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
         decorator = _decorator(fail_on_misconfiguration=False)
 
-        with pytest.warns(DeprecationWarning, match="'aws-typo'"):
+        with caplog.at_level(logging.WARNING, logger="guard_core"):
             _decorate(decorator, lambda d: d.block_clouds(["aws-typo"]))
+
+        assert "'aws-typo'" in caplog.text
 
     @pytest.mark.parametrize(
         ("given", "stored"),

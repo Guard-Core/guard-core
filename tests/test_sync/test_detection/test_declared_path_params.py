@@ -1,4 +1,5 @@
 import logging
+import warnings
 from collections.abc import Callable
 from typing import Any, cast
 from unittest.mock import MagicMock
@@ -288,10 +289,8 @@ def test_a_root_capture_warns_when_the_flag_is_off(
     check = _check(SecurityConfig(enable_redis=False, fail_on_misconfiguration=False))
     request = _request("/{path:path}", {"path"})
 
-    with (
-        caplog.at_level(logging.WARNING),
-        pytest.warns(DeprecationWarning, match="no literal segment before it"),
-    ):
+    with caplog.at_level(logging.WARNING), warnings.catch_warnings():
+        warnings.simplefilter("error")
         assert check.check(request) is None
         assert check.check(request) is None
 

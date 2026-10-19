@@ -35,8 +35,10 @@ def test_true_excludes_every_request_like_the_slash_entry(path: str) -> None:
     request = SyncMockGuardRequest(path=path)
 
     assert _validator(config).is_path_excluded(request) is True
-    with pytest.warns(UserWarning), pytest.warns(DeprecationWarning):
-        slash = SecurityConfig(enable_redis=False, exclude_paths=["/"])
+    with pytest.warns(UserWarning):
+        slash = SecurityConfig(
+            enable_redis=False, exclude_paths=["/"], fail_on_misconfiguration=False
+        )
     assert _validator(slash).is_path_excluded(request) is True
 
 
@@ -86,14 +88,19 @@ def test_false_never_warns() -> None:
         )
 
 
-def test_the_slash_entry_message_points_to_the_field() -> None:
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        SecurityConfig(enable_redis=False, exclude_paths=["/"])
+def test_the_slash_entry_message_points_to_the_field(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level("WARNING", logger="guard_core"):
+        with pytest.warns(UserWarning):
+            SecurityConfig(
+                enable_redis=False,
+                exclude_paths=["/"],
+                fail_on_misconfiguration=False,
+            )
 
-    texts = [str(w.message) for w in caught if w.category is DeprecationWarning]
     assert any(
         "will make '/' cover only the root page. Use exclude_all_paths=True to keep "
-        "this." in text
-        for text in texts
+        "this." in record.getMessage()
+        for record in caplog.records
     )
