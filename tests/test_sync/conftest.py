@@ -3,6 +3,8 @@ import os
 import re
 import secrets
 import sys
+import threading
+import time
 import uuid
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
@@ -210,6 +212,15 @@ def _reset_cloud_handler() -> None:
     cloud_handler._empty_ranges_warned_at = {}
     cloud_handler._corrupt_cache_warned_at.clear()
     _cloud_module._APP_CLOUD_MANAGERS.forget_default()
+
+
+def _cancel_staleness_timers() -> None:
+    for thread in threading.enumerate():
+        if (
+            isinstance(thread, threading.Timer)
+            and thread.function.__name__ == "_mark_refresh_due"
+        ):
+            thread.cancel()
 
 
 def _reset_ipinfo_manager() -> None:
@@ -461,10 +472,35 @@ def pytest_runtest_teardown(item: pytest.Item) -> None:
     _reset_detection_scan_budgets()
     _reset_security_headers_manager()
     _reset_dynamic_rule_manager()
+    _cancel_staleness_timers()
 
     snapshot = _detection_singleton_snapshots.pop(id(item), None)
     if snapshot is not None:
         _restore_detection_singleton(snapshot)
+
+
+_GEO_THREAD_GRACE_SECONDS = 12.0
+
+
+@pytest.fixture(autouse=True)
+def _geo_tests_leave_no_thread_behind(
+    request: pytest.FixtureRequest,
+) -> Generator[None, None, None]:
+    """A forked child of a process with live threads is how run 1 of the WP22
+    round 4 gates died; every geo test ends the threads it started."""
+    if not request.path.name.startswith("test_geo_"):
+        yield
+        return
+    before = set(threading.enumerate())
+    yield
+    deadline = time.monotonic() + _GEO_THREAD_GRACE_SECONDS
+    left: list[str] = []
+    while time.monotonic() < deadline:
+        left = [t.name for t in threading.enumerate() if t not in before]
+        if not left:
+            return
+        time.sleep(0.02)
+    pytest.fail(f"threads still alive after the test: {left}")
 
 
 @pytest.fixture

@@ -193,6 +193,7 @@ def _blackhole_addresses(
 ) -> Iterator[None]:
     real_getaddrinfo = socket.getaddrinfo
     real_connect = socket.socket.connect
+    test_is_over = threading.Event()
 
     def getaddrinfo(host: Any, port: Any, *args: Any, **kwargs: Any) -> Any:
         if host != UNRESOLVABLE:
@@ -205,12 +206,15 @@ def _blackhole_addresses(
     def connect(sock: socket.socket, address: Any) -> None:
         if address[0] not in addresses:
             return real_connect(sock, address)
-        time.sleep(sock.gettimeout() or 0)
+        test_is_over.wait(sock.gettimeout() or 0)
         raise TimeoutError("timed out")
 
     monkeypatch.setattr(socket, "getaddrinfo", getaddrinfo)
     monkeypatch.setattr(socket.socket, "connect", connect)
-    yield
+    try:
+        yield
+    finally:
+        test_is_over.set()
 
 
 def test_blackhole_addresses_with_a_larger_connect_bound_end_at_the_total_bound(

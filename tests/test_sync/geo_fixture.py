@@ -38,6 +38,8 @@ class GeoDownloadServer:
         self._listener.settimeout(0.1)
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._accept_loop, daemon=True)
+        self._serving: list[threading.Thread] = []
+        self._streams: list[Any] = []
         self.attempts = 0
 
     @property
@@ -52,6 +54,14 @@ class GeoDownloadServer:
         self._stop.set()
         self._thread.join(timeout=2)
         self._listener.close()
+        for stream in self._streams:
+            try:
+                stream.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                continue
+        for thread in self._serving:
+            thread.join(timeout=2)
+        assert not [t for t in self._serving if t.is_alive()], "a stub thread outlived"
 
     def _accept_loop(self) -> None:
         while not self._stop.is_set():
@@ -61,16 +71,20 @@ class GeoDownloadServer:
                 continue
             attempt = self.attempts
             self.attempts += 1
-            threading.Thread(
+            serving = threading.Thread(
                 target=self._serve, args=(conn, attempt), daemon=True
-            ).start()
+            )
+            self._serving.append(serving)
+            serving.start()
 
     def _serve(self, conn: socket.socket, attempt: int) -> None:
         try:
             conn.settimeout(self.HOLD_SECONDS)
+            self._streams.append(conn)
             stream = (
                 self._tls.wrap_socket(conn, server_side=True) if self._tls else conn
             )
+            self._streams.append(stream)
             with stream:
                 if self._read_request:
                     read_request(stream)
@@ -90,11 +104,22 @@ class Stream(Protocol):
 def read_request(conn: Stream) -> None:
     request = b""
     while b"\r\n\r\n" not in request:
-        request += conn.recv(4096)
+        if not (data := conn.recv(4096)):
+            raise OSError("the peer closed before the request was complete")
+        request += data
+
+
+def hold_until_the_peer_ends(conn: Stream) -> None:
+    """Keeps the connection open and silent until the peer or the server closes it."""
+    try:
+        while conn.recv(4096):
+            continue
+    except OSError:
+        return
 
 
 def _hold_silently(conn: socket.socket, attempt: int) -> None:
-    time.sleep(GeoDownloadServer.HOLD_SECONDS)
+    hold_until_the_peer_ends(conn)
 
 
 def _headers(length: int) -> bytes:
@@ -132,7 +157,7 @@ def stalls_once_server() -> GeoDownloadServer:
 
     def behavior(conn: socket.socket, attempt: int) -> None:
         if attempt == 0:
-            time.sleep(GeoDownloadServer.HOLD_SECONDS)
+            hold_until_the_peer_ends(conn)
             return
         conn.sendall(_headers(len(body)) + body)
 
@@ -191,7 +216,7 @@ def declared_length_server(declared: int, sent: int) -> GeoDownloadServer:
 
     def behavior(conn: socket.socket, attempt: int) -> None:
         conn.sendall(_headers(declared) + b"x" * sent)
-        time.sleep(GeoDownloadServer.HOLD_SECONDS)
+        hold_until_the_peer_ends(conn)
 
     return GeoDownloadServer(behavior)
 
@@ -261,7 +286,7 @@ def _stall(conn: Stream, kind: str, keep_alive: bool) -> None:
         unit = DEFLATE_EMPTY_STORED_BLOCK
     elif kind == "idle":
         conn.sendall(sized + b"\r\nx")
-        time.sleep(GeoDownloadServer.HOLD_SECONDS)
+        hold_until_the_peer_ends(conn)
         return
     else:
         conn.sendall(sized + b"\r\n")
@@ -285,7 +310,7 @@ def close_delimited_prefix_server() -> GeoDownloadServer:
 
     def behavior(conn: socket.socket, attempt: int) -> None:
         conn.sendall(b"HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n" + body[:-1])
-        time.sleep(GeoDownloadServer.HOLD_SECONDS)
+        hold_until_the_peer_ends(conn)
 
     return GeoDownloadServer(behavior)
 
