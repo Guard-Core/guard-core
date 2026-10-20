@@ -247,13 +247,15 @@ def test_a_socket_that_connects_after_the_cut_is_shut_down_at_once() -> None:
 def test_a_download_that_finishes_before_the_total_leaves_no_timer_running(
     tmp_path: Path,
 ) -> None:
+    timers_before = {t for t in threading.enumerate() if isinstance(t, threading.Timer)}
     with trickling_server(gap=0.05, pieces=3) as server:
         manager = _manager(server.url, tmp_path)
         manager._fetch_and_store_database()
 
     time.sleep(TOTAL_BOUND + 0.2)
     assert manager.db_path.exists()
-    assert not [t for t in threading.enumerate() if isinstance(t, threading.Timer)]
+    timers_after = {t for t in threading.enumerate() if isinstance(t, threading.Timer)}
+    assert timers_after - timers_before == set()
 
 
 def test_each_attempt_uses_a_fresh_session_and_the_retry_gets_the_full_idle_bound(
