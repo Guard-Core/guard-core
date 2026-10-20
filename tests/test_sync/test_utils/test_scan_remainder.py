@@ -372,3 +372,9 @@ def test_a_unit_longer_than_the_unit_pass_limit_is_covered_by_the_block() -> Non
 def test_a_whole_base64_value_after_the_cut_is_decoded_like_in_the_walk() -> None:
     encoded = "U0VMRUNUIHBhc3N3b3JkIEZST00gdXNlcnMgV0hFUkUgaWQ9MQ=="
     assert (_threat(_query({**_JUNK, "b": encoded}))).is_threat is True
+
+
+def test_the_unit_pass_stops_at_its_scan_limit() -> None:
+    params = {f"p{i}": f"value%41{i}" for i in range(700)}
+    result = _threat(_query(params))
+    assert result.is_threat is False

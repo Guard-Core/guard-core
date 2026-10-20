@@ -449,6 +449,31 @@ def _remainder_preview(
     return LazyPreview(build)
 
 
+_UNIT_PASS_MAX_SCANS = 256
+_UNIT_NEEDS_DECODING_RE = re.compile(r"[%&\\\x80-\U0010ffff]")
+
+
+async def _whole_value_rows() -> list[re.Pattern]:
+    from guard_core.handlers._suspatterns_regex import _row_needs_the_whole_value
+    from guard_core.handlers.suspatterns_handler import sus_patterns_handler
+
+    return [
+        pattern
+        for pattern, _contexts, _category in (
+            await sus_patterns_handler.get_all_compiled_patterns()
+        )
+        if _row_needs_the_whole_value(pattern.pattern)
+    ]
+
+
+def _unit_needs_its_own_scan(unit: str, rows: list[re.Pattern]) -> bool:
+    return (
+        _UNIT_NEEDS_DECODING_RE.search(unit) is not None
+        or _WHOLE_BASE64_RE.fullmatch(unit) is not None
+        or any(row.search(unit) for row in rows)
+    )
+
+
 async def _scan_whole_value_rows_per_unit(
     skipped: list[_Skipped],
     context: str,
@@ -459,10 +484,17 @@ async def _scan_whole_value_rows_per_unit(
     log_level: str | None,
     preview_of: Callable[[str], str | None],
 ) -> tuple[bool, str, list[dict]]:
+    rows = await _whole_value_rows()
+    scans_left = _UNIT_PASS_MAX_SCANS
     for _piece, sensitive, units in skipped:
         for unit in units:
-            if len(unit) > _UNIT_PASS_MAX_CHARS:
+            if len(unit) > _UNIT_PASS_MAX_CHARS or not _unit_needs_its_own_scan(
+                unit, rows
+            ):
                 continue
+            if scans_left == 0:
+                return False, "", []
+            scans_left -= 1
             with _fresh_value_budget(), _unit_scan_mode(unit):
                 detected, trigger, threats = await _check_request_component(
                     unit,
