@@ -1,3 +1,4 @@
+import gzip
 import socket
 import ssl
 import subprocess
@@ -139,6 +140,61 @@ def endless_server(gap: float) -> GeoDownloadServer:
         while time.monotonic() < deadline:
             conn.sendall(b"x" * 16)
             time.sleep(gap)
+
+    return GeoDownloadServer(behavior)
+
+
+def _chunked(data: bytes) -> bytes:
+    return f"{len(data):x}\r\n".encode() + data + b"\r\n"
+
+
+def fast_endless_server(chunked: bool) -> GeoDownloadServer:
+    """Sends a body that never ends, as fast as the client reads it."""
+    head = b"HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\n"
+    piece = b"x" * 65536
+    if chunked:
+        head += b"Transfer-Encoding: chunked\r\n\r\n"
+        piece = _chunked(piece)
+    else:
+        head += b"Connection: close\r\n\r\n"
+
+    def behavior(conn: socket.socket, attempt: int) -> None:
+        conn.sendall(head)
+        deadline = time.monotonic() + GeoDownloadServer.HOLD_SECONDS
+        while time.monotonic() < deadline:
+            conn.sendall(piece)
+
+    return GeoDownloadServer(behavior)
+
+
+def gzip_inflating_server(inflated: int) -> GeoDownloadServer:
+    """A small, complete gzip body whose decoded size is `inflated` bytes."""
+    body = gzip.compress(b"\0" * inflated, compresslevel=9)
+
+    def behavior(conn: socket.socket, attempt: int) -> None:
+        conn.sendall(
+            _headers(len(body)).replace(
+                b"Content-Type", b"Content-Encoding: gzip\r\nContent-Type"
+            )
+            + body
+        )
+
+    return GeoDownloadServer(behavior)
+
+
+def declared_length_server(declared: int, sent: int) -> GeoDownloadServer:
+    """Declares `declared` bytes, then sends only `sent` of them and holds."""
+
+    def behavior(conn: socket.socket, attempt: int) -> None:
+        conn.sendall(_headers(declared) + b"x" * sent)
+        time.sleep(GeoDownloadServer.HOLD_SECONDS)
+
+    return GeoDownloadServer(behavior)
+
+
+def database_server(body: bytes) -> GeoDownloadServer:
+    def behavior(conn: socket.socket, attempt: int) -> None:
+        conn.sendall(_headers(len(body)) + body)
 
     return GeoDownloadServer(behavior)
 
