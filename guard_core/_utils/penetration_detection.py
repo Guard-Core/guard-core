@@ -269,32 +269,35 @@ async def detect_penetration_attempt(
             semantic_excluded_headers,
         ),
     ):
-        surface_hit = await _scan_request_surface(
-            request,
-            excluded_params,
-            excluded_headers,
-            enabled_categories,
-            client_ip,
-            correlation_id,
-            log_level,
-            sensitive_headers,
-            sensitive_params,
-            sensitive_body_fields,
-            frozenset(excluded_body_fields),
-            operator_excluded_headers,
-        )
-        if surface_hit is not None:
-            return surface_hit
+        try:
+            surface_hit = await _scan_request_surface(
+                request,
+                excluded_params,
+                excluded_headers,
+                enabled_categories,
+                client_ip,
+                correlation_id,
+                log_level,
+                sensitive_headers,
+                sensitive_params,
+                sensitive_body_fields,
+                frozenset(excluded_body_fields),
+                operator_excluded_headers,
+            )
+            if surface_hit is not None:
+                return surface_hit
 
-        return await _scan_body_surface(
-            request,
-            config,
-            route_config,
-            excluded_body_fields,
-            enabled_categories,
-            client_ip,
-            correlation_id,
-            log_level,
-            sensitive_body_fields,
-            sensitive_params,
-        )
+            return await _scan_body_surface(
+                request,
+                config,
+                route_config,
+                excluded_body_fields,
+                enabled_categories,
+                client_ip,
+                correlation_id,
+                log_level,
+                sensitive_body_fields,
+                sensitive_params,
+            )
+        except BodyReadFailedError as error:
+            return _build_body_read_error(False, error.detail)

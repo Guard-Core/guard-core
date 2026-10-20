@@ -15,6 +15,7 @@ from guard_core._utils.detection_config import (
 )
 from guard_core._utils.logging_utils import _log_at_level, _sanitize_for_reporting
 from guard_core._utils.pattern_source_redaction import _redact_pattern_source
+from guard_core.exceptions import BodyReadFailedError
 
 logger = logging.getLogger("guard_core")
 
@@ -437,9 +438,21 @@ async def _scan_surface_remainder(
                 scan_embedded_json=False,
                 content_preview=_remainder_preview(pieces, separator, preview_of),
             )
+        if detected and _only_the_time_budget_ended(threats):
+            raise BodyReadFailedError(
+                f"the scan time budget ended before the {component_name.lower()} "
+                "were scanned"
+            )
         if detected:
             return True, f"{component_name}: {trigger}", threats
     return False, "", []
+
+
+def _only_the_time_budget_ended(threats: list[dict]) -> bool:
+    return bool(threats) and all(
+        threat.get("pattern") == _SCAN_TIME_BUDGET_EXHAUSTED_PATTERN
+        for threat in threats
+    )
 
 
 def _json_depth_cap_value() -> int:
