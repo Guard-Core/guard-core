@@ -6,7 +6,7 @@ import sys
 import threading
 import time
 import weakref
-from collections.abc import Generator, Iterator
+from collections.abc import Callable, Generator, Iterator
 from contextlib import AbstractContextManager, ExitStack, contextmanager
 from pathlib import Path
 from types import SimpleNamespace
@@ -14,7 +14,7 @@ from typing import Any, cast
 
 import OpenSSL.SSL
 import pytest
-from urllib3.connection import HTTPConnection
+from urllib3.connection import HTTPConnection, HTTPSConnection
 from urllib3.connectionpool import HTTPConnectionPool
 from urllib3.contrib.pyopenssl import WrappedSocket
 from urllib3.util.ssltransport import SSLTransport
@@ -410,6 +410,27 @@ def socket_closes(
     yield foreign
 
 
+UNWIND_SECONDS = 0.3
+
+
+def _make_the_setup_worker_unwind_slowly(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The worker still holds its socket when urllib3's error path closes it."""
+
+    def slowly(connect: Callable[[Any], None]) -> Callable[[Any], None]:
+        def connecting(connection: Any) -> None:
+            try:
+                connect(connection)
+            finally:
+                time.sleep(UNWIND_SECONDS)
+
+        return connecting
+
+    for connection_class in (HTTPConnection, HTTPSConnection):
+        monkeypatch.setattr(
+            connection_class, "connect", slowly(connection_class.connect)
+        )
+
+
 @pytest.mark.parametrize(
     "cell", ["http-tunnel", "https-tunnel", "https-handshake", "blackholes"]
 )
@@ -424,6 +445,7 @@ def test_no_socket_is_closed_by_another_thread_while_its_setup_worker_lives(
     monkeypatch.setattr(
         sys, "unraisablehook", lambda args: unraisable.append(str(args.exc_value))
     )
+    _make_the_setup_worker_unwind_slowly(monkeypatch)
     monkeypatch.setattr(
         IPInfoManager,
         "_download_connect_timeout",
