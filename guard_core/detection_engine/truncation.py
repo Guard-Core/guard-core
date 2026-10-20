@@ -19,6 +19,53 @@ def reusing_attack_regions() -> Iterator[None]:
         _attack_region_memo.reset(token)
 
 
+def _find_regions(pattern: Any, text: str, max_regions: int) -> list[tuple[int, int]]:
+    found: list[tuple[int, int]] = []
+    for match in pattern.finditer(text):
+        if len(found) >= max_regions:
+            break
+        start = max(0, match.start() - 100)
+        end = min(len(text), match.end() + 100)
+        found.append((start, end))
+    return found
+
+
+def _collect_regions(
+    preprocessor: Any, content: str, max_regions: int
+) -> tuple[list[tuple[int, int]], bool]:
+    import concurrent.futures
+
+    regions: list[tuple[int, int]] = []
+    complete = True
+    for indicator in preprocessor.compiled_indicators:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(_find_regions, indicator, content, max_regions)
+            try:
+                regions.extend(future.result(timeout=0.5))
+            except concurrent.futures.TimeoutError:
+                complete = False
+                continue
+
+        if len(regions) >= max_regions:
+            break
+    return regions, complete
+
+
+def _merge_regions(
+    regions: list[tuple[int, int]], max_regions: int
+) -> list[tuple[int, int]]:
+    if not regions:
+        return []
+    regions.sort()
+    merged = [regions[0]]
+    for start, end in regions[1:]:
+        if start <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+    return merged[:max_regions]
+
+
 def extract_attack_regions(preprocessor: Any, content: str) -> list[tuple[int, int]]:
     max_regions = min(100, preprocessor.max_content_length // 100)
     memo = _attack_region_memo.get()
@@ -26,45 +73,8 @@ def extract_attack_regions(preprocessor: Any, content: str) -> list[tuple[int, i
     key = (max_regions, indicators, content)
     if memo is not None and key in memo:
         return list(memo[key])
-    regions: list[tuple[int, int]] = []
-    complete = True
-
-    for indicator in preprocessor.compiled_indicators:
-        import concurrent.futures
-
-        def _find_all(pattern: Any, text: str) -> list[tuple[int, int]]:
-            found: list[tuple[int, int]] = []
-            for match in pattern.finditer(text):
-                if len(found) >= max_regions:
-                    break
-                start = max(0, match.start() - 100)
-                end = min(len(text), match.end() + 100)
-                found.append((start, end))
-            return found
-
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(_find_all, indicator, content)
-            try:
-                indicator_regions = future.result(timeout=0.5)
-                regions.extend(indicator_regions)
-            except concurrent.futures.TimeoutError:
-                complete = False
-                continue
-
-        if len(regions) >= max_regions:
-            break
-
-    if regions:
-        regions.sort()
-        merged = [regions[0]]
-        for start, end in regions[1:]:
-            if start <= merged[-1][1]:
-                merged[-1] = (merged[-1][0], max(merged[-1][1], end))
-            else:
-                merged.append((start, end))
-        merged = merged[:max_regions]
-    else:
-        merged = []
+    regions, complete = _collect_regions(preprocessor, content, max_regions)
+    merged = _merge_regions(regions, max_regions)
     if memo is not None and complete:
         memo[key] = merged
     return list(merged)

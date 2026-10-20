@@ -104,18 +104,23 @@ def _presence_of(folded_content: str) -> _Presence:
     return entry
 
 
-def rows_with_required_literal(
+def _rows_by_substring(
     rows: list[tuple[re.Pattern, frozenset[str], str]],
     folded_content: str,
     excluded_sources: frozenset[str],
 ) -> Iterator[tuple[re.Pattern, frozenset[str], str]]:
-    if len(folded_content) < _LARGE_CONTENT_CHARS:
-        for row in rows:
-            source = row[0].pattern
-            literals = () if source in excluded_sources else required_literals(source)
-            if not literals or any(literal in folded_content for literal in literals):
-                yield row
-        return
+    for row in rows:
+        source = row[0].pattern
+        literals = () if source in excluded_sources else required_literals(source)
+        if not literals or any(literal in folded_content for literal in literals):
+            yield row
+
+
+def _rows_by_presence(
+    rows: list[tuple[re.Pattern, frozenset[str], str]],
+    folded_content: str,
+    excluded_sources: frozenset[str],
+) -> Iterator[tuple[re.Pattern, frozenset[str], str]]:
     chars, present = _presence_of(folded_content)
     for row in rows:
         source = row[0].pattern
@@ -132,3 +137,13 @@ def rows_with_required_literal(
             if found:
                 yield row
                 break
+
+
+def rows_with_required_literal(
+    rows: list[tuple[re.Pattern, frozenset[str], str]],
+    folded_content: str,
+    excluded_sources: frozenset[str],
+) -> Iterator[tuple[re.Pattern, frozenset[str], str]]:
+    if len(folded_content) < _LARGE_CONTENT_CHARS:
+        return _rows_by_substring(rows, folded_content, excluded_sources)
+    return _rows_by_presence(rows, folded_content, excluded_sources)
