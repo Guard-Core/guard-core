@@ -723,3 +723,16 @@ def test_a_socket_that_another_frame_owns_is_left_open(
         _close_sockets_ssl_create_left_open(error)
 
     assert owned.fileno() != -1
+
+
+def test_a_frame_of_ssl_create_that_never_built_its_socket_is_skipped(
+    open_sockets: ExitStack,
+) -> None:
+    datagram = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    open_sockets.enter_context(datagram)
+    with pytest.raises(NotImplementedError) as failure:
+        ssl.create_default_context().wrap_socket(datagram, server_hostname=HOST)
+
+    _close_sockets_ssl_create_left_open(failure.value)
+
+    assert datagram.fileno() != -1

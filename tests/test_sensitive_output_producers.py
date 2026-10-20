@@ -1303,6 +1303,10 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
     "handlers/_ipinfo_redis_copy.py:IpInfoRedisCopyMixin._release_download_lock": (
         "line 136: GeoIP download lock not released, infra only"
     ),
+    "handlers/_ipinfo_download_cap.py:_reject": (
+        "line 25: the GeoIP download size cap that was hit, with the cap and the "
+        "byte count from the response, infra only"
+    ),
     "handlers/ipinfo_handler.py:IPInfoManager._warn_country_rules_without_database": (
         "line 184: states what country rules do without a GeoIP database, "
         "static text, no request data"
