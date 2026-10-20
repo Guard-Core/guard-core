@@ -23,7 +23,7 @@ from guard_core._utils.detection_scan import (
     _suspended,
     _timed_in_worker,
     _warn_scan_time_cap_reached_once,
-    _whole_value_rows_only_active,
+    _whole_value_rows_only,
 )
 from guard_core.detection_engine.binary_prefix import (
     build_binary_prefix,
@@ -643,7 +643,7 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
             enabled_categories=enabled_categories,
         )
 
-        if _whole_value_rows_only_active():
+        if _whole_value_rows_only.get():
             applicable_patterns = [
                 row
                 for row in applicable_patterns

@@ -182,6 +182,8 @@ _GLOB_WILDCARD_CHAR_RE = re.compile(r"[?*]")
 
 
 def _glob_wildcard_scan_matches(content: str, compiled: re.Pattern) -> list[re.Match]:
+    if "?" not in content and "*" not in content:
+        return []
     matches = []
     for run_match in _GLOB_WILDCARD_PATH_RUN_RE.finditer(content):
         run_start, run_end = run_match.start(), run_match.end()

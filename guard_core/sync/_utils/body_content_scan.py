@@ -34,7 +34,7 @@ from guard_core.sync._utils.detection_scan import (
     _resolve_preview,
     _scan_component_name,
     _scan_surface_remainder,
-    _skipped_values_so_far,
+    _skip_counter,
     _SurfaceRemainder,
     _wire_pair,
 )
@@ -229,13 +229,14 @@ def _scan_query_params(
 ) -> tuple[bool, str, list[dict]]:
     all_enabled_categories = enabled_categories
     remainder = _SurfaceRemainder()
+    skips = _skip_counter()
     for key, value in _query_pairs_with_repeats(request):
         scanned, enabled_categories = _param_scan_categories(
             key, excluded_params, all_enabled_categories
         )
         if not scanned:
             continue
-        skipped_before = _skipped_values_so_far()
+        skipped_before = skips.count
         hit = _scan_query_pair(
             key,
             value,
@@ -250,7 +251,7 @@ def _scan_query_params(
         )
         if hit is not None:
             return hit
-        if _skipped_values_so_far() != skipped_before:
+        if skips.count != skipped_before:
             remainder.add(
                 _wire_pair(key, value),
                 _query_name_is_sensitive(key, sensitive_params, sensitive_headers),
@@ -488,10 +489,11 @@ def _scan_headers(
         for key, value in items
     )
     remainder = _SurfaceRemainder()
+    skips = _skip_counter()
     for key, value in items:
         if key.strip().lower() in operator_excluded_headers:
             continue
-        skipped_before = _skipped_values_so_far()
+        skipped_before = skips.count
         hit = _scan_header_item(
             key,
             value,
@@ -508,7 +510,7 @@ def _scan_headers(
         )
         if hit is not None:
             return hit
-        if _skipped_values_so_far() != skipped_before:
+        if skips.count != skipped_before:
             remainder.add(
                 f"{key}: {value}\r\n",
                 name_is_sensitive(key, sensitive_headers),

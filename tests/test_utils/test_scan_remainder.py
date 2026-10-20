@@ -361,3 +361,14 @@ async def test_a_relative_path_value_after_the_cut_is_not_a_traversal() -> None:
 async def test_a_value_with_ampersand_and_percent_after_the_cut_is_clean() -> None:
     params = {**_JUNK, "a": "fish & chips 100%", "b": "x=1&y=2"}
     assert (await _threat(_query(params))).is_threat is False
+
+
+async def test_a_unit_longer_than_the_unit_pass_limit_is_covered_by_the_block() -> None:
+    params = {**_JUNK, "long": "a " * 700, "zz": ATTACK}
+    result = await _threat(_query(params))
+    assert result.is_threat is True
+
+
+async def test_a_whole_base64_value_after_the_cut_is_decoded_like_in_the_walk() -> None:
+    encoded = "U0VMRUNUIHBhc3N3b3JkIEZST00gdXNlcnMgV0hFUkUgaWQ9MQ=="
+    assert (await _threat(_query({**_JUNK, "b": encoded}))).is_threat is True

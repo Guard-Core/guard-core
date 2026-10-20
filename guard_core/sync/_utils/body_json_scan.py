@@ -7,7 +7,7 @@ from guard_core.sync._utils.detection_scan import (
     _json_depth_cap_value,
     _scan_component_name,
     _scan_surface_remainder,
-    _skipped_values_so_far,
+    _skip_counter,
     _SurfaceRemainder,
     _warn_json_depth_cap_reached_once,
 )
@@ -309,9 +309,10 @@ def _scan_json_value(
         ("value", value, key_label, 1, False)
     ]
     remainder = _SurfaceRemainder()
+    skips = _skip_counter()
     while stack:
         kind, first, second, depth, redact = stack.pop()
-        skipped_before = _skipped_values_so_far()
+        skipped_before = skips.count
         hit = _scan_json_frame(
             kind,
             first,
@@ -333,7 +334,7 @@ def _scan_json_value(
         )
         if hit is not None:
             return hit
-        if _skipped_values_so_far() != skipped_before:
+        if skips.count != skipped_before:
             remainder.add(_json_skipped_text(kind, first), kind != "entry" and redact)
     if not remainder:
         return False, "", []

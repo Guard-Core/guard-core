@@ -81,8 +81,17 @@ def rows_with_required_literal(
     folded_content: str,
     excluded_sources: frozenset[str],
 ) -> Iterator[tuple[re.Pattern, frozenset[str], str]]:
+    present: dict[str, bool] = {}
     for row in rows:
         source = row[0].pattern
         literals = () if source in excluded_sources else required_literals(source)
-        if not literals or any(literal in folded_content for literal in literals):
+        if not literals:
             yield row
+            continue
+        for literal in literals:
+            found = present.get(literal)
+            if found is None:
+                found = present[literal] = literal in folded_content
+            if found:
+                yield row
+                break

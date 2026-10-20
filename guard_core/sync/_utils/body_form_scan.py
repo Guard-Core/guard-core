@@ -5,7 +5,7 @@ from guard_core.sync._utils.detection_scan import (
     _body_remainder_display,
     _scan_component_name,
     _scan_surface_remainder,
-    _skipped_values_so_far,
+    _skip_counter,
     _SurfaceRemainder,
     _wire_pair,
 )
@@ -69,12 +69,13 @@ def _scan_form_body(
     from urllib.parse import parse_qsl
 
     remainder = _SurfaceRemainder()
+    skips = _skip_counter()
     for name, value in parse_qsl(
         raw_body, keep_blank_values=True, errors="surrogateescape"
     ):
         if name.lower() in excluded_body_fields:
             continue
-        skipped_before = _skipped_values_so_far()
+        skipped_before = skips.count
         hit = _scan_form_field(
             name,
             value,
@@ -87,7 +88,7 @@ def _scan_form_body(
         )
         if hit is not None:
             return hit
-        if _skipped_values_so_far() != skipped_before:
+        if skips.count != skipped_before:
             remainder.add(
                 _wire_pair(name, value),
                 name_is_sensitive(name, sensitive_body_fields),
@@ -252,8 +253,9 @@ def _scan_multipart_body(
             force_redacted=True,
         )
     remainder = _SurfaceRemainder()
+    skips = _skip_counter()
     for exclusion_key, label, value in parts:
-        skipped_before = _skipped_values_so_far()
+        skipped_before = skips.count
         hit = _scan_multipart_part(
             exclusion_key,
             label,
@@ -268,7 +270,7 @@ def _scan_multipart_body(
         )
         if hit is not None:
             return hit
-        if _skipped_values_so_far() != skipped_before:
+        if skips.count != skipped_before:
             sensitive = name_is_sensitive(label, sensitive_body_fields)
             remainder.add(label, False)
             remainder.add(value, sensitive)

@@ -19,7 +19,7 @@ from typing import NamedTuple as NamedTuple
 from guard_core.sync._utils.detection_scan import (
     LazyPreview,
     _context_header_is_semantic_excluded,
-    _whole_value_rows_only_active,
+    _whole_value_rows_only,
 )
 from guard_core.sync.detection_engine import (
     ContentPreprocessor,
@@ -971,7 +971,7 @@ class SusPatternsManager(_SusPatternsViewsMixin):
 
         semantic_threats = (
             []
-            if _whole_value_rows_only_active()
+            if _whole_value_rows_only.get()
             else self._semantic_threats_of_views(
                 context, processed_content, dropped_view, original_content, state
             )

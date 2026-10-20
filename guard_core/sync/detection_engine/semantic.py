@@ -12,10 +12,17 @@ _BINARY_CONTENT_RATIO_THRESHOLD = 0.2
 def looks_like_binary_content(content: str) -> bool:
     if not content:
         return False
-    non_text_count = sum(
-        1
-        for ch in content
-        if ch not in "\t\r\n" and (not ch.isprintable() or ch == "�")
+    non_printable = (
+        0
+        if content.isprintable()
+        else len(content) - sum(map(str.isprintable, content))
+    )
+    non_text_count = (
+        non_printable
+        - content.count("\t")
+        - content.count("\r")
+        - content.count("\n")
+        + content.count("�")
     )
     return non_text_count / len(content) >= _BINARY_CONTENT_RATIO_THRESHOLD
 

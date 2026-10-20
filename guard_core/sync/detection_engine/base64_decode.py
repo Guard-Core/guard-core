@@ -42,7 +42,9 @@ def is_hex_literal(token: str) -> bool:
 def printable_ratio(text: str) -> float:
     if not text:
         return 0.0
-    printable_count = sum(1 for char in text if char.isprintable())
+    printable_count = (
+        len(text) if text.isprintable() else sum(map(str.isprintable, text))
+    )
     return printable_count / len(text)
 
 

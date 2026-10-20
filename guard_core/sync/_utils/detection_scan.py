@@ -299,18 +299,30 @@ def _fresh_value_budget() -> Iterator[None]:
         _scanned_char_count.reset(char_token)
 
 
-@contextmanager
-def _budget_that_is_never_spent() -> Iterator[None]:
-    if not _scan_budget_spent():
-        yield
-        return
-    with _fresh_value_budget():
-        yield
+class _BudgetThatIsNeverSpent:
+    """Scans a value outside the budget once the budget is spent."""
+
+    __slots__ = ("_tokens",)
+
+    def __init__(self) -> None:
+        self._tokens: tuple[Any, Any] | None = None
+
+    def __enter__(self) -> None:
+        if _scan_budget_spent():
+            self._tokens = (_scanned_value_count.set(0), _scanned_char_count.set(0))
+
+    def __exit__(self, *_exc: object) -> None:
+        if self._tokens is not None:
+            _scanned_value_count.reset(self._tokens[0])
+            _scanned_char_count.reset(self._tokens[1])
 
 
-def _skipped_values_so_far() -> int:
-    skips = _scan_skips.get()
-    return 0 if skips is None else skips.count
+def _budget_that_is_never_spent() -> _BudgetThatIsNeverSpent:
+    return _BudgetThatIsNeverSpent()
+
+
+def _skip_counter() -> _ScanSkips:
+    return _scan_skips.get() or _ScanSkips()
 
 
 @contextmanager
@@ -322,6 +334,7 @@ def _scanning_whole_value_rows_only() -> Iterator[None]:
         _whole_value_rows_only.reset(token)
 
 
+_UNIT_PASS_MAX_CHARS = 1024
 _WHOLE_BASE64_RE = re.compile(r"[A-Za-z0-9+/_-]{16,}={0,2}")
 
 
@@ -332,10 +345,6 @@ def _unit_scan_mode(unit: str) -> Iterator[None]:
         return
     with _scanning_whole_value_rows_only():
         yield
-
-
-def _whole_value_rows_only_active() -> bool:
-    return _whole_value_rows_only.get()
 
 
 @contextmanager
@@ -452,6 +461,8 @@ def _scan_whole_value_rows_per_unit(
 ) -> tuple[bool, str, list[dict]]:
     for _piece, sensitive, units in skipped:
         for unit in units:
+            if len(unit) > _UNIT_PASS_MAX_CHARS:
+                continue
             with _fresh_value_budget(), _unit_scan_mode(unit):
                 detected, trigger, threats = _check_request_component(
                     unit,
