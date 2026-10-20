@@ -726,13 +726,14 @@ class RateLimitManager:
         attribution: dict[str, Any] | None = None,
     ) -> None:
         if self.agent_handler:
+            attributed = {"attribution": attribution} if attribution else {}
             self._send_rate_limit_event(
                 request,
                 client_ip,
                 block.request_count,
                 config=config,
                 tier=tier,
-                attribution=attribution,
+                **attributed,
             )
 
     def check_rate_limit(
