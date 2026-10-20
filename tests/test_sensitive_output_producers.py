@@ -356,7 +356,7 @@ COVERED_PRODUCERS: dict[str, frozenset[str]] = {
 }
 
 NON_REQUEST_PRODUCERS: dict[str, str] = {
-    "_utils/detection_scan.py:_scan_surface_remainder": (
+    "_utils/scan_remainder.py:_scan_surface_remainder": (
         "logs a fixed surface label ('Remaining query params', 'Remaining "
         "headers', and the other literals the callers pass) and the client IP "
         "the budget warnings already name; no request value is interpolated"

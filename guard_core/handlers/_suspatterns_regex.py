@@ -3,7 +3,7 @@ import logging
 import re
 import time
 from collections.abc import Callable, Iterator
-from functools import lru_cache, partial
+from functools import partial
 from typing import Any
 
 from guard_core._utils.detection_scan import (
@@ -23,7 +23,6 @@ from guard_core._utils.detection_scan import (
     _suspended,
     _timed_in_worker,
     _warn_scan_time_cap_reached_once,
-    _whole_value_rows_only,
 )
 from guard_core.detection_engine.binary_prefix import (
     build_binary_prefix,
@@ -134,6 +133,9 @@ from guard_core.handlers._suspatterns_sources import (
     _source_extension_path_is_probe,
 )
 from guard_core.handlers._suspatterns_state import _DetectionState
+from guard_core.handlers._suspatterns_whole_value_rows import (
+    rows_for_a_whole_value_pass,
+)
 from guard_core.handlers._suspatterns_xml_xxe import (
     _XML_XXE_PUBLIC_EXTERNAL_DTD_COMPILED_RE,
     _xml_xxe_public_external_dtd_finditer,
@@ -354,25 +356,6 @@ def _first_accepted_regex_threat(
         if threat:
             return threat
     return None
-
-
-_ANCHOR_RE = re.compile(r"\\A|\\Z|(?<![\[\\])\^|(?<!\\)\$(?![{)\]])")
-
-
-@lru_cache(maxsize=4096)
-def _row_needs_the_whole_value(source: str) -> bool:
-    return (
-        _ANCHOR_RE.search(source) is not None
-        or source in _CONTEXT_SENSITIVE_ROW_SOURCES
-    )
-
-
-def _rows_for_this_pass(
-    rows: list[tuple[re.Pattern, frozenset[str], str]],
-) -> list[tuple[re.Pattern, frozenset[str], str]]:
-    if not _whole_value_rows_only.get():
-        return rows
-    return [row for row in rows if _row_needs_the_whole_value(row[0].pattern)]
 
 
 def _pass_slice_start() -> tuple[float, bool]:
@@ -651,7 +634,9 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
             enabled_categories=enabled_categories,
         )
 
-        applicable_patterns = _rows_for_this_pass(applicable_patterns)
+        applicable_patterns = rows_for_a_whole_value_pass(
+            applicable_patterns, _CONTEXT_SENSITIVE_ROW_SOURCES
+        )
         time_cap = _scan_time_cap.get()
         slice_start, request_scoped = _pass_slice_start()
         mark_token = _open_cpu_pass()

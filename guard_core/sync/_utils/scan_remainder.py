@@ -125,7 +125,12 @@ _UNIT_NEEDS_DECODING_RE = re.compile(r"[%&\\\x80-\U0010ffff]")
 
 
 def _whole_value_rows() -> list[re.Pattern]:
-    from guard_core.sync.handlers._suspatterns_regex import _row_needs_the_whole_value
+    from guard_core.sync.handlers._suspatterns_regex import (
+        _CONTEXT_SENSITIVE_ROW_SOURCES,
+    )
+    from guard_core.sync.handlers._suspatterns_whole_value_rows import (
+        row_needs_the_whole_value,
+    )
     from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
 
     return [
@@ -133,7 +138,7 @@ def _whole_value_rows() -> list[re.Pattern]:
         for pattern, _contexts, _category in (
             sus_patterns_handler.get_all_compiled_patterns()
         )
-        if _row_needs_the_whole_value(pattern.pattern)
+        if row_needs_the_whole_value(pattern.pattern, _CONTEXT_SENSITIVE_ROW_SOURCES)
     ]
 
 
