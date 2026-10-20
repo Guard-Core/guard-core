@@ -2,3 +2,4 @@
 *.py text eol=lf
 
 tests/wordlists/* -text
+tests/wordlists/sqli_recall/* -text

@@ -276,8 +276,14 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
     (_SQLI_LOAD_FILE_RE, _CTX_SQLI, "sqli"),
     (r"(?i)(?:BENCHMARK\s*\(\s*\d+\s*,)", _CTX_SQLI, "sqli"),
     (
-        r"(?i)(?:\A|[^\w\s]\s*|\b(?:AND|OR|XOR|NOT|IF|SELECT|THEN|ELSE|WHEN|CASE"
-        r"|WHERE|HAVING|BY|AS|UNION|ALL|LIMIT|OFFSET)\s+)SLEEP\s*\(\s*\d+\s*\)",
+        r"(?i)(?:\A|[^\w\s]\s*|\d\s*|(?<![A-Za-z_])(?:AND|OR|XOR|NOT|IF|SELECT|THEN|ELSE"
+        r"|WHEN|CASE|WHERE|HAVING|BY|AS|UNION|ALL|LIMIT|OFFSET)\s+)(?:pg_)?SLEEP"
+        r"\s*\(\s*\d+(?:\.\d+)?\s*\)",
+        _CTX_SQLI,
+        "sqli",
+    ),
+    (
+        r"(?i)(?:['\"]|\\x27|\)|\d)\s*UNION\s+(?:ALL\s+)?SELECT\s*(?:\Z|--|#|/\*|;)",
         _CTX_SQLI,
         "sqli",
     ),
