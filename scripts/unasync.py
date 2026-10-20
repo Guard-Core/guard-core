@@ -636,6 +636,7 @@ TEST_SUBS: list[tuple[str, str]] = [
     (r", new_callable=MagicMock", ""),
     (r"(mock_\w+)\.text = MagicMock\(return_value=(.+)\)", r"\1.text = \2"),
     (r"from tests\.mock_download import streamed\n", ""),
+    (r"^TWO_LAYER_OUTCOME = ValueError$", "TWO_LAYER_OUTCOME = TimeoutError"),
     (
         r"^(\s*)(mock_\w+)\.content_length = None\n"
         r"\s*\2\.content\.iter_chunked = streamed\((.+)\)$",

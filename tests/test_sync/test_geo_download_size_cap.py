@@ -17,6 +17,7 @@ from tests.geo_fixture import (
 CAP = 262144
 TOTAL_BOUND = 2.0
 KEPT_DATABASE = b"the previous database"
+TWO_LAYER_OUTCOME = TimeoutError
 SIZE_CAP_LOG = "guard_core.sync.handlers.ipinfo"
 
 
@@ -88,13 +89,13 @@ def test_a_two_layer_gzip_body_that_inflates_past_the_cap_never_gets_past_it(
     with gzip_inflating_server(64 * CAP, layers=2) as server:
         manager = _manager(server, tmp_path, CAP)
         started = time.monotonic()
-        with pytest.raises((TimeoutError, ValueError)) as failure:
+        with pytest.raises(TWO_LAYER_OUTCOME) as failure:
             manager._fetch_and_store_database()
         elapsed = time.monotonic() - started
 
     assert manager.db_path.read_bytes() == KEPT_DATABASE
     assert elapsed < TOTAL_BOUND / 2
-    assert isinstance(failure.value, ValueError) or str(CAP) in str(failure.value)
+    assert TWO_LAYER_OUTCOME is ValueError or str(CAP) in str(failure.value)
 
 
 def test_a_body_exactly_at_the_cap_succeeds(tmp_path: Path) -> None:
