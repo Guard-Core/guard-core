@@ -1,6 +1,7 @@
 import concurrent.futures
 import re
-from typing import Any, cast
+from collections.abc import Iterator
+from typing import Any, NoReturn, cast
 
 import pytest
 
@@ -22,7 +23,7 @@ class _CountingIndicator:
     def __init__(self) -> None:
         self.calls = 0
 
-    def finditer(self, text: str):
+    def finditer(self, text: str) -> Iterator[re.Match[str]]:
         self.calls += 1
         return re.finditer("x", text)
 
@@ -96,10 +97,10 @@ def test_an_indicator_that_timed_out_is_never_memoized(
         def __exit__(self, *exc: object) -> None:
             return None
 
-        def submit(self, fn, *args):
+        def submit(self, fn: Any, *args: Any) -> "_TimingOut":
             return self
 
-        def result(self, timeout: float):
+        def result(self, timeout: float) -> NoReturn:
             raise concurrent.futures.TimeoutError
 
     preprocessor, _counter = _preprocessor_with_counter()
@@ -191,9 +192,9 @@ class _SearchCountingText(str):
         instance.searched = []
         return instance
 
-    def __contains__(self, item: object) -> bool:
-        self.searched.append(str(item))
-        return super().__contains__(item)
+    def __contains__(self, key: object) -> bool:
+        self.searched.append(str(key))
+        return str.__contains__(self, str(key))
 
 
 def test_a_literal_with_a_character_the_content_lacks_is_not_searched() -> None:
