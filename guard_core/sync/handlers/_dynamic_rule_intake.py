@@ -118,6 +118,7 @@ class DynamicRuleIntakeMixin(DynamicRuleEventSenderMixin, DynamicRulePurgeMixin)
             skipped = self._apply_rules(rules)
 
             self.current_rules = rules
+            self._refresh_attribution()
             self._current_fingerprint = content_fingerprint(rules)
             self.last_update = time.time()
 

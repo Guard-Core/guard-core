@@ -60,8 +60,10 @@ class IpBanOperationsMixin(
             raise ValueError(f"Invalid CIDR network {ip!r}: {e}") from e
 
         if self.redis_handler is None:
+            expiry = time.time() + duration
+            self._note_rule_written("banned_networks", str(network), expiry, reason)
             self._remember_network_ban(
-                network, time.time() + duration, reason == DYNAMIC_RULE_BAN_REASON
+                network, expiry, reason == DYNAMIC_RULE_BAN_REASON
             )
         else:
             await self._store_cidr_ban_in_redis(network, duration, reason)
@@ -83,6 +85,7 @@ class IpBanOperationsMixin(
         self, network: _Network, duration: int, reason: str = "operator"
     ) -> None:
         expiry = time.time() + duration
+        self._note_rule_written("banned_networks", str(network), expiry, reason)
         try:
             await self.redis_handler.write_ban_extending_only(
                 "banned_networks",
@@ -133,6 +136,7 @@ class IpBanOperationsMixin(
         recidive_count: int | None = None,
     ) -> None:
         expiry = time.time() + duration
+        self._note_rule_written(namespace, key, expiry, reason)
         backed = bool(self.redis_handler)
         rule_owned = reason == DYNAMIC_RULE_BAN_REASON
         if not backed:

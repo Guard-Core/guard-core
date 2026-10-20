@@ -128,9 +128,7 @@ class CloudProviderCheck(SecurityCheck):
     ) -> None:
         route_blocks_clouds = bool(route_config and route_config.block_cloud_providers)
         attribution = (
-            {}
-            if route_blocks_clouds
-            else cloud_provider_attribution(cloud_details[0] if cloud_details else None)
+            {} if route_blocks_clouds else self._cloud_attribution(cloud_details)
         )
 
         await self.middleware.event_bus.send_cloud_detection_events(
@@ -160,6 +158,15 @@ class CloudProviderCheck(SecurityCheck):
             violation_type="cloud_provider",
             blocked_providers=list(cloud_providers_to_check),
         )
+
+    def _cloud_attribution(
+        self, cloud_details: tuple[str, str] | None
+    ) -> dict[str, Any]:
+        if cloud_details is None:
+            return {}
+        provider, network = cloud_details
+        region = self.cloud_handler.network_regions.get(provider, {}).get(network)
+        return cloud_provider_attribution(provider, region)
 
     async def _emit_global_cloud_ip_blocked_event(
         self,

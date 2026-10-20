@@ -50,6 +50,7 @@ class DynamicRulePurgeMixin:
     _read_file_payload: Callable[[], str | None]
     _clear_last_known_rules: Callable[[], Awaitable[None]]
     _revert_to_base_config: Callable[[], None]
+    _refresh_attribution: Callable[[], None]
 
     async def purge_configured_dynamic_rules(self) -> bool:
         """Run the purge the config asks for, at start. A WARNING at every start
@@ -128,6 +129,7 @@ class DynamicRulePurgeMixin:
             except Exception as error:
                 self.logger.error(f"Failed to remove a purged pattern: {error}")
         self._owned_patterns = [p for p in self._owned_patterns if p not in patterns]
+        self._refresh_attribution()
         return removed
 
     async def _write_purge_marker(self, rules: DynamicRules) -> PurgeMarker:

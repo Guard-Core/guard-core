@@ -131,11 +131,18 @@ class _OperatorNetworks:
     def covers(
         self, address: ipaddress.IPv4Address | ipaddress.IPv6Address, now: float
     ) -> bool:
+        return self.covering(address, now) is not None
+
+    def covering(
+        self, address: ipaddress.IPv4Address | ipaddress.IPv6Address, now: float
+    ) -> tuple[_Network, float] | None:
         value = int(address)
         bits = address.max_prefixlen
         for prefixlen, members in self._buckets[address.version]:
             shift = bits - prefixlen
-            expiry = members.get(value >> shift << shift)
+            base = value >> shift << shift
+            expiry = members.get(base)
             if expiry is not None and expiry > now:
-                return True
-        return False
+                network = ipaddress.ip_network((base, prefixlen))
+                return network, expiry
+        return None

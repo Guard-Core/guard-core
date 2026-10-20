@@ -120,6 +120,29 @@ class IpBanLookupMixin(IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptionMix
             addr, now
         )
 
+    def deciding_ban_entry(self, ip: str) -> tuple[str, float] | None:
+        """The ban entry that answers ``ip``, as ``(namespace:key, expiry)``,
+        read from what this process holds, in the order the lookup tries it:
+        the address, its grouped identity, a local network, then an operator
+        network read back from Redis. ``None`` when nothing live covers it."""
+        ip = _canonicalize_ip(ip)
+        now = time.time()
+        identity = self._grouped_identity_of(ip, self.config) if ":" in ip else None
+        for namespace, key in (("banned_ips", ip), ("banned_identities", identity)):
+            expiry = self.banned_ips.get(key) if key is not None else None
+            if expiry is not None and expiry > now:
+                return f"{namespace}:{key}", expiry
+        try:
+            addr = ipaddress.ip_address(ip)
+        except ValueError:
+            return None
+        for network, expiry in self.banned_networks:
+            if expiry > now and addr.version == network.version and addr in network:
+                return f"banned_networks:{network}", expiry
+        operator = self._operator_networks
+        found = operator.covering(addr, now) if operator is not None else None
+        return None if found is None else (f"banned_networks:{found[0]}", found[1])
+
     def is_ip_banned(self, ip: str) -> bool:
         return self._is_ip_banned_under(ip, self.config)
 

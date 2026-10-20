@@ -6,7 +6,10 @@ from typing import Any
 
 from guard_core.sync.handlers._ipban_cache import _BanStore, _Network
 from guard_core.sync.handlers._ipban_events import IpBanEventMixin
-from guard_core.sync.handlers._ipban_rule_exempt import rule_ban_target
+from guard_core.sync.handlers._ipban_rule_exempt import (
+    DYNAMIC_RULE_BAN_REASON,
+    rule_ban_target,
+)
 from guard_core.sync.handlers._ipban_version import IpBanVersionMixin
 
 REVOKE_GONE = 0
@@ -33,9 +36,29 @@ class IpBanRuleRevokeMixin(IpBanVersionMixin, IpBanEventMixin):
     redis_handler: Any = None
     logger: logging.Logger
     _rule_owned_expiries: dict[str, float]
+    _rule_written_expiries: dict[str, float]
     _rule_floor_expiries: dict[str, float]
     _foreign_network_expiries: dict[str, float]
     MAX_LOCAL_BANS: int
+
+    def _note_rule_written(
+        self, namespace: str, key: str, expiry: float, reason: str
+    ) -> None:
+        """Remember the expiry a dynamic rule wrote for a ban, whatever longer
+        or shorter ban another source holds under the same key afterwards."""
+        if reason == DYNAMIC_RULE_BAN_REASON:
+            self._rule_written_expiries[f"{namespace}:{key}"] = expiry
+
+    def rule_written_expiry(self, member: str) -> float | None:
+        return self._rule_written_expiries.get(member)
+
+    def forget_rule_written_except(self, members: Iterable[str]) -> None:
+        keep = set(members)
+        self._rule_written_expiries = {
+            member: expiry
+            for member, expiry in self._rule_written_expiries.items()
+            if member in keep
+        }
 
     def _live_memory_expiry(self, namespace: str, key: str, now: float) -> float | None:
         if namespace == "banned_networks":

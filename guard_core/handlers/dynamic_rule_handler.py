@@ -98,10 +98,15 @@ class DynamicRuleManager(
     async def initialize_redis(self, redis_handler: Any) -> None:
         self.redis_handler = redis_handler
 
-    def rule_attribution(self) -> RuleAttribution | None:
-        rules = self.current_rules
+    def _refresh_attribution(self, rules: DynamicRules | None = None) -> None:
+        """Build the attribution view of the applied set. Called wherever the
+        rules, their owned bans or patterns or the base snapshot change, so a
+        request never pays for it; the identity check keeps it from rebuilding
+        a view whose inputs did not change."""
+        rules = rules if rules is not None else self.current_rules
         if rules is None:
-            return None
+            self._attribution_cache = None
+            return
         inputs = (
             rules,
             self._owned_bans,
@@ -112,7 +117,7 @@ class DynamicRuleManager(
         if cached is not None and all(
             held is current for held, current in zip(cached[0], inputs, strict=True)
         ):
-            return cached[1]
+            return
         view = build_rule_attribution(
             rules,
             self.config,
@@ -121,7 +126,13 @@ class DynamicRuleManager(
             self._active_base_snapshot or {},
         )
         self._attribution_cache = (inputs, view)
-        return view
+
+    def rule_attribution(self) -> RuleAttribution | None:
+        if self.current_rules is None:
+            return None
+        self._refresh_attribution()
+        cached = self._attribution_cache
+        return None if cached is None else cached[1]
 
     def match_event(self, event: Any) -> tuple[str, int] | None:
         rules = self.current_rules
@@ -184,6 +195,7 @@ class DynamicRuleManager(
         self.current_rules = None
         self._current_fingerprint = None
         self._active_base_snapshot = None
+        self._refresh_attribution()
 
     async def _check_rule_expiry(self) -> None:
         async with self._lock:
@@ -263,6 +275,7 @@ class DynamicRuleManager(
             self._active_base_snapshot = base
             self._log_unreachable_ban_thresholds_after_swap(base, plan)
             await self._revoke_stale_side_effects(rules, effects)
+            self._refresh_attribution(rules)
             await self._announce_plan(plan)
             await self._persist_last_known_rules(rules)
             return [*plan.skipped, *effects.skipped]

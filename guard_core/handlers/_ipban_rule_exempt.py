@@ -18,6 +18,12 @@ def rule_ban_target(ip: str) -> tuple[str, str]:
     return "banned_ips", _canonicalize_ip(ip)
 
 
+def rule_ban_member(ip: str) -> str:
+    """The member a rule ban on ip has in the owned set, minus the Redis prefix."""
+    namespace, key = rule_ban_target(ip)
+    return f"{namespace}:{key}"
+
+
 class IpBanRuleExemptionMixin:
     rule_exempt_networks: tuple[_Network, ...] = ()
 

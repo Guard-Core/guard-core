@@ -50,8 +50,10 @@ class DynamicRuleSnapshotMixin(DynamicRulePurgeMixin):
                 await self._apply_rules(rules)
             except Exception:
                 self._owned_bans, self._owned_patterns = [], []
+                self._refresh_attribution()
                 raise
             self.current_rules = rules
+            self._refresh_attribution()
             self._current_fingerprint = content_fingerprint(rules)
             self.last_update = time.time()
             self.logger.info(

@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -8,6 +9,7 @@ from guard_core.sync.handlers._dynamic_rule_events import DynamicRuleEventSender
 from guard_core.sync.handlers._dynamic_rule_plan import DynamicRulePlan
 from guard_core.sync.handlers._ipban_rule_exempt import (
     DYNAMIC_RULE_BAN_REASON,
+    rule_ban_member,
     rule_ban_target,
 )
 from guard_core.sync.handlers._ipban_rule_revoke import _LIFTED, REVOKE_REWRITTEN
@@ -29,6 +31,7 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
     agent_handler: Any
     _owned_bans: list[str]
     _owned_patterns: list[str]
+    _refresh_attribution: Callable[[], None]
 
     def _apply_side_effects(
         self,
@@ -208,7 +211,15 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
         stale_bans = self._stale_rule_bans(set(listed))
         stale_patterns = [p for p in self._owned_patterns if p not in patterns]
         self._owned_bans, self._owned_patterns = bans, patterns
+        self._forget_unowned_ban_expiries()
         self._revoke_owned(stale_bans, stale_patterns)
+
+    def _forget_unowned_ban_expiries(self) -> None:
+        from guard_core.sync.handlers.ipban_handler import ip_ban_manager
+
+        ip_ban_manager.forget_rule_written_except(
+            rule_ban_member(entry) for entry in self._owned_bans
+        )
 
     def _stale_rule_bans(self, listed: set[str]) -> list[str]:
         """The bans a rule owns, here or in Redis (a worker that restarted or
@@ -227,6 +238,8 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
         stale_bans = self._stale_rule_bans(set())
         patterns = self._owned_patterns
         self._owned_bans, self._owned_patterns = [], []
+        self._forget_unowned_ban_expiries()
+        self._refresh_attribution()
         self._revoke_owned(stale_bans, patterns)
 
     def _announce_plan(self, plan: DynamicRulePlan) -> None:

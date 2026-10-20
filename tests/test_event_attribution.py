@@ -1,3 +1,5 @@
+import asyncio
+import ipaddress
 from collections.abc import Iterator
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -652,3 +654,118 @@ async def test_a_static_user_agent_block_without_any_rule_carries_nothing() -> N
     middleware = await _run(config, _request(headers={"User-Agent": "wp23bot/1.0"}))
 
     assert _attr(await _one(middleware, "user_agent_blocked")) == {}
+
+
+def _gcp_ranges() -> Any:
+    central = ipaddress.ip_network("34.100.0.0/24")
+    europe = ipaddress.ip_network("35.200.0.0/24")
+    return patch.multiple(
+        cloud_handler,
+        ip_ranges={"GCP": {central, europe}},
+        network_regions={
+            "GCP": {str(central): "us-central1", str(europe): "europe-west1"}
+        },
+    )
+
+
+CENTRAL_IP = "34.100.0.5"
+EUROPE_IP = "35.200.0.5"
+
+
+async def _gcp_events(static: set[str], rule: set[str], ip: str) -> Any:
+    config = _config(block_cloud_providers=static or None)
+    await _apply(config, _rules(blocked_cloud_providers=rule))
+    with _gcp_ranges():
+        middleware = await _run(config, _request(ip))
+    return _bus_events(middleware, "ip_blocked")
+
+
+async def test_a_rule_carve_out_still_stamps_the_regions_it_blocks() -> None:
+    [event] = await _gcp_events(set(), {"GCP:!us-central1"}, EUROPE_IP)
+
+    assert _attr(event) == DYNAMIC
+
+
+async def test_a_rule_carve_out_region_is_not_blocked_and_not_stamped() -> None:
+    assert await _gcp_events(set(), {"GCP:!us-central1"}, CENTRAL_IP) == []
+
+
+async def test_a_rule_block_with_a_static_carve_out_stamps_the_overlap_elsewhere() -> (
+    None
+):
+    [event] = await _gcp_events({"GCP:!us-central1"}, {"GCP"}, EUROPE_IP)
+
+    assert _attr(event) == DYNAMIC_OVERLAP
+
+
+async def test_a_region_the_static_carve_out_frees_stays_free_under_a_rule_block() -> (
+    None
+):
+    assert await _gcp_events({"GCP:!us-central1"}, {"GCP"}, CENTRAL_IP) == []
+
+
+async def test_a_provider_only_the_static_list_blocks_is_not_the_rules() -> None:
+    [event] = await _gcp_events({"GCP"}, {"AWS"}, CENTRAL_IP)
+
+    assert _attr(event) == {}
+
+
+async def test_an_auto_ban_after_the_rules_own_ban_expired_is_not_the_rules() -> None:
+    config = _config()
+    await _apply(config, _rules(ip_blacklist=[RULE_IP], ip_ban_duration=1))
+    first = await _run(config, _request())
+    assert _attr(await _one(first, "ip_blocked")) == DYNAMIC
+    await asyncio.sleep(1.3)
+    assert await ip_ban_manager.ban_ip(RULE_IP, 3600, "penetration_attempt")
+
+    middleware = await _run(config, _request())
+
+    event = await _one(middleware, "ip_blocked")
+    assert event["filter_type"] == "banned"
+    assert _attr(event) == {}
+
+
+async def test_an_operator_ban_inside_a_rule_cidr_is_the_deciding_entry() -> None:
+    config = _config()
+    await _apply(config, _rules(ip_blacklist=["198.51.100.0/24"]))
+    assert await ip_ban_manager.ban_ip(OTHER_IP, 3600, "operator")
+
+    operator = await _run(config, _request(OTHER_IP))
+    neighbour = await _run(config, _request("198.51.100.30"))
+
+    assert _attr(await _one(operator, "ip_blocked")) == {}
+    assert _attr(await _one(neighbour, "ip_blocked")) == DYNAMIC
+
+
+async def test_a_longer_foreign_ban_written_over_the_rules_is_not_the_rules() -> None:
+    config = _config()
+    await _apply(config, _rules(ip_blacklist=[RULE_IP], ip_ban_duration=60))
+    assert await ip_ban_manager.ban_ip(RULE_IP, 100_000, "operator")
+
+    middleware = await _run(config, _request())
+
+    assert _attr(await _one(middleware, "ip_blocked")) == {}
+
+
+async def test_the_view_is_built_when_the_set_changes_not_on_the_first_block() -> None:
+    config = _config()
+    manager = await _apply(config, _rules(ip_blacklist=[RULE_IP]))
+
+    cached = manager._attribution_cache
+    assert cached is not None
+    assert cached[0][0] is manager.current_rules
+    assert manager.rule_attribution() is cached[1]
+
+    manager.agent_handler.get_dynamic_rules.return_value = _rules(
+        rule_id="rule-two", version=2, ip_blacklist=[OTHER_IP]
+    )
+    await manager.update_rules()
+    rebuilt = manager._attribution_cache
+    assert rebuilt is not None and rebuilt[1] is not cached[1]
+    assert rebuilt[1].rule_id == "rule-two"
+    assert rebuilt[1].owned_ban_members == frozenset({f"banned_ips:{OTHER_IP}"})
+
+    await manager._check_rule_expiry()
+    manager.current_rules.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+    await manager._check_rule_expiry()
+    assert manager._attribution_cache is None

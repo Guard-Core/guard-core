@@ -14,9 +14,9 @@ def _applied_attribution() -> RuleAttribution | None:
     return view
 
 
-def ban_attribution(client_ip: str) -> dict[str, Any]:
+def ban_attribution(client_ip: str, bans: Any) -> dict[str, Any]:
     view = _applied_attribution()
-    return view.for_ban(client_ip) if view else {}
+    return view.for_ban(client_ip, bans) if view else {}
 
 
 def country_attribution(
@@ -26,9 +26,11 @@ def country_attribution(
     return view.for_country(country_rule, country) if view else {}
 
 
-def cloud_provider_attribution(provider: str | None) -> dict[str, Any]:
+def cloud_provider_attribution(
+    provider: str | None, region: str | None
+) -> dict[str, Any]:
     view = _applied_attribution()
-    return view.for_cloud_provider(provider) if view and provider else {}
+    return view.for_cloud_provider(provider, region) if view and provider else {}
 
 
 async def user_agent_attribution(

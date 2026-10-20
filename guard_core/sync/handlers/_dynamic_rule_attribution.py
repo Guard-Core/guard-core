@@ -1,4 +1,5 @@
 import ipaddress
+import time
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -8,35 +9,41 @@ from guard_core._security_config_field_validators import (
     canonicalize_cloud_provider_selector,
 )
 from guard_core.sync._utils.access_control import _ip_in_list
-from guard_core.sync.handlers._ipban_cache import _Network
-from guard_core.sync.handlers._ipban_rule_exempt import rule_ban_target
+from guard_core.sync.handlers._cloud_provider_registry import _parse_cloud_selectors
+from guard_core.sync.handlers._ipban_rule_exempt import rule_ban_member
 
 MATCHED_RULE_TYPE_DYNAMIC = "dynamic"
 
-_REGION_SEPARATOR = ":!"
+_EXPIRY_TOLERANCE = 1e-6
+
+_Selectors = tuple[frozenset[str], Mapping[str, frozenset[str]]]
 
 
-def _provider_names(selectors: Iterable[Any]) -> frozenset[str]:
-    canonical = (canonicalize_cloud_provider_selector(item) for item in selectors)
-    return frozenset(
-        name.partition(_REGION_SEPARATOR)[0] for name in canonical if name is not None
-    )
+def _selectors(selectors: Iterable[Any]) -> _Selectors:
+    canonical = {
+        name
+        for name in map(canonicalize_cloud_provider_selector, selectors)
+        if name is not None
+    }
+    blocked, carveouts = _parse_cloud_selectors(canonical)
+    return frozenset(blocked), {
+        provider: frozenset(regions) for provider, regions in carveouts.items()
+    }
+
+
+def _selectors_block(selectors: _Selectors, provider: str, region: str | None) -> bool:
+    blocked, carveouts = selectors
+    if provider not in blocked:
+        return False
+    return not (region is not None and region in carveouts.get(provider, ()))
 
 
 def _limit_pair(value: Any) -> tuple[Any, ...]:
     return tuple(value)
 
 
-def _ban_networks(owned_bans: Sequence[str]) -> tuple[_Network, ...]:
-    networks: list[_Network] = []
-    for entry in owned_bans:
-        try:
-            networks.append(
-                ipaddress.ip_network(rule_ban_target(entry)[1], strict=False)
-            )
-        except ValueError:
-            continue
-    return tuple(networks)
+def _owned_ban_members(owned_bans: Sequence[str]) -> frozenset[str]:
+    return frozenset(rule_ban_member(entry) for entry in owned_bans)
 
 
 @dataclass(frozen=True)
@@ -51,13 +58,13 @@ class RuleAttribution:
 
     rule_id: str
     config: Any
-    ban_networks: tuple[_Network, ...]
+    owned_ban_members: frozenset[str]
     blocked_countries: frozenset[str]
     static_blocked_countries: frozenset[str]
     whitelist_countries_in_force: bool
     static_whitelist_countries: frozenset[str]
-    cloud_providers: frozenset[str]
-    static_cloud_providers: frozenset[str]
+    cloud_selectors: _Selectors
+    static_cloud_selectors: _Selectors
     user_agents: frozenset[str]
     static_user_agents: frozenset[str]
     patterns: frozenset[str]
@@ -69,6 +76,24 @@ class RuleAttribution:
     emergency: bool
     static_emergency: bool
 
+    @property
+    def ban_networks(self) -> tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...]:
+        """The addresses and networks the rule owns bans on."""
+        return tuple(
+            ipaddress.ip_network(member.partition(":")[2], strict=False)
+            for member in sorted(self.owned_ban_members)
+        )
+
+    @property
+    def cloud_providers(self) -> frozenset[str]:
+        """The provider names the rule blocks, carve-outs aside."""
+        return self.cloud_selectors[0]
+
+    @property
+    def static_cloud_providers(self) -> frozenset[str]:
+        """The provider names the static configuration blocks, carve-outs aside."""
+        return self.static_cloud_selectors[0]
+
     def _stamp(self, overlaps_static: bool) -> dict[str, Any]:
         stamp: dict[str, Any] = {
             "matched_rule_type": MATCHED_RULE_TYPE_DYNAMIC,
@@ -78,16 +103,23 @@ class RuleAttribution:
             stamp["matched_rule_overlaps_static"] = True
         return stamp
 
-    def for_ban(self, client_ip: str) -> dict[str, Any]:
+    def for_ban(self, client_ip: str, bans: Any) -> dict[str, Any]:
+        entry = bans.deciding_ban_entry(client_ip)
+        if entry is None:
+            return {}
+        member, live = entry
+        written = bans.rule_written_expiry(member)
+        if (
+            member not in self.owned_ban_members
+            or written is None
+            or written <= time.time()
+            or live > written + _EXPIRY_TOLERANCE
+        ):
+            return {}
         try:
             address = ipaddress.ip_address(client_ip)
         except ValueError:
-            return {}
-        if not any(
-            address.version == network.version and address in network
-            for network in self.ban_networks
-        ):
-            return {}
+            return self._stamp(False)
         return self._stamp(_ip_in_list(address, client_ip, self.config.blacklist))
 
     def for_country(
@@ -104,11 +136,12 @@ class RuleAttribution:
             )
         return {}
 
-    def for_cloud_provider(self, provider: str) -> dict[str, Any]:
-        names = _provider_names((provider,))
-        if not names & self.cloud_providers:
+    def for_cloud_provider(self, provider: str, region: str | None) -> dict[str, Any]:
+        if not _selectors_block(self.cloud_selectors, provider, region):
             return {}
-        return self._stamp(bool(names & self.static_cloud_providers))
+        return self._stamp(
+            _selectors_block(self.static_cloud_selectors, provider, region)
+        )
 
     def for_user_agent_pattern(self, pattern: str | None) -> dict[str, Any]:
         if pattern is None or pattern not in self.user_agents:
@@ -150,13 +183,13 @@ def build_rule_attribution(
     return RuleAttribution(
         rule_id=str(rules.rule_id),
         config=config,
-        ban_networks=_ban_networks(owned_bans),
+        owned_ban_members=_owned_ban_members(owned_bans),
         blocked_countries=frozenset(code.upper() for code in rules.blocked_countries),
         static_blocked_countries=frozenset(base.get("blocked_countries") or ()),
         whitelist_countries_in_force=bool(rules.whitelist_countries),
         static_whitelist_countries=frozenset(base.get("whitelist_countries") or ()),
-        cloud_providers=_provider_names(rules.blocked_cloud_providers),
-        static_cloud_providers=_provider_names(base.get("block_cloud_providers") or ()),
+        cloud_selectors=_selectors(rules.blocked_cloud_providers),
+        static_cloud_selectors=_selectors(base.get("block_cloud_providers") or ()),
         user_agents=frozenset(rules.blocked_user_agents),
         static_user_agents=frozenset(base.get("blocked_user_agents") or ()),
         patterns=frozenset(rules.suspicious_patterns),
