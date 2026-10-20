@@ -307,10 +307,48 @@ _SYNC_START_OR_JOIN_LOAD_REPLACEMENT = (
     "            return self._background_task\n"
 )
 
+_ASYNC_DOWNLOAD_BODY_SRC = (
+    "    async def _download_body(\n"
+    "        self, session: aiohttp.ClientSession, headers: dict[str, str]\n"
+    "    ) -> bytes:\n"
+    "        timeout = aiohttp.ClientTimeout(\n"
+    "            sock_connect=self._download_connect_timeout,\n"
+    "            sock_read=self._download_read_timeout,\n"
+    "            total=self._download_total_timeout,\n"
+    "        )\n"
+    "        response = await session.get(\n"
+    "            self._download_url, headers=headers, timeout=timeout\n"
+    "        )\n"
+    "        response.raise_for_status()\n"
+    "        return await response.read()\n"
+)
+
+_SYNC_DOWNLOAD_BODY_REPLACEMENT = (
+    "    def _download_body(\n"
+    "        self, session: requests.Session, headers: dict[str, str]\n"
+    "    ) -> bytes:\n"
+    "        deadline = time.monotonic() + self._download_total_timeout\n"
+    "        timeout = (self._download_connect_timeout, self._download_read_timeout)\n"
+    "        with session.get(\n"
+    "            self._download_url, headers=headers, timeout=timeout, stream=True\n"
+    "        ) as response:\n"
+    "            response.raise_for_status()\n"
+    "            chunks: list[bytes] = []\n"
+    "            while chunk := response.raw.read1(65536, decode_content=True):\n"
+    "                chunks.append(chunk)\n"
+    "                if time.monotonic() > deadline:\n"
+    "                    raise TimeoutError(\n"
+    '                        "GeoIP download exceeded the total time bound"\n'
+    "                    )\n"
+    '        return b"".join(chunks)\n'
+)
+
 SUBS: list[tuple[str, str]] = [
     (
         re.escape(_ASYNC_CURRENT_SCOPE_SRC),
         _SYNC_CURRENT_SCOPE_REPLACEMENT.replace("\\", "\\\\"),
+        re.escape(_ASYNC_DOWNLOAD_BODY_SRC),
+        _SYNC_DOWNLOAD_BODY_REPLACEMENT.replace("\\", "\\\\"),
     ),
     (
         re.escape(_ASYNC_START_OR_JOIN_LOAD_SRC),
@@ -531,7 +569,13 @@ TEST_SUBS: list[tuple[str, str]] = [
     (r"AsyncMock", "MagicMock"),
     (r", new_callable=MagicMock", ""),
     (r"(mock_\w+)\.text = MagicMock\(return_value=(.+)\)", r"\1.text = \2"),
-    (r"(mock_\w+)\.read = MagicMock\(return_value=(.+)\)", r"\1.content = \2"),
+    (
+        r"^(\s*)(mock_\w+)\.read = MagicMock\(return_value=(.+)\)$",
+        r"\1\2.content = \3\n"
+        r"\1\2.__enter__ = MagicMock(return_value=\2)\n"
+        r"\1\2.__exit__ = MagicMock(return_value=None)\n"
+        r"\1\2.raw.read1 = MagicMock(side_effect=[\3, bytes()])",
+    ),
     (r"new_callable=MagicMock,\s*", ""),
     (r"@pytest\.mark\.asyncio\n", ""),
     (r"\.assert_awaited_once_with\(", ".assert_called_once_with("),

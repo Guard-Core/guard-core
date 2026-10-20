@@ -123,6 +123,9 @@ def test_ipinfo_download_database_uses_configured_ttl(tmp_path: Path) -> None:
     mock_response = MagicMock()
     mock_response.raise_for_status = MagicMock()
     mock_response.content = VALID_DB
+    mock_response.__enter__ = MagicMock(return_value=mock_response)
+    mock_response.__exit__ = MagicMock(return_value=None)
+    mock_response.raw.read1 = MagicMock(side_effect=[VALID_DB, b""])
 
     mock_session = MagicMock()
     mock_session.get = MagicMock(return_value=mock_response)

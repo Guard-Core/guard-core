@@ -40,6 +40,9 @@ def _mock_aiohttp_response(
     if text_data is not None:
         mock_response.text = text_data
     mock_response.content = b""
+    mock_response.__enter__ = MagicMock(return_value=mock_response)
+    mock_response.__exit__ = MagicMock(return_value=None)
+    mock_response.raw.read1 = MagicMock(side_effect=[b"", b""])
     return mock_response
 
 

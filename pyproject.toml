@@ -24,6 +24,7 @@ dependencies = [
     "cachetools",
     "pydantic",
     "typing-extensions",
+    "urllib3>=2.2.0",
 ]
 
 [project.urls]
@@ -311,6 +312,7 @@ per_rule_ignores = { "DEP002" = [
     "testcontainers",
     "types-cachetools",
     "types-requests",
+    "urllib3",
     "vulture",
     "xenon",
 ], "DEP001" = [

@@ -37,6 +37,10 @@ class IPInfoManager(IpInfoBackgroundMixin, IpInfoRedisCopyMixin, IpInfoEventsMix
     _instance = None
     _by_path: dict[Path, IPInfoManager] = {}
     _download_retries: int = 3
+    _download_url: str = "https://ipinfo.io/data/free/country_asn.mmdb"
+    _download_connect_timeout: float = 30
+    _download_read_timeout: float = 30
+    _download_total_timeout: float = 300
     token: str
     db_path: Path
     reader: Reader | None = None
@@ -222,7 +226,6 @@ class IPInfoManager(IpInfoBackgroundMixin, IpInfoRedisCopyMixin, IpInfoEventsMix
             await self._release_download_lock(self._copy_handlers())
 
     async def _fetch_and_store_database(self) -> None:
-        base_url = "https://ipinfo.io/data/free/country_asn.mmdb"
         headers = {"Authorization": f"Bearer {self.token}"}
         retries = self._download_retries
         backoff = 1
@@ -233,9 +236,7 @@ class IPInfoManager(IpInfoBackgroundMixin, IpInfoRedisCopyMixin, IpInfoEventsMix
         async with aiohttp.ClientSession() as session:
             for attempt in range(retries):
                 try:
-                    response = await session.get(base_url, headers=headers)
-                    response.raise_for_status()
-                    content = await response.read()
+                    content = await self._download_body(session, headers)
                     self._write_database_atomically(content)
 
                     await self._cache_database_in_redis()
@@ -245,6 +246,20 @@ class IPInfoManager(IpInfoBackgroundMixin, IpInfoRedisCopyMixin, IpInfoEventsMix
                         raise
                     await self._sleep(backoff)
                     backoff *= 2
+
+    async def _download_body(
+        self, session: aiohttp.ClientSession, headers: dict[str, str]
+    ) -> bytes:
+        timeout = aiohttp.ClientTimeout(
+            sock_connect=self._download_connect_timeout,
+            sock_read=self._download_read_timeout,
+            total=self._download_total_timeout,
+        )
+        response = await session.get(
+            self._download_url, headers=headers, timeout=timeout
+        )
+        response.raise_for_status()
+        return await response.read()
 
     async def _sleep(self, seconds: float) -> None:
         await asyncio.sleep(seconds)
