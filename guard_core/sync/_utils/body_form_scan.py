@@ -91,6 +91,7 @@ def _scan_form_body(
             remainder.add(
                 _wire_pair(name, value),
                 name_is_sensitive(name, sensitive_body_fields),
+                (name, value),
             )
     if not remainder:
         return False, "", []

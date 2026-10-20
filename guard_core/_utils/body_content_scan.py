@@ -254,6 +254,7 @@ async def _scan_query_params(
             remainder.add(
                 _wire_pair(key, value),
                 _query_name_is_sensitive(key, sensitive_params, sensitive_headers),
+                (key, value),
             )
     if not remainder:
         return False, "", []
@@ -509,7 +510,9 @@ async def _scan_headers(
             return hit
         if _skipped_values_so_far() != skipped_before:
             remainder.add(
-                f"{key}: {value}\r\n", name_is_sensitive(key, sensitive_headers)
+                f"{key}: {value}\r\n",
+                name_is_sensitive(key, sensitive_headers),
+                (key, value),
             )
     if not remainder:
         return False, "", []

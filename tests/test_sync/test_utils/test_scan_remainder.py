@@ -345,9 +345,9 @@ def test_embedded_json_values_past_the_cut_are_not_rescanned_as_a_block() -> Non
 
 
 def test_the_remainder_preview_stops_once_it_has_enough_text() -> None:
-    from guard_core.sync._utils.detection_scan import _remainder_preview
+    from guard_core.sync._utils.detection_scan import _remainder_preview, _Skipped
 
-    pieces = [("x" * 600, False) for _ in range(1000)]
+    pieces = [_Skipped("x" * 600, False, ("x" * 600,)) for _ in range(1000)]
     shown = _remainder_preview(pieces, "&", lambda piece: None).resolve()
     assert shown is not None
     assert 1200 <= len(shown) <= 1300

@@ -4,7 +4,7 @@ import re
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from typing import Any, TypeVar
+from typing import Any, NamedTuple, TypeVar
 
 from guard_core.exceptions import BodyReadFailedError
 from guard_core.sync._utils.detection_config import (
@@ -80,6 +80,9 @@ class _ScanSkips:
 
 _scan_skips: contextvars.ContextVar[_ScanSkips | None] = contextvars.ContextVar(
     "guard_core_detection_scan_skips", default=None
+)
+_whole_value_rows_only: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "guard_core_detection_whole_value_rows_only", default=False
 )
 _inside_embedded_json: contextvars.ContextVar[bool] = contextvars.ContextVar(
     "guard_core_detection_inside_embedded_json", default=False
@@ -311,6 +314,31 @@ def _skipped_values_so_far() -> int:
 
 
 @contextmanager
+def _scanning_whole_value_rows_only() -> Iterator[None]:
+    token = _whole_value_rows_only.set(True)
+    try:
+        yield
+    finally:
+        _whole_value_rows_only.reset(token)
+
+
+_WHOLE_BASE64_RE = re.compile(r"[A-Za-z0-9+/_-]{16,}={0,2}")
+
+
+@contextmanager
+def _unit_scan_mode(unit: str) -> Iterator[None]:
+    if _WHOLE_BASE64_RE.fullmatch(unit):
+        yield
+        return
+    with _scanning_whole_value_rows_only():
+        yield
+
+
+def _whole_value_rows_only_active() -> bool:
+    return _whole_value_rows_only.get()
+
+
+@contextmanager
 def _embedded_json_scan() -> Iterator[None]:
     token = _inside_embedded_json.set(True)
     try:
@@ -335,6 +363,12 @@ _REDACTED_PIECE = "[REDACTED]"
 _REMAINDER_PREVIEW_CHARS = 1024
 
 
+class _Skipped(NamedTuple):
+    piece: str
+    sensitive: bool
+    units: tuple[str, ...]
+
+
 class _SurfaceRemainder:
     """The items of one surface the budgets skipped, grouped by scan settings.
 
@@ -342,37 +376,40 @@ class _SurfaceRemainder:
     categories and the same semantic exclusion, so its block gets exactly the
     settings the walk would have used for each of its items. A piece flagged
     sensitive is scanned like any other but never shown in a log or an event.
+    The units of an item are the separate texts the walk would have scanned (a
+    name and a value), which the rows anchored to a whole value need.
     """
 
     __slots__ = ("_groups",)
 
     def __init__(self) -> None:
-        self._groups: dict[_RemainderKey, list[tuple[str, bool]]] = {}
+        self._groups: dict[_RemainderKey, list[_Skipped]] = {}
 
-    def add(self, piece: str, sensitive: bool = False) -> None:
+    def add(
+        self, piece: str, sensitive: bool = False, units: tuple[str, ...] = ()
+    ) -> None:
         skips = _scan_skips.get()
         assert skips is not None
         key = (skips.categories, skips.semantic_excluded)
-        self._groups.setdefault(key, []).append((piece, sensitive))
+        self._groups.setdefault(key, []).append(
+            _Skipped(piece, sensitive, units or (piece,))
+        )
 
     def __bool__(self) -> bool:
         return bool(self._groups)
 
-    def groups(self) -> Iterator[tuple[_RemainderKey, list[tuple[str, bool]]]]:
+    def groups(self) -> Iterator[tuple[_RemainderKey, list[_Skipped]]]:
         yield from self._groups.items()
 
 
 def _wire_pair(name: str, value: str) -> str:
     """One query or form pair as it sits in a block joined by ``&``.
 
-    Only ``%`` and ``&`` are escaped, the characters that would change where a pair
-    ends or how it decodes. Escaping more (``/``, ``.``, space) made a plain
+    Nothing is escaped: a percent sequence the walk would decode must need the same
+    number of decode rounds in the block, and escaping ``/`` or ``.`` made a plain
     ``../relative`` value decode to a traversal the raw text never held.
     """
-    return (
-        f"{name.replace('%', '%25').replace('&', '%26')}"
-        f"={value.replace('%', '%25').replace('&', '%26')}"
-    )
+    return f"{name}={value}"
 
 
 def _body_remainder_display(
@@ -386,14 +423,14 @@ def _body_remainder_display(
 
 
 def _remainder_preview(
-    pieces: list[tuple[str, bool]],
+    skipped: list[_Skipped],
     separator: str,
     preview_of: Callable[[str], str | None],
 ) -> "LazyPreview":
     def build() -> str:
         shown: list[str] = []
         length = 0
-        for piece, sensitive in pieces:
+        for piece, sensitive, _units in skipped:
             shown.append(_REDACTED_PIECE if sensitive else (preview_of(piece) or piece))
             length += len(shown[-1])
             if length >= _REMAINDER_PREVIEW_CHARS:
@@ -401,6 +438,37 @@ def _remainder_preview(
         return separator.join(shown)
 
     return LazyPreview(build)
+
+
+def _scan_whole_value_rows_per_unit(
+    skipped: list[_Skipped],
+    context: str,
+    component_name: str,
+    client_ip: str,
+    correlation_id: str,
+    categories: frozenset[str] | None,
+    log_level: str | None,
+    preview_of: Callable[[str], str | None],
+) -> tuple[bool, str, list[dict]]:
+    for _piece, sensitive, units in skipped:
+        for unit in units:
+            with _fresh_value_budget(), _unit_scan_mode(unit):
+                detected, trigger, threats = _check_request_component(
+                    unit,
+                    context,
+                    component_name,
+                    client_ip,
+                    correlation_id,
+                    None if categories is None else set(categories),
+                    log_level,
+                    scan_embedded_json=False,
+                    content_preview=_REDACTED_PIECE
+                    if sensitive
+                    else (preview_of(unit) or unit),
+                )
+            if detected:
+                return True, f"{component_name}: {trigger}", threats
+    return False, "", []
 
 
 def _scan_surface_remainder(
@@ -419,7 +487,7 @@ def _scan_surface_remainder(
         component_name,
         client_ip,
     )
-    for (categories, semantic_excluded), pieces in remainder.groups():
+    for (categories, semantic_excluded), skipped in remainder.groups():
         excluded_name = next(iter(_semantic_excluded_headers.get()), "")
         context = (
             f"{context_kind}:{excluded_name}"
@@ -428,7 +496,7 @@ def _scan_surface_remainder(
         )
         with _fresh_value_budget():
             detected, trigger, threats = _check_request_component(
-                separator.join(piece for piece, _ in pieces),
+                separator.join(piece for piece, _, _ in skipped),
                 context,
                 component_name,
                 client_ip,
@@ -436,15 +504,29 @@ def _scan_surface_remainder(
                 None if categories is None else set(categories),
                 log_level,
                 scan_embedded_json=False,
-                content_preview=_remainder_preview(pieces, separator, preview_of),
+                content_preview=_remainder_preview(skipped, separator, preview_of),
             )
         if detected and _only_the_time_budget_ended(threats):
             raise BodyReadFailedError(
                 f"the scan time budget ended before the {component_name.lower()} "
                 "were scanned"
             )
-        if detected:
-            return True, f"{component_name}: {trigger}", threats
+        unit_hit = _scan_whole_value_rows_per_unit(
+            skipped,
+            context,
+            component_name,
+            client_ip,
+            correlation_id,
+            categories,
+            log_level,
+            preview_of,
+        )
+        if detected or unit_hit[0]:
+            return (
+                True,
+                f"{component_name}: {trigger if detected else unit_hit[1]}",
+                [*threats, *unit_hit[2]],
+            )
     return False, "", []
 
 

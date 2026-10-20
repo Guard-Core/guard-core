@@ -3,7 +3,7 @@ import logging
 import re
 import time
 from collections.abc import Callable, Iterator
-from functools import partial
+from functools import lru_cache, partial
 from typing import Any
 
 from guard_core.sync._utils.detection_scan import (
@@ -23,6 +23,7 @@ from guard_core.sync._utils.detection_scan import (
     _suspended,
     _timed_in_worker,
     _warn_scan_time_cap_reached_once,
+    _whole_value_rows_only_active,
 )
 from guard_core.sync.detection_engine.binary_prefix import (
     build_binary_prefix,
@@ -227,6 +228,11 @@ _CANDIDATE_REJECTION_VALIDATORS: tuple[
 )
 
 
+_CONTEXT_SENSITIVE_ROW_SOURCES = frozenset(
+    source for source, _validator in _CANDIDATE_REJECTION_VALIDATORS
+)
+
+
 _WINDOWED_PATTERN_FINDERS: dict[str, Callable[[str], Iterator[re.Match]]] = {
     _CMD_INJECTION_NEWLINE_SHELL_DASH_C_RE: lambda text: (
         _cmd_injection_shell_dash_c_finditer(
@@ -348,6 +354,17 @@ def _first_accepted_regex_threat(
         if threat:
             return threat
     return None
+
+
+_ANCHOR_RE = re.compile(r"\\A|\\Z|(?<![\[\\])\^|(?<!\\)\$(?![{)\]])")
+
+
+@lru_cache(maxsize=4096)
+def _row_needs_the_whole_value(source: str) -> bool:
+    return (
+        _ANCHOR_RE.search(source) is not None
+        or source in _CONTEXT_SENSITIVE_ROW_SOURCES
+    )
 
 
 def _pass_slice_start() -> tuple[float, bool]:
@@ -626,6 +643,12 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
             enabled_categories=enabled_categories,
         )
 
+        if _whole_value_rows_only_active():
+            applicable_patterns = [
+                row
+                for row in applicable_patterns
+                if _row_needs_the_whole_value(row[0].pattern)
+            ]
         time_cap = _scan_time_cap.get()
         slice_start, request_scoped = _pass_slice_start()
         mark_token = _open_cpu_pass()
