@@ -104,6 +104,12 @@ def _headers(length: int) -> bytes:
     ).encode()
 
 
+OPEN_ENDED_HEADERS = (
+    b"HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\n"
+    b"Connection: close\r\n\r\n"
+)
+
+
 def silent_server() -> GeoDownloadServer:
     return GeoDownloadServer(_hold_silently)
 
@@ -135,7 +141,7 @@ def stalls_once_server() -> GeoDownloadServer:
 
 def endless_server(gap: float) -> GeoDownloadServer:
     def behavior(conn: socket.socket, attempt: int) -> None:
-        conn.sendall(_headers(10**9))
+        conn.sendall(OPEN_ENDED_HEADERS)
         deadline = time.monotonic() + GeoDownloadServer.HOLD_SECONDS
         while time.monotonic() < deadline:
             conn.sendall(b"x" * 16)
@@ -150,13 +156,11 @@ def _chunked(data: bytes) -> bytes:
 
 def fast_endless_server(chunked: bool) -> GeoDownloadServer:
     """Sends a body that never ends, as fast as the client reads it."""
-    head = b"HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\n"
+    head = OPEN_ENDED_HEADERS
     piece = b"x" * 65536
     if chunked:
-        head += b"Transfer-Encoding: chunked\r\n\r\n"
+        head = head.replace(b"Connection: close", b"Transfer-Encoding: chunked")
         piece = _chunked(piece)
-    else:
-        head += b"Connection: close\r\n\r\n"
 
     def behavior(conn: socket.socket, attempt: int) -> None:
         conn.sendall(head)
@@ -204,7 +208,7 @@ def trickles_then_delays_server(gap: float, delay: float) -> GeoDownloadServer:
 
     def behavior(conn: socket.socket, attempt: int) -> None:
         if attempt == 0:
-            conn.sendall(_headers(10**9))
+            conn.sendall(OPEN_ENDED_HEADERS)
             deadline = time.monotonic() + GeoDownloadServer.HOLD_SECONDS
             while time.monotonic() < deadline:
                 conn.sendall(b"x" * 16)
