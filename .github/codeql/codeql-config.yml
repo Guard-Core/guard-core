@@ -1,6 +1,8 @@
 name: guard-core CodeQL
 paths:
   - guard_core
+  # The workflows and release scripts, scanned by the actions and python analyses.
+  - .github
 paths-ignore:
   - tests
   - guard_core/.agents
