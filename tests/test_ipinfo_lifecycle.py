@@ -8,6 +8,7 @@ import pytest
 
 from guard_core.handlers.ipinfo_handler import IPInfoManager
 from tests.geo_fixture import country_database_bytes
+from tests.mock_download import streamed
 
 
 @pytest.fixture(autouse=True)
@@ -126,7 +127,8 @@ async def test_ipinfo_download_database_uses_configured_ttl(tmp_path: Path) -> N
 
     mock_response = MagicMock()
     mock_response.raise_for_status = MagicMock()
-    mock_response.read = AsyncMock(return_value=VALID_DB)
+    mock_response.content_length = None
+    mock_response.content.iter_chunked = streamed(VALID_DB)
 
     mock_session = MagicMock()
     mock_session.get = AsyncMock(return_value=mock_response)

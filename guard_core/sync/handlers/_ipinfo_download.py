@@ -1,8 +1,13 @@
+import logging
 import time
 
 import requests
 from urllib3.response import HTTPResponse
 
+from guard_core.sync.handlers._ipinfo_download_cap import (
+    reject_declared_size,
+    reject_received_size,
+)
 from guard_core.sync.handlers._ipinfo_download_cut import (
     DownloadCut,
     RecordingAdapter,
@@ -16,6 +21,8 @@ class IpInfoDownloadMixin:
     _download_connect_timeout: float
     _download_read_timeout: float
     _download_total_timeout: float
+    _download_max_bytes: int
+    logger: logging.Logger
 
     def _download_body(
         self, session: requests.Session, headers: dict[str, str]
@@ -50,10 +57,18 @@ class IpInfoDownloadMixin:
             self._download_url, headers=headers, timeout=timeout, stream=True
         ) as response:
             response.raise_for_status()
+            cap = self._download_max_bytes
+            declared = response.headers.get("Content-Length", "")
+            reject_declared_size(
+                int(declared) if declared.isdigit() else None, cap, self.logger
+            )
             raw: HTTPResponse = response.raw
             chunks: list[bytes] = []
+            received = 0
             while time.monotonic() < deadline:
                 if not (chunk := raw.read1(65536, decode_content=True)):
                     return b"".join(chunks)
+                received += len(chunk)
+                reject_received_size(received, cap, self.logger)
                 chunks.append(chunk)
         raise TimeoutError(_TOTAL_BOUND_EXCEEDED)

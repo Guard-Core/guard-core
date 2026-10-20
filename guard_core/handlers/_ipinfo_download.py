@@ -1,4 +1,11 @@
+import logging
+
 import aiohttp
+
+from guard_core.handlers._ipinfo_download_cap import (
+    reject_declared_size,
+    reject_received_size,
+)
 
 
 class IpInfoDownloadMixin:
@@ -6,6 +13,8 @@ class IpInfoDownloadMixin:
     _download_connect_timeout: float
     _download_read_timeout: float
     _download_total_timeout: float
+    _download_max_bytes: int
+    logger: logging.Logger
 
     async def _download_body(
         self, session: aiohttp.ClientSession, headers: dict[str, str]
@@ -18,5 +27,16 @@ class IpInfoDownloadMixin:
         response = await session.get(
             self._download_url, headers=headers, timeout=timeout
         )
-        response.raise_for_status()
-        return await response.read()
+        try:
+            response.raise_for_status()
+            cap = self._download_max_bytes
+            reject_declared_size(response.content_length, cap, self.logger)
+            chunks: list[bytes] = []
+            received = 0
+            async for chunk in response.content.iter_chunked(65536):
+                received += len(chunk)
+                reject_received_size(received, cap, self.logger)
+                chunks.append(chunk)
+            return b"".join(chunks)
+        finally:
+            response.close()

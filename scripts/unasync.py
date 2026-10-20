@@ -40,6 +40,7 @@ SKIP_SRC = {
 }
 
 SKIP_TESTS = {
+    "mock_download.py",
     "test_geo_awaited_load_concurrency.py",
     "test_modifier_body_replay.py",
     "test_modifier_body_pins.py",
@@ -322,8 +323,19 @@ _ASYNC_DOWNLOAD_BODY_SRC = (
     "        response = await session.get(\n"
     "            self._download_url, headers=headers, timeout=timeout\n"
     "        )\n"
-    "        response.raise_for_status()\n"
-    "        return await response.read()\n"
+    "        try:\n"
+    "            response.raise_for_status()\n"
+    "            cap = self._download_max_bytes\n"
+    "            reject_declared_size(response.content_length, cap, self.logger)\n"
+    "            chunks: list[bytes] = []\n"
+    "            received = 0\n"
+    "            async for chunk in response.content.iter_chunked(65536):\n"
+    "                received += len(chunk)\n"
+    "                reject_received_size(received, cap, self.logger)\n"
+    "                chunks.append(chunk)\n"
+    '            return b"".join(chunks)\n'
+    "        finally:\n"
+    "            response.close()\n"
 )
 
 _SYNC_DOWNLOAD_BODY_REPLACEMENT = (
@@ -360,11 +372,19 @@ _SYNC_DOWNLOAD_BODY_REPLACEMENT = (
     "            self._download_url, headers=headers, timeout=timeout, stream=True\n"
     "        ) as response:\n"
     "            response.raise_for_status()\n"
+    "            cap = self._download_max_bytes\n"
+    '            declared = response.headers.get("Content-Length", "")\n'
+    "            reject_declared_size(\n"
+    "                int(declared) if declared.isdigit() else None, cap, self.logger\n"
+    "            )\n"
     "            raw: HTTPResponse = response.raw\n"
     "            chunks: list[bytes] = []\n"
+    "            received = 0\n"
     "            while time.monotonic() < deadline:\n"
     "                if not (chunk := raw.read1(65536, decode_content=True)):\n"
     '                    return b"".join(chunks)\n'
+    "                received += len(chunk)\n"
+    "                reject_received_size(received, cap, self.logger)\n"
     "                chunks.append(chunk)\n"
     "        raise TimeoutError(_TOTAL_BOUND_EXCEEDED)\n"
 )
@@ -465,9 +485,16 @@ SUBS: list[tuple[str, str]] = [
     (r"from redis\.asyncio import Redis", "from redis import Redis"),
     (r"redis\.asyncio", "redis"),
     (
-        r"import aiohttp\n\n\nclass IpInfoDownloadMixin",
-        "import time\n\nimport requests\n"
+        r"import logging\n\nimport aiohttp\n\n"
+        r"from guard_core\.sync\.handlers\._ipinfo_download_cap import \(\n"
+        r"    reject_declared_size,\n    reject_received_size,\n\)\n\n\n"
+        r"class IpInfoDownloadMixin",
+        "import logging\nimport time\n\nimport requests\n"
         "from urllib3.response import HTTPResponse\n\n"
+        "from guard_core.sync.handlers._ipinfo_download_cap import (\n"
+        "    reject_declared_size,\n"
+        "    reject_received_size,\n"
+        ")\n"
         "from guard_core.sync.handlers._ipinfo_download_cut import (\n"
         "    DownloadCut,\n"
         "    RecordingAdapter,\n"
@@ -608,6 +635,15 @@ TEST_SUBS: list[tuple[str, str]] = [
     (r"AsyncMock", "MagicMock"),
     (r", new_callable=MagicMock", ""),
     (r"(mock_\w+)\.text = MagicMock\(return_value=(.+)\)", r"\1.text = \2"),
+    (r"from tests\.mock_download import streamed\n", ""),
+    (
+        r"^(\s*)(mock_\w+)\.content_length = None\n"
+        r"\s*\2\.content\.iter_chunked = streamed\((.+)\)$",
+        r"\1\2.headers = {}\n"
+        r"\1\2.__enter__ = MagicMock(return_value=\2)\n"
+        r"\1\2.__exit__ = MagicMock(return_value=None)\n"
+        r"\1\2.raw.read1 = MagicMock(side_effect=[\3, bytes()])",
+    ),
     (
         r"^(\s*)(mock_\w+)\.read = MagicMock\(return_value=(.+)\)$",
         r"\1\2.content = \3\n"

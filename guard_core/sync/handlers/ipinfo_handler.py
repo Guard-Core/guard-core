@@ -46,6 +46,7 @@ class IPInfoManager(
     _download_connect_timeout: float = 30
     _download_read_timeout: float = 30
     _download_total_timeout: float = 300
+    _download_max_bytes: int = 134217728
     token: str
     db_path: Path
     reader: Reader | None = None

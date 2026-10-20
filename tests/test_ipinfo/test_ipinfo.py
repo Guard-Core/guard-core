@@ -9,6 +9,7 @@ import pytest
 
 from guard_core.handlers.ipinfo_handler import IPInfoManager, _describe_download_error
 from tests.geo_fixture import country_database_bytes
+from tests.mock_download import streamed
 
 VALID_DB = country_database_bytes("CN")
 
@@ -26,7 +27,8 @@ def _mock_aiohttp(
     else:
         mock_response = MagicMock()
         mock_response.raise_for_status = MagicMock()
-        mock_response.read = AsyncMock(return_value=content)
+        mock_response.content_length = None
+        mock_response.content.iter_chunked = streamed(content)
         mock_session.get = AsyncMock(return_value=mock_response)
 
     return mock_session
@@ -148,7 +150,8 @@ async def test_database_retry_success(tmp_path: Path) -> None:
     call_count = 0
     mock_response = MagicMock()
     mock_response.raise_for_status = MagicMock()
-    mock_response.read = AsyncMock(return_value=VALID_DB)
+    mock_response.content_length = None
+    mock_response.content.iter_chunked = streamed(VALID_DB)
 
     async def get_side_effect(*args: Any, **kwargs: Any) -> MagicMock:
         nonlocal call_count

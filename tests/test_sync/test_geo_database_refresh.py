@@ -53,7 +53,7 @@ def _manager_with_database(tmp_path: Path, country: str = "CN") -> IPInfoManager
 def _response_with(content: bytes) -> MagicMock:
     mock_response = MagicMock()
     mock_response.raise_for_status = MagicMock()
-    mock_response.content = content
+    mock_response.headers = {}
     mock_response.__enter__ = MagicMock(return_value=mock_response)
     mock_response.__exit__ = MagicMock(return_value=None)
     mock_response.raw.read1 = MagicMock(side_effect=[content, b""])

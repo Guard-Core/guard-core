@@ -29,7 +29,7 @@ def _mock_aiohttp(
     else:
         mock_response = MagicMock()
         mock_response.raise_for_status = MagicMock()
-        mock_response.content = content
+        mock_response.headers = {}
         mock_response.__enter__ = MagicMock(return_value=mock_response)
         mock_response.__exit__ = MagicMock(return_value=None)
         mock_response.raw.read1 = MagicMock(side_effect=[content, b""])
@@ -150,7 +150,7 @@ def test_database_retry_success(tmp_path: Path) -> None:
     call_count = 0
     mock_response = MagicMock()
     mock_response.raise_for_status = MagicMock()
-    mock_response.content = VALID_DB
+    mock_response.headers = {}
     mock_response.__enter__ = MagicMock(return_value=mock_response)
     mock_response.__exit__ = MagicMock(return_value=None)
     mock_response.raw.read1 = MagicMock(side_effect=[VALID_DB, b""])

@@ -11,6 +11,7 @@ import pytest
 from guard_core.handlers.ipinfo_handler import IPInfoManager
 from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 from tests.geo_fixture import CLIENT_IP, country_database_bytes
+from tests.mock_download import streamed
 
 
 @pytest.fixture(autouse=True)
@@ -56,7 +57,8 @@ def _manager_with_database(tmp_path: Path, country: str = "CN") -> IPInfoManager
 def _response_with(content: bytes) -> MagicMock:
     mock_response = MagicMock()
     mock_response.raise_for_status = MagicMock()
-    mock_response.read = AsyncMock(return_value=content)
+    mock_response.content_length = None
+    mock_response.content.iter_chunked = streamed(content)
     mock_session = MagicMock()
     mock_session.get = AsyncMock(return_value=mock_response)
     mock_session.__aenter__ = AsyncMock(return_value=mock_session)
