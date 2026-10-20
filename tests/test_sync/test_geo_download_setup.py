@@ -276,7 +276,8 @@ def silent_resolver(
     request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
 ) -> Generator[None, None, None]:
     resolver = _StubResolver()
-    udp: socket.socket | None = None
+    stop = threading.Event()
+    swallower: threading.Thread | None = None
     if request.param == "patched":
         real_getaddrinfo = socket.getaddrinfo
 
@@ -289,11 +290,13 @@ def silent_resolver(
         monkeypatch.setattr(socket, "gethostbyname", resolver.lookup)
     else:
         udp = _bind_the_stub_resolver_the_libc_uses()
-        threading.Thread(target=_swallow_queries, args=(udp,), daemon=True).start()
+        swallower = threading.Thread(target=_swallow_queries, args=(udp, stop))
+        swallower.start()
     yield
     resolver.released.set()
-    if udp is not None:
-        udp.close()
+    stop.set()
+    if swallower is not None:
+        swallower.join()
 
 
 def _bind_the_stub_resolver_the_libc_uses() -> socket.socket:
@@ -312,12 +315,14 @@ def _bind_the_stub_resolver_the_libc_uses() -> socket.socket:
     return udp
 
 
-def _swallow_queries(udp: socket.socket) -> None:
-    while True:
-        try:
-            udp.recvfrom(4096)
-        except OSError:
-            return
+def _swallow_queries(udp: socket.socket, stop: threading.Event) -> None:
+    with udp:
+        udp.settimeout(0.1)
+        while not stop.is_set():
+            try:
+                udp.recvfrom(4096)
+            except TimeoutError:
+                continue
 
 
 DNS_CELLS = ["origin", "http-proxy-host", "socks5h-proxy-host", "socks5-local", "hop"]
