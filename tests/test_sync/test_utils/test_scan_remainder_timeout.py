@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from guard_core.models import SecurityConfig
-from guard_core.sync._utils import detection_scan
+from guard_core.sync._utils import detection_scan, scan_remainder
 from guard_core.sync.core.checks.implementations.suspicious_activity import (
     SuspiciousActivityCheck,
 )
@@ -40,15 +40,15 @@ def _force_enhanced_detection_singleton() -> None:
 @pytest.fixture
 def remainder_clock() -> Iterator[_ClockThatRunsOutInTheRemainder]:
     clock = _ClockThatRunsOutInTheRemainder()
-    real_groups = detection_scan._SurfaceRemainder.groups
+    real_groups = scan_remainder._SurfaceRemainder.groups
 
-    def groups(self: detection_scan._SurfaceRemainder) -> Any:
+    def groups(self: scan_remainder._SurfaceRemainder) -> Any:
         clock.armed = True
         return real_groups(self)
 
     with (
         patch.object(detection_scan, "_thread_cpu_seconds", clock.cpu_seconds),
-        patch.object(detection_scan._SurfaceRemainder, "groups", groups),
+        patch.object(scan_remainder._SurfaceRemainder, "groups", groups),
     ):
         yield clock
 
@@ -75,9 +75,8 @@ def _request(params: dict[str, str]) -> SyncMockGuardRequest:
     return request
 
 
-def test_a_clean_walk_then_a_remainder_timeout_is_not_a_pass(
-    remainder_clock: _ClockThatRunsOutInTheRemainder,
-) -> None:
+@pytest.mark.usefixtures("remainder_clock")
+def test_a_clean_walk_then_a_remainder_timeout_is_not_a_pass() -> None:
     config = SecurityConfig(detection_max_scan_seconds=0.5, fail_secure=True)
     result = detect_penetration_attempt(_request(_JUNK), config)
     assert result.is_threat is False
@@ -86,9 +85,8 @@ def test_a_clean_walk_then_a_remainder_timeout_is_not_a_pass(
     assert "remaining query params" in result.body_read_detail
 
 
-def test_a_remainder_timeout_answers_400_with_an_event_and_no_strike(
-    remainder_clock: _ClockThatRunsOutInTheRemainder,
-) -> None:
+@pytest.mark.usefixtures("remainder_clock")
+def test_a_remainder_timeout_answers_400_with_an_event_and_no_strike() -> None:
     config = SecurityConfig(
         detection_max_scan_seconds=0.5, fail_secure=True, enable_redis=False
     )

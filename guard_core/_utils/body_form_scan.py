@@ -2,10 +2,12 @@ from typing import Any
 
 from guard_core._utils.detection_scan import (
     _binary_island_min_run_length,
-    _body_remainder_display,
     _scan_component_name,
-    _scan_surface_remainder,
     _skip_counter,
+)
+from guard_core._utils.scan_remainder import (
+    _body_remainder_display,
+    _scan_surface_remainder,
     _SurfaceRemainder,
     _wire_pair,
 )

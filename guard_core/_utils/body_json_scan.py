@@ -3,17 +3,19 @@ import re
 from typing import Any
 
 from guard_core._utils.detection_scan import (
-    _body_remainder_display,
     _json_depth_cap_value,
     _scan_component_name,
-    _scan_surface_remainder,
     _skip_counter,
-    _SurfaceRemainder,
     _warn_json_depth_cap_reached_once,
 )
 from guard_core._utils.logging_utils import (
     _redact_sensitive_json,
     _sanitize_for_reporting,
+)
+from guard_core._utils.scan_remainder import (
+    _body_remainder_display,
+    _scan_surface_remainder,
+    _SurfaceRemainder,
 )
 from guard_core._utils.sensitive_names import name_is_sensitive
 

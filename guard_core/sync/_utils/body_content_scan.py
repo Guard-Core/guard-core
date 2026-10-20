@@ -33,12 +33,14 @@ from guard_core.sync._utils.detection_scan import (
     _log_detected_component,
     _resolve_preview,
     _scan_component_name,
-    _scan_surface_remainder,
     _skip_counter,
+)
+from guard_core.sync._utils.request_logging import redact_blob_for_display
+from guard_core.sync._utils.scan_remainder import (
+    _scan_surface_remainder,
     _SurfaceRemainder,
     _wire_pair,
 )
-from guard_core.sync._utils.request_logging import redact_blob_for_display
 from guard_core.sync._utils.sensitive_names import (
     has_sensitive_name_token,
     name_is_sensitive,

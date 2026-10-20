@@ -367,6 +367,14 @@ def _row_needs_the_whole_value(source: str) -> bool:
     )
 
 
+def _rows_for_this_pass(
+    rows: list[tuple[re.Pattern, frozenset[str], str]],
+) -> list[tuple[re.Pattern, frozenset[str], str]]:
+    if not _whole_value_rows_only.get():
+        return rows
+    return [row for row in rows if _row_needs_the_whole_value(row[0].pattern)]
+
+
 def _pass_slice_start() -> tuple[float, bool]:
     request_slice_start = _scan_slice_start.get()
     if request_slice_start is None:
@@ -643,12 +651,7 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
             enabled_categories=enabled_categories,
         )
 
-        if _whole_value_rows_only.get():
-            applicable_patterns = [
-                row
-                for row in applicable_patterns
-                if _row_needs_the_whole_value(row[0].pattern)
-            ]
+        applicable_patterns = _rows_for_this_pass(applicable_patterns)
         time_cap = _scan_time_cap.get()
         slice_start, request_scoped = _pass_slice_start()
         mark_token = _open_cpu_pass()

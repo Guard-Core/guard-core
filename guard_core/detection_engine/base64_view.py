@@ -24,6 +24,20 @@ _PADDING_BY_REMAINDER = {0: "", 2: "==", 3: "="}
 _MARKER_BYTES = tuple(char.encode() for char in sorted(SHORT_BASE64_MARKER_CHARS))
 
 
+def _decoded_fragment(token: str) -> str | None:
+    padding = _PADDING_BY_REMAINDER.get(len(token) % 4)
+    if padding is None or len(token) > MAX_SHORT_BASE64_TOKEN_LENGTH:
+        return None
+    raw = binascii.a2b_base64(token + padding)
+    if not any(marker in raw for marker in _MARKER_BYTES):
+        return None
+    try:
+        decoded = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+    return decoded if _printable_ratio(decoded) >= PRINTABLE_RATIO_THRESHOLD else None
+
+
 def build_short_base64_additive_view(preprocessor: Any, content: str) -> str:
     if not content:
         return ""
@@ -37,21 +51,8 @@ def build_short_base64_additive_view(preprocessor: Any, content: str) -> str:
         if attempts >= MAX_SHORT_BASE64_CANDIDATES:
             break
         attempts += 1
-        token = match.group(0)
-        padding = _PADDING_BY_REMAINDER.get(len(token) % 4)
-        if padding is None or len(token) > MAX_SHORT_BASE64_TOKEN_LENGTH:
-            continue
-        try:
-            raw = binascii.a2b_base64(token + padding)
-        except binascii.Error:
-            continue
-        if not any(marker in raw for marker in _MARKER_BYTES):
-            continue
-        try:
-            decoded = raw.decode("utf-8")
-        except UnicodeDecodeError:
-            continue
-        if _printable_ratio(decoded) >= PRINTABLE_RATIO_THRESHOLD:
+        decoded = _decoded_fragment(match.group(0))
+        if decoded is not None:
             decoded_fragments.append(decoded)
 
     return "\n".join(decoded_fragments)
