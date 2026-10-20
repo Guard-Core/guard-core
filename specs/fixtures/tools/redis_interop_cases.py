@@ -25,6 +25,7 @@ from __future__ import annotations
 import base64
 import ipaddress
 import json
+import os
 import re
 import shutil
 import tempfile
@@ -47,7 +48,7 @@ from guard_core.handlers.suspatterns_handler import sus_patterns_handler
 from guard_core.models import DynamicRules, SecurityConfig
 
 REDIS_PREFIX = "guard_core:corpus_rio:"
-REDIS_URL = "redis://localhost:6379/0"
+REDIS_URL = os.environ.get("GUARD_CORE_CORPUS_REDIS_URL", "redis://localhost:6379/0")
 RIO_IP = "203.0.113.20"
 
 _NUMERIC_SHAPE = r"^[0-9]+\.[0-9]+(e[+-]?[0-9]+)?$"

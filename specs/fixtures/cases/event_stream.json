@@ -34,7 +34,11 @@
           "handler_name": "middleware",
           "metadata": {
             "request_count": 1,
-            "trigger_info": "Request body: Value matched pattern '<script[^>]*>[^<]*<\\/script\\s*>'"
+            "trigger_info": "Request body: Value matched pattern '<script[^>]*>[^<]*<\\/script\\s*>'",
+            "threat_categories": [
+              "xss"
+            ],
+            "category": "xss"
           }
         }
       ]
@@ -71,7 +75,11 @@
           "metadata": {
             "request_count": 0,
             "passive_mode": true,
-            "trigger_info": "Request body: Value matched pattern '<script[^>]*>[^<]*<\\/script\\s*>'"
+            "trigger_info": "Request body: Value matched pattern '<script[^>]*>[^<]*<\\/script\\s*>'",
+            "threat_categories": [
+              "xss"
+            ],
+            "category": "xss"
           }
         }
       ]
@@ -505,7 +513,6 @@
             "semantic_threats": 0,
             "timeouts": 0,
             "detection_method": "enhanced",
-            "correlation_id": null,
             "threat_categories": [
               "xss"
             ],
@@ -574,6 +581,595 @@
             "country_blocks": 0,
             "emergency_mode": false,
             "skipped": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_dynamic_rule_ban_hit",
+      "config": {
+        "agent_api_key": "corpus-agent-key",
+        "enable_agent": true,
+        "enable_dynamic_rules": true
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "call": "dynamic_rules",
+          "keep_applied": true,
+          "rules": {
+            "rule_id": "corpus-rules",
+            "version": 11,
+            "ip_blacklist": [
+              "203.0.113.21"
+            ]
+          }
+        },
+        {
+          "client_ip": "203.0.113.21",
+          "url_path": "/api"
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "dynamic_rule_updated",
+          "ip_address": "system",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "rules_received",
+          "reason": "Received updated rules corpus-rules v11",
+          "endpoint": null,
+          "method": null,
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "dynamic_rules",
+          "metadata": {
+            "rule_id": "corpus-rules",
+            "version": 11,
+            "previous_version": 0
+          }
+        },
+        {
+          "event_type": "dynamic_rule_applied",
+          "ip_address": "system",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "rules_updated",
+          "reason": "Applied dynamic rules corpus-rules v11",
+          "endpoint": null,
+          "method": null,
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "dynamic_rules",
+          "metadata": {
+            "rule_id": "corpus-rules",
+            "version": 11,
+            "ip_bans": 1,
+            "country_blocks": 0,
+            "emergency_mode": false,
+            "skipped": []
+          }
+        },
+        {
+          "event_type": "ip_blocked",
+          "ip_address": "203.0.113.21",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "request_blocked",
+          "reason": "Banned IP attempted access: 203.0.113.21",
+          "endpoint": "/api",
+          "method": "GET",
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "middleware",
+          "metadata": {
+            "ip_address": "203.0.113.21",
+            "filter_type": "banned",
+            "matched_rule_type": "dynamic",
+            "matched_rule_id": "corpus-rules"
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_dynamic_rule_ban_hit_overlaps_static",
+      "config": {
+        "agent_api_key": "corpus-agent-key",
+        "blacklist": [
+          "203.0.113.22"
+        ],
+        "enable_agent": true,
+        "enable_dynamic_rules": true
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "call": "dynamic_rules",
+          "keep_applied": true,
+          "rules": {
+            "rule_id": "corpus-rules",
+            "version": 12,
+            "ip_blacklist": [
+              "203.0.113.22"
+            ]
+          }
+        },
+        {
+          "client_ip": "203.0.113.22",
+          "url_path": "/api"
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "dynamic_rule_updated",
+          "ip_address": "system",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "rules_received",
+          "reason": "Received updated rules corpus-rules v12",
+          "endpoint": null,
+          "method": null,
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "dynamic_rules",
+          "metadata": {
+            "rule_id": "corpus-rules",
+            "version": 12,
+            "previous_version": 0
+          }
+        },
+        {
+          "event_type": "dynamic_rule_applied",
+          "ip_address": "system",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "rules_updated",
+          "reason": "Applied dynamic rules corpus-rules v12",
+          "endpoint": null,
+          "method": null,
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "dynamic_rules",
+          "metadata": {
+            "rule_id": "corpus-rules",
+            "version": 12,
+            "ip_bans": 1,
+            "country_blocks": 0,
+            "emergency_mode": false,
+            "skipped": []
+          }
+        },
+        {
+          "event_type": "ip_blocked",
+          "ip_address": "203.0.113.22",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "request_blocked",
+          "reason": "Banned IP attempted access: 203.0.113.22",
+          "endpoint": "/api",
+          "method": "GET",
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "middleware",
+          "metadata": {
+            "ip_address": "203.0.113.22",
+            "filter_type": "banned",
+            "matched_rule_type": "dynamic",
+            "matched_rule_id": "corpus-rules",
+            "matched_rule_overlaps_static": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_dynamic_rule_country_blocked",
+      "config": {
+        "agent_api_key": "corpus-agent-key",
+        "blocked_countries": [
+          "JP"
+        ],
+        "enable_agent": true,
+        "enable_dynamic_rules": true
+      },
+      "geo_countries": {
+        "203.0.113.23": "CN"
+      },
+      "routes": {},
+      "drives": [
+        {
+          "call": "dynamic_rules",
+          "keep_applied": true,
+          "rules": {
+            "rule_id": "corpus-rules",
+            "version": 13,
+            "blocked_countries": [
+              "CN"
+            ]
+          }
+        },
+        {
+          "client_ip": "203.0.113.23",
+          "url_path": "/api"
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "dynamic_rule_updated",
+          "ip_address": "system",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "rules_received",
+          "reason": "Received updated rules corpus-rules v13",
+          "endpoint": null,
+          "method": null,
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "dynamic_rules",
+          "metadata": {
+            "rule_id": "corpus-rules",
+            "version": 13,
+            "previous_version": 0
+          }
+        },
+        {
+          "event_type": "dynamic_rule_applied",
+          "ip_address": "system",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "rules_updated",
+          "reason": "Applied dynamic rules corpus-rules v13",
+          "endpoint": null,
+          "method": null,
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "dynamic_rules",
+          "metadata": {
+            "rule_id": "corpus-rules",
+            "version": 13,
+            "ip_bans": 0,
+            "country_blocks": 1,
+            "emergency_mode": false,
+            "skipped": []
+          }
+        },
+        {
+          "event_type": "country_blocked",
+          "ip_address": "203.0.113.23",
+          "country": "CN",
+          "user_agent": null,
+          "action_taken": "request_blocked",
+          "reason": "IP from blocked country: CN",
+          "endpoint": "/api",
+          "method": "GET",
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": "country_blacklist",
+          "pattern_matched": null,
+          "handler_name": "middleware",
+          "metadata": {
+            "ip_address": "203.0.113.23",
+            "country": "CN",
+            "rule_type": "country_blacklist",
+            "matched_rule_type": "dynamic",
+            "matched_rule_id": "corpus-rules"
+          }
+        },
+        {
+          "event_type": "ip_blocked",
+          "ip_address": "203.0.113.23",
+          "country": "CN",
+          "user_agent": null,
+          "action_taken": "request_blocked",
+          "reason": "IP from blocked country: CN",
+          "endpoint": "/api",
+          "method": "GET",
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "middleware",
+          "metadata": {
+            "ip_address": "203.0.113.23",
+            "filter_type": "global",
+            "country": "CN",
+            "matched_rule_type": "dynamic",
+            "matched_rule_id": "corpus-rules"
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_dynamic_rule_pattern_detected",
+      "config": {
+        "agent_api_key": "corpus-agent-key",
+        "enable_agent": true,
+        "enable_dynamic_rules": true
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "call": "dynamic_rules",
+          "keep_applied": true,
+          "rules": {
+            "rule_id": "corpus-rules",
+            "version": 14,
+            "suspicious_patterns": [
+              "corpusdyn[a-z]{3,6}"
+            ]
+          }
+        },
+        {
+          "call": "wire_pattern_events"
+        },
+        {
+          "client_ip": "203.0.113.24",
+          "url_path": "/api",
+          "body": "corpusdynabc"
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "dynamic_rule_updated",
+          "ip_address": "system",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "rules_received",
+          "reason": "Received updated rules corpus-rules v14",
+          "endpoint": null,
+          "method": null,
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "dynamic_rules",
+          "metadata": {
+            "rule_id": "corpus-rules",
+            "version": 14,
+            "previous_version": 0
+          }
+        },
+        {
+          "event_type": "dynamic_rule_applied",
+          "ip_address": "system",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "rules_updated",
+          "reason": "Applied dynamic rules corpus-rules v14",
+          "endpoint": null,
+          "method": null,
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "dynamic_rules",
+          "metadata": {
+            "rule_id": "corpus-rules",
+            "version": 14,
+            "ip_bans": 0,
+            "country_blocks": 0,
+            "emergency_mode": false,
+            "skipped": []
+          }
+        },
+        {
+          "event_type": "pattern_detected",
+          "ip_address": "203.0.113.24",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "threat_detected",
+          "reason": "Threat detected in request_body",
+          "endpoint": "/api",
+          "method": null,
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": "corpusdyn[a-z]{3,6}",
+          "handler_name": "sus_patterns",
+          "metadata": {
+            "pattern": "corpusdyn[a-z]{3,6}",
+            "context": "request_body",
+            "content_preview": "corpusdynabc",
+            "threat_score": 1.0,
+            "threats": 1,
+            "regex_threats": 1,
+            "semantic_threats": 0,
+            "timeouts": 0,
+            "detection_method": "enhanced",
+            "threat_categories": [
+              "custom"
+            ],
+            "category": "custom",
+            "matched_rule_type": "dynamic",
+            "matched_rule_id": "corpus-rules"
+          }
+        },
+        {
+          "event_type": "penetration_attempt",
+          "ip_address": "203.0.113.24",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "request_blocked",
+          "reason": "Penetration attempt detected: Request body: Value matched pattern 'corpusdyn[a-z]{3,6}'",
+          "endpoint": "/api",
+          "method": "GET",
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "middleware",
+          "metadata": {
+            "request_count": 1,
+            "trigger_info": "Request body: Value matched pattern 'corpusdyn[a-z]{3,6}'",
+            "matched_rule_type": "dynamic",
+            "matched_rule_id": "corpus-rules",
+            "threat_categories": [
+              "custom"
+            ],
+            "category": "custom"
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_penetration_attempt_split_events",
+      "config": {},
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "call": "wire_pattern_events"
+        },
+        {
+          "client_ip": "203.0.113.10",
+          "url_path": "/api",
+          "body": "<script>alert(1)</script>"
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "pattern_detected",
+          "ip_address": "203.0.113.10",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "threat_detected",
+          "reason": "Threat detected in request_body",
+          "endpoint": "/api",
+          "method": null,
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": "<script[^>]*>[^<]*<\\/script\\s*>",
+          "handler_name": "sus_patterns",
+          "metadata": {
+            "pattern": "<script[^>]*>[^<]*<\\/script\\s*>",
+            "context": "request_body",
+            "content_preview": "<script>alert(1)</script>",
+            "threat_score": 1.0,
+            "threats": 1,
+            "regex_threats": 1,
+            "semantic_threats": 0,
+            "timeouts": 0,
+            "detection_method": "enhanced",
+            "threat_categories": [
+              "xss"
+            ],
+            "category": "xss"
+          }
+        },
+        {
+          "event_type": "penetration_attempt",
+          "ip_address": "203.0.113.10",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "request_blocked",
+          "reason": "Penetration attempt detected: Request body: Value matched pattern '<script[^>]*>[^<]*<\\/script\\s*>'",
+          "endpoint": "/api",
+          "method": "GET",
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "middleware",
+          "metadata": {
+            "request_count": 1,
+            "trigger_info": "Request body: Value matched pattern '<script[^>]*>[^<]*<\\/script\\s*>'",
+            "threat_categories": [
+              "xss"
+            ],
+            "category": "xss"
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_penetration_attempt_split_events_passive",
+      "config": {
+        "passive_mode": true
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "call": "wire_pattern_events"
+        },
+        {
+          "client_ip": "203.0.113.10",
+          "url_path": "/api",
+          "body": "<script>alert(1)</script>"
+        }
+      ],
+      "expected": [
+        {
+          "event_type": "pattern_detected",
+          "ip_address": "203.0.113.10",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "threat_detected",
+          "reason": "Threat detected in request_body",
+          "endpoint": "/api",
+          "method": null,
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": "<script[^>]*>[^<]*<\\/script\\s*>",
+          "handler_name": "sus_patterns",
+          "metadata": {
+            "pattern": "<script[^>]*>[^<]*<\\/script\\s*>",
+            "context": "request_body",
+            "content_preview": "<script>alert(1)</script>",
+            "threat_score": 1.0,
+            "threats": 1,
+            "regex_threats": 1,
+            "semantic_threats": 0,
+            "timeouts": 0,
+            "detection_method": "enhanced",
+            "threat_categories": [
+              "xss"
+            ],
+            "category": "xss"
+          }
+        },
+        {
+          "event_type": "penetration_attempt",
+          "ip_address": "203.0.113.10",
+          "country": null,
+          "user_agent": null,
+          "action_taken": "logged_only",
+          "reason": "Suspicious pattern detected (passive mode): Request body: Value matched pattern '<script[^>]*>[^<]*<\\/script\\s*>'",
+          "endpoint": "/api",
+          "method": "GET",
+          "status_code": null,
+          "decorator_type": null,
+          "rule_type": null,
+          "pattern_matched": null,
+          "handler_name": "middleware",
+          "metadata": {
+            "request_count": 0,
+            "passive_mode": true,
+            "trigger_info": "Request body: Value matched pattern '<script[^>]*>[^<]*<\\/script\\s*>'",
+            "threat_categories": [
+              "xss"
+            ],
+            "category": "xss"
           }
         }
       ]
@@ -1490,7 +2086,6 @@
           "reason": "Pattern performance anomaly: slow_execution",
           "metadata": {
             "component": "PerformanceMonitor",
-            "correlation_id": null,
             "type": "slow_execution",
             "pattern": "corpuspattern-[a-z]+",
             "content_length": 128
@@ -1503,7 +2098,6 @@
           "reason": "Anomaly callback failed: corpus injected callback failure",
           "metadata": {
             "component": "PerformanceMonitor",
-            "correlation_id": null,
             "callback_error": "corpus injected callback failure",
             "anomaly_type": "slow_execution"
           }
@@ -1535,7 +2129,6 @@
           "reason": "Pattern performance anomaly: timeout",
           "metadata": {
             "component": "PerformanceMonitor",
-            "correlation_id": null,
             "type": "timeout",
             "pattern": "corpuspattern-[a-z]+",
             "content_length": 128
@@ -1568,7 +2161,6 @@
           "reason": "Pattern performance anomaly: slow_execution",
           "metadata": {
             "component": "PerformanceMonitor",
-            "correlation_id": null,
             "type": "slow_execution",
             "pattern": "corpuspattern-[a-z]+",
             "content_length": 128
@@ -1683,7 +2275,6 @@
           "reason": "Pattern performance anomaly: statistical_anomaly",
           "metadata": {
             "component": "PerformanceMonitor",
-            "correlation_id": null,
             "type": "statistical_anomaly",
             "pattern": "corpuspattern-[a-z]+",
             "z_score": 4.363595,

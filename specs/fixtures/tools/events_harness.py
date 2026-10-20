@@ -39,6 +39,7 @@ after each redis-backed case.
 from __future__ import annotations
 
 import logging
+import os
 import shutil
 import tempfile
 from datetime import datetime, timezone
@@ -82,7 +83,13 @@ from guard_core.models import DynamicRules, SecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 
 EVENTS_REDIS_PREFIX = "guard_core:corpus_evts:"
-EVENTS_REDIS_URL = "redis://localhost:6379/0"
+EVENTS_CANONICAL_REDIS_URL = "redis://localhost:6379/0"
+# The corpus pins the canonical URL. A run on a private Redis sets
+# GUARD_CORE_CORPUS_REDIS_URL; the captured envelopes still report the
+# canonical URL (see _normalize), so no port leaks into the corpus.
+EVENTS_REDIS_URL = os.environ.get(
+    "GUARD_CORE_CORPUS_REDIS_URL", EVENTS_CANONICAL_REDIS_URL
+)
 EVENTS_REDIS_ERROR_URL = "redis://localhost:59999/0"
 
 # Volatile envelope fields: identity (uuid4), wall-clock timestamps, and
@@ -90,6 +97,7 @@ EVENTS_REDIS_ERROR_URL = "redis://localhost:59999/0"
 # documented in the suite comparison note.
 EVENT_DROP_KEYS = frozenset(
     {
+        "correlation_id",
         "idempotency_key",
         "timestamp",
         "response_time",
@@ -138,6 +146,8 @@ def _normalize(value: Any) -> Any:
         return [_normalize(item) for item in value]
     if isinstance(value, float):
         return round(value, 6)
+    if value == EVENTS_REDIS_URL:
+        return EVENTS_CANONICAL_REDIS_URL
     return value
 
 
@@ -306,11 +316,8 @@ def _rule_from_payload(payload: dict[str, Any]) -> BehaviorRule:
 
 def _rules_from_payload(payload: dict[str, Any]) -> DynamicRules:
     return DynamicRules(
-        rule_id=payload["rule_id"],
-        version=payload["version"],
         timestamp=datetime(2026, 1, 1, tzinfo=timezone.utc),
-        emergency_mode=payload.get("emergency_mode", False),
-        emergency_whitelist=payload.get("emergency_whitelist", []),
+        **payload,
     )
 
 
@@ -349,6 +356,7 @@ class EventsCase:
         self.pipeline = build_default_pipeline(cast(Any, self.middleware))
 
     async def prepare(self) -> None:
+        DynamicRuleManager._instance = None
         await reset_global_state()
         reset_check_samplers()
         security_headers_manager.headers_cache.clear()
@@ -459,10 +467,15 @@ class EventsCase:
         manager = DynamicRuleManager(self.config)
         rules = _rules_from_payload(step["rules"])
         manager.agent_handler = _CorpusRulesAgent(self.sink, rules)
+        ip_ban_manager.config = self.config
         try:
             await manager.update_rules()
         finally:
-            DynamicRuleManager._instance = None  # noqa: SLF001 - corpus reset
+            if not step.get("keep_applied"):
+                DynamicRuleManager._instance = None
+
+    async def _call_wire_pattern_events(self, step: dict[str, Any]) -> None:
+        await sus_patterns_handler.initialize_agent(self.agent)
 
     async def _call_decorator_event(self, step: dict[str, Any]) -> None:
         request = _PipelineRequest(step)
@@ -710,4 +723,11 @@ async def run_events_case(case: dict[str, Any]) -> list[dict[str, Any]]:
         sus_patterns_handler.agent_handler = None
         ip_ban_manager.agent_handler = None
         security_headers_manager.agent_handler = None
+        # A rule a case kept applied owns bans and patterns in process-global
+        # handlers; revoke them so the next case (or the determinism rerun)
+        # starts from the same registry.
+        applied = getattr(DynamicRuleManager, "_instance", None)
+        if applied is not None:
+            await applied._revoke_all_owned()
+        DynamicRuleManager._instance = None
     return harness.sink

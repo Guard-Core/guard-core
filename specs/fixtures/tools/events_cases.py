@@ -131,6 +131,107 @@ EVENTS_SUITES["event_stream"] = [
             }
         ],
     },
+    # ---- dynamic rule attribution (D-86): the rule that decided the request ----
+    {
+        "id": "evt_dynamic_rule_ban_hit",
+        "config": {
+            "agent_api_key": "corpus-agent-key",
+            "enable_agent": True,
+            "enable_dynamic_rules": True,
+        },
+        "drives": [
+            {
+                "call": "dynamic_rules",
+                "keep_applied": True,
+                "rules": {
+                    "rule_id": "corpus-rules",
+                    "version": 11,
+                    "ip_blacklist": ["203.0.113.21"],
+                },
+            },
+            {"client_ip": "203.0.113.21", "url_path": "/api"},
+        ],
+    },
+    {
+        "id": "evt_dynamic_rule_ban_hit_overlaps_static",
+        "config": {
+            "agent_api_key": "corpus-agent-key",
+            "blacklist": ["203.0.113.22"],
+            "enable_agent": True,
+            "enable_dynamic_rules": True,
+        },
+        "drives": [
+            {
+                "call": "dynamic_rules",
+                "keep_applied": True,
+                "rules": {
+                    "rule_id": "corpus-rules",
+                    "version": 12,
+                    "ip_blacklist": ["203.0.113.22"],
+                },
+            },
+            {"client_ip": "203.0.113.22", "url_path": "/api"},
+        ],
+    },
+    {
+        "id": "evt_dynamic_rule_country_blocked",
+        "config": {
+            "agent_api_key": "corpus-agent-key",
+            "blocked_countries": ["JP"],
+            "enable_agent": True,
+            "enable_dynamic_rules": True,
+        },
+        "geo_countries": {"203.0.113.23": "CN"},
+        "drives": [
+            {
+                "call": "dynamic_rules",
+                "keep_applied": True,
+                "rules": {
+                    "rule_id": "corpus-rules",
+                    "version": 13,
+                    "blocked_countries": ["CN"],
+                },
+            },
+            {"client_ip": "203.0.113.23", "url_path": "/api"},
+        ],
+    },
+    {
+        "id": "evt_dynamic_rule_pattern_detected",
+        "config": {
+            "agent_api_key": "corpus-agent-key",
+            "enable_agent": True,
+            "enable_dynamic_rules": True,
+        },
+        "drives": [
+            {
+                "call": "dynamic_rules",
+                "keep_applied": True,
+                "rules": {
+                    "rule_id": "corpus-rules",
+                    "version": 14,
+                    "suspicious_patterns": ["corpusdyn[a-z]{3,6}"],
+                },
+            },
+            {"call": "wire_pattern_events"},
+            {"client_ip": "203.0.113.24", "url_path": "/api", "body": "corpusdynabc"},
+        ],
+    },
+    {
+        "id": "evt_penetration_attempt_split_events",
+        "config": {},
+        "drives": [
+            {"call": "wire_pattern_events"},
+            {"client_ip": EVENTS_IP, "url_path": "/api", "body": ATTACK},
+        ],
+    },
+    {
+        "id": "evt_penetration_attempt_split_events_passive",
+        "config": {"passive_mode": True},
+        "drives": [
+            {"call": "wire_pattern_events"},
+            {"client_ip": EVENTS_IP, "url_path": "/api", "body": ATTACK},
+        ],
+    },
     # ---- emergency_mode_activated (dynamic rules lockdown) ----
     {
         "id": "evt_emergency_mode_activated",
