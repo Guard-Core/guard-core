@@ -245,6 +245,7 @@ class IPInfoManager(
                 async with aiohttp.ClientSession() as session:
                     content = await self._download_body(session, headers)
                 self._write_database_atomically(content)
+                del content
 
                 await self._cache_database_in_redis()
                 return

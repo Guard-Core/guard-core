@@ -244,6 +244,7 @@ class IPInfoManager(
                 with requests.Session() as session:
                     content = self._download_body(session, headers)
                 self._write_database_atomically(content)
+                del content
 
                 self._cache_database_in_redis()
                 return
