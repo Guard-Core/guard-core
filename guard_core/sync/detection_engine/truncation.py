@@ -1,11 +1,33 @@
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from typing import Any
 
 _FULL_SCAN_TAIL_BYTES = 4096
 
+_attack_region_memo: ContextVar[dict[Any, list[tuple[int, int]]] | None] = ContextVar(
+    "attack_region_memo", default=None
+)
+
+
+@contextmanager
+def reusing_attack_regions() -> Iterator[None]:
+    token = _attack_region_memo.set({})
+    try:
+        yield
+    finally:
+        _attack_region_memo.reset(token)
+
 
 def extract_attack_regions(preprocessor: Any, content: str) -> list[tuple[int, int]]:
     max_regions = min(100, preprocessor.max_content_length // 100)
+    memo = _attack_region_memo.get()
+    indicators = tuple((p.pattern, p.flags) for p in preprocessor.compiled_indicators)
+    key = (max_regions, indicators, content)
+    if memo is not None and key in memo:
+        return list(memo[key])
     regions: list[tuple[int, int]] = []
+    complete = True
 
     for indicator in preprocessor.compiled_indicators:
         import concurrent.futures
@@ -26,6 +48,7 @@ def extract_attack_regions(preprocessor: Any, content: str) -> list[tuple[int, i
                 indicator_regions = future.result(timeout=0.5)
                 regions.extend(indicator_regions)
             except concurrent.futures.TimeoutError:
+                complete = False
                 continue
 
         if len(regions) >= max_regions:
@@ -39,9 +62,12 @@ def extract_attack_regions(preprocessor: Any, content: str) -> list[tuple[int, i
                 merged[-1] = (merged[-1][0], max(merged[-1][1], end))
             else:
                 merged.append((start, end))
-        return merged[:max_regions]
-
-    return []
+        merged = merged[:max_regions]
+    else:
+        merged = []
+    if memo is not None and complete:
+        memo[key] = merged
+    return list(merged)
 
 
 def extract_and_concatenate_attack_regions(

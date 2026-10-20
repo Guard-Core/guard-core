@@ -14,6 +14,8 @@ from guard_core.sync._utils.detection_scan import (
     _whole_value_rows_only,
     logger,
 )
+from guard_core.sync.detection_engine.truncation import reusing_attack_regions
+from guard_core.sync.handlers._suspatterns_literals import reusing_literal_presence
 
 
 @contextmanager
@@ -206,47 +208,48 @@ def _scan_surface_remainder(
         component_name,
         client_ip,
     )
-    for (categories, semantic_excluded), skipped in remainder.groups():
-        excluded_name = next(iter(_semantic_excluded_headers.get()), "")
-        context = (
-            f"{context_kind}:{excluded_name}"
-            if semantic_excluded
-            else f"{context_kind}:remainder block"
-        )
-        with _fresh_value_budget():
-            detected, trigger, threats = _check_request_component(
-                separator.join(piece for piece, _, _ in skipped),
+    with reusing_attack_regions(), reusing_literal_presence():
+        for (categories, semantic_excluded), skipped in remainder.groups():
+            excluded_name = next(iter(_semantic_excluded_headers.get()), "")
+            context = (
+                f"{context_kind}:{excluded_name}"
+                if semantic_excluded
+                else f"{context_kind}:remainder block"
+            )
+            with _fresh_value_budget():
+                detected, trigger, threats = _check_request_component(
+                    separator.join(piece for piece, _, _ in skipped),
+                    context,
+                    component_name,
+                    client_ip,
+                    correlation_id,
+                    None if categories is None else set(categories),
+                    log_level,
+                    scan_embedded_json=False,
+                    content_preview=_remainder_preview(skipped, separator, preview_of),
+                )
+            if detected and _only_the_time_budget_ended(threats):
+                raise BodyReadFailedError(
+                    f"the scan time budget ended before the {component_name.lower()} "
+                    "were scanned"
+                )
+            unit_hit = _scan_whole_value_rows_per_unit(
+                skipped,
                 context,
                 component_name,
                 client_ip,
                 correlation_id,
-                None if categories is None else set(categories),
+                categories,
                 log_level,
-                scan_embedded_json=False,
-                content_preview=_remainder_preview(skipped, separator, preview_of),
+                preview_of,
             )
-        if detected and _only_the_time_budget_ended(threats):
-            raise BodyReadFailedError(
-                f"the scan time budget ended before the {component_name.lower()} "
-                "were scanned"
-            )
-        unit_hit = _scan_whole_value_rows_per_unit(
-            skipped,
-            context,
-            component_name,
-            client_ip,
-            correlation_id,
-            categories,
-            log_level,
-            preview_of,
-        )
-        if detected or unit_hit[0]:
-            return (
-                True,
-                f"{component_name}: {trigger if detected else unit_hit[1]}",
-                [*threats, *unit_hit[2]],
-            )
-    return False, "", []
+            if detected or unit_hit[0]:
+                return (
+                    True,
+                    f"{component_name}: {trigger if detected else unit_hit[1]}",
+                    [*threats, *unit_hit[2]],
+                )
+        return False, "", []
 
 
 def _only_the_time_budget_ended(threats: list[dict]) -> bool:

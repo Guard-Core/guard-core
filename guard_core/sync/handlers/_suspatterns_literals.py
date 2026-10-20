@@ -2,6 +2,8 @@ import importlib
 import re
 import sys
 from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from typing import Any
 
 _PARSER = importlib.import_module(
@@ -76,12 +78,45 @@ def required_literals(source: str) -> tuple[str, ...]:
     return _required_literals[source]
 
 
+_LARGE_CONTENT_CHARS = 4096
+_Presence = tuple[frozenset[str], dict[str, bool]]
+_presence_memo: ContextVar[dict[str, _Presence] | None] = ContextVar(
+    "literal_presence_memo", default=None
+)
+
+
+@contextmanager
+def reusing_literal_presence() -> Iterator[None]:
+    token = _presence_memo.set({})
+    try:
+        yield
+    finally:
+        _presence_memo.reset(token)
+
+
+def _presence_of(folded_content: str) -> _Presence:
+    memo = _presence_memo.get()
+    entry = None if memo is None else memo.get(folded_content)
+    if entry is None:
+        entry = (frozenset(folded_content), {})
+        if memo is not None:
+            memo[folded_content] = entry
+    return entry
+
+
 def rows_with_required_literal(
     rows: list[tuple[re.Pattern, frozenset[str], str]],
     folded_content: str,
     excluded_sources: frozenset[str],
 ) -> Iterator[tuple[re.Pattern, frozenset[str], str]]:
-    present: dict[str, bool] = {}
+    if len(folded_content) < _LARGE_CONTENT_CHARS:
+        for row in rows:
+            source = row[0].pattern
+            literals = () if source in excluded_sources else required_literals(source)
+            if not literals or any(literal in folded_content for literal in literals):
+                yield row
+        return
+    chars, present = _presence_of(folded_content)
     for row in rows:
         source = row[0].pattern
         literals = () if source in excluded_sources else required_literals(source)
@@ -91,7 +126,9 @@ def rows_with_required_literal(
         for literal in literals:
             found = present.get(literal)
             if found is None:
-                found = present[literal] = literal in folded_content
+                found = present[literal] = (
+                    chars.issuperset(literal) and literal in folded_content
+                )
             if found:
                 yield row
                 break
