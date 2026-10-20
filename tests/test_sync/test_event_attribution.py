@@ -7,8 +7,13 @@ import pytest
 
 from guard_core.models import DynamicRules, SecurityConfig
 from guard_core.sync.core.checks.factory import build_default_pipeline
+from guard_core.sync.core.checks.implementations.suspicious_activity import (
+    SuspiciousActivityCheck,
+)
 from guard_core.sync.core.checks.pipeline import SecurityCheckPipeline
 from guard_core.sync.decorators import SecurityDecorator
+from guard_core.sync.detection_result import DetectionResult
+from guard_core.sync.handlers._dynamic_rule_attribution import build_rule_attribution
 from guard_core.sync.handlers.cloud_handler import cloud_handler
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.sync.handlers.ipban_handler import ip_ban_manager
@@ -63,7 +68,9 @@ def _rules(**overrides: Any) -> DynamicRules:
     return DynamicRules(**fields)
 
 
-def _apply(config: SecurityConfig, rules: DynamicRules) -> DynamicRuleManager:
+def _apply(
+    config: SecurityConfig, rules: DynamicRules, applied: bool = True
+) -> DynamicRuleManager:
     ip_ban_manager.config = config
     manager = DynamicRuleManager(config)
     agent = MagicMock()
@@ -71,6 +78,7 @@ def _apply(config: SecurityConfig, rules: DynamicRules) -> DynamicRuleManager:
     agent.get_dynamic_rules = MagicMock(return_value=rules)
     manager.agent_handler = agent
     manager.update_rules()
+    assert (manager.current_rules is not None) is applied
     return manager
 
 
@@ -210,7 +218,7 @@ def test_a_deny_under_the_rules_country_allow_list_carries_the_attribution() -> 
 def test_a_deny_under_a_static_allow_list_is_not_the_rules() -> None:
     geo = fixed_country_geo_ip("CN")
     config = _config(geo_ip_handler=geo, whitelist_countries=["US"])
-    _apply(config, _rules(blocked_countries=["JP"]))
+    _apply(config, _rules(blocked_user_agents=["otherbot"]))
 
     middleware = _run(config, _request(), geo)
 
@@ -442,6 +450,7 @@ def test_a_set_that_expired_on_receipt_never_attributes() -> None:
             blocked_countries=["CN"],
             expires_at=datetime.now(timezone.utc) - timedelta(seconds=5),
         ),
+        applied=False,
     )
     assert manager.current_rules is None
 
@@ -630,3 +639,34 @@ def test_a_direct_detect_call_has_no_endpoint() -> None:
 
     [event] = [e for e in agent.events if e.event_type == "pattern_detected"]
     assert event.endpoint is None
+
+
+def test_a_static_user_agent_block_without_any_rule_carries_nothing() -> None:
+    config = _config(blocked_user_agents=["wp23bot"])
+
+    middleware = _run(config, _request(headers={"User-Agent": "wp23bot/1.0"}))
+
+    assert _attr(_one(middleware, "user_agent_blocked")) == {}
+
+
+def test_the_view_ignores_what_it_cannot_parse_or_does_not_own() -> None:
+    config = _config(rate_limit=100)
+    rules = _rules(ip_blacklist=[RULE_IP], global_rate_limit=5)
+    view = build_rule_attribution(rules, config, ["not-an-address", RULE_IP], [], {})
+
+    assert view.for_ban("unknown") == {}
+    assert view.for_ban(OTHER_IP) == {}
+    assert view.for_ban(RULE_IP) == DYNAMIC
+    assert view.for_rate_limit_tier("route", "/x") == {}
+    assert view.for_rate_limit_tier("global", "") == DYNAMIC
+    assert view.for_cloud_provider("AWS") == {}
+    assert view.for_pattern(None) == {}
+    assert view.for_user_agent_pattern(None) == {}
+    assert view.for_country("country_whitelist", "CN") == {}
+    assert view.for_emergency_mode() == {}
+
+
+def test_a_detection_without_an_id_or_a_category_adds_no_event_fields() -> None:
+    result = DetectionResult(is_threat=True, trigger_info="x")
+
+    assert SuspiciousActivityCheck._detection_event_fields(result) == {}
