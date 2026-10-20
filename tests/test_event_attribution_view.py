@@ -79,3 +79,29 @@ def test_the_view_still_exposes_the_owned_networks_and_provider_names() -> None:
     assert {str(n) for n in view.ban_networks} == {RULE_IP + "/32", "198.51.100.0/24"}
     assert view.cloud_providers == {"AWS", "GCP"}
     assert view.static_cloud_providers == {"Azure"}
+
+
+def test_cloud_membership_and_overlap_use_the_provider_and_region_of_the_selector() -> (
+    None
+):
+    config = _config()
+    carved = build_rule_attribution(
+        _rules(blocked_cloud_providers={"GCP:!us-central1"}), config, [], [], {}
+    )
+    assert carved.for_cloud_provider("GCP", "us-central1") == {}
+    assert carved.for_cloud_provider("GCP", "europe-west1") == DYNAMIC
+    assert carved.for_cloud_provider("GCP", None) == DYNAMIC
+    assert carved.for_cloud_provider("AWS", None) == {}
+
+    against_static_carve_out = build_rule_attribution(
+        _rules(blocked_cloud_providers={"GCP"}),
+        config,
+        [],
+        [],
+        {"block_cloud_providers": {"GCP:!us-central1"}},
+    )
+    assert against_static_carve_out.for_cloud_provider("GCP", "us-central1") == DYNAMIC
+    assert against_static_carve_out.for_cloud_provider("GCP", "europe-west1") == {
+        **DYNAMIC,
+        "matched_rule_overlaps_static": True,
+    }
