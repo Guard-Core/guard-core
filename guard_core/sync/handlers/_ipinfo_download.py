@@ -22,10 +22,13 @@ class IpInfoDownloadMixin:
             raw: HTTPResponse = response.raw
             chunks: list[bytes] = []
             while (left := deadline - time.monotonic()) > 0:
-                connection = raw.connection
-                if connection is not None and connection.sock is not None:
-                    connection.sock.settimeout(min(self._download_read_timeout, left))
+                self._cap_idle_timeout(raw, left)
                 if not (chunk := raw.read1(65536, decode_content=True)):
                     return b"".join(chunks)
                 chunks.append(chunk)
         raise TimeoutError("GeoIP download exceeded the total time bound")
+
+    def _cap_idle_timeout(self, raw: HTTPResponse, left: float) -> None:
+        connection = raw.connection
+        if connection is not None and connection.sock is not None:
+            connection.sock.settimeout(min(self._download_read_timeout, left))
