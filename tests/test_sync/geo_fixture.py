@@ -69,7 +69,7 @@ def _hold_silently(conn: socket.socket, attempt: int) -> None:
 def _headers(length: int) -> bytes:
     return (
         f"HTTP/1.1 200 OK\r\nContent-Length: {length}\r\n"
-        "Content-Type: application/octet-stream\r\nConnection: close\r\n\r\n"
+        "Content-Type: application/octet-stream\r\nConnection: keep-alive\r\n\r\n"
     ).encode()
 
 
@@ -109,5 +109,23 @@ def endless_server(gap: float) -> GeoDownloadServer:
         while time.monotonic() < deadline:
             conn.sendall(b"x" * 16)
             time.sleep(gap)
+
+    return GeoDownloadServer(behavior)
+
+
+def trickles_then_delays_server(gap: float, delay: float) -> GeoDownloadServer:
+    body = country_database_bytes("CN")
+
+    def behavior(conn: socket.socket, attempt: int) -> None:
+        if attempt == 0:
+            conn.sendall(_headers(10**9))
+            deadline = time.monotonic() + GeoDownloadServer.HOLD_SECONDS
+            while time.monotonic() < deadline:
+                conn.sendall(b"x" * 16)
+                time.sleep(gap)
+            return
+        conn.sendall(_headers(len(body)))
+        time.sleep(delay)
+        conn.sendall(body)
 
     return GeoDownloadServer(behavior)

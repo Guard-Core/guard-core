@@ -1,25 +1,24 @@
-from __future__ import annotations
-
 import logging
 import os
 import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
+
+import maxminddb
+import requests
+from maxminddb import Reader
+from urllib3.response import HTTPResponse
 
 from guard_core.sync.core.events.event_types import (
     EVENT_GEO_LOOKUP_FAILED,
 )
-from guard_core.sync.handlers._downloader import require_downloader_installed
 from guard_core.sync.handlers._ipinfo_background import IpInfoBackgroundMixin
 from guard_core.sync.handlers._ipinfo_events import IpInfoEventsMixin
 from guard_core.sync.handlers._ipinfo_redis_copy import IpInfoRedisCopyMixin
 from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol
 from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
-
-if TYPE_CHECKING:
-    from maxminddb import Reader
 
 
 def _describe_download_error(exc: BaseException) -> str:
@@ -58,11 +57,11 @@ class IPInfoManager(IpInfoBackgroundMixin, IpInfoRedisCopyMixin, IpInfoEventsMix
     _DOWNLOAD_LOCK_SECONDS = 60
 
     def __new__(
-        cls: type[IPInfoManager],
+        cls: type["IPInfoManager"],
         token: str,
         db_path: Path | None = None,
         max_age: int = 86400,
-    ) -> IPInfoManager:
+    ) -> "IPInfoManager":
         if not token:
             raise ValueError("IPInfo token is required!")
 
@@ -122,8 +121,6 @@ class IPInfoManager(IpInfoBackgroundMixin, IpInfoRedisCopyMixin, IpInfoEventsMix
         self.agent_handler = agent_handler
 
     def _open_database_or_none(self) -> Reader | None:
-        import maxminddb
-
         try:
             return maxminddb.open_database(str(self.db_path))
         except Exception as e:
@@ -142,8 +139,6 @@ class IPInfoManager(IpInfoBackgroundMixin, IpInfoRedisCopyMixin, IpInfoEventsMix
             self._arm_staleness_timer()
 
     def _validate_database_file(self, path: Path) -> None:
-        import maxminddb
-
         try:
             reader = maxminddb.open_database(str(path))
             try:
@@ -229,9 +224,6 @@ class IPInfoManager(IpInfoBackgroundMixin, IpInfoRedisCopyMixin, IpInfoEventsMix
         retries = self._download_retries
         backoff = 1
 
-        require_downloader_installed("geo", "Downloading the GeoIP database")
-        import requests
-
         with requests.Session() as session:
             for attempt in range(retries):
                 try:
@@ -255,11 +247,19 @@ class IPInfoManager(IpInfoBackgroundMixin, IpInfoRedisCopyMixin, IpInfoEventsMix
             self._download_url, headers=headers, timeout=timeout, stream=True
         ) as response:
             response.raise_for_status()
+            raw: HTTPResponse = response.raw
             chunks: list[bytes] = []
-            while chunk := response.raw.read1(65536, decode_content=True):
-                chunks.append(chunk)
-                if time.monotonic() > deadline:
+            while True:
+                left = deadline - time.monotonic()
+                if left <= 0:
                     raise TimeoutError("GeoIP download exceeded the total time bound")
+                connection = raw.connection
+                if connection is not None and connection.sock is not None:
+                    connection.sock.settimeout(min(self._download_read_timeout, left))
+                chunk = raw.read1(65536, decode_content=True)
+                if not chunk:
+                    break
+                chunks.append(chunk)
         return b"".join(chunks)
 
     def _sleep(self, seconds: float) -> None:

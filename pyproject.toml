@@ -312,7 +312,6 @@ per_rule_ignores = { "DEP002" = [
     "testcontainers",
     "types-cachetools",
     "types-requests",
-    "urllib3",
     "vulture",
     "xenon",
 ], "DEP001" = [

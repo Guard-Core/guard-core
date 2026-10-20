@@ -13,9 +13,15 @@ from tests.geo_fixture import (
     endless_server,
     silent_server,
     stalls_once_server,
+    trickles_then_delays_server,
     trickling_server,
 )
 
+SHIPPED_BOUNDS = (
+    IPInfoManager._download_connect_timeout,
+    IPInfoManager._download_read_timeout,
+    IPInfoManager._download_total_timeout,
+)
 READ_BOUND = 0.4
 TOTAL_BOUND = 1.0
 
@@ -137,3 +143,51 @@ async def test_chunks_with_short_gaps_that_never_finish_end_at_the_total_bound(
     assert 3 * TOTAL_BOUND <= elapsed < 3 * TOTAL_BOUND + 1.5
     assert denied is True
     assert manager.reader is None
+
+
+async def test_gaps_just_under_the_idle_bound_end_each_attempt_at_the_total_bound(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(IPInfoManager, "_download_read_timeout", 0.45)
+    with endless_server(gap=0.4) as server:
+        manager = _manager_downloading_from(server, tmp_path)
+        started = time.monotonic()
+        denied = await check_ip_country(CLIENT_IP, _allow_list(manager), manager)
+        elapsed = time.monotonic() - started
+
+    assert server.attempts == 3
+    assert 3 * TOTAL_BOUND <= elapsed < 3 * TOTAL_BOUND + 0.3
+    assert denied is True
+
+
+async def test_a_retry_after_a_total_cut_starts_with_the_full_idle_bound(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(IPInfoManager, "_download_read_timeout", 0.45)
+    with trickles_then_delays_server(gap=0.4, delay=0.35) as server:
+        manager = _manager_downloading_from(server, tmp_path)
+        blocked = await check_ip_country(CLIENT_IP, _blocking(manager), manager)
+
+    assert server.attempts == 2
+    assert blocked is True
+    assert manager.reader is not None
+
+
+async def test_a_listener_that_never_answers_the_tls_hello_ends_at_the_connect_bound(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(IPInfoManager, "_download_read_timeout", 3.0)
+    with silent_server() as server:
+        manager = _manager_downloading_from(server, tmp_path)
+        manager._download_url = server.url.replace("http://", "https://")
+        started = time.monotonic()
+        denied = await check_ip_country(CLIENT_IP, _allow_list(manager), manager)
+        elapsed = time.monotonic() - started
+
+    assert server.attempts == 3
+    assert 3 * READ_BOUND <= elapsed < 3 * READ_BOUND + 0.6
+    assert denied is True
+
+
+def test_the_shipped_download_bounds_are_30_30_and_300() -> None:
+    assert SHIPPED_BOUNDS == (30, 30, 300)

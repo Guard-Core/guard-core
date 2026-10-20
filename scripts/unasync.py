@@ -333,13 +333,23 @@ _SYNC_DOWNLOAD_BODY_REPLACEMENT = (
     "            self._download_url, headers=headers, timeout=timeout, stream=True\n"
     "        ) as response:\n"
     "            response.raise_for_status()\n"
+    "            raw: HTTPResponse = response.raw\n"
     "            chunks: list[bytes] = []\n"
-    "            while chunk := response.raw.read1(65536, decode_content=True):\n"
-    "                chunks.append(chunk)\n"
-    "                if time.monotonic() > deadline:\n"
+    "            while True:\n"
+    "                left = deadline - time.monotonic()\n"
+    "                if left <= 0:\n"
     "                    raise TimeoutError(\n"
     '                        "GeoIP download exceeded the total time bound"\n'
     "                    )\n"
+    "                connection = raw.connection\n"
+    "                if connection is not None and connection.sock is not None:\n"
+    "                    connection.sock.settimeout(\n"
+    "                        min(self._download_read_timeout, left)\n"
+    "                    )\n"
+    "                chunk = raw.read1(65536, decode_content=True)\n"
+    "                if not chunk:\n"
+    "                    break\n"
+    "                chunks.append(chunk)\n"
     '        return b"".join(chunks)\n'
 )
 
