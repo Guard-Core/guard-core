@@ -2,6 +2,7 @@ from collections.abc import Collection
 from typing import ClassVar
 
 from guard_core._utils.request_logging import redact_header_value_for_display
+from guard_core._utils.rule_attribution import user_agent_attribution
 from guard_core.core.checks.base import SecurityCheck
 from guard_core.core.checks.helpers import (
     check_user_agent_allowed,
@@ -114,6 +115,13 @@ class UserAgentCheck(SecurityCheck):
                 reason=f"User agent '{redacted_user_agent}' in global blocklist",
                 user_agent=redacted_user_agent,
                 filter_type="global",
+                **(
+                    {}
+                    if empty_user_agent
+                    else await user_agent_attribution(
+                        user_agent, self.config.blocked_user_agents
+                    )
+                ),
             )
 
         if self.config.passive_mode:

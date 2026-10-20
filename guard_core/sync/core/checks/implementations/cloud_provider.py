@@ -1,8 +1,9 @@
 from collections.abc import Collection
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from guard_core.models import SecurityConfig, cloud_blocking_enabled
 from guard_core.protocols.response_protocol import GuardResponse
+from guard_core.sync._utils.rule_attribution import cloud_provider_attribution
 from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.core.checks.helpers import (
     emit_access_denied_event,
@@ -128,6 +129,11 @@ class CloudProviderCheck(SecurityCheck):
         cloud_details: tuple[str, str] | None,
     ) -> None:
         route_blocks_clouds = bool(route_config and route_config.block_cloud_providers)
+        attribution = (
+            {}
+            if route_blocks_clouds
+            else cloud_provider_attribution(cloud_details[0] if cloud_details else None)
+        )
 
         self.middleware.event_bus.send_cloud_detection_events(
             request,
@@ -137,10 +143,13 @@ class CloudProviderCheck(SecurityCheck):
             self.cloud_handler,
             self.config.passive_mode,
             cloud_details=cloud_details,
+            attribution=attribution,
         )
 
         if not route_blocks_clouds:
-            self._emit_global_cloud_ip_blocked_event(request, client_ip, cloud_details)
+            self._emit_global_cloud_ip_blocked_event(
+                request, client_ip, cloud_details, attribution
+            )
             return
 
         emit_access_denied_event(
@@ -159,6 +168,7 @@ class CloudProviderCheck(SecurityCheck):
         request: SyncGuardRequest,
         client_ip: str,
         cloud_details: tuple[str, str] | None,
+        attribution: dict[str, Any],
     ) -> None:
         reason = f"Blocked cloud provider IP: {client_ip}"
         provider_fields: dict[str, str] = {}
@@ -177,4 +187,5 @@ class CloudProviderCheck(SecurityCheck):
             ip_address=client_ip,
             filter_type="global",
             **provider_fields,
+            **attribution,
         )

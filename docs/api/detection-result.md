@@ -20,6 +20,10 @@ class DetectionResult:
     trigger_info: str
     threat_categories: list[str] = field(default_factory=list)
     threat_scores: dict[str, float] = field(default_factory=dict)
+    body_read_error: str | None = None
+    body_read_detail: str = ""
+    correlation_id: str | None = None
+    matched_pattern_source: str | None = None
 ```
 
 ___
@@ -33,6 +37,10 @@ Fields
 | `trigger_info`      | `str`              | Human-readable description of the first hit (e.g. `"Query param 'q': Value matched pattern '...'"`). Empty when `is_threat=False`. |
 | `threat_categories` | `list[str]`        | Ordered list of categories that contributed at least one match (`"sqli"`, `"xss"`, `"custom"`, ...). Deduplicated; preserves first-seen order. |
 | `threat_scores`     | `dict[str, float]` | Maximum score per category. Regex matches contribute `1.0`; semantic matches contribute their probability or threat score. |
+| `body_read_error`   | `str \| None`      | `"stalled"` or `"failed"` when the request body could not be read; `None` otherwise. |
+| `body_read_detail`  | `str`              | Sanitized detail for `body_read_error`. |
+| `correlation_id`    | `str \| None`      | The random per-request id of the scan that produced the result (`uuid4`, no address or user data). The `penetration_attempt` event and the `pattern_detected` events of that request carry it as `correlation_id`. |
+| `matched_pattern_source` | `str \| None` | Source text of the first regex pattern that matched, `None` when no regex matched. Used to attribute the event to a dynamic rule; it is never put in an event. |
 
 ___
 

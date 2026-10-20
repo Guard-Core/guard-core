@@ -265,6 +265,7 @@ def detect_penetration_attempt(
             binary_min_run,
             max_scan_seconds,
             semantic_excluded_headers,
+            (request, sensitive_params, sensitive_body_fields, sensitive_headers),
         ),
     ):
         surface_hit = _scan_request_surface(
@@ -282,9 +283,10 @@ def detect_penetration_attempt(
             operator_excluded_headers,
         )
         if surface_hit is not None:
+            surface_hit.correlation_id = correlation_id
             return surface_hit
 
-        return _scan_body_surface(
+        body_result = _scan_body_surface(
             request,
             config,
             route_config,
@@ -296,3 +298,5 @@ def detect_penetration_attempt(
             sensitive_body_fields,
             sensitive_params,
         )
+        body_result.correlation_id = correlation_id
+        return body_result

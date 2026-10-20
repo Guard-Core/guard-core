@@ -172,6 +172,7 @@ class SecurityEventBus:
         cloud_handler: Any,
         passive_mode: bool,
         cloud_details: tuple[str, str] | None = None,
+        attribution: dict[str, Any] | None = None,
     ) -> None:
         if cloud_details is None:
             cloud_details = cloud_handler.get_cloud_provider_details(
@@ -184,6 +185,7 @@ class SecurityEventBus:
                 provider,
                 network,
                 "request_blocked" if not passive_mode else "logged_only",
+                **(attribution or {}),
             )
 
         if route_config and route_config.block_cloud_providers:

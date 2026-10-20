@@ -52,6 +52,7 @@ SKIP_TESTS = {
     "test_dynamic_rule_two_processes.py",
     "test_dynamic_rule_revoke_second_worker.py",
     "test_nested_conftest_defines_no_fixtures.py",
+    "test_event_correlation_parallel.py",
 }
 
 SKIP_DIRS = {"__pycache__", "sync"}

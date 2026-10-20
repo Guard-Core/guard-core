@@ -7,6 +7,7 @@ from guard_core._utils.ip_extraction import (
     _client_identity,
 )
 from guard_core._utils.request_logging import redact_endpoint_for_display
+from guard_core._utils.rule_attribution import rate_limit_attribution
 from guard_core.core.checks.base import SecurityCheck
 from guard_core.core.checks.endpoint_limit_keys import EndpointLimitKeyMap
 from guard_core.core.checks.helpers import (
@@ -136,6 +137,7 @@ class RateLimitCheck(SecurityCheck):
         request: GuardRequest,
         event_type: str,
         event_kwargs: dict[str, Any],
+        attribution: dict[str, Any],
     ) -> None:
         decorator_type = event_kwargs.get("decorator_type")
         reason = str(event_kwargs.get("reason", ""))
@@ -178,6 +180,7 @@ class RateLimitCheck(SecurityCheck):
             if not self.config.passive_mode
             else "logged_only",
             **event_kwargs,
+            **attribution,
         )
 
     async def _record_rate_limit_autoban(
@@ -395,14 +398,15 @@ class RateLimitCheck(SecurityCheck):
         plan: _TierPlan,
         block: RateLimitBlock,
     ) -> None:
+        attribution = rate_limit_attribution(plan.tier.kind, plan.tier.bucket)
         if plan.event_type is not None:
             await self._send_rate_limit_event(
-                request, plan.event_type, plan.event_kwargs
+                request, plan.event_type, plan.event_kwargs, attribution
             )
         if self._decorator_sends_rate_limited(request, plan):
             return
         await self.middleware.rate_limit_handler.report_rate_limit_block(
-            request, client_ip, block, plan.tier, self.config
+            request, client_ip, block, plan.tier, self.config, attribution
         )
 
     def _skips_rate_limiting(self, request: GuardRequest, route_config: Any) -> bool:

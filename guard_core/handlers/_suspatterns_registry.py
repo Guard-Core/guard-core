@@ -85,6 +85,7 @@ class _SusPatternsRegistryMixin:
         action_taken: str,
         reason: str,
         pattern_matched: str | None = None,
+        endpoint: str | None = None,
         **kwargs: Any,
     ) -> None:
         agent_handler = self._events_agent_handler
@@ -105,6 +106,7 @@ class _SusPatternsRegistryMixin:
                 action_taken=action_taken,
                 reason=reason,
                 pattern_matched=pattern_matched,
+                endpoint=endpoint,
                 handler_name=_SUS_PATTERNS_HANDLER_NAME,
                 metadata=kwargs,
             )

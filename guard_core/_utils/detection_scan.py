@@ -59,10 +59,10 @@ _scan_cpu_mark: contextvars.ContextVar[float | None] = contextvars.ContextVar(
 _scan_slice_start: contextvars.ContextVar[float | None] = contextvars.ContextVar(
     "guard_core_detection_scan_slice_start", default=None
 )
-_semantic_excluded_headers: contextvars.ContextVar[frozenset[str]] = (
-    contextvars.ContextVar(
-        "guard_core_detection_semantic_excluded_headers", default=frozenset()
-    )
+_scan_request_scope: contextvars.ContextVar[
+    tuple[frozenset[str], tuple[Any, ...] | None]
+] = contextvars.ContextVar(
+    "guard_core_detection_scan_request_scope", default=(frozenset(), None)
 )
 
 
@@ -74,6 +74,7 @@ def _scan_value_budget(
     binary_min_run_length: int = _DEFAULT_BINARY_MIN_RUN_LENGTH,
     max_scan_seconds: float = _DEFAULT_MAX_SCAN_SECONDS,
     semantic_excluded_headers: frozenset[str] = frozenset(),
+    event_request: tuple[Any, ...] | None = None,
 ) -> Iterator[None]:
     count_token = _scanned_value_count.set(0)
     cap_token = _scan_value_cap.set(max_values)
@@ -87,7 +88,7 @@ def _scan_value_budget(
     time_spent_token = _scan_time_spent.set(0.0)
     time_warned_token = _scan_time_cap_warned.set(False)
     slice_token = _scan_slice_start.set(time.monotonic())
-    semantic_token = _semantic_excluded_headers.set(semantic_excluded_headers)
+    scope_token = _scan_request_scope.set((semantic_excluded_headers, event_request))
     try:
         yield
     finally:
@@ -103,7 +104,7 @@ def _scan_value_budget(
         _scan_time_spent.reset(time_spent_token)
         _scan_time_cap_warned.reset(time_warned_token)
         _scan_slice_start.reset(slice_token)
-        _semantic_excluded_headers.reset(semantic_token)
+        _scan_request_scope.reset(scope_token)
 
 
 def _binary_island_min_run_length() -> int:
@@ -201,8 +202,23 @@ def _warn_scan_time_cap_reached_once(client_ip: str) -> None:
     )
 
 
+def _scanned_request_endpoint() -> str | None:
+    event_request = _scan_request_scope.get()[1]
+    if event_request is None:
+        return None
+    from guard_core._utils.request_logging import redact_endpoint_for_display
+
+    request, sensitive_params, sensitive_body_fields, sensitive_headers = event_request
+    return redact_endpoint_for_display(
+        str(request.url_path),
+        sensitive_params,
+        sensitive_body_fields,
+        sensitive_headers,
+    )
+
+
 def _context_header_is_semantic_excluded(context: str) -> bool:
-    excluded = _semantic_excluded_headers.get()
+    excluded = _scan_request_scope.get()[0]
     if not excluded:
         return False
     kind, _, rest = context.partition(":")
@@ -307,6 +323,20 @@ async def _user_agent_matches_blocked_pattern(
         if await finder(subject):
             return True
     return False
+
+
+async def _first_blocked_user_agent_pattern(
+    user_agent: str, patterns: list[str]
+) -> str | None:
+    from guard_core.detection_engine.compiler import PatternCompiler
+
+    subject = user_agent[:_MAX_USER_AGENT_MATCH_LENGTH]
+    compiler = PatternCompiler()
+    for pattern in patterns:
+        finder = compiler.create_async_safe_finditer_matcher(pattern, inline_safe=True)
+        if await finder(subject):
+            return pattern
+    return None
 
 
 async def _fallback_pattern_check(

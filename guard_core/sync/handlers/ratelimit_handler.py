@@ -723,10 +723,16 @@ class RateLimitManager:
         block: RateLimitBlock,
         tier: RateLimitTier,
         config: SecurityConfig | None = None,
+        attribution: dict[str, Any] | None = None,
     ) -> None:
         if self.agent_handler:
             self._send_rate_limit_event(
-                request, client_ip, block.request_count, config=config, tier=tier
+                request,
+                client_ip,
+                block.request_count,
+                config=config,
+                tier=tier,
+                attribution=attribution,
             )
 
     def check_rate_limit(
@@ -766,6 +772,7 @@ class RateLimitManager:
         request_count: int,
         config: SecurityConfig | None = None,
         tier: RateLimitTier | None = None,
+        attribution: dict[str, Any] | None = None,
     ) -> None:
         display_config = config or self.config
         limit = tier.limit if tier else display_config.rate_limit
@@ -804,6 +811,7 @@ class RateLimitManager:
                     "request_count": request_count,
                     "rate_limit": limit,
                     "window": window,
+                    **(attribution or {}),
                 },
             )
             self.agent_handler.send_event(event)

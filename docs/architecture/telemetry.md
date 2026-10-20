@@ -77,6 +77,20 @@ config = SecurityConfig(
 - `muted_metric_types` short-circuits `MetricsCollector.send_metric()` before the metric reaches any exporter.
 - `muted_check_logs` suppresses the in-check `log_activity()` calls, each check passes the set into `log_if_allowed`. `SecurityCheckPipeline` *also* accepts a `muted_check_logs` set that gates its own block/error log entries, and `build_default_pipeline()` passes `config.muted_check_logs` into the pipeline, so pipeline-level entries are muted too for adapters that use the factory, an adapter that hand-builds `SecurityCheckPipeline(checks)` directly, without the factory, must pass `muted_check_logs` itself or those pipeline-level entries are not muted.
 
+## Rule attribution and detection correlation
+
+Events carry `metadata` keys that say which rule decided the request. They are independent of `enable_enrichment`.
+
+| Key | Present when |
+|---|---|
+| `matched_rule_type` = `"dynamic"`, `matched_rule_id` | an entry of the applied dynamic rule set decided the request: a ban the rule owns, a country, cloud provider or user-agent pattern in its lists, its global or endpoint rate limit, its emergency mode, or a detection pattern whose source text it lists. Never for toggles, thresholds, allow decisions or a set that is not applied |
+| `matched_rule_overlaps_static` = `true` | the same entry is also in the static configuration or built in |
+| `matched_rule_type` = `"behavioral"`, `matched_rule_id` | a behavioral rule fired (throttle, route usage, route return pattern, global usage, global return pattern); the id is the rule's stable uuid5 |
+| `correlation_id` | `penetration_attempt` and the `pattern_detected` events of the same request share one random id (no address or user data in it) |
+| `threat_categories`, `category` | `penetration_attempt` (active and passive mode), as `pattern_detected` already carried them |
+
+`pattern_detected` also fills the envelope `endpoint` with the redacted request path when the detection ran inside a request scan.
+
 ## Enabling OpenTelemetry
 
 === "uv"

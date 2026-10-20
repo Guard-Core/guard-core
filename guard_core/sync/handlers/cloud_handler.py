@@ -389,6 +389,7 @@ class CloudManager:
         provider: str,
         network: str,
         action_taken: str = "request_blocked",
+        **attribution: Any,
     ) -> None:
         from guard_core.sync.core.events.event_types import EVENT_CLOUD_BLOCKED
 
@@ -402,6 +403,7 @@ class CloudManager:
             reason=f"IP belongs to blocked cloud provider: {provider}",
             cloud_provider=provider,
             network=network,
+            **attribution,
         )
 
     def _send_cloud_event(

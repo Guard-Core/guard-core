@@ -3,6 +3,7 @@ from collections import OrderedDict
 from collections.abc import Collection, Sequence
 from ipaddress import ip_address
 
+from guard_core._utils.rule_attribution import emergency_attribution
 from guard_core._utils.sampling import observe_sampled_key
 from guard_core.core.checks.base import SecurityCheck
 from guard_core.core.events.event_types import EVENT_EMERGENCY_MODE_BLOCK
@@ -111,6 +112,7 @@ class EmergencyModeCheck(SecurityCheck):
                 reason=f"[EMERGENCY MODE] IP {client_ip} not in whitelist",
                 emergency_whitelist_count=len(self.config.emergency_whitelist),
                 emergency_active=True,
+                **emergency_attribution(),
             )
 
         if self.config.passive_mode:

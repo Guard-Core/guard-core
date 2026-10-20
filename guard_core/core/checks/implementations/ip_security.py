@@ -5,6 +5,7 @@ from guard_core._utils.ip_extraction import (
     _is_trusted_proxy,
     forwarded_for_addresses,
 )
+from guard_core._utils.rule_attribution import ban_attribution, country_attribution
 from guard_core._utils.whitelist_match import most_specific_whitelist_entry
 from guard_core.core.checks.base import SecurityCheck
 from guard_core.core.checks.helpers import (
@@ -171,6 +172,7 @@ class IpSecurityCheck(SecurityCheck):
             reason=f"Banned IP attempted access: {client_ip}",
             ip_address=client_ip,
             filter_type="banned",
+            **ban_attribution(client_ip),
         )
 
         if not self.config.passive_mode:
@@ -331,6 +333,7 @@ class IpSecurityCheck(SecurityCheck):
             **(
                 {"country": access_result.country} if access_result.country_rule else {}
             ),
+            **self._country_rule_attribution(access_result),
         )
         if not self.config.passive_mode:
             if escalate:
@@ -398,7 +401,14 @@ class IpSecurityCheck(SecurityCheck):
             ip_address=client_ip,
             country=access_result.country,
             rule_type=access_result.country_rule,
+            **self._country_rule_attribution(access_result),
         )
+
+    @staticmethod
+    def _country_rule_attribution(access_result: IpAccessResult) -> dict[str, Any]:
+        if not access_result.country_rule:
+            return {}
+        return country_attribution(access_result.country_rule, access_result.country)
 
     def _forwarded_for_claims_privileged_address(
         self, forwarded_for: str, route_config: RouteConfig | None

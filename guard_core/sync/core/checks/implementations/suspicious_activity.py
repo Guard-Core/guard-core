@@ -1,7 +1,7 @@
 import threading
 from collections import OrderedDict
 from collections.abc import Collection
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from guard_core.models import SecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
@@ -11,6 +11,7 @@ from guard_core.sync._utils.route_gate import (
     might_be_a_gated_probe,
     might_be_a_static_file,
 )
+from guard_core.sync._utils.rule_attribution import pattern_attribution
 from guard_core.sync._utils.sampling import observe_sampled_key
 from guard_core.sync.core.checks._shared_strikes import StrikeReport
 from guard_core.sync.core.checks.base import SecurityCheck
@@ -83,9 +84,20 @@ class SuspiciousActivityCheck(SecurityCheck):
         request_total = getattr(ip_counts, "request_total", None)
         return sum(ip_counts.values()) if request_total is None else request_total
 
+    @staticmethod
+    def _detection_event_fields(result: DetectionResult) -> dict[str, Any]:
+        fields: dict[str, Any] = pattern_attribution(result.matched_pattern_source)
+        if result.correlation_id is not None:
+            fields["correlation_id"] = result.correlation_id
+        if result.threat_categories:
+            fields["threat_categories"] = list(result.threat_categories)
+            fields["category"] = result.threat_categories[0]
+        return fields
+
     def _handle_suspicious_passive_mode(
-        self, request: SyncGuardRequest, client_ip: str, trigger_info: str
+        self, request: SyncGuardRequest, client_ip: str, result: DetectionResult
     ) -> None:
+        trigger_info = result.trigger_info
         log_activity(
             request,
             self.logger,
@@ -112,15 +124,17 @@ class SuspiciousActivityCheck(SecurityCheck):
             request_count=self._total_count_for_ip(client_ip),
             passive_mode=True,
             trigger_info=trigger_info,
+            **self._detection_event_fields(result),
         )
 
     def _handle_suspicious_active_mode(
         self,
         request: SyncGuardRequest,
         client_ip: str,
-        trigger_info: str,
-        threat_categories: list[str],
+        result: DetectionResult,
     ) -> GuardResponse:
+        trigger_info = result.trigger_info
+        threat_categories = list(result.threat_categories)
         strikes = StrikeReport()
         banned = _try_threshold_ban(
             request,
@@ -144,6 +158,7 @@ class SuspiciousActivityCheck(SecurityCheck):
                 request_count=strikes.banning_count or 0,
                 ban_duration=strikes.banned_duration,
                 trigger_info=trigger_info,
+                **self._detection_event_fields(result),
             )
             return self.middleware.create_error_response(
                 status_code=403,
@@ -172,6 +187,7 @@ class SuspiciousActivityCheck(SecurityCheck):
             reason=f"Penetration attempt detected: {trigger_info}",
             request_count=strikes.count_or(lambda: self._total_count_for_ip(client_ip)),
             trigger_info=trigger_info,
+            **self._detection_event_fields(result),
         )
 
         return self.middleware.create_error_response(
@@ -294,15 +310,12 @@ class SuspiciousActivityCheck(SecurityCheck):
         if not result.is_threat:
             return None
 
-        trigger_info = result.trigger_info
-        threat_categories = list(result.threat_categories)
-
         if self.config.passive_mode:
-            self._handle_suspicious_passive_mode(request, client_ip, trigger_info)
+            self._handle_suspicious_passive_mode(request, client_ip, result)
             return None
 
-        _increment_suspicious_counts(self.middleware, client_ip, threat_categories)
-
-        return self._handle_suspicious_active_mode(
-            request, client_ip, trigger_info, threat_categories
+        _increment_suspicious_counts(
+            self.middleware, client_ip, list(result.threat_categories)
         )
+
+        return self._handle_suspicious_active_mode(request, client_ip, result)

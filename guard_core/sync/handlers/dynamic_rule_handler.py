@@ -11,6 +11,10 @@ from guard_core.sync.handlers._dynamic_rule_application import (
     DynamicRuleApplicationMixin,
     RuleSideEffects,
 )
+from guard_core.sync.handlers._dynamic_rule_attribution import (
+    RuleAttribution,
+    build_rule_attribution,
+)
 from guard_core.sync.handlers._dynamic_rule_intake import DynamicRuleIntakeMixin
 from guard_core.sync.handlers._dynamic_rule_plan import (
     DynamicRulePlanMixin,
@@ -51,6 +55,7 @@ class DynamicRuleManager(
     _owned_patterns: list[str]
     _restored_ownership: tuple[list[str], list[str]]
     _reverted_rules: DynamicRules | None
+    _attribution_cache: tuple[tuple[object, ...], RuleAttribution] | None = None
 
     def __new__(
         cls: type["DynamicRuleManager"], config: SecurityConfig
@@ -97,6 +102,31 @@ class DynamicRuleManager(
 
     def initialize_redis(self, redis_handler: Any) -> None:
         self.redis_handler = redis_handler
+
+    def rule_attribution(self) -> RuleAttribution | None:
+        rules = self.current_rules
+        if rules is None:
+            return None
+        inputs = (
+            rules,
+            self._owned_bans,
+            self._owned_patterns,
+            self._active_base_snapshot,
+        )
+        cached = self._attribution_cache
+        if cached is not None and all(
+            held is current for held, current in zip(cached[0], inputs, strict=True)
+        ):
+            return cached[1]
+        view = build_rule_attribution(
+            rules,
+            self.config,
+            self._owned_bans,
+            self._owned_patterns,
+            self._active_base_snapshot or {},
+        )
+        self._attribution_cache = (inputs, view)
+        return view
 
     def match_event(self, event: Any) -> tuple[str, int] | None:
         rules = self.current_rules

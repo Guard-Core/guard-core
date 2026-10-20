@@ -1046,7 +1046,9 @@ class SusPatternsManager(_SusPatternsViewsMixin):
         from guard_core._utils.detection_scan import (
             _redact_pattern_source,
             _resolve_preview,
+            _scanned_request_endpoint,
         )
+        from guard_core._utils.rule_attribution import pattern_attribution
         from guard_core.core.events.event_types import EVENT_PATTERN_DETECTED
 
         if detection_method is None:
@@ -1074,6 +1076,7 @@ class SusPatternsManager(_SusPatternsViewsMixin):
             action_taken="threat_detected",
             reason=f"Threat detected in {context}",
             pattern_matched=pattern_matched,
+            endpoint=_scanned_request_endpoint(),
             pattern=pattern_matched,
             context=context,
             content_preview=_sanitize_for_reporting(capped_preview),
@@ -1087,6 +1090,7 @@ class SusPatternsManager(_SusPatternsViewsMixin):
             correlation_id=correlation_id,
             threat_categories=threat_categories,
             category=threat_categories[0] if threat_categories else None,
+            **pattern_attribution(matched_patterns[0] if matched_patterns else None),
         )
 
     async def detect_pattern_match(

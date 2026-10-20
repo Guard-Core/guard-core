@@ -12,3 +12,5 @@ class DetectionResult:
     threat_scores: dict[str, float] = field(default_factory=dict)
     body_read_error: str | None = None
     body_read_detail: str = ""
+    correlation_id: str | None = None
+    matched_pattern_source: str | None = None
