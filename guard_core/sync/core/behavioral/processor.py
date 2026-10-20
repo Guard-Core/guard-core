@@ -180,6 +180,7 @@ class BehavioralProcessor(BehavioralThrottleMixin):
                         client_ip,
                         endpoint_id,
                         f"Usage threshold exceeded: {details}",
+                        **rule.matched_rule_metadata(),
                     )
         return route_throttles
 
@@ -226,6 +227,7 @@ class BehavioralProcessor(BehavioralThrottleMixin):
                     client_ip,
                     endpoint_id,
                     f"Return pattern threshold exceeded: {details}",
+                    **rule.matched_rule_metadata(),
                 )
 
     def process_global_rules(
@@ -305,6 +307,7 @@ class BehavioralProcessor(BehavioralThrottleMixin):
             client_ip,
             endpoint_id,
             f"Global usage threshold exceeded: {details}",
+            **rule.matched_rule_metadata(),
         )
 
     def _evaluate_global_return_rule(
@@ -371,6 +374,7 @@ class BehavioralProcessor(BehavioralThrottleMixin):
             client_ip,
             endpoint_id,
             f"Global return pattern threshold exceeded: {details}",
+            **rule.matched_rule_metadata(),
         )
 
     def _report_decorator_violation(

@@ -382,7 +382,6 @@ class BehavioralThrottleMixin:
             endpoint_id,
             f"Throttle threshold reached: {details}",
             observe_only=not enforced,
-            matched_rule_type="behavioral",
-            matched_rule_id=rule.matched_rule_id(),
+            **rule.matched_rule_metadata(),
             refusals_since_last_event=refusals,
         )

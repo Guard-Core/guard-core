@@ -89,6 +89,12 @@ class BehaviorRule:
             uuid.uuid5(uuid.NAMESPACE_URL, _RULE_ID_PREFIX + self.discriminator())
         )
 
+    def matched_rule_metadata(self) -> dict[str, str]:
+        return {
+            "matched_rule_type": "behavioral",
+            "matched_rule_id": self.matched_rule_id(),
+        }
+
 
 _RECENT_ENDPOINT_ID = "recent"
 _MAX_TRACKED_ENDPOINTS = 10_000
