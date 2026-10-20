@@ -247,7 +247,7 @@ def _scan_value_budget_exhausted(client_ip: str) -> bool:
     if count == cap + 1:
         logger.warning(
             "detection_max_scan_values (%d) reached for client %s; remaining "
-            "request values are not scanned",
+            "request values are scanned once more as one block",
             cap,
             client_ip,
         )
@@ -262,7 +262,7 @@ def _scan_char_budget_exhausted(client_ip: str, value_length: int) -> bool:
             _scan_char_cap_warned.set(True)
             logger.warning(
                 "detection_max_scan_chars (%d) reached for client %s; remaining "
-                "request values are not scanned",
+                "request values are scanned once more as one block",
                 cap,
                 client_ip,
             )
