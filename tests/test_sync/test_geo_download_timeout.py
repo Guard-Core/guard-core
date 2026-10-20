@@ -191,3 +191,17 @@ def test_a_listener_that_never_answers_the_tls_hello_ends_at_the_connect_bound(
 
 def test_the_shipped_download_bounds_are_30_30_and_300() -> None:
     assert SHIPPED_BOUNDS == (30, 30, 300)
+
+
+def test_a_fast_endless_body_ends_each_attempt_at_the_total_bound(
+    tmp_path: Path,
+) -> None:
+    with endless_server(gap=0.0) as server:
+        manager = _manager_downloading_from(server, tmp_path)
+        started = time.monotonic()
+        denied = check_ip_country(CLIENT_IP, _allow_list(manager), manager)
+        elapsed = time.monotonic() - started
+
+    assert server.attempts == 3
+    assert 3 * TOTAL_BOUND <= elapsed < 3 * TOTAL_BOUND + 0.3
+    assert denied is True

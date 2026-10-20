@@ -335,22 +335,16 @@ _SYNC_DOWNLOAD_BODY_REPLACEMENT = (
     "            response.raise_for_status()\n"
     "            raw: HTTPResponse = response.raw\n"
     "            chunks: list[bytes] = []\n"
-    "            while True:\n"
-    "                left = deadline - time.monotonic()\n"
-    "                if left <= 0:\n"
-    "                    raise TimeoutError(\n"
-    '                        "GeoIP download exceeded the total time bound"\n'
-    "                    )\n"
+    "            while (left := deadline - time.monotonic()) > 0:\n"
     "                connection = raw.connection\n"
     "                if connection is not None and connection.sock is not None:\n"
     "                    connection.sock.settimeout(\n"
     "                        min(self._download_read_timeout, left)\n"
     "                    )\n"
-    "                chunk = raw.read1(65536, decode_content=True)\n"
-    "                if not chunk:\n"
-    "                    break\n"
+    "                if not (chunk := raw.read1(65536, decode_content=True)):\n"
+    '                    return b"".join(chunks)\n'
     "                chunks.append(chunk)\n"
-    '        return b"".join(chunks)\n'
+    '        raise TimeoutError("GeoIP download exceeded the total time bound")\n'
 )
 
 SUBS: list[tuple[str, str]] = [
@@ -446,6 +440,11 @@ SUBS: list[tuple[str, str]] = [
     (r"(?<!Sync)(?<!\w)CloudIpStoreFactory\b", "SyncCloudIpStoreFactory"),
     (r"from redis\.asyncio import Redis", "from redis import Redis"),
     (r"redis\.asyncio", "redis"),
+    (
+        r"import aiohttp\n\n\nclass IpInfoDownloadMixin",
+        "import time\n\nimport requests\n"
+        "from urllib3.response import HTTPResponse\n\n\nclass IpInfoDownloadMixin",
+    ),
     (r"import aiohttp", "import requests"),
     (r'TREE_DOWNLOADER = "aiohttp"', 'TREE_DOWNLOADER = "requests"'),
     (r"aiohttp\.ClientSession\(\)", "requests.Session()"),

@@ -9,12 +9,12 @@ from typing import Any
 import maxminddb
 import requests
 from maxminddb import Reader
-from urllib3.response import HTTPResponse
 
 from guard_core.sync.core.events.event_types import (
     EVENT_GEO_LOOKUP_FAILED,
 )
 from guard_core.sync.handlers._ipinfo_background import IpInfoBackgroundMixin
+from guard_core.sync.handlers._ipinfo_download import IpInfoDownloadMixin
 from guard_core.sync.handlers._ipinfo_events import IpInfoEventsMixin
 from guard_core.sync.handlers._ipinfo_redis_copy import IpInfoRedisCopyMixin
 from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol
@@ -31,7 +31,12 @@ def _describe_download_error(exc: BaseException) -> str:
     return type(exc).__name__
 
 
-class IPInfoManager(IpInfoBackgroundMixin, IpInfoRedisCopyMixin, IpInfoEventsMixin):
+class IPInfoManager(
+    IpInfoBackgroundMixin,
+    IpInfoRedisCopyMixin,
+    IpInfoEventsMixin,
+    IpInfoDownloadMixin,
+):
     _instance = None
     _by_path: dict[Path, IPInfoManager] = {}
     _download_retries: int = 3
@@ -237,30 +242,6 @@ class IPInfoManager(IpInfoBackgroundMixin, IpInfoRedisCopyMixin, IpInfoEventsMix
                         raise
                     self._sleep(backoff)
                     backoff *= 2
-
-    def _download_body(
-        self, session: requests.Session, headers: dict[str, str]
-    ) -> bytes:
-        deadline = time.monotonic() + self._download_total_timeout
-        timeout = (self._download_connect_timeout, self._download_read_timeout)
-        with session.get(
-            self._download_url, headers=headers, timeout=timeout, stream=True
-        ) as response:
-            response.raise_for_status()
-            raw: HTTPResponse = response.raw
-            chunks: list[bytes] = []
-            while True:
-                left = deadline - time.monotonic()
-                if left <= 0:
-                    raise TimeoutError("GeoIP download exceeded the total time bound")
-                connection = raw.connection
-                if connection is not None and connection.sock is not None:
-                    connection.sock.settimeout(min(self._download_read_timeout, left))
-                chunk = raw.read1(65536, decode_content=True)
-                if not chunk:
-                    break
-                chunks.append(chunk)
-        return b"".join(chunks)
 
     def _sleep(self, seconds: float) -> None:
         time.sleep(seconds)

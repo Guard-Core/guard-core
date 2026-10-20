@@ -14,6 +14,7 @@ from guard_core.core.events.event_types import (
 )
 from guard_core.handlers._downloader import require_downloader_installed
 from guard_core.handlers._ipinfo_background import IpInfoBackgroundMixin
+from guard_core.handlers._ipinfo_download import IpInfoDownloadMixin
 from guard_core.handlers._ipinfo_events import IpInfoEventsMixin
 from guard_core.handlers._ipinfo_redis_copy import IpInfoRedisCopyMixin
 from guard_core.protocols.agent_protocol import AgentHandlerProtocol
@@ -33,7 +34,12 @@ def _describe_download_error(exc: BaseException) -> str:
     return type(exc).__name__
 
 
-class IPInfoManager(IpInfoBackgroundMixin, IpInfoRedisCopyMixin, IpInfoEventsMixin):
+class IPInfoManager(
+    IpInfoBackgroundMixin,
+    IpInfoRedisCopyMixin,
+    IpInfoEventsMixin,
+    IpInfoDownloadMixin,
+):
     _instance = None
     _by_path: dict[Path, IPInfoManager] = {}
     _download_retries: int = 3
@@ -246,20 +252,6 @@ class IPInfoManager(IpInfoBackgroundMixin, IpInfoRedisCopyMixin, IpInfoEventsMix
                         raise
                     await self._sleep(backoff)
                     backoff *= 2
-
-    async def _download_body(
-        self, session: aiohttp.ClientSession, headers: dict[str, str]
-    ) -> bytes:
-        timeout = aiohttp.ClientTimeout(
-            sock_connect=self._download_connect_timeout,
-            sock_read=self._download_read_timeout,
-            total=self._download_total_timeout,
-        )
-        response = await session.get(
-            self._download_url, headers=headers, timeout=timeout
-        )
-        response.raise_for_status()
-        return await response.read()
 
     async def _sleep(self, seconds: float) -> None:
         await asyncio.sleep(seconds)
