@@ -5,6 +5,7 @@ import sys
 import time
 from collections.abc import Generator
 from typing import Any
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -317,3 +318,22 @@ def test_a_longer_foreign_network_ban_stays_in_both_workers(
 
     assert ip_ban_manager.is_ip_banned(INSIDE_NETWORK)
     assert second_worker.ask(INSIDE_NETWORK) == {INSIDE_NETWORK: True}
+
+
+@pytest.mark.parametrize(("target", "probe"), [(IP, IP), (NETWORK, INSIDE_NETWORK)])
+def test_a_foreign_ban_held_in_this_process_is_not_seen_by_a_second_worker(
+    redis_fleet: Fleet, second_worker: SecondWorker, target: str, probe: str
+) -> None:
+    redis_fleet.apply(1, [target])
+    assert second_worker.ask(probe) == {probe: True}
+    with patch.object(
+        redis_fleet.redis,
+        "write_ban_extending_only",
+        MagicMock(side_effect=RuntimeError("redis write failed")),
+    ):
+        ip_ban_manager.ban_ip(target, 86400, "auto_ban")
+
+    redis_fleet.apply(2, [OTHER])
+
+    assert ip_ban_manager.is_ip_banned(probe)
+    assert second_worker.ask(probe) == {probe: False}

@@ -95,8 +95,10 @@ class IpBanOperationsMixin(
             )
         except Exception:
             self._warn_kept_in_this_process(str(network), "request failed")
-            self._remember_network_ban(
-                network, expiry, reason == DYNAMIC_RULE_BAN_REASON
+            rule_owned = reason == DYNAMIC_RULE_BAN_REASON
+            self._remember_network_ban(network, expiry, rule_owned)
+            self._record_foreign_memory_ban(
+                "banned_networks", str(network), expiry, rule_owned
             )
 
     async def _ban_exact_ip(self, ip: str, duration: int, reason: str) -> None:
@@ -151,6 +153,7 @@ class IpBanOperationsMixin(
             except Exception:
                 self._warn_kept_in_this_process(key, "request failed")
                 self._remember_ban(key, expiry, False)
+                self._record_foreign_memory_ban(namespace, key, expiry, rule_owned)
 
         if recidive_count is not None:
             self.logger.info(

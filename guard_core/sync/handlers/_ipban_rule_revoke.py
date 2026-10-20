@@ -34,6 +34,8 @@ class IpBanRuleRevokeMixin(IpBanVersionMixin, IpBanEventMixin):
     logger: logging.Logger
     _rule_owned_expiries: dict[str, float]
     _rule_floor_expiries: dict[str, float]
+    _foreign_network_expiries: dict[str, float]
+    MAX_LOCAL_BANS: int
 
     def _live_memory_expiry(self, namespace: str, key: str, now: float) -> float | None:
         if namespace == "banned_networks":
@@ -93,6 +95,7 @@ class IpBanRuleRevokeMixin(IpBanVersionMixin, IpBanEventMixin):
             self.banned_networks = [
                 entry for entry in self.banned_networks if entry[0] != network
             ]
+            self._foreign_network_expiries.pop(key, None)
             return
         self.banned_ips.pop(key, None)
 
@@ -111,6 +114,42 @@ class IpBanRuleRevokeMixin(IpBanVersionMixin, IpBanEventMixin):
             return REVOKE_REWRITTEN
         self._drop_local_rule_ban(namespace, key)
         return REVOKE_DELETED
+
+    def _record_foreign_memory_ban(
+        self, namespace: str, key: str, expiry: float, rule_owned: bool
+    ) -> None:
+        """A ban another source wrote whose Redis write failed lives in this
+        process only; remember its expiry so a rule revoke does not lift it."""
+        if rule_owned or namespace == "banned_identities":
+            return
+        if namespace == "banned_ips":
+            if isinstance(self.banned_ips, _BanStore):
+                self.banned_ips.record_foreign_memory(key, expiry)
+            return
+        now = time.time()
+        held = {str(network) for network, _ in self.banned_networks}
+        records = {**self._foreign_network_expiries}
+        records[key] = max(expiry, records.get(key, 0.0))
+        live = {k: until for k, until in records.items() if until > now and k in held}
+        while len(live) > self.MAX_LOCAL_BANS:
+            del live[min(live, key=lambda name: live[name])]
+        self._foreign_network_expiries = live
+
+    def _foreign_memory_expiry(self, namespace: str, key: str) -> float | None:
+        if namespace == "banned_networks":
+            expiry = self._foreign_network_expiries.get(key)
+        elif isinstance(self.banned_ips, _BanStore):
+            expiry = self.banned_ips.foreign_memory_expiry(key)
+        else:
+            expiry = None
+        return expiry if expiry is not None and expiry > time.time() else None
+
+    def _keep_foreign_memory_ban_or_drop(self, namespace: str, key: str) -> None:
+        foreign = self._foreign_memory_expiry(namespace, key)
+        if foreign is None:
+            self._drop_local_rule_ban(namespace, key)
+            return
+        self._set_memory_expiry(namespace, key, foreign)
 
     def owned_rule_ban_targets(self) -> list[str]:
         """The addresses and networks a dynamic rule owns, in the form
@@ -139,7 +178,7 @@ class IpBanRuleRevokeMixin(IpBanVersionMixin, IpBanEventMixin):
         prefix = self.redis_handler.config.redis_prefix
         outcome = self.redis_handler.purge_owned_ban(f"{prefix}{namespace}:{key}")
         if in_memory == REVOKE_GONE:
-            self._drop_local_rule_ban(namespace, key)
+            self._keep_foreign_memory_ban_or_drop(namespace, key)
         return outcome or in_memory
 
     def settle_rule_revocations(self, revoked: Iterable[tuple[str, int]]) -> None:

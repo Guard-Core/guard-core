@@ -383,6 +383,10 @@ TEST_SUBS: list[tuple[str, str]] = [
         r"from tests.test_sync.\1.conftest import \2",
     ),
     (
+        r"from tests\.test_dynamic_rule_revoke_owned_only import",
+        "from tests.test_sync.test_dynamic_rule_revoke_owned_only import",
+    ),
+    (
         r"from tests\.ipban_redis_fake import",
         "from tests.test_sync.ipban_redis_fake import",
     ),

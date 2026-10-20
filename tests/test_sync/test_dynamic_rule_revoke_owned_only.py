@@ -85,6 +85,7 @@ def _open_fleet(on_redis: bool) -> Fleet:
     ip_ban_manager.banned_networks.clear()
     ip_ban_manager._rule_owned_expiries.clear()
     ip_ban_manager._rule_floor_expiries.clear()
+    ip_ban_manager._foreign_network_expiries.clear()
     ip_ban_manager._forget_shared_state()
     DynamicRuleManager._instance = None
     manager = DynamicRuleManager(config)

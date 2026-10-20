@@ -47,6 +47,15 @@ class _BanStore(MutableMapping[str, float]):
         self._expiries: dict[str, float] = {}
         self._heap: list[tuple[float, str]] = []
         self._memory_only: set[str] = set()
+        self._foreign_memory: dict[str, float] = {}
+
+    def record_foreign_memory(self, key: str, expiry: float) -> None:
+        """Keep the latest expiry of a ban whose Redis write failed: unlike the
+        memory-only marker, a later write does not clear it."""
+        self._foreign_memory[key] = max(expiry, self._foreign_memory.get(key, 0.0))
+
+    def foreign_memory_expiry(self, key: str) -> float | None:
+        return self._foreign_memory.get(key)
 
     def mark_memory_only(self, key: str) -> None:
         """Record that no Redis copy backs this ban, so an eviction loses it."""
@@ -75,6 +84,7 @@ class _BanStore(MutableMapping[str, float]):
             heapq.heapify(self._heap)
 
     def __delitem__(self, key: str) -> None:
+        self._foreign_memory.pop(key, None)
         del self._expiries[key]
         self._memory_only.discard(key)
 
@@ -82,6 +92,7 @@ class _BanStore(MutableMapping[str, float]):
         self._expiries.clear()
         self._heap.clear()
         self._memory_only.clear()
+        self._foreign_memory.clear()
 
     def resize(self, maxsize: int) -> None:
         self.maxsize = maxsize
@@ -94,6 +105,7 @@ class _BanStore(MutableMapping[str, float]):
             if self._expiries.get(key) != expiry:
                 continue
             del self._expiries[key]
+            self._foreign_memory.pop(key, None)
             if expiry > self._clock():
                 self._on_evict(key, expiry)
             self._memory_only.discard(key)

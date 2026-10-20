@@ -53,6 +53,7 @@ class IpBanQueryMixin(
 ):
     banned_ips: MutableMapping[str, float]
     banned_networks: list[tuple[_Network, float]]
+    _foreign_network_expiries: dict[str, float]
     redis_handler: Any = None
     logger: logging.Logger
 
@@ -64,6 +65,7 @@ class IpBanQueryMixin(
             if banned != network
         ]
         self._purge_banned_ip(str(network))
+        self._foreign_network_expiries.pop(str(network), None)
         if self.redis_handler:
             bans = [
                 ("banned_networks", str(network)),
@@ -189,6 +191,7 @@ class IpBanQueryMixin(
         for banned, expiry in self.banned_networks:
             if coverage.covers_network(banned):
                 removed.append(str(banned))
+                self._foreign_network_expiries.pop(str(banned), None)
             else:
                 kept.append((banned, expiry))
         self.banned_networks = kept
@@ -257,6 +260,7 @@ class IpBanQueryMixin(
     async def reset(self) -> None:
         self.banned_ips.clear()
         self.banned_networks.clear()
+        self._foreign_network_expiries.clear()
         if self.redis_handler:
             await self._unlink_prefixed(
                 (
