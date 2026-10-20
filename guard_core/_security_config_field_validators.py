@@ -7,8 +7,9 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Annotated, Any, Literal, cast, get_args
 
-from pydantic import AfterValidator, BaseModel, BeforeValidator, Field, TypeAdapter
+from pydantic import AfterValidator, BaseModel, Field, TypeAdapter
 
+from guard_core import _security_config_exempt_purge_validators as _exempt_purge
 from guard_core._config_field_revalidators import (
     _validate_bool_field_value,
     _validate_endpoint_rate_limits_value,
@@ -27,7 +28,6 @@ from guard_core._security_config_typed_validators import (
     _STR_SET_OR_CATEGORY_MAP_ADAPTER,
     _validate_typed_collection_field_value,
 )
-from guard_core.handlers._dynamic_rule_persistence import parse_purge_target
 from guard_core.handlers.suspatterns_handler import ALL_DETECTION_CATEGORIES
 
 if TYPE_CHECKING:
@@ -131,13 +131,12 @@ def _drop_exact_duplicate_rules(
     return tuple(unique)
 
 
-def _validate_purge_target(value: str | None) -> str | None:
-    if value is not None:
-        parse_purge_target(value)
-    return value
-
-
-PurgeTarget = Annotated[str | None, AfterValidator(_validate_purge_target)]
+PurgeTarget = _exempt_purge.PurgeTarget
+EmergencyExemptPaths = _exempt_purge.EmergencyExemptPaths
+_validate_purge_target = _exempt_purge._validate_purge_target
+_validate_emergency_exempt_paths_value = (
+    _exempt_purge._validate_emergency_exempt_paths_value
+)
 
 GlobalBehaviorRules = Annotated[
     tuple[BehaviorRuleConfig, ...], AfterValidator(_drop_exact_duplicate_rules)
@@ -224,32 +223,6 @@ def _validate_emergency_whitelist_value(v: Any) -> list[str]:
         entries, invalid_message="Invalid IP or CIDR range"
     )
     return list(validated)
-
-
-def _validate_emergency_exempt_paths_value(v: Any) -> list[str]:
-    from guard_core.core.validation.path_matching import normalize_url_path
-
-    entries = _validate_str_list_field_value(v, field_name="emergency_exempt_paths")
-    for entry in entries:
-        normalized = normalize_url_path(entry)
-        if normalized is None:
-            raise ValueError(
-                f"emergency_exempt_paths entry {entry!r} could not be normalized "
-                "(malformed percent-encoding or invalid UTF-8); it would exempt "
-                "nothing at request time. Fix or remove it."
-            )
-        if normalized == "/":
-            raise ValueError(
-                f"emergency_exempt_paths entry {entry!r} is the root path '/', "
-                "which would leave the whole application open during an "
-                "emergency lockdown. List the probe paths only."
-            )
-    return entries
-
-
-EmergencyExemptPaths = Annotated[
-    list[str], BeforeValidator(_validate_emergency_exempt_paths_value)
-]
 
 
 def _validate_whitelist_value(v: Any) -> Any:
