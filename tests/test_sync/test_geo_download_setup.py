@@ -1,7 +1,9 @@
+import errno
 import gc
 import importlib
 import socket
 import ssl
+import struct
 import sys
 import threading
 import time
@@ -17,11 +19,13 @@ import pytest
 from urllib3.connection import HTTPConnection, HTTPSConnection
 from urllib3.connectionpool import HTTPConnectionPool
 from urllib3.contrib.pyopenssl import WrappedSocket
+from urllib3.util.ssl_ import ssl_wrap_socket
 from urllib3.util.ssltransport import SSLTransport
 
 from guard_core.sync.handlers._ipinfo_download_cut import (
     DownloadCut,
     RecordingAdapter,
+    _close_sockets_ssl_create_left_open,
 )
 from guard_core.sync.handlers.ipinfo_handler import IPInfoManager
 from tests.geo_fixture import (
@@ -599,3 +603,123 @@ def test_wrapping_a_cached_proxy_manager_again_leaves_one_recording_layer() -> N
             if c.__name__ == "RecordingConnection"
         ]
         assert len(layers) == 1
+
+
+def _reset_after_the_tunnel_is_up(conn: socket.socket, attempt: int) -> None:
+    conn.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
+    conn.sendall(b"HTTP/1.1 200 Connection established\r\n\r\n")
+    conn.close()
+
+
+def test_a_peer_that_resets_after_the_tunnel_is_up_leaves_no_unclosed_ssl_socket(
+    trusted_tls: tuple[Path, Path], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    unraisable: list[str] = []
+    monkeypatch.setattr(
+        sys, "unraisablehook", lambda args: unraisable.append(str(args.exc_value))
+    )
+    real_wrap = ssl_wrap_socket
+
+    def wrap_after_the_reset_arrived(*args: Any, **kwargs: Any) -> Any:
+        time.sleep(0.3)
+        return real_wrap(*args, **kwargs)
+
+    monkeypatch.setattr(
+        "urllib3.connection.ssl_wrap_socket", wrap_after_the_reset_arrived
+    )
+    with GeoDownloadServer(_reset_after_the_tunnel_is_up) as server:
+        monkeypatch.setenv("HTTPS_PROXY", f"http://127.0.0.1:{_port(server)}")
+        with pytest.raises(Exception) as failure:
+            _manager(f"https://{HOST}/db", tmp_path)._fetch_and_store_database()
+    failure_type = failure.type.__name__
+    del failure  # its traceback would keep the half-built socket alive
+    _wait_for_the_setup_workers_to_end()
+    gc.collect()
+
+    assert unraisable == []
+    assert failure_type == "ConnectionError"
+
+
+def test_after_the_cut_a_tunnel_that_ends_by_eof_never_reaches_the_tls_wrap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    wraps: list[object] = []
+    created: list[object] = []
+    real_create = cast(Any, ssl.SSLSocket)._create.__func__
+
+    def spy_wrap(*args: Any, **kwargs: Any) -> None:
+        wraps.append(args)
+
+    def spy_create(cls: Any, *args: Any, **kwargs: Any) -> Any:
+        created.append(args)
+        return real_create(cls, *args, **kwargs)
+
+    monkeypatch.setattr("urllib3.connection.ssl_wrap_socket", spy_wrap)
+    monkeypatch.setattr(ssl.SSLSocket, "_create", classmethod(spy_create))
+    with stalling_server("header", keep_alive=True) as server:
+        monkeypatch.setenv("HTTPS_PROXY", f"http://127.0.0.1:{_port(server)}")
+        _seconds_until_the_attempt_fails(_manager(f"https://{HOST}/db", tmp_path))
+        _wait_for_the_setup_workers_to_end()
+
+    assert wraps == []
+    assert created == []
+
+
+def _half_built_socket_in(error: BaseException) -> ssl.SSLSocket:
+    trace = error.__traceback__
+    while trace is not None:
+        if trace.tb_frame.f_code.co_name == "_create":
+            return cast(ssl.SSLSocket, trace.tb_frame.f_locals["self"])
+        trace = trace.tb_next
+    raise AssertionError("the failure did not pass through SSLSocket._create")
+
+
+def _wrap_that_fails_in_getpeername(monkeypatch: pytest.MonkeyPatch) -> OSError:
+    def refusing(sock: ssl.SSLSocket) -> None:
+        raise OSError(errno.EINVAL, "Invalid argument")
+
+    monkeypatch.setattr(ssl.SSLSocket, "getpeername", refusing)
+    local, remote = socket.socketpair()
+    with local, remote:
+        with pytest.raises(OSError) as failure:
+            ssl.create_default_context().wrap_socket(local, server_hostname=HOST)
+    return failure.value
+
+
+def test_the_socket_the_stdlib_wrap_left_half_built_is_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    error = _wrap_that_fails_in_getpeername(monkeypatch)
+    half_built = _half_built_socket_in(error)
+
+    _close_sockets_ssl_create_left_open(error)
+
+    assert half_built.fileno() == -1
+
+
+def test_the_half_built_socket_is_found_through_the_cause_and_context_chain(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    error = _wrap_that_fails_in_getpeername(monkeypatch)
+    half_built = _half_built_socket_in(error)
+    try:
+        try:
+            raise error
+        except OSError as original:
+            raise RuntimeError("setup failed") from original
+    except RuntimeError as outer:
+        _close_sockets_ssl_create_left_open(outer)
+
+    assert half_built.fileno() == -1
+
+
+def test_a_socket_that_another_frame_owns_is_left_open(
+    open_sockets: ExitStack, trusted_tls: tuple[Path, Path]
+) -> None:
+    owned = _pair(open_sockets)
+    try:
+        raise OSError("failed elsewhere")
+    except OSError as error:
+        _close_sockets_ssl_create_left_open(error)
+
+    assert owned.fileno() != -1
