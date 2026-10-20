@@ -89,10 +89,12 @@ TEMPLATE_FILES = {
     SYNC_DIR / "protocols" / "agent_protocol.py",
     SYNC_DIR / "protocols" / "geo_ip_protocol.py",
     SYNC_DIR / "protocols" / "redis_protocol.py",
+    SYNC_DIR / "handlers" / "_ipinfo_download_cut.py",
     SYNC_DIR / "py.typed",
 }
 
 HAND_MAINTAINED = {
+    TEST_SYNC_DIR / "test_geo_download_cut.py",
     TEST_SYNC_DIR / "test_geo_awaited_load_threads.py",
     SYNC_DIR / "handlers" / "ratelimit_handler.py",
     SYNC_DIR / "handlers" / "_redis_fast_pool.py",
@@ -327,31 +329,51 @@ _SYNC_DOWNLOAD_BODY_REPLACEMENT = (
     "    def _download_body(\n"
     "        self, session: requests.Session, headers: dict[str, str]\n"
     "    ) -> bytes:\n"
+    "        cut = DownloadCut(self._download_total_timeout)\n"
+    "        adapter = RecordingAdapter(cut)\n"
+    '        session.mount("http://", adapter)\n'
+    '        session.mount("https://", adapter)\n'
     "        deadline = time.monotonic() + self._download_total_timeout\n"
-    "        timeout = (self._download_connect_timeout, self._download_read_timeout)\n"
+    "        cut.arm()\n"
+    "        try:\n"
+    "            content = self._read_body(session, headers, deadline)\n"
+    "        except Exception as error:\n"
+    "            if cut.stop():\n"
+    "                raise TimeoutError(_TOTAL_BOUND_EXCEEDED) from error\n"
+    "            raise\n"
+    "        if cut.stop():\n"
+    "            raise TimeoutError(_TOTAL_BOUND_EXCEEDED)\n"
+    "        return content\n"
+    "\n"
+    "    def _read_body(\n"
+    "        self,\n"
+    "        session: requests.Session,\n"
+    "        headers: dict[str, str],\n"
+    "        deadline: float,\n"
+    "    ) -> bytes:\n"
+    "        timeout = (\n"
+    "            self._download_connect_timeout,\n"
+    "            self._download_read_timeout,\n"
+    "        )\n"
     "        with session.get(\n"
     "            self._download_url, headers=headers, timeout=timeout, stream=True\n"
     "        ) as response:\n"
     "            response.raise_for_status()\n"
     "            raw: HTTPResponse = response.raw\n"
     "            chunks: list[bytes] = []\n"
-    "            while (left := deadline - time.monotonic()) > 0:\n"
-    "                self._cap_idle_timeout(raw, left)\n"
+    "            while time.monotonic() < deadline:\n"
     "                if not (chunk := raw.read1(65536, decode_content=True)):\n"
     '                    return b"".join(chunks)\n'
     "                chunks.append(chunk)\n"
-    '        raise TimeoutError("GeoIP download exceeded the total time bound")\n'
-    "\n"
-    "    def _cap_idle_timeout(self, raw: HTTPResponse, left: float) -> None:\n"
-    "        connection = raw.connection\n"
-    "        if connection is not None and connection.sock is not None:\n"
-    "            connection.sock.settimeout(min(self._download_read_timeout, left))\n"
+    "        raise TimeoutError(_TOTAL_BOUND_EXCEEDED)\n"
 )
 
 SUBS: list[tuple[str, str]] = [
     (
         re.escape(_ASYNC_CURRENT_SCOPE_SRC),
         _SYNC_CURRENT_SCOPE_REPLACEMENT.replace("\\", "\\\\"),
+    ),
+    (
         re.escape(_ASYNC_DOWNLOAD_BODY_SRC),
         _SYNC_DOWNLOAD_BODY_REPLACEMENT.replace("\\", "\\\\"),
     ),
@@ -444,7 +466,13 @@ SUBS: list[tuple[str, str]] = [
     (
         r"import aiohttp\n\n\nclass IpInfoDownloadMixin",
         "import time\n\nimport requests\n"
-        "from urllib3.response import HTTPResponse\n\n\nclass IpInfoDownloadMixin",
+        "from urllib3.response import HTTPResponse\n\n"
+        "from guard_core.sync.handlers._ipinfo_download_cut import (\n"
+        "    DownloadCut,\n"
+        "    RecordingAdapter,\n"
+        ")\n\n"
+        '_TOTAL_BOUND_EXCEEDED = "GeoIP download exceeded the total time bound"\n\n\n'
+        "class IpInfoDownloadMixin",
     ),
     (r"import aiohttp", "import requests"),
     (r'TREE_DOWNLOADER = "aiohttp"', 'TREE_DOWNLOADER = "requests"'),

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils.access_control import check_ip_country
 from guard_core.sync.handlers.ipinfo_handler import IPInfoManager
 from tests.geo_fixture import (
@@ -12,6 +12,7 @@ from tests.geo_fixture import (
     GeoDownloadServer,
     endless_server,
     silent_server,
+    stalling_server,
     stalls_once_server,
     trickles_then_delays_server,
     trickling_server,
@@ -51,8 +52,8 @@ def _manager_downloading_from(
     return manager
 
 
-def _blocking(manager: IPInfoManager) -> SecurityConfig:
-    return SecurityConfig(
+def _blocking(manager: IPInfoManager) -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         enable_redis=False,
         ipinfo_token="tok",
         ipinfo_db_path=manager.db_path,
@@ -60,8 +61,8 @@ def _blocking(manager: IPInfoManager) -> SecurityConfig:
     )
 
 
-def _allow_list(manager: IPInfoManager) -> SecurityConfig:
-    return SecurityConfig(
+def _allow_list(manager: IPInfoManager) -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         enable_redis=False,
         ipinfo_token="tok",
         ipinfo_db_path=manager.db_path,
@@ -205,3 +206,18 @@ def test_a_fast_endless_body_ends_each_attempt_at_the_total_bound(
     assert server.attempts == 3
     assert 3 * TOTAL_BOUND <= elapsed < 3 * TOTAL_BOUND + 0.3
     assert denied is True
+
+
+def test_a_trickled_header_ends_each_attempt_at_the_total_bound(
+    tmp_path: Path,
+) -> None:
+    with stalling_server("header", keep_alive=True) as server:
+        manager = _manager_downloading_from(server, tmp_path)
+        started = time.monotonic()
+        denied = check_ip_country(CLIENT_IP, _allow_list(manager), manager)
+        elapsed = time.monotonic() - started
+
+    assert server.attempts == 3
+    assert 3 * TOTAL_BOUND <= elapsed < 3 * TOTAL_BOUND + 0.6
+    assert denied is True
+    assert manager.reader is None

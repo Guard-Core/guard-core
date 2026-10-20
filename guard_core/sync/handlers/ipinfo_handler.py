@@ -1,24 +1,26 @@
+from __future__ import annotations
+
 import logging
 import os
 import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
-
-import maxminddb
-import requests
-from maxminddb import Reader
+from typing import TYPE_CHECKING, Any
 
 from guard_core.sync.core.events.event_types import (
     EVENT_GEO_LOOKUP_FAILED,
 )
+from guard_core.sync.handlers._downloader import require_downloader_installed
 from guard_core.sync.handlers._ipinfo_background import IpInfoBackgroundMixin
 from guard_core.sync.handlers._ipinfo_download import IpInfoDownloadMixin
 from guard_core.sync.handlers._ipinfo_events import IpInfoEventsMixin
 from guard_core.sync.handlers._ipinfo_redis_copy import IpInfoRedisCopyMixin
 from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol
 from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
+
+if TYPE_CHECKING:
+    from maxminddb import Reader
 
 
 def _describe_download_error(exc: BaseException) -> str:
@@ -62,11 +64,11 @@ class IPInfoManager(
     _DOWNLOAD_LOCK_SECONDS = 60
 
     def __new__(
-        cls: type["IPInfoManager"],
+        cls: type[IPInfoManager],
         token: str,
         db_path: Path | None = None,
         max_age: int = 86400,
-    ) -> "IPInfoManager":
+    ) -> IPInfoManager:
         if not token:
             raise ValueError("IPInfo token is required!")
 
@@ -126,6 +128,8 @@ class IPInfoManager(
         self.agent_handler = agent_handler
 
     def _open_database_or_none(self) -> Reader | None:
+        import maxminddb
+
         try:
             return maxminddb.open_database(str(self.db_path))
         except Exception as e:
@@ -144,6 +148,8 @@ class IPInfoManager(
             self._arm_staleness_timer()
 
     def _validate_database_file(self, path: Path) -> None:
+        import maxminddb
+
         try:
             reader = maxminddb.open_database(str(path))
             try:
@@ -229,19 +235,22 @@ class IPInfoManager(
         retries = self._download_retries
         backoff = 1
 
-        with requests.Session() as session:
-            for attempt in range(retries):
-                try:
-                    content = self._download_body(session, headers)
-                    self._write_database_atomically(content)
+        require_downloader_installed("geo", "Downloading the GeoIP database")
+        import requests
 
-                    self._cache_database_in_redis()
-                    return
-                except Exception:
-                    if attempt == retries - 1:
-                        raise
-                    self._sleep(backoff)
-                    backoff *= 2
+        for attempt in range(retries):
+            try:
+                with requests.Session() as session:
+                    content = self._download_body(session, headers)
+                self._write_database_atomically(content)
+
+                self._cache_database_in_redis()
+                return
+            except Exception:
+                if attempt == retries - 1:
+                    raise
+                self._sleep(backoff)
+                backoff *= 2
 
     def _sleep(self, seconds: float) -> None:
         time.sleep(seconds)

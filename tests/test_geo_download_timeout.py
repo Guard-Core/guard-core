@@ -12,6 +12,7 @@ from tests.geo_fixture import (
     GeoDownloadServer,
     endless_server,
     silent_server,
+    stalling_server,
     stalls_once_server,
     trickles_then_delays_server,
     trickling_server,
@@ -205,3 +206,18 @@ async def test_a_fast_endless_body_ends_each_attempt_at_the_total_bound(
     assert server.attempts == 3
     assert 3 * TOTAL_BOUND <= elapsed < 3 * TOTAL_BOUND + 0.3
     assert denied is True
+
+
+async def test_a_trickled_header_ends_each_attempt_at_the_total_bound(
+    tmp_path: Path,
+) -> None:
+    with stalling_server("header", keep_alive=True) as server:
+        manager = _manager_downloading_from(server, tmp_path)
+        started = time.monotonic()
+        denied = await check_ip_country(CLIENT_IP, _allow_list(manager), manager)
+        elapsed = time.monotonic() - started
+
+    assert server.attempts == 3
+    assert 3 * TOTAL_BOUND <= elapsed < 3 * TOTAL_BOUND + 0.6
+    assert denied is True
+    assert manager.reader is None

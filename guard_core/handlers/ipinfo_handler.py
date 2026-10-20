@@ -239,19 +239,19 @@ class IPInfoManager(
         require_downloader_installed("geo", "Downloading the GeoIP database")
         import aiohttp
 
-        async with aiohttp.ClientSession() as session:
-            for attempt in range(retries):
-                try:
+        for attempt in range(retries):
+            try:
+                async with aiohttp.ClientSession() as session:
                     content = await self._download_body(session, headers)
-                    self._write_database_atomically(content)
+                self._write_database_atomically(content)
 
-                    await self._cache_database_in_redis()
-                    return
-                except Exception:
-                    if attempt == retries - 1:
-                        raise
-                    await self._sleep(backoff)
-                    backoff *= 2
+                await self._cache_database_in_redis()
+                return
+            except Exception:
+                if attempt == retries - 1:
+                    raise
+                await self._sleep(backoff)
+                backoff *= 2
 
     async def _sleep(self, seconds: float) -> None:
         await asyncio.sleep(seconds)
