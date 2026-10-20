@@ -24,7 +24,7 @@ dependencies = [
     "cachetools",
     "pydantic",
     "typing-extensions",
-    "urllib3>=2.2.0",
+    "urllib3>=2.7.0",
 ]
 
 [project.urls]
@@ -72,11 +72,12 @@ redis = [
     "redis",
 ]
 cloud = [
-    "aiohttp",
+    "aiohttp>=3.13.3",
     "requests",
+    "urllib3>=2.7.0",
 ]
 geo = [
-    "aiohttp",
+    "aiohttp>=3.13.3",
     "maxminddb",
     "requests",
 ]

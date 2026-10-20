@@ -74,8 +74,9 @@ _SSL_CREATE_CODE = cast(Any, ssl.SSLSocket)._create.__func__.__code__
 
 
 def _close_sockets_ssl_create_left_open(error: BaseException) -> None:
-    # CPython 3.10 to 3.12 SSLSocket._create raises without closing its half-built
-    # socket when getpeername fails with anything but ENOTCONN (macOS: EINVAL).
+    # CPython 3.10 SSLSocket._create raises without closing its half-built
+    # socket when getpeername fails with anything but ENOTCONN (macOS: EINVAL) or
+    # when its recv(1) then fails (Linux: ECONNRESET); 3.11 and later close it.
     pending: list[BaseException | None] = [error]
     seen: set[int] = set()
     while pending:

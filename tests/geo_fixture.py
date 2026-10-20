@@ -196,15 +196,16 @@ def fast_endless_server(chunked: bool) -> GeoDownloadServer:
     return GeoDownloadServer(behavior)
 
 
-def gzip_inflating_server(inflated: int) -> GeoDownloadServer:
-    """A small, complete gzip body whose decoded size is `inflated` bytes."""
-    body = gzip.compress(b"\0" * inflated, compresslevel=9)
+def gzip_inflating_server(inflated: int, layers: int = 1) -> GeoDownloadServer:
+    """A small, complete gzip body, `layers` deep, that decodes to `inflated` bytes."""
+    body = b"\0" * inflated
+    for _ in range(layers):
+        body = gzip.compress(body, compresslevel=9)
+    encoding = b"Content-Encoding: " + b", ".join([b"gzip"] * layers) + b"\r\n"
 
     def behavior(conn: socket.socket, attempt: int) -> None:
         conn.sendall(
-            _headers(len(body)).replace(
-                b"Content-Type", b"Content-Encoding: gzip\r\nContent-Type"
-            )
+            _headers(len(body)).replace(b"Content-Type", encoding + b"Content-Type")
             + body
         )
 

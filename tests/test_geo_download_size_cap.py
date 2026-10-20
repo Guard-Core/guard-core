@@ -79,6 +79,24 @@ async def test_a_small_gzip_body_that_inflates_past_the_cap_ends_at_the_cap(
     assert server.attempts == 3
 
 
+async def test_a_two_layer_gzip_body_that_inflates_past_the_cap_never_gets_past_it(
+    tmp_path: Path,
+) -> None:
+    # urllib3 decodes both layers and the count ends the body at the cap
+    # (TimeoutError); aiohttp decodes none of "gzip, gzip", so the small raw body
+    # arrives and fails validation (ValueError). Neither inflates past the cap.
+    with gzip_inflating_server(64 * CAP, layers=2) as server:
+        manager = _manager(server, tmp_path, CAP)
+        started = time.monotonic()
+        with pytest.raises((TimeoutError, ValueError)) as failure:
+            await manager._fetch_and_store_database()
+        elapsed = time.monotonic() - started
+
+    assert manager.db_path.read_bytes() == KEPT_DATABASE
+    assert elapsed < TOTAL_BOUND / 2
+    assert isinstance(failure.value, ValueError) or str(CAP) in str(failure.value)
+
+
 async def test_a_body_exactly_at_the_cap_succeeds(tmp_path: Path) -> None:
     body = country_database_bytes("CN")
     with database_server(body) as server:
