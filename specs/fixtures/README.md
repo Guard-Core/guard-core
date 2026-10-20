@@ -151,7 +151,10 @@ minus the volatile fields in
 `index.json > comparison > events_volatile_fields`
 (`idempotency_key`, `timestamp`, `response_time` plus the timing-derived
 `execution_time` / `execution_time_ms` inside `metadata`; all dropped
-recursively). Comparison rule: compare only the keys present in each
+recursively). `index.json > comparison > events_volatile_metadata` lists the
+metadata keys that are volatile for one event type only: `correlation_id` is a
+random uuid4 per request on `penetration_attempt` and `pattern_detected`, so it
+is dropped there and kept (null or a value) on every other event. Comparison rule: compare only the keys present in each
 expected envelope - emitter seams differ in the surface they carry. One
 case is `xfail: true` (`evt_decoding_error_unreachable`): the engine has
 no deterministic in-process driver for `decoding_error` (the stdlib

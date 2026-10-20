@@ -2086,6 +2086,7 @@
           "reason": "Pattern performance anomaly: slow_execution",
           "metadata": {
             "component": "PerformanceMonitor",
+            "correlation_id": null,
             "type": "slow_execution",
             "pattern": "corpuspattern-[a-z]+",
             "content_length": 128
@@ -2098,6 +2099,7 @@
           "reason": "Anomaly callback failed: corpus injected callback failure",
           "metadata": {
             "component": "PerformanceMonitor",
+            "correlation_id": null,
             "callback_error": "corpus injected callback failure",
             "anomaly_type": "slow_execution"
           }
@@ -2129,6 +2131,7 @@
           "reason": "Pattern performance anomaly: timeout",
           "metadata": {
             "component": "PerformanceMonitor",
+            "correlation_id": null,
             "type": "timeout",
             "pattern": "corpuspattern-[a-z]+",
             "content_length": 128
@@ -2161,6 +2164,7 @@
           "reason": "Pattern performance anomaly: slow_execution",
           "metadata": {
             "component": "PerformanceMonitor",
+            "correlation_id": null,
             "type": "slow_execution",
             "pattern": "corpuspattern-[a-z]+",
             "content_length": 128
@@ -2275,6 +2279,7 @@
           "reason": "Pattern performance anomaly: statistical_anomaly",
           "metadata": {
             "component": "PerformanceMonitor",
+            "correlation_id": null,
             "type": "statistical_anomaly",
             "pattern": "corpuspattern-[a-z]+",
             "z_score": 4.363595,

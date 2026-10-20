@@ -97,7 +97,6 @@ EVENTS_REDIS_ERROR_URL = "redis://localhost:59999/0"
 # documented in the suite comparison note.
 EVENT_DROP_KEYS = frozenset(
     {
-        "correlation_id",
         "idempotency_key",
         "timestamp",
         "response_time",
@@ -105,6 +104,13 @@ EVENT_DROP_KEYS = frozenset(
         "execution_time_ms",
     }
 )
+
+# The per-request detection id is a random uuid4 on these two event types only;
+# every other event keeps whatever correlation_id it carries (null or not).
+EVENT_VOLATILE_METADATA = {
+    "penetration_attempt": ("correlation_id",),
+    "pattern_detected": ("correlation_id",),
+}
 
 EVENTS_CONFIG_KEYS = PIPELINE_CONFIG_KEYS + (
     "agent_api_key",
@@ -176,6 +182,10 @@ def event_envelope(event: Any) -> dict[str, Any]:
             }
         )
     result: dict[str, Any] = _normalize(data)
+    metadata = result.get("metadata")
+    if isinstance(metadata, dict):
+        for key in EVENT_VOLATILE_METADATA.get(result.get("event_type"), ()):
+            metadata.pop(key, None)
     return result
 
 
