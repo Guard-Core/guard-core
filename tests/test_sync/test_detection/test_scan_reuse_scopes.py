@@ -89,7 +89,7 @@ def test_an_indicator_that_timed_out_is_never_memoized(
 ) -> None:
     class _TimingOut:
         def __init__(self, max_workers: int) -> None:
-            pass
+            self.max_workers = max_workers
 
         def __enter__(self) -> "_TimingOut":
             return self
