@@ -19,6 +19,7 @@ from tests.geo_fixture import (
     STALL_KINDS,
     close_delimited_prefix_server,
     connect_proxy_server,
+    count_connections,
     make_tls_material,
     socks5_proxy_server,
     stalling_server,
@@ -134,28 +135,10 @@ def test_a_silent_body_ends_each_attempt_at_the_idle_bound(
     assert denied is True
 
 
-class _SocketCount:
-    def __init__(self) -> None:
-        self.sockets: list[socket.socket] = []
-
-    def watch(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        from guard_core.sync.handlers._ipinfo_download_cut import DownloadCut
-
-        record = DownloadCut.record
-        sockets = self.sockets
-
-        def counting(cut: DownloadCut, sock: socket.socket) -> None:
-            sockets.append(sock)
-            record(cut, sock)
-
-        monkeypatch.setattr(DownloadCut, "record", counting)
-
-
-def test_an_http_proxy_for_an_http_url_ends_at_the_total_bound_through_one_socket(
+def test_an_http_proxy_for_an_http_url_ends_at_the_total_bound_on_one_connection(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    count = _SocketCount()
-    count.watch(monkeypatch)
+    connections = count_connections(monkeypatch)
     with stalling_server("gzip", keep_alive=True) as proxy:
         monkeypatch.setenv("HTTP_PROXY", proxy.url.rsplit("/", 1)[0])
         elapsed = _seconds_until_the_attempt_fails(
@@ -163,14 +146,13 @@ def test_an_http_proxy_for_an_http_url_ends_at_the_total_bound_through_one_socke
         )
 
     assert TOTAL_BOUND <= elapsed < TOTAL_BOUND + MARGIN
-    assert len(count.sockets) == 1
+    assert len(connections) == 1
 
 
-def test_a_connect_tunnel_for_an_https_url_ends_at_the_total_bound_through_one_socket(
+def test_a_connect_tunnel_for_an_https_url_ends_at_the_total_bound_on_one_connection(
     trusted_tls: tuple[Path, Path], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    count = _SocketCount()
-    count.watch(monkeypatch)
+    connections = count_connections(monkeypatch)
     with connect_proxy_server("gzip", tls_server_context(*trusted_tls)) as proxy:
         monkeypatch.setenv("HTTPS_PROXY", proxy.url.rsplit("/", 1)[0])
         elapsed = _seconds_until_the_attempt_fails(
@@ -178,14 +160,13 @@ def test_a_connect_tunnel_for_an_https_url_ends_at_the_total_bound_through_one_s
         )
 
     assert TOTAL_BOUND <= elapsed < TOTAL_BOUND + MARGIN
-    assert len(count.sockets) == 1
+    assert len(connections) == 1
 
 
 def test_a_socks5_env_proxy_keeps_its_connection_class_and_ends_at_the_total_bound(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    count = _SocketCount()
-    count.watch(monkeypatch)
+    connections = count_connections(monkeypatch)
     socks_connections: list[object] = []
     new_connection = socks.SOCKSConnection._new_conn
 
@@ -203,7 +184,7 @@ def test_a_socks5_env_proxy_keeps_its_connection_class_and_ends_at_the_total_bou
 
     assert TOTAL_BOUND <= elapsed < TOTAL_BOUND + MARGIN
     assert len(socks_connections) == 1
-    assert len(count.sockets) == 1
+    assert len(connections) == 1
 
 
 def test_a_cut_after_a_completed_attempt_touches_nothing() -> None:
@@ -236,10 +217,10 @@ def test_a_socket_that_connects_after_the_cut_is_shut_down_at_once() -> None:
 
     late, other = socket.socketpair()
     with late, other:
+        late.settimeout(0.5)
         cut = DownloadCut(total=60)
         cut.fire()
         cut.record(late)
-        other.sendall(b"late")
         assert late.recv(64) == b""
         assert cut.stop() is True
 

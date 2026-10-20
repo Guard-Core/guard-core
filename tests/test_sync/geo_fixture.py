@@ -5,6 +5,10 @@ import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any, Protocol
+
+import pytest
+from urllib3.connectionpool import HTTPConnectionPool, HTTPSConnectionPool
 
 from tests.live_smoke.scenarios.rate_limit_and_bans import _build_single_entry_mmdb
 
@@ -76,7 +80,13 @@ class GeoDownloadServer:
             conn.close()
 
 
-def read_request(conn: socket.socket) -> None:
+class Stream(Protocol):
+    def recv(self, size: int, /) -> bytes: ...
+
+    def sendall(self, data: bytes, /) -> None: ...
+
+
+def read_request(conn: Stream) -> None:
     request = b""
     while b"\r\n\r\n" not in request:
         request += conn.recv(4096)
@@ -176,7 +186,7 @@ def tls_server_context(certificate: Path, key: Path) -> ssl.SSLContext:
     return context
 
 
-def _stall(conn: socket.socket, kind: str, keep_alive: bool) -> None:
+def _stall(conn: Stream, kind: str, keep_alive: bool) -> None:
     connection = b"keep-alive" if keep_alive else b"close"
     head = b"HTTP/1.1 200 OK\r\nConnection: " + connection + b"\r\n"
     sized = head + b"Content-Length: 1000000\r\n"
@@ -220,14 +230,84 @@ def close_delimited_prefix_server() -> GeoDownloadServer:
     return GeoDownloadServer(behavior)
 
 
-def connect_proxy_server(kind: str, tls: ssl.SSLContext) -> GeoDownloadServer:
-    def behavior(conn: socket.socket, attempt: int) -> None:
-        conn.sendall(b"HTTP/1.1 200 Connection established\r\n\r\n")
-        with tls.wrap_socket(conn, server_side=True) as tunnel:
-            read_request(tunnel)
-            _stall(tunnel, kind, keep_alive=True)
+class TlsInTlsStream:
+    """A TLS server running inside another stream (a proxy tunnel), over memory BIOs."""
 
-    return GeoDownloadServer(behavior)
+    def __init__(
+        self, outer: socket.socket, context: ssl.SSLContext, slow: bool = False
+    ) -> None:
+        self._outer = outer
+        self._incoming, self._outgoing = ssl.MemoryBIO(), ssl.MemoryBIO()
+        self._tls = context.wrap_bio(self._incoming, self._outgoing, server_side=True)
+        self._slow = slow
+        self._end = time.monotonic() + GeoDownloadServer.HOLD_SECONDS
+
+    def _flush(self) -> None:
+        data = self._outgoing.read()
+        if not self._slow:
+            if data:
+                self._outer.sendall(data)
+            return
+        for index in range(len(data)):
+            if time.monotonic() >= self._end:
+                raise OSError("the slow handshake was held long enough")
+            self._outer.sendall(data[index : index + 1])
+            time.sleep(STALL_GAP)
+
+    def _feed(self) -> None:
+        data = self._outer.recv(65536)
+        if not data:
+            raise OSError("the peer closed during the handshake")
+        self._incoming.write(data)
+
+    def _until_ready(self, step: Callable[[], bytes | None]) -> bytes | None:
+        while True:
+            try:
+                return step()
+            except ssl.SSLWantReadError:
+                self._flush()
+                self._feed()
+
+    def handshake(self) -> None:
+        self._until_ready(self._tls.do_handshake)
+        self._flush()
+
+    def recv(self, size: int) -> bytes:
+        return self._until_ready(lambda: self._tls.read(size)) or b""
+
+    def sendall(self, data: bytes) -> None:
+        self._tls.write(data)
+        self._flush()
+
+
+def _tunnel_established(conn: socket.socket) -> None:
+    conn.sendall(b"HTTP/1.1 200 Connection established\r\n\r\n")
+
+
+def connect_proxy_server(
+    kind: str, tls: ssl.SSLContext, proxy_tls: ssl.SSLContext | None = None
+) -> GeoDownloadServer:
+    def behavior(conn: socket.socket, attempt: int) -> None:
+        _tunnel_established(conn)
+        stream = TlsInTlsStream(conn, tls)
+        stream.handshake()
+        read_request(stream)
+        _stall(stream, kind, keep_alive=True)
+
+    return GeoDownloadServer(behavior, tls=proxy_tls)
+
+
+def slow_handshake_server(
+    origin_tls: ssl.SSLContext, via_proxy: bool, proxy_tls: ssl.SSLContext | None = None
+) -> GeoDownloadServer:
+    """Relays the origin's TLS handshake one byte at a time, so it never completes."""
+
+    def behavior(conn: socket.socket, attempt: int) -> None:
+        if via_proxy:
+            _tunnel_established(conn)
+        TlsInTlsStream(conn, origin_tls, slow=True).handshake()
+
+    return GeoDownloadServer(behavior, tls=proxy_tls, read_request=via_proxy)
 
 
 def socks5_proxy_server(kind: str) -> GeoDownloadServer:
@@ -240,3 +320,24 @@ def socks5_proxy_server(kind: str) -> GeoDownloadServer:
         _stall(conn, kind, keep_alive=True)
 
     return GeoDownloadServer(behavior, read_request=False)
+
+
+def count_connections(monkeypatch: pytest.MonkeyPatch) -> list[object]:
+    """Every connection a pool creates: pins count connections, not records."""
+    connections: list[object] = []
+    for pool_class in (HTTPConnectionPool, HTTPSConnectionPool):
+        monkeypatch.setattr(
+            pool_class, "_new_conn", _counting(pool_class._new_conn, connections)
+        )
+    return connections
+
+
+def _counting(
+    new_connection: Callable[[Any], Any], connections: list[object]
+) -> Callable[[Any], Any]:
+    def counting(pool: Any) -> Any:
+        connection = new_connection(pool)
+        connections.append(connection)
+        return connection
+
+    return counting

@@ -95,6 +95,7 @@ TEMPLATE_FILES = {
 
 HAND_MAINTAINED = {
     TEST_SYNC_DIR / "test_geo_download_cut.py",
+    TEST_SYNC_DIR / "test_geo_download_setup.py",
     TEST_SYNC_DIR / "test_geo_awaited_load_threads.py",
     SYNC_DIR / "handlers" / "ratelimit_handler.py",
     SYNC_DIR / "handlers" / "_redis_fast_pool.py",
@@ -338,7 +339,7 @@ _SYNC_DOWNLOAD_BODY_REPLACEMENT = (
     "        try:\n"
     "            content = self._read_body(session, headers, deadline)\n"
     "        except Exception as error:\n"
-    "            if cut.stop():\n"
+    "            if cut.stop() or time.monotonic() >= deadline:\n"
     "                raise TimeoutError(_TOTAL_BOUND_EXCEEDED) from error\n"
     "            raise\n"
     "        if cut.stop():\n"

@@ -29,7 +29,7 @@ class IpInfoDownloadMixin:
         try:
             content = self._read_body(session, headers, deadline)
         except Exception as error:
-            if cut.stop():
+            if cut.stop() or time.monotonic() >= deadline:
                 raise TimeoutError(_TOTAL_BOUND_EXCEEDED) from error
             raise
         if cut.stop():
