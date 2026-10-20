@@ -1,4 +1,5 @@
 import socket
+import ssl
 import threading
 import time
 from typing import Any, cast
@@ -51,6 +52,10 @@ class DownloadCut:
             for sock in self._sockets:
                 self._shut_down(sock)
 
+    def has_fired(self) -> bool:
+        with self.lock:
+            return self._fired
+
     def stop(self) -> bool:
         with self.lock:
             self._live = False
@@ -63,6 +68,29 @@ class DownloadCut:
             sock.shutdown(socket.SHUT_RD)
         except OSError:
             return
+
+
+_SSL_CREATE_CODE = cast(Any, ssl.SSLSocket)._create.__func__.__code__
+
+
+def _close_sockets_ssl_create_left_open(error: BaseException) -> None:
+    # CPython 3.10 to 3.12 SSLSocket._create raises without closing its half-built
+    # socket when getpeername fails with anything but ENOTCONN (macOS: EINVAL).
+    pending: list[BaseException | None] = [error]
+    seen: set[int] = set()
+    while pending:
+        current = pending.pop()
+        if current is None or id(current) in seen:
+            continue
+        seen.add(id(current))
+        trace = current.__traceback__
+        while trace is not None:
+            if trace.tb_frame.f_code is _SSL_CREATE_CODE:
+                half_built = trace.tb_frame.f_locals.get("self")
+                if isinstance(half_built, ssl.SSLSocket):
+                    half_built.close()
+            trace = trace.tb_next
+        pending += [current.__cause__, current.__context__]
 
 
 class _RecordingConnection(HTTPConnection):
@@ -88,6 +116,7 @@ class _RecordingConnection(HTTPConnection):
             try:
                 super(_RecordingConnection, self).connect()
             except BaseException as error:
+                _close_sockets_ssl_create_left_open(error)
                 failures.append(error)
             self._finish_setup()
             finished.set()
@@ -100,6 +129,11 @@ class _RecordingConnection(HTTPConnection):
             raise TimeoutError(_SETUP_TIMED_OUT)
         if failures:
             raise failures[0]
+
+    def _tunnel(self) -> None:
+        super()._tunnel()
+        if self._cut.has_fired():
+            raise TimeoutError(_SETUP_TIMED_OUT)
 
     def close(self) -> None:
         with self._cut.lock:
