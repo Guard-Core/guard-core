@@ -323,10 +323,10 @@ def _swallow_queries(udp: socket.socket) -> None:
 DNS_CELLS = ["origin", "http-proxy-host", "socks5h-proxy-host", "socks5-local", "hop"]
 
 
+@pytest.mark.usefixtures("silent_resolver")
 @pytest.mark.parametrize("cell", DNS_CELLS)
 def test_a_silent_resolver_ends_every_lookup_at_the_total_bound(
     cell: str,
-    silent_resolver: None,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
