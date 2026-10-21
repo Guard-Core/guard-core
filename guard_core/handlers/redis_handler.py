@@ -479,6 +479,31 @@ class RedisManager:
         answer: float | None = await self.safe_operation(_score)
         return answer
 
+    async def owned_ban_state(
+        self, namespace: str, key: str
+    ) -> tuple[float | None, float | None]:
+        """The expiry the rule wrote for one ban (its score in the owned set)
+        and the expiry the ban holds now, read in one round trip."""
+        if not self.config.enable_redis:
+            return None, None
+        prefix = self.config.redis_prefix
+        member = f"{prefix}{namespace}:{key}"
+
+        async def _state(conn: Redis) -> tuple[float | None, float | None]:
+            async with conn.pipeline(transaction=False) as pipe:
+                await pipe.zscore(self._owned_bans_key(), member)
+                await pipe.get(member)
+                score, stored = await pipe.execute()
+            return (
+                None if score is None else float(score),
+                None if not stored else float(stored),
+            )
+
+        state: tuple[float | None, float | None] | None = await self.safe_operation(
+            _state
+        )
+        return state if state is not None else (None, None)
+
     async def purge_owned_ban(self, member: str) -> int:
         """Lift one owned ban down to its floor, or off, in one script call, and
         drop it from the owned set. Returns 0 (already gone), 1 (deleted),

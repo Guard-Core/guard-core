@@ -1,9 +1,12 @@
 import ipaddress
 import logging
+import threading
 import time
+from collections import OrderedDict
 from collections.abc import Iterable, MutableMapping
 from typing import Any
 
+from guard_core._utils.sampling import observe_sampled_key
 from guard_core.handlers._ipban_cache import _BanStore, _Network
 from guard_core.handlers._ipban_events import IpBanEventMixin
 from guard_core.handlers._ipban_rule_exempt import rule_ban_target
@@ -17,6 +20,20 @@ _LIFTED = (REVOKE_DELETED, REVOKE_REWRITTEN)
 _REVOKE_REASON = "dynamic_rule_revoked"
 _RULE_NAMESPACES = ("banned_ips", "banned_networks")
 _OWNED_EXPIRY_TOLERANCE = 1e-6
+_MAX_OWNER_ANSWERS = 10_000
+_ATTRIBUTION_FAILURE_WINDOW_SECONDS = 60
+_attribution_failure_lock = threading.Lock()
+_attribution_failure_samples: OrderedDict[str, float] = OrderedDict()
+
+
+def _sample_attribution_failure() -> bool:
+    return observe_sampled_key(
+        _attribution_failure_samples,
+        _attribution_failure_lock,
+        "redis",
+        window=_ATTRIBUTION_FAILURE_WINDOW_SECONDS,
+        max_tracked=1,
+    )
 
 
 class IpBanRuleRevokeMixin(IpBanVersionMixin, IpBanEventMixin):
@@ -34,6 +51,7 @@ class IpBanRuleRevokeMixin(IpBanVersionMixin, IpBanEventMixin):
     redis_handler: Any = None
     logger: logging.Logger
     _rule_owned_expiries: dict[str, float]
+    _rule_owner_answers: dict[str, tuple[bool, str | None, float]]
     _rule_floor_expiries: dict[str, float]
     _foreign_network_expiries: dict[str, float]
     MAX_LOCAL_BANS: int
@@ -57,20 +75,42 @@ class IpBanRuleRevokeMixin(IpBanVersionMixin, IpBanEventMixin):
         the live ban is not longer than that expiry (a longer ban written over it
         is another source's). Redis answers from the shared owned set and the
         stored ban, so every worker gives the same verdict, whatever its local
-        cache holds; without Redis the same test runs on this process's record."""
+        cache holds; without Redis the same test runs on this process's record.
+
+        A Redis answer is kept per member until the ban version this worker
+        sees changes or ``_VERSION_RECHECK_SECONDS`` pass (an exact-address rule
+        write or a longer foreign write does not move the version), so a flood
+        from one banned address reads Redis once per interval, in one round
+        trip."""
         namespace, _, key = member.partition(":")
         now = time.time()
-        if self.redis_handler:
-            try:
-                owned = await self.redis_handler.owned_ban_expiry(namespace, key)
-                stored = await self.redis_handler.get_key(namespace, key)
-            except Exception as error:
+        if not self.redis_handler:
+            return self._owns_live_ban(
+                self.rule_written_expiry(member),
+                self._live_memory_expiry(namespace, key, now),
+                now,
+            )
+        held = self._rule_owner_answers.get(member)
+        if (
+            held is not None
+            and held[1] == self._ban_version_seen
+            and now - held[2] < self._VERSION_RECHECK_SECONDS
+        ):
+            return held[0]
+        try:
+            owned, live = await self.redis_handler.owned_ban_state(namespace, key)
+            verdict = self._owns_live_ban(owned, live, now)
+        except Exception as error:
+            verdict = False
+            if _sample_attribution_failure():
                 self.logger.warning("Ban attribution skipped, Redis failed: %s", error)
-                return False
-            live = float(stored) if stored else None
-        else:
-            owned = self.rule_written_expiry(member)
-            live = self._live_memory_expiry(namespace, key, now)
+        if len(self._rule_owner_answers) >= _MAX_OWNER_ANSWERS:
+            self._rule_owner_answers.clear()
+        self._rule_owner_answers[member] = (verdict, self._ban_version_seen, now)
+        return verdict
+
+    @staticmethod
+    def _owns_live_ban(owned: float | None, live: float | None, now: float) -> bool:
         return (
             owned is not None
             and live is not None

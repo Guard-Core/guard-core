@@ -64,6 +64,7 @@ class IPBanManager(
             cls._instance.recidive_history = {}
             cls._instance.rule_exempt_networks = ()
             cls._instance._rule_owned_expiries = {}
+            cls._instance._rule_owner_answers = {}
             cls._instance._rule_floor_expiries = {}
             cls._instance._foreign_network_expiries = {}
             cls._instance.redis_handler = None
@@ -110,6 +111,7 @@ async def reset_global_state() -> None:
     manager.recidive_history = {}
     manager.rule_exempt_networks = ()
     manager._rule_owned_expiries = {}
+    manager._rule_owner_answers = {}
     manager._rule_floor_expiries = {}
     manager._foreign_network_expiries = {}
     manager.evictions_count = 0

@@ -156,8 +156,9 @@ def test_a_longer_foreign_write_over_the_rules_ban_is_not_the_rules_with_redis(
 
 
 def test_a_longer_foreign_write_above_the_local_cap_is_not_the_rules(
-    redis: RedisManager,
+    redis: RedisManager, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    monkeypatch.setattr(ip_ban_manager, "_VERSION_RECHECK_SECONDS", 0.3)
     config = _redis_config(redis)
     _apply_on_a_fresh_worker(
         config, redis, _rules(ip_blacklist=[RULE_IP], ip_ban_duration=7200)
@@ -165,6 +166,7 @@ def test_a_longer_foreign_write_above_the_local_cap_is_not_the_rules(
     assert _stamp_for(config) == DYNAMIC
     assert ip_ban_manager.ban_ip(RULE_IP, 100_000, "operator")
     _fresh_client_view()
+    time.sleep(0.4)
 
     assert _stamp_for(config) == {}
 
@@ -181,3 +183,88 @@ def test_a_foreign_ban_the_rule_did_not_take_over_is_not_the_rules_with_redis(
     _fresh_client_view()
 
     assert _stamp_for(config) == {}
+
+
+def _count_ownership_reads(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    reads: list[str] = []
+    handler = ip_ban_manager.redis_handler
+    original = handler.owned_ban_state
+
+    def counting(namespace: str, key: str) -> Any:
+        reads.append(f"{namespace}:{key}")
+        return original(namespace, key)
+
+    monkeypatch.setattr(handler, "owned_ban_state", counting)
+    return reads
+
+
+def test_blocked_requests_read_the_ownership_once_not_per_request(
+    redis: RedisManager, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(ip_ban_manager, "_VERSION_RECHECK_SECONDS", 60.0)
+    config = _redis_config(redis)
+    _apply_on_a_fresh_worker(config, redis, _rules(ip_blacklist=[RULE_IP]))
+    reads = _count_ownership_reads(monkeypatch)
+
+    stamps = [_stamp_for(config) for _ in range(200)]
+
+    assert stamps == [DYNAMIC] * 200
+    assert reads == [f"banned_ips:{RULE_IP}"]
+
+
+def test_the_cached_ownership_follows_a_longer_foreign_write(
+    redis: RedisManager, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(ip_ban_manager, "_VERSION_RECHECK_SECONDS", 0.3)
+    config = _redis_config(redis)
+    _apply_on_a_fresh_worker(config, redis, _rules(ip_blacklist=[RULE_IP]))
+    assert _stamp_for(config) == DYNAMIC
+    assert ip_ban_manager.ban_ip(RULE_IP, 100_000, "operator")
+    time.sleep(0.4)
+
+    assert _stamp_for(config) == {}
+
+
+def test_the_cached_ownership_follows_a_later_worker_and_a_revoke(
+    redis: RedisManager, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(ip_ban_manager, "_VERSION_RECHECK_SECONDS", 0.3)
+    config = _redis_config(redis)
+    rules = _rules(ip_blacklist=[RULE_IP])
+    _apply_on_a_fresh_worker(config, redis, rules)
+    assert _stamp_for(config) == DYNAMIC
+    manager = _apply_on_a_fresh_worker(config, redis, rules)
+    time.sleep(0.4)
+    assert _stamp_for(config) == DYNAMIC
+
+    manager._revoke_all_owned()
+    time.sleep(0.4)
+
+    assert ip_ban_manager.rule_owns_live_ban(f"banned_ips:{RULE_IP}") is False
+
+
+def test_a_redis_failure_while_attributing_logs_once_per_window(
+    redis: RedisManager,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    from guard_core.sync.handlers import _ipban_rule_revoke
+
+    monkeypatch.setattr(ip_ban_manager, "_VERSION_RECHECK_SECONDS", 0.0)
+    _ipban_rule_revoke._attribution_failure_samples.clear()
+    monkeypatch.setattr(
+        redis, "owned_ban_state", MagicMock(side_effect=RuntimeError("down"))
+    )
+    ip_ban_manager.redis_handler = redis
+
+    with caplog.at_level("WARNING"):
+        verdicts = [
+            ip_ban_manager.rule_owns_live_ban(f"banned_ips:{RULE_IP}")
+            for _ in range(25)
+        ]
+
+    assert verdicts == [False] * 25
+    assert [r for r in caplog.records if "Ban attribution skipped" in r.message] != []
+    assert (
+        len([r for r in caplog.records if "Ban attribution skipped" in r.message]) == 1
+    )
