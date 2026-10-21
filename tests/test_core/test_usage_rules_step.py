@@ -1,8 +1,9 @@
 import logging
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
+from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from typing import Any, cast
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -15,8 +16,9 @@ from guard_core.core.checks.pipeline import SecurityCheckPipeline
 from guard_core.core.responses.context import ResponseContext
 from guard_core.core.responses.factory import ErrorResponseFactory
 from guard_core.decorators.base import RouteConfig
-from guard_core.handlers._behavior_throttle import bucket_key
+from guard_core.handlers._behavior_throttle import bucket_key, usage_hits_key
 from guard_core.handlers.behavior_handler import BehaviorRule, BehaviorTracker
+from guard_core.handlers.redis_handler import redis_handler
 from guard_core.models import BehaviorRuleConfig, SecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from tests.conftest import MockGuardResponse, MockGuardResponseFactory
@@ -318,6 +320,71 @@ async def test_a_throttle_and_a_global_usage_rule_record_each_request_once() -> 
     global_rule = BehaviorRule("usage", 1, 60, action="log")
     assert app.hits(throttle) == 7
     assert app.hits(global_rule, f"global|{global_rule.discriminator()}") == 7
+
+
+@asynccontextmanager
+async def _redis_app(
+    config: SecurityConfig, route_config: RouteConfig | None = None
+) -> AsyncIterator[_App]:
+    app = _App(config, route_config)
+    manager = redis_handler(config)
+    await manager.initialize()
+    await app.tracker.initialize_redis(manager)
+    try:
+        yield app
+    finally:
+        await manager.delete_pattern("behavior_*")
+        await manager.close()
+
+
+async def _usage_cardinality(
+    app: _App, rule: BehaviorRule, scope_id: str | None = None
+) -> int:
+    key = usage_hits_key(scope_id or _ENDPOINT, _IP, rule)
+    manager = redis_handler(app.config)
+    async with manager.get_connection() as conn:
+        cardinality: int = await conn.zcard(
+            f"{app.config.redis_prefix}behavior_usage:{key}"
+        )
+    return cardinality
+
+
+async def test_redis_throttle_refuses_under_a_pipeline_without_middleware(
+    security_config_redis: SecurityConfig,
+) -> None:
+    config = security_config_redis.model_copy(
+        update={"global_behavior_rules": (_rule(),)}
+    )
+    async with _redis_app(config) as app:
+        assert await app.statuses(4) == [200, 429, 429, 429]
+
+
+async def test_redis_usage_zsets_hold_each_admitted_request_once(
+    security_config_redis: SecurityConfig,
+) -> None:
+    route_rule = BehaviorRule("usage", 100, 60, action="log")
+    config = security_config_redis.model_copy(
+        update={"global_behavior_rules": (_rule("log"),)}
+    )
+    async with _redis_app(config, _route(route_rule)) as app:
+        assert await app.statuses(7) == [200] * 7
+        global_rule = BehaviorRule("usage", 1, 60, action="log")
+        global_scope = f"global|{global_rule.discriminator()}"
+        assert await _usage_cardinality(app, route_rule) == 7
+        assert await _usage_cardinality(app, global_rule, global_scope) == 7
+
+
+@pytest.mark.parametrize(
+    ("fail_secure", "expected"), [(True, 500), (False, 200)], ids=["secure", "open"]
+)
+async def test_a_failing_usage_rule_follows_the_check_error_policy(
+    fail_secure: bool, expected: int
+) -> None:
+    app = _App(_config(fail_secure=fail_secure, global_behavior_rules=(_rule("log"),)))
+    failing = AsyncMock(side_effect=RuntimeError("boom"))
+    with patch.object(app.tracker, "track_endpoint_usage", failing):
+        refused = [await app.pipeline.execute(_request()) for _ in range(2)]
+    assert [200 if r is None else r.status_code for r in refused] == [expected] * 2
 
 
 async def test_a_request_refused_before_the_step_is_not_recorded() -> None:

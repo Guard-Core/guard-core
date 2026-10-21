@@ -203,7 +203,7 @@ class SecurityCheckPipeline:
                 if error_response is not None:
                     return error_response
 
-        return enforce_usage_rules(self.checks, request)
+        return enforce_usage_rules(self.checks, request, self._handle_check_error)
 
     @property
     def needs_route_identity(self) -> bool:

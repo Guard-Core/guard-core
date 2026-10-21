@@ -1,4 +1,4 @@
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import Any, cast
 
 from guard_core.protocols.response_protocol import GuardResponse
@@ -15,9 +15,26 @@ from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
 _ROUTE_NOT_RESOLVED = object()
 
+CheckErrorHandler = Callable[
+    [SecurityCheck, SyncGuardRequest, Exception], GuardResponse | None
+]
+
+
+class UsageRulesStepCheck(SecurityCheck):
+    """Names the usage-rules step in the pipeline's error handling and logs."""
+
+    @property
+    def check_name(self) -> str:
+        return "behavior_usage_rules"
+
+    def check(self, request: SyncGuardRequest) -> GuardResponse | None:
+        return None
+
 
 def enforce_usage_rules(
-    checks: Sequence[SecurityCheck], request: SyncGuardRequest
+    checks: Sequence[SecurityCheck],
+    request: SyncGuardRequest,
+    handle_check_error: CheckErrorHandler,
 ) -> GuardResponse | None:
     # One function on purpose: it runs on every request of a pipeline that
     # resolved a route, so each helper would be a call added to the hot path.
@@ -31,15 +48,17 @@ def enforce_usage_rules(
     if not (isinstance(processor, BehavioralProcessor) and client_ip):
         return None
     if not (
-        config.global_behavior_rules
-        or (route_config is not None and route_config.behavior_rules)
+        config.global_behavior_rules or getattr(route_config, "behavior_rules", None)
     ):
         return None
     if config.enable_cors and is_preflight(request.method, request.headers):
         return None
-    refused: GuardResponse | None = processor.process_usage_rules(
-        request, client_ip, route_config, middleware
-    )
+    try:
+        refused: GuardResponse | None = processor.process_usage_rules(
+            request, client_ip, route_config, middleware
+        )
+    except Exception as error:
+        return handle_check_error(UsageRulesStepCheck(middleware), request, error)
     return refused
 
 
