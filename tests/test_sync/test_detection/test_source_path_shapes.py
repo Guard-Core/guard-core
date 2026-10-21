@@ -233,6 +233,11 @@ def test_a_declared_body_field_exclusion_covers_an_undeclared_walk() -> None:
     assert (detect_penetration_attempt(request, config)).is_threat is False
 
 
+def test_a_shape_key_with_a_non_text_value_is_not_refused() -> None:
+    assert _is_threat(_json({"commits": [{"added": 5}]})) is False
+    assert _is_threat(_json({"path": 5, "diff_hunk": "@@", "position": 1})) is False
+
+
 def test_the_benign_shape_constant_is_pinned() -> None:
     assert [
         (

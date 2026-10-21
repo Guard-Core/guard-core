@@ -129,9 +129,14 @@ def test_a_literal_that_is_json_goes_back_through_the_walk() -> None:
 
 
 def test_the_literal_scan_stops_when_the_value_budget_is_spent() -> None:
-    value = '{"a":' * 600 + json.dumps("<script>alert(1)</script>") + "}" * 600
-    with _scan_value_budget(5):
+    literals = ",".join(['"x\\n"'] * 10 + ['"<script>alert(1)</script>\\n"'])
+    value = "[" * 600 + literals + "]" * 600
+    with _scan_value_budget(3):
         assert _walk(value) is None
+
+
+def test_a_value_that_is_not_a_container_is_not_walked() -> None:
+    assert _walk("123") is None
 
 
 def test_a_parser_that_raises_its_recursion_error_is_treated_as_too_deep(
