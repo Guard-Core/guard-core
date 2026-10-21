@@ -1320,9 +1320,17 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "line 36: static warning about the in-memory throttle fallback, "
         "no interpolation"
     ),
-    "core/behavioral/_throttle.py:_warn_throttle_needs_middleware": (
-        "line 34: static warning that the adapter passes no middleware, "
-        "no interpolation"
+    "core/behavioral/_throttle.py:warn_throttle_needs_middleware": (
+        "the static warning plus the configured rules' type, threshold and "
+        "window and a fixed capability name; every interpolated value comes "
+        "from the rule configuration, never from a request"
+    ),
+    "core/behavioral/_throttle.py:BehavioralThrottleMixin._fire_throttle_block_hook": (
+        "the fire_block_hook call passes check_name 'behavior_throttle' and a "
+        "reason and trigger_info built from the rule's type, threshold and "
+        "window, never request-derived text (the path threaded through "
+        "build_block_payload is already redacted there, a separately covered "
+        "producer)"
     ),
     "core/behavioral/_throttle.py:BehavioralThrottleMixin._throttle_check_failed": (
         "lines 178 and 183: the redacted text of the GuardRedisError the throttle "
