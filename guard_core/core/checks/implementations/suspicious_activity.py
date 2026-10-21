@@ -82,9 +82,15 @@ class SuspiciousActivityCheck(SecurityCheck):
         request_total = getattr(ip_counts, "request_total", None)
         return sum(ip_counts.values()) if request_total is None else request_total
 
-    @staticmethod
-    def _detection_event_fields(result: DetectionResult) -> dict[str, Any]:
-        fields: dict[str, Any] = {}
+    def _detection_event_fields(self, result: DetectionResult) -> dict[str, Any]:
+        """What the penetration events carry about the detection: the per-request
+        id, the categories and, for a rule that decided, its attribution. Built
+        only when an agent consumes events."""
+        if not (
+            self.middleware.event_bus.agent_handler and self.config.agent_enable_events
+        ):
+            return {}
+        fields: dict[str, Any] = pattern_attribution(result.matched_pattern_source)
         if result.correlation_id is not None:
             fields["correlation_id"] = result.correlation_id
         if result.threat_categories:
@@ -122,18 +128,7 @@ class SuspiciousActivityCheck(SecurityCheck):
             request_count=self._total_count_for_ip(client_ip),
             passive_mode=True,
             trigger_info=trigger_info,
-            **(
-                self._detection_event_fields(result)
-                if self.middleware.event_bus.agent_handler
-                and self.config.agent_enable_events
-                else {}
-            ),
-            **(
-                pattern_attribution(result.matched_pattern_source)
-                if self.middleware.event_bus.agent_handler
-                and self.config.agent_enable_events
-                else {}
-            ),
+            **self._detection_event_fields(result),
         )
 
     async def _handle_suspicious_active_mode(
@@ -167,18 +162,7 @@ class SuspiciousActivityCheck(SecurityCheck):
                 request_count=strikes.banning_count or 0,
                 ban_duration=strikes.banned_duration,
                 trigger_info=trigger_info,
-                **(
-                    self._detection_event_fields(result)
-                    if self.middleware.event_bus.agent_handler
-                    and self.config.agent_enable_events
-                    else {}
-                ),
-                **(
-                    pattern_attribution(result.matched_pattern_source)
-                    if self.middleware.event_bus.agent_handler
-                    and self.config.agent_enable_events
-                    else {}
-                ),
+                **self._detection_event_fields(result),
             )
             return await self.middleware.create_error_response(
                 status_code=403,
@@ -207,18 +191,7 @@ class SuspiciousActivityCheck(SecurityCheck):
             reason=f"Penetration attempt detected: {trigger_info}",
             request_count=strikes.count_or(lambda: self._total_count_for_ip(client_ip)),
             trigger_info=trigger_info,
-            **(
-                self._detection_event_fields(result)
-                if self.middleware.event_bus.agent_handler
-                and self.config.agent_enable_events
-                else {}
-            ),
-            **(
-                pattern_attribution(result.matched_pattern_source)
-                if self.middleware.event_bus.agent_handler
-                and self.config.agent_enable_events
-                else {}
-            ),
+            **self._detection_event_fields(result),
         )
 
         return await self.middleware.create_error_response(

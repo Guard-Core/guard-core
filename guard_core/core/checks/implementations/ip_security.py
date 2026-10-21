@@ -330,16 +330,10 @@ class IpSecurityCheck(SecurityCheck):
             sensitive_body_fields=self.config.log_sensitive_body_fields,
         )
 
-        attribution = (
-            self._country_rule_attribution(access_result)
-            if access_result.country_rule
-            and self.middleware.event_bus.agent_handler
-            and self.config.agent_enable_events
-            else {}
-        )
+        attribution: dict[str, Any] = {}
         if access_result.country_rule:
-            await self._send_country_blocked_event(
-                request, client_ip, access_result, attribution
+            attribution = await self._send_country_blocked_event(
+                request, client_ip, access_result
             )
 
         await self.middleware.event_bus.send_middleware_event(
@@ -410,12 +404,16 @@ class IpSecurityCheck(SecurityCheck):
         )
 
     async def _send_country_blocked_event(
-        self,
-        request: GuardRequest,
-        client_ip: str,
-        access_result: IpAccessResult,
-        attribution: dict[str, Any],
-    ) -> None:
+        self, request: GuardRequest, client_ip: str, access_result: IpAccessResult
+    ) -> dict[str, Any]:
+        """Send country_blocked and return the rule attribution it carried (empty
+        when no agent consumes events), for the ip_blocked event that follows."""
+        attribution = (
+            self._country_rule_attribution(access_result)
+            if self.middleware.event_bus.agent_handler
+            and self.config.agent_enable_events
+            else {}
+        )
         await self.middleware.event_bus.send_middleware_event(
             event_type=EVENT_COUNTRY_BLOCKED,
             request=request,
@@ -428,6 +426,7 @@ class IpSecurityCheck(SecurityCheck):
             rule_type=access_result.country_rule,
             **attribution,
         )
+        return attribution
 
     @staticmethod
     def _country_rule_attribution(access_result: IpAccessResult) -> dict[str, Any]:

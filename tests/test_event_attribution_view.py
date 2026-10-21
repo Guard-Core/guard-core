@@ -33,8 +33,11 @@ async def test_the_view_ignores_what_it_cannot_parse_or_does_not_own() -> None:
 
 def test_a_detection_without_an_id_or_a_category_adds_no_event_fields() -> None:
     result = DetectionResult(is_threat=True, trigger_info="x")
+    middleware = MagicMock()
+    middleware.config = _config()
+    check = SuspiciousActivityCheck(middleware)
 
-    assert SuspiciousActivityCheck._detection_event_fields(result) == {}
+    assert check._detection_event_fields(result) == {}
 
 
 def test_the_deciding_ban_entry_follows_the_order_of_the_lookup(

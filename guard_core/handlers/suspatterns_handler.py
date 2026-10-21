@@ -1046,9 +1046,7 @@ class SusPatternsManager(_SusPatternsViewsMixin):
         from guard_core._utils.detection_scan import (
             _redact_pattern_source,
             _resolve_preview,
-            _scanned_request_endpoint,
         )
-        from guard_core._utils.rule_attribution import pattern_attribution
         from guard_core.core.events.event_types import EVENT_PATTERN_DETECTED
 
         if detection_method is None:
@@ -1077,7 +1075,6 @@ class SusPatternsManager(_SusPatternsViewsMixin):
             action_taken="threat_detected",
             reason=f"Threat detected in {context}",
             pattern_matched=pattern_matched,
-            endpoint=_scanned_request_endpoint() if consumer else None,
             pattern=pattern_matched,
             context=context,
             content_preview=_sanitize_for_reporting(capped_preview),
@@ -1091,12 +1088,20 @@ class SusPatternsManager(_SusPatternsViewsMixin):
             correlation_id=correlation_id,
             threat_categories=threat_categories,
             category=threat_categories[0] if threat_categories else None,
-            **(
-                pattern_attribution(matched_patterns[0] if matched_patterns else None)
-                if consumer
-                else {}
-            ),
+            **(self._consumer_fields(matched_patterns) if consumer else {}),
         )
+
+    @staticmethod
+    def _consumer_fields(matched_patterns: list) -> dict[str, Any]:
+        """The request endpoint and the dynamic-rule attribution of a detection
+        event, built only when an agent consumes it."""
+        from guard_core._utils.detection_scan import _scanned_request_endpoint
+        from guard_core._utils.rule_attribution import pattern_attribution
+
+        return {
+            "endpoint": _scanned_request_endpoint(),
+            **pattern_attribution(matched_patterns[0] if matched_patterns else None),
+        }
 
     async def detect_pattern_match(
         self,

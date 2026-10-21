@@ -1,5 +1,5 @@
 from collections.abc import Collection
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from guard_core._utils.request_logging import redact_header_value_for_display
 from guard_core._utils.rule_attribution import user_agent_attribution
@@ -60,6 +60,15 @@ class UserAgentCheck(SecurityCheck):
             return None
         return await self._deny(request, route_config, user_agent, empty_user_agent)
 
+    async def _rule_attribution(
+        self, user_agent: str, empty_user_agent: bool
+    ) -> dict[str, Any]:
+        if empty_user_agent or not (
+            self.middleware.event_bus.agent_handler and self.config.agent_enable_events
+        ):
+            return {}
+        return await user_agent_attribution(user_agent, self.config.blocked_user_agents)
+
     async def _deny(
         self,
         request: GuardRequest,
@@ -115,15 +124,7 @@ class UserAgentCheck(SecurityCheck):
                 reason=f"User agent '{redacted_user_agent}' in global blocklist",
                 user_agent=redacted_user_agent,
                 filter_type="global",
-                **(
-                    await user_agent_attribution(
-                        user_agent, self.config.blocked_user_agents
-                    )
-                    if self.middleware.event_bus.agent_handler
-                    and self.config.agent_enable_events
-                    and not empty_user_agent
-                    else {}
-                ),
+                **await self._rule_attribution(user_agent, empty_user_agent),
             )
 
         if self.config.passive_mode:
