@@ -29,7 +29,7 @@ def _decoded_fragment(token: str) -> str | None:
     if padding is None or len(token) > MAX_SHORT_BASE64_TOKEN_LENGTH:
         return None
     raw = binascii.a2b_base64(token + padding)
-    if not any(marker in raw for marker in _MARKER_BYTES):
+    if not any(map(raw.__contains__, _MARKER_BYTES)):
         return None
     try:
         decoded = raw.decode("utf-8")

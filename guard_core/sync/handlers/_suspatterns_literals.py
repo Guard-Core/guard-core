@@ -112,7 +112,7 @@ def _rows_by_substring(
     for row in rows:
         source = row[0].pattern
         literals = () if source in excluded_sources else required_literals(source)
-        if not literals or any(literal in folded_content for literal in literals):
+        if not literals or any(map(folded_content.__contains__, literals)):
             yield row
 
 
