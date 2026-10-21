@@ -1,4 +1,5 @@
 from collections.abc import Callable, Sequence
+from functools import partial
 from typing import Any
 
 from guard_core.protocols.response_protocol import GuardResponse
@@ -31,37 +32,53 @@ class UsageRulesStepCheck(SecurityCheck):
         return None
 
 
+def _no_usage_step() -> GuardResponse | None:
+    return None
+
+
+def _handle_usage_step_error(
+    handle_check_error: CheckErrorHandler,
+    middleware: Any,
+    request: SyncGuardRequest,
+    error: Exception,
+) -> GuardResponse | None:
+    return handle_check_error(UsageRulesStepCheck(middleware), request, error)
+
+
 def enforce_usage_rules(
     checks: Sequence[Any],
     request: SyncGuardRequest,
     state: Any,
     handle_check_error: CheckErrorHandler,
 ) -> GuardResponse | None:
-    # One function, and the request state is passed in rather than read again:
-    # this runs on every request of a pipeline that resolved a route, and each
-    # extra helper call or state access is cost on the hot path.
+    # Plain function returning the processor's coroutine: the pipeline awaits it
+    # directly, so the step adds no coroutine layer of its own. The request state
+    # is passed in, not read again. Both matter because this runs on every
+    # request of a pipeline that resolved a route.
     route_config: Any = getattr(state, "route_config", _ROUTE_NOT_RESOLVED)
     if route_config is _ROUTE_NOT_RESOLVED or not checks:
-        return None
+        return _no_usage_step()
     middleware = checks[0].middleware
     config = middleware.config
     if not (
-        config.global_behavior_rules or getattr(route_config, "behavior_rules", None)
+        config.global_behavior_rules
+        or (route_config is not None and route_config.behavior_rules)
     ):
-        return None
+        return _no_usage_step()
     processor = getattr(middleware, "behavioral_processor", None)
     client_ip = getattr(state, "client_ip", None)
     if not (isinstance(processor, BehavioralProcessor) and client_ip):
-        return None
+        return _no_usage_step()
     if config.enable_cors and is_preflight(request.method, request.headers):
-        return None
-    try:
-        refused: GuardResponse | None = processor.evaluate_usage_rules(
-            request, state, client_ip, route_config, middleware
-        )
-    except Exception as error:
-        return handle_check_error(UsageRulesStepCheck(middleware), request, error)
-    return refused
+        return _no_usage_step()
+    return processor.evaluate_usage_rules(
+        request,
+        state,
+        client_ip,
+        route_config,
+        middleware,
+        partial(_handle_usage_step_error, handle_check_error, middleware, request),
+    )
 
 
 def _configured_throttle_rules(middleware: Any) -> list[BehaviorRule]:

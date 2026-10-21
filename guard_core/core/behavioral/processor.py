@@ -10,11 +10,7 @@ from guard_core.core.behavioral._throttle import (
     global_scope_id,
     is_throttle_rule,
 )
-from guard_core.core.behavioral._usage_marks import (
-    USAGE_MARKS_ATTR,
-    UsageMarks,
-    usage_marks_of,
-)
+from guard_core.core.behavioral._usage_marks import USAGE_MARKS_ATTR, UsageMarks
 from guard_core.core.behavioral.context import BehavioralContext
 from guard_core.core.events.event_types import EVENT_DECORATOR_VIOLATION
 from guard_core.decorators.base import RouteConfig
@@ -75,42 +71,51 @@ class BehavioralProcessor(BehavioralThrottleMixin):
         client_ip: str,
         route_config: RouteConfig | None,
         middleware: Any,
+        on_error: Callable[[Exception], Awaitable[GuardResponse | None]] | None = None,
     ) -> GuardResponse | None:
-        behavior_tracker = self._behavior_tracker(request, state)
-        if behavior_tracker is None:
-            return None
-
-        endpoint_id = self.get_endpoint_id(request, state)
-        route_rules = route_config.behavior_rules if route_config is not None else []
-        route_throttles = (
-            await self._evaluate_route_usage_rules(
-                behavior_tracker, request, client_ip, endpoint_id, route_rules
+        # One coroutine for the whole evaluation: the pipeline step awaits it
+        # directly, and every extra coroutine layer is a resume per suspension.
+        try:
+            behavior_tracker = self._behavior_tracker(request, state)
+            if behavior_tracker is None:
+                return None
+            endpoint_id = self.get_endpoint_id(request, state)
+            route_rules = (
+                route_config.behavior_rules if route_config is not None else []
             )
-            if route_rules
-            else []
-        )
-        global_rules = self.context.config.global_behavior_rules
-        global_usage_rule_ids = (
-            await self._evaluate_global_usage_rules(
-                behavior_tracker, request, client_ip, endpoint_id
+            route_throttles = (
+                await self._evaluate_route_usage_rules(
+                    behavior_tracker, request, client_ip, endpoint_id, route_rules
+                )
+                if route_rules
+                else []
             )
-            if global_rules
-            else frozenset()
-        )
-        refused = None
-        # _evaluate_global_usage_rules has refreshed the global rule caches.
-        if route_throttles or (global_rules and self._global_throttle_cache):
-            refused = await self._enforce_throttle(
-                behavior_tracker,
-                request,
-                client_ip,
-                endpoint_id,
-                route_throttles,
-                self._recorded_route_rule_ids(route_rules),
-                middleware,
+            global_rules = self.context.config.global_behavior_rules
+            global_usage_rule_ids = (
+                await self._evaluate_global_usage_rules(
+                    behavior_tracker, request, client_ip, endpoint_id
+                )
+                if global_rules
+                else frozenset()
             )
-        setattr(state, USAGE_MARKS_ATTR, UsageMarks(refused, global_usage_rule_ids))
-        return refused
+            refused = None
+            # _evaluate_global_usage_rules has refreshed the global rule caches.
+            if route_throttles or (global_rules and self._global_throttle_cache):
+                refused = await self._enforce_throttle(
+                    behavior_tracker,
+                    request,
+                    client_ip,
+                    endpoint_id,
+                    route_throttles,
+                    self._recorded_route_rule_ids(route_rules),
+                    middleware,
+                )
+            setattr(state, USAGE_MARKS_ATTR, UsageMarks(refused, global_usage_rule_ids))
+            return refused
+        except Exception as error:
+            if on_error is None:
+                raise
+            return await on_error(error)
 
     @staticmethod
     def _recorded_route_rule_ids(route_rules: Sequence[BehaviorRule]) -> frozenset[str]:
@@ -151,7 +156,7 @@ class BehavioralProcessor(BehavioralThrottleMixin):
         route_throttles: list[BehaviorRule] = []
         seen: set[str] = set()
         for rule in route_rules:
-            if is_throttle_rule(rule):
+            if rule.action == "throttle" and rule.custom_action is None:
                 route_throttles.append(rule)
             elif rule.rule_type in ["usage", "frequency"]:
                 threshold_exceeded = await behavior_tracker.track_endpoint_usage(
@@ -229,14 +234,14 @@ class BehavioralProcessor(BehavioralThrottleMixin):
         rules: Sequence[BehaviorRule],
     ) -> None:
         state = request.state
-        marks = usage_marks_of(state)
+        marks = getattr(state, USAGE_MARKS_ATTR, None)
         pending = list(
             filter(
                 partial(
                     _counts_in_response_phase,
                     recorded_before_handler=(
                         marks.global_usage_rule_ids
-                        if marks is not None
+                        if isinstance(marks, UsageMarks)
                         else frozenset()
                     ),
                 ),
@@ -326,7 +331,19 @@ class BehavioralProcessor(BehavioralThrottleMixin):
         )
         if not pattern_detected or is_throttle_rule(rule):
             return
+        await self._act_on_global_return_trip(
+            tracker, request, client_ip, endpoint_id, rule, correlation
+        )
 
+    async def _act_on_global_return_trip(
+        self,
+        tracker: Any,
+        request: GuardRequest,
+        client_ip: str,
+        endpoint_id: str,
+        rule: BehaviorRule,
+        correlation: ReturnCorrelation | None,
+    ) -> None:
         correlated = (
             correlation if correlation is not None and correlation.active else None
         )

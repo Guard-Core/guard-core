@@ -266,7 +266,8 @@ class BehavioralThrottleMixin:
             self._report_throttle_trip(
                 tracker, request, client_ip, endpoint_id, trip, enforced
             )
-        self._fire_throttle_block_hook(request, trips, enforced)
+        if self.context.config.on_block is not None:
+            self._fire_throttle_block_hook(request, trips, enforced)
         if not enforced:
             return None
         response: GuardResponse = builder.create_error_response(
