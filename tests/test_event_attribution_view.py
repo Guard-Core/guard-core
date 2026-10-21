@@ -1,6 +1,8 @@
 import ipaddress
 import time
 
+import pytest
+
 from guard_core.core.checks.implementations.suspicious_activity import (
     SuspiciousActivityCheck,
 )
@@ -33,7 +35,9 @@ def test_a_detection_without_an_id_or_a_category_adds_no_event_fields() -> None:
     assert SuspiciousActivityCheck._detection_event_fields(result) == {}
 
 
-def test_the_deciding_ban_entry_follows_the_order_of_the_lookup() -> None:
+def test_the_deciding_ban_entry_follows_the_order_of_the_lookup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     now = time.time()
     ip_ban_manager.config = _config()
     ip_ban_manager.banned_networks = [
@@ -41,8 +45,10 @@ def test_the_deciding_ban_entry_follows_the_order_of_the_lookup() -> None:
     ]
     ip_ban_manager.banned_ips["198.51.100.7"] = now + 50
     ip_ban_manager.banned_ips["2001:db8:0:1::/64"] = now + 70
-    ip_ban_manager._operator_networks = _OperatorNetworks(
-        {ipaddress.ip_network("203.0.113.0/24"): now + 80}
+    monkeypatch.setattr(
+        ip_ban_manager,
+        "_operator_networks",
+        _OperatorNetworks({ipaddress.ip_network("203.0.113.0/24"): now + 80}),
     )
 
     assert ip_ban_manager.deciding_ban_entry("198.51.100.7") == (
