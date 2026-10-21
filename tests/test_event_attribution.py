@@ -1,6 +1,6 @@
 import asyncio
 import ipaddress
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -721,6 +721,13 @@ async def test_a_region_both_sources_carve_out_stays_free() -> None:
     )
 
 
+def _route_blocks(selector: str) -> Callable[[SecurityDecorator], Any]:
+    def apply(decorator: SecurityDecorator) -> Any:
+        return decorator.block_clouds([selector])
+
+    return apply
+
+
 async def test_a_route_block_wins_over_a_global_carve_out_and_back() -> None:
     for global_selector, route_selector in (
         ("GCP:!us-central1", "GCP"),
@@ -728,8 +735,8 @@ async def test_a_route_block_wins_over_a_global_carve_out_and_back() -> None:
     ):
         config = _config(enable_dynamic_rules=False, enable_agent=False)
         config.block_cloud_providers = frozenset({global_selector})
-        pipeline, middleware, route_id = build_route_pipeline(
-            config, lambda d, sel=route_selector: d.block_clouds([sel])
+        pipeline, _, route_id = build_route_pipeline(
+            config, _route_blocks(route_selector)
         )
         with _gcp_ranges():
             response = await send_request(pipeline, route_id, ip=CENTRAL_IP)
