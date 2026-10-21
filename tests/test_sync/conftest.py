@@ -172,6 +172,8 @@ def _reset_ip_ban_manager() -> None:
     _ORIGINAL_IP_BAN_MANAGER.banned_ips.clear()
     _ORIGINAL_IP_BAN_MANAGER.banned_networks.clear()
     _ORIGINAL_IP_BAN_MANAGER.rule_exempt_networks = ()
+    _ORIGINAL_IP_BAN_MANAGER._operator_networks = None
+    _ORIGINAL_IP_BAN_MANAGER._rule_written_expiries = {}
     _ORIGINAL_IP_BAN_MANAGER.redis_handler = None
     _ORIGINAL_IP_BAN_MANAGER.agent_handler = None
     _ORIGINAL_IP_BAN_MANAGER.evictions_count = 0
