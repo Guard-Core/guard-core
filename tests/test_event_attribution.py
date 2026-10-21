@@ -883,7 +883,7 @@ async def test_a_blocked_request_with_no_event_consumer_never_reads_the_view(
         config, _request(OTHER_IP, headers={"User-Agent": "wp23bot/1.0"}), geo
     )
 
-    config.blocked_countries = []
+    config.blocked_countries = frozenset()
     pattern = await _blocked_without_a_consumer(
         config, _request(OTHER_IP, path="/search?q=wp23dynabc"), geo
     )
