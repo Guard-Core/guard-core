@@ -17,6 +17,14 @@ ROOT = Path(__file__).resolve().parent.parent
 DYNAMIC = {"matched_rule_type": "dynamic", "matched_rule_id": "R"}
 
 
+def _interpreter_report() -> str:
+    site_packages = [entry for entry in sys.path if entry.endswith("site-packages")]
+    return (
+        f"sys.executable={sys.executable} sys.prefix={sys.prefix} "
+        f"site-packages={[(entry, os.path.isdir(entry)) for entry in site_packages]}"
+    )
+
+
 class _Worker:
     def __init__(self, script: str, prefix: str, duration: int) -> None:
         self.script = script
@@ -42,7 +50,10 @@ class _Worker:
         if not line:
             self.process.kill()
             self.errors.seek(0)
-            raise AssertionError(f"{self.script} gave no answer: {self.errors.read()}")
+            raise AssertionError(
+                f"{self.script} gave no answer ({_interpreter_report()}): "
+                f"{self.errors.read()}"
+            )
         answer: dict[str, object] = json.loads(line)
         return answer
 

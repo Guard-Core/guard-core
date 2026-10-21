@@ -1088,7 +1088,11 @@ class SusPatternsManager(_SusPatternsViewsMixin):
             correlation_id=correlation_id,
             threat_categories=threat_categories,
             category=threat_categories[0] if threat_categories else None,
-            **pattern_attribution(matched_patterns[0] if matched_patterns else None),
+            **(
+                pattern_attribution(matched_patterns[0] if matched_patterns else None)
+                if self._events_agent_handler
+                else {}
+            ),
         )
 
     def detect_pattern_match(

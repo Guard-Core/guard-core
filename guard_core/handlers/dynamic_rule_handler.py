@@ -3,6 +3,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
+from guard_core._utils.rule_attribution import set_attribution_view
 from guard_core.handlers._dynamic_rule_application import (
     DynamicRuleApplicationMixin,
     RuleSideEffects,
@@ -106,6 +107,7 @@ class DynamicRuleManager(
         rules = rules if rules is not None else self.current_rules
         if rules is None:
             self._attribution_cache = None
+            set_attribution_view(None)
             return
         inputs = (
             rules,
@@ -122,6 +124,7 @@ class DynamicRuleManager(
                 and held[2] is inputs[2]
                 and held[3] is inputs[3]
             ):
+                set_attribution_view(cached[1])
                 return
         view = build_rule_attribution(
             rules,
@@ -131,6 +134,7 @@ class DynamicRuleManager(
             self._active_base_snapshot or {},
         )
         self._attribution_cache = (inputs, view)
+        set_attribution_view(view)
 
     def rule_attribution(self) -> RuleAttribution | None:
         rules = self.current_rules

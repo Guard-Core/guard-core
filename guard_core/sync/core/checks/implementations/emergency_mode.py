@@ -110,7 +110,12 @@ class EmergencyModeCheck(SecurityCheck):
                 reason=f"[EMERGENCY MODE] IP {client_ip} not in whitelist",
                 emergency_whitelist_count=len(self.config.emergency_whitelist),
                 emergency_active=True,
-                **emergency_attribution(),
+                **(
+                    emergency_attribution()
+                    if self.middleware.event_bus.agent_handler
+                    and self.config.agent_enable_events
+                    else {}
+                ),
             )
 
         if self.config.passive_mode:

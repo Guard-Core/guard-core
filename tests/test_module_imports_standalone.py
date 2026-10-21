@@ -26,10 +26,20 @@ def _discover_module_names() -> list[str]:
 def _subprocess_env() -> dict[str, str]:
     env = dict(os.environ)
     existing_path = env.get("PYTHONPATH", "")
-    env["PYTHONPATH"] = (
-        f"{REPO_ROOT}{os.pathsep}{existing_path}" if existing_path else str(REPO_ROOT)
+    # A runner that layers packages over its environment (uv run --with) hands
+    # them to this process through sys.path only.
+    env["PYTHONPATH"] = os.pathsep.join(
+        [str(REPO_ROOT), *sys.path, *([existing_path] if existing_path else [])]
     )
     return env
+
+
+def _interpreter_report() -> str:
+    site_packages = [entry for entry in sys.path if entry.endswith("site-packages")]
+    return (
+        f"sys.executable={sys.executable} sys.prefix={sys.prefix} "
+        f"site-packages={[(entry, os.path.isdir(entry)) for entry in site_packages]}"
+    )
 
 
 def _import_standalone(module_name: str) -> tuple[str, int, str]:
@@ -55,6 +65,8 @@ def test_every_guard_core_module_imports_standalone() -> None:
 
     failures = {name: stderr for name, code, stderr in results if code != 0}
 
-    assert not failures, "\n\n".join(
-        f"{name}:\n{stderr}" for name, stderr in sorted(failures.items())
+    assert not failures, (
+        _interpreter_report()
+        + "\n\n"
+        + "\n\n".join(f"{name}:\n{stderr}" for name, stderr in sorted(failures.items()))
     )

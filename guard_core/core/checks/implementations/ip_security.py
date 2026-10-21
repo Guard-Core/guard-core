@@ -5,7 +5,11 @@ from guard_core._utils.ip_extraction import (
     _is_trusted_proxy,
     forwarded_for_addresses,
 )
-from guard_core._utils.rule_attribution import ban_attribution, country_attribution
+from guard_core._utils.rule_attribution import (
+    ban_attribution,
+    cached_ban_stamp,
+    country_attribution,
+)
 from guard_core._utils.whitelist_match import most_specific_whitelist_entry
 from guard_core.core.checks.base import SecurityCheck
 from guard_core.core.checks.helpers import (
@@ -163,6 +167,14 @@ class IpSecurityCheck(SecurityCheck):
             sensitive_body_fields=self.config.log_sensitive_body_fields,
         )
 
+        attribution: dict[str, Any] = {}
+        if self.middleware.event_bus.agent_handler and self.config.agent_enable_events:
+            held = cached_ban_stamp(client_ip, self.ip_ban_manager)
+            attribution = (
+                held
+                if held is not None
+                else await ban_attribution(client_ip, self.ip_ban_manager)
+            )
         await self.middleware.event_bus.send_middleware_event(
             event_type=EVENT_IP_BLOCKED,
             request=request,
@@ -172,7 +184,7 @@ class IpSecurityCheck(SecurityCheck):
             reason=f"Banned IP attempted access: {client_ip}",
             ip_address=client_ip,
             filter_type="banned",
-            **await ban_attribution(client_ip, self.ip_ban_manager),
+            **attribution,
         )
 
         if not self.config.passive_mode:
@@ -318,8 +330,17 @@ class IpSecurityCheck(SecurityCheck):
             sensitive_body_fields=self.config.log_sensitive_body_fields,
         )
 
+        attribution = (
+            self._country_rule_attribution(access_result)
+            if access_result.country_rule
+            and self.middleware.event_bus.agent_handler
+            and self.config.agent_enable_events
+            else {}
+        )
         if access_result.country_rule:
-            await self._send_country_blocked_event(request, client_ip, access_result)
+            await self._send_country_blocked_event(
+                request, client_ip, access_result, attribution
+            )
 
         await self.middleware.event_bus.send_middleware_event(
             event_type=EVENT_IP_BLOCKED,
@@ -333,7 +354,7 @@ class IpSecurityCheck(SecurityCheck):
             **(
                 {"country": access_result.country} if access_result.country_rule else {}
             ),
-            **self._country_rule_attribution(access_result),
+            **attribution,
         )
         if not self.config.passive_mode:
             if escalate:
@@ -389,7 +410,11 @@ class IpSecurityCheck(SecurityCheck):
         )
 
     async def _send_country_blocked_event(
-        self, request: GuardRequest, client_ip: str, access_result: IpAccessResult
+        self,
+        request: GuardRequest,
+        client_ip: str,
+        access_result: IpAccessResult,
+        attribution: dict[str, Any],
     ) -> None:
         await self.middleware.event_bus.send_middleware_event(
             event_type=EVENT_COUNTRY_BLOCKED,
@@ -401,7 +426,7 @@ class IpSecurityCheck(SecurityCheck):
             ip_address=client_ip,
             country=access_result.country,
             rule_type=access_result.country_rule,
-            **self._country_rule_attribution(access_result),
+            **attribution,
         )
 
     @staticmethod

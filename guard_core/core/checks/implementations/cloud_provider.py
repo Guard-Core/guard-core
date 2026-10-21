@@ -128,7 +128,13 @@ class CloudProviderCheck(SecurityCheck):
     ) -> None:
         route_blocks_clouds = bool(route_config and route_config.block_cloud_providers)
         attribution = (
-            {} if route_blocks_clouds else self._cloud_attribution(cloud_details)
+            {}
+            if route_blocks_clouds
+            or not (
+                self.middleware.event_bus.agent_handler
+                and self.config.agent_enable_events
+            )
+            else self._cloud_attribution(cloud_details)
         )
 
         await self.middleware.event_bus.send_cloud_detection_events(

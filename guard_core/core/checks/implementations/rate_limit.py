@@ -398,7 +398,13 @@ class RateLimitCheck(SecurityCheck):
         plan: _TierPlan,
         block: RateLimitBlock,
     ) -> None:
-        attribution = rate_limit_attribution(plan.tier.kind, plan.tier.bucket)
+        attribution = (
+            rate_limit_attribution(plan.tier.kind, plan.tier.bucket)
+            if self.middleware.event_bus.agent_handler
+            and self.config.agent_enable_events
+            or self.middleware.rate_limit_handler.agent_handler
+            else {}
+        )
         if plan.event_type is not None:
             await self._send_rate_limit_event(
                 request, plan.event_type, plan.event_kwargs, attribution

@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.sync._utils import rule_attribution as rule_attribution_module
 from guard_core.sync.core.checks.factory import build_default_pipeline
 from guard_core.sync.core.checks.pipeline import SecurityCheckPipeline
 from guard_core.sync.decorators import SecurityDecorator
@@ -795,3 +796,68 @@ def test_the_view_is_built_when_the_set_changes_not_on_the_first_block() -> None
     manager.current_rules.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
     manager._check_rule_expiry()
     assert manager._attribution_cache is None
+
+
+class _MustNotBeRead:
+    """A view that fails the test when anything reads it."""
+
+    def __getattr__(self, name: str) -> Any:
+        raise AssertionError(f"the attribution view was read ({name}) with no consumer")
+
+
+def _real_bus(config: SecurityConfig, middleware: Any, agent: Any) -> None:
+    from guard_core.sync.core.events.middleware_events import SecurityEventBus
+
+    middleware.event_bus = SecurityEventBus(agent, config)
+
+
+def _blocked_without_a_consumer(
+    config: SecurityConfig, request: SyncMockGuardRequest, geo: Any = None
+) -> Any:
+    pipeline, middleware = _pipeline(config, geo)
+    _real_bus(config, middleware, None)
+    return pipeline.execute(request)
+
+
+def test_a_blocked_request_with_no_event_consumer_never_reads_the_view(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    geo = fixed_country_geo_ip("CN")
+    config = _config(
+        geo_ip_handler=geo,
+        blocked_user_agents=["wp23bot"],
+        blocked_countries=["CN"],
+        agent_enable_events=True,
+    )
+    _apply(
+        config,
+        _rules(
+            ip_blacklist=[RULE_IP],
+            blocked_user_agents=["rulebot"],
+            blocked_countries=["CN"],
+            suspicious_patterns=["wp23dyn[a-z]{3,6}"],
+        ),
+    )
+    monkeypatch.setattr(rule_attribution_module, "_applied", _MustNotBeRead())
+    config.agent_enable_events = True
+
+    banned = _blocked_without_a_consumer(config, _request(RULE_IP), geo)
+    other = _blocked_without_a_consumer(
+        config, _request(OTHER_IP, headers={"User-Agent": "wp23bot/1.0"}), geo
+    )
+
+    assert banned is not None and banned.status_code == 403
+    assert other is not None and other.status_code == 403
+
+
+def test_a_blocked_request_with_a_consumer_still_reads_the_view() -> None:
+    config = _config()
+    _apply(config, _rules(ip_blacklist=[RULE_IP]))
+    agent = _Agent()
+    pipeline, middleware = _pipeline(config)
+    _real_bus(config, middleware, agent)
+
+    pipeline.execute(_request(RULE_IP))
+
+    [event] = [e for e in agent.events if e.event_type == "ip_blocked"]
+    assert _attr(event.metadata) == DYNAMIC

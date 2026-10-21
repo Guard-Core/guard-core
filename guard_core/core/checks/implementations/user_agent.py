@@ -116,11 +116,13 @@ class UserAgentCheck(SecurityCheck):
                 user_agent=redacted_user_agent,
                 filter_type="global",
                 **(
-                    {}
-                    if empty_user_agent
-                    else await user_agent_attribution(
+                    await user_agent_attribution(
                         user_agent, self.config.blocked_user_agents
                     )
+                    if self.middleware.event_bus.agent_handler
+                    and self.config.agent_enable_events
+                    and not empty_user_agent
+                    else {}
                 ),
             )
 

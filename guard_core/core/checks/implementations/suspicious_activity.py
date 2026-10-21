@@ -84,7 +84,7 @@ class SuspiciousActivityCheck(SecurityCheck):
 
     @staticmethod
     def _detection_event_fields(result: DetectionResult) -> dict[str, Any]:
-        fields: dict[str, Any] = pattern_attribution(result.matched_pattern_source)
+        fields: dict[str, Any] = {}
         if result.correlation_id is not None:
             fields["correlation_id"] = result.correlation_id
         if result.threat_categories:
@@ -123,6 +123,12 @@ class SuspiciousActivityCheck(SecurityCheck):
             passive_mode=True,
             trigger_info=trigger_info,
             **self._detection_event_fields(result),
+            **(
+                pattern_attribution(result.matched_pattern_source)
+                if self.middleware.event_bus.agent_handler
+                and self.config.agent_enable_events
+                else {}
+            ),
         )
 
     async def _handle_suspicious_active_mode(
@@ -157,6 +163,12 @@ class SuspiciousActivityCheck(SecurityCheck):
                 ban_duration=strikes.banned_duration,
                 trigger_info=trigger_info,
                 **self._detection_event_fields(result),
+                **(
+                    pattern_attribution(result.matched_pattern_source)
+                    if self.middleware.event_bus.agent_handler
+                    and self.config.agent_enable_events
+                    else {}
+                ),
             )
             return await self.middleware.create_error_response(
                 status_code=403,
@@ -186,6 +198,12 @@ class SuspiciousActivityCheck(SecurityCheck):
             request_count=strikes.count_or(lambda: self._total_count_for_ip(client_ip)),
             trigger_info=trigger_info,
             **self._detection_event_fields(result),
+            **(
+                pattern_attribution(result.matched_pattern_source)
+                if self.middleware.event_bus.agent_handler
+                and self.config.agent_enable_events
+                else {}
+            ),
         )
 
         return await self.middleware.create_error_response(

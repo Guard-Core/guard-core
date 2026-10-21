@@ -119,14 +119,18 @@ class RuleAttribution:
     async def for_ban(self, client_ip: str, bans: Any) -> dict[str, Any]:
         """The stamp of a ban hit, kept per address while the ban version this
         worker sees is unchanged and the ban lookup's own recheck interval has
-        not passed, so a repeat hit from one banned address is one dict read."""
+        not passed, so a repeat hit from one banned address is one dict read.
+        The version and the time are read before the stamp is worked out, so a
+        stamp is never kept under a version newer than the one it was computed
+        under."""
         held = self._ban_stamps.get(client_ip)
         if held is not None and bans.answer_is_current(held[1], held[2]):
             return held[0]
+        version, at = bans.answer_stamp()
         stamp = await self._ban_stamp(client_ip, bans)
         if len(self._ban_stamps) >= _MAX_BAN_STAMPS:
             self._ban_stamps.clear()
-        self._ban_stamps[client_ip] = (stamp, *bans.answer_stamp())
+        self._ban_stamps[client_ip] = (stamp, version, at)
         return stamp
 
     async def _ban_stamp(self, client_ip: str, bans: Any) -> dict[str, Any]:

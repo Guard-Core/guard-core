@@ -22,6 +22,7 @@ from guard_core import _staged_defaults as _staged_defaults_module
 from guard_core._utils import body_reader
 from guard_core._utils import detection_scan as _detection_scan_module
 from guard_core._utils import ip_extraction as _ip_extraction_module
+from guard_core._utils import rule_attribution as _rule_attribution_module
 from guard_core.core.checks.implementations import (
     emergency_mode as _emergency_mode_module,
 )
@@ -157,6 +158,7 @@ def _reset_ip_ban_manager() -> None:
     _ORIGINAL_IP_BAN_MANAGER.rule_exempt_networks = ()
     _ORIGINAL_IP_BAN_MANAGER._operator_networks = None
     _ORIGINAL_IP_BAN_MANAGER._rule_owner_answers = {}
+    _rule_attribution_module.set_attribution_view(None)
     _ORIGINAL_IP_BAN_MANAGER.redis_handler = None
     _ORIGINAL_IP_BAN_MANAGER.agent_handler = None
     _ORIGINAL_IP_BAN_MANAGER.evictions_count = 0

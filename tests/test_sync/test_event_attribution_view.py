@@ -206,3 +206,28 @@ def test_a_repeat_ban_hit_reuses_the_stamp_until_the_interval_passes(
     time.sleep(0.3)
     assert view.for_ban(RULE_IP, ip_ban_manager) == DYNAMIC
     assert lookups == [RULE_IP, RULE_IP]
+
+
+def test_a_stamp_is_kept_under_the_version_it_was_computed_under(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = _config()
+    ip_ban_manager.config = config
+    assert ip_ban_manager.ban_ip(RULE_IP, 3600, "dynamic_rule")
+    view = build_rule_attribution(_rules(ip_blacklist=[RULE_IP]), config, [], [], {})
+    monkeypatch.setattr(ip_ban_manager, "_ban_version_seen", "v1")
+    monkeypatch.setattr(ip_ban_manager, "_VERSION_RECHECK_SECONDS", 60.0)
+    computed: list[str] = []
+
+    def moves_the_version(self: object, ip: str, bans: object) -> dict[str, str]:
+        computed.append(ip)
+        ip_ban_manager._ban_version_seen = "v2"
+        return {"stamp": "under-v1"}
+
+    monkeypatch.setattr(type(view), "_ban_stamp", moves_the_version)
+
+    first = view.for_ban(RULE_IP, ip_ban_manager)
+    second = view.for_ban(RULE_IP, ip_ban_manager)
+
+    assert first == second == {"stamp": "under-v1"}
+    assert computed == [RULE_IP, RULE_IP]
