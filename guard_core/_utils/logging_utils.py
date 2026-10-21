@@ -69,6 +69,8 @@ def _try_redact_nested_json_leaf(
         parsed = json.loads(candidate)
     except ValueError:
         return None
+    except RecursionError:
+        return "[REDACTED]"
     redacted = _redact_sensitive_json(
         parsed, leaf_sensitive, sensitive_body_fields, max_depth
     )

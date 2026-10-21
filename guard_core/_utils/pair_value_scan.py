@@ -164,6 +164,8 @@ def _redact_embedded_json_value(
         parsed = json.loads(decoded)
     except ValueError:
         return None
+    except RecursionError:
+        return quote_plus("[REDACTED]")
     if not isinstance(parsed, dict | list):
         return None
     redacted = _redact_sensitive_json(

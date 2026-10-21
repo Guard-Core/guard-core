@@ -158,6 +158,21 @@ Regex anomaly score required to flag a request as a threat.
 
 Whether to scan the request body during detection. Set to `False` to restrict detection to the URL path, query parameters, and headers: the body is then never read or matched, regardless of its shape.
 
+### Source file paths in JSON bodies
+
+A value that is a bare script or source file name (`index.php`, `run.sh`, `q.sql`, `app.rb`) in a query value or a JSON body field is flagged as a sensitive file access. Four JSON shapes that webhooks send list changed files, so Guard Core does not flag a plain path (the value ends at the extension, with no suffix trick, path info or query string) in them:
+
+| Shape | Pinned example |
+|---|---|
+| Push change list: `added`, `removed`, `modified` of an object reached through `commits` or `head_commit` | `{"commits": [{"modified": ["src/app/main.py"]}]}` |
+| Review comment: `path` beside `diff_hunk` or `position` | `{"comment": {"path": "src/app.py", "diff_hunk": "@@ -1 +1 @@", "position": 3}}` |
+| Pull request file: `filename` beside `patch` or `status` | `[{"filename": "setup.py", "status": "modified", "patch": "@@ -1 +1 @@"}]` |
+| Stack frame: `filename` beside `lineno` or `function`, inside `frames` | `{"frames": [{"filename": "app/main.py", "function": "main", "lineno": 9}]}` |
+
+A scalar such as `{"path": "x.py"}` or `{"page": "index.php"}`, a trick suffix (`main.php%00.jpg`) and traversal in these shapes are still flagged. A body field that carries another benign shape is the route's to declare: `excluded_detection_body_fields={"changed_file"}` (or `detection_exclusion(body_fields={"changed_file"})`) skips that field in every category.
+
+A body sent under a content type that is not JSON, form or multipart is still read as JSON when it parses as a JSON object or array. Each leaf is checked on its own, except that path rows which need a whole value never apply to those leaves.
+
 ___
 
 Tuning Profiles

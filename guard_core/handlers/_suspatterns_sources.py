@@ -184,9 +184,14 @@ _EXTENSION_TRICK_SUFFIX = (
     r"(?:;[^/\\?\s]*|\.+|::\$(?:DATA|INDEX_ALLOCATION)|%00[^/\\?\s]*"
     r"|\.(?:jpe?g|png|gif|ico|bmp))?"
 )
-_SENSITIVE_SOURCE_EXTENSIONS = (
+_SENSITIVE_SOURCE_BARE_EXTENSIONS = (
     r"\.(?:ts|tsx|jsx|py|rb|java|go|rs|php|pl|sh|sql|phtml|php[3-8]|pht|phps|phar)"
-    + _EXTENSION_TRICK_SUFFIX
+)
+_SENSITIVE_SOURCE_EXTENSIONS = (
+    _SENSITIVE_SOURCE_BARE_EXTENSIONS + _EXTENSION_TRICK_SUFFIX
+)
+_PLAIN_SOURCE_OR_MAP_PATH_END_RE = re.compile(
+    rf"(?:{_SENSITIVE_SOURCE_BARE_EXTENSIONS}|\.map)\s*\Z"
 )
 _RECON_EXTENSIONS = (
     r"\.(?:asp|aspx|jsp|jsa|jhtml|shtml|cfm|cgi|do|action|lua|inc|woa|nsf|esp"

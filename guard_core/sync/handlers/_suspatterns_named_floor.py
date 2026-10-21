@@ -6,11 +6,13 @@ from guard_core.sync._utils.route_gate import (
     path_probe_is_not_the_apps_own_route,
     route_declares,
 )
+from guard_core.sync._utils.source_path_shapes import source_path_leaf_in_benign_shape
 from guard_core.sync.handlers._suspatterns_sources import (
     _CTX_CMS_PROBING,
     _CTX_RECON,
     _PATH_ONLY_CHAR_RE,
     _PATH_ONLY_SEP_RE,
+    _PLAIN_SOURCE_OR_MAP_PATH_END_RE,
     _nested_path_pattern,
     _path_only_pattern,
     _source_extension_path_is_probe,
@@ -75,7 +77,10 @@ def source_path_is_a_probe(match: re.Match, context: str) -> bool:
         return False
     if is_the_request_url_path(context):
         return path_probe_is_not_the_apps_own_route(match.group())
-    return "/" in match.group() or "\\" in match.group()
+    return not (
+        source_path_leaf_in_benign_shape()
+        and _PLAIN_SOURCE_OR_MAP_PATH_END_RE.search(match.group())
+    )
 
 
 def recon_path_is_a_probe(match: re.Match, context: str) -> bool:

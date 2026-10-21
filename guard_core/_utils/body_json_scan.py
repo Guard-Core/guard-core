@@ -18,6 +18,15 @@ from guard_core._utils.scan_remainder import (
     _SurfaceRemainder,
 )
 from guard_core._utils.sensitive_names import name_is_sensitive
+from guard_core._utils.source_path_shapes import (
+    SHAPE_KEYS,
+    BenignShapePath,
+    BenignShapePaths,
+    benign_shape_keys,
+    enter_benign_shape,
+    leave_benign_shape,
+    mark_benign_shape,
+)
 
 
 class _RepeatedKey(str):
@@ -110,6 +119,7 @@ async def _scan_capped_json_subtree(
     context: str = "request_body",
     preview_override: str | None = None,
     sensitive_params: frozenset[str] = frozenset(),
+    walk_again: bool = True,
 ) -> tuple[bool, str, list[dict]]:
     from guard_core._utils.body_content_scan import _scan_body_field
 
@@ -130,7 +140,52 @@ async def _scan_capped_json_subtree(
         display=display,
         context=context,
         preview_override=preview_override,
+        scan_embedded_json=walk_again,
     )
+
+
+def _push_dict_entries(
+    current: dict[Any, Any],
+    label: str,
+    depth: int,
+    redact: bool,
+    stack: list[tuple[str, Any, Any, int, bool]],
+) -> None:
+    in_shape = (
+        frozenset()
+        if SHAPE_KEYS.isdisjoint(current)
+        else benign_shape_keys(current, label)
+    )
+    for key, item in reversed(list(current.items())):
+        stack.append(
+            (
+                "entry",
+                key,
+                mark_benign_shape(item) if key in in_shape else item,
+                depth,
+                redact,
+            )
+        )
+
+
+def _push_list_items(
+    current: list[Any],
+    label: str,
+    depth: int,
+    redact: bool,
+    stack: list[tuple[str, Any, Any, int, bool]],
+) -> None:
+    in_shape = type(current) is BenignShapePaths
+    for item in reversed(current):
+        stack.append(
+            (
+                "value",
+                BenignShapePath(item) if in_shape and isinstance(item, str) else item,
+                label,
+                depth + 1,
+                redact,
+            )
+        )
 
 
 async def _scan_json_container_frame(
@@ -166,14 +221,13 @@ async def _scan_json_container_frame(
             context,
             capped_preview,
             sensitive_params,
+            walk_again=depth > 1,
         )
         return hit if hit[0] else None
     if isinstance(current, dict):
-        for key, item in reversed(list(current.items())):
-            stack.append(("entry", key, item, depth, redact))
-        return None
-    for item in reversed(current):
-        stack.append(("value", item, label, depth + 1, redact))
+        _push_dict_entries(current, label, depth, redact, stack)
+    else:
+        _push_list_items(current, label, depth, redact, stack)
     return None
 
 
@@ -277,18 +331,23 @@ async def _scan_json_frame(
         if preview_override is not None
         else ("[REDACTED]" if redact else None)
     )
-    scalar_hit = await _scan_body_field(
-        str(first),
-        second,
-        enabled_categories,
-        client_ip,
-        correlation_id,
-        log_level,
-        sensitive_body_fields,
-        context=context,
-        preview_override=leaf_preview,
-        sensitive_params=sensitive_params,
-    )
+    shape_token = enter_benign_shape() if type(first) is BenignShapePath else None
+    try:
+        scalar_hit = await _scan_body_field(
+            str(first),
+            second,
+            enabled_categories,
+            client_ip,
+            correlation_id,
+            log_level,
+            sensitive_body_fields,
+            context=context,
+            preview_override=leaf_preview,
+            sensitive_params=sensitive_params,
+        )
+    finally:
+        if shape_token is not None:
+            leave_benign_shape(shape_token)
     return scalar_hit if scalar_hit[0] else None
 
 

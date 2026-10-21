@@ -26,6 +26,7 @@ from guard_core._utils.detection_config import (
     _param_scan_categories,
 )
 from guard_core._utils.detection_scan import (
+    _JSON_CONTAINER_START,
     LazyPreview,
     _budget_that_is_never_spent,
     _check_always_scan_header,
@@ -34,7 +35,9 @@ from guard_core._utils.detection_scan import (
     _resolve_preview,
     _scan_component_name,
     _skip_counter,
+    _skipping_whole_value_path_rows,
 )
+from guard_core._utils.embedded_json_scan import _check_embedded_json
 from guard_core._utils.request_logging import redact_blob_for_display
 from guard_core._utils.scan_remainder import (
     _scan_surface_remainder,
@@ -554,6 +557,7 @@ async def _scan_body_field(
     context: str = "request_body",
     preview_override: str | None = None,
     sensitive_params: frozenset[str] = frozenset(),
+    scan_embedded_json: bool = True,
 ) -> tuple[bool, str, list[dict]]:
     is_sensitive = name_is_sensitive(label, sensitive_body_fields)
     log_value: str | LazyPreview | None = _field_log_value(
@@ -569,6 +573,7 @@ async def _scan_body_field(
         correlation_id,
         enabled_categories,
         None,
+        scan_embedded_json=scan_embedded_json,
         content_preview=log_value,
         sensitive_params=sensitive_params,
     )
@@ -581,6 +586,34 @@ async def _scan_body_field(
     return True, f"Request body field '{label}': {trigger}", threats
 
 
+async def _scan_blob_body_leaves(
+    raw_body: str,
+    excluded_body_fields: frozenset[str],
+    enabled_categories: set[str] | None,
+    client_ip: str,
+    correlation_id: str,
+    sensitive_params: frozenset[str],
+    sensitive_body_fields: frozenset[str],
+) -> tuple[bool, str, list[dict]] | None:
+    if _JSON_CONTAINER_START(raw_body) is None:
+        return None
+    with _budget_that_is_never_spent(), _skipping_whole_value_path_rows():
+        json_hit = await _check_embedded_json(
+            raw_body,
+            "request_body",
+            client_ip,
+            correlation_id,
+            enabled_categories,
+            excluded_body_fields,
+            sensitive_body_fields,
+            redact_all=True,
+            sensitive_params=sensitive_params,
+        )
+    if json_hit is None or not json_hit[0]:
+        return None
+    return True, json_hit[1], json_hit[2]
+
+
 async def _scan_blob_body(
     raw_body: str,
     enabled_categories: set[str] | None,
@@ -590,7 +623,19 @@ async def _scan_blob_body(
     sensitive_params: frozenset[str] = frozenset(),
     sensitive_body_fields: frozenset[str] = frozenset(),
     force_redacted: bool = False,
+    excluded_body_fields: frozenset[str] = frozenset(),
 ) -> tuple[bool, str, list[dict]]:
+    leaf_hit = await _scan_blob_body_leaves(
+        raw_body,
+        excluded_body_fields,
+        enabled_categories,
+        client_ip,
+        correlation_id,
+        sensitive_params,
+        sensitive_body_fields,
+    )
+    if leaf_hit is not None:
+        return leaf_hit
     content_preview: str | LazyPreview = (
         "[REDACTED]"
         if force_redacted
@@ -609,6 +654,7 @@ async def _scan_blob_body(
             correlation_id,
             enabled_categories,
             log_level,
+            scan_embedded_json=False,
             content_preview=content_preview,
         )
     if detected:
@@ -673,4 +719,5 @@ async def _scan_request_body(
         log_level,
         sensitive_params,
         sensitive_body_fields,
+        excluded_body_fields=frozenset(excluded_body_fields),
     )

@@ -4,13 +4,14 @@ from urllib.parse import urlencode
 
 import pytest
 
+from guard_core._utils.embedded_json_scan import _EMBEDDED_JSON_MAX_PARSE_DEPTH
 from guard_core.handlers.suspatterns_handler import sus_patterns_handler
 from guard_core.models import SecurityConfig
 from guard_core.utils import detect_penetration_attempt
 from tests.conftest import MockGuardRequest
 
 ATTACK = "' OR 1=1--"
-DEPTHS = [600, 1500, 3000]
+DEPTHS = [512, 600, 1500, 3000]
 
 
 def _nested_json(depth: int) -> str:
@@ -55,20 +56,16 @@ SURFACES: dict[str, tuple[Callable[[str], MockGuardRequest], str, str]] = {
     "query": (_query, "Remaining query params", "Query param 'z'"),
     "form": (_form, "Remaining form fields", "Request body field 'z'"),
     "header": (_header, "Remaining headers", "Header 'x-z'"),
-    "json": (_json_entry, "", "Request body field 'z'"),
+    "json": (_json_entry, "Remaining request body", "Request body field 'z'"),
 }
 
 
-# A JSON body entry is scanned in the "request_body" context, which skips the
-# embedded-JSON walk, so it never fans out and is caught on its own key. Elsewhere
-# the walk fans out only when the interpreter's json parser accepts the depth
-# (3.10 stops near 990 levels and scans the value as text instead).
-def _walk_fans_out(nested: str) -> bool:
-    try:
-        json.loads(nested)
-    except RecursionError:
-        return False
-    return True
+# The embedded-JSON walk fans out into one scanned value per nested level only
+# while the value is within the engine's parse depth, on every interpreter and on
+# every surface, the JSON body entry included. Past it, only the escaped string
+# literals are scanned (none here), so the later item is reached directly.
+def _walk_fans_out(depth: int) -> bool:
+    return depth <= _EMBEDDED_JSON_MAX_PARSE_DEPTH
 
 
 @pytest.fixture(autouse=True)
@@ -86,5 +83,5 @@ async def test_a_nested_json_value_cannot_use_up_the_budget_before_a_later_item(
     config = SecurityConfig(enable_redis=False, rate_limit=10_000_000)
     result = await detect_penetration_attempt(build(nested), config)
     assert result.is_threat is True
-    fans_out = remainder_text and _walk_fans_out(nested)
-    assert (remainder_text if fans_out else direct_text) in (result.trigger_info or "")
+    expected = remainder_text if _walk_fans_out(depth) else direct_text
+    assert expected in (result.trigger_info or "")

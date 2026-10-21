@@ -83,6 +83,9 @@ _scan_skips: contextvars.ContextVar[_ScanSkips | None] = contextvars.ContextVar(
 _whole_value_rows_only: contextvars.ContextVar[bool] = contextvars.ContextVar(
     "guard_core_detection_whole_value_rows_only", default=False
 )
+_whole_value_path_rows_skipped: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "guard_core_detection_whole_value_path_rows_skipped", default=False
+)
 _inside_embedded_json: contextvars.ContextVar[bool] = contextvars.ContextVar(
     "guard_core_detection_inside_embedded_json", default=False
 )
@@ -333,6 +336,15 @@ def _embedded_json_scan() -> Iterator[None]:
         _inside_embedded_json.reset(token)
 
 
+@contextmanager
+def _skipping_whole_value_path_rows() -> Iterator[None]:
+    token = _whole_value_path_rows_skipped.set(True)
+    try:
+        yield
+    finally:
+        _whole_value_path_rows_skipped.reset(token)
+
+
 def _note_skipped_value(context: str, enabled_categories: set[str] | None) -> None:
     skips = _scan_skips.get()
     if skips is None or _inside_embedded_json.get():
@@ -486,6 +498,9 @@ def _resolve_json_redact_all(
     return content_preview is not None
 
 
+_JSON_CONTAINER_START = re.compile(r"[ \t\n\r]*[\[{]").match
+
+
 async def _check_embedded_json_if_applicable(
     value: str,
     context: str,
@@ -499,7 +514,7 @@ async def _check_embedded_json_if_applicable(
     json_redact_all: bool | None,
     sensitive_params: frozenset[str] = frozenset(),
 ) -> tuple[bool, str, list[dict], str | None] | None:
-    if not scan_embedded_json or context == "request_body":
+    if not scan_embedded_json or _JSON_CONTAINER_START(value) is None:
         return None
 
     from guard_core._utils.embedded_json_scan import _check_embedded_json

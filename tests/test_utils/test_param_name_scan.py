@@ -437,7 +437,7 @@ def _nested_json_string(depth: int, leaf: str) -> str:
 _RECURSION_XSS_PAYLOAD = _nested_json_string(1500, "<script>alert(1)</script>")
 
 
-async def test_check_embedded_json_returns_none_on_recursion_error() -> None:
+async def test_check_embedded_json_stops_at_the_budget_before_a_late_payload() -> None:
     result = await _check_embedded_json(
         _RECURSION_XSS_PAYLOAD,
         "query_param:v",
@@ -473,11 +473,11 @@ async def test_form_field_beyond_json_loads_recursion_limit_does_not_raise() -> 
     assert result.trigger_info.startswith("Request body field 'v': ")
 
 
-async def test_query_param_recursion_error_warns_via_the_depth_cap_mechanism(
+async def test_query_param_beyond_the_parser_limit_does_not_warn_of_the_depth_cap(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     request = MockGuardRequest(query_params={"v": _RECURSION_XSS_PAYLOAD})
     with caplog.at_level(logging.WARNING, logger="guard_core"):
-        await detect_penetration_attempt(request, _CONFIG)
-    assert "detection_max_json_depth (32) reached" in caplog.text
-    assert caplog.text.count("detection_max_json_depth (32) reached") == 1
+        result = await detect_penetration_attempt(request, _CONFIG)
+    assert result.is_threat is True
+    assert "detection_max_json_depth" not in caplog.text
