@@ -51,3 +51,4 @@ def test_the_redis_ban_helpers_are_inert_when_redis_is_off() -> None:
 
     assert kept == 123.5
     assert manager.owned_ban_members() == []
+    assert manager.owned_ban_state("banned_ips", "198.51.100.1") == (None, None)
