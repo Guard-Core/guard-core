@@ -10,10 +10,6 @@ import pytest
 from guard_core.models import BehaviorRuleConfig, SecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.core.behavioral import _throttle
-from guard_core.sync.core.behavioral._usage_marks import (
-    mark_usage_rules_evaluated,
-    usage_marks_of,
-)
 from guard_core.sync.core.behavioral.context import BehavioralContext
 from guard_core.sync.core.behavioral.processor import BehavioralProcessor
 from guard_core.sync.core.checks.base import SecurityCheck
@@ -307,6 +303,11 @@ def test_a_second_usage_call_on_the_same_request_does_not_record_again() -> None
 
 
 def test_a_marked_request_returns_the_marked_result_and_records_nothing() -> None:
+    from guard_core.sync.core.behavioral._usage_marks import (
+        mark_usage_rules_evaluated,
+        usage_marks_of,
+    )
+
     throttle = _throttle_rule(100)
     app = _App(_config(), _route(throttle))
     request = _request()
@@ -321,6 +322,8 @@ def test_a_marked_request_returns_the_marked_result_and_records_nothing() -> Non
 
 
 def test_a_request_without_a_mark_has_none() -> None:
+    from guard_core.sync.core.behavioral._usage_marks import usage_marks_of
+
     assert usage_marks_of(_request().state) is None
 
 

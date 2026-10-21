@@ -8,10 +8,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from guard_core.core.behavioral import _throttle
-from guard_core.core.behavioral._usage_marks import (
-    mark_usage_rules_evaluated,
-    usage_marks_of,
-)
 from guard_core.core.behavioral.context import BehavioralContext
 from guard_core.core.behavioral.processor import BehavioralProcessor
 from guard_core.core.checks.base import SecurityCheck
@@ -309,6 +305,11 @@ async def test_a_second_usage_call_on_the_same_request_does_not_record_again() -
 
 
 async def test_a_marked_request_returns_the_marked_result_and_records_nothing() -> None:
+    from guard_core.core.behavioral._usage_marks import (
+        mark_usage_rules_evaluated,
+        usage_marks_of,
+    )
+
     throttle = _throttle_rule(100)
     app = _App(_config(), _route(throttle))
     request = _request()
@@ -323,6 +324,8 @@ async def test_a_marked_request_returns_the_marked_result_and_records_nothing() 
 
 
 async def test_a_request_without_a_mark_has_none() -> None:
+    from guard_core.core.behavioral._usage_marks import usage_marks_of
+
     assert usage_marks_of(_request().state) is None
 
 
