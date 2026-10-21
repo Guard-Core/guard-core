@@ -135,6 +135,9 @@ _DETECTION_MATRIX_SCENARIO = "detection_matrix"
 
 COVERED_PRODUCERS: dict[str, frozenset[str]] = {
     "_utils/agent_events.py:send_agent_event": frozenset({"xff_spoof_warning"}),
+    "_utils/body_content_scan.py:_scan_blob_body": frozenset(
+        {_DETECTION_MATRIX_SCENARIO}
+    ),
     "_utils/body_content_scan.py:_scan_body_field": frozenset(
         {_DETECTION_MATRIX_SCENARIO}
     ),
