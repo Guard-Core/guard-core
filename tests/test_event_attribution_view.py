@@ -12,7 +12,14 @@ from guard_core.detection_result import DetectionResult
 from guard_core.handlers._dynamic_rule_attribution import build_rule_attribution
 from guard_core.handlers._ipban_cache import _OperatorNetworks
 from guard_core.handlers.ipban_handler import ip_ban_manager
-from tests.test_event_attribution import DYNAMIC, OTHER_IP, RULE_IP, _config, _rules
+from tests.test_event_attribution import (
+    DYNAMIC,
+    OTHER_IP,
+    RULE_IP,
+    _apply,
+    _config,
+    _rules,
+)
 
 
 async def test_the_view_ignores_what_it_cannot_parse_or_does_not_own() -> None:
@@ -168,17 +175,82 @@ def test_a_request_without_a_route_list_does_not_run_the_selector_merge(
     assert resolver.get_cloud_providers_to_check(None) == ["GCP"]
 
 
-async def test_a_redis_failure_while_reading_ownership_attributes_nothing() -> None:
+async def test_a_redis_failure_while_reading_ownership_attributes_nothing(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    from guard_core.handlers import _ipban_rule_revoke
+
+    _ipban_rule_revoke._attribution_failure_samples.clear()
     redis = MagicMock()
-    redis.owned_ban_expiry = AsyncMock(side_effect=RuntimeError("down"))
+    redis.owned_ban_state = AsyncMock(side_effect=RuntimeError("down"))
     monkey = ip_ban_manager.redis_handler
     ip_ban_manager.redis_handler = redis
     try:
-        assert (
-            await ip_ban_manager.rule_owns_live_ban("banned_ips:203.0.113.5") is False
-        )
+        with caplog.at_level("WARNING"):
+            verdict = await ip_ban_manager.rule_owns_live_ban("banned_ips:203.0.113.5")
     finally:
         ip_ban_manager.redis_handler = monkey
+
+    assert verdict is False
+    redis.owned_ban_state.assert_awaited_once_with("banned_ips", "203.0.113.5")
+    assert [
+        record.message
+        for record in caplog.records
+        if "Ban attribution skipped" in record.message
+    ] == ["Ban attribution skipped, Redis failed: down"]
+
+
+async def test_the_kept_ownership_answers_are_dropped_when_the_cap_is_reached(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from guard_core.handlers import _ipban_rule_revoke
+
+    redis = MagicMock()
+    redis.owned_ban_state = AsyncMock(return_value=(None, None))
+    monkeypatch.setattr(ip_ban_manager, "redis_handler", redis)
+    monkeypatch.setattr(ip_ban_manager, "_rule_owner_answers", {})
+    monkeypatch.setattr(_ipban_rule_revoke, "_MAX_OWNER_ANSWERS", 2)
+
+    for key in ("203.0.113.1", "203.0.113.2", "203.0.113.3"):
+        assert await ip_ban_manager.rule_owns_live_ban(f"banned_ips:{key}") is False
+
+    assert list(ip_ban_manager._rule_owner_answers) == ["banned_ips:203.0.113.3"]
+
+
+async def test_the_kept_ban_stamps_are_dropped_when_the_cap_is_reached(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from guard_core.handlers import _dynamic_rule_attribution
+
+    config = _config()
+    ip_ban_manager.config = config
+    view = build_rule_attribution(_rules(ip_blacklist=[RULE_IP]), config, [], [], {})
+    monkeypatch.setattr(_dynamic_rule_attribution, "_MAX_BAN_STAMPS", 2)
+
+    for address in (RULE_IP, OTHER_IP, "198.51.100.23"):
+        await view.for_ban(address, ip_ban_manager)
+
+    assert list(view._ban_stamps) == ["198.51.100.23"]
+
+
+async def test_a_user_agent_no_listed_pattern_matches_carries_nothing() -> None:
+    from guard_core._utils.rule_attribution import user_agent_attribution
+
+    await _apply(_config(), _rules(blocked_user_agents=["wp23bot"]))
+
+    assert await user_agent_attribution("wp23bot/1.0", ["wp23bot"]) == DYNAMIC
+    assert await user_agent_attribution("Mozilla/5.0", ["wp23bot", "other"]) == {}
+
+
+async def test_a_bracketed_client_address_still_gets_the_rules_ban_stamp() -> None:
+    config = _config()
+    ip_ban_manager.config = config
+    assert await ip_ban_manager.ban_ip("2001:db8::5", 3600, "dynamic_rule")
+    view = build_rule_attribution(
+        _rules(ip_blacklist=["2001:db8::5"]), config, [], [], {}
+    )
+
+    assert await view.for_ban("[2001:db8::5]", ip_ban_manager) == DYNAMIC
 
 
 async def test_a_repeat_ban_hit_reuses_the_stamp_until_the_interval_passes(

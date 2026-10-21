@@ -505,15 +505,23 @@ def test_the_view_follows_the_set_that_is_applied() -> None:
     }
 
 
-def test_an_allowed_request_never_builds_the_view() -> None:
-    config = _config()
-    manager = _apply(config, _rules(ip_blacklist=[RULE_IP]))
+def test_an_allowed_request_never_builds_the_view(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from guard_core.sync.handlers import dynamic_rule_handler
 
-    with patch.object(manager, "rule_attribution") as view:
-        middleware = _run(config, _request(OTHER_IP))
+    def forbidden(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("a request must not build the attribution view")
+
+    config = _config()
+    _apply(config, _rules(ip_blacklist=[RULE_IP]))
+    monkeypatch.setattr(dynamic_rule_handler, "build_rule_attribution", forbidden)
+    reads = _count_view_reads(monkeypatch)
+
+    middleware = _run(config, _request(OTHER_IP))
 
     assert _bus_events(middleware, "ip_blocked") == []
-    view.assert_not_called()
+    assert reads == []
 
 
 def _detection_config(**overrides: Any) -> SecurityConfig:
@@ -775,6 +783,20 @@ def test_a_longer_foreign_ban_written_over_the_rules_is_not_the_rules() -> None:
     middleware = _run(config, _request())
 
     assert _attr(_one(middleware, "ip_blocked")) == {}
+
+
+def test_the_manager_answers_for_the_applied_set_and_rebuilds_a_stale_view() -> None:
+    config = _config()
+    assert DynamicRuleManager(config).rule_attribution() is None
+    manager = _apply(config, _rules(ip_blacklist=[RULE_IP]))
+    held = manager.rule_attribution()
+    assert held is not None and manager.rule_attribution() is held
+
+    manager._owned_bans = list(manager._owned_bans)
+    rebuilt = manager.rule_attribution()
+
+    assert rebuilt is not None and rebuilt is not held
+    assert manager.rule_attribution() is rebuilt
 
 
 def test_the_view_is_built_when_the_set_changes_not_on_the_first_block() -> None:
