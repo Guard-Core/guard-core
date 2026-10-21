@@ -62,7 +62,7 @@ repos:
         pass_filenames: false
       - id: check-sync
         name: check-sync
-        entry: uv run python scripts/unasync.py --check
+        entry: uv run --no-sync python scripts/unasync.py --check
         require_serial: true
         language: system
         types: [python]

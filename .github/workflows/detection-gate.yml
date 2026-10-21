@@ -83,7 +83,7 @@ jobs:
 
       - name: Fail on generated sync-tree drift
         run: |
-          uv run python scripts/unasync.py --check
+          uv run --no-sync python scripts/unasync.py --check
 
       - name: Run the detection gate suite (shard)
         shell: bash

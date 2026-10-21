@@ -5,12 +5,12 @@ CLEAN_CACHES = find . \( -name '__pycache__' -o -name '*.pyc' -o -name '*.pyo' -
 
 .PHONY: sync
 sync:
-	@python scripts/unasync.py
+	@uv run --no-sync python scripts/unasync.py
 
 
 .PHONY: check-sync
 check-sync:
-	@python scripts/unasync.py --check
+	@uv run --no-sync python scripts/unasync.py --check
 
 
 .PHONY: install
