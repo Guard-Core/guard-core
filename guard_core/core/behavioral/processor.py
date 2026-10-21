@@ -11,7 +11,8 @@ from guard_core.core.behavioral._throttle import (
     is_throttle_rule,
 )
 from guard_core.core.behavioral._usage_marks import (
-    mark_usage_rules_evaluated,
+    USAGE_MARKS_ATTR,
+    UsageMarks,
     usage_marks_of,
 )
 from guard_core.core.behavioral.context import BehavioralContext
@@ -39,14 +40,15 @@ class BehavioralProcessor(BehavioralThrottleMixin):
         self.context = context
         self._init_throttle_state()
 
-    def _behavior_tracker(self, request: GuardRequest) -> Any | None:
-        if getattr(request.state, "guard_exclusion_scoped", False) is True:
+    def _behavior_tracker(self, request: GuardRequest, state: Any = None) -> Any | None:
+        state = request.state if state is None else state
+        if getattr(state, "guard_exclusion_scoped", False) is True:
             return None
         if self.context.behavior_tracker is not None:
             return self.context.behavior_tracker
         guard_decorator = self.context.guard_decorator
         if guard_decorator is None:
-            guard_decorator = getattr(request.state, "guard_decorator", None)
+            guard_decorator = getattr(state, "guard_decorator", None)
         if guard_decorator is not None:
             return getattr(guard_decorator, "behavior_tracker", None)
         return None
@@ -58,14 +60,27 @@ class BehavioralProcessor(BehavioralThrottleMixin):
         route_config: RouteConfig | None = None,
         middleware: Any = None,
     ) -> GuardResponse | None:
-        marks = usage_marks_of(request)
-        if marks is not None:
+        state = request.state
+        marks = getattr(state, USAGE_MARKS_ATTR, None)
+        if isinstance(marks, UsageMarks):
             return marks.result
-        behavior_tracker = self._behavior_tracker(request)
+        return await self.evaluate_usage_rules(
+            request, state, client_ip, route_config, middleware
+        )
+
+    async def evaluate_usage_rules(
+        self,
+        request: GuardRequest,
+        state: Any,
+        client_ip: str,
+        route_config: RouteConfig | None,
+        middleware: Any,
+    ) -> GuardResponse | None:
+        behavior_tracker = self._behavior_tracker(request, state)
         if behavior_tracker is None:
             return None
 
-        endpoint_id = self.get_endpoint_id(request)
+        endpoint_id = self.get_endpoint_id(request, state)
         route_rules = route_config.behavior_rules if route_config is not None else []
         route_throttles = (
             await self._evaluate_route_usage_rules(
@@ -74,12 +89,17 @@ class BehavioralProcessor(BehavioralThrottleMixin):
             if route_rules
             else []
         )
-        global_usage_rule_ids = await self._evaluate_global_usage_rules(
-            behavior_tracker, request, client_ip, endpoint_id
+        global_rules = self.context.config.global_behavior_rules
+        global_usage_rule_ids = (
+            await self._evaluate_global_usage_rules(
+                behavior_tracker, request, client_ip, endpoint_id
+            )
+            if global_rules
+            else frozenset()
         )
         refused = None
-        # _evaluate_global_usage_rules above has refreshed the global rule caches.
-        if route_throttles or self._global_throttle_cache:
+        # _evaluate_global_usage_rules has refreshed the global rule caches.
+        if route_throttles or (global_rules and self._global_throttle_cache):
             refused = await self._enforce_throttle(
                 behavior_tracker,
                 request,
@@ -89,7 +109,7 @@ class BehavioralProcessor(BehavioralThrottleMixin):
                 self._recorded_route_rule_ids(route_rules),
                 middleware,
             )
-        mark_usage_rules_evaluated(request, refused, global_usage_rule_ids)
+        setattr(state, USAGE_MARKS_ATTR, UsageMarks(refused, global_usage_rule_ids))
         return refused
 
     @staticmethod
@@ -208,7 +228,8 @@ class BehavioralProcessor(BehavioralThrottleMixin):
         client_ip: str,
         rules: Sequence[BehaviorRule],
     ) -> None:
-        marks = usage_marks_of(request)
+        state = request.state
+        marks = usage_marks_of(state)
         pending = list(
             filter(
                 partial(
@@ -222,11 +243,11 @@ class BehavioralProcessor(BehavioralThrottleMixin):
                 rules,
             )
         )
-        tracker = self._behavior_tracker(request) if pending else None
+        tracker = self._behavior_tracker(request, state) if pending else None
         if tracker is None:
             return
 
-        endpoint_id = self.get_endpoint_id(request)
+        endpoint_id = self.get_endpoint_id(request, state)
         lookup = self._lookup_correlated_categories(tracker, client_ip)
 
         seen: set[str] = set()
@@ -379,11 +400,12 @@ class BehavioralProcessor(BehavioralThrottleMixin):
             **fields,
         )
 
-    def get_endpoint_id(self, request: GuardRequest) -> str:
-        route_id: str | None = getattr(request.state, "guard_route_id", None)
+    def get_endpoint_id(self, request: GuardRequest, state: Any = None) -> str:
+        state = request.state if state is None else state
+        route_id: str | None = getattr(state, "guard_route_id", None)
         if route_id:
             return route_id
-        endpoint_id: str | None = getattr(request.state, "guard_endpoint_id", None)
+        endpoint_id: str | None = getattr(state, "guard_endpoint_id", None)
         if endpoint_id:
             return endpoint_id
         safe_path = redact_endpoint_for_display(

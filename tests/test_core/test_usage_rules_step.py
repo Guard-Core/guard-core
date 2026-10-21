@@ -8,6 +8,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from guard_core.core.behavioral import _throttle
+from guard_core.core.behavioral._usage_marks import (
+    mark_usage_rules_evaluated,
+    usage_marks_of,
+)
 from guard_core.core.behavioral.context import BehavioralContext
 from guard_core.core.behavioral.processor import BehavioralProcessor
 from guard_core.core.checks.base import SecurityCheck
@@ -302,6 +306,24 @@ async def test_a_second_usage_call_on_the_same_request_does_not_record_again() -
     again = await app.processor.process_usage_rules(request, _IP, app.route_config)
     assert again is first
     assert app.hits(throttle) == 2
+
+
+async def test_a_marked_request_returns_the_marked_result_and_records_nothing() -> None:
+    throttle = _throttle_rule(100)
+    app = _App(_config(), _route(throttle))
+    request = _request()
+    first = MockGuardResponse("first", 429)
+    mark_usage_rules_evaluated(request.state, first, frozenset({"rule"}))
+    marks = usage_marks_of(request.state)
+    assert marks is not None
+    assert (marks.result, marks.global_usage_rule_ids) == (first, frozenset({"rule"}))
+    again = await app.processor.process_usage_rules(request, _IP, app.route_config)
+    assert again is first
+    assert app.hits(throttle) == 0
+
+
+async def test_a_request_without_a_mark_has_none() -> None:
+    assert usage_marks_of(_request().state) is None
 
 
 async def test_route_and_global_usage_log_rules_record_each_request_once() -> None:

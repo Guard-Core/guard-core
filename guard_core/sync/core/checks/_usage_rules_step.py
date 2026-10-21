@@ -1,5 +1,5 @@
 from collections.abc import Callable, Sequence
-from typing import Any, cast
+from typing import Any
 
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.core.behavioral._throttle import (
@@ -32,30 +32,32 @@ class UsageRulesStepCheck(SecurityCheck):
 
 
 def enforce_usage_rules(
-    checks: Sequence[SecurityCheck],
+    checks: Sequence[Any],
     request: SyncGuardRequest,
+    state: Any,
     handle_check_error: CheckErrorHandler,
 ) -> GuardResponse | None:
-    # One function on purpose: it runs on every request of a pipeline that
-    # resolved a route, so each helper would be a call added to the hot path.
-    route_config: Any = getattr(request.state, "route_config", _ROUTE_NOT_RESOLVED)
+    # One function, and the request state is passed in rather than read again:
+    # this runs on every request of a pipeline that resolved a route, and each
+    # extra helper call or state access is cost on the hot path.
+    route_config: Any = getattr(state, "route_config", _ROUTE_NOT_RESOLVED)
     if route_config is _ROUTE_NOT_RESOLVED or not checks:
         return None
-    middleware = cast(Any, checks[0].middleware)
+    middleware = checks[0].middleware
     config = middleware.config
-    processor = getattr(middleware, "behavioral_processor", None)
-    client_ip = getattr(request.state, "client_ip", None)
-    if not (isinstance(processor, BehavioralProcessor) and client_ip):
-        return None
     if not (
         config.global_behavior_rules or getattr(route_config, "behavior_rules", None)
     ):
         return None
+    processor = getattr(middleware, "behavioral_processor", None)
+    client_ip = getattr(state, "client_ip", None)
+    if not (isinstance(processor, BehavioralProcessor) and client_ip):
+        return None
     if config.enable_cors and is_preflight(request.method, request.headers):
         return None
     try:
-        refused: GuardResponse | None = processor.process_usage_rules(
-            request, client_ip, route_config, middleware
+        refused: GuardResponse | None = processor.evaluate_usage_rules(
+            request, state, client_ip, route_config, middleware
         )
     except Exception as error:
         return handle_check_error(UsageRulesStepCheck(middleware), request, error)

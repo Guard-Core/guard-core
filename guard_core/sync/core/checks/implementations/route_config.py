@@ -82,13 +82,14 @@ class RouteConfigCheck(SecurityCheck):
     def check(self, request: SyncGuardRequest) -> GuardResponse | None:
         warn_unmatched_exclude_paths(self.middleware, self.config)
         route_config = self.middleware.route_resolver.get_route_config(request)
-        request.state.route_config = route_config
-        request.state.client_ip = extract_client_ip(
+        state = request.state
+        state.route_config = route_config
+        state.client_ip = extract_client_ip(
             request, self.config, self.middleware.agent_handler
         )
         if (
             self.config.route_resolution_strict
-            and getattr(request.state, "guard_route_unresolved", False)
+            and getattr(state, "guard_route_unresolved", False)
             and not self._is_cors_preflight(request)
         ):
             return self._handle_unresolved_route(request)

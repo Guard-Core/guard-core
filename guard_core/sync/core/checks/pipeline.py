@@ -1,7 +1,7 @@
 import logging
 import threading
 import time
-from collections.abc import Callable, Sized
+from collections.abc import Callable
 from typing import cast
 
 from guard_core.exceptions import GuardRedisError
@@ -43,13 +43,10 @@ class SecurityCheckPipeline:
         self._built_route_config_revision = self._current_route_config_revision()
         warn_at_startup_if_throttle_cannot_refuse(checks)
 
-    @staticmethod
-    def _container_size(value: Sized | None) -> int:
-        return 0 if value is None else len(value)
-
     def _container_signature(self, config: SecurityConfig) -> tuple[int, ...]:
+        # None counts as size 0; read on every request, so no helper call.
         return tuple(
-            self._container_size(getattr(config, field))
+            len(getattr(config, field) or ())
             for field in self._watched_container_fields
         )
 
@@ -179,10 +176,9 @@ class SecurityCheckPipeline:
             if response is not None:
                 return response
 
-        request.state._guard_pipeline_start = time.monotonic()
-        exclusion_scoped = (
-            getattr(request.state, "guard_exclusion_scoped", False) is True
-        )
+        state = request.state
+        state._guard_pipeline_start = time.monotonic()
+        exclusion_scoped = getattr(state, "guard_exclusion_scoped", False) is True
 
         for check in self.checks:
             if exclusion_scoped and not check.enforced_on_excluded_paths:
@@ -203,7 +199,9 @@ class SecurityCheckPipeline:
                 if error_response is not None:
                     return error_response
 
-        return enforce_usage_rules(self.checks, request, self._handle_check_error)
+        return enforce_usage_rules(
+            self.checks, request, state, self._handle_check_error
+        )
 
     @property
     def needs_route_identity(self) -> bool:

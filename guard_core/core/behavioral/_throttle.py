@@ -226,7 +226,8 @@ class BehavioralThrottleMixin:
             if self.context.middleware is not None
             else middleware
         )
-        return builder if can_build_error_response(builder) else None
+        can_answer = callable(getattr(builder, "create_error_response", None))
+        return builder if can_answer else None
 
     def _throttle_enforced(self, builder: Any, checks: Sequence[ThrottleCheck]) -> bool:
         if self.context.config.passive_mode:
