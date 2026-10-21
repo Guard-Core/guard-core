@@ -160,17 +160,23 @@ class IPInfoManager(
         except Exception as e:
             raise ValueError(f"not a usable GeoIP database: {e}") from e
 
-    def _write_database_atomically(self, content: bytes) -> None:
-        tmp_path = self.db_path.with_name(self.db_path.name + ".tmp")
+    def _install_database_file(self, tmp_path: Path) -> None:
         try:
-            with open(tmp_path, "wb") as f:
-                f.write(content)
             self._validate_database_file(tmp_path)
             os.replace(tmp_path, self.db_path)
         except Exception:
-            if tmp_path.exists():
-                tmp_path.unlink()
+            tmp_path.unlink(missing_ok=True)
             raise
+
+    def _write_database_atomically(self, content: bytes) -> None:
+        tmp_path = self._database_tmp_path()
+        try:
+            with open(tmp_path, "wb") as f:
+                f.write(content)
+        except Exception:
+            tmp_path.unlink(missing_ok=True)
+            raise
+        self._install_database_file(tmp_path)
 
     def initialize(self) -> None:
         self._start_or_join_load(self._initialize_database).join()
@@ -231,21 +237,27 @@ class IPInfoManager(
         finally:
             self._release_download_lock(self._copy_handlers())
 
+    def _download_database_file(self, headers: dict[str, str]) -> None:
+        tmp_path = self._database_tmp_path()
+        try:
+            with open(tmp_path, "wb") as sink:
+                with requests.Session() as session:
+                    self._download_body(session, headers, sink)
+        except Exception:
+            tmp_path.unlink(missing_ok=True)
+            raise
+        self._install_database_file(tmp_path)
+
     def _fetch_and_store_database(self) -> None:
         headers = {"Authorization": f"Bearer {self.token}"}
         retries = self._download_retries
         backoff = 1
 
         require_downloader_installed("geo", "Downloading the GeoIP database")
-        import requests
 
         for attempt in range(retries):
             try:
-                with requests.Session() as session:
-                    content = self._download_body(session, headers)
-                self._write_database_atomically(content)
-                del content
-
+                self._download_database_file(headers)
                 self._cache_database_in_redis()
                 return
             except Exception:

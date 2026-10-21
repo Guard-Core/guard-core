@@ -1,4 +1,5 @@
 import logging
+from typing import BinaryIO
 
 import aiohttp
 
@@ -17,8 +18,11 @@ class IpInfoDownloadMixin:
     logger: logging.Logger
 
     async def _download_body(
-        self, session: aiohttp.ClientSession, headers: dict[str, str]
-    ) -> bytes:
+        self,
+        session: aiohttp.ClientSession,
+        headers: dict[str, str],
+        sink: BinaryIO,
+    ) -> None:
         timeout = aiohttp.ClientTimeout(
             sock_connect=self._download_connect_timeout,
             sock_read=self._download_read_timeout,
@@ -31,12 +35,10 @@ class IpInfoDownloadMixin:
             response.raise_for_status()
             cap = self._download_max_bytes
             reject_declared_size(response.content_length, cap, self.logger)
-            chunks: list[bytes] = []
             received = 0
             async for chunk in response.content.iter_chunked(65536):
                 received += len(chunk)
                 reject_received_size(received, cap, self.logger)
-                chunks.append(chunk)
-            return b"".join(chunks)
+                sink.write(chunk)
         finally:
             response.close()

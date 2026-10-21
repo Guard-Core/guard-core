@@ -161,17 +161,23 @@ class IPInfoManager(
         except Exception as e:
             raise ValueError(f"not a usable GeoIP database: {e}") from e
 
-    def _write_database_atomically(self, content: bytes) -> None:
-        tmp_path = self.db_path.with_name(self.db_path.name + ".tmp")
+    def _install_database_file(self, tmp_path: Path) -> None:
         try:
-            with open(tmp_path, "wb") as f:
-                f.write(content)
             self._validate_database_file(tmp_path)
             os.replace(tmp_path, self.db_path)
         except Exception:
-            if tmp_path.exists():
-                tmp_path.unlink()
+            tmp_path.unlink(missing_ok=True)
             raise
+
+    def _write_database_atomically(self, content: bytes) -> None:
+        tmp_path = self._database_tmp_path()
+        try:
+            with open(tmp_path, "wb") as f:
+                f.write(content)
+        except Exception:
+            tmp_path.unlink(missing_ok=True)
+            raise
+        self._install_database_file(tmp_path)
 
     async def initialize(self) -> None:
         await asyncio.shield(self._start_or_join_load(self._initialize_database))
@@ -232,6 +238,17 @@ class IPInfoManager(
         finally:
             await self._release_download_lock(self._copy_handlers())
 
+    async def _download_database_file(self, headers: dict[str, str]) -> None:
+        tmp_path = self._database_tmp_path()
+        try:
+            with open(tmp_path, "wb") as sink:
+                async with aiohttp.ClientSession() as session:
+                    await self._download_body(session, headers, sink)
+        except Exception:
+            tmp_path.unlink(missing_ok=True)
+            raise
+        self._install_database_file(tmp_path)
+
     async def _fetch_and_store_database(self) -> None:
         headers = {"Authorization": f"Bearer {self.token}"}
         retries = self._download_retries
@@ -242,11 +259,7 @@ class IPInfoManager(
 
         for attempt in range(retries):
             try:
-                async with aiohttp.ClientSession() as session:
-                    content = await self._download_body(session, headers)
-                self._write_database_atomically(content)
-                del content
-
+                await self._download_database_file(headers)
                 await self._cache_database_in_redis()
                 return
             except Exception:

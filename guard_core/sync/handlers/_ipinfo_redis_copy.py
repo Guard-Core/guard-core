@@ -1,11 +1,18 @@
 from __future__ import annotations
 
 import logging
+import time
+import uuid
 import weakref
 from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from guard_core.sync.handlers._ipinfo_redis_pieces import (
+    DatabaseKeyChanged,
+    read_pieces_into_file,
+    store_file_in_pieces,
+)
 from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
 
 if TYPE_CHECKING:
@@ -18,9 +25,26 @@ class IpInfoRedisCopyMixin:
     _bound_redis_refs: tuple[Callable[[], Any], ...] = ()
     logger: logging.Logger
     _DOWNLOAD_LOCK_SECONDS: int
+    _download_total_timeout: float
     _max_age: int
 
     def _write_database_atomically(self, content: bytes) -> None: ...
+
+    def _database_tmp_path(self) -> Path:
+        return self.db_path.with_name(f"{self.db_path.name}.{uuid.uuid4().hex}.tmp")
+
+    def _remove_stale_temp_files(self) -> None:
+        oldest = time.time() - self._download_total_timeout
+        names = (f"{self.db_path.name}.tmp", f"{self.db_path.name}.*.tmp")
+        for pattern in names:
+            for leftover in self.db_path.parent.glob(pattern):
+                try:
+                    if leftover.stat().st_mtime < oldest:
+                        leftover.unlink(missing_ok=True)
+                except OSError:
+                    continue
+
+    def _install_database_file(self, tmp_path: Path) -> None: ...
 
     def _open_database_or_none(self) -> Reader | None: ...
 
@@ -49,6 +73,50 @@ class IpInfoRedisCopyMixin:
 
         self._bound_redis_refs = (*kept, newest)
 
+    def _redis_key_prefix(self, redis_handler: SyncRedisHandlerProtocol) -> str | None:
+        config = getattr(redis_handler, "config", None)
+        prefix = getattr(config, "redis_prefix", None)
+        enabled = getattr(config, "enable_redis", False)
+        return prefix if enabled is True and isinstance(prefix, str) else None
+
+    def _cache_database_in_redis(
+        self,
+        handlers: list[SyncRedisHandlerProtocol] | None = None,
+        only_if_absent: bool = False,
+    ) -> None:
+        targets = self._copy_handlers() if handlers is None else handlers
+        for redis_handler in targets:
+            try:
+                self._store_copy_in(redis_handler, only_if_absent)
+            except Exception as e:
+                self.logger.warning("Failed to cache GeoIP database in Redis: %s", e)
+
+    def _store_copy_in(
+        self, redis_handler: SyncRedisHandlerProtocol, only_if_absent: bool
+    ) -> None:
+        prefix = self._redis_key_prefix(redis_handler)
+        if prefix is None:
+            content = self.db_path.read_bytes().decode("latin-1")
+            if only_if_absent:
+                redis_handler.set_key_if_absent(
+                    "ipinfo", "database", content, self._max_age
+                )
+            else:
+                redis_handler.set_key("ipinfo", "database", content, ttl=self._max_age)
+            return
+        final_key = f"{prefix}ipinfo:database"
+        with redis_handler.get_connection() as conn:
+            if only_if_absent and conn.exists(final_key):
+                return
+            store_file_in_pieces(
+                conn,
+                self.db_path,
+                final_key,
+                f"{final_key}:{uuid.uuid4().hex}",
+                self._max_age,
+                int(self._download_total_timeout),
+            )
+
     def _adopt_redis_copy(self) -> bool:
         for redis_handler in self._copy_handlers():
             if self._adopt_copy_from(redis_handler):
@@ -59,27 +127,57 @@ class IpInfoRedisCopyMixin:
                 return True
         return False
 
-    def _cache_database_in_redis(
-        self,
-        handlers: list[SyncRedisHandlerProtocol] | None = None,
-        only_if_absent: bool = False,
-    ) -> None:
-        targets = self._copy_handlers() if handlers is None else handlers
-        for redis_handler in targets:
-            try:
-                content = self.db_path.read_bytes().decode("latin-1")
-                if only_if_absent:
-                    redis_handler.set_key_if_absent(
-                        "ipinfo", "database", content, self._max_age
-                    )
-                else:
-                    redis_handler.set_key(
-                        "ipinfo", "database", content, ttl=self._max_age
-                    )
-            except Exception as e:
-                self.logger.warning("Failed to cache GeoIP database in Redis: %s", e)
-
     def _adopt_copy_from(self, redis_handler: SyncRedisHandlerProtocol) -> bool:
+        prefix = self._redis_key_prefix(redis_handler)
+        if prefix is not None:
+            return self._adopt_redis_pieces(redis_handler, prefix)
+        return self._adopt_whole_redis_copy(redis_handler)
+
+    def _adopt_redis_pieces(
+        self, redis_handler: SyncRedisHandlerProtocol, prefix: str
+    ) -> bool:
+        target = self._database_tmp_path()
+        try:
+            with redis_handler.get_connection() as conn:
+                present = read_pieces_into_file(
+                    conn, f"{prefix}ipinfo:database", target
+                )
+        except DatabaseKeyChanged:
+            target.unlink(missing_ok=True)
+            self.logger.warning("Cached GeoIP database kept changing while read")
+            return False
+        except ValueError:
+            target.unlink(missing_ok=True)
+            self._drop_cached_database(redis_handler)
+            return False
+        except Exception as e:
+            target.unlink(missing_ok=True)
+            self.logger.warning("Cached GeoIP database unavailable: %s", e)
+            return False
+        if not present:
+            target.unlink(missing_ok=True)
+            return False
+        try:
+            self._install_database_file(target)
+        except ValueError:
+            self._drop_cached_database(redis_handler)
+            return False
+        except OSError as e:
+            self.logger.warning("Cached GeoIP database could not be installed: %s", e)
+            return False
+        return self._adopt_installed_database(redis_handler)
+
+    def _adopt_installed_database(
+        self, redis_handler: SyncRedisHandlerProtocol
+    ) -> bool:
+        reader = self._open_database_or_none()
+        if reader is None:
+            self._drop_cached_database(redis_handler)
+            return False
+        self._apply_opened_reader(reader)
+        return True
+
+    def _adopt_whole_redis_copy(self, redis_handler: SyncRedisHandlerProtocol) -> bool:
         try:
             cached_db = redis_handler.get_key("ipinfo", "database")
         except Exception as e:
@@ -96,12 +194,10 @@ class IpInfoRedisCopyMixin:
         except ValueError:
             self._drop_cached_database(redis_handler)
             return False
-        reader = self._open_database_or_none()
-        if reader is None:
-            self._drop_cached_database(redis_handler)
+        except OSError as e:
+            self.logger.warning("Cached GeoIP database could not be installed: %s", e)
             return False
-        self._apply_opened_reader(reader)
-        return True
+        return self._adopt_installed_database(redis_handler)
 
     def _drop_cached_database(self, redis_handler: SyncRedisHandlerProtocol) -> None:
         self.logger.warning("Cached GeoIP database is unusable, downloading again")

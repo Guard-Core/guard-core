@@ -313,8 +313,11 @@ _SYNC_START_OR_JOIN_LOAD_REPLACEMENT = (
 
 _ASYNC_DOWNLOAD_BODY_SRC = (
     "    async def _download_body(\n"
-    "        self, session: aiohttp.ClientSession, headers: dict[str, str]\n"
-    "    ) -> bytes:\n"
+    "        self,\n"
+    "        session: aiohttp.ClientSession,\n"
+    "        headers: dict[str, str],\n"
+    "        sink: BinaryIO,\n"
+    "    ) -> None:\n"
     "        timeout = aiohttp.ClientTimeout(\n"
     "            sock_connect=self._download_connect_timeout,\n"
     "            sock_read=self._download_read_timeout,\n"
@@ -327,21 +330,22 @@ _ASYNC_DOWNLOAD_BODY_SRC = (
     "            response.raise_for_status()\n"
     "            cap = self._download_max_bytes\n"
     "            reject_declared_size(response.content_length, cap, self.logger)\n"
-    "            chunks: list[bytes] = []\n"
     "            received = 0\n"
     "            async for chunk in response.content.iter_chunked(65536):\n"
     "                received += len(chunk)\n"
     "                reject_received_size(received, cap, self.logger)\n"
-    "                chunks.append(chunk)\n"
-    '            return b"".join(chunks)\n'
+    "                sink.write(chunk)\n"
     "        finally:\n"
     "            response.close()\n"
 )
 
 _SYNC_DOWNLOAD_BODY_REPLACEMENT = (
     "    def _download_body(\n"
-    "        self, session: requests.Session, headers: dict[str, str]\n"
-    "    ) -> bytes:\n"
+    "        self,\n"
+    "        session: requests.Session,\n"
+    "        headers: dict[str, str],\n"
+    "        sink: BinaryIO,\n"
+    "    ) -> None:\n"
     "        cut = DownloadCut(self._download_total_timeout)\n"
     "        adapter = RecordingAdapter(cut)\n"
     '        session.mount("http://", adapter)\n'
@@ -349,21 +353,21 @@ _SYNC_DOWNLOAD_BODY_REPLACEMENT = (
     "        deadline = time.monotonic() + self._download_total_timeout\n"
     "        cut.arm()\n"
     "        try:\n"
-    "            content = self._read_body(session, headers, deadline)\n"
+    "            self._read_body(session, headers, deadline, sink)\n"
     "        except Exception as error:\n"
     "            if cut.stop() or time.monotonic() >= deadline:\n"
     "                raise TimeoutError(_TOTAL_BOUND_EXCEEDED) from error\n"
     "            raise\n"
     "        if cut.stop():\n"
     "            raise TimeoutError(_TOTAL_BOUND_EXCEEDED)\n"
-    "        return content\n"
     "\n"
     "    def _read_body(\n"
     "        self,\n"
     "        session: requests.Session,\n"
     "        headers: dict[str, str],\n"
     "        deadline: float,\n"
-    "    ) -> bytes:\n"
+    "        sink: BinaryIO,\n"
+    "    ) -> None:\n"
     "        timeout = (\n"
     "            self._download_connect_timeout,\n"
     "            self._download_read_timeout,\n"
@@ -378,14 +382,13 @@ _SYNC_DOWNLOAD_BODY_REPLACEMENT = (
     "                int(declared) if declared.isdigit() else None, cap, self.logger\n"
     "            )\n"
     "            raw: HTTPResponse = response.raw\n"
-    "            chunks: list[bytes] = []\n"
     "            received = 0\n"
     "            while time.monotonic() < deadline:\n"
     "                if not (chunk := raw.read1(65536, decode_content=True)):\n"
-    '                    return b"".join(chunks)\n'
+    "                    return\n"
     "                received += len(chunk)\n"
     "                reject_received_size(received, cap, self.logger)\n"
-    "                chunks.append(chunk)\n"
+    "                sink.write(chunk)\n"
     "        raise TimeoutError(_TOTAL_BOUND_EXCEEDED)\n"
 )
 
@@ -485,11 +488,11 @@ SUBS: list[tuple[str, str]] = [
     (r"from redis\.asyncio import Redis", "from redis import Redis"),
     (r"redis\.asyncio", "redis"),
     (
-        r"import logging\n\nimport aiohttp\n\n"
+        r"import logging\nfrom typing import BinaryIO\n\nimport aiohttp\n\n"
         r"from guard_core\.sync\.handlers\._ipinfo_download_cap import \(\n"
         r"    reject_declared_size,\n    reject_received_size,\n\)\n\n\n"
         r"class IpInfoDownloadMixin",
-        "import logging\nimport time\n\nimport requests\n"
+        "import logging\nimport time\nfrom typing import BinaryIO\n\nimport requests\n"
         "from urllib3.response import HTTPResponse\n\n"
         "from guard_core.sync.handlers._ipinfo_download_cap import (\n"
         "    reject_declared_size,\n"

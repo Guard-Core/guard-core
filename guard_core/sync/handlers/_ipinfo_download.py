@@ -1,5 +1,6 @@
 import logging
 import time
+from typing import BinaryIO
 
 import requests
 from urllib3.response import HTTPResponse
@@ -25,8 +26,11 @@ class IpInfoDownloadMixin:
     logger: logging.Logger
 
     def _download_body(
-        self, session: requests.Session, headers: dict[str, str]
-    ) -> bytes:
+        self,
+        session: requests.Session,
+        headers: dict[str, str],
+        sink: BinaryIO,
+    ) -> None:
         cut = DownloadCut(self._download_total_timeout)
         adapter = RecordingAdapter(cut)
         session.mount("http://", adapter)
@@ -34,21 +38,21 @@ class IpInfoDownloadMixin:
         deadline = time.monotonic() + self._download_total_timeout
         cut.arm()
         try:
-            content = self._read_body(session, headers, deadline)
+            self._read_body(session, headers, deadline, sink)
         except Exception as error:
             if cut.stop() or time.monotonic() >= deadline:
                 raise TimeoutError(_TOTAL_BOUND_EXCEEDED) from error
             raise
         if cut.stop():
             raise TimeoutError(_TOTAL_BOUND_EXCEEDED)
-        return content
 
     def _read_body(
         self,
         session: requests.Session,
         headers: dict[str, str],
         deadline: float,
-    ) -> bytes:
+        sink: BinaryIO,
+    ) -> None:
         timeout = (
             self._download_connect_timeout,
             self._download_read_timeout,
@@ -63,12 +67,11 @@ class IpInfoDownloadMixin:
                 int(declared) if declared.isdigit() else None, cap, self.logger
             )
             raw: HTTPResponse = response.raw
-            chunks: list[bytes] = []
             received = 0
             while time.monotonic() < deadline:
                 if not (chunk := raw.read1(65536, decode_content=True)):
-                    return b"".join(chunks)
+                    return
                 received += len(chunk)
                 reject_received_size(received, cap, self.logger)
-                chunks.append(chunk)
+                sink.write(chunk)
         raise TimeoutError(_TOTAL_BOUND_EXCEEDED)
