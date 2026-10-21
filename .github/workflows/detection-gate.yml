@@ -23,6 +23,9 @@ on:
       - '.github/workflows/detection-gate.yml'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   detection-gate-shards:
     runs-on: ubuntu-latest

@@ -11,6 +11,9 @@ on:
     - cron: '17 3 * * *'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
   group: redaction-gate-${{ github.ref }}
   cancel-in-progress: true
