@@ -531,6 +531,7 @@ SUBS: list[tuple[str, str]] = [
     (r"(\s+)import asyncio$", r"\1pass"),
     (r"asyncio\.Lock\b", "threading.Lock"),
     (r"asyncio\.Event\b", "threading.Event"),
+    (r"asyncio\.run\((main\(.*\))\)$", r"\1"),
     (r"asyncio\.sleep", "time.sleep"),
     (
         r"asyncio\.to_thread\(\s*([^,\n]+),\s*([^)\n]+?)\s*\)",

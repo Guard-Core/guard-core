@@ -279,10 +279,11 @@ def test_redis_cache_hit(tmp_path: Path) -> None:
         with open(db.db_path, "rb") as f:
             assert f.read() == b"mock_db_data"
 
-        assert [call.args for call in mock_open.call_args_list] == [
-            (str(db.db_path) + ".tmp",),
-            (str(db.db_path),),
-        ]
+        assert len(mock_open.call_args_list) == 2
+        temp = Path(mock_open.call_args_list[0].args[0])
+        assert temp.parent == db.db_path.parent
+        assert temp.name.startswith("test.mmdb.") and temp.name.endswith(".tmp")
+        assert mock_open.call_args_list[1].args == (str(db.db_path),)
         assert db.reader is mock_reader
 
 
