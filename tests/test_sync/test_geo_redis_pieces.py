@@ -1,0 +1,400 @@
+import tracemalloc
+from pathlib import Path
+from typing import Any
+
+import pytest
+import redis as plain_redis
+import requests
+from redis import Redis
+from redis.client import Pipeline
+
+from guard_core.models import SyncSecurityConfig
+from guard_core.sync.handlers import _ipinfo_redis_copy as copy_module
+from guard_core.sync.handlers import _ipinfo_redis_pieces as pieces
+from guard_core.sync.handlers.ipinfo_handler import IPInfoManager
+from guard_core.sync.handlers.redis_handler import RedisManager
+from tests.geo_fixture import (
+    CLIENT_IP,
+    padded_database_bytes,
+    sized_body_server,
+)
+from tests.test_sync.conftest import REDIS_URL
+
+MIB = 1024 * 1024
+BODIES = {
+    "zero": b"\x00",
+    "ff": b"\xff",
+    "every-byte": bytes(range(256)),
+}
+SMALL_PIECE = 4097
+# one 1 MiB piece is alive as bytes, str, UTF-8 and the packed command (6 MiB sync,
+# 9 MiB with the client's read buffers, measured); a body held whole is 24 MiB
+# or more here, 3 to 4 copies of it with the old paths
+PIECE_PEAK_BOUND = 12 * MIB
+
+
+@pytest.fixture(autouse=True)
+def _reset_singleton() -> Any:
+    IPInfoManager._instance = None
+    yield
+    IPInfoManager._instance = None
+
+
+def _handler(config: SyncSecurityConfig) -> RedisManager:
+    handler = RedisManager(config)
+    handler.initialize()
+    return handler
+
+
+def _manager(tmp_path: Path, handler: RedisManager, name: str = "geo") -> IPInfoManager:
+    IPInfoManager._instance = None
+    manager = IPInfoManager(token="tok", db_path=tmp_path / f"{name}.mmdb")
+    manager.redis_handler = handler
+    manager._max_age = 3600
+    return manager
+
+
+def _final_key(config: SyncSecurityConfig) -> str:
+    return f"{config.redis_prefix}ipinfo:database"
+
+
+def _all_database_keys(handler: RedisManager, config: SyncSecurityConfig) -> list[str]:
+    with handler.get_connection() as conn:
+        return sorted(conn.keys(f"{config.redis_prefix}ipinfo:*"))
+
+
+def _sync_client() -> Any:
+    return plain_redis.Redis.from_url(REDIS_URL, decode_responses=True)
+
+
+@pytest.mark.parametrize("padding", list(BODIES))
+def test_the_stored_bytes_equal_the_single_set_of_the_latin_1_text(
+    padding: str, security_config_redis: SyncSecurityConfig, tmp_path: Path
+) -> None:
+    body = padded_database_bytes(BODIES[padding], 300000)
+    handler = _handler(security_config_redis)
+    manager = _manager(tmp_path, handler)
+    manager.db_path.write_bytes(body)
+
+    manager._cache_database_in_redis()
+    handler.set_key("ipinfo", "control", body.decode("latin-1"))
+
+    with handler.get_connection() as conn:
+        key = _final_key(security_config_redis)
+        control = f"{security_config_redis.redis_prefix}ipinfo:control"
+        assert conn.strlen(key) == conn.strlen(control)
+        assert conn.get(key) == conn.get(control)
+    assert (handler.get_key("ipinfo", "database")).encode("latin-1") == body
+    handler.close()
+
+
+def test_the_final_key_has_the_max_age_ttl_and_no_temp_key_is_left(
+    security_config_redis: SyncSecurityConfig, tmp_path: Path
+) -> None:
+    handler = _handler(security_config_redis)
+    manager = _manager(tmp_path, handler)
+    manager.db_path.write_bytes(padded_database_bytes(b"\xff", 200000))
+
+    manager._cache_database_in_redis()
+
+    with handler.get_connection() as conn:
+        ttl = conn.ttl(_final_key(security_config_redis))
+    assert 3500 < ttl <= 3600
+    assert _all_database_keys(handler, security_config_redis) == [
+        _final_key(security_config_redis)
+    ]
+    handler.close()
+
+
+def test_a_failed_transfer_leaves_no_partial_key_and_keeps_the_old_value(
+    security_config_redis: SyncSecurityConfig,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(pieces, "PIECE_BYTES", SMALL_PIECE)
+    handler = _handler(security_config_redis)
+    manager = _manager(tmp_path, handler)
+    manager.db_path.write_bytes(padded_database_bytes(b"\xff", 200000))
+    handler.set_key("ipinfo", "database", "the old value")
+    seen: dict[str, Any] = {"appends": 0, "temp_ttl": None}
+    real_append = Redis.append
+
+    def failing_append(self: Redis, key: str, value: bytes) -> int:
+        seen["appends"] += 1
+        if seen["appends"] == 3:
+            seen["temp_ttl"] = self.ttl(key)
+            raise ConnectionError("the link broke mid transfer")
+        return int(real_append(self, key, value))
+
+    monkeypatch.setattr(Redis, "append", failing_append)
+    manager._cache_database_in_redis()
+
+    assert seen["appends"] == 3
+    assert 0 < seen["temp_ttl"] <= manager._download_total_timeout
+    assert handler.get_key("ipinfo", "database") == "the old value"
+    assert _all_database_keys(handler, security_config_redis) == [
+        _final_key(security_config_redis)
+    ]
+    handler.close()
+
+
+def test_two_writers_that_interleave_leave_one_complete_body(
+    security_config_redis: SyncSecurityConfig,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(pieces, "PIECE_BYTES", SMALL_PIECE)
+    handler = _handler(security_config_redis)
+    first = _manager(tmp_path, handler, "first")
+    second = _manager(tmp_path, handler, "second")
+    body_first = padded_database_bytes(b"\x01", 100000, "CN")
+    body_second = padded_database_bytes(b"\xfe", 120000, "US")
+    first.db_path.write_bytes(body_first)
+    second.db_path.write_bytes(body_second)
+    real_append = Redis.append
+    running = {"second": False}
+
+    def interleaving_append(self: Redis, key: str, value: bytes) -> int:
+        if not running["second"]:
+            running["second"] = True
+            second._cache_database_in_redis()
+        return int(real_append(self, key, value))
+
+    monkeypatch.setattr(Redis, "append", interleaving_append)
+    first._cache_database_in_redis()
+
+    stored = (handler.get_key("ipinfo", "database")).encode("latin-1")
+    assert stored == body_first
+    assert _all_database_keys(handler, security_config_redis) == [
+        _final_key(security_config_redis)
+    ]
+    handler.close()
+
+
+def test_a_database_written_in_pieces_is_adopted_across_odd_piece_boundaries(
+    security_config_redis: SyncSecurityConfig,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(pieces, "PIECE_BYTES", SMALL_PIECE)
+    handler = _handler(security_config_redis)
+    writer = _manager(tmp_path, handler, "writer")
+    body = padded_database_bytes(b"\xff", 300000)
+    writer.db_path.write_bytes(body)
+    writer._cache_database_in_redis()
+    reader = _manager(tmp_path, handler, "reader")
+
+    assert reader._adopt_redis_copy() is True
+
+    assert reader.db_path.read_bytes() == body
+    assert reader.reader is not None
+    assert reader.reader.get(CLIENT_IP) is not None
+    handler.close()
+
+
+def test_a_rename_during_a_chunked_read_retries_and_adopts_the_new_database(
+    security_config_redis: SyncSecurityConfig,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(pieces, "PIECE_BYTES", SMALL_PIECE)
+    handler = _handler(security_config_redis)
+    old_body = padded_database_bytes(b"\xff", 200000, "CN")
+    new_body = padded_database_bytes(b"\x01", 240000, "US")
+    key = _final_key(security_config_redis)
+    client = _sync_client()
+    client.set(key, old_body.decode("latin-1"))
+    reader = _manager(tmp_path, handler, "reader")
+    swapped = {"done": False, "reads": 0}
+    real_command = Pipeline.execute_command
+
+    def swapping_command(self: Pipeline, *args: Any, **kwargs: Any) -> Any:
+        if args[0] == "GETRANGE":
+            swapped["reads"] += 1
+            if not swapped["done"] and swapped["reads"] == 2:
+                swapped["done"] = True
+                client.set(f"{key}:new", new_body.decode("latin-1"))
+                client.rename(f"{key}:new", key)
+        return real_command(self, *args, **kwargs)
+
+    monkeypatch.setattr(Pipeline, "execute_command", swapping_command)
+    assert reader._adopt_redis_copy() is True
+
+    assert swapped["done"]
+    assert reader.db_path.read_bytes() == new_body
+    assert client.exists(key) == 1
+    client.close()
+    handler.close()
+
+
+def test_a_database_that_keeps_changing_is_not_adopted_and_the_key_survives(
+    security_config_redis: SyncSecurityConfig,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(pieces, "PIECE_BYTES", SMALL_PIECE)
+    handler = _handler(security_config_redis)
+    key = _final_key(security_config_redis)
+    client = _sync_client()
+    client.set(key, padded_database_bytes(b"\xff", 200000).decode("latin-1"))
+    reader = _manager(tmp_path, handler, "reader")
+    real_command = Pipeline.execute_command
+
+    def always_changing(self: Pipeline, *args: Any, **kwargs: Any) -> Any:
+        if args[0] == "GETRANGE":
+            client.set(key, padded_database_bytes(b"\xff", 200000).decode("latin-1"))
+        return real_command(self, *args, **kwargs)
+
+    monkeypatch.setattr(Pipeline, "execute_command", always_changing)
+
+    assert reader._adopt_redis_copy() is False
+
+    assert client.exists(key) == 1
+    assert not reader.db_path.with_name("reader.mmdb.tmp").exists()
+    client.close()
+    handler.close()
+
+
+def test_a_clean_read_of_a_value_that_is_not_a_database_drops_the_key(
+    security_config_redis: SyncSecurityConfig, tmp_path: Path
+) -> None:
+    handler = _handler(security_config_redis)
+    handler.set_key("ipinfo", "database", "not a database")
+    reader = _manager(tmp_path, handler, "reader")
+
+    assert reader._adopt_redis_copy() is False
+
+    assert handler.get_key("ipinfo", "database") is None
+    handler.close()
+
+
+def test_a_value_that_is_not_latin_1_text_is_dropped(
+    security_config_redis: SyncSecurityConfig, tmp_path: Path
+) -> None:
+    handler = _handler(security_config_redis)
+    handler.set_key("ipinfo", "database", "beyond latin-1: €")
+    reader = _manager(tmp_path, handler, "reader")
+
+    assert reader._adopt_redis_copy() is False
+
+    assert handler.get_key("ipinfo", "database") is None
+    handler.close()
+
+
+def test_a_value_cut_inside_a_utf8_sequence_is_dropped(
+    security_config_redis: SyncSecurityConfig, tmp_path: Path
+) -> None:
+    handler = _handler(security_config_redis)
+    client = _sync_client()
+    client.set(_final_key(security_config_redis), b"abc\xc3")
+    reader = _manager(tmp_path, handler, "reader")
+
+    assert reader._adopt_redis_copy() is False
+
+    assert handler.get_key("ipinfo", "database") is None
+    client.close()
+    handler.close()
+
+
+def test_no_cached_database_is_not_adopted(
+    security_config_redis: SyncSecurityConfig, tmp_path: Path
+) -> None:
+    handler = _handler(security_config_redis)
+    reader = _manager(tmp_path, handler, "reader")
+
+    assert reader._adopt_redis_copy() is False
+
+    assert not reader.db_path.with_name("reader.mmdb.tmp").exists()
+    handler.close()
+
+
+def test_a_redis_failure_while_reading_is_a_warning_not_a_drop(
+    security_config_redis: SyncSecurityConfig,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    handler = _handler(security_config_redis)
+    handler.set_key("ipinfo", "database", "kept")
+    reader = _manager(tmp_path, handler, "reader")
+
+    def broken(*args: Any, **kwargs: Any) -> bool:
+        raise ConnectionError("down")
+
+    monkeypatch.setattr(copy_module, "read_pieces_into_file", broken)
+
+    assert reader._adopt_redis_copy() is False
+
+    assert handler.get_key("ipinfo", "database") == "kept"
+    handler.close()
+
+
+def test_a_clean_read_of_an_invalid_database_drops_the_key(
+    security_config_redis: SyncSecurityConfig, tmp_path: Path
+) -> None:
+    handler = _handler(security_config_redis)
+    valid = padded_database_bytes(b"\x00", 50000)
+    broken = valid[:-30] + b"\x00" * 30
+    handler.set_key("ipinfo", "database", broken.decode("latin-1"))
+    reader = _manager(tmp_path, handler, "reader")
+
+    assert reader._adopt_redis_copy() is False
+
+    assert handler.get_key("ipinfo", "database") is None
+    handler.close()
+
+
+def test_the_download_to_a_file_never_holds_the_body_in_memory(
+    tmp_path: Path,
+) -> None:
+    body = 32 * MIB
+    manager = IPInfoManager(token="tok", db_path=tmp_path / "geo.mmdb")
+    with sized_body_server(body) as server:
+        manager._download_url = server.url
+        manager._download_max_bytes = 2 * body
+        tracemalloc.start()
+        try:
+            with open(tmp_path / "raw.bin", "wb") as sink:
+                with requests.Session() as session:
+                    manager._download_body(session, {}, sink)
+            peak = tracemalloc.get_traced_memory()[1]
+        finally:
+            tracemalloc.stop()
+
+    assert (tmp_path / "raw.bin").stat().st_size == body
+    assert peak < PIECE_PEAK_BOUND
+
+
+def test_storing_and_adopting_a_database_never_holds_it_in_memory(
+    security_config_redis: SyncSecurityConfig, tmp_path: Path
+) -> None:
+    size = 24 * MIB
+    handler = _handler(security_config_redis)
+    writer = _manager(tmp_path, handler, "writer")
+    writer.db_path.write_bytes(padded_database_bytes(b"\xff", size))
+    reader = _manager(tmp_path, handler, "reader")
+
+    tracemalloc.start()
+    try:
+        writer._cache_database_in_redis()
+        stored_peak = tracemalloc.get_traced_memory()[1]
+        tracemalloc.reset_peak()
+        assert reader._adopt_redis_copy() is True
+        adopted_peak = tracemalloc.get_traced_memory()[1]
+    finally:
+        tracemalloc.stop()
+
+    assert stored_peak < PIECE_PEAK_BOUND
+    assert adopted_peak < PIECE_PEAK_BOUND
+    handler.close()
+
+
+def test_a_database_that_cannot_be_written_leaves_no_temp_file(
+    tmp_path: Path,
+) -> None:
+    IPInfoManager._instance = None
+    manager = IPInfoManager(token="tok", db_path=tmp_path / "missing" / "geo.mmdb")
+
+    with pytest.raises(OSError):
+        manager._write_database_atomically(b"x")
+
+    assert not manager._database_tmp_path().exists()

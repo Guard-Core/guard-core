@@ -1288,8 +1288,11 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
     "handlers/_ipinfo_background.py:IpInfoBackgroundMixin.schedule_database_load": (
         "line 38: GeoIP background load could not be scheduled, infra only"
     ),
-    "handlers/_ipinfo_redis_copy.py:IpInfoRedisCopyMixin._adopt_copy_from": (
-        "line 86: Redis-cached GeoIP database unavailable, infra only"
+    "handlers/_ipinfo_redis_copy.py:IpInfoRedisCopyMixin._adopt_whole_redis_copy": (
+        "Redis-cached GeoIP database unavailable, infra only"
+    ),
+    "handlers/_ipinfo_redis_copy.py:IpInfoRedisCopyMixin._adopt_redis_pieces": (
+        "Redis-cached GeoIP database changing or unavailable, infra only"
     ),
     "handlers/_ipinfo_redis_copy.py:IpInfoRedisCopyMixin._claim_download_lock": (
         "line 64: GeoIP download lock unavailable, infra only"

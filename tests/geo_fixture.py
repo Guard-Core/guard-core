@@ -20,6 +20,15 @@ def country_database_bytes(country: str, ip: str = CLIENT_IP) -> bytes:
     return _build_single_entry_mmdb(ip, country)
 
 
+def padded_database_bytes(padding: bytes, size: int, country: str = "CN") -> bytes:
+    """A valid MMDB of exactly `size` bytes, padded before its metadata."""
+    valid = country_database_bytes(country)
+    metadata_at = valid.rfind(b"\xab\xcd\xefMaxMind.com")
+    fill = size - len(valid)
+    filler = (padding * (fill // len(padding) + 1))[:fill]
+    return valid[:metadata_at] + filler + valid[metadata_at:]
+
+
 class GeoDownloadServer:
     """A real local HTTP server that scripts how each download attempt behaves."""
 
@@ -218,6 +227,18 @@ def declared_length_server(declared: int, sent: int) -> GeoDownloadServer:
     def behavior(conn: socket.socket, attempt: int) -> None:
         conn.sendall(_headers(declared) + b"x" * sent)
         hold_until_the_peer_ends(conn)
+
+    return GeoDownloadServer(behavior)
+
+
+def sized_body_server(total: int) -> GeoDownloadServer:
+    """Sends `total` zero bytes without ever holding them all in this process."""
+    piece = b"\0" * 65536
+
+    def behavior(conn: socket.socket, attempt: int) -> None:
+        conn.sendall(_headers(total))
+        for _ in range(total // len(piece)):
+            conn.sendall(piece)
 
     return GeoDownloadServer(behavior)
 
