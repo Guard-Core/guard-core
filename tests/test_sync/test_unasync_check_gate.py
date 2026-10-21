@@ -165,3 +165,17 @@ def test_check_leaves_the_working_tree_byte_identical_on_a_dirty_repo() -> None:
     status_after = _git_status_short(root)
     assert status_before == status_after
     assert result.returncode == 0
+
+
+def test_the_formatter_runs_the_interpreters_own_ruff_not_uv_run() -> None:
+    unasync = _load_unasync_module()
+    commands: list[list[str]] = []
+
+    def record(command: list[str], **kwargs: object) -> None:
+        commands.append(command)
+
+    with patch.object(subprocess, "run", record):
+        unasync.format_generated()
+
+    assert len(commands) == 3
+    assert all(command[:3] == [sys.executable, "-m", "ruff"] for command in commands)

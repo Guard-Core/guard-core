@@ -786,6 +786,9 @@ def generate(check: bool = False) -> bool:
     return all_match
 
 
+# The interpreter's own ruff, not `uv run ruff`: a `uv run` here re-syncs (and,
+# with another Python than the project's, recreates) the environment the caller
+# is running in, which broke the tests that run this script (WP23 r6).
 def format_generated(
     sync_dir: Path = SYNC_DIR, test_sync_dir: Path = TEST_SYNC_DIR
 ) -> None:
@@ -793,8 +796,8 @@ def format_generated(
 
     subprocess.run(
         [
-            "uv",
-            "run",
+            sys.executable,
+            "-m",
             "ruff",
             "check",
             "--fix-only",
@@ -807,13 +810,29 @@ def format_generated(
         check=True,
     )
     subprocess.run(
-        ["uv", "run", "ruff", "format", "--quiet", str(sync_dir), str(test_sync_dir)],
+        [
+            sys.executable,
+            "-m",
+            "ruff",
+            "format",
+            "--quiet",
+            str(sync_dir),
+            str(test_sync_dir),
+        ],
         cwd=ROOT,
         capture_output=True,
         check=True,
     )
     subprocess.run(
-        ["uv", "run", "ruff", "check", "--quiet", str(sync_dir), str(test_sync_dir)],
+        [
+            sys.executable,
+            "-m",
+            "ruff",
+            "check",
+            "--quiet",
+            str(sync_dir),
+            str(test_sync_dir),
+        ],
         cwd=ROOT,
         capture_output=True,
         check=True,
