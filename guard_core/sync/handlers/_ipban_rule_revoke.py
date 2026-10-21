@@ -69,6 +69,17 @@ class IpBanRuleRevokeMixin(IpBanVersionMixin, IpBanEventMixin):
             if member in keep
         }
 
+    def answer_stamp(self) -> tuple[str | None, float]:
+        """The ban version this worker sees and the time, to date an answer kept
+        until ``answer_is_current`` says otherwise."""
+        return self._ban_version_seen, time.time()
+
+    def answer_is_current(self, version: str | None, at: float) -> bool:
+        return (
+            version == self._ban_version_seen
+            and time.time() - at < self._VERSION_RECHECK_SECONDS
+        )
+
     def rule_owns_live_ban(self, member: str) -> bool:
         """True when the live ban under ``member`` (``namespace:key``) is the one
         a dynamic rule wrote: the rule owns it, its own expiry has not passed and

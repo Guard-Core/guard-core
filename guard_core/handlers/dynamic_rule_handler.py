@@ -114,10 +114,15 @@ class DynamicRuleManager(
             self._active_base_snapshot,
         )
         cached = self._attribution_cache
-        if cached is not None and all(
-            held is current for held, current in zip(cached[0], inputs, strict=True)
-        ):
-            return
+        if cached is not None:
+            held = cached[0]
+            if (
+                held[0] is inputs[0]
+                and held[1] is inputs[1]
+                and held[2] is inputs[2]
+                and held[3] is inputs[3]
+            ):
+                return
         view = build_rule_attribution(
             rules,
             self.config,
@@ -128,8 +133,18 @@ class DynamicRuleManager(
         self._attribution_cache = (inputs, view)
 
     def rule_attribution(self) -> RuleAttribution | None:
-        if self.current_rules is None:
+        rules = self.current_rules
+        if rules is None:
             return None
+        cached = self._attribution_cache
+        if (
+            cached is not None
+            and cached[0][0] is rules
+            and cached[0][1] is self._owned_bans
+            and cached[0][2] is self._owned_patterns
+            and cached[0][3] is self._active_base_snapshot
+        ):
+            return cached[1]
         self._refresh_attribution()
         cached = self._attribution_cache
         return None if cached is None else cached[1]

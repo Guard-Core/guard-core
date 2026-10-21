@@ -180,3 +180,29 @@ def test_a_redis_failure_while_reading_ownership_attributes_nothing() -> None:
         assert ip_ban_manager.rule_owns_live_ban("banned_ips:203.0.113.5") is False
     finally:
         ip_ban_manager.redis_handler = monkey
+
+
+def test_a_repeat_ban_hit_reuses_the_stamp_until_the_interval_passes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = _config()
+    ip_ban_manager.config = config
+    assert ip_ban_manager.ban_ip(RULE_IP, 3600, "dynamic_rule")
+    view = build_rule_attribution(_rules(ip_blacklist=[RULE_IP]), config, [], [], {})
+    monkeypatch.setattr(ip_ban_manager, "_VERSION_RECHECK_SECONDS", 0.2)
+    lookups: list[str] = []
+    original = ip_ban_manager.deciding_ban_entry
+
+    def counting(ip: str) -> tuple[str, float] | None:
+        lookups.append(ip)
+        return original(ip)
+
+    monkeypatch.setattr(ip_ban_manager, "deciding_ban_entry", counting)
+
+    first = [view.for_ban(RULE_IP, ip_ban_manager) for _ in range(50)]
+    assert first == [DYNAMIC] * 50
+    assert lookups == [RULE_IP]
+
+    time.sleep(0.3)
+    assert view.for_ban(RULE_IP, ip_ban_manager) == DYNAMIC
+    assert lookups == [RULE_IP, RULE_IP]

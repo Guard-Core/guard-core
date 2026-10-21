@@ -1,6 +1,6 @@
 import ipaddress
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from guard_core._dynamic_rules import DynamicRules
@@ -12,6 +12,7 @@ from guard_core.handlers._cloud_provider_registry import _parse_cloud_selectors
 from guard_core.handlers._ipban_rule_exempt import rule_ban_member
 
 MATCHED_RULE_TYPE_DYNAMIC = "dynamic"
+_MAX_BAN_STAMPS = 10_000
 
 _Selectors = tuple[frozenset[str], Mapping[str, frozenset[str]]]
 
@@ -78,6 +79,9 @@ class RuleAttribution:
     static_endpoint_limits: Mapping[str, tuple[Any, ...]]
     emergency: bool
     static_emergency: bool
+    _ban_stamps: dict[str, tuple[dict[str, Any], str | None, float]] = field(
+        default_factory=dict, repr=False, compare=False
+    )
 
     @property
     def owned_ban_members(self) -> frozenset[str]:
@@ -113,6 +117,19 @@ class RuleAttribution:
         return stamp
 
     async def for_ban(self, client_ip: str, bans: Any) -> dict[str, Any]:
+        """The stamp of a ban hit, kept per address while the ban version this
+        worker sees is unchanged and the ban lookup's own recheck interval has
+        not passed, so a repeat hit from one banned address is one dict read."""
+        held = self._ban_stamps.get(client_ip)
+        if held is not None and bans.answer_is_current(held[1], held[2]):
+            return held[0]
+        stamp = await self._ban_stamp(client_ip, bans)
+        if len(self._ban_stamps) >= _MAX_BAN_STAMPS:
+            self._ban_stamps.clear()
+        self._ban_stamps[client_ip] = (stamp, *bans.answer_stamp())
+        return stamp
+
+    async def _ban_stamp(self, client_ip: str, bans: Any) -> dict[str, Any]:
         entry = bans.deciding_ban_entry(client_ip)
         if entry is None or entry[0] not in self.listed_ban_members:
             return {}
