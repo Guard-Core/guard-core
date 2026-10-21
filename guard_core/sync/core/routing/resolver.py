@@ -52,8 +52,9 @@ class RouteConfigResolver:
     def get_cloud_providers_to_check(
         self, route_config: RouteConfig | None
     ) -> list[str] | None:
-        providers = merge_cloud_selectors(
-            self.context.config.block_cloud_providers,
-            route_config.block_cloud_providers if route_config else None,
-        )
+        providers = set(self.context.config.block_cloud_providers or ())
+        if route_config and route_config.block_cloud_providers:
+            providers = merge_cloud_selectors(
+                providers, route_config.block_cloud_providers
+            )
         return list(providers) if providers else None

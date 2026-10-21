@@ -140,3 +140,22 @@ def test_the_process_record_of_a_rule_write_can_be_read_and_pruned() -> None:
     assert ip_ban_manager.rule_written_expiry("banned_ips:a") is None
     assert ip_ban_manager.rule_written_expiry("banned_ips:b") == 2.0
     ip_ban_manager._rule_owned_expiries = {}
+
+
+def test_a_request_without_a_route_list_does_not_run_the_selector_merge(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from guard_core.core.routing import resolver as resolver_module
+    from guard_core.core.routing.context import RoutingContext
+    from guard_core.core.routing.resolver import RouteConfigResolver
+
+    def forbidden(*_args: object) -> set[str]:
+        raise AssertionError("no route list, no merge on the request path")
+
+    monkeypatch.setattr(resolver_module, "merge_cloud_selectors", forbidden)
+    config = _config(block_cloud_providers={"GCP"})
+    resolver = RouteConfigResolver(
+        RoutingContext(config=config, logger=None, guard_decorator=None)
+    )
+
+    assert resolver.get_cloud_providers_to_check(None) == ["GCP"]
