@@ -1,5 +1,6 @@
 import ipaddress
 import time
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -165,3 +166,14 @@ def test_a_request_without_a_route_list_does_not_run_the_selector_merge(
     )
 
     assert resolver.get_cloud_providers_to_check(None) == ["GCP"]
+
+
+def test_a_redis_failure_while_reading_ownership_attributes_nothing() -> None:
+    redis = MagicMock()
+    redis.owned_ban_expiry = MagicMock(side_effect=RuntimeError("down"))
+    monkey = ip_ban_manager.redis_handler
+    ip_ban_manager.redis_handler = redis
+    try:
+        assert ip_ban_manager.rule_owns_live_ban("banned_ips:203.0.113.5") is False
+    finally:
+        ip_ban_manager.redis_handler = monkey

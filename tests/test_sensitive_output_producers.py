@@ -967,6 +967,10 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
     "handlers/_dynamic_rule_purge.py:DynamicRulePurgeMixin.purge_dynamic_rules": (
         "line 90: the purge INFO with rule id, version and ban counts, not a request"
     ),
+    "handlers/_ipban_rule_revoke.py:IpBanRuleRevokeMixin.rule_owns_live_ban": (
+        "line 68: a Redis failure while reading a rule ban's ownership logs the "
+        "driver error text only, no request data, outside the secret matrix"
+    ),
     "handlers/_ipban_bans.py:IpBanOperationsMixin.purge_rule_owned_bans": (
         "line 191: a failed rule-ban purge logs the ban key and the error; the "
         "key is a ban-target address, outside the secret matrix"
