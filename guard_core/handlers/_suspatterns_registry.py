@@ -3,6 +3,7 @@ import functools
 import json
 import logging
 import re
+from collections.abc import Callable
 from datetime import datetime, timezone
 from typing import Any
 
@@ -86,6 +87,7 @@ class _SusPatternsRegistryMixin:
         reason: str,
         pattern_matched: str | None = None,
         endpoint: str | None = None,
+        consumer_fields: Callable[[], dict[str, Any]] | None = None,
         **kwargs: Any,
     ) -> None:
         agent_handler = self._events_agent_handler
@@ -98,6 +100,11 @@ class _SusPatternsRegistryMixin:
             from guard_core._pydantic_plugin_mute import get_telemetry_model
 
             SecurityEvent = get_telemetry_model("SecurityEvent")
+
+            if consumer_fields is not None:
+                built = consumer_fields()
+                endpoint = built.pop("endpoint", endpoint)
+                kwargs.update(built)
 
             event = SecurityEvent(
                 timestamp=datetime.now(timezone.utc),

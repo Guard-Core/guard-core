@@ -24,18 +24,14 @@ def _threat_score(threat: dict) -> float:
     return 1.0
 
 
-def _first_regex_source(threats: list[dict]) -> str | None:
-    for threat in threats:
-        source = threat.get("pattern")
-        if threat.get("type") == "regex" and isinstance(source, str):
-            return source
-    return None
-
-
 def _build_detection_hit(trigger: str, threats: list[dict]) -> DetectionResult:
     categories: list[str] = []
     scores: dict[str, float] = {}
+    first_regex_source: str | None = None
     for threat in threats:
+        if first_regex_source is None and threat.get("type") == "regex":
+            candidate = threat.get("pattern")
+            first_regex_source = candidate if isinstance(candidate, str) else None
         category = _threat_category(threat)
         if category is None:
             continue
@@ -48,7 +44,7 @@ def _build_detection_hit(trigger: str, threats: list[dict]) -> DetectionResult:
         trigger_info=_sanitize_for_reporting(trigger),
         threat_categories=categories,
         threat_scores=scores,
-        matched_pattern_source=_first_regex_source(threats),
+        matched_pattern_source=first_regex_source,
     )
 
 

@@ -87,11 +87,7 @@ class SuspiciousActivityCheck(SecurityCheck):
     def _detection_event_fields(self, result: DetectionResult) -> dict[str, Any]:
         """What the penetration events carry about the detection: the per-request
         id, the categories and, for a rule that decided, its attribution. Built
-        only when an agent consumes events."""
-        if not (
-            self.middleware.event_bus.agent_handler and self.config.agent_enable_events
-        ):
-            return {}
+        only when an agent consumes events, which the callers check."""
         fields: dict[str, Any] = pattern_attribution(result.matched_pattern_source)
         if result.correlation_id is not None:
             fields["correlation_id"] = result.correlation_id
@@ -104,6 +100,9 @@ class SuspiciousActivityCheck(SecurityCheck):
         self, request: SyncGuardRequest, client_ip: str, result: DetectionResult
     ) -> None:
         trigger_info = result.trigger_info
+        consumed = (
+            self.middleware.event_bus.agent_handler and self.config.agent_enable_events
+        )
         log_activity(
             request,
             self.logger,
@@ -130,7 +129,7 @@ class SuspiciousActivityCheck(SecurityCheck):
             request_count=self._total_count_for_ip(client_ip),
             passive_mode=True,
             trigger_info=trigger_info,
-            **self._detection_event_fields(result),
+            **(self._detection_event_fields(result) if consumed else {}),
         )
 
     def _handle_suspicious_active_mode(
@@ -141,6 +140,9 @@ class SuspiciousActivityCheck(SecurityCheck):
     ) -> GuardResponse:
         trigger_info = result.trigger_info
         threat_categories = list(result.threat_categories)
+        consumed = (
+            self.middleware.event_bus.agent_handler and self.config.agent_enable_events
+        )
         strikes = StrikeReport()
         banned = _try_threshold_ban(
             request,
@@ -164,7 +166,7 @@ class SuspiciousActivityCheck(SecurityCheck):
                 request_count=strikes.banning_count or 0,
                 ban_duration=strikes.banned_duration,
                 trigger_info=trigger_info,
-                **self._detection_event_fields(result),
+                **(self._detection_event_fields(result) if consumed else {}),
             )
             return self.middleware.create_error_response(
                 status_code=403,
@@ -193,7 +195,7 @@ class SuspiciousActivityCheck(SecurityCheck):
             reason=f"Penetration attempt detected: {trigger_info}",
             request_count=strikes.count_or(lambda: self._total_count_for_ip(client_ip)),
             trigger_info=trigger_info,
-            **self._detection_event_fields(result),
+            **(self._detection_event_fields(result) if consumed else {}),
         )
 
         return self.middleware.create_error_response(

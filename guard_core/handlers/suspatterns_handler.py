@@ -1067,7 +1067,6 @@ class SusPatternsManager(_SusPatternsViewsMixin):
         threat_categories = _collect_threat_categories(threats)
 
         pattern_matched = _redact_pattern_source(pattern_info)
-        consumer = self._events_agent_handler
 
         await self._send_pattern_event(
             event_type=EVENT_PATTERN_DETECTED,
@@ -1088,7 +1087,7 @@ class SusPatternsManager(_SusPatternsViewsMixin):
             correlation_id=correlation_id,
             threat_categories=threat_categories,
             category=threat_categories[0] if threat_categories else None,
-            **(self._consumer_fields(matched_patterns) if consumer else {}),
+            consumer_fields=lambda: self._consumer_fields(matched_patterns),
         )
 
     @staticmethod
