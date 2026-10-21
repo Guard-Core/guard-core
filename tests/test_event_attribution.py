@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from guard_core._utils import rule_attribution as attribution_view
 from guard_core.core.checks.factory import build_default_pipeline
 from guard_core.core.checks.implementations import ip_security as ip_security_module
 from guard_core.core.checks.pipeline import SecurityCheckPipeline
@@ -797,22 +798,6 @@ async def test_a_longer_foreign_ban_written_over_the_rules_is_not_the_rules() ->
     assert _attr(await _one(middleware, "ip_blocked")) == {}
 
 
-async def test_the_manager_answers_for_the_applied_set_and_rebuilds_a_stale_view() -> (
-    None
-):
-    config = _config()
-    assert DynamicRuleManager(config).rule_attribution() is None
-    manager = await _apply(config, _rules(ip_blacklist=[RULE_IP]))
-    held = manager.rule_attribution()
-    assert held is not None and manager.rule_attribution() is held
-
-    manager._owned_bans = list(manager._owned_bans)
-    rebuilt = manager.rule_attribution()
-
-    assert rebuilt is not None and rebuilt is not held
-    assert manager.rule_attribution() is rebuilt
-
-
 async def test_the_view_is_built_when_the_set_changes_not_on_the_first_block() -> None:
     config = _config()
     manager = await _apply(config, _rules(ip_blacklist=[RULE_IP]))
@@ -820,7 +805,7 @@ async def test_the_view_is_built_when_the_set_changes_not_on_the_first_block() -
     cached = manager._attribution_cache
     assert cached is not None
     assert cached[0][0] is manager.current_rules
-    assert manager.rule_attribution() is cached[1]
+    assert attribution_view._applied is cached[1]
 
     manager.agent_handler.get_dynamic_rules.return_value = _rules(
         rule_id="rule-two", version=2, ip_blacklist=[OTHER_IP]

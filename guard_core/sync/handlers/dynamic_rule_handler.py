@@ -141,23 +141,6 @@ class DynamicRuleManager(
         self._attribution_cache = (inputs, view)
         set_attribution_view(view)
 
-    def rule_attribution(self) -> RuleAttribution | None:
-        rules = self.current_rules
-        if rules is None:
-            return None
-        cached = self._attribution_cache
-        if (
-            cached is not None
-            and cached[0][0] is rules
-            and cached[0][1] is self._owned_bans
-            and cached[0][2] is self._owned_patterns
-            and cached[0][3] is self._active_base_snapshot
-        ):
-            return cached[1]
-        self._refresh_attribution()
-        cached = self._attribution_cache
-        return None if cached is None else cached[1]
-
     def match_event(self, event: Any) -> tuple[str, int] | None:
         rules = self.current_rules
         if rules is None:

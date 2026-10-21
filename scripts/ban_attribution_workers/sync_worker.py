@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
 from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.sync._utils import rule_attribution as attribution
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.sync.handlers.ipban_handler import ip_ban_manager
 from guard_core.sync.handlers.redis_handler import RedisManager
@@ -50,7 +51,7 @@ def main(url: str, prefix: str, duration: int) -> None:
             reply: dict[str, object] = {"owned": manager._owned_bans}
         else:
             banned = ip_ban_manager.is_ip_banned(RULE_IP)
-            view = manager.rule_attribution()
+            view = attribution._applied
             stamp = view.for_ban(RULE_IP, ip_ban_manager) if view else None
             reply = {"banned": banned, "stamp": stamp}
         print(json.dumps(reply), flush=True)
