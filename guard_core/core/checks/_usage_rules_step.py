@@ -19,7 +19,7 @@ _ROUTE_NOT_RESOLVED = object()
 async def enforce_usage_rules(
     checks: Sequence[SecurityCheck], request: GuardRequest
 ) -> GuardResponse | None:
-    route_config = getattr(request.state, "route_config", _ROUTE_NOT_RESOLVED)
+    route_config: Any = getattr(request.state, "route_config", _ROUTE_NOT_RESOLVED)
     if route_config is _ROUTE_NOT_RESOLVED or not checks:
         return None
     middleware = checks[0].middleware

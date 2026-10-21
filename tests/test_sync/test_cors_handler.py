@@ -1,3 +1,6 @@
+from collections.abc import Iterator
+from typing import Any
+
 import pytest
 
 from guard_core._security_headers_override import CorsParams
@@ -50,6 +53,23 @@ def test_is_preflight_handles_mixed_case_headers() -> None:
         "Origin": "https://app.example.com",
         "Access-Control-Request-Method": "POST",
     }
+    assert is_preflight("OPTIONS", headers) is True
+
+
+class _PairIteratingHeaders:
+    # Werkzeug's EnvironHeaders iterates (name, value) pairs, unlike a Mapping.
+    def __init__(self, pairs: dict[str, str]) -> None:
+        self._pairs = pairs
+
+    def keys(self) -> list[str]:
+        return list(self._pairs)
+
+    def __iter__(self) -> Iterator[tuple[str, str]]:
+        return iter(self._pairs.items())
+
+
+def test_is_preflight_reads_header_names_from_pair_iterating_headers() -> None:
+    headers: Any = _PairIteratingHeaders({"Access-Control-Request-Method": "POST"})
     assert is_preflight("OPTIONS", headers) is True
 
 

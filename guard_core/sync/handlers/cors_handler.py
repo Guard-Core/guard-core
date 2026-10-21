@@ -18,7 +18,7 @@ class CorsPreflightResponse:
 def is_preflight(method: str, headers: Mapping[str, str]) -> bool:
     if method.upper() != "OPTIONS":
         return False
-    return ALLOWED_PREFLIGHT_REQUEST_HEADER in {k.lower() for k in headers}
+    return ALLOWED_PREFLIGHT_REQUEST_HEADER in {k.lower() for k in headers.keys()}
 
 
 def _lower_headers(headers: Mapping[str, str]) -> dict[str, str]:

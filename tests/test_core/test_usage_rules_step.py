@@ -1,6 +1,7 @@
 import logging
+from collections.abc import Iterator
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -33,6 +34,10 @@ class _Request:
         self.url_path = "/api/reports"
         self.client_host = _IP
         self.state = SimpleNamespace(guard_route_id=_ENDPOINT)
+
+
+def _request(method: str = "POST", headers: dict[str, str] | None = None) -> Any:
+    return _Request(method, headers)
 
 
 class _Middleware:
@@ -86,7 +91,7 @@ class _App:
         self.config = config
         self.tracker = BehaviorTracker(config)
         middleware_class = _AnsweringMiddleware if can_answer else _Middleware
-        self.middleware = middleware_class(config, route_config)
+        self.middleware: Any = cast(Any, middleware_class(config, route_config))
         self.context = BehavioralContext(
             config=config,
             logger=self.middleware.logger,
@@ -103,8 +108,8 @@ class _App:
         self.pipeline = SecurityCheckPipeline(checks)
         self.route_config = route_config
 
-    async def serve(self, request: _Request | None = None) -> Any:
-        request = request or _Request()
+    async def serve(self, request: Any = None) -> Any:
+        request = request or _request()
         refused = await self.pipeline.execute(request)
         if refused is None:
             await self.adapter_usage_call(request)
@@ -197,7 +202,7 @@ async def test_a_pipeline_without_route_resolution_keeps_its_behavior() -> None:
     app = _App(_config(global_behavior_rules=(_rule(),)))
     detection_only = SecurityCheckPipeline([_PassCheck(app.middleware)])
     for _ in range(4):
-        assert await detection_only.execute(_Request()) is None
+        assert await detection_only.execute(_request()) is None
 
 
 class _PassCheck(SecurityCheck):
@@ -214,17 +219,47 @@ async def test_a_cors_preflight_is_not_refused_and_not_recorded() -> None:
     preflight = {"access-control-request-method": "POST"}
     codes = []
     for _ in range(3):
-        refused = await app.pipeline.execute(_Request("OPTIONS", preflight))
+        refused = await app.pipeline.execute(_request("OPTIONS", preflight))
         codes.append(None if refused is None else refused.status_code)
         await app.serve()
     assert codes == [None, None, None]
     assert await app.statuses(2) == [429, 429]
 
 
+class _PairIteratingHeaders:
+    # Werkzeug's EnvironHeaders iterates (name, value) pairs, unlike a Mapping.
+    def __init__(self, pairs: dict[str, str]) -> None:
+        self._pairs = pairs
+
+    def keys(self) -> list[str]:
+        return list(self._pairs)
+
+    def get(self, name: str, default: str | None = None) -> str | None:
+        return self._pairs.get(name, default)
+
+    def __iter__(self) -> Iterator[tuple[str, str]]:
+        return iter(self._pairs.items())
+
+
+async def test_a_flask_style_headers_object_does_not_break_the_preflight_skip() -> None:
+    app = _App(_config(enable_cors=True, global_behavior_rules=(_rule(),)))
+    codes = []
+    for method in ("OPTIONS", "POST", "OPTIONS", "POST"):
+        request = _request(method, {"Origin": "https://app.example"})
+        request.headers = _PairIteratingHeaders(
+            {"Access-Control-Request-Method": "POST"} if method == "OPTIONS" else {}
+        )
+        refused = await app.pipeline.execute(request)
+        codes.append(None if refused is None else refused.status_code)
+        if refused is None and method == "POST":
+            await app.adapter_response_phase(request)
+    assert codes == [None, None, None, 429]
+
+
 async def test_an_exclusion_scoped_request_is_never_throttled() -> None:
     app = _App(_config(global_behavior_rules=(_rule(),)))
     for _ in range(4):
-        request = _Request()
+        request = _request()
         request.state.guard_exclusion_scoped = True
         assert await app.pipeline.execute(request) is None
 
@@ -260,7 +295,7 @@ async def test_a_second_usage_call_on_the_same_request_does_not_record_again() -
     throttle = _throttle_rule(100)
     app = _App(_config(), _route(throttle))
     await app.serve()
-    request = _Request()
+    request = _request()
     first = await app.pipeline.execute(request)
     again = await app.processor.process_usage_rules(request, _IP, app.route_config)
     assert again is first
