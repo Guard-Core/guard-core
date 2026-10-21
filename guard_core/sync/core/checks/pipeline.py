@@ -9,6 +9,10 @@ from guard_core.models import SecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.block_events import fire_block_hook
 from guard_core.sync._utils.request_logging import redact_header_value_for_display
+from guard_core.sync.core.checks._usage_rules_step import (
+    enforce_usage_rules,
+    warn_at_startup_if_throttle_cannot_refuse,
+)
 from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
@@ -37,6 +41,7 @@ class SecurityCheckPipeline:
             self._container_signature(config) if config is not None else ()
         )
         self._built_route_config_revision = self._current_route_config_revision()
+        warn_at_startup_if_throttle_cannot_refuse(checks)
 
     @staticmethod
     def _container_size(value: Sized | None) -> int:
@@ -198,7 +203,7 @@ class SecurityCheckPipeline:
                 if error_response is not None:
                     return error_response
 
-        return None
+        return enforce_usage_rules(self.checks, request)
 
     @property
     def needs_route_identity(self) -> bool:

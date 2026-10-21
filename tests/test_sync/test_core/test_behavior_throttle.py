@@ -917,7 +917,10 @@ def test_missing_middleware_warning_text_and_logger(
     assert [r.getMessage() for r in warnings] == [
         "Behavior throttle rules are only logged: this adapter does not pass "
         "its middleware to the behavioral processor, so the engine cannot "
-        "answer 429. Upgrade the adapter to enforce throttle rules."
+        "answer 429. Upgrade the adapter to enforce throttle rules. "
+        "Rules: usage threshold=1 window=60s. Missing capability: a middleware "
+        "with create_error_response, passed to the BehavioralContext or "
+        "reachable through the pipeline's checks."
     ]
 
 

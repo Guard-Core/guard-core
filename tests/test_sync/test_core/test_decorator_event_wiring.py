@@ -232,12 +232,11 @@ def _usage_violation_events(config: SecurityConfig) -> list[Any]:
     )
     processor = BehavioralProcessor(context)
 
-    request = SyncMockGuardRequest(client_host="203.0.113.54")
-    request.state.guard_route_id = route_id
-    request.state.guard_endpoint_id = "usage_monitor_route"
-
-    processor.process_usage_rules(request, "203.0.113.54", route_config)
-    processor.process_usage_rules(request, "203.0.113.54", route_config)
+    for _ in range(2):
+        request = SyncMockGuardRequest(client_host="203.0.113.54")
+        request.state.guard_route_id = route_id
+        request.state.guard_endpoint_id = "usage_monitor_route"
+        processor.process_usage_rules(request, "203.0.113.54", route_config)
     return list(recording_agent.events)
 
 

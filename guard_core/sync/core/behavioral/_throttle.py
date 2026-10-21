@@ -8,6 +8,7 @@ from typing import Any
 from guard_core.exceptions import GuardRedisError
 from guard_core.models import BehaviorRuleConfig
 from guard_core.protocols.response_protocol import GuardResponse
+from guard_core.sync._utils.block_events import fire_block_hook
 from guard_core.sync._utils.request_logging import redact_header_value_for_display
 from guard_core.sync._utils.sampling import observe_sampled_key
 from guard_core.sync.core.behavioral.context import BehavioralContext
@@ -25,17 +26,31 @@ MAX_SAMPLED_THROTTLE_KEYS = 10_000
 
 _logger = logging.getLogger("guard_core.sync.core.behavioral")
 _missing_middleware_warned = False
+_NEEDS_MIDDLEWARE_WARNING = (
+    "Behavior throttle rules are only logged: this adapter does not pass "
+    "its middleware to the behavioral processor, so the engine cannot "
+    "answer 429. Upgrade the adapter to enforce throttle rules."
+)
 
 
-def _warn_throttle_needs_middleware() -> None:
+def can_build_error_response(middleware: Any) -> bool:
+    return callable(getattr(middleware, "create_error_response", None))
+
+
+def _describe_rule(rule: BehaviorRule) -> str:
+    return f"{rule.rule_type} threshold={rule.threshold} window={rule.window}s"
+
+
+def warn_throttle_needs_middleware(rules: Sequence[BehaviorRule]) -> None:
     global _missing_middleware_warned
     if _missing_middleware_warned:
         return
     _missing_middleware_warned = True
+    names = "; ".join(_describe_rule(rule) for rule in rules)
     _logger.warning(
-        "Behavior throttle rules are only logged: this adapter does not pass "
-        "its middleware to the behavioral processor, so the engine cannot "
-        "answer 429. Upgrade the adapter to enforce throttle rules."
+        f"{_NEEDS_MIDDLEWARE_WARNING} Rules: {names}. Missing capability: a "
+        "middleware with create_error_response, passed to the BehavioralContext "
+        "or reachable through the pipeline's checks."
     )
 
 
@@ -111,7 +126,6 @@ class BehavioralThrottleMixin:
     _throttle_refusals: "OrderedDict[str, int]"
     _throttle_count_lock: threading.Lock
     _report_decorator_violation: Callable[..., None]
-    _evaluate_global_usage_rule: Callable[..., None]
 
     def _init_throttle_state(self) -> None:
         self._global_rules_source = None
@@ -137,12 +151,16 @@ class BehavioralThrottleMixin:
             self._global_rules()
         return self._global_throttle_cache
 
-    def _collect_correlated_categories(self, client_ip: str) -> list[str]:
-        if self.context.middleware is None:
+    def _collect_correlated_categories(
+        self, client_ip: str, middleware: Any = None
+    ) -> list[str]:
+        if self.context.middleware is not None:
+            middleware = self.context.middleware
+        if middleware is None:
             return []
         from guard_core.sync.core.checks.helpers import _strike_identity
 
-        counts = getattr(self.context.middleware, "suspicious_request_counts", {})
+        counts = getattr(middleware, "suspicious_request_counts", {})
         ip_counts = dict(
             counts.get(_strike_identity(self.context.config, client_ip), {})
         )
@@ -196,12 +214,22 @@ class BehavioralThrottleMixin:
         checks += [_global_check(rule) for rule in self._global_throttle_rules()]
         return checks
 
-    def _throttle_enforced(self) -> bool:
+    def _error_response_builder(self, middleware: Any) -> Any:
+        # The context's middleware wins; a call argument stands in for it under
+        # adapters that never set it. The shared processor is never written.
+        builder = (
+            self.context.middleware
+            if self.context.middleware is not None
+            else middleware
+        )
+        return builder if can_build_error_response(builder) else None
+
+    def _throttle_enforced(self, builder: Any, checks: Sequence[ThrottleCheck]) -> bool:
         if self.context.config.passive_mode:
             return False
-        if self.context.middleware is not None:
+        if builder is not None:
             return True
-        _warn_throttle_needs_middleware()
+        warn_throttle_needs_middleware([check.rule for check in checks])
         return False
 
     def _enforce_throttle(
@@ -212,11 +240,13 @@ class BehavioralThrottleMixin:
         endpoint_id: str,
         route_throttles: Sequence[BehaviorRule],
         recorded_rule_ids: frozenset[str] = frozenset(),
+        middleware: Any = None,
     ) -> GuardResponse | None:
         checks = self._throttle_checks(
             client_ip, endpoint_id, route_throttles, recorded_rule_ids
         )
-        enforced = self._throttle_enforced()
+        builder = self._error_response_builder(middleware)
+        enforced = self._throttle_enforced(builder, checks)
         try:
             trips: list[ThrottleTrip] = tracker.check_throttle(
                 client_ip,
@@ -224,29 +254,29 @@ class BehavioralThrottleMixin:
                 time.time(),
                 record_when_over=not enforced,
                 process_categories=lambda: self._collect_correlated_categories(
-                    client_ip
+                    client_ip, middleware
                 ),
             )
         except GuardRedisError as error:
-            return self._throttle_check_failed(error)
+            return self._throttle_check_failed(error, builder)
         if not trips:
             return None
         for trip in trips:
             self._report_throttle_trip(
                 tracker, request, client_ip, endpoint_id, trip, enforced
             )
+        self._fire_throttle_block_hook(request, trips, enforced)
         if not enforced:
             return None
-        self._count_refused_request_in_global_rules(
-            tracker, request, client_ip, endpoint_id
-        )
-        response: GuardResponse = self.context.middleware.create_error_response(
+        response: GuardResponse = builder.create_error_response(
             429, "Too many requests"
         )
         response.headers["Retry-After"] = str(max(t.retry_after for t in trips))
         return response
 
-    def _throttle_check_failed(self, error: GuardRedisError) -> GuardResponse | None:
+    def _throttle_check_failed(
+        self, error: GuardRedisError, builder: Any
+    ) -> GuardResponse | None:
         config = self.context.config
         safe_message = redact_header_value_for_display(
             str(error),
@@ -257,15 +287,35 @@ class BehavioralThrottleMixin:
         self.context.logger.error(
             f"Error in behavior throttle ({type(error).__name__}): {safe_message}"
         )
-        if not config.fail_secure or self.context.middleware is None:
+        if not config.fail_secure or builder is None:
             return None
         self.context.logger.warning(
             "Blocking request due to check error in fail-secure mode: behavior throttle"
         )
-        response: GuardResponse = self.context.middleware.create_error_response(
+        response: GuardResponse = builder.create_error_response(
             500, "Security check failed"
         )
         return response
+
+    def _fire_throttle_block_hook(
+        self, request: SyncGuardRequest, trips: list[ThrottleTrip], enforced: bool
+    ) -> None:
+        config = self.context.config
+        if not enforced and not config.passive_mode:
+            return
+        rule = trips[0].check.rule
+        fire_block_hook(
+            config.on_block,
+            request,
+            "behavior_throttle",
+            f"Behavior throttle threshold reached: {_describe_rule(rule)}",
+            _describe_rule(rule),
+            not enforced,
+            429 if enforced else None,
+            config.log_sensitive_params,
+            config.log_sensitive_body_fields,
+            config.log_sensitive_headers,
+        )
 
     def _refusals_to_report(self, key: str, first_of_episode: bool) -> int | None:
         sampled = observe_sampled_key(
@@ -334,18 +384,3 @@ class BehavioralThrottleMixin:
             matched_rule_id=rule.matched_rule_id(),
             refusals_since_last_event=refusals,
         )
-
-    def _count_refused_request_in_global_rules(
-        self, tracker: Any, request: SyncGuardRequest, client_ip: str, endpoint_id: str
-    ) -> None:
-        seen: set[str] = set()
-        for rule in self._global_rules():
-            if rule.rule_type != "return_pattern" and not is_throttle_rule(rule):
-                self._evaluate_global_usage_rule(
-                    tracker,
-                    request,
-                    client_ip,
-                    endpoint_id,
-                    rule,
-                    first_of_rule_id(seen, rule),
-                )

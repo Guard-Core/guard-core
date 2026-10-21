@@ -9,6 +9,10 @@ from guard_core.core.behavioral._throttle import (
     global_scope_id,
     is_throttle_rule,
 )
+from guard_core.core.behavioral._usage_marks import (
+    mark_usage_rules_evaluated,
+    usage_marks_of,
+)
 from guard_core.core.behavioral.context import BehavioralContext
 from guard_core.core.events.event_types import EVENT_DECORATOR_VIOLATION
 from guard_core.decorators.base import RouteConfig
@@ -44,7 +48,11 @@ class BehavioralProcessor(BehavioralThrottleMixin):
         request: GuardRequest,
         client_ip: str,
         route_config: RouteConfig | None = None,
+        middleware: Any = None,
     ) -> GuardResponse | None:
+        marks = usage_marks_of(request)
+        if marks is not None:
+            return marks.result
         behavior_tracker = self._behavior_tracker(request)
         if behavior_tracker is None:
             return None
@@ -54,23 +62,45 @@ class BehavioralProcessor(BehavioralThrottleMixin):
         route_throttles = await self._evaluate_route_usage_rules(
             behavior_tracker, request, client_ip, endpoint_id, route_rules
         )
-        if not route_throttles and not self._global_throttle_rules():
-            return None
-        # A custom_action copy of a throttle rule shares its hit list and has
-        # already recorded this request's hit in the loop above.
-        recorded_rule_ids = frozenset(
-            rule.discriminator()
-            for rule in route_rules
-            if rule.rule_type != "return_pattern" and not is_throttle_rule(rule)
+        global_usage_rule_ids = await self._evaluate_global_usage_rules(
+            behavior_tracker, request, client_ip, endpoint_id
         )
-        return await self._enforce_throttle(
-            behavior_tracker,
-            request,
-            client_ip,
-            endpoint_id,
-            route_throttles,
-            recorded_rule_ids,
-        )
+        refused = None
+        if route_throttles or self._global_throttle_rules():
+            # A custom_action copy of a throttle rule shares its hit list and has
+            # already recorded this request's hit in the loop above.
+            recorded_rule_ids = frozenset(
+                rule.discriminator()
+                for rule in route_rules
+                if rule.rule_type != "return_pattern" and not is_throttle_rule(rule)
+            )
+            refused = await self._enforce_throttle(
+                behavior_tracker,
+                request,
+                client_ip,
+                endpoint_id,
+                route_throttles,
+                recorded_rule_ids,
+                middleware,
+            )
+        mark_usage_rules_evaluated(request, refused, global_usage_rule_ids)
+        return refused
+
+    async def _evaluate_global_usage_rules(
+        self, tracker: Any, request: GuardRequest, client_ip: str, endpoint_id: str
+    ) -> frozenset[str]:
+        seen: set[str] = set()
+        for rule in self._global_rules():
+            if rule.rule_type != "return_pattern" and not is_throttle_rule(rule):
+                await self._evaluate_global_usage_rule(
+                    tracker,
+                    request,
+                    client_ip,
+                    endpoint_id,
+                    rule,
+                    first_of_rule_id(seen, rule),
+                )
+        return frozenset(seen)
 
     async def _evaluate_route_usage_rules(
         self,
@@ -168,7 +198,13 @@ class BehavioralProcessor(BehavioralThrottleMixin):
         lookup = self._lookup_correlated_categories(tracker, client_ip)
 
         seen: set[str] = set()
+        marks = usage_marks_of(request)
+        recorded_before = marks.global_usage_rule_ids if marks is not None else ()
         for rule in filter(_counts_in_response_phase, rules):
+            if rule.rule_type != "return_pattern" and (
+                rule.discriminator() in recorded_before
+            ):
+                continue
             record = first_of_rule_id(seen, rule)
             if rule.rule_type == "return_pattern":
                 await self._evaluate_global_return_rule(

@@ -308,7 +308,7 @@ async def test_refused_requests_count_once_in_global_usage_rules_sharing_a_rule_
                     for call in acted.call_args_list[before:]
                 )
             )
-    assert fired == [0] * 5 + [2, 2, 2]
+    assert fired == [0] * 4 + [2, 2, 2, 2]
 
 
 async def _custom_action(client_ip: str, endpoint_id: str, details: str) -> None:
