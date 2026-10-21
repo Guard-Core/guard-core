@@ -65,26 +65,45 @@ class BehavioralProcessor(BehavioralThrottleMixin):
         global_usage_rule_ids = await self._evaluate_global_usage_rules(
             behavior_tracker, request, client_ip, endpoint_id
         )
-        refused = None
-        if route_throttles or self._global_throttle_rules():
-            # A custom_action copy of a throttle rule shares its hit list and has
-            # already recorded this request's hit in the loop above.
-            recorded_rule_ids = frozenset(
-                rule.discriminator()
-                for rule in route_rules
-                if rule.rule_type != "return_pattern" and not is_throttle_rule(rule)
-            )
-            refused = await self._enforce_throttle(
-                behavior_tracker,
-                request,
-                client_ip,
-                endpoint_id,
-                route_throttles,
-                recorded_rule_ids,
-                middleware,
-            )
+        refused = await self._enforce_throttle_if_configured(
+            behavior_tracker,
+            request,
+            (client_ip, endpoint_id),
+            route_rules,
+            route_throttles,
+            middleware,
+        )
         mark_usage_rules_evaluated(request, refused, global_usage_rule_ids)
         return refused
+
+    async def _enforce_throttle_if_configured(
+        self,
+        behavior_tracker: Any,
+        request: GuardRequest,
+        identity: tuple[str, str],
+        route_rules: Sequence[BehaviorRule],
+        route_throttles: list[BehaviorRule],
+        middleware: Any,
+    ) -> GuardResponse | None:
+        if not route_throttles and not self._global_throttle_rules():
+            return None
+        client_ip, endpoint_id = identity
+        # A custom_action copy of a throttle rule shares its hit list and has
+        # already recorded this request's hit in the loop above.
+        recorded_rule_ids = frozenset(
+            rule.discriminator()
+            for rule in route_rules
+            if rule.rule_type != "return_pattern" and not is_throttle_rule(rule)
+        )
+        return await self._enforce_throttle(
+            behavior_tracker,
+            request,
+            client_ip,
+            endpoint_id,
+            route_throttles,
+            recorded_rule_ids,
+            middleware,
+        )
 
     async def _evaluate_global_usage_rules(
         self, tracker: Any, request: GuardRequest, client_ip: str, endpoint_id: str
@@ -198,13 +217,7 @@ class BehavioralProcessor(BehavioralThrottleMixin):
         lookup = self._lookup_correlated_categories(tracker, client_ip)
 
         seen: set[str] = set()
-        marks = usage_marks_of(request)
-        recorded_before = marks.global_usage_rule_ids if marks is not None else ()
-        for rule in filter(_counts_in_response_phase, rules):
-            if rule.rule_type != "return_pattern" and (
-                rule.discriminator() in recorded_before
-            ):
-                continue
+        for rule in self._response_phase_rules(request, rules):
             record = first_of_rule_id(seen, rule)
             if rule.rule_type == "return_pattern":
                 await self._evaluate_global_return_rule(
@@ -223,6 +236,22 @@ class BehavioralProcessor(BehavioralThrottleMixin):
                 )
 
     process_global_return_rules = process_global_rules
+
+    @staticmethod
+    def _response_phase_rules(
+        request: GuardRequest, rules: Sequence[BehaviorRule]
+    ) -> list[BehaviorRule]:
+        marks = usage_marks_of(request)
+        recorded_before = marks.global_usage_rule_ids if marks is not None else ()
+        return [
+            rule
+            for rule in rules
+            if _counts_in_response_phase(rule)
+            and (
+                rule.rule_type == "return_pattern"
+                or rule.discriminator() not in recorded_before
+            )
+        ]
 
     async def _evaluate_global_usage_rule(
         self,
