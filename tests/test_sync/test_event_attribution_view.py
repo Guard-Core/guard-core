@@ -1,4 +1,5 @@
 import ipaddress
+import logging
 import time
 from unittest.mock import MagicMock
 
@@ -162,7 +163,9 @@ def test_a_request_without_a_route_list_does_not_run_the_selector_merge(
     monkeypatch.setattr(resolver_module, "merge_cloud_selectors", forbidden)
     config = _config(block_cloud_providers={"GCP"})
     resolver = RouteConfigResolver(
-        RoutingContext(config=config, logger=None, guard_decorator=None)
+        RoutingContext(
+            config=config, logger=logging.getLogger("wp23"), guard_decorator=None
+        )
     )
 
     assert resolver.get_cloud_providers_to_check(None) == ["GCP"]
