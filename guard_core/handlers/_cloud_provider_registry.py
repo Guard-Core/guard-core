@@ -17,6 +17,29 @@ def _parse_cloud_selectors(
     return blocked, carveouts
 
 
+def merge_cloud_selectors(*sources: Collection[str] | None) -> set[str]:
+    """Union what the sources block: a provider is blocked when any source
+    blocks it, and its carve-outs are those every blocking source shares."""
+    blocked: set[str] = set()
+    shared: dict[str, set[str]] = {}
+    for source in sources:
+        source_blocked, source_carveouts = _parse_cloud_selectors(set(source or ()))
+        for provider in source_blocked:
+            regions = source_carveouts.get(provider, set())
+            shared[provider] = (
+                shared[provider] & regions if provider in blocked else set(regions)
+            )
+            blocked.add(provider)
+    return {
+        selector
+        for provider in blocked
+        for selector in (
+            [f"{provider}:!{region}" for region in sorted(shared[provider])]
+            or [provider]
+        )
+    }
+
+
 def _bare_provider_names(providers: Collection[str]) -> set[str]:
     return {provider.partition(":!")[0] for provider in providers}
 

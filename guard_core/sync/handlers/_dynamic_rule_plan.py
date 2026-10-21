@@ -12,6 +12,7 @@ from guard_core._security_config_field_validators import (
 )
 from guard_core.models import DynamicRules, SecurityConfig
 from guard_core.sync._utils.detection_scan import _redact_pattern_source
+from guard_core.sync.handlers._cloud_provider_registry import merge_cloud_selectors
 from guard_core.sync.handlers._dynamic_rule_validation import (
     MalformedDynamicRules,
     find_malformed_values,
@@ -162,7 +163,7 @@ class DynamicRulePlanMixin:
             if name is not None
         ]
         merged = frozenset(
-            _merge_unique(plan.state.get("block_cloud_providers"), valid)
+            merge_cloud_selectors(plan.state.get("block_cloud_providers"), valid)
         )
         plan.set("block_cloud_providers", merged)
         plan.note(f"Dynamic rule: Blocked cloud providers {merged}")

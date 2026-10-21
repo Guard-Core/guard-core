@@ -17,7 +17,12 @@ from guard_core.handlers.suspatterns_handler import sus_patterns_handler
 from guard_core.models import DynamicRules, SecurityConfig
 from guard_core.utils import detect_penetration_attempt
 from tests.conftest import MockGuardRequest
-from tests.test_core.conftest import build_middleware, fixed_country_geo_ip
+from tests.test_core.conftest import (
+    build_middleware,
+    build_route_pipeline,
+    fixed_country_geo_ip,
+    send_request,
+)
 
 RULE_ID = "rule-wp23"
 RULE_IP = "198.51.100.21"
@@ -698,10 +703,38 @@ async def test_a_rule_block_with_a_static_carve_out_stamps_the_overlap_elsewhere
     assert _attr(event) == DYNAMIC_OVERLAP
 
 
-async def test_a_region_the_static_carve_out_frees_stays_free_under_a_rule_block() -> (
-    None
-):
-    assert await _gcp_events({"GCP:!us-central1"}, {"GCP"}, CENTRAL_IP) == []
+async def test_a_rule_block_wins_over_a_static_carve_out_of_the_same_region() -> None:
+    [event] = await _gcp_events({"GCP:!us-central1"}, {"GCP"}, CENTRAL_IP)
+
+    assert _attr(event) == DYNAMIC
+
+
+async def test_a_static_block_wins_over_a_rule_carve_out_of_the_same_region() -> None:
+    [event] = await _gcp_events({"GCP"}, {"GCP:!us-central1"}, CENTRAL_IP)
+
+    assert _attr(event) == {}
+
+
+async def test_a_region_both_sources_carve_out_stays_free() -> None:
+    assert (
+        await _gcp_events({"GCP:!us-central1"}, {"GCP:!us-central1"}, CENTRAL_IP) == []
+    )
+
+
+async def test_a_route_block_wins_over_a_global_carve_out_and_back() -> None:
+    for global_selector, route_selector in (
+        ("GCP:!us-central1", "GCP"),
+        ("GCP", "GCP:!us-central1"),
+    ):
+        config = _config(enable_dynamic_rules=False, enable_agent=False)
+        config.block_cloud_providers = frozenset({global_selector})
+        pipeline, middleware, route_id = build_route_pipeline(
+            config, lambda d, sel=route_selector: d.block_clouds([sel])
+        )
+        with _gcp_ranges():
+            response = await send_request(pipeline, route_id, ip=CENTRAL_IP)
+
+        assert response is not None and response.status_code == 403
 
 
 async def test_a_provider_only_the_static_list_blocks_is_not_the_rules() -> None:

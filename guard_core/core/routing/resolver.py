@@ -1,5 +1,6 @@
 from guard_core.core.routing.context import RoutingContext
 from guard_core.decorators.base import RouteConfig
+from guard_core.handlers._cloud_provider_registry import merge_cloud_selectors
 from guard_core.protocols.request_protocol import GuardRequest
 
 
@@ -51,7 +52,8 @@ class RouteConfigResolver:
     def get_cloud_providers_to_check(
         self, route_config: RouteConfig | None
     ) -> list[str] | None:
-        providers = set(self.context.config.block_cloud_providers or ())
-        if route_config:
-            providers.update(route_config.block_cloud_providers)
+        providers = merge_cloud_selectors(
+            self.context.config.block_cloud_providers,
+            route_config.block_cloud_providers if route_config else None,
+        )
         return list(providers) if providers else None
