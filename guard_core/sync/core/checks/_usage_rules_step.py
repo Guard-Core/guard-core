@@ -1,5 +1,5 @@
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, cast
 
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.core.behavioral._throttle import (
@@ -16,49 +16,29 @@ from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 _ROUTE_NOT_RESOLVED = object()
 
 
-def _shared_middleware(checks: Sequence[SecurityCheck]) -> Any:
-    return checks[0].middleware
-
-
-def _has_processor(middleware: Any) -> bool:
-    return isinstance(
-        getattr(middleware, "behavioral_processor", None), BehavioralProcessor
-    )
-
-
-def _rules_configured(config: Any, route_config: Any) -> bool:
-    return bool(config.global_behavior_rules) or bool(
-        route_config is not None and route_config.behavior_rules
-    )
-
-
-def _is_cors_preflight(config: Any, request: SyncGuardRequest) -> bool:
-    return bool(config.enable_cors and is_preflight(request.method, request.headers))
-
-
-def _step_applies(
-    middleware: Any, request: SyncGuardRequest, route_config: Any
-) -> bool:
-    config = middleware.config
-    return (
-        _has_processor(middleware)
-        and _rules_configured(config, route_config)
-        and not _is_cors_preflight(config, request)
-        and bool(getattr(request.state, "client_ip", None))
-    )
-
-
 def enforce_usage_rules(
     checks: Sequence[SecurityCheck], request: SyncGuardRequest
 ) -> GuardResponse | None:
+    # One function on purpose: it runs on every request of a pipeline that
+    # resolved a route, so each helper would be a call added to the hot path.
     route_config: Any = getattr(request.state, "route_config", _ROUTE_NOT_RESOLVED)
     if route_config is _ROUTE_NOT_RESOLVED or not checks:
         return None
-    middleware = _shared_middleware(checks)
-    if not _step_applies(middleware, request, route_config):
+    middleware = cast(Any, checks[0].middleware)
+    config = middleware.config
+    processor = getattr(middleware, "behavioral_processor", None)
+    client_ip = getattr(request.state, "client_ip", None)
+    if not (isinstance(processor, BehavioralProcessor) and client_ip):
         return None
-    refused: GuardResponse | None = middleware.behavioral_processor.process_usage_rules(
-        request, request.state.client_ip, route_config, middleware
+    if not (
+        config.global_behavior_rules
+        or (route_config is not None and route_config.behavior_rules)
+    ):
+        return None
+    if config.enable_cors and is_preflight(request.method, request.headers):
+        return None
+    refused: GuardResponse | None = processor.process_usage_rules(
+        request, client_ip, route_config, middleware
     )
     return refused
 
