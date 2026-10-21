@@ -41,13 +41,7 @@ def _limit_pair(value: Any) -> tuple[Any, ...]:
 
 
 def _listed_ban_members(listed: Sequence[str]) -> frozenset[str]:
-    members: set[str] = set()
-    for entry in listed:
-        try:
-            members.add(rule_ban_member(entry))
-        except ValueError:
-            continue
-    return frozenset(members)
+    return frozenset(rule_ban_member(entry) for entry in listed)
 
 
 @dataclass(frozen=True)

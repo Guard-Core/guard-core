@@ -14,10 +14,6 @@ def set_attribution_view(view: RuleAttribution | None) -> None:
     _applied = view
 
 
-def _applied_attribution() -> RuleAttribution | None:
-    return _applied
-
-
 def cached_ban_stamp(client_ip: str, bans: Any) -> dict[str, Any] | None:
     """The stamp kept for a banned address, ``{}`` when no rule set is applied,
     ``None`` when it has to be worked out (``ban_attribution``)."""

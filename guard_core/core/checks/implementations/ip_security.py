@@ -409,7 +409,7 @@ class IpSecurityCheck(SecurityCheck):
         """Send country_blocked and return the rule attribution it carried (empty
         when no agent consumes events), for the ip_blocked event that follows."""
         attribution = (
-            self._country_rule_attribution(access_result)
+            country_attribution(access_result.country_rule, access_result.country)
             if self.middleware.event_bus.agent_handler
             and self.config.agent_enable_events
             else {}
@@ -427,12 +427,6 @@ class IpSecurityCheck(SecurityCheck):
             **attribution,
         )
         return attribution
-
-    @staticmethod
-    def _country_rule_attribution(access_result: IpAccessResult) -> dict[str, Any]:
-        if not access_result.country_rule:
-            return {}
-        return country_attribution(access_result.country_rule, access_result.country)
 
     def _forwarded_for_claims_privileged_address(
         self, forwarded_for: str, route_config: RouteConfig | None

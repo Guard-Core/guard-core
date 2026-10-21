@@ -461,20 +461,6 @@ class RedisManager:
 
         return list(self.safe_operation(_members) or [])
 
-    def owned_ban_expiry(self, namespace: str, key: str) -> float | None:
-        """The expiry the dynamic rule wrote for one ban (its score in the owned
-        set), or None when the rule does not own that ban."""
-        if not self.config.enable_redis:
-            return None
-        member = f"{self.config.redis_prefix}{namespace}:{key}"
-
-        def _score(conn: Redis) -> float | None:
-            score = conn.zscore(self._owned_bans_key(), member)
-            return None if score is None else float(score)
-
-        answer: float | None = self.safe_operation(_score)
-        return answer
-
     def owned_ban_state(
         self, namespace: str, key: str
     ) -> tuple[float | None, float | None]:
