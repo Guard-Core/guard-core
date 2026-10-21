@@ -1067,6 +1067,7 @@ class SusPatternsManager(_SusPatternsViewsMixin):
         threat_categories = _collect_threat_categories(threats)
 
         pattern_matched = _redact_pattern_source(pattern_info)
+        consumer = self._events_agent_handler
 
         self._send_pattern_event(
             event_type=EVENT_PATTERN_DETECTED,
@@ -1074,7 +1075,7 @@ class SusPatternsManager(_SusPatternsViewsMixin):
             action_taken="threat_detected",
             reason=f"Threat detected in {context}",
             pattern_matched=pattern_matched,
-            endpoint=_scanned_request_endpoint(),
+            endpoint=_scanned_request_endpoint() if consumer else None,
             pattern=pattern_matched,
             context=context,
             content_preview=_sanitize_for_reporting(capped_preview),
@@ -1090,7 +1091,7 @@ class SusPatternsManager(_SusPatternsViewsMixin):
             category=threat_categories[0] if threat_categories else None,
             **(
                 pattern_attribution(matched_patterns[0] if matched_patterns else None)
-                if self._events_agent_handler
+                if consumer
                 else {}
             ),
         )

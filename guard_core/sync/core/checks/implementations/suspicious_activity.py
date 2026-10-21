@@ -124,7 +124,12 @@ class SuspiciousActivityCheck(SecurityCheck):
             request_count=self._total_count_for_ip(client_ip),
             passive_mode=True,
             trigger_info=trigger_info,
-            **self._detection_event_fields(result),
+            **(
+                self._detection_event_fields(result)
+                if self.middleware.event_bus.agent_handler
+                and self.config.agent_enable_events
+                else {}
+            ),
             **(
                 pattern_attribution(result.matched_pattern_source)
                 if self.middleware.event_bus.agent_handler
@@ -164,7 +169,12 @@ class SuspiciousActivityCheck(SecurityCheck):
                 request_count=strikes.banning_count or 0,
                 ban_duration=strikes.banned_duration,
                 trigger_info=trigger_info,
-                **self._detection_event_fields(result),
+                **(
+                    self._detection_event_fields(result)
+                    if self.middleware.event_bus.agent_handler
+                    and self.config.agent_enable_events
+                    else {}
+                ),
                 **(
                     pattern_attribution(result.matched_pattern_source)
                     if self.middleware.event_bus.agent_handler
@@ -199,7 +209,12 @@ class SuspiciousActivityCheck(SecurityCheck):
             reason=f"Penetration attempt detected: {trigger_info}",
             request_count=strikes.count_or(lambda: self._total_count_for_ip(client_ip)),
             trigger_info=trigger_info,
-            **self._detection_event_fields(result),
+            **(
+                self._detection_event_fields(result)
+                if self.middleware.event_bus.agent_handler
+                and self.config.agent_enable_events
+                else {}
+            ),
             **(
                 pattern_attribution(result.matched_pattern_source)
                 if self.middleware.event_bus.agent_handler
