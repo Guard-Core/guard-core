@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from guard_core.core.checks.factory import build_default_pipeline
+from guard_core.core.checks.implementations import ip_security as ip_security_module
 from guard_core.core.checks.pipeline import SecurityCheckPipeline
 from guard_core.decorators import SecurityDecorator
 from guard_core.handlers._dynamic_rule_attribution import RuleAttribution
@@ -838,6 +839,13 @@ def _count_view_reads(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 
     for name in _VIEW_READERS:
         monkeypatch.setattr(RuleAttribution, name, counting(name))
+    held_stamp = ip_security_module.cached_ban_stamp
+
+    def read_held_stamp(*args: Any, **kwargs: Any) -> Any:
+        reads.append("cached_ban_stamp")
+        return held_stamp(*args, **kwargs)
+
+    monkeypatch.setattr(ip_security_module, "cached_ban_stamp", read_held_stamp)
     return reads
 
 
