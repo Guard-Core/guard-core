@@ -128,14 +128,27 @@ class IpBanLookupMixin(IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptionMix
         ip = _canonicalize_ip(ip)
         now = time.time()
         identity = self._grouped_identity_of(ip, self.config) if ":" in ip else None
-        for namespace, key in (("banned_ips", ip), ("banned_identities", identity)):
-            expiry = self.banned_ips.get(key) if key is not None else None
-            if expiry is not None and expiry > now:
-                return f"{namespace}:{key}", expiry
+        held = self._deciding_keyed_entry(ip, identity, now)
+        if held is not None:
+            return held
         try:
             addr = ipaddress.ip_address(ip)
         except ValueError:
             return None
+        return self._deciding_network_entry(addr, now)
+
+    def _deciding_keyed_entry(
+        self, ip: str, identity: str | None, now: float
+    ) -> tuple[str, float] | None:
+        for namespace, key in (("banned_ips", ip), ("banned_identities", identity)):
+            expiry = self.banned_ips.get(key) if key is not None else None
+            if expiry is not None and expiry > now:
+                return f"{namespace}:{key}", expiry
+        return None
+
+    def _deciding_network_entry(
+        self, addr: ipaddress.IPv4Address | ipaddress.IPv6Address, now: float
+    ) -> tuple[str, float] | None:
         for network, expiry in self.banned_networks:
             if expiry > now and addr.version == network.version and addr in network:
                 return f"banned_networks:{network}", expiry

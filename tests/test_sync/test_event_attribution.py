@@ -751,7 +751,7 @@ def test_the_view_is_built_when_the_set_changes_not_on_the_first_block() -> None
     assert rebuilt[1].rule_id == "rule-two"
     assert rebuilt[1].owned_ban_members == frozenset({f"banned_ips:{OTHER_IP}"})
 
-    manager._check_rule_expiry()
+    assert manager.current_rules is not None
     manager.current_rules.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
     manager._check_rule_expiry()
     assert manager._attribution_cache is None
