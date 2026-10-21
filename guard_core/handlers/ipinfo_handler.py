@@ -158,6 +158,8 @@ class IPInfoManager(
                 reader.get("192.0.2.1")
             finally:
                 reader.close()
+        except OSError:
+            raise
         except Exception as e:
             raise ValueError(f"not a usable GeoIP database: {e}") from e
 
@@ -185,6 +187,7 @@ class IPInfoManager(
     async def _initialize_database(self) -> None:
         try:
             os.makedirs(self.db_path.parent, exist_ok=True)
+            self._remove_stale_temp_files()
 
             if await self._adopt_redis_copy():
                 return
