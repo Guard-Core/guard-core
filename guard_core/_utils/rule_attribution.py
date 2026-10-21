@@ -14,9 +14,9 @@ def _applied_attribution() -> RuleAttribution | None:
     return view
 
 
-def ban_attribution(client_ip: str, bans: Any) -> dict[str, Any]:
+async def ban_attribution(client_ip: str, bans: Any) -> dict[str, Any]:
     view = _applied_attribution()
-    return view.for_ban(client_ip, bans) if view else {}
+    return await view.for_ban(client_ip, bans) if view else {}
 
 
 def country_attribution(

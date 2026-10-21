@@ -465,6 +465,20 @@ class RedisManager:
 
         return list(await self.safe_operation(_members) or [])
 
+    async def owned_ban_expiry(self, namespace: str, key: str) -> float | None:
+        """The expiry the dynamic rule wrote for one ban (its score in the owned
+        set), or None when the rule does not own that ban."""
+        if not self.config.enable_redis:
+            return None
+        member = f"{self.config.redis_prefix}{namespace}:{key}"
+
+        async def _score(conn: Redis) -> float | None:
+            score = await conn.zscore(self._owned_bans_key(), member)
+            return None if score is None else float(score)
+
+        answer: float | None = await self.safe_operation(_score)
+        return answer
+
     async def purge_owned_ban(self, member: str) -> int:
         """Lift one owned ban down to its floor, or off, in one script call, and
         drop it from the owned set. Returns 0 (already gone), 1 (deleted),

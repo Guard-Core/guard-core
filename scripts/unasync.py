@@ -53,6 +53,7 @@ SKIP_TESTS = {
     "test_dynamic_rule_revoke_second_worker.py",
     "test_nested_conftest_defines_no_fixtures.py",
     "test_event_correlation_parallel.py",
+    "test_ban_attribution_cross_worker.py",
 }
 
 SKIP_DIRS = {"__pycache__", "sync"}
@@ -427,6 +428,10 @@ TEST_SUBS: list[tuple[str, str]] = [
     (
         r"from tests\.test_dynamic_rule_revoke_owned_only import",
         "from tests.test_sync.test_dynamic_rule_revoke_owned_only import",
+    ),
+    (
+        r"from tests\.test_event_attribution import",
+        "from tests.test_sync.test_event_attribution import",
     ),
     (
         r"from tests\.ipban_redis_fake import",

@@ -6,10 +6,7 @@ from typing import Any
 
 from guard_core.sync.handlers._ipban_cache import _BanStore, _Network
 from guard_core.sync.handlers._ipban_events import IpBanEventMixin
-from guard_core.sync.handlers._ipban_rule_exempt import (
-    DYNAMIC_RULE_BAN_REASON,
-    rule_ban_target,
-)
+from guard_core.sync.handlers._ipban_rule_exempt import rule_ban_target
 from guard_core.sync.handlers._ipban_version import IpBanVersionMixin
 
 REVOKE_GONE = 0
@@ -19,6 +16,7 @@ REVOKE_KEPT = 3
 _LIFTED = (REVOKE_DELETED, REVOKE_REWRITTEN)
 _REVOKE_REASON = "dynamic_rule_revoked"
 _RULE_NAMESPACES = ("banned_ips", "banned_networks")
+_OWNED_EXPIRY_TOLERANCE = 1e-6
 
 
 class IpBanRuleRevokeMixin(IpBanVersionMixin, IpBanEventMixin):
@@ -36,29 +34,49 @@ class IpBanRuleRevokeMixin(IpBanVersionMixin, IpBanEventMixin):
     redis_handler: Any = None
     logger: logging.Logger
     _rule_owned_expiries: dict[str, float]
-    _rule_written_expiries: dict[str, float]
     _rule_floor_expiries: dict[str, float]
     _foreign_network_expiries: dict[str, float]
     MAX_LOCAL_BANS: int
 
-    def _note_rule_written(
-        self, namespace: str, key: str, expiry: float, reason: str
-    ) -> None:
-        """Remember the expiry a dynamic rule wrote for a ban, whatever longer
-        or shorter ban another source holds under the same key afterwards."""
-        if reason == DYNAMIC_RULE_BAN_REASON:
-            self._rule_written_expiries[f"{namespace}:{key}"] = expiry
-
     def rule_written_expiry(self, member: str) -> float | None:
-        return self._rule_written_expiries.get(member)
+        """The expiry this process recorded when a dynamic rule wrote the ban
+        under ``member`` (``namespace:key``), for a ban held without Redis."""
+        return self._rule_owned_expiries.get(member)
 
     def forget_rule_written_except(self, members: Iterable[str]) -> None:
         keep = set(members)
-        self._rule_written_expiries = {
+        self._rule_owned_expiries = {
             member: expiry
-            for member, expiry in self._rule_written_expiries.items()
+            for member, expiry in self._rule_owned_expiries.items()
             if member in keep
         }
+
+    def rule_owns_live_ban(self, member: str) -> bool:
+        """True when the live ban under ``member`` (``namespace:key``) is the one
+        a dynamic rule wrote: the rule owns it, its own expiry has not passed and
+        the live ban is not longer than that expiry (a longer ban written over it
+        is another source's). Redis answers from the shared owned set and the
+        stored ban, so every worker gives the same verdict, whatever its local
+        cache holds; without Redis the same test runs on this process's record."""
+        namespace, _, key = member.partition(":")
+        now = time.time()
+        if self.redis_handler:
+            try:
+                owned = self.redis_handler.owned_ban_expiry(namespace, key)
+                stored = self.redis_handler.get_key(namespace, key)
+            except Exception as error:
+                self.logger.warning("Ban attribution skipped, Redis failed: %s", error)
+                return False
+            live = float(stored) if stored else None
+        else:
+            owned = self.rule_written_expiry(member)
+            live = self._live_memory_expiry(namespace, key, now)
+        return (
+            owned is not None
+            and live is not None
+            and owned > now
+            and live <= owned + _OWNED_EXPIRY_TOLERANCE
+        )
 
     def _live_memory_expiry(self, namespace: str, key: str, now: float) -> float | None:
         if namespace == "banned_networks":

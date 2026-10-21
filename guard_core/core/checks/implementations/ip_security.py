@@ -172,7 +172,7 @@ class IpSecurityCheck(SecurityCheck):
             reason=f"Banned IP attempted access: {client_ip}",
             ip_address=client_ip,
             filter_type="banned",
-            **ban_attribution(client_ip, self.ip_ban_manager),
+            **await ban_attribution(client_ip, self.ip_ban_manager),
         )
 
         if not self.config.passive_mode:

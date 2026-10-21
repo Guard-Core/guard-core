@@ -10,7 +10,13 @@ from guard_core.sync.detection_result import DetectionResult
 from guard_core.sync.handlers._dynamic_rule_attribution import build_rule_attribution
 from guard_core.sync.handlers._ipban_cache import _OperatorNetworks
 from guard_core.sync.handlers.ipban_handler import ip_ban_manager
-from tests.test_event_attribution import DYNAMIC, OTHER_IP, RULE_IP, _config, _rules
+from tests.test_sync.test_event_attribution import (
+    DYNAMIC,
+    OTHER_IP,
+    RULE_IP,
+    _config,
+    _rules,
+)
 
 
 def test_the_view_ignores_what_it_cannot_parse_or_does_not_own() -> None:
@@ -72,7 +78,10 @@ def test_the_deciding_ban_entry_follows_the_order_of_the_lookup(
 
 
 def test_the_view_still_exposes_the_owned_networks_and_provider_names() -> None:
-    rules = _rules(blocked_cloud_providers={"AWS", "GCP:!us-central1"})
+    rules = _rules(
+        blocked_cloud_providers={"AWS", "GCP:!us-central1"},
+        ip_blacklist=[RULE_IP, "198.51.100.0/24"],
+    )
     config = _config(block_cloud_providers={"Azure"})
     view = build_rule_attribution(
         rules,
@@ -126,3 +135,14 @@ def test_the_per_request_cover_check_does_not_go_through_the_attribution_lookup(
 
     assert networks.covers(ipaddress.ip_address("203.0.113.9"), now) is True
     assert networks.covers(ipaddress.ip_address("192.0.2.9"), now) is False
+
+
+def test_the_process_record_of_a_rule_write_can_be_read_and_pruned() -> None:
+    ip_ban_manager._rule_owned_expiries = {"banned_ips:a": 1.0, "banned_ips:b": 2.0}
+
+    assert ip_ban_manager.rule_written_expiry("banned_ips:a") == 1.0
+    ip_ban_manager.forget_rule_written_except(["banned_ips:b"])
+
+    assert ip_ban_manager.rule_written_expiry("banned_ips:a") is None
+    assert ip_ban_manager.rule_written_expiry("banned_ips:b") == 2.0
+    ip_ban_manager._rule_owned_expiries = {}

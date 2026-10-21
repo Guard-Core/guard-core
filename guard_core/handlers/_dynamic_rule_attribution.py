@@ -1,5 +1,4 @@
 import ipaddress
-import time
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -13,8 +12,6 @@ from guard_core.handlers._cloud_provider_registry import _parse_cloud_selectors
 from guard_core.handlers._ipban_rule_exempt import rule_ban_member
 
 MATCHED_RULE_TYPE_DYNAMIC = "dynamic"
-
-_EXPIRY_TOLERANCE = 1e-6
 
 _Selectors = tuple[frozenset[str], Mapping[str, frozenset[str]]]
 
@@ -42,8 +39,14 @@ def _limit_pair(value: Any) -> tuple[Any, ...]:
     return tuple(value)
 
 
-def _owned_ban_members(owned_bans: Sequence[str]) -> frozenset[str]:
-    return frozenset(rule_ban_member(entry) for entry in owned_bans)
+def _listed_ban_members(listed: Sequence[str]) -> frozenset[str]:
+    members: set[str] = set()
+    for entry in listed:
+        try:
+            members.add(rule_ban_member(entry))
+        except ValueError:
+            continue
+    return frozenset(members)
 
 
 @dataclass(frozen=True)
@@ -58,7 +61,7 @@ class RuleAttribution:
 
     rule_id: str
     config: Any
-    owned_ban_members: frozenset[str]
+    listed_ban_members: frozenset[str]
     blocked_countries: frozenset[str]
     static_blocked_countries: frozenset[str]
     whitelist_countries_in_force: bool
@@ -77,11 +80,17 @@ class RuleAttribution:
     static_emergency: bool
 
     @property
+    def owned_ban_members(self) -> frozenset[str]:
+        """The ban entries the rule lists; Redis (or this process) says which of
+        them it owns at the moment a ban answers."""
+        return self.listed_ban_members
+
+    @property
     def ban_networks(self) -> tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...]:
         """The addresses and networks the rule owns bans on."""
         return tuple(
             ipaddress.ip_network(member.partition(":")[2], strict=False)
-            for member in sorted(self.owned_ban_members)
+            for member in sorted(self.listed_ban_members)
         )
 
     @property
@@ -103,18 +112,11 @@ class RuleAttribution:
             stamp["matched_rule_overlaps_static"] = True
         return stamp
 
-    def for_ban(self, client_ip: str, bans: Any) -> dict[str, Any]:
+    async def for_ban(self, client_ip: str, bans: Any) -> dict[str, Any]:
         entry = bans.deciding_ban_entry(client_ip)
-        if entry is None:
+        if entry is None or entry[0] not in self.listed_ban_members:
             return {}
-        member, live = entry
-        written = bans.rule_written_expiry(member)
-        if (
-            member not in self.owned_ban_members
-            or written is None
-            or written <= time.time()
-            or live > written + _EXPIRY_TOLERANCE
-        ):
+        if not await bans.rule_owns_live_ban(entry[0]):
             return {}
         try:
             address = ipaddress.ip_address(client_ip)
@@ -183,7 +185,7 @@ def build_rule_attribution(
     return RuleAttribution(
         rule_id=str(rules.rule_id),
         config=config,
-        owned_ban_members=_owned_ban_members(owned_bans),
+        listed_ban_members=_listed_ban_members(rules.ip_blacklist),
         blocked_countries=frozenset(code.upper() for code in rules.blocked_countries),
         static_blocked_countries=frozenset(base.get("blocked_countries") or ()),
         whitelist_countries_in_force=bool(rules.whitelist_countries),

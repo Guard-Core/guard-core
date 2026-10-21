@@ -61,7 +61,6 @@ class IpBanOperationsMixin(
 
         if self.redis_handler is None:
             expiry = time.time() + duration
-            self._note_rule_written("banned_networks", str(network), expiry, reason)
             self._remember_network_ban(
                 network, expiry, reason == DYNAMIC_RULE_BAN_REASON
             )
@@ -85,7 +84,6 @@ class IpBanOperationsMixin(
         self, network: _Network, duration: int, reason: str = "operator"
     ) -> None:
         expiry = time.time() + duration
-        self._note_rule_written("banned_networks", str(network), expiry, reason)
         try:
             await self.redis_handler.write_ban_extending_only(
                 "banned_networks",
@@ -136,7 +134,6 @@ class IpBanOperationsMixin(
         recidive_count: int | None = None,
     ) -> None:
         expiry = time.time() + duration
-        self._note_rule_written(namespace, key, expiry, reason)
         backed = bool(self.redis_handler)
         rule_owned = reason == DYNAMIC_RULE_BAN_REASON
         if not backed:
