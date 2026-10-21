@@ -12,11 +12,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT))
 
 from events_cases import EVENTS_SUITES  # noqa: E402
-from events_harness import (  # noqa: E402
-    EVENT_DROP_KEYS,
-    EVENT_VOLATILE_METADATA,
-    run_events_case,
-)
+from events_harness import EVENT_DROP_KEYS, run_events_case  # noqa: E402
 from pipeline_cases import PIPELINE_SUITES  # noqa: E402
 from pipeline_harness import run_case  # noqa: E402
 from redis_interop_cases import REDIS_SUITES, run_redis_case  # noqa: E402
@@ -629,6 +625,8 @@ def suite_consumers(kind: str) -> list[str]:
 def build_index(
     results: dict[str, dict], config: SecurityConfig, generated_at: str
 ) -> dict:
+    import events_harness
+
     return {
         "spec_version": SPEC_VERSION,
         "engine_version": engine_version,
@@ -663,7 +661,9 @@ def build_index(
             "events_volatile_fields": sorted(EVENT_DROP_KEYS),
             "events_volatile_metadata": {
                 event_type: list(keys)
-                for event_type, keys in sorted(EVENT_VOLATILE_METADATA.items())
+                for event_type, keys in sorted(
+                    events_harness.EVENT_VOLATILE_METADATA.items()
+                )
             },
             "redis_interop": (
                 "byte equality: keys, static string values and TTL "
