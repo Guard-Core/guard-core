@@ -7,10 +7,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from guard_core._utils import rule_attribution as rule_attribution_module
 from guard_core.core.checks.factory import build_default_pipeline
 from guard_core.core.checks.pipeline import SecurityCheckPipeline
 from guard_core.decorators import SecurityDecorator
+from guard_core.handlers._dynamic_rule_attribution import RuleAttribution
 from guard_core.handlers.cloud_handler import cloud_handler
 from guard_core.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.handlers.ipban_handler import ip_ban_manager
@@ -812,11 +812,33 @@ async def test_the_view_is_built_when_the_set_changes_not_on_the_first_block() -
     assert manager._attribution_cache is None
 
 
-class _MustNotBeRead:
-    """A view that fails the test when anything reads it."""
+_VIEW_READERS = (
+    "for_ban",
+    "for_country",
+    "for_cloud_provider",
+    "for_user_agent_pattern",
+    "for_rate_limit_tier",
+    "for_emergency_mode",
+    "for_pattern",
+)
 
-    def __getattr__(self, name: str) -> Any:
-        raise AssertionError(f"the attribution view was read ({name}) with no consumer")
+
+def _count_view_reads(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """Wrap every reader of the rule attribution view; each call is recorded."""
+    reads: list[str] = []
+
+    def counting(name: str) -> Callable[..., Any]:
+        original = getattr(RuleAttribution, name)
+
+        def read(*args: Any, **kwargs: Any) -> Any:
+            reads.append(name)
+            return original(*args, **kwargs)
+
+        return read
+
+    for name in _VIEW_READERS:
+        monkeypatch.setattr(RuleAttribution, name, counting(name))
+    return reads
 
 
 def _real_bus(config: SecurityConfig, middleware: Any, agent: Any) -> None:
@@ -837,7 +859,7 @@ async def test_a_blocked_request_with_no_event_consumer_never_reads_the_view(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     geo = fixed_country_geo_ip("CN")
-    config = _config(
+    config = _detection_config(
         geo_ip_handler=geo,
         blocked_user_agents=["wp23bot"],
         blocked_countries=["CN"],
@@ -852,7 +874,8 @@ async def test_a_blocked_request_with_no_event_consumer_never_reads_the_view(
             suspicious_patterns=["wp23dyn[a-z]{3,6}"],
         ),
     )
-    monkeypatch.setattr(rule_attribution_module, "_applied", _MustNotBeRead())
+    monkeypatch.setattr(sus_patterns_handler, "agent_handler", None)
+    reads = _count_view_reads(monkeypatch)
     config.agent_enable_events = True
 
     banned = await _blocked_without_a_consumer(config, _request(RULE_IP), geo)
@@ -860,8 +883,15 @@ async def test_a_blocked_request_with_no_event_consumer_never_reads_the_view(
         config, _request(OTHER_IP, headers={"User-Agent": "wp23bot/1.0"}), geo
     )
 
+    config.blocked_countries = []
+    pattern = await _blocked_without_a_consumer(
+        config, _request(OTHER_IP, path="/search?q=wp23dynabc"), geo
+    )
+
     assert banned is not None and banned.status_code == 403
     assert other is not None and other.status_code == 403
+    assert pattern is not None and pattern.status_code == 400
+    assert reads == [], f"the attribution view was read with no consumer: {reads}"
 
 
 async def test_a_blocked_request_with_a_consumer_still_reads_the_view() -> None:
