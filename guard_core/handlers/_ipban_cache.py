@@ -131,7 +131,14 @@ class _OperatorNetworks:
     def covers(
         self, address: ipaddress.IPv4Address | ipaddress.IPv6Address, now: float
     ) -> bool:
-        return self.covering(address, now) is not None
+        value = int(address)
+        bits = address.max_prefixlen
+        for prefixlen, members in self._buckets[address.version]:
+            shift = bits - prefixlen
+            expiry = members.get(value >> shift << shift)
+            if expiry is not None and expiry > now:
+                return True
+        return False
 
     def covering(
         self, address: ipaddress.IPv4Address | ipaddress.IPv6Address, now: float

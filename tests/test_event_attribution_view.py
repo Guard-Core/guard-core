@@ -111,3 +111,18 @@ def test_cloud_membership_and_overlap_use_the_provider_and_region_of_the_selecto
         **DYNAMIC,
         "matched_rule_overlaps_static": True,
     }
+
+
+def test_the_per_request_cover_check_does_not_go_through_the_attribution_lookup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = time.time()
+    networks = _OperatorNetworks({ipaddress.ip_network("203.0.113.0/24"): now + 60})
+
+    def forbidden(*_args: object) -> None:
+        raise AssertionError("covers must stay one pass, no extra call per request")
+
+    monkeypatch.setattr(networks, "covering", forbidden)
+
+    assert networks.covers(ipaddress.ip_address("203.0.113.9"), now) is True
+    assert networks.covers(ipaddress.ip_address("192.0.2.9"), now) is False
