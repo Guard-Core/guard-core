@@ -221,7 +221,7 @@ async def _scan_json_container_frame(
             context,
             capped_preview,
             sensitive_params,
-            walk_again=depth > 1,
+            walk_again=depth > 1 and context != "request_body",
         )
         return hit if hit[0] else None
     if isinstance(current, dict):

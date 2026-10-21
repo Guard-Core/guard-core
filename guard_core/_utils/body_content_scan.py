@@ -625,6 +625,15 @@ async def _scan_blob_body(
     force_redacted: bool = False,
     excluded_body_fields: frozenset[str] = frozenset(),
 ) -> tuple[bool, str, list[dict]]:
+    content_preview: str | LazyPreview = (
+        "[REDACTED]"
+        if force_redacted
+        else LazyPreview(
+            lambda: redact_blob_for_display(
+                raw_body, sensitive_params, sensitive_body_fields
+            )
+        )
+    )
     leaf_hit = await _scan_blob_body_leaves(
         raw_body,
         excluded_body_fields,
@@ -635,16 +644,13 @@ async def _scan_blob_body(
         sensitive_body_fields,
     )
     if leaf_hit is not None:
-        return leaf_hit
-    content_preview: str | LazyPreview = (
-        "[REDACTED]"
-        if force_redacted
-        else LazyPreview(
-            lambda: redact_blob_for_display(
-                raw_body, sensitive_params, sensitive_body_fields
-            )
+        _log_detected_component(
+            _resolve_preview(content_preview) or "",
+            "request body",
+            client_ip,
+            log_level,
         )
-    )
+        return leaf_hit
     with _budget_that_is_never_spent():
         detected, trigger, threats = await _check_request_component(
             raw_body,
