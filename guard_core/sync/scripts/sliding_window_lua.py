@@ -13,9 +13,11 @@ end
 
 SLIDING_WINDOW_HIT_SCRIPT = ADD_TO_RULE_HIT_INDEX + _RECORD_HIT + "return count\n"
 
-# Same effect, replies {count, refused}: refused is 1 when the rule-hit index was
-# full and the key was not indexed. Opt-in, so the reply of the script above stays
-# the bare count for every other caller.
+# Same effect, but replies {count, 1} instead of the bare count when the rule-hit
+# index was full and refused the key. Opt-in, so every other caller keeps the bare
+# count, and a request whose key was indexed gets the same reply as before.
 SLIDING_WINDOW_HIT_REFUSAL_SCRIPT = (
-    ADD_TO_RULE_HIT_INDEX + _RECORD_HIT + "return {count, refused}\n"
+    ADD_TO_RULE_HIT_INDEX
+    + _RECORD_HIT
+    + "if refused == 1 then\n  return {count, 1}\nend\nreturn count\n"
 )

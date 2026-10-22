@@ -571,10 +571,9 @@ class RedisManager:
             except NoScriptError:
                 conn.script_load(script)
                 count = conn.evalsha(sha, len(keys), *keys, *args)
-            if index_refused is not None:
-                count, refused = count
-                if refused:
-                    index_refused.append(True)
+            if index_refused is not None and count.__class__ is list:
+                count = count[0]
+                index_refused.append(True)
             return int(count)
 
         result = self.safe_operation(_record)
