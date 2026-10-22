@@ -1,4 +1,5 @@
 import re
+from functools import lru_cache
 
 from guard_core._utils.route_gate import (
     named_probe_is_not_the_apps_own_route,
@@ -6,12 +7,17 @@ from guard_core._utils.route_gate import (
     path_probe_is_not_the_apps_own_route,
     route_declares,
 )
-from guard_core._utils.source_path_shapes import source_path_leaf_in_benign_shape
+from guard_core._utils.source_path_shapes import (
+    absolute_path_leaf_in_benign_shape,
+    named_file_leaf_in_benign_shape,
+    source_path_leaf_in_benign_shape,
+)
 from guard_core.handlers._suspatterns_sources import (
     _CTX_CMS_PROBING,
     _CTX_RECON,
     _PATH_ONLY_CHAR_RE,
     _PATH_ONLY_SEP_RE,
+    _PATH_ONLY_SUFFIX_RE,
     _PLAIN_SOURCE_OR_MAP_PATH_END_RE,
     _nested_path_pattern,
     _path_only_pattern,
@@ -80,6 +86,28 @@ def source_path_is_a_probe(match: re.Match, context: str) -> bool:
     return not (
         source_path_leaf_in_benign_shape()
         and _PLAIN_SOURCE_OR_MAP_PATH_END_RE.search(match.group())
+    )
+
+
+def absolute_path_is_a_probe(context: str) -> bool:
+    return _source_extension_path_is_probe(context) and not (
+        absolute_path_leaf_in_benign_shape()
+    )
+
+
+@lru_cache(maxsize=256)
+def _named_row_without_path_info(source: str, flags: int) -> re.Pattern[str]:
+    return re.compile(source.removesuffix(_PATH_ONLY_SUFFIX_RE) + r"\s*\Z", flags)
+
+
+def named_file_in_a_push_list_is_plain(pattern: re.Pattern, match: re.Match) -> bool:
+    if not named_file_leaf_in_benign_shape():
+        return False
+    return (
+        _named_row_without_path_info(pattern.pattern, pattern.flags).match(
+            match.group()
+        )
+        is not None
     )
 
 

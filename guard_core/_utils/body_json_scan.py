@@ -23,10 +23,12 @@ from guard_core._utils.source_path_shapes import (
     SHAPE_KEYS,
     BenignShapePath,
     BenignShapePaths,
+    benign_shape_grants,
     benign_shape_keys,
     enter_benign_shape,
     leave_benign_shape,
     mark_benign_shape,
+    mark_benign_shape_path,
 )
 from guard_core.handlers._suspatterns_sources import _EMBEDDED_JSON_LEAF_CONTEXT_SUFFIX
 
@@ -157,12 +159,13 @@ def _push_dict_entries(
         if SHAPE_KEYS.isdisjoint(current)
         else benign_shape_keys(current, label)
     )
+    grants = benign_shape_grants(current, label) if in_shape else {}
     for key, item in reversed(list(current.items())):
         stack.append(
             (
                 "entry",
                 key,
-                mark_benign_shape(item) if key in in_shape else item,
+                mark_benign_shape(item, grants[key]) if key in in_shape else item,
                 depth,
                 redact,
             )
@@ -176,12 +179,14 @@ def _push_list_items(
     redact: bool,
     stack: list[tuple[str, Any, Any, int, bool]],
 ) -> None:
-    in_shape = type(current) is BenignShapePaths
+    in_shape = current.grants if type(current) is BenignShapePaths else None
     for item in reversed(current):
         stack.append(
             (
                 "value",
-                BenignShapePath(item) if in_shape and isinstance(item, str) else item,
+                mark_benign_shape_path(item, in_shape)
+                if in_shape is not None and isinstance(item, str)
+                else item,
                 label,
                 depth + 1,
                 redact,
@@ -281,7 +286,12 @@ def _clean_signature(
         return None if key_text.lower() in excluded_body_fields else ("key", key_text)
     if isinstance(first, dict | list):
         return None
-    return ("leaf", str(first), second, type(first) is BenignShapePath)
+    return (
+        "leaf",
+        str(first),
+        second,
+        first.grants if type(first) is BenignShapePath else None,
+    )
 
 
 def _json_skipped_text(kind: str, first: Any) -> str:
@@ -351,7 +361,9 @@ async def _scan_json_frame(
         if preview_override is not None
         else ("[REDACTED]" if redact else None)
     )
-    shape_token = enter_benign_shape() if type(first) is BenignShapePath else None
+    shape_token = (
+        enter_benign_shape(first.grants) if type(first) is BenignShapePath else None
+    )
     try:
         scalar_hit = await _scan_body_field(
             str(first),

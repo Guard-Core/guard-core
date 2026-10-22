@@ -987,6 +987,18 @@ ROUTE_GATED_PATH_SOURCES: frozenset[str] = frozenset(
     }
 )
 
+# Named file rows (sensitive_file and cms_probing) a push change list clears for
+# plain names (D-124): path-anchored rows that end in the shared path suffix, so a
+# match with nothing after the name can be told from one with path info or a query.
+NAMED_FILE_PATH_SOURCES: frozenset[str] = frozenset(
+    source
+    for source, _contexts, category in _PATTERN_DEFINITIONS
+    if category in {"sensitive_file", "cms_probing"}
+    and source.startswith(r"\A[/\\]")
+    and source.endswith(_PATH_ONLY_SUFFIX_RE)
+    and source not in {_SENSITIVE_SOURCE_EXTENSION_PATH_RE, _MAP_FILE_PATH_RE}
+)
+
 # Recon rows additionally scanned against the signal-preserving raw view. The
 # processed views fold LDAP hex escapes ("\de" -> "Þ") before the pattern
 # tables run, so separator-prefixed probes such as "\default" or

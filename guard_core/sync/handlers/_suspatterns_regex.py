@@ -66,7 +66,9 @@ from guard_core.sync.handlers._suspatterns_matchers import (
 )
 from guard_core.sync.handlers._suspatterns_named_floor import (
     NAMED_FLOOR_TOKEN_PATTERNS,
+    absolute_path_is_a_probe,
     last_segment_is_not_the_apps_own_route,
+    named_file_in_a_push_list_is_plain,
     named_floor_row_is_not_the_apps_own_route,
     named_probe_row_is_not_the_apps_own_route,
     recon_path_is_a_probe,
@@ -76,6 +78,7 @@ from guard_core.sync.handlers._suspatterns_pattern_table import (
     _ABSOLUTE_PATH_VALUE_RE,
     _CMD_PATH_CODE_EXECUTION_RE,
     BACKTICK_WHOLE_VALUE_RE,
+    NAMED_FILE_PATH_SOURCES,
     NOISE_PRONE_PATTERN_SOURCES,
     RECON_OPTIONAL_SEPARATOR_PATTERN_SOURCES,
     ROUTE_GATED_PATH_SOURCES,
@@ -130,7 +133,6 @@ from guard_core.sync.handlers._suspatterns_sources import (
     _XML_XXE_PUBLIC_EXTERNAL_DTD_RE,
     ALL_DETECTION_CATEGORIES,
     _recon_path_value_is_probe,
-    _source_extension_path_is_probe,
 )
 from guard_core.sync.handlers._suspatterns_state import _DetectionState
 from guard_core.sync.handlers._suspatterns_whole_value_rows import (
@@ -194,10 +196,7 @@ _CANDIDATE_REJECTION_VALIDATORS: tuple[
     (_GLUED_BACKTICK_CANDIDATE_RE, _glued_backtick_pair_is_injection),
     (BACKTICK_WHOLE_VALUE_RE, _whole_value_backtick_pairs_are_injection),
     (_CMD_PATH_CODE_EXECUTION_RE, lambda _m, context: context.startswith("url_path")),
-    (
-        _ABSOLUTE_PATH_VALUE_RE,
-        lambda _m, context: _source_extension_path_is_probe(context),
-    ),
+    (_ABSOLUTE_PATH_VALUE_RE, lambda _m, context: absolute_path_is_a_probe(context)),
     (_SENSITIVE_SOURCE_EXTENSION_PATH_RE, source_path_is_a_probe),
     (_MAP_FILE_PATH_RE, source_path_is_a_probe),
     (_RECON_EXTENSION_PATH_RE, recon_path_is_a_probe),
@@ -280,6 +279,10 @@ def _build_regex_threat(
     for candidate, is_valid_threat in _CANDIDATE_REJECTION_VALIDATORS:
         if pattern.pattern == candidate and not is_valid_threat(match, context):
             return None
+    if pattern.pattern in NAMED_FILE_PATH_SOURCES and (
+        named_file_in_a_push_list_is_plain(pattern, match)
+    ):
+        return None
     if pattern.pattern in ROUTE_GATED_PATH_SOURCES and not (
         last_segment_is_not_the_apps_own_route(match, context)
     ):

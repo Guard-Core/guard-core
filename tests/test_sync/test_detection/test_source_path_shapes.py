@@ -98,6 +98,17 @@ BENIGN_SHAPES: dict[str, Any] = {
     "review comment": REVIEW_COMMENT,
     "pull request files": PULL_REQUEST_FILES,
     "stack trace": STACK_TRACE,
+    "push named files": _push(added=["config/settings.py", ".env.example"]),
+    "stack frame with an absolute path": {
+        "frames": [
+            {
+                "filename": "app/main.py",
+                "abs_path": "/srv/app/app/main.py",
+                "function": "main",
+                "lineno": 9,
+            }
+        ]
+    },
 }
 
 
@@ -245,6 +256,7 @@ def test_the_benign_shape_constant_is_pinned() -> None:
             sorted(shape.keys),
             sorted(shape.siblings),
             sorted(shape.containers),
+            sorted(shape.grants),
         )
         for shape in BENIGN_SOURCE_PATH_SHAPES
     ] == [
@@ -253,8 +265,22 @@ def test_the_benign_shape_constant_is_pinned() -> None:
             ["added", "modified", "removed"],
             [],
             ["commits", "head_commit"],
+            ["named_files", "source"],
         ),
-        ("review comment", ["path"], ["diff_hunk", "position"], []),
-        ("pull request file", ["filename"], ["patch", "status"], []),
-        ("stack frame", ["filename"], ["function", "lineno"], ["frames"]),
+        ("review comment", ["path"], ["diff_hunk", "position"], [], ["source"]),
+        ("pull request file", ["filename"], ["patch", "status"], [], ["source"]),
+        (
+            "stack frame",
+            ["filename"],
+            ["function", "lineno"],
+            ["frames"],
+            ["source"],
+        ),
+        (
+            "stack frame absolute path",
+            ["abs_path"],
+            ["function", "lineno"],
+            ["frames"],
+            ["absolute_path", "source"],
+        ),
     ]
