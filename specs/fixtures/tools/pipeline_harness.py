@@ -104,6 +104,8 @@ ROUTE_KEYS = (
     "excluded_detection_params",
     "excluded_detection_body_fields",
     "geo_rate_limits",
+    "max_request_size",
+    "allowed_content_types",
 )
 
 DEFAULT_STATE = {
@@ -426,7 +428,12 @@ class _PipelineRequest:
         self.query_params: dict[str, str] = {}
         self.headers = _CaseInsensitiveHeaders(drive.get("headers", {}))
         self._body = drive.get("body", "").encode()
-        if self._body and "content-length" not in self.headers:
+        if (
+            self._body
+            and "content-length" not in self.headers
+            and "transfer-encoding" not in self.headers
+            and not drive.get("omit_content_length", False)
+        ):
             self.headers["content-length"] = str(len(self._body))
         self.url_path = drive.get("url_path", "/api")
         self.url_full = f"http://example.com{self.url_path}"

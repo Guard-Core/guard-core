@@ -1,4 +1,5 @@
 import logging
+
 import pytest
 
 from guard_core.decorators import get_route_id

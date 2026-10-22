@@ -667,3 +667,161 @@ PIPELINE_SUITES["pipeline_response_modifier"] = [
         "drives": [_modifier_drive("reads_body", 3, body="longer body")],
     },
 ]
+
+BODY = "x" * 16
+
+PIPELINE_SUITES["pipeline_request_body"] = [
+    {
+        "id": "chunked_body_over_limit_is_oversize",
+        "config": {},
+        "routes": {"/upload": {"max_request_size": 10}},
+        "drives": [
+            {
+                "client_ip": IP,
+                "url_path": "/upload",
+                "method": "POST",
+                "headers": {"Transfer-Encoding": "chunked"},
+                "body": BODY,
+            }
+        ],
+    },
+    {
+        "id": "chunked_body_at_limit_passes",
+        "config": {},
+        "routes": {"/upload": {"max_request_size": 16}},
+        "drives": [
+            {
+                "client_ip": IP,
+                "url_path": "/upload",
+                "method": "POST",
+                "headers": {"Transfer-Encoding": "chunked"},
+                "body": BODY,
+            }
+        ],
+    },
+    {
+        "id": "length_less_body_over_limit_is_oversize",
+        "config": {},
+        "routes": {"/upload": {"max_request_size": 10}},
+        "drives": [
+            {
+                "client_ip": IP,
+                "url_path": "/upload",
+                "method": "POST",
+                "omit_content_length": True,
+                "body": BODY,
+            }
+        ],
+    },
+    {
+        "id": "chunked_body_over_limit_passive_mode_passes",
+        "config": {"passive_mode": True},
+        "routes": {"/upload": {"max_request_size": 10}},
+        "drives": [
+            {
+                "client_ip": IP,
+                "url_path": "/upload",
+                "method": "POST",
+                "headers": {"Transfer-Encoding": "chunked"},
+                "body": BODY,
+            }
+        ],
+    },
+    {
+        "id": "non_numeric_content_length_is_bad_request",
+        "config": {},
+        "routes": {"/upload": {"max_request_size": 10}},
+        "drives": [
+            {
+                "client_ip": IP,
+                "url_path": "/upload",
+                "method": "POST",
+                "headers": {"Content-Length": "abc"},
+            }
+        ],
+    },
+    {
+        "id": "non_numeric_content_length_passive_mode_passes",
+        "config": {"passive_mode": True},
+        "routes": {"/upload": {"max_request_size": 10}},
+        "drives": [
+            {
+                "client_ip": IP,
+                "url_path": "/upload",
+                "method": "POST",
+                "headers": {"Content-Length": "abc"},
+            }
+        ],
+    },
+    {
+        "id": "bodyless_methods_skip_the_content_type_filter",
+        "config": {},
+        "routes": {"/json": {"allowed_content_types": ["application/json"]}},
+        "drives": [
+            {"client_ip": IP, "url_path": "/json", "method": method}
+            for method in ("GET", "HEAD", "DELETE")
+        ],
+    },
+    {
+        "id": "media_type_is_compared_normalized",
+        "config": {},
+        "routes": {"/json": {"allowed_content_types": ["application/json"]}},
+        "drives": [
+            {
+                "client_ip": IP,
+                "url_path": "/json",
+                "method": "POST",
+                "headers": {"Content-Type": "Application/JSON ; charset=utf-8"},
+                "body": "{}",
+            }
+        ],
+    },
+    {
+        "id": "disallowed_media_type_is_unsupported",
+        "config": {},
+        "routes": {"/json": {"allowed_content_types": ["application/json"]}},
+        "drives": [
+            {
+                "client_ip": IP,
+                "url_path": "/json",
+                "method": "POST",
+                "headers": {"Content-Type": "text/html; charset=utf-8"},
+                "body": "{}",
+            }
+        ],
+    },
+    {
+        "id": "zero_max_request_size_refuses_any_body",
+        "config": {},
+        "routes": {"/sealed": {"max_request_size": 0}},
+        "drives": [
+            {
+                "client_ip": IP,
+                "url_path": "/sealed",
+                "method": "POST",
+                "body": "x",
+            },
+            {
+                "client_ip": IP,
+                "url_path": "/sealed",
+                "method": "POST",
+                "headers": {"Transfer-Encoding": "chunked"},
+                "body": "x",
+            },
+        ],
+    },
+    {
+        "id": "zero_max_request_size_passes_an_empty_body",
+        "config": {},
+        "routes": {"/sealed": {"max_request_size": 0}},
+        "drives": [
+            {"client_ip": IP, "url_path": "/sealed", "method": "POST"},
+            {
+                "client_ip": IP,
+                "url_path": "/sealed",
+                "method": "POST",
+                "headers": {"Content-Length": "0"},
+            },
+        ],
+    },
+]
