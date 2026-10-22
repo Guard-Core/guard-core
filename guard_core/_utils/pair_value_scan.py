@@ -76,11 +76,45 @@ def _unquoted_value_extent(
     return i
 
 
+_PAIR_END_CHARS = frozenset("&;\r\n<>")
+_PAIR_OPENER_CHARS = _HARD_SEP_CHARS - _PAIR_END_CHARS
+
+
+def _pair_with_value_starts_at(text: str, pos: int) -> bool:
+    name_match = _EXTENDED_NAME_RUN_RE.match(text, pos)
+    if name_match is None:
+        return False
+    assign_match = _ASSIGN_RE.match(text, name_match.end())
+    if assign_match is None:
+        return False
+    value_pos = assign_match.end()
+    return value_pos < len(text) and text[value_pos] not in _HARD_SEP_CHARS | {" ", "="}
+
+
+def _secret_value_extent(text: str, start: int) -> int:
+    n = len(text)
+    i = start
+    while i < n:
+        ch = text[i]
+        if ch in _PAIR_END_CHARS or ch in _QUOTE_CHARS:
+            return i
+        if ch in _PAIR_OPENER_CHARS and _pair_with_value_starts_at(text, i + 1):
+            return i
+        if _is_soft_ws(ch):
+            j = _skip_soft_whitespace(text, i)
+            if _pair_starts_at(text, j):
+                return i
+            i = j
+            continue
+        i += 1
+    return i
+
+
 def _sensitive_value_extent(text: str, start: int, quote_char: str) -> int:
     if quote_char:
         idx = text.find(quote_char, start)
         return len(text) if idx == -1 else idx
-    return _unquoted_value_extent(text, start)
+    return _secret_value_extent(text, start)
 
 
 def _restart_value_extent_at_quote(
@@ -121,7 +155,7 @@ def _is_whole_redacted_marker(text: str, pos: int) -> bool:
     marker_end = pos + len(_REDACTED_MARKER)
     return (
         text.startswith(_REDACTED_MARKER, pos)
-        and _unquoted_value_extent(text, marker_end) == marker_end
+        and _secret_value_extent(text, marker_end) == marker_end
     )
 
 
