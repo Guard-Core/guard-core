@@ -42,13 +42,16 @@ def _git_status_short(root: Path) -> str:
 @pytest.mark.parametrize("failure_at", [1, 2, 3])
 def test_generation_fails_when_a_formatter_fails(failure_at: int) -> None:
     module = _load_unasync_module()
-    results: list[object] = [subprocess.CompletedProcess([], 0)] * (failure_at - 1)
-    results.append(subprocess.CalledProcessError(1, ["ruff"]))
+    version = subprocess.CompletedProcess(
+        [], 0, stdout=f"ruff {module.pinned_ruff_version()}\n", stderr=""
+    )
+    passed = subprocess.CompletedProcess([], 0, stdout="", stderr="")
+    failed = subprocess.CompletedProcess([], 1, stdout="", stderr="ruff exploded")
+    results = [version, *[passed] * (failure_at - 1), failed]
     with patch("subprocess.run", side_effect=results) as run:
-        with pytest.raises(subprocess.CalledProcessError):
+        with pytest.raises(SystemExit, match="ruff exploded"):
             module.format_generated()
-    assert run.call_count == failure_at
-    assert all(call.kwargs["check"] for call in run.call_args_list)
+    assert run.call_count == failure_at + 1
 
 
 def test_check_flags_a_missing_sync_mirror_instead_of_hiding_it() -> None:
@@ -171,11 +174,16 @@ def test_the_formatter_runs_the_interpreters_own_ruff_not_uv_run() -> None:
     unasync = _load_unasync_module()
     commands: list[list[str]] = []
 
-    def record(command: list[str], **kwargs: object) -> None:
+    def record(
+        command: list[str], **kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
         commands.append(command)
+        return subprocess.CompletedProcess(
+            command, 0, stdout=f"ruff {unasync.pinned_ruff_version()}\n", stderr=""
+        )
 
     with patch.object(subprocess, "run", record):
         unasync.format_generated()
 
-    assert len(commands) == 3
+    assert len(commands) == 4
     assert all(command[:3] == [sys.executable, "-m", "ruff"] for command in commands)

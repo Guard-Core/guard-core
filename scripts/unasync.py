@@ -69,6 +69,7 @@ SKIP_TESTS = {
     "test_ban_attribution_cross_worker.py",
     "network_guard.py",
     "test_network_guard.py",
+    "test_ruff_pin.py",
 }
 
 SKIP_DIRS = {"__pycache__", "sync"}
@@ -837,57 +838,52 @@ def generate(check: bool = False) -> bool:
     return all_match
 
 
+RUFF_PIN_PATTERN = re.compile(r'"ruff==([0-9][^"]*)"')
+
+
+def pinned_ruff_version() -> str:
+    match = RUFF_PIN_PATTERN.search((ROOT / "pyproject.toml").read_text())
+    if match is None:
+        raise SystemExit('pyproject.toml has no exact "ruff==<version>" pin')
+    return match.group(1)
+
+
 # The interpreter's own ruff, not `uv run ruff`: a `uv run` here re-syncs (and,
 # with another Python than the project's, recreates) the environment the caller
 # is running in, which broke the tests that run this script (WP23 r6).
+def run_ruff(*args: str) -> str:
+    import subprocess
+
+    completed = subprocess.run(
+        [sys.executable, "-m", "ruff", *args],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if completed.returncode != 0:
+        raise SystemExit(
+            f"ruff {' '.join(args)} failed with exit code {completed.returncode}"
+            " (install the pinned ruff with: uv sync --extra dev)\n"
+            f"{completed.stdout}{completed.stderr}"
+        )
+    return completed.stdout
+
+
 def format_generated(
     sync_dir: Path = SYNC_DIR, test_sync_dir: Path = TEST_SYNC_DIR
 ) -> None:
-    import subprocess
-
-    subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "ruff",
-            "check",
-            "--fix-only",
-            "--quiet",
-            str(sync_dir),
-            str(test_sync_dir),
-        ],
-        cwd=ROOT,
-        capture_output=True,
-        check=True,
-    )
-    subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "ruff",
-            "format",
-            "--quiet",
-            str(sync_dir),
-            str(test_sync_dir),
-        ],
-        cwd=ROOT,
-        capture_output=True,
-        check=True,
-    )
-    subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "ruff",
-            "check",
-            "--quiet",
-            str(sync_dir),
-            str(test_sync_dir),
-        ],
-        cwd=ROOT,
-        capture_output=True,
-        check=True,
-    )
+    pinned = pinned_ruff_version()
+    version = run_ruff("--version").strip()
+    if version != f"ruff {pinned}":
+        raise SystemExit(
+            f"pyproject.toml pins ruff=={pinned} but this interpreter has '{version}'"
+            " (install the pinned ruff with: uv sync --extra dev)"
+        )
+    targets = [str(sync_dir), str(test_sync_dir)]
+    run_ruff("check", "--fix-only", "--quiet", *targets)
+    run_ruff("format", "--quiet", *targets)
+    run_ruff("check", "--quiet", *targets)
 
 
 def _write_generated_tree(
