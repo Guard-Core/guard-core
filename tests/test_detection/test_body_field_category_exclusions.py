@@ -99,7 +99,9 @@ def test_the_map_form_is_validated_like_params(bad: Any) -> None:
         with pytest.raises(ValueError) as caught:
             decorator.detection_exclusion(**{keyword: bad})(target)
         errors.append(str(caught.value))
-    assert errors[0] == errors[1]
+    assert errors[0].replace("excluded_detection_params", "<option>") == errors[
+        1
+    ].replace("excluded_detection_body_fields", "<option>")
 
 
 @pytest.mark.parametrize("surface", ["json", "form", "multipart"])
