@@ -144,7 +144,7 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "(?i)(?:\\A|[^\\w\\s]\\s*|\\b(?:AND|OR|XOR|NOT|IF|SELECT|THEN|ELSE|WHEN|CASE|WHERE|HAVING|BY|AS|UNION|ALL|LIMIT|OFFSET)\\s+)SLEEP\\s*\\(\\s*\\d+\\s*\\)",
+            "pattern": "(?i)(?:\\A|[^\\w\\s]\\s*|\\d\\s*|(?<![A-Za-z_])(?:AND|OR|XOR|NOT|IF|SELECT|THEN|ELSE|WHEN|CASE|WHERE|HAVING|BY|AS|UNION|ALL|LIMIT|OFFSET)\\s+)(?:pg_)?SLEEP\\s*\\(\\s*\\d+(?:\\.\\d+)?\\s*\\)",
             "match": "AND SLEEP(5)",
             "position": 2,
             "category": "sqli",
@@ -411,9 +411,18 @@
         "context": "query_param"
       },
       "expected": {
-        "is_threat": false,
-        "threat_score": 0.0,
-        "threats": [],
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?i)(?:\\A|[^\\w\\s]\\s*|\\d\\s*|(?<![A-Za-z_])(?:AND|OR|XOR|NOT|IF|SELECT|THEN|ELSE|WHEN|CASE|WHERE|HAVING|BY|AS|UNION|ALL|LIMIT|OFFSET)\\s+)(?:pg_)?SLEEP\\s*\\(\\s*\\d+(?:\\.\\d+)?\\s*\\)",
+            "match": "SELECT pg_sleep(10)",
+            "position": 3,
+            "category": "sqli",
+            "weight": 1.0
+          }
+        ],
         "original_length": 24,
         "processed_length": 24,
         "detection_method": "enhanced"
