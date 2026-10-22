@@ -59,7 +59,7 @@ _GLOBAL_BEHAVIOR_RULE_FIELDS = frozenset(
 
 
 def _validate_exclude_paths_value(v: list[str]) -> list[str]:
-    from guard_core.core.validation.path_matching import normalize_url_path
+    from guard_core._utils.path_normalization import normalize_url_path
 
     if not isinstance(v, list) or not all(isinstance(entry, str) for entry in v):
         raise ValueError("exclude_paths must be a list of str")

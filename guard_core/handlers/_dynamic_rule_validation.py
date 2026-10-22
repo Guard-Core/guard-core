@@ -38,7 +38,7 @@ def _rate_limit_problems(rules: Any) -> list[str]:
 
 
 def _endpoint_key_problems(rules: Any) -> list[str]:
-    from guard_core.core.validation.path_matching import (
+    from guard_core._utils.path_normalization import (
         _has_routing_anomaly_in_any_decoding,
     )
 

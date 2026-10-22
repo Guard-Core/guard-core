@@ -29,7 +29,7 @@ _PROBE_SEGMENTS = frozenset(
 
 
 def _is_probe_path(entry: str) -> bool:
-    from guard_core.core.validation.path_matching import normalize_url_path
+    from guard_core._utils.path_normalization import normalize_url_path
 
     normalized = normalize_url_path(entry)
     return normalized is not None and any(
@@ -38,7 +38,7 @@ def _is_probe_path(entry: str) -> bool:
 
 
 def unexempted_probe_paths(config: "SecurityConfig[RequestT]") -> list[str]:
-    from guard_core.core.validation.path_matching import path_is_excluded
+    from guard_core._utils.path_normalization import path_is_excluded
 
     return [
         entry

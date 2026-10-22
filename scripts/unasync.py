@@ -53,6 +53,7 @@ SKIP_TESTS = {
     "test_ipban_atomic_version.py",
     "test_module_imports_standalone.py",
     "test_optional_extras_base_install.py",
+    "test_cold_path_imports.py",
     "test_suspatterns_handler_module_surface.py",
     "test_gc_per_test_opt_in.py",
     "test_maintainability_rank.py",

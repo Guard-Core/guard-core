@@ -16,7 +16,7 @@ PurgeTarget = Annotated[str | None, AfterValidator(_validate_purge_target)]
 
 
 def _validate_emergency_exempt_paths_value(v: Any) -> list[str]:
-    from guard_core.core.validation.path_matching import normalize_url_path
+    from guard_core._utils.path_normalization import normalize_url_path
 
     entries = _validate_str_list_field_value(v, field_name="emergency_exempt_paths")
     for entry in entries:

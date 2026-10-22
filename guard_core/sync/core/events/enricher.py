@@ -60,7 +60,7 @@ from guard_core.sync.core.events.event_types import (
     EVENT_SUSPICIOUS_REQUEST,
     EVENT_USER_AGENT_BLOCKED,
 )
-from guard_core.sync.handlers.behavior_handler import RECENT_RULE_HITS_WINDOW_SECONDS
+from guard_core.sync.handlers._behavior_constants import RECENT_RULE_HITS_WINDOW_SECONDS
 
 if TYPE_CHECKING:
     from guard_core.models import SyncSecurityConfig
