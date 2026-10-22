@@ -2,6 +2,7 @@ import json
 import logging
 import re
 from collections.abc import Callable, Mapping
+from functools import lru_cache
 from typing import Any, Literal
 from urllib.parse import quote, unquote, urlsplit, urlunsplit
 
@@ -45,6 +46,7 @@ _DEFAULT_SENSITIVE_LOG_FIELDS: frozenset[str] = frozenset(
 )
 
 
+@lru_cache(maxsize=64)
 def _merge_sensitive_names(
     defaults: frozenset[str], extra: frozenset[str] | None
 ) -> frozenset[str]:
