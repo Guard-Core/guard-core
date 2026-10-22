@@ -35,6 +35,10 @@ from typing import Any
 
 from pipeline_harness import _PipelineRequest, _StubResponse
 
+from guard_core.handlers._cloud_provider_registry import (
+    _decode_cached,
+    _encode_cached,
+)
 from guard_core.handlers.behavior_handler import BehaviorRule, BehaviorTracker
 from guard_core.handlers.cloud_handler import cloud_handler
 from guard_core.handlers.cloud_ip_stores import RedisCloudIpStore
@@ -48,7 +52,10 @@ from guard_core.handlers.suspatterns_handler import sus_patterns_handler
 from guard_core.models import DynamicRules, SecurityConfig
 
 REDIS_PREFIX = "guard_core:corpus_rio:"
-REDIS_URL = os.environ.get("GUARD_CORE_CORPUS_REDIS_URL", "redis://localhost:6379/0")
+REDIS_URL = os.environ.get(
+    "GUARD_CORE_FIXTURE_REDIS_URL",
+    os.environ.get("GUARD_CORE_CORPUS_REDIS_URL", "redis://localhost:6379/0"),
+)
 RIO_IP = "203.0.113.20"
 
 _NUMERIC_SHAPE = r"^[0-9]+\.[0-9]+(e[+-]?[0-9]+)?$"
@@ -257,6 +264,42 @@ REDIS_SUITES["redis_interop"] = [
                 "provider": "corpus",
                 "ranges": FIXED_CLOUD_STORE_RANGES,
                 "ttl": None,
+            },
+        },
+    },
+    {
+        "id": "rio_cloud_ip_v2_element_grammar_round_trip",
+        "operation": {
+            "op": "cloud_ip_store_grammar",
+            "handler": "cloud_ip_stores.RedisCloudIpStore",
+            "call": (
+                "set then get of a plain and a region-annotated entry "
+                "(_encode_cached, _decode_cached), stored bytes pinned"
+            ),
+            "args": {
+                "provider": "corpus",
+                "ranges": FIXED_CLOUD_RANGES,
+                "regions": FIXED_CLOUD_REGIONS,
+                "ttl": None,
+            },
+        },
+    },
+    {
+        "id": "rio_cloud_ip_v2_corrupt_element_refetch",
+        "operation": {
+            "op": "cloud_ip_store_refetch",
+            "handler": "cloud_handler.cloud_handler",
+            "call": (
+                "refresh_async over a cloud_ip_v2 value holding one corrupt "
+                "element: a cache miss, fetched ranges overwrite the key"
+            ),
+            "args": {
+                "provider": "corpus",
+                "seed": ["198.51.100.0/24", "not-a-network"],
+                "seed_ttl": 60,
+                "ranges": FIXED_CLOUD_RANGES,
+                "regions": FIXED_CLOUD_REGIONS,
+                "ttl": 3600,
             },
         },
     },
@@ -624,6 +667,59 @@ async def _op_cloud_ip_store(args: dict[str, Any]) -> None:
         await _discard(redis_manager)
 
 
+async def _op_cloud_ip_store_grammar(args: dict[str, Any]) -> None:
+    config = _rio_config()
+    redis_manager = await _redis_manager(config)
+    store = RedisCloudIpStore(redis_manager)
+    networks = {ipaddress.ip_network(cidr) for cidr in args["ranges"]}
+    regions = dict(args["regions"])
+    encoded = _encode_cached(networks, regions)
+    try:
+        await store.set(args["provider"], encoded, ttl=args["ttl"])
+        stored = await store.get(args["provider"])
+        if stored != encoded or _decode_cached(stored) != (networks, regions):
+            raise RuntimeError("cloud_ip_v2 round trip changed the entries")
+    finally:
+        await _discard(redis_manager)
+
+
+async def _op_cloud_ip_store_refetch(args: dict[str, Any]) -> None:
+    import guard_core.handlers.cloud_handler as cloud_module
+
+    config = _rio_config()
+    redis_manager = await _redis_manager(config)
+    saved = (
+        cloud_handler.redis_handler,
+        cloud_handler._store,
+        cloud_module._fetch_provider_ranges,
+    )
+    cloud_handler.redis_handler = redis_manager
+    cloud_handler._store = RedisCloudIpStore(redis_manager)
+
+    ranges = {ipaddress.ip_network(cidr) for cidr in args["ranges"]}
+    regions = dict(args["regions"])
+
+    async def _fixed_fetch(provider: str) -> tuple[set[Any], dict[str, str]]:
+        return set(ranges), dict(regions)
+
+    cloud_module._fetch_provider_ranges = _fixed_fetch
+    try:
+        await redis_manager.set_key(
+            "cloud_ip_v2",
+            args["provider"],
+            json.dumps(sorted(args["seed"])),
+            ttl=args["seed_ttl"],
+        )
+        await cloud_handler.refresh_async(providers=[args["provider"]], ttl=args["ttl"])
+    finally:
+        (
+            cloud_handler.redis_handler,
+            cloud_handler._store,
+            cloud_module._fetch_provider_ranges,
+        ) = saved
+        await _discard(redis_manager)
+
+
 async def _op_dynamic_rules(args: dict[str, Any]) -> None:
     config = _rio_config(
         enable_agent=True, agent_api_key="corpus-agent-key", enable_dynamic_rules=True
@@ -663,6 +759,8 @@ _OPERATIONS = {
     "ipinfo_database": _op_ipinfo_database,
     "cloud_ranges": _op_cloud_ranges,
     "cloud_ip_store": _op_cloud_ip_store,
+    "cloud_ip_store_grammar": _op_cloud_ip_store_grammar,
+    "cloud_ip_store_refetch": _op_cloud_ip_store_refetch,
     "dynamic_rules": _op_dynamic_rules,
 }
 

@@ -489,6 +489,72 @@
       ]
     },
     {
+      "id": "rio_cloud_ip_v2_element_grammar_round_trip",
+      "prefix": "guard_core:corpus_rio:",
+      "operation": {
+        "op": "cloud_ip_store_grammar",
+        "handler": "cloud_ip_stores.RedisCloudIpStore",
+        "call": "set then get of a plain and a region-annotated entry (_encode_cached, _decode_cached), stored bytes pinned",
+        "args": {
+          "provider": "corpus",
+          "ranges": [
+            "198.51.100.0/24",
+            "203.0.113.0/24"
+          ],
+          "regions": {
+            "203.0.113.0/24": "us-east"
+          },
+          "ttl": null
+        }
+      },
+      "expected": [
+        {
+          "key": "guard_core:corpus_rio:cloud_ip_v2:corpus",
+          "type": "json",
+          "ttl": {
+            "set": false
+          },
+          "value": "[\"198.51.100.0/24\", \"203.0.113.0/24|us-east\"]"
+        }
+      ]
+    },
+    {
+      "id": "rio_cloud_ip_v2_corrupt_element_refetch",
+      "prefix": "guard_core:corpus_rio:",
+      "operation": {
+        "op": "cloud_ip_store_refetch",
+        "handler": "cloud_handler.cloud_handler",
+        "call": "refresh_async over a cloud_ip_v2 value holding one corrupt element: a cache miss, fetched ranges overwrite the key",
+        "args": {
+          "provider": "corpus",
+          "seed": [
+            "198.51.100.0/24",
+            "not-a-network"
+          ],
+          "seed_ttl": 60,
+          "ranges": [
+            "198.51.100.0/24",
+            "203.0.113.0/24"
+          ],
+          "regions": {
+            "203.0.113.0/24": "us-east"
+          },
+          "ttl": 3600
+        }
+      },
+      "expected": [
+        {
+          "key": "guard_core:corpus_rio:cloud_ip_v2:corpus",
+          "type": "json",
+          "ttl": {
+            "set": true,
+            "seconds": 3600
+          },
+          "value": "[\"198.51.100.0/24\", \"203.0.113.0/24|us-east\"]"
+        }
+      ]
+    },
+    {
       "id": "rio_dynamic_rules_snapshot_write",
       "prefix": "guard_core:corpus_rio:",
       "operation": {

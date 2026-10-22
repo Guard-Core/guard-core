@@ -86,10 +86,12 @@ from guard_core.protocols.response_protocol import GuardResponse
 EVENTS_REDIS_PREFIX = "guard_core:corpus_evts:"
 EVENTS_CANONICAL_REDIS_URL = "redis://localhost:6379/0"
 # The corpus pins the canonical URL. A run on a private Redis sets
-# GUARD_CORE_CORPUS_REDIS_URL; the captured envelopes still report the
-# canonical URL (see _normalize), so no port leaks into the corpus.
+# GUARD_CORE_CORPUS_REDIS_URL or GUARD_CORE_FIXTURE_REDIS_URL; the captured
+# envelopes still report the canonical URL (see _normalize), so no port leaks
+# into the corpus.
 EVENTS_REDIS_URL = os.environ.get(
-    "GUARD_CORE_CORPUS_REDIS_URL", EVENTS_CANONICAL_REDIS_URL
+    "GUARD_CORE_FIXTURE_REDIS_URL",
+    os.environ.get("GUARD_CORE_CORPUS_REDIS_URL", EVENTS_CANONICAL_REDIS_URL),
 )
 EVENTS_REDIS_ERROR_URL = "redis://localhost:59999/0"
 
