@@ -1,4 +1,5 @@
 from collections.abc import Collection
+from datetime import datetime
 
 from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
@@ -30,7 +31,7 @@ class TimeWindowCheck(SecurityCheck):
         )
 
     def _check_time_window(self, time_restrictions: dict[str, str]) -> bool:
-        return time_window_allows(time_restrictions, self.logger)
+        return time_window_allows(time_restrictions, self.logger, datetime.now)
 
     def check(self, request: SyncGuardRequest) -> GuardResponse | None:
         route_config = getattr(request.state, "route_config", None)

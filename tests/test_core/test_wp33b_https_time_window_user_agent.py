@@ -5,7 +5,6 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from guard_core._utils import time_window as time_window_module
 from guard_core.core.checks.implementations import (
     time_window as time_window_check_module,
 )
@@ -80,8 +79,8 @@ def _both_methods() -> tuple[RequestValidator, TimeWindowCheck]:
 def _at(monkeypatch: pytest.MonkeyPatch, instant: datetime) -> None:
     clock = Mock()
     clock.now = lambda tz: instant.astimezone(tz)
-    for module in (time_window_module, time_window_check_module, validator_module):
-        monkeypatch.setattr(module, "datetime", clock, raising=False)
+    for module in (time_window_check_module, validator_module):
+        monkeypatch.setattr(module, "datetime", clock)
 
 
 def _grid(zone: str, day: datetime) -> list[datetime]:

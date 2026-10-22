@@ -1,10 +1,13 @@
 import logging
-from datetime import datetime, timezone
+from collections.abc import Callable
+from datetime import datetime, timezone, tzinfo
 from zoneinfo import ZoneInfo
 
 
 def time_window_allows(
-    time_restrictions: dict[str, str], logger: logging.Logger
+    time_restrictions: dict[str, str],
+    logger: logging.Logger,
+    now: Callable[[tzinfo], datetime],
 ) -> bool:
     try:
         start_time = time_restrictions["start"]
@@ -15,7 +18,7 @@ def time_window_allows(
             tz: ZoneInfo | timezone = ZoneInfo(timezone_str)
         except (KeyError, Exception):
             tz = timezone.utc
-        current_time = datetime.now(tz)
+        current_time = now(tz)
         current_hour_minute = current_time.strftime("%H:%M")
 
         if start_time > end_time:

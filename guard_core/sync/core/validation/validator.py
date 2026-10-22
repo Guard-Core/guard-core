@@ -1,4 +1,5 @@
 import hashlib
+from datetime import datetime
 
 from cachetools import TTLCache
 
@@ -32,7 +33,7 @@ class RequestValidator:
         return _is_trusted_proxy(connecting_ip, self.context.config.trusted_proxies)
 
     def check_time_window(self, time_restrictions: dict[str, str]) -> bool:
-        return time_window_allows(time_restrictions, self.context.logger)
+        return time_window_allows(time_restrictions, self.context.logger, datetime.now)
 
     def _current_normalized_exclude_paths(self) -> tuple[str, ...]:
         current_source = tuple(self.context.config.exclude_paths)
