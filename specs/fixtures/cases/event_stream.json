@@ -2062,7 +2062,10 @@
           "rule_type": null,
           "pattern_matched": null,
           "handler_name": "ip_extraction",
-          "metadata": {}
+          "metadata": {
+            "suppressed_count": 0,
+            "suppressed_evicted_count": 0
+          }
         }
       ]
     },
