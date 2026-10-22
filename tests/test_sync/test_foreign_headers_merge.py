@@ -1,5 +1,5 @@
 from collections.abc import MutableMapping
-from typing import Any
+from typing import Any, cast
 
 from guard_core.sync.core.responses.factory import _merge_security_headers
 
@@ -43,6 +43,44 @@ def test_tuple_iterating_container_keeps_existing_and_forces_listed() -> None:
         "X-Frame-Options": "DENY",
     }
     _merge_security_headers(headers, security, frozenset({"x-frame-options"}))
+    assert headers["content-type"] == "text/html"
+    assert headers["x-frame-options"] == "DENY"
+    assert headers["x-content-type-options"] == "nosniff"
+
+
+class ContainsOnlyHeaders:
+    """A Django response used as its own header mapping: no keys(), no pairs."""
+
+    def __init__(self, values: dict[str, str]) -> None:
+        self._values = {key.lower(): (key, value) for key, value in values.items()}
+
+    def __iter__(self) -> Any:
+        return iter([b"body"])
+
+    def __contains__(self, name: str) -> bool:
+        return name.lower() in self._values
+
+    def __getitem__(self, name: str) -> str:
+        return self._values[name.lower()][1]
+
+    def __setitem__(self, name: str, value: str) -> None:
+        self._values[name.lower()] = (name, value)
+
+
+def test_container_with_only_item_access_and_membership() -> None:
+    headers = ContainsOnlyHeaders(
+        {"content-type": "text/html", "x-frame-options": "ALLOW"}
+    )
+    security = {
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "ignored",
+        "X-Frame-Options": "DENY",
+    }
+    _merge_security_headers(
+        cast(MutableMapping[str, str], headers),
+        security,
+        frozenset({"x-frame-options"}),
+    )
     assert headers["content-type"] == "text/html"
     assert headers["x-frame-options"] == "DENY"
     assert headers["x-content-type-options"] == "nosniff"
