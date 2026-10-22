@@ -39,9 +39,11 @@ def get_pipeline_response_time(request: SyncGuardRequest | None) -> float | None
 def agent_receives_events(event_bus: Any, config: Any) -> bool:
     """True when an agent is attached to the bus and events are enabled; a bus
     without an ``agent_handler`` attribute has no agent."""
-    return bool(
-        getattr(event_bus, "agent_handler", None) and config.agent_enable_events
-    )
+    try:
+        agent_handler = event_bus.agent_handler
+    except AttributeError:
+        return False
+    return bool(agent_handler and config.agent_enable_events)
 
 
 def send_agent_event(
