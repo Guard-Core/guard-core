@@ -411,19 +411,23 @@ async def _handle_untrusted_proxy(
         )
         if peer_is_public:
             request.state.untrusted_forwarded_for = forwarded_for
-        if peer_is_public and not sampled:
-            return canonical_connecting_ip
-        display_forwarded_for = _display_forwarded_chain(forwarded_for)
-        (logger.warning if peer_is_public else logger.debug)(
-            f"Potential IP spoof attempt: X-Forwarded-For header "
-            f"({_sanitize_for_log(display_forwarded_for)}) received from "
-            f"untrusted IP {_sanitize_for_log(connecting_ip)}"
+        log_this_request = (
+            sampled if peer_is_public else logger.isEnabledFor(logging.DEBUG)
         )
         agent = (
             _agent_open_to_suspicious_requests(config, agent_handler)
             if sampled
             else None
         )
+        if not (log_this_request or agent):
+            return canonical_connecting_ip
+        display_forwarded_for = _display_forwarded_chain(forwarded_for)
+        if log_this_request:
+            (logger.warning if peer_is_public else logger.debug)(
+                f"Potential IP spoof attempt: X-Forwarded-For header "
+                f"({_sanitize_for_log(display_forwarded_for)}) received from "
+                f"untrusted IP {_sanitize_for_log(connecting_ip)}"
+            )
         if agent:
             from guard_core.core.events.event_types import EVENT_SUSPICIOUS_REQUEST
 
