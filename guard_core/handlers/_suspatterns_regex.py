@@ -24,7 +24,6 @@ from guard_core._utils.detection_scan import (
     _timed_in_worker,
     _warn_scan_time_cap_reached_once,
 )
-from guard_core._utils.source_path_shapes import named_file_leaf_in_benign_shape
 from guard_core.detection_engine.binary_prefix import (
     build_binary_prefix,
     match_is_binary_dense,
@@ -44,10 +43,6 @@ from guard_core.handlers._suspatterns_applicable import (
 )
 from guard_core.handlers._suspatterns_applicable import (
     _pattern_should_be_skipped as _pattern_should_be_skipped,
-)
-from guard_core.handlers._suspatterns_credential_files import (
-    CREDENTIAL_FILES_WITH_DIRECTORY_ROW,
-    private_key_name_is_bare,
 )
 from guard_core.handlers._suspatterns_enhanced import _SusPatternsEnhancedMixin
 from guard_core.handlers._suspatterns_ldap_ipv4 import (
@@ -72,24 +67,19 @@ from guard_core.handlers._suspatterns_matchers import (
 from guard_core.handlers._suspatterns_named_floor import (
     NAMED_FLOOR_TOKEN_PATTERNS,
     absolute_path_is_a_probe,
-    is_the_request_url_path,
-    last_segment_is_not_the_apps_own_route,
-    named_file_in_a_push_list_is_plain,
     named_floor_row_is_not_the_apps_own_route,
-    named_path_has_a_trick_suffix,
     named_probe_row_is_not_the_apps_own_route,
     recon_path_is_a_probe,
     source_path_is_a_probe,
+)
+from guard_core.handlers._suspatterns_path_row_clearing import (
+    path_row_match_is_cleared,
 )
 from guard_core.handlers._suspatterns_pattern_table import (
     _ABSOLUTE_PATH_VALUE_RE,
     _CMD_PATH_CODE_EXECUTION_RE,
     BACKTICK_WHOLE_VALUE_RE,
-    NAMED_DIRECTORY_PATH_SOURCES,
-    NAMED_FILE_PATH_SOURCES,
     NOISE_PRONE_PATTERN_SOURCES,
-    RECON_OPTIONAL_SEPARATOR_PATTERN_SOURCES,
-    ROUTE_GATED_PATH_SOURCES,
 )
 from guard_core.handlers._suspatterns_pickle import (
     _pickle_global_candidate_is_injection,
@@ -140,7 +130,6 @@ from guard_core.handlers._suspatterns_sources import (
     _WHERE_CLAUSE_RE,
     _XML_XXE_PUBLIC_EXTERNAL_DTD_RE,
     ALL_DETECTION_CATEGORIES,
-    _recon_path_value_is_probe,
 )
 from guard_core.handlers._suspatterns_state import _DetectionState
 from guard_core.handlers._suspatterns_whole_value_rows import (
@@ -276,45 +265,6 @@ def _sanitize_for_reporting(value: str) -> str:
     )
 
 
-def _credential_row_match_is_cleared(
-    source: str, match: re.Match, context: str
-) -> bool:
-    return (
-        source == CREDENTIAL_FILES_WITH_DIRECTORY_ROW
-        and not is_the_request_url_path(context)
-        and private_key_name_is_bare(match.group())
-    )
-
-
-def _directory_row_match_is_cleared(source: str, match: re.Match) -> bool:
-    return (
-        source in NAMED_DIRECTORY_PATH_SOURCES
-        and named_file_leaf_in_benign_shape()
-        and not named_path_has_a_trick_suffix(match.group())
-    )
-
-
-def _path_row_match_is_cleared(
-    pattern: re.Pattern, match: re.Match, context: str
-) -> bool:
-    source = pattern.pattern
-    if _credential_row_match_is_cleared(source, match, context):
-        return True
-    if _directory_row_match_is_cleared(source, match):
-        return True
-    if source in NAMED_FILE_PATH_SOURCES and (
-        named_file_in_a_push_list_is_plain(pattern, match)
-    ):
-        return True
-    if source in ROUTE_GATED_PATH_SOURCES and not (
-        last_segment_is_not_the_apps_own_route(match, context)
-    ):
-        return True
-    return source in RECON_OPTIONAL_SEPARATOR_PATTERN_SOURCES and not (
-        _recon_path_value_is_probe(match, context)
-    )
-
-
 def _build_regex_threat(
     pattern: re.Pattern,
     match: re.Match,
@@ -326,7 +276,7 @@ def _build_regex_threat(
     for candidate, is_valid_threat in _CANDIDATE_REJECTION_VALIDATORS:
         if pattern.pattern == candidate and not is_valid_threat(match, context):
             return None
-    if _path_row_match_is_cleared(pattern, match, context):
+    if path_row_match_is_cleared(pattern, match, context):
         return None
     if pattern.pattern in NOISE_PRONE_PATTERN_SOURCES and match_is_binary_dense(
         binary_prefix, match

@@ -181,3 +181,32 @@ async def test_a_stack_frame_clears_a_plain_credential_name_and_not_a_suffixed_o
 ) -> None:
     frame = {"frames": [{"filename": ".netrc" + suffix, "lineno": 3, "function": "f"}]}
     assert await _run(_json_request(frame)) is bool(suffix)
+
+
+@pytest.mark.parametrize("surface", ["query", "json"])
+@pytest.mark.parametrize(
+    "name",
+    [name for name in _CREDENTIAL_FILES if name != ".docker/config.json"],
+)
+async def test_a_home_tilde_reference_to_a_credential_file_stays_unflagged_as_at_v440(
+    surface: str, name: str
+) -> None:
+    assert await _run(_SURFACES[surface](f"~/{name}")) is False
+
+
+@pytest.mark.parametrize("surface", ["query", "json"])
+@pytest.mark.parametrize(
+    "value",
+    [
+        "~/.env",
+        "~/.aws/credentials;.jpg",
+        "~/.aws/credentials%00.jpg",
+        "~/../.aws/credentials",
+        "~/.aws/credentials/x",
+        "~root/.aws/credentials",
+    ],
+)
+async def test_a_home_tilde_clearing_does_not_cover_other_shapes(
+    surface: str, value: str
+) -> None:
+    assert await _run(_SURFACES[surface](value)) is True

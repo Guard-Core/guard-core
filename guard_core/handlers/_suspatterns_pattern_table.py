@@ -602,7 +602,6 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
     (_TEMPLATE_OGNL_RE, _CTX_TEMPLATE, "template"),
     (_HTTP_SPLIT_CRLF_RE, _CTX_HTTP_SPLIT, "http_split"),
     (_HTTP_SPLIT_CRLF_DECODED_RE, _CTX_HTTP_SPLIT, "http_split"),
-    *CREDENTIAL_FILE_ROWS,
     (
         _embedded_prose_pattern(r"\.env(?:\.\w+)?"),
         _CTX_SENSITIVE_FILE,
@@ -616,6 +615,7 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
         _CTX_SENSITIVE_FILE,
         "sensitive_file",
     ),
+    *CREDENTIAL_FILE_ROWS,
     (
         _MAP_FILE_PATH_RE,
         _CTX_SENSITIVE_FILE,

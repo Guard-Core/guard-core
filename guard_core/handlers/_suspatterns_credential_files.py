@@ -34,6 +34,14 @@ _BARE_PRIVATE_KEY_SEGMENT_RE = re.compile(
     rf"(?<!\.ssh){_PATH_ONLY_SEP_RE}{_PRIVATE_KEY_NAMES}", re.IGNORECASE
 )
 
+# A value that is exactly a home-relative reference to a listed credential file
+# (a setting naming where the file lives) is benign; v4.4.0 never flagged it.
+_HOME_TILDE_CREDENTIAL_FILE_RE = re.compile(
+    rf"\A~{_PATH_ONLY_SEP_RE}"
+    rf"(?:{_CREDENTIAL_FILES_WITH_DIRECTORY}|{_CREDENTIAL_FILES_BY_NAME})\s*\Z",
+    re.IGNORECASE,
+)
+
 CREDENTIAL_FILES_REQUIRED = (
     rf"(?:{_CREDENTIAL_FILES_WITH_DIRECTORY}|{_CREDENTIAL_FILES_BY_NAME}"
     rf"|{_BARE_PRIVATE_KEY_LAST_URL_SEGMENT})"
@@ -52,3 +60,7 @@ CREDENTIAL_FILE_ROWS: tuple[tuple[str, frozenset[str], str], ...] = (
 
 def private_key_name_is_bare(path: str) -> bool:
     return _BARE_PRIVATE_KEY_SEGMENT_RE.search(path) is not None
+
+
+def credential_file_is_a_home_tilde_reference(value: str) -> bool:
+    return _HOME_TILDE_CREDENTIAL_FILE_RE.match(value) is not None

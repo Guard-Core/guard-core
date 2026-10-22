@@ -555,6 +555,7 @@ def test_builtin_pattern_table_redaction_count() -> None:
         "http_split",
         "recon",
         "sensitive_file",
+        "sensitive_file",
     ]
 
 
