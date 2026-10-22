@@ -247,7 +247,7 @@ COVERED_PRODUCERS: dict[str, frozenset[str]] = {
         {"content_type_violation"}
     ),
     "core/checks/implementations/request_size_content.py:"
-    "RequestSizeContentCheck._check_request_size_limit": frozenset(
+    "RequestSizeContentCheck._log_suspicious": frozenset(
         {
             "request_size_violation",
             "request_size_content_length_malformed_raises",
@@ -378,6 +378,17 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "logs the adapter class name, once per adapter class, when it lacks "
         "read_body_prefix_until_idle; a class name from the adapter's own "
         "code, no request value is interpolated"
+    ),
+    "_utils/body_reader.py:read_prefix_beyond_limit": (
+        "logs the typed body-read error raised while measuring the request "
+        "size: a fixed message or the exception class name the engine built, "
+        "never a request value"
+    ),
+    "decorators/content_filtering.py:"
+    "ContentFilteringMixin.max_request_size.decorator": (
+        "logs the decorated function's qualified name once when "
+        "max_request_size(0) is applied, at startup from application code; "
+        "no request value is interpolated"
     ),
     "_utils/body_reader.py:_read_capped_body": (
         "logs the typed body-read error on the honeypot path: a fixed message "

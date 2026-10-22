@@ -1466,7 +1466,9 @@ async def _run_content_type_violation(secret: str, ctx: "_ScenarioContext") -> N
     middleware = _scenario_middleware(config, route_config=route_config)
     content_type = json.dumps({"password": secret})
     request = MockGuardRequest(
-        headers={"content-type": content_type}, client_host=client_ip
+        method="POST",
+        headers={"content-type": content_type, "content-length": "4"},
+        client_host=client_ip,
     )
     pipeline = build_default_pipeline(middleware)
     response = await pipeline.execute(request)
