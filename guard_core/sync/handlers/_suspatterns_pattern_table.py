@@ -602,11 +602,7 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
     (_TEMPLATE_OGNL_RE, _CTX_TEMPLATE, "template"),
     (_HTTP_SPLIT_CRLF_RE, _CTX_HTTP_SPLIT, "http_split"),
     (_HTTP_SPLIT_CRLF_DECODED_RE, _CTX_HTTP_SPLIT, "http_split"),
-    (
-        CREDENTIAL_FILES_WITH_DIRECTORY_ROW,
-        _CTX_SENSITIVE_FILE,
-        "sensitive_file",
-    ),
+    *CREDENTIAL_FILE_ROWS,
     (
         _embedded_prose_pattern(r"\.env(?:\.\w+)?"),
         _CTX_SENSITIVE_FILE,
@@ -947,7 +943,6 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
     (r'E:\d+:"', _CTX_DESERIALIZATION, "deserialization"),
     (r"<ObjectDataProvider\b", _CTX_DESERIALIZATION, "deserialization"),
     *NAMED_FLOOR_ROWS,
-    *CREDENTIAL_FILE_ROWS,
 ]
 
 # Whole-value recon rows whose leading path separator is optional: outside a URL

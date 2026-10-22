@@ -45,6 +45,10 @@ from guard_core.sync.handlers._suspatterns_applicable import (
 from guard_core.sync.handlers._suspatterns_applicable import (
     _pattern_should_be_skipped as _pattern_should_be_skipped,
 )
+from guard_core.sync.handlers._suspatterns_credential_files import (
+    CREDENTIAL_FILES_WITH_DIRECTORY_ROW,
+    private_key_name_is_bare,
+)
 from guard_core.sync.handlers._suspatterns_enhanced import _SusPatternsEnhancedMixin
 from guard_core.sync.handlers._suspatterns_ldap_ipv4 import (
     _LEGACY_IPV4_HOST_RE,
@@ -68,6 +72,7 @@ from guard_core.sync.handlers._suspatterns_matchers import (
 from guard_core.sync.handlers._suspatterns_named_floor import (
     NAMED_FLOOR_TOKEN_PATTERNS,
     absolute_path_is_a_probe,
+    is_the_request_url_path,
     last_segment_is_not_the_apps_own_route,
     named_file_in_a_push_list_is_plain,
     named_floor_row_is_not_the_apps_own_route,
@@ -275,6 +280,12 @@ def _path_row_match_is_cleared(
     pattern: re.Pattern, match: re.Match, context: str
 ) -> bool:
     source = pattern.pattern
+    if (
+        source == CREDENTIAL_FILES_WITH_DIRECTORY_ROW
+        and not is_the_request_url_path(context)
+        and private_key_name_is_bare(match.group())
+    ):
+        return True
     if (
         source in NAMED_DIRECTORY_PATH_SOURCES
         and named_file_leaf_in_benign_shape()

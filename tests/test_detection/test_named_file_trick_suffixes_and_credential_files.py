@@ -135,6 +135,9 @@ async def test_a_bare_private_key_name_is_flagged_as_the_last_url_path_segment_o
         assert await _run(_SURFACES["url path"](path)) is True
     assert await _run(_SURFACES["query"](key)) is False
     assert await _run(_json_request({"name": key})) is False
+    for value in (f"/{key}", f"/backup/{key}", f"backup/{key}"):
+        assert await _run(_SURFACES["query"](value)) is False
+        assert await _run(_json_request({"name": value})) is False
     assert await _run(_SURFACES["query"](f"{key}.pub")) is False
     assert await _run(_SURFACES["url path"](f"/{key}.pub")) is False
     assert await _run(_SURFACES["url path"](f".ssh/{key}.pub")) is False
