@@ -6,6 +6,7 @@ from guard_core.sync._utils.request_logging import (
     _merge_sensitive_log_headers,
     _merge_sensitive_names,
 )
+from guard_core.sync._utils.route_gate import PATH_PARAM_DEFAULT_CATEGORIES
 
 if TYPE_CHECKING:
     from guard_core.models import SecurityConfig
@@ -28,6 +29,17 @@ def _resolve_excluded_params(
     if config is not None:
         return _excluded_params_by_name(config.excluded_detection_params)
     return {}
+
+
+def _resolve_declared_path_params(
+    route_config: "RouteConfig | None",
+) -> dict[str, frozenset[str]]:
+    listed = route_config.excluded_detection_path_params if route_config else None
+    if not listed:
+        return {}
+    if isinstance(listed, Mapping):
+        return {name: frozenset(listed[name]) for name in listed}
+    return {name: PATH_PARAM_DEFAULT_CATEGORIES for name in listed}
 
 
 def _resolve_excluded_body_fields(

@@ -24,6 +24,7 @@ from guard_core._utils.detection_scan import (
     _timed_in_worker,
     _warn_scan_time_cap_reached_once,
 )
+from guard_core._utils.route_gate import isolate_declared_path_params
 from guard_core.detection_engine.binary_prefix import (
     build_binary_prefix,
     match_is_binary_dense,
@@ -66,6 +67,7 @@ from guard_core.handlers._suspatterns_matchers import (
 )
 from guard_core.handlers._suspatterns_named_floor import (
     NAMED_FLOOR_TOKEN_PATTERNS,
+    is_the_request_url_path,
     last_segment_is_not_the_apps_own_route,
     named_floor_row_is_not_the_apps_own_route,
     named_probe_row_is_not_the_apps_own_route,
@@ -261,6 +263,39 @@ def _sanitize_for_reporting(value: str) -> str:
     )
 
 
+def _candidate_passes_the_route_gates(
+    pattern: re.Pattern, match: re.Match, context: str
+) -> bool:
+    for candidate, is_valid_threat in _CANDIDATE_REJECTION_VALIDATORS:
+        if pattern.pattern == candidate and not is_valid_threat(match, context):
+            return False
+    if pattern.pattern in ROUTE_GATED_PATH_SOURCES and not (
+        last_segment_is_not_the_apps_own_route(match, context)
+    ):
+        return False
+    return not (
+        pattern.pattern in RECON_OPTIONAL_SEPARATOR_PATTERN_SOURCES
+        and not _recon_path_value_is_probe(match, context)
+    )
+
+
+def _probe_lies_inside_a_declared_path_param(
+    pattern: re.Pattern, match: re.Match, context: str, category: str
+) -> bool:
+    if not is_the_request_url_path(context):
+        return False
+    views = isolate_declared_path_params(match.string, category)
+    if views is None:
+        return False
+    masked, isolated = views
+    remaining = pattern.search(masked)
+    if remaining is not None and _candidate_passes_the_route_gates(
+        pattern, remaining, context
+    ):
+        return False
+    return pattern.search(isolated) is not None
+
+
 def _build_regex_threat(
     pattern: re.Pattern,
     match: re.Match,
@@ -269,16 +304,9 @@ def _build_regex_threat(
     context: str = "unknown",
     binary_prefix: list[int] | None = None,
 ) -> dict[str, Any] | None:
-    for candidate, is_valid_threat in _CANDIDATE_REJECTION_VALIDATORS:
-        if pattern.pattern == candidate and not is_valid_threat(match, context):
-            return None
-    if pattern.pattern in ROUTE_GATED_PATH_SOURCES and not (
-        last_segment_is_not_the_apps_own_route(match, context)
-    ):
+    if not _candidate_passes_the_route_gates(pattern, match, context):
         return None
-    if pattern.pattern in RECON_OPTIONAL_SEPARATOR_PATTERN_SOURCES and not (
-        _recon_path_value_is_probe(match, context)
-    ):
+    if _probe_lies_inside_a_declared_path_param(pattern, match, context, category):
         return None
     if pattern.pattern in NOISE_PRONE_PATTERN_SOURCES and match_is_binary_dense(
         binary_prefix, match

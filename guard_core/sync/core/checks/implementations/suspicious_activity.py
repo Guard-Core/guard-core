@@ -3,6 +3,7 @@ from collections import OrderedDict
 from collections.abc import Collection
 from typing import TYPE_CHECKING, Any
 
+from guard_core._misconfiguration import report_misconfiguration
 from guard_core.models import SecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.agent_events import agent_receives_events
@@ -11,6 +12,7 @@ from guard_core.sync._utils.route_gate import (
     STATIC_FILE_STATE_ATTR,
     might_be_a_gated_probe,
     might_be_a_static_file,
+    path_params_without_a_literal_segment_before,
 )
 from guard_core.sync._utils.rule_attribution import pattern_attribution
 from guard_core.sync._utils.sampling import observe_sampled_key
@@ -61,6 +63,7 @@ class SuspiciousActivityCheck(SecurityCheck):
         from guard_core.sync.handlers.ipban_handler import ip_ban_manager
 
         self.ip_ban_manager = ip_ban_manager
+        self._reported_root_path_params: set[tuple[str, str]] = set()
 
     @property
     def check_name(self) -> str:
@@ -257,6 +260,28 @@ class SuspiciousActivityCheck(SecurityCheck):
         if isinstance(template, str):
             setattr(state, ROUTE_TEMPLATE_STATE_ATTR, template)
 
+    def _report_root_capture_path_params(
+        self, request: SyncGuardRequest, route_config: RouteConfig
+    ) -> None:
+        declared = route_config.excluded_detection_path_params or ()
+        template = getattr(request.state, ROUTE_TEMPLATE_STATE_ATTR, None)
+        if not isinstance(template, str):
+            return
+        route = str(getattr(request.state, "guard_route_id", template))
+        for name in path_params_without_a_literal_segment_before(template, declared):
+            if (route, name) in self._reported_root_path_params:
+                continue
+            report_misconfiguration(
+                self.config,
+                f"@detection_exclusion(path_params=...) on route {route!r} "
+                f"declares {name!r}, which has no literal segment before it in "
+                f"the route template {template!r}: it would exempt the whole "
+                "path from the probe rows.",
+                logger=self.logger,
+                stacklevel=2,
+            )
+            self._reported_root_path_params.add((route, name))
+
     def _record_served_static_file(self, request: SyncGuardRequest) -> None:
         state = request.state
         if getattr(state, STATIC_FILE_STATE_ATTR, None) is not None:
@@ -288,6 +313,8 @@ class SuspiciousActivityCheck(SecurityCheck):
             return None
 
         self._record_route_template(request)
+        if route_config is not None and route_config.excluded_detection_path_params:
+            self._report_root_capture_path_params(request, route_config)
         self._record_served_static_file(request)
         result = get_cached_detection_result(
             request,

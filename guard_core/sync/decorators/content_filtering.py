@@ -85,6 +85,7 @@ class ContentFilteringMixin(BaseSecurityMixin):
         categories: set[str] | None = None,
         scan_body: bool | None = None,
         semantic_headers: set[str] | None = None,
+        path_params: set[str] | dict[str, set[str]] | None = None,
     ) -> Callable[[Callable[..., Any]], DecoratedFunction]:
         def decorator(func: Callable[..., Any]) -> DecoratedFunction:
             route_config = self._ensure_route_config(func)
@@ -99,6 +100,14 @@ class ContentFilteringMixin(BaseSecurityMixin):
 
                 route_config.excluded_detection_params = (
                     _validate_excluded_detection_params_value(params)
+                )
+            if path_params is not None:
+                from guard_core._security_config_validators import (
+                    _validate_excluded_detection_params_value,
+                )
+
+                route_config.excluded_detection_path_params = (
+                    _validate_excluded_detection_params_value(path_params)
                 )
             if body_fields is not None:
                 route_config.excluded_detection_body_fields = set(body_fields)

@@ -3,12 +3,14 @@ from typing import TYPE_CHECKING
 
 from guard_core._utils.body_content_scan import (
     _scan_headers,
+    _scan_query_param_value,
     _scan_query_params,
     _scan_request_body,
 )
 from guard_core._utils.body_reader import _read_capped_body_or_raise
 from guard_core._utils.detection_config import (
     _resolve_binary_min_run_length,
+    _resolve_declared_path_params,
     _resolve_enabled_categories,
     _resolve_excluded_body_fields,
     _resolve_excluded_headers,
@@ -43,6 +45,8 @@ from guard_core._utils.ip_extraction import (
 from guard_core._utils.request_logging import redact_url_for_display
 from guard_core._utils.request_path import resolve_dot_and_empty_segments
 from guard_core._utils.route_gate import (
+    declared_path_param_values,
+    declared_path_params_var,
     route_knowledge,
     route_state_template,
     static_file_state_served,
@@ -91,6 +95,36 @@ async def _scan_url_path_variants(
         if detected:
             break
     return detected, trigger, threats
+
+
+async def _scan_declared_path_param_values(
+    request: GuardRequest,
+    enabled_categories: set[str] | None,
+    client_ip: str,
+    correlation_id: str,
+    log_level: str | None,
+    sensitive_params: frozenset[str],
+    sensitive_body_fields: frozenset[str],
+    excluded_body_fields: frozenset[str],
+    sensitive_headers: frozenset[str],
+) -> tuple[bool, str, list[dict]]:
+    for name, value in declared_path_param_values(request.url_path):
+        detected, trigger, threats = await _scan_query_param_value(
+            name,
+            name,
+            value,
+            enabled_categories,
+            client_ip,
+            correlation_id,
+            log_level,
+            sensitive_params,
+            sensitive_body_fields,
+            excluded_body_fields,
+            sensitive_headers,
+        )
+        if detected:
+            return True, f"Path param '{name}': {trigger}", threats
+    return False, "", []
 
 
 async def _scan_request_surface(
@@ -142,6 +176,21 @@ async def _scan_request_surface(
     )
     if detected:
         return _build_detection_hit(f"URL path: {trigger}", threats)
+
+    if declared_path_params_var.get():
+        detected, trigger, threats = await _scan_declared_path_param_values(
+            request,
+            enabled_categories,
+            client_ip,
+            correlation_id,
+            log_level,
+            sensitive_params,
+            sensitive_body_fields,
+            excluded_body_fields,
+            sensitive_headers,
+        )
+        if detected:
+            return _build_detection_hit(trigger, threats)
 
     detected, trigger, threats = await _scan_headers(
         request,
@@ -257,6 +306,7 @@ async def detect_penetration_attempt(
         route_knowledge(
             route_state_template(request.state),
             static_file_state_served(request.state),
+            _resolve_declared_path_params(route_config),
         ),
         _scan_value_budget(
             max_scan_values,

@@ -1,7 +1,9 @@
 import contextvars
 import re
-from collections.abc import Iterator
+from collections.abc import Collection, Iterator, Mapping
 from contextlib import contextmanager
+from functools import lru_cache
+from types import MappingProxyType
 from typing import Any
 
 ROUTE_TEMPLATE_STATE_ATTR = "guard_route_template"
@@ -20,6 +22,12 @@ _matched_route_template: contextvars.ContextVar[str | None] = contextvars.Contex
 _static_file_served: contextvars.ContextVar[bool] = contextvars.ContextVar(
     "guard_core_static_file_served", default=False
 )
+declared_path_params_var: contextvars.ContextVar[Mapping[str, frozenset[str]]] = (
+    contextvars.ContextVar(
+        "guard_core_declared_path_params", default=MappingProxyType({})
+    )
+)
+PATH_PARAM_DEFAULT_CATEGORIES = frozenset({"recon", "cms_probing"})
 _UNESCAPED_DOT_RE = re.compile(r"\\\.|\[\.\]")
 _PARAMETER_RE = re.compile(r"\{[^}]*\}|<[^>]*>")
 
@@ -71,13 +79,17 @@ def static_file_state_served(state: Any) -> bool:
 
 @contextmanager
 def route_knowledge(
-    template: str | None, static_file_served: bool = False
+    template: str | None,
+    static_file_served: bool = False,
+    declared_path_params: Mapping[str, frozenset[str]] | None = None,
 ) -> Iterator[None]:
     template_token = _matched_route_template.set(template)
     static_token = _static_file_served.set(static_file_served)
+    declared_token = declared_path_params_var.set(declared_path_params or {})
     try:
         yield
     finally:
+        declared_path_params_var.reset(declared_token)
         _static_file_served.reset(static_token)
         _matched_route_template.reset(template_token)
 
@@ -101,3 +113,115 @@ def path_probe_is_not_the_apps_own_route(path: str) -> bool:
 
 def named_probe_is_not_the_apps_own_route(token: str) -> bool:
     return not route_declares(token)
+
+
+_STARLETTE_OR_ANGLE_PARAMETER_RE = re.compile(
+    r"\{(\w+)(?::(\w+))?\}|<(?:(\w+)(?:\([^)]*\))?:)?(\w+)>"
+)
+_CATCH_ALL_CONVERTER = "path"
+
+
+@lru_cache(maxsize=4096)
+def _template_matcher(template: str) -> re.Pattern[str] | None:
+    if "(?P<" in template:
+        pattern = template
+    else:
+        pieces: list[str] = []
+        position = 0
+        for found in _STARLETTE_OR_ANGLE_PARAMETER_RE.finditer(template):
+            pieces.append(re.escape(template[position : found.start()]))
+            converter = found.group(2) or found.group(3)
+            inner = ".*" if converter == _CATCH_ALL_CONVERTER else "[^/]+"
+            pieces.append(f"(?P<{found.group(1) or found.group(4)}>{inner})")
+            position = found.end()
+        pieces.append(re.escape(template[position:]))
+        pattern = "".join(pieces) + r"/?\Z"
+    try:
+        return re.compile(pattern)
+    except re.error:
+        return None
+
+
+def _match_the_template(view: str) -> tuple[re.Match[str], int] | None:
+    template = _matched_route_template.get()
+    matcher = _template_matcher(template) if template is not None else None
+    if matcher is None:
+        return None
+    path = view.split("?", 1)[0]
+    for offset in (0, 1) if path.startswith("/") else (0,):
+        found = matcher.match(path[offset:])
+        if found is not None:
+            return found, offset
+    return None
+
+
+def declared_path_param_spans(
+    view: str, category: str | None = None
+) -> dict[str, tuple[int, int]]:
+    declared = declared_path_params_var.get()
+    matched = _match_the_template(view) if declared else None
+    if matched is None:
+        return {}
+    found, offset = matched
+    spans: dict[str, tuple[int, int]] = {}
+    for name, categories in declared.items():
+        if (category is None or category in categories) and name in found.re.groupindex:
+            start, end = found.span(name)
+            if start != -1:
+                spans[name] = (start + offset, end + offset)
+    return spans
+
+
+def isolate_declared_path_params(view: str, category: str) -> tuple[str, str] | None:
+    spans = declared_path_param_spans(view, category)
+    if not spans:
+        return None
+    masked = view
+    for start, end in spans.values():
+        masked = f"{masked[:start]}{'a' * (end - start)}{masked[end:]}"
+    query_start = view.find("?")
+    if query_start == -1:
+        query_start = len(view)
+    inside = [
+        char
+        if char in "/\\" or any(start <= index < end for start, end in spans.values())
+        else "a"
+        for index, char in enumerate(view[:query_start])
+    ]
+    return masked, "".join(inside) + view[query_start:]
+
+
+def declared_path_param_values(view: str) -> list[tuple[str, str]]:
+    return [
+        (name, view[start:end])
+        for name, (start, end) in declared_path_param_spans(view).items()
+    ]
+
+
+_REGEX_GROUP_RE = re.compile(r"\(\?P<\w+>[^)]*\)")
+
+
+def path_params_without_a_literal_segment_before(
+    template: str, declared: Collection[str]
+) -> list[str]:
+    rootless = []
+    for name in declared:
+        start = template.find(f"(?P<{name}>")
+        if start == -1:
+            found = next(
+                (
+                    candidate
+                    for candidate in _STARLETTE_OR_ANGLE_PARAMETER_RE.finditer(template)
+                    if name in (candidate.group(1), candidate.group(4))
+                ),
+                None,
+            )
+            if found is None:
+                continue
+            start = found.start()
+        prefix = _STARLETTE_OR_ANGLE_PARAMETER_RE.sub(
+            "", _REGEX_GROUP_RE.sub("", template[:start])
+        )
+        if not re.search(r"[^/^]", prefix):
+            rootless.append(name)
+    return rootless
