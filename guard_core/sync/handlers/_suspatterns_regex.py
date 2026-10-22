@@ -24,7 +24,6 @@ from guard_core.sync._utils.detection_scan import (
     _timed_in_worker,
     _warn_scan_time_cap_reached_once,
 )
-from guard_core.sync._utils.route_gate import isolate_declared_path_params
 from guard_core.sync.detection_engine.binary_prefix import (
     build_binary_prefix,
     match_is_binary_dense,
@@ -67,10 +66,10 @@ from guard_core.sync.handlers._suspatterns_matchers import (
 )
 from guard_core.sync.handlers._suspatterns_named_floor import (
     NAMED_FLOOR_TOKEN_PATTERNS,
-    is_the_request_url_path,
     last_segment_is_not_the_apps_own_route,
     named_floor_row_is_not_the_apps_own_route,
     named_probe_row_is_not_the_apps_own_route,
+    probe_lies_inside_a_declared_path_param,
     recon_path_is_a_probe,
     source_path_is_a_probe,
 )
@@ -279,23 +278,6 @@ def _candidate_passes_the_route_gates(
     )
 
 
-def _probe_lies_inside_a_declared_path_param(
-    pattern: re.Pattern, match: re.Match, context: str, category: str
-) -> bool:
-    if not is_the_request_url_path(context):
-        return False
-    views = isolate_declared_path_params(match.string, category)
-    if views is None:
-        return False
-    masked, isolated = views
-    remaining = pattern.search(masked)
-    if remaining is not None and _candidate_passes_the_route_gates(
-        pattern, remaining, context
-    ):
-        return False
-    return pattern.search(isolated) is not None
-
-
 def _build_regex_threat(
     pattern: re.Pattern,
     match: re.Match,
@@ -306,7 +288,9 @@ def _build_regex_threat(
 ) -> dict[str, Any] | None:
     if not _candidate_passes_the_route_gates(pattern, match, context):
         return None
-    if _probe_lies_inside_a_declared_path_param(pattern, match, context, category):
+    if probe_lies_inside_a_declared_path_param(
+        pattern, match, context, category, _candidate_passes_the_route_gates
+    ):
         return None
     if pattern.pattern in NOISE_PRONE_PATTERN_SOURCES and match_is_binary_dense(
         binary_prefix, match

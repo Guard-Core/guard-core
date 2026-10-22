@@ -1,6 +1,8 @@
 import re
+from collections.abc import Callable
 
 from guard_core._utils.route_gate import (
+    isolate_declared_path_params,
     named_probe_is_not_the_apps_own_route,
     normalized_last_segment,
     path_probe_is_not_the_apps_own_route,
@@ -68,6 +70,25 @@ NAMED_FLOOR_ROWS: tuple[tuple[str, frozenset[str], str], ...] = (
 
 def is_the_request_url_path(context: str) -> bool:
     return context.startswith("url_path") and _source_extension_path_is_probe(context)
+
+
+def probe_lies_inside_a_declared_path_param(
+    pattern: re.Pattern,
+    match: re.Match,
+    context: str,
+    category: str,
+    candidate_passes: Callable[[re.Pattern, re.Match, str], bool],
+) -> bool:
+    if not is_the_request_url_path(context):
+        return False
+    views = isolate_declared_path_params(match.string, category)
+    if views is None:
+        return False
+    masked, isolated = views
+    remaining = pattern.search(masked)
+    if remaining is not None and candidate_passes(pattern, remaining, context):
+        return False
+    return pattern.search(isolated) is not None
 
 
 def source_path_is_a_probe(match: re.Match, context: str) -> bool:
