@@ -107,7 +107,7 @@ class IpBanVersionMixin:
         self._ban_version_seen = version
         self._ban_version_checked_at = time.time()
 
-    async def _adopt_version(self, raw: Any, now: float) -> bool:
+    def _version_moved(self, raw: Any, now: float) -> bool:
         version = _normalize_version(raw)
         self._ban_version_checked_at = now
         if self._ban_version_seen is None:
@@ -116,6 +116,11 @@ class IpBanVersionMixin:
         if version == self._ban_version_seen:
             return False
         self.banned_ips.clear()
+        return True
+
+    async def _adopt_version(self, raw: Any, now: float) -> bool:
+        if not self._version_moved(raw, now):
+            return False
         await self._reload_operator_networks()
         return True
 

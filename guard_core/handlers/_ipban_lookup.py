@@ -66,23 +66,24 @@ class IpBanLookupMixin(IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptionMix
         addr: ipaddress.IPv4Address | ipaddress.IPv6Address | None = None,
     ) -> bool:
         values = await self.redis_handler.get_many([*namespaces, _VERSION_PAIR])
-        reloaded = await self._adopt_version(values.pop(), now)
-        if reloaded and addr is not None and self._operator_networks is not None:
-            if self._operator_networks.covers(addr, now):
+        if self._version_moved(values.pop(), now):
+            await self._reload_operator_networks()
+            networks = self._operator_networks
+            if addr is not None and networks is not None and networks.covers(addr, now):
                 return True
-        banned_keys: list[str] = []
+        banned = False
         for (namespace, key), value in zip(namespaces, values, strict=True):
             if not value:
                 continue
             expiry_time = float(value)
             if now <= expiry_time:
                 self.banned_ips[key] = self._local_expiry(expiry_time)
-                banned_keys.append(key)
+                banned = True
             else:
                 await self.redis_handler.delete(namespace, key)
         if self.agent_handler:
             await self._report_evictions()
-        return bool(banned_keys)
+        return banned
 
     def _local_verdict(self, ip: str, identity: str | None, now: float) -> bool | None:
         for key in (ip, identity):
@@ -106,14 +107,9 @@ class IpBanLookupMixin(IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptionMix
             return True
         return await self._positive_survives_recheck(now)
 
-    async def _operator_network_bans(
+    async def _operator_ban_holds(
         self, addr: ipaddress.IPv4Address | ipaddress.IPv6Address, now: float
     ) -> bool:
-        if self._operator_networks is None:
-            await self._reload_operator_networks()
-        networks = self._operator_networks
-        if networks is None or not networks.covers(addr, now):
-            return False
         if await self._cached_positive_survives(now):
             return True
         return self._operator_networks is not None and self._operator_networks.covers(
@@ -193,7 +189,14 @@ class IpBanLookupMixin(IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptionMix
             return True
         if not self.redis_handler:
             return False
-        if await self._operator_network_bans(addr, now):
+        if self._operator_networks is None:
+            await self._reload_operator_networks()
+        networks = self._operator_networks
+        if (
+            networks is not None
+            and networks.covers(addr, now)
+            and await self._operator_ban_holds(addr, now)
+        ):
             return True
         keys = [("banned_ips", ip)]
         if identity is not None:
