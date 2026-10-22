@@ -42,17 +42,35 @@ def _resolve_declared_path_params(
     return {name: PATH_PARAM_DEFAULT_CATEGORIES for name in listed}
 
 
-def _resolve_excluded_body_fields(
+def _listed_excluded_body_fields(
     config: "SecurityConfig | None", route_config: "RouteConfig | None"
-) -> set[str]:
+) -> "Collection[str] | Mapping[str, Collection[str]]":
     if (
         route_config is not None
         and route_config.excluded_detection_body_fields is not None
     ):
-        return {k.lower() for k in route_config.excluded_detection_body_fields}
+        return route_config.excluded_detection_body_fields
     if config is not None:
-        return {k.lower() for k in config.excluded_detection_body_fields}
+        return config.excluded_detection_body_fields
     return set()
+
+
+def _resolve_excluded_body_fields(
+    config: "SecurityConfig | None", route_config: "RouteConfig | None"
+) -> set[str]:
+    by_name = _excluded_params_by_name(
+        _listed_excluded_body_fields(config, route_config)
+    )
+    return {name for name, categories in by_name.items() if not categories}
+
+
+def _resolve_body_field_category_skips(
+    config: "SecurityConfig | None", route_config: "RouteConfig | None"
+) -> dict[str, frozenset[str]]:
+    by_name = _excluded_params_by_name(
+        _listed_excluded_body_fields(config, route_config)
+    )
+    return {name: categories for name, categories in by_name.items() if categories}
 
 
 def _resolve_enabled_categories(

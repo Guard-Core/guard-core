@@ -11,6 +11,7 @@ from guard_core.sync._utils.body_content_scan import (
 from guard_core.sync._utils.body_reader import _read_capped_body_or_raise
 from guard_core.sync._utils.detection_config import (
     _resolve_binary_min_run_length,
+    _resolve_body_field_category_skips,
     _resolve_declared_path_params,
     _resolve_enabled_categories,
     _resolve_excluded_body_fields,
@@ -35,6 +36,7 @@ from guard_core.sync._utils.detection_result_builders import (
 )
 from guard_core.sync._utils.detection_scan import (
     LazyPreview,
+    _budget_that_is_never_spent,
     _check_request_component,
     _scan_value_budget,
 )
@@ -50,6 +52,7 @@ from guard_core.sync._utils.route_gate import (
     declared_path_params_var,
     route_knowledge,
     route_state_template,
+    scanning_declared_path_param_values,
     static_file_state_served,
 )
 from guard_core.sync.detection_result import DetectionResult
@@ -79,19 +82,20 @@ def _scan_url_path_variants(
     )
     detected, trigger, threats = False, "", list[dict]()
     for variant in variants:
-        detected, trigger, threats = _check_request_component(
-            variant,
-            "url_path",
-            "URL path",
-            client_ip,
-            correlation_id,
-            enabled_categories,
-            log_level,
-            content_preview=redacted_url_path,
-            sensitive_body_fields=sensitive_body_fields,
-            excluded_body_fields=excluded_body_fields,
-            json_redact_all=False,
-        )
+        with _budget_that_is_never_spent():
+            detected, trigger, threats = _check_request_component(
+                variant,
+                "url_path",
+                "URL path",
+                client_ip,
+                correlation_id,
+                enabled_categories,
+                log_level,
+                content_preview=redacted_url_path,
+                sensitive_body_fields=sensitive_body_fields,
+                excluded_body_fields=excluded_body_fields,
+                json_redact_all=False,
+            )
         if detected:
             break
     return detected, trigger, threats
@@ -109,19 +113,20 @@ def _scan_declared_path_param_values(
     sensitive_headers: frozenset[str],
 ) -> tuple[bool, str, list[dict]]:
     for name, value in declared_path_param_values(request.url_path):
-        detected, trigger, threats = _scan_query_param_value(
-            name,
-            name,
-            value,
-            enabled_categories,
-            client_ip,
-            correlation_id,
-            log_level,
-            sensitive_params,
-            sensitive_body_fields,
-            excluded_body_fields,
-            sensitive_headers,
-        )
+        with scanning_declared_path_param_values():
+            detected, trigger, threats = _scan_query_param_value(
+                name,
+                name,
+                value,
+                enabled_categories,
+                client_ip,
+                correlation_id,
+                log_level,
+                sensitive_params,
+                sensitive_body_fields,
+                excluded_body_fields,
+                sensitive_headers,
+            )
         if detected:
             return True, f"Path param '{name}': {trigger}", threats
     return False, "", []
@@ -288,6 +293,7 @@ def detect_penetration_attempt(
 
     excluded_params = _resolve_excluded_params(config, route_config)
     excluded_body_fields = _resolve_excluded_body_fields(config, route_config)
+    body_field_category_skips = _resolve_body_field_category_skips(config, route_config)
     enabled_categories = _resolve_enabled_categories(config, route_config)
     excluded_headers = _resolve_excluded_headers(config, route_config)
     operator_excluded_headers = _resolve_operator_excluded_headers(config, route_config)
@@ -316,37 +322,43 @@ def detect_penetration_attempt(
             max_scan_seconds,
             semantic_excluded_headers,
             (request, sensitive_params, sensitive_body_fields, sensitive_headers),
+            body_field_category_skips,
         ),
     ):
-        surface_hit = _scan_request_surface(
-            request,
-            excluded_params,
-            excluded_headers,
-            enabled_categories,
-            client_ip,
-            correlation_id,
-            log_level,
-            sensitive_headers,
-            sensitive_params,
-            sensitive_body_fields,
-            frozenset(excluded_body_fields),
-            operator_excluded_headers,
-        )
-        if surface_hit is not None:
-            surface_hit.correlation_id = correlation_id
-            return surface_hit
+        try:
+            surface_hit = _scan_request_surface(
+                request,
+                excluded_params,
+                excluded_headers,
+                enabled_categories,
+                client_ip,
+                correlation_id,
+                log_level,
+                sensitive_headers,
+                sensitive_params,
+                sensitive_body_fields,
+                frozenset(excluded_body_fields),
+                operator_excluded_headers,
+            )
+            if surface_hit is not None:
+                surface_hit.correlation_id = correlation_id
+                return surface_hit
 
-        body_result = _scan_body_surface(
-            request,
-            config,
-            route_config,
-            excluded_body_fields,
-            enabled_categories,
-            client_ip,
-            correlation_id,
-            log_level,
-            sensitive_body_fields,
-            sensitive_params,
-        )
-        body_result.correlation_id = correlation_id
-        return body_result
+            body_result = _scan_body_surface(
+                request,
+                config,
+                route_config,
+                excluded_body_fields,
+                enabled_categories,
+                client_ip,
+                correlation_id,
+                log_level,
+                sensitive_body_fields,
+                sensitive_params,
+            )
+            body_result.correlation_id = correlation_id
+            return body_result
+        except BodyReadFailedError as error:
+            read_error = _build_body_read_error(False, error.detail)
+            read_error.correlation_id = correlation_id
+            return read_error

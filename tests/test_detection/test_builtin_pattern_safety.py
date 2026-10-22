@@ -26,6 +26,7 @@ from guard_core.handlers.suspatterns_handler import (
     _GLOB_WILDCARD_ATOM_RE,
     _PATTERN_SCAN_WINDOW_MATCHERS,
     _SCAN_WINDOW_PATTERNS,
+    _SQLI_COMMENT_TERMINATOR_RE,
     _SQLI_LOAD_FILE_RE,
     _TEMPLATE_ASP_KEYWORD_RE,
     _TEMPLATE_CURLY_CALL_RE,
@@ -311,18 +312,26 @@ def test_union_select_null_still_matches_real_sqli() -> None:
 
 
 def test_quote_comment_matches_authentication_bypass() -> None:
-    rx = _compiled("sqli", r"'\s*(?:[\);]+\s*)?--|'[\);]*#(?:\n|\Z)")
+    rx = _compiled("sqli", _SQLI_COMMENT_TERMINATOR_RE)
     assert rx.search("admin'--")
     assert rx.search("1'--")
     assert rx.search("admin'#")
     assert rx.search("admin')--")
     assert rx.search("1'; --")
     assert rx.search("admin'-- -")
+    assert rx.search("admin'/*")
+    assert rx.search("admin' /*")
+    assert rx.search("admin' #")
+    assert rx.search("admin' # ")
 
 
 def test_quote_comment_ignores_quoted_fragments_and_prose() -> None:
-    rx = _compiled("sqli", r"'\s*(?:[\);]+\s*)?--|'[\);]*#(?:\n|\Z)")
+    rx = _compiled("sqli", _SQLI_COMMENT_TERMINATOR_RE)
     assert not rx.search("document.querySelector('#app')")
+    assert not rx.search("echo 'debug' #\nEnables verbose output.")
+    assert not rx.search("the user' #1 pick")
+    assert not rx.search("it's /* not */ code")
+    assert not rx.search("a { content: ''; /* clearfix */ }")
     assert not rx.search("href='#top'")
     assert not rx.search("I'll select a few items from the catalog")
     assert not rx.search("O'Brien")

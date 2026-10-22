@@ -1,17 +1,65 @@
 import json
 import re
+import sys
 from typing import Any
 
+from guard_core._utils.detection_config import _categories_without
 from guard_core._utils.detection_scan import (
+    _body_field_category_skips,
     _json_depth_cap_value,
     _scan_component_name,
+    _skip_counter,
     _warn_json_depth_cap_reached_once,
 )
 from guard_core._utils.logging_utils import (
     _redact_sensitive_json,
     _sanitize_for_reporting,
 )
+from guard_core._utils.scan_remainder import (
+    _body_remainder_display,
+    _scan_surface_remainder,
+    _SurfaceRemainder,
+)
 from guard_core._utils.sensitive_names import name_is_sensitive
+from guard_core._utils.source_path_shapes import (
+    SHAPE_KEYS,
+    BenignShapePath,
+    BenignShapePaths,
+    benign_shape_grants,
+    benign_shape_keys,
+    enter_benign_shape,
+    leave_benign_shape,
+    mark_benign_shape,
+    mark_benign_shape_path,
+)
+from guard_core.handlers._suspatterns_sources import _EMBEDDED_JSON_LEAF_CONTEXT_SUFFIX
+
+
+class _RepeatedKey(str):
+    """A key an object repeated: equal to no other key, so the dict keeps it.
+
+    ``json.loads`` keeps only the last value of a repeated key, so a backend that
+    keeps the first one would receive a payload the walk never saw.
+    """
+
+    __slots__ = ()
+
+    def __eq__(self, other: object) -> bool:
+        return self is other
+
+    def __hash__(self) -> int:
+        return id(self)
+
+
+def _json_object_with_every_pair(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    merged = dict(pairs)
+    if len(merged) == len(pairs):
+        return merged
+    every_pair: dict[str, Any] = {}
+    for key, value in pairs:
+        every_pair[_RepeatedKey(key) if key in every_pair else key] = value
+    return every_pair
+
 
 _MONGO_OPERATOR_KEY_RE = re.compile(
     r"^\$(?:ne|gt|gte|lt|lte|eq|in|nin|nor|and|or|not|all|size|exists|type|"
@@ -97,7 +145,55 @@ async def _scan_capped_json_subtree(
         display=display,
         context=context,
         preview_override=preview_override,
+        scan_embedded_json=False,
     )
+
+
+def _push_dict_entries(
+    current: dict[Any, Any],
+    label: str,
+    depth: int,
+    redact: bool,
+    stack: list[tuple[str, Any, Any, int, bool]],
+) -> None:
+    in_shape = (
+        frozenset()
+        if SHAPE_KEYS.isdisjoint(current)
+        else benign_shape_keys(current, label)
+    )
+    grants = benign_shape_grants(current, label) if in_shape else {}
+    for key, item in reversed(list(current.items())):
+        stack.append(
+            (
+                "entry",
+                key,
+                mark_benign_shape(item, grants[key]) if key in in_shape else item,
+                depth,
+                redact,
+            )
+        )
+
+
+def _push_list_items(
+    current: list[Any],
+    label: str,
+    depth: int,
+    redact: bool,
+    stack: list[tuple[str, Any, Any, int, bool]],
+) -> None:
+    in_shape = current.grants if type(current) is BenignShapePaths else None
+    for item in reversed(current):
+        stack.append(
+            (
+                "value",
+                mark_benign_shape_path(item, in_shape)
+                if in_shape is not None and isinstance(item, str)
+                else item,
+                label,
+                depth + 1,
+                redact,
+            )
+        )
 
 
 async def _scan_json_container_frame(
@@ -136,11 +232,9 @@ async def _scan_json_container_frame(
         )
         return hit if hit[0] else None
     if isinstance(current, dict):
-        for key, item in reversed(list(current.items())):
-            stack.append(("entry", key, item, depth, redact))
-        return None
-    for item in reversed(current):
-        stack.append(("value", item, label, depth + 1, redact))
+        _push_dict_entries(current, label, depth, redact, stack)
+    else:
+        _push_list_items(current, label, depth, redact, stack)
     return None
 
 
@@ -158,25 +252,180 @@ async def _scan_json_entry_frame(
     sensitive_body_fields: frozenset[str] = frozenset(),
     context: str = "request_body",
     redact_keys: bool = False,
+    key_known_clean: bool = False,
+    sensitive_params: frozenset[str] = frozenset(),
 ) -> tuple[bool, str, list[dict]] | None:
-    key_result = await _scan_json_dict_entry_key(
-        key,
-        excluded_body_fields,
-        enabled_categories,
-        client_ip,
-        correlation_id,
-        log_level,
-        context,
-        redact_keys,
+    key_str = str(key)
+    category_skips = _body_field_category_skips.get()
+    skipped_categories = category_skips.get(key_str.lower()) if category_skips else None
+    if skipped_categories is not None:
+        enabled_categories = _categories_without(enabled_categories, skipped_categories)
+    key_result = (
+        (False, "", [])
+        if key_known_clean
+        else await _scan_json_dict_entry_key(
+            key,
+            excluded_body_fields,
+            enabled_categories,
+            client_ip,
+            correlation_id,
+            log_level,
+            context,
+            redact_keys,
+        )
     )
     if key_result is None:
         return None
     if key_result[0]:
         return key_result
-    key_str = str(key)
     own_redact = redact or name_is_sensitive(key_str, sensitive_body_fields)
+    if skipped_categories is not None:
+        hit = await _scan_json_value(
+            item,
+            key_str,
+            excluded_body_fields,
+            enabled_categories,
+            client_ip,
+            correlation_id,
+            log_level,
+            sensitive_body_fields,
+            context=context,
+            preview_override="[REDACTED]" if own_redact else None,
+            redact_keys=redact_keys,
+            sensitive_params=sensitive_params,
+        )
+        return hit if hit[0] else None
     stack.append(("value", item, key_str, depth + 1, own_redact))
     return None
+
+
+def _walk_limits(context: str) -> tuple[int, set[tuple[Any, ...]] | None]:
+    # An embedded value is bounded by the parser depth check before it is walked, so
+    # its walk has no depth cap of its own and remembers what it scanned clean.
+    if context.endswith(_EMBEDDED_JSON_LEAF_CONTEXT_SUFFIX):
+        return sys.maxsize, set()
+    return _json_depth_cap_value(), None
+
+
+def _clean_signature(
+    clean: set[tuple[Any, ...]] | None,
+    kind: str,
+    first: Any,
+    second: Any,
+    excluded_body_fields: set[str],
+) -> tuple[tuple[Any, ...] | None, bool]:
+    # A key or a leaf an embedded walk already scanned clean gives the same verdict
+    # again, so a nested value repeating one key per level is scanned once.
+    if clean is None:
+        return None, False
+    signature = _signature_of_frame(kind, first, second, excluded_body_fields)
+    return signature, signature in clean
+
+
+def _signature_of_frame(
+    kind: str, first: Any, second: Any, excluded_body_fields: set[str]
+) -> tuple[Any, ...] | None:
+    if kind == "entry":
+        key_text = str(first)
+        return None if key_text.lower() in excluded_body_fields else ("key", key_text)
+    if isinstance(first, dict | list):
+        return None
+    return (
+        "leaf",
+        str(first),
+        second,
+        first.grants if type(first) is BenignShapePath else None,
+    )
+
+
+def _json_skipped_text(kind: str, first: Any) -> str:
+    if kind != "entry" and isinstance(first, dict | list):
+        return json.dumps(first, separators=(",", ":"), ensure_ascii=False)
+    return str(first)
+
+
+async def _scan_json_frame(
+    kind: str,
+    first: Any,
+    second: Any,
+    depth: int,
+    redact: bool,
+    max_depth: int,
+    stack: list[tuple[str, Any, Any, int, bool]],
+    excluded_body_fields: set[str],
+    enabled_categories: set[str] | None,
+    client_ip: str,
+    correlation_id: str,
+    log_level: str | None,
+    sensitive_body_fields: frozenset[str],
+    context: str,
+    preview_override: str | None,
+    redact_keys: bool,
+    sensitive_params: frozenset[str],
+    key_known_clean: bool = False,
+) -> tuple[bool, str, list[dict]] | None:
+    from guard_core._utils.body_content_scan import _scan_body_field
+
+    if kind == "entry":
+        return await _scan_json_entry_frame(
+            first,
+            second,
+            depth,
+            redact,
+            stack,
+            excluded_body_fields,
+            enabled_categories,
+            client_ip,
+            correlation_id,
+            log_level,
+            sensitive_body_fields,
+            context,
+            redact_keys,
+            key_known_clean,
+            sensitive_params,
+        )
+    if isinstance(first, dict | list):
+        return await _scan_json_container_frame(
+            first,
+            second,
+            depth,
+            redact,
+            max_depth,
+            stack,
+            enabled_categories,
+            client_ip,
+            correlation_id,
+            log_level,
+            sensitive_body_fields,
+            context,
+            preview_override,
+            sensitive_params,
+        )
+    leaf_preview = (
+        preview_override
+        if preview_override is not None
+        else ("[REDACTED]" if redact else None)
+    )
+    shape_token = (
+        enter_benign_shape(first.grants) if type(first) is BenignShapePath else None
+    )
+    try:
+        scalar_hit = await _scan_body_field(
+            str(first),
+            second,
+            enabled_categories,
+            client_ip,
+            correlation_id,
+            log_level,
+            sensitive_body_fields,
+            context=context,
+            preview_override=leaf_preview,
+            sensitive_params=sensitive_params,
+        )
+    finally:
+        if shape_token is not None:
+            leave_benign_shape(shape_token)
+    return scalar_hit if scalar_hit[0] else None
 
 
 async def _scan_json_value(
@@ -193,74 +442,58 @@ async def _scan_json_value(
     redact_keys: bool = False,
     sensitive_params: frozenset[str] = frozenset(),
 ) -> tuple[bool, str, list[dict]]:
-    from guard_core._utils.body_content_scan import _scan_body_field
-
-    max_depth = _json_depth_cap_value()
+    max_depth, clean = _walk_limits(context)
     stack: list[tuple[str, Any, Any, int, bool]] = [
         ("value", value, key_label, 1, False)
     ]
+    remainder = _SurfaceRemainder()
+    skips = _skip_counter()
     while stack:
         kind, first, second, depth, redact = stack.pop()
-        if kind == "entry":
-            hit = await _scan_json_entry_frame(
-                first,
-                second,
-                depth,
-                redact,
-                stack,
-                excluded_body_fields,
-                enabled_categories,
-                client_ip,
-                correlation_id,
-                log_level,
-                sensitive_body_fields,
-                context,
-                redact_keys,
-            )
-            if hit is not None:
-                return hit
-            continue
-        current, label = first, second
-        if isinstance(current, dict | list):
-            hit = await _scan_json_container_frame(
-                current,
-                label,
-                depth,
-                redact,
-                max_depth,
-                stack,
-                enabled_categories,
-                client_ip,
-                correlation_id,
-                log_level,
-                sensitive_body_fields,
-                context,
-                preview_override,
-                sensitive_params,
-            )
-            if hit is not None:
-                return hit
-            continue
-        leaf_preview = (
-            preview_override
-            if preview_override is not None
-            else ("[REDACTED]" if redact else None)
+        signature, known_clean = _clean_signature(
+            clean, kind, first, second, excluded_body_fields
         )
-        scalar_hit = await _scan_body_field(
-            str(current),
-            label,
+        if known_clean and kind == "value":
+            continue
+        skipped_before = skips.count
+        hit = await _scan_json_frame(
+            kind,
+            first,
+            second,
+            depth,
+            redact,
+            max_depth,
+            stack,
+            excluded_body_fields,
             enabled_categories,
             client_ip,
             correlation_id,
             log_level,
             sensitive_body_fields,
-            context=context,
-            preview_override=leaf_preview,
-            sensitive_params=sensitive_params,
+            context,
+            preview_override,
+            redact_keys,
+            sensitive_params,
+            known_clean,
         )
-        if scalar_hit[0]:
-            return scalar_hit
-    return False, "", []
+        if hit is not None:
+            return hit
+        if skips.count != skipped_before:
+            remainder.add(_json_skipped_text(kind, first), kind != "entry" and redact)
+        elif clean is not None and signature is not None:
+            clean.add(signature)
+    if not remainder:
+        return False, "", []
+    return await _scan_surface_remainder(
+        remainder,
+        "\n",
+        "request_body",
+        "Remaining request body",
+        client_ip,
+        correlation_id,
+        log_level,
+        _body_remainder_display(sensitive_params, sensitive_body_fields),
+    )
 
 
 async def _scan_json_content(
@@ -274,7 +507,9 @@ async def _scan_json_content(
     sensitive_params: frozenset[str] = frozenset(),
 ) -> tuple[bool, str, list[dict]] | None:
     try:
-        parsed_body = json.loads(raw_body)
+        parsed_body = json.loads(
+            raw_body, object_pairs_hook=_json_object_with_every_pair
+        )
     except Exception:
         parsed_body = None
     if isinstance(parsed_body, dict | list):

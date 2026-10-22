@@ -1,18 +1,28 @@
 import re
 from collections.abc import Callable
+from functools import lru_cache
 
 from guard_core.sync._utils.route_gate import (
+    is_scanning_declared_path_param_values,
     isolate_declared_path_params,
     named_probe_is_not_the_apps_own_route,
     normalized_last_segment,
     path_probe_is_not_the_apps_own_route,
     route_declares,
 )
+from guard_core.sync._utils.source_path_shapes import (
+    absolute_path_leaf_in_benign_shape,
+    named_file_leaf_in_benign_shape,
+    source_path_leaf_in_benign_shape,
+)
 from guard_core.sync.handlers._suspatterns_sources import (
     _CTX_CMS_PROBING,
     _CTX_RECON,
+    _NAMED_PATH_SUFFIX_RE,
     _PATH_ONLY_CHAR_RE,
     _PATH_ONLY_SEP_RE,
+    _PATH_ONLY_SUFFIX_RE,
+    _PLAIN_SOURCE_OR_MAP_PATH_END_RE,
     _nested_path_pattern,
     _path_only_pattern,
     _source_extension_path_is_probe,
@@ -96,7 +106,46 @@ def source_path_is_a_probe(match: re.Match, context: str) -> bool:
         return False
     if is_the_request_url_path(context):
         return path_probe_is_not_the_apps_own_route(match.group())
-    return "/" in match.group() or "\\" in match.group()
+    if is_scanning_declared_path_param_values():
+        return "/" in match.group() or "\\" in match.group()
+    return not (
+        source_path_leaf_in_benign_shape()
+        and _PLAIN_SOURCE_OR_MAP_PATH_END_RE.search(match.group())
+    )
+
+
+def absolute_path_is_a_probe(context: str) -> bool:
+    return _source_extension_path_is_probe(context) and not (
+        absolute_path_leaf_in_benign_shape()
+    )
+
+
+_NAMED_PATH_TRICK_RE = re.compile(r";|%00|::\$|\.\s*\Z")
+
+
+def named_path_has_a_trick_suffix(path: str) -> bool:
+    return _NAMED_PATH_TRICK_RE.search(path) is not None
+
+
+@lru_cache(maxsize=256)
+def _named_row_without_path_info(source: str, flags: int) -> re.Pattern[str]:
+    for suffix in (_NAMED_PATH_SUFFIX_RE, _PATH_ONLY_SUFFIX_RE):
+        if source.endswith(suffix):
+            return re.compile(source.removesuffix(suffix) + r"\s*\Z", flags)
+    return re.compile(source, flags)
+
+
+def named_file_in_a_push_list_is_plain(pattern: re.Pattern, match: re.Match) -> bool:
+    if not named_file_leaf_in_benign_shape() or named_path_has_a_trick_suffix(
+        match.group()
+    ):
+        return False
+    return (
+        _named_row_without_path_info(pattern.pattern, pattern.flags).match(
+            match.group()
+        )
+        is not None
+    )
 
 
 def recon_path_is_a_probe(match: re.Match, context: str) -> bool:

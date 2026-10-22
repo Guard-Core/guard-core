@@ -2,8 +2,9 @@ import contextvars
 import logging
 import re
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
+from types import MappingProxyType
 from typing import Any, TypeVar
 
 from guard_core.sync._utils.detection_config import (
@@ -12,6 +13,7 @@ from guard_core.sync._utils.detection_config import (
     _DEFAULT_MAX_SCAN_CHARS,
     _DEFAULT_MAX_SCAN_SECONDS,
     _DEFAULT_MAX_SCAN_VALUES,
+    _categories_without,
 )
 from guard_core.sync._utils.logging_utils import _log_at_level, _sanitize_for_reporting
 from guard_core.sync._utils.pattern_source_redaction import _redact_pattern_source
@@ -66,6 +68,46 @@ _scan_request_scope: contextvars.ContextVar[
 )
 
 
+class _ScanSkips:
+    """The values of one request whose scan the value or char budget skipped.
+
+    ``categories`` and ``semantic_excluded`` describe the most recent skipped
+    value, so the surface that owns the item can group it with the same
+    detection settings it would have been scanned with.
+    """
+
+    __slots__ = ("categories", "count", "semantic_excluded")
+
+    def __init__(self) -> None:
+        self.count = 0
+        self.categories: frozenset[str] | None = None
+        self.semantic_excluded = False
+
+
+_scan_skips: contextvars.ContextVar[_ScanSkips | None] = contextvars.ContextVar(
+    "guard_core_detection_scan_skips", default=None
+)
+_whole_value_rows_only: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "guard_core_detection_whole_value_rows_only", default=False
+)
+_whole_value_path_rows_skipped: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "guard_core_detection_whole_value_path_rows_skipped", default=False
+)
+_inside_embedded_json: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "guard_core_detection_inside_embedded_json", default=False
+)
+_body_field_category_skips: contextvars.ContextVar[Mapping[str, frozenset[str]]] = (
+    contextvars.ContextVar(
+        "guard_core_detection_body_field_category_skips", default=MappingProxyType({})
+    )
+)
+_semantic_excluded_headers: contextvars.ContextVar[frozenset[str]] = (
+    contextvars.ContextVar(
+        "guard_core_detection_semantic_excluded_headers", default=frozenset()
+    )
+)
+
+
 @contextmanager
 def _scan_value_budget(
     max_values: int,
@@ -75,6 +117,7 @@ def _scan_value_budget(
     max_scan_seconds: float = _DEFAULT_MAX_SCAN_SECONDS,
     semantic_excluded_headers: frozenset[str] = frozenset(),
     event_request: tuple[Any, ...] | None = None,
+    body_field_category_skips: Mapping[str, frozenset[str]] | None = None,
 ) -> Iterator[None]:
     count_token = _scanned_value_count.set(0)
     cap_token = _scan_value_cap.set(max_values)
@@ -89,6 +132,9 @@ def _scan_value_budget(
     time_warned_token = _scan_time_cap_warned.set(False)
     slice_token = _scan_slice_start.set(time.monotonic())
     scope_token = _scan_request_scope.set((semantic_excluded_headers, event_request))
+    semantic_token = _semantic_excluded_headers.set(semantic_excluded_headers)
+    skips_token = _scan_skips.set(_ScanSkips())
+    body_field_token = _body_field_category_skips.set(body_field_category_skips or {})
     try:
         yield
     finally:
@@ -105,6 +151,24 @@ def _scan_value_budget(
         _scan_time_cap_warned.reset(time_warned_token)
         _scan_slice_start.reset(slice_token)
         _scan_request_scope.reset(scope_token)
+        _semantic_excluded_headers.reset(semantic_token)
+        _scan_skips.reset(skips_token)
+        _body_field_category_skips.reset(body_field_token)
+
+
+def _body_field_skipped_categories(name: str) -> frozenset[str] | None:
+    # None: the field is scanned in every category. Fields excluded in every
+    # category never get here (the walk drops them by name).
+    return _body_field_category_skips.get().get(name.lower())
+
+
+def _body_field_scan_categories(
+    name: str, enabled_categories: set[str] | None
+) -> set[str] | None:
+    skipped = _body_field_skipped_categories(name)
+    if skipped is None:
+        return enabled_categories
+    return _categories_without(enabled_categories, skipped)
 
 
 def _binary_island_min_run_length() -> int:
@@ -237,7 +301,7 @@ def _scan_value_budget_exhausted(client_ip: str) -> bool:
     if count == cap + 1:
         logger.warning(
             "detection_max_scan_values (%d) reached for client %s; remaining "
-            "request values are not scanned",
+            "request values are scanned once more as one block",
             cap,
             client_ip,
         )
@@ -252,7 +316,7 @@ def _scan_char_budget_exhausted(client_ip: str, value_length: int) -> bool:
             _scan_char_cap_warned.set(True)
             logger.warning(
                 "detection_max_scan_chars (%d) reached for client %s; remaining "
-                "request values are not scanned",
+                "request values are scanned once more as one block",
                 cap,
                 client_ip,
             )
@@ -265,6 +329,79 @@ def _scan_budget_exhausted(client_ip: str, value: str) -> bool:
     if _scan_value_budget_exhausted(client_ip):
         return True
     return _scan_char_budget_exhausted(client_ip, len(value))
+
+
+def _scan_budget_spent() -> bool:
+    return (
+        _scanned_value_count.get() >= _scan_value_cap.get()
+        or _scanned_char_count.get() >= _scan_char_cap.get()
+    )
+
+
+@contextmanager
+def _fresh_value_budget() -> Iterator[None]:
+    count_token = _scanned_value_count.set(0)
+    char_token = _scanned_char_count.set(0)
+    try:
+        yield
+    finally:
+        _scanned_value_count.reset(count_token)
+        _scanned_char_count.reset(char_token)
+
+
+class _BudgetThatIsNeverSpent:
+    """Scans a value outside the budget once the budget is spent."""
+
+    __slots__ = ("_tokens",)
+
+    def __init__(self) -> None:
+        self._tokens: tuple[Any, Any] | None = None
+
+    def __enter__(self) -> None:
+        if _scan_budget_spent():
+            self._tokens = (_scanned_value_count.set(0), _scanned_char_count.set(0))
+
+    def __exit__(self, *_exc: object) -> None:
+        if self._tokens is not None:
+            _scanned_value_count.reset(self._tokens[0])
+            _scanned_char_count.reset(self._tokens[1])
+
+
+def _budget_that_is_never_spent() -> _BudgetThatIsNeverSpent:
+    return _BudgetThatIsNeverSpent()
+
+
+def _skip_counter() -> _ScanSkips:
+    return _scan_skips.get() or _ScanSkips()
+
+
+@contextmanager
+def _embedded_json_scan() -> Iterator[None]:
+    token = _inside_embedded_json.set(True)
+    try:
+        yield
+    finally:
+        _inside_embedded_json.reset(token)
+
+
+@contextmanager
+def _skipping_whole_value_path_rows() -> Iterator[None]:
+    token = _whole_value_path_rows_skipped.set(True)
+    try:
+        yield
+    finally:
+        _whole_value_path_rows_skipped.reset(token)
+
+
+def _note_skipped_value(context: str, enabled_categories: set[str] | None) -> None:
+    skips = _scan_skips.get()
+    if skips is None or _inside_embedded_json.get():
+        return
+    skips.count += 1
+    skips.categories = (
+        None if enabled_categories is None else frozenset(enabled_categories)
+    )
+    skips.semantic_excluded = _context_header_is_semantic_excluded(context)
 
 
 def _json_depth_cap_value() -> int:
@@ -421,6 +558,9 @@ def _resolve_json_redact_all(
     return content_preview is not None
 
 
+_JSON_CONTAINER_START = re.compile(r"[ \t\n\r]*[\[{]").match
+
+
 def _check_embedded_json_if_applicable(
     value: str,
     context: str,
@@ -434,7 +574,7 @@ def _check_embedded_json_if_applicable(
     json_redact_all: bool | None,
     sensitive_params: frozenset[str] = frozenset(),
 ) -> tuple[bool, str, list[dict], str | None] | None:
-    if not scan_embedded_json or context == "request_body":
+    if not scan_embedded_json or _JSON_CONTAINER_START(value) is None:
         return None
 
     from guard_core.sync._utils.embedded_json_scan import _check_embedded_json
@@ -471,6 +611,7 @@ def _check_value_enhanced(
     from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
 
     if _scan_budget_exhausted(client_ip, value):
+        _note_skipped_value(context, enabled_categories)
         return False, "", [], None
 
     json_hit = _check_embedded_json_if_applicable(

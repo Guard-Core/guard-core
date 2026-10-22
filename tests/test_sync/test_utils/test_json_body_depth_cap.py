@@ -92,7 +92,13 @@ def test_sqli_below_default_cap_depth_detected_via_serialised_capped_subtree(
     subtree = _nested_json_value(40 - 32 + 1, _SQLI_PAYLOAD)
     serialized = json.dumps(subtree, separators=(",", ":"), ensure_ascii=False)
     expected = _scan_body_field(
-        serialized, "a", None, "127.0.0.1", "direct-scan-corr", "WARNING"
+        serialized,
+        "a",
+        None,
+        "127.0.0.1",
+        "direct-scan-corr",
+        "WARNING",
+        scan_embedded_json=False,
     )
     body = _nested_json_body(40, _SQLI_PAYLOAD)
 

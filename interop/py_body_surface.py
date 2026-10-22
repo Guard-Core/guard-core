@@ -94,8 +94,8 @@ def _walk_entries(data: Any, context: str) -> list[Entry]:
         # the raw leaf unless that walk detected.
         inner = None
         if isinstance(current, str) and context != REQUEST_BODY_CONTEXT:
-            inner = _parse_embedded_json(current, "127.0.0.1")
-            if inner is not None:
+            inner = _parse_embedded_json(current)
+            if isinstance(inner, dict | list):
                 entries.extend(
                     _walk_entries(inner, context + _EMBEDDED_JSON_LEAF_CONTEXT_SUFFIX)
                 )
@@ -111,8 +111,8 @@ def _embedded_or_raw(value: str, context: str) -> list[Entry]:
     short-circuits when the walk itself detects, so the static worst-case
     list always contains both.
     """
-    data = _parse_embedded_json(value, "127.0.0.1")
-    if data is None:
+    data = _parse_embedded_json(value)
+    if not isinstance(data, dict | list):
         return [Entry(value, context, role="raw")]
     return [
         *_walk_entries(data, context + _EMBEDDED_JSON_LEAF_CONTEXT_SUFFIX),

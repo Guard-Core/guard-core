@@ -1,4 +1,5 @@
 from collections.abc import Awaitable, Callable
+from functools import partial
 from importlib import import_module
 from pathlib import Path
 from types import MappingProxyType
@@ -1152,14 +1153,13 @@ class _SecurityConfigFields(BaseModel):
         default=262144,
         description=(
             "Maximum bytes read from the start of the request body and inspected "
-            "for penetration detection. When the request's Content-Length exceeds "
-            "this, the adapter's read_body_prefix (a bounded reader that only "
-            "ever returns up to the requested byte count) is used to read the "
-            "first this-many bytes and scan them, if the adapter implements it; "
-            "when the adapter has no bounded reader, the body is not read at "
-            "all and detection falls back to path, query, and header checks "
-            "only, the same as before this cap existed. Either way a one-time "
-            "warning names the cap, the client, and which of the two happened. "
+            "for penetration detection. Past this cap an adapter with a bounded "
+            "reader (read_body_prefix) has its first N bytes scanned, and a "
+            "one-time warning names the cap and the client. An adapter without "
+            "one gets the body-read failure outcome: the body is not read, the "
+            "request is answered 400 when fail_secure is on, an event is sent "
+            "and no strike is recorded; with fail_secure off the failure is "
+            "logged and the request passes unscanned. "
             "This is a memory bound, "
             "not full-body coverage: only this leading prefix is ever scanned, so "
             "a payload placed after the first N bytes, or a signature split across "
@@ -1185,9 +1185,10 @@ class _SecurityConfigFields(BaseModel):
             "Maximum number of individual values (query parameters, header "
             "values, JSON keys and leaf values, form fields, multipart parts) "
             "scanned per request across the whole penetration-detection pass. "
-            "Once reached, remaining values in the request are not scanned "
-            "and a one-time warning is logged naming the client IP, so the "
-            "fail-open stays visible instead of silent. Bounds worst-case CPU "
+            "Once reached, each surface (query, headers, body) scans its "
+            "remaining values once more as one block, in scan order, instead "
+            "of skipping them, and a one-time warning is logged naming the "
+            "client IP. Bounds worst-case CPU "
             "on a request padded with many benign values ahead of a real "
             "payload; the standard detection benchmarks never approach this "
             "cap. Each named value costs two scan units, one for its name and "
@@ -1206,9 +1207,10 @@ class _SecurityConfigFields(BaseModel):
             "JSON keys and leaf values, form fields, multipart parts, "
             "including JSON embedded within a single value), counted at the "
             "same accounting point as detection_max_scan_values. Once "
-            "reached, remaining values in the request are not scanned and a "
-            "one-time warning is logged naming the client IP, the same "
-            "fail-open signal detection_max_scan_values already gives. "
+            "reached, the remaining values of each surface are scanned once "
+            "more as one block instead of being skipped, and a one-time "
+            "warning is logged naming the client IP, the same signal "
+            "detection_max_scan_values gives. "
             "Bounds worst-case CPU on a request whose values are individually "
             "large (a handful of large values can cost as much CPU as many "
             "small ones), a gap detection_max_scan_values alone does not "
@@ -1458,12 +1460,23 @@ class _SecurityConfigFields(BaseModel):
             "that parameter, for example {'q': {'sqli'}}."
         ),
     )
-    excluded_detection_body_fields: set[str] = Field(
+    excluded_detection_body_fields: Annotated[
+        set[str] | dict[str, set[str]],
+        BeforeValidator(
+            partial(
+                _validate_excluded_detection_params_value,
+                field_name="excluded_detection_body_fields",
+            )
+        ),
+    ] = Field(
         default_factory=set,
         description=(
             "JSON body keys to exclude from penetration detection scanning. "
             "Matched at any nesting depth, and applied to x-www-form-urlencoded "
-            "and multipart text-part field names as well."
+            "and multipart text-part field names as well. A set of names "
+            "excludes every category; a mapping of name to a set of detection "
+            "categories excludes only those categories for that field, for "
+            "example {'note': {'sensitive_file'}}."
         ),
     )
     detection_scan_body: bool = Field(

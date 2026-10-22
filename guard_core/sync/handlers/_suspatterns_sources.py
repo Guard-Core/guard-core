@@ -155,12 +155,14 @@ _PATH_ONLY_PREFIX_RE = (
 _PATH_ONLY_SUFFIX_RE = rf"(?:{_PATH_ONLY_SEP_RE}{_PATH_ONLY_CHAR_RE}*)*(?:\?\S*)?\s*\Z"
 
 
-def _path_only_pattern(required: str, trailing: str = "") -> str:
+def _path_only_pattern(
+    required: str, trailing: str = "", suffix: str = _PATH_ONLY_SUFFIX_RE
+) -> str:
     return (
         rf"\A{_PATH_ONLY_SEP_RE}?"
         rf"(?:(?!{required}(?:{_PATH_ONLY_SEP_RE}|\Z))"
         rf"{_PATH_ONLY_CHAR_RE}+{_PATH_ONLY_SEP_RE})*"
-        rf"{required}{trailing}{_PATH_ONLY_SUFFIX_RE}"
+        rf"{required}{trailing}{suffix}"
     )
 
 
@@ -184,9 +186,18 @@ _EXTENSION_TRICK_SUFFIX = (
     r"(?:;[^/\\?\s]*|\.+|::\$(?:DATA|INDEX_ALLOCATION)|%00[^/\\?\s]*"
     r"|\.(?:jpe?g|png|gif|ico|bmp))?"
 )
-_SENSITIVE_SOURCE_EXTENSIONS = (
+_NAMED_PATH_SUFFIX_RE = (
+    rf"(?:{_PATH_ONLY_SEP_RE}{_PATH_ONLY_CHAR_RE}*)*{_EXTENSION_TRICK_SUFFIX}"
+    r"(?:\?\S*)?\s*\Z"
+)
+_SENSITIVE_SOURCE_BARE_EXTENSIONS = (
     r"\.(?:ts|tsx|jsx|py|rb|java|go|rs|php|pl|sh|sql|phtml|php[3-8]|pht|phps|phar)"
-    + _EXTENSION_TRICK_SUFFIX
+)
+_SENSITIVE_SOURCE_EXTENSIONS = (
+    _SENSITIVE_SOURCE_BARE_EXTENSIONS + _EXTENSION_TRICK_SUFFIX
+)
+_PLAIN_SOURCE_OR_MAP_PATH_END_RE = re.compile(
+    rf"(?:{_SENSITIVE_SOURCE_BARE_EXTENSIONS}|\.map)\s*\Z"
 )
 _RECON_EXTENSIONS = (
     r"\.(?:asp|aspx|jsp|jsa|jhtml|shtml|cfm|cgi|do|action|lua|inc|woa|nsf|esp"
@@ -341,7 +352,21 @@ _SQLI_ORDER_BY_STRONG_RE = (
     r"|\bORDER\s+BY\s+\d+\s*(?:--|#|/\*)"
 )
 _SQLI_EXEC_STRONG_RE = r"(?i)(?:\A|[;'\"])\s*EXEC(?:UTE)?\s+(?:xp_\w+|sp_\w+)"
-_SQLI_COMMENT_TERMINATOR_RE = r"'\s*(?:[\);]+\s*)?--|'[\);]*#(?:\n|\Z)"
+_SQLI_COMMENT_TERMINATOR_RE = (
+    r"'\s*(?:[\);]+\s*)?(?:--|/\*(?![^*]+\*/))"
+    r"|'[\);]*#(?:\n|\Z)|'[\);]*[^\S\n]+#[^\S\n]*\Z"
+)
+_SQLI_INLINE_COMMENT_RE = r"/\*[^*]{0,40}\*/"
+_SQLI_GAP_RE = rf"(?:\s|{_SQLI_INLINE_COMMENT_RE})"
+_SQLI_OPEN_GAP_RE = rf"(?:\s|\(|{_SQLI_INLINE_COMMENT_RE})"
+_SQLI_QUOTED_TAUTOLOGY_RE = (
+    r"(?i)(?:OR|AND)\s+(?:'[\w\d]*'='[\w\d]*'?|"
+    r"[@:$][A-Za-z_]\w*\s*=\s*[@:$][A-Za-z_]\w*)"
+    rf"|\b(?:OR|AND){_SQLI_OPEN_GAP_RE}*(?:'\w*'|\"\w*\")"
+    rf"{_SQLI_GAP_RE}*(?:=|!=|<>|LIKE){_SQLI_OPEN_GAP_RE}*(?:'\w*'?|\"\w*\"?)"
+    rf"|['\")]{_SQLI_GAP_RE}*\b(?:OR|AND){_SQLI_GAP_RE}+TRUE\b"
+    rf"(?:{_SQLI_GAP_RE}*(?:--|/\*(?![^*]+\*/))|[^\S\n]*#[^\S\n]*(?:\n|\Z))"
+)
 _SQLI_WAITFOR_RE = (
     r"(?i)\bWAITFOR\s+(?:DELAY|TIME)\s+'\d{1,2}:\d{1,2}:\d{1,2}(?:\.\d+)?'"
 )

@@ -66,7 +66,7 @@ from guard_core.sync.handlers._suspatterns_matchers import (
 )
 from guard_core.sync.handlers._suspatterns_named_floor import (
     NAMED_FLOOR_TOKEN_PATTERNS,
-    last_segment_is_not_the_apps_own_route,
+    absolute_path_is_a_probe,
     named_floor_row_is_not_the_apps_own_route,
     named_probe_row_is_not_the_apps_own_route,
     probe_lies_inside_a_declared_path_param,
@@ -78,14 +78,15 @@ from guard_core.sync.handlers._suspatterns_path_code_execution import (
     path_code_execution_is_injection,
     path_separator_command_is_injection,
 )
+from guard_core.sync.handlers._suspatterns_path_row_clearing import (
+    path_row_match_is_cleared,
+)
 from guard_core.sync.handlers._suspatterns_pattern_table import (
     _ABSOLUTE_PATH_VALUE_RE,
     _CMD_PATH_CODE_EXECUTION_RE,
     _CMD_PATH_SEPARATOR_COMMAND_RE,
     BACKTICK_WHOLE_VALUE_RE,
     NOISE_PRONE_PATTERN_SOURCES,
-    RECON_OPTIONAL_SEPARATOR_PATTERN_SOURCES,
-    ROUTE_GATED_PATH_SOURCES,
 )
 from guard_core.sync.handlers._suspatterns_pickle import (
     _pickle_global_candidate_is_injection,
@@ -140,9 +141,11 @@ from guard_core.sync.handlers._suspatterns_sources import (
     _WHERE_CLAUSE_RE,
     _XML_XXE_PUBLIC_EXTERNAL_DTD_RE,
     ALL_DETECTION_CATEGORIES,
-    _recon_path_value_is_probe,
 )
 from guard_core.sync.handlers._suspatterns_state import _DetectionState
+from guard_core.sync.handlers._suspatterns_whole_value_rows import (
+    rows_for_a_whole_value_pass,
+)
 from guard_core.sync.handlers._suspatterns_xml_xxe import (
     _XML_XXE_PUBLIC_EXTERNAL_DTD_COMPILED_RE,
     _xml_xxe_public_external_dtd_finditer,
@@ -202,7 +205,13 @@ _CANDIDATE_REJECTION_VALIDATORS: tuple[
     (BACKTICK_WHOLE_VALUE_RE, _whole_value_backtick_pairs_are_injection),
     (_CMD_PATH_CODE_EXECUTION_RE, path_code_execution_is_injection),
     (_CMD_PATH_SEPARATOR_COMMAND_RE, path_separator_command_is_injection),
-    (_ABSOLUTE_PATH_VALUE_RE, absolute_path_value_is_probe),
+    (
+        _ABSOLUTE_PATH_VALUE_RE,
+        lambda m, context: (
+            absolute_path_value_is_probe(m, context)
+            and absolute_path_is_a_probe(context)
+        ),
+    ),
     (_SENSITIVE_SOURCE_EXTENSION_PATH_RE, source_path_is_a_probe),
     (_MAP_FILE_PATH_RE, source_path_is_a_probe),
     (_RECON_EXTENSION_PATH_RE, recon_path_is_a_probe),
@@ -233,6 +242,11 @@ _CANDIDATE_REJECTION_VALIDATORS: tuple[
         _glob_wildcard_token_is_dangerous_command,
     ),
     (_DESERIALIZATION_PICKLE_GLOBAL_GENERIC_RE, _pickle_global_candidate_is_injection),
+)
+
+
+_CONTEXT_SENSITIVE_ROW_SOURCES = frozenset(
+    source for source, _validator in _CANDIDATE_REJECTION_VALIDATORS
 )
 
 
@@ -276,14 +290,7 @@ def _candidate_passes_the_route_gates(
     for candidate, is_valid_threat in _CANDIDATE_REJECTION_VALIDATORS:
         if pattern.pattern == candidate and not is_valid_threat(match, context):
             return False
-    if pattern.pattern in ROUTE_GATED_PATH_SOURCES and not (
-        last_segment_is_not_the_apps_own_route(match, context)
-    ):
-        return False
-    return not (
-        pattern.pattern in RECON_OPTIONAL_SEPARATOR_PATTERN_SOURCES
-        and not _recon_path_value_is_probe(match, context)
-    )
+    return not path_row_match_is_cleared(pattern, match, context)
 
 
 def _build_regex_threat(
@@ -646,6 +653,9 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
             enabled_categories=enabled_categories,
         )
 
+        applicable_patterns = rows_for_a_whole_value_pass(
+            applicable_patterns, _CONTEXT_SENSITIVE_ROW_SOURCES
+        )
         time_cap = _scan_time_cap.get()
         slice_start, request_scoped = _pass_slice_start()
         mark_token = _open_cpu_pass()

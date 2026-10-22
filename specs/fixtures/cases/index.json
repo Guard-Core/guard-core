@@ -31,7 +31,7 @@
    ]
   },
   "sqli": {
-   "case_count": 22,
+   "case_count": 37,
    "kind": "detect",
    "consumers": [
     "python",
@@ -283,42 +283,42 @@
   "k": 5,
   "floor_ms": 250,
   "timing_runs": 5,
-  "generated_at": "2026-10-19T17:13:47+00:00",
+  "generated_at": "2026-10-19T21:41:24+00:00",
   "budgets": {
    "cost_prose_8kib": {
-    "reference_ms": 15.6,
+    "reference_ms": 16.3,
     "expected_is_threat": false
    },
    "cost_prose_64kib": {
-    "reference_ms": 92.0,
+    "reference_ms": 95.1,
     "expected_is_threat": false
    },
    "cost_prose_256kib": {
-    "reference_ms": 335.3,
+    "reference_ms": 351.0,
     "expected_is_threat": false
    },
    "cost_prose_1mib": {
-    "reference_ms": 840.7,
+    "reference_ms": 882.2,
     "expected_is_threat": false
    },
    "cost_encoded_64kib": {
-    "reference_ms": 100.8,
+    "reference_ms": 103.8,
     "expected_is_threat": false
    },
    "cost_binnoise_64kib": {
-    "reference_ms": 101.5,
+    "reference_ms": 108.1,
     "expected_is_threat": false
    },
    "cost_threat_8kib": {
-    "reference_ms": 16.2,
+    "reference_ms": 17.3,
     "expected_is_threat": true
    },
    "cost_threat_tail_256kib": {
-    "reference_ms": 391.1,
+    "reference_ms": 408.7,
     "expected_is_threat": true
    },
    "cost_threat_mid_1mib": {
-    "reference_ms": 924.9,
+    "reference_ms": 938.0,
     "expected_is_threat": false
    }
   }

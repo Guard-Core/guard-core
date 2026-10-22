@@ -158,6 +158,42 @@ Regex anomaly score required to flag a request as a threat.
 
 Whether to scan the request body during detection. Set to `False` to restrict detection to the URL path, query parameters, and headers: the body is then never read or matched, regardless of its shape.
 
+### Source file paths in JSON bodies
+
+A value that is a bare script or source file name (`index.php`, `run.sh`, `q.sql`, `app.rb`) in a query value or a JSON body field is flagged as a sensitive file access. Four JSON shapes that webhooks send list changed files, so Guard Core does not flag a plain path (the value ends at the extension, with no suffix trick, path info or query string) in them:
+
+| Shape | Pinned example |
+|---|---|
+| Push change list: `added`, `removed`, `modified` of an object reached through `commits` or `head_commit` | `{"commits": [{"modified": ["src/app/main.py"]}]}` |
+| Review comment: `path` beside `diff_hunk` or `position` | `{"comment": {"path": "src/app.py", "diff_hunk": "@@ -1 +1 @@", "position": 3}}` |
+| Pull request file: `filename` beside `patch` or `status` | `[{"filename": "setup.py", "status": "modified", "patch": "@@ -1 +1 @@"}]` |
+| Stack frame: `filename` or `abs_path` beside `lineno` or `function`, inside `frames` | `{"frames": [{"filename": "app/main.py", "abs_path": "/srv/app/app/main.py", "function": "main", "lineno": 9}]}` |
+
+A push change list also clears the rows for sensitive file names, so a push that lists `config/settings.py`, `.env.example`, `config/database.yml`, `wp-config.php` or `tsconfig.json` is not flagged: `{"commits": [{"added": ["config/settings.py", ".env.example"]}]}`. Only a plain relative name is cleared. `../.env`, `/srv/app/.env`, `.env?x=1`, `settings.py/x`, `.env%00.jpg` and `settings.py;.jpg` are still flagged. In a stack frame, `abs_path` also clears the absolute path row.
+
+A scalar such as `{"path": "x.py"}`, `{"file": ".env"}` or `{"page": "index.php"}`, the same names under any other key, a trick suffix (`main.php%00.jpg`) and traversal in these shapes are still flagged.
+
+A body field that carries another benign shape is the route's to declare, with `detection_exclusion(body_fields=...)`. A set skips the field in every category. A map from a field name to a set of categories skips only those categories for that field, and every other category still applies to it (the same two forms and the same validation as `params`):
+
+```python
+@security.detection_exclusion(body_fields={"changed_file"})
+async def every_category_skipped(): ...
+
+
+@security.detection_exclusion(body_fields={"changed_file": {"sensitive_file"}})
+async def only_sensitive_file_skipped(): ...
+```
+
+`SecurityConfig.excluded_detection_body_fields` takes the same two forms for every route, and a route's own value replaces the global one (it is not merged with it):
+
+```python
+config = SecurityConfig(
+    excluded_detection_body_fields={"changed_file": {"sensitive_file"}},
+)
+```
+
+A body sent under a content type that is not JSON, form or multipart is scanned as one text, as before. When it starts with `{` or `[`, each of its string literals that holds a backslash is also decoded and scanned on its own, so an escaped payload (`\u003cscript\u003e`, also nested in further escaped JSON) is found; a body with no backslash is not walked. Path rows which need a whole value never apply to those literals.
+
 ___
 
 Tuning Profiles

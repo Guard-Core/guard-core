@@ -144,7 +144,7 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "(?i)(?:\\A|[^\\w\\s]\\s*|\\b(?:AND|OR|XOR|NOT|IF|SELECT|THEN|ELSE|WHEN|CASE|WHERE|HAVING|BY|AS|UNION|ALL|LIMIT|OFFSET)\\s+)SLEEP\\s*\\(\\s*\\d+\\s*\\)",
+            "pattern": "(?i)(?:\\A|[^\\w\\s]\\s*|\\d\\s*|(?<![A-Za-z_])(?:AND|OR|XOR|NOT|IF|SELECT|THEN|ELSE|WHEN|CASE|WHERE|HAVING|BY|AS|UNION|ALL|LIMIT|OFFSET)\\s+)(?:pg_)?SLEEP\\s*\\(\\s*\\d+(?:\\.\\d+)?\\s*\\)",
             "match": "AND SLEEP(5)",
             "position": 2,
             "category": "sqli",
@@ -192,7 +192,7 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "'\\s*(?:[\\);]+\\s*)?--|'[\\);]*#(?:\\n|\\Z)",
+            "pattern": "'\\s*(?:[\\);]+\\s*)?(?:--|/\\*(?![^*]+\\*/))|'[\\);]*#(?:\\n|\\Z)|'[\\);]*[^\\S\\n]+#[^\\S\\n]*\\Z",
             "match": "'--",
             "position": 5,
             "category": "sqli",
@@ -216,7 +216,7 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "(?i)(?:OR|AND)\\s+(?:'[\\w\\d]*'='[\\w\\d]*'?|[@:$][A-Za-z_]\\w*\\s*=\\s*[@:$][A-Za-z_]\\w*)",
+            "pattern": "(?i)(?:OR|AND)\\s+(?:'[\\w\\d]*'='[\\w\\d]*'?|[@:$][A-Za-z_]\\w*\\s*=\\s*[@:$][A-Za-z_]\\w*)|\\b(?:OR|AND)(?:\\s|\\(|/\\*[^*]{0,40}\\*/)*(?:'\\w*'|\\\"\\w*\\\")(?:\\s|/\\*[^*]{0,40}\\*/)*(?:=|!=|<>|LIKE)(?:\\s|\\(|/\\*[^*]{0,40}\\*/)*(?:'\\w*'?|\\\"\\w*\\\"?)|['\\\")](?:\\s|/\\*[^*]{0,40}\\*/)*\\b(?:OR|AND)(?:\\s|/\\*[^*]{0,40}\\*/)+TRUE\\b(?:(?:\\s|/\\*[^*]{0,40}\\*/)*(?:--|/\\*(?![^*]+\\*/))|[^\\S\\n]*#[^\\S\\n]*(?:\\n|\\Z))",
             "match": "OR '1'='1",
             "position": 2,
             "category": "sqli",
@@ -235,9 +235,18 @@
         "context": "request_body"
       },
       "expected": {
-        "is_threat": false,
-        "threat_score": 0.0,
-        "threats": [],
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?i)(?:OR|AND)\\s+(?:'[\\w\\d]*'='[\\w\\d]*'?|[@:$][A-Za-z_]\\w*\\s*=\\s*[@:$][A-Za-z_]\\w*)|\\b(?:OR|AND)(?:\\s|\\(|/\\*[^*]{0,40}\\*/)*(?:'\\w*'|\\\"\\w*\\\")(?:\\s|/\\*[^*]{0,40}\\*/)*(?:=|!=|<>|LIKE)(?:\\s|\\(|/\\*[^*]{0,40}\\*/)*(?:'\\w*'?|\\\"\\w*\\\"?)|['\\\")](?:\\s|/\\*[^*]{0,40}\\*/)*\\b(?:OR|AND)(?:\\s|/\\*[^*]{0,40}\\*/)+TRUE\\b(?:(?:\\s|/\\*[^*]{0,40}\\*/)*(?:--|/\\*(?![^*]+\\*/))|[^\\S\\n]*#[^\\S\\n]*(?:\\n|\\Z))",
+            "match": "OR ('1'='1",
+            "position": 4,
+            "category": "sqli",
+            "weight": 1.0
+          }
+        ],
         "original_length": 14,
         "processed_length": 14,
         "detection_method": "enhanced"
@@ -295,7 +304,7 @@
           },
           {
             "type": "regex",
-            "pattern": "'\\s*(?:[\\);]+\\s*)?--|'[\\);]*#(?:\\n|\\Z)",
+            "pattern": "'\\s*(?:[\\);]+\\s*)?(?:--|/\\*(?![^*]+\\*/))|'[\\);]*#(?:\\n|\\Z)|'[\\);]*[^\\S\\n]+#[^\\S\\n]*\\Z",
             "match": "')--",
             "position": 37,
             "category": "sqli",
@@ -335,7 +344,7 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "'\\s*(?:[\\);]+\\s*)?--|'[\\);]*#(?:\\n|\\Z)",
+            "pattern": "'\\s*(?:[\\);]+\\s*)?(?:--|/\\*(?![^*]+\\*/))|'[\\);]*#(?:\\n|\\Z)|'[\\);]*[^\\S\\n]+#[^\\S\\n]*\\Z",
             "match": "')--",
             "position": 24,
             "category": "sqli",
@@ -402,9 +411,18 @@
         "context": "query_param"
       },
       "expected": {
-        "is_threat": false,
-        "threat_score": 0.0,
-        "threats": [],
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?i)(?:\\A|[^\\w\\s]\\s*|\\d\\s*|(?<![A-Za-z_])(?:AND|OR|XOR|NOT|IF|SELECT|THEN|ELSE|WHEN|CASE|WHERE|HAVING|BY|AS|UNION|ALL|LIMIT|OFFSET)\\s+)(?:pg_)?SLEEP\\s*\\(\\s*\\d+(?:\\.\\d+)?\\s*\\)",
+            "match": "SELECT pg_sleep(10)",
+            "position": 3,
+            "category": "sqli",
+            "weight": 1.0
+          }
+        ],
         "original_length": 24,
         "processed_length": 24,
         "detection_method": "enhanced"
@@ -422,7 +440,7 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "'\\s*(?:[\\);]+\\s*)?--|'[\\);]*#(?:\\n|\\Z)",
+            "pattern": "'\\s*(?:[\\);]+\\s*)?(?:--|/\\*(?![^*]+\\*/))|'[\\);]*#(?:\\n|\\Z)|'[\\);]*[^\\S\\n]+#[^\\S\\n]*\\Z",
             "match": "'--",
             "position": 24,
             "category": "sqli",
@@ -454,7 +472,7 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "(?i)(?:OR|AND)\\s+(?:'[\\w\\d]*'='[\\w\\d]*'?|[@:$][A-Za-z_]\\w*\\s*=\\s*[@:$][A-Za-z_]\\w*)",
+            "pattern": "(?i)(?:OR|AND)\\s+(?:'[\\w\\d]*'='[\\w\\d]*'?|[@:$][A-Za-z_]\\w*\\s*=\\s*[@:$][A-Za-z_]\\w*)|\\b(?:OR|AND)(?:\\s|\\(|/\\*[^*]{0,40}\\*/)*(?:'\\w*'|\\\"\\w*\\\")(?:\\s|/\\*[^*]{0,40}\\*/)*(?:=|!=|<>|LIKE)(?:\\s|\\(|/\\*[^*]{0,40}\\*/)*(?:'\\w*'?|\\\"\\w*\\\"?)|['\\\")](?:\\s|/\\*[^*]{0,40}\\*/)*\\b(?:OR|AND)(?:\\s|/\\*[^*]{0,40}\\*/)+TRUE\\b(?:(?:\\s|/\\*[^*]{0,40}\\*/)*(?:--|/\\*(?![^*]+\\*/))|[^\\S\\n]*#[^\\S\\n]*(?:\\n|\\Z))",
             "match": "OR '1'='1",
             "position": 2,
             "category": "sqli",
@@ -570,6 +588,262 @@
       }
     },
     {
+      "id": "sqli_quoted_tautology_spaced",
+      "input": {
+        "content": "' OR 'x' = 'x",
+        "context": "query_param"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?i)(?:OR|AND)\\s+(?:'[\\w\\d]*'='[\\w\\d]*'?|[@:$][A-Za-z_]\\w*\\s*=\\s*[@:$][A-Za-z_]\\w*)|\\b(?:OR|AND)(?:\\s|\\(|/\\*[^*]{0,40}\\*/)*(?:'\\w*'|\\\"\\w*\\\")(?:\\s|/\\*[^*]{0,40}\\*/)*(?:=|!=|<>|LIKE)(?:\\s|\\(|/\\*[^*]{0,40}\\*/)*(?:'\\w*'?|\\\"\\w*\\\"?)|['\\\")](?:\\s|/\\*[^*]{0,40}\\*/)*\\b(?:OR|AND)(?:\\s|/\\*[^*]{0,40}\\*/)+TRUE\\b(?:(?:\\s|/\\*[^*]{0,40}\\*/)*(?:--|/\\*(?![^*]+\\*/))|[^\\S\\n]*#[^\\S\\n]*(?:\\n|\\Z))",
+            "match": "OR 'x' = 'x",
+            "position": 2,
+            "category": "sqli",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 13,
+        "processed_length": 13,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "sqli_double_quoted_tautology",
+      "input": {
+        "content": "' OR \"x\"=\"x",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?i)(?:OR|AND)\\s+(?:'[\\w\\d]*'='[\\w\\d]*'?|[@:$][A-Za-z_]\\w*\\s*=\\s*[@:$][A-Za-z_]\\w*)|\\b(?:OR|AND)(?:\\s|\\(|/\\*[^*]{0,40}\\*/)*(?:'\\w*'|\\\"\\w*\\\")(?:\\s|/\\*[^*]{0,40}\\*/)*(?:=|!=|<>|LIKE)(?:\\s|\\(|/\\*[^*]{0,40}\\*/)*(?:'\\w*'?|\\\"\\w*\\\"?)|['\\\")](?:\\s|/\\*[^*]{0,40}\\*/)*\\b(?:OR|AND)(?:\\s|/\\*[^*]{0,40}\\*/)+TRUE\\b(?:(?:\\s|/\\*[^*]{0,40}\\*/)*(?:--|/\\*(?![^*]+\\*/))|[^\\S\\n]*#[^\\S\\n]*(?:\\n|\\Z))",
+            "match": "OR \"x\"=\"x",
+            "position": 2,
+            "category": "sqli",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 11,
+        "processed_length": 11,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "sqli_double_quoted_tautology_spaced",
+      "input": {
+        "content": "' OR \"x\" = \"x",
+        "context": "header"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?i)(?:OR|AND)\\s+(?:'[\\w\\d]*'='[\\w\\d]*'?|[@:$][A-Za-z_]\\w*\\s*=\\s*[@:$][A-Za-z_]\\w*)|\\b(?:OR|AND)(?:\\s|\\(|/\\*[^*]{0,40}\\*/)*(?:'\\w*'|\\\"\\w*\\\")(?:\\s|/\\*[^*]{0,40}\\*/)*(?:=|!=|<>|LIKE)(?:\\s|\\(|/\\*[^*]{0,40}\\*/)*(?:'\\w*'?|\\\"\\w*\\\"?)|['\\\")](?:\\s|/\\*[^*]{0,40}\\*/)*\\b(?:OR|AND)(?:\\s|/\\*[^*]{0,40}\\*/)+TRUE\\b(?:(?:\\s|/\\*[^*]{0,40}\\*/)*(?:--|/\\*(?![^*]+\\*/))|[^\\S\\n]*#[^\\S\\n]*(?:\\n|\\Z))",
+            "match": "OR \"x\" = \"x",
+            "position": 2,
+            "category": "sqli",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 13,
+        "processed_length": 13,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "sqli_inline_comment_separator_tautology",
+      "input": {
+        "content": "'/**/OR/**/'x' = 'x",
+        "context": "query_param"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "'\\s*(?:[\\);]+\\s*)?(?:--|/\\*(?![^*]+\\*/))|'[\\);]*#(?:\\n|\\Z)|'[\\);]*[^\\S\\n]+#[^\\S\\n]*\\Z",
+            "match": "'/*",
+            "position": 0,
+            "category": "sqli",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "(?i)(?:OR|AND)\\s+(?:'[\\w\\d]*'='[\\w\\d]*'?|[@:$][A-Za-z_]\\w*\\s*=\\s*[@:$][A-Za-z_]\\w*)|\\b(?:OR|AND)(?:\\s|\\(|/\\*[^*]{0,40}\\*/)*(?:'\\w*'|\\\"\\w*\\\")(?:\\s|/\\*[^*]{0,40}\\*/)*(?:=|!=|<>|LIKE)(?:\\s|\\(|/\\*[^*]{0,40}\\*/)*(?:'\\w*'?|\\\"\\w*\\\"?)|['\\\")](?:\\s|/\\*[^*]{0,40}\\*/)*\\b(?:OR|AND)(?:\\s|/\\*[^*]{0,40}\\*/)+TRUE\\b(?:(?:\\s|/\\*[^*]{0,40}\\*/)*(?:--|/\\*(?![^*]+\\*/))|[^\\S\\n]*#[^\\S\\n]*(?:\\n|\\Z))",
+            "match": "OR 'x' = 'x",
+            "position": 2,
+            "category": "sqli",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "(?i)(?:OR|AND)\\s+(?:'[\\w\\d]*'='[\\w\\d]*'?|[@:$][A-Za-z_]\\w*\\s*=\\s*[@:$][A-Za-z_]\\w*)|\\b(?:OR|AND)(?:\\s|\\(|/\\*[^*]{0,40}\\*/)*(?:'\\w*'|\\\"\\w*\\\")(?:\\s|/\\*[^*]{0,40}\\*/)*(?:=|!=|<>|LIKE)(?:\\s|\\(|/\\*[^*]{0,40}\\*/)*(?:'\\w*'?|\\\"\\w*\\\"?)|['\\\")](?:\\s|/\\*[^*]{0,40}\\*/)*\\b(?:OR|AND)(?:\\s|/\\*[^*]{0,40}\\*/)+TRUE\\b(?:(?:\\s|/\\*[^*]{0,40}\\*/)*(?:--|/\\*(?![^*]+\\*/))|[^\\S\\n]*#[^\\S\\n]*(?:\\n|\\Z))",
+            "match": "OR/**/'x' = 'x",
+            "position": 5,
+            "category": "sqli",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 19,
+        "processed_length": 19,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "sqli_like_quoted_tautology",
+      "input": {
+        "content": "' OR 'a' LIKE 'a",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?i)(?:OR|AND)\\s+(?:'[\\w\\d]*'='[\\w\\d]*'?|[@:$][A-Za-z_]\\w*\\s*=\\s*[@:$][A-Za-z_]\\w*)|\\b(?:OR|AND)(?:\\s|\\(|/\\*[^*]{0,40}\\*/)*(?:'\\w*'|\\\"\\w*\\\")(?:\\s|/\\*[^*]{0,40}\\*/)*(?:=|!=|<>|LIKE)(?:\\s|\\(|/\\*[^*]{0,40}\\*/)*(?:'\\w*'?|\\\"\\w*\\\"?)|['\\\")](?:\\s|/\\*[^*]{0,40}\\*/)*\\b(?:OR|AND)(?:\\s|/\\*[^*]{0,40}\\*/)+TRUE\\b(?:(?:\\s|/\\*[^*]{0,40}\\*/)*(?:--|/\\*(?![^*]+\\*/))|[^\\S\\n]*#[^\\S\\n]*(?:\\n|\\Z))",
+            "match": "OR 'a' LIKE 'a",
+            "position": 2,
+            "category": "sqli",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 16,
+        "processed_length": 16,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "sqli_true_comment_terminator",
+      "input": {
+        "content": "' OR TRUE--",
+        "context": "query_param"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?i)(?:OR|AND)\\s+(?:'[\\w\\d]*'='[\\w\\d]*'?|[@:$][A-Za-z_]\\w*\\s*=\\s*[@:$][A-Za-z_]\\w*)|\\b(?:OR|AND)(?:\\s|\\(|/\\*[^*]{0,40}\\*/)*(?:'\\w*'|\\\"\\w*\\\")(?:\\s|/\\*[^*]{0,40}\\*/)*(?:=|!=|<>|LIKE)(?:\\s|\\(|/\\*[^*]{0,40}\\*/)*(?:'\\w*'?|\\\"\\w*\\\"?)|['\\\")](?:\\s|/\\*[^*]{0,40}\\*/)*\\b(?:OR|AND)(?:\\s|/\\*[^*]{0,40}\\*/)+TRUE\\b(?:(?:\\s|/\\*[^*]{0,40}\\*/)*(?:--|/\\*(?![^*]+\\*/))|[^\\S\\n]*#[^\\S\\n]*(?:\\n|\\Z))",
+            "match": "' OR TRUE--",
+            "position": 0,
+            "category": "sqli",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 11,
+        "processed_length": 11,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "sqli_mixed_case_quoted_tautology",
+      "input": {
+        "content": "' oR 'X' = 'x",
+        "context": "header"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?i)(?:OR|AND)\\s+(?:'[\\w\\d]*'='[\\w\\d]*'?|[@:$][A-Za-z_]\\w*\\s*=\\s*[@:$][A-Za-z_]\\w*)|\\b(?:OR|AND)(?:\\s|\\(|/\\*[^*]{0,40}\\*/)*(?:'\\w*'|\\\"\\w*\\\")(?:\\s|/\\*[^*]{0,40}\\*/)*(?:=|!=|<>|LIKE)(?:\\s|\\(|/\\*[^*]{0,40}\\*/)*(?:'\\w*'?|\\\"\\w*\\\"?)|['\\\")](?:\\s|/\\*[^*]{0,40}\\*/)*\\b(?:OR|AND)(?:\\s|/\\*[^*]{0,40}\\*/)+TRUE\\b(?:(?:\\s|/\\*[^*]{0,40}\\*/)*(?:--|/\\*(?![^*]+\\*/))|[^\\S\\n]*#[^\\S\\n]*(?:\\n|\\Z))",
+            "match": "oR 'X' = 'x",
+            "position": 2,
+            "category": "sqli",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 13,
+        "processed_length": 13,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "sqli_url_encoded_quoted_tautology_spaced",
+      "input": {
+        "content": "%27%20OR%20%27x%27%20%3D%20%27x",
+        "context": "query_param"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?i)(?:OR|AND)\\s+(?:'[\\w\\d]*'='[\\w\\d]*'?|[@:$][A-Za-z_]\\w*\\s*=\\s*[@:$][A-Za-z_]\\w*)|\\b(?:OR|AND)(?:\\s|\\(|/\\*[^*]{0,40}\\*/)*(?:'\\w*'|\\\"\\w*\\\")(?:\\s|/\\*[^*]{0,40}\\*/)*(?:=|!=|<>|LIKE)(?:\\s|\\(|/\\*[^*]{0,40}\\*/)*(?:'\\w*'?|\\\"\\w*\\\"?)|['\\\")](?:\\s|/\\*[^*]{0,40}\\*/)*\\b(?:OR|AND)(?:\\s|/\\*[^*]{0,40}\\*/)+TRUE\\b(?:(?:\\s|/\\*[^*]{0,40}\\*/)*(?:--|/\\*(?![^*]+\\*/))|[^\\S\\n]*#[^\\S\\n]*(?:\\n|\\Z))",
+            "match": "OR 'x' = 'x",
+            "position": 2,
+            "category": "sqli",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 31,
+        "processed_length": 13,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "sqli_quote_block_comment_truncation",
+      "input": {
+        "content": "admin'/*",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "'\\s*(?:[\\);]+\\s*)?(?:--|/\\*(?![^*]+\\*/))|'[\\);]*#(?:\\n|\\Z)|'[\\);]*[^\\S\\n]+#[^\\S\\n]*\\Z",
+            "match": "'/*",
+            "position": 5,
+            "category": "sqli",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 8,
+        "processed_length": 8,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "sqli_quote_space_hash_truncation",
+      "input": {
+        "content": "admin' #",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "'\\s*(?:[\\);]+\\s*)?(?:--|/\\*(?![^*]+\\*/))|'[\\);]*#(?:\\n|\\Z)|'[\\);]*[^\\S\\n]+#[^\\S\\n]*\\Z",
+            "match": "' #",
+            "position": 5,
+            "category": "sqli",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 8,
+        "processed_length": 8,
+        "detection_method": "enhanced"
+      }
+    },
+    {
       "id": "sqli_benign_apostrophe",
       "input": {
         "content": "O'Brien went to the store",
@@ -581,6 +855,81 @@
         "threats": [],
         "original_length": 25,
         "processed_length": 25,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "sqli_benign_apostrophe_prose_or",
+      "input": {
+        "content": "don't or won't",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": false,
+        "threat_score": 0.0,
+        "threats": [],
+        "original_length": 14,
+        "processed_length": 14,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "sqli_benign_quoted_comparison_prose",
+      "input": {
+        "content": "it's 'x' = 'y' in the spec",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": false,
+        "threat_score": 0.0,
+        "threats": [],
+        "original_length": 26,
+        "processed_length": 26,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "sqli_benign_quote_hash_ordinal",
+      "input": {
+        "content": "the user' #1 pick",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": false,
+        "threat_score": 0.0,
+        "threats": [],
+        "original_length": 17,
+        "processed_length": 17,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "sqli_benign_quote_closed_comment",
+      "input": {
+        "content": "it's /* not */ code",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": false,
+        "threat_score": 0.0,
+        "threats": [],
+        "original_length": 19,
+        "processed_length": 19,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "sqli_benign_shell_comment_multiline",
+      "input": {
+        "content": "echo 'debug' #\nEnables verbose output.",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": false,
+        "threat_score": 0.0,
+        "threats": [],
+        "original_length": 38,
+        "processed_length": 38,
         "detection_method": "enhanced"
       }
     },

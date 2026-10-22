@@ -2,8 +2,18 @@ from typing import Any
 
 from guard_core.sync._utils.detection_scan import (
     _binary_island_min_run_length,
+    _body_field_category_skips,
+    _body_field_scan_categories,
     _scan_component_name,
+    _skip_counter,
 )
+from guard_core.sync._utils.scan_remainder import (
+    _body_remainder_display,
+    _scan_surface_remainder,
+    _SurfaceRemainder,
+    _wire_pair,
+)
+from guard_core.sync._utils.sensitive_names import name_is_sensitive
 from guard_core.sync.detection_engine.binary_islands import (
     extract_binary_islands,
     value_is_binary_like,
@@ -11,6 +21,43 @@ from guard_core.sync.detection_engine.binary_islands import (
 
 _FORM_FIELD_CONTEXT = "request_body:form_field"
 _MULTIPART_FIELD_CONTEXT = "request_body:multipart_field"
+
+
+def _scan_form_field(
+    name: str,
+    value: str,
+    enabled_categories: set[str] | None,
+    client_ip: str,
+    correlation_id: str,
+    log_level: str | None,
+    sensitive_body_fields: frozenset[str],
+    sensitive_params: frozenset[str],
+) -> tuple[bool, str, list[dict]] | None:
+    from guard_core.sync._utils.body_content_scan import _scan_body_field
+
+    name_hit = _scan_component_name(
+        name,
+        "request_body",
+        f"form field name '{name}'",
+        enabled_categories,
+        client_ip,
+        correlation_id,
+        log_level,
+    )
+    if name_hit[0]:
+        return True, f"Form field name '{name}': {name_hit[1]}", name_hit[2]
+    hit = _scan_body_field(
+        value,
+        name,
+        enabled_categories,
+        client_ip,
+        correlation_id,
+        log_level,
+        sensitive_body_fields,
+        context=_FORM_FIELD_CONTEXT,
+        sensitive_params=sensitive_params,
+    )
+    return hit if hit[0] else None
 
 
 def _scan_form_body(
@@ -25,38 +72,47 @@ def _scan_form_body(
 ) -> tuple[bool, str, list[dict]]:
     from urllib.parse import parse_qsl
 
-    from guard_core.sync._utils.body_content_scan import _scan_body_field
-
+    remainder = _SurfaceRemainder()
+    skips = _skip_counter()
+    category_skips = _body_field_category_skips.get()
     for name, value in parse_qsl(
         raw_body, keep_blank_values=True, errors="surrogateescape"
     ):
         if name.lower() in excluded_body_fields:
             continue
-        name_hit = _scan_component_name(
+        skipped_before = skips.count
+        hit = _scan_form_field(
             name,
-            "request_body",
-            f"form field name '{name}'",
-            enabled_categories,
-            client_ip,
-            correlation_id,
-            log_level,
-        )
-        if name_hit[0]:
-            return True, f"Form field name '{name}': {name_hit[1]}", name_hit[2]
-        hit = _scan_body_field(
             value,
-            name,
-            enabled_categories,
+            _body_field_scan_categories(name, enabled_categories)
+            if category_skips
+            else enabled_categories,
             client_ip,
             correlation_id,
             log_level,
             sensitive_body_fields,
-            context=_FORM_FIELD_CONTEXT,
-            sensitive_params=sensitive_params,
+            sensitive_params,
         )
-        if hit[0]:
+        if hit is not None:
             return hit
-    return False, "", []
+        if skips.count != skipped_before:
+            remainder.add(
+                _wire_pair(name, value),
+                name_is_sensitive(name, sensitive_body_fields),
+                (name, value),
+            )
+    if not remainder:
+        return False, "", []
+    return _scan_surface_remainder(
+        remainder,
+        "&",
+        "request_body",
+        "Remaining form fields",
+        client_ip,
+        correlation_id,
+        log_level,
+        _body_remainder_display(sensitive_params, sensitive_body_fields),
+    )
 
 
 def _island_payload_entries(
@@ -153,6 +209,10 @@ def _scan_multipart_part(
 
     if exclusion_key is not None and exclusion_key.lower() in excluded_body_fields:
         return None
+    if exclusion_key is not None and _body_field_category_skips.get():
+        enabled_categories = _body_field_scan_categories(
+            exclusion_key, enabled_categories
+        )
     name_hit = _scan_component_name(
         label,
         "request_body",
@@ -203,7 +263,10 @@ def _scan_multipart_body(
             log_level,
             force_redacted=True,
         )
+    remainder = _SurfaceRemainder()
+    skips = _skip_counter()
     for exclusion_key, label, value in parts:
+        skipped_before = skips.count
         hit = _scan_multipart_part(
             exclusion_key,
             label,
@@ -218,4 +281,19 @@ def _scan_multipart_body(
         )
         if hit is not None:
             return hit
-    return False, "", []
+        if skips.count != skipped_before:
+            sensitive = name_is_sensitive(label, sensitive_body_fields)
+            remainder.add(label, False)
+            remainder.add(value, sensitive)
+    if not remainder:
+        return False, "", []
+    return _scan_surface_remainder(
+        remainder,
+        "\r\n",
+        "request_body",
+        "Remaining multipart parts",
+        client_ip,
+        correlation_id,
+        log_level,
+        _body_remainder_display(sensitive_params, sensitive_body_fields),
+    )

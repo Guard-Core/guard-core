@@ -135,6 +135,9 @@ _DETECTION_MATRIX_SCENARIO = "detection_matrix"
 
 COVERED_PRODUCERS: dict[str, frozenset[str]] = {
     "_utils/agent_events.py:send_agent_event": frozenset({"xff_spoof_warning"}),
+    "_utils/body_content_scan.py:_scan_blob_body": frozenset(
+        {_DETECTION_MATRIX_SCENARIO}
+    ),
     "_utils/body_content_scan.py:_scan_body_field": frozenset(
         {_DETECTION_MATRIX_SCENARIO}
     ),
@@ -360,6 +363,11 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "warns that a behavior tracking cap dropped an entry: the kind, the store, "
         "the configured cap and the config field name only, no client address and "
         "no request value is interpolated"
+    ),
+    "_utils/scan_remainder.py:_scan_surface_remainder": (
+        "logs a fixed surface label ('Remaining query params', 'Remaining "
+        "headers', and the other literals the callers pass) and the client IP "
+        "the budget warnings already name; no request value is interpolated"
     ),
     "_utils/body_reader.py:_body_read_slot": (
         "logs the configured max_concurrent of body reads when the limit is "

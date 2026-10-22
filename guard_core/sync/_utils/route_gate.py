@@ -27,6 +27,9 @@ declared_path_params_var: contextvars.ContextVar[Mapping[str, frozenset[str]]] =
         "guard_core_declared_path_params", default=MappingProxyType({})
     )
 )
+_declared_path_param_value_scan: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "guard_core_declared_path_param_value_scan", default=False
+)
 PATH_PARAM_DEFAULT_CATEGORIES = frozenset({"recon", "cms_probing"})
 _UNESCAPED_DOT_RE = re.compile(r"\\\.|\[\.\]")
 _PARAMETER_RE = re.compile(r"\{[^}]*\}|<[^>]*>")
@@ -189,6 +192,19 @@ def isolate_declared_path_params(view: str, category: str) -> tuple[str, str] | 
         for index, char in enumerate(view[:query_start])
     ]
     return masked, "".join(inside) + view[query_start:]
+
+
+@contextmanager
+def scanning_declared_path_param_values() -> Iterator[None]:
+    token = _declared_path_param_value_scan.set(True)
+    try:
+        yield
+    finally:
+        _declared_path_param_value_scan.reset(token)
+
+
+def is_scanning_declared_path_param_values() -> bool:
+    return _declared_path_param_value_scan.get()
 
 
 def declared_path_param_values(view: str) -> list[tuple[str, str]]:

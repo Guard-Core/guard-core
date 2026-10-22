@@ -77,7 +77,7 @@ COMMAND_SUBSTITUTION_CLEAN = [
     "$HOME",
 ]
 
-BARE_FILE_NAMES_CLEAN = ["setup.py", "main.go", "style.css.map", "app.config.ts"]
+BARE_FILE_NAMES_FLAGGED = ["setup.py", "main.go", "style.css.map", "app.config.ts"]
 
 KEPT_FLAGGED = [
     "my password is 'secret' and 1=1",
@@ -143,10 +143,10 @@ async def test_make_variables_and_plain_parameter_expansion_are_not_flagged(
     assert await _categories(value) is None
 
 
-@pytest.mark.parametrize("value", BARE_FILE_NAMES_CLEAN)
-async def test_a_bare_file_name_as_a_value_is_not_a_path_probe(value: str) -> None:
-    assert await _categories(value) is None
-    assert await _categories(value, "body") is None
+@pytest.mark.parametrize("value", BARE_FILE_NAMES_FLAGGED)
+async def test_a_bare_file_name_as_a_value_is_flagged_as_in_v440(value: str) -> None:
+    assert await _categories(value) is not None
+    assert await _categories(value, "body") is not None
 
 
 @pytest.mark.parametrize("value", ["/setup.py", "/main.go", "/style.css.map"])

@@ -293,7 +293,9 @@ class RouteConfig:
         self.excluded_detection_path_params: set[str] | dict[str, set[str]] | None = (
             None
         )
-        self.excluded_detection_body_fields: set[str] | None = None
+        self.excluded_detection_body_fields: set[str] | dict[str, set[str]] | None = (
+            None
+        )
         self.enabled_detection_categories: set[str] | None = None
         self.detection_scan_body: bool | None = None
         object.__setattr__(self, "_initialized", True)

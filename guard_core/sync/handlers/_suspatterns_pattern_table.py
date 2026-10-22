@@ -1,5 +1,9 @@
 import re
 
+from guard_core.sync.handlers._suspatterns_credential_files import (
+    CREDENTIAL_FILE_ROWS,
+    CREDENTIAL_FILES_WITH_DIRECTORY_ROW,
+)
 from guard_core.sync.handlers._suspatterns_ldap_ipv4 import (
     _LEGACY_IPV4_HOST_RE,
     _LOG4SHELL_JNDI_LOOKUP_RE,
@@ -125,6 +129,7 @@ from guard_core.sync.handlers._suspatterns_sources import (
     _LDAP_WILDCARD_CHAIN_RE,
     _LDAP_WILDCARD_EQUALS_RE,
     _MAP_FILE_PATH_RE,
+    _NAMED_PATH_SUFFIX_RE,
     _PATH_ONLY_CHAR_RE,
     _PATH_ONLY_PREFIX_RE,
     _PATH_ONLY_SEP_RE,
@@ -141,6 +146,7 @@ from guard_core.sync.handlers._suspatterns_sources import (
     _SQLI_EXEC_STRONG_RE,
     _SQLI_ORDER_BY_STRONG_RE,
     _SQLI_ORDER_BY_TERMINATOR_RE,
+    _SQLI_QUOTED_TAUTOLOGY_RE,
     _SQLI_TAUTOLOGY_RE,
     _SQLI_WAITFOR_RE,
     _SSRF_BARE_METADATA_ALIAS_RE,
@@ -197,6 +203,10 @@ NOISE_PRONE_PATTERN_SOURCES: frozenset[str] = frozenset(
         # binary bodies (e.g. "'\n--" byte runs in compressed payloads).
         _SQLI_COMMENT_TERMINATOR_RE,
     }
+)
+
+_EDITOR_BACKUP_TILDE_ROW = (
+    _PATH_ONLY_PREFIX_RE + rf"{_PATH_ONLY_CHAR_RE}*\.\w+~(?:\?\S*)?\s*\Z"
 )
 
 _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
@@ -275,8 +285,14 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
     (_SQLI_LOAD_FILE_RE, _CTX_SQLI, "sqli"),
     (r"(?i)(?:BENCHMARK\s*\(\s*\d+\s*,)", _CTX_SQLI, "sqli"),
     (
-        r"(?i)(?:\A|[^\w\s]\s*|\b(?:AND|OR|XOR|NOT|IF|SELECT|THEN|ELSE|WHEN|CASE"
-        r"|WHERE|HAVING|BY|AS|UNION|ALL|LIMIT|OFFSET)\s+)SLEEP\s*\(\s*\d+\s*\)",
+        r"(?i)(?:\A|[^\w\s]\s*|\d\s*|(?<![A-Za-z_])(?:AND|OR|XOR|NOT|IF|SELECT|THEN|ELSE"
+        r"|WHEN|CASE|WHERE|HAVING|BY|AS|UNION|ALL|LIMIT|OFFSET)\s+)(?:pg_)?SLEEP"
+        r"\s*\(\s*\d+(?:\.\d+)?\s*\)",
+        _CTX_SQLI,
+        "sqli",
+    ),
+    (
+        r"(?i)(?:['\"]|\\x27|\)|\d)\s*UNION\s+(?:ALL\s+)?SELECT\s*(?:\Z|--|#|/\*|;)",
         _CTX_SQLI,
         "sqli",
     ),
@@ -287,12 +303,7 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
         "sqli",
     ),
     (r"\w/\*(?!!)[^*]*\*/\w", _CTX_SQLI_NARROW, "sqli"),
-    (
-        r"(?i)(?:OR|AND)\s+(?:'[\w\d]*'='[\w\d]*'?|"
-        r"[@:$][A-Za-z_]\w*\s*=\s*[@:$][A-Za-z_]\w*)",
-        _CTX_SQLI,
-        "sqli",
-    ),
+    (_SQLI_QUOTED_TAUTOLOGY_RE, _CTX_SQLI, "sqli"),
     (
         r"(?i);\s*(?:DROP|TRUNCATE|ALTER|CREATE)\s+(?:TABLE|DATABASE|SCHEMA)\b",
         _CTX_SQLI,
@@ -592,22 +603,19 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
     (_HTTP_SPLIT_CRLF_RE, _CTX_HTTP_SPLIT, "http_split"),
     (_HTTP_SPLIT_CRLF_DECODED_RE, _CTX_HTTP_SPLIT, "http_split"),
     (
-        _path_only_pattern(r"\.env(?:\.\w+)?"),
-        _CTX_SENSITIVE_FILE,
-        "sensitive_file",
-    ),
-    (
         _embedded_prose_pattern(r"\.env(?:\.\w+)?"),
         _CTX_SENSITIVE_FILE,
         "sensitive_file",
     ),
     (
         _path_only_pattern(
-            r"(?:(?!config)[\w-])*config[\w-]*\.(?:env|yml|yaml|json|toml|ini|xml|conf)"
+            r"(?:(?!config)[\w-])*config[\w-]*\.(?:env|yml|yaml|json|toml|ini|xml|conf)",
+            suffix=_NAMED_PATH_SUFFIX_RE,
         ),
         _CTX_SENSITIVE_FILE,
         "sensitive_file",
     ),
+    *CREDENTIAL_FILE_ROWS,
     (
         _MAP_FILE_PATH_RE,
         _CTX_SENSITIVE_FILE,
@@ -622,7 +630,8 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
         _path_only_pattern(
             r"(?:(?:local_settings|settings|config|secrets|configuration)\.py"
             r"|(?:wp-config|config|configuration)\.php"
-            r"|database\.ya?ml|appsettings(?:\.\w+)?\.json)"
+            r"|database\.ya?ml|appsettings(?:\.\w+)?\.json)",
+            suffix=_NAMED_PATH_SUFFIX_RE,
         ),
         _CTX_SENSITIVE_FILE,
         "sensitive_file",
@@ -652,7 +661,7 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
         "recon",
     ),
     (
-        _path_only_pattern(r"\.(?:git|svn|hg|bzr)"),
+        _path_only_pattern(r"\.(?:git|svn|hg|bzr)", suffix=_NAMED_PATH_SUFFIX_RE),
         _CTX_SENSITIVE_FILE,
         "sensitive_file",
     ),
@@ -662,7 +671,7 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
         "sensitive_file",
     ),
     (
-        _PATH_ONLY_PREFIX_RE + rf"{_PATH_ONLY_CHAR_RE}*\.\w+~(?:\?\S*)?\s*\Z",
+        _EDITOR_BACKUP_TILDE_ROW,
         _CTX_SENSITIVE_FILE,
         "sensitive_file",
     ),
@@ -671,7 +680,8 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
     (
         _path_only_pattern(
             r"(?:wp-(?:admin|login|includes|config)|administrator|xmlrpc)"
-            r"\.?(?:php)?"
+            r"\.?(?:php)?",
+            suffix=_NAMED_PATH_SUFFIX_RE,
         ),
         _CTX_CMS_PROBING,
         "cms_probing",
@@ -681,7 +691,7 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
         rf"(?:(?!wp-content\.?(?:php)?(?:{_PATH_ONLY_SEP_RE}|\Z))"
         rf"{_PATH_ONLY_CHAR_RE}+{_PATH_ONLY_SEP_RE})*"
         rf"wp-content(?!{_PATH_ONLY_SEP_RE}uploads(?:{_PATH_ONLY_SEP_RE}|\Z))"
-        r"\.?(?:php)?" + _PATH_ONLY_SUFFIX_RE,
+        r"\.?(?:php)?" + _NAMED_PATH_SUFFIX_RE,
         _CTX_CMS_PROBING,
         "cms_probing",
     ),
@@ -713,7 +723,8 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
     (
         _path_only_pattern(
             r"(?:\.htaccess|\.htpasswd|\.DS_Store|Thumbs\.db"
-            r"|\.npmrc|\.dockerenv|web\.config)"
+            r"|\.npmrc|\.dockerenv|web\.config)",
+            suffix=_NAMED_PATH_SUFFIX_RE,
         ),
         _CTX_CMS_PROBING,
         "cms_probing",
@@ -985,6 +996,26 @@ ROUTE_GATED_PATH_SOURCES: frozenset[str] = frozenset(
     }
 )
 
+# Named file rows (sensitive_file and cms_probing) a push change list clears for
+# plain names (D-124): path-anchored rows that end in the shared path suffix, so a
+# match with nothing after the name can be told from one with path info or a query.
+NAMED_FILE_PATH_SOURCES: frozenset[str] = frozenset(
+    source
+    for source, _contexts, category in _PATTERN_DEFINITIONS
+    if category in {"sensitive_file", "cms_probing"}
+    and source.startswith(r"\A[/\\]")
+    and source.endswith((_PATH_ONLY_SUFFIX_RE, _NAMED_PATH_SUFFIX_RE))
+    and source not in {_SENSITIVE_SOURCE_EXTENSION_PATH_RE, _MAP_FILE_PATH_RE}
+) | {_EDITOR_BACKUP_TILDE_ROW}
+
+# The CMS directory rows: the path after the directory name is the file the push
+# lists (wp-admin/index.php), so a plain relative name clears them with path info.
+NAMED_DIRECTORY_PATH_SOURCES: frozenset[str] = frozenset(
+    source
+    for source, token_pattern in NAMED_FLOOR_TOKEN_PATTERNS.items()
+    if token_pattern is CMS_TOKEN_PATTERN and source in NAMED_FILE_PATH_SOURCES
+)
+
 # Recon rows additionally scanned against the signal-preserving raw view. The
 # processed views fold LDAP hex escapes ("\de" -> "Þ") before the pattern
 # tables run, so separator-prefixed probes such as "\default" or
@@ -998,4 +1029,4 @@ DETECTION_RECON_RAW_VIEW_PATTERN_SOURCES: frozenset[str] = frozenset(
     source
     for source, _contexts, category in _PATTERN_DEFINITIONS
     if category == "recon"
-) | {_CMD_EXFILTRATION_RE, _ABSOLUTE_PATH_VALUE_RE}
+) | {_CMD_EXFILTRATION_RE, _ABSOLUTE_PATH_VALUE_RE, CREDENTIAL_FILES_WITH_DIRECTORY_ROW}
