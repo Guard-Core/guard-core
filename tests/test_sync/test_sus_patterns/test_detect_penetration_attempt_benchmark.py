@@ -944,26 +944,6 @@ _KNOWN_E2E_FALSE_POSITIVE_SOURCES: dict[str, tuple[str, str]] = {
         _V440_NAMED_VALUE_KNOWN_FP_REASON,
         "query_param",
     ),
-    "cmd_injection_markdown_ls_mention": (
-        _URL_PATH_CODE_EXECUTION_KNOWN_FP_REASON,
-        "url_path",
-    ),
-    "cmd_injection_sql_dotted_qualified_identifier": (
-        _URL_PATH_CODE_EXECUTION_KNOWN_FP_REASON,
-        "url_path",
-    ),
-    "sensitive_file_benign_settings_yml_mention": (
-        _URL_PATH_CODE_EXECUTION_KNOWN_FP_REASON,
-        "url_path",
-    ),
-    "cmd_injection_crontab_env_prefixed_backup_line": (
-        _URL_PATH_CODE_EXECUTION_KNOWN_FP_REASON,
-        "url_path",
-    ),
-    "benign_file_path_var_www_html": (
-        _ABSOLUTE_PATH_VALUE_KNOWN_FP_REASON,
-        "form_body",
-    ),
     "template_fp_call_branch_helper_format": (
         _SSTI_HASH_BRACE_CALL_SYNTAX_KNOWN_FP_REASON,
         "query_param",
