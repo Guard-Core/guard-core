@@ -3,6 +3,8 @@ import re
 _SEP = r"[/\\]"
 _CHAR = r"[\w.\-~%]"
 _SEGMENTS = rf"(?:{_CHAR}+{_SEP})*"
+_PATH_CHAR = r"[\w.\-~%/\\]"
+_ONLY_PATH_THEN_QUERY_OR_SPACE = rf"(?={_PATH_CHAR}*(?:\?|\s*\Z))"
 _SUFFIX = rf"(?:{_SEP}{_CHAR}*)*(?:\?\S*)?\s*\Z"
 _SCRIPT_EXTENSIONS = r"(?:asp|aspx|php|jsp|pl|cgi|sh)"
 
@@ -79,7 +81,7 @@ _FIRST_FCKEDITOR_START = (
 )
 
 PROBE_CHAIN_ROW = (
-    rf"\A{_SEP}?(?:{_ROOT_TMP_SCRIPT}"
+    rf"\A{_ONLY_PATH_THEN_QUERY_OR_SPACE}{_SEP}?(?:{_ROOT_TMP_SCRIPT}"
     rf"|{_SEGMENTS}(?:{_alternation_by_first_character(_NESTED_CHAINS[1:])}){_SUFFIX}"
     rf"|{_FIRST_FCKEDITOR_START}{_SEGMENTS}{_FCKEDITOR_TARGET}{_SUFFIX})"
 )

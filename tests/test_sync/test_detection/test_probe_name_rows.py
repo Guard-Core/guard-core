@@ -92,14 +92,22 @@ def test_the_pattern_table_carries_the_generated_rows_and_the_one_chain_row() ->
     assert PROBE_CHAIN_ROW in sources
 
 
-def test_the_chain_row_scans_a_repeated_fckeditor_chain_in_linear_time() -> None:
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/" + "fckeditor/editor/filemanager/" * 2000,
+        "/" + "adminer.php/" * 4834 + " x",
+        "/" + "bitrix/admin/" * 4462 + "@",
+    ],
+    ids=["fckeditor", "adminer-then-space", "bitrix-then-at-sign"],
+)
+def test_the_chain_row_scans_a_repeated_chain_in_linear_time(path: str) -> None:
     row = re.compile(PROBE_CHAIN_ROW, _BUILTIN_PATTERN_COMPILE_FLAGS)
-    path = "/" + "fckeditor/editor/filemanager/" * 2000
-    assert len(path) == 58_001
+    assert 58_000 <= len(path) <= 58_100
     started = time.process_time()
     assert row.search(path) is None
     elapsed = time.process_time() - started
-    # linear cost: 3.2 ms on an Apple silicon Mac, CPython 3.10; quadratic: 960 ms
+    # linear cost: under 4 ms on an Apple silicon Mac, CPython 3.10; quadratic: 1 s+
     assert elapsed < 0.05
 
 
