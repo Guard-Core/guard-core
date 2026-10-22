@@ -39,7 +39,7 @@ from guard_core._utils.detection_scan import (
     _skipping_whole_value_path_rows,
 )
 from guard_core._utils.embedded_json_scan import (
-    _check_embedded_json,
+    _scan_escaped_literals_through_exclusions,
     _scan_string_literals,
 )
 from guard_core._utils.request_logging import redact_blob_for_display
@@ -603,7 +603,7 @@ async def _scan_blob_body_leaves(
         return None
     with _budget_that_is_never_spent(), _skipping_whole_value_path_rows():
         if excluded_body_fields or _body_field_category_skips.get():
-            json_hit = await _check_embedded_json(
+            json_hit = await _scan_escaped_literals_through_exclusions(
                 raw_body,
                 "request_body",
                 client_ip,
@@ -611,8 +611,8 @@ async def _scan_blob_body_leaves(
                 enabled_categories,
                 excluded_body_fields,
                 sensitive_body_fields,
-                redact_all=True,
-                sensitive_params=sensitive_params,
+                True,
+                sensitive_params,
             )
         else:
             json_hit = await _scan_string_literals(

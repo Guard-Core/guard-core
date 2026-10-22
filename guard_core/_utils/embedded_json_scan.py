@@ -2,12 +2,17 @@ import json
 import re
 from typing import Any
 
-from guard_core._utils.body_json_scan import _redact_sensitive_json, _scan_json_value
+from guard_core._utils.body_json_scan import (
+    _json_object_with_every_pair,
+    _redact_sensitive_json,
+    _scan_json_value,
+)
 from guard_core._utils.detection_scan import (
     _embedded_json_scan,
     _json_depth_cap_value,
     _scan_budget_spent,
 )
+from guard_core._utils.kept_value_paths import _NOTHING_TO_KEEP, _keep_only_values
 from guard_core.handlers._suspatterns_sources import _EMBEDDED_JSON_LEAF_CONTEXT_SUFFIX
 
 # json.loads accepts 993 nested arrays on 3.10 and 3.11 (951 under a 40 frame call
@@ -62,11 +67,14 @@ def _decoded_string_literal(literal: str) -> str:
     return str(decoded)
 
 
-def _parse_embedded_json(value: str) -> Any | None:
+def _parse_embedded_json(value: str, every_pair: bool = False) -> Any | None:
     if _nests_deeper_than(value, _EMBEDDED_JSON_MAX_PARSE_DEPTH):
         return _TOO_DEEP_TO_PARSE
     try:
-        data = json.loads(value)
+        data = json.loads(
+            value,
+            object_pairs_hook=_json_object_with_every_pair if every_pair else None,
+        )
     except json.JSONDecodeError:
         return None
     except RecursionError:
@@ -151,7 +159,30 @@ async def _check_embedded_json(
             redact_all,
             sensitive_params,
         )
+    return await _walk_parsed_embedded_json(
+        data,
+        context,
+        client_ip,
+        correlation_id,
+        enabled_categories,
+        excluded_body_fields,
+        sensitive_body_fields,
+        redact_all,
+        sensitive_params,
+    )
 
+
+async def _walk_parsed_embedded_json(
+    data: Any,
+    context: str,
+    client_ip: str,
+    correlation_id: str,
+    enabled_categories: set[str] | None,
+    excluded_body_fields: frozenset[str],
+    sensitive_body_fields: frozenset[str],
+    redact_all: bool,
+    sensitive_params: frozenset[str],
+) -> tuple[bool, str, list[dict], str | None]:
     with _embedded_json_scan():
         detected, trigger, threats = await _scan_json_value(
             data,
@@ -174,3 +205,47 @@ async def _check_embedded_json(
         data, sensitive_body_fields, redact_all, sensitive_params
     )
     return True, trigger, threats, display
+
+
+async def _scan_escaped_literals_through_exclusions(
+    value: str,
+    context: str,
+    client_ip: str,
+    correlation_id: str,
+    enabled_categories: set[str] | None,
+    excluded_body_fields: frozenset[str],
+    sensitive_body_fields: frozenset[str],
+    redact_all: bool,
+    sensitive_params: frozenset[str],
+) -> tuple[bool, str, list[dict], str | None] | None:
+    literals = _escaped_string_literals(value)
+    if not literals:
+        return None
+    data = _parse_embedded_json(value, every_pair=True)
+    if not isinstance(data, dict | list):
+        return await _scan_string_literals(
+            value,
+            context,
+            client_ip,
+            correlation_id,
+            enabled_categories,
+            sensitive_body_fields,
+            redact_all,
+            sensitive_params,
+        )
+    kept = _keep_only_values(
+        data, frozenset(_decoded_string_literal(literal) for literal in literals)
+    )
+    if kept is _NOTHING_TO_KEEP:
+        return None
+    return await _walk_parsed_embedded_json(
+        kept,
+        context,
+        client_ip,
+        correlation_id,
+        enabled_categories,
+        excluded_body_fields,
+        sensitive_body_fields,
+        redact_all,
+        sensitive_params,
+    )
