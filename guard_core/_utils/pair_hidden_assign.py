@@ -6,6 +6,7 @@ from guard_core._utils.pair_value_scan import (
     _HARD_SEP_CHARS,
     _JSON_START_CHARS,
     _QUOTE_CHARS,
+    _REDACTED_MARKER,
     _bounded_percent_decode,
     _has_undecoded_percent_escape,
     _redact_embedded_json_value,
@@ -13,8 +14,6 @@ from guard_core._utils.pair_value_scan import (
     _skip_soft_whitespace,
 )
 from guard_core._utils.sensitive_names import name_is_sensitive
-
-_REDACTED_MARKER = "[REDACTED]"
 
 _HIDDEN_ASSIGN_TOKEN_LENGTHS = (3, 5, 7)
 _SMUGGLED_SEPARATOR_RE = re.compile(r"[&;,?|]")

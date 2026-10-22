@@ -27,6 +27,7 @@ _HARD_SEP_CHARS = frozenset("&;,?|/[]{}()\r\n<>")
 _QUOTE_CHARS = frozenset("'\"")
 _HARD_WS_CHARS = frozenset("\r\n")
 _PERCENT_ESCAPE_RE = re.compile(r"%[0-9A-Fa-f]{2}")
+_REDACTED_MARKER = "[REDACTED]"
 
 
 def _has_undecoded_percent_escape(text: str) -> bool:
@@ -116,7 +117,21 @@ def _build_redaction_result(
     return replacement, end
 
 
+def _is_whole_redacted_marker(text: str, pos: int) -> bool:
+    marker_end = pos + len(_REDACTED_MARKER)
+    return (
+        text.startswith(_REDACTED_MARKER, pos)
+        and _unquoted_value_extent(text, marker_end) == marker_end
+    )
+
+
 def _redact_sensitive_pair_value(text: str, value_start: int) -> tuple[str, int]:
+    if _is_whole_redacted_marker(text, value_start):
+        return _REDACTED_MARKER, value_start + len(_REDACTED_MARKER)
+    return _redact_sensitive_pair_value_extent(text, value_start)
+
+
+def _redact_sensitive_pair_value_extent(text: str, value_start: int) -> tuple[str, int]:
     n = len(text)
     quote_char = _quote_char_at(text, value_start)
     body_start = value_start + (1 if quote_char else 0)
