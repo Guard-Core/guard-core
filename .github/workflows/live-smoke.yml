@@ -17,6 +17,9 @@ on:
         required: false
         default: ''
 
+permissions:
+  contents: read
+
 jobs:
   live-smoke:
     runs-on: ubuntu-latest
