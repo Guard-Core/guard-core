@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import re
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Protocol, cast, runtime_checkable
 from weakref import WeakKeyDictionary
@@ -22,11 +22,21 @@ _CONTENT_LENGTH_RE = re.compile(r"[0-9]+")
 
 
 def _parse_content_length(value: str) -> int | None:
+    return parse_declared_length(value) or None
+
+
+def parse_declared_length(value: str) -> int | None:
     stripped = value.strip()
-    if not _CONTENT_LENGTH_RE.fullmatch(stripped):
-        return None
-    parsed = int(stripped)
-    return parsed if parsed > 0 else None
+    return int(stripped) if _CONTENT_LENGTH_RE.fullmatch(stripped) else None
+
+
+def request_declares_body(headers: Mapping[str, str]) -> bool:
+    if headers.get("transfer-encoding"):
+        return True
+    content_length = headers.get("content-length")
+    if content_length is None:
+        return False
+    return parse_declared_length(content_length) != 0
 
 
 @runtime_checkable
@@ -332,4 +342,23 @@ async def _read_capped_body(
         return await _read_capped_body_or_raise(request, config, client_ip)
     except (BodyReadStalledError, BodyReadFailedError) as exc:
         logger.warning("%s; the body is treated as unavailable", exc)
+        return None
+
+
+async def read_prefix_beyond_limit(
+    request: GuardRequest, config: "SecurityConfig", limit: int
+) -> bytes | None:
+    kind = _body_reader_kind(request)
+    fetch_bytes = limit + 1
+    try:
+        return await _read_and_cache_body(
+            request,
+            fetch_bytes,
+            config.body_read_timeout,
+            _body_reader_call(request, kind, fetch_bytes, config.body_read_timeout),
+            kind,
+            config.async_body_read_max_concurrent,
+        )
+    except (BodyReadStalledError, BodyReadFailedError) as exc:
+        logger.warning("%s; the request size could not be measured", exc)
         return None

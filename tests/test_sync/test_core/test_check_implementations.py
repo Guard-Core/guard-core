@@ -394,7 +394,11 @@ def test_request_size_content_type_blocked() -> None:
     check = RequestSizeContentCheck(mw)
     rc = RouteConfig()
     rc.allowed_content_types = ["application/json"]
-    req = _make_request_with_route_config(rc, headers={"content-type": "text/html"})
+    req = _make_request_with_route_config(
+        rc,
+        method="POST",
+        headers={"content-type": "text/html", "content-length": "4"},
+    )
     with patch(f"{_IMPL}.request_size_content.log_activity"):
         result = check.check(req)
     assert result is not None

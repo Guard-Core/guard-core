@@ -2,6 +2,12 @@ from collections.abc import Collection
 
 from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
+from guard_core.sync._utils.body_reader import (
+    parse_declared_length,
+    read_prefix_beyond_limit,
+    request_declares_body,
+)
+from guard_core.sync._utils.honeypot_fields import media_type_of
 from guard_core.sync._utils.request_logging import redact_header_value_for_display
 from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.core.checks.helpers import (
@@ -35,20 +41,54 @@ class RequestSizeContentCheck(SecurityCheck):
     def _check_request_size_limit(
         self, request: SyncGuardRequest, route_config: RouteConfig
     ) -> GuardResponse | None:
-        if not route_config.max_request_size:
+        limit = route_config.max_request_size
+        if not limit:
             return None
 
         content_length = request.headers.get("content-length")
-        if not content_length or int(content_length) <= route_config.max_request_size:
+        if content_length is None or request.headers.get("transfer-encoding"):
+            if not self._streamed_body_exceeds(request, limit):
+                return None
+            return self._oversize_response(
+                request, limit, f"Request body exceeds {limit} bytes"
+            )
+
+        declared = parse_declared_length(content_length)
+        if declared is None:
+            return self._invalid_length_response(request, content_length)
+        if declared <= limit:
             return None
+        return self._oversize_response(
+            request, limit, f"Request size {content_length} exceeds limit"
+        )
 
-        message = f"Request size {content_length} exceeds limit"
+    def _streamed_body_exceeds(self, request: SyncGuardRequest, limit: int) -> bool:
+        body = read_prefix_beyond_limit(request, self.config, limit)
+        return body is not None and len(body) > limit
 
+    def _invalid_length_response(
+        self, request: SyncGuardRequest, content_length: str
+    ) -> GuardResponse | None:
+        shown = redact_header_value_for_display(
+            content_length,
+            self.config.log_sensitive_params,
+            self.config.log_sensitive_body_fields,
+            self.config.log_sensitive_headers,
+        )
+        self._log_suspicious(request, f"Invalid Content-Length: {shown}")
+        if self.config.passive_mode:
+            return None
+        return self.middleware.create_error_response(
+            status_code=400,
+            default_message="Invalid Content-Length",
+        )
+
+    def _log_suspicious(self, request: SyncGuardRequest, reason: str) -> None:
         log_activity(
             request,
             self.logger,
             log_type="suspicious",
-            reason=f"{message}: {route_config.max_request_size}",
+            reason=reason,
             level=self.config.log_suspicious_level,
             passive_mode=self.config.passive_mode,
             check_name=self.check_name,
@@ -59,6 +99,11 @@ class RequestSizeContentCheck(SecurityCheck):
             sensitive_body_fields=self.config.log_sensitive_body_fields,
         )
 
+    def _oversize_response(
+        self, request: SyncGuardRequest, limit: int, message: str
+    ) -> GuardResponse | None:
+        self._log_suspicious(request, f"{message}: {limit}")
+
         emit_decorator_event(
             self.middleware,
             request,
@@ -66,7 +111,7 @@ class RequestSizeContentCheck(SecurityCheck):
             action_taken="request_blocked"
             if not self.config.passive_mode
             else "logged_only",
-            reason=f"{message}: {route_config.max_request_size}",
+            reason=f"{message}: {limit}",
             decorator_type="content_filtering",
             violation_type="max_request_size",
         )
@@ -85,8 +130,13 @@ class RequestSizeContentCheck(SecurityCheck):
         if not route_config.allowed_content_types:
             return None
 
-        content_type = request.headers.get("content-type", "").split(";")[0]
-        if content_type in route_config.allowed_content_types:
+        if not request_declares_body(request.headers):
+            return None
+
+        content_type = media_type_of(request.headers.get("content-type", ""))
+        if content_type in {
+            media_type_of(t) for t in route_config.allowed_content_types
+        }:
             return None
 
         redacted_content_type = redact_header_value_for_display(
