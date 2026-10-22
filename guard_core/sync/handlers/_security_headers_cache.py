@@ -1,3 +1,4 @@
+import copy
 import hashlib
 import json
 import logging
@@ -35,6 +36,7 @@ class SecurityHeadersCacheMixin:
     _instance: Any
     _startup_hash: str | None
     _redis_initialized: bool
+    _headers_json_memo: tuple[Any, str] | None = None
 
     @abstractmethod
     def _pull_override(self) -> None: ...
@@ -54,6 +56,17 @@ class SecurityHeadersCacheMixin:
     @abstractmethod
     def _validate_header_value(self, value: str) -> str: ...
 
+    def _security_headers_json(self, headers: Any) -> str:
+        memo = self._headers_json_memo
+        if memo is not None and memo[0] == headers:
+            return memo[1]
+        content = json.dumps(headers, sort_keys=True, default=str)
+        try:
+            self._headers_json_memo = (copy.deepcopy(headers), content)
+        except Exception:
+            self._headers_json_memo = None
+        return content
+
     def _generate_cache_key(
         self,
         request_path: str | None,
@@ -61,7 +74,7 @@ class SecurityHeadersCacheMixin:
         override: OverrideRecord | None = None,
     ) -> str:
         if config is not None:
-            content = json.dumps(config.security_headers, sort_keys=True, default=str)
+            content = self._security_headers_json(config.security_headers)
             current = self._current_override() if override is None else override
             if current.keys:
                 content += override_fingerprint(current.keys)
