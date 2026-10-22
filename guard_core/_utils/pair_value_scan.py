@@ -107,7 +107,7 @@ def _secret_value_extent(text: str, start: int) -> int:
                 return i
             i += 1
             continue
-        gap = _SOFT_GAP_THEN_PAIR_RE.match(text, i)
+        gap = next(_SOFT_GAP_THEN_PAIR_RE.finditer(text, i))
         if gap.group(2) is not None:
             return i
         i = gap.end(1)
