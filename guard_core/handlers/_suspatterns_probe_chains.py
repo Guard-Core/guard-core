@@ -1,3 +1,5 @@
+import re
+
 _SEP = r"[/\\]"
 _CHAR = r"[\w.\-~%]"
 _SEGMENTS = rf"(?:{_CHAR}+{_SEP})*"
@@ -49,7 +51,27 @@ _NESTED_CHAINS = (
 )
 _ROOT_TMP_SCRIPT = rf"tmp{_SEP}{_CHAR}+\.{_SCRIPT_EXTENSIONS}(?:\?\S*)?\s*\Z"
 
+_LEADING_PLAIN_GROUP = re.compile(r"\(\?:([^()]*)\)(.*)", re.DOTALL)
+
+
+def _expand_leading_group(chain: str) -> list[str]:
+    leading = _LEADING_PLAIN_GROUP.fullmatch(chain)
+    if leading is None:
+        return [chain]
+    return [option + leading[2] for option in leading[1].split("|")]
+
+
+def _alternation_by_first_character(chains: tuple[str, ...]) -> str:
+    by_first: dict[str, list[str]] = {}
+    for chain in chains:
+        for expanded in _expand_leading_group(chain):
+            by_first.setdefault(expanded[0], []).append(expanded[1:])
+    return "|".join(
+        f"{first}(?:{'|'.join(rests)})" for first, rests in by_first.items()
+    )
+
+
 PROBE_CHAIN_ROW = (
     rf"\A{_SEP}?(?:{_ROOT_TMP_SCRIPT}"
-    rf"|{_SEGMENTS}(?:{'|'.join(_NESTED_CHAINS)}){_SUFFIX})"
+    rf"|{_SEGMENTS}(?:{_alternation_by_first_character(_NESTED_CHAINS)}){_SUFFIX})"
 )
