@@ -61,6 +61,7 @@ from pipeline_harness import (
     reset_check_samplers,
 )
 
+from guard_core._utils.rule_attribution import set_attribution_view
 from guard_core.core.bypass.context import BypassContext
 from guard_core.core.bypass.handler import BypassHandler
 from guard_core.core.checks.factory import build_default_pipeline
@@ -367,6 +368,7 @@ class EventsCase:
 
     async def prepare(self) -> None:
         DynamicRuleManager._instance = None
+        set_attribution_view(None)
         await reset_global_state()
         reset_check_samplers()
         security_headers_manager.headers_cache.clear()
