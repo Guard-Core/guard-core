@@ -1,11 +1,12 @@
 import ipaddress
 import logging
 from collections.abc import Generator
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
-from guard_core._utils import nat64
+from guard_core._utils import ip_extraction, nat64, sampling
 from guard_core._utils.ip_extraction import _canonicalize_ip, _client_identity
 from guard_core._utils.nat64 import _decode_nat64_embedded_ipv4
 from guard_core.core.checks.factory import build_default_pipeline
@@ -87,6 +88,45 @@ def test_a_non_global_embedded_address_warns_once_a_minute(
             _canonicalize_ip("64:ff9b::a00:5")
 
     assert len([r for r in caplog.records if "NAT64" in r.getMessage()]) == 1
+
+
+def test_the_warning_still_fires_once_a_minute_when_the_address_is_cached(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    clock = [1000.0]
+    monkeypatch.setattr(sampling, "time", SimpleNamespace(monotonic=lambda: clock[0]))
+    parsed: list[str] = []
+    real_ip_address = ip_extraction.ip_address
+
+    def counting(value: str) -> object:
+        parsed.append(value)
+        return real_ip_address(value)
+
+    monkeypatch.setattr(ip_extraction, "ip_address", counting)
+
+    def warnings_after(seconds: float) -> int:
+        clock[0] += seconds
+        before = len(caplog.records)
+        assert _canonicalize_ip("64:ff9b::c000:201") == "64:ff9b::c000:201"
+        return len([r for r in caplog.records[before:] if "NAT64" in r.getMessage()])
+
+    with caplog.at_level(logging.WARNING, logger="guard_core"):
+        assert warnings_after(0) == 1
+        assert warnings_after(30) == 0
+        assert warnings_after(31) == 1
+        assert warnings_after(1) == 0
+
+    assert len(parsed) == 1
+
+
+def test_a_changed_prefix_list_is_not_served_from_the_cache() -> None:
+    prefix = "2001:db8:122:344::/64"
+    address = _encode(prefix, PUBLIC_V4)
+
+    assert _canonicalize_ip(address) == address
+    nat64.configure_nat64_prefixes((ipaddress.IPv6Network(prefix),))
+
+    assert _canonicalize_ip(address) == PUBLIC_V4
 
 
 @pytest.mark.parametrize(("prefix", "_"), RFC_6052_EXAMPLES)

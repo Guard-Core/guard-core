@@ -1179,8 +1179,8 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
     "handlers/ipinfo_handler.py:IPInfoManager._open_database_or_none": (
         "line 91: MMDB file-open failure, infra only"
     ),
-    "_utils/nat64.py:_unwrap_nat64": (
-        "line 58: sampled warning naming the non-global IPv4 address embedded "
+    "_utils/nat64.py:_warn_non_global_embedded_once_a_minute": (
+        "line 68: sampled warning naming the non-global IPv4 address embedded "
         "in a translated client address, an IP outside the secret matrix"
     ),
     "_utils/ip_extraction.py:_malformed_forwarded_for_identity": (

@@ -27,10 +27,14 @@ _NON_GLOBAL_WARNING_WINDOW_SECONDS = 60
 def configure_nat64_prefixes(prefixes: Iterable[IPv6Network]) -> None:
     global _nat64_prefixes
     _nat64_prefixes = tuple(prefixes)
-    from guard_core.sync._utils.ip_extraction import _client_identity
+    from guard_core.sync._utils.ip_extraction import (
+        _canonical_ip_text_and_nat64_warning,
+        _client_identity,
+    )
     from guard_core.sync._utils.whitelist_match import clear_entry_indexes
 
     _client_identity.cache_clear()
+    _canonical_ip_text_and_nat64_warning.cache_clear()
     clear_entry_indexes()
 
 
@@ -46,13 +50,14 @@ def _nat64_prefix_of(addr: IPv6Address) -> IPv6Network | None:
     return next((prefix for prefix in _nat64_prefixes if addr in prefix), None)
 
 
-def _unwrap_nat64(addr: IPv6Address) -> IPv4Address | None:
+def _decoded_nat64_embedded_ipv4(addr: IPv6Address) -> IPv4Address | None:
     prefix = _nat64_prefix_of(addr)
     if prefix is None:
         return None
-    embedded = _decode_nat64_embedded_ipv4(addr, prefix)
-    if embedded.is_global:
-        return embedded
+    return _decode_nat64_embedded_ipv4(addr, prefix)
+
+
+def _warn_non_global_embedded_once_a_minute(embedded: IPv4Address) -> None:
     if observe_sampled_key(
         _non_global_warnings,
         _non_global_warning_lock,
@@ -66,4 +71,13 @@ def _unwrap_nat64(addr: IPv6Address) -> IPv4Address | None:
             "once a minute.",
             embedded,
         )
+
+
+def _unwrap_nat64(addr: IPv6Address) -> IPv4Address | None:
+    embedded = _decoded_nat64_embedded_ipv4(addr)
+    if embedded is None:
+        return None
+    if embedded.is_global:
+        return embedded
+    _warn_non_global_embedded_once_a_minute(embedded)
     return None

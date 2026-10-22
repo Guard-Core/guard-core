@@ -15,7 +15,11 @@ from typing import Any
 
 from guard_core.sync._utils.agent_events import send_agent_event
 from guard_core.sync._utils.logging_utils import _sanitize_for_log
-from guard_core.sync._utils.nat64 import _unwrap_nat64
+from guard_core.sync._utils.nat64 import (
+    _decoded_nat64_embedded_ipv4,
+    _unwrap_nat64,
+    _warn_non_global_embedded_once_a_minute,
+)
 from guard_core.sync._utils.sampling import observe_sampled_key
 from guard_core.sync._utils.whitelist_match import is_listed
 from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol
@@ -102,21 +106,29 @@ _IDENTITY_CACHE_ENTRIES = 4096
 
 
 @lru_cache(maxsize=_IDENTITY_CACHE_ENTRIES)
-def _canonicalize_plain_ip(value: str) -> str:
-    try:
-        return str(ip_address(_strip_ip_brackets(value)))
-    except ValueError:
-        return value
-
-
-def _canonicalize_ip(value: str) -> str:
-    if ":" not in value:
-        return _canonicalize_plain_ip(value)
+def _canonical_ip_text_and_nat64_warning(
+    value: str,
+) -> tuple[str, IPv4Address | None]:
     try:
         addr = ip_address(_strip_zone_id(_strip_ip_brackets(value)))
     except ValueError:
-        return value
-    return _canonical_ip_text(addr)
+        return value, None
+    if isinstance(addr, IPv6Address):
+        if addr.ipv4_mapped is not None:
+            return str(addr.ipv4_mapped), None
+        embedded = _decoded_nat64_embedded_ipv4(addr)
+        if embedded is not None and embedded.is_global:
+            return str(embedded), None
+        if embedded is not None:
+            return str(addr), embedded
+    return str(addr), None
+
+
+def _canonicalize_ip(value: str) -> str:
+    text, non_global_embedded = _canonical_ip_text_and_nat64_warning(value)
+    if non_global_embedded is not None:
+        _warn_non_global_embedded_once_a_minute(non_global_embedded)
+    return text
 
 
 def _is_per_address_identity(addr: IPv6Address) -> bool:
