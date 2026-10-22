@@ -180,6 +180,7 @@ async def _straddle_overlap_bytes() -> int:
 
 
 _CAPPED_BODY_PREFIX_STATE_ATTR = "_guard_capped_body_prefix_cache"
+_FAILED_LIMIT_READ_STATE_ATTR = "_guard_failed_limit_read"
 
 
 async def _read_and_cache_body(
@@ -348,13 +349,20 @@ async def _read_capped_body(
 async def read_prefix_beyond_limit(
     request: GuardRequest, config: "SecurityConfig", limit: int
 ) -> bytes | None:
+    failed = getattr(request.state, _FAILED_LIMIT_READ_STATE_ATTR, None)
+    if failed is not None and failed[0] is request:
+        raise failed[1]
     kind = _body_reader_kind(request)
     fetch_bytes = limit + 1
-    return await _read_and_cache_body(
-        request,
-        fetch_bytes,
-        config.body_read_timeout,
-        _body_reader_call(request, kind, fetch_bytes, config.body_read_timeout),
-        kind,
-        config.async_body_read_max_concurrent,
-    )
+    try:
+        return await _read_and_cache_body(
+            request,
+            fetch_bytes,
+            config.body_read_timeout,
+            _body_reader_call(request, kind, fetch_bytes, config.body_read_timeout),
+            kind,
+            config.async_body_read_max_concurrent,
+        )
+    except (BodyReadStalledError, BodyReadFailedError) as error:
+        setattr(request.state, _FAILED_LIMIT_READ_STATE_ATTR, (request, error))
+        raise

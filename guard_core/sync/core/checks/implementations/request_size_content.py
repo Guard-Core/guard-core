@@ -24,6 +24,8 @@ from guard_core.sync.decorators.base import RouteConfig
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 from guard_core.sync.utils import log_activity
 
+_OUTCOME_REPORTED_STATE_ATTR = "_guard_body_read_outcome_reported"
+
 
 class RequestSizeContentCheck(SecurityCheck):
     @property
@@ -78,6 +80,9 @@ class RequestSizeContentCheck(SecurityCheck):
             result = _build_body_read_error(True, error.detail)
         except BodyReadFailedError as error:
             result = _build_body_read_error(False, error.detail)
+        if getattr(request.state, _OUTCOME_REPORTED_STATE_ATTR, False):
+            return b"", None
+        setattr(request.state, _OUTCOME_REPORTED_STATE_ATTR, True)
         client_ip = getattr(request.state, "client_ip", None) or "unknown"
         return b"", body_read_outcome(self, request, client_ip, result)
 

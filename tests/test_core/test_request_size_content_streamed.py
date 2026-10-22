@@ -1,3 +1,5 @@
+import asyncio
+import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -311,5 +313,44 @@ async def test_failed_read_passes_with_log_and_event_when_fail_secure_is_off(
         new_callable=AsyncMock,
     ) as log:
         assert await check.check(request) is None
+    log.assert_awaited_once()
+    check.middleware.event_bus.send_middleware_event.assert_awaited_once()
+
+
+_STALL_SECONDS = 0.4
+
+
+class _StallingRequest(MockGuardRequest):
+    def __init__(self, headers: dict[str, str]) -> None:
+        super().__init__(method="POST", headers=headers)
+        self.reads = 0
+
+    async def read_body_prefix_until_idle(
+        self, max_bytes: int, idle_timeout: float
+    ) -> bytes:
+        self.reads += 1
+        await asyncio.sleep(_STALL_SECONDS)
+        raise BodyReadStalledError()
+
+
+@pytest.mark.parametrize("fail_secure", [False, True])
+async def test_a_stalled_read_costs_one_wait_for_size_and_content_type(
+    fail_secure: bool,
+) -> None:
+    request = _StallingRequest(_HTTP2_HEADERS)
+    _with_route(request, max_request_size=10, allowed=["application/json"])
+    check = _check(fail_secure=fail_secure)
+    started = time.monotonic()
+    with patch(
+        "guard_core.core.checks.implementations.suspicious_activity.log_activity",
+        new_callable=AsyncMock,
+    ) as log:
+        response = await check.check(request)
+    elapsed = time.monotonic() - started
+    assert (response.status_code if response else None) == (
+        408 if fail_secure else None
+    )
+    assert elapsed < 1.5 * _STALL_SECONDS
+    assert request.reads == 1
     log.assert_awaited_once()
     check.middleware.event_bus.send_middleware_event.assert_awaited_once()
