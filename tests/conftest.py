@@ -49,10 +49,12 @@ from guard_core.handlers.suspatterns_handler import (
     sus_patterns_handler,
 )
 from guard_core.models import SecurityConfig
+from tests import network_guard
 
 if TYPE_CHECKING:
     from tests.live_smoke.driver import ScenarioContext, Stack
 
+network_guard.install()
 _suspatterns_module._legacy_detection_warned = True
 _staged_defaults_module._default_prefix_warned = True
 _staged_defaults_module._changed_defaults_logged.update(
@@ -82,6 +84,14 @@ def _guard_core_logger_names() -> list[str]:
         if isinstance(obj, logging.Logger)
         and (name == "guard_core" or name.startswith("guard_core."))
     ]
+
+
+@pytest.fixture(autouse=True)
+def _no_outbound_network() -> Iterator[None]:
+    network_guard.reset()
+    yield
+    violations = network_guard.drain()
+    assert not violations, "test reached the network:\n" + "\n".join(violations)
 
 
 @pytest.fixture(autouse=True)

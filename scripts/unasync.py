@@ -67,6 +67,8 @@ SKIP_TESTS = {
     "test_nested_conftest_defines_no_fixtures.py",
     "test_event_correlation_parallel.py",
     "test_ban_attribution_cross_worker.py",
+    "network_guard.py",
+    "test_network_guard.py",
 }
 
 SKIP_DIRS = {"__pycache__", "sync"}
