@@ -5,7 +5,7 @@ import uuid
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, NoReturn
 from urllib.parse import urlsplit, urlunsplit
 
 from redis import Redis
@@ -284,6 +284,19 @@ class RedisManager:
 
             raise GuardRedisError(503, "Redis connection failed") from e
 
+    def _raise_operation_failure(self, error: Exception, name: str) -> NoReturn:
+        self.logger.error(f"Redis operation failed: {str(error)}")
+
+        self._send_redis_event(
+            event_type=EVENT_REDIS_ERROR,
+            action_taken="safe_operation_failed",
+            reason=f"Redis safe operation failed: {str(error)}",
+            error_type="safe_operation_error",
+            function_name=name,
+        )
+
+        raise GuardRedisError(503, "Redis operation failed") from error
+
     def safe_operation(self, func: Any, *args: Any, **kwargs: Any) -> Any:
         if not self.config.enable_redis:
             return None
@@ -292,17 +305,7 @@ class RedisManager:
             with self.get_connection() as conn:
                 return func(conn, *args, **kwargs)
         except Exception as e:
-            self.logger.error(f"Redis operation failed: {str(e)}")
-
-            self._send_redis_event(
-                event_type=EVENT_REDIS_ERROR,
-                action_taken="safe_operation_failed",
-                reason=f"Redis safe operation failed: {str(e)}",
-                error_type="safe_operation_error",
-                function_name=getattr(func, "__name__", "unknown"),
-            )
-
-            raise GuardRedisError(503, "Redis operation failed") from e
+            self._raise_operation_failure(e, getattr(func, "__name__", "unknown"))
 
     def get_key(self, namespace: str, key: str) -> Any:
         if not self.config.enable_redis:
@@ -318,13 +321,16 @@ class RedisManager:
         if not self.config.enable_redis:
             return [None] * len(pairs)
 
-        def _get_many(conn: Redis) -> list[Any]:
-            prefix = self.config.redis_prefix
-            return list(
-                conn.mget([f"{prefix}{namespace}:{key}" for namespace, key in pairs])
-            )
-
-        return list(self.safe_operation(_get_many))
+        prefix = self.config.redis_prefix
+        try:
+            with self.get_connection() as conn:
+                return list(
+                    conn.mget(
+                        [f"{prefix}{namespace}:{key}" for namespace, key in pairs]
+                    )
+                )
+        except Exception as e:
+            self._raise_operation_failure(e, "_get_many")
 
     def set_key(
         self, namespace: str, key: str, value: Any, ttl: int | None = None

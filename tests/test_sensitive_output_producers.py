@@ -1360,8 +1360,8 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
     "handlers/redis_handler.py:RedisManager.initialize": (
         "lines 142,151,154: connection-init lifecycle/failure log, infra only"
     ),
-    "handlers/redis_handler.py:RedisManager.safe_operation": (
-        "line 226: wrapped-operation failure, infra only (the operation's "
+    "handlers/redis_handler.py:RedisManager._raise_operation_failure": (
+        "line 288: wrapped-operation failure, infra only (the operation's "
         "own exception text, not request content)"
     ),
     "core/bypass/handler.py:_warn_no_client_address": (
