@@ -556,9 +556,7 @@ class RedisManager:
         if index is not None:
             index_key, max_members = index
             keys.append(f"{prefix}{index_key}")
-            args.append(max_members)
-            if index_refused is not None:
-                args.append("1")
+            args += (max_members, "1") if index_refused is not None else (max_members,)
 
         async def _record(conn: Redis) -> int:
             try:
