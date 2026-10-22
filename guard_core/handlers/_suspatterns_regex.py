@@ -24,6 +24,7 @@ from guard_core._utils.detection_scan import (
     _timed_in_worker,
     _warn_scan_time_cap_reached_once,
 )
+from guard_core._utils.source_path_shapes import named_file_leaf_in_benign_shape
 from guard_core.detection_engine.binary_prefix import (
     build_binary_prefix,
     match_is_binary_dense,
@@ -78,6 +79,7 @@ from guard_core.handlers._suspatterns_pattern_table import (
     _ABSOLUTE_PATH_VALUE_RE,
     _CMD_PATH_CODE_EXECUTION_RE,
     BACKTICK_WHOLE_VALUE_RE,
+    NAMED_DIRECTORY_PATH_SOURCES,
     NAMED_FILE_PATH_SOURCES,
     NOISE_PRONE_PATTERN_SOURCES,
     RECON_OPTIONAL_SEPARATOR_PATTERN_SOURCES,
@@ -272,6 +274,8 @@ def _path_row_match_is_cleared(
     pattern: re.Pattern, match: re.Match, context: str
 ) -> bool:
     source = pattern.pattern
+    if source in NAMED_DIRECTORY_PATH_SOURCES and named_file_leaf_in_benign_shape():
+        return True
     if source in NAMED_FILE_PATH_SOURCES and (
         named_file_in_a_push_list_is_plain(pattern, match)
     ):

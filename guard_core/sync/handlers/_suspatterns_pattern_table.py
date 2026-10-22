@@ -200,6 +200,10 @@ NOISE_PRONE_PATTERN_SOURCES: frozenset[str] = frozenset(
     }
 )
 
+_EDITOR_BACKUP_TILDE_ROW = (
+    _PATH_ONLY_PREFIX_RE + rf"{_PATH_ONLY_CHAR_RE}*\.\w+~(?:\?\S*)?\s*\Z"
+)
+
 _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
     (r"<script[^>]*>[^<]*<\/script\s*>", _CTX_XSS, "xss"),
     (
@@ -664,7 +668,7 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
         "sensitive_file",
     ),
     (
-        _PATH_ONLY_PREFIX_RE + rf"{_PATH_ONLY_CHAR_RE}*\.\w+~(?:\?\S*)?\s*\Z",
+        _EDITOR_BACKUP_TILDE_ROW,
         _CTX_SENSITIVE_FILE,
         "sensitive_file",
     ),
@@ -997,6 +1001,14 @@ NAMED_FILE_PATH_SOURCES: frozenset[str] = frozenset(
     and source.startswith(r"\A[/\\]")
     and source.endswith(_PATH_ONLY_SUFFIX_RE)
     and source not in {_SENSITIVE_SOURCE_EXTENSION_PATH_RE, _MAP_FILE_PATH_RE}
+) | {_EDITOR_BACKUP_TILDE_ROW}
+
+# The CMS directory rows: the path after the directory name is the file the push
+# lists (wp-admin/index.php), so a plain relative name clears them with path info.
+NAMED_DIRECTORY_PATH_SOURCES: frozenset[str] = frozenset(
+    source
+    for source, token_pattern in NAMED_FLOOR_TOKEN_PATTERNS.items()
+    if token_pattern is CMS_TOKEN_PATTERN and source in NAMED_FILE_PATH_SOURCES
 )
 
 # Recon rows additionally scanned against the signal-preserving raw view. The

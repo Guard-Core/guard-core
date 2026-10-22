@@ -44,21 +44,21 @@ BENIGN_SOURCE_PATH_SHAPES: tuple[SourcePathShape, ...] = (
         frozenset({"path"}),
         frozenset({"diff_hunk", "position"}),
         frozenset(),
-        frozenset({SOURCE}),
+        frozenset({SOURCE, NAMED_FILES}),
     ),
     SourcePathShape(
         "pull request file",
         frozenset({"filename"}),
         frozenset({"patch", "status"}),
         frozenset(),
-        frozenset({SOURCE}),
+        frozenset({SOURCE, NAMED_FILES}),
     ),
     SourcePathShape(
         "stack frame",
         frozenset({"filename"}),
         frozenset({"lineno", "function"}),
         frozenset({"frames"}),
-        frozenset({SOURCE}),
+        frozenset({SOURCE, NAMED_FILES}),
     ),
     SourcePathShape(
         "stack frame absolute path",
@@ -123,9 +123,9 @@ def benign_shape_grants(
 
 # Relative, with no "." or ".." segment, no encoding, no separator or suffix trick:
 # the shape of a file name a push lists, which a traversal, an absolute path or a
-# trick suffix such as ";.jpg" or "%00" is not.
+# trick suffix such as ";.jpg" or "%00" is not. An editor backup ends in one "~".
 _PLAIN_RELATIVE_FILE_PATH_RE = re.compile(
-    r"(?:(?!\.\.?/)[\w.\-]+/)*(?!\.\.?\s*\Z)[\w.\-]+\s*\Z"
+    r"(?:(?!\.\.?/)[\w.\-]+/)*(?!\.\.?\s*\Z)[\w.\-]+~?\s*\Z"
 )
 
 

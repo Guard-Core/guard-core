@@ -129,10 +129,13 @@ async def test_a_change_list_with_a_plain_name_and_a_traversal_is_flagged() -> N
     assert await _is_threat({"commits": [entry]}) is True
 
 
-async def test_the_other_shapes_do_not_clear_the_named_file_rows() -> None:
-    assert await _is_threat({"filename": ".env", "status": "modified"}) is True
-    assert await _is_threat({"path": ".env", "position": 3}) is True
-    assert await _is_threat({"frames": [{"filename": ".env", "lineno": 3}]}) is True
+async def test_the_other_shapes_clear_a_plain_name_and_not_a_traversal() -> None:
+    assert await _is_threat({"filename": ".env", "status": "modified"}) is False
+    assert await _is_threat({"path": ".env", "position": 3}) is False
+    assert await _is_threat({"frames": [{"filename": ".env", "lineno": 3}]}) is False
+    assert await _is_threat({"filename": "../.env", "status": "modified"}) is True
+    assert await _is_threat({"path": "/etc/passwd", "position": 3}) is True
+    assert await _is_threat({"frames": [{"filename": "../.env", "lineno": 3}]}) is True
 
 
 async def test_a_sentry_frame_may_carry_an_absolute_path() -> None:
