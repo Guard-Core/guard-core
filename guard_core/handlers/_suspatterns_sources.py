@@ -181,12 +181,24 @@ def _root_path_pattern(required: str, trailing: str = "") -> str:
     return rf"\A{_PATH_ONLY_SEP_RE}?{required}{trailing}{_PATH_ONLY_SUFFIX_RE}"
 
 
+_PATH_ONLY_SEGMENT_END_RE = r"(?![^/\\?\s])"
+_PATH_ONLY_TAIL_RE = re.compile(
+    rf"(?:{_PATH_ONLY_SEP_RE}{_PATH_ONLY_CHAR_RE}*)*(?:\?\S*)?\s*\Z"
+)
+
+
 def _path_only_extension_pattern(required: str) -> str:
+    # The row ends the head at the last segment that ends in the extension and takes
+    # the rest as-is; path_only_extension_tail_is_valid judges that rest once.
     return (
-        rf"\A{_PATH_ONLY_SEP_RE}?"
+        rf"\A{_PATH_ONLY_SEP_RE}?(?P<head>"
         rf"(?:{_PATH_ONLY_CHAR_RE}+{_PATH_ONLY_SEP_RE})*"
-        rf"{_PATH_ONLY_CHAR_RE}*{required}{_PATH_ONLY_SUFFIX_RE}"
+        rf"{_PATH_ONLY_CHAR_RE}*{required}{_PATH_ONLY_SEGMENT_END_RE})[\s\S]*"
     )
+
+
+def path_only_extension_tail_is_valid(match: re.Match[str]) -> bool:
+    return _PATH_ONLY_TAIL_RE.fullmatch(match.string, match.end("head")) is not None
 
 
 # Expansion over v4.4.0 (D-75 step 4): alternate server-side extensions, and the

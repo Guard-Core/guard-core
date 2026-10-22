@@ -141,6 +141,7 @@ from guard_core.sync.handlers._suspatterns_sources import (
     _WHERE_CLAUSE_RE,
     _XML_XXE_PUBLIC_EXTERNAL_DTD_RE,
     ALL_DETECTION_CATEGORIES,
+    path_only_extension_tail_is_valid,
 )
 from guard_core.sync.handlers._suspatterns_state import _DetectionState
 from guard_core.sync.handlers._suspatterns_whole_value_rows import (
@@ -212,9 +213,19 @@ _CANDIDATE_REJECTION_VALIDATORS: tuple[
             and absolute_path_is_a_probe(context)
         ),
     ),
-    (_SENSITIVE_SOURCE_EXTENSION_PATH_RE, source_path_is_a_probe),
+    (
+        _SENSITIVE_SOURCE_EXTENSION_PATH_RE,
+        lambda m, context: (
+            path_only_extension_tail_is_valid(m) and source_path_is_a_probe(m, context)
+        ),
+    ),
     (_MAP_FILE_PATH_RE, source_path_is_a_probe),
-    (_RECON_EXTENSION_PATH_RE, recon_path_is_a_probe),
+    (
+        _RECON_EXTENSION_PATH_RE,
+        lambda m, context: (
+            path_only_extension_tail_is_valid(m) and recon_path_is_a_probe(m, context)
+        ),
+    ),
     (
         _VERSION_ROOT_PATH_RE,
         lambda _m, context: named_probe_row_is_not_the_apps_own_route(

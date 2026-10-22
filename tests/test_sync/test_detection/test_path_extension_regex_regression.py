@@ -9,6 +9,7 @@ from guard_core.sync.handlers._suspatterns_sources import (
     _PATH_ONLY_SUFFIX_RE,
     _RECON_EXTENSION_PATH_RE,
     _SENSITIVE_SOURCE_EXTENSION_PATH_RE,
+    path_only_extension_tail_is_valid,
 )
 
 _FLAGS = re.IGNORECASE | re.MULTILINE
@@ -66,7 +67,10 @@ def test_extension_path_regex_matches_previous_language(
     for path in _generated_paths():
         previous_match = previous.search(path)
         optimized_match = optimized.search(path)
-        assert (previous_match is not None) == (optimized_match is not None), (
+        optimized_flags_it = optimized_match is not None and (
+            path_only_extension_tail_is_valid(optimized_match)
+        )
+        assert (previous_match is not None) == optimized_flags_it, (
             f"language changed for {path!r}: {previous.pattern!r} vs "
             f"{optimized.pattern!r}"
         )

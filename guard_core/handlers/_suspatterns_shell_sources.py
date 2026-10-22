@@ -176,7 +176,9 @@ _QUOTE_SPLICE_CANDIDATE_COMPILED_RE = re.compile(
     _QUOTE_SPLICE_CANDIDATE_RE, re.IGNORECASE
 )
 
-_GLOB_WILDCARD_ATOM_RE = r"[A-Za-z0-9_./*?-]*[?*][A-Za-z0-9_./*?-]*"
+_GLOB_WILDCARD_ATOM_RE = (
+    r"(?<![A-Za-z0-9_./*?-])[A-Za-z0-9_./*?-]*[?*][A-Za-z0-9_./*?-]*"
+)
 _GLOB_WILDCARD_PATH_RUN_RE = re.compile(r"[\w./*?-]+")
 _GLOB_WILDCARD_CHAR_RE = re.compile(r"[?*]")
 
