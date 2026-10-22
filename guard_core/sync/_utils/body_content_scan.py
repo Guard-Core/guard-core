@@ -37,7 +37,10 @@ from guard_core.sync._utils.detection_scan import (
     _skip_counter,
     _skipping_whole_value_path_rows,
 )
-from guard_core.sync._utils.embedded_json_scan import _check_embedded_json
+from guard_core.sync._utils.embedded_json_scan import (
+    _check_embedded_json,
+    _scan_string_literals,
+)
 from guard_core.sync._utils.request_logging import redact_blob_for_display
 from guard_core.sync._utils.scan_remainder import (
     _scan_surface_remainder,
@@ -598,17 +601,29 @@ def _scan_blob_body_leaves(
     if _JSON_CONTAINER_START(raw_body) is None:
         return None
     with _budget_that_is_never_spent(), _skipping_whole_value_path_rows():
-        json_hit = _check_embedded_json(
-            raw_body,
-            "request_body",
-            client_ip,
-            correlation_id,
-            enabled_categories,
-            excluded_body_fields,
-            sensitive_body_fields,
-            redact_all=True,
-            sensitive_params=sensitive_params,
-        )
+        if excluded_body_fields:
+            json_hit = _check_embedded_json(
+                raw_body,
+                "request_body",
+                client_ip,
+                correlation_id,
+                enabled_categories,
+                excluded_body_fields,
+                sensitive_body_fields,
+                redact_all=True,
+                sensitive_params=sensitive_params,
+            )
+        else:
+            json_hit = _scan_string_literals(
+                raw_body,
+                "request_body",
+                client_ip,
+                correlation_id,
+                enabled_categories,
+                sensitive_body_fields,
+                True,
+                sensitive_params,
+            )
     if json_hit is None or not json_hit[0]:
         return None
     return True, json_hit[1], json_hit[2]

@@ -171,7 +171,7 @@ A value that is a bare script or source file name (`index.php`, `run.sh`, `q.sql
 
 A scalar such as `{"path": "x.py"}` or `{"page": "index.php"}`, a trick suffix (`main.php%00.jpg`) and traversal in these shapes are still flagged. A body field that carries another benign shape is the route's to declare: `excluded_detection_body_fields={"changed_file"}` (or `detection_exclusion(body_fields={"changed_file"})`) skips that field in every category.
 
-A body sent under a content type that is not JSON, form or multipart is still read as JSON when it parses as a JSON object or array. Each leaf is checked on its own, except that path rows which need a whole value never apply to those leaves.
+A body sent under a content type that is not JSON, form or multipart is scanned as one text, as before. When it starts with `{` or `[`, each of its string literals that holds a backslash is also decoded and scanned on its own, so an escaped payload (`\u003cscript\u003e`, also nested in further escaped JSON) is found; a body with no backslash is not walked. Path rows which need a whole value never apply to those literals.
 
 ___
 
