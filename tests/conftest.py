@@ -177,6 +177,7 @@ def _reset_cloud_handler() -> None:
     cloud_handler._refresh_task = None
     cloud_handler._refresh_in_flight = False
     cloud_handler._empty_ranges_warned_at = {}
+    cloud_handler._corrupt_cache_warned_at.clear()
 
 
 def _reset_ipinfo_manager() -> None:

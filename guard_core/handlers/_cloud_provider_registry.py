@@ -68,3 +68,12 @@ def _decode_cached(
         if separator and region:
             regions[str(network)] = region
     return networks, regions
+
+
+def _first_undecodable_entry(entries: set[str]) -> str | None:
+    for entry in sorted(entries):
+        try:
+            ipaddress.ip_network(entry.partition("|")[0])
+        except ValueError:
+            return entry
+    return None
