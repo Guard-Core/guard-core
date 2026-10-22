@@ -1116,6 +1116,11 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
     "handlers/cloud_handler.py:CloudManager._warn_empty_ranges": (
         "line 317: warns that a provider's IP-range set is empty, no request in scope"
     ),
+    "handlers/cloud_handler.py:CloudManager._warn_unusable_cache": (
+        "line 176: warns that a provider's cached IP ranges are empty or hold an "
+        "undecodable element; the element is the operator's own Redis value, "
+        "sanitized and truncated, no request in scope"
+    ),
     "handlers/cloud_handler.py:CloudManager.get_cloud_provider_details": (
         "line 370: logs an invalid-IP ValueError for the ip argument - "
         "client_ip is outside the secret matrix"
