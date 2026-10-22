@@ -126,7 +126,7 @@ If Redis fails entirely (connection error), `redis_fail_open` decides: `False` (
 
 ### Connection pool
 
-The Redis client uses a blocking connection pool of `redis_max_connections` connections (100 when unset). A burst above the pool size waits up to `redis_pool_timeout` seconds (1.0 by default) for a free connection instead of failing; when the wait times out the call fails like any other Redis error and `redis_fail_open` decides.
+The Redis client uses a pool of `redis_max_connections` connections (100 when unset). A free connection is taken at once, without waiting; only when every connection is in use does a call wait. A burst above the pool size waits up to `redis_pool_timeout` seconds (1.0 by default) for a free connection instead of failing; when the wait times out the call fails like any other Redis error and `redis_fail_open` decides.
 
 ___
 
