@@ -9,6 +9,7 @@ from guard_core._utils.body_content_scan import (
 from guard_core._utils.body_reader import _read_capped_body_or_raise
 from guard_core._utils.detection_config import (
     _resolve_binary_min_run_length,
+    _resolve_body_field_category_skips,
     _resolve_enabled_categories,
     _resolve_excluded_body_fields,
     _resolve_excluded_headers,
@@ -241,6 +242,7 @@ async def detect_penetration_attempt(
 
     excluded_params = _resolve_excluded_params(config, route_config)
     excluded_body_fields = _resolve_excluded_body_fields(config, route_config)
+    body_field_category_skips = _resolve_body_field_category_skips(config, route_config)
     enabled_categories = _resolve_enabled_categories(config, route_config)
     excluded_headers = _resolve_excluded_headers(config, route_config)
     operator_excluded_headers = _resolve_operator_excluded_headers(config, route_config)
@@ -267,6 +269,7 @@ async def detect_penetration_attempt(
             binary_min_run,
             max_scan_seconds,
             semantic_excluded_headers,
+            body_field_category_skips,
         ),
     ):
         try:

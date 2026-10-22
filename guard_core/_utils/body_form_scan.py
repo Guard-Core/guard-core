@@ -2,6 +2,8 @@ from typing import Any
 
 from guard_core._utils.detection_scan import (
     _binary_island_min_run_length,
+    _body_field_category_skips,
+    _body_field_scan_categories,
     _scan_component_name,
     _skip_counter,
 )
@@ -72,6 +74,7 @@ async def _scan_form_body(
 
     remainder = _SurfaceRemainder()
     skips = _skip_counter()
+    category_skips = _body_field_category_skips.get()
     for name, value in parse_qsl(
         raw_body, keep_blank_values=True, errors="surrogateescape"
     ):
@@ -81,7 +84,9 @@ async def _scan_form_body(
         hit = await _scan_form_field(
             name,
             value,
-            enabled_categories,
+            _body_field_scan_categories(name, enabled_categories)
+            if category_skips
+            else enabled_categories,
             client_ip,
             correlation_id,
             log_level,
@@ -204,6 +209,10 @@ async def _scan_multipart_part(
 
     if exclusion_key is not None and exclusion_key.lower() in excluded_body_fields:
         return None
+    if exclusion_key is not None and _body_field_category_skips.get():
+        enabled_categories = _body_field_scan_categories(
+            exclusion_key, enabled_categories
+        )
     name_hit = await _scan_component_name(
         label,
         "request_body",

@@ -81,27 +81,29 @@ class ContentFilteringMixin(BaseSecurityMixin):
         self,
         headers: set[str] | None = None,
         params: set[str] | dict[str, set[str]] | None = None,
-        body_fields: set[str] | None = None,
+        body_fields: set[str] | dict[str, set[str]] | None = None,
         categories: set[str] | None = None,
         scan_body: bool | None = None,
         semantic_headers: set[str] | None = None,
     ) -> Callable[[Callable[..., Any]], DecoratedFunction]:
         def decorator(func: Callable[..., Any]) -> DecoratedFunction:
+            from guard_core._security_config_validators import (
+                _validate_excluded_detection_params_value,
+            )
+
             route_config = self._ensure_route_config(func)
             if headers is not None:
                 route_config.excluded_detection_headers = set(headers)
             if semantic_headers is not None:
                 route_config.excluded_semantic_detection_headers = set(semantic_headers)
             if params is not None:
-                from guard_core._security_config_validators import (
-                    _validate_excluded_detection_params_value,
-                )
-
                 route_config.excluded_detection_params = (
                     _validate_excluded_detection_params_value(params)
                 )
             if body_fields is not None:
-                route_config.excluded_detection_body_fields = set(body_fields)
+                route_config.excluded_detection_body_fields = (
+                    _validate_excluded_detection_params_value(body_fields)
+                )
             if categories is not None:
                 route_config.enabled_detection_categories = set(categories)
             if scan_body is not None:

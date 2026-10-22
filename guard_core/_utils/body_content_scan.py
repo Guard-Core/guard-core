@@ -28,6 +28,7 @@ from guard_core._utils.detection_config import (
 from guard_core._utils.detection_scan import (
     _JSON_CONTAINER_START,
     LazyPreview,
+    _body_field_category_skips,
     _budget_that_is_never_spent,
     _check_always_scan_header,
     _check_request_component,
@@ -601,7 +602,7 @@ async def _scan_blob_body_leaves(
     if _JSON_CONTAINER_START(raw_body) is None:
         return None
     with _budget_that_is_never_spent(), _skipping_whole_value_path_rows():
-        if excluded_body_fields:
+        if excluded_body_fields or _body_field_category_skips.get():
             json_hit = await _check_embedded_json(
                 raw_body,
                 "request_body",

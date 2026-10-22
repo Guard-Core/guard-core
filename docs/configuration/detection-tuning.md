@@ -173,7 +173,16 @@ A push change list also clears the rows for sensitive file names, so a push that
 
 A scalar such as `{"path": "x.py"}`, `{"file": ".env"}` or `{"page": "index.php"}`, the same names under any other key, a trick suffix (`main.php%00.jpg`) and traversal in these shapes are still flagged.
 
-A body field that carries another benign shape is the route's to declare: `excluded_detection_body_fields={"changed_file"}` (or `detection_exclusion(body_fields={"changed_file"})`) skips that field in every category.
+A body field that carries another benign shape is the route's to declare, with `detection_exclusion(body_fields=...)`. A set skips the field in every category. A map from a field name to a set of categories skips only those categories for that field, and every other category still applies to it (the same two forms and the same validation as `params`):
+
+```python
+@security.detection_exclusion(body_fields={"changed_file"})
+async def every_category_skipped(): ...
+
+
+@security.detection_exclusion(body_fields={"changed_file": {"sensitive_file"}})
+async def only_sensitive_file_skipped(): ...
+```
 
 A body sent under a content type that is not JSON, form or multipart is scanned as one text, as before. When it starts with `{` or `[`, each of its string literals that holds a backslash is also decoded and scanned on its own, so an escaped payload (`\u003cscript\u003e`, also nested in further escaped JSON) is found; a body with no backslash is not walked. Path rows which need a whole value never apply to those literals.
 

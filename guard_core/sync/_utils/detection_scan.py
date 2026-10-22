@@ -2,8 +2,9 @@ import contextvars
 import logging
 import re
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
+from types import MappingProxyType
 from typing import Any, TypeVar
 
 from guard_core.sync._utils.detection_config import (
@@ -12,6 +13,7 @@ from guard_core.sync._utils.detection_config import (
     _DEFAULT_MAX_SCAN_CHARS,
     _DEFAULT_MAX_SCAN_SECONDS,
     _DEFAULT_MAX_SCAN_VALUES,
+    _categories_without,
 )
 from guard_core.sync._utils.logging_utils import _log_at_level, _sanitize_for_reporting
 from guard_core.sync._utils.pattern_source_redaction import _redact_pattern_source
@@ -89,6 +91,11 @@ _whole_value_path_rows_skipped: contextvars.ContextVar[bool] = contextvars.Conte
 _inside_embedded_json: contextvars.ContextVar[bool] = contextvars.ContextVar(
     "guard_core_detection_inside_embedded_json", default=False
 )
+_body_field_category_skips: contextvars.ContextVar[Mapping[str, frozenset[str]]] = (
+    contextvars.ContextVar(
+        "guard_core_detection_body_field_category_skips", default=MappingProxyType({})
+    )
+)
 _semantic_excluded_headers: contextvars.ContextVar[frozenset[str]] = (
     contextvars.ContextVar(
         "guard_core_detection_semantic_excluded_headers", default=frozenset()
@@ -104,6 +111,7 @@ def _scan_value_budget(
     binary_min_run_length: int = _DEFAULT_BINARY_MIN_RUN_LENGTH,
     max_scan_seconds: float = _DEFAULT_MAX_SCAN_SECONDS,
     semantic_excluded_headers: frozenset[str] = frozenset(),
+    body_field_category_skips: Mapping[str, frozenset[str]] | None = None,
 ) -> Iterator[None]:
     count_token = _scanned_value_count.set(0)
     cap_token = _scan_value_cap.set(max_values)
@@ -119,6 +127,7 @@ def _scan_value_budget(
     slice_token = _scan_slice_start.set(time.monotonic())
     semantic_token = _semantic_excluded_headers.set(semantic_excluded_headers)
     skips_token = _scan_skips.set(_ScanSkips())
+    body_field_token = _body_field_category_skips.set(body_field_category_skips or {})
     try:
         yield
     finally:
@@ -136,6 +145,22 @@ def _scan_value_budget(
         _scan_slice_start.reset(slice_token)
         _semantic_excluded_headers.reset(semantic_token)
         _scan_skips.reset(skips_token)
+        _body_field_category_skips.reset(body_field_token)
+
+
+def _body_field_skipped_categories(name: str) -> frozenset[str] | None:
+    # None: the field is scanned in every category. Fields excluded in every
+    # category never get here (the walk drops them by name).
+    return _body_field_category_skips.get().get(name.lower())
+
+
+def _body_field_scan_categories(
+    name: str, enabled_categories: set[str] | None
+) -> set[str] | None:
+    skipped = _body_field_skipped_categories(name)
+    if skipped is None:
+        return enabled_categories
+    return _categories_without(enabled_categories, skipped)
 
 
 def _binary_island_min_run_length() -> int:

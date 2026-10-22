@@ -3,7 +3,9 @@ import re
 import sys
 from typing import Any
 
+from guard_core._utils.detection_config import _categories_without
 from guard_core._utils.detection_scan import (
+    _body_field_category_skips,
     _json_depth_cap_value,
     _scan_component_name,
     _skip_counter,
@@ -251,7 +253,13 @@ async def _scan_json_entry_frame(
     context: str = "request_body",
     redact_keys: bool = False,
     key_known_clean: bool = False,
+    sensitive_params: frozenset[str] = frozenset(),
 ) -> tuple[bool, str, list[dict]] | None:
+    key_str = str(key)
+    category_skips = _body_field_category_skips.get()
+    skipped_categories = category_skips.get(key_str.lower()) if category_skips else None
+    if skipped_categories is not None:
+        enabled_categories = _categories_without(enabled_categories, skipped_categories)
     key_result = (
         (False, "", [])
         if key_known_clean
@@ -270,8 +278,23 @@ async def _scan_json_entry_frame(
         return None
     if key_result[0]:
         return key_result
-    key_str = str(key)
     own_redact = redact or name_is_sensitive(key_str, sensitive_body_fields)
+    if skipped_categories is not None:
+        hit = await _scan_json_value(
+            item,
+            key_str,
+            excluded_body_fields,
+            enabled_categories,
+            client_ip,
+            correlation_id,
+            log_level,
+            sensitive_body_fields,
+            context=context,
+            preview_override="[REDACTED]" if own_redact else None,
+            redact_keys=redact_keys,
+            sensitive_params=sensitive_params,
+        )
+        return hit if hit[0] else None
     stack.append(("value", item, key_str, depth + 1, own_redact))
     return None
 
@@ -338,6 +361,7 @@ async def _scan_json_frame(
             context,
             redact_keys,
             key_known_clean,
+            sensitive_params,
         )
     if isinstance(first, dict | list):
         return await _scan_json_container_frame(
