@@ -1,5 +1,6 @@
 import json
 import re
+import sys
 from typing import Any
 
 from guard_core._utils.detection_scan import (
@@ -27,6 +28,7 @@ from guard_core._utils.source_path_shapes import (
     leave_benign_shape,
     mark_benign_shape,
 )
+from guard_core.handlers._suspatterns_sources import _EMBEDDED_JSON_LEAF_CONTEXT_SUFFIX
 
 
 class _RepeatedKey(str):
@@ -119,7 +121,6 @@ async def _scan_capped_json_subtree(
     context: str = "request_body",
     preview_override: str | None = None,
     sensitive_params: frozenset[str] = frozenset(),
-    walk_again: bool = True,
 ) -> tuple[bool, str, list[dict]]:
     from guard_core._utils.body_content_scan import _scan_body_field
 
@@ -140,7 +141,7 @@ async def _scan_capped_json_subtree(
         display=display,
         context=context,
         preview_override=preview_override,
-        scan_embedded_json=walk_again,
+        scan_embedded_json=False,
     )
 
 
@@ -221,7 +222,6 @@ async def _scan_json_container_frame(
             context,
             capped_preview,
             sensitive_params,
-            walk_again=depth > 1 and context != "request_body",
         )
         return hit if hit[0] else None
     if isinstance(current, dict):
@@ -245,16 +245,21 @@ async def _scan_json_entry_frame(
     sensitive_body_fields: frozenset[str] = frozenset(),
     context: str = "request_body",
     redact_keys: bool = False,
+    key_known_clean: bool = False,
 ) -> tuple[bool, str, list[dict]] | None:
-    key_result = await _scan_json_dict_entry_key(
-        key,
-        excluded_body_fields,
-        enabled_categories,
-        client_ip,
-        correlation_id,
-        log_level,
-        context,
-        redact_keys,
+    key_result = (
+        (False, "", [])
+        if key_known_clean
+        else await _scan_json_dict_entry_key(
+            key,
+            excluded_body_fields,
+            enabled_categories,
+            client_ip,
+            correlation_id,
+            log_level,
+            context,
+            redact_keys,
+        )
     )
     if key_result is None:
         return None
@@ -264,6 +269,19 @@ async def _scan_json_entry_frame(
     own_redact = redact or name_is_sensitive(key_str, sensitive_body_fields)
     stack.append(("value", item, key_str, depth + 1, own_redact))
     return None
+
+
+def _clean_signature(
+    kind: str, first: Any, second: Any, excluded_body_fields: set[str]
+) -> tuple[Any, ...] | None:
+    # A key or a leaf an embedded walk already scanned clean gives the same verdict
+    # again, so a nested value repeating one key per level is scanned once.
+    if kind == "entry":
+        key_text = str(first)
+        return None if key_text.lower() in excluded_body_fields else ("key", key_text)
+    if isinstance(first, dict | list):
+        return None
+    return ("leaf", str(first), second, type(first) is BenignShapePath)
 
 
 def _json_skipped_text(kind: str, first: Any) -> str:
@@ -290,6 +308,7 @@ async def _scan_json_frame(
     preview_override: str | None,
     redact_keys: bool,
     sensitive_params: frozenset[str],
+    key_known_clean: bool = False,
 ) -> tuple[bool, str, list[dict]] | None:
     from guard_core._utils.body_content_scan import _scan_body_field
 
@@ -308,6 +327,7 @@ async def _scan_json_frame(
             sensitive_body_fields,
             context,
             redact_keys,
+            key_known_clean,
         )
     if isinstance(first, dict | list):
         return await _scan_json_container_frame(
@@ -365,7 +385,9 @@ async def _scan_json_value(
     redact_keys: bool = False,
     sensitive_params: frozenset[str] = frozenset(),
 ) -> tuple[bool, str, list[dict]]:
-    max_depth = _json_depth_cap_value()
+    embedded = context.endswith(_EMBEDDED_JSON_LEAF_CONTEXT_SUFFIX)
+    max_depth = sys.maxsize if embedded else _json_depth_cap_value()
+    clean: set[tuple[Any, ...]] | None = set() if embedded else None
     stack: list[tuple[str, Any, Any, int, bool]] = [
         ("value", value, key_label, 1, False)
     ]
@@ -373,6 +395,14 @@ async def _scan_json_value(
     skips = _skip_counter()
     while stack:
         kind, first, second, depth, redact = stack.pop()
+        signature = (
+            None
+            if clean is None
+            else _clean_signature(kind, first, second, excluded_body_fields)
+        )
+        known_clean = clean is not None and signature in clean
+        if known_clean and kind == "value":
+            continue
         skipped_before = skips.count
         hit = await _scan_json_frame(
             kind,
@@ -392,11 +422,14 @@ async def _scan_json_value(
             preview_override,
             redact_keys,
             sensitive_params,
+            known_clean,
         )
         if hit is not None:
             return hit
         if skips.count != skipped_before:
             remainder.add(_json_skipped_text(kind, first), kind != "entry" and redact)
+        elif clean is not None and signature is not None:
+            clean.add(signature)
     if not remainder:
         return False, "", []
     return await _scan_surface_remainder(
