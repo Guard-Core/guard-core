@@ -70,6 +70,7 @@ if TYPE_CHECKING:
     )
 
 SUSPICIOUS_COUNT_WINDOW_SECONDS = 3600
+_MAX_TRACKED_SUSPICIOUS_IPS = 10_000
 _DETECTION_RESULT_STATE_ATTR = "_guard_detection_result_cache"
 _MAX_RETAINED_EVENTS_PER_CATEGORY = 10_000
 _strike_cap_cache: dict[int, tuple[weakref.ref[SecurityConfig], int, int]] = {}

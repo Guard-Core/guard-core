@@ -17,7 +17,6 @@ from guard_core._security_config_validators import (
 )
 from guard_core._security_headers_defaults import default_security_headers_config
 from guard_core._staged_defaults import DEFAULT_REDIS_PREFIX
-from guard_core._utils.lru_store import DEFAULT_MAX_TRACKED_KEYS
 from guard_core.handlers._ipban_cache import DEFAULT_MAX_LOCAL_BANS
 from guard_core.handlers.suspatterns_handler import ALL_DETECTION_CATEGORIES
 from guard_core.protocols.cloud_ip_store_protocol import (
@@ -259,7 +258,9 @@ class _SecurityConfigFields(BaseModel):
     )
 
     rate_limit_max_tracked_keys: int = Field(
-        default=DEFAULT_MAX_TRACKED_KEYS,
+        default_factory=_module_cap(
+            "guard_core.handlers.ratelimit_handler", "_MAX_TRACKED_RATE_LIMIT_KEYS"
+        ),
         ge=1,
         description=(
             "Cap on the in-memory rate-limit windows one process keeps (one per "
@@ -347,7 +348,9 @@ class _SecurityConfigFields(BaseModel):
     )
 
     ban_counters_max_tracked_ips: int = Field(
-        default=DEFAULT_MAX_TRACKED_KEYS,
+        default_factory=_module_cap(
+            "guard_core.core.checks.helpers", "_MAX_TRACKED_SUSPICIOUS_IPS"
+        ),
         ge=1,
         description=(
             "Cap on the client IPs whose automatic-ban violation counters one "

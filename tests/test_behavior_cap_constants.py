@@ -2,7 +2,8 @@ from typing import Any
 
 import pytest
 
-from guard_core.handlers import _behavior_throttle, behavior_handler
+from guard_core.core.checks import helpers
+from guard_core.handlers import _behavior_throttle, behavior_handler, ratelimit_handler
 from guard_core.models import SecurityConfig
 
 
@@ -26,6 +27,12 @@ from guard_core.models import SecurityConfig
             "behavior_throttle_max_tracked_clients_per_bucket",
         ),
         (_behavior_throttle, "MAX_TRIP_MARKERS", "behavior_throttle_max_trip_markers"),
+        (
+            ratelimit_handler,
+            "_MAX_TRACKED_RATE_LIMIT_KEYS",
+            "rate_limit_max_tracked_keys",
+        ),
+        (helpers, "_MAX_TRACKED_SUSPICIOUS_IPS", "ban_counters_max_tracked_ips"),
     ],
 )
 def test_the_module_constant_is_the_default_of_its_field(

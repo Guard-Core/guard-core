@@ -30,6 +30,7 @@ _by_ip_logger = logging.getLogger("guard_core.handlers.ratelimit")
 _RATE_LIMIT_HANDLER_NAME = "rate_limit"
 _by_ip_request_timestamps: defaultdict[str, deque[float]] = defaultdict(deque)
 _by_ip_autoban_counts: dict[str, "_WindowedCategoryCounts"] = {}
+_MAX_TRACKED_RATE_LIMIT_KEYS = 10_000
 _redis_fail_open_warned = False
 
 

@@ -35,6 +35,7 @@ _by_ip_request_timestamps: defaultdict[str, deque[float]] = defaultdict(deque)
 _by_ip_lock = threading.Lock()
 _by_ip_autoban_counts: dict[str, "_WindowedCategoryCounts"] = {}
 _by_ip_autoban_lock = threading.Lock()
+_MAX_TRACKED_RATE_LIMIT_KEYS = 10_000
 _redis_fail_open_warned = False
 
 
