@@ -1,3 +1,4 @@
+import hashlib
 import importlib
 import re
 import sys
@@ -5,6 +6,10 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Any
+
+from guard_core.sync.handlers._suspatterns_literal_table import (
+    BUILTIN_REQUIRED_LITERALS,
+)
 
 _PARSER = importlib.import_module(
     "re._parser" if sys.version_info >= (3, 11) else "sre_parse"
@@ -67,14 +72,24 @@ def _best_requirement(
     return max(candidates, key=lambda alts: (min(map(len, alts)), -len(alts)))
 
 
+def source_digest(source: str) -> str:
+    return hashlib.blake2b(source.encode(), digest_size=8).hexdigest()
+
+
+def parse_required_literals(source: str) -> tuple[str, ...]:
+    try:
+        parsed = _PARSER.parse(source, re.IGNORECASE)
+        return _best_requirement(_requirements(parsed)) or ()
+    except Exception:
+        return ()
+
+
 def required_literals(source: str) -> tuple[str, ...]:
     if source not in _required_literals:
-        try:
-            parsed = _PARSER.parse(source, re.IGNORECASE)
-            best = _best_requirement(_requirements(parsed))
-        except Exception:
-            best = None
-        _required_literals[source] = best or ()
+        precomputed = BUILTIN_REQUIRED_LITERALS.get(source_digest(source))
+        _required_literals[source] = (
+            parse_required_literals(source) if precomputed is None else precomputed
+        )
     return _required_literals[source]
 
 
