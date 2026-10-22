@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.implementations.request_size_content import (
     RequestSizeContentCheck,
 )
@@ -25,7 +25,7 @@ class _StreamedRequest(SyncMockGuardRequest):
 
 def _check(passive_mode: bool = False) -> RequestSizeContentCheck:
     mw = MagicMock()
-    mw.config = SecurityConfig(enable_redis=False, passive_mode=passive_mode)
+    mw.config = SyncSecurityConfig(enable_redis=False, passive_mode=passive_mode)
     mw.logger = MagicMock()
     mw.event_bus = MagicMock()
     mw.event_bus.send_middleware_event = MagicMock()
@@ -86,11 +86,38 @@ def test_transfer_encoding_wins_over_a_small_content_length() -> None:
     assert response.status_code == 413
 
 
-def test_zero_max_request_size_keeps_meaning_no_limit() -> None:
-    request = _with_route(
-        _StreamedRequest(b"x" * 10_000, {"transfer-encoding": "chunked"}), 0
-    )
+@pytest.mark.parametrize(
+    "headers",
+    [{"transfer-encoding": "chunked"}, {}, {"content-length": "1"}],
+    ids=["chunked", "length-less", "declared"],
+)
+def test_zero_max_request_size_refuses_any_body_byte(
+    headers: dict[str, str],
+) -> None:
+    request = _with_route(_StreamedRequest(b"x", headers), 0)
+    with patch(_LOG):
+        response = _check().check(request)
+    assert response is not None
+    assert response.status_code == 413
+
+
+@pytest.mark.parametrize(
+    "headers",
+    [{"content-length": "0"}, {}, {"transfer-encoding": "chunked"}],
+    ids=["zero-length", "no-body", "empty-chunked"],
+)
+def test_zero_max_request_size_passes_an_empty_body(
+    headers: dict[str, str],
+) -> None:
+    request = _with_route(_StreamedRequest(b"", headers), 0)
     assert _check().check(request) is None
+
+
+def test_zero_max_request_size_in_passive_mode_logs_and_passes() -> None:
+    request = _with_route(_StreamedRequest(b"x", {"content-length": "1"}), 0)
+    with patch(_LOG) as log:
+        assert _check(passive_mode=True).check(request) is None
+    log.assert_called_once()
 
 
 @pytest.mark.parametrize("value", ["abc", "", "-1", "1.5", "1 2", "+5", "0x10"])

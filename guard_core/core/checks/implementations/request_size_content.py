@@ -39,7 +39,7 @@ class RequestSizeContentCheck(SecurityCheck):
         self, request: GuardRequest, route_config: RouteConfig
     ) -> GuardResponse | None:
         limit = route_config.max_request_size
-        if not limit:
+        if limit is None:
             return None
 
         content_length = request.headers.get("content-length")

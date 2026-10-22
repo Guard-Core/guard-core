@@ -1,3 +1,5 @@
+import logging
+
 import pytest
 
 from guard_core.models import VALID_CLOUD_PROVIDERS, SyncSecurityConfig
@@ -354,6 +356,25 @@ def test_max_request_size() -> None:
     rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert rc.max_request_size == 1024
+
+
+def test_max_request_size_negative_raises_naming_none() -> None:
+    with pytest.raises(ValueError, match="use None for no limit"):
+        _decorator().max_request_size(-1)
+
+
+def test_max_request_size_zero_warns_once_per_route(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    d = _decorator()
+    with caplog.at_level(logging.WARNING, logger="guard_core.sync.decorators"):
+        d.max_request_size(0)(_sample_func)
+        d.max_request_size(1024)(_sample_func)
+    messages = [
+        r.getMessage() for r in caplog.records if "max_request_size" in r.getMessage()
+    ]
+    assert len(messages) == 1
+    assert "0 now refuses any request body; use None for no limit" in messages[0]
 
 
 def test_require_referrer() -> None:

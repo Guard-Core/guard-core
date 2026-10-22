@@ -345,7 +345,7 @@ def _read_capped_body(
 
 
 def read_prefix_beyond_limit(
-    request: SyncGuardRequest, config: "SecurityConfig", limit: int
+    request: SyncGuardRequest, config: "SyncSecurityConfig", limit: int
 ) -> bytes | None:
     kind = _body_reader_kind(request)
     fetch_bytes = limit + 1

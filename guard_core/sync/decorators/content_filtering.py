@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Callable
 
 from guard_core.models import SyncSecurityConfig
@@ -48,7 +49,19 @@ class ContentFilteringMixin(BaseSecurityMixin):
     def max_request_size(
         self, size_bytes: int
     ) -> Callable[[GuardedCallable], GuardedCallable]:
+        if size_bytes < 0:
+            raise ValueError(
+                f"max_request_size must not be negative (got {size_bytes}); "
+                "use None for no limit"
+            )
+
         def decorator(func: GuardedCallable) -> GuardedCallable:
+            if size_bytes == 0:
+                logging.getLogger("guard_core.sync.decorators").warning(
+                    "max_request_size(0) on %s: 0 now refuses any request body; "
+                    "use None for no limit",
+                    getattr(func, "__qualname__", repr(func)),
+                )
             route_config = self._ensure_route_config(func)
             route_config.max_request_size = size_bytes
             return self._apply_route_config(func)
