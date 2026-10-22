@@ -45,6 +45,10 @@ from guard_core.handlers._suspatterns_applicable import (
     _pattern_should_be_skipped as _pattern_should_be_skipped,
 )
 from guard_core.handlers._suspatterns_enhanced import _SusPatternsEnhancedMixin
+from guard_core.handlers._suspatterns_lazy_rows import (
+    COMPILED_BUILTIN_PATTERNS,
+    _SourceRow,
+)
 from guard_core.handlers._suspatterns_ldap_ipv4 import (
     _LEGACY_IPV4_HOST_RE,
     _ldap_paren_conjunction_is_injection,
@@ -417,7 +421,7 @@ _LITERAL_EXCLUDED_SOURCES = (
 class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixin):
     async def _check_regex_pattern(
         self,
-        pattern: re.Pattern,
+        pattern: re.Pattern | _SourceRow,
         content: str,
         ip_address: str,
         pattern_start: float,
@@ -428,6 +432,9 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
         binary_prefix: list[int] | None = None,
     ) -> tuple[dict | None, bool]:
         state = self._resolve_state(state)
+        match pattern:
+            case _SourceRow(pattern=source):
+                pattern = COMPILED_BUILTIN_PATTERNS[source]
         windowed_finder = _WINDOWED_PATTERN_FINDERS.get(pattern.pattern)
         if windowed_finder is not None:
             return await self._check_windowed_pattern(
@@ -631,11 +638,6 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
             return "unknown"
         return normalized
 
-    async def _rows_for_scan(self) -> list[tuple[Any, frozenset[str], str]]:
-        if self._compiled_rows is None:
-            return self._rows_without_compiling()
-        return await self.get_all_compiled_patterns()
-
     async def _check_regex_patterns(
         self,
         content: str,
@@ -653,7 +655,7 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
         matched_patterns = []
         timeouts = []
 
-        all_patterns = await self._rows_for_scan()
+        all_patterns = await self._rows_to_scan()
         normalized = self._normalize_context(context)
         validator_context = _validator_context(context, normalized)
         skip_filter = normalized in ("unknown", "request_body")
@@ -689,12 +691,11 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
             timeouts.append(budget_threat["pattern"])
 
         try:
-            for scan_row in rows_with_required_literal(
+            for pattern, _contexts, category in rows_with_required_literal(
                 applicable_patterns,
                 fold_for_literals(content),
                 _LITERAL_EXCLUDED_SOURCES,
             ):
-                pattern, _contexts, category = self._compiled_row(scan_row)
                 if _scan_budget_spent(time_cap):
                     _record_budget_exhaustion()
                     break

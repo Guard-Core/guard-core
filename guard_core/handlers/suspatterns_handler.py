@@ -784,9 +784,6 @@ class SusPatternsManager(_SusPatternsViewsMixin):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance.custom_patterns = set()
-            cls._instance._compiled_rows = None
-            cls._instance._compiled_builtin_rows = {}
-            cls._instance._source_rows_cache = None
             cls._instance.compiled_custom_patterns = set()
             cls._instance.redis_handler = None
             cls._instance.agent_handler = None

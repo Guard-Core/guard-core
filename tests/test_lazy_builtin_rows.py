@@ -3,6 +3,7 @@ from collections.abc import Iterator
 
 import pytest
 
+from guard_core.handlers._suspatterns_lazy_rows import COMPILED_BUILTIN_PATTERNS
 from guard_core.handlers.suspatterns_handler import SusPatternsManager
 from guard_core.models import SecurityConfig
 
@@ -17,6 +18,7 @@ def fresh_manager() -> Iterator[SusPatternsManager]:
     )
     SusPatternsManager._instance = None
     SusPatternsManager._config = None
+    COMPILED_BUILTIN_PATTERNS.clear()
     try:
         yield SusPatternsManager(SecurityConfig())
     finally:
@@ -27,8 +29,8 @@ def fresh_manager() -> Iterator[SusPatternsManager]:
 def test_new_manager_compiles_no_builtin_row(
     fresh_manager: SusPatternsManager,
 ) -> None:
-    assert fresh_manager._compiled_rows is None
-    assert fresh_manager._compiled_builtin_rows == {}
+    assert "compiled_patterns" not in vars(fresh_manager)
+    assert not COMPILED_BUILTIN_PATTERNS
 
 
 @pytest.mark.asyncio
@@ -39,10 +41,10 @@ async def test_first_detect_compiles_only_the_rows_it_searches(
         content=_FCK_PATH, ip_address="198.51.100.4", context="url_path"
     )
 
-    assert fresh_manager._compiled_rows is None
+    assert "compiled_patterns" not in vars(fresh_manager)
     assert (
         0
-        < len(fresh_manager._compiled_builtin_rows)
+        < len(COMPILED_BUILTIN_PATTERNS)
         < len(SusPatternsManager._pattern_definitions)
     )
 
@@ -54,7 +56,7 @@ async def test_reading_compiled_patterns_gives_every_row_in_definition_order(
     await fresh_manager.detect(
         content=_FCK_PATH, ip_address="198.51.100.4", context="url_path"
     )
-    searched_row = next(iter(fresh_manager._compiled_builtin_rows.values()))
+    searched_pattern = next(iter(COMPILED_BUILTIN_PATTERNS.values()))
 
     rows = fresh_manager.compiled_patterns
 
@@ -62,7 +64,7 @@ async def test_reading_compiled_patterns_gives_every_row_in_definition_order(
         (re.compile(source, re.IGNORECASE).pattern, contexts, category)
         for source, contexts, category in SusPatternsManager._pattern_definitions
     ]
-    assert searched_row in rows
+    assert any(row[0] is searched_pattern for row in rows)
     assert fresh_manager.compiled_patterns is rows
 
 
@@ -105,4 +107,4 @@ async def test_custom_row_is_searched_beside_uncompiled_builtin_rows(
     )
 
     assert result["is_threat"] is True
-    assert fresh_manager._compiled_rows is None
+    assert "compiled_patterns" not in vars(fresh_manager)
