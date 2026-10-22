@@ -205,6 +205,35 @@ PIPELINE_SUITES["pipeline_ip_control"] = [
             },
         ],
     },
+    {
+        "id": "global_https_applies_on_route_with_only_a_rate_limit",
+        "config": {"enforce_https": True},
+        "routes": {"/api/limited": {"rate_limit": 50, "rate_limit_window": 60}},
+        "drives": [
+            {"client_ip": IP, "url_path": "/api/limited"},
+            {"client_ip": IP, "url_path": "/api/plain"},
+        ],
+    },
+    {
+        "id": "route_require_https_with_global_https_off",
+        "config": {"enforce_https": False},
+        "routes": {"/api/secure": {"require_https": True}},
+        "drives": [
+            {"client_ip": IP, "url_path": "/api/secure"},
+            {"client_ip": IP, "url_path": "/api/plain"},
+        ],
+    },
+    {
+        "id": "blocked_user_agent_past_512_characters",
+        "config": {"blocked_user_agents": ["evilbot/1.0"]},
+        "drives": [
+            {
+                "client_ip": IP,
+                "url_path": "/api",
+                "headers": {"User-Agent": "a" * 599 + "evilbot/1.0" + "a" * 7390},
+            },
+        ],
+    },
 ]
 
 PIPELINE_SUITES["pipeline_rate_limits"] = [

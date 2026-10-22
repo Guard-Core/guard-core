@@ -47,6 +47,10 @@ from guard_core.core.behavioral.context import BehavioralContext
 from guard_core.core.behavioral.processor import BehavioralProcessor
 from guard_core.core.checks.factory import build_default_pipeline
 from guard_core.core.checks.implementations import emergency_mode, suspicious_activity
+from guard_core.core.events.event_types import (
+    EVENT_DECORATOR_VIOLATION,
+    EVENT_HTTPS_ENFORCED,
+)
 from guard_core.core.responses import reads_response_body
 from guard_core.core.responses.context import ResponseContext
 from guard_core.core.responses.factory import ErrorResponseFactory
@@ -73,6 +77,7 @@ CONFIG_KEYS = (
     "rate_limit_window",
     "endpoint_rate_limits",
     "passive_mode",
+    "enforce_https",
     "custom_error_responses",
     "security_headers",
     "enable_cors",
@@ -106,6 +111,7 @@ ROUTE_KEYS = (
     "geo_rate_limits",
     "max_request_size",
     "allowed_content_types",
+    "require_https",
 )
 
 DEFAULT_STATE = {
@@ -206,6 +212,15 @@ class _RecordingEventBus:
         self.events.append(
             (str(kwargs.get("event_type")), str(kwargs.get("action_taken", "")))
         )
+
+    async def send_https_violation_event(
+        self, request: Any, route_config: RouteConfig | None
+    ) -> None:
+        route_demanded = bool(route_config and route_config.require_https)
+        event_type = (
+            EVENT_DECORATOR_VIOLATION if route_demanded else EVENT_HTTPS_ENFORCED
+        )
+        self.events.append((event_type, "https_redirect"))
 
 
 class _RecordingOnBlock:
@@ -340,6 +355,12 @@ class _HarnessResponseFactory:
     ) -> _StubResponse:
         body = content if isinstance(content, (bytes, str)) else str(content)
         return _StubResponse(status_code, body if isinstance(body, str) else "")
+
+    async def create_https_redirect(self, request: Any) -> _StubResponse:
+        status_code = 301 if request.method.upper() in ("GET", "HEAD") else 308
+        return self.create_redirect_response(
+            str(request.url_replace_scheme("https")), status_code
+        )
 
     def create_redirect_response(self, url: Any, status_code: int) -> _StubResponse:
         response = _StubResponse(status_code)
