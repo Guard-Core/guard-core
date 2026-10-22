@@ -98,7 +98,20 @@ def _strip_zone_id(value: str) -> str:
     return value.partition("%")[0] if ":" in value else value
 
 
+_IDENTITY_CACHE_ENTRIES = 4096
+
+
+@lru_cache(maxsize=_IDENTITY_CACHE_ENTRIES)
+def _canonicalize_plain_ip(value: str) -> str:
+    try:
+        return str(ip_address(_strip_ip_brackets(value)))
+    except ValueError:
+        return value
+
+
 def _canonicalize_ip(value: str) -> str:
+    if ":" not in value:
+        return _canonicalize_plain_ip(value)
     try:
         addr = ip_address(_strip_zone_id(_strip_ip_brackets(value)))
     except ValueError:
@@ -130,9 +143,6 @@ def _whitelist_entry_network(
 def _network_text(addr: IPv6Address, prefix_length: int) -> str:
     shift = 128 - prefix_length
     return str(IPv6Network(((int(addr) >> shift) << shift, prefix_length)))
-
-
-_IDENTITY_CACHE_ENTRIES = 4096
 
 
 @lru_cache(maxsize=_IDENTITY_CACHE_ENTRIES)
