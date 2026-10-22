@@ -67,6 +67,9 @@ class _BanStore(MutableMapping[str, float]):
     def __getitem__(self, key: str) -> float:
         return self._expiries[key]
 
+    def get(self, key: str, default: Any = None) -> Any:
+        return self._expiries.get(key, default)
+
     def __len__(self) -> int:
         return len(self._expiries)
 
@@ -124,6 +127,7 @@ class _OperatorNetworks:
         for network, expiry in expiries.items():
             key = (network.version, network.prefixlen)
             by_length.setdefault(key, {})[int(network.network_address)] = expiry
+        self.has_networks = bool(by_length)
         self._buckets: dict[int, list[tuple[int, dict[int, float]]]] = {4: [], 6: []}
         for (version, prefixlen), members in by_length.items():
             self._buckets[version].append((prefixlen, members))

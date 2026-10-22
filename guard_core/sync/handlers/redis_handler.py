@@ -325,8 +325,9 @@ class RedisManager:
         try:
             with self.get_connection() as conn:
                 return list(
-                    conn.mget(
-                        [f"{prefix}{namespace}:{key}" for namespace, key in pairs]
+                    conn.execute_command(
+                        "MGET",
+                        *[f"{prefix}{namespace}:{key}" for namespace, key in pairs],
                     )
                 )
         except Exception as e:

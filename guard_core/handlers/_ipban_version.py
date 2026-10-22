@@ -11,10 +11,6 @@ _SCAN_COUNT = 2000
 _MGET_BATCH = 1000
 
 
-def _normalize_version(raw: Any) -> str:
-    return "0" if raw is None else str(raw)
-
-
 class IpBanVersionMixin:
     """Keeps every worker's view of the shared bans current without pub/sub.
 
@@ -100,7 +96,8 @@ class IpBanVersionMixin:
         return expiries
 
     async def _reload_operator_networks(self) -> None:
-        version = _normalize_version(await self.redis_handler.get_key(*_VERSION_PAIR))
+        raw = await self.redis_handler.get_key(*_VERSION_PAIR)
+        version = "0" if raw is None else str(raw)
         self._operator_networks = _OperatorNetworks(
             await self._read_operator_expiries()
         )
@@ -108,7 +105,7 @@ class IpBanVersionMixin:
         self._ban_version_checked_at = time.time()
 
     def _version_moved(self, raw: Any, now: float) -> bool:
-        version = _normalize_version(raw)
+        version = "0" if raw is None else str(raw)
         self._ban_version_checked_at = now
         if self._ban_version_seen is None:
             self._ban_version_seen = version

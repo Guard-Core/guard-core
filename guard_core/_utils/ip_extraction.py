@@ -124,6 +124,14 @@ def _canonical_ip_text_and_nat64_warning(
     return str(addr), None
 
 
+@lru_cache(maxsize=_IDENTITY_CACHE_ENTRIES)
+def _parsed_ip_or_none(text: str) -> IPv4Address | IPv6Address | None:
+    try:
+        return ip_address(text)
+    except ValueError:
+        return None
+
+
 def _canonicalize_ip(value: str) -> str:
     text, non_global_embedded = _canonical_ip_text_and_nat64_warning(value)
     if non_global_embedded is not None:
