@@ -187,7 +187,10 @@ async def test_adding_block_cloud_provider_in_place_runs_eliminated_check() -> N
 
     route_config.block_cloud_providers.add("AWS")
 
-    with patch.object(cloud_handler, "is_cloud_ip", return_value=True):
+    with (
+        patch.object(cloud_handler, "schedule_refresh", AsyncMock(return_value=True)),
+        patch.object(cloud_handler, "is_cloud_ip", return_value=True),
+    ):
         request = MockGuardRequest(client_host="3.0.0.9")
         request.state.guard_route_id = route_id
         result = await pipeline.execute(request)

@@ -183,7 +183,10 @@ def test_adding_block_cloud_provider_in_place_runs_eliminated_check() -> None:
 
     route_config.block_cloud_providers.add("AWS")
 
-    with patch.object(cloud_handler, "is_cloud_ip", return_value=True):
+    with (
+        patch.object(cloud_handler, "schedule_refresh", MagicMock(return_value=True)),
+        patch.object(cloud_handler, "is_cloud_ip", return_value=True),
+    ):
         request = SyncMockGuardRequest(client_host="3.0.0.9")
         request.state.guard_route_id = route_id
         result = pipeline.execute(request)

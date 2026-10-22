@@ -437,6 +437,7 @@ async def test_route_block_clouds_wires_send_access_denied_event() -> None:
     request.state.guard_route_id = route_id
 
     with (
+        patch.object(cloud_handler, "schedule_refresh", AsyncMock(return_value=True)),
         patch.object(cloud_handler, "is_cloud_ip", return_value=True),
         patch.object(cloud_handler, "get_cloud_provider_details", return_value=None),
     ):
@@ -463,6 +464,7 @@ async def test_global_block_clouds_does_not_wire_a_decorator_event() -> None:
     request = MockGuardRequest(client_host="3.0.0.9")
 
     with (
+        patch.object(cloud_handler, "schedule_refresh", AsyncMock(return_value=True)),
         patch.object(cloud_handler, "is_cloud_ip", return_value=True),
         patch.object(cloud_handler, "get_cloud_provider_details", return_value=None),
     ):
