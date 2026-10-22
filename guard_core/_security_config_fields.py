@@ -263,6 +263,72 @@ class _SecurityConfigFields(BaseModel):
         ),
     )
 
+    behavior_max_tracked_endpoints: int = Field(
+        default=DEFAULT_MAX_TRACKED_KEYS,
+        ge=1,
+        description=(
+            "Cap on the behavior-rule endpoint buckets one process keeps (one per "
+            "endpoint and rule), and on the per-client rule-hit index kept in Redis "
+            "(the rule keys indexed for each client, which feed the client's "
+            "cross-rule recent-hits total). In memory the least recently used "
+            "bucket is dropped when the cap is reached, so every client's count on "
+            "it restarts and a usage, frequency or return rule's log or ban "
+            "threshold can be missed; a behavior_bucket_evicted event (kind "
+            "endpoint) is sent, sampled once per minute. In Redis a full index "
+            "evicts nothing: the hit still counts for its own rule and only the "
+            "client's cross-rule recent-hits total misses it (kind rule_hit_index, "
+            "outcome refused)."
+        ),
+    )
+
+    behavior_max_tracked_clients_per_endpoint: int = Field(
+        default=DEFAULT_MAX_TRACKED_KEYS,
+        ge=1,
+        description=(
+            "Cap on the clients one behavior-rule endpoint bucket keeps in memory. "
+            "The least recently used client is dropped when the cap is reached, so "
+            "that client's count restarts and a usage, frequency or return rule's "
+            "log or ban threshold can be missed; a behavior_bucket_evicted event "
+            "(kind endpoint_client) is sent, sampled once per minute. Memory only."
+        ),
+    )
+
+    behavior_throttle_max_tracked_buckets: int = Field(
+        default=DEFAULT_MAX_TRACKED_KEYS,
+        ge=1,
+        description=(
+            "Cap on the throttle rule buckets one process keeps in memory. The "
+            "least recently used bucket is dropped when the cap is reached, so "
+            "every client's throttle count on it restarts and a throttled client "
+            "is admitted again; a behavior_bucket_evicted event (kind "
+            "throttle_bucket) is sent, sampled once per minute. Memory only."
+        ),
+    )
+
+    behavior_throttle_max_tracked_clients_per_bucket: int = Field(
+        default=DEFAULT_MAX_TRACKED_KEYS,
+        ge=1,
+        description=(
+            "Cap on the clients one throttle bucket keeps in memory. The least "
+            "recently used client is dropped when the cap is reached, so that "
+            "client's throttle count restarts and a throttled client is admitted "
+            "again; a behavior_bucket_evicted event (kind throttle_client) is "
+            "sent, sampled once per minute. Memory only."
+        ),
+    )
+
+    behavior_throttle_max_trip_markers: int = Field(
+        default=DEFAULT_MAX_TRACKED_KEYS,
+        ge=1,
+        description=(
+            "Cap on the throttle episode markers one process keeps in memory. The "
+            "oldest marker still running is dropped when the cap is reached; the "
+            "client stays throttled and only its running episode is reported as "
+            "new again; a behavior_bucket_evicted event (kind trip_marker) is "
+            "sent, sampled once per minute. Memory only."
+        ),
+    )
+
     ban_counters_max_tracked_ips: int = Field(
         default=DEFAULT_MAX_TRACKED_KEYS,
         ge=1,

@@ -1,5 +1,6 @@
 ADD_TO_RULE_HIT_INDEX = """
 local function add_to_rule_hit_index(index, key, max_members, ttl)
+  local refused = 0
   if redis.call('SADD', index, key) == 1
       and redis.call('SCARD', index) > max_members then
     for _, member in ipairs(redis.call('SMEMBERS', index)) do
@@ -9,9 +10,11 @@ local function add_to_rule_hit_index(index, key, max_members, ttl)
     end
     if redis.call('SCARD', index) > max_members then
       redis.call('SREM', index, key)
+      refused = 1
     end
   end
   redis.call('EXPIRE', index, ttl)
+  return refused
 end
 """
 

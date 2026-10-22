@@ -21,6 +21,7 @@ class _HitListRedis:
         ttl: int,
         *,
         index: tuple[str, int] | None = None,
+        index_refused: list[bool] | None = None,
     ) -> int:
         hits = self.lists.setdefault(f"{namespace}:{key}", [])
         hits.append(timestamp)

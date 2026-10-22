@@ -540,10 +540,13 @@ class RedisManager:
         ttl: int,
         *,
         index: tuple[str, int] | None = None,
+        index_refused: list[bool] | None = None,
     ) -> int:
         """Record one hit and return the key's count in the window. index
         (index key, max members) also adds the key to that set of the namespace,
-        with the key's ttl, in the same round trip."""
+        with the key's ttl, in the same round trip. At the index's cap the key is
+        not indexed (the hit still counts here); when index_refused is given, True
+        is appended to it in that case."""
         if not self.config.enable_redis:
             return 0
 
@@ -554,6 +557,8 @@ class RedisManager:
             index_key, max_members = index
             keys.append(f"{prefix}{index_key}")
             args.append(max_members)
+            if index_refused is not None:
+                args.append("1")
 
         async def _record(conn: Redis) -> int:
             try:
@@ -561,6 +566,9 @@ class RedisManager:
             except NoScriptError:
                 await conn.script_load(SLIDING_WINDOW_HIT_SCRIPT)
                 count = await conn.evalsha(_SLIDING_WINDOW_SHA, len(keys), *keys, *args)
+            if index_refused is not None and count.__class__ is list:
+                count = count[0]
+                index_refused.append(True)
             return int(count)
 
         result = await self.safe_operation(_record)

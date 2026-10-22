@@ -664,9 +664,9 @@ def test_trip_markers_and_refusal_counts_stay_bounded(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     clock = _Clock(monkeypatch)
-    monkeypatch.setattr(_behavior_throttle, "MAX_TRIP_MARKERS", 2)
     monkeypatch.setattr(_throttle, "MAX_SAMPLED_THROTTLE_KEYS", 2)
     config = _config()
+    monkeypatch.setattr(config, "behavior_throttle_max_trip_markers", 2)
     tracker = BehaviorTracker(config)
     processor, _, _ = _processor(config, tracker)
     route = _route(_throttle_rule(1, window=3600))

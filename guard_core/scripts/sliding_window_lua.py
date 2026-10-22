@@ -8,7 +8,10 @@ redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', '(' .. ARGV[3])
 local count = redis.call('ZCARD', KEYS[1])
 redis.call('EXPIRE', KEYS[1], ARGV[4])
 if KEYS[2] then
-  add_to_rule_hit_index(KEYS[2], KEYS[1], tonumber(ARGV[5]), ARGV[4])
+  local refused = add_to_rule_hit_index(KEYS[2], KEYS[1], tonumber(ARGV[5]), ARGV[4])
+  if refused == 1 and ARGV[6] == '1' then
+    return {count, 1}
+  end
 end
 return count
 """

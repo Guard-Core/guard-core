@@ -13,6 +13,7 @@ local counts = {}
 local effective = {}
 local over = false
 local index = KEYS[2 * n + 1]
+local index_refused = 0
 local corr_known, corr_active = false, false
 local corr_at_key = 2 * n + (ARGV[4] ~= '' and 1 or 0)
 
@@ -46,7 +47,9 @@ if (not over) or record_when_over then
       local ttl = math.max(tonumber(ARGV[base + 3]), tonumber(ARGV[5]))
       redis.call('ZADD', KEYS[i], now, member)
       redis.call('EXPIRE', KEYS[i], ttl)
-      add_to_rule_hit_index(index, KEYS[i], tonumber(ARGV[4]), ttl)
+      index_refused = index_refused + add_to_rule_hit_index(
+        index, KEYS[i], tonumber(ARGV[4]), ttl
+      )
     end
   end
 end
@@ -69,6 +72,9 @@ for i = 1, n do
     table.insert(trips, first)
     table.insert(trips, refuse_at)
   end
+end
+if index_refused > 0 then
+  table.insert(trips, index_refused)
 end
 return trips
 """

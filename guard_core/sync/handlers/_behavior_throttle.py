@@ -15,6 +15,7 @@ from guard_core.scripts.behavior_throttle_lua import BEHAVIOR_THROTTLE_SCRIPT
 from guard_core.sync._utils.identity_hash import _hash_identity_segment
 from guard_core.sync._utils.ip_extraction import _client_identity
 from guard_core.sync._utils.lru_store import _lru_pop_or_create
+from guard_core.sync.handlers._behavior_evictions import BehaviorEvictionMixin
 
 if TYPE_CHECKING:
     from guard_core.sync.handlers.behavior_handler import BehaviorRule
@@ -23,9 +24,6 @@ USAGE_NAMESPACE = "behavior_usage"
 RECENT_RULE_HITS_WINDOW_SECONDS = 300
 RETURN_NAMESPACE = "behavior_returns"
 TRIP_NAMESPACE = "behavior_throttle"
-MAX_TRIP_MARKERS = 10_000
-MAX_TRACKED_BUCKETS = 10_000
-MAX_TRACKED_CLIENTS_PER_BUCKET = 10_000
 
 _logger = logging.getLogger("guard_core.sync.handlers.behavior")
 _redis_fail_open_warned = False
@@ -164,7 +162,7 @@ def _with_correlation(
     return resolved
 
 
-class BehaviorThrottleMixin:
+class BehaviorThrottleMixin(BehaviorEvictionMixin):
     config: SecurityConfig
     redis_handler: Any
     usage_counts: dict[str, dict[str, list[float]]]
@@ -183,13 +181,16 @@ class BehaviorThrottleMixin:
         process_categories: Callable[[], list[str]] | None = None,
     ) -> list[ThrottleTrip]:
         client_ip = behavior_client_identity(self.config, client_ip)
+        trips = None
         if self.redis_handler and self.redis_handler.config.enable_redis:
             trips = self._redis_throttle(client_ip, checks, now, record_when_over)
-            if trips is not None:
-                return trips
-        return self._memory_throttle(
-            client_ip, checks, now, record_when_over, process_categories
-        )
+        if trips is None:
+            trips = self._memory_throttle(
+                client_ip, checks, now, record_when_over, process_categories
+            )
+        if self._evicted_values:
+            self._report_evictions(client_ip)
+        return trips
 
     def _throttle_script_input(
         self,
@@ -258,6 +259,11 @@ class BehaviorThrottleMixin:
             raise GuardRedisError(
                 503, "Redis behavior throttling unavailable"
             ) from error
+        # The script appends one extra element when the rule-hit index refused a key.
+        raw_length = len(raw)
+        index_refused = raw_length % 4
+        if index_refused:
+            self._evicted_values.append(("rule_hit_index", True))
         return [
             ThrottleTrip(
                 check=replace(checks[int(raw[i]) - 1], refuse_at=int(raw[i + 3])),
@@ -266,7 +272,7 @@ class BehaviorThrottleMixin:
                 ),
                 first_of_episode=int(raw[i + 2]) == 1,
             )
-            for i in range(0, len(raw), 4)
+            for i in range(0, raw_length - index_refused, 4)
         ]
 
     def _eval_throttle_script(self, keys: list[str], args: list[Any]) -> Any:
@@ -287,11 +293,21 @@ class BehaviorThrottleMixin:
             stored = self.return_patterns.get(key, {}).get(client_ip, [])
             return [ts for ts in stored if ts >= cutoff]
         bucket = _lru_pop_or_create(
-            self.usage_counts, key, MAX_TRACKED_BUCKETS, lambda: defaultdict(list)
+            self.usage_counts,
+            key,
+            self.config.behavior_throttle_max_tracked_buckets,
+            lambda: defaultdict(list),
+            self._evicted_values,
+            "throttle_bucket",
         )
         self.usage_counts[key] = bucket
-        hits = _lru_pop_or_create(
-            bucket, client_ip, MAX_TRACKED_CLIENTS_PER_BUCKET, list
+        hits: list[float] = _lru_pop_or_create(
+            bucket,
+            client_ip,
+            self.config.behavior_throttle_max_tracked_clients_per_bucket,
+            list,
+            self._evicted_values,
+            "throttle_client",
         )
         hits[:] = [ts for ts in hits if ts >= cutoff]
         bucket[client_ip] = hits
@@ -335,7 +351,12 @@ class BehaviorThrottleMixin:
         key = trip_marker_key(check.scope_id, client_ip, check.rule)
         expires_at = self._trip_markers.pop(key, None)
         first = expires_at is None or expires_at <= now
-        if expires_at is None and len(self._trip_markers) >= MAX_TRIP_MARKERS:
-            self._trip_markers.popitem(last=False)
+        if (
+            expires_at is None
+            and len(self._trip_markers)
+            >= self.config.behavior_throttle_max_trip_markers
+        ):
+            _, dropped_expiry = self._trip_markers.popitem(last=False)
+            self._evicted_values.append(("trip_marker", dropped_expiry > now))
         self._trip_markers[key] = now + check.rule.window
         return first

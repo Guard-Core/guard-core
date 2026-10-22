@@ -5,7 +5,6 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from guard_core.handlers import behavior_handler
 from guard_core.handlers.behavior_handler import (
     BehaviorRule,
     BehaviorTracker,
@@ -169,7 +168,7 @@ async def test_track_endpoint_usage_evicts_the_oldest_client_a_touched_client_su
     security_config: SecurityConfig,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(behavior_handler, "_MAX_TRACKED_CLIENTS_PER_ENDPOINT", 3)
+    monkeypatch.setattr(security_config, "behavior_max_tracked_clients_per_endpoint", 3)
     tracker = BehaviorTracker(security_config)
     rule = BehaviorRule(rule_type="usage", threshold=999, window=60)
     endpoint_id = "/api/test"
@@ -192,7 +191,7 @@ async def test_track_endpoint_usage_evicts_oldest_endpoint_touched_one_survives(
     security_config: SecurityConfig,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(behavior_handler, "_MAX_TRACKED_ENDPOINTS", 3)
+    monkeypatch.setattr(security_config, "behavior_max_tracked_endpoints", 3)
     tracker = BehaviorTracker(security_config)
     rule = BehaviorRule(rule_type="usage", threshold=999, window=60)
     client_ip = "203.0.113.1"
@@ -1057,7 +1056,7 @@ async def test_track_return_pattern_evicts_the_oldest_client_a_touched_client_su
     security_config: SecurityConfig,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(behavior_handler, "_MAX_TRACKED_CLIENTS_PER_ENDPOINT", 3)
+    monkeypatch.setattr(security_config, "behavior_max_tracked_clients_per_endpoint", 3)
     tracker = BehaviorTracker(security_config)
     rule = BehaviorRule(
         rule_type="return_pattern", threshold=999, window=60, pattern="status:200"
@@ -1084,7 +1083,7 @@ async def test_track_return_pattern_evicts_oldest_endpoint_touched_one_survives(
     security_config: SecurityConfig,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(behavior_handler, "_MAX_TRACKED_ENDPOINTS", 3)
+    monkeypatch.setattr(security_config, "behavior_max_tracked_endpoints", 3)
     tracker = BehaviorTracker(security_config)
     rule = BehaviorRule(
         rule_type="return_pattern", threshold=999, window=60, pattern="status:200"

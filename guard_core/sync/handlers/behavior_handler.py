@@ -97,8 +97,6 @@ class BehaviorRule:
 
 
 _RECENT_ENDPOINT_ID = "recent"
-_MAX_TRACKED_ENDPOINTS = 10_000
-_MAX_TRACKED_CLIENTS_PER_ENDPOINT = 10_000
 
 
 class BehaviorTracker(
@@ -121,6 +119,7 @@ class BehaviorTracker(
         self._lock = threading.Lock()
         self._trip_markers: OrderedDict[str, float] = OrderedDict()
         self._throttle_script_sha: str | None = None
+        self._init_eviction_reporting()
 
     def initialize_redis(self, redis_handler: Any) -> None:
         self.redis_handler = redis_handler
@@ -133,7 +132,7 @@ class BehaviorTracker(
             f"behavior:usage:{_hash_identity_segment(_RECENT_ENDPOINT_ID)}:"
             f"{_hash_identity_segment(ip)}"
         )
-        return key, _MAX_TRACKED_ENDPOINTS
+        return key, self.config.behavior_max_tracked_endpoints
 
     def get_recent_event_count(self, ip: str, window_seconds: int) -> int:
         if not ip:
@@ -154,8 +153,10 @@ class BehaviorTracker(
         the last window_seconds (at most 300, the shortest TTL of a rule's Redis
         key). In memory this is get_recent_event_count; with Redis it is the same
         sum over the IP's indexed rule keys. Remaining difference: at its caps
-        memory evicts the least recently used endpoint bucket (10,000) or client
-        (10,000 per bucket), while Redis keeps at most 10,000 rule keys per IP."""
+        memory evicts the least recently used endpoint bucket
+        (behavior_max_tracked_endpoints) or client
+        (behavior_max_tracked_clients_per_endpoint per bucket), while Redis keeps at
+        most behavior_max_tracked_endpoints rule keys per IP."""
         if window_seconds > RECENT_RULE_HITS_WINDOW_SECONDS:
             raise ValueError(
                 f"window_seconds must be at most {RECENT_RULE_HITS_WINDOW_SECONDS}"
@@ -184,6 +185,7 @@ class BehaviorTracker(
         if self.redis_handler:
             key = usage_hits_key(endpoint_id, client_ip, rule)
             if record:
+                index_refused: list[bool] = []
                 valid_count: int = self.redis_handler.record_sliding_window_hit(
                     USAGE_NAMESPACE,
                     key,
@@ -191,7 +193,11 @@ class BehaviorTracker(
                     window_start,
                     rule_hit_ttl(rule),
                     index=self._rule_hit_index(client_ip),
+                    index_refused=index_refused,
                 )
+                if index_refused:
+                    self._evicted_values.append(("rule_hit_index", True))
+                    self._report_evictions(client_ip)
             else:
                 valid_count = self.redis_handler.count_sliding_window_hits(
                     USAGE_NAMESPACE, key, window_start
@@ -204,12 +210,19 @@ class BehaviorTracker(
             bucket = _lru_pop_or_create(
                 self.usage_counts,
                 usage_key,
-                _MAX_TRACKED_ENDPOINTS,
+                self.config.behavior_max_tracked_endpoints,
                 lambda: defaultdict(list),
+                self._evicted_values,
+                "endpoint",
             )
             self.usage_counts[usage_key] = bucket
             timestamps = _lru_pop_or_create(
-                bucket, client_ip, _MAX_TRACKED_CLIENTS_PER_ENDPOINT, list
+                bucket,
+                client_ip,
+                self.config.behavior_max_tracked_clients_per_endpoint,
+                list,
+                self._evicted_values,
+                "endpoint_client",
             )
 
             timestamps[:] = [ts for ts in timestamps if ts >= window_start]
@@ -218,7 +231,10 @@ class BehaviorTracker(
                 timestamps.append(current_time)
             bucket[client_ip] = timestamps
 
-            return len(timestamps) > rule.threshold
+            exceeded = len(timestamps) > rule.threshold
+        if self._evicted_values:
+            self._report_evictions(client_ip)
+        return exceeded
 
     def track_return_pattern(
         self,
@@ -265,12 +281,19 @@ class BehaviorTracker(
             bucket = _lru_pop_or_create(
                 self.return_patterns,
                 pattern_key,
-                _MAX_TRACKED_ENDPOINTS,
+                self.config.behavior_max_tracked_endpoints,
                 lambda: defaultdict(list),
+                self._evicted_values,
+                "endpoint",
             )
             self.return_patterns[pattern_key] = bucket
             timestamps = _lru_pop_or_create(
-                bucket, client_ip, _MAX_TRACKED_CLIENTS_PER_ENDPOINT, list
+                bucket,
+                client_ip,
+                self.config.behavior_max_tracked_clients_per_endpoint,
+                list,
+                self._evicted_values,
+                "endpoint_client",
             )
 
             timestamps[:] = [ts for ts in timestamps if ts >= window_start]
@@ -280,6 +303,8 @@ class BehaviorTracker(
             bucket[client_ip] = timestamps
             valid_count = len(timestamps)
 
+        if self._evicted_values:
+            self._report_evictions(client_ip)
         return valid_count > self._correlated_threshold(
             correlation, valid_count, threshold
         )
