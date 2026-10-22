@@ -78,36 +78,39 @@ def _unquoted_value_extent(
 
 _PAIR_END_CHARS = frozenset("&;\r\n<>")
 _PAIR_OPENER_CHARS = _HARD_SEP_CHARS - _PAIR_END_CHARS
+_PAIR_VALUE_NON_START_CHARS = _HARD_SEP_CHARS | {" ", "="}
+_PAIR_START_RE = re.compile(_EXTENDED_NAME_RUN_RE.pattern + _ASSIGN_RE.pattern)
+_SOFT_GAP_THEN_PAIR_RE = re.compile(r"([^\S\r\n]*)(" + _PAIR_START_RE.pattern + ")?")
+_SECRET_STOP_RE = re.compile(r"[&;\r\n<>'\"\s,?|/\[\]{}()]")
 
 
 def _pair_with_value_starts_at(text: str, pos: int) -> bool:
-    name_match = _EXTENDED_NAME_RUN_RE.match(text, pos)
-    if name_match is None:
+    pair_match = _PAIR_START_RE.match(text, pos)
+    if pair_match is None:
         return False
-    assign_match = _ASSIGN_RE.match(text, name_match.end())
-    if assign_match is None:
-        return False
-    value_pos = assign_match.end()
-    return value_pos < len(text) and text[value_pos] not in _HARD_SEP_CHARS | {" ", "="}
+    value_pos = pair_match.end()
+    return value_pos < len(text) and text[value_pos] not in _PAIR_VALUE_NON_START_CHARS
 
 
 def _secret_value_extent(text: str, start: int) -> int:
-    n = len(text)
     i = start
-    while i < n:
+    while True:
+        stop = _SECRET_STOP_RE.search(text, i)
+        if stop is None:
+            return len(text)
+        i = stop.start()
         ch = text[i]
         if ch in _PAIR_END_CHARS or ch in _QUOTE_CHARS:
             return i
-        if ch in _PAIR_OPENER_CHARS and _pair_with_value_starts_at(text, i + 1):
-            return i
-        if _is_soft_ws(ch):
-            j = _skip_soft_whitespace(text, i)
-            if _pair_starts_at(text, j):
+        if ch in _PAIR_OPENER_CHARS:
+            if _pair_with_value_starts_at(text, i + 1):
                 return i
-            i = j
+            i += 1
             continue
-        i += 1
-    return i
+        gap = _SOFT_GAP_THEN_PAIR_RE.match(text, i)
+        if gap.group(2) is not None:
+            return i
+        i = gap.end(1)
 
 
 def _sensitive_value_extent(text: str, start: int, quote_char: str) -> int:
