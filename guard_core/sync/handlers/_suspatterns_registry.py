@@ -8,6 +8,7 @@ from typing import Any
 
 from guard_core.sync._utils.detection_scan import _redact_pattern_source
 from guard_core.sync.detection_engine import PatternCompiler, PerformanceMonitor
+from guard_core.sync.handlers._suspatterns_lazy_rows import _SusPatternsLazyRowsMixin
 from guard_core.sync.handlers._suspatterns_sources import (
     _CTX_ALL,
     _DEFAULT_MAX_BODY_INSPECT_BYTES,
@@ -60,12 +61,11 @@ def _reconciled_custom_patterns(legacy: Any, listed: Any) -> list[str]:
     return legacy_text.split(",") if legacy_text else []
 
 
-class _SusPatternsRegistryMixin:
+class _SusPatternsRegistryMixin(_SusPatternsLazyRowsMixin):
     _instance: Any = None
     _config: Any = None
     patterns: list[str]
     custom_patterns: set[str]
-    compiled_patterns: list[tuple[re.Pattern, frozenset[str], str]]
     compiled_custom_patterns: set[tuple[re.Pattern, frozenset[str], str]]
     redis_handler: Any = None
     agent_handler: Any = None

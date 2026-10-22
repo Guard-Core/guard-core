@@ -631,6 +631,11 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
             return "unknown"
         return normalized
 
+    def _rows_for_scan(self) -> list[tuple[Any, frozenset[str], str]]:
+        if self._compiled_rows is None:
+            return self._rows_without_compiling()
+        return self.get_all_compiled_patterns()
+
     def _check_regex_patterns(
         self,
         content: str,
@@ -648,7 +653,7 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
         matched_patterns = []
         timeouts = []
 
-        all_patterns = self.get_all_compiled_patterns()
+        all_patterns = self._rows_for_scan()
         normalized = self._normalize_context(context)
         validator_context = _validator_context(context, normalized)
         skip_filter = normalized in ("unknown", "request_body")
@@ -684,11 +689,12 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
             timeouts.append(budget_threat["pattern"])
 
         try:
-            for pattern, _contexts, category in rows_with_required_literal(
+            for scan_row in rows_with_required_literal(
                 applicable_patterns,
                 fold_for_literals(content),
                 _LITERAL_EXCLUDED_SOURCES,
             ):
+                pattern, _contexts, category = self._compiled_row(scan_row)
                 if _scan_budget_spent(time_cap):
                     _record_budget_exhaustion()
                     break

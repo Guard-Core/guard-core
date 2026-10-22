@@ -42,6 +42,9 @@ from guard_core.detection_engine.compiler import (
 from guard_core.detection_engine.scan_window import (
     bounded_finditer as bounded_finditer,
 )
+from guard_core.handlers._suspatterns_lazy_rows import (
+    _BUILTIN_PATTERN_COMPILE_FLAGS as _BUILTIN_PATTERN_COMPILE_FLAGS,
+)
 from guard_core.handlers._suspatterns_ldap_ipv4 import (
     _LEGACY_IPV4_BLOCKED_NETWORKS,
     _LEGACY_IPV4_HOST_RE,
@@ -759,9 +762,6 @@ def _merge_raw_view_results(
     )
 
 
-_BUILTIN_PATTERN_COMPILE_FLAGS = re.IGNORECASE
-
-
 class SusPatternsManager(_SusPatternsViewsMixin):
     _instance = None
     _config = None
@@ -771,7 +771,7 @@ class SusPatternsManager(_SusPatternsViewsMixin):
     patterns: list[str] = [p[0] for p in _pattern_definitions]
 
     custom_patterns: set[str]
-    compiled_patterns: list[tuple[re.Pattern, frozenset[str], str]]
+
     compiled_custom_patterns: set[tuple[re.Pattern, frozenset[str], str]]
     redis_handler: Any
     agent_handler: Any
@@ -783,14 +783,9 @@ class SusPatternsManager(_SusPatternsViewsMixin):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance.custom_patterns = set()
-            cls._instance.compiled_patterns = [
-                (
-                    re.compile(pattern, _BUILTIN_PATTERN_COMPILE_FLAGS),
-                    contexts,
-                    category,
-                )
-                for pattern, contexts, category in cls._pattern_definitions
-            ]
+            cls._instance._compiled_rows = None
+            cls._instance._compiled_builtin_rows = {}
+            cls._instance._source_rows_cache = None
             cls._instance.compiled_custom_patterns = set()
             cls._instance.redis_handler = None
             cls._instance.agent_handler = None
