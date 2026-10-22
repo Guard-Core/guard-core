@@ -41,7 +41,12 @@ _CMD_PATH_CODE_EXECUTION_RE = (
 )
 
 _ABSOLUTE_PATH_VALUE_RE = (
-    r"\A\s*(?:"
+    r"\A\s*(?!/var/www/html/(?:[^/\s.][^/\s]*/)*[^/\s.][^/\s]*\.(?:html?|css|js|png|jpe?g"
+    r"|gif|svg|ico)\s*\Z)"
+    r"(?![a-z]:[/\\]users[/\\][^/\\\s.][^/\\\s]*[/\\]"
+    r"(?:documents|desktop|downloads|pictures|music|videos)[/\\]"
+    r"(?:[^/\\\s.][^/\\\s]*[/\\])*[^/\\\s.][^/\\\s]*\s*\Z)"
+    r"(?:"
     r"/(?:etc|proc|root|boot)/[^/\s]"
     r"|/dev/(?:mem|kmem|port|null|zero|full|random|urandom|shm|mapper|disk|pts|tty"
     r"|console|fd|stdin|stdout|stderr|kvm|fuse|net|loop|sd[a-z]|hd[a-z]|vd[a-z]"

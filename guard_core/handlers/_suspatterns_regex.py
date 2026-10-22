@@ -73,9 +73,14 @@ from guard_core.handlers._suspatterns_named_floor import (
     recon_path_is_a_probe,
     source_path_is_a_probe,
 )
+from guard_core.handlers._suspatterns_path_code_execution import (
+    path_code_execution_is_injection,
+    path_separator_command_is_injection,
+)
 from guard_core.handlers._suspatterns_pattern_table import (
     _ABSOLUTE_PATH_VALUE_RE,
     _CMD_PATH_CODE_EXECUTION_RE,
+    _CMD_PATH_SEPARATOR_COMMAND_RE,
     BACKTICK_WHOLE_VALUE_RE,
     NOISE_PRONE_PATTERN_SOURCES,
     RECON_OPTIONAL_SEPARATOR_PATTERN_SOURCES,
@@ -191,7 +196,8 @@ _CANDIDATE_REJECTION_VALIDATORS: tuple[
     ),
     (_GLUED_BACKTICK_CANDIDATE_RE, _glued_backtick_pair_is_injection),
     (BACKTICK_WHOLE_VALUE_RE, _whole_value_backtick_pairs_are_injection),
-    (_CMD_PATH_CODE_EXECUTION_RE, lambda _m, context: context.startswith("url_path")),
+    (_CMD_PATH_CODE_EXECUTION_RE, path_code_execution_is_injection),
+    (_CMD_PATH_SEPARATOR_COMMAND_RE, path_separator_command_is_injection),
     (
         _ABSOLUTE_PATH_VALUE_RE,
         lambda _m, context: _source_extension_path_is_probe(context),

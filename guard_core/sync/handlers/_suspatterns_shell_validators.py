@@ -129,6 +129,33 @@ def _whole_value_backtick_pairs_are_injection(match: re.Match, _context: str) ->
     )
 
 
+_SHELL_DASH_C_DANGEROUS_COMMAND_RE = re.compile(
+    r"(?:ls|cat|rm|id|whoami|uname|wget|curl|nc|netcat|socat|bash|sh|python|perl)\b"
+)
+_SHELL_DASH_C_COMPOUND_RE = re.compile(r"[;|&`]|\$\(")
+_SHELL_DASH_C_ENV_ASSIGNMENT_RE = re.compile(r"\A(?:\w+=\S*\s+)+")
+_SHELL_DASH_C_PROSE_TAIL_RE = re.compile(r"\A\s+[a-z]+\b")
+
+
+def shell_dash_c_argument_is_dangerous(content: str, end: int) -> bool:
+    rest = content[end:].lstrip()
+    quote = rest[:1] if rest[:1] in ("'", '"') else ""
+    if quote:
+        closing = rest.find(quote, 1)
+        argument = rest[1:] if closing < 0 else rest[1:closing]
+        tail = "" if closing < 0 else rest[closing + 1 :]
+    else:
+        argument, _, tail = rest.partition(" ")
+        tail = f" {tail}" if tail else ""
+    argument = _SHELL_DASH_C_ENV_ASSIGNMENT_RE.sub("", argument.strip())
+    if _SHELL_DASH_C_COMPOUND_RE.search(argument):
+        return True
+    return bool(
+        _SHELL_DASH_C_DANGEROUS_COMMAND_RE.match(argument)
+        and not _SHELL_DASH_C_PROSE_TAIL_RE.match(tail)
+    )
+
+
 def _shell_token_is_command_with_arguments_or_known(token: str) -> bool:
     if _SHELL_SELECTOR_STRING_RE.match(token.strip()):
         return False
