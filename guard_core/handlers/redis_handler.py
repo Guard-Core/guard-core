@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
-from redis.asyncio import BlockingConnectionPool, Redis
+from redis.asyncio import Redis
 from redis.asyncio.retry import Retry
 from redis.backoff import ExponentialBackoff
 from redis.exceptions import ConnectionError as RedisConnectionError
@@ -25,6 +25,7 @@ from guard_core.handlers._dynamic_rule_persistence import (
     DYNAMIC_RULES_REDIS_NAMESPACE,
     OWNED_BANS_KEY,
 )
+from guard_core.handlers._redis_fast_pool import FastPathConnectionPool
 from guard_core.models import SecurityConfig
 from guard_core.scripts.ban_write_lua import (
     EXTEND_ONLY_BAN_WRITE_SCRIPT,
@@ -72,7 +73,7 @@ _SCAN_BATCH = 500
 def _build_redis_client(
     url: str, max_connections: int, pool_timeout: float, **connection_kwargs: Any
 ) -> Redis:
-    pool = BlockingConnectionPool.from_url(
+    pool = FastPathConnectionPool.from_url(
         url,
         max_connections=max_connections,
         timeout=pool_timeout,

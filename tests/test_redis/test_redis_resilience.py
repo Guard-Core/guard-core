@@ -82,9 +82,8 @@ async def test_initialize_passes_the_pool_size_and_timeout() -> None:
 
 
 @pytest.mark.asyncio
-async def test_the_client_is_built_on_a_blocking_pool() -> None:
-    from redis.asyncio import BlockingConnectionPool
-
+async def test_the_client_is_built_on_the_fast_path_pool() -> None:
+    from guard_core.handlers._redis_fast_pool import FastPathConnectionPool
     from guard_core.handlers.redis_handler import _build_redis_client
 
     client = _build_redis_client(
@@ -92,9 +91,9 @@ async def test_the_client_is_built_on_a_blocking_pool() -> None:
     )
     pool = client.connection_pool
     try:
-        assert isinstance(pool, BlockingConnectionPool)
+        assert isinstance(pool, FastPathConnectionPool)
         assert pool.max_connections == 7
-        assert pool.timeout == 0.5
+        assert pool._wait_timeout == 0.5
         assert pool.connection_kwargs["decode_responses"] is True
         assert pool.connection_kwargs["socket_timeout"] == 0.5
         assert client.auto_close_connection_pool is True
