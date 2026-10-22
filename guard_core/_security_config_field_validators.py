@@ -344,22 +344,24 @@ def _validate_excluded_detection_params_value(
         field_name=field_name,
     )
     if isinstance(result, dict):
-        _check_excluded_params_categories(result)
+        _check_excluded_params_categories(result, field_name)
     return cast(set[str] | dict[str, set[str]], result)
 
 
-def _check_excluded_params_categories(mapping: dict[str, set[str]]) -> None:
+def _check_excluded_params_categories(
+    mapping: dict[str, set[str]], field_name: str
+) -> None:
     for param, categories in mapping.items():
         if not categories:
             raise ValueError(
-                f"excluded_detection_params lists no category for {param!r}: "
+                f"{field_name} lists no category for {param!r}: "
                 "name at least one, or list the parameter in a plain set to "
                 "exclude every category"
             )
         unknown = categories - ALL_DETECTION_CATEGORIES
         if unknown:
             raise ValueError(
-                f"Unknown detection categories for excluded_detection_params "
+                f"Unknown detection categories for {field_name} "
                 f"{param!r}: {sorted(unknown)}. Valid: "
                 f"{sorted(ALL_DETECTION_CATEGORIES)}"
             )

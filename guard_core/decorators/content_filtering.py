@@ -102,7 +102,9 @@ class ContentFilteringMixin(BaseSecurityMixin):
                 )
             if body_fields is not None:
                 route_config.excluded_detection_body_fields = (
-                    _validate_excluded_detection_params_value(body_fields)
+                    _validate_excluded_detection_params_value(
+                        body_fields, field_name="excluded_detection_body_fields"
+                    )
                 )
             if categories is not None:
                 route_config.enabled_detection_categories = set(categories)
