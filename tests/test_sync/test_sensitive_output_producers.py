@@ -356,6 +356,11 @@ COVERED_PRODUCERS: dict[str, frozenset[str]] = {
 }
 
 NON_REQUEST_PRODUCERS: dict[str, str] = {
+    "handlers/_behavior_evictions.py:BehaviorEvictionMixin._report_eviction": (
+        "warns that a behavior tracking cap dropped an entry: the kind, the store, "
+        "the configured cap and the config field name only, no client address and "
+        "no request value is interpolated"
+    ),
     "_utils/body_reader.py:_body_read_slot": (
         "logs the configured max_concurrent of body reads when the limit is "
         "reached; a number from the configuration, no request value is "
