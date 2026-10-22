@@ -3,6 +3,7 @@ from typing import Any, ClassVar
 
 from guard_core.models import SecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
+from guard_core.sync._utils.agent_events import agent_receives_events
 from guard_core.sync._utils.request_logging import redact_header_value_for_display
 from guard_core.sync._utils.rule_attribution import user_agent_attribution
 from guard_core.sync.core.checks.base import SecurityCheck
@@ -63,8 +64,8 @@ class UserAgentCheck(SecurityCheck):
     def _rule_attribution(
         self, user_agent: str, empty_user_agent: bool
     ) -> dict[str, Any]:
-        if empty_user_agent or not (
-            self.middleware.event_bus.agent_handler and self.config.agent_enable_events
+        if empty_user_agent or not agent_receives_events(
+            self.middleware.event_bus, self.config
         ):
             return {}
         return user_agent_attribution(user_agent, self.config.blocked_user_agents)

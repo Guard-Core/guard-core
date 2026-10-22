@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any
 
 from guard_core.models import SecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
+from guard_core.sync._utils.agent_events import agent_receives_events
 from guard_core.sync._utils.route_gate import (
     ROUTE_TEMPLATE_STATE_ATTR,
     STATIC_FILE_STATE_ATTR,
@@ -100,9 +101,7 @@ class SuspiciousActivityCheck(SecurityCheck):
         self, request: SyncGuardRequest, client_ip: str, result: DetectionResult
     ) -> None:
         trigger_info = result.trigger_info
-        consumed = (
-            self.middleware.event_bus.agent_handler and self.config.agent_enable_events
-        )
+        consumed = agent_receives_events(self.middleware.event_bus, self.config)
         log_activity(
             request,
             self.logger,
@@ -140,9 +139,7 @@ class SuspiciousActivityCheck(SecurityCheck):
     ) -> GuardResponse:
         trigger_info = result.trigger_info
         threat_categories = list(result.threat_categories)
-        consumed = (
-            self.middleware.event_bus.agent_handler and self.config.agent_enable_events
-        )
+        consumed = agent_receives_events(self.middleware.event_bus, self.config)
         strikes = StrikeReport()
         banned = _try_threshold_ban(
             request,

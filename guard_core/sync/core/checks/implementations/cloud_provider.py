@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 from guard_core.models import SecurityConfig, cloud_blocking_enabled
 from guard_core.protocols.response_protocol import GuardResponse
+from guard_core.sync._utils.agent_events import agent_receives_events
 from guard_core.sync._utils.rule_attribution import cloud_provider_attribution
 from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.core.checks.helpers import (
@@ -132,10 +133,7 @@ class CloudProviderCheck(SecurityCheck):
         attribution = (
             {}
             if route_blocks_clouds
-            or not (
-                self.middleware.event_bus.agent_handler
-                and self.config.agent_enable_events
-            )
+            or not agent_receives_events(self.middleware.event_bus, self.config)
             else self._cloud_attribution(cloud_details)
         )
 

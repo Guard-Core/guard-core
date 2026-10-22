@@ -3,6 +3,7 @@ from collections import OrderedDict
 from collections.abc import Collection
 from typing import TYPE_CHECKING, Any
 
+from guard_core._utils.agent_events import agent_receives_events
 from guard_core._utils.route_gate import (
     ROUTE_TEMPLATE_STATE_ATTR,
     STATIC_FILE_STATE_ATTR,
@@ -98,9 +99,7 @@ class SuspiciousActivityCheck(SecurityCheck):
         self, request: GuardRequest, client_ip: str, result: DetectionResult
     ) -> None:
         trigger_info = result.trigger_info
-        consumed = (
-            self.middleware.event_bus.agent_handler and self.config.agent_enable_events
-        )
+        consumed = agent_receives_events(self.middleware.event_bus, self.config)
         await log_activity(
             request,
             self.logger,
@@ -138,9 +137,7 @@ class SuspiciousActivityCheck(SecurityCheck):
     ) -> GuardResponse:
         trigger_info = result.trigger_info
         threat_categories = list(result.threat_categories)
-        consumed = (
-            self.middleware.event_bus.agent_handler and self.config.agent_enable_events
-        )
+        consumed = agent_receives_events(self.middleware.event_bus, self.config)
         strikes = StrikeReport()
         banned = await _try_threshold_ban(
             request,

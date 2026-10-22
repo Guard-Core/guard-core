@@ -2,6 +2,7 @@ from collections.abc import Collection
 from ipaddress import ip_address
 from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple
 
+from guard_core._utils.agent_events import agent_receives_events
 from guard_core._utils.ip_extraction import (
     MALFORMED_FORWARDED_FOR_PREFIX,
     _client_identity,
@@ -400,8 +401,7 @@ class RateLimitCheck(SecurityCheck):
     ) -> None:
         attribution = (
             rate_limit_attribution(plan.tier.kind, plan.tier.bucket)
-            if self.middleware.event_bus.agent_handler
-            and self.config.agent_enable_events
+            if agent_receives_events(self.middleware.event_bus, self.config)
             or self.middleware.rate_limit_handler.agent_handler
             else {}
         )

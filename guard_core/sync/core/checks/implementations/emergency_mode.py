@@ -5,6 +5,7 @@ from ipaddress import ip_address
 
 from guard_core.models import SecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
+from guard_core.sync._utils.agent_events import agent_receives_events
 from guard_core.sync._utils.rule_attribution import emergency_attribution
 from guard_core.sync._utils.sampling import observe_sampled_key
 from guard_core.sync.core.checks.base import SecurityCheck
@@ -112,8 +113,7 @@ class EmergencyModeCheck(SecurityCheck):
                 emergency_active=True,
                 **(
                     emergency_attribution()
-                    if self.middleware.event_bus.agent_handler
-                    and self.config.agent_enable_events
+                    if agent_receives_events(self.middleware.event_bus, self.config)
                     else {}
                 ),
             )

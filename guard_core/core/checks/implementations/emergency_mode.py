@@ -3,6 +3,7 @@ from collections import OrderedDict
 from collections.abc import Collection, Sequence
 from ipaddress import ip_address
 
+from guard_core._utils.agent_events import agent_receives_events
 from guard_core._utils.rule_attribution import emergency_attribution
 from guard_core._utils.sampling import observe_sampled_key
 from guard_core.core.checks.base import SecurityCheck
@@ -114,8 +115,7 @@ class EmergencyModeCheck(SecurityCheck):
                 emergency_active=True,
                 **(
                     emergency_attribution()
-                    if self.middleware.event_bus.agent_handler
-                    and self.config.agent_enable_events
+                    if agent_receives_events(self.middleware.event_bus, self.config)
                     else {}
                 ),
             )

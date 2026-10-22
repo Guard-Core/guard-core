@@ -36,6 +36,14 @@ def get_pipeline_response_time(request: SyncGuardRequest | None) -> float | None
     return time.monotonic() - pipeline_start
 
 
+def agent_receives_events(event_bus: Any, config: Any) -> bool:
+    """True when an agent is attached to the bus and events are enabled; a bus
+    without an ``agent_handler`` attribute has no agent."""
+    return bool(
+        getattr(event_bus, "agent_handler", None) and config.agent_enable_events
+    )
+
+
 def send_agent_event(
     agent_handler: SyncAgentHandlerProtocol | None,
     event_type: str,

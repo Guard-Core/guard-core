@@ -1,6 +1,7 @@
 from ipaddress import ip_address
 from typing import Any
 
+from guard_core._utils.agent_events import agent_receives_events
 from guard_core._utils.ip_extraction import (
     _is_trusted_proxy,
     forwarded_for_addresses,
@@ -168,7 +169,7 @@ class IpSecurityCheck(SecurityCheck):
         )
 
         attribution: dict[str, Any] = {}
-        if self.middleware.event_bus.agent_handler and self.config.agent_enable_events:
+        if agent_receives_events(self.middleware.event_bus, self.config):
             held = cached_ban_stamp(client_ip, self.ip_ban_manager)
             attribution = (
                 held
@@ -410,8 +411,7 @@ class IpSecurityCheck(SecurityCheck):
         when no agent consumes events), for the ip_blocked event that follows."""
         attribution = (
             country_attribution(access_result.country_rule, access_result.country)
-            if self.middleware.event_bus.agent_handler
-            and self.config.agent_enable_events
+            if agent_receives_events(self.middleware.event_bus, self.config)
             else {}
         )
         await self.middleware.event_bus.send_middleware_event(
