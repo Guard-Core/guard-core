@@ -89,9 +89,11 @@ def _wire_pair(name: str, value: str) -> str:
 
     Nothing is escaped: a percent sequence the walk would decode must need the same
     number of decode rounds in the block, and escaping ``/`` or ``.`` made a plain
-    ``../relative`` value decode to a traversal the raw text never held.
+    ``../relative`` value decode to a traversal the raw text never held. The space
+    after ``=`` keeps a row that anchors on ``=`` (the remote file inclusion row)
+    from matching the ``=`` this rendering supplies: the walk scans the value alone.
     """
-    return f"{name}={value}"
+    return f"{name}= {value}"
 
 
 def _body_remainder_display(
