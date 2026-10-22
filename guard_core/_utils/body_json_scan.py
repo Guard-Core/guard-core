@@ -299,11 +299,32 @@ async def _scan_json_entry_frame(
     return None
 
 
+def _walk_limits(context: str) -> tuple[int, set[tuple[Any, ...]] | None]:
+    # An embedded value is bounded by the parser depth check before it is walked, so
+    # its walk has no depth cap of its own and remembers what it scanned clean.
+    if context.endswith(_EMBEDDED_JSON_LEAF_CONTEXT_SUFFIX):
+        return sys.maxsize, set()
+    return _json_depth_cap_value(), None
+
+
 def _clean_signature(
-    kind: str, first: Any, second: Any, excluded_body_fields: set[str]
-) -> tuple[Any, ...] | None:
+    clean: set[tuple[Any, ...]] | None,
+    kind: str,
+    first: Any,
+    second: Any,
+    excluded_body_fields: set[str],
+) -> tuple[tuple[Any, ...] | None, bool]:
     # A key or a leaf an embedded walk already scanned clean gives the same verdict
     # again, so a nested value repeating one key per level is scanned once.
+    if clean is None:
+        return None, False
+    signature = _signature_of_frame(kind, first, second, excluded_body_fields)
+    return signature, signature in clean
+
+
+def _signature_of_frame(
+    kind: str, first: Any, second: Any, excluded_body_fields: set[str]
+) -> tuple[Any, ...] | None:
     if kind == "entry":
         key_text = str(first)
         return None if key_text.lower() in excluded_body_fields else ("key", key_text)
@@ -421,9 +442,7 @@ async def _scan_json_value(
     redact_keys: bool = False,
     sensitive_params: frozenset[str] = frozenset(),
 ) -> tuple[bool, str, list[dict]]:
-    embedded = context.endswith(_EMBEDDED_JSON_LEAF_CONTEXT_SUFFIX)
-    max_depth = sys.maxsize if embedded else _json_depth_cap_value()
-    clean: set[tuple[Any, ...]] | None = set() if embedded else None
+    max_depth, clean = _walk_limits(context)
     stack: list[tuple[str, Any, Any, int, bool]] = [
         ("value", value, key_label, 1, False)
     ]
@@ -431,12 +450,9 @@ async def _scan_json_value(
     skips = _skip_counter()
     while stack:
         kind, first, second, depth, redact = stack.pop()
-        signature = (
-            None
-            if clean is None
-            else _clean_signature(kind, first, second, excluded_body_fields)
+        signature, known_clean = _clean_signature(
+            clean, kind, first, second, excluded_body_fields
         )
-        known_clean = clean is not None and signature in clean
         if known_clean and kind == "value":
             continue
         skipped_before = skips.count

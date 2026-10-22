@@ -268,6 +268,23 @@ def _sanitize_for_reporting(value: str) -> str:
     )
 
 
+def _path_row_match_is_cleared(
+    pattern: re.Pattern, match: re.Match, context: str
+) -> bool:
+    source = pattern.pattern
+    if source in NAMED_FILE_PATH_SOURCES and (
+        named_file_in_a_push_list_is_plain(pattern, match)
+    ):
+        return True
+    if source in ROUTE_GATED_PATH_SOURCES and not (
+        last_segment_is_not_the_apps_own_route(match, context)
+    ):
+        return True
+    return source in RECON_OPTIONAL_SEPARATOR_PATTERN_SOURCES and not (
+        _recon_path_value_is_probe(match, context)
+    )
+
+
 def _build_regex_threat(
     pattern: re.Pattern,
     match: re.Match,
@@ -279,17 +296,7 @@ def _build_regex_threat(
     for candidate, is_valid_threat in _CANDIDATE_REJECTION_VALIDATORS:
         if pattern.pattern == candidate and not is_valid_threat(match, context):
             return None
-    if pattern.pattern in NAMED_FILE_PATH_SOURCES and (
-        named_file_in_a_push_list_is_plain(pattern, match)
-    ):
-        return None
-    if pattern.pattern in ROUTE_GATED_PATH_SOURCES and not (
-        last_segment_is_not_the_apps_own_route(match, context)
-    ):
-        return None
-    if pattern.pattern in RECON_OPTIONAL_SEPARATOR_PATTERN_SOURCES and not (
-        _recon_path_value_is_probe(match, context)
-    ):
+    if _path_row_match_is_cleared(pattern, match, context):
         return None
     if pattern.pattern in NOISE_PRONE_PATTERN_SOURCES and match_is_binary_dense(
         binary_prefix, match
