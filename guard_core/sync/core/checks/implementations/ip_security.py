@@ -172,7 +172,11 @@ class IpSecurityCheck(SecurityCheck):
         )
 
         attribution: dict[str, Any] = {}
-        if agent_receives_events(self.middleware.event_bus, self.config):
+        try:
+            agent_handler = self.middleware.event_bus.agent_handler
+        except AttributeError:
+            agent_handler = None
+        if agent_handler and self.config.agent_enable_events:
             held = cached_ban_stamp(client_ip, self.ip_ban_manager)
             attribution = (
                 held
