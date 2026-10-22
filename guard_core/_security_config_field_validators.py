@@ -587,9 +587,5 @@ _FIELD_REVALIDATORS: dict[str, Callable[[Any], Any]] = {
         field_name="excluded_semantic_detection_headers",
     ),
     "excluded_detection_params": _validate_excluded_detection_params_value,
-    "excluded_detection_body_fields": partial(
-        _validate_typed_collection_field_value,
-        adapter=_STR_SET_ADAPTER,
-        field_name="excluded_detection_body_fields",
-    ),
+    "excluded_detection_body_fields": _validate_excluded_detection_params_value,
 }

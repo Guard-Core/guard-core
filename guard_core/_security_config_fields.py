@@ -1041,14 +1041,13 @@ class _SecurityConfigFields(BaseModel):
         default=262144,
         description=(
             "Maximum bytes read from the start of the request body and inspected "
-            "for penetration detection. When the request's Content-Length exceeds "
-            "this, the adapter's read_body_prefix (a bounded reader that only "
-            "ever returns up to the requested byte count) is used to read the "
-            "first this-many bytes and scan them, if the adapter implements it; "
-            "when the adapter has no bounded reader, the body is not read at "
-            "all and detection falls back to path, query, and header checks "
-            "only, the same as before this cap existed. Either way a one-time "
-            "warning names the cap, the client, and which of the two happened. "
+            "for penetration detection. Past this cap an adapter with a bounded "
+            "reader (read_body_prefix) has its first N bytes scanned, and a "
+            "one-time warning names the cap and the client. An adapter without "
+            "one gets the body-read failure outcome: the body is not read, the "
+            "request is answered 400 when fail_secure is on, an event is sent "
+            "and no strike is recorded; with fail_secure off the failure is "
+            "logged and the request passes unscanned. "
             "This is a memory bound, "
             "not full-body coverage: only this leading prefix is ever scanned, so "
             "a payload placed after the first N bytes, or a signature split across "
@@ -1349,12 +1348,18 @@ class _SecurityConfigFields(BaseModel):
             "that parameter, for example {'q': {'sqli'}}."
         ),
     )
-    excluded_detection_body_fields: set[str] = Field(
+    excluded_detection_body_fields: Annotated[
+        set[str] | dict[str, set[str]],
+        BeforeValidator(_validate_excluded_detection_params_value),
+    ] = Field(
         default_factory=set,
         description=(
             "JSON body keys to exclude from penetration detection scanning. "
             "Matched at any nesting depth, and applied to x-www-form-urlencoded "
-            "and multipart text-part field names as well."
+            "and multipart text-part field names as well. A set of names "
+            "excludes every category; a mapping of name to a set of detection "
+            "categories excludes only those categories for that field, for "
+            "example {'note': {'sensitive_file'}}."
         ),
     )
     detection_scan_body: bool = Field(

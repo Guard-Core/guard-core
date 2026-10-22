@@ -184,6 +184,14 @@ async def every_category_skipped(): ...
 async def only_sensitive_file_skipped(): ...
 ```
 
+`SecurityConfig.excluded_detection_body_fields` takes the same two forms for every route, and a route's own value replaces the global one (it is not merged with it):
+
+```python
+config = SecurityConfig(
+    excluded_detection_body_fields={"changed_file": {"sensitive_file"}},
+)
+```
+
 A body sent under a content type that is not JSON, form or multipart is scanned as one text, as before. When it starts with `{` or `[`, each of its string literals that holds a backslash is also decoded and scanned on its own, so an escaped payload (`\u003cscript\u003e`, also nested in further escaped JSON) is found; a body with no backslash is not walked. Path rows which need a whole value never apply to those literals.
 
 ___
