@@ -21,6 +21,7 @@ async def real_redis() -> AsyncIterator[RedisManager]:
     await redis.initialize()
     ip_ban_manager.redis_handler = redis
     yield redis
+    await redis.delete_pattern("*")
     ip_ban_manager.redis_handler = None
     await redis.close()
 

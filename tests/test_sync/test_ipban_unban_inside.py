@@ -21,6 +21,7 @@ def real_redis() -> Iterator[RedisManager]:
     redis.initialize()
     ip_ban_manager.redis_handler = redis
     yield redis
+    redis.delete_pattern("*")
     ip_ban_manager.redis_handler = None
     redis.close()
 
