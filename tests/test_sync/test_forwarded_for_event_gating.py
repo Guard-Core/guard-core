@@ -26,7 +26,7 @@ def _events_sent(config: SecurityConfig, requests: int = 3) -> list[Any]:
 def test_the_spoof_event_is_sent_by_default() -> None:
     events = _events_sent(_config())
 
-    assert [event.event_type for event in events] == ["suspicious_request"] * 3
+    assert [event.event_type for event in events] == ["suspicious_request"]
     assert events[0].action_taken == "spoofing_detected"
 
 
@@ -43,4 +43,4 @@ def test_disabling_agent_events_silences_the_spoof_event() -> None:
 def test_muting_another_type_keeps_the_spoof_event() -> None:
     config = _config(muted_event_types=frozenset({"ip_blocked"}))
 
-    assert len(_events_sent(config)) == 3
+    assert len(_events_sent(config)) == 1

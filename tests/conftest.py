@@ -146,6 +146,7 @@ _ORIGINAL_SECURITY_HEADERS_MANAGER = _security_headers_module.security_headers_m
 
 def _reset_untrusted_forwarded_for_tracking() -> None:
     _ip_extraction_module._untrusted_peers.clear()
+    _ip_extraction_module._evicted_suppressed_total = 0
     _suspicious_activity_module._disabled_detection_samples.clear()
     _emergency_mode_module._emergency_samples.clear()
 

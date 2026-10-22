@@ -33,3 +33,37 @@ def observe_sampled_key(
         sampled = _is_due(last_sampled, now - window)
         table[key] = now if sampled else last_sampled or now
     return sampled
+
+
+def observe_counted_key(
+    table: "OrderedDict[str, tuple[float, int]]",
+    lock: threading.Lock,
+    key: str,
+    *,
+    window: float,
+    max_tracked: int,
+) -> tuple[bool, int, int]:
+    """Like ``observe_sampled_key``, and count what it did not sample.
+
+    ``table`` maps each key to the time it last returned true and how many
+    observations returned false since. Returns ``(sampled, suppressed,
+    evicted_pending)``: ``suppressed`` is that count when ``sampled`` is true (0 for
+    a key seen first), and ``evicted_pending`` is the pending count of the oldest
+    key evicted to make room (0 when none or when it had none), so the caller can
+    keep it instead of losing it.
+    """
+    now = time.monotonic()
+    with lock:
+        entry = table.pop(key, None)
+        if entry is None:
+            evicted_pending = 0
+            if len(table) >= max_tracked:
+                evicted_pending = table.popitem(last=False)[1][1]
+            table[key] = (now, 0)
+            return True, 0, evicted_pending
+        last_sampled, pending = entry
+        if last_sampled <= now - window:
+            table[key] = (now, 0)
+            return True, pending, 0
+        table[key] = (last_sampled, pending + 1)
+        return False, 0, 0

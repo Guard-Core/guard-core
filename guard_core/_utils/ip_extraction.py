@@ -20,7 +20,7 @@ from guard_core._utils.nat64 import (
     _unwrap_nat64,
     _warn_non_global_embedded_once_a_minute,
 )
-from guard_core._utils.sampling import observe_sampled_key
+from guard_core._utils.sampling import observe_counted_key
 from guard_core._utils.whitelist_match import is_listed
 from guard_core.protocols.agent_protocol import AgentHandlerProtocol
 from guard_core.protocols.request_protocol import GuardRequest
@@ -333,26 +333,44 @@ _MAX_TRACKED_UNTRUSTED_PEERS = 10_000
 _untrusted_peer_lock = threading.Lock()
 
 
-_untrusted_peers: OrderedDict[str, float] = OrderedDict()
+_untrusted_peers: OrderedDict[str, tuple[float, int]] = OrderedDict()
+_evicted_suppressed_lock = threading.Lock()
+_evicted_suppressed_total = 0
 
 
-def _observe_untrusted_forwarded_for(peer: str) -> bool:
-    """Sample the spoof warning for an untrusted public peer.
+def _observe_untrusted_forwarded_for(peer: str) -> tuple[bool, int]:
+    """Count one X-Forwarded-For request from an untrusted peer.
 
-    Returns true at most once per peer per ``_UNTRUSTED_XFF_WINDOW_SECONDS``, so a
-    peer that sends an X-Forwarded-For on every request (an unlisted CDN does) is
-    logged once a minute instead of once per request. The header value is never
-    stored or compared: a rotating value is not a ban signal, only an
-    X-Forwarded-For that claims a whitelisted or trusted-proxy address is. At most
-    ``_MAX_TRACKED_UNTRUSTED_PEERS`` peers are tracked and the oldest is evicted.
+    Returns ``(sampled, suppressed_count)``. ``sampled`` is true at most once per
+    peer per ``_UNTRUSTED_XFF_WINDOW_SECONDS``, so a peer that sends an
+    X-Forwarded-For on every request (an unlisted CDN does) is logged and reported
+    once a minute instead of once per request; ``suppressed_count`` is how many
+    requests of that peer were not sampled since its last sampled one. The header
+    value is never stored or compared: a rotating value is not a ban signal, only
+    an X-Forwarded-For that claims a whitelisted or trusted-proxy address is. At
+    most ``_MAX_TRACKED_UNTRUSTED_PEERS`` peers are tracked and the oldest is
+    evicted; its pending count is kept in ``_evicted_suppressed_total`` for the
+    next event sent.
     """
-    return observe_sampled_key(
+    global _evicted_suppressed_total
+    sampled, suppressed, evicted_pending = observe_counted_key(
         _untrusted_peers,
         _untrusted_peer_lock,
         peer,
         window=_UNTRUSTED_XFF_WINDOW_SECONDS,
         max_tracked=_MAX_TRACKED_UNTRUSTED_PEERS,
     )
+    if evicted_pending:
+        with _evicted_suppressed_lock:
+            _evicted_suppressed_total += evicted_pending
+    return sampled, suppressed
+
+
+def _take_evicted_suppressed_count() -> int:
+    global _evicted_suppressed_total
+    with _evicted_suppressed_lock:
+        taken, _evicted_suppressed_total = _evicted_suppressed_total, 0
+    return taken
 
 
 def forwarded_for_addresses(forwarded_for: str) -> list[IPv4Address | IPv6Address]:
@@ -387,32 +405,41 @@ async def _handle_untrusted_proxy(
 ) -> str:
     if forwarded_for:
         _warn_forwarded_header_preempted(connecting_ip, forwarded_for)
-        display_forwarded_for = _display_forwarded_chain(forwarded_for)
-        safe_forwarded_for = _sanitize_for_log(display_forwarded_for)
-        message = (
-            f"Potential IP spoof attempt: X-Forwarded-For header "
-            f"({safe_forwarded_for}) received from untrusted IP "
-            f"{_sanitize_for_log(connecting_ip)}"
-        )
         peer_is_public = not _is_private_or_loopback(connecting_ip)
-        log_fn = logger.warning if peer_is_public else logger.debug
-        should_log = True
-        if peer_is_public:
-            should_log = _observe_untrusted_forwarded_for(canonical_connecting_ip)
-            request.state.untrusted_forwarded_for = forwarded_for
-        if should_log:
-            log_fn(message)
-        from guard_core.core.events.event_types import EVENT_SUSPICIOUS_REQUEST
-
-        await send_agent_event(
-            _agent_open_to_suspicious_requests(config, agent_handler),
-            EVENT_SUSPICIOUS_REQUEST,
-            canonical_connecting_ip,
-            "spoofing_detected",
-            "Potential IP spoof attempt: X-Forwarded-For header "
-            f"{display_forwarded_for}",
-            request,
+        sampled, suppressed_count = _observe_untrusted_forwarded_for(
+            canonical_connecting_ip
         )
+        if peer_is_public:
+            request.state.untrusted_forwarded_for = forwarded_for
+        if peer_is_public and not sampled:
+            return canonical_connecting_ip
+        display_forwarded_for = _display_forwarded_chain(forwarded_for)
+        (logger.warning if peer_is_public else logger.debug)(
+            f"Potential IP spoof attempt: X-Forwarded-For header "
+            f"({_sanitize_for_log(display_forwarded_for)}) received from "
+            f"untrusted IP {_sanitize_for_log(connecting_ip)}"
+        )
+        agent = (
+            _agent_open_to_suspicious_requests(config, agent_handler)
+            if sampled
+            else None
+        )
+        if agent:
+            from guard_core.core.events.event_types import EVENT_SUSPICIOUS_REQUEST
+
+            await send_agent_event(
+                agent,
+                EVENT_SUSPICIOUS_REQUEST,
+                canonical_connecting_ip,
+                "spoofing_detected",
+                "Potential IP spoof attempt: X-Forwarded-For header "
+                f"{display_forwarded_for}",
+                request,
+                metadata={
+                    "suppressed_count": suppressed_count,
+                    "suppressed_evicted_count": _take_evicted_suppressed_count(),
+                },
+            )
     return canonical_connecting_ip
 
 
@@ -520,13 +547,13 @@ async def _malformed_forwarded_for_identity(
     agent_handler: AgentHandlerProtocol | None,
     config: Any,
 ) -> str:
-    if observe_sampled_key(
+    if observe_counted_key(
         _untrusted_peers,
         _untrusted_peer_lock,
         f"malformed:{peer}",
         window=_UNTRUSTED_XFF_WINDOW_SECONDS,
         max_tracked=_MAX_TRACKED_UNTRUSTED_PEERS,
-    ):
+    )[0]:
         display = _sanitize_for_log(_display_forwarded_chain(forwarded_for or ""))
         logger.warning(
             "The X-Forwarded-For entry selected by trusted_proxy_depth is empty or "
