@@ -1,6 +1,7 @@
 from guard_core.sync.core.events.event_types import (
     EVENT_ACCESS_DENIED,
     EVENT_AUTHENTICATION_FAILED,
+    EVENT_BEHAVIOR_BUCKET_EVICTED,
     EVENT_BEHAVIOR_VIOLATION,
     EVENT_CLOUD_BLOCKED,
     EVENT_CONTENT_FILTERED,
@@ -76,6 +77,7 @@ def test_event_type_values_contains_all() -> None:
         EVENT_IP_BAN_FAILED,
         EVENT_IP_BAN_REFUSED,
         EVENT_IP_BAN_EVICTED,
+        EVENT_BEHAVIOR_BUCKET_EVICTED,
         EVENT_IP_UNBANNED,
         EVENT_CLOUD_BLOCKED,
         EVENT_HTTPS_ENFORCED,
