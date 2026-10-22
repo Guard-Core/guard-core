@@ -110,7 +110,12 @@ def test_the_map_form_is_validated_like_the_decorator(bad: Any) -> None:
         decorator.detection_exclusion(body_fields=bad)(target)
     with pytest.raises(ValueError) as from_config:
         SecurityConfig(excluded_detection_body_fields=bad)
-    assert str(from_decorator.value) in str(from_config.value)
+    decorator_text = str(from_decorator.value)
+    renamed_text = decorator_text.replace(
+        "excluded_detection_params is invalid",
+        "excluded_detection_body_fields is invalid",
+    )
+    assert renamed_text in str(from_config.value)
 
 
 @pytest.mark.parametrize("surface", ["json", "form", "multipart"])
@@ -190,3 +195,11 @@ async def test_the_remainder_honours_the_map_of_a_nested_field() -> None:
     )
     assert await _is_threat(clean, set(), exclusion, **options) is False
     assert await _is_threat(attack, set(), exclusion, **options) is True
+
+
+def test_a_bare_string_is_rejected_naming_the_field() -> None:
+    with pytest.raises(ValueError, match="excluded_detection_body_fields"):
+        SecurityConfig(excluded_detection_body_fields="nope")
+    config: Any = SecurityConfig()
+    with pytest.raises(ValueError, match="excluded_detection_body_fields"):
+        config.excluded_detection_body_fields = "nope"

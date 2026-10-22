@@ -1,4 +1,5 @@
 from collections.abc import Awaitable, Callable
+from functools import partial
 from pathlib import Path
 from types import MappingProxyType
 from typing import Annotated, Any, Literal
@@ -1350,7 +1351,12 @@ class _SecurityConfigFields(BaseModel):
     )
     excluded_detection_body_fields: Annotated[
         set[str] | dict[str, set[str]],
-        BeforeValidator(_validate_excluded_detection_params_value),
+        BeforeValidator(
+            partial(
+                _validate_excluded_detection_params_value,
+                field_name="excluded_detection_body_fields",
+            )
+        ),
     ] = Field(
         default_factory=set,
         description=(

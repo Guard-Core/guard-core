@@ -336,12 +336,12 @@ def _validate_enabled_detection_categories_value(v: Any) -> frozenset[str]:
 
 
 def _validate_excluded_detection_params_value(
-    v: Any,
+    v: Any, field_name: str = "excluded_detection_params"
 ) -> set[str] | dict[str, set[str]]:
     result = _validate_typed_collection_field_value(
         v,
         adapter=_STR_SET_OR_CATEGORY_MAP_ADAPTER,
-        field_name="excluded_detection_params",
+        field_name=field_name,
     )
     if isinstance(result, dict):
         _check_excluded_params_categories(result)
@@ -587,5 +587,8 @@ _FIELD_REVALIDATORS: dict[str, Callable[[Any], Any]] = {
         field_name="excluded_semantic_detection_headers",
     ),
     "excluded_detection_params": _validate_excluded_detection_params_value,
-    "excluded_detection_body_fields": _validate_excluded_detection_params_value,
+    "excluded_detection_body_fields": partial(
+        _validate_excluded_detection_params_value,
+        field_name="excluded_detection_body_fields",
+    ),
 }
