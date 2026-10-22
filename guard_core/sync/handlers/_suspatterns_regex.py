@@ -71,6 +71,7 @@ from guard_core.sync.handlers._suspatterns_named_floor import (
     last_segment_is_not_the_apps_own_route,
     named_file_in_a_push_list_is_plain,
     named_floor_row_is_not_the_apps_own_route,
+    named_path_has_a_trick_suffix,
     named_probe_row_is_not_the_apps_own_route,
     recon_path_is_a_probe,
     source_path_is_a_probe,
@@ -274,7 +275,11 @@ def _path_row_match_is_cleared(
     pattern: re.Pattern, match: re.Match, context: str
 ) -> bool:
     source = pattern.pattern
-    if source in NAMED_DIRECTORY_PATH_SOURCES and named_file_leaf_in_benign_shape():
+    if (
+        source in NAMED_DIRECTORY_PATH_SOURCES
+        and named_file_leaf_in_benign_shape()
+        and not named_path_has_a_trick_suffix(match.group())
+    ):
         return True
     if source in NAMED_FILE_PATH_SOURCES and (
         named_file_in_a_push_list_is_plain(pattern, match)

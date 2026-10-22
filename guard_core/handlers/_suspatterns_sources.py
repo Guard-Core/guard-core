@@ -155,12 +155,14 @@ _PATH_ONLY_PREFIX_RE = (
 _PATH_ONLY_SUFFIX_RE = rf"(?:{_PATH_ONLY_SEP_RE}{_PATH_ONLY_CHAR_RE}*)*(?:\?\S*)?\s*\Z"
 
 
-def _path_only_pattern(required: str, trailing: str = "") -> str:
+def _path_only_pattern(
+    required: str, trailing: str = "", suffix: str = _PATH_ONLY_SUFFIX_RE
+) -> str:
     return (
         rf"\A{_PATH_ONLY_SEP_RE}?"
         rf"(?:(?!{required}(?:{_PATH_ONLY_SEP_RE}|\Z))"
         rf"{_PATH_ONLY_CHAR_RE}+{_PATH_ONLY_SEP_RE})*"
-        rf"{required}{trailing}{_PATH_ONLY_SUFFIX_RE}"
+        rf"{required}{trailing}{suffix}"
     )
 
 
@@ -183,6 +185,10 @@ def _path_only_extension_pattern(required: str) -> str:
 _EXTENSION_TRICK_SUFFIX = (
     r"(?:;[^/\\?\s]*|\.+|::\$(?:DATA|INDEX_ALLOCATION)|%00[^/\\?\s]*"
     r"|\.(?:jpe?g|png|gif|ico|bmp))?"
+)
+_NAMED_PATH_SUFFIX_RE = (
+    rf"(?:{_PATH_ONLY_SEP_RE}{_PATH_ONLY_CHAR_RE}*)*{_EXTENSION_TRICK_SUFFIX}"
+    r"(?:\?\S*)?\s*\Z"
 )
 _SENSITIVE_SOURCE_BARE_EXTENSIONS = (
     r"\.(?:ts|tsx|jsx|py|rb|java|go|rs|php|pl|sh|sql|phtml|php[3-8]|pht|phps|phar)"

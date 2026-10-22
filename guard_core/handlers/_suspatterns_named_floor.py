@@ -15,6 +15,7 @@ from guard_core._utils.source_path_shapes import (
 from guard_core.handlers._suspatterns_sources import (
     _CTX_CMS_PROBING,
     _CTX_RECON,
+    _NAMED_PATH_SUFFIX_RE,
     _PATH_ONLY_CHAR_RE,
     _PATH_ONLY_SEP_RE,
     _PATH_ONLY_SUFFIX_RE,
@@ -95,13 +96,25 @@ def absolute_path_is_a_probe(context: str) -> bool:
     )
 
 
+_NAMED_PATH_TRICK_RE = re.compile(r";|%00|::\$|\.\s*\Z")
+
+
+def named_path_has_a_trick_suffix(path: str) -> bool:
+    return _NAMED_PATH_TRICK_RE.search(path) is not None
+
+
 @lru_cache(maxsize=256)
 def _named_row_without_path_info(source: str, flags: int) -> re.Pattern[str]:
-    return re.compile(source.removesuffix(_PATH_ONLY_SUFFIX_RE) + r"\s*\Z", flags)
+    for suffix in (_NAMED_PATH_SUFFIX_RE, _PATH_ONLY_SUFFIX_RE):
+        if source.endswith(suffix):
+            return re.compile(source.removesuffix(suffix) + r"\s*\Z", flags)
+    return re.compile(source, flags)
 
 
 def named_file_in_a_push_list_is_plain(pattern: re.Pattern, match: re.Match) -> bool:
-    if not named_file_leaf_in_benign_shape():
+    if not named_file_leaf_in_benign_shape() or named_path_has_a_trick_suffix(
+        match.group()
+    ):
         return False
     return (
         _named_row_without_path_info(pattern.pattern, pattern.flags).match(

@@ -1,5 +1,9 @@
 import re
 
+from guard_core.handlers._suspatterns_credential_files import (
+    CREDENTIAL_FILE_ROWS,
+    CREDENTIAL_FILES_WITH_DIRECTORY_ROW,
+)
 from guard_core.handlers._suspatterns_ldap_ipv4 import (
     _LEGACY_IPV4_HOST_RE,
     _LOG4SHELL_JNDI_LOOKUP_RE,
@@ -125,6 +129,7 @@ from guard_core.handlers._suspatterns_sources import (
     _LDAP_WILDCARD_CHAIN_RE,
     _LDAP_WILDCARD_EQUALS_RE,
     _MAP_FILE_PATH_RE,
+    _NAMED_PATH_SUFFIX_RE,
     _PATH_ONLY_CHAR_RE,
     _PATH_ONLY_PREFIX_RE,
     _PATH_ONLY_SEP_RE,
@@ -598,7 +603,7 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
     (_HTTP_SPLIT_CRLF_RE, _CTX_HTTP_SPLIT, "http_split"),
     (_HTTP_SPLIT_CRLF_DECODED_RE, _CTX_HTTP_SPLIT, "http_split"),
     (
-        _path_only_pattern(r"\.env(?:\.\w+)?"),
+        _path_only_pattern(r"\.env(?:\.\w+)?", suffix=_NAMED_PATH_SUFFIX_RE),
         _CTX_SENSITIVE_FILE,
         "sensitive_file",
     ),
@@ -609,7 +614,8 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
     ),
     (
         _path_only_pattern(
-            r"(?:(?!config)[\w-])*config[\w-]*\.(?:env|yml|yaml|json|toml|ini|xml|conf)"
+            r"(?:(?!config)[\w-])*config[\w-]*\.(?:env|yml|yaml|json|toml|ini|xml|conf)",
+            suffix=_NAMED_PATH_SUFFIX_RE,
         ),
         _CTX_SENSITIVE_FILE,
         "sensitive_file",
@@ -628,7 +634,8 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
         _path_only_pattern(
             r"(?:(?:local_settings|settings|config|secrets|configuration)\.py"
             r"|(?:wp-config|config|configuration)\.php"
-            r"|database\.ya?ml|appsettings(?:\.\w+)?\.json)"
+            r"|database\.ya?ml|appsettings(?:\.\w+)?\.json)",
+            suffix=_NAMED_PATH_SUFFIX_RE,
         ),
         _CTX_SENSITIVE_FILE,
         "sensitive_file",
@@ -658,7 +665,7 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
         "recon",
     ),
     (
-        _path_only_pattern(r"\.(?:git|svn|hg|bzr)"),
+        _path_only_pattern(r"\.(?:git|svn|hg|bzr)", suffix=_NAMED_PATH_SUFFIX_RE),
         _CTX_SENSITIVE_FILE,
         "sensitive_file",
     ),
@@ -677,7 +684,8 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
     (
         _path_only_pattern(
             r"(?:wp-(?:admin|login|includes|config)|administrator|xmlrpc)"
-            r"\.?(?:php)?"
+            r"\.?(?:php)?",
+            suffix=_NAMED_PATH_SUFFIX_RE,
         ),
         _CTX_CMS_PROBING,
         "cms_probing",
@@ -687,7 +695,7 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
         rf"(?:(?!wp-content\.?(?:php)?(?:{_PATH_ONLY_SEP_RE}|\Z))"
         rf"{_PATH_ONLY_CHAR_RE}+{_PATH_ONLY_SEP_RE})*"
         rf"wp-content(?!{_PATH_ONLY_SEP_RE}uploads(?:{_PATH_ONLY_SEP_RE}|\Z))"
-        r"\.?(?:php)?" + _PATH_ONLY_SUFFIX_RE,
+        r"\.?(?:php)?" + _NAMED_PATH_SUFFIX_RE,
         _CTX_CMS_PROBING,
         "cms_probing",
     ),
@@ -719,7 +727,8 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
     (
         _path_only_pattern(
             r"(?:\.htaccess|\.htpasswd|\.DS_Store|Thumbs\.db"
-            r"|\.npmrc|\.dockerenv|web\.config)"
+            r"|\.npmrc|\.dockerenv|web\.config)",
+            suffix=_NAMED_PATH_SUFFIX_RE,
         ),
         _CTX_CMS_PROBING,
         "cms_probing",
@@ -938,6 +947,7 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
     (r'E:\d+:"', _CTX_DESERIALIZATION, "deserialization"),
     (r"<ObjectDataProvider\b", _CTX_DESERIALIZATION, "deserialization"),
     *NAMED_FLOOR_ROWS,
+    *CREDENTIAL_FILE_ROWS,
 ]
 
 # Whole-value recon rows whose leading path separator is optional: outside a URL
@@ -999,7 +1009,7 @@ NAMED_FILE_PATH_SOURCES: frozenset[str] = frozenset(
     for source, _contexts, category in _PATTERN_DEFINITIONS
     if category in {"sensitive_file", "cms_probing"}
     and source.startswith(r"\A[/\\]")
-    and source.endswith(_PATH_ONLY_SUFFIX_RE)
+    and source.endswith((_PATH_ONLY_SUFFIX_RE, _NAMED_PATH_SUFFIX_RE))
     and source not in {_SENSITIVE_SOURCE_EXTENSION_PATH_RE, _MAP_FILE_PATH_RE}
 ) | {_EDITOR_BACKUP_TILDE_ROW}
 
@@ -1024,4 +1034,4 @@ DETECTION_RECON_RAW_VIEW_PATTERN_SOURCES: frozenset[str] = frozenset(
     source
     for source, _contexts, category in _PATTERN_DEFINITIONS
     if category == "recon"
-) | {_CMD_EXFILTRATION_RE, _ABSOLUTE_PATH_VALUE_RE}
+) | {_CMD_EXFILTRATION_RE, _ABSOLUTE_PATH_VALUE_RE, CREDENTIAL_FILES_WITH_DIRECTORY_ROW}
