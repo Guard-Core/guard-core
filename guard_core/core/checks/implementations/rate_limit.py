@@ -399,10 +399,14 @@ class RateLimitCheck(SecurityCheck):
         plan: _TierPlan,
         block: RateLimitBlock,
     ) -> None:
+        try:
+            limiter_agent = self.middleware.rate_limit_handler.agent_handler
+        except AttributeError:
+            limiter_agent = None
         attribution = (
             rate_limit_attribution(plan.tier.kind, plan.tier.bucket)
             if agent_receives_events(self.middleware.event_bus, self.config)
-            or self.middleware.rate_limit_handler.agent_handler
+            or limiter_agent
             else {}
         )
         if plan.event_type is not None:

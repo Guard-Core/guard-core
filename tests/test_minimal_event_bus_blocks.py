@@ -21,10 +21,21 @@ class _BusWithOnlySendMiddlewareEvent:
         return None
 
 
+class _RateLimitHandlerWithoutAgentHandler:
+    def __init__(self, real: Any) -> None:
+        self._real = real
+
+    def __getattr__(self, name: str) -> Any:
+        if name == "agent_handler":
+            raise AttributeError(name)
+        return getattr(self._real, name)
+
+
 async def _status(
     fail_secure: bool,
     *,
     requests: int = 1,
+    hide_rate_limit_agent_handler: bool = False,
     headers: dict[str, str] | None = None,
     query_params: dict[str, str] | None = None,
     country: str | None = None,
@@ -38,6 +49,10 @@ async def _status(
     config = SecurityConfig(enable_redis=False, fail_secure=fail_secure, **settings)
     middleware = build_middleware(config, SecurityDecorator(config))
     middleware.event_bus = _BusWithOnlySendMiddlewareEvent()
+    if hide_rate_limit_agent_handler:
+        middleware.rate_limit_handler = _RateLimitHandlerWithoutAgentHandler(
+            middleware.rate_limit_handler
+        )
     if country is not None:
         middleware.geo_ip_handler = Mock()
         middleware.geo_ip_handler.get_country = Mock(return_value=country)
@@ -92,3 +107,19 @@ async def test_a_bus_with_only_send_middleware_event_still_blocks(
     fail_secure: bool, expected: int, scenario: dict[str, Any]
 ) -> None:
     assert await _status(fail_secure, **scenario) == expected
+
+
+@pytest.mark.parametrize("fail_secure", [True, False])
+async def test_a_rate_limit_handler_without_agent_handler_still_answers_429(
+    fail_secure: bool,
+) -> None:
+    status = await _status(
+        fail_secure,
+        requests=2,
+        hide_rate_limit_agent_handler=True,
+        enable_rate_limiting=True,
+        rate_limit=1,
+        rate_limit_window=60,
+    )
+
+    assert status == 429
