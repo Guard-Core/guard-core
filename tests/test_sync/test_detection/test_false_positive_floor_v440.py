@@ -37,7 +37,7 @@ URL_PATH_CLEAN = [
     "sh -c 'npm start'",
     "/usr/bin/env bash -c 'echo hi'",
 ]
-# D-70 and D-143: a URL path holding sh -c with a known command is flagged whatever words follow
+# D-70, D-143: a path holding sh -c and a known command is flagged whatever follows
 URL_PATH_FLAGGED = [
     "First run setup; sh -c 'ls' to verify.",
     "ticket note: reproduced by running commands; /bin/sh -c whoami showed root",
