@@ -90,6 +90,10 @@ from guard_core.sync.handlers._suspatterns_pattern_table import (
 from guard_core.sync.handlers._suspatterns_pickle import (
     _pickle_global_candidate_is_injection,
 )
+from guard_core.sync.handlers._suspatterns_probe_chains import (
+    PROBE_CHAIN_ROW,
+    chain_row_tail_is_query_or_space,
+)
 from guard_core.sync.handlers._suspatterns_registry import _SusPatternsRegistryMixin
 from guard_core.sync.handlers._suspatterns_scan_windows import (
     _SCAN_WINDOW_PATTERNS,
@@ -214,6 +218,7 @@ _CANDIDATE_REJECTION_VALIDATORS: tuple[
             "system/log", context
         ),
     ),
+    (PROBE_CHAIN_ROW, lambda m, _c: chain_row_tail_is_query_or_space(m)),
     (_GLUED_DOLLAR_SUBSTITUTION_CANDIDATE_RE, _dollar_substitution_pair_is_injection),
     (
         _BRACE_EXPANSION_COMMAND_RE,

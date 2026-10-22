@@ -9,6 +9,7 @@ import pytest
 from guard_core.handlers import _suspatterns_probe_names as generated
 from guard_core.handlers._suspatterns_pattern_table import _PATTERN_DEFINITIONS
 from guard_core.handlers._suspatterns_probe_chains import PROBE_CHAIN_ROW
+from guard_core.handlers._suspatterns_regex import _build_regex_threat
 from guard_core.handlers.suspatterns_handler import _BUILTIN_PATTERN_COMPILE_FLAGS
 from guard_core.models import SecurityConfig
 from guard_core.utils import detect_penetration_attempt
@@ -98,17 +99,51 @@ def test_the_pattern_table_carries_the_generated_rows_and_the_one_chain_row() ->
         "/" + "fckeditor/editor/filemanager/" * 2000,
         "/" + "adminer.php/" * 4834 + " x",
         "/" + "bitrix/admin/" * 4462 + "@",
+        "/" + "adminer.php/" * 4834 + "?q x",
+        "/" + "bitrix/admin/" * 4462 + "?a=b c",
     ],
-    ids=["fckeditor", "adminer-then-space", "bitrix-then-at-sign"],
+    ids=[
+        "fckeditor",
+        "adminer-then-space",
+        "bitrix-then-at-sign",
+        "adminer-then-query-with-space",
+        "bitrix-then-query-with-space",
+    ],
 )
 def test_the_chain_row_scans_a_repeated_chain_in_linear_time(path: str) -> None:
     row = re.compile(PROBE_CHAIN_ROW, _BUILTIN_PATTERN_COMPILE_FLAGS)
     assert 58_000 <= len(path) <= 58_100
     started = time.process_time()
-    assert row.search(path) is None
+    match = row.search(path)
+    assert match is None or _build_regex_threat(row, match, "recon", 0.0) is None
     elapsed = time.process_time() - started
     # linear cost: under 4 ms on an Apple silicon Mac, CPython 3.10; quadratic: 1 s+
     assert elapsed < 0.05
+
+
+@pytest.mark.parametrize(
+    ("path", "flagged"),
+    [
+        ("/adminer.php", True),
+        ("/adminer.php/", True),
+        ("/adminer.php/x/y?q=1&z=2 ", True),
+        ("/adminer.php ", True),
+        ("/adminer.php?q x", False),
+        ("/adminer.php/x y", False),
+        ("/adminer.php@", False),
+        ("/adminer.phpx", False),
+        ("/adminer.php?q=1 x", False),
+        ("/tmp/a.php?q=1", True),
+        ("/tmp/a.php?q x", False),
+    ],
+)
+def test_the_chain_row_verdict_judges_the_tail_as_query_then_space(
+    path: str, flagged: bool
+) -> None:
+    row = re.compile(PROBE_CHAIN_ROW, _BUILTIN_PATTERN_COMPILE_FLAGS)
+    match = row.search(path)
+    verdict = match is not None and _build_regex_threat(row, match, "recon", 0.0)
+    assert bool(verdict) is flagged
 
 
 def test_every_name_comes_from_a_vendored_backdoor_list() -> None:

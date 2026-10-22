@@ -4,8 +4,8 @@ _SEP = r"[/\\]"
 _CHAR = r"[\w.\-~%]"
 _SEGMENTS = rf"(?:{_CHAR}+{_SEP})*"
 _PATH_CHAR = r"[\w.\-~%/\\]"
-_ONLY_PATH_THEN_QUERY_OR_SPACE = rf"(?={_PATH_CHAR}*(?:\?|\s*\Z))"
-_SUFFIX = rf"(?:{_SEP}{_CHAR}*)*(?:\?\S*)?\s*\Z"
+_CHAIN_END = rf"(?!{_CHAR})"
+_PATH_THEN_OPTIONAL_QUERY_THEN_SPACE = re.compile(rf"{_PATH_CHAR}*(?:\?\S*)?\s*\Z")
 _SCRIPT_EXTENSIONS = r"(?:asp|aspx|php|jsp|pl|cgi|sh)"
 
 _FCKEDITOR_PREFIX = rf"fckeditor{_SEP}editor{_SEP}filemanager{_SEP}"
@@ -81,7 +81,11 @@ _FIRST_FCKEDITOR_START = (
 )
 
 PROBE_CHAIN_ROW = (
-    rf"\A{_ONLY_PATH_THEN_QUERY_OR_SPACE}{_SEP}?(?:{_ROOT_TMP_SCRIPT}"
-    rf"|{_SEGMENTS}(?:{_alternation_by_first_character(_NESTED_CHAINS[1:])}){_SUFFIX}"
-    rf"|{_FIRST_FCKEDITOR_START}{_SEGMENTS}{_FCKEDITOR_TARGET}{_SUFFIX})"
+    rf"\A{_SEP}?(?:{_ROOT_TMP_SCRIPT}"
+    rf"|{_SEGMENTS}(?:{_alternation_by_first_character(_NESTED_CHAINS[1:])}){_CHAIN_END}"
+    rf"|{_FIRST_FCKEDITOR_START}{_SEGMENTS}{_FCKEDITOR_TARGET}{_CHAIN_END})"
 )
+
+
+def chain_row_tail_is_query_or_space(match: re.Match[str]) -> bool:
+    return _PATH_THEN_OPTIONAL_QUERY_THEN_SPACE.fullmatch(match.string) is not None
