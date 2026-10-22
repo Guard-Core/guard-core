@@ -499,8 +499,15 @@ _TARGETED_CASES: list[TargetedCase] = [
         True,
     ),
     TargetedCase(
-        "recon_nested_inicio_html_url_path_benign",
+        # D-74 and D-75 item 1: with no route knowledge the path keeps v4.4.0's verdict
+        "recon_nested_inicio_html_url_path_no_route_flagged",
         _url_path_request("/en/inicio.html"),
+        True,
+    ),
+    TargetedCase(
+        # D-75: the app declares the route, so the same path is clean
+        "recon_nested_inicio_html_url_path_declared_route_clean",
+        declare_route(_url_path_request("/en/inicio.html"), "/en/inicio.html"),
         False,
     ),
     TargetedCase(
@@ -859,13 +866,6 @@ _GLUED_KEBAB_IDENTIFIER_BACKTICK_KNOWN_FP_REASON = (
     "the backtick discriminator, already pinned in query_param by "
     "test_glued_kebab_identifier_backtick_payload_flagged_in_query_param, and "
     "stays correctly benign in request_body, where the branch never fires"
-)
-
-_ABSOLUTE_PATH_VALUE_KNOWN_FP_REASON = (
-    "an absolute /var/www path as a value is flagged dir_traversal by the "
-    "decided path rule v2, which accepts that benign document-root paths in "
-    "values are flagged because the same shape is how a probe names a web "
-    "root file"
 )
 
 _URL_PATH_CODE_EXECUTION_KNOWN_FP_REASON = (

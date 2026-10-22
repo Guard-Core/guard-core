@@ -24,13 +24,6 @@ class MaliciousCase(NamedTuple):
     known_gap_reason: str = ""
 
 
-_ABSOLUTE_PATH_VALUE_KNOWN_FP_REASON = (
-    "D-71 path rule v2: an absolute filesystem path under /var/www or /usr/local and "
-    "a drive letter path (except C:\\fakepath\\) is a dir_traversal value by "
-    "decision, a pinned trade-off, outside a JSON leaf and a url_path"
-)
-
-
 _NESTED_SCRIPT_VALUE_KNOWN_FP_REASON = (
     "D-74 and D-75: v4.4.0 flags a nested script or source-map path, and the head "
     "keeps that floor. In a URL path the matched route template decides (clean when "
@@ -107,6 +100,11 @@ _SEMICOLON_BARE_SHELL_CONTROL_KNOWN_FP_REASON = (
     "the bare-shell form of this prose shape fired in every released "
     "version before the absolute-path and env-prefixed widening; pinned as "
     "the control case the new pins are symmetric with"
+)
+
+_SH_DASH_C_URL_PATH_KNOWN_FP_REASON = (
+    "D-70 and D-143: a URL path holding sh -c with a known command is flagged "
+    "whatever words follow; trailing words never clear an attack"
 )
 
 _WHOLE_VALUE_SHELL_INVOCATION_KNOWN_FP_REASON = (
@@ -1725,7 +1723,6 @@ BENIGN_CORPUS: list[BenignCase] = [
     BenignCase(
         "dir_traversal_windows_path_no_dotdot",
         "C:\\Users\\alice\\Documents\\report.docx",
-        known_false_positive_reason=_ABSOLUTE_PATH_VALUE_KNOWN_FP_REASON,
     ),
     BenignCase("dir_traversal_relative_path_no_dotdot", "./assets/images/logo.png"),
     BenignCase(
@@ -2277,7 +2274,6 @@ BENIGN_CORPUS: list[BenignCase] = [
     BenignCase(
         "benign_file_path_var_www_html",
         "/var/www/html/index.html",
-        known_false_positive_reason=_ABSOLUTE_PATH_VALUE_KNOWN_FP_REASON,
     ),
     BenignCase(
         "benign_webhook_payment_succeeded",
@@ -2682,10 +2678,14 @@ BENIGN_CORPUS: list[BenignCase] = [
     BenignCase(
         "cmd_injection_prose_semicolon_quoted_absolute_shell_ls",
         "First run setup; /bin/sh -c 'ls' to verify.",
+        "production",
+        _SH_DASH_C_URL_PATH_KNOWN_FP_REASON,
     ),
     BenignCase(
         "cmd_injection_prose_semicolon_quoted_absolute_shell_whoami",
         "ticket note: reproduced by running commands; /bin/sh -c whoami showed root",
+        "production",
+        _SH_DASH_C_URL_PATH_KNOWN_FP_REASON,
     ),
     BenignCase(
         "cmd_injection_prose_semicolon_quoted_env_prefixed_shell",
@@ -3087,13 +3087,16 @@ BENIGN_CORPUS = [
 
 BASELINE_BENIGN_FALSE_POSITIVE_BY_CATEGORY: dict[str, int] = {
     "cmd_injection": 10,
+    "cms_probing": 1,
     "dir_traversal": 3,
     "file_inclusion": 3,
+    "recon": 18,
+    "sensitive_file": 6,
     "sqli": 6,
     "ssrf": 4,
     "template": 1,
 }
-BASELINE_BENIGN_FALSE_POSITIVE_TOTAL = 50
+BASELINE_BENIGN_FALSE_POSITIVE_TOTAL = 48
 
 _WALL_TIME_CEILING_SECONDS = 40.0
 
