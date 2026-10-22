@@ -37,7 +37,10 @@ from guard_core.scripts.detection_strikes_lua import (
     RECORD_DETECTION_STRIKES_SCRIPT,
 )
 from guard_core.scripts.rule_hit_index_lua import SUM_INDEXED_WINDOW_HITS_SCRIPT
-from guard_core.scripts.sliding_window_lua import SLIDING_WINDOW_HIT_SCRIPT
+from guard_core.scripts.sliding_window_lua import (
+    SLIDING_WINDOW_HIT_REFUSAL_SCRIPT,
+    SLIDING_WINDOW_HIT_SCRIPT,
+)
 
 
 def _unparseable_redis_url(url: str, scheme: str = "") -> str:
@@ -85,6 +88,9 @@ def _build_redis_client(
 
 _SLIDING_WINDOW_SHA = hashlib.sha1(
     SLIDING_WINDOW_HIT_SCRIPT.encode(), usedforsecurity=False
+).hexdigest()
+_SLIDING_WINDOW_REFUSAL_SHA = hashlib.sha1(
+    SLIDING_WINDOW_HIT_REFUSAL_SCRIPT.encode(), usedforsecurity=False
 ).hexdigest()
 _RECORD_DETECTION_STRIKES_SHA = hashlib.sha1(
     RECORD_DETECTION_STRIKES_SCRIPT.encode(), usedforsecurity=False
@@ -556,17 +562,23 @@ class RedisManager:
         if index is not None:
             index_key, max_members = index
             keys.append(f"{prefix}{index_key}")
-            args += (max_members, "1") if index_refused is not None else (max_members,)
+            args.append(max_members)
+        script, sha = (
+            (SLIDING_WINDOW_HIT_SCRIPT, _SLIDING_WINDOW_SHA)
+            if index_refused is None
+            else (SLIDING_WINDOW_HIT_REFUSAL_SCRIPT, _SLIDING_WINDOW_REFUSAL_SHA)
+        )
 
         async def _record(conn: Redis) -> int:
             try:
-                count = await conn.evalsha(_SLIDING_WINDOW_SHA, len(keys), *keys, *args)
+                count = await conn.evalsha(sha, len(keys), *keys, *args)
             except NoScriptError:
-                await conn.script_load(SLIDING_WINDOW_HIT_SCRIPT)
-                count = await conn.evalsha(_SLIDING_WINDOW_SHA, len(keys), *keys, *args)
-            if index_refused is not None and count.__class__ is list:
-                count = count[0]
-                index_refused.append(True)
+                await conn.script_load(script)
+                count = await conn.evalsha(sha, len(keys), *keys, *args)
+            if index_refused is not None:
+                count, refused = count
+                if refused:
+                    index_refused.append(True)
             return int(count)
 
         result = await self.safe_operation(_record)
