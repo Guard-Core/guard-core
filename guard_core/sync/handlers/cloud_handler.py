@@ -157,17 +157,8 @@ class CloudManager:
             cls._instance._range_indexes = {}
         return cls._instance
 
-    def _decode_cache_hit(
-        self, provider: str, entries: set[str]
-    ) -> (
-        tuple[set[ipaddress.IPv4Network | ipaddress.IPv6Network], dict[str, str]] | None
-    ):
-        bad_entry = None
-        if entries:
-            try:
-                return _decode_cached(entries)
-            except ValueError:
-                bad_entry = _first_undecodable_entry(entries)
+    def _warn_unusable_cache(self, provider: str, entries: set[str]) -> None:
+        bad_entry = _first_undecodable_entry(entries)
         if observe_sampled_key(
             self._corrupt_cache_warned_at,
             self._corrupt_cache_lock,
@@ -186,7 +177,6 @@ class CloudManager:
                 provider,
                 problem,
             )
-        return None
 
     def _index_of(self, provider: str) -> NetworkIndex:
         networks = self.ip_ranges[provider]
@@ -305,14 +295,17 @@ class CloudManager:
         for provider in _bare_provider_names(providers):
             try:
                 cached = self._store.get(provider)
-                decoded = (
-                    self._decode_cache_hit(provider, cached)
-                    if cached is not None
-                    else None
-                )
-                if decoded is not None:
-                    self.ip_ranges[provider], self.network_regions[provider] = decoded
-                    continue
+                if cached:
+                    try:
+                        nets, regions = _decode_cached(cached)
+                    except ValueError:
+                        self._warn_unusable_cache(provider, cached)
+                    else:
+                        self.ip_ranges[provider] = nets
+                        self.network_regions[provider] = regions
+                        continue
+                elif cached is not None:
+                    self._warn_unusable_cache(provider, set())
 
                 ranges, regions = _fetch_provider_ranges(provider)
                 if ranges:
@@ -341,16 +334,18 @@ class CloudManager:
         for provider in _bare_provider_names(providers):
             try:
                 cached = self.redis_handler.get_key("cloud_ranges_v2", provider)
-                decoded = (
-                    self._decode_cache_hit(
-                        provider, set(cached.split(",")) if cached else set()
-                    )
-                    if cached is not None
-                    else None
-                )
-                if decoded is not None:
-                    self.ip_ranges[provider], self.network_regions[provider] = decoded
-                    continue
+                if cached:
+                    entries = set(cached.split(","))
+                    try:
+                        nets, regions = _decode_cached(entries)
+                    except ValueError:
+                        self._warn_unusable_cache(provider, entries)
+                    else:
+                        self.ip_ranges[provider] = nets
+                        self.network_regions[provider] = regions
+                        continue
+                elif cached is not None:
+                    self._warn_unusable_cache(provider, set())
 
                 ranges, regions = _fetch_provider_ranges(provider)
                 if ranges:
