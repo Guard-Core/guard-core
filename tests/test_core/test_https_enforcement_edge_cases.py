@@ -296,7 +296,7 @@ async def test_check_content_type_allowed_passive_mode_unit() -> None:
 
     request = Mock()
     request.state = Mock()
-    request.headers = {"content-type": "text/html"}
+    request.headers = {"content-type": "text/html", "content-length": "4"}
 
     with patch(
         "guard_core.core.checks.implementations.request_size_content.log_activity",
