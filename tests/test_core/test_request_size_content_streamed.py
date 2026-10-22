@@ -6,6 +6,7 @@ from guard_core.core.checks.implementations.request_size_content import (
     RequestSizeContentCheck,
 )
 from guard_core.decorators.base import RouteConfig
+from guard_core.exceptions import BodyReadFailedError, BodyReadStalledError
 from guard_core.models import SecurityConfig
 from tests.conftest import MockGuardRequest, MockGuardResponse
 
@@ -25,9 +26,24 @@ class _StreamedRequest(MockGuardRequest):
         return self._streamed[:max_bytes]
 
 
-def _check(passive_mode: bool = False) -> RequestSizeContentCheck:
+class _FailingRequest(MockGuardRequest):
+    def __init__(self, error: Exception, headers: dict[str, str]) -> None:
+        super().__init__(method="POST", headers=headers)
+        self._error = error
+
+    async def read_body_prefix_until_idle(
+        self, max_bytes: int, idle_timeout: float
+    ) -> bytes:
+        raise self._error
+
+
+def _check(
+    passive_mode: bool = False, fail_secure: bool = False
+) -> RequestSizeContentCheck:
     mw = MagicMock()
-    mw.config = SecurityConfig(enable_redis=False, passive_mode=passive_mode)
+    mw.config = SecurityConfig(
+        enable_redis=False, passive_mode=passive_mode, fail_secure=fail_secure
+    )
     mw.logger = MagicMock()
     mw.event_bus = MagicMock()
     mw.event_bus.send_middleware_event = AsyncMock()
@@ -224,3 +240,76 @@ async def test_post_with_disallowed_type_still_gets_415() -> None:
         response = await _check().check(request)
     assert response is not None
     assert response.status_code == 415
+
+
+_HTTP2_HEADERS = {"content-type": "text/html"}
+
+
+async def test_http2_shaped_body_with_disallowed_type_gets_415() -> None:
+    request = _with_route(
+        _StreamedRequest(b"<p>", _HTTP2_HEADERS), allowed=["application/json"]
+    )
+    with patch(_LOG, new_callable=AsyncMock):
+        response = await _check().check(request)
+    assert response is not None
+    assert response.status_code == 415
+
+
+async def test_http2_shaped_empty_body_passes_the_filter() -> None:
+    request = _with_route(
+        _StreamedRequest(b"", _HTTP2_HEADERS), allowed=["application/json"]
+    )
+    assert await _check().check(request) is None
+
+
+async def test_http2_shaped_body_with_allowed_type_is_not_read() -> None:
+    request = _with_route(
+        _FailingRequest(BodyReadFailedError(), {"content-type": "application/json"}),
+        allowed=["application/json"],
+    )
+    assert await _check(fail_secure=True).check(request) is None
+
+
+@pytest.mark.parametrize(
+    ("error", "status"),
+    [(BodyReadStalledError(), 408), (BodyReadFailedError(), 400)],
+)
+@pytest.mark.parametrize("route", ["size", "content_type"])
+async def test_failed_read_follows_fail_secure(
+    error: Exception, status: int, route: str
+) -> None:
+    request = _with_route(
+        _FailingRequest(error, _HTTP2_HEADERS),
+        max_request_size=10 if route == "size" else None,
+        allowed=["application/json"] if route == "content_type" else None,
+    )
+    check = _check(fail_secure=True)
+    with patch(
+        "guard_core.core.checks._body_read_outcome.log_activity",
+        new_callable=AsyncMock,
+    ) as log:
+        response = await check.check(request)
+    assert response is not None
+    assert response.status_code == status
+    log.assert_awaited_once()
+    check.middleware.event_bus.send_middleware_event.assert_awaited_once()
+
+
+@pytest.mark.parametrize("error", [BodyReadStalledError(), BodyReadFailedError()])
+@pytest.mark.parametrize("route", ["size", "content_type"])
+async def test_failed_read_passes_with_log_and_event_when_fail_secure_is_off(
+    error: Exception, route: str
+) -> None:
+    request = _with_route(
+        _FailingRequest(error, _HTTP2_HEADERS),
+        max_request_size=10 if route == "size" else None,
+        allowed=["application/json"] if route == "content_type" else None,
+    )
+    check = _check(fail_secure=False)
+    with patch(
+        "guard_core.core.checks._body_read_outcome.log_activity",
+        new_callable=AsyncMock,
+    ) as log:
+        assert await check.check(request) is None
+    log.assert_awaited_once()
+    check.middleware.event_bus.send_middleware_event.assert_awaited_once()

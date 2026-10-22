@@ -330,6 +330,96 @@
       ]
     },
     {
+      "id": "length_less_body_with_disallowed_type_is_unsupported",
+      "config": {},
+      "geo_countries": {},
+      "routes": {
+        "/json": {
+          "allowed_content_types": [
+            "application/json"
+          ]
+        }
+      },
+      "drives": [
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/json",
+          "method": "POST",
+          "omit_content_length": true,
+          "headers": {
+            "Content-Type": "text/html"
+          },
+          "body": "{}"
+        }
+      ],
+      "expected": [
+        {
+          "status": 415,
+          "body": "Unsupported content type",
+          "headers": {
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "SAMEORIGIN",
+            "X-XSS-Protection": "0",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+            "X-Permitted-Cross-Domain-Policies": "none",
+            "X-Download-Options": "noopen",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Resource-Policy": "same-site",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains"
+          },
+          "events": [
+            [
+              "content_filtered",
+              "request_blocked"
+            ]
+          ],
+          "on_block": [
+            {
+              "check_name": "request_size_content",
+              "reason": "Invalid content type: text/html",
+              "trigger_info": "",
+              "passive_mode": false,
+              "client_ip": "192.0.2.10",
+              "path": "/json",
+              "method": "POST",
+              "status_code": 415
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "length_less_empty_body_with_disallowed_type_passes",
+      "config": {},
+      "geo_countries": {},
+      "routes": {
+        "/json": {
+          "allowed_content_types": [
+            "application/json"
+          ]
+        }
+      },
+      "drives": [
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/json",
+          "method": "POST",
+          "omit_content_length": true,
+          "headers": {
+            "Content-Type": "text/html"
+          }
+        }
+      ],
+      "expected": [
+        {
+          "status": null,
+          "is_exempt": false,
+          "is_whitelisted": false
+        }
+      ]
+    },
+    {
       "id": "media_type_is_compared_normalized",
       "config": {},
       "geo_countries": {},

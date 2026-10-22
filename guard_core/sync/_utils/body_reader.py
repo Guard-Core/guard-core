@@ -349,15 +349,11 @@ def read_prefix_beyond_limit(
 ) -> bytes | None:
     kind = _body_reader_kind(request)
     fetch_bytes = limit + 1
-    try:
-        return _read_and_cache_body(
-            request,
-            fetch_bytes,
-            config.body_read_timeout,
-            _body_reader_call(request, kind, fetch_bytes, config.body_read_timeout),
-            kind,
-            config.sync_body_read_max_concurrent,
-        )
-    except (BodyReadStalledError, BodyReadFailedError) as exc:
-        logger.warning("%s; the request size could not be measured", exc)
-        return None
+    return _read_and_cache_body(
+        request,
+        fetch_bytes,
+        config.body_read_timeout,
+        _body_reader_call(request, kind, fetch_bytes, config.body_read_timeout),
+        kind,
+        config.sync_body_read_max_concurrent,
+    )

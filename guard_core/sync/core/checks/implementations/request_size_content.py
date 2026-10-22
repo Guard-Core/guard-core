@@ -1,5 +1,6 @@
 from collections.abc import Collection
 
+from guard_core.exceptions import BodyReadFailedError, BodyReadStalledError
 from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.body_reader import (
@@ -7,8 +8,10 @@ from guard_core.sync._utils.body_reader import (
     read_prefix_beyond_limit,
     request_declares_body,
 )
+from guard_core.sync._utils.detection_result_builders import _build_body_read_error
 from guard_core.sync._utils.honeypot_fields import media_type_of
 from guard_core.sync._utils.request_logging import redact_header_value_for_display
+from guard_core.sync.core.checks._body_read_outcome import body_read_outcome
 from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.core.checks.helpers import (
     emit_decorator_event,
@@ -47,8 +50,9 @@ class RequestSizeContentCheck(SecurityCheck):
 
         content_length = request.headers.get("content-length")
         if content_length is None or request.headers.get("transfer-encoding"):
-            if not self._streamed_body_exceeds(request, limit):
-                return None
+            body, read_outcome = self._read_beyond(request, limit)
+            if read_outcome is not None or len(body) <= limit:
+                return read_outcome
             return self._oversize_response(
                 request, limit, f"Request body exceeds {limit} bytes"
             )
@@ -62,9 +66,18 @@ class RequestSizeContentCheck(SecurityCheck):
             request, limit, f"Request size {content_length} exceeds limit"
         )
 
-    def _streamed_body_exceeds(self, request: SyncGuardRequest, limit: int) -> bool:
-        body = read_prefix_beyond_limit(request, self.config, limit)
-        return body is not None and len(body) > limit
+    def _read_beyond(
+        self, request: SyncGuardRequest, limit: int
+    ) -> tuple[bytes, GuardResponse | None]:
+        try:
+            body = read_prefix_beyond_limit(request, self.config, limit)
+            return body or b"", None
+        except BodyReadStalledError as error:
+            result = _build_body_read_error(True, error.detail)
+        except BodyReadFailedError as error:
+            result = _build_body_read_error(False, error.detail)
+        client_ip = getattr(request.state, "client_ip", None) or "unknown"
+        return b"", body_read_outcome(self, request, client_ip, result)
 
     def _invalid_length_response(
         self, request: SyncGuardRequest, content_length: str
@@ -130,14 +143,19 @@ class RequestSizeContentCheck(SecurityCheck):
         if not route_config.allowed_content_types:
             return None
 
-        if not request_declares_body(request.headers):
-            return None
-
         content_type = media_type_of(request.headers.get("content-type", ""))
         if content_type in {
             media_type_of(t) for t in route_config.allowed_content_types
         }:
             return None
+
+        if not request_declares_body(request.headers):
+            if request.headers.get("content-length") is not None:
+                return None
+            # HTTP/2 and HTTP/3 carry a body with neither header (RFC 9113 8.1)
+            body, read_outcome = self._read_beyond(request, 0)
+            if read_outcome is not None or not body:
+                return read_outcome
 
         redacted_content_type = redact_header_value_for_display(
             content_type,

@@ -1440,10 +1440,10 @@ async def _run_request_size_violation(secret: str, ctx: "_ScenarioContext") -> N
     assert response is not None, "request_size_violation scenario never blocked"
 
 
-async def _run_request_size_content_length_malformed_raises(
+async def _run_request_size_content_length_malformed_answers_400(
     secret: str, ctx: "_ScenarioContext"
 ) -> None:
-    client_ip = _client_ip_for("request_size_content_length_malformed_raises")
+    client_ip = _client_ip_for("request_size_content_length_malformed_answers_400")
     route_config = RouteConfig()
     route_config.max_request_size = 10
     config = _scenario_config(fail_secure=True)
@@ -1453,9 +1453,7 @@ async def _run_request_size_content_length_malformed_raises(
     )
     pipeline = build_default_pipeline(middleware)
     response = await pipeline.execute(request)
-    assert response is not None, (
-        "request_size_content_length_malformed_raises scenario produced no response"
-    )
+    assert response is not None, "malformed content length scenario had no response"
 
 
 async def _run_content_type_violation(secret: str, ctx: "_ScenarioContext") -> None:
@@ -1852,8 +1850,8 @@ _COMPONENT_SCENARIOS: list[ComponentScenario] = [
     ComponentScenario("custom_request_check_reason", _run_custom_request_check_reason),
     ComponentScenario("request_size_violation", _run_request_size_violation),
     ComponentScenario(
-        "request_size_content_length_malformed_raises",
-        _run_request_size_content_length_malformed_raises,
+        "request_size_content_length_malformed_answers_400",
+        _run_request_size_content_length_malformed_answers_400,
     ),
     ComponentScenario("content_type_violation", _run_content_type_violation),
     ComponentScenario(

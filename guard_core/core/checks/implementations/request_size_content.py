@@ -5,12 +5,15 @@ from guard_core._utils.body_reader import (
     read_prefix_beyond_limit,
     request_declares_body,
 )
+from guard_core._utils.detection_result_builders import _build_body_read_error
 from guard_core._utils.honeypot_fields import media_type_of
 from guard_core._utils.request_logging import redact_header_value_for_display
+from guard_core.core.checks._body_read_outcome import body_read_outcome
 from guard_core.core.checks.base import SecurityCheck
 from guard_core.core.checks.helpers import emit_decorator_event, route_config_applies
 from guard_core.core.events.event_types import EVENT_CONTENT_FILTERED
 from guard_core.decorators.base import RouteConfig
+from guard_core.exceptions import BodyReadFailedError, BodyReadStalledError
 from guard_core.models import SecurityConfig
 from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse
@@ -44,8 +47,9 @@ class RequestSizeContentCheck(SecurityCheck):
 
         content_length = request.headers.get("content-length")
         if content_length is None or request.headers.get("transfer-encoding"):
-            if not await self._streamed_body_exceeds(request, limit):
-                return None
+            body, read_outcome = await self._read_beyond(request, limit)
+            if read_outcome is not None or len(body) <= limit:
+                return read_outcome
             return await self._oversize_response(
                 request, limit, f"Request body exceeds {limit} bytes"
             )
@@ -59,9 +63,18 @@ class RequestSizeContentCheck(SecurityCheck):
             request, limit, f"Request size {content_length} exceeds limit"
         )
 
-    async def _streamed_body_exceeds(self, request: GuardRequest, limit: int) -> bool:
-        body = await read_prefix_beyond_limit(request, self.config, limit)
-        return body is not None and len(body) > limit
+    async def _read_beyond(
+        self, request: GuardRequest, limit: int
+    ) -> tuple[bytes, GuardResponse | None]:
+        try:
+            body = await read_prefix_beyond_limit(request, self.config, limit)
+            return body or b"", None
+        except BodyReadStalledError as error:
+            result = _build_body_read_error(True, error.detail)
+        except BodyReadFailedError as error:
+            result = _build_body_read_error(False, error.detail)
+        client_ip = getattr(request.state, "client_ip", None) or "unknown"
+        return b"", await body_read_outcome(self, request, client_ip, result)
 
     async def _invalid_length_response(
         self, request: GuardRequest, content_length: str
@@ -127,14 +140,19 @@ class RequestSizeContentCheck(SecurityCheck):
         if not route_config.allowed_content_types:
             return None
 
-        if not request_declares_body(request.headers):
-            return None
-
         content_type = media_type_of(request.headers.get("content-type", ""))
         if content_type in {
             media_type_of(t) for t in route_config.allowed_content_types
         }:
             return None
+
+        if not request_declares_body(request.headers):
+            if request.headers.get("content-length") is not None:
+                return None
+            # HTTP/2 and HTTP/3 carry a body with neither header (RFC 9113 8.1)
+            body, read_outcome = await self._read_beyond(request, 0)
+            if read_outcome is not None or not body:
+                return read_outcome
 
         redacted_content_type = redact_header_value_for_display(
             content_type,

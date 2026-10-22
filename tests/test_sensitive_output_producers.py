@@ -250,7 +250,7 @@ COVERED_PRODUCERS: dict[str, frozenset[str]] = {
     "RequestSizeContentCheck._log_suspicious": frozenset(
         {
             "request_size_violation",
-            "request_size_content_length_malformed_raises",
+            "request_size_content_length_malformed_answers_400",
         }
     ),
     "core/checks/implementations/required_headers.py:"
@@ -275,7 +275,7 @@ COVERED_PRODUCERS: dict[str, frozenset[str]] = {
         {"blacklist_hit"}
     ),
     "core/checks/pipeline.py:SecurityCheckPipeline._handle_check_error": frozenset(
-        {"request_size_content_length_malformed_raises"}
+        {"request_size_content_length_malformed_answers_400"}
     ),
     "core/checks/pipeline.py:SecurityCheckPipeline.execute": frozenset(
         {"blacklist_hit"}
@@ -379,11 +379,6 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "read_body_prefix_until_idle; a class name from the adapter's own "
         "code, no request value is interpolated"
     ),
-    "_utils/body_reader.py:read_prefix_beyond_limit": (
-        "logs the typed body-read error raised while measuring the request "
-        "size: a fixed message or the exception class name the engine built, "
-        "never a request value"
-    ),
     "decorators/content_filtering.py:"
     "ContentFilteringMixin.max_request_size.decorator": (
         "logs the decorated function's qualified name once when "
@@ -402,8 +397,7 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "no header, parameter, URL or body value, and never the credential, is "
         "interpolated"
     ),
-    "core/checks/implementations/suspicious_activity.py:"
-    "SuspiciousActivityCheck._handle_body_read_error": (
+    "core/checks/_body_read_outcome.py:body_read_outcome": (
         "logs 'Request body read stalled|failed for IP: <client identity>' "
         "and sends the matching event; the detail is the typed error's own "
         "fixed text, and the request goes through log_activity and "

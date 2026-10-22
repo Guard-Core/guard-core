@@ -763,6 +763,35 @@ PIPELINE_SUITES["pipeline_request_body"] = [
         ],
     },
     {
+        "id": "length_less_body_with_disallowed_type_is_unsupported",
+        "config": {},
+        "routes": {"/json": {"allowed_content_types": ["application/json"]}},
+        "drives": [
+            {
+                "client_ip": IP,
+                "url_path": "/json",
+                "method": "POST",
+                "omit_content_length": True,
+                "headers": {"Content-Type": "text/html"},
+                "body": "{}",
+            }
+        ],
+    },
+    {
+        "id": "length_less_empty_body_with_disallowed_type_passes",
+        "config": {},
+        "routes": {"/json": {"allowed_content_types": ["application/json"]}},
+        "drives": [
+            {
+                "client_ip": IP,
+                "url_path": "/json",
+                "method": "POST",
+                "omit_content_length": True,
+                "headers": {"Content-Type": "text/html"},
+            }
+        ],
+    },
+    {
         "id": "media_type_is_compared_normalized",
         "config": {},
         "routes": {"/json": {"allowed_content_types": ["application/json"]}},
