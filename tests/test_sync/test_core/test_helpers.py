@@ -524,16 +524,16 @@ def test_check_user_agent_allowed_route_blocklist_uses_inline_safe_path() -> Non
     assert captured == [True]
 
 
-def test_check_user_agent_allowed_route_blocklist_caps_subject_length() -> None:
+def test_check_user_agent_allowed_route_blocklist_sees_the_whole_user_agent() -> None:
     from guard_core.sync.utils import _MAX_USER_AGENT_MATCH_LENGTH
 
-    marker = "zzq_route_ua_length_cap_marker_zzq"
+    marker = "zzq_route_ua_whole_marker_zzq"
     rc = RouteConfig()
     rc.blocked_user_agents = [marker]
     config = SyncSecurityConfig(blocked_user_agents=[])
 
-    beyond_cap = "a" * _MAX_USER_AGENT_MATCH_LENGTH + marker
+    beyond_old_cap = "a" * _MAX_USER_AGENT_MATCH_LENGTH + marker
     within_cap = marker + "a" * 10
 
-    assert check_user_agent_allowed(beyond_cap, rc, config) is True
+    assert check_user_agent_allowed(beyond_old_cap, rc, config) is False
     assert check_user_agent_allowed(within_cap, rc, config) is False

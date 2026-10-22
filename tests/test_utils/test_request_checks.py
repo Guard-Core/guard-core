@@ -65,15 +65,15 @@ async def test_is_user_agent_allowed_uses_inline_safe_path() -> None:
     assert captured == [True]
 
 
-async def test_is_user_agent_allowed_caps_subject_length_before_matching() -> None:
+async def test_is_user_agent_allowed_matches_past_the_old_512_character_cap() -> None:
     from guard_core.utils import _MAX_USER_AGENT_MATCH_LENGTH
 
-    marker = "zzq_ua_length_cap_marker_zzq"
-    beyond_cap = "a" * _MAX_USER_AGENT_MATCH_LENGTH + marker
+    marker = "zzq_ua_whole_marker_zzq"
+    beyond_old_cap = "a" * _MAX_USER_AGENT_MATCH_LENGTH + marker
     within_cap = marker + "a" * 10
     config = SecurityConfig(blocked_user_agents=[marker])
 
-    assert await is_user_agent_allowed(beyond_cap, config) is True
+    assert await is_user_agent_allowed(beyond_old_cap, config) is False
     assert await is_user_agent_allowed(within_cap, config) is False
 
 

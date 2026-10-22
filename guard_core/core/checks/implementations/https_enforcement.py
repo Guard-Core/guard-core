@@ -40,8 +40,8 @@ class HttpsEnforcementCheck(SecurityCheck):
     async def check(self, request: GuardRequest) -> GuardResponse | None:
         route_config = getattr(request.state, "route_config", None)
 
-        https_required = (
-            route_config.require_https if route_config else self.config.enforce_https
+        https_required = self.config.enforce_https or bool(
+            route_config and route_config.require_https
         )
         if not https_required:
             return None

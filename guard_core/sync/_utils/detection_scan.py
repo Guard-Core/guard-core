@@ -451,11 +451,10 @@ _MAX_USER_AGENT_MATCH_LENGTH = 512
 def _user_agent_matches_blocked_pattern(user_agent: str, patterns: list[str]) -> bool:
     from guard_core.sync.detection_engine.compiler import PatternCompiler
 
-    subject = user_agent[:_MAX_USER_AGENT_MATCH_LENGTH]
     compiler = PatternCompiler()
     for pattern in patterns:
         finder = compiler.create_async_safe_finditer_matcher(pattern, inline_safe=True)
-        if finder(subject):
+        if finder(user_agent):
             return True
     return False
 
@@ -465,11 +464,10 @@ def _first_blocked_user_agent_pattern(
 ) -> str | None:
     from guard_core.sync.detection_engine.compiler import PatternCompiler
 
-    subject = user_agent[:_MAX_USER_AGENT_MATCH_LENGTH]
     compiler = PatternCompiler()
     for pattern in patterns:
         finder = compiler.create_async_safe_finditer_matcher(pattern, inline_safe=True)
-        if finder(subject):
+        if finder(user_agent):
             return pattern
     return None
 

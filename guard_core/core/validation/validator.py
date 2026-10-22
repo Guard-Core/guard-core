@@ -1,11 +1,11 @@
 import hashlib
-from datetime import datetime, timezone
 
 from cachetools import TTLCache
 
 from guard_core._utils.forwarded_proto import request_is_https
 from guard_core._utils.ip_extraction import _is_trusted_proxy
 from guard_core._utils.request_logging import redact_endpoint_for_display
+from guard_core._utils.time_window import time_window_allows
 from guard_core.core.events.event_types import EVENT_PATH_EXCLUDED
 from guard_core.core.validation.context import ValidationContext
 from guard_core.core.validation.path_matching import (
@@ -32,23 +32,7 @@ class RequestValidator:
         return _is_trusted_proxy(connecting_ip, self.context.config.trusted_proxies)
 
     async def check_time_window(self, time_restrictions: dict[str, str]) -> bool:
-        try:
-            start_time = time_restrictions["start"]
-            end_time = time_restrictions["end"]
-
-            current_time = datetime.now(timezone.utc)
-            current_hour_minute = current_time.strftime("%H:%M")
-
-            if start_time > end_time:
-                return (
-                    current_hour_minute >= start_time or current_hour_minute <= end_time
-                )
-            else:
-                return start_time <= current_hour_minute <= end_time
-
-        except Exception as e:
-            self.context.logger.error(f"Error checking time window: {e!s}")
-            return True
+        return time_window_allows(time_restrictions, self.context.logger)
 
     def _current_normalized_exclude_paths(self) -> tuple[str, ...]:
         current_source = tuple(self.context.config.exclude_paths)
