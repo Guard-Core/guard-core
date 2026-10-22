@@ -1,6 +1,5 @@
 from guard_core.handlers._suspatterns_shell_sources import _CTX_URL_PATH_ONLY
 from guard_core.handlers._suspatterns_sources import (
-    _CTX_SENSITIVE_FILE,
     _EXTENSION_TRICK_SUFFIX,
     _NAMED_PATH_SUFFIX_RE,
     _PATH_ONLY_CHAR_RE,
@@ -33,20 +32,16 @@ _BARE_PRIVATE_KEY_LAST_URL_SEGMENT = (
     rf"{_PRIVATE_KEY_NAMES}{_EXTENSION_TRICK_SUFFIX}(?:\?\S*)?\s*\Z"
 )
 
+CREDENTIAL_FILES_REQUIRED = (
+    rf"(?:{_CREDENTIAL_FILES_WITH_DIRECTORY}|{_CREDENTIAL_FILES_BY_NAME})"
+)
+
+# The .env row extended with the credential files (the ones with a directory and the
+# ones by name): one row, so the credential list adds no regex call to a request.
 CREDENTIAL_FILES_WITH_DIRECTORY_ROW = _path_only_pattern(
-    _CREDENTIAL_FILES_WITH_DIRECTORY, suffix=_NAMED_PATH_SUFFIX_RE
+    rf"(?:\.env(?:\.\w+)?|{CREDENTIAL_FILES_REQUIRED})", suffix=_NAMED_PATH_SUFFIX_RE
 )
 
 CREDENTIAL_FILE_ROWS: tuple[tuple[str, frozenset[str], str], ...] = (
-    (
-        CREDENTIAL_FILES_WITH_DIRECTORY_ROW,
-        _CTX_SENSITIVE_FILE,
-        "sensitive_file",
-    ),
-    (
-        _path_only_pattern(_CREDENTIAL_FILES_BY_NAME, suffix=_NAMED_PATH_SUFFIX_RE),
-        _CTX_SENSITIVE_FILE,
-        "sensitive_file",
-    ),
     (_BARE_PRIVATE_KEY_LAST_URL_SEGMENT, _CTX_URL_PATH_ONLY, "sensitive_file"),
 )

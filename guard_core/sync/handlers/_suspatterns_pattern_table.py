@@ -603,7 +603,7 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
     (_HTTP_SPLIT_CRLF_RE, _CTX_HTTP_SPLIT, "http_split"),
     (_HTTP_SPLIT_CRLF_DECODED_RE, _CTX_HTTP_SPLIT, "http_split"),
     (
-        _path_only_pattern(r"\.env(?:\.\w+)?", suffix=_NAMED_PATH_SUFFIX_RE),
+        CREDENTIAL_FILES_WITH_DIRECTORY_ROW,
         _CTX_SENSITIVE_FILE,
         "sensitive_file",
     ),
