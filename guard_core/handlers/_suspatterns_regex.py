@@ -74,6 +74,7 @@ from guard_core.handlers._suspatterns_named_floor import (
     source_path_is_a_probe,
 )
 from guard_core.handlers._suspatterns_path_code_execution import (
+    absolute_path_value_is_probe,
     path_code_execution_is_injection,
     path_separator_command_is_injection,
 )
@@ -136,7 +137,6 @@ from guard_core.handlers._suspatterns_sources import (
     _XML_XXE_PUBLIC_EXTERNAL_DTD_RE,
     ALL_DETECTION_CATEGORIES,
     _recon_path_value_is_probe,
-    _source_extension_path_is_probe,
 )
 from guard_core.handlers._suspatterns_state import _DetectionState
 from guard_core.handlers._suspatterns_xml_xxe import (
@@ -198,10 +198,7 @@ _CANDIDATE_REJECTION_VALIDATORS: tuple[
     (BACKTICK_WHOLE_VALUE_RE, _whole_value_backtick_pairs_are_injection),
     (_CMD_PATH_CODE_EXECUTION_RE, path_code_execution_is_injection),
     (_CMD_PATH_SEPARATOR_COMMAND_RE, path_separator_command_is_injection),
-    (
-        _ABSOLUTE_PATH_VALUE_RE,
-        lambda _m, context: _source_extension_path_is_probe(context),
-    ),
+    (_ABSOLUTE_PATH_VALUE_RE, absolute_path_value_is_probe),
     (_SENSITIVE_SOURCE_EXTENSION_PATH_RE, source_path_is_a_probe),
     (_MAP_FILE_PATH_RE, source_path_is_a_probe),
     (_RECON_EXTENSION_PATH_RE, recon_path_is_a_probe),

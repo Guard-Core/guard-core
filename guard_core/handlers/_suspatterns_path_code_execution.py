@@ -10,11 +10,25 @@ from guard_core.handlers._suspatterns_shell_validators import (
     _whole_value_backtick_pairs_are_injection,
     shell_dash_c_argument_is_dangerous,
 )
+from guard_core.handlers._suspatterns_sources import (
+    _source_extension_path_is_probe,
+)
 
 _GLUED_BACKTICK_CANDIDATE_COMPILED_RE = re.compile(_GLUED_BACKTICK_CANDIDATE_RE)
 _BACKTICK_WHOLE_VALUE_COMPILED_RE = re.compile(BACKTICK_WHOLE_VALUE_RE)
 _DASH_C_COMPILED_RE = re.compile(r"(?:ba|z|da|k)?sh\s+-c\b")
 _SEPARATED_DASH_C_COMPILED_RE = re.compile(r"\s+-c\b")
+_DOCROOT_WEB_ASSET_RE = re.compile(
+    r"\A\s*/var/www/html/(?:[^/\s.][^/\s]*/)*[^/\s.][^/\s]*"
+    r"\.(?:html?|css|js|png|jpe?g|gif|svg|ico)\s*\Z",
+    re.IGNORECASE,
+)
+_WINDOWS_USER_DOCUMENT_RE = re.compile(
+    r"\A\s*[a-z]:[/\\]users[/\\][^/\\\s.][^/\\\s]*[/\\]"
+    r"(?:documents|desktop|downloads|pictures|music|videos)[/\\]"
+    r"(?:[^/\\\s.][^/\\\s]*[/\\])*[^/\\\s.][^/\\\s]*\s*\Z",
+    re.IGNORECASE,
+)
 
 
 def _backtick_pair_is_a_whole_path_segment(match: re.Match) -> bool:
@@ -50,3 +64,10 @@ def path_code_execution_is_injection(match: re.Match, context: str) -> bool:
 def path_separator_command_is_injection(match: re.Match, _context: str) -> bool:
     dash_c = _SEPARATED_DASH_C_COMPILED_RE.match(match.string, match.end())
     return not dash_c or shell_dash_c_argument_is_dangerous(match.string, dash_c.end())
+
+
+def absolute_path_value_is_probe(match: re.Match, context: str) -> bool:
+    return _source_extension_path_is_probe(context) and not (
+        _DOCROOT_WEB_ASSET_RE.match(match.string)
+        or _WINDOWS_USER_DOCUMENT_RE.match(match.string)
+    )
