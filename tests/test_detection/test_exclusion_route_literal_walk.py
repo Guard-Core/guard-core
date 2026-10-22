@@ -184,7 +184,14 @@ async def test_a_literal_the_tree_does_not_hold_leaves_the_flat_scan_alone(
     content_type: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
-        embedded_json_scan, "_decoded_string_literal", lambda literal: "absent"
+        embedded_json_scan, "_decoded_string_literals", lambda literals: frozenset()
     )
     body = json.dumps({"a": "\u00e9"})
     assert await _is_threat(_body(content_type, body), {"html"}) is False
+
+
+def test_literals_decode_together_or_one_by_one_when_the_strict_parse_refuses() -> None:
+    together = embedded_json_scan._decoded_string_literals(["a\\u00e9", "b\\n"])
+    assert together == {"a\u00e9", "b\n"}
+    one_by_one = embedded_json_scan._decoded_string_literals(["a\\u00e9", "b\nc\\n"])
+    assert one_by_one == {"a\u00e9", "b\nc\n"}

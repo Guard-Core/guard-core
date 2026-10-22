@@ -67,6 +67,15 @@ def _decoded_string_literal(literal: str) -> str:
     return str(decoded)
 
 
+def _decoded_string_literals(literals: list[str]) -> frozenset[str]:
+    # One parse for all of them; a literal the strict parser refuses falls back to the
+    # one-by-one decode, which is lenient about control characters.
+    try:
+        return frozenset(json.loads('["' + '","'.join(literals) + '"]'))
+    except ValueError:
+        return frozenset(map(_decoded_string_literal, literals))
+
+
 def _parse_embedded_json(value: str, every_pair: bool = False) -> Any | None:
     if _nests_deeper_than(value, _EMBEDDED_JSON_MAX_PARSE_DEPTH):
         return _TOO_DEEP_TO_PARSE
@@ -233,9 +242,7 @@ async def _scan_escaped_literals_through_exclusions(
             redact_all,
             sensitive_params,
         )
-    kept = _keep_only_values(
-        data, frozenset(_decoded_string_literal(literal) for literal in literals)
-    )
+    kept = _keep_only_values(data, _decoded_string_literals(literals))
     if kept is _NOTHING_TO_KEEP:
         return None
     return await _walk_parsed_embedded_json(
