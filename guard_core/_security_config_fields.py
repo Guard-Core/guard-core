@@ -1,4 +1,5 @@
 from collections.abc import Awaitable, Callable
+from importlib import import_module
 from pathlib import Path
 from types import MappingProxyType
 from typing import Annotated, Any, Literal
@@ -35,6 +36,12 @@ DEFAULT_EXCLUDE_PATHS: tuple[str, ...] = (
     "/favicon.ico",
     "/static",
 )
+
+
+def _module_cap(module: str, name: str) -> Callable[[], int]:
+    """Default read from the handler's cap constant when the config is built (the
+    handlers import the config, so they cannot be imported at module load)."""
+    return lambda: int(getattr(import_module(module), name))
 
 
 class _SecurityConfigFields(BaseModel):
@@ -264,7 +271,9 @@ class _SecurityConfigFields(BaseModel):
     )
 
     behavior_max_tracked_endpoints: int = Field(
-        default=DEFAULT_MAX_TRACKED_KEYS,
+        default_factory=_module_cap(
+            "guard_core.handlers.behavior_handler", "_MAX_TRACKED_ENDPOINTS"
+        ),
         ge=1,
         description=(
             "Cap on the behavior-rule endpoint buckets one process keeps (one per "
@@ -282,7 +291,9 @@ class _SecurityConfigFields(BaseModel):
     )
 
     behavior_max_tracked_clients_per_endpoint: int = Field(
-        default=DEFAULT_MAX_TRACKED_KEYS,
+        default_factory=_module_cap(
+            "guard_core.handlers.behavior_handler", "_MAX_TRACKED_CLIENTS_PER_ENDPOINT"
+        ),
         ge=1,
         description=(
             "Cap on the clients one behavior-rule endpoint bucket keeps in memory. "
@@ -294,7 +305,9 @@ class _SecurityConfigFields(BaseModel):
     )
 
     behavior_throttle_max_tracked_buckets: int = Field(
-        default=DEFAULT_MAX_TRACKED_KEYS,
+        default_factory=_module_cap(
+            "guard_core.handlers._behavior_throttle", "MAX_TRACKED_BUCKETS"
+        ),
         ge=1,
         description=(
             "Cap on the throttle rule buckets one process keeps in memory. The "
@@ -306,7 +319,9 @@ class _SecurityConfigFields(BaseModel):
     )
 
     behavior_throttle_max_tracked_clients_per_bucket: int = Field(
-        default=DEFAULT_MAX_TRACKED_KEYS,
+        default_factory=_module_cap(
+            "guard_core.handlers._behavior_throttle", "MAX_TRACKED_CLIENTS_PER_BUCKET"
+        ),
         ge=1,
         description=(
             "Cap on the clients one throttle bucket keeps in memory. The least "
@@ -318,7 +333,9 @@ class _SecurityConfigFields(BaseModel):
     )
 
     behavior_throttle_max_trip_markers: int = Field(
-        default=DEFAULT_MAX_TRACKED_KEYS,
+        default_factory=_module_cap(
+            "guard_core.handlers._behavior_throttle", "MAX_TRIP_MARKERS"
+        ),
         ge=1,
         description=(
             "Cap on the throttle episode markers one process keeps in memory. The "

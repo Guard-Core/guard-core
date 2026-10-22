@@ -24,6 +24,9 @@ USAGE_NAMESPACE = "behavior_usage"
 RECENT_RULE_HITS_WINDOW_SECONDS = 300
 RETURN_NAMESPACE = "behavior_returns"
 TRIP_NAMESPACE = "behavior_throttle"
+MAX_TRIP_MARKERS = 10_000
+MAX_TRACKED_BUCKETS = 10_000
+MAX_TRACKED_CLIENTS_PER_BUCKET = 10_000
 
 _logger = logging.getLogger("guard_core.sync.handlers.behavior")
 _redis_fail_open_warned = False

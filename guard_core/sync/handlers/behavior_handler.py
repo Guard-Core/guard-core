@@ -97,6 +97,8 @@ class BehaviorRule:
 
 
 _RECENT_ENDPOINT_ID = "recent"
+_MAX_TRACKED_ENDPOINTS = 10_000
+_MAX_TRACKED_CLIENTS_PER_ENDPOINT = 10_000
 
 
 class BehaviorTracker(
