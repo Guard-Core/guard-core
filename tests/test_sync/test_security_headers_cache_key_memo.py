@@ -53,3 +53,21 @@ def test_a_changed_config_gets_a_new_key_and_the_old_one_comes_back() -> None:
 
     assert changed != first
     assert restored == first
+
+
+def test_a_config_that_cannot_be_copied_is_serialized_without_a_memo(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def refusing_deepcopy(value: Any) -> Any:
+        raise TypeError("not copyable")
+
+    monkeypatch.setattr(_security_headers_cache.copy, "deepcopy", refusing_deepcopy)
+    manager = SecurityHeadersManager()
+    manager._headers_json_memo = None
+    config = _config()
+
+    first = manager._generate_cache_key(None, config)
+    second = manager._generate_cache_key(None, config)
+
+    assert manager._headers_json_memo is None
+    assert first == second
