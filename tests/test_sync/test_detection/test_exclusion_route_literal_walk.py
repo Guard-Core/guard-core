@@ -4,6 +4,7 @@ from typing import Any
 import pytest
 
 from guard_core.models import SecurityConfig
+from guard_core.sync._utils import embedded_json_scan
 from guard_core.sync.decorators.base import RouteConfig
 from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
 from guard_core.sync.utils import detect_penetration_attempt
@@ -158,3 +159,32 @@ def test_only_the_escaped_values_and_their_twins_are_walked(
     assert scanned.count("é") == 2
     assert "line\nbreak" in scanned
     assert not any(text in ("Mary 7", "7") for text in scanned)
+
+
+@pytest.mark.parametrize("content_type", CONTENT_TYPES)
+def test_an_escaped_payload_in_a_top_level_array_is_flagged(
+    content_type: str,
+) -> None:
+    body = json.dumps(["fine", _inner(XSS_ESCAPED)])
+    assert _is_threat(_body(content_type, body), {"html"}) is True
+
+
+@pytest.mark.parametrize("content_type", CONTENT_TYPES)
+def test_an_escaped_key_is_walked_even_when_its_value_is_not_text(
+    content_type: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    scanned = _watch_detect(monkeypatch)
+    body = '{"na\\u00efve": 1, "other": 2}'
+    assert _is_threat(_body(content_type, body), {"html"}) is False
+    assert "naïve" in scanned
+
+
+@pytest.mark.parametrize("content_type", CONTENT_TYPES)
+def test_a_literal_the_tree_does_not_hold_leaves_the_flat_scan_alone(
+    content_type: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        embedded_json_scan, "_decoded_string_literal", lambda literal: "absent"
+    )
+    body = json.dumps({"a": "\u00e9"})
+    assert _is_threat(_body(content_type, body), {"html"}) is False
