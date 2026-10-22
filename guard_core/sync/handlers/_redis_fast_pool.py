@@ -40,12 +40,17 @@ class FastPathConnectionPool(ConnectionPool):
     wait sample, only a wait does.
 
     Hand-written twin of ``guard_core.handlers._redis_fast_pool``: the waiter
-    count and the predicate check run under the Condition's lock.
+    count and the predicate check run under the Condition's lock. redis-py calls
+    ``reset`` in a forked child, which gives the child its own Condition and a
+    zero waiter count: the parent's lock may be held by a thread the child lacks.
     """
 
     def __init__(self, *args: Any, timeout: float, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._wait_timeout = timeout
+
+    def reset(self) -> None:
+        super().reset()
         self._condition = threading.Condition()
         self._waiters = 0
 
