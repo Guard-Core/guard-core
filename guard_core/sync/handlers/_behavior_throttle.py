@@ -15,13 +15,13 @@ from guard_core.scripts.behavior_throttle_lua import BEHAVIOR_THROTTLE_SCRIPT
 from guard_core.sync._utils.identity_hash import _hash_identity_segment
 from guard_core.sync._utils.ip_extraction import _client_identity
 from guard_core.sync._utils.lru_store import _lru_pop_or_create
-from guard_core.sync.handlers._behavior_constants import RECENT_RULE_HITS_WINDOW_SECONDS
 from guard_core.sync.handlers._behavior_evictions import BehaviorEvictionMixin
 
 if TYPE_CHECKING:
     from guard_core.sync.handlers.behavior_handler import BehaviorRule
 
 USAGE_NAMESPACE = "behavior_usage"
+RECENT_RULE_HITS_WINDOW_SECONDS = 300
 RETURN_NAMESPACE = "behavior_returns"
 TRIP_NAMESPACE = "behavior_throttle"
 MAX_TRIP_MARKERS = 10_000

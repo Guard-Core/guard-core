@@ -66,6 +66,7 @@ class _SusPatternsRegistryMixin(_SusPatternsLazyRowsMixin):
     _config: Any = None
     patterns: list[str]
     custom_patterns: set[str]
+    compiled_patterns: list[tuple[re.Pattern, frozenset[str], str]]
     compiled_custom_patterns: set[tuple[re.Pattern, frozenset[str], str]]
     redis_handler: Any = None
     agent_handler: Any = None

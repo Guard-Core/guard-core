@@ -3,7 +3,7 @@ from collections.abc import Iterator
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.suspatterns_handler import SusPatternsManager
 
 _FCK_PATH = "/" + "fckeditor/editor/filemanager/" * 250
@@ -18,7 +18,7 @@ def fresh_manager() -> Iterator[SusPatternsManager]:
     SusPatternsManager._instance = None
     SusPatternsManager._config = None
     try:
-        yield SusPatternsManager(SecurityConfig())
+        yield SusPatternsManager(SyncSecurityConfig())
     finally:
         SusPatternsManager._instance = previous_instance
         SusPatternsManager._config = previous_config

@@ -772,6 +772,7 @@ class SusPatternsManager(_SusPatternsViewsMixin):
 
     custom_patterns: set[str]
 
+    compiled_patterns: list[tuple[re.Pattern, frozenset[str], str]]
     compiled_custom_patterns: set[tuple[re.Pattern, frozenset[str], str]]
     redis_handler: Any
     agent_handler: Any

@@ -66,7 +66,7 @@ def _glob_exclude_path_problems(config: "SecurityConfig[RequestT]") -> list[str]
 
 
 def _anomalous_path_problems(config: "SecurityConfig[RequestT]") -> list[str]:
-    from guard_core._utils.path_normalization import (
+    from guard_core.core.validation.path_matching import (
         _has_routing_anomaly_in_any_decoding,
     )
 
