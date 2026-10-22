@@ -8,9 +8,11 @@ from guard_core._utils.body_reader import (
 from guard_core._utils.detection_result_builders import _build_body_read_error
 from guard_core._utils.honeypot_fields import media_type_of
 from guard_core._utils.request_logging import redact_header_value_for_display
-from guard_core.core.checks._body_read_outcome import body_read_outcome
 from guard_core.core.checks.base import SecurityCheck
 from guard_core.core.checks.helpers import emit_decorator_event, route_config_applies
+from guard_core.core.checks.implementations.suspicious_activity import (
+    body_read_outcome,
+)
 from guard_core.core.events.event_types import EVENT_CONTENT_FILTERED
 from guard_core.decorators.base import RouteConfig
 from guard_core.exceptions import BodyReadFailedError, BodyReadStalledError

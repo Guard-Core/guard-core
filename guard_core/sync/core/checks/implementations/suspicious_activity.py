@@ -16,7 +16,6 @@ from guard_core.sync._utils.route_gate import (
 )
 from guard_core.sync._utils.rule_attribution import pattern_attribution
 from guard_core.sync._utils.sampling import observe_sampled_key
-from guard_core.sync.core.checks._body_read_outcome import body_read_outcome
 from guard_core.sync.core.checks._shared_strikes import StrikeReport
 from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.core.checks.helpers import (
@@ -29,9 +28,10 @@ from guard_core.sync.core.checks.helpers import (
 from guard_core.sync.core.events.event_types import (
     EVENT_DECORATOR_VIOLATION,
     EVENT_PENETRATION_ATTEMPT,
+    EVENT_SUSPICIOUS_REQUEST,
 )
 from guard_core.sync.decorators.base import RouteConfig
-from guard_core.sync.detection_result import DetectionResult
+from guard_core.sync.detection_result import BODY_READ_STALLED, DetectionResult
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 from guard_core.sync.utils import log_activity
 
@@ -54,6 +54,54 @@ def _sample_disabled_detection_event(client_ip: str, route_id: str) -> bool:
         f"{route_id}|{client_ip}",
         window=_DISABLED_DETECTION_EVENT_WINDOW_SECONDS,
         max_tracked=_MAX_TRACKED_DISABLED_DETECTION_CLIENTS,
+    )
+
+
+def body_read_outcome(
+    check: SecurityCheck,
+    request: SyncGuardRequest,
+    client_ip: str,
+    result: DetectionResult,
+) -> GuardResponse | None:
+    config = check.config
+    stalled = result.body_read_error == BODY_READ_STALLED
+    outcome = "stalled" if stalled else "failed"
+    blocks = config.fail_secure and not config.passive_mode
+    log_activity(
+        request,
+        check.logger,
+        log_type="suspicious",
+        reason=f"Request body read {outcome} for IP: {client_ip}",
+        passive_mode=config.passive_mode,
+        trigger_info=result.body_read_detail,
+        level=config.log_suspicious_level,
+        check_name=check.check_name,
+        muted_check_logs=config.muted_check_logs,
+        on_block=config.on_block,
+        sensitive_headers=config.log_sensitive_headers,
+        sensitive_params=config.log_sensitive_params,
+        sensitive_body_fields=config.log_sensitive_body_fields,
+    )
+    check.middleware.event_bus.send_middleware_event(
+        event_type=EVENT_SUSPICIOUS_REQUEST,
+        request=request,
+        action_taken="request_blocked" if blocks else "logged_only",
+        reason=f"Request body read {outcome}: {result.body_read_detail}",
+        passive_mode=config.passive_mode,
+        trigger_info=result.body_read_detail,
+    )
+    if not blocks:
+        return None
+    return _refusal(check, stalled)
+
+
+def _refusal(check: SecurityCheck, stalled: bool) -> GuardResponse:
+    if stalled:
+        return check.middleware.create_error_response(
+            status_code=408, default_message="Request body read timed out"
+        )
+    return check.middleware.create_error_response(
+        status_code=400, default_message="Request body could not be read"
     )
 
 

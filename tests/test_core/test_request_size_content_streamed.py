@@ -285,7 +285,7 @@ async def test_failed_read_follows_fail_secure(
     )
     check = _check(fail_secure=True)
     with patch(
-        "guard_core.core.checks._body_read_outcome.log_activity",
+        "guard_core.core.checks.implementations.suspicious_activity.log_activity",
         new_callable=AsyncMock,
     ) as log:
         response = await check.check(request)
@@ -307,7 +307,7 @@ async def test_failed_read_passes_with_log_and_event_when_fail_secure_is_off(
     )
     check = _check(fail_secure=False)
     with patch(
-        "guard_core.core.checks._body_read_outcome.log_activity",
+        "guard_core.core.checks.implementations.suspicious_activity.log_activity",
         new_callable=AsyncMock,
     ) as log:
         assert await check.check(request) is None

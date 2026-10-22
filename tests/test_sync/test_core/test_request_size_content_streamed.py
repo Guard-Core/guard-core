@@ -283,7 +283,7 @@ def test_failed_read_follows_fail_secure(
     )
     check = _check(fail_secure=True)
     with patch(
-        "guard_core.sync.core.checks._body_read_outcome.log_activity",
+        "guard_core.sync.core.checks.implementations.suspicious_activity.log_activity",
     ) as log:
         response = check.check(request)
     assert response is not None
@@ -304,7 +304,7 @@ def test_failed_read_passes_with_log_and_event_when_fail_secure_is_off(
     )
     check = _check(fail_secure=False)
     with patch(
-        "guard_core.sync.core.checks._body_read_outcome.log_activity",
+        "guard_core.sync.core.checks.implementations.suspicious_activity.log_activity",
     ) as log:
         assert check.check(request) is None
     log.assert_called_once()

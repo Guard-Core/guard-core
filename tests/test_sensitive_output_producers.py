@@ -397,7 +397,7 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "no header, parameter, URL or body value, and never the credential, is "
         "interpolated"
     ),
-    "core/checks/_body_read_outcome.py:body_read_outcome": (
+    "core/checks/implementations/suspicious_activity.py:body_read_outcome": (
         "logs 'Request body read stalled|failed for IP: <client identity>' "
         "and sends the matching event; the detail is the typed error's own "
         "fixed text, and the request goes through log_activity and "
