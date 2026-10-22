@@ -276,21 +276,31 @@ def _sanitize_for_reporting(value: str) -> str:
     )
 
 
+def _credential_row_match_is_cleared(
+    source: str, match: re.Match, context: str
+) -> bool:
+    return (
+        source == CREDENTIAL_FILES_WITH_DIRECTORY_ROW
+        and not is_the_request_url_path(context)
+        and private_key_name_is_bare(match.group())
+    )
+
+
+def _directory_row_match_is_cleared(source: str, match: re.Match) -> bool:
+    return (
+        source in NAMED_DIRECTORY_PATH_SOURCES
+        and named_file_leaf_in_benign_shape()
+        and not named_path_has_a_trick_suffix(match.group())
+    )
+
+
 def _path_row_match_is_cleared(
     pattern: re.Pattern, match: re.Match, context: str
 ) -> bool:
     source = pattern.pattern
-    if (
-        source == CREDENTIAL_FILES_WITH_DIRECTORY_ROW
-        and not is_the_request_url_path(context)
-        and private_key_name_is_bare(match.group())
-    ):
+    if _credential_row_match_is_cleared(source, match, context):
         return True
-    if (
-        source in NAMED_DIRECTORY_PATH_SOURCES
-        and named_file_leaf_in_benign_shape()
-        and not named_path_has_a_trick_suffix(match.group())
-    ):
+    if _directory_row_match_is_cleared(source, match):
         return True
     if source in NAMED_FILE_PATH_SOURCES and (
         named_file_in_a_push_list_is_plain(pattern, match)
