@@ -6,9 +6,11 @@ _SEGMENTS = rf"(?:{_CHAR}+{_SEP})*"
 _SUFFIX = rf"(?:{_SEP}{_CHAR}*)*(?:\?\S*)?\s*\Z"
 _SCRIPT_EXTENSIONS = r"(?:asp|aspx|php|jsp|pl|cgi|sh)"
 
+_FCKEDITOR_PREFIX = rf"fckeditor{_SEP}editor{_SEP}filemanager{_SEP}"
+_FCKEDITOR_TARGET = r"(?:connector|upload)\.(?:asp|aspx|php)"
+
 _NESTED_CHAINS = (
-    rf"fckeditor{_SEP}editor{_SEP}filemanager{_SEP}{_SEGMENTS}"
-    r"(?:connector|upload)\.(?:asp|aspx|php)",
+    rf"{_FCKEDITOR_PREFIX}{_SEGMENTS}{_FCKEDITOR_TARGET}",
     rf"ckfinder{_SEP}core{_SEP}connector{_SEP}(?:asp|aspx|php){_SEP}"
     r"connector\.(?:asp|aspx|php)",
     rf"kcfinder{_SEP}browse\.php",
@@ -71,7 +73,13 @@ def _alternation_by_first_character(chains: tuple[str, ...]) -> str:
     )
 
 
+_FIRST_FCKEDITOR_START = (
+    rf"(?=(?P<fckeditor_start>(?:{_CHAR}+{_SEP})*?{_FCKEDITOR_PREFIX}))"
+    r"(?P=fckeditor_start)"
+)
+
 PROBE_CHAIN_ROW = (
     rf"\A{_SEP}?(?:{_ROOT_TMP_SCRIPT}"
-    rf"|{_SEGMENTS}(?:{_alternation_by_first_character(_NESTED_CHAINS)}){_SUFFIX})"
+    rf"|{_SEGMENTS}(?:{_alternation_by_first_character(_NESTED_CHAINS[1:])}){_SUFFIX}"
+    rf"|{_FIRST_FCKEDITOR_START}{_SEGMENTS}{_FCKEDITOR_TARGET}{_SUFFIX})"
 )

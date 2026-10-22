@@ -1,4 +1,6 @@
 import json
+import re
+import time
 import unicodedata
 from pathlib import Path
 
@@ -8,6 +10,7 @@ from guard_core.models import SecurityConfig
 from guard_core.sync.handlers import _suspatterns_probe_names as generated
 from guard_core.sync.handlers._suspatterns_pattern_table import _PATTERN_DEFINITIONS
 from guard_core.sync.handlers._suspatterns_probe_chains import PROBE_CHAIN_ROW
+from guard_core.sync.handlers.suspatterns_handler import _BUILTIN_PATTERN_COMPILE_FLAGS
 from guard_core.sync.utils import detect_penetration_attempt
 from tests.test_sync.conftest import SyncMockGuardRequest, declare_route
 from tests.wordlists.fetch import git_blob_sha
@@ -87,6 +90,17 @@ def test_the_pattern_table_carries_the_generated_rows_and_the_one_chain_row() ->
     assert set(generated.SCRIPT_NAMES_ANY_DEPTH_RES) <= sources
     assert set(generated.SCRIPT_NAMES_UPLOAD_ONLY_RES) <= sources
     assert PROBE_CHAIN_ROW in sources
+
+
+def test_the_chain_row_scans_a_repeated_fckeditor_chain_in_linear_time() -> None:
+    row = re.compile(PROBE_CHAIN_ROW, _BUILTIN_PATTERN_COMPILE_FLAGS)
+    path = "/" + "fckeditor/editor/filemanager/" * 2000
+    assert len(path) == 58_001
+    started = time.process_time()
+    assert row.search(path) is None
+    elapsed = time.process_time() - started
+    # linear cost: 3.2 ms on an Apple silicon Mac, CPython 3.10; quadratic: 960 ms
+    assert elapsed < 0.05
 
 
 def test_every_name_comes_from_a_vendored_backdoor_list() -> None:
