@@ -33,7 +33,6 @@ if TYPE_CHECKING:
         BoundedResponseBodyReader,
         GuardResponse,
         GuardResponseFactory,
-        MaterializedBodyResponse,
     )
     from guard_core.utils import check_ip_access, is_ip_allowed
 
@@ -57,7 +56,6 @@ __all__ = [
     "sus_patterns_handler",
     "BoundedBodyReader",
     "BoundedResponseBodyReader",
-    "MaterializedBodyResponse",
     "GeoIPHandler",
     "RedisHandlerProtocol",
     "GuardRequest",
@@ -93,7 +91,6 @@ _MODULE_BY_NAME: dict[str, str] = {
     "GuardResponse": "guard_core.protocols.response_protocol",
     "GuardResponseFactory": "guard_core.protocols.response_protocol",
     "BoundedResponseBodyReader": "guard_core.protocols.response_protocol",
-    "MaterializedBodyResponse": "guard_core.protocols.response_protocol",
     "is_ip_allowed": "guard_core.utils",
     "check_ip_access": "guard_core.utils",
     "check_rate_limit_by_ip": "guard_core.handlers.ratelimit_handler",
