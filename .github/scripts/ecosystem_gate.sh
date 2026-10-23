@@ -4,6 +4,8 @@ set -euo pipefail
 repo="$1"
 sync_extra="$2"
 pytest_args="$3"
+read -r -a sync_args <<< "$sync_extra"
+read -r -a pytest_arg_list <<< "$pytest_args"
 wheel_dir="$4"
 expected_version="$5"
 redis_prefix="${6:-}"
@@ -50,8 +52,7 @@ run_pytest_pass() {
   local outfile="$1"
   set +e
   # --no-sync: a plain `uv run` re-syncs to the lockfile and would put PyPI guard-core back over the PR wheel.
-  # shellcheck disable=SC2086 # pytest_args is a deliberate multi-flag string, e.g. "-v --cov=guard --cov-branch"
-  env "${run_env[@]}" uv run --no-sync pytest $pytest_args -rfE 2>&1 | tee "$outfile"
+  env "${run_env[@]}" uv run --no-sync pytest "${pytest_arg_list[@]}" -rfE 2>&1 | tee "$outfile"
   pass_status="${PIPESTATUS[0]}"
   set -e
 }
@@ -77,8 +78,11 @@ cd "$clone_dir"
 echo "::endgroup::"
 
 echo "::group::uv sync $sync_extra"
-# shellcheck disable=SC2086 # sync_extra is a deliberate multi-flag string, e.g. "--extra dev"
-uv sync $sync_extra
+if [ ! -f uv.lock ]; then
+  echo "::error::$repo@$ref has no committed uv.lock, so uv sync --locked cannot run" >&2
+  exit 1
+fi
+uv sync --locked "${sync_args[@]}"
 echo "::endgroup::"
 
 run_env=(IPINFO_TOKEN="${IPINFO_TOKEN:-test_token}" REDIS_URL="${REDIS_URL:-redis://localhost:6379}")
