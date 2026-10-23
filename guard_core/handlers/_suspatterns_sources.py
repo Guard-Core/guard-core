@@ -182,23 +182,16 @@ def _path_only_extension_pattern(required: str) -> str:
 # suffix tricks that make a server run a file under another name (";params",
 # "%00", trailing dots, "::$DATA", a trailing image extension). They sit
 # behind the same route gate as the v4.4.0 extensions.
+# The ";" and "%00" tails read "anything but a separator, a query mark or a space" as a
+# lookahead per character: the same language as [^/\\?\s]*, but the row then holds a
+# single broad unbounded quantifier (the one after "?") and the ReDoS validator times
+# the row instead of flagging two adjacent ones.
 _EXTENSION_TRICK_SUFFIX = (
-    r"(?:;[^/\\?\s]*|\.+|::\$(?:DATA|INDEX_ALLOCATION)|%00[^/\\?\s]*"
-    r"|\.(?:jpe?g|png|gif|ico|bmp))?"
-)
-_NAMED_PATH_SUFFIX_RE = (
-    rf"(?:{_PATH_ONLY_SEP_RE}{_PATH_ONLY_CHAR_RE}*)*{_EXTENSION_TRICK_SUFFIX}"
-    r"(?:\?\S*)?\s*\Z"
-)
-# The same language as _NAMED_PATH_SUFFIX_RE with the two ";" and "%00" tails written
-# as a lookahead per character, so the row holds a single broad unbounded quantifier
-# (the one after "?") and the validator measures its cost instead of flagging two.
-_LINEAR_EXTENSION_TRICK_SUFFIX = (
     r"(?:;(?:(?![/\\?])\S)*|\.+|::\$(?:DATA|INDEX_ALLOCATION)"
     r"|%00(?:(?![/\\?])\S)*|\.(?:jpe?g|png|gif|ico|bmp))?"
 )
-_LINEAR_NAMED_PATH_SUFFIX_RE = (
-    rf"(?:{_PATH_ONLY_SEP_RE}{_PATH_ONLY_CHAR_RE}*)*{_LINEAR_EXTENSION_TRICK_SUFFIX}"
+_NAMED_PATH_SUFFIX_RE = (
+    rf"(?:{_PATH_ONLY_SEP_RE}{_PATH_ONLY_CHAR_RE}*)*{_EXTENSION_TRICK_SUFFIX}"
     r"(?:\?\S*)?\s*\Z"
 )
 _SENSITIVE_SOURCE_BARE_EXTENSIONS = (

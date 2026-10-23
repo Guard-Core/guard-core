@@ -2,7 +2,7 @@ import re
 
 from guard_core.sync.handlers._suspatterns_sources import (
     _CTX_SENSITIVE_FILE,
-    _LINEAR_NAMED_PATH_SUFFIX_RE,
+    _NAMED_PATH_SUFFIX_RE,
     _PATH_ONLY_SEP_RE,
     _path_only_pattern,
 )
@@ -51,7 +51,7 @@ CREDENTIAL_FILES_REQUIRED = (
 # ones by name): one row, so the credential list adds no regex call to a request.
 CREDENTIAL_FILES_WITH_DIRECTORY_ROW = _path_only_pattern(
     rf"(?:\.env(?:\.\w+)?|{CREDENTIAL_FILES_REQUIRED})",
-    suffix=_LINEAR_NAMED_PATH_SUFFIX_RE,
+    suffix=_NAMED_PATH_SUFFIX_RE,
 )
 
 CREDENTIAL_FILE_ROWS: tuple[tuple[str, frozenset[str], str], ...] = (
