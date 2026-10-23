@@ -74,6 +74,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
+          # Stays on 3.10 on purpose until the Ledger decides per-version timing rows (D-107 item 4): the arbiter result is compared with master's runs of this same job (GATE-RULES, tier 3), so the interpreter is held fixed for that comparison.
           python-version: '3.10'
 
       - name: Install uv
@@ -210,6 +211,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
+          # Stays on 3.10 on purpose until the Ledger decides per-version timing rows (D-107 item 4): the arbiter result is compared with master's runs of this same job (GATE-RULES, tier 3), so the interpreter is held fixed for that comparison.
           python-version: '3.10'
 
       - name: Install uv
@@ -293,6 +295,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
+          # Stays on 3.10 on purpose until the Ledger decides per-version timing rows (D-107 item 4): the arbiter result is compared with master's runs of this same job (GATE-RULES, tier 3), so the interpreter is held fixed for that comparison.
           python-version: '3.10'
 
       - name: Install uv
