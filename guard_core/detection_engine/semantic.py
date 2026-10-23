@@ -2,11 +2,15 @@ import ast
 import logging
 import re
 from collections import Counter
+from time import thread_time
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
 _BINARY_CONTENT_RATIO_THRESHOLD = 0.2
+# CPU time of the parse, not wall time: a loaded host that delays the scan must
+# not change a verdict.
+AST_PARSE_CPU_BUDGET_SECONDS = 0.1
 
 
 def looks_like_binary_content(content: str) -> bool:
@@ -291,22 +295,21 @@ class SemanticAnalyzer:
         try:
             import concurrent.futures
 
-            def _parse_ast() -> bool:
+            def _parse_ast() -> tuple[bool, float]:
+                started = thread_time()
                 try:
                     ast.parse(content, mode="eval")
-                    return True
-                except SyntaxError:
-                    return False
+                    parsed = True
                 except Exception:
-                    return False
+                    parsed = False
+                return parsed, thread_time() - started
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(_parse_ast)
-                try:
-                    if future.result(timeout=0.1):
-                        return 0.3
-                except concurrent.futures.TimeoutError:
-                    return 0.2
+                parsed, cpu_seconds = executor.submit(_parse_ast).result()
+            if cpu_seconds > AST_PARSE_CPU_BUDGET_SECONDS:
+                return 0.2
+            if parsed:
+                return 0.3
 
         except Exception:
             logger.warning(

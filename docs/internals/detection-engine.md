@@ -207,7 +207,7 @@ Shannon entropy of the character distribution. High entropy (> 4.5) indicates po
 `analyze_code_injection_risk()` scores (0.0 - 1.0) based on:
 
 - Code-like patterns (`{}`, function calls, variable references)
-- AST parseability (attempts `ast.parse(content, mode="eval")` with 100ms timeout)
+- AST parseability (attempts `ast.parse(content, mode="eval")` scored as a timeout risk when the parse itself uses more than 100 ms of CPU time, so host load never changes the score)
 - Injection keywords (`eval`, `exec`, `compile`, `__import__`, `globals`, `locals`)
 
 ### Threat Score

@@ -1,4 +1,3 @@
-import concurrent.futures
 import multiprocessing as mp
 import random
 import re
@@ -235,15 +234,12 @@ def test_analyze_code_injection_risk_ast_timeout() -> None:
 
     content = "some code content"
 
-    with patch("concurrent.futures.ThreadPoolExecutor") as mock_executor:
-        mock_future = MagicMock()
-        mock_future.result.side_effect = concurrent.futures.TimeoutError()
-        mock_submit = mock_executor.return_value.__enter__.return_value.submit
-        mock_submit.return_value = mock_future
-
+    with patch(
+        "guard_core.detection_engine.semantic.thread_time", side_effect=[0.0, 0.5]
+    ):
         risk = analyzer.analyze_code_injection_risk(content)
 
-        assert risk >= 0.2
+    assert risk >= 0.2
 
 
 def test_analyze_code_injection_risk_ast_exception() -> None:
