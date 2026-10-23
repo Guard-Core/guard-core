@@ -126,6 +126,7 @@ class ModifierResponseView:
         body: bytes | None = None,
         refusal: str | None = None,
         gate_args: tuple[GuardResponse, str, int] | None = None,
+        record_writes: bool = True,
     ) -> None:
         state = self.__dict__
         state["_real"] = real
@@ -133,7 +134,9 @@ class ModifierResponseView:
         state["_gate_args"] = gate_args
         state["_attribute_undo"] = []
         state["body_requested"] = False
-        state["headers"] = RecordingHeaders(real.headers)
+        state["headers"] = (
+            RecordingHeaders(real.headers) if record_writes else real.headers
+        )
         if body is not None:
             state["body"] = body
 

@@ -384,3 +384,11 @@ def test_gate_uses_one_lookup_for_a_case_insensitive_mapping() -> None:
     assert body_gate_refusal(allowed, "GET", 1024) is None
     missing = _guard(_Response(_CaseInsensitive({"x-other": "1"})))
     assert body_gate_refusal(missing, "GET", 1024) is not None
+
+
+def test_a_view_that_records_no_writes_hands_out_the_real_headers() -> None:
+    real: Any = _Response({"A": "1"})
+    view: Any = ModifierResponseView(_guard(real), record_writes=False)
+    assert view.headers is real.headers
+    view.headers["B"] = "2"
+    assert real.headers == {"A": "1", "B": "2"}

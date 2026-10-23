@@ -73,6 +73,7 @@ def apply_modifier_with_bounded_body(
             request.method,
             config.custom_response_modifier_max_body_bytes,
         ),
+        record_writes=False,
     )
     view.__dict__["_lazy"] = (config, prefetch, logger, agent_handler, request)
     result: Any = view
