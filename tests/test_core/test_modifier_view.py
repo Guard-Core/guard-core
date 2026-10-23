@@ -31,7 +31,7 @@ class _Response:
         prefix: object = b"",
     ) -> None:
         self.status_code = status_code
-        self.headers: dict[str, str] = dict(headers or {})
+        self.headers: dict[str, str] = {} if headers is None else headers
         self.prefix = prefix
         self.reads = 0
 
