@@ -52,6 +52,7 @@ CREDENTIAL_FILES_REQUIRED = (
 CREDENTIAL_FILES_WITH_DIRECTORY_ROW = _path_only_pattern(
     rf"(?:\.env(?:\.\w+)?|{CREDENTIAL_FILES_REQUIRED})",
     suffix=_NAMED_PATH_SUFFIX_RE,
+    first_characters="._tTiI",
 )
 
 CREDENTIAL_FILE_ROWS: tuple[tuple[str, frozenset[str], str], ...] = (

@@ -9,7 +9,9 @@ import re
 
 PATH_CHAR = r"[\w.\-~%]"
 PATH_SEP = r"[/\\]"
-PATH_SUFFIX = rf"(?:{PATH_SEP}{PATH_CHAR}*)*(?:\?\S*)?\s*\Z"
+# "/segment" groups as one separator then a flat run of separator and name characters
+# (the same language): a failing tail backtracks one character at a time.
+PATH_SUFFIX = rf"(?:{PATH_SEP}[/\\\w.\-~%]*)?(?:\?\S*)?\s*\Z"
 UPLOAD_DIRECTORIES = r"(?:uploads?|files|images|media|tmp)"
 
 

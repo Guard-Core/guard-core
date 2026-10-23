@@ -633,6 +633,7 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
             r"|(?:wp-config|config|configuration)\.php"
             r"|database\.ya?ml|appsettings(?:\.\w+)?\.json)",
             suffix=_NAMED_PATH_SUFFIX_RE,
+            first_characters="lLsScCwWdDaA",
         ),
         _CTX_SENSITIVE_FILE,
         "sensitive_file",
@@ -662,7 +663,11 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
         "recon",
     ),
     (
-        _path_only_pattern(r"\.(?:git|svn|hg|bzr)", suffix=_NAMED_PATH_SUFFIX_RE),
+        _path_only_pattern(
+            r"\.(?:git|svn|hg|bzr)",
+            suffix=_NAMED_PATH_SUFFIX_RE,
+            first_characters=".",
+        ),
         _CTX_SENSITIVE_FILE,
         "sensitive_file",
     ),
@@ -683,6 +688,7 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
             r"(?:wp-(?:admin|login|includes|config)|administrator|xmlrpc)"
             r"\.?(?:php)?",
             suffix=_NAMED_PATH_SUFFIX_RE,
+            first_characters="wWaAxX",
         ),
         _CTX_CMS_PROBING,
         "cms_probing",
@@ -726,6 +732,7 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
             r"(?:\.htaccess|\.htpasswd|\.DS_Store|Thumbs\.db"
             r"|\.npmrc|\.dockerenv|web\.config)",
             suffix=_NAMED_PATH_SUFFIX_RE,
+            first_characters=".tTwW",
         ),
         _CTX_CMS_PROBING,
         "cms_probing",
@@ -783,6 +790,7 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
             r"|centreon|kylin|decisioncenter|evox|MagicInfo|metasys"
             r"|officescan|helpdesk|ignite)",
             trailing=rf"(?:[.\-]{_PATH_ONLY_CHAR_RE}*)?",
+            first_characters="gGcCnNsSpPkKdDeEmMoOhHiI",
         ),
         _CTX_RECON,
         "recon",
@@ -816,7 +824,8 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
         _path_only_pattern(
             r"(?:sap|ise|nidp|cslu|rustfs|developmentserver"
             r"|fog/management|lms/db|json/login_session|sms_mp"
-            r"|plugin/webs_model|wsman|am_bin)"
+            r"|plugin/webs_model|wsman|am_bin)",
+            first_characters="sSiInNcCrRdDfFlLjJpPwWaA",
         ),
         _CTX_RECON,
         "recon",
@@ -851,7 +860,8 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
     (
         _path_only_pattern(
             r"(?:docker-compose|Dockerfile|Makefile|Vagrantfile"
-            r"|Jenkinsfile|Procfile)(?:\.ya?ml)?"
+            r"|Jenkinsfile|Procfile)(?:\.ya?ml)?",
+            first_characters="dDmMvVjJpP",
         ),
         _CTX_RECON,
         "recon",

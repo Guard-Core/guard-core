@@ -176,7 +176,7 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "\\A[/\\\\]?(?:(?!(?:\\.env(?:\\.\\w+)?|(?:(?:\\.ssh[/\\\\](?:id_(?:rsa|dsa|ecdsa|ed25519|ecdsa_sk|ed25519_sk)|authorized_keys)|\\.aws[/\\\\]credentials|\\.docker[/\\\\]config\\.json|\\.kube[/\\\\]config|\\.azure[/\\\\](?:accessTokens|msal_token_cache)\\.json|\\.config[/\\\\]gh[/\\\\]hosts\\.yml|\\.config[/\\\\]gcloud[/\\\\](?:credentials\\.db|application_default_credentials\\.json)|\\.terraform\\.d[/\\\\]credentials\\.tfrc\\.json|\\.m2[/\\\\]settings\\.xml|\\.gradle[/\\\\]gradle\\.properties|\\.cargo[/\\\\]credentials(?:\\.toml)?|\\.gem[/\\\\]credentials|\\.(?:config[/\\\\])?composer[/\\\\]auth\\.json)|(?:\\.git-credentials|\\.netrc|_netrc|\\.pgpass|\\.pypirc|\\.vault-token|\\.s3cfg|\\.boto|terraform\\.tfstate|\\.bash_history|\\.zsh_history)|(?<=[/\\\\])id_(?:rsa|dsa|ecdsa|ed25519|ecdsa_sk|ed25519_sk)))(?:[/\\\\]|\\Z))[\\w.\\-~%]+[/\\\\])*(?:\\.env(?:\\.\\w+)?|(?:(?:\\.ssh[/\\\\](?:id_(?:rsa|dsa|ecdsa|ed25519|ecdsa_sk|ed25519_sk)|authorized_keys)|\\.aws[/\\\\]credentials|\\.docker[/\\\\]config\\.json|\\.kube[/\\\\]config|\\.azure[/\\\\](?:accessTokens|msal_token_cache)\\.json|\\.config[/\\\\]gh[/\\\\]hosts\\.yml|\\.config[/\\\\]gcloud[/\\\\](?:credentials\\.db|application_default_credentials\\.json)|\\.terraform\\.d[/\\\\]credentials\\.tfrc\\.json|\\.m2[/\\\\]settings\\.xml|\\.gradle[/\\\\]gradle\\.properties|\\.cargo[/\\\\]credentials(?:\\.toml)?|\\.gem[/\\\\]credentials|\\.(?:config[/\\\\])?composer[/\\\\]auth\\.json)|(?:\\.git-credentials|\\.netrc|_netrc|\\.pgpass|\\.pypirc|\\.vault-token|\\.s3cfg|\\.boto|terraform\\.tfstate|\\.bash_history|\\.zsh_history)|(?<=[/\\\\])id_(?:rsa|dsa|ecdsa|ed25519|ecdsa_sk|ed25519_sk)))(?:[/\\\\][\\w.\\-~%]*)*(?:;(?:(?![/\\\\?])\\S)*|\\.+|::\\$(?:DATA|INDEX_ALLOCATION)|%00(?:(?![/\\\\?])\\S)*|\\.(?:jpe?g|png|gif|ico|bmp))?(?:\\?\\S*)?\\s*\\Z",
+            "pattern": "\\A[/\\\\]?(?:(?!(?=[._tTiI])(?:\\.env(?:\\.\\w+)?|(?:(?:\\.ssh[/\\\\](?:id_(?:rsa|dsa|ecdsa|ed25519|ecdsa_sk|ed25519_sk)|authorized_keys)|\\.aws[/\\\\]credentials|\\.docker[/\\\\]config\\.json|\\.kube[/\\\\]config|\\.azure[/\\\\](?:accessTokens|msal_token_cache)\\.json|\\.config[/\\\\]gh[/\\\\]hosts\\.yml|\\.config[/\\\\]gcloud[/\\\\](?:credentials\\.db|application_default_credentials\\.json)|\\.terraform\\.d[/\\\\]credentials\\.tfrc\\.json|\\.m2[/\\\\]settings\\.xml|\\.gradle[/\\\\]gradle\\.properties|\\.cargo[/\\\\]credentials(?:\\.toml)?|\\.gem[/\\\\]credentials|\\.(?:config[/\\\\])?composer[/\\\\]auth\\.json)|(?:\\.git-credentials|\\.netrc|_netrc|\\.pgpass|\\.pypirc|\\.vault-token|\\.s3cfg|\\.boto|terraform\\.tfstate|\\.bash_history|\\.zsh_history)|(?<=[/\\\\])id_(?:rsa|dsa|ecdsa|ed25519|ecdsa_sk|ed25519_sk)))(?:[/\\\\]|\\Z))[\\w.\\-~%]+[/\\\\])*(?=[._tTiI])(?:\\.env(?:\\.\\w+)?|(?:(?:\\.ssh[/\\\\](?:id_(?:rsa|dsa|ecdsa|ed25519|ecdsa_sk|ed25519_sk)|authorized_keys)|\\.aws[/\\\\]credentials|\\.docker[/\\\\]config\\.json|\\.kube[/\\\\]config|\\.azure[/\\\\](?:accessTokens|msal_token_cache)\\.json|\\.config[/\\\\]gh[/\\\\]hosts\\.yml|\\.config[/\\\\]gcloud[/\\\\](?:credentials\\.db|application_default_credentials\\.json)|\\.terraform\\.d[/\\\\]credentials\\.tfrc\\.json|\\.m2[/\\\\]settings\\.xml|\\.gradle[/\\\\]gradle\\.properties|\\.cargo[/\\\\]credentials(?:\\.toml)?|\\.gem[/\\\\]credentials|\\.(?:config[/\\\\])?composer[/\\\\]auth\\.json)|(?:\\.git-credentials|\\.netrc|_netrc|\\.pgpass|\\.pypirc|\\.vault-token|\\.s3cfg|\\.boto|terraform\\.tfstate|\\.bash_history|\\.zsh_history)|(?<=[/\\\\])id_(?:rsa|dsa|ecdsa|ed25519|ecdsa_sk|ed25519_sk)))(?:[/\\\\][/\\\\\\w.\\-~%]*)?(?:;(?:(?![/\\\\?])\\S)*|\\.+|::\\$(?:DATA|INDEX_ALLOCATION)|%00(?:(?![/\\\\?])\\S)*|\\.(?:jpe?g|png|gif|ico|bmp))?(?:\\?\\S*)?\\s*\\Z",
             "match": "/.env",
             "position": 0,
             "category": "sensitive_file",
@@ -200,7 +200,7 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "\\A[/\\\\]?(?:(?!\\.(?:git|svn|hg|bzr)(?:[/\\\\]|\\Z))[\\w.\\-~%]+[/\\\\])*\\.(?:git|svn|hg|bzr)(?:[/\\\\][\\w.\\-~%]*)*(?:;(?:(?![/\\\\?])\\S)*|\\.+|::\\$(?:DATA|INDEX_ALLOCATION)|%00(?:(?![/\\\\?])\\S)*|\\.(?:jpe?g|png|gif|ico|bmp))?(?:\\?\\S*)?\\s*\\Z",
+            "pattern": "\\A[/\\\\]?(?:(?!(?=[.])\\.(?:git|svn|hg|bzr)(?:[/\\\\]|\\Z))[\\w.\\-~%]+[/\\\\])*(?=[.])\\.(?:git|svn|hg|bzr)(?:[/\\\\][/\\\\\\w.\\-~%]*)?(?:;(?:(?![/\\\\?])\\S)*|\\.+|::\\$(?:DATA|INDEX_ALLOCATION)|%00(?:(?![/\\\\?])\\S)*|\\.(?:jpe?g|png|gif|ico|bmp))?(?:\\?\\S*)?\\s*\\Z",
             "match": "/.git/config",
             "position": 0,
             "category": "sensitive_file",
@@ -224,7 +224,7 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "\\A[/\\\\](?:(?!(?:management|config_dump|credentials|system[/\\\\]version|version[/\\\\]system)(?:[/\\\\]|\\Z))[\\w.\\-~%]+[/\\\\])*(?:management|config_dump|credentials|system[/\\\\]version|version[/\\\\]system)(?:[/\\\\][\\w.\\-~%]*)*(?:\\?\\S*)?\\s*\\Z",
+            "pattern": "\\A[/\\\\](?:(?!(?:management|config_dump|credentials|system[/\\\\]version|version[/\\\\]system)(?:[/\\\\]|\\Z))[\\w.\\-~%]+[/\\\\])*(?:management|config_dump|credentials|system[/\\\\]version|version[/\\\\]system)(?:[/\\\\][/\\\\\\w.\\-~%]*)?(?:\\?\\S*)?\\s*\\Z",
             "match": "/.aws/credentials",
             "position": 0,
             "category": "recon",
@@ -232,7 +232,7 @@
           },
           {
             "type": "regex",
-            "pattern": "\\A[/\\\\]?(?:(?!(?:\\.env(?:\\.\\w+)?|(?:(?:\\.ssh[/\\\\](?:id_(?:rsa|dsa|ecdsa|ed25519|ecdsa_sk|ed25519_sk)|authorized_keys)|\\.aws[/\\\\]credentials|\\.docker[/\\\\]config\\.json|\\.kube[/\\\\]config|\\.azure[/\\\\](?:accessTokens|msal_token_cache)\\.json|\\.config[/\\\\]gh[/\\\\]hosts\\.yml|\\.config[/\\\\]gcloud[/\\\\](?:credentials\\.db|application_default_credentials\\.json)|\\.terraform\\.d[/\\\\]credentials\\.tfrc\\.json|\\.m2[/\\\\]settings\\.xml|\\.gradle[/\\\\]gradle\\.properties|\\.cargo[/\\\\]credentials(?:\\.toml)?|\\.gem[/\\\\]credentials|\\.(?:config[/\\\\])?composer[/\\\\]auth\\.json)|(?:\\.git-credentials|\\.netrc|_netrc|\\.pgpass|\\.pypirc|\\.vault-token|\\.s3cfg|\\.boto|terraform\\.tfstate|\\.bash_history|\\.zsh_history)|(?<=[/\\\\])id_(?:rsa|dsa|ecdsa|ed25519|ecdsa_sk|ed25519_sk)))(?:[/\\\\]|\\Z))[\\w.\\-~%]+[/\\\\])*(?:\\.env(?:\\.\\w+)?|(?:(?:\\.ssh[/\\\\](?:id_(?:rsa|dsa|ecdsa|ed25519|ecdsa_sk|ed25519_sk)|authorized_keys)|\\.aws[/\\\\]credentials|\\.docker[/\\\\]config\\.json|\\.kube[/\\\\]config|\\.azure[/\\\\](?:accessTokens|msal_token_cache)\\.json|\\.config[/\\\\]gh[/\\\\]hosts\\.yml|\\.config[/\\\\]gcloud[/\\\\](?:credentials\\.db|application_default_credentials\\.json)|\\.terraform\\.d[/\\\\]credentials\\.tfrc\\.json|\\.m2[/\\\\]settings\\.xml|\\.gradle[/\\\\]gradle\\.properties|\\.cargo[/\\\\]credentials(?:\\.toml)?|\\.gem[/\\\\]credentials|\\.(?:config[/\\\\])?composer[/\\\\]auth\\.json)|(?:\\.git-credentials|\\.netrc|_netrc|\\.pgpass|\\.pypirc|\\.vault-token|\\.s3cfg|\\.boto|terraform\\.tfstate|\\.bash_history|\\.zsh_history)|(?<=[/\\\\])id_(?:rsa|dsa|ecdsa|ed25519|ecdsa_sk|ed25519_sk)))(?:[/\\\\][\\w.\\-~%]*)*(?:;(?:(?![/\\\\?])\\S)*|\\.+|::\\$(?:DATA|INDEX_ALLOCATION)|%00(?:(?![/\\\\?])\\S)*|\\.(?:jpe?g|png|gif|ico|bmp))?(?:\\?\\S*)?\\s*\\Z",
+            "pattern": "\\A[/\\\\]?(?:(?!(?=[._tTiI])(?:\\.env(?:\\.\\w+)?|(?:(?:\\.ssh[/\\\\](?:id_(?:rsa|dsa|ecdsa|ed25519|ecdsa_sk|ed25519_sk)|authorized_keys)|\\.aws[/\\\\]credentials|\\.docker[/\\\\]config\\.json|\\.kube[/\\\\]config|\\.azure[/\\\\](?:accessTokens|msal_token_cache)\\.json|\\.config[/\\\\]gh[/\\\\]hosts\\.yml|\\.config[/\\\\]gcloud[/\\\\](?:credentials\\.db|application_default_credentials\\.json)|\\.terraform\\.d[/\\\\]credentials\\.tfrc\\.json|\\.m2[/\\\\]settings\\.xml|\\.gradle[/\\\\]gradle\\.properties|\\.cargo[/\\\\]credentials(?:\\.toml)?|\\.gem[/\\\\]credentials|\\.(?:config[/\\\\])?composer[/\\\\]auth\\.json)|(?:\\.git-credentials|\\.netrc|_netrc|\\.pgpass|\\.pypirc|\\.vault-token|\\.s3cfg|\\.boto|terraform\\.tfstate|\\.bash_history|\\.zsh_history)|(?<=[/\\\\])id_(?:rsa|dsa|ecdsa|ed25519|ecdsa_sk|ed25519_sk)))(?:[/\\\\]|\\Z))[\\w.\\-~%]+[/\\\\])*(?=[._tTiI])(?:\\.env(?:\\.\\w+)?|(?:(?:\\.ssh[/\\\\](?:id_(?:rsa|dsa|ecdsa|ed25519|ecdsa_sk|ed25519_sk)|authorized_keys)|\\.aws[/\\\\]credentials|\\.docker[/\\\\]config\\.json|\\.kube[/\\\\]config|\\.azure[/\\\\](?:accessTokens|msal_token_cache)\\.json|\\.config[/\\\\]gh[/\\\\]hosts\\.yml|\\.config[/\\\\]gcloud[/\\\\](?:credentials\\.db|application_default_credentials\\.json)|\\.terraform\\.d[/\\\\]credentials\\.tfrc\\.json|\\.m2[/\\\\]settings\\.xml|\\.gradle[/\\\\]gradle\\.properties|\\.cargo[/\\\\]credentials(?:\\.toml)?|\\.gem[/\\\\]credentials|\\.(?:config[/\\\\])?composer[/\\\\]auth\\.json)|(?:\\.git-credentials|\\.netrc|_netrc|\\.pgpass|\\.pypirc|\\.vault-token|\\.s3cfg|\\.boto|terraform\\.tfstate|\\.bash_history|\\.zsh_history)|(?<=[/\\\\])id_(?:rsa|dsa|ecdsa|ed25519|ecdsa_sk|ed25519_sk)))(?:[/\\\\][/\\\\\\w.\\-~%]*)?(?:;(?:(?![/\\\\?])\\S)*|\\.+|::\\$(?:DATA|INDEX_ALLOCATION)|%00(?:(?![/\\\\?])\\S)*|\\.(?:jpe?g|png|gif|ico|bmp))?(?:\\?\\S*)?\\s*\\Z",
             "match": "/.aws/credentials",
             "position": 0,
             "category": "sensitive_file",
@@ -256,7 +256,7 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "\\A[/\\\\]?(?:(?!(?:\\.htaccess|\\.htpasswd|\\.DS_Store|Thumbs\\.db|\\.npmrc|\\.dockerenv|web\\.config)(?:[/\\\\]|\\Z))[\\w.\\-~%]+[/\\\\])*(?:\\.htaccess|\\.htpasswd|\\.DS_Store|Thumbs\\.db|\\.npmrc|\\.dockerenv|web\\.config)(?:[/\\\\][\\w.\\-~%]*)*(?:;(?:(?![/\\\\?])\\S)*|\\.+|::\\$(?:DATA|INDEX_ALLOCATION)|%00(?:(?![/\\\\?])\\S)*|\\.(?:jpe?g|png|gif|ico|bmp))?(?:\\?\\S*)?\\s*\\Z",
+            "pattern": "\\A[/\\\\]?(?:(?!(?=[.tTwW])(?:\\.htaccess|\\.htpasswd|\\.DS_Store|Thumbs\\.db|\\.npmrc|\\.dockerenv|web\\.config)(?:[/\\\\]|\\Z))[\\w.\\-~%]+[/\\\\])*(?=[.tTwW])(?:\\.htaccess|\\.htpasswd|\\.DS_Store|Thumbs\\.db|\\.npmrc|\\.dockerenv|web\\.config)(?:[/\\\\][/\\\\\\w.\\-~%]*)?(?:;(?:(?![/\\\\?])\\S)*|\\.+|::\\$(?:DATA|INDEX_ALLOCATION)|%00(?:(?![/\\\\?])\\S)*|\\.(?:jpe?g|png|gif|ico|bmp))?(?:\\?\\S*)?\\s*\\Z",
             "match": "/.htpasswd",
             "position": 0,
             "category": "cms_probing",
@@ -280,7 +280,7 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "\\A[/\\\\]?(?:(?![\\w.\\-~%]*\\.(?:bak|backup|old|orig|save|swp|swo|tmp|temp)(?:[/\\\\]|\\Z))[\\w.\\-~%]+[/\\\\])*[\\w.\\-~%]*\\.(?:bak|backup|old|orig|save|swp|swo|tmp|temp)(?:[/\\\\][\\w.\\-~%]*)*(?:\\?\\S*)?\\s*\\Z",
+            "pattern": "\\A[/\\\\]?(?:(?![\\w.\\-~%]*\\.(?:bak|backup|old|orig|save|swp|swo|tmp|temp)(?:[/\\\\]|\\Z))[\\w.\\-~%]+[/\\\\])*[\\w.\\-~%]*\\.(?:bak|backup|old|orig|save|swp|swo|tmp|temp)(?:[/\\\\][/\\\\\\w.\\-~%]*)?(?:\\?\\S*)?\\s*\\Z",
             "match": "/config.php.bak",
             "position": 0,
             "category": "cms_probing",
@@ -304,7 +304,7 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "\\A[/\\\\]?(?:(?!(?:wp-(?:admin|login|content|includes|config)|administrator|xmlrpc)\\.?(?:php)?(?:[/\\\\]|\\Z))[\\w.\\-~%]+[/\\\\])*(?:wp-(?:admin|login|content|includes|config)|administrator|xmlrpc)\\.?(?:php)?(?:[/\\\\][\\w.\\-~%]*)*(?:\\?\\S*)?\\s*\\Z",
+            "pattern": "\\A[/\\\\]?(?:(?!(?:wp-(?:admin|login|content|includes|config)|administrator|xmlrpc)\\.?(?:php)?(?:[/\\\\]|\\Z))[\\w.\\-~%]+[/\\\\])*(?:wp-(?:admin|login|content|includes|config)|administrator|xmlrpc)\\.?(?:php)?(?:[/\\\\][/\\\\\\w.\\-~%]*)?(?:\\?\\S*)?\\s*\\Z",
             "match": "/wp-login.php",
             "position": 0,
             "category": "cms_probing",
@@ -312,7 +312,7 @@
           },
           {
             "type": "regex",
-            "pattern": "\\A[/\\\\]?(?:(?!(?:wp-(?:admin|login|includes|config)|administrator|xmlrpc)\\.?(?:php)?(?:[/\\\\]|\\Z))[\\w.\\-~%]+[/\\\\])*(?:wp-(?:admin|login|includes|config)|administrator|xmlrpc)\\.?(?:php)?(?:[/\\\\][\\w.\\-~%]*)*(?:;(?:(?![/\\\\?])\\S)*|\\.+|::\\$(?:DATA|INDEX_ALLOCATION)|%00(?:(?![/\\\\?])\\S)*|\\.(?:jpe?g|png|gif|ico|bmp))?(?:\\?\\S*)?\\s*\\Z",
+            "pattern": "\\A[/\\\\]?(?:(?!(?=[wWaAxX])(?:wp-(?:admin|login|includes|config)|administrator|xmlrpc)\\.?(?:php)?(?:[/\\\\]|\\Z))[\\w.\\-~%]+[/\\\\])*(?=[wWaAxX])(?:wp-(?:admin|login|includes|config)|administrator|xmlrpc)\\.?(?:php)?(?:[/\\\\][/\\\\\\w.\\-~%]*)?(?:;(?:(?![/\\\\?])\\S)*|\\.+|::\\$(?:DATA|INDEX_ALLOCATION)|%00(?:(?![/\\\\?])\\S)*|\\.(?:jpe?g|png|gif|ico|bmp))?(?:\\?\\S*)?\\s*\\Z",
             "match": "/wp-login.php",
             "position": 0,
             "category": "cms_probing",
@@ -320,7 +320,7 @@
           },
           {
             "type": "regex",
-            "pattern": "\\A[/\\\\]?(?:[\\w.\\-~%]+[/\\\\])*[\\w.\\-~%]*\\.(?:ts|tsx|jsx|py|rb|java|go|rs|php|pl|sh|sql|phtml|php[3-8]|pht|phps|phar)(?:;(?:(?![/\\\\?])\\S)*|\\.+|::\\$(?:DATA|INDEX_ALLOCATION)|%00(?:(?![/\\\\?])\\S)*|\\.(?:jpe?g|png|gif|ico|bmp))?(?:[/\\\\][\\w.\\-~%]*)*(?:\\?\\S*)?\\s*\\Z",
+            "pattern": "\\A[/\\\\]?(?:[\\w.\\-~%]+[/\\\\])*[\\w.\\-~%]*\\.(?:ts|tsx|jsx|py|rb|java|go|rs|php|pl|sh|sql|phtml|php[3-8]|pht|phps|phar)(?:;(?:(?![/\\\\?])\\S)*|\\.+|::\\$(?:DATA|INDEX_ALLOCATION)|%00(?:(?![/\\\\?])\\S)*|\\.(?:jpe?g|png|gif|ico|bmp))?(?:[/\\\\][/\\\\\\w.\\-~%]*)?(?:\\?\\S*)?\\s*\\Z",
             "match": "/wp-login.php",
             "position": 0,
             "category": "sensitive_file",
@@ -344,7 +344,7 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "\\A[/\\\\]?(?:(?!(?:wp-(?:admin|login|content|includes|config)|administrator|xmlrpc)\\.?(?:php)?(?:[/\\\\]|\\Z))[\\w.\\-~%]+[/\\\\])*(?:wp-(?:admin|login|content|includes|config)|administrator|xmlrpc)\\.?(?:php)?(?:[/\\\\][\\w.\\-~%]*)*(?:\\?\\S*)?\\s*\\Z",
+            "pattern": "\\A[/\\\\]?(?:(?!(?:wp-(?:admin|login|content|includes|config)|administrator|xmlrpc)\\.?(?:php)?(?:[/\\\\]|\\Z))[\\w.\\-~%]+[/\\\\])*(?:wp-(?:admin|login|content|includes|config)|administrator|xmlrpc)\\.?(?:php)?(?:[/\\\\][/\\\\\\w.\\-~%]*)?(?:\\?\\S*)?\\s*\\Z",
             "match": "/wp-admin/setup-config.php",
             "position": 0,
             "category": "cms_probing",
@@ -352,7 +352,7 @@
           },
           {
             "type": "regex",
-            "pattern": "\\A[/\\\\]?(?:(?!(?:wp-(?:admin|login|includes|config)|administrator|xmlrpc)\\.?(?:php)?(?:[/\\\\]|\\Z))[\\w.\\-~%]+[/\\\\])*(?:wp-(?:admin|login|includes|config)|administrator|xmlrpc)\\.?(?:php)?(?:[/\\\\][\\w.\\-~%]*)*(?:;(?:(?![/\\\\?])\\S)*|\\.+|::\\$(?:DATA|INDEX_ALLOCATION)|%00(?:(?![/\\\\?])\\S)*|\\.(?:jpe?g|png|gif|ico|bmp))?(?:\\?\\S*)?\\s*\\Z",
+            "pattern": "\\A[/\\\\]?(?:(?!(?=[wWaAxX])(?:wp-(?:admin|login|includes|config)|administrator|xmlrpc)\\.?(?:php)?(?:[/\\\\]|\\Z))[\\w.\\-~%]+[/\\\\])*(?=[wWaAxX])(?:wp-(?:admin|login|includes|config)|administrator|xmlrpc)\\.?(?:php)?(?:[/\\\\][/\\\\\\w.\\-~%]*)?(?:;(?:(?![/\\\\?])\\S)*|\\.+|::\\$(?:DATA|INDEX_ALLOCATION)|%00(?:(?![/\\\\?])\\S)*|\\.(?:jpe?g|png|gif|ico|bmp))?(?:\\?\\S*)?\\s*\\Z",
             "match": "/wp-admin/setup-config.php",
             "position": 0,
             "category": "cms_probing",
@@ -360,7 +360,7 @@
           },
           {
             "type": "regex",
-            "pattern": "\\A[/\\\\]?(?:[\\w.\\-~%]+[/\\\\])*[\\w.\\-~%]*\\.(?:ts|tsx|jsx|py|rb|java|go|rs|php|pl|sh|sql|phtml|php[3-8]|pht|phps|phar)(?:;(?:(?![/\\\\?])\\S)*|\\.+|::\\$(?:DATA|INDEX_ALLOCATION)|%00(?:(?![/\\\\?])\\S)*|\\.(?:jpe?g|png|gif|ico|bmp))?(?:[/\\\\][\\w.\\-~%]*)*(?:\\?\\S*)?\\s*\\Z",
+            "pattern": "\\A[/\\\\]?(?:[\\w.\\-~%]+[/\\\\])*[\\w.\\-~%]*\\.(?:ts|tsx|jsx|py|rb|java|go|rs|php|pl|sh|sql|phtml|php[3-8]|pht|phps|phar)(?:;(?:(?![/\\\\?])\\S)*|\\.+|::\\$(?:DATA|INDEX_ALLOCATION)|%00(?:(?![/\\\\?])\\S)*|\\.(?:jpe?g|png|gif|ico|bmp))?(?:[/\\\\][/\\\\\\w.\\-~%]*)?(?:\\?\\S*)?\\s*\\Z",
             "match": "/wp-admin/setup-config.php",
             "position": 0,
             "category": "sensitive_file",
@@ -384,7 +384,7 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "\\A[/\\\\]?(?:[\\w.\\-~%]+[/\\\\])*[\\w.\\-~%]*\\.(?:ts|tsx|jsx|py|rb|java|go|rs|php|pl|sh|sql|phtml|php[3-8]|pht|phps|phar)(?:;(?:(?![/\\\\?])\\S)*|\\.+|::\\$(?:DATA|INDEX_ALLOCATION)|%00(?:(?![/\\\\?])\\S)*|\\.(?:jpe?g|png|gif|ico|bmp))?(?:[/\\\\][\\w.\\-~%]*)*(?:\\?\\S*)?\\s*\\Z",
+            "pattern": "\\A[/\\\\]?(?:[\\w.\\-~%]+[/\\\\])*[\\w.\\-~%]*\\.(?:ts|tsx|jsx|py|rb|java|go|rs|php|pl|sh|sql|phtml|php[3-8]|pht|phps|phar)(?:;(?:(?![/\\\\?])\\S)*|\\.+|::\\$(?:DATA|INDEX_ALLOCATION)|%00(?:(?![/\\\\?])\\S)*|\\.(?:jpe?g|png|gif|ico|bmp))?(?:[/\\\\][/\\\\\\w.\\-~%]*)?(?:\\?\\S*)?\\s*\\Z",
             "match": "/phpmyadmin/index.php",
             "position": 0,
             "category": "sensitive_file",
@@ -408,7 +408,7 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "\\A[/\\\\]?(?:[\\w.\\-~%]+[/\\\\])*[\\w.\\-~%]*\\.(?:ts|tsx|jsx|py|rb|java|go|rs|php|pl|sh|sql|phtml|php[3-8]|pht|phps|phar)(?:;(?:(?![/\\\\?])\\S)*|\\.+|::\\$(?:DATA|INDEX_ALLOCATION)|%00(?:(?![/\\\\?])\\S)*|\\.(?:jpe?g|png|gif|ico|bmp))?(?:[/\\\\][\\w.\\-~%]*)*(?:\\?\\S*)?\\s*\\Z",
+            "pattern": "\\A[/\\\\]?(?:[\\w.\\-~%]+[/\\\\])*[\\w.\\-~%]*\\.(?:ts|tsx|jsx|py|rb|java|go|rs|php|pl|sh|sql|phtml|php[3-8]|pht|phps|phar)(?:;(?:(?![/\\\\?])\\S)*|\\.+|::\\$(?:DATA|INDEX_ALLOCATION)|%00(?:(?![/\\\\?])\\S)*|\\.(?:jpe?g|png|gif|ico|bmp))?(?:[/\\\\][/\\\\\\w.\\-~%]*)?(?:\\?\\S*)?\\s*\\Z",
             "match": "/installation/index.php",
             "position": 0,
             "category": "sensitive_file",
@@ -432,7 +432,7 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "\\A[/\\\\]?(?:(?!(?:actuator|server-status|telescope)(?:[/\\\\]|\\Z))[\\w.\\-~%]+[/\\\\])*(?:actuator|server-status|telescope)(?:[/\\\\][\\w.\\-~%]*)*(?:\\?\\S*)?\\s*\\Z",
+            "pattern": "\\A[/\\\\]?(?:(?!(?:actuator|server-status|telescope)(?:[/\\\\]|\\Z))[\\w.\\-~%]+[/\\\\])*(?:actuator|server-status|telescope)(?:[/\\\\][/\\\\\\w.\\-~%]*)?(?:\\?\\S*)?\\s*\\Z",
             "match": "/server-status",
             "position": 0,
             "category": "recon",
@@ -456,7 +456,7 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "\\A[/\\\\]?(?:(?!(?:actuator|server-status|telescope)(?:[/\\\\]|\\Z))[\\w.\\-~%]+[/\\\\])*(?:actuator|server-status|telescope)(?:[/\\\\][\\w.\\-~%]*)*(?:\\?\\S*)?\\s*\\Z",
+            "pattern": "\\A[/\\\\]?(?:(?!(?:actuator|server-status|telescope)(?:[/\\\\]|\\Z))[\\w.\\-~%]+[/\\\\])*(?:actuator|server-status|telescope)(?:[/\\\\][/\\\\\\w.\\-~%]*)?(?:\\?\\S*)?\\s*\\Z",
             "match": "/actuator/env",
             "position": 0,
             "category": "recon",

@@ -106,8 +106,8 @@ SCRIPT_NAMES_ANY_DEPTH_RES = (
         "p))|urm_safemod_on\\.cgi\\.pl)|m(?:a(?:cker(?:'s\\ private\\ phpshell\\.php|"
         "s_private_shell\\.php)|iler3\\.php|ke(?:2\\.php|war\\.sh)|rion001\\.php|tamu"
         "(?:\\ mat\\.php|\\.php))|egabor\\.php|icro_webshell\\.php|ma\\.php|o(?:f提权"
-        "带回显带清楚命令版本\\.php|on_1php\\.php))))(?:[/\\\\][\\w.\\-~%]*)*(?:\\?\\"
-        "S*)?\\s*\\Z"
+        "带回显带清楚命令版本\\.php|on_1php\\.php))))(?:[/\\\\][/\\\\\\w.\\-~%]*)?(?:"
+        "\\?\\S*)?\\s*\\Z"
     ),
     (
         "\\A[/\\\\]?(?:[\\w.\\-~%]+[/\\\\])*(?:(?:m(?:oroccan(?:\\ spamers\\ ma\\-edi"
@@ -213,8 +213,8 @@ SCRIPT_NAMES_ANY_DEPTH_RES = (
         ".asp|牛逼免杀提权隐藏大马\\.asp|目录扫描(?:\\.asp|读写马\\.asp)|红狼asp木马"
         "\\-\\-anfly免杀版\\.asp|老v\\.jsp|脱库工具\\.php|苦咖啡专用\\.jsp|草莓webshe"
         "ll\\.asp|菊花聊天室\\.php|虚拟(?:主机提权专用webshell去后门版\\.asp|机主机提"
-        "权大马\\.asp)|银河舰队大马_201(?:4版\\.asp|5专版asp大马\\.asp)))(?:[/\\\\]["
-        "\\w.\\-~%]*)*(?:\\?\\S*)?\\s*\\Z"
+        "权大马\\.asp)|银河舰队大马_201(?:4版\\.asp|5专版asp大马\\.asp)))(?:[/\\\\][/"
+        "\\\\\\w.\\-~%]*)?(?:\\?\\S*)?\\s*\\Z"
     ),
 )
 
@@ -229,7 +229,7 @@ SCRIPT_NAMES_UPLOAD_ONLY_RES = (
         "\\.php|nfig\\.inc\\.php)|panel\\.php|w\\.php)|dns\\.php|exp\\.php|f(?:atal\\"
         ".php|ile(?:\\.(?:asp(?:x)?|php)|upload\\.aspx)|ramer\\.php)|get\\.php|host\\"
         ".php|i(?:mg\\.php|ndex\\.php|pcheck\\.php)|list\\.(?:asp|jsp|php)))(?:[/\\\\"
-        "][\\w.\\-~%]*)*(?:\\?\\S*)?\\s*\\Z"
+        "][/\\\\\\w.\\-~%]*)?(?:\\?\\S*)?\\s*\\Z"
     ),
     (
         "\\A[/\\\\](?:(?!(?:uploads?|files|images|media|tmp)[/\\\\])[\\w.\\-~%]+[/\\"
@@ -239,7 +239,8 @@ SCRIPT_NAMES_UPLOAD_ONLY_RES = (
         "|ot\\.php)|ussian\\.php)|s(?:\\.php|canner\\.php|e(?:rver\\.php|ttings\\.php"
         ")|hell\\.php|niffer\\.php|py\\.php|ql\\.php)|test\\.php|up(?:\\.(?:asp|php)|"
         "loader\\.php)|view\\.aspx|w(?:\\.php|ebadmin\\.php|ordpress\\.php)|xml\\.(?:"
-        "asp(?:x)?|php)|zip\\.func\\.php))(?:[/\\\\][\\w.\\-~%]*)*(?:\\?\\S*)?\\s*\\Z"
+        "asp(?:x)?|php)|zip\\.func\\.php))(?:[/\\\\][/\\\\\\w.\\-~%]*)?(?:\\?\\S*)?\\"
+        "s*\\Z"
     ),
 )
 

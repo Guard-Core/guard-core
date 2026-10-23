@@ -152,17 +152,28 @@ _PATH_ONLY_SEP_RE = r"[/\\]"
 _PATH_ONLY_PREFIX_RE = (
     rf"\A{_PATH_ONLY_SEP_RE}?(?:{_PATH_ONLY_CHAR_RE}+{_PATH_ONLY_SEP_RE})*"
 )
-_PATH_ONLY_SUFFIX_RE = rf"(?:{_PATH_ONLY_SEP_RE}{_PATH_ONLY_CHAR_RE}*)*(?:\?\S*)?\s*\Z"
+# Zero or more "/segment" groups, written as one separator then a flat run of separator
+# and name characters (the same language), so a failing tail backtracks one character
+# at a time instead of one group and one character at a time.
+_PATH_ONLY_REST_RE = rf"(?:{_PATH_ONLY_SEP_RE}[/\\\w.\-~%]*)?"
+_PATH_ONLY_SUFFIX_RE = rf"{_PATH_ONLY_REST_RE}(?:\?\S*)?\s*\Z"
 
 
 def _path_only_pattern(
-    required: str, trailing: str = "", suffix: str = _PATH_ONLY_SUFFIX_RE
+    required: str,
+    trailing: str = "",
+    suffix: str = _PATH_ONLY_SUFFIX_RE,
+    first_characters: str = "",
 ) -> str:
+    # first_characters lists every character the required name can start with
+    # (both cases): a segment that starts with anything else skips the name
+    # alternation, which is what keeps a long run of ordinary segments cheap.
+    gated = rf"(?=[{first_characters}]){required}" if first_characters else required
     return (
         rf"\A{_PATH_ONLY_SEP_RE}?"
-        rf"(?:(?!{required}(?:{_PATH_ONLY_SEP_RE}|\Z))"
+        rf"(?:(?!{gated}(?:{_PATH_ONLY_SEP_RE}|\Z))"
         rf"{_PATH_ONLY_CHAR_RE}+{_PATH_ONLY_SEP_RE})*"
-        rf"{required}{trailing}{suffix}"
+        rf"{gated}{trailing}{suffix}"
     )
 
 
@@ -191,7 +202,7 @@ _EXTENSION_TRICK_SUFFIX = (
     r"|%00(?:(?![/\\?])\S)*|\.(?:jpe?g|png|gif|ico|bmp))?"
 )
 _NAMED_PATH_SUFFIX_RE = (
-    rf"(?:{_PATH_ONLY_SEP_RE}{_PATH_ONLY_CHAR_RE}*)*{_EXTENSION_TRICK_SUFFIX}"
+    rf"{_PATH_ONLY_REST_RE}{_EXTENSION_TRICK_SUFFIX}"
     r"(?:\?\S*)?\s*\Z"
 )
 _SENSITIVE_SOURCE_BARE_EXTENSIONS = (
