@@ -46,7 +46,7 @@ jobs:
 
       - name: Lint documentation
         run: |
-          uv run pymarkdownlnt scan -r ./docs
+          uv run pymarkdownlnt scan -r ./docs README.md CHANGELOG.md
 
       - name: Configure Git user
         run: |

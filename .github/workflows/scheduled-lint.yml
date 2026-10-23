@@ -49,7 +49,7 @@ jobs:
       - name: Run markdown checks
         id: markdown
         run: |
-          pymarkdownlnt scan docs > markdown_output.txt 2>&1
+          pymarkdownlnt scan docs README.md CHANGELOG.md > markdown_output.txt 2>&1
           EXIT_CODE=$?
 
           OUTPUT=$(cat markdown_output.txt)
