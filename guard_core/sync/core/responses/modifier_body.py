@@ -6,7 +6,6 @@ from guard_core.exceptions import ResponseBodyUnavailableError
 from guard_core.models import SecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.response_prefetch import (
-    SHARED_PREFETCH,
     ResponseBodyPrefetch,
 )
 from guard_core.sync.core.responses.modifier_view import (
@@ -31,19 +30,18 @@ class LazyBodyResponseView(ModifierResponseView):
         super().__init__(real)
         self.__dict__["_load"] = load
 
-    @property
-    def body(self) -> bytes | None:
+    def __getattr__(self, name: str) -> Any:
         state = self.__dict__
+        if name != "body":
+            return getattr(state["_real"], name)
         state["body_requested"] = True
-        if state["_body"] is None and state["_refusal"] is None:
+        if state["_refusal"] is None:
             try:
-                state["_body"] = state["_load"]()
+                state["body"] = state["_load"]()
+                return state["body"]
             except ResponseBodyUnavailableError as refusal:
                 state["_refusal"] = refusal.reason
-        if state["_body"] is None:
-            raise ResponseBodyUnavailableError(cast(str, state["_refusal"]))
-        body: bytes = state["_body"]
-        return body
+        raise ResponseBodyUnavailableError(cast(str, state["_refusal"]))
 
 
 def apply_modifier_with_bounded_body(
@@ -80,6 +78,4 @@ def apply_modifier_with_bounded_body(
         logger.exception(
             "custom_response_modifier raised %s; returning unmodified response", exc
         )
-    if prefetch is not None:
-        SHARED_PREFETCH.set(None)
     return response if result is view else result

@@ -2,7 +2,7 @@ import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from guard_core._utils.response_prefetch import SHARED_PREFETCH, ResponseBodyPrefetch
+from guard_core._utils.response_prefetch import ResponseBodyPrefetch
 from guard_core.core.responses.modifier_view import (
     READS_BODY_MARKER,
     ModifierResponseView,
@@ -54,9 +54,9 @@ async def _call_marked_modifier(
     config: SecurityConfig,
     logger: logging.Logger,
     agent_handler: Any | None,
-    gate: Callable[[], str | None],
+    gate_args: tuple[GuardResponse, str, int],
 ) -> GuardResponse:
-    refusal = gate()
+    refusal = body_gate_refusal(*gate_args)
     body = None
     if refusal is None:
         body, refusal = await _prefetched_body(
@@ -69,29 +69,18 @@ async def _call_marked_modifier(
     return result
 
 
-async def _replay_or_keep_first_call(
-    modifier: Modifier,
+async def _replay_first_call(
     first: ModifierResponseView,
-    first_result: Any,
     response: GuardResponse,
-    request: GuardRequest,
     prefetch: ResponseBodyPrefetch | None,
     config: SecurityConfig,
-    logger: logging.Logger,
-    agent_handler: Any | None,
-) -> GuardResponse:
-    body, refusal = None, first.gate_refusal()
-    if refusal is None:
-        body, refusal = await _prefetched_body(
-            config, response, prefetch or ResponseBodyPrefetch(response)
-        )
-    if refusal is not None:
-        await report_body_refused(logger, config, agent_handler, request, refusal)
-        return response if first_result is first else first_result
-    first.undo()
-    return await _call_on_view(
-        modifier, ModifierResponseView(response, body), response, logger
+) -> tuple[bytes | None, str | None]:
+    body, refusal = await _prefetched_body(
+        config, response, prefetch or ResponseBodyPrefetch(response)
     )
+    if refusal is None:
+        first.undo()
+    return body, refusal
 
 
 async def apply_modifier_with_bounded_body(
@@ -103,42 +92,38 @@ async def apply_modifier_with_bounded_body(
     logger: logging.Logger,
     agent_handler: Any | None,
 ) -> GuardResponse:
-    cap = config.custom_response_modifier_max_body_bytes
-
-    def gate() -> str | None:
-        return body_gate_refusal(response, request.method, cap)
-
-    try:
-        if getattr(modifier, READS_BODY_MARKER, False) is True:
-            return await _call_marked_modifier(
-                modifier,
-                response,
-                request,
-                prefetch,
-                config,
-                logger,
-                agent_handler,
-                gate,
-            )
-        first = ModifierResponseView(response, gate=gate)
-        result: Any = first
-        try:
-            result = await modifier(first)
-        except Exception as exc:
-            logger.exception(_MODIFIER_RAISED, exc)
-        if not first.__dict__["body_requested"]:
-            return response if result is first else result
-        return await _replay_or_keep_first_call(
+    gate_args = (
+        response,
+        request.method,
+        config.custom_response_modifier_max_body_bytes,
+    )
+    if getattr(modifier, READS_BODY_MARKER, False) is True:
+        return await _call_marked_modifier(
             modifier,
-            first,
-            result,
             response,
             request,
             prefetch,
             config,
             logger,
             agent_handler,
+            gate_args,
         )
-    finally:
-        if prefetch is not None:
-            SHARED_PREFETCH.set(None)
+    first = ModifierResponseView(response, gate_args=gate_args)
+    result: Any = first
+    try:
+        result = await modifier(first)
+    except Exception as exc:
+        logger.exception(_MODIFIER_RAISED, exc)
+    state = first.__dict__
+    if not state["body_requested"]:
+        return response if result is first else result
+    refusal = state["_refusal"]
+    body = None
+    if refusal is None:
+        body, refusal = await _replay_first_call(first, response, prefetch, config)
+    if refusal is not None:
+        await report_body_refused(logger, config, agent_handler, request, refusal)
+        return response if result is first else result
+    return await _call_on_view(
+        modifier, ModifierResponseView(response, body), response, logger
+    )

@@ -139,7 +139,7 @@ def test_undo_headers_forward_other_attributes() -> None:
     "headers, status, method, expected",
     [
         ({"content-length": "10"}, 200, "GET", None),
-        ({"CONTENT-LENGTH": "10"}, 200, "get", None),
+        ({"CONTENT-LENGTH": "10"}, 200, "GET", None),
         ({"Content-Length": " 10 "}, 200, "GET", None),
         ({"Content-Length": "abc"}, 200, "GET", "declares no Content-Length"),
         ({"Content-Length": "-1"}, 200, "GET", "declares no Content-Length"),
@@ -166,6 +166,10 @@ def test_gate_refusal_reasons(
     else:
         assert refusal is not None
         assert expected in refusal
+
+
+def test_declared_content_length_reads_a_lower_case_key_directly() -> None:
+    assert declared_content_length(_guard(_Response({"content-length": "7"}))) == 7
 
 
 def test_declared_content_length_parses_digits_only() -> None:
@@ -273,18 +277,13 @@ def test_dedicated_error_is_exported_for_adapters() -> None:
 
 
 def test_view_gate_is_asked_once_and_attribute_writes_read_back() -> None:
-    asked: list[int] = []
-
-    def gate() -> str | None:
-        asked.append(1)
-        return "gate says no"
-
-    view: Any = ModifierResponseView(_guard(_Response()), gate=gate)
+    response = _guard(_Response({"Content-Length": "9999"}))
+    view: Any = ModifierResponseView(response, gate_args=(response, "GET", 10))
     for _ in range(2):
-        with pytest.raises(ResponseBodyUnavailableError, match="gate says no"):
+        with pytest.raises(ResponseBodyUnavailableError, match="is over 10 bytes"):
             _ = view.body
-    assert view.gate_refusal() == "gate says no"
-    assert asked == [1]
+    assert view.gate_refusal() is not None
+    assert view.__dict__["_gate_args"] is None
     view.note = "n"
     assert view.note == "n"
     assert view.status_code == 200
@@ -343,3 +342,33 @@ def test_report_body_refused_reports_again_after_the_window_and_stays_bounded(
     assert len(caplog.records) == 72
     assert len(_reported_refusals) <= 64
     _reported_refusals.clear()
+
+
+def test_gate_refusal_method_asks_the_gate_once() -> None:
+    response = _guard(_Response({"Content-Length": "9999"}))
+    view: Any = ModifierResponseView(response, gate_args=(response, "GET", 10))
+    assert view.gate_refusal() is not None
+    assert view.gate_refusal() == view.gate_refusal()
+    assert view.__dict__["_gate_args"] is None
+
+
+@pytest.mark.parametrize(
+    "headers, expected",
+    [
+        ({"Content-Type": "text/event-stream", "Content-Length": "5"}, "no end"),
+        ({"Content-Type": "text/plain", "Content-Length": "5"}, None),
+        ({"Content-Type": "text/plain", "content-length": " 5 "}, None),
+        ({"content-type": "text/plain", "Content-Length": " x "}, "no Content-Length"),
+        ({"x-other": "1"}, "no Content-Length"),
+        ({"content-type": "text/plain", "content-length": "5"}, None),
+    ],
+)
+def test_gate_finds_plain_dict_headers_in_either_casing(
+    headers: dict[str, str], expected: str | None
+) -> None:
+    refusal = body_gate_refusal(_guard(_Response(headers)), "GET", 1024)
+    if expected is None:
+        assert refusal is None
+    else:
+        assert refusal is not None
+        assert expected in refusal

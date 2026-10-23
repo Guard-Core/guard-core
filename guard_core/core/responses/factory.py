@@ -150,9 +150,14 @@ class ErrorResponseFactory:
             return response
         if prefetch is not None:
             SHARED_PREFETCH.set(None)
-        if request is not None and (
-            getattr(response, "body_is_materialized", False) is not True
-        ):
+        materialized = False
+        if request is not None:
+            declared: Any = response
+            try:
+                materialized = declared.body_is_materialized is True
+            except AttributeError:
+                pass
+        if request is not None and not materialized:
             return await apply_modifier_with_bounded_body(
                 modifier,
                 response,

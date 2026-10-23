@@ -117,6 +117,7 @@ class ModifierResponseView:
     """
 
     headers: RecordingHeaders
+    body: bytes | None
     body_requested: bool
 
     def __init__(
@@ -124,45 +125,39 @@ class ModifierResponseView:
         real: GuardResponse,
         body: bytes | None = None,
         refusal: str | None = None,
-        gate: Callable[[], str | None] | None = None,
+        gate_args: tuple[GuardResponse, str, int] | None = None,
     ) -> None:
         state = self.__dict__
         state["_real"] = real
-        state["_body"] = body
         state["_refusal"] = refusal
-        state["_gate"] = gate
+        state["_gate_args"] = gate_args
         state["_attribute_undo"] = []
         state["body_requested"] = False
         state["headers"] = RecordingHeaders(real.headers)
+        if body is not None:
+            state["body"] = body
 
     def gate_refusal(self) -> str | None:
         """The gate's reason to refuse the body, asked at most once per view."""
         state = self.__dict__
-        if state["_refusal"] is None and state["_gate"] is not None:
-            state["_refusal"] = state["_gate"]()
-            state["_gate"] = None
+        if state["_refusal"] is None and state["_gate_args"] is not None:
+            state["_refusal"] = body_gate_refusal(*state["_gate_args"])
+            state["_gate_args"] = None
         refusal: str | None = state["_refusal"]
         return refusal
 
-    @property
-    def body(self) -> bytes | None:
-        state = self.__dict__
-        state["body_requested"] = True
-        if state["_body"] is None:
-            raise ResponseBodyUnavailableError(
-                self.gate_refusal() or _BODY_NOT_YET_AVAILABLE
-            )
-        body: bytes = state["_body"]
-        return body
-
     def __getattr__(self, name: str) -> Any:
-        if name == "body":
-            # Python calls __getattr__ again when the ``body`` property raises
-            # an AttributeError; the real response's body must never answer then.
-            raise ResponseBodyUnavailableError(
-                self.gate_refusal() or _BODY_NOT_YET_AVAILABLE
-            )
-        return getattr(self.__dict__["_real"], name)
+        state = self.__dict__
+        if name != "body":
+            return getattr(state["_real"], name)
+        # ``body`` is never an attribute until a replay stores the bytes, so this
+        # one call both records the request and raises: the real response's body
+        # must never answer.
+        state["body_requested"] = True
+        if state["_refusal"] is None and state["_gate_args"] is not None:
+            state["_refusal"] = body_gate_refusal(*state["_gate_args"])
+            state["_gate_args"] = None
+        raise ResponseBodyUnavailableError(state["_refusal"] or _BODY_NOT_YET_AVAILABLE)
 
     def __setattr__(self, name: str, value: Any) -> None:
         state = self.__dict__
@@ -212,19 +207,36 @@ def declared_content_length(response: GuardResponse) -> int | None:
 def body_gate_refusal(
     response: GuardResponse, method: str, max_bytes: int
 ) -> str | None:
-    """Why ``.body`` must not be offered for this response, or None when it may."""
-    if method.upper() == "HEAD":
+    """Why ``.body`` must not be offered for this response, or None when it may.
+
+    ``method`` is the request method in upper case (the request protocol).
+    Header lookups use ``.get`` once: every adapter's headers are
+    case-insensitive; only a plain ``dict`` gets the casing fallback.
+    """
+    if method == "HEAD":
         return "a HEAD response has no body"
     status = response.status_code
     if status < 200 or status in _BODYLESS_STATUSES:
         return f"a {status} response has no body"
-    content_type = _header_value(response.headers, "content-type", "Content-Type") or ""
-    if content_type.strip().lower().startswith("text/event-stream"):
+    headers = response.headers
+    content_type = headers.get("content-type")
+    declared = headers.get("content-length")
+    if (content_type is None or declared is None) and type(headers) is dict:
+        content_type = content_type or _header_value(
+            headers, "content-type", "Content-Type"
+        )
+        declared = declared or _header_value(
+            headers, "content-length", "Content-Length"
+        )
+    if content_type and content_type.lower().lstrip().startswith("text/event-stream"):
         return "text/event-stream has no end"
-    declared = declared_content_length(response)
     if declared is None:
         return "the response declares no Content-Length"
-    if declared > max_bytes:
+    if not declared.isdigit():
+        declared = declared.strip()
+        if not declared.isdigit():
+            return "the response declares no Content-Length"
+    if int(declared) > max_bytes:
         return f"the declared Content-Length {declared} is over {max_bytes} bytes"
     return None
 

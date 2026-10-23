@@ -254,3 +254,15 @@ def test_a_false_or_non_bool_capability_takes_the_bounded_path(flag: object) -> 
     _apply(_reading(calls), response)
     assert calls == [1, b"x" * 10]
     assert response.reads == 1
+
+
+def test_a_lazy_view_forwards_other_attributes_to_the_real_response() -> None:
+    seen: list[Any] = []
+
+    def modifier(response: Any) -> Any:
+        seen.append(response.status_code)
+        return response
+
+    response = _Streamed(b"x")
+    assert _apply(modifier, response) is response
+    assert seen == [200]
