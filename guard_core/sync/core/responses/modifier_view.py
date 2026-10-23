@@ -1,8 +1,7 @@
 import logging
+import time
 from collections.abc import Callable, Iterator, MutableMapping
 from typing import Any, TypeVar, cast
-
-from cachetools import TTLCache
 
 from guard_core.exceptions import ResponseBodyUnavailableError
 from guard_core.models import SecurityConfig
@@ -18,9 +17,8 @@ READS_BODY_MARKER = "__guard_core_reads_response_body__"
 _BODY_NOT_YET_AVAILABLE = "the first call of a modifier that is replayed with the body"
 _BODYLESS_STATUSES = frozenset({204, 304})
 _REFUSAL_REPORT_SECONDS = 60
-_reported_refusals: TTLCache[str, bool] = TTLCache(
-    maxsize=64, ttl=_REFUSAL_REPORT_SECONDS
-)
+_REFUSAL_REPORT_MAX_REASONS = 64
+_reported_refusals: dict[str, float] = {}
 
 
 def reads_response_body(modifier: ModifierT) -> ModifierT:
@@ -189,18 +187,23 @@ class ModifierResponseView:
         state["_attribute_undo"] = []
 
 
-def _header_value(headers: MutableMapping[str, str], name: str) -> str | None:
+def _header_value(
+    headers: MutableMapping[str, str], name: str, cased: str
+) -> str | None:
     value = headers.get(name)
-    if value is not None:
+    if value is None:
+        value = headers.get(cased)
+    if value is not None or type(headers) is not dict:
         return value
     for key in headers:
         if key.lower() == name:
-            return headers[key]
+            found: str = headers[key]
+            return found
     return None
 
 
 def declared_content_length(response: GuardResponse) -> int | None:
-    declared = _header_value(response.headers, "content-length")
+    declared = _header_value(response.headers, "content-length", "Content-Length")
     if declared is None or not declared.strip().isdigit():
         return None
     return int(declared)
@@ -215,7 +218,7 @@ def body_gate_refusal(
     status = response.status_code
     if status < 200 or status in _BODYLESS_STATUSES:
         return f"a {status} response has no body"
-    content_type = _header_value(response.headers, "content-type") or ""
+    content_type = _header_value(response.headers, "content-type", "Content-Type") or ""
     if content_type.strip().lower().startswith("text/event-stream"):
         return "text/event-stream has no end"
     declared = declared_content_length(response)
@@ -233,9 +236,13 @@ def report_body_refused(
     request: SyncGuardRequest,
     reason: str,
 ) -> None:
-    if _reported_refusals.get(reason) is not None:
+    now = time.monotonic()
+    last = _reported_refusals.get(reason)
+    if last is not None and now - last < _REFUSAL_REPORT_SECONDS:
         return
-    _reported_refusals[reason] = True
+    if len(_reported_refusals) >= _REFUSAL_REPORT_MAX_REASONS:
+        _reported_refusals.clear()
+    _reported_refusals[reason] = now
     logger.warning(
         "custom_response_modifier read .body but it is unavailable: %s; "
         "header edits still apply",

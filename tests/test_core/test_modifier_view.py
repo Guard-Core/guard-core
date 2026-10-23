@@ -331,3 +331,21 @@ def test_commit_is_a_no_op_because_writes_go_through() -> None:
     view.headers.commit()
     assert view.commit() is real
     assert real.headers == {"A": "1", "B": "2"}
+
+
+async def test_report_body_refused_reports_again_after_the_window_and_stays_bounded(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    _reported_refusals.clear()
+    logger = logging.getLogger("guard_core.test_modifier_view_window")
+    config = SecurityConfig(enable_redis=False)
+    request: Any = None
+    with caplog.at_level(logging.WARNING, logger=logger.name):
+        await report_body_refused(logger, config, None, request, "again")
+        _reported_refusals["again"] -= 61
+        await report_body_refused(logger, config, None, request, "again")
+        for index in range(70):
+            await report_body_refused(logger, config, None, request, f"r{index}")
+    assert len(caplog.records) == 72
+    assert len(_reported_refusals) <= 64
+    _reported_refusals.clear()
