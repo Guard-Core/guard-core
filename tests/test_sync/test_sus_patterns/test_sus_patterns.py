@@ -1077,10 +1077,14 @@ def test_detect_pattern_match_with_unknown_threat_type_returns_unknown() -> None
 
     SusPatternsManager._instance = None
     mgr = SusPatternsManager()
-    mgr.detect = MagicMock(  # type: ignore[method-assign]
-        return_value={"is_threat": True, "threats": [{"type": "novel_kind"}]}
-    )
-    is_threat, label = mgr.detect_pattern_match("content", "1.2.3.4")
+    with patch.object(
+        mgr,
+        "detect",
+        MagicMock(
+            return_value={"is_threat": True, "threats": [{"type": "novel_kind"}]}
+        ),
+    ):
+        is_threat, label = mgr.detect_pattern_match("content", "1.2.3.4")
     assert is_threat is True
     assert label == "unknown"
 
@@ -1090,10 +1094,12 @@ def test_detect_pattern_match_empty_threats_list_returns_unknown() -> None:
 
     SusPatternsManager._instance = None
     mgr = SusPatternsManager()
-    mgr.detect = MagicMock(  # type: ignore[method-assign]
-        return_value={"is_threat": True, "threats": []}
-    )
-    is_threat, label = mgr.detect_pattern_match("content", "1.2.3.4")
+    with patch.object(
+        mgr,
+        "detect",
+        MagicMock(return_value={"is_threat": True, "threats": []}),
+    ):
+        is_threat, label = mgr.detect_pattern_match("content", "1.2.3.4")
     assert is_threat is True
     assert label == "unknown"
     SusPatternsManager._instance = None

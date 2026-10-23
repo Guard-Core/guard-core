@@ -1,5 +1,6 @@
 import time
-from unittest.mock import AsyncMock, MagicMock, Mock
+from collections.abc import Iterator
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 
@@ -15,6 +16,12 @@ from guard_core.handlers.ratelimit_handler import (
 from guard_core.models import SecurityConfig, ThreatBanConfig
 
 BanCalls = list[tuple[str, int, str]]
+
+
+@pytest.fixture(autouse=True)
+def _undo_started_patches() -> Iterator[None]:
+    yield
+    patch.stopall()
 
 
 def _install_recording_ban_manager(
@@ -36,7 +43,7 @@ def _install_recording_ban_manager(
         ban_calls.append((ip, duration, reason))
         return duration
 
-    manager._ban_ip_escalating = fake_ban  # type: ignore[method-assign]
+    patch.object(manager, "_ban_ip_escalating", fake_ban).start()
     return manager, ban_calls
 
 
@@ -259,7 +266,7 @@ async def test_already_banned_ip_makes_zero_additional_ban_calls() -> None:
             manager.banned_ips[ip] = time.time() + duration
             return True
 
-        manager._ban_ip_escalating = fake_ban  # type: ignore[method-assign]
+        patch.object(manager, "_ban_ip_escalating", fake_ban).start()
 
         ip = "192.0.2.110"
 

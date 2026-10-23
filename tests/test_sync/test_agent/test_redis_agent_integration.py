@@ -211,7 +211,7 @@ def test_get_connection_closed_error_with_agent() -> None:
 
     with pytest.raises(GuardRedisError) as exc_info:
         with manager.get_connection():
-            pass  # pragma: no cover
+            pass
 
     assert exc_info.value.status_code == 503
     assert exc_info.value.detail == "Redis connection closed"
@@ -236,7 +236,7 @@ def test_get_connection_initialization_failure_with_agent() -> None:
 
     with pytest.raises(GuardRedisError) as exc_info:
         with manager.get_connection():
-            pass  # pragma: no cover
+            pass
 
     assert exc_info.value.status_code == 503
     assert exc_info.value.detail == "Redis connection failed"
@@ -259,7 +259,7 @@ def test_safe_operation_failure_with_agent() -> None:
     manager.agent_handler = mock_agent
 
     def failing_func(conn: Any) -> None:
-        raise Exception("Operation failed")  # pragma: no cover
+        raise Exception("Operation failed")
 
     failing_func.__name__ = "failing_func"
 

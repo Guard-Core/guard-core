@@ -95,9 +95,9 @@ async def test_pattern_loop_yields_to_other_tasks_once_a_slice_elapses() -> None
     progress = {"patterns": 0}
     real = manager._check_regex_pattern
 
-    async def counting(*args: object, **kwargs: object) -> object:
+    async def counting(*args: Any, **kwargs: Any) -> Any:
         progress["patterns"] += 1
-        return await real(*args, **kwargs)  # type: ignore[arg-type]
+        return await real(*args, **kwargs)
 
     async def other_request() -> None:
         ran_at.append(progress["patterns"])

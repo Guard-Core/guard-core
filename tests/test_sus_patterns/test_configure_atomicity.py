@@ -67,7 +67,7 @@ async def test_configure_is_atomic_under_concurrent_detect() -> None:
             while not stop.is_set():
                 manager.configure(_CONFIG_A)
                 manager.configure(_CONFIG_B)
-        except BaseException as exc:  # pragma: no cover - failure path
+        except BaseException as exc:
             errors.append(exc)
 
     original_switch_interval = sys.getswitchinterval()

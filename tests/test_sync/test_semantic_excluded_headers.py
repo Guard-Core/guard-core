@@ -115,4 +115,5 @@ def test_reassignment_rejects_bare_string() -> None:
     config = SyncSecurityConfig()
 
     with pytest.raises(ValueError, match="excluded_semantic_detection_headers"):
-        config.excluded_semantic_detection_headers = "cookie"  # type: ignore[assignment]
+        bare_string: Any = "cookie"
+        config.excluded_semantic_detection_headers = bare_string

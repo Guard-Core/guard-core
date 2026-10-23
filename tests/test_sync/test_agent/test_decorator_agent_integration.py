@@ -313,7 +313,7 @@ def test_get_route_config(config: SyncSecurityConfig) -> None:
     decorator = BaseSecurityDecorator(config)
 
     def test_func() -> None:
-        pass  # pragma: no cover
+        pass
 
     route_config = decorator._ensure_route_config(test_func)
     route_id = decorator._get_route_id(test_func)
@@ -328,7 +328,7 @@ def test_route_id_generation(config: SyncSecurityConfig) -> None:
     decorator = BaseSecurityDecorator(config)
 
     def test_function() -> None:
-        pass  # pragma: no cover
+        pass
 
     route_id = decorator._get_route_id(test_function)
     assert route_id == f"{test_function.__module__}.{test_function.__qualname__}"
@@ -350,7 +350,7 @@ def test_ensure_route_config(
     decorator = BaseSecurityDecorator(config)
 
     def test_func() -> None:
-        pass  # pragma: no cover
+        pass
 
     route_config = decorator._ensure_route_config(test_func)
     assert route_config.enable_suspicious_detection is expected_suspicious_detection
@@ -360,7 +360,7 @@ def test_apply_route_config(config: SyncSecurityConfig) -> None:
     decorator = BaseSecurityDecorator(config)
 
     def test_func() -> None:
-        pass  # pragma: no cover
+        pass
 
     decorated_func = decorator._apply_route_config(test_func)
     route_id = decorator._get_route_id(test_func)

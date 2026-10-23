@@ -1,4 +1,4 @@
-from typing import get_args
+from typing import Any, get_args
 
 import pytest
 
@@ -25,4 +25,5 @@ def test_valid_cloud_providers_is_frozenset_of_literal_members() -> None:
 
 def test_valid_cloud_providers_immutable() -> None:
     with pytest.raises(AttributeError):
-        VALID_CLOUD_PROVIDERS.add("DigitalOcean")  # type: ignore[attr-defined]
+        providers: Any = VALID_CLOUD_PROVIDERS
+        providers.add("DigitalOcean")

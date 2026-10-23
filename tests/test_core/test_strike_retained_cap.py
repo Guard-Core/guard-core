@@ -131,7 +131,9 @@ async def test_the_cap_follows_the_live_thresholds_per_revision() -> None:
     assert helpers._retained_strike_cap(other) == 40_000
 
 
-async def test_a_rate_limit_feed_threshold_above_the_floor_is_reachable() -> None:
+async def test_a_rate_limit_feed_threshold_above_the_floor_is_reachable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     config = _config(
         enable_rate_limit_auto_ban=True,
         auto_ban_threshold=10_001,
@@ -142,7 +144,7 @@ async def test_a_rate_limit_feed_threshold_above_the_floor_is_reachable() -> Non
     manager.redis_handler = None
     manager.config = config
     bans = _RecordingBans()
-    manager._ban_ip_escalating = bans._ban_ip_escalating  # type: ignore[method-assign]
+    monkeypatch.setattr(manager, "_ban_ip_escalating", bans._ban_ip_escalating)
     ip = "192.0.2.77"
     _by_ip_autoban_counts.clear()
     try:

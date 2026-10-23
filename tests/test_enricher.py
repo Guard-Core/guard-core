@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
@@ -7,14 +8,14 @@ from guard_core.models import SecurityConfig
 
 
 def _mk_context(**overrides: object) -> EnrichmentContext:
-    defaults: dict[str, object] = {
+    defaults: dict[str, Any] = {
         "config": SecurityConfig(),
         "agent_handler": None,
         "dynamic_rule_handler": None,
         "behavior_tracker": None,
     }
     defaults.update(overrides)
-    return EnrichmentContext(**defaults)  # type: ignore[arg-type]
+    return EnrichmentContext(**defaults)
 
 
 @pytest.mark.asyncio

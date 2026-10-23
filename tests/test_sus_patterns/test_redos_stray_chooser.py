@@ -27,9 +27,7 @@ from guard_core.detection_engine._redos_stray_chooser import (
 from guard_core.detection_engine.compiler import PatternCompiler
 
 
-def test_choose_class_intersection_stray_tail_complement_wins_over_nul_for_a_narrow_tail() -> (  # noqa: E501
-    None
-):
+def test_choose_intersection_stray_tail_complement_beats_nul_for_narrow_tail() -> None:
     pattern = r"\s*[\s\S]+[\x00-\x08]"
     flags = re.IGNORECASE | re.MULTILINE
     slots = _pattern_slots(pattern, flags)
@@ -50,9 +48,7 @@ def test_choose_class_intersection_stray_tail_complement_wins_over_nul_for_a_nar
     assert compiled.search(fill_char * 50 + stray) is None
 
 
-def test_choose_class_intersection_stray_with_universal_right_fails_the_literal_tail() -> (  # noqa: E501
-    None
-):
+def test_choose_intersection_stray_universal_right_fails_the_literal_tail() -> None:
     pattern = r"a*[\s\S]+X"
     slots = _pattern_slots(pattern, 0)
     assert slots is not None
@@ -69,9 +65,7 @@ def test_choose_class_intersection_stray_with_universal_right_fails_the_literal_
     assert compiled.search("a" * 50 + stray) is None
 
 
-def test_choose_class_intersection_stray_falls_back_deterministically_when_unforceable() -> (  # noqa: E501
-    None
-):
+def test_choose_intersection_stray_falls_back_when_unforceable() -> None:
     pattern = r"[\x00-\xff]*[\x00-\xfe]+"
     units_first = _class_intersection_probe_units(pattern, 0)
     units_second = _class_intersection_probe_units(pattern, 0)
@@ -176,7 +170,7 @@ def test_choose_repeat_unit_stray_accepts_verified_unforceable_result() -> None:
         assert choose_repeat_unit_stray(ctx, "a") == _REACH_PROBE_STRAY_BYTE
 
 
-def test_pattern_class_union_collects_intervals_from_nested_groups_and_skips_boundaries() -> (  # noqa: E501
+def test_pattern_class_union_collects_nested_group_intervals_and_skips_boundaries() -> (
     None
 ):
     union = _pattern_class_union(r"^a(b|c)\1", 0)

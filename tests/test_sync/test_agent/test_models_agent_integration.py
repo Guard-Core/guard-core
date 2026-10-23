@@ -167,7 +167,7 @@ def test_to_agent_config_import_error() -> None:
     finally:
         if original_module:
             sys.modules["guard_agent"] = original_module
-        elif "guard_agent" in sys.modules:  # pragma: no cover
+        elif "guard_agent" in sys.modules:
             del sys.modules["guard_agent"]
 
 

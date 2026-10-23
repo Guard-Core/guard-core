@@ -425,7 +425,7 @@ def test_class_intersection_fills_skips_a_non_crossable_multi_char_alternation()
 
 
 @pytest.mark.redos_timing
-def test_pattern_compiler_rejects_unbounded_multi_char_alternation_zero_admitting_group() -> (  # noqa: E501
+def test_compiler_rejects_unbounded_multi_char_alternation_zero_admitting_group() -> (
     None
 ):
     compiler = PatternCompiler()
@@ -447,15 +447,11 @@ def test_node_intervals_folds_not_literal_case_under_ignorecase() -> None:
     assert intervals.contains(ord("A")) is False
 
 
-def test_class_intersection_probe_units_finds_no_fill_for_disjoint_case_sensitive_pair() -> (  # noqa: E501
-    None
-):
+def test_intersection_probe_units_no_fill_for_disjoint_case_sensitive_pair() -> None:
     assert _class_intersection_probe_units(r"[a-z]*[A-Z]+", 0) == []
 
 
-def test_class_intersection_probe_units_finds_a_fill_once_ignorecase_folds_the_pair() -> (  # noqa: E501
-    None
-):
+def test_intersection_probe_units_fill_once_ignorecase_folds_the_pair() -> None:
     units = _class_intersection_probe_units(r"[a-z]*[A-Z]+", re.IGNORECASE)
     assert units
     fill, _stray = units[0]

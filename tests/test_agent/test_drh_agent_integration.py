@@ -2182,7 +2182,7 @@ async def test_stop_with_task(  # async-only
     manager = DynamicRuleManager(config)
 
     async def dummy_task() -> None:
-        pass  # pragma: no cover
+        pass
 
     manager.update_task = asyncio.create_task(dummy_task())
 

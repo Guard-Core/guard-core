@@ -1000,17 +1000,13 @@ def test_candidate_chars_for_atom_text_includes_the_range_start() -> None:
     assert "Ѐ" in chars
 
 
-def test_representative_char_for_atom_falls_back_to_class_candidates_beyond_printable() -> (  # noqa: E501
-    None
-):
+def test_representative_char_falls_back_to_class_candidates_past_printable() -> None:
     assert _representative_char_for_atom(r"[Ѐ-ӿ]") == "Ѐ"
     assert _representative_char_for_atom(r"[一-鿿]") == "一"
     assert _representative_char_for_atom(r"[\U0001F600-\U0001F64F]") == "\U0001f600"
 
 
-def test_representative_char_for_atom_finds_the_boundary_just_past_a_negated_range() -> (  # noqa: E501
-    None
-):
+def test_representative_char_finds_the_boundary_past_a_negated_range() -> None:
     assert _representative_char_for_atom(r"[^\x00-\x7f]") == "\x80"
 
 

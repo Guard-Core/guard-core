@@ -7,6 +7,10 @@ import pytest
 from guard_core.sync.handlers.suspatterns_handler import SusPatternsManager
 
 
+def _live_suspatterns_instance() -> SusPatternsManager | None:
+    return SusPatternsManager._instance
+
+
 @pytest.fixture
 def cleanup_suspatterns_singleton() -> Generator[None, None, None]:
     original_instance = SusPatternsManager._instance
@@ -15,14 +19,15 @@ def cleanup_suspatterns_singleton() -> Generator[None, None, None]:
 
     yield
 
-    if SusPatternsManager._instance is not None:
-        SusPatternsManager._instance.custom_patterns.clear()  # type: ignore
-        SusPatternsManager._instance.compiled_custom_patterns.clear()
+    live_instance = _live_suspatterns_instance()
+    if live_instance is not None:
+        live_instance.custom_patterns.clear()
+        live_instance.compiled_custom_patterns.clear()
 
         original_len = len(SusPatternsManager.patterns)
-        while len(SusPatternsManager._instance.patterns) > original_len:
-            SusPatternsManager._instance.patterns.pop()  # pragma: no cover
-            SusPatternsManager._instance.compiled_patterns.pop()  # pragma: no cover
+        while len(live_instance.patterns) > original_len:
+            live_instance.patterns.pop()
+            live_instance.compiled_patterns.pop()
 
     SusPatternsManager._instance = original_instance
 

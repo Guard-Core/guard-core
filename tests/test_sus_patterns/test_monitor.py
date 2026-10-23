@@ -218,7 +218,7 @@ async def test_statistical_anomaly_insufficient_data() -> None:
     anomalies_detected = []
 
     def anomaly_callback(anomaly: dict[str, Any]) -> None:
-        anomalies_detected.append(anomaly)  # pragma: no cover
+        anomalies_detected.append(anomaly)
 
     monitor.register_anomaly_callback(anomaly_callback)
 
@@ -241,7 +241,7 @@ async def test_statistical_anomaly_zero_std_dev() -> None:
     anomalies_detected = []
 
     def anomaly_callback(anomaly: dict[str, Any]) -> None:
-        anomalies_detected.append(anomaly)  # pragma: no cover
+        anomalies_detected.append(anomaly)
 
     monitor.register_anomaly_callback(anomaly_callback)
 
@@ -689,7 +689,7 @@ def test_register_anomaly_callback() -> None:
     monitor = PerformanceMonitor()
 
     def callback(anomaly: dict[str, Any]) -> None:
-        pass  # pragma: no cover
+        pass
 
     monitor.register_anomaly_callback(callback)
     assert len(monitor.anomaly_callbacks) == 1
@@ -1203,7 +1203,7 @@ async def test_min_samples_for_anomaly_suppresses_below_floor() -> None:
     anomalies_detected = []
 
     def anomaly_callback(anomaly: dict[str, Any]) -> None:
-        anomalies_detected.append(anomaly)  # pragma: no cover
+        anomalies_detected.append(anomaly)
 
     monitor.register_anomaly_callback(anomaly_callback)
 

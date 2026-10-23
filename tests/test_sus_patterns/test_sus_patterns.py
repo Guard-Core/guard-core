@@ -1135,31 +1135,37 @@ async def test_initialize_redis_warns_on_rejected_persisted_pattern(
 
 
 async def test_detect_pattern_match_with_unknown_threat_type_returns_unknown() -> None:
-    from unittest.mock import AsyncMock
+    from unittest.mock import AsyncMock, patch
 
     from guard_core.handlers.suspatterns_handler import SusPatternsManager
 
     SusPatternsManager._instance = None
     mgr = SusPatternsManager()
-    mgr.detect = AsyncMock(  # type: ignore[method-assign]
-        return_value={"is_threat": True, "threats": [{"type": "novel_kind"}]}
-    )
-    is_threat, label = await mgr.detect_pattern_match("content", "1.2.3.4")
+    with patch.object(
+        mgr,
+        "detect",
+        AsyncMock(
+            return_value={"is_threat": True, "threats": [{"type": "novel_kind"}]}
+        ),
+    ):
+        is_threat, label = await mgr.detect_pattern_match("content", "1.2.3.4")
     assert is_threat is True
     assert label == "unknown"
 
 
 async def test_detect_pattern_match_empty_threats_list_returns_unknown() -> None:
-    from unittest.mock import AsyncMock
+    from unittest.mock import AsyncMock, patch
 
     from guard_core.handlers.suspatterns_handler import SusPatternsManager
 
     SusPatternsManager._instance = None
     mgr = SusPatternsManager()
-    mgr.detect = AsyncMock(  # type: ignore[method-assign]
-        return_value={"is_threat": True, "threats": []}
-    )
-    is_threat, label = await mgr.detect_pattern_match("content", "1.2.3.4")
+    with patch.object(
+        mgr,
+        "detect",
+        AsyncMock(return_value={"is_threat": True, "threats": []}),
+    ):
+        is_threat, label = await mgr.detect_pattern_match("content", "1.2.3.4")
     assert is_threat is True
     assert label == "unknown"
     SusPatternsManager._instance = None

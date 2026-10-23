@@ -604,11 +604,10 @@ DOTALL_FIXUPS: list[tuple[str, str]] = [
         "        route_config: RouteConfig | None = None,",
     ),
     (
-        r"response = call_next\(request\)\n\s+response = self\.context\.response_factory\.apply_security_headers\(\n\s+response, str\(request\.url_path\)\n\s+\)\n\s+return self\.context\.response_factory\.apply_modifier\(response, request\)",  # noqa: E501
         r"response = call_next\(request\)\n\s+response = "
         r"self\.context\.response_factory\.apply_security_headers\(\n\s+response, str"
         r"\(request\.url_path\)\n\s+\)\n\s+return "
-        r"self\.context\.response_factory\.apply_modifier\(response\)",
+        r"self\.context\.response_factory\.apply_modifier\(response, request\)",
         "if call_next is None:\n"
         "            return None\n"
         "        response = call_next(request)\n"

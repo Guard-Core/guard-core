@@ -602,7 +602,7 @@ def mock_guard_agent() -> Generator[Any, Any, Any]:
             for module_name in modules_to_mock:
                 if module_name in original_modules:
                     sys.modules[module_name] = original_modules[module_name]
-                elif module_name in sys.modules:  # pragma: no cover
+                elif module_name in sys.modules:
                     del sys.modules[module_name]
 
 

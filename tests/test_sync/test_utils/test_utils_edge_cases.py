@@ -1,3 +1,4 @@
+from typing import Any
 from unittest.mock import MagicMock, Mock, patch
 
 from guard_core.models import SyncSecurityConfig
@@ -16,7 +17,8 @@ def test_sanitize_empty_string() -> None:
 
 
 def test_sanitize_none() -> None:
-    result = _sanitize_for_log(None)  # type: ignore[arg-type]
+    not_a_string: Any = None
+    result = _sanitize_for_log(not_a_string)
     assert result is None
 
 
@@ -102,12 +104,14 @@ def test_detect_penetration_url_path_with_real_threat() -> None:
 
 
 def test_is_referrer_domain_allowed_with_none() -> None:
-    result = is_referrer_domain_allowed(None, ["example.com"])  # type: ignore
+    not_a_string: Any = None
+    result = is_referrer_domain_allowed(not_a_string, ["example.com"])
     assert result is False
 
 
 def test_is_referrer_domain_allowed_with_invalid_type() -> None:
-    result = is_referrer_domain_allowed(12345, ["example.com"])  # type: ignore
+    not_a_string: Any = 12345
+    result = is_referrer_domain_allowed(not_a_string, ["example.com"])
     assert result is False
 
 

@@ -1,3 +1,4 @@
+from typing import Any
 from unittest.mock import MagicMock, Mock
 
 import pytest
@@ -43,7 +44,8 @@ def mock_request() -> Mock:
 
 def test_cannot_instantiate_abstract_class(mock_middleware: Mock) -> None:
     with pytest.raises(TypeError, match="Can't instantiate abstract class"):
-        SecurityCheck(mock_middleware)  # type: ignore
+        abstract_check: Any = SecurityCheck
+        abstract_check(mock_middleware)
 
 
 def test_init(mock_middleware: Mock) -> None:
