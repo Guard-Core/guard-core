@@ -51,6 +51,29 @@ def _commit(view: ModifierResponseView, result: Any) -> GuardResponse:
     return real if result is view else cast(GuardResponse, result)
 
 
+async def _call_marked_modifier(
+    modifier: Modifier,
+    response: GuardResponse,
+    request: GuardRequest,
+    shared: ResponseBodyPrefetch | None,
+    config: SecurityConfig,
+    logger: logging.Logger,
+    agent_handler: Any | None,
+    gate: Callable[[], str | None],
+) -> GuardResponse:
+    refusal = gate()
+    body = None
+    if refusal is None:
+        body, refusal = await _prefetched_body(
+            config, response, shared or ResponseBodyPrefetch(response)
+        )
+    view = ModifierResponseView(response, body, refusal)
+    result = await _invoke(modifier, view, response, logger)
+    if refusal is not None and view.body_requested:
+        await report_body_refused(logger, config, agent_handler, request, refusal)
+    return _commit(view, result)
+
+
 async def apply_modifier_with_bounded_body(
     modifier: Modifier,
     response: GuardResponse,
@@ -68,19 +91,16 @@ async def apply_modifier_with_bounded_body(
 
     try:
         if modifier_reads_response_body(modifier):
-            refusal = gate()
-            body = None
-            if refusal is None:
-                body, refusal = await _prefetched_body(
-                    config, response, shared or ResponseBodyPrefetch(response)
-                )
-            view = ModifierResponseView(response, body, refusal)
-            result = await _invoke(modifier, view, response, logger)
-            if refusal is not None and view.body_requested:
-                await report_body_refused(
-                    logger, config, agent_handler, request, refusal
-                )
-            return _commit(view, result)
+            return await _call_marked_modifier(
+                modifier,
+                response,
+                request,
+                shared,
+                config,
+                logger,
+                agent_handler,
+                gate,
+            )
         first = ModifierResponseView(response, gate=gate)
         result = await _invoke(modifier, first, response, logger)
         if not first.body_requested:
