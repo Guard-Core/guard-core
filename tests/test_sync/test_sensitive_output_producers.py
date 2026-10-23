@@ -527,6 +527,12 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "line 140: adapter-init helper; the one dynamic value is the "
         "operator-configured log_file path, never request content"
     ),
+    "_utils/time_window.py:time_window_allows": (
+        "line 30: logs f'Error checking time window: {error}' where "
+        "time_restrictions is the operator/decorator-configured dict, not "
+        "request data; the exception concerns malformed config values "
+        "(shared by TimeWindowCheck and RequestValidator.check_time_window)"
+    ),
     "core/bypass/handler.py:BypassHandler.handle_passthrough": (
         "lines 26-31 warning is static text with only a fixed outcome "
         "string; the fire_block_hook call passes the static reason "
@@ -650,11 +656,6 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
     "SuspiciousActivityCheck.check": (
         "line 158 (disabled_by_decorator branch): reason is the static "
         "string 'Suspicious pattern detection disabled by route decorator'"
-    ),
-    "core/checks/implementations/time_window.py:TimeWindowCheck._check_time_window": (
-        "line 51: logs f'Error checking time window: {error}' where "
-        "time_restrictions is the operator/decorator-configured dict, not "
-        "request data; the exception concerns malformed config values"
     ),
     "core/checks/pipeline.py:SecurityCheckPipeline._handle_rebuild_error": (
         "line 142: the message text is f'Error rebuilding security checks: "
@@ -792,11 +793,6 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "line 72: logger.exception when the operator's own "
         "custom_response_modifier callback raises; exc is that callback's "
         "exception, not text guard_core constructs from request data"
-    ),
-    "core/validation/validator.py:RequestValidator.check_time_window": (
-        "line 65: logs f'Error checking time window: {error}' where "
-        "time_restrictions is the decorator-configured dict, not request "
-        "data (mirrors TimeWindowCheck._check_time_window)"
     ),
     "decorators/access_control.py:AccessControlMixin.bypass.decorator": (
         "line 78: 'ignored unknown checks %s' where the list comes from "
