@@ -151,7 +151,11 @@ class ErrorResponseFactory:
             if prefetch is not None:
                 SHARED_PREFETCH.set(None)
             return response
-        if request is not None:
+        if prefetch is not None:
+            SHARED_PREFETCH.set(None)
+        if request is not None and (
+            getattr(response, "body_is_materialized", False) is not True
+        ):
             return apply_modifier_with_bounded_body(
                 modifier,
                 response,

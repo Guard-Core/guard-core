@@ -10,12 +10,14 @@ from guard_core.sync.protocols.request_protocol import (
 from guard_core.sync.protocols.response_protocol import (
     GuardResponse,
     GuardResponseFactory,
+    MaterializedBodyResponse,
     SyncBoundedResponseBodyReader,
 )
 from guard_core.sync.protocols.route_identity import RouteIdentity
 
 __all__ = [
     "RouteIdentity",
+    "MaterializedBodyResponse",
     "SyncAgentHandlerProtocol",
     "SyncBoundedBodyReader",
     "SyncBoundedResponseBodyReader",

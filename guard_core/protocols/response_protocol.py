@@ -130,3 +130,29 @@ class BoundedResponseBodyReader(Protocol):
         """Return up to ``max_bytes`` of the body, read from its start,
         without disrupting delivery of the remainder to the client."""
         ...
+
+
+@runtime_checkable
+class MaterializedBodyResponse(Protocol):
+    """Optional capability: the response body is already fully in memory.
+
+    WHAT: a ``body_is_materialized`` property that is exactly ``True`` when the
+    response holds its whole body in memory, so reading ``body`` costs nothing
+    and consumes nothing.
+    WHEN: read once per response by ``custom_response_modifier`` handling. When
+    it is ``True`` the modifier gets the real response exactly as before the
+    bounded-body feature: real ``body`` bytes, one call, no view, no prefetch,
+    no replay and no ``custom_response_modifier_max_body_bytes`` cap. Absent,
+    ``False`` or any other value keeps the bounded path (a custom or third-party
+    response is never assumed materialized).
+    HOW: derive it from the framework's own signal, read before anything
+    touches the body: Starlette ``Response`` holds ``body`` (``FileResponse`` and
+    ``StreamingResponse`` do not), Django ``not response.streaming``, Werkzeug
+    ``not response.is_streamed`` read before ``.data`` (which buffers and flips
+    it), Tornado a buffered write rather than a chunked one.
+    """
+
+    @property
+    def body_is_materialized(self) -> bool:
+        """True when the whole body is already in memory."""
+        ...

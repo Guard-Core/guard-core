@@ -1,10 +1,15 @@
 from typing import Protocol, runtime_checkable
 
-from guard_core.protocols.response_protocol import GuardResponse, GuardResponseFactory
+from guard_core.protocols.response_protocol import (
+    GuardResponse,
+    GuardResponseFactory,
+    MaterializedBodyResponse,
+)
 
 __all__ = [
     "GuardResponse",
     "GuardResponseFactory",
+    "MaterializedBodyResponse",
     "SyncBoundedResponseBodyReader",
 ]
 
