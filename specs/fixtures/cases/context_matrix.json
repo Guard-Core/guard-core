@@ -24,7 +24,7 @@
           },
           {
             "type": "regex",
-            "pattern": "\\A(?:(?!\\n).)*etc/(?:passwd|shadow|group|hosts|motd|issue|mysql/my\\.cnf|ssh/ssh_config)(?:[&#;,\\\"'<>]|\\s*\\Z)",
+            "pattern": "\\A(?:(?!\\n).)*etc/(?:passwd|shadow|group|hosts|motd|issue|mysql/my\\.cnf|ssh/ssh_config)(?:[&#;,\\\"'<>]|[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f]|\\s*\\Z)",
             "match": "/files?name=../../etc/passwd",
             "position": 0,
             "category": "dir_traversal",
@@ -56,7 +56,7 @@
           },
           {
             "type": "regex",
-            "pattern": "\\A(?:(?!\\n).)*etc/(?:passwd|shadow|group|hosts|motd|issue|mysql/my\\.cnf|ssh/ssh_config)(?:[&#;,\\\"'<>]|\\s*\\Z)",
+            "pattern": "\\A(?:(?!\\n).)*etc/(?:passwd|shadow|group|hosts|motd|issue|mysql/my\\.cnf|ssh/ssh_config)(?:[&#;,\\\"'<>]|[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f]|\\s*\\Z)",
             "match": "file=../../etc/passwd",
             "position": 0,
             "category": "dir_traversal",
@@ -88,7 +88,7 @@
           },
           {
             "type": "regex",
-            "pattern": "\\A(?:(?!\\n).)*etc/(?:passwd|shadow|group|hosts|motd|issue|mysql/my\\.cnf|ssh/ssh_config)(?:[&#;,\\\"'<>]|\\s*\\Z)",
+            "pattern": "\\A(?:(?!\\n).)*etc/(?:passwd|shadow|group|hosts|motd|issue|mysql/my\\.cnf|ssh/ssh_config)(?:[&#;,\\\"'<>]|[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f]|\\s*\\Z)",
             "match": "../../etc/passwd",
             "position": 0,
             "category": "dir_traversal",
@@ -120,7 +120,7 @@
           },
           {
             "type": "regex",
-            "pattern": "\\A(?:(?!\\n).)*etc/(?:passwd|shadow|group|hosts|motd|issue|mysql/my\\.cnf|ssh/ssh_config)(?:[&#;,\\\"'<>]|\\s*\\Z)",
+            "pattern": "\\A(?:(?!\\n).)*etc/(?:passwd|shadow|group|hosts|motd|issue|mysql/my\\.cnf|ssh/ssh_config)(?:[&#;,\\\"'<>]|[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f]|\\s*\\Z)",
             "match": "../../etc/passwd",
             "position": 0,
             "category": "dir_traversal",
@@ -152,7 +152,7 @@
           },
           {
             "type": "regex",
-            "pattern": "\\A(?:(?!\\n).)*etc/(?:passwd|shadow|group|hosts|motd|issue|mysql/my\\.cnf|ssh/ssh_config)(?:[&#;,\\\"'<>]|\\s*\\Z)",
+            "pattern": "\\A(?:(?!\\n).)*etc/(?:passwd|shadow|group|hosts|motd|issue|mysql/my\\.cnf|ssh/ssh_config)(?:[&#;,\\\"'<>]|[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f]|\\s*\\Z)",
             "match": "../../etc/passwd",
             "position": 0,
             "category": "dir_traversal",

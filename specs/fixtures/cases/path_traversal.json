@@ -24,7 +24,7 @@
           },
           {
             "type": "regex",
-            "pattern": "\\A(?:(?!\\n).)*etc/(?:passwd|shadow|group|hosts|motd|issue|mysql/my\\.cnf|ssh/ssh_config)(?:[&#;,\\\"'<>]|\\s*\\Z)",
+            "pattern": "\\A(?:(?!\\n).)*etc/(?:passwd|shadow|group|hosts|motd|issue|mysql/my\\.cnf|ssh/ssh_config)(?:[&#;,\\\"'<>]|[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f]|\\s*\\Z)",
             "match": "/download?file=../../etc/passwd",
             "position": 0,
             "category": "dir_traversal",
@@ -56,7 +56,7 @@
           },
           {
             "type": "regex",
-            "pattern": "\\A(?:(?!\\n).)*(?:boot\\.ini|win\\.ini|system\\.ini|config\\.sys)(?:[&#;,\\\"'<>]|\\s*\\Z)",
+            "pattern": "\\A(?:(?!\\n).)*(?:boot\\.ini|win\\.ini|system\\.ini|config\\.sys)(?:[&#;,\\\"'<>]|[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f]|\\s*\\Z)",
             "match": "..\\..\\windows\\win.ini",
             "position": 0,
             "category": "dir_traversal",
@@ -80,7 +80,7 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "\\A(?:(?!\\n).)*etc/(?:passwd|shadow|group|hosts|motd|issue|mysql/my\\.cnf|ssh/ssh_config)(?:[&#;,\\\"'<>]|\\s*\\Z)",
+            "pattern": "\\A(?:(?!\\n).)*etc/(?:passwd|shadow|group|hosts|motd|issue|mysql/my\\.cnf|ssh/ssh_config)(?:[&#;,\\\"'<>]|[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f]|\\s*\\Z)",
             "match": "../etc/passwd",
             "position": 0,
             "category": "dir_traversal",
@@ -112,7 +112,7 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "\\A(?:(?!\\n).)*etc/(?:passwd|shadow|group|hosts|motd|issue|mysql/my\\.cnf|ssh/ssh_config)(?:[&#;,\\\"'<>]|\\s*\\Z)",
+            "pattern": "\\A(?:(?!\\n).)*etc/(?:passwd|shadow|group|hosts|motd|issue|mysql/my\\.cnf|ssh/ssh_config)(?:[&#;,\\\"'<>]|[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f]|\\s*\\Z)",
             "match": "../etc/passwd",
             "position": 0,
             "category": "dir_traversal",
@@ -144,7 +144,7 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "\\A(?:(?!\\n).)*etc/(?:passwd|shadow|group|hosts|motd|issue|mysql/my\\.cnf|ssh/ssh_config)(?:[&#;,\\\"'<>]|\\s*\\Z)",
+            "pattern": "\\A(?:(?!\\n).)*etc/(?:passwd|shadow|group|hosts|motd|issue|mysql/my\\.cnf|ssh/ssh_config)(?:[&#;,\\\"'<>]|[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f]|\\s*\\Z)",
             "match": "/static/....//....//etc/passwd",
             "position": 0,
             "category": "dir_traversal",
@@ -168,7 +168,7 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "\\A(?:(?!\\n).)*etc/(?:passwd|shadow|group|hosts|motd|issue|mysql/my\\.cnf|ssh/ssh_config)(?:[&#;,\\\"'<>]|\\s*\\Z)",
+            "pattern": "\\A(?:(?!\\n).)*etc/(?:passwd|shadow|group|hosts|motd|issue|mysql/my\\.cnf|ssh/ssh_config)(?:[&#;,\\\"'<>]|[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f]|\\s*\\Z)",
             "match": "/preview?tpl=/etc/passwd",
             "position": 0,
             "category": "dir_traversal",
@@ -192,7 +192,7 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "\\A(?:(?!\\n).)*(?:boot\\.ini|win\\.ini|system\\.ini|config\\.sys)(?:[&#;,\\\"'<>]|\\s*\\Z)",
+            "pattern": "\\A(?:(?!\\n).)*(?:boot\\.ini|win\\.ini|system\\.ini|config\\.sys)(?:[&#;,\\\"'<>]|[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f]|\\s*\\Z)",
             "match": "c:\\windows\\win.ini",
             "position": 0,
             "category": "dir_traversal",
@@ -232,7 +232,7 @@
           },
           {
             "type": "regex",
-            "pattern": "\\A(?:(?!\\n).)*etc/(?:passwd|shadow|group|hosts|motd|issue|mysql/my\\.cnf|ssh/ssh_config)(?:[&#;,\\\"'<>]|\\s*\\Z)",
+            "pattern": "\\A(?:(?!\\n).)*etc/(?:passwd|shadow|group|hosts|motd|issue|mysql/my\\.cnf|ssh/ssh_config)(?:[&#;,\\\"'<>]|[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f]|\\s*\\Z)",
             "match": "/../../../etc/shadow",
             "position": 0,
             "category": "dir_traversal",
@@ -264,7 +264,7 @@
           },
           {
             "type": "regex",
-            "pattern": "\\A(?:(?!\\n).)*proc/self/environ(?:[&#;,\\\"'<>]|\\s*\\Z)",
+            "pattern": "\\A(?:(?!\\n).)*proc/self/environ(?:[&#;,\\\"'<>]|[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f]|\\s*\\Z)",
             "match": "/../../proc/self/environ",
             "position": 0,
             "category": "dir_traversal",
@@ -296,7 +296,7 @@
           },
           {
             "type": "regex",
-            "pattern": "\\A(?:(?!\\n).)*etc/(?:passwd|shadow|group|hosts|motd|issue|mysql/my\\.cnf|ssh/ssh_config)(?:[&#;,\\\"'<>]|\\s*\\Z)",
+            "pattern": "\\A(?:(?!\\n).)*etc/(?:passwd|shadow|group|hosts|motd|issue|mysql/my\\.cnf|ssh/ssh_config)(?:[&#;,\\\"'<>]|[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f]|\\s*\\Z)",
             "match": "/a/../../a/../../a/../../a/../../a/../../a/../../a/../../a/../../a/../../a/../../a/../../a/../../a/../../a/../../a/../../a/../../a/../../a/../../a/../../a/../../etc/passwd",
             "position": 0,
             "category": "dir_traversal",
