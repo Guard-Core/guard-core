@@ -121,6 +121,10 @@ async def _python_checks() -> dict[str, dict[str, Any]]:
             self.state.client_ip = "203.0.113.9"
             self.state.is_whitelisted = False
             self.state.route_config = None
+            self.scope: dict[str, Any] = {}
+
+        def url_replace_scheme(self, scheme: str) -> str:
+            return f"{scheme}://example.com{self.url_path}"
 
         async def body(self) -> bytes:
             body: bytes = self._body
@@ -128,7 +132,7 @@ async def _python_checks() -> dict[str, dict[str, Any]]:
 
     results = {}
     for case in CASES:
-        response = await check.check(_Request(case))  # type: ignore[arg-type]
+        response = await check.check(_Request(case))
         results[case["label"]] = {
             "blocked": response is not None,
             "status": getattr(response, "status_code", None),

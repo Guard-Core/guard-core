@@ -208,7 +208,9 @@ class PatternCompiler:
             return inline_safe_finditer
 
         def safe_finditer(text: str) -> list[re.Match]:
-            work: Callable[[], Any] = lambda: list(compiled.finditer(text))  # noqa: E731
+            def work() -> list[re.Match]:
+                return list(compiled.finditer(text))
+
             future = shared_regex_executor().submit(
                 work if worker_wrapper is None else worker_wrapper(work)
             )
