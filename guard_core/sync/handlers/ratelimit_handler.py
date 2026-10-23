@@ -9,9 +9,8 @@ from collections.abc import Callable, Sequence
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, NamedTuple
 
-from redis.exceptions import NoScriptError, RedisError
-
 from guard_core._redis_enablement import configured_redis_url, redis_is_configured
+from guard_core._redis_exceptions import NoScriptError, RedisError
 from guard_core.exceptions import GuardRedisError
 from guard_core.models import SecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse

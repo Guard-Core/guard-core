@@ -42,7 +42,7 @@ def test_ipinfo_db(tmp_path: Path) -> None:
 
     with (
         patch(
-            "guard_core.sync.handlers.ipinfo_handler.requests.Session",
+            "requests.Session",
             return_value=mock_session,
         ),
         patch("maxminddb.open_database"),
@@ -96,7 +96,7 @@ def test_ipinfo_download_failure(tmp_path: Path) -> None:
 
     with (
         patch(
-            "guard_core.sync.handlers.ipinfo_handler.requests.Session",
+            "requests.Session",
             return_value=mock_session,
         ),
         patch.object(IPInfoManager, "_is_db_outdated", return_value=True),
@@ -114,7 +114,7 @@ def test_download_database_sends_bearer_header_without_url_token(
     mock_session = _mock_aiohttp(content=VALID_DB)
 
     with patch(
-        "guard_core.sync.handlers.ipinfo_handler.requests.Session",
+        "requests.Session",
         return_value=mock_session,
     ):
         db._download_database()
@@ -130,7 +130,7 @@ def test_db_initialization_retry(tmp_path: Path) -> None:
 
     with (
         patch(
-            "guard_core.sync.handlers.ipinfo_handler.requests.Session",
+            "requests.Session",
             return_value=mock_session,
         ),
         patch.object(db, "_sleep", MagicMock()) as mock_sleep,
@@ -163,7 +163,7 @@ def test_database_retry_success(tmp_path: Path) -> None:
 
     with (
         patch(
-            "guard_core.sync.handlers.ipinfo_handler.requests.Session",
+            "requests.Session",
             return_value=mock_session,
         ),
         patch("time.sleep") as mock_sleep,
@@ -287,7 +287,7 @@ def test_redis_cache_hit_with_corrupt_database(tmp_path: Path) -> None:
 
     with (
         patch(
-            "guard_core.sync.handlers.ipinfo_handler.maxminddb.open_database",
+            "maxminddb.open_database",
             side_effect=Exception("corrupt database"),
         ),
         patch.object(
@@ -335,7 +335,7 @@ def test_initialize_redis_cache_read_failure_falls_through_to_download(
     with (
         caplog.at_level("WARNING", logger="guard_core.sync.handlers.ipinfo"),
         patch(
-            "guard_core.sync.handlers.ipinfo_handler.requests.Session",
+            "requests.Session",
             return_value=mock_session,
         ),
         patch("maxminddb.open_database", return_value=mock_reader),
@@ -356,7 +356,7 @@ def test_redis_cache_update(tmp_path: Path) -> None:
 
     with (
         patch(
-            "guard_core.sync.handlers.ipinfo_handler.requests.Session",
+            "requests.Session",
             return_value=mock_session,
         ),
         patch("maxminddb.open_database"),
@@ -384,7 +384,7 @@ def test_download_database_redis_cache_write_failure_does_not_block_download(
     with (
         caplog.at_level("WARNING", logger="guard_core.sync.handlers.ipinfo"),
         patch(
-            "guard_core.sync.handlers.ipinfo_handler.requests.Session",
+            "requests.Session",
             return_value=mock_session,
         ),
     ):
@@ -431,7 +431,7 @@ def test_corrupted_db_removal(tmp_path: Path) -> None:
     with (
         patch.object(IPInfoManager, "_is_db_outdated", return_value=False),
         patch(
-            "guard_core.sync.handlers.ipinfo_handler.maxminddb.open_database",
+            "maxminddb.open_database",
             side_effect=Exception("corrupt database"),
         ),
     ):
@@ -447,7 +447,7 @@ def test_download_exhausts_retries(tmp_path: Path) -> None:
 
     with (
         patch(
-            "guard_core.sync.handlers.ipinfo_handler.requests.Session",
+            "requests.Session",
             return_value=mock_session,
         ),
         patch("time.sleep"),
@@ -462,7 +462,7 @@ def test_redirect_handling(tmp_path: Path) -> None:
     mock_session = _mock_aiohttp(content=VALID_DB)
 
     with patch(
-        "guard_core.sync.handlers.ipinfo_handler.requests.Session",
+        "requests.Session",
         return_value=mock_session,
     ):
         db._download_database()
@@ -482,7 +482,7 @@ def test_download_database_atomic_replace_leaves_no_temp_file(
     mock_session = _mock_aiohttp(content=VALID_DB)
 
     with patch(
-        "guard_core.sync.handlers.ipinfo_handler.requests.Session",
+        "requests.Session",
         return_value=mock_session,
     ):
         db._download_database()
@@ -502,7 +502,7 @@ def test_download_database_removes_temp_file_when_replace_fails(
 
     with (
         patch(
-            "guard_core.sync.handlers.ipinfo_handler.requests.Session",
+            "requests.Session",
             return_value=mock_session,
         ),
         patch(
@@ -972,7 +972,7 @@ def test_refresh_keeps_previous_reader_when_reopened_db_is_corrupt(
             db, "_download_database", new=MagicMock(side_effect=fake_download)
         ),
         patch(
-            "guard_core.sync.handlers.ipinfo_handler.maxminddb.open_database",
+            "maxminddb.open_database",
             side_effect=Exception("corrupt database"),
         ),
     ):
@@ -1006,7 +1006,7 @@ def test_refresh_keeps_previous_database_when_temp_write_fails(
 
     with (
         patch(
-            "guard_core.sync.handlers.ipinfo_handler.requests.Session",
+            "requests.Session",
             return_value=mock_session,
         ),
         patch("builtins.open", side_effect=fake_open),
@@ -1027,7 +1027,7 @@ def test_open_database_or_none_skips_unlink_when_file_already_missing(
     db = IPInfoManager(token="test", db_path=db_path)
 
     with patch(
-        "guard_core.sync.handlers.ipinfo_handler.maxminddb.open_database",
+        "maxminddb.open_database",
         side_effect=Exception("corrupt database"),
     ):
         result = db._open_database_or_none()
@@ -1061,7 +1061,7 @@ def test_get_country_warns_permanent_failure_after_failed_init_attempt(
 
     with (
         patch(
-            "guard_core.sync.handlers.ipinfo_handler.requests.Session",
+            "requests.Session",
             return_value=mock_session,
         ),
         patch("time.sleep"),

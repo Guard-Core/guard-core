@@ -7,8 +7,6 @@ from datetime import date, datetime, timezone
 from typing import Any
 from urllib.parse import urlparse
 
-import requests
-
 logger = logging.getLogger("guard_core.sync.handlers.cloud")
 
 _AZURE_DOWNLOAD_MAX_ATTEMPTS = 3
@@ -30,6 +28,8 @@ _AZURE_CLOUD_SERVICE_TAG_NAME = "AzureCloud"
 def _download_azure_service_tags(
     download_url: str, deadline: float | None = None
 ) -> Any:
+    import requests
+
     if deadline is None:
         deadline = time.monotonic() + _AZURE_DOWNLOAD_MAX_ELAPSED_SECONDS
     attempt = 0
@@ -158,6 +158,8 @@ def _select_azure_cloud_prefixes(data: Any) -> list[str]:
 
 
 def fetch_azure_ip_ranges() -> set[ipaddress.IPv4Network | ipaddress.IPv6Network]:
+    import requests
+
     try:
         deadline = time.monotonic() + _AZURE_DOWNLOAD_MAX_ELAPSED_SECONDS
         page_timeout = min(

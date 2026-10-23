@@ -21,12 +21,8 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
-    "aiohttp",
     "cachetools",
-    "maxminddb",
     "pydantic",
-    "redis",
-    "requests",
     "typing-extensions",
 ]
 
@@ -39,9 +35,11 @@ Changelog = "https://github.com/Guard-Core/guard-core/blob/master/CHANGELOG.md"
 
 [project.optional-dependencies]
 dev = [
+    "aiohttp",
     "bandit[toml]",
     "deptry",
     "guard-agent",
+    "maxminddb",
     "mkdocs",
     "mkdocstrings",
     "mkdocstrings-python",
@@ -55,6 +53,8 @@ dev = [
     "pytest-cov",
     "pytest-mock",
     "radon",
+    "redis",
+    "requests",
     "ruff",
     "safety",
     "testcontainers",
@@ -78,7 +78,9 @@ cloud = [
     "requests",
 ]
 geo = [
+    "aiohttp",
     "maxminddb",
+    "requests",
 ]
 
 [build-system]

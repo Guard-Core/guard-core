@@ -1,10 +1,13 @@
+from __future__ import annotations
+
 import logging
 from pathlib import Path
-from typing import Any
-
-from maxminddb import Reader
+from typing import TYPE_CHECKING, Any
 
 from guard_core.protocols.redis_protocol import RedisHandlerProtocol
+
+if TYPE_CHECKING:
+    from maxminddb import Reader
 
 
 class IpInfoRedisCopyMixin:

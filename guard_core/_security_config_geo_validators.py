@@ -4,6 +4,8 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
 
+from guard_core._config_capabilities import require_geo_extra
+
 if TYPE_CHECKING:
     from guard_core.models import SecurityConfig
 
@@ -83,6 +85,7 @@ def _resolve_geo_ip_handler(
                 "geo_ip_handler is required "
                 "if blocked_countries or whitelist_countries is set"
             )
+        require_geo_extra()
         from guard_core.handlers.ipinfo_handler import IPInfoManager
 
         return IPInfoManager(

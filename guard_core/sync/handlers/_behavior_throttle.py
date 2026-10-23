@@ -7,9 +7,8 @@ from collections.abc import Callable
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any
 
-from redis.exceptions import NoScriptError
-
 from guard_core._redis_enablement import redis_is_configured
+from guard_core._redis_exceptions import NoScriptError
 from guard_core.exceptions import GuardRedisError
 from guard_core.models import SecurityConfig
 from guard_core.scripts.behavior_throttle_lua import BEHAVIOR_THROTTLE_SCRIPT

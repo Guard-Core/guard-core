@@ -55,7 +55,7 @@ def test_ipinfo_refresh_redownloads_and_swaps_the_reader(tmp_path: Path) -> None
             mgr, "_download_database", side_effect=fake_download
         ) as mock_download,
         patch(
-            "guard_core.sync.handlers.ipinfo_handler.maxminddb.open_database",
+            "maxminddb.open_database",
             return_value=new_reader,
         ),
     ):
@@ -82,7 +82,7 @@ def test_ipinfo_refresh_opens_database_when_download_succeeds(
         patch.object(mgr, "close"),
         patch.object(mgr, "_download_database", side_effect=fake_download),
         patch(
-            "guard_core.sync.handlers.ipinfo_handler.maxminddb.open_database",
+            "maxminddb.open_database",
             return_value=fake_reader,
         ),
     ):
@@ -130,7 +130,7 @@ def test_ipinfo_download_database_uses_configured_ttl(tmp_path: Path) -> None:
     mock_session.__exit__ = MagicMock(return_value=None)
 
     with patch(
-        "guard_core.sync.handlers.ipinfo_handler.requests.Session",
+        "requests.Session",
         return_value=mock_session,
     ):
         mgr._download_database()

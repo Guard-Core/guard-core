@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import logging
 import os
@@ -5,11 +7,7 @@ import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
-
-import aiohttp
-import maxminddb
-from maxminddb import Reader
+from typing import TYPE_CHECKING, Any
 
 from guard_core.core.events.event_types import (
     EVENT_GEO_LOOKUP_FAILED,
@@ -19,6 +17,9 @@ from guard_core.handlers._ipinfo_events import IpInfoEventsMixin
 from guard_core.handlers._ipinfo_redis_copy import IpInfoRedisCopyMixin
 from guard_core.protocols.agent_protocol import AgentHandlerProtocol
 from guard_core.protocols.redis_protocol import RedisHandlerProtocol
+
+if TYPE_CHECKING:
+    from maxminddb import Reader
 
 
 def _describe_download_error(exc: BaseException) -> str:
@@ -52,11 +53,11 @@ class IPInfoManager(IpInfoBackgroundMixin, IpInfoRedisCopyMixin, IpInfoEventsMix
     _DOWNLOAD_LOCK_SECONDS = 60
 
     def __new__(
-        cls: type["IPInfoManager"],
+        cls: type[IPInfoManager],
         token: str,
         db_path: Path | None = None,
         max_age: int = 86400,
-    ) -> "IPInfoManager":
+    ) -> IPInfoManager:
         if not token:
             raise ValueError("IPInfo token is required!")
 
@@ -104,6 +105,8 @@ class IPInfoManager(IpInfoBackgroundMixin, IpInfoRedisCopyMixin, IpInfoEventsMix
         self.agent_handler = agent_handler
 
     def _open_database_or_none(self) -> Reader | None:
+        import maxminddb
+
         try:
             return maxminddb.open_database(str(self.db_path))
         except Exception as e:
@@ -122,6 +125,8 @@ class IPInfoManager(IpInfoBackgroundMixin, IpInfoRedisCopyMixin, IpInfoEventsMix
             self._arm_staleness_timer()
 
     def _validate_database_file(self, path: Path) -> None:
+        import maxminddb
+
         try:
             reader = maxminddb.open_database(str(path))
             try:
@@ -211,6 +216,8 @@ class IPInfoManager(IpInfoBackgroundMixin, IpInfoRedisCopyMixin, IpInfoEventsMix
         headers = {"Authorization": f"Bearer {self.token}"}
         retries = self._download_retries
         backoff = 1
+
+        import aiohttp
 
         async with aiohttp.ClientSession() as session:
             for attempt in range(retries):

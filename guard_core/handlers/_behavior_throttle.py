@@ -7,9 +7,8 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any
 
-from redis.exceptions import NoScriptError
-
 from guard_core._redis_enablement import redis_is_configured
+from guard_core._redis_exceptions import NoScriptError
 from guard_core._utils.identity_hash import _hash_identity_segment
 from guard_core._utils.ip_extraction import _client_identity
 from guard_core._utils.lru_store import _lru_pop_or_create

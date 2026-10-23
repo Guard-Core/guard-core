@@ -55,7 +55,7 @@ async def test_ipinfo_refresh_redownloads_and_swaps_the_reader(tmp_path: Path) -
             mgr, "_download_database", new_callable=AsyncMock, side_effect=fake_download
         ) as mock_download,
         patch(
-            "guard_core.handlers.ipinfo_handler.maxminddb.open_database",
+            "maxminddb.open_database",
             return_value=new_reader,
         ),
     ):
@@ -82,7 +82,7 @@ async def test_ipinfo_refresh_opens_database_when_download_succeeds(
         patch.object(mgr, "close"),
         patch.object(mgr, "_download_database", side_effect=fake_download),
         patch(
-            "guard_core.handlers.ipinfo_handler.maxminddb.open_database",
+            "maxminddb.open_database",
             return_value=fake_reader,
         ),
     ):
@@ -134,7 +134,7 @@ async def test_ipinfo_download_database_uses_configured_ttl(tmp_path: Path) -> N
     mock_session.__aexit__ = AsyncMock(return_value=None)
 
     with patch(
-        "guard_core.handlers.ipinfo_handler.aiohttp.ClientSession",
+        "aiohttp.ClientSession",
         return_value=mock_session,
     ):
         await mgr._download_database()

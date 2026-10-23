@@ -581,7 +581,7 @@ def test_fetch_gcp_ignores_prefixes_lacking_both_ipv4_and_ipv6() -> None:
             return response
 
     with patch(
-        "guard_core.sync.handlers._cloud_provider_fetchers.requests.Session",
+        "requests.Session",
         _FakeSession,
     ):
         networks, _ = fetch_gcp_ip_ranges()

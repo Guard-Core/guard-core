@@ -1,14 +1,14 @@
 import ipaddress
 import logging
 
-import requests
-
 logger = logging.getLogger("guard_core.sync.handlers.cloud")
 
 
 def fetch_aws_ip_ranges() -> tuple[
     set[ipaddress.IPv4Network | ipaddress.IPv6Network], dict[str, str]
 ]:
+    import requests
+
     try:
         with requests.Session() as session:
             response = session.get(
@@ -36,6 +36,8 @@ def fetch_aws_ip_ranges() -> tuple[
 def fetch_gcp_ip_ranges() -> tuple[
     set[ipaddress.IPv4Network | ipaddress.IPv6Network], dict[str, str]
 ]:
+    import requests
+
     try:
         with requests.Session() as session:
             response = session.get(
@@ -64,6 +66,8 @@ def fetch_gcp_ip_ranges() -> tuple[
 def _fetch_csv_prefix_networks(
     url: str,
 ) -> set[ipaddress.IPv4Network | ipaddress.IPv6Network]:
+    import requests
+
     with requests.Session() as session:
         response = session.get(
             url,
@@ -106,6 +110,8 @@ def fetch_linode_ip_ranges() -> set[ipaddress.IPv4Network | ipaddress.IPv6Networ
 
 
 def fetch_vultr_ip_ranges() -> set[ipaddress.IPv4Network | ipaddress.IPv6Network]:
+    import requests
+
     try:
         with requests.Session() as session:
             response = session.get(

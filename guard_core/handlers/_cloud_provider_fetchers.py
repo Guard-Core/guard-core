@@ -1,14 +1,14 @@
 import ipaddress
 import logging
 
-import aiohttp
-
 logger = logging.getLogger("guard_core.handlers.cloud")
 
 
 async def fetch_aws_ip_ranges() -> tuple[
     set[ipaddress.IPv4Network | ipaddress.IPv6Network], dict[str, str]
 ]:
+    import aiohttp
+
     try:
         async with aiohttp.ClientSession() as session:
             response = await session.get(
@@ -36,6 +36,8 @@ async def fetch_aws_ip_ranges() -> tuple[
 async def fetch_gcp_ip_ranges() -> tuple[
     set[ipaddress.IPv4Network | ipaddress.IPv6Network], dict[str, str]
 ]:
+    import aiohttp
+
     try:
         async with aiohttp.ClientSession() as session:
             response = await session.get(
@@ -64,6 +66,8 @@ async def fetch_gcp_ip_ranges() -> tuple[
 async def _fetch_csv_prefix_networks(
     url: str,
 ) -> set[ipaddress.IPv4Network | ipaddress.IPv6Network]:
+    import aiohttp
+
     async with aiohttp.ClientSession() as session:
         response = await session.get(
             url,
@@ -110,6 +114,8 @@ async def fetch_linode_ip_ranges() -> set[
 
 
 async def fetch_vultr_ip_ranges() -> set[ipaddress.IPv4Network | ipaddress.IPv6Network]:
+    import aiohttp
+
     try:
         async with aiohttp.ClientSession() as session:
             response = await session.get(

@@ -2,6 +2,10 @@ from collections.abc import Collection, Mapping
 from copy import deepcopy
 from typing import TYPE_CHECKING, Any
 
+from guard_core._config_capabilities import (
+    cloud_blocking_requested,
+    require_cloud_extra,
+)
 from guard_core._security_config_validators import (
     _FIELD_REVALIDATORS,
     _resolve_geo_ip_handler,
@@ -12,6 +16,16 @@ if TYPE_CHECKING:
     from guard_core.models import SecurityConfig
 
 
+def _require_cloud_extra_for_batch(
+    config: "SecurityConfig", prepared: Mapping[str, Any]
+) -> None:
+    if cloud_blocking_requested(
+        prepared.get("block_cloud_providers", config.block_cloud_providers),
+        prepared.get("enable_dynamic_rules", config.enable_dynamic_rules),
+    ):
+        require_cloud_extra()
+
+
 def prepare_config_batch(
     config: "SecurityConfig", values: Mapping[str, Any], validated: Collection[str]
 ) -> dict[str, Any]:
@@ -19,6 +33,7 @@ def prepare_config_batch(
     for name in validated:
         if name in _FIELD_REVALIDATORS:
             prepared[name] = _FIELD_REVALIDATORS[name](prepared[name])
+    _require_cloud_extra_for_batch(config, prepared)
     blocked = prepared.get("blocked_countries", config.blocked_countries)
     allowed = prepared.get("whitelist_countries", config.whitelist_countries)
     resolved = _resolve_geo_ip_handler(

@@ -22,6 +22,7 @@ from guard_core._security_config_validators import (
     _GEO_STATE_FIELDS,
     _GLOBAL_BEHAVIOR_RULE_FIELDS,
     _apply_geo_ip_handler_assignment,
+    _assign_checking_optional_extras,
     _country_shadow_should_warn,
     _is_prefix_zero_network_entry,
     _require_optional_extras,
@@ -116,7 +117,9 @@ class SecurityConfig(_SecurityConfigFields):
 
         should_warn = _country_shadow_should_warn(self, name, value)
 
-        super().__setattr__(name, value)
+        _assign_checking_optional_extras(
+            self, name, lambda: super(SecurityConfig, self).__setattr__(name, value)
+        )
         if name != "_revision":
             object.__setattr__(self, "_revision", self._current_revision() + 1)
         if should_warn:

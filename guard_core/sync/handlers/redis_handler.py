@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import hashlib
 import logging
 import threading
@@ -5,17 +7,15 @@ import uuid
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from datetime import datetime, timezone
-from typing import Any, NoReturn
+from typing import TYPE_CHECKING, Any, NoReturn
 from urllib.parse import urlsplit, urlunsplit
 
-from redis import Redis
-from redis.backoff import ExponentialBackoff
-from redis.exceptions import ConnectionError as RedisConnectionError
-from redis.exceptions import NoScriptError
-from redis.exceptions import TimeoutError as RedisTimeoutError
-from redis.retry import Retry
-
 from guard_core._redis_enablement import configured_redis_url, redis_is_configured
+from guard_core._redis_exceptions import (
+    NoScriptError,
+    RedisConnectionError,
+    RedisTimeoutError,
+)
 from guard_core.exceptions import GuardRedisError
 from guard_core.models import SecurityConfig
 from guard_core.scripts.ban_write_lua import (
@@ -41,7 +41,9 @@ from guard_core.sync.handlers._dynamic_rule_persistence import (
     DYNAMIC_RULES_REDIS_NAMESPACE,
     OWNED_BANS_KEY,
 )
-from guard_core.sync.handlers._redis_fast_pool import FastPathConnectionPool
+
+if TYPE_CHECKING:
+    from redis import Redis
 
 
 def _unparseable_redis_url(url: str, scheme: str = "") -> str:
@@ -77,6 +79,10 @@ _SCAN_BATCH = 500
 def _build_redis_client(
     url: str, max_connections: int, pool_timeout: float, **connection_kwargs: Any
 ) -> Redis:
+    from redis import Redis
+
+    from guard_core.sync.handlers._redis_fast_pool import FastPathConnectionPool
+
     pool = FastPathConnectionPool.from_url(
         url,
         max_connections=max_connections,
@@ -123,7 +129,7 @@ class RedisManager:
     logger: logging.Logger
     agent_handler: Any = None
 
-    def __new__(cls: type["RedisManager"], config: SecurityConfig) -> "RedisManager":
+    def __new__(cls: type[RedisManager], config: SecurityConfig) -> RedisManager:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance.logger = logging.getLogger("guard_core.sync.handlers.redis")
@@ -176,6 +182,9 @@ class RedisManager:
             "health_check_interval": cfg.redis_health_check_interval,
         }
         if cfg.redis_retries > 0:
+            from redis.backoff import ExponentialBackoff
+            from redis.retry import Retry
+
             kwargs["retry"] = Retry(ExponentialBackoff(), cfg.redis_retries)
             kwargs["retry_on_error"] = [RedisConnectionError, RedisTimeoutError]
         return kwargs
@@ -795,6 +804,8 @@ def scan_unlink(
 def scan_unlink_through_new_client(url: str, full_pattern: str) -> int:
     """scan_unlink on a short-lived client of its own, for a caller that holds no
     handler of the Redis it must clear (never the RedisManager singleton)."""
+    from redis import Redis
+
     client = Redis.from_url(url, decode_responses=True)
     try:
         return scan_unlink(client, full_pattern)

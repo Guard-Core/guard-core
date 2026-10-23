@@ -72,7 +72,7 @@ async def test_a_garbage_download_never_replaces_the_working_database(
 
     with (
         patch(
-            "guard_core.handlers.ipinfo_handler.aiohttp.ClientSession",
+            "aiohttp.ClientSession",
             return_value=_response_with(b"<html>rate limited</html>"),
         ),
         patch.object(manager, "_sleep", AsyncMock()),
@@ -91,7 +91,7 @@ async def test_a_good_download_is_swapped_in_without_closing_the_old_reader(
     manager.reader = old_reader
 
     with patch(
-        "guard_core.handlers.ipinfo_handler.aiohttp.ClientSession",
+        "aiohttp.ClientSession",
         return_value=_response_with(country_database_bytes("US")),
     ):
         await manager.refresh()
@@ -111,9 +111,7 @@ async def test_a_worker_leaves_the_download_to_the_one_holding_the_lock(
         return_value=_response_with(country_database_bytes("US"))
     )
 
-    with patch(
-        "guard_core.handlers.ipinfo_handler.aiohttp.ClientSession", session_factory
-    ):
+    with patch("aiohttp.ClientSession", session_factory):
         await manager.initialize()
 
         assert not manager.is_initialized
@@ -135,7 +133,7 @@ async def test_the_download_lock_is_released_after_a_download(tmp_path: Path) ->
     manager.redis_handler = cast(RedisHandlerProtocol, redis)
 
     with patch(
-        "guard_core.handlers.ipinfo_handler.aiohttp.ClientSession",
+        "aiohttp.ClientSession",
         return_value=_response_with(country_database_bytes("US")),
     ):
         await manager.initialize()

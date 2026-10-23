@@ -9,9 +9,8 @@ from collections.abc import Awaitable, Callable, Sequence
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, NamedTuple
 
-from redis.exceptions import NoScriptError, RedisError
-
 from guard_core._redis_enablement import configured_redis_url, redis_is_configured
+from guard_core._redis_exceptions import NoScriptError, RedisError
 from guard_core._utils.identity_hash import _hash_identity_segment
 from guard_core._utils.ip_extraction import _client_identity
 from guard_core._utils.lru_store import DEFAULT_MAX_TRACKED_KEYS, _lru_pop_or_create

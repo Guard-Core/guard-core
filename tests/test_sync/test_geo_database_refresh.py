@@ -69,7 +69,7 @@ def test_a_garbage_download_never_replaces_the_working_database(
 
     with (
         patch(
-            "guard_core.sync.handlers.ipinfo_handler.requests.Session",
+            "requests.Session",
             return_value=_response_with(b"<html>rate limited</html>"),
         ),
         patch.object(manager, "_sleep", MagicMock()),
@@ -88,7 +88,7 @@ def test_a_good_download_is_swapped_in_without_closing_the_old_reader(
     manager.reader = old_reader
 
     with patch(
-        "guard_core.sync.handlers.ipinfo_handler.requests.Session",
+        "requests.Session",
         return_value=_response_with(country_database_bytes("US")),
     ):
         manager.refresh()
@@ -108,9 +108,7 @@ def test_a_worker_leaves_the_download_to_the_one_holding_the_lock(
         return_value=_response_with(country_database_bytes("US"))
     )
 
-    with patch(
-        "guard_core.sync.handlers.ipinfo_handler.requests.Session", session_factory
-    ):
+    with patch("requests.Session", session_factory):
         manager.initialize()
 
         assert not manager.is_initialized
@@ -132,7 +130,7 @@ def test_the_download_lock_is_released_after_a_download(tmp_path: Path) -> None:
     manager.redis_handler = cast(SyncRedisHandlerProtocol, redis)
 
     with patch(
-        "guard_core.sync.handlers.ipinfo_handler.requests.Session",
+        "requests.Session",
         return_value=_response_with(country_database_bytes("US")),
     ):
         manager.initialize()

@@ -1,11 +1,21 @@
 import logging
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
 
-from guard_core._config_capabilities import _extra_installed, cloud_blocking_enabled
-from guard_core._redis_enablement import redis_is_configured, resolve_enable_redis
+from guard_core._config_capabilities import (
+    _extra_installed,
+    cloud_blocking_enabled,
+    require_cloud_extra,
+    require_geo_extra,
+    require_redis_extra,
+)
+from guard_core._redis_enablement import (
+    REDIS_CONNECTION_FIELDS,
+    redis_is_configured,
+    resolve_enable_redis,
+)
 from guard_core._security_config_field_validators import (
     _FIELD_REVALIDATORS,
     _GLOBAL_BEHAVIOR_RULE_FIELDS,
@@ -70,6 +80,7 @@ __all__ = [
     "_GEO_STATE_FIELDS",
     "_GLOBAL_BEHAVIOR_RULE_FIELDS",
     "_apply_geo_ip_handler_assignment",
+    "_assign_checking_optional_extras",
     "_country_shadow_should_warn",
     "_extra_installed",
     "_geo_state_candidates",
@@ -165,6 +176,7 @@ def _revalidate_copied_config(
     _revalidate_geo_state_fields(copied, update)
     _revalidate_changed_fields(copied, update)
     _revalidate_global_behavior_rule_fields(copied, update)
+    _require_optional_extras(copied)
 
 
 def _require_recidive_cap_covers_auto_ban(config: "SecurityConfig") -> None:
@@ -178,23 +190,42 @@ def _require_recidive_cap_covers_auto_ban(config: "SecurityConfig") -> None:
         )
 
 
-def _require_optional_extras(config: "SecurityConfig") -> None:
-    if redis_is_configured(config) and not _extra_installed("redis"):
-        raise ValueError(
-            "enable_redis=True requires the 'redis' package. "
-            "Install it with: pip install guard-core[redis]"
-        )
+_EXTRA_GATED_FIELDS = frozenset(
+    {
+        *REDIS_CONNECTION_FIELDS,
+        "enable_redis",
+        "block_cloud_providers",
+        "enable_dynamic_rules",
+    }
+)
 
-    if cloud_blocking_enabled(config) and not _extra_installed("aiohttp", "requests"):
-        raise ValueError(
-            "block_cloud_providers / enable_dynamic_rules requires 'aiohttp' or "
-            "'requests'. Install it with: pip install guard-core[cloud]"
-        )
+
+def _assign_checking_optional_extras(
+    config: "SecurityConfig", name: str, assign: Callable[[], None]
+) -> None:
+    if name not in _EXTRA_GATED_FIELDS:
+        assign()
+        return
+    previous = {key: config.__dict__[key] for key in {name, "enable_redis"}}
+    fields_set = set(config.__pydantic_fields_set__)
+    assign()
+    try:
+        resolve_enable_redis(config)
+        _require_optional_extras(config)
+    except ValueError:
+        config.__dict__.update(previous)
+        config.__pydantic_fields_set__.clear()
+        config.__pydantic_fields_set__.update(fields_set)
+        raise
+
+
+def _require_optional_extras(config: "SecurityConfig") -> None:
+    if redis_is_configured(config):
+        require_redis_extra()
+
+    if cloud_blocking_enabled(config):
+        require_cloud_extra()
 
     has_country_rules = bool(config.blocked_countries or config.whitelist_countries)
-    needs_builtin_geo_handler = config.geo_ip_handler is None and has_country_rules
-    if needs_builtin_geo_handler and not _extra_installed("maxminddb"):
-        raise ValueError(
-            "geo_ip_handler / country rules require the 'maxminddb' package. "
-            "Install it with: pip install guard-core[geo]"
-        )
+    if config.geo_ip_handler is None and has_country_rules:
+        require_geo_extra()
