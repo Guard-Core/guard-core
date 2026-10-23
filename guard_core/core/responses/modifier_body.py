@@ -60,7 +60,7 @@ async def apply_modifier_with_bounded_body(
     logger: logging.Logger,
     agent_handler: Any | None,
 ) -> GuardResponse:
-    prefetch = prefetch or ResponseBodyPrefetch(response)
+    shared = prefetch
     cap = config.custom_response_modifier_max_body_bytes
 
     def gate() -> str | None:
@@ -71,7 +71,9 @@ async def apply_modifier_with_bounded_body(
             refusal = gate()
             body = None
             if refusal is None:
-                body, refusal = await _prefetched_body(config, response, prefetch)
+                body, refusal = await _prefetched_body(
+                    config, response, shared or ResponseBodyPrefetch(response)
+                )
             view = ModifierResponseView(response, body, refusal)
             result = await _invoke(modifier, view, response, logger)
             if refusal is not None and view.body_requested:
@@ -85,11 +87,14 @@ async def apply_modifier_with_bounded_body(
             return _commit(first, result)
         body, refusal = None, first.gate_refusal()
         if refusal is None:
-            body, refusal = await _prefetched_body(config, response, prefetch)
+            body, refusal = await _prefetched_body(
+                config, response, shared or ResponseBodyPrefetch(response)
+            )
         if refusal is not None:
             await report_body_refused(logger, config, agent_handler, request, refusal)
             return _commit(first, result)
         replay = ModifierResponseView(response, body)
         return _commit(replay, await _invoke(modifier, replay, response, logger))
     finally:
-        SHARED_PREFETCH.set(None)
+        if shared is not None:
+            SHARED_PREFETCH.set(None)

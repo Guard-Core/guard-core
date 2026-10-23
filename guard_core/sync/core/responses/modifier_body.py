@@ -55,14 +55,15 @@ def apply_modifier_with_bounded_body(
     logger: logging.Logger,
     agent_handler: Any | None,
 ) -> GuardResponse:
-    prefetch = prefetch or ResponseBodyPrefetch(response)
 
     def load() -> bytes:
         cap = config.custom_response_modifier_max_body_bytes
         refusal = body_gate_refusal(response, request.method, cap)
         body = None
         if refusal is None:
-            body = prefetch.read(cap, config.body_read_timeout)
+            body = (prefetch or ResponseBodyPrefetch(response)).read(
+                cap, config.body_read_timeout
+            )
             if body is None or len(body) != declared_content_length(response):
                 body, refusal = None, _PREFETCH_INCOMPLETE
         if body is None:
@@ -80,6 +81,7 @@ def apply_modifier_with_bounded_body(
             "custom_response_modifier raised %s; returning unmodified response", exc
         )
         result = response
-    SHARED_PREFETCH.set(None)
+    if prefetch is not None:
+        SHARED_PREFETCH.set(None)
     committed = view.commit()
     return committed if result is view else cast(GuardResponse, result)

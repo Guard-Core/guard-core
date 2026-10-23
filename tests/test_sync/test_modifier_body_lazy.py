@@ -8,6 +8,7 @@ import pytest
 from guard_core.exceptions import ResponseBodyUnavailableError
 from guard_core.models import BehaviorRuleConfig, SecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
+from guard_core.sync._utils.response_prefetch import SHARED_PREFETCH
 from guard_core.sync.core.events.metrics import MetricsCollector
 from guard_core.sync.core.responses import reads_response_body
 from guard_core.sync.core.responses.context import ResponseContext
@@ -232,3 +233,12 @@ def test_one_prefetch_serves_the_return_pattern_scan_and_the_modifier() -> None:
     assert matched == [True]
     assert response.reads == 1
     assert calls[1] == b"has a needle inside"
+
+
+def test_the_shared_prefetch_is_cleared_when_there_is_no_modifier() -> None:
+    factory = _factory(None, behavior_scan_response_body=True)
+    response = _Streamed(b"x")
+    factory.process_response(
+        SyncMockGuardRequest(), cast(GuardResponse, response), 0.0, None
+    )
+    assert SHARED_PREFETCH.get() is None

@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from guard_core._utils.response_prefetch import SHARED_PREFETCH
 from guard_core.core.events.metrics import MetricsCollector
 from guard_core.core.responses import reads_response_body
 from guard_core.core.responses.context import ResponseContext
@@ -467,3 +468,12 @@ async def test_a_second_consumer_asking_for_more_bytes_reads_again() -> None:
     assert response.reads == 3
     assert await prefetch.read(5000, 1.0) == b"q" * 100
     assert response.reads == 3
+
+
+async def test_the_shared_prefetch_is_cleared_when_there_is_no_modifier() -> None:
+    factory = _factory(None, behavior_scan_response_body=True)
+    response = _Streamed(b"x")
+    await factory.process_response(
+        MockGuardRequest(), _as_response(response), 0.0, None
+    )
+    assert SHARED_PREFETCH.get() is None

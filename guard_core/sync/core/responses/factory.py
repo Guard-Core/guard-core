@@ -257,7 +257,7 @@ class ErrorResponseFactory:
         self, response: GuardResponse
     ) -> ResponseBodyPrefetch | None:
         config = self.context.config
-        if not (config.custom_response_modifier or config.behavior_scan_response_body):
+        if not config.behavior_scan_response_body:
             return None
         prefetch = ResponseBodyPrefetch(response)
         SHARED_PREFETCH.set(prefetch)
