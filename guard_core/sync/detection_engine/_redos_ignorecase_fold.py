@@ -1,12 +1,17 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
+from importlib import import_module
 
 from guard_core.sync.detection_engine._redos_intervals import (
     MAX_CODE_POINT,
     _IntervalSet,
 )
 
+# The single character fold the re engine itself applies under (?i), which
+# str.lower gives as two characters for U+0130.
+_SRE_UNICODE_TOLOWER: Callable[[int], int] = import_module("_sre").unicode_tolower
 _FOLD_GROUPS: tuple[frozenset[int], ...] | None = None
 _FOLD_GROUP_BY_CODE_POINT: dict[int, frozenset[int]] | None = None
 _EXPAND_IGNORECASE_MEMBER_SCAN_CEILING = 4096
@@ -74,7 +79,12 @@ def _build_fold_groups() -> tuple[frozenset[int], ...]:
         if not _block_has_case_variants(block):
             continue
         for code_point, char in enumerate(block, start):
-            for variant in (char.lower(), char.upper(), char.casefold()):
+            for variant in (
+                char.lower(),
+                char.upper(),
+                char.casefold(),
+                chr(_SRE_UNICODE_TOLOWER(code_point)),
+            ):
                 _register_fold_variant(
                     parent, multi_char_fold_owner, code_point, char, variant
                 )

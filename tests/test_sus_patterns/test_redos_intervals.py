@@ -255,11 +255,17 @@ def test_fold_partners_restricts_to_ascii_when_requested() -> None:
 
 
 def _engine_ignorecase_fixes() -> dict[int, tuple[int, ...]]:
+    # re._casefix._EXTRA_CASES from 3.11, re._compiler._ignorecase_fixes before.
     try:
-        module = importlib.import_module("re._compiler")
+        return cast(
+            dict[int, tuple[int, ...]],
+            importlib.import_module("re._casefix")._EXTRA_CASES,
+        )
     except ImportError:
-        module = importlib.import_module("sre_compile")
-    return cast(dict[int, tuple[int, ...]], module._ignorecase_fixes)
+        return cast(
+            dict[int, tuple[int, ...]],
+            importlib.import_module("sre_compile")._ignorecase_fixes,
+        )
 
 
 _NAMED_MULTI_CHAR_FOLD_PAIRS = (
@@ -294,6 +300,12 @@ def test_fold_groups_contain_every_engine_ignorecase_fixes_pair() -> None:
         assert group is not None, hex(code_point)
         for partner in partners:
             assert partner in group, (hex(code_point), hex(partner))
+
+
+def test_fold_groups_put_capital_i_with_dot_in_the_group_of_i() -> None:
+    mapping = _fold_group_by_code_point()
+    assert 0x130 in mapping[ord("i")]
+    assert re.fullmatch("(?i)i", "\u0130") is not None
 
 
 def test_fold_groups_are_bidirectionally_confirmed_by_the_engine() -> None:

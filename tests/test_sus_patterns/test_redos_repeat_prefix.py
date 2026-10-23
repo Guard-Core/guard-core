@@ -88,7 +88,6 @@ def test_impossible_or_invalid_prefix_has_no_candidate(pattern: str) -> None:
         (r"(?=X)(?=Y)X", []),
         (r"(?=XY)X", ["X"]),
         (r"(?!XY)XZ", ["XZ"]),
-        (r"(?<!)X", ["X"]),
         (r"X(?<!Y)", ["X"]),
         (r"(?<!X)Y", ["Y"]),
         (r"X(?<!X)", []),
@@ -104,6 +103,17 @@ def test_impossible_or_invalid_prefix_has_no_candidate(pattern: str) -> None:
     ],
 )
 def test_prefix_walk_constraints(pattern: str, expected: list[str]) -> None:
+    assert [state.text for state in _walk(pattern)] == expected
+
+
+def test_empty_negative_lookbehind_walk_follows_how_the_interpreter_parses_it() -> None:
+    # 3.14 parses (?<!) as FAILURE, earlier versions as an empty ASSERT_NOT; the
+    # walk follows the parse, and re never matches the pattern on any of them.
+    pattern = r"(?<!)X"
+    first_op = _regex_parser.parse(pattern, 0).data[0][0]
+    expected = [] if first_op is _regex_parser.FAILURE else ["X"]
+
+    assert re.search(pattern, "X") is None
     assert [state.text for state in _walk(pattern)] == expected
 
 
