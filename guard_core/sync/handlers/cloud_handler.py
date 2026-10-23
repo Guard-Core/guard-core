@@ -251,6 +251,11 @@ class CloudManager:
             f"+{len(added)} added, -{len(removed)} removed"
         )
 
+    @staticmethod
+    def _reraise_missing_downloader(error: Exception) -> None:
+        if isinstance(error, DownloaderNotInstalledError):
+            raise error
+
     def _refresh_providers(self, providers: Collection[str] = _ALL_PROVIDERS) -> None:
         for provider in _bare_provider_names(providers):
             try:
@@ -261,9 +266,8 @@ class CloudManager:
                     self.ip_ranges[provider] = ranges
                     self.network_regions[provider] = regions
                     self.last_updated[provider] = datetime.now(timezone.utc)
-            except DownloaderNotInstalledError:
-                raise
             except Exception as e:
+                self._reraise_missing_downloader(e)
                 self.logger.error(f"Failed to fetch {provider} IP ranges: {str(e)}")
                 if provider not in self.ip_ranges:
                     self.ip_ranges[provider] = set()
@@ -324,9 +328,8 @@ class CloudManager:
                     self.ip_ranges[provider] = ranges
                     self.network_regions[provider] = regions
                     self.last_updated[provider] = datetime.now(timezone.utc)
-            except DownloaderNotInstalledError:
-                raise
             except Exception as e:
+                self._reraise_missing_downloader(e)
                 self.logger.error(f"Failed to refresh {provider} IP ranges: {str(e)}")
                 if provider not in self.ip_ranges:
                     self.ip_ranges[provider] = set()
@@ -367,9 +370,8 @@ class CloudManager:
                     self.ip_ranges[provider] = ranges
                     self.network_regions[provider] = regions
                     self.last_updated[provider] = datetime.now(timezone.utc)
-            except DownloaderNotInstalledError:
-                raise
             except Exception as e:
+                self._reraise_missing_downloader(e)
                 self.logger.error(f"Failed to refresh {provider} IP ranges: {str(e)}")
                 if provider not in self.ip_ranges:
                     self.ip_ranges[provider] = set()

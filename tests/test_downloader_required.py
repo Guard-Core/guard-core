@@ -1,3 +1,4 @@
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -70,7 +71,7 @@ async def test_a_fetch_without_the_downloader_raises_on_every_refresh_path() -> 
     assert cloud_handler.ip_ranges == {}
 
 
-async def test_the_geo_download_without_the_downloader_raises(tmp_path) -> None:
+async def test_the_geo_download_without_the_downloader_raises(tmp_path: Path) -> None:
     manager = IPInfoManager(token="t", db_path=tmp_path / "geo.mmdb")
     with _MISSING, pytest.raises(DownloaderNotInstalledError):
         await manager._fetch_and_store_database()
