@@ -4,6 +4,10 @@ from typing import Any
 
 from guard_core.detection_engine import base64_decode, encoding_decoders, truncation
 from guard_core.detection_engine.base64_view import build_short_base64_additive_view
+from guard_core.detection_engine.on_handler_indicator import (
+    ON_HANDLER_PATTERN,
+    OnHandlerIndicator,
+)
 
 
 class ContentPreprocessor:
@@ -30,7 +34,7 @@ class ContentPreprocessor:
         self.attack_indicators = [
             r"<script",
             r"javascript:",
-            r"on\w+=",
+            ON_HANDLER_PATTERN,
             r"SELECT\s+.{0,50}?\s+FROM",
             r"UNION\s+SELECT",
             r"\.\./",
@@ -55,8 +59,11 @@ class ContentPreprocessor:
             r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b",
         ]
 
-        self.compiled_indicators = [
-            re.compile(pattern, re.IGNORECASE) for pattern in self.attack_indicators
+        self.compiled_indicators: list[Any] = [
+            OnHandlerIndicator()
+            if pattern == ON_HANDLER_PATTERN
+            else re.compile(pattern, re.IGNORECASE)
+            for pattern in self.attack_indicators
         ]
 
     _BASE64_RE = base64_decode.BASE64_RE

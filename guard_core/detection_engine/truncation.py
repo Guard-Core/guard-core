@@ -3,6 +3,11 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Any
 
+from guard_core._utils.detection_scan import (
+    _scan_time_remaining,
+    _thread_cpu_seconds,
+)
+
 _FULL_SCAN_TAIL_BYTES = 4096
 
 _attack_region_memo: ContextVar[dict[Any, list[tuple[int, int]]] | None] = ContextVar(
@@ -33,22 +38,16 @@ def _find_regions(pattern: Any, text: str, max_regions: int) -> list[tuple[int, 
 def _collect_regions(
     preprocessor: Any, content: str, max_regions: int
 ) -> tuple[list[tuple[int, int]], bool]:
-    import concurrent.futures
-
     regions: list[tuple[int, int]] = []
-    complete = True
+    started = _thread_cpu_seconds()
     for indicator in preprocessor.compiled_indicators:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(_find_regions, indicator, content, max_regions)
-            try:
-                regions.extend(future.result(timeout=0.5))
-            except concurrent.futures.TimeoutError:
-                complete = False
-                continue
-
+        remaining = _scan_time_remaining()
+        if remaining is not None and _thread_cpu_seconds() - started >= remaining:
+            return regions, False
+        regions.extend(_find_regions(indicator, content, max_regions))
         if len(regions) >= max_regions:
             break
-    return regions, complete
+    return regions, True
 
 
 def _merge_regions(

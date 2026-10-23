@@ -1,10 +1,10 @@
-import concurrent.futures
 import re
 from collections.abc import Iterator
-from typing import Any, NoReturn, cast
+from typing import Any, cast
 
 import pytest
 
+from guard_core.sync._utils.detection_scan import _scan_value_budget
 from guard_core.sync.detection_engine.preprocessor import ContentPreprocessor
 from guard_core.sync.detection_engine.truncation import reusing_attack_regions
 from guard_core.sync.handlers._suspatterns_literals import (
@@ -84,30 +84,11 @@ def test_different_contents_get_their_own_regions() -> None:
     assert counter.calls == 2
 
 
-def test_an_indicator_that_timed_out_is_never_memoized(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    class _TimingOut:
-        def __init__(self, max_workers: int) -> None:
-            self.max_workers = max_workers
-
-        def __enter__(self) -> "_TimingOut":
-            return self
-
-        def __exit__(self, *exc: object) -> None:
-            return None
-
-        def submit(self, fn: Any, *args: Any) -> "_TimingOut":
-            return self
-
-        def result(self, timeout: float) -> NoReturn:
-            raise concurrent.futures.TimeoutError
-
+def test_an_indicator_that_timed_out_is_never_memoized() -> None:
     preprocessor, _counter = _preprocessor_with_counter()
-    monkeypatch.setattr(concurrent.futures, "ThreadPoolExecutor", _TimingOut)
     with reusing_attack_regions():
-        assert preprocessor.extract_attack_regions("axb") == []
-        monkeypatch.undo()
+        with _scan_value_budget(10, max_scan_seconds=0.0):
+            assert preprocessor.extract_attack_regions("axb") == []
         assert preprocessor.extract_attack_regions("axb") != []
 
 

@@ -1,8 +1,8 @@
-import concurrent.futures
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+from guard_core.sync._utils.detection_scan import _scan_value_budget
 from guard_core.sync.detection_engine.preprocessor import ContentPreprocessor
 
 
@@ -160,16 +160,10 @@ def test_extract_attack_regions_max_regions() -> None:
 def test_extract_attack_regions_timeout() -> None:
     preprocessor = ContentPreprocessor()
 
-    with patch("concurrent.futures.ThreadPoolExecutor") as mock_executor:
-        mock_future = MagicMock()
-        mock_future.result.side_effect = concurrent.futures.TimeoutError()
-        mock_submit = mock_executor.return_value.__enter__.return_value.submit
-        mock_submit.return_value = mock_future
+    with _scan_value_budget(10, max_scan_seconds=0.0):
+        regions = preprocessor.extract_attack_regions("<script>alert(1)</script>")
 
-        content = "<script>alert(1)</script>"
-        regions = preprocessor.extract_attack_regions(content)
-
-        assert regions == []
+    assert regions == []
 
 
 def test_extract_attack_regions_early_break() -> None:
