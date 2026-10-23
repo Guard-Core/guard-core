@@ -82,7 +82,7 @@ jobs:
 
       - name: Install dependencies (same extras as the Dockerfile)
         run: |
-          uv sync --extra dev --extra otel --extra logfire
+          uv sync --locked --extra dev --extra otel --extra logfire
 
       - name: Fail on generated sync-tree drift
         run: |
@@ -218,7 +218,7 @@ jobs:
 
       - name: Install dependencies (same extras as the Dockerfile)
         run: |
-          uv sync --extra dev --extra otel --extra logfire
+          uv sync --locked --extra dev --extra otel --extra logfire
 
       - name: Start a CPU burner on every core
         run: |
@@ -308,7 +308,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv sync --extra dev --extra otel --extra logfire
+          uv sync --locked --extra dev --extra otel --extra logfire
 
       - name: Print guard_core.__file__ (candidate)
         run: |

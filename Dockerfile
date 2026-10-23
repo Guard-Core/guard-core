@@ -19,10 +19,10 @@ ENV PIP_NO_CACHE_DIR=false \
 
 RUN pip install uv
 
-COPY pyproject.toml uv.lock* README.md /app/
+COPY pyproject.toml uv.lock README.md /app/
 COPY Makefile /app/Makefile
 
-RUN uv sync --extra dev --extra otel --extra logfire
+RUN uv sync --locked --extra dev --extra otel --extra logfire
 RUN git config --system --add safe.directory /app
 
 ENV PATH="/app/.venv/bin:$PATH"

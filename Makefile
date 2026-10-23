@@ -260,19 +260,19 @@ live-smoke:
 
 .PHONY: serve-docs
 serve-docs:
-	@uv run mkdocs serve
+	@UV_PROJECT_ENVIRONMENT=.venv/docs uv run --python 3.14 --extra dev --group docs mkdocs serve
 	@$(CLEAN_CACHES)
 
 
 .PHONY: lint-docs
 lint-docs:
-	@uv run pymarkdownlnt scan -r --respect-gitignore .
+	@uv run --group docs pymarkdownlnt scan -r --respect-gitignore .
 	@$(CLEAN_CACHES)
 
 
 .PHONY: fix-docs
 fix-docs:
-	@uv run pymarkdownlnt fix -r --respect-gitignore .
+	@uv run --group docs pymarkdownlnt fix -r --respect-gitignore .
 	@$(CLEAN_CACHES)
 
 

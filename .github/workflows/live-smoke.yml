@@ -50,7 +50,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv sync --extra dev --extra otel --extra logfire
+          uv sync --locked --extra dev --extra otel --extra logfire
 
       - name: Build the guard-core wheel from this checkout
         if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.baseline == '' }}

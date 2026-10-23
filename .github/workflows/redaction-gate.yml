@@ -50,7 +50,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv sync --extra dev --extra otel --extra logfire
+          uv sync --locked --extra dev --extra otel --extra logfire
 
       - name: Pick the seeds and the sample size
         id: plan
