@@ -51,6 +51,7 @@ SKIP_TESTS = {
     "test_gc_per_test_opt_in.py",
     "test_maintainability_rank.py",
     "test_config_docs_parity.py",
+    "test_release_notes_parity.py",
     "test_dynamic_rule_two_processes.py",
     "test_dynamic_rule_revoke_second_worker.py",
     "test_behavior_cap_constants.py",
