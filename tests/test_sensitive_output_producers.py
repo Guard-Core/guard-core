@@ -446,6 +446,11 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "line 46: warns once about pydantic-plugin instrumentation at import "
         "time; no request in scope"
     ),
+    "_staged_defaults.py:signal_changed_defaults": (
+        "SecurityConfig construction and startup line listing the 5.0.0 "
+        "defaults the configuration leaves unset, built from field names and "
+        "fixed text, evaluated before any request, carries no request data"
+    ),
     "_staged_defaults.py:_warn_default_redis_prefix": (
         "SecurityConfig construction warning about the default redis_prefix, "
         "evaluated before any request, carries no request data"

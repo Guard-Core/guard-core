@@ -25,7 +25,11 @@ from guard_core._security_config_validators import (
     _validate_excluded_detection_params_value,
 )
 from guard_core._security_headers_defaults import default_security_headers_config
-from guard_core._staged_defaults import DEFAULT_REDIS_PREFIX
+from guard_core._staged_defaults import (
+    DEFAULT_REDIS_PREFIX,
+    SIGNAL_TRIGGER_FIELDS,
+    signal_changed_defaults,
+)
 from guard_core.handlers._ipban_cache import DEFAULT_MAX_LOCAL_BANS
 from guard_core.handlers.suspatterns_handler import ALL_DETECTION_CATEGORIES
 from guard_core.protocols.cloud_ip_store_protocol import (
@@ -1535,3 +1539,5 @@ class _SecurityConfigFields(BaseModel):
         super().__setattr__(name, value)
         if name in REDIS_CONNECTION_FIELDS:
             resolve_enable_redis(self)
+        if name in SIGNAL_TRIGGER_FIELDS or name in REDIS_CONNECTION_FIELDS:
+            signal_changed_defaults(self)

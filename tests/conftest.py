@@ -55,6 +55,9 @@ if TYPE_CHECKING:
 
 _suspatterns_module._legacy_detection_warned = True
 _staged_defaults_module._default_prefix_warned = True
+_staged_defaults_module._changed_defaults_logged.update(
+    _staged_defaults_module.FLIP_IDS
+)
 
 IPINFO_TOKEN = os.getenv("IPINFO_TOKEN") or "test_token"
 REDIS_URL = os.getenv("REDIS_URL") or "redis://localhost:6379"
@@ -393,6 +396,9 @@ async def reset_state() -> AsyncGenerator[None, None]:
     sus_patterns_handler._detection_state = _LEGACY_DETECTION_STATE
     _suspatterns_module._legacy_detection_warned = True
     _staged_defaults_module._default_prefix_warned = True
+    _staged_defaults_module._changed_defaults_logged.update(
+        _staged_defaults_module.FLIP_IDS
+    )
 
     _reset_ip_ban_manager()
     _reset_cloud_handler()

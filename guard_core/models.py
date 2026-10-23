@@ -62,7 +62,10 @@ from guard_core._security_config_validators import (
 from guard_core._security_config_validators import (
     return_pattern_requires_response_body as return_pattern_requires_response_body,
 )
-from guard_core._staged_defaults import _warn_staged_defaults
+from guard_core._staged_defaults import (
+    signal_changed_defaults,
+    warn_redis_prefix_left_default,
+)
 from guard_core.exceptions import AgentPackageNotInstalledError
 from guard_core.handlers.suspatterns_handler import (
     ALL_DETECTION_CATEGORIES as ALL_DETECTION_CATEGORIES,
@@ -279,8 +282,9 @@ class SecurityConfig(_SecurityConfigFields):
         return self
 
     @model_validator(mode="after")
-    def warn_staged_defaults(self) -> Self:
-        _warn_staged_defaults(self)
+    def warn_changed_defaults(self) -> Self:
+        signal_changed_defaults(self)
+        warn_redis_prefix_left_default(self)
         return self
 
     @model_validator(mode="after")
