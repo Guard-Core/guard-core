@@ -140,7 +140,7 @@ def test_undo_headers_forward_other_attributes() -> None:
     [
         ({"content-length": "10"}, 200, "GET", None),
         ({"CONTENT-LENGTH": "10"}, 200, "GET", None),
-        ({"Content-Length": " 10 "}, 200, "GET", None),
+        ({"Content-Length": " 10 "}, 200, "GET", "declares no Content-Length"),
         ({"Content-Length": "abc"}, 200, "GET", "declares no Content-Length"),
         ({"Content-Length": "-1"}, 200, "GET", "declares no Content-Length"),
         ({}, 200, "GET", "declares no Content-Length"),
@@ -357,7 +357,7 @@ def test_gate_refusal_method_asks_the_gate_once() -> None:
     [
         ({"Content-Type": "text/event-stream", "Content-Length": "5"}, "no end"),
         ({"Content-Type": "text/plain", "Content-Length": "5"}, None),
-        ({"Content-Type": "text/plain", "content-length": " 5 "}, None),
+        ({"Content-Type": "text/plain", "content-length": " 5 "}, "no Content-Length"),
         ({"content-type": "text/plain", "Content-Length": " x "}, "no Content-Length"),
         ({"x-other": "1"}, "no Content-Length"),
         ({"content-type": "text/plain", "content-length": "5"}, None),
@@ -372,3 +372,15 @@ def test_gate_finds_plain_dict_headers_in_either_casing(
     else:
         assert refusal is not None
         assert expected in refusal
+
+
+class _CaseInsensitive(dict[str, str]):
+    def get(self, key: str, default: Any = None) -> Any:
+        return super().get(key.lower(), default)
+
+
+def test_gate_uses_one_lookup_for_a_case_insensitive_mapping() -> None:
+    allowed = _guard(_Response(_CaseInsensitive({"content-length": "5"})))
+    assert body_gate_refusal(allowed, "GET", 1024) is None
+    missing = _guard(_Response(_CaseInsensitive({"x-other": "1"})))
+    assert body_gate_refusal(missing, "GET", 1024) is not None

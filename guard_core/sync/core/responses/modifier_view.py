@@ -204,6 +204,17 @@ def declared_content_length(response: GuardResponse) -> int | None:
     return int(declared)
 
 
+def _plain_dict_gate_headers(
+    headers: MutableMapping[str, str], content_type: str | None, declared: str | None
+) -> tuple[str | None, str | None]:
+    """Casing fallback for a plain ``dict`` of headers (every adapter's mapping is
+    case-insensitive and never gets here)."""
+    return (
+        content_type or _header_value(headers, "content-type", "Content-Type"),
+        declared or _header_value(headers, "content-length", "Content-Length"),
+    )
+
+
 def body_gate_refusal(
     response: GuardResponse, method: str, max_bytes: int
 ) -> str | None:
@@ -221,21 +232,16 @@ def body_gate_refusal(
     headers = response.headers
     content_type = headers.get("content-type")
     declared = headers.get("content-length")
-    if (content_type is None or declared is None) and type(headers) is dict:
-        content_type = content_type or _header_value(
-            headers, "content-type", "Content-Type"
-        )
-        declared = declared or _header_value(
-            headers, "content-length", "Content-Length"
+    if type(headers) is dict:
+        content_type, declared = _plain_dict_gate_headers(
+            headers, content_type, declared
         )
     if content_type and content_type.lower().lstrip().startswith("text/event-stream"):
         return "text/event-stream has no end"
     if declared is None:
         return "the response declares no Content-Length"
     if not declared.isdigit():
-        declared = declared.strip()
-        if not declared.isdigit():
-            return "the response declares no Content-Length"
+        return "the response declares no Content-Length"
     if int(declared) > max_bytes:
         return f"the declared Content-Length {declared} is over {max_bytes} bytes"
     return None
