@@ -59,6 +59,6 @@ def test_pattern_complement_chars_deduplicates_nested_class_complements() -> Non
 
 
 def test_stray_verification_timeout_rejects_an_expired_deadline() -> None:
-    context = _build_stray_context("a", 0, time.monotonic() - 1.0)
+    context = _build_stray_context("a", 0, time.thread_time() - 1.0)
     with pytest.raises(TimeoutError, match="probe construction"):
         _stray_verification_timeout(context)

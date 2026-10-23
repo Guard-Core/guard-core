@@ -115,14 +115,12 @@ def test_validate_pattern_safety_reports_timeout_for_a_genuinely_slow_match() ->
 def test_validate_pattern_safety_reports_the_subprocess_timeout_boundary(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import subprocess as subprocess_mod
-
     from guard_core.detection_engine import _redos_cost_arbiter as arbiter_module
 
-    def _raise_timeout(*args: object, **kwargs: object) -> None:
-        raise subprocess_mod.TimeoutExpired(cmd=["python"], timeout=2.0)
+    def _stalled(*args: object, **kwargs: object) -> None:
+        return None
 
-    monkeypatch.setattr(arbiter_module.subprocess, "run", _raise_timeout)
+    monkeypatch.setattr(arbiter_module, "run_limited_child", _stalled)
     compiler = PatternCompiler()
     safe, msg = compiler.validate_pattern_safety("safe", test_strings=["x"])
     assert safe is False

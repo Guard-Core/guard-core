@@ -1951,7 +1951,7 @@ def test_first_over_budget_reason_skips_retry_when_budget_is_exhausted(
 
 
 def test_remaining_budget_is_deadline_minus_now() -> None:
-    deadline = time.monotonic() + 5.0
+    deadline = time.thread_time() + 5.0
     remaining = _remaining_budget(deadline)
     assert 0.0 < remaining <= 5.0
 

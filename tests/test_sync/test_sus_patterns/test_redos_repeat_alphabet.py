@@ -47,7 +47,7 @@ def test_repeat_alphabet_without_a_repeatable_atom(pattern: str) -> None:
 
 def test_repeat_alphabet_respects_construction_deadline() -> None:
     with pytest.raises(TimeoutError, match="deadline"):
-        _repeat_alphabet_fills(r"[\s\S]+[^\u2603]", 0, time.monotonic() - 1)
+        _repeat_alphabet_fills(r"[\s\S]+[^\u2603]", 0, time.thread_time() - 1)
 
 
 def test_repeat_alphabet_treats_large_variable_bounded_atoms_as_repeatable() -> None:
@@ -172,7 +172,7 @@ def test_short_and_fixed_bounded_repeats_remain_accepted(pattern: str) -> None:
 
 
 def test_stray_verification_respects_shared_construction_deadline() -> None:
-    ctx = _build_stray_context("a+", 0, time.monotonic() - 1)
+    ctx = _build_stray_context("a+", 0, time.thread_time() - 1)
     with pytest.raises(TimeoutError, match="deadline"):
         choose_repeat_unit_stray(ctx, "a")
 

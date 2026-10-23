@@ -119,9 +119,9 @@ def test_empty_negative_lookbehind_walk_follows_how_the_interpreter_parses_it() 
 
 def test_prefix_construction_limits_fail_closed() -> None:
     with pytest.raises(TimeoutError, match="deadline"):
-        _check_deadline(time.monotonic() - 1)
+        _check_deadline(time.thread_time() - 1)
     with pytest.raises(TimeoutError, match="deadline"):
-        _repeat_reaching_prefixes("Xa+a+", 0, time.monotonic() - 1)
+        _repeat_reaching_prefixes("Xa+a+", 0, time.thread_time() - 1)
     with pytest.raises(TimeoutError, match="length budget"):
         _consume_piece(_RepeatPrefixState("a" * 24000), "b")
     with pytest.raises(TimeoutError, match="state budget"):
