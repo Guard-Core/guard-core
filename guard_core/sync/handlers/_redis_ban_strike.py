@@ -11,7 +11,7 @@ from guard_core.scripts.detection_strikes_lua import (
 )
 
 if TYPE_CHECKING:
-    from guard_core.models import SecurityConfig
+    from guard_core.models import SyncSecurityConfig
 
 _BAN_CHECK_AND_RECORD_STRIKE_SHA = hashlib.sha1(
     BAN_CHECK_AND_RECORD_STRIKE_SCRIPT.encode(), usedforsecurity=False
@@ -22,7 +22,7 @@ class RedisBanStrikeMixin:
     """The ban lookup and the detection strike of a request, in one round trip."""
 
     if TYPE_CHECKING:
-        config: SecurityConfig
+        config: SyncSecurityConfig
 
         def _detection_strike_keys(self, client_ip: str) -> tuple[str, str, str]: ...
 

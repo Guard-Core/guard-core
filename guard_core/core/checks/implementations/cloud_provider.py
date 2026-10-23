@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 from guard_core._utils.agent_events import agent_receives_events
 from guard_core._utils.rule_attribution import cloud_provider_attribution
+from guard_core.core.checks._pending_ban import resolve_pending_ban
 from guard_core.core.checks.base import SecurityCheck
 from guard_core.core.checks.helpers import (
     emit_access_denied_event,
@@ -33,6 +34,8 @@ def _cloud_block_reason(client_ip: str, cloud_details: tuple[str, str] | None) -
 
 class CloudProviderCheck(SecurityCheck):
     requires: ClassVar[tuple[str, ...]] = ("cloud",)
+    defers_ban_read = True
+    leaves_ban_pending = True
     container_fields: ClassVar[tuple[str, ...]] = ("block_cloud_providers",)
 
     def __init__(self, middleware: "GuardMiddlewareProtocol") -> None:
@@ -67,21 +70,18 @@ class CloudProviderCheck(SecurityCheck):
         if not client_ip:
             return None
 
-        if self.middleware.route_resolver.should_bypass_check("clouds", route_config):
-            return None
-
-        cloud_providers_to_check = (
-            self.middleware.route_resolver.get_cloud_providers_to_check(route_config)
+        cloud_providers_to_check = self._providers_the_client_is_in(
+            client_ip, route_config
         )
         if not cloud_providers_to_check:
-            return None
-
-        if not self.cloud_handler.is_cloud_ip(client_ip, set(cloud_providers_to_check)):
             return None
 
         cloud_details = self.cloud_handler.get_cloud_provider_details(
             client_ip, set(cloud_providers_to_check)
         )
+        banned = await resolve_pending_ban(request, "cloud")
+        if banned is not None:
+            return banned
         reason = _cloud_block_reason(client_ip, cloud_details)
         await log_activity(
             request,
@@ -118,6 +118,17 @@ class CloudProviderCheck(SecurityCheck):
             )
 
         return None
+
+    def _providers_the_client_is_in(
+        self, client_ip: str, route_config: RouteConfig | None
+    ) -> list[str]:
+        resolver = self.middleware.route_resolver
+        if resolver.should_bypass_check("clouds", route_config):
+            return []
+        providers = resolver.get_cloud_providers_to_check(route_config)
+        if providers and self.cloud_handler.is_cloud_ip(client_ip, set(providers)):
+            return list(providers)
+        return []
 
     async def _emit_cloud_block_events(
         self,

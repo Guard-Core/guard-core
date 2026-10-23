@@ -704,9 +704,12 @@ class RateLimitManager:
         tiers: Sequence[RateLimitTier],
         config: SyncSecurityConfig | None = None,
         window_identity: str | None = None,
+        verdict: RateLimitVerdict | None = None,
     ) -> RateLimitBlock | None:
         display_config = config or self.config
-        verdict = self._tier_verdict(client_ip, tiers, display_config, window_identity)
+        verdict = verdict or self._tier_verdict(
+            client_ip, tiers, display_config, window_identity
+        )
         if verdict.tier_index is None:
             return None
         response = self._handle_rate_limit_exceeded(

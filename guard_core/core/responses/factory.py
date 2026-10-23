@@ -22,13 +22,20 @@ def _drop_other_spellings(headers: dict[str, str], name: str) -> None:
         del headers[key]
 
 
+_LOWERED: dict[str, str] = {}
+
+
 def _merge_into_foreign_headers(
     headers: MutableMapping[str, str],
     security_headers: dict[str, str],
     forced: frozenset[str],
 ) -> None:
     for name, value in security_headers.items():
-        if name.lower() in forced or name not in headers:
+        try:
+            lowered = _LOWERED[name]
+        except KeyError:
+            lowered = _LOWERED[name] = name.lower()
+        if lowered in forced or name not in headers:
             headers[name] = value
 
 

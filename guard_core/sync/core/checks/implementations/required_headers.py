@@ -3,6 +3,7 @@ from collections.abc import Collection
 
 from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
+from guard_core.sync.core.checks._pending_ban import resolve_pending_ban
 from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.core.checks.helpers import (
     emit_access_denied_event,
@@ -36,6 +37,9 @@ def _is_presence_only_api_key_header(
 
 
 class RequiredHeadersCheck(SecurityCheck):
+    defers_ban_read = True
+    leaves_ban_pending = True
+
     @property
     def check_name(self) -> str:
         return "required_headers"
@@ -56,6 +60,9 @@ class RequiredHeadersCheck(SecurityCheck):
         *,
         header_field: str,
     ) -> GuardResponse | None:
+        banned = resolve_pending_ban(request, "required_header")
+        if banned is not None:
+            return banned
         log_activity(
             request,
             self.logger,

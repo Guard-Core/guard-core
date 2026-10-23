@@ -4,9 +4,7 @@ from typing import Any
 from guard_core._utils.access_control import load_geo_database_for_route_rules
 from guard_core._utils.agent_events import agent_receives_events
 from guard_core._utils.ip_extraction import (
-    UNKNOWN_CLIENT_IDENTITY,
     _is_trusted_proxy,
-    _parsed_ip_or_none,
     forwarded_for_addresses,
 )
 from guard_core._utils.rule_attribution import (
@@ -15,15 +13,16 @@ from guard_core._utils.rule_attribution import (
     country_attribution,
 )
 from guard_core._utils.whitelist_match import most_specific_whitelist_entry
-from guard_core.core.checks._shared_strikes import (
-    FusedStrike,
-    _shared_strikes_redis,
+from guard_core.core.checks._ip_ban_read import (
+    IpBanReadMixin,
+    _route_denial_category,
+    _route_overrides_ip_lists,
 )
-from guard_core.core.checks._strike_counts import _strike_identity
-from guard_core.core.checks.base import SecurityCheck
+from guard_core.core.checks._ip_ban_read import (
+    _route_blacklist_matches as _route_blacklist_matches,
+)
+from guard_core.core.checks._pending_ban import PendingBan, resolve_pending_ban
 from guard_core.core.checks.helpers import (
-    SUSPICIOUS_COUNT_WINDOW_SECONDS,
-    _retained_strike_cap,
     check_country_access,
     check_route_ip_access,
     emit_access_denied_event,
@@ -36,13 +35,11 @@ from guard_core.core.events.event_types import (
     EVENT_IP_BLOCKED,
 )
 from guard_core.decorators.base import RouteConfig
-from guard_core.exceptions import GuardRedisError
 from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.utils import (
     IpAccessResult,
     _ip_in_list,
-    allow_list_miss_category,
     check_ip_access,
     log_activity,
 )
@@ -57,10 +54,6 @@ def _is_private_peer_without_forwarded_for(
         return not ip_address(client_ip).is_global
     except ValueError:
         return False
-
-
-def _route_overrides_ip_lists(route_config: RouteConfig | None) -> bool:
-    return bool(route_config and route_config.ip_whitelist)
 
 
 def _route_country_whitelist_matched(
@@ -113,137 +106,17 @@ def _classify_route_ip_denial(
     return "allow_countries", "country_restriction"
 
 
-def _route_blacklist_matches(route_config: RouteConfig, client_ip: str) -> bool:
-    try:
-        return _ip_in_list(
-            ip_address(client_ip), client_ip, route_config.ip_blacklist or []
-        )
-    except ValueError:
-        return False
-
-
-def _route_denial_category(
-    route_config: RouteConfig, decorator_type: str, client_ip: str
-) -> str | None:
-    if decorator_type == "block_countries":
-        return "country"
-    if decorator_type == "allow_countries":
-        return allow_list_miss_category("country")
-    if route_config.ip_whitelist:
-        return allow_list_miss_category("ip_list")
-    return "ip_list" if _route_blacklist_matches(route_config, client_ip) else None
-
-
-class IpSecurityCheck(SecurityCheck):
+class IpSecurityCheck(IpBanReadMixin):
     enforced_on_excluded_paths = True
+    leaves_ban_pending = True
 
     @property
     def check_name(self) -> str:
         return "ip_security"
 
-    def _denial_strike_may_be_shared(
-        self, request: GuardRequest, route_config: RouteConfig | None
-    ) -> bool:
-        config = self.config
-        if (
-            config.passive_mode
-            or not config.ban_on_hostile_signals
-            or not config.enable_ip_banning
-            or getattr(request.state, "guard_exclusion_scoped", False) is True
-            or self.middleware.route_resolver.should_bypass_check("ip", route_config)
-        ):
-            return False
-        redis_handler = _shared_strikes_redis(self.middleware)
-        return (
-            redis_handler is not None
-            and redis_handler is self.ip_ban_manager.redis_handler
-        )
-
-    async def _static_denial_category(
-        self, request: GuardRequest, client_ip: str, route_config: RouteConfig | None
-    ) -> str | None:
-        """The category of the denial the IP lists give this client, decided
-        without a country lookup and in the order the check applies them (the
-        route's lists, then the global ones). ``None`` when the lists do not
-        deny, or when a country rule could decide."""
-        if (
-            client_ip == UNKNOWN_CLIENT_IDENTITY
-            or _parsed_ip_or_none(client_ip) is None
-        ):
-            return None
-        if route_config:
-            if route_config.blocked_countries or route_config.whitelist_countries:
-                return None
-            if (
-                await check_route_ip_access(client_ip, route_config, self.middleware)
-                is False
-            ):
-                if getattr(request.state, "is_whitelisted", False):
-                    return None
-                return _route_denial_category(route_config, "access_control", client_ip)
-        result = await check_ip_access(
-            client_ip,
-            self.config,
-            None,
-            skip_whitelist=_route_overrides_ip_lists(route_config),
-            skip_countries=True,
-            skip_clouds=True,
-        )
-        if result.allowed:
-            return None
-        request.state.guard_denied_ip_access = (result, False, False)
-        return result.denial_category
-
-    async def _fused_denial_strike(
-        self, request: GuardRequest, client_ip: str, route_config: RouteConfig | None
-    ) -> FusedStrike | None:
-        """The strike a request denied by the IP lists records after its ban
-        lookup, built early so the lookup records it in its own round trip.
-        ``None`` unless that strike is certain: the same conditions under which
-        ``count_hostile_signal_and_maybe_ban`` records it for this denial."""
-        if not self._denial_strike_may_be_shared(request, route_config):
-            return None
-        category = await self._static_denial_category(request, client_ip, route_config)
-        if category is None:
-            return None
-        strike = FusedStrike(
-            _strike_identity(self.config, client_ip),
-            category,
-            SUSPICIOUS_COUNT_WINDOW_SECONDS,
-            _retained_strike_cap(self.config),
-        )
-        request.state.guard_fused_strike = strike
-        return strike
-
-    async def _is_banned_failing_open_on_redis_loss(
-        self, request: GuardRequest, client_ip: str, route_config: RouteConfig | None
-    ) -> bool:
-        async def fused_strike() -> FusedStrike | None:
-            return await self._fused_denial_strike(request, client_ip, route_config)
-
-        try:
-            return await self.ip_ban_manager.is_ip_banned(client_ip, fused_strike)
-        except GuardRedisError:
-            if not self.config.redis_fail_open:
-                raise
-            self.logger.warning(
-                "Redis unavailable: ban lookup skipped for %s, the IP lists "
-                "still apply (redis_fail_open=True)",
-                client_ip,
-            )
-            return False
-
-    async def _check_banned_ip(
-        self, request: GuardRequest, client_ip: str, route_config: RouteConfig | None
+    async def banned_response(
+        self, request: GuardRequest, client_ip: str
     ) -> GuardResponse | None:
-        if self.middleware.route_resolver.should_bypass_check("ip_ban", route_config):
-            return None
-
-        if not await self._is_banned_failing_open_on_redis_loss(
-            request, client_ip, route_config
-        ):
-            return None
-
         await log_activity(
             request,
             self.logger,
@@ -545,29 +418,35 @@ class IpSecurityCheck(SecurityCheck):
 
     async def _count_ip_spoofing(
         self, request: GuardRequest, route_config: RouteConfig | None
-    ) -> None:
+    ) -> GuardResponse | None:
         forwarded_for = getattr(request.state, "untrusted_forwarded_for", None)
         if not self.config.ban_on_hostile_signals or not isinstance(forwarded_for, str):
-            return
+            return None
         client_ip = getattr(request.state, "client_ip", None)
         if not client_ip or not self._forwarded_for_claims_privileged_address(
             forwarded_for, route_config
         ):
-            return
-        if not await self.ip_ban_manager.is_ip_banned(client_ip):
-            await report_hostile_signal(
-                self,
-                request,
-                "ip_spoofing",
-                "X-Forwarded-For forged by an untrusted peer",
-            )
+            return None
+        if isinstance(getattr(request.state, "guard_pending_ban", None), PendingBan):
+            banned = await resolve_pending_ban(request, "ip_spoofing")
+            if banned is not None:
+                return banned
+        elif await self._banned_at_spoofing(request, client_ip):
+            return None
+        await report_hostile_signal(
+            self,
+            request,
+            "ip_spoofing",
+            "X-Forwarded-For forged by an untrusted peer",
+        )
+        return None
 
     async def check(self, request: GuardRequest) -> GuardResponse | None:
         response = await self._enforce_ip_rules(request)
-        await self._count_ip_spoofing(
+        spoofing = await self._count_ip_spoofing(
             request, getattr(request.state, "route_config", None)
         )
-        return response
+        return response if response is not None else spoofing
 
     async def _enforce_ip_rules(self, request: GuardRequest) -> GuardResponse | None:
         client_ip = getattr(request.state, "client_ip", None)

@@ -11,6 +11,11 @@ from guard_core._utils.ip_extraction import (
 )
 from guard_core._utils.request_logging import redact_endpoint_for_display
 from guard_core._utils.rule_attribution import rate_limit_attribution
+from guard_core.core.checks._pending_ban import PendingBan, resolve_pending_ban
+from guard_core.core.checks._rate_limit_ban_first import (
+    defer_rate_limit,
+    finish_tiers,
+)
 from guard_core.core.checks.base import SecurityCheck
 from guard_core.core.checks.endpoint_limit_keys import EndpointLimitKeyMap
 from guard_core.core.checks.helpers import (
@@ -94,6 +99,8 @@ class _TierPlan(NamedTuple):
 
 
 class RateLimitCheck(SecurityCheck):
+    defers_ban_read = True
+    leaves_ban_pending = True
     container_fields: ClassVar[tuple[str, ...]] = ("endpoint_rate_limits",)
 
     def __init__(self, middleware: "GuardMiddlewareProtocol") -> None:
@@ -436,37 +443,19 @@ class RateLimitCheck(SecurityCheck):
     async def check(self, request: GuardRequest) -> GuardResponse | None:
         client_ip = getattr(request.state, "client_ip", None)
         route_config = getattr(request.state, "route_config", None)
-
-        if not client_ip or self._skips_rate_limiting(request, route_config):
-            return None
-
-        if route_config and route_config.geo_rate_limits:
+        active = bool(client_ip) and not self._skips_rate_limiting(
+            request, route_config
+        )
+        if active and route_config and route_config.geo_rate_limits:
             await load_geo_database_for_route_rules(self.middleware)
-        plans = self._tier_plans(request, client_ip, route_config)
-        if not plans:
+        plans = self._tier_plans(request, client_ip, route_config) if active else []
+        pending = getattr(request.state, "guard_pending_ban", None)
+        if defer_rate_limit(self, pending, client_ip, plans):
             return None
-
-        carve = (
-            {"window_identity": self._strike_identity(request, client_ip)}
-            if self.config.whitelist_access_only
-            else {}
-        )
-        block: (
-            RateLimitBlock | None
-        ) = await self.middleware.rate_limit_handler.check_rate_limit_tiers(
-            request,
-            client_ip,
-            self.middleware.create_error_response,
-            [plan.tier for plan in plans],
-            config=self.config,
-            **carve,
-        )
-        if block is None:
+        if isinstance(pending, PendingBan):
+            banned = await resolve_pending_ban(request)
+            if banned is not None:
+                return banned
+        if client_ip is None or not plans:
             return None
-
-        plan = plans[block.tier_index]
-        await self._report_block(request, client_ip, plan, block)
-        if self.config.passive_mode:
-            return None
-        await self._record_rate_limit_autoban(request, client_ip, plan.trigger_info)
-        return block.response
+        return await finish_tiers(self, request, client_ip, plans, None)

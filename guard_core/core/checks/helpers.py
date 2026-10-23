@@ -515,7 +515,7 @@ async def _try_threshold_ban(
             strike_key,
             threat_categories,
             SUSPICIOUS_COUNT_WINDOW_SECONDS,
-            _retained_strike_cap(config),
+            lambda: _retained_strike_cap(config),
         )
         ip_counts = (
             shared.counts

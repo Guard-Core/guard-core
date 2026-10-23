@@ -2,6 +2,7 @@ from collections.abc import Collection
 
 from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
+from guard_core.sync.core.checks._pending_ban import resolve_pending_ban
 from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.decorators.base import RouteConfig
 from guard_core.sync.handlers.cors_handler import CorsHandler, is_preflight
@@ -22,6 +23,9 @@ class CorsPreflightCheck(SecurityCheck):
     preflight. An app built with CORS on answers its preflights in its adapter.
     """
 
+    defers_ban_read = True
+    leaves_ban_pending = True
+
     def __init__(self, middleware: SyncGuardMiddlewareProtocol) -> None:
         super().__init__(middleware)
         self._cors: CorsHandler | None = None
@@ -41,6 +45,9 @@ class CorsPreflightCheck(SecurityCheck):
     def check(self, request: SyncGuardRequest) -> GuardResponse | None:
         if request.method.upper() != "OPTIONS":
             return None
+        banned = resolve_pending_ban(request)
+        if banned is not None:
+            return banned
         manager = self.middleware.response_factory.security_headers_manager
         if isinstance(manager, SecurityHeadersManager):
             manager.send_cors_override_event(self.config)

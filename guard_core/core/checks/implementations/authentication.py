@@ -5,6 +5,7 @@ import traceback
 from collections.abc import Collection
 from typing import Any
 
+from guard_core.core.checks._pending_ban import resolve_pending_ban
 from guard_core.core.checks._verifier import resolve_verifier_result
 from guard_core.core.checks.base import SecurityCheck
 from guard_core.core.checks.helpers import (
@@ -51,6 +52,9 @@ def _describe_verifier_error(exc: Exception, credential: str, auth_type: str) ->
 
 
 class AuthenticationCheck(SecurityCheck):
+    defers_ban_read = True
+    leaves_ban_pending = True
+
     @property
     def check_name(self) -> str:
         return "authentication"
@@ -90,6 +94,9 @@ class AuthenticationCheck(SecurityCheck):
             return await self._report_verifier_error(
                 request, auth_reason, violation_type, auth_type
             )
+        banned = await resolve_pending_ban(request, "auth_failure")
+        if banned is not None:
+            return banned
 
         await log_activity(
             request,
@@ -198,6 +205,9 @@ class AuthenticationCheck(SecurityCheck):
             return await fail(missing_reason, **missing_metadata)
         if verifier is None:
             return await fail("No auth verifier configured")
+        banned = await resolve_pending_ban(request)
+        if banned is not None:
+            return True, banned, None
         try:
             result = await resolve_verifier_result(verifier(request, credential))
         except Exception as exc:

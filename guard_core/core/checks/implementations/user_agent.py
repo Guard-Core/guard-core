@@ -4,6 +4,7 @@ from typing import Any, ClassVar
 from guard_core._utils.agent_events import agent_receives_events
 from guard_core._utils.request_logging import redact_header_value_for_display
 from guard_core._utils.rule_attribution import user_agent_attribution
+from guard_core.core.checks._pending_ban import resolve_pending_ban
 from guard_core.core.checks.base import SecurityCheck
 from guard_core.core.checks.helpers import (
     check_user_agent_allowed,
@@ -23,6 +24,8 @@ from guard_core.utils import log_activity
 
 
 class UserAgentCheck(SecurityCheck):
+    defers_ban_read = True
+    leaves_ban_pending = True
     container_fields: ClassVar[tuple[str, ...]] = ("blocked_user_agents",)
 
     @property
@@ -77,6 +80,9 @@ class UserAgentCheck(SecurityCheck):
         user_agent: str,
         empty_user_agent: bool,
     ) -> GuardResponse | None:
+        banned = await resolve_pending_ban(request, "user_agent")
+        if banned is not None:
+            return banned
         redacted_user_agent = (
             "(empty)"
             if empty_user_agent

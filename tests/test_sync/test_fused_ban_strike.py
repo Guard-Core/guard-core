@@ -10,7 +10,8 @@ import pytest
 from redis import Redis
 
 from guard_core.exceptions import GuardRedisError
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
+from guard_core.sync.core.checks._pending_ban import resolve_pending_ban
 from guard_core.sync.core.checks.implementations.ip_security import IpSecurityCheck
 from guard_core.sync.decorators.base import RouteConfig
 from guard_core.sync.handlers.ipban_handler import IPBanManager
@@ -39,7 +40,7 @@ class _Rig:
             ban_on_hostile_signals=True,
         )
         fields.update(overrides)
-        self.config = SecurityConfig(**fields)
+        self.config = SyncSecurityConfig(**fields)
         self.redis = RedisManager(self.config)
         self.round_trips = 0
         self.counting = True
@@ -82,10 +83,15 @@ class _Rig:
     ) -> int | None:
         request = MagicMock()
         request.state.client_ip = ip
+        request.state.is_whitelisted = False
+        request.state.is_exempt = False
+        request.state.guard_pending_ban = None
         request.state.route_config = route_config
         request.state.guard_exclusion_scoped = exclusion_scoped
         request.headers = {}
         response = self.check.check(request)
+        if response is None:
+            response = resolve_pending_ban(request)
         return None if response is None else int(response.status_code)
 
     def state(self) -> dict[str, Any]:
@@ -196,8 +202,8 @@ def _route(fields: dict[str, Any]) -> RouteConfig:
     return route_config
 
 
-def _never_fused(*_args: Any, **_kwargs: Any) -> None:
-    return None
+def _never_planned(*_args: Any, **_kwargs: Any) -> tuple[None, bool]:
+    return None, False
 
 
 def _fused_and_separate(
@@ -213,9 +219,7 @@ def _fused_and_separate(
     with _rig(threshold, **(config or {})) as rig:
         route_config = _route(route) if route else None
         fused = _observed(rig, ip, 6, route_config=route_config, **request_state)
-        monkeypatch.setattr(
-            IpSecurityCheck, "_fused_denial_strike", _never_fused, False
-        )
+        monkeypatch.setattr(IpSecurityCheck, "_plan_ban_read", _never_planned, False)
         separate = _observed(
             rig, TWINS[ip], 6, route_config=route_config, **request_state
         )
@@ -310,7 +314,10 @@ def test_a_redis_that_drops_the_lookup_fails_as_the_two_calls_did(
         with _rig(3, redis_fail_open=fail_open) as rig:
             if not fused:
                 monkeypatch.setattr(
-                    IpSecurityCheck, "_fused_denial_strike", _never_fused, False
+                    IpSecurityCheck,
+                    "_plan_ban_read",
+                    _never_planned,
+                    False,
                 )
             monkeypatch.setattr(Redis, "execute_command", dropping)
             caplog.clear()

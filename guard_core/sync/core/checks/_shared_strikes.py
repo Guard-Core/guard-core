@@ -164,7 +164,7 @@ def fused_or_recorded_shared_strikes(
     client_ip: str,
     categories: str | Collection[str],
     window_seconds: int,
-    cap: int,
+    cap: Callable[[], int],
 ) -> SharedStrikes | None:
     fused = getattr(request.state, "guard_fused_strike", None)
     if isinstance(fused, FusedStrike):
@@ -172,5 +172,5 @@ def fused_or_recorded_shared_strikes(
         if recorded is not None:
             return recorded
     return record_shared_detection_strikes(
-        middleware, client_ip, categories, window_seconds, cap
+        middleware, client_ip, categories, window_seconds, cap()
     )

@@ -1,8 +1,20 @@
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from guard_core.core.checks.base import SecurityCheck
+
+
 class GuardCoreError(Exception):
     pass
 
 
 class GuardRedisError(GuardCoreError):
+    """A Redis operation failed. ``guard_check`` names the check that owns the
+    failed operation when a different check was running (a ban read a later check
+    resolved), so the pipeline logs the failure under the owner."""
+
+    guard_check: "SecurityCheck | None" = None
+
     def __init__(self, status_code: int, detail: str) -> None:
         self.status_code = status_code
         self.detail = detail

@@ -6,6 +6,7 @@ from typing import cast
 
 from guard_core._utils.block_events import fire_block_hook
 from guard_core._utils.request_logging import redact_header_value_for_display
+from guard_core.core.checks._pending_ban import PendingBan, resolve_pending_ban
 from guard_core.core.checks._usage_rules_step import (
     enforce_usage_rules,
     warn_at_startup_if_throttle_cannot_refuse,
@@ -15,6 +16,10 @@ from guard_core.exceptions import GuardRedisError
 from guard_core.models import SecurityConfig
 from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse
+
+
+def _owner_of(error: Exception, check: SecurityCheck) -> SecurityCheck:
+    return getattr(error, "guard_check", None) or check
 
 
 class SecurityCheckPipeline:
@@ -149,6 +154,29 @@ class SecurityCheckPipeline:
             check.config.log_sensitive_headers,
         )
 
+    async def _blocked(
+        self, check: SecurityCheck, request: GuardRequest, response: GuardResponse
+    ) -> GuardResponse:
+        blocker = getattr(request.state, "guard_banned_by", None)
+        if not isinstance(blocker, SecurityCheck):
+            blocker = check
+        if blocker.check_name not in self.muted_check_logs:
+            self.logger.debug(
+                f"Request blocked by {blocker.check_name}",
+                extra=self._log_extra(blocker, request),
+            )
+        await self._fire_block_hook(blocker, request, response)
+        return response
+
+    async def _resolve_pending_ban(self, request: GuardRequest) -> GuardResponse | None:
+        pending = getattr(request.state, "guard_pending_ban", None)
+        if not isinstance(pending, PendingBan):
+            return None
+        response = await resolve_pending_ban(request)
+        if response is not None:
+            await self._fire_block_hook(pending.check, request, response)
+        return response
+
     async def _handle_rebuild_error(
         self, request: GuardRequest, error: Exception
     ) -> GuardResponse | None:
@@ -168,39 +196,60 @@ class SecurityCheckPipeline:
             default_message="Security check failed",
         )
 
-    async def execute(self, request: GuardRequest) -> GuardResponse | None:
+    async def _rebuild_response(self, request: GuardRequest) -> GuardResponse | None:
         try:
             self._rebuild_if_stale()
         except Exception as e:
-            response = await self._handle_rebuild_error(request, e)
-            if response is not None:
-                return response
+            return await self._handle_rebuild_error(request, e)
+        return None
+
+    def _applicable_checks(self, state: object) -> list[SecurityCheck]:
+        if getattr(state, "guard_exclusion_scoped", False) is not True:
+            return self.checks
+        return [check for check in self.checks if check.enforced_on_excluded_paths]
+
+    async def execute(self, request: GuardRequest) -> GuardResponse | None:
+        response = await self._rebuild_response(request)
+        if response is not None:
+            return response
 
         state = request.state
         state._guard_pipeline_start = time.monotonic()
-        exclusion_scoped = getattr(state, "guard_exclusion_scoped", False) is True
 
-        for check in self.checks:
-            if exclusion_scoped and not check.enforced_on_excluded_paths:
-                continue
+        pending_open = False
+        for check in self._applicable_checks(state):
             try:
+                if pending_open and not check.defers_ban_read:
+                    banned = await self._resolve_pending_ban(request)
+                    if banned is not None:
+                        return banned
+                    pending_open = False
                 response = await check.check(request)
                 if response is not None:
-                    if check.check_name not in self.muted_check_logs:
-                        self.logger.debug(
-                            f"Request blocked by {check.check_name}",
-                            extra=self._log_extra(check, request),
-                        )
-                    await self._fire_block_hook(check, request, response)
-                    return response
+                    return await self._blocked(check, request, response)
+                if check.leaves_ban_pending:
+                    pending_open = isinstance(
+                        getattr(state, "guard_pending_ban", None), PendingBan
+                    )
 
             except Exception as e:
-                error_response = await self._handle_check_error(check, request, e)
+                error_response = await self._handle_check_error(
+                    _owner_of(e, check), request, e
+                )
                 if error_response is not None:
                     return error_response
 
+        return await self._finish(request)
+
+    async def _finish(self, request: GuardRequest) -> GuardResponse | None:
+        try:
+            banned = await self._resolve_pending_ban(request)
+        except Exception as e:
+            banned = await self._handle_check_error(self.checks[0], request, e)
+        if banned is not None:
+            return banned
         return await enforce_usage_rules(
-            self.checks, request, state, self._handle_check_error
+            self.checks, request, request.state, self._handle_check_error
         )
 
     @property

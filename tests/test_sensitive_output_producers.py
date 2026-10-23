@@ -228,7 +228,7 @@ COVERED_PRODUCERS: dict[str, frozenset[str]] = {
     ),
     "core/checks/implementations/emergency_mode.py:"
     "EmergencyModeCheck._log_allowed": frozenset({"emergency_mode_whitelisted"}),
-    "core/checks/implementations/ip_security.py:IpSecurityCheck._check_banned_ip": (
+    "core/checks/implementations/ip_security.py:IpSecurityCheck.banned_response": (
         frozenset({"banned_ip"})
     ),
     "core/checks/implementations/ip_security.py:"
@@ -277,7 +277,7 @@ COVERED_PRODUCERS: dict[str, frozenset[str]] = {
     "core/checks/pipeline.py:SecurityCheckPipeline._handle_check_error": frozenset(
         {"request_size_content_length_malformed_answers_400"}
     ),
-    "core/checks/pipeline.py:SecurityCheckPipeline.execute": frozenset(
+    "core/checks/pipeline.py:SecurityCheckPipeline._blocked": frozenset(
         {"blacklist_hit"}
     ),
     "core/events/logfire_handler.py:LogfireHandler.send_event": frozenset(
@@ -1315,10 +1315,9 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "line 184: states what country rules do without a GeoIP database, "
         "static text, no request data"
     ),
-    "core/checks/implementations/ip_security.py:"
-    "IpSecurityCheck._is_banned_failing_open_on_redis_loss": (
-        "line 132: Redis outage warning naming the client_ip, which is outside "
-        "the secret matrix (see module docstring policy)"
+    "core/checks/_ip_ban_read.py:IpBanReadMixin.warn_ban_lookup_skipped": (
+        "Redis outage warning naming the client_ip, which is outside the secret "
+        "matrix (see module docstring policy)"
     ),
     "core/checks/implementations/ip_security.py:IpSecurityCheck._report_geo_failure": (
         "line 351: GeoIP lookup failure naming the client_ip and the error class, "

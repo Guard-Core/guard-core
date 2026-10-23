@@ -685,9 +685,10 @@ class RateLimitManager:
         tiers: Sequence[RateLimitTier],
         config: SecurityConfig | None = None,
         window_identity: str | None = None,
+        verdict: RateLimitVerdict | None = None,
     ) -> RateLimitBlock | None:
         display_config = config or self.config
-        verdict = await self._tier_verdict(
+        verdict = verdict or await self._tier_verdict(
             client_ip, tiers, display_config, window_identity
         )
         if verdict.tier_index is None:

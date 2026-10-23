@@ -84,8 +84,6 @@ def _build_redis_client(
 ) -> Redis:
     from redis import Redis
 
-    from guard_core.sync.handlers._redis_fast_pool import FastPathConnectionPool
-
     pool = FastPathConnectionPool.from_url(
         url,
         max_connections=max_connections,

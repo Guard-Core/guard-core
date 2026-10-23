@@ -3,6 +3,7 @@ from collections.abc import Collection
 from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.request_logging import redact_url_for_display
+from guard_core.sync.core.checks._pending_ban import resolve_pending_ban
 from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.core.checks.helpers import (
     emit_access_denied_event,
@@ -17,6 +18,9 @@ from guard_core.sync.utils import log_activity
 
 
 class ReferrerCheck(SecurityCheck):
+    defers_ban_read = True
+    leaves_ban_pending = True
+
     @property
     def check_name(self) -> str:
         return "referrer"
@@ -32,6 +36,9 @@ class ReferrerCheck(SecurityCheck):
     def _handle_missing_referrer(
         self, request: SyncGuardRequest, route_config: RouteConfig
     ) -> GuardResponse | None:
+        banned = resolve_pending_ban(request, "referrer")
+        if banned is not None:
+            return banned
         log_activity(
             request,
             self.logger,
@@ -71,6 +78,9 @@ class ReferrerCheck(SecurityCheck):
     def _handle_invalid_referrer(
         self, request: SyncGuardRequest, referrer: str, route_config: RouteConfig
     ) -> GuardResponse | None:
+        banned = resolve_pending_ban(request, "referrer")
+        if banned is not None:
+            return banned
         redacted_referrer = redact_url_for_display(
             referrer,
             self.config.log_sensitive_params,

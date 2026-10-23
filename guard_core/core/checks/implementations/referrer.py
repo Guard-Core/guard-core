@@ -1,6 +1,7 @@
 from collections.abc import Collection
 
 from guard_core._utils.request_logging import redact_url_for_display
+from guard_core.core.checks._pending_ban import resolve_pending_ban
 from guard_core.core.checks.base import SecurityCheck
 from guard_core.core.checks.helpers import (
     emit_access_denied_event,
@@ -17,6 +18,9 @@ from guard_core.utils import log_activity
 
 
 class ReferrerCheck(SecurityCheck):
+    defers_ban_read = True
+    leaves_ban_pending = True
+
     @property
     def check_name(self) -> str:
         return "referrer"
@@ -32,6 +36,9 @@ class ReferrerCheck(SecurityCheck):
     async def _handle_missing_referrer(
         self, request: GuardRequest, route_config: RouteConfig
     ) -> GuardResponse | None:
+        banned = await resolve_pending_ban(request, "referrer")
+        if banned is not None:
+            return banned
         await log_activity(
             request,
             self.logger,
@@ -73,6 +80,9 @@ class ReferrerCheck(SecurityCheck):
     async def _handle_invalid_referrer(
         self, request: GuardRequest, referrer: str, route_config: RouteConfig
     ) -> GuardResponse | None:
+        banned = await resolve_pending_ban(request, "referrer")
+        if banned is not None:
+            return banned
         redacted_referrer = redact_url_for_display(
             referrer,
             self.config.log_sensitive_params,

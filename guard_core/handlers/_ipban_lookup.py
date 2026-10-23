@@ -2,7 +2,7 @@ import ipaddress
 import logging
 import time
 from collections.abc import Awaitable, Callable, MutableMapping
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 from guard_core._utils.ip_extraction import (
     MALFORMED_FORWARDED_FOR_PREFIX,
@@ -23,6 +23,14 @@ if TYPE_CHECKING:
     from guard_core.core.checks._shared_strikes import FusedStrike
 
 _DEFAULT_IPV6_PREFIX_LENGTH = 64
+
+
+class PendingKeysRead(NamedTuple):
+    """A ban lookup that only the Redis ban keys can still decide."""
+
+    ip: str
+    identity: str | None
+    addr: ipaddress.IPv4Address | ipaddress.IPv6Address
 
 
 class IpBanLookupMixin(IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptionMixin):
@@ -74,7 +82,42 @@ class IpBanLookupMixin(IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptionMix
         namespaces = [("banned_ips", ip)]
         if identity is not None:
             namespaces.append(("banned_identities", identity))
-        values = await self._read_ban_keys(namespaces, now, fused_strike)
+        strike = await fused_strike() if fused_strike is not None else None
+        if strike is None:
+            values: list[Any] = await self.redis_handler.get_many(
+                [*namespaces, _VERSION_PAIR]
+            )
+        else:
+            values, recorded = await self.redis_handler.get_bans_and_record_strike(
+                namespaces,
+                _VERSION_PAIR,
+                self._ban_version_seen,
+                now,
+                strike.client_ip,
+                strike.categories,
+                now,
+                now - strike.window_seconds,
+                strike.window_seconds,
+                strike.cap,
+            )
+            strike.record(recorded)
+        return await self.decide_from_ban_values(namespaces, values, now, addr)
+
+    def ban_key_pairs(self, read: PendingKeysRead) -> list[tuple[str, str]]:
+        pairs = [("banned_ips", read.ip)]
+        if read.identity is not None:
+            pairs.append(("banned_identities", read.identity))
+        return pairs
+
+    async def decide_from_ban_values(
+        self,
+        namespaces: list[tuple[str, str]],
+        values: list[Any],
+        now: float,
+        addr: ipaddress.IPv4Address | ipaddress.IPv6Address | None = None,
+    ) -> bool:
+        """The ban verdict of the values read for ``namespaces`` plus, last, the
+        ban version, by whatever round trip read them."""
         if self._version_moved(values.pop(), now):
             await self._reload_operator_networks()
             networks = self._operator_networks
@@ -93,37 +136,6 @@ class IpBanLookupMixin(IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptionMix
         if self.agent_handler:
             await self._report_evictions()
         return banned
-
-    async def _read_ban_keys(
-        self,
-        namespaces: list[tuple[str, str]],
-        now: float,
-        fused_strike: Callable[[], Awaitable["FusedStrike | None"]] | None,
-    ) -> list[Any]:
-        """The ban keys and the ban version, in one round trip. When the request
-        is certain to record a detection strike if it is not banned, the same
-        round trip records it (``fused_strike`` builds it, ``None`` when there is
-        none)."""
-        strike = await fused_strike() if fused_strike is not None else None
-        if strike is None:
-            values: list[Any] = await self.redis_handler.get_many(
-                [*namespaces, _VERSION_PAIR]
-            )
-            return values
-        values, recorded = await self.redis_handler.get_bans_and_record_strike(
-            namespaces,
-            _VERSION_PAIR,
-            self._ban_version_seen,
-            now,
-            strike.client_ip,
-            strike.categories,
-            now,
-            now - strike.window_seconds,
-            strike.window_seconds,
-            strike.cap,
-        )
-        strike.record(recorded)
-        return values
 
     def _local_lookup(
         self, ip: str, config: Any, now: float
@@ -201,18 +213,47 @@ class IpBanLookupMixin(IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptionMix
         self,
         ip: str,
         fused_strike: Callable[[], Awaitable["FusedStrike | None"]] | None = None,
+        defer_read: Callable[[PendingKeysRead], Awaitable[bool]] | None = None,
     ) -> bool:
-        return await self._is_ip_banned_under(ip, self.config, fused_strike)
+        """The ban lookup. ``defer_read`` may take over the Redis ban keys read
+        (return ``True``): the caller then holds the read and the answer here is
+        ``False`` until it resolves it."""
+        return await self._is_ip_banned_under(ip, self.config, fused_strike, defer_read)
 
     async def _is_ip_banned_under(
         self,
         ip: str,
         config: Any,
         fused_strike: Callable[[], Awaitable["FusedStrike | None"]] | None = None,
+        defer_read: Callable[[PendingKeysRead], Awaitable[bool]] | None = None,
     ) -> bool:
         """The ban lookup with the identity prefix and whitelist taken from
         ``config``: a caller outside the pipeline (the out-of-band rate-limit
         primitive) passes its own config without touching the manager's."""
+        outcome = await self._ban_outcome_before_keys(ip, config)
+        if not isinstance(outcome, PendingKeysRead):
+            return outcome
+        if defer_read is not None and await defer_read(outcome):
+            return False
+        return await self.finish_ban_check(outcome, fused_strike)
+
+    async def begin_ban_check(self, ip: str) -> bool | PendingKeysRead:
+        """What the lookup decides without the Redis ban keys: ``True`` or
+        ``False``, or the read of those keys, left for ``finish_ban_check``."""
+        return await self._ban_outcome_before_keys(ip, self.config)
+
+    async def finish_ban_check(
+        self,
+        read: PendingKeysRead,
+        fused_strike: Callable[[], Awaitable["FusedStrike | None"]] | None = None,
+    ) -> bool:
+        return await self._check_redis_keys(
+            read.ip, read.identity, time.time(), read.addr, fused_strike
+        )
+
+    async def _ban_outcome_before_keys(
+        self, ip: str, config: Any
+    ) -> bool | PendingKeysRead:
         ip = _canonicalize_ip(ip)
         now = time.time()
         identity, verdict = self._local_lookup(ip, config, now)
@@ -234,7 +275,7 @@ class IpBanLookupMixin(IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptionMix
             operator_networks is None or operator_networks.has_networks
         ) and await self._operator_networks_ban(addr, now):
             return True
-        return await self._check_redis_keys(ip, identity, now, addr, fused_strike)
+        return PendingKeysRead(ip, identity, addr)
 
     async def _operator_networks_ban(
         self, addr: ipaddress.IPv4Address | ipaddress.IPv6Address, now: float
