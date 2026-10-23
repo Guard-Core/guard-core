@@ -51,71 +51,88 @@ def _guard(response: object) -> GuardResponse:
     return cast(GuardResponse, response)
 
 
-def test_recording_headers_read_through_and_commit_in_order() -> None:
+def test_undo_headers_write_through_and_undo_in_reverse() -> None:
     real = {"Keep": "1", "Gone": "2", "Swap": "3"}
-    recorded = RecordingHeaders(real)
-    recorded["New"] = "n"
-    del recorded["Gone"]
-    recorded["swap"] = "4"
-    assert recorded["Keep"] == "1"
-    assert recorded["NEW"] == "n"
-    assert "Gone" not in recorded
-    assert sorted(recorded) == ["Keep", "New", "swap"]
-    assert len(recorded) == 3
+    headers = RecordingHeaders(real)
+    headers["New"] = "n"
+    del headers["Gone"]
+    headers["Swap"] = "4"
+    assert real == {"Keep": "1", "Swap": "4", "New": "n"}
+    assert headers["Keep"] == "1"
+    assert sorted(headers) == ["Keep", "New", "Swap"]
+    assert len(headers) == 3
+    headers.undo()
     assert real == {"Keep": "1", "Gone": "2", "Swap": "3"}
-    recorded.commit()
-    assert real == {"Keep": "1", "Swap": "3", "New": "n", "swap": "4"}
+    headers.undo()
+    assert real == {"Keep": "1", "Gone": "2", "Swap": "3"}
 
 
-def test_recording_headers_missing_key_and_set_then_delete() -> None:
+def test_undo_headers_missing_key_and_set_then_delete() -> None:
     real: dict[str, str] = {}
-    recorded = RecordingHeaders(real)
+    headers = RecordingHeaders(real)
     with pytest.raises(KeyError):
-        del recorded["Nope"]
+        del headers["Nope"]
     with pytest.raises(KeyError):
-        recorded["Nope"]
-    recorded["Temp"] = "1"
-    del recorded["Temp"]
-    with pytest.raises(KeyError):
-        recorded["Temp"]
-    recorded.commit()
+        headers["Nope"]
+    headers["Temp"] = "1"
+    del headers["Temp"]
+    headers.undo()
     assert real == {}
 
 
-def test_recording_headers_support_the_mutable_mapping_helpers() -> None:
+def test_undo_headers_undo_tolerates_a_header_removed_behind_its_back() -> None:
+    real: dict[str, str] = {}
+    headers = RecordingHeaders(real)
+    headers["Temp"] = "1"
+    del real["Temp"]
+    headers.undo()
+    assert real == {}
+
+
+def test_undo_headers_support_the_mutable_mapping_helpers() -> None:
     real = {"A": "1"}
-    recorded = RecordingHeaders(real)
-    recorded.update({"B": "2"})
-    assert recorded.pop("A") == "1"
-    assert recorded.setdefault("C", "3") == "3"
-    recorded.commit()
+    headers = RecordingHeaders(real)
+    headers.update({"B": "2"})
+    assert headers.pop("A") == "1"
+    assert headers.setdefault("C", "3") == "3"
     assert real == {"B": "2", "C": "3"}
-    recorded.clear()
-    recorded.commit()
-    assert real == {}
+    headers.undo()
+    assert real == {"A": "1"}
 
 
 class _AppendingHeaders(dict[str, str]):
     def __init__(self, items: dict[str, str]) -> None:
         super().__init__(items)
-        self.appended: list[tuple[str, str]] = []
+        self.pairs: list[tuple[str, str]] = list(items.items())
 
     def append(self, key: str, value: str) -> None:
-        self.appended.append((key, value))
+        self.pairs.append((key, value))
         self[key] = value
 
+    def __setitem__(self, key: str, value: str) -> None:
+        super().__setitem__(key, value)
 
-def test_recording_headers_record_append_and_forward_other_attributes() -> None:
+    def items(self) -> Any:
+        return list(self.pairs)
+
+    def __delitem__(self, key: str) -> None:
+        super().__delitem__(key)
+        self.pairs = [pair for pair in self.pairs if pair[0] != key]
+
+
+def test_undo_headers_append_is_undone_from_a_snapshot() -> None:
     real = _AppendingHeaders({"A": "1"})
-    recorded = RecordingHeaders(real)
-    recorded.append("B", "2")
-    recorded.append("A", "3")
-    assert recorded["B"] == "2"
-    assert recorded["A"] == "1"
-    assert real.appended == []
-    assert recorded.appended == []
-    recorded.commit()
-    assert real.appended == [("B", "2"), ("A", "3")]
+    headers = RecordingHeaders(real)
+    headers.append("B", "2")
+    headers.append("A", "3")
+    assert real.pairs == [("A", "1"), ("B", "2"), ("A", "3")]
+    headers.undo()
+    assert real.pairs == [("A", "1")]
+
+
+def test_undo_headers_forward_other_attributes() -> None:
+    real = _AppendingHeaders({"A": "1"})
+    assert RecordingHeaders(real).pairs == [("A", "1")]
 
 
 @pytest.mark.parametrize(
@@ -174,16 +191,31 @@ def test_view_body_raises_the_dedicated_error_and_never_the_real_body() -> None:
     assert isinstance(raised.value, AttributeError)
 
 
-def test_view_assigned_headers_and_attributes_commit_to_the_real_response() -> None:
+def test_view_writes_through_and_undo_restores_headers_and_attributes() -> None:
+    real: Any = _Response({"A": "1"})
+    real.status_code = 200
+    view: Any = ModifierResponseView(_guard(real))
+    view.headers["B"] = "2"
+    view.status_code = 418
+    view.marker = "m"
+    assert (real.headers, real.status_code, real.marker) == (
+        {"A": "1", "B": "2"},
+        418,
+        "m",
+    )
+    view.undo()
+    assert real.headers == {"A": "1"}
+    assert real.status_code == 200
+
+
+def test_view_assigned_headers_write_through_with_a_fresh_undo_log() -> None:
     real: Any = _Response({"A": "1"})
     view: Any = ModifierResponseView(_guard(real))
     view.headers = {"Z": "9"}
-    view.marker = "m"
-    assert view.headers == {"Z": "9"}
-    assert view.marker == "m"
-    view.commit()
-    assert real.headers == {"Z": "9"}
-    assert real.marker == "m"
+    view.headers["Y"] = "8"
+    assert real.headers == {"Z": "9", "Y": "8"}
+    view.undo()
+    assert real.headers == {"A": "1"}
 
 
 def test_view_with_the_body_returns_it_and_with_a_refusal_names_it() -> None:
@@ -284,3 +316,12 @@ def test_report_body_refused_samples_per_reason_and_skips_events_without_agent(
     ) == 1
     assert len(caplog.records) == 2
     _reported_refusals.clear()
+
+
+def test_commit_is_a_no_op_because_writes_go_through() -> None:
+    real: Any = _Response({"A": "1"})
+    view: Any = ModifierResponseView(_guard(real))
+    view.headers["B"] = "2"
+    view.headers.commit()
+    assert view.commit() is real
+    assert real.headers == {"A": "1", "B": "2"}

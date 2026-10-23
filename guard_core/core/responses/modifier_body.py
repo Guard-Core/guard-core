@@ -1,24 +1,25 @@
 import logging
 from collections.abc import Awaitable, Callable
-from typing import Any, cast
+from typing import Any
 
 from guard_core._utils.response_prefetch import SHARED_PREFETCH, ResponseBodyPrefetch
 from guard_core.core.responses.modifier_view import (
+    READS_BODY_MARKER,
     ModifierResponseView,
     body_gate_refusal,
     declared_content_length,
-    modifier_reads_response_body,
     report_body_refused,
 )
 from guard_core.models import SecurityConfig
 from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse
 
-Modifier = Callable[[GuardResponse], Awaitable[GuardResponse]]
+Modifier = Callable[[Any], Awaitable[Any]]
 
 _PREFETCH_INCOMPLETE = (
     "the bounded read did not return exactly the declared Content-Length bytes"
 )
+_MODIFIER_RAISED = "custom_response_modifier raised %s; returning unmodified response"
 
 
 async def _prefetched_body(
@@ -31,24 +32,18 @@ async def _prefetched_body(
     return body, None
 
 
-async def _invoke(
+async def _call_on_view(
     modifier: Modifier,
     view: ModifierResponseView,
     real: GuardResponse,
     logger: logging.Logger,
-) -> Any:
+) -> GuardResponse:
     try:
-        return await modifier(cast(GuardResponse, view))
+        result: GuardResponse = await modifier(view)
     except Exception as exc:
-        logger.exception(
-            "custom_response_modifier raised %s; returning unmodified response", exc
-        )
+        logger.exception(_MODIFIER_RAISED, exc)
         return real
-
-
-def _commit(view: ModifierResponseView, result: Any) -> GuardResponse:
-    real = view.commit()
-    return real if result is view else cast(GuardResponse, result)
+    return real if result is view else result
 
 
 async def _call_marked_modifier(
@@ -68,10 +63,10 @@ async def _call_marked_modifier(
             config, response, shared or ResponseBodyPrefetch(response)
         )
     view = ModifierResponseView(response, body, refusal)
-    result = await _invoke(modifier, view, response, logger)
-    if refusal is not None and view.body_requested:
+    result = await _call_on_view(modifier, view, response, logger)
+    if refusal is not None and view.__dict__["body_requested"]:
         await report_body_refused(logger, config, agent_handler, request, refusal)
-    return _commit(view, result)
+    return result
 
 
 async def apply_modifier_with_bounded_body(
@@ -83,38 +78,43 @@ async def apply_modifier_with_bounded_body(
     logger: logging.Logger,
     agent_handler: Any | None,
 ) -> GuardResponse:
-    shared = prefetch
     cap = config.custom_response_modifier_max_body_bytes
 
     def gate() -> str | None:
         return body_gate_refusal(response, request.method, cap)
 
     try:
-        if modifier_reads_response_body(modifier):
+        if getattr(modifier, READS_BODY_MARKER, False) is True:
             return await _call_marked_modifier(
                 modifier,
                 response,
                 request,
-                shared,
+                prefetch,
                 config,
                 logger,
                 agent_handler,
                 gate,
             )
         first = ModifierResponseView(response, gate=gate)
-        result = await _invoke(modifier, first, response, logger)
-        if not first.body_requested:
-            return _commit(first, result)
+        result: Any = first
+        try:
+            result = await modifier(first)
+        except Exception as exc:
+            logger.exception(_MODIFIER_RAISED, exc)
+        if not first.__dict__["body_requested"]:
+            return response if result is first else result
         body, refusal = None, first.gate_refusal()
         if refusal is None:
             body, refusal = await _prefetched_body(
-                config, response, shared or ResponseBodyPrefetch(response)
+                config, response, prefetch or ResponseBodyPrefetch(response)
             )
         if refusal is not None:
             await report_body_refused(logger, config, agent_handler, request, refusal)
-            return _commit(first, result)
-        replay = ModifierResponseView(response, body)
-        return _commit(replay, await _invoke(modifier, replay, response, logger))
+            return response if result is first else result
+        first.undo()
+        return await _call_on_view(
+            modifier, ModifierResponseView(response, body), response, logger
+        )
     finally:
-        if shared is not None:
+        if prefetch is not None:
             SHARED_PREFETCH.set(None)

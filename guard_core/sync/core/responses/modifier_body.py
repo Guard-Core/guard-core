@@ -17,7 +17,7 @@ from guard_core.sync.core.responses.modifier_view import (
 )
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
-Modifier = Callable[[GuardResponse], GuardResponse]
+Modifier = Callable[[Any], Any]
 
 _PREFETCH_INCOMPLETE = (
     "the bounded read did not return exactly the declared Content-Length bytes"
@@ -27,23 +27,23 @@ _PREFETCH_INCOMPLETE = (
 class LazyBodyResponseView(ModifierResponseView):
     """Sync engines read the bounded prefix on the first ``.body`` access: one call."""
 
-    __slots__ = ("_load",)
-
     def __init__(self, real: GuardResponse, load: Callable[[], bytes]) -> None:
         super().__init__(real)
-        object.__setattr__(self, "_load", load)
+        self.__dict__["_load"] = load
 
     @property
     def body(self) -> bytes | None:
-        object.__setattr__(self, "body_requested", True)
-        if self._body is None and self._refusal is None:
+        state = self.__dict__
+        state["body_requested"] = True
+        if state["_body"] is None and state["_refusal"] is None:
             try:
-                object.__setattr__(self, "_body", self._load())
+                state["_body"] = state["_load"]()
             except ResponseBodyUnavailableError as refusal:
-                object.__setattr__(self, "_refusal", refusal.reason)
-        if self._body is None:
-            raise ResponseBodyUnavailableError(cast(str, self._refusal))
-        return self._body
+                state["_refusal"] = refusal.reason
+        if state["_body"] is None:
+            raise ResponseBodyUnavailableError(cast(str, state["_refusal"]))
+        body: bytes = state["_body"]
+        return body
 
 
 def apply_modifier_with_bounded_body(
@@ -55,7 +55,6 @@ def apply_modifier_with_bounded_body(
     logger: logging.Logger,
     agent_handler: Any | None,
 ) -> GuardResponse:
-
     def load() -> bytes:
         cap = config.custom_response_modifier_max_body_bytes
         refusal = body_gate_refusal(response, request.method, cap)
@@ -74,14 +73,13 @@ def apply_modifier_with_bounded_body(
         return body
 
     view = LazyBodyResponseView(response, load)
+    result: Any = view
     try:
-        result: Any = modifier(cast(GuardResponse, view))
+        result = modifier(view)
     except Exception as exc:
         logger.exception(
             "custom_response_modifier raised %s; returning unmodified response", exc
         )
-        result = response
     if prefetch is not None:
         SHARED_PREFETCH.set(None)
-    committed = view.commit()
-    return committed if result is view else cast(GuardResponse, result)
+    return response if result is view else result

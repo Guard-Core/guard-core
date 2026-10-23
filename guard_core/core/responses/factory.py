@@ -219,7 +219,9 @@ class ErrorResponseFactory:
         ]
         | None = None,
     ) -> GuardResponse:
-        prefetch = self._share_prefetch_when_needed(response)
+        prefetch = None
+        if self.context.config.behavior_scan_response_body:
+            prefetch = self._share_prefetch(response)
 
         client_ip = await self._resolve_client_ip_for_behavioral_rules(
             request,
@@ -256,12 +258,7 @@ class ErrorResponseFactory:
 
         return await self.apply_modifier(response, request, prefetch)
 
-    def _share_prefetch_when_needed(
-        self, response: GuardResponse
-    ) -> ResponseBodyPrefetch | None:
-        config = self.context.config
-        if not config.behavior_scan_response_body:
-            return None
+    def _share_prefetch(self, response: GuardResponse) -> ResponseBodyPrefetch:
         prefetch = ResponseBodyPrefetch(response)
         SHARED_PREFETCH.set(prefetch)
         return prefetch

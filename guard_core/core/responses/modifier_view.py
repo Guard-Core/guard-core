@@ -14,7 +14,7 @@ from guard_core.utils import extract_client_ip
 
 ModifierT = TypeVar("ModifierT", bound=Callable[..., Any])
 
-_READS_BODY_MARKER = "__guard_core_reads_response_body__"
+READS_BODY_MARKER = "__guard_core_reads_response_body__"
 _BODY_NOT_YET_AVAILABLE = "the first call of a modifier that is replayed with the body"
 _BODYLESS_STATUSES = frozenset({204, 304})
 _REFUSAL_REPORT_SECONDS = 60
@@ -29,99 +29,96 @@ def reads_response_body(modifier: ModifierT) -> ModifierT:
     A marked modifier is called once, with the bounded body already read, instead
     of once without it and again with it.
     """
-    setattr(modifier, _READS_BODY_MARKER, True)
+    setattr(modifier, READS_BODY_MARKER, True)
     return modifier
 
 
 def modifier_reads_response_body(modifier: Callable[..., Any]) -> bool:
-    return getattr(modifier, _READS_BODY_MARKER, False) is True
+    return getattr(modifier, READS_BODY_MARKER, False) is True
 
 
 class RecordingHeaders(MutableMapping[str, str]):
-    """Header writes of one modifier call, applied to the real headers on commit.
+    """The real headers, written through, with an undo log only a replay uses.
 
-    ``append`` (Starlette's ``MutableHeaders``) is recorded too; any other
-    attribute of the real headers is forwarded and acts on them at once.
+    Reads and writes act on the real headers at once, as they do at base; every
+    write first notes what it replaced, so ``undo`` can restore them when the
+    first call of a replayed modifier is discarded. ``append`` (Starlette's
+    ``MutableHeaders``) notes a full snapshot; any other attribute is forwarded.
     """
 
     def __init__(self, real: MutableMapping[str, str]) -> None:
         self._real = real
-        self._overlay: dict[str, tuple[str, str | None]] = {}
-        self._log: list[tuple[str, str, str | None]] = []
+        self._undo: list[tuple[str, Any]] = []
 
     def __getitem__(self, key: str) -> str:
-        shadow = self._overlay.get(key.lower())
-        if shadow is None:
-            return self._real[key]
-        if shadow[1] is None:
-            raise KeyError(key)
-        return shadow[1]
+        return self._real[key]
 
     def __setitem__(self, key: str, value: str) -> None:
-        self._overlay[key.lower()] = (key, value)
-        self._log.append(("set", key, value))
+        real = self._real
+        try:
+            previous: Any = real[key]
+        except KeyError:
+            previous = _ABSENT
+        self._undo += [(key, previous)]
+        real[key] = value
 
     def __delitem__(self, key: str) -> None:
-        if key not in self:
-            raise KeyError(key)
-        self._overlay[key.lower()] = (key, None)
-        self._log.append(("delete", key, None))
+        real = self._real
+        self._undo += [(key, real[key])]
+        del real[key]
 
     def append(self, key: str, value: str) -> None:
-        if key not in self:
-            self._overlay[key.lower()] = (key, value)
-        self._log.append(("append", key, value))
+        real = self._real
+        self._undo += [("", list(cast(Any, real).items()))]
+        cast(Any, real).append(key, value)
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._real, name)
 
     def __iter__(self) -> Iterator[str]:
-        for key in self._real:
-            if key.lower() not in self._overlay:
-                yield key
-        for name, value in self._overlay.values():
-            if value is not None:
-                yield name
+        return iter(self._real)
 
     def __len__(self) -> int:
-        return sum(1 for _ in self)
+        return len(self._real)
 
     def commit(self) -> None:
-        for operation, name, value in self._log:
-            if operation == "append":
-                cast(Any, self._real).append(name, value)
-            elif value is not None:
-                self._real[name] = value
-            elif name in self._real:
-                del self._real[name]
+        """Nothing to apply: writes already went through."""
+
+    def undo(self) -> None:
+        real = self._real
+        for key, previous in reversed(self._undo):
+            if key == "":
+                _restore_items(real, previous)
+            elif previous is _ABSENT:
+                if key in real:
+                    del real[key]
+            else:
+                real[key] = previous
+        self._undo = []
+
+
+def _restore_items(
+    real: MutableMapping[str, str], items: list[tuple[str, str]]
+) -> None:
+    for key in {name for name, _ in list(cast(Any, real).items())}:
+        del real[key]
+    for name, value in items:
+        cast(Any, real).append(name, value)
+
+
+_ABSENT: Any = object()
 
 
 class ModifierResponseView:
     """The response a ``custom_response_modifier`` sees.
 
-    Header and attribute writes are recorded and reach the real response only on
-    ``commit``, so a call that is replayed leaves nothing behind. ``.body``
-    returns the bounded bytes when the view was built with them, otherwise it
-    records that the modifier asked for it and raises
-    ``ResponseBodyUnavailableError``.
+    Writes go through to the real response (as at base) and are noted so a
+    discarded first call can be undone; ``.body`` returns the bounded bytes when
+    the view was built with them, otherwise it records that the modifier asked
+    for it and raises ``ResponseBodyUnavailableError``.
     """
 
-    __slots__ = (
-        "_real",
-        "_body",
-        "_refusal",
-        "_gate",
-        "_recorded_headers",
-        "_attribute_writes",
-        "body_requested",
-    )
-
-    _real: GuardResponse
-    _body: bytes | None
-    _refusal: str | None
-    _gate: Callable[[], str | None] | None
-    _recorded_headers: RecordingHeaders | None
-    _attribute_writes: dict[str, Any]
+    headers: RecordingHeaders
     body_requested: bool
 
     def __init__(
@@ -131,40 +128,34 @@ class ModifierResponseView:
         refusal: str | None = None,
         gate: Callable[[], str | None] | None = None,
     ) -> None:
-        object.__setattr__(self, "_real", real)
-        object.__setattr__(self, "_body", body)
-        object.__setattr__(self, "_refusal", refusal)
-        object.__setattr__(self, "_gate", gate)
-        object.__setattr__(self, "_recorded_headers", None)
-        object.__setattr__(self, "_attribute_writes", {})
-        object.__setattr__(self, "body_requested", False)
-
-    @property
-    def headers(self) -> MutableMapping[str, str]:
-        if "headers" in self._attribute_writes:
-            assigned: MutableMapping[str, str] = self._attribute_writes["headers"]
-            return assigned
-        recorded = self._recorded_headers
-        if recorded is None:
-            recorded = RecordingHeaders(self._real.headers)
-            object.__setattr__(self, "_recorded_headers", recorded)
-        return recorded
+        state = self.__dict__
+        state["_real"] = real
+        state["_body"] = body
+        state["_refusal"] = refusal
+        state["_gate"] = gate
+        state["_attribute_undo"] = []
+        state["body_requested"] = False
+        state["headers"] = RecordingHeaders(real.headers)
 
     def gate_refusal(self) -> str | None:
         """The gate's reason to refuse the body, asked at most once per view."""
-        if self._refusal is None and self._gate is not None:
-            object.__setattr__(self, "_refusal", self._gate())
-            object.__setattr__(self, "_gate", None)
-        return self._refusal
+        state = self.__dict__
+        if state["_refusal"] is None and state["_gate"] is not None:
+            state["_refusal"] = state["_gate"]()
+            state["_gate"] = None
+        refusal: str | None = state["_refusal"]
+        return refusal
 
     @property
     def body(self) -> bytes | None:
-        object.__setattr__(self, "body_requested", True)
-        if self._body is None:
+        state = self.__dict__
+        state["body_requested"] = True
+        if state["_body"] is None:
             raise ResponseBodyUnavailableError(
                 self.gate_refusal() or _BODY_NOT_YET_AVAILABLE
             )
-        return self._body
+        body: bytes = state["_body"]
+        return body
 
     def __getattr__(self, name: str) -> Any:
         if name == "body":
@@ -173,19 +164,29 @@ class ModifierResponseView:
             raise ResponseBodyUnavailableError(
                 self.gate_refusal() or _BODY_NOT_YET_AVAILABLE
             )
-        if name in self._attribute_writes:
-            return self._attribute_writes[name]
-        return getattr(self._real, name)
+        return getattr(self.__dict__["_real"], name)
 
     def __setattr__(self, name: str, value: Any) -> None:
-        self._attribute_writes[name] = value
+        state = self.__dict__
+        real = state["_real"]
+        state["_attribute_undo"].append((name, getattr(real, name, _ABSENT)))
+        setattr(real, name, value)
+        if name == "headers":
+            state["headers"] = RecordingHeaders(value)
 
     def commit(self) -> GuardResponse:
-        if self._recorded_headers is not None:
-            self._recorded_headers.commit()
-        for name, value in self._attribute_writes.items():
-            setattr(self._real, name, value)
-        return self._real
+        """Nothing to apply: writes already went through."""
+        real: GuardResponse = self.__dict__["_real"]
+        return real
+
+    def undo(self) -> None:
+        state = self.__dict__
+        state["headers"].undo()
+        real = state["_real"]
+        for name, previous in reversed(state["_attribute_undo"]):
+            if previous is not _ABSENT:
+                setattr(real, name, previous)
+        state["_attribute_undo"] = []
 
 
 def _header_value(headers: MutableMapping[str, str], name: str) -> str | None:
