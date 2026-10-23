@@ -51,3 +51,34 @@ def test_a_config_of_the_other_tree_or_a_wrong_verifier_is_a_type_error(
     stdout, stderr, status = _mypy(fixture)
     assert status == 1, stdout + stderr
     assert expected in stdout
+
+
+@pytest.mark.parametrize(
+    ("config_file", "revealed"),
+    [
+        (
+            "pyproject.toml",
+            "guard_core.models.SecurityConfig"
+            "[guard_core.protocols.request_protocol.GuardRequest]",
+        ),
+        (
+            "tests/typing_fixtures/adapter_mypy.ini",
+            "guard_core.models.SecurityConfig"
+            "[guard_core.sync.protocols.request_protocol.SyncGuardRequest]",
+        ),
+    ],
+    ids=["with-the-pydantic-mypy-plugin", "without-the-plugin"],
+)
+def test_a_sync_check_picks_the_wsgi_config_only_without_the_pydantic_plugin(
+    config_file: str, revealed: str
+) -> None:
+    stdout, stderr, status = mypy_api.run(
+        [
+            "--no-incremental",
+            "--config-file",
+            str(ROOT / config_file),
+            str(FIXTURES / "inferred_config_type.py"),
+        ]
+    )
+    assert status == 0, stdout + stderr
+    assert f'Revealed type is "{revealed}"' in stdout
