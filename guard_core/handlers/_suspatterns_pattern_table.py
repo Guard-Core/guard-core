@@ -128,6 +128,7 @@ from guard_core.handlers._suspatterns_sources import (
     _LDAP_PAREN_CONJUNCTION_RE,
     _LDAP_WILDCARD_CHAIN_RE,
     _LDAP_WILDCARD_EQUALS_RE,
+    _LINEAR_NAMED_PATH_SUFFIX_RE,
     _MAP_FILE_PATH_RE,
     _NAMED_PATH_SUFFIX_RE,
     _PATH_ONLY_CHAR_RE,
@@ -285,7 +286,8 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
     (_SQLI_LOAD_FILE_RE, _CTX_SQLI, "sqli"),
     (r"(?i)(?:BENCHMARK\s*\(\s*\d+\s*,)", _CTX_SQLI, "sqli"),
     (
-        r"(?i)(?:\A|[^\w\s]\s*|\d\s*|(?<![A-Za-z_])(?:AND|OR|XOR|NOT|IF|SELECT|THEN|ELSE"
+        r"(?i)(?:\A|[^\w\s]\s*|\d\s*|(?<![A-Za-z_])(?=[A-Za-z])"
+        r"(?:AND|OR|XOR|NOT|IF|SELECT|THEN|ELSE"
         r"|WHEN|CASE|WHERE|HAVING|BY|AS|UNION|ALL|LIMIT|OFFSET)\s+)(?:pg_)?SLEEP"
         r"\s*\(\s*\d+(?:\.\d+)?\s*\)",
         _CTX_SQLI,
@@ -610,7 +612,7 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
     (
         _path_only_pattern(
             r"(?:(?!config)[\w-])*config[\w-]*\.(?:env|yml|yaml|json|toml|ini|xml|conf)",
-            suffix=_NAMED_PATH_SUFFIX_RE,
+            suffix=_LINEAR_NAMED_PATH_SUFFIX_RE,
         ),
         _CTX_SENSITIVE_FILE,
         "sensitive_file",
@@ -1004,7 +1006,9 @@ NAMED_FILE_PATH_SOURCES: frozenset[str] = frozenset(
     for source, _contexts, category in _PATTERN_DEFINITIONS
     if category in {"sensitive_file", "cms_probing"}
     and source.startswith(r"\A[/\\]")
-    and source.endswith((_PATH_ONLY_SUFFIX_RE, _NAMED_PATH_SUFFIX_RE))
+    and source.endswith(
+        (_PATH_ONLY_SUFFIX_RE, _NAMED_PATH_SUFFIX_RE, _LINEAR_NAMED_PATH_SUFFIX_RE)
+    )
     and source not in {_SENSITIVE_SOURCE_EXTENSION_PATH_RE, _MAP_FILE_PATH_RE}
 ) | {_EDITOR_BACKUP_TILDE_ROW}
 

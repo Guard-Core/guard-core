@@ -18,6 +18,7 @@ from guard_core.sync._utils.source_path_shapes import (
 from guard_core.sync.handlers._suspatterns_sources import (
     _CTX_CMS_PROBING,
     _CTX_RECON,
+    _LINEAR_NAMED_PATH_SUFFIX_RE,
     _NAMED_PATH_SUFFIX_RE,
     _PATH_ONLY_CHAR_RE,
     _PATH_ONLY_SEP_RE,
@@ -129,7 +130,11 @@ def named_path_has_a_trick_suffix(path: str) -> bool:
 
 @lru_cache(maxsize=256)
 def _named_row_without_path_info(source: str, flags: int) -> re.Pattern[str]:
-    for suffix in (_NAMED_PATH_SUFFIX_RE, _PATH_ONLY_SUFFIX_RE):
+    for suffix in (
+        _NAMED_PATH_SUFFIX_RE,
+        _LINEAR_NAMED_PATH_SUFFIX_RE,
+        _PATH_ONLY_SUFFIX_RE,
+    ):
         if source.endswith(suffix):
             return re.compile(source.removesuffix(suffix) + r"\s*\Z", flags)
     return re.compile(source, flags)

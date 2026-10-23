@@ -190,6 +190,17 @@ _NAMED_PATH_SUFFIX_RE = (
     rf"(?:{_PATH_ONLY_SEP_RE}{_PATH_ONLY_CHAR_RE}*)*{_EXTENSION_TRICK_SUFFIX}"
     r"(?:\?\S*)?\s*\Z"
 )
+# The same language as _NAMED_PATH_SUFFIX_RE with the two ";" and "%00" tails written
+# as a lookahead per character, so the row holds a single broad unbounded quantifier
+# (the one after "?") and the validator measures its cost instead of flagging two.
+_LINEAR_EXTENSION_TRICK_SUFFIX = (
+    r"(?:;(?:(?![/\\?])\S)*|\.+|::\$(?:DATA|INDEX_ALLOCATION)"
+    r"|%00(?:(?![/\\?])\S)*|\.(?:jpe?g|png|gif|ico|bmp))?"
+)
+_LINEAR_NAMED_PATH_SUFFIX_RE = (
+    rf"(?:{_PATH_ONLY_SEP_RE}{_PATH_ONLY_CHAR_RE}*)*{_LINEAR_EXTENSION_TRICK_SUFFIX}"
+    r"(?:\?\S*)?\s*\Z"
+)
 _SENSITIVE_SOURCE_BARE_EXTENSIONS = (
     r"\.(?:ts|tsx|jsx|py|rb|java|go|rs|php|pl|sh|sql|phtml|php[3-8]|pht|phps|phar)"
 )

@@ -144,7 +144,7 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "(?i)(?:\\A|[^\\w\\s]\\s*|\\d\\s*|(?<![A-Za-z_])(?:AND|OR|XOR|NOT|IF|SELECT|THEN|ELSE|WHEN|CASE|WHERE|HAVING|BY|AS|UNION|ALL|LIMIT|OFFSET)\\s+)(?:pg_)?SLEEP\\s*\\(\\s*\\d+(?:\\.\\d+)?\\s*\\)",
+            "pattern": "(?i)(?:\\A|[^\\w\\s]\\s*|\\d\\s*|(?<![A-Za-z_])(?=[A-Za-z])(?:AND|OR|XOR|NOT|IF|SELECT|THEN|ELSE|WHEN|CASE|WHERE|HAVING|BY|AS|UNION|ALL|LIMIT|OFFSET)\\s+)(?:pg_)?SLEEP\\s*\\(\\s*\\d+(?:\\.\\d+)?\\s*\\)",
             "match": "AND SLEEP(5)",
             "position": 2,
             "category": "sqli",
@@ -416,7 +416,7 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "(?i)(?:\\A|[^\\w\\s]\\s*|\\d\\s*|(?<![A-Za-z_])(?:AND|OR|XOR|NOT|IF|SELECT|THEN|ELSE|WHEN|CASE|WHERE|HAVING|BY|AS|UNION|ALL|LIMIT|OFFSET)\\s+)(?:pg_)?SLEEP\\s*\\(\\s*\\d+(?:\\.\\d+)?\\s*\\)",
+            "pattern": "(?i)(?:\\A|[^\\w\\s]\\s*|\\d\\s*|(?<![A-Za-z_])(?=[A-Za-z])(?:AND|OR|XOR|NOT|IF|SELECT|THEN|ELSE|WHEN|CASE|WHERE|HAVING|BY|AS|UNION|ALL|LIMIT|OFFSET)\\s+)(?:pg_)?SLEEP\\s*\\(\\s*\\d+(?:\\.\\d+)?\\s*\\)",
             "match": "SELECT pg_sleep(10)",
             "position": 3,
             "category": "sqli",
