@@ -47,9 +47,11 @@ from guard_core.core.behavioral.context import BehavioralContext
 from guard_core.core.behavioral.processor import BehavioralProcessor
 from guard_core.core.checks.factory import build_default_pipeline
 from guard_core.core.checks.implementations import emergency_mode, suspicious_activity
+from guard_core.core.responses import reads_response_body
 from guard_core.core.responses.context import ResponseContext
 from guard_core.core.responses.factory import ErrorResponseFactory
 from guard_core.decorators.route_config import RouteConfig, RouteConfigRevision
+from guard_core.exceptions import ResponseBodyUnavailableError
 from guard_core.handlers.behavior_handler import BehaviorTracker
 from guard_core.handlers.ipban_handler import reset_global_state
 from guard_core.handlers.ratelimit_handler import RateLimitManager
@@ -80,6 +82,7 @@ CONFIG_KEYS = (
     "cors_allow_credentials",
     "global_behavior_rules",
     "behavior_scan_response_body",
+    "custom_response_modifier_max_body_bytes",
     "enable_rate_limiting",
     "enable_penetration_detection",
     "enable_ip_banning",
@@ -138,6 +141,57 @@ class _StubResponse(GuardResponse):
     @body.setter
     def body(self, value: bytes | None) -> None:
         self._body = value if value is not None else b""
+
+
+class _StubBodyResponse(_StubResponse):
+    """A response with a bounded reader that counts its reads (modifier cases)."""
+
+    def __init__(
+        self,
+        body: bytes,
+        headers: dict[str, str],
+        status_code: int,
+    ) -> None:
+        super().__init__(status_code)
+        self._body = body
+        self._headers.update(headers)
+        self.prefix_reads = 0
+
+    async def read_body_prefix(self, max_bytes: int) -> bytes:
+        self.prefix_reads += 1
+        return (self._body or b"")[:max_bytes]
+
+
+class _ModifierCalls:
+    """Named modifiers a case can install; counts the calls of the last one."""
+
+    def __init__(self) -> None:
+        self.count = 0
+
+    def header_only(self) -> Any:
+        async def modifier(response: Any) -> Any:
+            self.count += 1
+            response.headers["X-Modifier"] = "header-only"
+            return response
+
+        return modifier
+
+    def reads_body(self, marked: bool) -> Any:
+        async def modifier(response: Any) -> Any:
+            self.count += 1
+            response.headers[f"X-Call-{self.count}"] = "1"
+            try:
+                response.headers["X-Body"] = response.body.decode()
+            except ResponseBodyUnavailableError:
+                response.headers["X-Body"] = "unavailable"
+            return response
+
+        return reads_response_body(modifier) if marked else modifier
+
+    def named(self, name: str) -> Any:
+        if name == "header_only":
+            return self.header_only()
+        return self.reads_body(marked=name == "reads_body_marked")
 
 
 class _RecordingEventBus:
@@ -482,6 +536,24 @@ async def run_case(case: dict[str, Any]) -> list[dict[str, Any]]:
                 drive.get("response_body", "ok"),
                 drive.get("response_status", 200),
             )
+            modifier_calls = _ModifierCalls()
+            if "modifier" in drive:
+                declared = drive.get("response_declared_length")
+                response = _StubBodyResponse(
+                    drive.get("response_body", "ok").encode(),
+                    {
+                        **drive.get("response_headers", {}),
+                        **(
+                            {"Content-Length": str(declared)}
+                            if declared is not None
+                            else {}
+                        ),
+                    },
+                    drive.get("response_status", 200),
+                )
+                harness.config.custom_response_modifier = modifier_calls.named(
+                    drive["modifier"]
+                )
             response = await harness.error_factory.process_response(
                 cast(Any, request),
                 response,
@@ -501,6 +573,9 @@ async def run_case(case: dict[str, Any]) -> list[dict[str, Any]]:
             )
             if response.headers:
                 record["headers"] = dict(response.headers)
+        if "modifier" in drive:
+            record["modifier_calls"] = modifier_calls.count
+            record["prefix_reads"] = cast(_StubBodyResponse, response).prefix_reads
         if getattr(request.state, "is_exempt", None) is not None:
             record["is_exempt"] = request.state.is_exempt
         if getattr(request.state, "is_whitelisted", None) is not None:

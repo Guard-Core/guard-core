@@ -81,7 +81,9 @@ class SecurityConfig(BaseModel):
     custom_response_modifier: (
         Callable[[GuardResponse], Awaitable[GuardResponse]] | None
     ) = Field(default=None)
-    custom_response_modifier_max_body_bytes: int = Field(default=262144, ge=1024, le=10485760)
+    custom_response_modifier_max_body_bytes: int = Field(
+        default=262144, ge=1024, le=10485760
+    )
 
     enable_cors: bool = Field(default=False)
     cors_allow_origins: list[str] = Field(default_factory=lambda: ["*"])

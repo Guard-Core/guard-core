@@ -216,7 +216,7 @@ def test_one_prefetch_serves_the_return_pattern_scan_and_the_modifier() -> None:
     matched: list[bool | None] = []
 
     def process_global(
-        request: Any, response: Any, client_ip: str, rule_list: Any
+        request: Any, response: Any, client_ip: str, _rule_list: Any
     ) -> None:
         matched.append(tracker._check_response_pattern(response, "needle"))
 

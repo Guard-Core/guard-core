@@ -573,3 +573,97 @@ PIPELINE_SUITES["pipeline_behavior_rules"] = [
         ],
     },
 ]
+
+
+def _modifier_drive(
+    modifier: str,
+    declared: int | None,
+    body: str = "hello",
+    method: str = "GET",
+    status: int = 200,
+    headers: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    drive: dict[str, Any] = {
+        "client_ip": IP,
+        "url_path": "/api",
+        "stage": "process_response",
+        "method": method,
+        "modifier": modifier,
+        "response_body": body,
+        "response_status": status,
+    }
+    if declared is not None:
+        drive["response_declared_length"] = declared
+    if headers:
+        drive["response_headers"] = headers
+    return drive
+
+
+PIPELINE_SUITES["pipeline_response_modifier"] = [
+    {
+        "id": "modifier_header_only_one_call_no_read_ahead",
+        "config": {},
+        "drives": [_modifier_drive("header_only", 5)],
+    },
+    {
+        "id": "modifier_reads_body_under_cap_replays_once",
+        "config": {},
+        "drives": [_modifier_drive("reads_body", 5)],
+    },
+    {
+        "id": "modifier_marked_reads_body_one_call",
+        "config": {},
+        "drives": [_modifier_drive("reads_body_marked", 5)],
+    },
+    {
+        "id": "modifier_body_exactly_at_cap",
+        "config": {"custom_response_modifier_max_body_bytes": 1024},
+        "drives": [_modifier_drive("reads_body", 1024, body="a" * 1024)],
+    },
+    {
+        "id": "modifier_body_one_byte_over_cap_refused",
+        "config": {"custom_response_modifier_max_body_bytes": 1024},
+        "drives": [_modifier_drive("reads_body", 1025, body="a" * 1025)],
+    },
+    {
+        "id": "modifier_no_declared_length_refused",
+        "config": {},
+        "drives": [_modifier_drive("reads_body", None)],
+    },
+    {
+        "id": "modifier_event_stream_refused",
+        "config": {},
+        "drives": [
+            _modifier_drive(
+                "reads_body",
+                5,
+                headers={"Content-Type": "text/event-stream"},
+            )
+        ],
+    },
+    {
+        "id": "modifier_head_response_refused",
+        "config": {},
+        "drives": [_modifier_drive("reads_body", 5, method="HEAD")],
+    },
+    {
+        "id": "modifier_204_response_refused",
+        "config": {},
+        "drives": [_modifier_drive("reads_body", 0, body="", status=204)],
+    },
+    {
+        "id": "modifier_304_response_refused",
+        "config": {},
+        "drives": [_modifier_drive("reads_body", 0, body="", status=304)],
+    },
+    {
+        "id": "modifier_body_shorter_than_declared_refused",
+        "config": {},
+        "drives": [_modifier_drive("reads_body", 100, body="short")],
+    },
+    {
+        "id": "modifier_body_longer_than_declared_refused",
+        "config": {},
+        "drives": [_modifier_drive("reads_body", 3, body="longer body")],
+    },
+]
