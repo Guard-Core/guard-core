@@ -170,7 +170,7 @@ def test_bypass_security_bypass_with_call_next() -> None:
     )
     mock_call_next = MagicMock(return_value=MagicMock())
     cast(Any, handler.context.response_factory).apply_modifier = MagicMock(
-        side_effect=lambda r: r
+        side_effect=lambda r, _request: r
     )
 
     result = handler.handle_security_bypass(
