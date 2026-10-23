@@ -15,18 +15,57 @@ on:
       - 'CHANGELOG.md'
     tags:
       - 'v*'
+  # A pull request builds the docs read-only (docs-update); only a push, a tag or a dispatch deploys (docs-deploy).
+  pull_request:
+    branches:
+      - master
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: docs-deploy
+  group: ${{ github.event_name == 'pull_request' && format('docs-pr-{0}', github.ref) || 'docs-deploy' }}
   cancel-in-progress: false
 
 jobs:
+  # The required `docs-update` check: the same build the deploy runs, strict, read-only, never deploying.
   docs-update:
+    name: docs-update
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.14'
+
+      - name: Install dependencies
+        run: |
+          pip install mkdocs-material
+          pip install "mkdocstrings[python]"
+          pip install mike
+          pip install pymarkdownlnt
+          pip install -e .
+
+      - name: Lint documentation
+        run: |
+          pymarkdownlnt scan -r ./docs
+
+      - name: Build the documentation strictly
+        run: |
+          mkdocs build --strict
+
+  docs-deploy:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v7
         with:

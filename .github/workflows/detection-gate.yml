@@ -4,30 +4,58 @@ on:
   push:
     branches:
       - master
-    paths:
-      - 'guard_core/**'
-      - 'tests/**'
-      - 'scripts/**'
-      - 'pyproject.toml'
-      - 'Dockerfile'
-      - '.github/workflows/detection-gate.yml'
   pull_request:
     branches:
       - master
-    paths:
-      - 'guard_core/**'
-      - 'tests/**'
-      - 'scripts/**'
-      - 'pyproject.toml'
-      - 'Dockerfile'
-      - '.github/workflows/detection-gate.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
+  changes:
+    name: changes
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          # pull_request checks out the merge commit; the second commit is the base (its first parent).
+          fetch-depth: 2
+
+      - name: Decide whether any code path changed
+        id: diff
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" != "pull_request" ]; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # On pull_request the checkout is the merge commit: HEAD^1 is the base, so a depth-1 clone cannot answer.
+          if ! files="$(git diff --name-only HEAD^1 HEAD)"; then
+            echo "::error::cannot diff HEAD^1 HEAD (shallow or non-merge checkout), refusing to guess"
+            exit 1
+          fi
+          code=false
+          while IFS= read -r f; do
+            [ -n "$f" ] || continue
+            case "$f" in
+              docs/*|mkdocs.yml|.github/ISSUE_TEMPLATE/*) ;;
+              */*) code=true; echo "code path: $f" ;;
+              *.md|LICENSE) ;;
+              *) code=true; echo "code path: $f" ;;
+            esac
+          done <<< "$files"
+          echo "changed files: $(printf '%s' "$files" | wc -l | tr -d ' ')"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
   detection-gate-shards:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     env:
       # uv follows .python-version (3.10) unless told otherwise.
@@ -119,7 +147,7 @@ jobs:
 
   detection-gate:
     name: detection-gate
-    needs: detection-gate-shards
+    needs: [changes, detection-gate-shards]
     if: always()
     runs-on: ubuntu-latest
 
@@ -131,13 +159,14 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Download the shard reports
+        if: needs.changes.outputs.code == 'true'
         uses: actions/download-artifact@v8
         with:
           pattern: detection-report-*
           path: reports
 
       - name: Build the PR comment body from the shard reports
-        if: always() && github.event_name == 'pull_request'
+        if: always() && github.event_name == 'pull_request' && needs.changes.outputs.code == 'true'
         continue-on-error: true
         shell: bash
         env:
@@ -147,7 +176,7 @@ jobs:
           python3 .github/scripts/assemble_detection_gate_comment.py reports detection-comment.md
 
       - name: Post the report on the PR
-        if: always() && github.event_name == 'pull_request'
+        if: always() && github.event_name == 'pull_request' && needs.changes.outputs.code == 'true'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
@@ -167,17 +196,34 @@ jobs:
           done
           gh pr comment "$PR_NUMBER" --repo "$REPO" --body-file detection-comment.md
 
-      - name: Fail when any shard failed
+      - name: Require every gating job
         if: always()
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          CODE: ${{ needs.changes.outputs.code }}
+          NEEDS: ${{ toJSON(needs) }}
         run: |
-          if [ "${{ needs.detection-gate-shards.result }}" != "success" ]; then
-            echo "::error::detection-gate-shards result: ${{ needs.detection-gate-shards.result }}"
+          set -euo pipefail
+          if [ "$CHANGES_RESULT" != "success" ]; then
+            echo "::error::changes: $CHANGES_RESULT"
             exit 1
           fi
-          echo "all detection gate shards passed"
+          case "$CODE" in
+            true) accepted='["success"]' ;;
+            false) accepted='["success","skipped"]' ;;
+            *) echo "::error::changes output code is '$CODE', expected true or false"; exit 1 ;;
+          esac
+          bad="$(jq -r --argjson ok "$accepted" 'del(.changes) | to_entries[] | select(.value.result as $r | $ok | index($r) | not) | "\(.key)=\(.value.result)"' <<< "$NEEDS")"
+          if [ -n "$bad" ]; then
+            echo "::error::not green: $bad"
+            exit 1
+          fi
+          echo "every gating job is green (code=$CODE)"
 
   detection-gate-cpu-load-shards:
     name: detection-gate-cpu-load
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     env:
       # uv follows .python-version (3.10) unless told otherwise.
@@ -285,20 +331,38 @@ jobs:
 
   detection-gate-cpu-load:
     name: detection-gate-cpu-load
-    needs: detection-gate-cpu-load-shards
+    needs: [changes, detection-gate-cpu-load-shards]
     if: always()
     runs-on: ubuntu-latest
 
     steps:
-      - name: Fail when any shard failed
+      - name: Require every gating job
+        if: always()
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          CODE: ${{ needs.changes.outputs.code }}
+          NEEDS: ${{ toJSON(needs) }}
         run: |
-          if [ "${{ needs.detection-gate-cpu-load-shards.result }}" != "success" ]; then
-            echo "::error::detection-gate-cpu-load-shards result: ${{ needs.detection-gate-cpu-load-shards.result }}"
+          set -euo pipefail
+          if [ "$CHANGES_RESULT" != "success" ]; then
+            echo "::error::changes: $CHANGES_RESULT"
             exit 1
           fi
-          echo "all CPU-load detection gate shards passed"
+          case "$CODE" in
+            true) accepted='["success"]' ;;
+            false) accepted='["success","skipped"]' ;;
+            *) echo "::error::changes output code is '$CODE', expected true or false"; exit 1 ;;
+          esac
+          bad="$(jq -r --argjson ok "$accepted" 'del(.changes) | to_entries[] | select(.value.result as $r | $ok | index($r) | not) | "\(.key)=\(.value.result)"' <<< "$NEEDS")"
+          if [ -n "$bad" ]; then
+            echo "::error::not green: $bad"
+            exit 1
+          fi
+          echo "every gating job is green (code=$CODE)"
 
   detection-corpus:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     env:
       # uv follows .python-version (3.10) unless told otherwise.
