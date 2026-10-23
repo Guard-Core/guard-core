@@ -20,6 +20,16 @@ from guard_core.handlers._suspatterns_state import _DetectionState
 
 _LEGACY_PATH_TRAVERSAL_DECODE_MAX_ITERATIONS = 8
 _LEGACY_PATH_TRAVERSAL_PREPROCESSOR = ContentPreprocessor()
+_NUL_TEXT_MARKERS = ("%00", "\\u0000", "\\x00")
+_DELETED_CONTROL_CHARS = frozenset(
+    chr(code) for code in range(32) if code not in (9, 10, 13)
+)
+
+
+def _carries_a_nul_marker(content: str) -> bool:
+    return not _DELETED_CONTROL_CHARS.isdisjoint(content) or any(
+        marker in content for marker in _NUL_TEXT_MARKERS
+    )
 
 
 def _legacy_decode_path_traversal_view(normalized_content: str) -> str:
@@ -58,6 +68,7 @@ class _SusPatternsViewsMixin(_SusPatternsRegexMixin):
             enabled_categories,
             state=state,
             raw_view_only=True,
+            nul_tail_rows=_carries_a_nul_marker(raw_view_content),
         )
 
     async def _check_decoded_view_path_traversal(

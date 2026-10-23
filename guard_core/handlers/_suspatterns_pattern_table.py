@@ -158,6 +158,7 @@ from guard_core.handlers._suspatterns_sources import (
     _WHERE_CLAUSE_RE,
     _XML_XXE_PUBLIC_EXTERNAL_DTD_RE,
     _XSS_JS_SCHEME_CTRL_CHAR_RE,
+    NUL_TAIL_MARKER,
     _embedded_prose_pattern,
     _nested_path_pattern,
     _path_only_pattern,
@@ -1054,3 +1055,17 @@ DETECTION_RECON_RAW_VIEW_PATTERN_SOURCES: frozenset[str] = frozenset(
     for source, _contexts, category in _PATTERN_DEFINITIONS
     if category == "recon"
 ) | {_CMD_EXFILTRATION_RE, _ABSOLUTE_PATH_VALUE_RE, CREDENTIAL_FILES_WITH_DIRECTORY_ROW}
+
+# Named file rows whose trick suffix takes a NUL tail ("wp-config.php\x00.txt"). The
+# processed views delete the NUL, so the tail is only visible on the signal-preserving
+# raw view, and only a value that carries a NUL marker is scanned there for these rows:
+# a request without one adds no regex call. Rows the raw view already scans (recon rows
+# and the credential row) are left out.
+DETECTION_NUL_TAIL_RAW_VIEW_PATTERN_SOURCES: frozenset[str] = (
+    frozenset(
+        source
+        for source, _contexts, _category in _PATTERN_DEFINITIONS
+        if NUL_TAIL_MARKER in source
+    )
+    - DETECTION_RECON_RAW_VIEW_PATTERN_SOURCES
+)

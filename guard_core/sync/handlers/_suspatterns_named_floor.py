@@ -23,6 +23,7 @@ from guard_core.sync.handlers._suspatterns_sources import (
     _PATH_ONLY_SEP_RE,
     _PATH_ONLY_SUFFIX_RE,
     _PLAIN_SOURCE_OR_MAP_PATH_END_RE,
+    NUL_TAIL_MARKER,
     _nested_path_pattern,
     _path_only_pattern,
     _source_extension_path_is_probe,
@@ -120,7 +121,7 @@ def absolute_path_is_a_probe(context: str) -> bool:
     )
 
 
-_NAMED_PATH_TRICK_RE = re.compile(r";|%00|::\$|\.\s*\Z")
+_NAMED_PATH_TRICK_RE = re.compile(rf";|{NUL_TAIL_MARKER}|::\$|\.\s*\Z")
 
 
 def named_path_has_a_trick_suffix(path: str) -> bool:

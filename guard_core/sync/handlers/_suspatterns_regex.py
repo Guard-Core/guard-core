@@ -649,6 +649,7 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
         state: _DetectionState | None = None,
         raw_view_only: bool | None = None,
         url_decoded_view_only: bool | None = None,
+        nul_tail_rows: bool = False,
     ) -> tuple[list[dict], list[str], list[str]]:
         state = self._resolve_state(state)
         threats = []
@@ -669,6 +670,7 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
             skip_filter=skip_filter,
             normalized_context=normalized,
             enabled_categories=enabled_categories,
+            nul_tail_rows=nul_tail_rows,
         )
 
         applicable_patterns = rows_for_a_whole_value_pass(

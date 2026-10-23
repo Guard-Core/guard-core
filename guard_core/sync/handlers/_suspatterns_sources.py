@@ -209,9 +209,13 @@ def path_only_extension_tail_is_valid(match: re.Match[str]) -> bool:
 # lookahead per character: the same language as [^/\\?\s]*, but the row then holds a
 # single broad unbounded quantifier (the one after "?") and the ReDoS validator times
 # the row instead of flagging two adjacent ones.
+# The control characters the preprocessor deletes (tab, LF and CR stay), as the decoded
+# character; "%00", "\\u0000" and "\\x00" are the literal texts of a NUL.
+DELETED_CONTROL_CHAR_CLASS = r"[\x00-\x08\x0b\x0c\x0e-\x1f]"
+NUL_TAIL_MARKER = rf"(?:%00|\\u0000|\\x00|{DELETED_CONTROL_CHAR_CLASS})"
 _EXTENSION_TRICK_SUFFIX = (
     r"(?:;(?:(?![/\\?])\S)*|\.+|::\$(?:DATA|INDEX_ALLOCATION)"
-    r"|%00(?:(?![/\\?])\S)*|\.(?:jpe?g|png|gif|ico|bmp))?"
+    rf"|{NUL_TAIL_MARKER}(?:(?![/\\?])\S)*|\.(?:jpe?g|png|gif|ico|bmp))?"
 )
 _NAMED_PATH_SUFFIX_RE = (
     rf"{_PATH_ONLY_REST_RE}{_EXTENSION_TRICK_SUFFIX}"
@@ -345,7 +349,7 @@ _LDAP_WILDCARD_EQUALS_RE = (
 _LDAP_PAREN_BREAKOUT_RE = rf"\)\s*\(\s*(?:[&|!]|{_LDAP_ATTR_DESC_RE}:?[=~<>])"
 
 _SINGLE_LINE_PREFIX_RE = r"\A(?:(?!\n).)*"
-_SINGLE_LINE_SUFFIX_RE = r"(?:[&#;,\"'<>]|\s*\Z)"
+_SINGLE_LINE_SUFFIX_RE = rf"(?:[&#;,\"'<>]|{DELETED_CONTROL_CHAR_CLASS}|\s*\Z)"
 
 _FILE_INCLUSION_HOST_LABEL_RE = r"[0-9a-zA-Z](?:[-\w]*[0-9a-zA-Z])?"
 _FILE_INCLUSION_BARE_HOST_RE = (
