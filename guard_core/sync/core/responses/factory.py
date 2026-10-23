@@ -57,6 +57,25 @@ def _merge_security_headers(
         present.add(lowered)
 
 
+def _merge_planned_security_headers(
+    headers: MutableMapping[str, str],
+    security_headers: dict[str, str],
+    plan: tuple[tuple[str, str, bool], ...],
+) -> None:
+    if not isinstance(headers, dict):
+        for name, _, is_forced in plan:
+            if is_forced or name not in headers:
+                headers[name] = security_headers[name]
+        return
+    present = set(map(str.lower, headers))
+    for name, lowered, is_forced in plan:
+        if lowered in present:
+            if not is_forced:
+                continue
+            _drop_other_spellings(headers, name)
+        headers[name] = security_headers[name]
+
+
 class ErrorResponseFactory:
     def __init__(self, context: ResponseContext):
         self.context = context
@@ -121,8 +140,12 @@ class ErrorResponseFactory:
             override=override,
             checked=True,
         )
-        forced: frozenset[str] = getattr(security_headers, "forced", frozenset())
-        _merge_security_headers(response.headers, security_headers, forced)
+        plan = getattr(security_headers, "plan", None)
+        if plan is None:
+            forced: frozenset[str] = getattr(security_headers, "forced", frozenset())
+            _merge_security_headers(response.headers, security_headers, forced)
+        else:
+            _merge_planned_security_headers(response.headers, security_headers, plan)
         return response
 
     def apply_cors_headers(

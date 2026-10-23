@@ -18,6 +18,15 @@ from guard_core.models import SecurityConfig
 
 class ResolvedHeaders(dict[str, str]):
     forced: frozenset[str] = frozenset()
+    plan: tuple[tuple[str, str, bool], ...] | None = None
+
+    def plan_merge(self) -> None:
+        lowered = [name.lower() for name in self]
+        if len(set(lowered)) == len(lowered):
+            self.plan = tuple(
+                (name, low, low in self.forced)
+                for name, low in zip(self, lowered, strict=True)
+            )
 
 
 class SecurityHeadersManager(
@@ -143,6 +152,7 @@ class SecurityHeadersManager(
         headers.forced = self._forced_header_names(
             csp_config, hsts_config, default_headers, custom_headers
         )
+        headers.plan_merge()
 
         self.headers_cache[cache_key] = headers
         return headers, True
