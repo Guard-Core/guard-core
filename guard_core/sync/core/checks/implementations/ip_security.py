@@ -6,7 +6,9 @@ from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.access_control import load_geo_database_for_route_rules
 from guard_core.sync._utils.agent_events import agent_receives_events
 from guard_core.sync._utils.ip_extraction import (
+    UNKNOWN_CLIENT_IDENTITY,
     _is_trusted_proxy,
+    _parsed_ip_or_none,
     forwarded_for_addresses,
 )
 from guard_core.sync._utils.rule_attribution import (
@@ -15,8 +17,15 @@ from guard_core.sync._utils.rule_attribution import (
     country_attribution,
 )
 from guard_core.sync._utils.whitelist_match import most_specific_whitelist_entry
+from guard_core.sync.core.checks._shared_strikes import (
+    FusedStrike,
+    _shared_strikes_redis,
+)
+from guard_core.sync.core.checks._strike_counts import _strike_identity
 from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.core.checks.helpers import (
+    SUSPICIOUS_COUNT_WINDOW_SECONDS,
+    _retained_strike_cap,
     check_country_access,
     check_route_ip_access,
     emit_access_denied_event,
@@ -132,9 +141,91 @@ class IpSecurityCheck(SecurityCheck):
     def check_name(self) -> str:
         return "ip_security"
 
-    def _is_banned_failing_open_on_redis_loss(self, client_ip: str) -> bool:
+    def _denial_strike_may_be_shared(
+        self, request: SyncGuardRequest, route_config: RouteConfig | None
+    ) -> bool:
+        config = self.config
+        if (
+            config.passive_mode
+            or not config.ban_on_hostile_signals
+            or not config.enable_ip_banning
+            or getattr(request.state, "guard_exclusion_scoped", False) is True
+            or self.middleware.route_resolver.should_bypass_check("ip", route_config)
+        ):
+            return False
+        redis_handler = _shared_strikes_redis(self.middleware)
+        return (
+            redis_handler is not None
+            and redis_handler is self.ip_ban_manager.redis_handler
+        )
+
+    def _static_denial_category(
+        self,
+        request: SyncGuardRequest,
+        client_ip: str,
+        route_config: RouteConfig | None,
+    ) -> str | None:
+        """The category of the denial the IP lists give this client, decided
+        without a country lookup and in the order the check applies them (the
+        route's lists, then the global ones). ``None`` when the lists do not
+        deny, or when a country rule could decide."""
+        if (
+            client_ip == UNKNOWN_CLIENT_IDENTITY
+            or _parsed_ip_or_none(client_ip) is None
+        ):
+            return None
+        if route_config:
+            if route_config.blocked_countries or route_config.whitelist_countries:
+                return None
+            if check_route_ip_access(client_ip, route_config, self.middleware) is False:
+                if getattr(request.state, "is_whitelisted", False):
+                    return None
+                return _route_denial_category(route_config, "access_control", client_ip)
+        result = check_ip_access(
+            client_ip,
+            self.config,
+            None,
+            skip_whitelist=_route_overrides_ip_lists(route_config),
+            skip_countries=True,
+            skip_clouds=True,
+        )
+        return None if result.allowed else result.denial_category
+
+    def _fused_denial_strike(
+        self,
+        request: SyncGuardRequest,
+        client_ip: str,
+        route_config: RouteConfig | None,
+    ) -> FusedStrike | None:
+        """The strike a request denied by the IP lists records after its ban
+        lookup, built early so the lookup records it in its own round trip.
+        ``None`` unless that strike is certain: the same conditions under which
+        ``count_hostile_signal_and_maybe_ban`` records it for this denial."""
+        if not self._denial_strike_may_be_shared(request, route_config):
+            return None
+        category = self._static_denial_category(request, client_ip, route_config)
+        if category is None:
+            return None
+        strike = FusedStrike(
+            _strike_identity(self.config, client_ip),
+            category,
+            SUSPICIOUS_COUNT_WINDOW_SECONDS,
+            _retained_strike_cap(self.config),
+        )
+        request.state.guard_fused_strike = strike
+        return strike
+
+    def _is_banned_failing_open_on_redis_loss(
+        self,
+        request: SyncGuardRequest,
+        client_ip: str,
+        route_config: RouteConfig | None,
+    ) -> bool:
+        def fused_strike() -> FusedStrike | None:
+            return self._fused_denial_strike(request, client_ip, route_config)
+
         try:
-            return self.ip_ban_manager.is_ip_banned(client_ip)
+            return self.ip_ban_manager.is_ip_banned(client_ip, fused_strike)
         except GuardRedisError:
             if not self.config.redis_fail_open:
                 raise
@@ -154,7 +245,9 @@ class IpSecurityCheck(SecurityCheck):
         if self.middleware.route_resolver.should_bypass_check("ip_ban", route_config):
             return None
 
-        if not self._is_banned_failing_open_on_redis_loss(client_ip):
+        if not self._is_banned_failing_open_on_redis_loss(
+            request, client_ip, route_config
+        ):
             return None
 
         log_activity(

@@ -11,6 +11,7 @@ from guard_core._tracking_caps import (
 )
 from guard_core._utils.access_control import load_geo_database_for_route_rules
 from guard_core.core.checks._shared_strikes import (
+    FusedStrike,
     SharedStrikes,
     StrikeReport,
     forget_shared_detection_strikes,
@@ -490,6 +491,27 @@ async def get_cached_detection_result(
     return result
 
 
+async def _fused_or_recorded_shared_strikes(
+    request: GuardRequest,
+    middleware: "GuardMiddlewareProtocol",
+    config: SecurityConfig,
+    strike_key: str,
+    threat_categories: Collection[str],
+) -> SharedStrikes | None:
+    fused = getattr(request.state, "guard_fused_strike", None)
+    if isinstance(fused, FusedStrike):
+        recorded = fused.take_if_recorded_for(strike_key, threat_categories)
+        if recorded is not None:
+            return recorded
+    return await record_shared_detection_strikes(
+        middleware,
+        strike_key,
+        threat_categories,
+        SUSPICIOUS_COUNT_WINDOW_SECONDS,
+        _retained_strike_cap(config),
+    )
+
+
 async def _try_threshold_ban(
     request: GuardRequest,
     config: SecurityConfig,
@@ -509,12 +531,8 @@ async def _try_threshold_ban(
     shared: SharedStrikes | None = None
     strike_key = _strike_identity(config, client_ip)
     if ip_counts is None:
-        shared = await record_shared_detection_strikes(
-            middleware,
-            strike_key,
-            threat_categories,
-            SUSPICIOUS_COUNT_WINDOW_SECONDS,
-            _retained_strike_cap(config),
+        shared = await _fused_or_recorded_shared_strikes(
+            request, middleware, config, strike_key, threat_categories
         )
         ip_counts = (
             shared.counts

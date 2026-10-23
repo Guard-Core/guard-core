@@ -23,6 +23,7 @@ from guard_core.scripts.ban_write_lua import (
     PURGE_OWNED_BAN_SCRIPT,
 )
 from guard_core.scripts.detection_strikes_lua import (
+    BAN_CHECK_AND_RECORD_STRIKE_SCRIPT,
     FORGET_DETECTION_STRIKES_SCRIPT,
     READ_DETECTION_CATEGORIES_SCRIPT,
     RECORD_DETECTION_STRIKES_SCRIPT,
@@ -102,6 +103,9 @@ _SLIDING_WINDOW_REFUSAL_SHA = hashlib.sha1(
 ).hexdigest()
 _RECORD_DETECTION_STRIKES_SHA = hashlib.sha1(
     RECORD_DETECTION_STRIKES_SCRIPT.encode(), usedforsecurity=False
+).hexdigest()
+_BAN_CHECK_AND_RECORD_STRIKE_SHA = hashlib.sha1(
+    BAN_CHECK_AND_RECORD_STRIKE_SCRIPT.encode(), usedforsecurity=False
 ).hexdigest()
 _READ_DETECTION_CATEGORIES_SHA = hashlib.sha1(
     READ_DETECTION_CATEGORIES_SCRIPT.encode(), usedforsecurity=False
@@ -673,6 +677,76 @@ class RedisManager:
 
         result = self.safe_operation(_record)
         return result[0], result[1], dict(zip(categories, result[2:], strict=True))
+
+    def get_bans_and_record_strike(
+        self,
+        pairs: Sequence[tuple[str, str]],
+        version_pair: tuple[str, str],
+        seen_version: str | None,
+        now: float,
+        client_ip: str,
+        categories: Sequence[str],
+        timestamp: float,
+        window_start: float,
+        ttl: int,
+        cap: int,
+    ) -> tuple[list[Any], tuple[int, int, dict[str, int]] | None]:
+        """Read the ban keys and the ban version (what ``get_many`` reads for
+        ``pairs`` plus ``version_pair``) and, in the same round trip, record one
+        detection strike (what ``record_detection_strikes`` records) when none
+        of the keys holds a live ban and the version is the one this process
+        has seen (``seen_version``, ``None`` when it has seen none). ``now`` is
+        the clock the ban expiries are compared with. Returns the values read
+        and the strike result, ``None`` when no strike was recorded."""
+        if not redis_is_configured(self.config):
+            return [None] * (len(pairs) + 1), None
+
+        prefix = self.config.redis_prefix
+        index, total, category_prefix = self._detection_strike_keys(client_ip)
+        keys = [
+            *(f"{prefix}{namespace}:{key}" for namespace, key in pairs),
+            f"{prefix}{version_pair[0]}:{version_pair[1]}",
+            index,
+            total,
+            self._rate_limit_violations_key(client_ip),
+            *(f"{category_prefix}{name}" for name in categories),
+        ]
+        args: list[Any] = [
+            repr(timestamp),
+            uuid.uuid4().hex,
+            repr(window_start),
+            ttl,
+            cap,
+            len(pairs),
+            "" if seen_version is None else seen_version,
+            repr(now),
+        ]
+
+        def _get_many(conn: Redis) -> list[Any]:
+            try:
+                return list(
+                    conn.evalsha(
+                        _BAN_CHECK_AND_RECORD_STRIKE_SHA, len(keys), *keys, *args
+                    )
+                )
+            except NoScriptError:
+                conn.script_load(BAN_CHECK_AND_RECORD_STRIKE_SCRIPT)
+                return list(
+                    conn.evalsha(
+                        _BAN_CHECK_AND_RECORD_STRIKE_SHA, len(keys), *keys, *args
+                    )
+                )
+
+        result = self.safe_operation(_get_many)
+        values, recorded, counts = result
+        if not recorded:
+            return list(values), None
+        counts = [int(count) for count in counts]
+        return list(values), (
+            counts[0],
+            counts[1],
+            dict(zip(categories, counts[2:], strict=True)),
+        )
 
     def read_detection_categories(
         self, client_ip: str, window_start: float

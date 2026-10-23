@@ -1,4 +1,4 @@
-RECORD_DETECTION_STRIKES_SCRIPT = """
+RECORD_STRIKES_LUA = """
 local function record(key, now, member, window_start, ttl, cap)
   redis.call('ZADD', key, now, member)
   redis.call('ZREMRANGEBYSCORE', key, '-inf', '(' .. window_start)
@@ -6,23 +6,60 @@ local function record(key, now, member, window_start, ttl, cap)
   redis.call('EXPIRE', key, ttl)
   return redis.call('ZCARD', key)
 end
-local now, base, window_start = ARGV[1], ARGV[2], ARGV[3]
-local ttl, cap = ARGV[4], tonumber(ARGV[5])
-local categories = #KEYS - 3
-local counts = {}
-for i = 1, categories do
-  redis.call('SADD', KEYS[1], KEYS[i + 3])
-  counts[i + 2] = record(KEYS[i + 3], now, base .. ':' .. i, window_start, ttl, cap)
+local function record_strikes(first, now, base, window_start, ttl, cap)
+  local index, total, violations = KEYS[first], KEYS[first + 1], KEYS[first + 2]
+  local categories = #KEYS - first - 2
+  local counts = {}
+  for i = 1, categories do
+    local category_key = KEYS[first + 2 + i]
+    redis.call('SADD', index, category_key)
+    counts[i + 2] = record(category_key, now, base .. ':' .. i, window_start, ttl, cap)
+  end
+  redis.call('ZADD', total, now, base .. ':total')
+  redis.call('ZREMRANGEBYSCORE', total, '-inf', '(' .. window_start)
+  redis.call('ZREMRANGEBYRANK', total, 0, -(cap + 1))
+  redis.call('EXPIRE', total, ttl)
+  redis.call('EXPIRE', index, ttl)
+  counts[1] = redis.call('ZCARD', total)
+  counts[2] = redis.call('ZCOUNT', violations, window_start, '+inf')
+  return counts
 end
-redis.call('ZADD', KEYS[2], now, base .. ':total')
-redis.call('ZREMRANGEBYSCORE', KEYS[2], '-inf', '(' .. window_start)
-redis.call('ZREMRANGEBYRANK', KEYS[2], 0, -(cap + 1))
-redis.call('EXPIRE', KEYS[2], ttl)
-redis.call('EXPIRE', KEYS[1], ttl)
-counts[1] = redis.call('ZCARD', KEYS[2])
-counts[2] = redis.call('ZCOUNT', KEYS[3], window_start, '+inf')
-return counts
 """
+
+RECORD_DETECTION_STRIKES_SCRIPT = (
+    RECORD_STRIKES_LUA
+    + """
+return record_strikes(1, ARGV[1], ARGV[2], ARGV[3], ARGV[4], tonumber(ARGV[5]))
+"""
+)
+
+BAN_CHECK_AND_RECORD_STRIKE_SCRIPT = (
+    RECORD_STRIKES_LUA
+    + """
+local bans = tonumber(ARGV[6])
+local seen, now = ARGV[7], tonumber(ARGV[8])
+local values = redis.call('MGET', unpack(KEYS, 1, bans + 1))
+local version = values[bans + 1] or '0'
+local clear = seen == '' or version == seen
+for i = 1, bans do
+  local value = values[i]
+  if value then
+    local expiry = tonumber(value)
+    if expiry == nil or now <= expiry then
+      clear = false
+    end
+  end
+end
+if not clear then
+  return {values, 0, {}}
+end
+return {
+  values,
+  1,
+  record_strikes(bans + 2, ARGV[1], ARGV[2], ARGV[3], ARGV[4], tonumber(ARGV[5])),
+}
+"""
+)
 
 READ_DETECTION_CATEGORIES_SCRIPT = """
 local found = {}

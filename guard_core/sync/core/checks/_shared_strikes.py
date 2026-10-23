@@ -56,6 +56,42 @@ class StrikeReport:
         return in_process() if self.count is None else self.count
 
 
+class FusedStrike:
+    """One detection strike a request is certain to record, handed to the ban
+    lookup so that the lookup records it in the round trip that reads the bans.
+    ``shared`` is set only when that round trip recorded it."""
+
+    def __init__(
+        self,
+        client_ip: str,
+        categories: str | Collection[str],
+        window_seconds: int,
+        cap: int,
+    ) -> None:
+        self.client_ip = client_ip
+        self.categories = tuple(strike_categories(categories))
+        self.window_seconds = window_seconds
+        self.cap = cap
+        self.shared: SharedStrikes | None = None
+
+    def record(self, recorded: tuple[int, int, dict[str, int]] | None) -> None:
+        self.shared = (
+            None
+            if recorded is None
+            else SharedStrikes(recorded[2], recorded[0], recorded[1])
+        )
+
+    def take_if_recorded_for(
+        self, client_ip: str, categories: str | Collection[str]
+    ) -> SharedStrikes | None:
+        shared, self.shared = self.shared, None
+        matches = (
+            client_ip == self.client_ip
+            and tuple(strike_categories(categories)) == self.categories
+        )
+        return shared if matches else None
+
+
 def _shared_strikes_redis(middleware: "SyncGuardMiddlewareProtocol") -> Any:
     if not redis_is_configured(middleware.config):
         return None

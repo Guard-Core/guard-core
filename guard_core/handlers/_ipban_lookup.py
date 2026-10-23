@@ -1,8 +1,8 @@
 import ipaddress
 import logging
 import time
-from collections.abc import MutableMapping
-from typing import Any
+from collections.abc import Awaitable, Callable, MutableMapping
+from typing import TYPE_CHECKING, Any
 
 from guard_core._utils.ip_extraction import (
     MALFORMED_FORWARDED_FOR_PREFIX,
@@ -18,6 +18,9 @@ from guard_core.handlers._ipban_version import (
     _VERSION_PAIR,
     IpBanVersionMixin,
 )
+
+if TYPE_CHECKING:
+    from guard_core.core.checks._shared_strikes import FusedStrike
 
 _DEFAULT_IPV6_PREFIX_LENGTH = 64
 
@@ -66,11 +69,12 @@ class IpBanLookupMixin(IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptionMix
         identity: str | None,
         now: float,
         addr: ipaddress.IPv4Address | ipaddress.IPv6Address | None = None,
+        fused_strike: Callable[[], Awaitable["FusedStrike | None"]] | None = None,
     ) -> bool:
         namespaces = [("banned_ips", ip)]
         if identity is not None:
             namespaces.append(("banned_identities", identity))
-        values = await self.redis_handler.get_many([*namespaces, _VERSION_PAIR])
+        values = await self._read_ban_keys(namespaces, now, fused_strike)
         if self._version_moved(values.pop(), now):
             await self._reload_operator_networks()
             networks = self._operator_networks
@@ -89,6 +93,37 @@ class IpBanLookupMixin(IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptionMix
         if self.agent_handler:
             await self._report_evictions()
         return banned
+
+    async def _read_ban_keys(
+        self,
+        namespaces: list[tuple[str, str]],
+        now: float,
+        fused_strike: Callable[[], Awaitable["FusedStrike | None"]] | None,
+    ) -> list[Any]:
+        """The ban keys and the ban version, in one round trip. When the request
+        is certain to record a detection strike if it is not banned, the same
+        round trip records it (``fused_strike`` builds it, ``None`` when there is
+        none)."""
+        strike = await fused_strike() if fused_strike is not None else None
+        if strike is None:
+            values: list[Any] = await self.redis_handler.get_many(
+                [*namespaces, _VERSION_PAIR]
+            )
+            return values
+        values, recorded = await self.redis_handler.get_bans_and_record_strike(
+            namespaces,
+            _VERSION_PAIR,
+            self._ban_version_seen,
+            now,
+            strike.client_ip,
+            strike.categories,
+            now,
+            now - strike.window_seconds,
+            strike.window_seconds,
+            strike.cap,
+        )
+        strike.record(recorded)
+        return values
 
     def _local_lookup(
         self, ip: str, config: Any, now: float
@@ -162,10 +197,19 @@ class IpBanLookupMixin(IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptionMix
         found = operator.covering(addr, now) if operator is not None else None
         return None if found is None else (f"banned_networks:{found[0]}", found[1])
 
-    async def is_ip_banned(self, ip: str) -> bool:
-        return await self._is_ip_banned_under(ip, self.config)
+    async def is_ip_banned(
+        self,
+        ip: str,
+        fused_strike: Callable[[], Awaitable["FusedStrike | None"]] | None = None,
+    ) -> bool:
+        return await self._is_ip_banned_under(ip, self.config, fused_strike)
 
-    async def _is_ip_banned_under(self, ip: str, config: Any) -> bool:
+    async def _is_ip_banned_under(
+        self,
+        ip: str,
+        config: Any,
+        fused_strike: Callable[[], Awaitable["FusedStrike | None"]] | None = None,
+    ) -> bool:
         """The ban lookup with the identity prefix and whitelist taken from
         ``config``: a caller outside the pipeline (the out-of-band rate-limit
         primitive) passes its own config without touching the manager's."""
@@ -190,7 +234,7 @@ class IpBanLookupMixin(IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptionMix
             operator_networks is None or operator_networks.has_networks
         ) and await self._operator_networks_ban(addr, now):
             return True
-        return await self._check_redis_keys(ip, identity, now, addr)
+        return await self._check_redis_keys(ip, identity, now, addr, fused_strike)
 
     async def _operator_networks_ban(
         self, addr: ipaddress.IPv4Address | ipaddress.IPv6Address, now: float

@@ -1,0 +1,416 @@
+import logging
+import time
+import uuid
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+from redis.asyncio import Redis
+
+from guard_core.core.checks.implementations.ip_security import IpSecurityCheck
+from guard_core.decorators.base import RouteConfig
+from guard_core.exceptions import GuardRedisError
+from guard_core.handlers.ipban_handler import IPBanManager
+from guard_core.handlers.redis_handler import RedisManager
+from guard_core.models import SecurityConfig
+from tests.conftest import REDIS_URL
+
+BLACKLISTED = "198.51.100.21"
+BLACKLISTED_TWIN = "198.51.100.22"
+CLEAN = "203.0.113.9"
+CLEAN_TWIN = "203.0.113.10"
+TWINS = {BLACKLISTED: BLACKLISTED_TWIN, CLEAN: CLEAN_TWIN}
+VERSION = ("ban_version", "counter")
+
+
+class _Rig:
+    def __init__(self, threshold: int, **overrides: Any) -> None:
+        fields: dict[str, Any] = dict(
+            enable_redis=True,
+            redis_url=REDIS_URL,
+            redis_prefix=f"test:wp56:{uuid.uuid4().hex}:",
+            blacklist=[BLACKLISTED, BLACKLISTED_TWIN],
+            auto_ban_threshold=threshold,
+            auto_ban_duration=300,
+            enable_penetration_detection=False,
+            enable_rate_limiting=False,
+            ban_on_hostile_signals=True,
+        )
+        fields.update(overrides)
+        self.config = SecurityConfig(**fields)
+        self.redis = RedisManager(self.config)
+        self.round_trips = 0
+        self.counting = True
+        self.commands: list[str] = []
+        self.events: list[tuple[str, str | None]] = []
+
+    async def start(self) -> None:
+        await self.redis.initialize()
+        self.manager = IPBanManager()
+        self.manager.redis_handler = None
+        await self.manager.reset()
+        self.manager.config = self.config
+        await self.manager.initialize_redis(self.redis)
+        middleware = MagicMock()
+        middleware.config = self.config
+        middleware.logger = logging.getLogger("wp56")
+        middleware.suspicious_request_counts = {}
+        middleware.rate_limit_handler.redis_handler = self.redis
+        middleware.geo_ip_handler = None
+        middleware.route_resolver.should_bypass_check = lambda *_: False
+        middleware.create_error_response = AsyncMock(
+            return_value=MagicMock(status_code=403)
+        )
+
+        async def record(**kwargs: Any) -> None:
+            self.events.append((kwargs["event_type"], kwargs.get("filter_type")))
+
+        middleware.event_bus.send_middleware_event = record
+        middleware.event_bus.agent_handler = None
+        self.check = IpSecurityCheck(middleware)
+        for module in ("implementations.ip_security", "helpers"):
+            patch(f"guard_core.core.checks.{module}.log_activity").start()
+        self.check.ip_ban_manager = self.manager
+
+    async def request(
+        self,
+        ip: str,
+        route_config: RouteConfig | None = None,
+        exclusion_scoped: bool = False,
+    ) -> int | None:
+        request = MagicMock()
+        request.state.client_ip = ip
+        request.state.route_config = route_config
+        request.state.guard_exclusion_scoped = exclusion_scoped
+        request.headers = {}
+        response = await self.check.check(request)
+        return None if response is None else int(response.status_code)
+
+    async def state(self) -> dict[str, Any]:
+        self.counting = False
+        try:
+            return await self._read_state()
+        finally:
+            self.counting = True
+
+    async def _read_state(self) -> dict[str, Any]:
+        prefix = self.config.redis_prefix
+        found: dict[str, Any] = {}
+        async with self.redis.get_connection() as conn:
+            for key in sorted(await conn.keys(f"{prefix}*")):
+                name = key[len(prefix) :]
+                kind = await conn.type(key)
+                if kind == "zset":
+                    found[name] = ("zset", await conn.zcard(key))
+                elif kind == "set":
+                    found[name] = ("set", sorted(await conn.smembers(key)))
+                elif name.startswith("banned_ips:"):
+                    found[name] = ("ban", float(await conn.get(key)) > time.time())
+                else:
+                    found[name] = (kind, await conn.get(key))
+        found.pop("whitelist:strikes_applied", None)
+        return found
+
+    async def stop(self) -> None:
+        patch.stopall()
+        self.manager.redis_handler = self.redis
+        await self.manager.reset()
+        self.manager.redis_handler = None
+        await self.redis.delete_pattern("*")
+        await self.redis.close()
+
+
+_ACTIVE: list[_Rig] = []
+
+
+@pytest.fixture(autouse=True)
+def count_redis_round_trips(monkeypatch: pytest.MonkeyPatch) -> None:
+    real = Redis.execute_command
+
+    async def counted(client: Redis, *args: Any, **kwargs: Any) -> Any:
+        for rig in _ACTIVE:
+            rig.round_trips += rig.counting
+            rig.commands.append(str(args[0]))
+        return await real(client, *args, **kwargs)
+
+    monkeypatch.setattr(Redis, "execute_command", counted)
+
+
+@asynccontextmanager
+async def _rig(threshold: int, **overrides: Any) -> AsyncIterator[_Rig]:
+    rig = _Rig(threshold, **overrides)
+    await rig.start()
+    _ACTIVE.append(rig)
+    try:
+        yield rig
+    finally:
+        _ACTIVE.remove(rig)
+        await rig.stop()
+
+
+def _without_ip(value: Any, ip: str) -> Any:
+    return (value[0], str(value[1]).replace(ip, "IP"))
+
+
+async def _banned(rig: _Rig, ip: str) -> bool | str:
+    try:
+        return await rig.manager.is_ip_banned(ip)
+    except GuardRedisError:
+        return "GuardRedisError"
+
+
+async def _outcome(rig: _Rig, ip: str, **request_state: Any) -> Any:
+    try:
+        return await rig.request(ip, **request_state)
+    except GuardRedisError:
+        return "GuardRedisError"
+
+
+async def _observed(
+    rig: _Rig, ip: str, requests: int, **request_state: Any
+) -> dict[str, Any]:
+    first_event = len(rig.events)
+    codes = [await _outcome(rig, ip, **request_state) for _ in range(requests)]
+    state = await rig.state()
+    return {
+        "codes": codes,
+        "banned": await _banned(rig, ip),
+        "events": rig.events[first_event:],
+        "local_counts": dict(
+            rig.check.middleware.suspicious_request_counts.get(ip, {})
+        ),
+        "redis": {
+            name.replace(ip, "IP"): _without_ip(value, ip)
+            for name, value in state.items()
+            if ip in name or ":" not in name or "detection" in name and ip in name
+        },
+    }
+
+
+def _route(fields: dict[str, Any]) -> RouteConfig:
+    route_config = RouteConfig()
+    for name, value in fields.items():
+        setattr(route_config, name, value)
+    return route_config
+
+
+async def _never_fused(*_args: Any, **_kwargs: Any) -> None:
+    return None
+
+
+async def _fused_and_separate(
+    monkeypatch: pytest.MonkeyPatch,
+    ip: str,
+    threshold: int = 3,
+    config: dict[str, Any] | None = None,
+    route: dict[str, Any] | None = None,
+    **request_state: Any,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """The same requests from two addresses of one list, the second with the
+    fused lookup switched off (the two separate calls of 49493c30)."""
+    async with _rig(threshold, **(config or {})) as rig:
+        route_config = _route(route) if route else None
+        fused = await _observed(rig, ip, 6, route_config=route_config, **request_state)
+        monkeypatch.setattr(
+            IpSecurityCheck, "_fused_denial_strike", _never_fused, False
+        )
+        separate = await _observed(
+            rig, TWINS[ip], 6, route_config=route_config, **request_state
+        )
+    return fused, separate
+
+
+@pytest.mark.parametrize("threshold", [3, 10**6])
+@pytest.mark.parametrize("ip", [BLACKLISTED, CLEAN])
+async def test_the_fused_lookup_leaves_every_observable_as_the_two_calls_did(
+    monkeypatch: pytest.MonkeyPatch, threshold: int, ip: str
+) -> None:
+    fused, separate = await _fused_and_separate(monkeypatch, ip, threshold)
+
+    assert fused == separate
+
+
+@pytest.mark.parametrize(
+    "route",
+    [
+        {"ip_whitelist": ["10.0.0.1"]},
+        {"ip_blacklist": [BLACKLISTED, BLACKLISTED_TWIN]},
+        {"ip_whitelist": [BLACKLISTED, BLACKLISTED_TWIN]},
+    ],
+)
+async def test_a_route_denial_keeps_the_routes_strike_category(
+    monkeypatch: pytest.MonkeyPatch, route: dict[str, Any]
+) -> None:
+    fused, separate = await _fused_and_separate(monkeypatch, BLACKLISTED, route=route)
+
+    assert fused == separate
+
+
+async def test_a_route_whitelist_miss_counts_nothing_even_when_globally_blacklisted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fused, _ = await _fused_and_separate(
+        monkeypatch, BLACKLISTED, route={"ip_whitelist": ["10.0.0.1"]}
+    )
+
+    assert not [key for key in fused["redis"] if "detection" in key]
+
+
+@pytest.mark.parametrize(
+    "config", [{"passive_mode": True}, {"enable_ip_banning": False}]
+)
+async def test_a_denial_that_counts_nothing_stays_unfused(
+    monkeypatch: pytest.MonkeyPatch, config: dict[str, Any]
+) -> None:
+    fused, separate = await _fused_and_separate(monkeypatch, BLACKLISTED, config=config)
+
+    assert fused == separate
+    assert not [key for key in fused["redis"] if "detection" in key]
+
+
+async def test_the_exclusion_scoped_path_stays_unfused(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fused, separate = await _fused_and_separate(
+        monkeypatch, BLACKLISTED, exclusion_scoped=True
+    )
+
+    assert fused == separate
+    assert not [key for key in fused["redis"] if "detection" in key]
+
+
+async def test_banned_and_blacklisted_gets_the_ban_response_and_no_strike() -> None:
+    async with _rig(10**6) as rig:
+        await rig.manager.ban_ip(BLACKLISTED, 300)
+
+        assert await rig.request(BLACKLISTED) == 403
+        assert rig.events == [("ip_blocked", "banned")]
+        assert not [key for key in await rig.state() if "detection:" in key]
+
+
+@pytest.mark.parametrize("fail_open", [True, False])
+@pytest.mark.parametrize("ip", [BLACKLISTED, CLEAN])
+async def test_a_redis_that_drops_the_lookup_fails_as_the_two_calls_did(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    fail_open: bool,
+    ip: str,
+) -> None:
+    real = Redis.execute_command
+
+    async def dropping(client: Redis, *args: Any, **kwargs: Any) -> Any:
+        if str(args[0]) in ("EVALSHA", "MGET"):
+            raise ConnectionError("dropped")
+        return await real(client, *args, **kwargs)
+
+    results = []
+    for fused in (True, False):
+        async with _rig(3, redis_fail_open=fail_open) as rig:
+            if not fused:
+                monkeypatch.setattr(
+                    IpSecurityCheck, "_fused_denial_strike", _never_fused, False
+                )
+            monkeypatch.setattr(Redis, "execute_command", dropping)
+            caplog.clear()
+            observed = await _observed(rig, ip, 3)
+            observed["logs"] = [
+                (record.levelname, record.getMessage().replace(ip, "IP"))
+                for record in caplog.records
+                if record.name.startswith("guard_core")
+            ]
+            observed.pop("redis")
+            results.append(observed)
+            monkeypatch.undo()
+            monkeypatch.setattr(Redis, "execute_command", real)
+
+    assert results[0] == results[1]
+
+
+async def test_a_blocked_request_makes_one_round_trip() -> None:
+    async with _rig(10**6) as rig:
+        await rig.request(BLACKLISTED)
+        rig.round_trips = 0
+        rig.commands.clear()
+
+        assert await rig.request(BLACKLISTED) == 403
+        assert rig.round_trips == 1, rig.commands
+
+
+async def test_a_clean_request_makes_one_round_trip_and_no_strike() -> None:
+    async with _rig(10**6) as rig:
+        await rig.request(CLEAN_TWIN)
+        rig.round_trips = 0
+        rig.commands.clear()
+
+        assert await rig.request(CLEAN) is None
+        assert rig.round_trips == 1, rig.commands
+        assert not [key for key in await rig.state() if "detection:" in key]
+
+
+async def test_a_banned_client_records_no_strike() -> None:
+    async with _rig(10**6) as rig:
+        await rig.manager.ban_ip(BLACKLISTED, 300)
+        rig.manager.banned_ips.clear()
+        rig.round_trips = 0
+        rig.commands.clear()
+
+        assert await rig.request(BLACKLISTED) == 403
+        assert not [key for key in await rig.state() if "detection:" in key]
+        assert rig.events == [("ip_blocked", "banned")]
+
+
+async def test_a_flushed_script_cache_still_blocks_and_records_the_strike() -> None:
+    async with _rig(10**6) as rig:
+        async with rig.redis.get_connection() as conn:
+            await conn.script_flush()
+
+        assert await rig.request(BLACKLISTED) == 403
+        state = await rig.state()
+        assert state[f"detection:strikes:{BLACKLISTED}"] == ("zset", 1)
+
+
+async def test_a_moved_ban_version_records_no_strike_in_the_lookup() -> None:
+    async with _rig(10**6) as rig:
+        now = time.time()
+        values, recorded = await rig.redis.get_bans_and_record_strike(
+            [("banned_ips", BLACKLISTED)],
+            VERSION,
+            "41",
+            now,
+            BLACKLISTED,
+            ("ip_list",),
+            now,
+            now - 3600,
+            3600,
+            1000,
+        )
+
+        assert values == [None, None]
+        assert recorded is None
+        assert not [key for key in await rig.state() if "detection:" in key]
+
+
+async def test_the_lookup_returns_what_get_many_returns() -> None:
+    async with _rig(10**6) as rig:
+        await rig.redis.set_key("banned_ips", BLACKLISTED, str(time.time() - 5), 60)
+        now = time.time()
+        pairs = [("banned_ips", BLACKLISTED), ("banned_identities", "x")]
+        expected = await rig.redis.get_many([*pairs, VERSION])
+
+        values, recorded = await rig.redis.get_bans_and_record_strike(
+            pairs,
+            VERSION,
+            None,
+            now,
+            BLACKLISTED,
+            ("ip_list",),
+            now,
+            now - 3600,
+            3600,
+            9,
+        )
+
+        assert values == expected
+        assert recorded == (1, 0, {"ip_list": 1})
