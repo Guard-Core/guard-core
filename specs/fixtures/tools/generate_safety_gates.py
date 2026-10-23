@@ -8,8 +8,8 @@ v1 crawled: the oracle's cost_verdict on adversarial harvested patterns
 burns its full deadline per call. v2 scopes work:
 - harvested pool -> test_strings mode only (fast subprocess probes)
 - curated per-class list -> both modes
-- multiprocessing pool (8 workers), 90s wall cap per candidate via
-  SIGALRM, so no single adversarial pattern can stall the run
+- multiprocessing pool (8 workers), a SIGALRM wall cap per candidate
+  (WORKER_WALL_CAP_SECONDS), so no single adversarial pattern can stall the run
 """
 
 from __future__ import annotations
@@ -26,6 +26,8 @@ sys.path.insert(0, str(REPO))
 
 from guard_core import __version__ as engine_version  # noqa: E402
 from guard_core.detection_engine.compiler import PatternCompiler  # noqa: E402
+
+SUITE_PATH = REPO / "specs/fixtures/cases/safety_gates.json"
 
 HARVEST_FILES = [
     "tests/test_sus_patterns/test_redos_cost_arbiter.py",
@@ -90,7 +92,20 @@ CLASS_RULES: list[tuple[str, str]] = [
     ("Pattern appears safe", "safe"),
 ]
 
+# A backstop only: the oracle bounds its own work. A pinned over_budget probe
+# spends about 65 s of CPU (five samples at 32000 chars), so a 90 s wall cap
+# fired on a loaded host and the case vanished (LEDGER 6.75).
+WORKER_WALL_CAP_SECONDS = 600
+
 TEST_STRINGS = ["abcdefghij", "attack-test-string-123", "x"]
+
+# over_budget is the one class whose membership the oracle measures with a
+# clock. Case selection must not depend on host speed (LEDGER 6.75), so the
+# cases are a fixed list: a pinned (pattern, mode) is always kept and the
+# generator fails when the oracle stops classing it over_budget; every other
+# over_budget result is dropped. Add a pattern here only when its growth is
+# exponential, so the verdict holds on any host.
+OVER_BUDGET_PINNED = {(r"(\d|\w)*;", "cost_verdict")}
 
 
 def classify(reason: str) -> str:
@@ -107,7 +122,7 @@ def _worker(job: tuple[str, str]) -> tuple[str, str, bool, str, str]:
         raise TimeoutError()
 
     old = signal.signal(signal.SIGALRM, _alarm)
-    signal.alarm(90)
+    signal.alarm(WORKER_WALL_CAP_SECONDS)
     try:
         pc = PatternCompiler()
         if mode == "test_strings":
@@ -146,12 +161,7 @@ def harvest() -> list[str]:
     return out
 
 
-def extrapolated_seconds(reason: str) -> float | None:
-    m = re.search(r"cost at cap \(\d+ chars\) is ([0-9.]+)s", reason)
-    return float(m.group(1)) if m else None
-
-
-def main() -> None:
+def build_suite() -> tuple[dict, dict[str, int], dict[str, int]]:
     jobs: list[tuple[str, str]] = []
     seen: set[str] = set()
     for pattern, _mode in CURATED:
@@ -199,11 +209,9 @@ def main() -> None:
                 drops.get(f"{mode}:nondeterministic", 0) + 1
             )
             continue
-        if cls == "over_budget":
-            ext = extrapolated_seconds(reason)
-            if ext is None or ext < 0.5:
-                drops[f"{mode}:notdecisive"] = drops.get(f"{mode}:notdecisive", 0) + 1
-                continue
+        if cls == "over_budget" and (pattern, mode) not in OVER_BUDGET_PINNED:
+            drops[f"{mode}:notpinned"] = drops.get(f"{mode}:notpinned", 0) + 1
+            continue
         key = f"{mode}:{cls}"
         limit = MAX_PER_CLASS * (2 if cls == "safe" else 1)
         if per_class.get(key, 0) >= limit:
@@ -222,6 +230,14 @@ def main() -> None:
         case["expected"] = {"safe": safe, "reason_class": cls}
         cases.append(case)
 
+    kept = {(c["input"]["pattern"], c["input"]["mode"]) for c in cases}
+    missing = sorted(OVER_BUDGET_PINNED - kept)
+    if missing:
+        seen_runs = {key: results.get(key) for key in missing}
+        raise SystemExit(
+            f"pinned over_budget cases not produced by the oracle: {seen_runs}"
+        )
+
     suite = {
         "suite": "safety_gates",
         "kind": "pattern_safety",
@@ -229,7 +245,32 @@ def main() -> None:
         "engine_version": engine_version,
         "cases": cases,
     }
-    out = REPO / "specs/fixtures/cases/safety_gates.json"
+    return suite, per_class, drops
+
+
+def check_committed() -> int:
+    suite, _per_class, _drops = build_suite()
+    committed = json.loads(SUITE_PATH.read_text(encoding="utf-8"))
+    fresh = {c["id"]: c for c in suite["cases"]}
+    kept = {c["id"]: c for c in committed["cases"]}
+    problems = [f"only committed: {i}" for i in sorted(kept.keys() - fresh.keys())]
+    problems += [f"only regenerated: {i}" for i in sorted(fresh.keys() - kept.keys())]
+    problems += [
+        f"differs: {i}"
+        for i in sorted(kept.keys() & fresh.keys())
+        if kept[i] != fresh[i]
+    ]
+    print(f"committed {len(kept)} cases, regenerated {len(fresh)} cases")
+    print("\n".join(problems) if problems else "identical ids, inputs and expectations")
+    return 1 if problems else 0
+
+
+def main() -> None:
+    if "--check" in sys.argv[1:]:
+        raise SystemExit(check_committed())
+    suite, per_class, drops = build_suite()
+    cases = suite["cases"]
+    out = SUITE_PATH
     out.write_text(json.dumps(suite, indent=2, ensure_ascii=False) + "\n")
 
     # Register the suite in the corpus index (same upsert contract as the
