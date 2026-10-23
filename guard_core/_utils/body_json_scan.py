@@ -11,6 +11,7 @@ from guard_core._utils.detection_scan import (
     _skip_counter,
     _warn_json_depth_cap_reached_once,
 )
+from guard_core._utils.json_nesting import MAX_JSON_PARSE_DEPTH, _nests_deeper_than
 from guard_core._utils.logging_utils import (
     _redact_sensitive_json,
     _sanitize_for_reporting,
@@ -506,12 +507,14 @@ async def _scan_json_content(
     sensitive_body_fields: frozenset[str] = frozenset(),
     sensitive_params: frozenset[str] = frozenset(),
 ) -> tuple[bool, str, list[dict]] | None:
-    try:
-        parsed_body = json.loads(
-            raw_body, object_pairs_hook=_json_object_with_every_pair
-        )
-    except Exception:
-        parsed_body = None
+    parsed_body = None
+    if not _nests_deeper_than(raw_body, MAX_JSON_PARSE_DEPTH):
+        try:
+            parsed_body = json.loads(
+                raw_body, object_pairs_hook=_json_object_with_every_pair
+            )
+        except Exception:
+            parsed_body = None
     if isinstance(parsed_body, dict | list):
         return await _scan_json_value(
             parsed_body,

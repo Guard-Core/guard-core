@@ -4,6 +4,7 @@ from typing import Any
 from urllib.parse import parse_qsl
 
 from guard_core._utils.body_form_scan import _multipart_field_values
+from guard_core._utils.json_nesting import MAX_JSON_PARSE_DEPTH, _offset_nesting_exceeds
 
 FORM_MEDIA_TYPE = "application/x-www-form-urlencoded"
 JSON_MEDIA_TYPE = "application/json"
@@ -73,8 +74,14 @@ def json_has_filled_trap(
         filled = filled or _any_trap_filled(pairs, trap_names)
         return pairs
 
+    text = _decode_json_text(raw_body)
+    too_deep_at = _offset_nesting_exceeds(text, MAX_JSON_PARSE_DEPTH)
+    if too_deep_at is not None:
+        text = text[:too_deep_at]
     try:
-        json.loads(_decode_json_text(raw_body), object_pairs_hook=inspect_object)
+        json.loads(text, object_pairs_hook=inspect_object)
     except (ValueError, RecursionError) as error:
+        if too_deep_at is not None:
+            return filled, RecursionError("JSON nesting beyond the parse depth limit")
         return filled, error
     return filled, None

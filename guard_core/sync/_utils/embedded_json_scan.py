@@ -12,35 +12,16 @@ from guard_core.sync._utils.detection_scan import (
     _json_depth_cap_value,
     _scan_budget_spent,
 )
+from guard_core.sync._utils.json_nesting import MAX_JSON_PARSE_DEPTH, _nests_deeper_than
 from guard_core.sync._utils.kept_value_paths import _NOTHING_TO_KEEP, _keep_only_values
 from guard_core.sync.handlers._suspatterns_sources import (
     _EMBEDDED_JSON_LEAF_CONTEXT_SUFFIX,
 )
 
-# json.loads accepts 993 nested arrays on 3.10 and 3.11 (951 under a 40 frame call
-# stack), 9997 on 3.12, 9998 on 3.13 and 74373 on 3.14. One fixed limit below the
-# lowest keeps every interpreter on the same path.
-_EMBEDDED_JSON_MAX_PARSE_DEPTH = 512
+_EMBEDDED_JSON_MAX_PARSE_DEPTH = MAX_JSON_PARSE_DEPTH
 
 _QUOTE_RUN = re.compile(r'(?<!\\)\\*"')
-_QUOTE_RUN_OR_BRACKET = re.compile(r'(?<!\\)\\*"|[\[\]{}]')
 _TOO_DEEP_TO_PARSE = object()
-
-
-def _nests_deeper_than(value: str, limit: int) -> bool:
-    if value.count("[") + value.count("{") <= limit:
-        return False
-    depth = 0
-    in_string = False
-    for found in _QUOTE_RUN_OR_BRACKET.finditer(value):
-        token = found.group()
-        if token[-1] == '"':
-            in_string ^= len(token) % 2 == 1
-        elif not in_string:
-            depth += 1 if token in "[{" else -1
-            if depth > limit:
-                return True
-    return False
 
 
 def _escaped_string_literals(value: str) -> list[str]:

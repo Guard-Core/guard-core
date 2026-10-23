@@ -251,6 +251,24 @@ async def test_nesting_too_deep_to_parse_is_warned_not_silently_skipped(
     assert any("nested too deeply" in r.getMessage() for r in caplog.records)
 
 
+async def test_a_trap_filled_before_the_too_deep_part_is_still_caught() -> None:
+    body = b'[{"hp":"bot"},' + b"[" * 50_000 + b"]" * 50_000 + b"]"
+
+    response = await _hit("POST", JSON, body, config=_config())
+
+    assert response is not None
+    assert response.status_code == 403
+
+
+async def test_nesting_at_the_same_depth_on_every_interpreter_is_parsed() -> None:
+    body = b"[" * 400 + b'{"hp":"bot"}' + b"]" * 400
+
+    response = await _hit("POST", JSON, body, config=_config())
+
+    assert response is not None
+    assert response.status_code == 403
+
+
 def _warnings(caplog: pytest.LogCaptureFixture) -> list[str]:
     return [
         r.getMessage()
