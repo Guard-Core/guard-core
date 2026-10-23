@@ -250,6 +250,13 @@
     "rust",
     "jvm"
    ]
+  },
+  "pipeline_response_modifier": {
+   "case_count": 12,
+   "kind": "pipeline",
+   "consumers": [
+    "python"
+   ]
   }
  },
  "comparison": {

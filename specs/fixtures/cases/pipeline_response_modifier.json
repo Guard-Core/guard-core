@@ -1,0 +1,505 @@
+{
+  "suite": "pipeline_response_modifier",
+  "kind": "pipeline",
+  "spec_version": "4.1.0",
+  "engine_version": "4.4.0",
+  "cases": [
+    {
+      "id": "modifier_header_only_one_call_no_read_ahead",
+      "config": {},
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api",
+          "stage": "process_response",
+          "method": "GET",
+          "modifier": "header_only",
+          "response_body": "hello",
+          "response_status": 200,
+          "response_declared_length": 5
+        }
+      ],
+      "expected": [
+        {
+          "status": 200,
+          "body": "hello",
+          "headers": {
+            "Content-Length": "5",
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "SAMEORIGIN",
+            "X-XSS-Protection": "0",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+            "X-Permitted-Cross-Domain-Policies": "none",
+            "X-Download-Options": "noopen",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Resource-Policy": "same-site",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+            "X-Modifier": "header-only"
+          },
+          "modifier_calls": 1,
+          "prefix_reads": 0
+        }
+      ]
+    },
+    {
+      "id": "modifier_reads_body_under_cap_replays_once",
+      "config": {},
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api",
+          "stage": "process_response",
+          "method": "GET",
+          "modifier": "reads_body",
+          "response_body": "hello",
+          "response_status": 200,
+          "response_declared_length": 5
+        }
+      ],
+      "expected": [
+        {
+          "status": 200,
+          "body": "hello",
+          "headers": {
+            "Content-Length": "5",
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "SAMEORIGIN",
+            "X-XSS-Protection": "0",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+            "X-Permitted-Cross-Domain-Policies": "none",
+            "X-Download-Options": "noopen",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Resource-Policy": "same-site",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+            "X-Call-2": "1",
+            "X-Body": "hello"
+          },
+          "modifier_calls": 2,
+          "prefix_reads": 1
+        }
+      ]
+    },
+    {
+      "id": "modifier_marked_reads_body_one_call",
+      "config": {},
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api",
+          "stage": "process_response",
+          "method": "GET",
+          "modifier": "reads_body_marked",
+          "response_body": "hello",
+          "response_status": 200,
+          "response_declared_length": 5
+        }
+      ],
+      "expected": [
+        {
+          "status": 200,
+          "body": "hello",
+          "headers": {
+            "Content-Length": "5",
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "SAMEORIGIN",
+            "X-XSS-Protection": "0",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+            "X-Permitted-Cross-Domain-Policies": "none",
+            "X-Download-Options": "noopen",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Resource-Policy": "same-site",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+            "X-Call-1": "1",
+            "X-Body": "hello"
+          },
+          "modifier_calls": 1,
+          "prefix_reads": 1
+        }
+      ]
+    },
+    {
+      "id": "modifier_body_exactly_at_cap",
+      "config": {
+        "custom_response_modifier_max_body_bytes": 1024
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api",
+          "stage": "process_response",
+          "method": "GET",
+          "modifier": "reads_body",
+          "response_body": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "response_status": 200,
+          "response_declared_length": 1024
+        }
+      ],
+      "expected": [
+        {
+          "status": 200,
+          "body": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "headers": {
+            "Content-Length": "1024",
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "SAMEORIGIN",
+            "X-XSS-Protection": "0",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+            "X-Permitted-Cross-Domain-Policies": "none",
+            "X-Download-Options": "noopen",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Resource-Policy": "same-site",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+            "X-Call-2": "1",
+            "X-Body": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "modifier_calls": 2,
+          "prefix_reads": 1
+        }
+      ]
+    },
+    {
+      "id": "modifier_body_one_byte_over_cap_refused",
+      "config": {
+        "custom_response_modifier_max_body_bytes": 1024
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api",
+          "stage": "process_response",
+          "method": "GET",
+          "modifier": "reads_body",
+          "response_body": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "response_status": 200,
+          "response_declared_length": 1025
+        }
+      ],
+      "expected": [
+        {
+          "status": 200,
+          "body": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "headers": {
+            "Content-Length": "1025",
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "SAMEORIGIN",
+            "X-XSS-Protection": "0",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+            "X-Permitted-Cross-Domain-Policies": "none",
+            "X-Download-Options": "noopen",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Resource-Policy": "same-site",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+            "X-Call-1": "1",
+            "X-Body": "unavailable"
+          },
+          "modifier_calls": 1,
+          "prefix_reads": 0
+        }
+      ]
+    },
+    {
+      "id": "modifier_no_declared_length_refused",
+      "config": {},
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api",
+          "stage": "process_response",
+          "method": "GET",
+          "modifier": "reads_body",
+          "response_body": "hello",
+          "response_status": 200
+        }
+      ],
+      "expected": [
+        {
+          "status": 200,
+          "body": "hello",
+          "headers": {
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "SAMEORIGIN",
+            "X-XSS-Protection": "0",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+            "X-Permitted-Cross-Domain-Policies": "none",
+            "X-Download-Options": "noopen",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Resource-Policy": "same-site",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+            "X-Call-1": "1",
+            "X-Body": "unavailable"
+          },
+          "modifier_calls": 1,
+          "prefix_reads": 0
+        }
+      ]
+    },
+    {
+      "id": "modifier_event_stream_refused",
+      "config": {},
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api",
+          "stage": "process_response",
+          "method": "GET",
+          "modifier": "reads_body",
+          "response_body": "hello",
+          "response_status": 200,
+          "response_declared_length": 5,
+          "response_headers": {
+            "Content-Type": "text/event-stream"
+          }
+        }
+      ],
+      "expected": [
+        {
+          "status": 200,
+          "body": "hello",
+          "headers": {
+            "Content-Type": "text/event-stream",
+            "Content-Length": "5",
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "SAMEORIGIN",
+            "X-XSS-Protection": "0",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+            "X-Permitted-Cross-Domain-Policies": "none",
+            "X-Download-Options": "noopen",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Resource-Policy": "same-site",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+            "X-Call-1": "1",
+            "X-Body": "unavailable"
+          },
+          "modifier_calls": 1,
+          "prefix_reads": 0
+        }
+      ]
+    },
+    {
+      "id": "modifier_head_response_refused",
+      "config": {},
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api",
+          "stage": "process_response",
+          "method": "HEAD",
+          "modifier": "reads_body",
+          "response_body": "hello",
+          "response_status": 200,
+          "response_declared_length": 5
+        }
+      ],
+      "expected": [
+        {
+          "status": 200,
+          "body": "hello",
+          "headers": {
+            "Content-Length": "5",
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "SAMEORIGIN",
+            "X-XSS-Protection": "0",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+            "X-Permitted-Cross-Domain-Policies": "none",
+            "X-Download-Options": "noopen",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Resource-Policy": "same-site",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+            "X-Call-1": "1",
+            "X-Body": "unavailable"
+          },
+          "modifier_calls": 1,
+          "prefix_reads": 0
+        }
+      ]
+    },
+    {
+      "id": "modifier_204_response_refused",
+      "config": {},
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api",
+          "stage": "process_response",
+          "method": "GET",
+          "modifier": "reads_body",
+          "response_body": "",
+          "response_status": 204,
+          "response_declared_length": 0
+        }
+      ],
+      "expected": [
+        {
+          "status": 204,
+          "body": "",
+          "headers": {
+            "Content-Length": "0",
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "SAMEORIGIN",
+            "X-XSS-Protection": "0",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+            "X-Permitted-Cross-Domain-Policies": "none",
+            "X-Download-Options": "noopen",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Resource-Policy": "same-site",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+            "X-Call-1": "1",
+            "X-Body": "unavailable"
+          },
+          "modifier_calls": 1,
+          "prefix_reads": 0
+        }
+      ]
+    },
+    {
+      "id": "modifier_304_response_refused",
+      "config": {},
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api",
+          "stage": "process_response",
+          "method": "GET",
+          "modifier": "reads_body",
+          "response_body": "",
+          "response_status": 304,
+          "response_declared_length": 0
+        }
+      ],
+      "expected": [
+        {
+          "status": 304,
+          "body": "",
+          "headers": {
+            "Content-Length": "0",
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "SAMEORIGIN",
+            "X-XSS-Protection": "0",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+            "X-Permitted-Cross-Domain-Policies": "none",
+            "X-Download-Options": "noopen",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Resource-Policy": "same-site",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+            "X-Call-1": "1",
+            "X-Body": "unavailable"
+          },
+          "modifier_calls": 1,
+          "prefix_reads": 0
+        }
+      ]
+    },
+    {
+      "id": "modifier_body_shorter_than_declared_refused",
+      "config": {},
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api",
+          "stage": "process_response",
+          "method": "GET",
+          "modifier": "reads_body",
+          "response_body": "short",
+          "response_status": 200,
+          "response_declared_length": 100
+        }
+      ],
+      "expected": [
+        {
+          "status": 200,
+          "body": "short",
+          "headers": {
+            "Content-Length": "100",
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "SAMEORIGIN",
+            "X-XSS-Protection": "0",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+            "X-Permitted-Cross-Domain-Policies": "none",
+            "X-Download-Options": "noopen",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Resource-Policy": "same-site",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+            "X-Call-1": "1",
+            "X-Body": "unavailable"
+          },
+          "modifier_calls": 1,
+          "prefix_reads": 1
+        }
+      ]
+    },
+    {
+      "id": "modifier_body_longer_than_declared_refused",
+      "config": {},
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api",
+          "stage": "process_response",
+          "method": "GET",
+          "modifier": "reads_body",
+          "response_body": "longer body",
+          "response_status": 200,
+          "response_declared_length": 3
+        }
+      ],
+      "expected": [
+        {
+          "status": 200,
+          "body": "longer body",
+          "headers": {
+            "Content-Length": "3",
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "SAMEORIGIN",
+            "X-XSS-Protection": "0",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+            "X-Permitted-Cross-Domain-Policies": "none",
+            "X-Download-Options": "noopen",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Resource-Policy": "same-site",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+            "X-Call-1": "1",
+            "X-Body": "unavailable"
+          },
+          "modifier_calls": 1,
+          "prefix_reads": 1
+        }
+      ]
+    }
+  ]
+}
