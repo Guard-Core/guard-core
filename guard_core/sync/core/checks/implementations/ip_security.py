@@ -1,8 +1,6 @@
 from ipaddress import ip_address
 from typing import Any
 
-from guard_core.exceptions import GuardRedisError
-from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.agent_events import agent_receives_events
 from guard_core.sync._utils.ip_extraction import (
     _is_trusted_proxy,
@@ -28,7 +26,9 @@ from guard_core.sync.core.events.event_types import (
     EVENT_IP_BLOCKED,
 )
 from guard_core.sync.decorators.base import RouteConfig
+from guard_core.exceptions import GuardRedisError
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
+from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.utils import (
     IpAccessResult,
     _ip_in_list,
@@ -145,10 +145,7 @@ class IpSecurityCheck(SecurityCheck):
             return False
 
     def _check_banned_ip(
-        self,
-        request: SyncGuardRequest,
-        client_ip: str,
-        route_config: RouteConfig | None,
+        self, request: SyncGuardRequest, client_ip: str, route_config: RouteConfig | None
     ) -> GuardResponse | None:
         if self.middleware.route_resolver.should_bypass_check("ip_ban", route_config):
             return None
@@ -206,7 +203,9 @@ class IpSecurityCheck(SecurityCheck):
     def _check_route_ip_restrictions(
         self, request: SyncGuardRequest, client_ip: str, route_config: RouteConfig
     ) -> GuardResponse | None:
-        route_allowed = check_route_ip_access(client_ip, route_config, self.middleware)
+        route_allowed = check_route_ip_access(
+            client_ip, route_config, self.middleware
+        )
 
         if route_allowed is None or route_allowed:
             return None
@@ -470,7 +469,9 @@ class IpSecurityCheck(SecurityCheck):
 
     def check(self, request: SyncGuardRequest) -> GuardResponse | None:
         response = self._enforce_ip_rules(request)
-        self._count_ip_spoofing(request, getattr(request.state, "route_config", None))
+        self._count_ip_spoofing(
+            request, getattr(request.state, "route_config", None)
+        )
         return response
 
     def _enforce_ip_rules(self, request: SyncGuardRequest) -> GuardResponse | None:

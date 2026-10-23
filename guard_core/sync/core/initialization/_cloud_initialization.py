@@ -1,10 +1,11 @@
 import threading
+import time
 from typing import TYPE_CHECKING, Any, cast
 
 from guard_core.sync.protocols.cloud_ip_store_protocol import SyncCloudIpStoreProtocol
 
 if TYPE_CHECKING:
-    from guard_core.models import SyncSecurityConfig
+    from guard_core.models import SecurityConfig, SyncSecurityConfig
 
 
 class CloudInitializationMixin:

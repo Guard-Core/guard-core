@@ -22,6 +22,11 @@ from guard_core.handlers.redis_handler import RedisManager
 from guard_core.handlers.suspatterns_handler import sus_patterns_handler
 from guard_core.models import SecurityConfig
 from tests.conftest import REDIS_URL
+from tests.engine_redis_commands import (
+    engine_commands_sent,
+    engine_redis_url,
+    unwatch_engine_commands,
+)
 
 DETECT = "guard_core.core.checks.implementations.suspicious_activity"
 INSIDE = "198.51.100.10"
@@ -32,7 +37,7 @@ LOGGER = "guard_core.core.initialization.whitelist_strikes"
 def _config(**overrides: Any) -> SecurityConfig:
     values: dict[str, Any] = {
         "enable_redis": True,
-        "redis_url": REDIS_URL,
+        "redis_url": engine_redis_url(REDIS_URL),
         "redis_prefix": f"test:wp3fu:startup:{uuid.uuid4().hex}:",
         "enable_penetration_detection": True,
         "enable_ip_banning": True,
@@ -45,7 +50,8 @@ def _config(**overrides: Any) -> SecurityConfig:
 
 @pytest.fixture
 async def redis() -> AsyncGenerator[RedisManager, None]:
-    manager = RedisManager(_config())
+    config = _config()
+    manager = RedisManager(config)
     await manager.initialize()
     ratelimit_handler.clear_by_ip_strikes()
     try:
@@ -53,6 +59,7 @@ async def redis() -> AsyncGenerator[RedisManager, None]:
     finally:
         await manager.delete_pattern("*")
         await manager.close()
+        unwatch_engine_commands(config.redis_url)
         ratelimit_handler.clear_by_ip_strikes()
 
 
@@ -104,10 +111,7 @@ async def _keys(redis: RedisManager, pattern: str) -> list[str]:
 
 
 async def _scans(redis: RedisManager) -> int:
-    async with redis.get_connection() as conn:
-        stats = await conn.info("commandstats")
-    entry = stats.get("cmdstat_scan")
-    return int(entry["calls"]) if entry else 0
+    return await engine_commands_sent(redis.config.redis_url, "scan")
 
 
 def test_the_fingerprint_is_canonical_deduplicated_and_sorted() -> None:

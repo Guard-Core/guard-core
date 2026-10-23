@@ -2,7 +2,6 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
-from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils.request_logging import redact_endpoint_for_display
 from guard_core.sync.core.events.event_types import (
     METRIC_ERROR_RATE,
@@ -10,6 +9,7 @@ from guard_core.sync.core.events.event_types import (
     METRIC_RESPONSE_TIME,
     EventFilter,
 )
+from guard_core.models import SecurityConfig, SyncSecurityConfig
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
 

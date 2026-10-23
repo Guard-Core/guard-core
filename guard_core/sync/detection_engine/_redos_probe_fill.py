@@ -10,23 +10,15 @@ from guard_core.sync.detection_engine._redos_ambiguous_tail import (
 from guard_core.sync.detection_engine._redos_class_intersection import (
     _class_intersection_probe_units,
 )
-from guard_core.sync.detection_engine._redos_literal_runs import (
-    _adversarial_literal_runs,
-)
+from guard_core.sync.detection_engine._redos_literal_runs import _adversarial_literal_runs
 from guard_core.sync.detection_engine._redos_prefixed_probe import (
     _group_unit_builders,
     _prefixed_repeat_probe,
     _prefixed_unit_builders,
 )
-from guard_core.sync.detection_engine._redos_reach_probe import (
-    _synthesize_reaching_probe,
-)
-from guard_core.sync.detection_engine._redos_repeat_alphabet import (
-    _repeat_alphabet_fills,
-)
-from guard_core.sync.detection_engine._redos_repeat_prefix import (
-    _repeat_reaching_prefixes,
-)
+from guard_core.sync.detection_engine._redos_reach_probe import _synthesize_reaching_probe
+from guard_core.sync.detection_engine._redos_repeat_alphabet import _repeat_alphabet_fills
+from guard_core.sync.detection_engine._redos_repeat_prefix import _repeat_reaching_prefixes
 from guard_core.sync.detection_engine._redos_repeat_units import _repeat_group_units
 from guard_core.sync.detection_engine._redos_stray_chooser import (
     _build_stray_context,

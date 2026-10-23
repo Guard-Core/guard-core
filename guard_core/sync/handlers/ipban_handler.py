@@ -2,10 +2,7 @@ import logging
 from collections.abc import MutableMapping
 from typing import Any
 
-from guard_core.sync.handlers._ipban_bans import (
-    _LOOPBACK_NETWORKS,
-    IpBanOperationsMixin,
-)
+from guard_core.sync.handlers._ipban_bans import _LOOPBACK_NETWORKS, IpBanOperationsMixin
 from guard_core.sync.handlers._ipban_cache import (
     DEFAULT_MAX_LOCAL_BANS,
     _BanStore,

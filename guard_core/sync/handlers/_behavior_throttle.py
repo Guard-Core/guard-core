@@ -9,13 +9,13 @@ from typing import TYPE_CHECKING, Any
 
 from guard_core._redis_enablement import redis_is_configured
 from guard_core._redis_exceptions import NoScriptError
-from guard_core.exceptions import GuardRedisError
-from guard_core.models import SyncSecurityConfig
-from guard_core.scripts.behavior_throttle_lua import BEHAVIOR_THROTTLE_SCRIPT
 from guard_core.sync._utils.identity_hash import _hash_identity_segment
 from guard_core.sync._utils.ip_extraction import _client_identity
 from guard_core.sync._utils.lru_store import _lru_pop_or_create
+from guard_core.exceptions import GuardRedisError
 from guard_core.sync.handlers._behavior_evictions import BehaviorEvictionMixin
+from guard_core.models import SecurityConfig, SyncSecurityConfig
+from guard_core.scripts.behavior_throttle_lua import BEHAVIOR_THROTTLE_SCRIPT
 
 if TYPE_CHECKING:
     from guard_core.sync.handlers.behavior_handler import BehaviorRule
@@ -112,7 +112,9 @@ class ReturnCorrelation:
     correlated threshold, the one place they can change the outcome.
     """
 
-    def __init__(self, threshold: int, lookup: Callable[[], list[str]]) -> None:
+    def __init__(
+        self, threshold: int, lookup: Callable[[], list[str]]
+    ) -> None:
         self.threshold = threshold
         self.lookup = lookup
         self.categories: list[str] = []
@@ -227,9 +229,7 @@ class BehaviorThrottleMixin(BehaviorEvictionMixin):
             keys.append(f"{prefix}{USAGE_NAMESPACE}:{index_key}")
             args[3:5] = [max_members, RECENT_RULE_HITS_WINDOW_SECONDS]
         if any(c.correlated_refuse_at for c in checks):
-            from guard_core.sync.core.checks.helpers import (
-                SUSPICIOUS_COUNT_WINDOW_SECONDS,
-            )
+            from guard_core.sync.core.checks.helpers import SUSPICIOUS_COUNT_WINDOW_SECONDS
 
             keys += self.redis_handler.detection_correlation_keys(client_ip)
             args[6] = repr(now - SUSPICIOUS_COUNT_WINDOW_SECONDS)
@@ -281,12 +281,20 @@ class BehaviorThrottleMixin(BehaviorEvictionMixin):
     def _eval_throttle_script(self, keys: list[str], args: list[Any]) -> Any:
         with self.redis_handler.get_connection() as conn:
             if self._throttle_script_sha is None:
-                self._throttle_script_sha = conn.script_load(BEHAVIOR_THROTTLE_SCRIPT)
+                self._throttle_script_sha = conn.script_load(
+                    BEHAVIOR_THROTTLE_SCRIPT
+                )
             try:
-                return conn.evalsha(self._throttle_script_sha, len(keys), *keys, *args)
+                return conn.evalsha(
+                    self._throttle_script_sha, len(keys), *keys, *args
+                )
             except NoScriptError:
-                self._throttle_script_sha = conn.script_load(BEHAVIOR_THROTTLE_SCRIPT)
-                return conn.evalsha(self._throttle_script_sha, len(keys), *keys, *args)
+                self._throttle_script_sha = conn.script_load(
+                    BEHAVIOR_THROTTLE_SCRIPT
+                )
+                return conn.evalsha(
+                    self._throttle_script_sha, len(keys), *keys, *args
+                )
 
     def _memory_hits(
         self, client_ip: str, check: ThrottleCheck, cutoff: float

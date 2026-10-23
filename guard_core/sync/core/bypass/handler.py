@@ -1,13 +1,13 @@
 from collections.abc import Callable
 from logging import Logger
 
-from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.block_events import fire_block_hook
 from guard_core.sync._utils.request_logging import redact_endpoint_for_display
 from guard_core.sync.core.bypass.context import BypassContext
 from guard_core.sync.core.events.event_types import EVENT_SECURITY_BYPASS
 from guard_core.sync.decorators.base import RouteConfig
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
+from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.utils import UNKNOWN_CLIENT_IDENTITY, extract_client_ip
 
 UNRESOLVABLE_CLIENT_ADDRESS_CHECK_NAME = "client_address_unresolved"
@@ -57,8 +57,10 @@ class BypassHandler:
                     self.context.logger, rejected=self.context.config.fail_secure
                 )
                 if self.context.config.fail_secure:
-                    response = self.context.response_factory.create_error_response(
-                        403, "Client address could not be determined"
+                    response = (
+                        self.context.response_factory.create_error_response(
+                            403, "Client address could not be determined"
+                        )
                     )
                     fire_block_hook(
                         self.context.config.on_block,
@@ -107,4 +109,6 @@ class BypassHandler:
         response = self.context.response_factory.apply_security_headers(
             response, str(request.url_path)
         )
-        return self.context.response_factory.apply_modifier(response, request)
+        return self.context.response_factory.apply_modifier(
+            response, request
+        )

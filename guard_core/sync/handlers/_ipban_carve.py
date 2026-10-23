@@ -85,7 +85,9 @@ class IpBanCarveMixin(IpBanLookupMixin):
         stem = f"{redis.config.redis_prefix}banned_identities:"
         moved = 0
         with redis.get_connection() as conn:
-            keys = [key for key in conn.scan_iter(match=f"{stem}*", count=_SCAN_COUNT)]
+            keys = [
+                key for key in conn.scan_iter(match=f"{stem}*", count=_SCAN_COUNT)
+            ]
             for key in keys:
                 target = self._base_identity_if_carve_is_gone(key[len(stem) :])
                 if target is None:

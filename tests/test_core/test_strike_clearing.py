@@ -32,6 +32,11 @@ from guard_core.handlers.ratelimit_handler import (
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import SecurityConfig
 from tests.conftest import REDIS_URL, MockGuardRequest, MockGuardResponse
+from tests.engine_redis_commands import (
+    engine_commands_sent,
+    engine_redis_url,
+    unwatch_engine_commands,
+)
 
 IP = "198.51.100.91"
 OTHER = "198.51.100.92"
@@ -51,7 +56,7 @@ def clean_rate_limit_process_state() -> None:
 def _config(**overrides: Any) -> SecurityConfig:
     values: dict[str, Any] = {
         "enable_redis": True,
-        "redis_url": REDIS_URL,
+        "redis_url": engine_redis_url(REDIS_URL),
         "redis_prefix": f"test:wp3fu:clear:{uuid.uuid4().hex}:",
         "enable_penetration_detection": True,
         "enable_ip_banning": True,
@@ -112,7 +117,8 @@ class _Worker:
 
 @pytest.fixture
 async def redis() -> AsyncGenerator[RedisManager, None]:
-    manager = RedisManager(_config())
+    config = _config()
+    manager = RedisManager(config)
     await manager.initialize()
     ratelimit_handler.clear_by_ip_strikes()
     try:
@@ -120,6 +126,7 @@ async def redis() -> AsyncGenerator[RedisManager, None]:
     finally:
         await manager.delete_pattern("*")
         await manager.close()
+        unwatch_engine_commands(config.redis_url)
         ratelimit_handler.clear_by_ip_strikes()
 
 
@@ -248,10 +255,7 @@ async def test_clearing_the_windows_leaves_the_violations_alone(
 
 
 async def _command_calls(redis: RedisManager, command: str) -> int:
-    async with redis.get_connection() as conn:
-        stats = await conn.info("commandstats")
-    entry = stats.get(f"cmdstat_{command}")
-    return int(entry["calls"]) if entry else 0
+    return await engine_commands_sent(redis.config.redis_url, command)
 
 
 async def _seed_prefixed_keys(redis: RedisManager) -> None:

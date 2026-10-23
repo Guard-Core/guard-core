@@ -13,6 +13,11 @@ from guard_core.sync.core.checks.implementations.suspicious_activity import (
 from guard_core.sync.detection_result import DetectionResult
 from guard_core.sync.handlers.redis_handler import RedisManager
 from tests.test_sync.conftest import REDIS_URL
+from tests.test_sync.engine_redis_commands import (
+    engine_commands_sent,
+    engine_redis_url,
+    unwatch_engine_commands,
+)
 
 IP = "198.51.100.77"
 THRESHOLD = 5
@@ -23,7 +28,7 @@ DETECT_MODULE = "guard_core.sync.core.checks.implementations.suspicious_activity
 def _config(redis: bool = True, **overrides: Any) -> SyncSecurityConfig:
     values: dict[str, Any] = {
         "enable_redis": redis,
-        "redis_url": REDIS_URL,
+        "redis_url": engine_redis_url(REDIS_URL),
         "redis_prefix": f"test:wp3fu:detect:{uuid.uuid4().hex}:",
         "enable_penetration_detection": True,
         "enable_ip_banning": True,
@@ -108,6 +113,7 @@ def redis_workers(
     finally:
         redis.delete_pattern("*")
         redis.close()
+        unwatch_engine_commands(config.redis_url)
 
 
 def _all_bans(workers: list[_Worker]) -> list[tuple[str, int, str]]:
@@ -243,18 +249,11 @@ def test_without_redis_each_process_keeps_its_own_count(
 
 
 def _redis_calls(redis: RedisManager, command: str) -> int:
-    with redis.get_connection() as conn:
-        stats = conn.info("commandstats")
-    entry = stats.get(f"cmdstat_{command}")
-    return int(entry["calls"]) if entry else 0
+    return engine_commands_sent(redis.config.redis_url, command)
 
 
 def _all_redis_calls(redis: RedisManager) -> int:
-    with redis.get_connection() as conn:
-        stats = conn.info("commandstats")
-    return sum(
-        int(entry["calls"]) for name, entry in stats.items() if name != "cmdstat_info"
-    )
+    return engine_commands_sent(redis.config.redis_url)
 
 
 def test_a_strike_costs_one_script_call_whatever_the_categories(

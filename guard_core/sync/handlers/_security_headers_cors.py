@@ -3,7 +3,7 @@ from abc import abstractmethod
 from typing import Any
 
 from guard_core._security_headers_override import PULLED_OVERRIDES, OverrideRecord
-from guard_core.models import SyncSecurityConfig
+from guard_core.models import SecurityConfig, SyncSecurityConfig
 
 
 class SecurityHeadersCorsMixin:

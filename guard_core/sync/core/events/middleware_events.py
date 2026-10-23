@@ -2,7 +2,6 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
-from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils.request_logging import (
     redact_endpoint_for_display,
     redact_header_value_for_display,
@@ -13,6 +12,7 @@ from guard_core.sync.core.events.event_types import (
     EventFilter,
 )
 from guard_core.sync.decorators.base import RouteConfig
+from guard_core.models import SecurityConfig, SyncSecurityConfig
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 from guard_core.sync.utils import (
     extract_client_ip,
@@ -122,7 +122,9 @@ class SecurityEventBus:
             return
 
         try:
-            client_ip = extract_client_ip(request, self.config, self.agent_handler)
+            client_ip = extract_client_ip(
+                request, self.config, self.agent_handler
+            )
             country = self._lookup_country(client_ip)
             metadata = self._forward_trace_headers(request, kwargs)
             event = self._build_event(

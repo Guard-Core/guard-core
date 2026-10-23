@@ -49,7 +49,9 @@ def cloud_provider_attribution(
     return view.for_cloud_provider(provider, region) if view and provider else {}
 
 
-def user_agent_attribution(user_agent: str, patterns: list[str]) -> dict[str, Any]:
+def user_agent_attribution(
+    user_agent: str, patterns: list[str]
+) -> dict[str, Any]:
     view = _applied
     if view is None:
         return {}

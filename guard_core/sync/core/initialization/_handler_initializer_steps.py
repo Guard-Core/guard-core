@@ -1,11 +1,11 @@
-import logging
 import threading
+import time
+import logging
 from typing import TYPE_CHECKING, Any
 
 from guard_core._misconfiguration import report_misconfiguration
 from guard_core._redis_enablement import redis_is_configured, resolve_enable_redis
 from guard_core._staged_defaults import signal_changed_defaults
-from guard_core.exceptions import GuardRedisError
 from guard_core.sync.core.initialization._ban_threshold_report import (
     _BanThresholdContext,
     remember_ban_threshold_context,
@@ -24,9 +24,10 @@ from guard_core.sync.core.initialization._route_limit_report import (
 from guard_core.sync.core.initialization._whitelist_strikes import (
     reset_startup_whitelist_strikes,
 )
+from guard_core.exceptions import GuardRedisError
 
 if TYPE_CHECKING:
-    from guard_core.models import SyncSecurityConfig
+    from guard_core.models import SecurityConfig, SyncSecurityConfig
 
 
 class _HandlerInitializerStepsMixin(CloudInitializationMixin):
@@ -167,7 +168,9 @@ class _HandlerInitializerStepsMixin(CloudInitializationMixin):
 
         self._initialize_cloud_and_geo_redis()
         ip_ban_manager.initialize_redis(self.redis_handler)
-        reset_startup_whitelist_strikes(self.config, self.redis_handler, ip_ban_manager)
+        reset_startup_whitelist_strikes(
+            self.config, self.redis_handler, ip_ban_manager
+        )
 
         if self.rate_limit_handler is not None:
             self.rate_limit_handler.initialize_redis(self.redis_handler)

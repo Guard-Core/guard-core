@@ -23,13 +23,13 @@ from guard_core._security_headers_override import (
     override_display,
     override_event_metadata,
 )
-from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils.config_registry import REDIS_HANDLERS
 from guard_core.sync._utils.logging_utils import _sanitize_for_log
 from guard_core.sync._utils.request_logging import (
     _redact_sensitive_headers,
     redact_endpoint_for_display,
 )
+from guard_core.models import SecurityConfig, SyncSecurityConfig
 
 _OVERRIDE_NAMESPACE = "security_headers"
 _OWN_STATE_KEYS = ("csp_config", "hsts_config", "custom_headers")
@@ -392,12 +392,12 @@ class SecurityHeadersOverrideMixin:
             dict(record.event or {}),
         )
 
-    def _send_override_event_for(self, action: str, metadata: dict[str, Any]) -> None:
+    def _send_override_event_for(
+        self, action: str, metadata: dict[str, Any]
+    ) -> None:
         if not self.agent_handler:
             return
-        from guard_core.sync.core.events.event_types import (
-            EVENT_SECURITY_HEADERS_APPLIED,
-        )
+        from guard_core.sync.core.events.event_types import EVENT_SECURITY_HEADERS_APPLIED
 
         try:
             from datetime import datetime, timezone

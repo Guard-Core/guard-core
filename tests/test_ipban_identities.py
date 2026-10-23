@@ -14,6 +14,11 @@ from guard_core.handlers._ipban_queries import _strike_key_inside
 from guard_core.handlers.ipban_handler import IPBanManager
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import SecurityConfig
+from tests.engine_redis_commands import (
+    engine_commands_sent,
+    engine_redis_url,
+    unwatch_engine_commands,
+)
 
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379")
 IDENTITY = "2001:db8:0:1::/64"
@@ -31,13 +36,15 @@ def reset_singleton() -> Generator[None, None, None]:
 @pytest.fixture
 async def live_redis() -> AsyncGenerator[RedisManager, None]:
     config = SecurityConfig(
-        redis_url=REDIS_URL, redis_prefix=f"wp6-id:{uuid.uuid4().hex}:"
+        redis_url=engine_redis_url(REDIS_URL),
+        redis_prefix=f"wp6-id:{uuid.uuid4().hex}:",
     )
     manager = RedisManager(config)
     await manager.initialize()
     yield manager
     await manager.delete_pattern("*")
     await manager.close()
+    unwatch_engine_commands(config.redis_url)
 
 
 def _manager(**settings: Any) -> IPBanManager:
@@ -221,20 +228,14 @@ async def test_a_clean_ipv6_request_costs_one_redis_command(
     manager = _manager()
     manager.redis_handler = live_redis
     await manager.is_ip_banned("2001:db8:0:8::1")
-    async with live_redis.get_connection() as conn:
-        before = (
-            (await conn.info("commandstats")).get("cmdstat_mget", {}).get("calls", 0)
-        )
-        before_get = (
-            (await conn.info("commandstats")).get("cmdstat_get", {}).get("calls", 0)
-        )
+    url = live_redis.config.redis_url
+    before = await engine_commands_sent(url, "mget")
+    before_get = await engine_commands_sent(url, "get")
 
     await manager.is_ip_banned("2001:db8:0:9::1")
 
-    async with live_redis.get_connection() as conn:
-        stats = await conn.info("commandstats")
-    assert stats.get("cmdstat_mget", {}).get("calls", 0) - before == 1
-    assert stats.get("cmdstat_get", {}).get("calls", 0) - before_get == 0
+    assert await engine_commands_sent(url, "mget") - before == 1
+    assert await engine_commands_sent(url, "get") - before_get == 0
 
 
 async def test_reset_unlinks_the_redis_identity_namespace(

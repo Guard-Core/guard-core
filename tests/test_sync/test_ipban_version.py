@@ -9,6 +9,11 @@ import pytest
 from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.ipban_handler import IPBanManager
 from guard_core.sync.handlers.redis_handler import RedisManager
+from tests.test_sync.engine_redis_commands import (
+    engine_commands_sent,
+    engine_redis_url,
+    unwatch_engine_commands,
+)
 
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379")
 OPERATOR_NETWORK = "198.51.100.0/24"
@@ -25,14 +30,21 @@ def reset_singleton() -> Generator[None, None, None]:
 
 @pytest.fixture
 def live_redis() -> Generator[RedisManager, None]:
+<<<<<<< HEAD
     config = SyncSecurityConfig(
         redis_url=REDIS_URL, redis_prefix=f"wp6-ver:{uuid.uuid4().hex}:"
+=======
+    config = SecurityConfig(
+        redis_url=engine_redis_url(REDIS_URL),
+        redis_prefix=f"wp6-ver:{uuid.uuid4().hex}:",
+>>>>>>> 25f80e42 (test(redis): count the commands the engine's own connections run, not the server's, so another client on the same Redis cannot fail a proof of what a request costs)
     )
     manager = RedisManager(config)
     manager.initialize()
     yield manager
     manager.delete_pattern("*")
     manager.close()
+    unwatch_engine_commands(config.redis_url)
 
 
 def _worker(redis: RedisManager) -> IPBanManager:
@@ -49,9 +61,7 @@ def _version(redis: RedisManager) -> int:
 
 
 def _commands(redis: RedisManager, name: str) -> int:
-    with redis.get_connection() as conn:
-        stats = conn.info("commandstats")
-    return int(stats.get(f"cmdstat_{name}", {}).get("calls", 0))
+    return engine_commands_sent(redis.config.redis_url, name)
 
 
 def test_an_operator_cidr_ban_is_enforced_on_the_worker_that_made_it(

@@ -1,13 +1,13 @@
 from collections.abc import Collection
 
-from guard_core.models import SyncSecurityConfig
-from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.forwarded_proto import request_is_https
 from guard_core.sync._utils.ip_extraction import _is_trusted_proxy
 from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.core.checks.helpers import route_config_applies
 from guard_core.sync.decorators.base import RouteConfig
+from guard_core.models import SecurityConfig, SyncSecurityConfig
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
+from guard_core.protocols.response_protocol import GuardResponse
 
 
 class HttpsEnforcementCheck(SecurityCheck):
@@ -32,8 +32,8 @@ class HttpsEnforcementCheck(SecurityCheck):
         return _is_trusted_proxy(connecting_ip, self.config.trusted_proxies)
 
     def _create_https_redirect(self, request: SyncGuardRequest) -> GuardResponse:
-        result: GuardResponse = self.middleware.response_factory.create_https_redirect(
-            request
+        result: GuardResponse = (
+            self.middleware.response_factory.create_https_redirect(request)
         )
         return result
 
@@ -49,7 +49,9 @@ class HttpsEnforcementCheck(SecurityCheck):
         if self._is_request_https(request):
             return None
 
-        self.middleware.event_bus.send_https_violation_event(request, route_config)
+        self.middleware.event_bus.send_https_violation_event(
+            request, route_config
+        )
 
         if not self.config.passive_mode:
             return self._create_https_redirect(request)

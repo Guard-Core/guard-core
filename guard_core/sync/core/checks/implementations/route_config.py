@@ -1,9 +1,9 @@
-from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.core.checks.route_prefixes import warn_unmatched_exclude_paths
 from guard_core.sync.core.events.event_types import EVENT_ROUTE_UNRESOLVED
 from guard_core.sync.handlers.cors_handler import is_preflight
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
+from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.utils import extract_client_ip, log_activity
 
 UNRESOLVED_ROUTE_REASON = (

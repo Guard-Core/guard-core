@@ -119,9 +119,7 @@ def build_callback_error_event_data(
     safe_anomaly: dict[str, Any],
     correlation_id: str | None,
 ) -> dict[str, Any]:
-    from guard_core.sync.core.events.event_types import (
-        EVENT_DETECTION_ENGINE_CALLBACK_ERROR,
-    )
+    from guard_core.sync.core.events.event_types import EVENT_DETECTION_ENGINE_CALLBACK_ERROR
 
     return {
         "timestamp": datetime.now(timezone.utc),

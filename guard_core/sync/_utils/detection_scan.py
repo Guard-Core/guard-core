@@ -448,7 +448,9 @@ def _build_threats_message(threats: list[dict[str, Any]]) -> str:
 _MAX_USER_AGENT_MATCH_LENGTH = 512
 
 
-def _user_agent_matches_blocked_pattern(user_agent: str, patterns: list[str]) -> bool:
+def _user_agent_matches_blocked_pattern(
+    user_agent: str, patterns: list[str]
+) -> bool:
     from guard_core.sync.detection_engine.compiler import PatternCompiler
 
     subject = user_agent[:_MAX_USER_AGENT_MATCH_LENGTH]

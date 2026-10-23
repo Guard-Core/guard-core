@@ -1,3 +1,5 @@
+import threading
+import time
 import concurrent.futures
 import logging
 import re
@@ -38,7 +40,9 @@ def shared_regex_executor() -> concurrent.futures.ThreadPoolExecutor:
     return _shared_executor
 
 
-def _await_regex_future(future: concurrent.futures.Future[Any], timeout: float) -> Any:
+def _await_regex_future(
+    future: concurrent.futures.Future[Any], timeout: float
+) -> Any:
     return future.result(timeout=timeout)
 
 

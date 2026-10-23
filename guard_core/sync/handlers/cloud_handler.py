@@ -1,3 +1,5 @@
+import threading
+import time
 import ipaddress
 import logging
 import threading
@@ -7,9 +9,9 @@ from collections.abc import Callable, Collection
 from datetime import datetime, timezone
 from typing import Any
 
-from guard_core.exceptions import DownloaderNotInstalledError
 from guard_core.sync._utils.logging_utils import _sanitize_for_log
 from guard_core.sync._utils.sampling import observe_sampled_key
+from guard_core.exceptions import DownloaderNotInstalledError
 from guard_core.sync.handlers._cloud_azure_fetch import (
     _AZURE_DOWNLOAD_ATTEMPT_TIMEOUT_SECONDS,
     _AZURE_DOWNLOAD_MAX_ATTEMPTS,
@@ -256,7 +258,9 @@ class CloudManager:
         if isinstance(error, DownloaderNotInstalledError):
             raise error
 
-    def _refresh_providers(self, providers: Collection[str] = _ALL_PROVIDERS) -> None:
+    def _refresh_providers(
+        self, providers: Collection[str] = _ALL_PROVIDERS
+    ) -> None:
         for provider in _bare_provider_names(providers):
             try:
                 ranges, regions = _fetch_provider_ranges(provider)

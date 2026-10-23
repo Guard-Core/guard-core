@@ -20,6 +20,11 @@ from guard_core.sync.handlers.ratelimit_handler import (
 )
 from guard_core.sync.handlers.redis_handler import RedisManager
 from tests.test_sync.conftest import REDIS_URL, MockGuardResponse, SyncMockGuardRequest
+from tests.test_sync.engine_redis_commands import (
+    engine_commands_sent,
+    engine_redis_url,
+    unwatch_engine_commands,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -289,16 +294,14 @@ def test_a_class_level_assignment_changes_no_manager(
 
 
 def _redis_commands_issued(redis: RedisManager) -> int:
-    with redis.get_connection() as conn:
-        stats = conn.info("commandstats")
-    return sum(int(entry["calls"]) for entry in stats.values())
+    return engine_commands_sent(redis.config.redis_url)
 
 
 @pytest.fixture
 def redis_app() -> Generator[tuple[SyncSecurityConfig, RateLimitManager], None]:
     config = SyncSecurityConfig(
         enable_redis=True,
-        redis_url=REDIS_URL,
+        redis_url=engine_redis_url(REDIS_URL),
         redis_prefix=f"test:wp3fu:{uuid.uuid4().hex}:",
         enable_penetration_detection=False,
         enable_rate_limiting=True,
@@ -314,6 +317,7 @@ def redis_app() -> Generator[tuple[SyncSecurityConfig, RateLimitManager], None]:
     finally:
         redis.delete_pattern("*")
         redis.close()
+        unwatch_engine_commands(config.redis_url)
 
 
 def test_after_the_documented_reset_the_app_still_counts_through_redis(

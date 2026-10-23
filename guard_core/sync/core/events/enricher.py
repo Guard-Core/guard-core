@@ -63,7 +63,7 @@ from guard_core.sync.core.events.event_types import (
 from guard_core.sync.handlers.behavior_handler import RECENT_RULE_HITS_WINDOW_SECONDS
 
 if TYPE_CHECKING:
-    from guard_core.models import SyncSecurityConfig
+    from guard_core.models import SecurityConfig, SyncSecurityConfig
 
 logger = logging.getLogger("guard_core.enricher")
 
@@ -184,7 +184,9 @@ class EventEnricher:
         bag[ENRICHMENT_KEY_RULE_ID] = rule_id
         bag[ENRICHMENT_KEY_RULE_VERSION] = rule_version
 
-    def _apply_behavior_correlation(self, event: Any, bag: dict[str, Any]) -> None:
+    def _apply_behavior_correlation(
+        self, event: Any, bag: dict[str, Any]
+    ) -> None:
         tracker = self._context.behavior_tracker
         ip = getattr(event, "ip_address", None)
         if tracker is None or not ip:

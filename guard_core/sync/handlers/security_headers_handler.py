@@ -6,7 +6,6 @@ from cachetools import TTLCache
 
 from guard_core._redis_enablement import redis_is_configured
 from guard_core._security_headers_override import OverrideRecord
-from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers._security_headers_cache import SecurityHeadersCacheMixin
 from guard_core.sync.handlers._security_headers_config import SecurityHeadersConfigMixin
 from guard_core.sync.handlers._security_headers_cors import SecurityHeadersCorsMixin
@@ -14,6 +13,7 @@ from guard_core.sync.handlers._security_headers_events import SecurityHeadersEve
 from guard_core.sync.handlers._security_headers_override_state import (
     SecurityHeadersOverrideMixin,
 )
+from guard_core.models import SecurityConfig, SyncSecurityConfig
 
 
 class ResolvedHeaders(dict[str, str]):
@@ -207,7 +207,9 @@ class SecurityHeadersManager(
         cached = self.headers_cache.get(cache_key)
         if isinstance(cached, dict):
             return cached
-        return self._build_headers_and_announce(request_path, None, cache_key, None)
+        return self._build_headers_and_announce(
+            request_path, None, cache_key, None
+        )
 
     def _build_headers_and_announce(
         self,

@@ -1,13 +1,13 @@
 from collections.abc import Collection
 
-from guard_core.models import SyncSecurityConfig
-from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.decorators.base import RouteConfig
 from guard_core.sync.handlers.cors_handler import CorsHandler, is_preflight
 from guard_core.sync.handlers.security_headers_handler import SecurityHeadersManager
+from guard_core.models import SecurityConfig, SyncSecurityConfig
 from guard_core.sync.protocols.middleware_protocol import SyncGuardMiddlewareProtocol
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
+from guard_core.protocols.response_protocol import GuardResponse
 
 
 class CorsPreflightCheck(SecurityCheck):

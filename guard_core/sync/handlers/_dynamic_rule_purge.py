@@ -11,13 +11,13 @@ from guard_core._dynamic_rules import (
     load_last_known_ownership,
     load_last_known_rules_snapshot,
 )
-from guard_core.models import DynamicRules, SyncSecurityConfig
 from guard_core.sync.handlers._dynamic_rule_persistence import (
     DYNAMIC_RULES_REDIS_NAMESPACE,
     PURGED_MARKER_KEY,
     parse_purge_target,
     resolve_redis_value,
 )
+from guard_core.models import DynamicRules, SecurityConfig, SyncSecurityConfig
 
 _NESTED_AUTO_BANS_NOTE = (
     "auto-bans nested inside the purged rule bans are cut back to their own expiry"

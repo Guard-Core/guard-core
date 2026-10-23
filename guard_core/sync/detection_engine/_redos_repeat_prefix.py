@@ -14,12 +14,8 @@ from guard_core.sync.detection_engine._redos_prefix_history import (
     _optional_states_are_equivalent,
     _suffix_history,
 )
-from guard_core.sync.detection_engine._redos_repeat_alphabet import (
-    _repeat_alphabet_fills,
-)
-from guard_core.sync.detection_engine._redos_repeat_lookbehind import (
-    _walk_negative_behind,
-)
+from guard_core.sync.detection_engine._redos_repeat_alphabet import _repeat_alphabet_fills
+from guard_core.sync.detection_engine._redos_repeat_lookbehind import _walk_negative_behind
 from guard_core.sync.detection_engine._redos_repeat_prefix_state import (
     _PREFIX_WALK_STATE_LIMIT,
     _PREFIX_WALK_TEXT_BUDGET,

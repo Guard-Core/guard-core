@@ -4,8 +4,8 @@ from collections import OrderedDict
 from collections.abc import Callable
 from typing import Any
 
-from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils.sampling import observe_counted_key
+from guard_core.models import SecurityConfig, SyncSecurityConfig
 
 EVICTION_WARNING_WINDOW_SECONDS = 60
 _EVICTION_KINDS_TRACKED = 8
@@ -77,9 +77,7 @@ class BehaviorEvictionMixin:
             suppressed,
             "refusals" if refused else "evictions",
         )
-        from guard_core.sync.core.events.event_types import (
-            EVENT_BEHAVIOR_BUCKET_EVICTED,
-        )
+        from guard_core.sync.core.events.event_types import EVENT_BEHAVIOR_BUCKET_EVICTED
 
         if (
             self.agent_handler

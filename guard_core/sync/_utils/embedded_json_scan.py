@@ -14,9 +14,7 @@ from guard_core.sync._utils.detection_scan import (
 )
 from guard_core.sync._utils.json_nesting import _nests_deeper_than
 from guard_core.sync._utils.kept_value_paths import _NOTHING_TO_KEEP, _keep_only_values
-from guard_core.sync.handlers._suspatterns_sources import (
-    _EMBEDDED_JSON_LEAF_CONTEXT_SUFFIX,
-)
+from guard_core.sync.handlers._suspatterns_sources import _EMBEDDED_JSON_LEAF_CONTEXT_SUFFIX
 
 # One fixed limit below the lowest json.loads limit (see json_nesting) keeps every
 # interpreter on the same path for a value that already sits inside a parsed body.

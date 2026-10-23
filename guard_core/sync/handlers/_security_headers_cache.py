@@ -17,9 +17,9 @@ from guard_core._security_headers_record_validation import (
     validate_cached_csp,
     validate_cached_hsts,
 )
-from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils.logging_utils import _sanitize_for_log
 from guard_core.sync.handlers.redis_handler import scan_unlink
+from guard_core.models import SecurityConfig, SyncSecurityConfig
 
 
 class SecurityHeadersCacheMixin:
@@ -163,7 +163,9 @@ class SecurityHeadersCacheMixin:
                 self._apply_own_state(
                     self.redis_handler.get_key("security_headers", "csp_config"),
                     self.redis_handler.get_key("security_headers", "hsts_config"),
-                    self.redis_handler.get_key("security_headers", "custom_headers"),
+                    self.redis_handler.get_key(
+                        "security_headers", "custom_headers"
+                    ),
                 )
             except Exception as e:
                 self.logger.warning(

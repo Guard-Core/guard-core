@@ -4,8 +4,6 @@ from collections.abc import Collection
 from typing import TYPE_CHECKING, Any
 
 from guard_core._misconfiguration import report_misconfiguration
-from guard_core.models import SyncSecurityConfig
-from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.agent_events import agent_receives_events
 from guard_core.sync._utils.route_gate import (
     ROUTE_TEMPLATE_STATE_ATTR,
@@ -32,13 +30,13 @@ from guard_core.sync.core.events.event_types import (
 )
 from guard_core.sync.decorators.base import RouteConfig
 from guard_core.sync.detection_result import BODY_READ_STALLED, DetectionResult
+from guard_core.models import SecurityConfig, SyncSecurityConfig
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
+from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.utils import log_activity
 
 if TYPE_CHECKING:
-    from guard_core.sync.protocols.middleware_protocol import (
-        SyncGuardMiddlewareProtocol,
-    )
+    from guard_core.sync.protocols.middleware_protocol import SyncGuardMiddlewareProtocol
 
 
 _DISABLED_DETECTION_EVENT_WINDOW_SECONDS = 60

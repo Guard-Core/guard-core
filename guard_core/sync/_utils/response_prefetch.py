@@ -1,8 +1,8 @@
 from contextvars import ContextVar
 from typing import Protocol, runtime_checkable
 
-from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.body_reader import _safe_read
+from guard_core.protocols.response_protocol import GuardResponse
 
 
 @runtime_checkable

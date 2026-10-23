@@ -2,15 +2,13 @@ from abc import ABC, abstractmethod
 from collections.abc import Collection
 from typing import TYPE_CHECKING, Any, ClassVar
 
-from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
+from guard_core.protocols.response_protocol import GuardResponse
 
 if TYPE_CHECKING:
-    from guard_core.models import SyncSecurityConfig
     from guard_core.sync.decorators.base import RouteConfig
-    from guard_core.sync.protocols.middleware_protocol import (
-        SyncGuardMiddlewareProtocol,
-    )
+    from guard_core.models import SecurityConfig, SyncSecurityConfig
+    from guard_core.sync.protocols.middleware_protocol import SyncGuardMiddlewareProtocol
 
 
 class SecurityCheck(ABC):

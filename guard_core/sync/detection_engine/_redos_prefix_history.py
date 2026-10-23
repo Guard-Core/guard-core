@@ -1,12 +1,7 @@
 from typing import Any
 
-from guard_core.sync.detection_engine._redos_parse_slots import (
-    _PAIRING_OPS,
-    _regex_parser,
-)
-from guard_core.sync.detection_engine._redos_repeat_prefix_state import (
-    _RepeatPrefixState,
-)
+from guard_core.sync.detection_engine._redos_parse_slots import _PAIRING_OPS, _regex_parser
+from guard_core.sync.detection_engine._redos_repeat_prefix_state import _RepeatPrefixState
 
 
 def _node_observes_history(op: Any, av: Any) -> bool:

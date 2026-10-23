@@ -33,9 +33,7 @@ from guard_core.sync._utils.source_path_shapes import (
     mark_benign_shape,
     mark_benign_shape_path,
 )
-from guard_core.sync.handlers._suspatterns_sources import (
-    _EMBEDDED_JSON_LEAF_CONTEXT_SUFFIX,
-)
+from guard_core.sync.handlers._suspatterns_sources import _EMBEDDED_JSON_LEAF_CONTEXT_SUFFIX
 
 
 class _RepeatedKey(str):

@@ -9,8 +9,8 @@ from guard_core.sync._utils.request_logging import (
 from guard_core.sync._utils.route_gate import PATH_PARAM_DEFAULT_CATEGORIES
 
 if TYPE_CHECKING:
-    from guard_core.models import SyncSecurityConfig
     from guard_core.sync.decorators.base import RouteConfig
+    from guard_core.models import SecurityConfig, SyncSecurityConfig
 
 
 def _excluded_params_by_name(
@@ -276,17 +276,13 @@ def _resolve_log_level(config: "SyncSecurityConfig | None") -> str | None:
     return config.log_suspicious_level if config is not None else "WARNING"
 
 
-def _resolve_sensitive_log_headers(
-    config: "SyncSecurityConfig | None",
-) -> frozenset[str]:
+def _resolve_sensitive_log_headers(config: "SyncSecurityConfig | None") -> frozenset[str]:
     return _merge_sensitive_log_headers(
         config.log_sensitive_headers if config is not None else None
     )
 
 
-def _resolve_sensitive_log_params(
-    config: "SyncSecurityConfig | None",
-) -> frozenset[str]:
+def _resolve_sensitive_log_params(config: "SyncSecurityConfig | None") -> frozenset[str]:
     return _merge_sensitive_names(
         _DEFAULT_SENSITIVE_LOG_FIELDS,
         config.log_sensitive_params if config is not None else None,

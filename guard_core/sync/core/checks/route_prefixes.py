@@ -10,7 +10,7 @@ from guard_core.sync.core.validation.path_matching import (
 )
 
 if TYPE_CHECKING:
-    from guard_core.models import SyncSecurityConfig
+    from guard_core.models import SecurityConfig, SyncSecurityConfig
 
 _REGEX_META = frozenset("\\.[](){}*+?|$")
 _OPTIONAL_AFTER = frozenset("?*{")
@@ -102,9 +102,7 @@ def warn_unmatched_exclude_paths(middleware: Any, config: "SyncSecurityConfig") 
         )
 
 
-def _warn_unmatched_exclude_paths(
-    middleware: Any, config: "SyncSecurityConfig"
-) -> None:
+def _warn_unmatched_exclude_paths(middleware: Any, config: "SyncSecurityConfig") -> None:
     reported = _reported(middleware)
     if _EXCLUDE_PATHS_EXAMINED in reported:
         return

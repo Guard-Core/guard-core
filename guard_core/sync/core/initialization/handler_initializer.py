@@ -1,5 +1,6 @@
-import logging
 import threading
+import time
+import logging
 from typing import TYPE_CHECKING, Any
 
 from guard_core.sync._utils.config_registry import REDIS_HANDLERS
@@ -9,9 +10,9 @@ from guard_core.sync.core.initialization._handler_initializer_steps import (
 from guard_core.sync.handlers.behavior_handler import BehaviorTracker
 
 if TYPE_CHECKING:
-    from guard_core.models import SyncSecurityConfig
     from guard_core.sync.core.events.metrics import MetricsCollector
     from guard_core.sync.core.events.middleware_events import SecurityEventBus
+    from guard_core.models import SecurityConfig, SyncSecurityConfig
 
 
 class HandlerInitializer(_HandlerInitializerStepsMixin):
@@ -69,10 +70,7 @@ class HandlerInitializer(_HandlerInitializerStepsMixin):
     def build_enricher(self) -> Any | None:
         if not self.config.enable_enrichment:
             return None
-        from guard_core.sync.core.events.enricher import (
-            EnrichmentContext,
-            EventEnricher,
-        )
+        from guard_core.sync.core.events.enricher import EnrichmentContext, EventEnricher
 
         dynamic_rule_handler: Any = None
         if self.config.enable_dynamic_rules:

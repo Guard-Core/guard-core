@@ -6,7 +6,6 @@ from ipaddress import ip_address
 from typing import TYPE_CHECKING, Any, cast
 from urllib.parse import urlparse
 
-from guard_core.models import SyncSecurityConfig, ThreatBanConfig
 from guard_core.sync.core.checks._shared_strikes import (
     SharedStrikes,
     StrikeReport,
@@ -54,6 +53,7 @@ from guard_core.sync.core.events.event_types import (
 )
 from guard_core.sync.decorators.base import BaseSecurityDecorator, RouteConfig
 from guard_core.sync.detection_result import DetectionResult
+from guard_core.models import SecurityConfig, ThreatBanConfig, SyncSecurityConfig
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 from guard_core.sync.utils import (
     UNKNOWN_CLIENT_IDENTITY,
@@ -65,9 +65,7 @@ from guard_core.sync.utils import (
 
 if TYPE_CHECKING:
     from guard_core.sync.core.checks.base import SecurityCheck
-    from guard_core.sync.protocols.middleware_protocol import (
-        SyncGuardMiddlewareProtocol,
-    )
+    from guard_core.sync.protocols.middleware_protocol import SyncGuardMiddlewareProtocol
 
 SUSPICIOUS_COUNT_WINDOW_SECONDS = 3600
 _MAX_TRACKED_SUSPICIOUS_IPS = 10_000
@@ -733,7 +731,9 @@ def report_hostile_signal(
     """
     if check.config.ban_on_hostile_signals:
         if category is not None:
-            count_hostile_signal_and_maybe_ban(check, request, category, trigger_info)
+            count_hostile_signal_and_maybe_ban(
+                check, request, category, trigger_info
+            )
         return
     client_ip = getattr(request.state, "client_ip", None)
     if legacy_violation is None or check.config.passive_mode or not client_ip:

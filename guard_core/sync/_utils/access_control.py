@@ -341,7 +341,9 @@ def _check_country_and_cloud_detail(
     geo_failure: str | None = None
     if not skip_countries:
         try:
-            country_result = _check_blocked_countries_detail(ip, config, geo_ip_handler)
+            country_result = _check_blocked_countries_detail(
+                ip, config, geo_ip_handler
+            )
         except _GeoLookupError as failure:
             geo_failure = failure.kind
             country_result = _result_for_geo_failure(failure.kind, config)
@@ -374,7 +376,9 @@ def check_ip_access(
         ip_addr = ip_address(ip)
 
         if not skip_ip_lists:
-            list_result = _check_ip_lists_detail(ip_addr, ip, config, skip_whitelist)
+            list_result = _check_ip_lists_detail(
+                ip_addr, ip, config, skip_whitelist
+            )
             if list_result is not None:
                 return list_result
             if not skip_whitelist and _ip_in_list(ip_addr, ip, config.whitelist):

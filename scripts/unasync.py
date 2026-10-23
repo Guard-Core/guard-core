@@ -487,6 +487,8 @@ TEST_SUBS: list[tuple[str, str]] = [
     (
         r"(?<!\w)SecurityConfig\.model_construct\(",
         "SyncSecurityConfig.model_construct(",
+        r"from tests\.engine_redis_commands import",
+        "from tests.test_sync.engine_redis_commands import",
     ),
     (r"\bMockGuardRequest\b", "SyncMockGuardRequest"),
     (r"AsyncMock, MagicMock", "MagicMock"),

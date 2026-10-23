@@ -95,13 +95,17 @@ def fetch_digitalocean_ip_ranges() -> set[
     ipaddress.IPv4Network | ipaddress.IPv6Network
 ]:
     try:
-        return _fetch_csv_prefix_networks("https://www.digitalocean.com/geo/google.csv")
+        return _fetch_csv_prefix_networks(
+            "https://www.digitalocean.com/geo/google.csv"
+        )
     except Exception as e:
         logger.error(f"Failed to fetch DigitalOcean IP ranges: {str(e)}")
         return set()
 
 
-def fetch_linode_ip_ranges() -> set[ipaddress.IPv4Network | ipaddress.IPv6Network]:
+def fetch_linode_ip_ranges() -> set[
+    ipaddress.IPv4Network | ipaddress.IPv6Network
+]:
     try:
         return _fetch_csv_prefix_networks("https://geoip.linode.com/")
     except Exception as e:

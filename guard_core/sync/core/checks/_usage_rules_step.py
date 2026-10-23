@@ -2,7 +2,6 @@ from collections.abc import Callable, Sequence
 from functools import partial
 from typing import Any
 
-from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.core.behavioral._throttle import (
     can_build_error_response,
     is_throttle_rule,
@@ -13,6 +12,7 @@ from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.handlers.behavior_handler import BehaviorRule, config_to_rule
 from guard_core.sync.handlers.cors_handler import is_preflight
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
+from guard_core.protocols.response_protocol import GuardResponse
 
 _ROUTE_NOT_RESOLVED = object()
 

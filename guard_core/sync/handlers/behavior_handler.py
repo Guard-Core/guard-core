@@ -9,13 +9,9 @@ from typing import Any, Literal
 
 from cachetools import TTLCache
 
-from guard_core.models import BehaviorRuleConfig, SyncSecurityConfig
-from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.identity_hash import _hash_identity_segment
 from guard_core.sync._utils.lru_store import _lru_pop_or_create
-from guard_core.sync.handlers._behavior_action_dispatch import (
-    BehaviorActionDispatchMixin,
-)
+from guard_core.sync.handlers._behavior_action_dispatch import BehaviorActionDispatchMixin
 from guard_core.sync.handlers._behavior_response_pattern import (
     BehaviorResponsePatternMixin,
     _BoundedResponseBodyReader,
@@ -32,6 +28,8 @@ from guard_core.sync.handlers._behavior_throttle import (
     rule_hit_ttl,
     usage_hits_key,
 )
+from guard_core.models import BehaviorRuleConfig, SecurityConfig, SyncSecurityConfig
+from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.utils import _log_at_level, _safe_read
 
 __all__ = [

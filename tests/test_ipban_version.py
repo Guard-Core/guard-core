@@ -9,6 +9,11 @@ import pytest
 from guard_core.handlers.ipban_handler import IPBanManager
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import SecurityConfig
+from tests.engine_redis_commands import (
+    engine_commands_sent,
+    engine_redis_url,
+    unwatch_engine_commands,
+)
 
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379")
 OPERATOR_NETWORK = "198.51.100.0/24"
@@ -26,13 +31,15 @@ def reset_singleton() -> Generator[None, None, None]:
 @pytest.fixture
 async def live_redis() -> AsyncGenerator[RedisManager, None]:
     config = SecurityConfig(
-        redis_url=REDIS_URL, redis_prefix=f"wp6-ver:{uuid.uuid4().hex}:"
+        redis_url=engine_redis_url(REDIS_URL),
+        redis_prefix=f"wp6-ver:{uuid.uuid4().hex}:",
     )
     manager = RedisManager(config)
     await manager.initialize()
     yield manager
     await manager.delete_pattern("*")
     await manager.close()
+    unwatch_engine_commands(config.redis_url)
 
 
 def _worker(redis: RedisManager) -> IPBanManager:
@@ -49,9 +56,7 @@ async def _version(redis: RedisManager) -> int:
 
 
 async def _commands(redis: RedisManager, name: str) -> int:
-    async with redis.get_connection() as conn:
-        stats = await conn.info("commandstats")
-    return int(stats.get(f"cmdstat_{name}", {}).get("calls", 0))
+    return await engine_commands_sent(redis.config.redis_url, name)
 
 
 async def test_an_operator_cidr_ban_is_enforced_on_the_worker_that_made_it(

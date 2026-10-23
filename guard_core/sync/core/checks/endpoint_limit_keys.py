@@ -1,8 +1,8 @@
 from collections.abc import Callable, Iterable
 
 from guard_core._misconfiguration import config_logger
-from guard_core.protocols.route_identity import RouteIdentity
 from guard_core.sync._utils.request_path import resolve_dot_and_empty_segments
+from guard_core.protocols.route_identity import RouteIdentity
 
 RouteResolver = Callable[[str], tuple[RouteIdentity, ...]]
 

@@ -2,10 +2,7 @@ from dataclasses import replace
 from typing import Any
 
 from guard_core.sync.detection_engine._redos_intervals import _IntervalSet
-from guard_core.sync.detection_engine._redos_parse_slots import (
-    _PAIRING_OPS,
-    _node_intervals,
-)
+from guard_core.sync.detection_engine._redos_parse_slots import _PAIRING_OPS, _node_intervals
 from guard_core.sync.detection_engine._redos_repeat_prefix_state import (
     _REPEAT_PREFIX_STATE_LIMIT,
     _RepeatPrefixState,

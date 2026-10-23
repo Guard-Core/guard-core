@@ -1,8 +1,6 @@
 from collections.abc import Collection
 from typing import TYPE_CHECKING, Any, ClassVar
 
-from guard_core.models import SyncSecurityConfig, cloud_blocking_enabled
-from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.agent_events import agent_receives_events
 from guard_core.sync._utils.rule_attribution import cloud_provider_attribution
 from guard_core.sync.core.checks.base import SecurityCheck
@@ -16,13 +14,13 @@ from guard_core.sync.core.events.event_types import (
     EVENT_IP_BLOCKED,
 )
 from guard_core.sync.decorators.base import RouteConfig
+from guard_core.models import SecurityConfig, cloud_blocking_enabled, SyncSecurityConfig
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
+from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.utils import log_activity
 
 if TYPE_CHECKING:
-    from guard_core.sync.protocols.middleware_protocol import (
-        SyncGuardMiddlewareProtocol,
-    )
+    from guard_core.sync.protocols.middleware_protocol import SyncGuardMiddlewareProtocol
 
 
 def _cloud_block_reason(client_ip: str, cloud_details: tuple[str, str] | None) -> str:

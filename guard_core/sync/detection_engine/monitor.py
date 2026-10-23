@@ -1,6 +1,7 @@
+import threading
+import time
 import logging
 import math
-import threading
 import time
 from collections import deque
 from datetime import datetime, timezone
@@ -276,7 +277,9 @@ class PerformanceMonitor:
         if agent_handler and anomalies:
             if self._reserve_anomaly_emission(metric.pattern):
                 for anomaly in anomalies:
-                    self._send_anomaly_event(anomaly, agent_handler, correlation_id)
+                    self._send_anomaly_event(
+                        anomaly, agent_handler, correlation_id
+                    )
 
         for anomaly in anomalies:
             self._notify_callbacks(anomaly, agent_handler, correlation_id)

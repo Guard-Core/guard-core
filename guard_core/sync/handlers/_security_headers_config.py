@@ -22,7 +22,7 @@ from guard_core._security_headers_override import (
     passed_or,
     validate_cors_override,
 )
-from guard_core.models import SyncSecurityConfig
+from guard_core.models import SecurityConfig, SyncSecurityConfig
 
 
 class SecurityHeadersConfigMixin:

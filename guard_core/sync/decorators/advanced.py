@@ -2,8 +2,6 @@ import logging
 from collections.abc import Callable, MutableMapping
 from urllib.parse import urlsplit
 
-from guard_core.models import SyncSecurityConfig
-from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.body_reader import _parse_content_length
 from guard_core.sync._utils.honeypot_fields import (
     FORM_MEDIA_TYPE,
@@ -20,7 +18,9 @@ from guard_core.sync.decorators._route_arguments import (
     unknown_time_zone,
 )
 from guard_core.sync.decorators.base import BaseSecurityMixin, GuardedCallable
+from guard_core.models import SecurityConfig, SyncSecurityConfig
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
+from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.utils import _read_capped_body
 
 logger = logging.getLogger(__name__)

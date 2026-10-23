@@ -1,7 +1,6 @@
 from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
-from guard_core.exceptions import BodyReadFailedError, BodyReadStalledError
 from guard_core.sync._utils.body_content_scan import (
     _scan_headers,
     _scan_query_param_value,
@@ -56,11 +55,12 @@ from guard_core.sync._utils.route_gate import (
     static_file_state_served,
 )
 from guard_core.sync.detection_result import DetectionResult
+from guard_core.exceptions import BodyReadFailedError, BodyReadStalledError
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
 if TYPE_CHECKING:
-    from guard_core.models import SyncSecurityConfig
     from guard_core.sync.decorators.base import RouteConfig
+    from guard_core.models import SecurityConfig, SyncSecurityConfig
 
 
 def _scan_url_path_variants(
