@@ -1,4 +1,6 @@
+import math
 import os
+import time
 import uuid
 from collections.abc import AsyncGenerator
 
@@ -109,11 +111,17 @@ async def test_the_whitelist_path_deletes_the_floor(live_redis: RedisManager) ->
 async def test_the_floor_lives_exactly_as_long_as_the_foreign_ban(
     live_redis: RedisManager,
 ) -> None:
+    before = time.time()
     await _hide_a_rule_ban_under_a_foreign_one(live_redis, IP)
+    after = time.time()
+    floor_key = f"{live_redis.config.redis_prefix}ban_floors:banned_ips:{IP}"
 
-    floor = await _ttl(live_redis, "ban_floors", f"banned_ips:{IP}")
+    async with live_redis.get_connection() as conn:
+        foreign_expiry = float(await conn.get(floor_key))
+        floor_expires_at_ms = int(await conn.pexpiretime(floor_key))
 
-    assert 55_000 < floor <= 60_000
+    assert before + 60 <= foreign_expiry <= after + 60
+    assert floor_expires_at_ms == math.floor(foreign_expiry * 1000)
 
 
 async def test_the_carve_rewrite_moves_the_floor_with_the_ban(
