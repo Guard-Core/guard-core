@@ -89,7 +89,7 @@ This table shows what each property maps to in common frameworks:
 
     - `state.client_ip` -- set by `RouteConfigCheck` (check #1)
     - `state.route_config` -- set by `RouteConfigCheck` (check #1)
-    - `state.is_whitelisted` -- set by `IpSecurityCheck` (check #12): `True` for a global `whitelist` match, or always `False` when `whitelist_access_only` is on (the matching entry is then in `state.whitelist_entry`)
+    - `state.is_whitelisted` -- set by `IpSecurityCheck` (check #12): `True` for a global `whitelist` match, or always `False` when `whitelist_access_only` is on, the default since 5.0.0 (the matching entry is then in `state.whitelist_entry`)
 
     Your adapter's `GuardRequest.state` implementation must support arbitrary attribute assignment.
 

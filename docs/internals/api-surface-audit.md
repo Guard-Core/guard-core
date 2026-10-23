@@ -108,10 +108,10 @@ Ordered by domain, then by field name.
 | `trusted_proxies` | `tuple[str, ...]` | `tuple` | proxy | Keep |
 | `trusted_proxy_depth` | `int` | `1` | proxy | Keep |
 | `trust_x_forwarded_proto` | `bool` | `False` | proxy | Keep |
-| `rate_limit` | `int` | `10` | rate-limit | Keep |
+| `rate_limit` | `int` | `120` | rate-limit | Keep |
 | `rate_limit_window` | `int` | `60` | rate-limit | Keep |
 | `enable_rate_limiting` | `bool` | `True` | rate-limit | Keep |
-| `enable_redis` | `bool` | `True` | redis | Keep |
+| `enable_redis` | `bool` | `False` (see the rule) | redis | Keep |
 | `redis_url` | `str \| None` | `"redis://localhost:6379"` | redis | Keep |
 | `redis_prefix` | `str` | `"guard_core:"` | redis | Keep |
 | `redis_socket_connect_timeout` | `float \| None` | `2.0` | redis | Keep · Group? |

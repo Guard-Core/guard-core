@@ -64,7 +64,7 @@ class GuardRequest(Protocol):
 
 - `state.route_config` -- `RouteConfig | None`
 - `state.client_ip` -- `str`
-- `state.is_whitelisted` -- `bool`: `True` for a global `whitelist` match unless `whitelist_access_only` is on, when it is always `False`; `state.whitelist_entry` then holds the matching entry
+- `state.is_whitelisted` -- `bool`: `True` for a global `whitelist` match unless `whitelist_access_only` is on (the default since 5.0.0), when it is always `False`; `state.whitelist_entry` then holds the matching entry
 - `state.is_exempt` -- `bool`
 
 The adapter's `state` object must support dynamic attribute assignment (e.g., a simple namespace or the framework's built-in state).

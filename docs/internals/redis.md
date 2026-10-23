@@ -156,7 +156,7 @@ Configuration
 
 | Field                            | Type           | Default                   | Description                              |
 |----------------------------------|----------------|---------------------------|------------------------------------------|
-| `enable_redis`                   | `bool`         | `True`                    | Master switch for Redis integration      |
+| `enable_redis`                   | `bool`         | `False` (see the rule)    | Master switch for Redis integration; unset means on only when a Redis connection field was set explicitly |
 | `redis_url`                      | `str \| None`  | `"redis://localhost:6379"`| Redis connection URL                     |
 | `redis_prefix`                   | `str`          | `"guard_core:"`           | Key prefix for namespace isolation       |
 | `redis_socket_connect_timeout`   | `float \| None`| `2.0`                     | Seconds to wait establishing a TCP connection (must be positive; `None` disables) |

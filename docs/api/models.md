@@ -29,7 +29,7 @@ class SecurityConfig(BaseModel):
 
     geo_ip_handler: GeoIPHandler | None = Field(default=None)
 
-    enable_redis: bool = Field(default=True)
+    enable_redis: bool = Field(default=False)
     redis_url: str | None = Field(default="redis://localhost:6379")
     redis_prefix: str = Field(default="guard_core:")
 
@@ -68,7 +68,7 @@ class SecurityConfig(BaseModel):
 
     custom_error_responses: dict[int, str] = Field(default_factory=dict)
 
-    rate_limit: int = Field(default=10)
+    rate_limit: int = Field(default=120)
     rate_limit_window: int = Field(default=60)
 
     enforce_https: bool = Field(default=False)
