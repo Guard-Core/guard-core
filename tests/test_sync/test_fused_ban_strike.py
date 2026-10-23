@@ -414,3 +414,23 @@ def test_the_lookup_returns_what_get_many_returns() -> None:
 
         assert values == expected
         assert recorded == (1, 0, {"ip_list": 1})
+
+
+def test_a_seen_version_and_no_ban_values_return_the_short_reply() -> None:
+    with _rig(10**6) as rig:
+        now = time.time()
+        values, recorded = rig.redis.get_bans_and_record_strike(
+            [("banned_ips", BLACKLISTED)],
+            VERSION,
+            "0",
+            now,
+            BLACKLISTED,
+            ("ip_list",),
+            now,
+            now - 3600,
+            3600,
+            9,
+        )
+
+        assert values == [None, "0"]
+        assert recorded == (1, 0, {"ip_list": 1})

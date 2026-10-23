@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
 import threading
 import uuid
 from collections.abc import Callable, Hashable, Iterator, Sequence
@@ -695,12 +696,10 @@ class RedisManager:
         ``pairs`` plus ``version_pair``) and, in the same round trip, record one
         detection strike (what ``record_detection_strikes`` records) when none
         of the keys holds a live ban and the version is the one this process
-        has seen (``seen_version``, ``None`` when it has seen none). ``now`` is
-        the clock the ban expiries are compared with. Returns the values read
-        and the strike result, ``None`` when no strike was recorded."""
-        if not redis_is_configured(self.config):
-            return [None] * (len(pairs) + 1), None
-
+        has seen (``seen_version``, ``None`` when it has seen none).
+        ``now`` is the clock the ban expiries are compared with.
+        Returns the values read and the strike result, ``None`` when no strike
+        was recorded."""
         prefix = self.config.redis_prefix
         index, total, category_prefix = self._detection_strike_keys(client_ip)
         keys = [
@@ -711,41 +710,52 @@ class RedisManager:
             self._rate_limit_violations_key(client_ip),
             *(f"{category_prefix}{name}" for name in categories),
         ]
-        args: list[Any] = [
-            repr(timestamp),
-            uuid.uuid4().hex,
-            repr(window_start),
-            ttl,
-            cap,
-            len(pairs),
-            "" if seen_version is None else seen_version,
-            repr(now),
-        ]
+        arguments = "|".join(
+            (
+                repr(timestamp),
+                os.urandom(16).hex(),
+                repr(window_start),
+                str(ttl),
+                str(cap),
+                str(len(pairs)),
+                "" if seen_version is None else seen_version,
+                repr(now),
+            )
+        )
+        packed = [key.encode() for key in keys]
+        packed.append(arguments.encode())
 
         def _get_many(conn: Redis) -> list[Any]:
             try:
-                return list(
-                    conn.evalsha(
-                        _BAN_CHECK_AND_RECORD_STRIKE_SHA, len(keys), *keys, *args
-                    )
+                reply: list[Any] = conn.evalsha(
+                    _BAN_CHECK_AND_RECORD_STRIKE_SHA, len(keys), *packed
                 )
             except NoScriptError:
                 conn.script_load(BAN_CHECK_AND_RECORD_STRIKE_SCRIPT)
-                return list(
-                    conn.evalsha(
-                        _BAN_CHECK_AND_RECORD_STRIKE_SHA, len(keys), *keys, *args
-                    )
+                reply = conn.evalsha(
+                    _BAN_CHECK_AND_RECORD_STRIKE_SHA, len(keys), *packed
                 )
+            return reply
 
-        result = self.safe_operation(_get_many)
-        values, recorded, counts = result
-        if not recorded:
-            return list(values), None
-        counts = [int(count) for count in counts]
-        return list(values), (
-            counts[0],
-            counts[1],
-            dict(zip(categories, counts[2:], strict=True)),
+        reply = self.safe_operation(_get_many)
+        read = len(pairs) + 1
+        status = reply[0]
+        if status == 0:
+            return reply[1 : read + 1], None
+        if status == 1:
+            values: list[Any] = [None] * len(pairs)
+            values.append(seen_version)
+            counts = reply[1:]
+        else:
+            values = reply[1 : read + 1]
+            counts = reply[read + 1 :]
+        return values, (
+            int(counts[0]),
+            int(counts[1]),
+            {
+                name: int(count)
+                for name, count in zip(categories, counts[2:], strict=True)
+            },
         )
 
     def read_detection_categories(

@@ -189,7 +189,10 @@ class IpSecurityCheck(SecurityCheck):
             skip_countries=True,
             skip_clouds=True,
         )
-        return None if result.allowed else result.denial_category
+        if result.allowed:
+            return None
+        request.state.guard_denied_ip_access = (result, False, False)
+        return result.denial_category
 
     async def _fused_denial_strike(
         self, request: GuardRequest, client_ip: str, route_config: RouteConfig | None
@@ -584,9 +587,10 @@ class IpSecurityCheck(SecurityCheck):
         if self.middleware.route_resolver.should_bypass_check("ip", route_config):
             return None
 
-        precomputed = None
+        staged = getattr(request.state, "guard_denied_ip_access", None)
+        precomputed = staged if isinstance(staged, tuple) else None
         if route_config:
-            precomputed = await self._resolve_global_ip_access(
+            precomputed = precomputed or await self._resolve_global_ip_access(
                 request, client_ip, route_config
             )
             route_response = await self._check_route_ip_restrictions(

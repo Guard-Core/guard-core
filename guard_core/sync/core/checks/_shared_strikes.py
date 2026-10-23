@@ -64,12 +64,12 @@ class FusedStrike:
     def __init__(
         self,
         client_ip: str,
-        categories: str | Collection[str],
+        category: str,
         window_seconds: int,
         cap: int,
     ) -> None:
         self.client_ip = client_ip
-        self.categories = tuple(strike_categories(categories))
+        self.categories = (category,)
         self.window_seconds = window_seconds
         self.cap = cap
         self.shared: SharedStrikes | None = None
@@ -85,10 +85,7 @@ class FusedStrike:
         self, client_ip: str, categories: str | Collection[str]
     ) -> SharedStrikes | None:
         shared, self.shared = self.shared, None
-        matches = (
-            client_ip == self.client_ip
-            and tuple(strike_categories(categories)) == self.categories
-        )
+        matches = client_ip == self.client_ip and tuple(categories) == self.categories
         return shared if matches else None
 
 

@@ -36,28 +36,47 @@ return record_strikes(1, ARGV[1], ARGV[2], ARGV[3], ARGV[4], tonumber(ARGV[5]))
 BAN_CHECK_AND_RECORD_STRIKE_SCRIPT = (
     RECORD_STRIKES_LUA
     + """
-local bans = tonumber(ARGV[6])
-local seen, now = ARGV[7], tonumber(ARGV[8])
-local values = redis.call('MGET', unpack(KEYS, 1, bans + 1))
-local version = values[bans + 1] or '0'
+local f = {}
+for part in string.gmatch(ARGV[1] .. '|', '([^|]*)|') do
+  f[#f + 1] = part
+end
+local now, base, window_start, ttl, cap = f[1], f[2], f[3], f[4], tonumber(f[5])
+local bans, seen, clock = tonumber(f[6]), f[7], tonumber(f[8])
+local read = redis.call('MGET', unpack(KEYS, 1, bans + 1))
+local version = read[bans + 1] or '0'
 local clear = seen == '' or version == seen
+local held = false
 for i = 1, bans do
-  local value = values[i]
+  local value = read[i]
   if value then
+    held = true
     local expiry = tonumber(value)
-    if expiry == nil or now <= expiry then
+    if expiry == nil or clock <= expiry then
       clear = false
     end
   end
 end
+local out = {}
 if not clear then
-  return {values, 0, {}}
+  out[1] = 0
+  for i = 1, bans + 1 do
+    out[i + 1] = read[i]
+  end
+  return out
 end
-return {
-  values,
-  1,
-  record_strikes(bans + 2, ARGV[1], ARGV[2], ARGV[3], ARGV[4], tonumber(ARGV[5])),
-}
+local counts = record_strikes(bans + 2, now, base, window_start, ttl, cap)
+if seen ~= '' and not held then
+  out[1] = 1
+else
+  out[1] = 2
+  for i = 1, bans + 1 do
+    out[i + 1] = read[i]
+  end
+end
+for _, count in ipairs(counts) do
+  out[#out + 1] = count
+end
+return out
 """
 )
 
