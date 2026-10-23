@@ -10,6 +10,7 @@ from pydantic import (
     BeforeValidator,
     ConfigDict,
     Field,
+    PlainValidator,
     model_validator,
 )
 from typing_extensions import Self, TypeVar
@@ -20,6 +21,7 @@ from guard_core._security_config_field_validators import (
     GlobalBehaviorRules,
     PurgeTarget,
 )
+from guard_core._security_config_geo_validators import _validate_geo_ip_handler_value
 from guard_core._security_config_validators import (
     ThreatBanConfig,
     _validate_excluded_detection_params_value,
@@ -90,7 +92,9 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
         description="Enable Log-Only mode. Won't block requests, only log.",
     )
 
-    geo_ip_handler: GeoIPHandler | None = Field(
+    geo_ip_handler: (
+        Annotated[GeoIPHandler, PlainValidator(_validate_geo_ip_handler_value)] | None
+    ) = Field(
         default=None,
         description="Geographical IP handler to use for IP geolocation",
     )

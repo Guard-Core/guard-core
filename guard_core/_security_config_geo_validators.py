@@ -1,8 +1,11 @@
 import warnings
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from pydantic import BaseModel
+from pydantic_core import PydanticCustomError
+
+from guard_core.protocols.geo_ip_protocol import GeoIPHandler
 
 from guard_core._config_capabilities import require_geo_extra
 
@@ -11,6 +14,26 @@ if TYPE_CHECKING:
     from guard_core.models import SecurityConfig
 
 _COUNTRY_RULE_FIELDS = frozenset({"blocked_countries", "whitelist_countries"})
+_GEO_IP_HANDLER_MEMBERS = tuple(
+    name for name in vars(GeoIPHandler) if not name.startswith("_")
+)
+
+
+def _geo_ip_handler_has_member(value: Any, name: str) -> bool:
+    if not hasattr(value, name):
+        return False
+    return not callable(getattr(GeoIPHandler, name)) or getattr(value, name) is not None
+
+
+def _validate_geo_ip_handler_value(value: Any) -> GeoIPHandler:
+    # The isinstance check of a runtime_checkable Protocol looks members up with
+    # hasattr on 3.10 and 3.11 and with getattr_static from 3.12, which rejects a
+    # Mock. One hasattr check keeps every interpreter on the 3.10 verdict.
+    if not all(_geo_ip_handler_has_member(value, n) for n in _GEO_IP_HANDLER_MEMBERS):
+        raise PydanticCustomError(
+            "is_instance_of", "Input should be an instance of GeoIPHandler"
+        )
+    return cast(GeoIPHandler, value)
 
 
 def _warn_country_allowlist_shadows_blocklist(*, stacklevel: int) -> None:
