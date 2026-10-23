@@ -1,5 +1,4 @@
 from types import SimpleNamespace
-from typing import Any
 
 import pytest
 
@@ -7,15 +6,8 @@ from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.events.enricher import EnrichmentContext, EventEnricher
 
 
-def _mk_context(**overrides: object) -> EnrichmentContext:
-    defaults: dict[str, Any] = {
-        "config": SyncSecurityConfig(),
-        "agent_handler": None,
-        "dynamic_rule_handler": None,
-        "behavior_tracker": None,
-    }
-    defaults.update(overrides)
-    return EnrichmentContext(**defaults)
+def _mk_context() -> EnrichmentContext:
+    return EnrichmentContext(config=SyncSecurityConfig())
 
 
 def test_enrich_event_returns_early_when_metadata_is_missing() -> None:

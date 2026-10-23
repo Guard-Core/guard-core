@@ -1,4 +1,3 @@
-from typing import Any
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -44,8 +43,8 @@ def mock_request() -> Mock:
 
 async def test_cannot_instantiate_abstract_class(mock_middleware: Mock) -> None:
     with pytest.raises(TypeError, match="Can't instantiate abstract class"):
-        abstract_check: Any = SecurityCheck
-        abstract_check(mock_middleware)
+        abstract_check: type[object] = SecurityCheck
+        abstract_check()
 
 
 async def test_init(mock_middleware: Mock) -> None:

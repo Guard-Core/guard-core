@@ -1,5 +1,4 @@
 from types import SimpleNamespace
-from typing import Any
 
 import pytest
 
@@ -7,15 +6,8 @@ from guard_core.core.events.enricher import EnrichmentContext, EventEnricher
 from guard_core.models import SecurityConfig
 
 
-def _mk_context(**overrides: object) -> EnrichmentContext:
-    defaults: dict[str, Any] = {
-        "config": SecurityConfig(),
-        "agent_handler": None,
-        "dynamic_rule_handler": None,
-        "behavior_tracker": None,
-    }
-    defaults.update(overrides)
-    return EnrichmentContext(**defaults)
+def _mk_context() -> EnrichmentContext:
+    return EnrichmentContext(config=SecurityConfig())
 
 
 @pytest.mark.asyncio

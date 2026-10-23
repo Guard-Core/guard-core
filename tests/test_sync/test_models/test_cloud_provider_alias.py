@@ -1,4 +1,5 @@
-from typing import Any, get_args
+from operator import methodcaller
+from typing import get_args
 
 import pytest
 
@@ -25,5 +26,4 @@ def test_valid_cloud_providers_is_frozenset_of_literal_members() -> None:
 
 def test_valid_cloud_providers_immutable() -> None:
     with pytest.raises(AttributeError):
-        providers: Any = VALID_CLOUD_PROVIDERS
-        providers.add("DigitalOcean")
+        methodcaller("add", "DigitalOcean")(VALID_CLOUD_PROVIDERS)

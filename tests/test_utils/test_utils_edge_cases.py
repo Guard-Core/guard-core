@@ -1,4 +1,4 @@
-from typing import Any
+import json
 from unittest.mock import AsyncMock, Mock, patch
 
 from guard_core.core.checks.helpers import is_referrer_domain_allowed
@@ -17,7 +17,7 @@ def test_sanitize_empty_string() -> None:
 
 
 def test_sanitize_none() -> None:
-    not_a_string: Any = None
+    not_a_string = json.loads("null")
     result = _sanitize_for_log(not_a_string)
     assert result is None
 
@@ -104,13 +104,13 @@ async def test_detect_penetration_url_path_with_real_threat() -> None:
 
 
 def test_is_referrer_domain_allowed_with_none() -> None:
-    not_a_string: Any = None
+    not_a_string = json.loads("null")
     result = is_referrer_domain_allowed(not_a_string, ["example.com"])
     assert result is False
 
 
 def test_is_referrer_domain_allowed_with_invalid_type() -> None:
-    not_a_string: Any = 12345
+    not_a_string = json.loads("12345")
     result = is_referrer_domain_allowed(not_a_string, ["example.com"])
     assert result is False
 

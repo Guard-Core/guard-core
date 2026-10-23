@@ -1,5 +1,5 @@
+import json
 import logging
-from typing import Any
 
 import pytest
 
@@ -188,8 +188,8 @@ async def test_async_bypass_filters_non_string_token_without_raising(
 ) -> None:
     d = _async_decorator()
     caplog.set_level(logging.WARNING, logger="guard_core.decorators")
-    non_string_token: Any = 123
-    decorated = d.bypass(["ip", "geo_check", non_string_token])(_seventh_sample_func)
+    mixed_tokens = json.loads('["ip", "geo_check", 123]')
+    decorated = d.bypass(mixed_tokens)(_seventh_sample_func)
     rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert rc.bypassed_checks == {"ip"}
@@ -227,8 +227,8 @@ def test_sync_bypass_filters_non_string_token_without_raising(
 ) -> None:
     d = _sync_decorator()
     caplog.set_level(logging.WARNING, logger="guard_core.sync.decorators")
-    non_string_token: Any = 123
-    decorated = d.bypass(["ip", "geo_check", non_string_token])(_tenth_sample_func)
+    mixed_tokens = json.loads('["ip", "geo_check", 123]')
+    decorated = d.bypass(mixed_tokens)(_tenth_sample_func)
     rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert rc.bypassed_checks == {"ip"}

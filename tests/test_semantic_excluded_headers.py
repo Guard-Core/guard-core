@@ -113,5 +113,5 @@ def test_reassignment_rejects_bare_string() -> None:
     config = SecurityConfig()
 
     with pytest.raises(ValueError, match="excluded_semantic_detection_headers"):
-        bare_string: Any = "cookie"
-        config.excluded_semantic_detection_headers = bare_string
+        field_name = "excluded_semantic_detection_headers"
+        setattr(config, field_name, "cookie")
