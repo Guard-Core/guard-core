@@ -10,6 +10,7 @@ from guard_core.core.responses.modifier_view import (
     declared_content_length,
     report_body_refused,
 )
+from guard_core.exceptions import CallableShapeError
 from guard_core.models import SecurityConfig
 from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse
@@ -40,6 +41,8 @@ async def _call_on_view(
 ) -> GuardResponse:
     try:
         result: GuardResponse = await modifier(view)
+    except CallableShapeError:
+        raise
     except Exception as exc:
         logger.exception(_MODIFIER_RAISED, exc)
         return real
@@ -112,6 +115,8 @@ async def apply_modifier_with_bounded_body(
     result: Any = first
     try:
         result = await modifier(first)
+    except CallableShapeError:
+        raise
     except Exception as exc:
         logger.exception(_MODIFIER_RAISED, exc)
     state = first.__dict__

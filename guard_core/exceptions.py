@@ -78,3 +78,21 @@ class ResponseBodyUnavailableError(AttributeError):
         super().__init__(
             f"response body unavailable to custom_response_modifier: {reason}"
         )
+
+
+class CallableShapeError(TypeError):
+    """A callable in the sync tree is async, or hands back an awaitable.
+
+    Raised for ``custom_request_check`` and ``custom_response_modifier``, whose
+    sync (WSGI) tree cannot await anything. It is never swallowed: a modifier's
+    own errors are logged and the response goes out unmodified, a wrong shape is
+    a misconfiguration.
+    """
+
+    def __init__(self, field: str) -> None:
+        self.field = field
+        super().__init__(
+            f"{field} is an async callable, or returns an awaitable, and the sync "
+            "tree (guard_core.sync, WSGI deployments) cannot await it: supply a "
+            "sync callable"
+        )

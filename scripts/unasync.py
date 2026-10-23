@@ -33,6 +33,7 @@ SKIP_SRC = {
     "_security_headers_defaults.py",
     "_security_headers_override.py",
     "_emergency_exemptions.py",
+    "_callable_shape.py",
     "_security_headers_record_validation.py",
 }
 
@@ -56,6 +57,8 @@ SKIP_TESTS = {
     "test_maintainability_rank.py",
     "test_config_docs_parity.py",
     "test_release_notes_parity.py",
+    "test_custom_callables_follow_the_type.py",
+    "test_callables_follow_the_type_typing.py",
     "test_dynamic_rule_two_processes.py",
     "test_dynamic_rule_revoke_second_worker.py",
     "test_behavior_cap_constants.py",
@@ -104,6 +107,8 @@ HAND_MAINTAINED = {
     / "test_file_upload_decoded_truncation_body_scan.py",
     TEST_SYNC_DIR / "test_utils" / "test_bounded_thread_body_read.py",
     SYNC_DIR / "core" / "checks" / "_verifier.py",
+    SYNC_DIR / "core" / "callable_slot.py",
+    TEST_SYNC_DIR / "test_core" / "test_custom_callables_follow_the_type.py",
     SYNC_DIR / "core" / "responses" / "modifier_body.py",
     TEST_SYNC_DIR / "test_modifier_body_lazy.py",
     SYNC_DIR / "_utils" / "block_events.py",
@@ -482,6 +487,7 @@ TEST_SKIP_DIRS = {
     "detection_gate",
     "live_smoke",
     "redaction_gate",
+    "typing_fixtures",
     "wordlists",
 }
 

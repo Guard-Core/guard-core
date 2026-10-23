@@ -2,13 +2,21 @@ from collections.abc import Collection
 
 from guard_core.models import SecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
+from guard_core.sync.core.callable_slot import CallableSlot
 from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.core.events.event_types import EVENT_CUSTOM_REQUEST_CHECK
 from guard_core.sync.decorators.base import RouteConfig
+from guard_core.sync.protocols.middleware_protocol import SyncGuardMiddlewareProtocol
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
 
 class CustomRequestCheck(SecurityCheck):
+    def __init__(self, middleware: "SyncGuardMiddlewareProtocol") -> None:
+        super().__init__(middleware)
+        self._slot: CallableSlot[SyncGuardRequest, GuardResponse | None] = CallableSlot(
+            "custom_request_check", self.config.custom_request_check
+        )
+
     @property
     def check_name(self) -> str:
         return "custom_request"
@@ -22,10 +30,14 @@ class CustomRequestCheck(SecurityCheck):
         return config.custom_request_check is not None
 
     def check(self, request: SyncGuardRequest) -> GuardResponse | None:
-        if not self.config.custom_request_check:
+        configured = self.config.custom_request_check
+        if not configured:
             return None
 
-        custom_response = self.config.custom_request_check(request)
+        slot = self._slot
+        if configured is not slot.source:
+            slot.adopt(configured)
+        custom_response = slot.invoke(request)
         if custom_response:
             self.middleware.event_bus.send_middleware_event(
                 event_type=EVENT_CUSTOM_REQUEST_CHECK,
@@ -37,8 +49,8 @@ class CustomRequestCheck(SecurityCheck):
                 response_status=custom_response.status_code
                 if hasattr(custom_response, "status_code")
                 else "unknown",
-                check_function=self.config.custom_request_check.__name__
-                if hasattr(self.config.custom_request_check, "__name__")
+                check_function=configured.__name__
+                if hasattr(configured, "__name__")
                 else "anonymous",
             )
 

@@ -2,7 +2,7 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
-from guard_core.exceptions import ResponseBodyUnavailableError
+from guard_core.exceptions import CallableShapeError, ResponseBodyUnavailableError
 from guard_core.models import SecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.response_prefetch import (
@@ -79,6 +79,8 @@ def apply_modifier_with_bounded_body(
     result: Any = view
     try:
         result = modifier(view)
+    except CallableShapeError:
+        raise
     except Exception as exc:
         logger.exception(
             "custom_response_modifier raised %s; returning unmodified response", exc

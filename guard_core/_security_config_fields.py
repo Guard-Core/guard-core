@@ -39,6 +39,17 @@ from guard_core.protocols.cloud_ip_store_protocol import (
 from guard_core.protocols.geo_ip_protocol import GeoIPHandler
 from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse
+from guard_core.sync.protocols.request_protocol import SyncGuardRequest
+
+CustomRequestCheck = (
+    Callable[[GuardRequest], Awaitable[GuardResponse | None]]
+    | Callable[[GuardRequest], GuardResponse | None]
+    | Callable[[SyncGuardRequest], GuardResponse | None]
+)
+CustomResponseModifier = (
+    Callable[[GuardResponse], Awaitable[GuardResponse]]
+    | Callable[[GuardResponse], GuardResponse]
+)
 
 DEFAULT_EXCLUDE_PATHS: tuple[str, ...] = (
     "/docs",
@@ -571,9 +582,14 @@ class _SecurityConfigFields(BaseModel):
         description="Security headers configuration",
     )
 
-    custom_request_check: (
-        Callable[[GuardRequest], Awaitable[GuardResponse | None]] | None
-    ) = Field(default=None, description="Perform additional checks on the request")
+    custom_request_check: CustomRequestCheck | None = Field(
+        default=None,
+        description=(
+            "Perform additional checks on the request. An async or a sync callable "
+            "in async deployments (a sync one runs inline on the event loop and "
+            "must not block), a sync callable in WSGI deployments (guard_core.sync)."
+        ),
+    )
 
     auth_verifier: Any = Field(
         default=None,
@@ -585,11 +601,14 @@ class _SecurityConfigFields(BaseModel):
         ),
     )
 
-    custom_response_modifier: (
-        Callable[[GuardResponse], Awaitable[GuardResponse]] | None
-    ) = Field(
+    custom_response_modifier: CustomResponseModifier | None = Field(
         default=None,
-        description="A custom function to modify the response before it's sent",
+        description=(
+            "A custom function to modify the response before it's sent. An async "
+            "or a sync callable in async deployments (a sync one runs inline on the "
+            "event loop and must not block), a sync callable in WSGI deployments "
+            "(guard_core.sync)."
+        ),
     )
 
     custom_response_modifier_max_body_bytes: int = Field(

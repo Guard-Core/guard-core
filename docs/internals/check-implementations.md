@@ -303,7 +303,7 @@ ___
 
 **Blocks when**: `config.custom_request_check` returns a non-`None` `GuardResponse`.
 
-**Configuration**: `SecurityConfig.custom_request_check` is a `Callable[[GuardRequest], Awaitable[GuardResponse | None]]`.
+**Configuration**: `SecurityConfig.custom_request_check` is an async or a sync callable taking the request (`Callable[[GuardRequest], Awaitable[GuardResponse | None]]` or `Callable[[GuardRequest], GuardResponse | None]`). The check classifies the callable once and again only when the field holds another object. In the async tree an async callable is awaited and a sync one runs inline on the event loop (it must not block). In the sync tree an async callable raises `guard_core.exceptions.CallableShapeError` (a `TypeError`) when the check is built, and a sync callable that returns an awaitable (a decorator around an async function, a lambda returning a coroutine) raises the same error on its first result.
 
 ___
 

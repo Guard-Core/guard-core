@@ -5,9 +5,11 @@ from typing import Any
 from guard_core._redis_enablement import redis_is_configured
 from guard_core._security_headers_override import PROCESS_OVERRIDE, PULLED_OVERRIDES
 from guard_core._utils.response_prefetch import SHARED_PREFETCH, ResponseBodyPrefetch
+from guard_core.core.callable_slot import CallableSlot
 from guard_core.core.responses.context import ResponseContext
 from guard_core.core.responses.modifier_body import apply_modifier_with_bounded_body
 from guard_core.decorators.base import RouteConfig
+from guard_core.exceptions import CallableShapeError
 from guard_core.handlers.behavior_handler import BehaviorRule, config_to_rule
 from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse
@@ -54,6 +56,9 @@ class ErrorResponseFactory:
     def __init__(self, context: ResponseContext):
         self.context = context
         self.logger = logging.getLogger("guard_core.core.responses.factory")
+        self._modifier_slot: CallableSlot[GuardResponse, GuardResponse] = CallableSlot(
+            "custom_response_modifier", context.config.custom_response_modifier
+        )
         self.security_headers_manager = context.security_headers_manager
         self.security_headers_manager.agent_handler = context.agent_handler
         if context.redis_handler is not None:
@@ -143,13 +148,15 @@ class ErrorResponseFactory:
         request: GuardRequest | None = None,
         prefetch: ResponseBodyPrefetch | None = None,
     ) -> GuardResponse:
-        modifier = self.context.config.custom_response_modifier
-        if not modifier:
-            if prefetch is not None:
-                SHARED_PREFETCH.set(None)
-            return response
         if prefetch is not None:
             SHARED_PREFETCH.set(None)
+        configured = self.context.config.custom_response_modifier
+        if not configured:
+            return response
+        slot = self._modifier_slot
+        if configured is not slot.source:
+            slot.adopt(configured)
+        modifier = slot.invoke
         materialized = False
         if request is not None:
             declared: Any = response
@@ -170,6 +177,8 @@ class ErrorResponseFactory:
         try:
             result: GuardResponse = await modifier(response)
             return result
+        except CallableShapeError:
+            raise
         except Exception as exc:
             self.logger.exception(
                 "custom_response_modifier raised %s; returning unmodified response",
