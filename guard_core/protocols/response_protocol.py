@@ -80,6 +80,22 @@ class BoundedResponseBodyReader(Protocol):
     absence of this capability as "cannot bound the read" and skip
     body-based pattern matching for that response entirely.
 
+    MODIFIER BODY CONTRACT (``custom_response_modifier``'s ``.body``): the
+    engine also calls ``read_body_prefix(max_bytes)`` for a modifier that reads
+    ``.body``, only when the response declares a ``Content-Length`` up to
+    ``SecurityConfig.custom_response_modifier_max_body_bytes`` (never for
+    ``text/event-stream``, HEAD, 204 or 304), once per response and shared with
+    a ``return_pattern`` scan. For that call ``max_bytes`` covers the declared
+    length, so the implementation MUST return the whole body (every chunk up to
+    ``max_bytes``) and not stop at the first chunk; the engine hands the bytes
+    to the modifier only when their length equals the declared
+    ``Content-Length`` and otherwise raises
+    ``guard_core.exceptions.ResponseBodyUnavailableError`` from ``.body``. An
+    adapter's own ``GuardResponse.body`` is never given to a modifier: the
+    engine passes a view whose ``.body`` raises that error (an AttributeError)
+    unless the gate allows it, and whose header writes reach the real response
+    when the call is committed.
+
     STREAMING CONTRACT: implementations MUST NOT consume the underlying
     stream to completion to satisfy this call, and MUST NOT block waiting
     for more data than the stream is currently ready to produce. An

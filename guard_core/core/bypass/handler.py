@@ -107,4 +107,4 @@ class BypassHandler:
         response = await self.context.response_factory.apply_security_headers(
             response, str(request.url_path)
         )
-        return await self.context.response_factory.apply_modifier(response)
+        return await self.context.response_factory.apply_modifier(response, request)

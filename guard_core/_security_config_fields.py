@@ -592,6 +592,26 @@ class _SecurityConfigFields(BaseModel):
         description="A custom function to modify the response before it's sent",
     )
 
+    custom_response_modifier_max_body_bytes: int = Field(
+        default=262144,
+        description=(
+            "Largest declared Content-Length for which the response given to "
+            "custom_response_modifier exposes .body. Above it, with no declared "
+            "length, for text/event-stream, and for HEAD, 204 and 304 responses, "
+            ".body raises guard_core.exceptions.ResponseBodyUnavailableError (an "
+            "AttributeError) and header edits still apply. When the gate allows "
+            "the read, guard-core calls the modifier once, and if it read .body, "
+            "calls it a second time with the bytes (code before the first .body "
+            "access can run twice); a modifier with side effects is marked with "
+            "guard_core.core.responses.reads_response_body and is called once. "
+            "At most this many bytes are held, once per response, and shared "
+            "with a return_pattern scan. The response still reaches the client "
+            "in full. Default equals behavior_max_response_body_inspect_bytes."
+        ),
+        ge=1024,
+        le=10485760,
+    )
+
     enable_cors: bool = Field(default=False, description="Enable/disable CORS")
 
     cors_allow_origins: list[str] = Field(

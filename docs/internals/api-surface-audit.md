@@ -130,6 +130,7 @@ Ordered by domain, then by field name.
 | `custom_error_responses` | `dict[int, str]` | `dict` | hooks | Keep |
 | `custom_request_check` | `Callable[...] \| None` | `None` | hooks | Keep |
 | `custom_response_modifier` | `Callable[...] \| None` | `None` | hooks | Keep |
+| `custom_response_modifier_max_body_bytes` | `int` | `262144` | hooks | Keep |
 | `on_error` | `Callable[[str, BaseException, dict], None] \| None` | `None` | hooks | Keep |
 | `lazy_init` | `bool` | `True` | init | Keep |
 | `exclude_paths` | `list[str]` | docs/static defaults | init | Keep |

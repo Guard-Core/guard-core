@@ -61,3 +61,20 @@ class BodyReadFailedError(GuardCoreError):
     def __init__(self, detail: str = "the request body could not be read") -> None:
         self.detail = detail
         super().__init__(detail)
+
+
+class ResponseBodyUnavailableError(AttributeError):
+    """``.body`` of the response a ``custom_response_modifier`` received is unavailable.
+
+    An AttributeError subclass so ``hasattr`` and ``getattr(..., default)`` keep
+    working. ``reason`` says why: no declared Content-Length, a declared length
+    over ``custom_response_modifier_max_body_bytes``, ``text/event-stream``, a
+    HEAD, 204 or 304 response, or an adapter without a bounded body reader.
+    Header edits made before the access still apply.
+    """
+
+    def __init__(self, reason: str) -> None:
+        self.reason = reason
+        super().__init__(
+            f"response body unavailable to custom_response_modifier: {reason}"
+        )

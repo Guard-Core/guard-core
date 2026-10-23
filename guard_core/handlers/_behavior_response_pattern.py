@@ -5,10 +5,10 @@ from typing import Protocol, runtime_checkable
 
 from cachetools import TTLCache
 
+from guard_core._utils.response_prefetch import read_shared_prefix
 from guard_core.handlers._behavior_json_pattern import BehaviorJsonPatternMixin
 from guard_core.models import SecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
-from guard_core.utils import _safe_read
 
 
 @runtime_checkable
@@ -45,15 +45,15 @@ class BehaviorResponsePatternMixin(BehaviorJsonPatternMixin):
             return None
 
         max_bytes = self.config.behavior_max_response_body_inspect_bytes
-        prefix: object = await _safe_read(
-            lambda: response.read_body_prefix(max_bytes), self.config.body_read_timeout
+        prefix = await read_shared_prefix(
+            response, max_bytes, self.config.body_read_timeout
         )
 
-        if not isinstance(prefix, bytes):
+        if prefix is None:
             self._log_body_unavailable(pattern)
             return None
 
-        return prefix[:max_bytes]
+        return prefix
 
     async def _check_response_pattern(
         self, response: GuardResponse, pattern: str

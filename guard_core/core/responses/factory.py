@@ -4,7 +4,9 @@ from typing import Any
 
 from guard_core._redis_enablement import redis_is_configured
 from guard_core._security_headers_override import PROCESS_OVERRIDE, PULLED_OVERRIDES
+from guard_core._utils.response_prefetch import SHARED_PREFETCH, ResponseBodyPrefetch
 from guard_core.core.responses.context import ResponseContext
+from guard_core.core.responses.modifier_body import apply_modifier_with_bounded_body
 from guard_core.decorators.base import RouteConfig
 from guard_core.handlers.behavior_handler import BehaviorRule, config_to_rule
 from guard_core.protocols.request_protocol import GuardRequest
@@ -135,18 +137,35 @@ class ErrorResponseFactory:
 
         return response
 
-    async def apply_modifier(self, response: GuardResponse) -> GuardResponse:
-        if self.context.config.custom_response_modifier:
-            try:
-                result: GuardResponse = (
-                    await self.context.config.custom_response_modifier(response)
-                )
-                return result
-            except Exception as exc:
-                self.logger.exception(
-                    "custom_response_modifier raised %s; returning unmodified response",
-                    exc,
-                )
+    async def apply_modifier(
+        self,
+        response: GuardResponse,
+        request: GuardRequest | None = None,
+        prefetch: ResponseBodyPrefetch | None = None,
+    ) -> GuardResponse:
+        modifier = self.context.config.custom_response_modifier
+        if not modifier:
+            if prefetch is not None:
+                SHARED_PREFETCH.set(None)
+            return response
+        if request is not None:
+            return await apply_modifier_with_bounded_body(
+                modifier,
+                response,
+                request,
+                prefetch,
+                self.context.config,
+                self.logger,
+                self.context.agent_handler,
+            )
+        try:
+            result: GuardResponse = await modifier(response)
+            return result
+        except Exception as exc:
+            self.logger.exception(
+                "custom_response_modifier raised %s; returning unmodified response",
+                exc,
+            )
         return response
 
     async def _apply_response_headers(
@@ -196,6 +215,12 @@ class ErrorResponseFactory:
         ]
         | None = None,
     ) -> GuardResponse:
+        config = self.context.config
+        prefetch = None
+        if config.custom_response_modifier or config.behavior_scan_response_body:
+            prefetch = ResponseBodyPrefetch(response)
+            SHARED_PREFETCH.set(prefetch)
+
         client_ip = await self._resolve_client_ip_for_behavioral_rules(
             request,
             route_config,
@@ -229,7 +254,7 @@ class ErrorResponseFactory:
 
         response = await self._apply_response_headers(request, response)
 
-        return await self.apply_modifier(response)
+        return await self.apply_modifier(response, request, prefetch)
 
     async def _resolve_client_ip_for_behavioral_rules(
         self,

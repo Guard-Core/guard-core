@@ -38,6 +38,8 @@ SKIP_SRC = {
 
 SKIP_TESTS = {
     "test_geo_awaited_load_concurrency.py",
+    "test_modifier_body_replay.py",
+    "test_modifier_body_pins.py",
     "test_scan_event_loop_yield.py",
     "test_async_body_read_slots.py",
     "test_dynamic_rule_user_agent_offloop.py",
@@ -102,6 +104,8 @@ HAND_MAINTAINED = {
     / "test_file_upload_decoded_truncation_body_scan.py",
     TEST_SYNC_DIR / "test_utils" / "test_bounded_thread_body_read.py",
     SYNC_DIR / "core" / "checks" / "_verifier.py",
+    SYNC_DIR / "core" / "responses" / "modifier_body.py",
+    TEST_SYNC_DIR / "test_modifier_body_lazy.py",
     SYNC_DIR / "_utils" / "block_events.py",
     TEST_SYNC_DIR / "test_core" / "test_verifier_sync_rejection.py",
     TEST_SYNC_DIR / "test_utils" / "test_block_events_sync_rejection.py",
@@ -547,14 +551,16 @@ DOTALL_FIXUPS: list[tuple[str, str]] = [
         "        route_config: RouteConfig | None = None,",
     ),
     (
-        r"response = call_next\(request\)\n\s+response = self\.context\.response_factory\.apply_security_headers\(\n\s+response, str\(request\.url_path\)\n\s+\)\n\s+return self\.context\.response_factory\.apply_modifier\(response\)",  # noqa: E501
+        r"response = call_next\(request\)\n\s+response = self\.context\.response_factory\.apply_security_headers\(\n\s+response, str\(request\.url_path\)\n\s+\)\n\s+return self\.context\.response_factory\.apply_modifier\(response, request\)",  # noqa: E501
         "if call_next is None:\n"
         "            return None\n"
         "        response = call_next(request)\n"
         "        response = self.context.response_factory.apply_security_headers(\n"  # noqa: E501
         "            response, str(request.url_path)\n"
         "        )\n"
-        "        return self.context.response_factory.apply_modifier(response)",
+        "        return self.context.response_factory.apply_modifier(\n"
+        "            response, request\n"
+        "        )",
     ),
     (
         r"def stop\(self\) -> None:\n\s+if self\.update_task:\n"

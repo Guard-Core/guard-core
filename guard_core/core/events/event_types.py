@@ -46,6 +46,7 @@ EVENT_DETECTION_ENGINE_CALLBACK_ERROR = "detection_engine_callback_error"
 EVENT_PATTERN_ANOMALY_TIMEOUT = "pattern_anomaly_timeout"
 EVENT_PATTERN_ANOMALY_SLOW_EXECUTION = "pattern_anomaly_slow_execution"
 EVENT_PATTERN_ANOMALY_STATISTICAL_ANOMALY = "pattern_anomaly_statistical_anomaly"
+EVENT_RESPONSE_BODY_UNAVAILABLE = "response_body_unavailable"
 
 EVENT_TYPE_VALUES: frozenset[str] = frozenset(
     {
@@ -92,6 +93,7 @@ EVENT_TYPE_VALUES: frozenset[str] = frozenset(
         EVENT_PATTERN_ANOMALY_TIMEOUT,
         EVENT_PATTERN_ANOMALY_SLOW_EXECUTION,
         EVENT_PATTERN_ANOMALY_STATISTICAL_ANOMALY,
+        EVENT_RESPONSE_BODY_UNAVAILABLE,
     }
 )
 
