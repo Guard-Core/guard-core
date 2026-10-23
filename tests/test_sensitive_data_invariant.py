@@ -1688,7 +1688,9 @@ async def _run_security_bypass_event(secret: str, ctx: "_ScenarioContext") -> No
     response_factory.apply_security_headers = AsyncMock(
         side_effect=lambda response, path=None: response
     )
-    response_factory.apply_modifier = AsyncMock(side_effect=lambda response: response)
+    response_factory.apply_modifier = AsyncMock(
+        side_effect=lambda response, request=None, prefetch=None: response
+    )
     validator = MagicMock()
     validator.is_path_excluded = AsyncMock(return_value=False)
     context = BypassContext(

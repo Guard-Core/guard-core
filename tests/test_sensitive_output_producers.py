@@ -766,6 +766,23 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "line 167: static advisory about dynamic rules without an agent; "
         "adapter init only, no request in scope"
     ),
+    "core/responses/modifier_body.py:_call_on_view": (
+        "line 47: logger.exception when the operator's own custom_response_modifier "
+        "callback raises; exc is that callback's exception, not text guard_core "
+        "constructs from request data (same producer as "
+        "ErrorResponseFactory.apply_modifier)"
+    ),
+    "core/responses/modifier_body.py:apply_modifier_with_bounded_body": (
+        "line 121: logger.exception when the operator's own custom_response_modifier "
+        "callback raises on its first call; exc is that callback's exception, not "
+        "text guard_core constructs from request data"
+    ),
+    "core/responses/modifier_view.py:report_body_refused": (
+        "line 267: warns why .body is unavailable to the modifier; the reason is "
+        "one of the fixed strings of body_gate_refusal, whose only interpolated "
+        "values are the response status code and a Content-Length that passed "
+        "str.isdigit() plus the configured byte cap, never a request value"
+    ),
     "core/responses/factory.py:ErrorResponseFactory.apply_modifier": (
         "line 72: logger.exception when the operator's own "
         "custom_response_modifier callback raises; exc is that callback's "

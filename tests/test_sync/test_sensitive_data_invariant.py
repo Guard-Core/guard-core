@@ -1684,7 +1684,9 @@ def _run_security_bypass_event(secret: str, ctx: "_ScenarioContext") -> None:
     response_factory.apply_security_headers = MagicMock(
         side_effect=lambda response, path=None: response
     )
-    response_factory.apply_modifier = MagicMock(side_effect=lambda response: response)
+    response_factory.apply_modifier = MagicMock(
+        side_effect=lambda response, request=None, prefetch=None: response
+    )
     validator = MagicMock()
     validator.is_path_excluded = MagicMock(return_value=False)
     context = BypassContext(
