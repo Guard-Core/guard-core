@@ -40,16 +40,9 @@ dev = [
     "deptry",
     "guard-agent",
     "maxminddb",
-    "mkdocs",
-    "mkdocstrings",
-    "mkdocstrings-python",
-    "mike",
-    "mkdocs-material",
     "mypy",
     "pip-audit",
     "pre-commit",
-    "pymarkdownlnt",
-    "yq",
     "pytest",
     "pytest-asyncio",
     "pytest-cov",
@@ -83,6 +76,17 @@ geo = [
     "aiohttp",
     "maxminddb",
     "requests",
+]
+
+[dependency-groups]
+docs = [
+    "mike",
+    "mkdocs",
+    "mkdocs-material",
+    "mkdocstrings",
+    "mkdocstrings-python",
+    "pymarkdownlnt",
+    "yq",
 ]
 
 [build-system]
@@ -267,6 +271,12 @@ max_modules = "A"
 max_average = "A"
 exclude = ["tests/*", ".venv/*", "vulture_whitelist.py"]
 ignore = []
+
+[tool.uv]
+exclude-newer = "7 days"
+
+[tool.uv.exclude-newer-package]
+guard-agent = "0 days"
 
 [tool.deptry]
 extend_exclude = ['vulture_whitelist\.py', 'docs', 'conftest\.py', '\.claude', 'interop']
