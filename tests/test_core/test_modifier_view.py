@@ -95,6 +95,29 @@ def test_recording_headers_support_the_mutable_mapping_helpers() -> None:
     assert real == {}
 
 
+class _AppendingHeaders(dict[str, str]):
+    def __init__(self, items: dict[str, str]) -> None:
+        super().__init__(items)
+        self.appended: list[tuple[str, str]] = []
+
+    def append(self, key: str, value: str) -> None:
+        self.appended.append((key, value))
+        self[key] = value
+
+
+def test_recording_headers_record_append_and_forward_other_attributes() -> None:
+    real = _AppendingHeaders({"A": "1"})
+    recorded = RecordingHeaders(real)
+    recorded.append("B", "2")
+    recorded.append("A", "3")
+    assert recorded["B"] == "2"
+    assert recorded["A"] == "1"
+    assert real.appended == []
+    assert recorded.appended == []
+    recorded.commit()
+    assert real.appended == [("B", "2"), ("A", "3")]
+
+
 @pytest.mark.parametrize(
     "headers, status, method, expected",
     [

@@ -1,6 +1,6 @@
 import logging
 from collections.abc import Callable, Iterator, MutableMapping
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 from cachetools import TTLCache
 
@@ -38,12 +38,16 @@ def modifier_reads_response_body(modifier: Callable[..., Any]) -> bool:
 
 
 class RecordingHeaders(MutableMapping[str, str]):
-    """Header writes of one modifier call, applied to the real headers on commit."""
+    """Header writes of one modifier call, applied to the real headers on commit.
+
+    ``append`` (Starlette's ``MutableHeaders``) is recorded too; any other
+    attribute of the real headers is forwarded and acts on them at once.
+    """
 
     def __init__(self, real: MutableMapping[str, str]) -> None:
         self._real = real
         self._overlay: dict[str, tuple[str, str | None]] = {}
-        self._log: list[tuple[str, str | None]] = []
+        self._log: list[tuple[str, str, str | None]] = []
 
     def __getitem__(self, key: str) -> str:
         shadow = self._overlay.get(key.lower())
@@ -55,13 +59,21 @@ class RecordingHeaders(MutableMapping[str, str]):
 
     def __setitem__(self, key: str, value: str) -> None:
         self._overlay[key.lower()] = (key, value)
-        self._log.append((key, value))
+        self._log.append(("set", key, value))
 
     def __delitem__(self, key: str) -> None:
         if key not in self:
             raise KeyError(key)
         self._overlay[key.lower()] = (key, None)
-        self._log.append((key, None))
+        self._log.append(("delete", key, None))
+
+    def append(self, key: str, value: str) -> None:
+        if key not in self:
+            self._overlay[key.lower()] = (key, value)
+        self._log.append(("append", key, value))
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._real, name)
 
     def __iter__(self) -> Iterator[str]:
         for key in self._real:
@@ -75,8 +87,10 @@ class RecordingHeaders(MutableMapping[str, str]):
         return sum(1 for _ in self)
 
     def commit(self) -> None:
-        for name, value in self._log:
-            if value is not None:
+        for operation, name, value in self._log:
+            if operation == "append":
+                cast(Any, self._real).append(name, value)
+            elif value is not None:
                 self._real[name] = value
             elif name in self._real:
                 del self._real[name]
