@@ -291,6 +291,8 @@ def test_select_from_resists_repeated_anchor_padding() -> None:
 
 
 def _compiled(cat: str, needle: str) -> re.Pattern:
+    # Needles name a stable run of the row (an extension list tail that survives
+    # re-factoring the alternation), never the leading branches.
     for pat, _c, c in SusPatternsManager._pattern_definitions:
         if c == cat and needle in pat:
             return re.compile(pat, IM)
@@ -360,7 +362,7 @@ def test_union_select_null_resists_unterminated_separator_padding() -> None:
 
 
 def test_recon_ext_still_matches_real_probe() -> None:
-    rx = _compiled("recon", r"(?:asp|aspx")
+    rx = _compiled("recon", "woa|nsf|esp")
     assert rx.search("/config.aspx")
     assert rx.search("/shell.jsp?x=1")
 
@@ -376,7 +378,7 @@ def test_recon_ext_still_matches_real_probe() -> None:
     ],
 )
 def test_recon_ext_still_matches_multidot_filenames(path: str) -> None:
-    rx = _compiled("recon", r"(?:asp|aspx")
+    rx = _compiled("recon", "woa|nsf|esp")
     assert rx.search(path), f"multi-dot recon probe regressed: {path}"
 
 
@@ -550,7 +552,7 @@ def test_sensitive_file_map_still_matches_multidot_filenames(path: str) -> None:
     ],
 )
 def test_sensitive_file_source_still_matches_multidot_filenames(path: str) -> None:
-    rx = _compiled("sensitive_file", "ts|tsx|jsx")
+    rx = _compiled("sensitive_file", "java|go|rs")
     assert rx.search(path), f"multi-dot source-file probe regressed: {path}"
 
 
@@ -1340,7 +1342,7 @@ def test_glob_wildcard_resists_no_wildcard_adversarial_fill() -> None:
     ],
 )
 def test_cms_probing_backup_still_matches_multidot_filenames(path: str) -> None:
-    rx = _compiled("cms_probing", "bak|backup|old")
+    rx = _compiled("cms_probing", "old|orig|")
     assert rx.search(path), f"multi-dot backup probe regressed: {path}"
 
 
