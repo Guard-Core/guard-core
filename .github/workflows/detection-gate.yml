@@ -29,6 +29,11 @@ permissions:
 jobs:
   detection-gate-shards:
     runs-on: ubuntu-latest
+    env:
+      # uv follows .python-version (3.10) unless told otherwise.
+      UV_PYTHON: ${{ matrix.python-version }}
+      UV_PYTHON_DOWNLOADS: never
+      EXPECTED_PYTHON: ${{ matrix.python-version }}
 
     services:
       redis:
@@ -44,6 +49,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        python-version: ['3.10', '3.14']
         shard:
           - name: builtin-safety
             pytest_args: >-
@@ -74,16 +80,23 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
-          # Stays on 3.10 on purpose until the Ledger decides per-version timing rows (D-107 item 4): the arbiter result is compared with master's runs of this same job (GATE-RULES, tier 3), so the interpreter is held fixed for that comparison.
-          python-version: '3.10'
+          python-version: ${{ matrix.python-version }}
 
       - name: Install uv
         run: |
           pip install uv
 
+      - name: Assert uv resolves the matrix interpreter (before sync)
+        run: |
+          uv run --no-project python -c "import os, sys; assert '%d.%d' % sys.version_info[:2] == os.environ['EXPECTED_PYTHON'], sys.version; print(sys.version)"
+
       - name: Install dependencies (same extras as the Dockerfile)
         run: |
           uv sync --locked --extra dev --extra otel --extra logfire
+
+      - name: Assert the synced environment runs the matrix interpreter
+        run: |
+          uv run --no-sync python -c "import os, sys; assert '%d.%d' % sys.version_info[:2] == os.environ['EXPECTED_PYTHON'], sys.version; print(sys.version)"
 
       - name: Fail on generated sync-tree drift
         run: |
@@ -94,14 +107,14 @@ jobs:
         run: |
           REDIS_URL='redis://localhost:6379' \
           GUARD_TESTS_MAX_TEST_SECONDS=300 \
-          uv run pytest -m 'redos_timing' -s -v --no-cov ${{ matrix.shard.pytest_args }} 2>&1 | tee "detection-report-${{ matrix.shard.name }}.txt"
+          uv run pytest -m 'redos_timing' -s -v --no-cov ${{ matrix.shard.pytest_args }} 2>&1 | tee "detection-report-py${{ matrix.python-version }}-${{ matrix.shard.name }}.txt"
 
       - name: Upload the shard report
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: detection-report-${{ matrix.shard.name }}
-          path: "detection-report-${{ matrix.shard.name }}.txt"
+          name: detection-report-py${{ matrix.python-version }}-${{ matrix.shard.name }}
+          path: "detection-report-py${{ matrix.python-version }}-${{ matrix.shard.name }}.txt"
           if-no-files-found: ignore
 
   detection-gate:
@@ -166,6 +179,11 @@ jobs:
   detection-gate-cpu-load-shards:
     name: detection-gate-cpu-load
     runs-on: ubuntu-latest
+    env:
+      # uv follows .python-version (3.10) unless told otherwise.
+      UV_PYTHON: ${{ matrix.python-version }}
+      UV_PYTHON_DOWNLOADS: never
+      EXPECTED_PYTHON: ${{ matrix.python-version }}
 
     services:
       redis:
@@ -181,6 +199,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        python-version: ['3.10', '3.14']
         shard:
           - name: builtin-safety
             pytest_args: >-
@@ -211,16 +230,23 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
-          # Stays on 3.10 on purpose until the Ledger decides per-version timing rows (D-107 item 4): the arbiter result is compared with master's runs of this same job (GATE-RULES, tier 3), so the interpreter is held fixed for that comparison.
-          python-version: '3.10'
+          python-version: ${{ matrix.python-version }}
 
       - name: Install uv
         run: |
           pip install uv
 
+      - name: Assert uv resolves the matrix interpreter (before sync)
+        run: |
+          uv run --no-project python -c "import os, sys; assert '%d.%d' % sys.version_info[:2] == os.environ['EXPECTED_PYTHON'], sys.version; print(sys.version)"
+
       - name: Install dependencies (same extras as the Dockerfile)
         run: |
           uv sync --locked --extra dev --extra otel --extra logfire
+
+      - name: Assert the synced environment runs the matrix interpreter
+        run: |
+          uv run --no-sync python -c "import os, sys; assert '%d.%d' % sys.version_info[:2] == os.environ['EXPECTED_PYTHON'], sys.version; print(sys.version)"
 
       - name: Start a CPU burner on every core
         run: |
@@ -240,7 +266,7 @@ jobs:
           # The ceiling guards hung tests, not load-scaled verdicts.
           REDIS_URL='redis://localhost:6379' \
           GUARD_TESTS_MAX_TEST_SECONDS=600 \
-          uv run pytest -m 'redos_timing' -s -v --no-cov ${{ matrix.shard.pytest_args }} 2>&1 | tee "detection-report-cpu-load-${{ matrix.shard.name }}.txt"
+          uv run pytest -m 'redos_timing' -s -v --no-cov ${{ matrix.shard.pytest_args }} 2>&1 | tee "cpu-load-report-py${{ matrix.python-version }}-${{ matrix.shard.name }}.txt"
 
       - name: Stop the CPU burner
         if: always()
@@ -253,8 +279,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: detection-report-cpu-load-${{ matrix.shard.name }}
-          path: "detection-report-cpu-load-${{ matrix.shard.name }}.txt"
+          name: cpu-load-report-py${{ matrix.python-version }}-${{ matrix.shard.name }}
+          path: "cpu-load-report-py${{ matrix.python-version }}-${{ matrix.shard.name }}.txt"
           if-no-files-found: ignore
 
   detection-gate-cpu-load:
@@ -274,6 +300,11 @@ jobs:
 
   detection-corpus:
     runs-on: ubuntu-latest
+    env:
+      # uv follows .python-version (3.10) unless told otherwise.
+      UV_PYTHON: ${{ matrix.python-version }}
+      UV_PYTHON_DOWNLOADS: never
+      EXPECTED_PYTHON: ${{ matrix.python-version }}
 
     services:
       redis:
@@ -286,6 +317,11 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.14']
+
     steps:
       - name: Checkout candidate
         uses: actions/checkout@v7
@@ -295,8 +331,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
-          # Stays on 3.10 on purpose until the Ledger decides per-version timing rows (D-107 item 4): the arbiter result is compared with master's runs of this same job (GATE-RULES, tier 3), so the interpreter is held fixed for that comparison.
-          python-version: '3.10'
+          python-version: ${{ matrix.python-version }}
 
       - name: Install uv
         run: |
@@ -309,9 +344,17 @@ jobs:
           echo "base_sha=$base_sha"
           git worktree add /tmp/base-tree "$base_sha"
 
+      - name: Assert uv resolves the matrix interpreter (before sync)
+        run: |
+          uv run --no-project python -c "import os, sys; assert '%d.%d' % sys.version_info[:2] == os.environ['EXPECTED_PYTHON'], sys.version; print(sys.version)"
+
       - name: Install dependencies
         run: |
           uv sync --locked --extra dev --extra otel --extra logfire
+
+      - name: Assert the synced environment runs the matrix interpreter
+        run: |
+          uv run --no-sync python -c "import os, sys; assert '%d.%d' % sys.version_info[:2] == os.environ['EXPECTED_PYTHON'], sys.version; print(sys.version)"
 
       - name: Print guard_core.__file__ (candidate)
         run: |
@@ -335,7 +378,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: detection-corpus-gate
+          name: detection-corpus-gate-py${{ matrix.python-version }}
           path: |
             dc_base.json
             dc_cand.json

@@ -35,7 +35,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
-          # Stays on 3.10 on purpose: each consumer repo pins 3.10 in .python-version and the gate compares the PR wheel against the base inside that same environment; the consumers' own matrices run every version.
+          # Packaging only (the wheel is pure Python); the consumer jobs below run it on 3.10 and 3.14.
           python-version: '3.10'
 
       - name: Install uv
@@ -77,6 +77,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # Each consumer runs on both interpreters; the include entries only add the per-consumer fields by name.
+        name: [fastapi-guard, flaskapi-guard, djapi-guard, guard-agent, guard-core-mcp]
+        python-version: ['3.10', '3.14']
         include:
           - name: fastapi-guard
             repo: Guard-Core/fastapi-guard
@@ -108,6 +111,10 @@ jobs:
       IPINFO_TOKEN: test_token
       REDIS_URL: redis://localhost:6379
       GH_TOKEN: ${{ github.token }}
+      # The consumers' own .python-version says 3.10, so ecosystem_gate.sh syncs with this version explicitly.
+      UV_PYTHON: ${{ matrix.python-version }}
+      UV_PYTHON_DOWNLOADS: never
+      EXPECTED_PYTHON: ${{ matrix.python-version }}
 
     steps:
       - name: Checkout code
@@ -122,12 +129,15 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
-          # Stays on 3.10 on purpose: each consumer repo pins 3.10 in .python-version and the gate compares the PR wheel against the base inside that same environment; the consumers' own matrices run every version.
-          python-version: '3.10'
+          python-version: ${{ matrix.python-version }}
 
       - name: Install uv
         run: |
           pip install uv
+
+      - name: Assert uv resolves the matrix interpreter
+        run: |
+          uv run --no-project python -c "import os, sys; assert '%d.%d' % sys.version_info[:2] == os.environ['EXPECTED_PYTHON'], sys.version; print(sys.version)"
 
       - name: Test ${{ matrix.name }} against the PR wheel
         run: |
@@ -144,7 +154,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ matrix.name }}-pytest-output
+          name: ${{ matrix.name }}-py${{ matrix.python-version }}-pytest-output
           path: |
             consumer/pytest-output-base.txt
             consumer/pytest-output-candidate.txt
@@ -170,6 +180,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # Each consumer runs on both interpreters; the include entries only add the per-consumer fields by name.
+        name: [fastapi-guard, flaskapi-guard, djapi-guard, guard-agent, guard-core-mcp]
+        python-version: ['3.10', '3.14']
         include:
           - name: fastapi-guard
             repo: Guard-Core/fastapi-guard
@@ -201,6 +214,10 @@ jobs:
       IPINFO_TOKEN: test_token
       REDIS_URL: redis://localhost:6379
       GH_TOKEN: ${{ github.token }}
+      # The consumers' own .python-version says 3.10, so ecosystem_gate.sh syncs with this version explicitly.
+      UV_PYTHON: ${{ matrix.python-version }}
+      UV_PYTHON_DOWNLOADS: never
+      EXPECTED_PYTHON: ${{ matrix.python-version }}
 
     steps:
       - name: Checkout code
@@ -215,12 +232,15 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
-          # Stays on 3.10 on purpose: each consumer repo pins 3.10 in .python-version and the gate compares the PR wheel against the base inside that same environment; the consumers' own matrices run every version.
-          python-version: '3.10'
+          python-version: ${{ matrix.python-version }}
 
       - name: Install uv
         run: |
           pip install uv
+
+      - name: Assert uv resolves the matrix interpreter
+        run: |
+          uv run --no-project python -c "import os, sys; assert '%d.%d' % sys.version_info[:2] == os.environ['EXPECTED_PYTHON'], sys.version; print(sys.version)"
 
       - name: Test ${{ matrix.name }} against the PR wheel (latest-release)
         run: |
@@ -237,7 +257,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ matrix.name }}-latest-release-pytest-output
+          name: ${{ matrix.name }}-latest-release-py${{ matrix.python-version }}-pytest-output
           path: |
             consumer/pytest-output-base.txt
             consumer/pytest-output-candidate.txt

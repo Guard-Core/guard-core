@@ -170,9 +170,22 @@ jobs:
           # The reporter only reads the data files and the checked-out sources; it does not run the tests.
           python-version: '3.10'
 
-      - name: Install coverage
+      - name: Install uv
         run: |
-          pip install coverage
+          pip install uv
+
+      # The test jobs' own environment: its coverage version and the project's coverage configuration
+      # (plain coverage on 3.10 reads no pyproject.toml without the toml extra).
+      - name: Install dependencies
+        env:
+          UV_PYTHON: '3.10'
+          UV_PYTHON_DOWNLOADS: never
+        run: |
+          uv sync --extra dev --extra otel --extra logfire
+
+      - name: Show the coverage configuration the combine reads
+        run: |
+          uv run --no-sync coverage debug config
 
       - name: Download every version's coverage data
         uses: actions/download-artifact@v8
@@ -189,8 +202,8 @@ jobs:
 
       - name: Combine and gate
         run: |
-          coverage combine coverage-data/coverage-py*.data
-          coverage report -m --fail-under=100
+          uv run --no-sync coverage combine coverage-data/coverage-py*.data
+          uv run --no-sync coverage report -m --fail-under=100
 
   docker-test:
     name: docker-test (${{ matrix.python-version }})
@@ -215,13 +228,69 @@ jobs:
         run: |
           COMPOSE_BAKE=true PYTHON_VERSION=${{ matrix.python-version }} docker compose run --rm --build -e EXPECTED_PYTHON=${{ matrix.python-version }} guard-core python -c "import os, sys; assert '%d.%d' % sys.version_info[:2] == os.environ['EXPECTED_PYTHON'], sys.version; print(sys.version)"
 
-      # The 100 percent gate lives in the combined coverage job: a version branch (for example
+      # The 100 percent gate lives in the docker-coverage job: a version branch (for example
       # _redos_parse_slots.py) is covered by only some interpreters, so no single version reaches 100.
       - name: Run tests in Docker
         run: |
-          PYTHON_VERSION=${{ matrix.python-version }} docker compose run --rm -e GUARD_TESTS_MAX_TEST_SECONDS=180 guard-core pytest -q -p no:cacheprovider -W error --ignore=tests/live_smoke --cov=guard_core --cov-branch
+          mkdir -p coverage-docker
+          PYTHON_VERSION=${{ matrix.python-version }} docker compose run --rm -v "$PWD/coverage-docker:/cov" -e COVERAGE_FILE=/cov/coverage-docker-py${{ matrix.python-version }}.data -e GUARD_TESTS_MAX_TEST_SECONDS=180 guard-core pytest -q -p no:cacheprovider -W error --ignore=tests/live_smoke --cov=guard_core --cov-branch
+
+      - name: Upload the container coverage data
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-data-docker-py${{ matrix.python-version }}
+          path: coverage-docker/coverage-docker-py${{ matrix.python-version }}.data
+          if-no-files-found: error
 
       - name: Tear down Docker Compose
         if: always()
         run: |
           docker compose down -v --remove-orphans
+
+  docker-coverage:
+    name: docker-coverage (combined across the container matrix)
+    needs: docker-test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          # The reporter only reads the data files and the checked-out sources; it does not run the tests.
+          python-version: '3.10'
+
+      - name: Install uv
+        run: |
+          pip install uv
+
+      - name: Install dependencies
+        env:
+          UV_PYTHON: '3.10'
+          UV_PYTHON_DOWNLOADS: never
+        run: |
+          uv sync --extra dev --extra otel --extra logfire
+
+      - name: Download every version's container coverage data
+        uses: actions/download-artifact@v8
+        with:
+          pattern: coverage-data-docker-py*
+          path: coverage-data
+          merge-multiple: true
+
+      - name: Require the data of every container version
+        run: |
+          for v in 3.10 3.11 3.12 3.13 3.14; do
+            test -f "coverage-data/coverage-docker-py$v.data" || { echo "::error::no container coverage data for Python $v"; exit 1; }
+          done
+
+      # The container recorded /app/guard_core, the checkout holds guard_core: one source tree for the combine.
+      - name: Write the path mapping
+        run: |
+          printf '[paths]\nsource =\n    guard_core\n    /app/guard_core\n' > coverage-docker.rc
+
+      - name: Combine and gate
+        run: |
+          uv run --no-sync coverage combine --rcfile=coverage-docker.rc coverage-data/coverage-docker-py*.data
+          uv run --no-sync coverage report --rcfile=coverage-docker.rc -m --fail-under=100

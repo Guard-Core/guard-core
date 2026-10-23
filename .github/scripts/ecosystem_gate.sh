@@ -77,12 +77,20 @@ git clone --branch "$ref" --depth 1 "https://github.com/$repo" "$clone_dir"
 cd "$clone_dir"
 echo "::endgroup::"
 
-echo "::group::uv sync $sync_extra"
+# The consumer's .python-version says 3.10, so the job's interpreter is passed to uv explicitly.
+python_version="${UV_PYTHON:?UV_PYTHON must name the interpreter this job tests}"
+echo "::group::uv sync --python $python_version $sync_extra"
 if [ ! -f uv.lock ]; then
   echo "::error::$repo@$ref has no committed uv.lock, so uv sync --locked cannot run" >&2
   exit 1
 fi
-uv sync --locked "${sync_args[@]}"
+uv sync --locked --python "$python_version" "${sync_args[@]}"
+.venv/bin/python -V
+actual_python="$(.venv/bin/python -c "import sys; print('%d.%d' % sys.version_info[:2])")"
+if [ "$actual_python" != "$python_version" ]; then
+  echo "Expected the consumer venv on Python $python_version, got $actual_python" >&2
+  exit 1
+fi
 echo "::endgroup::"
 
 run_env=(IPINFO_TOKEN="${IPINFO_TOKEN:-test_token}" REDIS_URL="${REDIS_URL:-redis://localhost:6379}")
