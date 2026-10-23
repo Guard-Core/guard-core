@@ -722,7 +722,7 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
     ),
     (
         _path_only_pattern(
-            rf"{_PATH_ONLY_CHAR_RE}*\.(?:bak|backup|old|orig|save|swp|swo|tmp|temp)"
+            rf"{_PATH_ONLY_CHAR_RE}*\.(?:b(?:ak|ackup)|old|orig|s(?:ave|w[po])|t(?:mp|emp))"
         ),
         _CTX_CMS_PROBING,
         "cms_probing",
@@ -869,7 +869,7 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
     (
         _path_only_pattern(
             rf"{_PATH_ONLY_CHAR_RE}*(?:secrets?|credentials?)"
-            r"\.(?:py|json|yml|yaml|toml|txt|env|xml|conf|cfg)"
+            r"\.(?:py|json|y(?:a?ml)|t(?:oml|xt)|env|xml|c(?:onf|fg))"
         ),
         _CTX_RECON,
         "recon",

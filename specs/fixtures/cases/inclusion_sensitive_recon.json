@@ -280,7 +280,7 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "\\A[/\\\\]?(?:(?![\\w.\\-~%]*\\.(?:bak|backup|old|orig|save|swp|swo|tmp|temp)(?:[/\\\\]|\\Z))[\\w.\\-~%]+[/\\\\])*[\\w.\\-~%]*\\.(?:bak|backup|old|orig|save|swp|swo|tmp|temp)(?:[/\\\\][/\\\\\\w.\\-~%]*)?(?:\\?\\S*)?\\s*\\Z",
+            "pattern": "\\A[/\\\\]?(?:(?![\\w.\\-~%]*\\.(?:b(?:ak|ackup)|old|orig|s(?:ave|w[po])|t(?:mp|emp))(?:[/\\\\]|\\Z))[\\w.\\-~%]+[/\\\\])*[\\w.\\-~%]*\\.(?:b(?:ak|ackup)|old|orig|s(?:ave|w[po])|t(?:mp|emp))(?:[/\\\\][/\\\\\\w.\\-~%]*)?(?:\\?\\S*)?\\s*\\Z",
             "match": "/config.php.bak",
             "position": 0,
             "category": "cms_probing",
@@ -320,7 +320,7 @@
           },
           {
             "type": "regex",
-            "pattern": "\\A[/\\\\]?(?:[\\w.\\-~%]+[/\\\\])*[\\w.\\-~%]*\\.(?:ts|tsx|jsx|py|rb|java|go|rs|php|pl|sh|sql|phtml|php[3-8]|pht|phps|phar)(?:;(?:(?![/\\\\?])\\S)*|\\.+|::\\$(?:DATA|INDEX_ALLOCATION)|%00(?:(?![/\\\\?])\\S)*|\\.(?:jpe?g|png|gif|ico|bmp))?(?:[/\\\\][/\\\\\\w.\\-~%]*)?(?:\\?\\S*)?\\s*\\Z",
+            "pattern": "\\A[/\\\\]?(?:[\\w.\\-~%]+[/\\\\])*[\\w.\\-~%]*\\.(?:tsx?|jsx|py|rb|java|go|rs|p(?:hp(?:[3-8]|s)?|ht(?:ml)?|har|l)|s(?:h|ql))(?:;(?:(?![/\\\\?])\\S)*|\\.+|::\\$(?:DATA|INDEX_ALLOCATION)|%00(?:(?![/\\\\?])\\S)*|\\.(?:jpe?g|png|gif|ico|bmp))?(?:[/\\\\][/\\\\\\w.\\-~%]*)?(?:\\?\\S*)?\\s*\\Z",
             "match": "/wp-login.php",
             "position": 0,
             "category": "sensitive_file",
@@ -360,7 +360,7 @@
           },
           {
             "type": "regex",
-            "pattern": "\\A[/\\\\]?(?:[\\w.\\-~%]+[/\\\\])*[\\w.\\-~%]*\\.(?:ts|tsx|jsx|py|rb|java|go|rs|php|pl|sh|sql|phtml|php[3-8]|pht|phps|phar)(?:;(?:(?![/\\\\?])\\S)*|\\.+|::\\$(?:DATA|INDEX_ALLOCATION)|%00(?:(?![/\\\\?])\\S)*|\\.(?:jpe?g|png|gif|ico|bmp))?(?:[/\\\\][/\\\\\\w.\\-~%]*)?(?:\\?\\S*)?\\s*\\Z",
+            "pattern": "\\A[/\\\\]?(?:[\\w.\\-~%]+[/\\\\])*[\\w.\\-~%]*\\.(?:tsx?|jsx|py|rb|java|go|rs|p(?:hp(?:[3-8]|s)?|ht(?:ml)?|har|l)|s(?:h|ql))(?:;(?:(?![/\\\\?])\\S)*|\\.+|::\\$(?:DATA|INDEX_ALLOCATION)|%00(?:(?![/\\\\?])\\S)*|\\.(?:jpe?g|png|gif|ico|bmp))?(?:[/\\\\][/\\\\\\w.\\-~%]*)?(?:\\?\\S*)?\\s*\\Z",
             "match": "/wp-admin/setup-config.php",
             "position": 0,
             "category": "sensitive_file",
@@ -384,7 +384,7 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "\\A[/\\\\]?(?:[\\w.\\-~%]+[/\\\\])*[\\w.\\-~%]*\\.(?:ts|tsx|jsx|py|rb|java|go|rs|php|pl|sh|sql|phtml|php[3-8]|pht|phps|phar)(?:;(?:(?![/\\\\?])\\S)*|\\.+|::\\$(?:DATA|INDEX_ALLOCATION)|%00(?:(?![/\\\\?])\\S)*|\\.(?:jpe?g|png|gif|ico|bmp))?(?:[/\\\\][/\\\\\\w.\\-~%]*)?(?:\\?\\S*)?\\s*\\Z",
+            "pattern": "\\A[/\\\\]?(?:[\\w.\\-~%]+[/\\\\])*[\\w.\\-~%]*\\.(?:tsx?|jsx|py|rb|java|go|rs|p(?:hp(?:[3-8]|s)?|ht(?:ml)?|har|l)|s(?:h|ql))(?:;(?:(?![/\\\\?])\\S)*|\\.+|::\\$(?:DATA|INDEX_ALLOCATION)|%00(?:(?![/\\\\?])\\S)*|\\.(?:jpe?g|png|gif|ico|bmp))?(?:[/\\\\][/\\\\\\w.\\-~%]*)?(?:\\?\\S*)?\\s*\\Z",
             "match": "/phpmyadmin/index.php",
             "position": 0,
             "category": "sensitive_file",
@@ -408,7 +408,7 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "\\A[/\\\\]?(?:[\\w.\\-~%]+[/\\\\])*[\\w.\\-~%]*\\.(?:ts|tsx|jsx|py|rb|java|go|rs|php|pl|sh|sql|phtml|php[3-8]|pht|phps|phar)(?:;(?:(?![/\\\\?])\\S)*|\\.+|::\\$(?:DATA|INDEX_ALLOCATION)|%00(?:(?![/\\\\?])\\S)*|\\.(?:jpe?g|png|gif|ico|bmp))?(?:[/\\\\][/\\\\\\w.\\-~%]*)?(?:\\?\\S*)?\\s*\\Z",
+            "pattern": "\\A[/\\\\]?(?:[\\w.\\-~%]+[/\\\\])*[\\w.\\-~%]*\\.(?:tsx?|jsx|py|rb|java|go|rs|p(?:hp(?:[3-8]|s)?|ht(?:ml)?|har|l)|s(?:h|ql))(?:;(?:(?![/\\\\?])\\S)*|\\.+|::\\$(?:DATA|INDEX_ALLOCATION)|%00(?:(?![/\\\\?])\\S)*|\\.(?:jpe?g|png|gif|ico|bmp))?(?:[/\\\\][/\\\\\\w.\\-~%]*)?(?:\\?\\S*)?\\s*\\Z",
             "match": "/installation/index.php",
             "position": 0,
             "category": "sensitive_file",

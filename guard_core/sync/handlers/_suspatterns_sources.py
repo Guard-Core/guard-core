@@ -206,7 +206,7 @@ _NAMED_PATH_SUFFIX_RE = (
     r"(?:\?\S*)?\s*\Z"
 )
 _SENSITIVE_SOURCE_BARE_EXTENSIONS = (
-    r"\.(?:ts|tsx|jsx|py|rb|java|go|rs|php|pl|sh|sql|phtml|php[3-8]|pht|phps|phar)"
+    r"\.(?:tsx?|jsx|py|rb|java|go|rs|p(?:hp(?:[3-8]|s)?|ht(?:ml)?|har|l)|s(?:h|ql))"
 )
 _SENSITIVE_SOURCE_EXTENSIONS = (
     _SENSITIVE_SOURCE_BARE_EXTENSIONS + _EXTENSION_TRICK_SUFFIX
@@ -215,8 +215,8 @@ _PLAIN_SOURCE_OR_MAP_PATH_END_RE = re.compile(
     rf"(?:{_SENSITIVE_SOURCE_BARE_EXTENSIONS}|\.map)\s*\Z"
 )
 _RECON_EXTENSIONS = (
-    r"\.(?:asp|aspx|jsp|jsa|jhtml|shtml|cfm|cgi|do|action|lua|inc|woa|nsf|esp"
-    r"|asa|cer|ashx|asmx|ascx)" + _EXTENSION_TRICK_SUFFIX
+    r"\.(?:a(?:spx?|sa|shx|smx|scx|ction)|j(?:s[pa]|html)|shtml|c(?:fm|gi|er)"
+    r"|do|lua|inc|woa|nsf|esp)" + _EXTENSION_TRICK_SUFFIX
 )
 
 _SENSITIVE_SOURCE_EXTENSION_PATH_RE = _path_only_extension_pattern(
