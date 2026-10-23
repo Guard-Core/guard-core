@@ -564,6 +564,10 @@ def _first_over_budget_reason(
     return None
 
 
+def _construction_exhausted(deadline: float, wall_backstop: float) -> bool:
+    return time.monotonic() >= wall_backstop or _remaining_budget(deadline) <= 0
+
+
 def _reach_probe_cost_verdict(
     pattern: str,
     max_content_length: int | None,
@@ -583,7 +587,7 @@ def _reach_probe_cost_verdict(
         builders = _reach_probe_candidate_builders(pattern, flags, deadline)
     except TimeoutError as exc:
         return False, structural_violation or str(exc)
-    if time.monotonic() >= wall_backstop or _remaining_budget(deadline) <= 0:
+    if _construction_exhausted(deadline, wall_backstop):
         return False, "Pattern validation probe construction exceeded its deadline"
     if not builders:
         if structural_violation is not None:
