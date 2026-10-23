@@ -24,6 +24,7 @@ from guard_core.sync.detection_engine._redos_cost_arbiter import (
     _reach_probe_verdict_from_samples,
     _time_reach_probes_subprocess,
 )
+from guard_core.sync.detection_engine._redos_cpu_budget import ReachProbeCpuBudget
 from guard_core.sync.detection_engine._redos_literal_in_wildcard import (
     _detect_ambiguous_literal_boundary,
 )
@@ -184,14 +185,14 @@ def test_max_content_length_changes_the_verdict_for_the_same_quadratic_pattern()
     None
 ):
     compiler = PatternCompiler()
-    is_safe_at_ua_cap, _reason = compiler.validate_pattern_safety(
+    is_safe_at_ua_cap, reason_at_ua_cap = compiler.validate_pattern_safety(
         r"(?:foo|bar)+$", max_content_length=_MAX_USER_AGENT_MATCH_LENGTH
     )
-    is_safe_at_body_cap, _reason = compiler.validate_pattern_safety(
+    is_safe_at_body_cap, reason_at_body_cap = compiler.validate_pattern_safety(
         r"(?:foo|bar)+$", max_content_length=_PATTERN_SAFETY_DEFAULT_CAP
     )
-    assert is_safe_at_ua_cap is True
-    assert is_safe_at_body_cap is False
+    assert is_safe_at_ua_cap is True, reason_at_ua_cap
+    assert is_safe_at_body_cap is False, reason_at_body_cap
 
 
 def _non_windowed_builtin_patterns() -> list[str]:
@@ -463,8 +464,8 @@ def test_validate_pattern_safety_accepts_single_broad_quantifier_when_anchored()
     None
 ):
     compiler = PatternCompiler()
-    is_safe, _reason = compiler.validate_pattern_safety(r"^[^>]*x")
-    assert is_safe is True
+    is_safe, reason = compiler.validate_pattern_safety(r"^[^>]*x")
+    assert is_safe is True, reason
 
 
 def test_detect_ambiguous_optional_tail_flags_unbounded_then_optional() -> None:
@@ -734,7 +735,7 @@ def test_semver_dot_separated_sample_stays_under_budget() -> None:
     unit = "v1."
     probes = [_repeat_probe_to_length(unit, size) for size in _REACH_PROBE_SIZES]
     timing = _time_reach_probes_subprocess(
-        _SEMVER_SCAN_PATTERN, probes, time.monotonic() + 30.0
+        _SEMVER_SCAN_PATTERN, probes, ReachProbeCpuBudget(30.0)
     )
     assert timing is not None
     over, extrapolated, ratio, min_32, median_32 = _reach_probe_verdict_from_samples(
@@ -800,7 +801,9 @@ def test_validate_pattern_safety_cap_aware_quadratic_canaries() -> None:
     compiler = PatternCompiler()
     for pattern, unit in _CAP_AWARE_CANARIES:
         probes = [_repeat_probe_to_length(unit, size) for size in _REACH_PROBE_SIZES]
-        timing = _time_reach_probes_subprocess(pattern, probes, time.monotonic() + 30.0)
+        timing = _time_reach_probes_subprocess(
+            pattern, probes, ReachProbeCpuBudget(30.0)
+        )
         if timing is None:
             over_at_body_cap = True
             measurement = (
@@ -893,9 +896,9 @@ def test_validator_keeps_benign_custom_corpus_safe() -> None:
     ]
     rejected = []
     for pattern in benign_custom:
-        is_safe, _reason = compiler.validate_pattern_safety(pattern)
+        is_safe, reason = compiler.validate_pattern_safety(pattern)
         if not is_safe:
-            rejected.append(pattern)
+            rejected.append((pattern, reason))
     assert rejected == [], f"benign custom patterns falsely rejected: {rejected}"
 
 

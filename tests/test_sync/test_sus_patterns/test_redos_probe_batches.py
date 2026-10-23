@@ -1,4 +1,3 @@
-import time
 from collections.abc import Callable
 from types import SimpleNamespace
 from typing import cast
@@ -12,6 +11,7 @@ from guard_core.sync.detection_engine._redos_cost_arbiter import (
     _first_over_budget_reason,
     _parse_reach_probe_child_output,
 )
+from guard_core.sync.detection_engine._redos_cpu_budget import ReachProbeCpuBudget
 from guard_core.sync.detection_engine._redos_probe_batches import (
     _REACH_PROBE_BATCH_SIZE,
     _batched_reach_probe_timings,
@@ -44,13 +44,15 @@ def test_batched_timings_preserve_probe_order_and_all_rows() -> None:
     ]
 
     def fake_timing(
-        _pattern: str, probes: list[str], _deadline: float, _flags: int
+        _pattern: str, probes: list[str], _budget: ReachProbeCpuBudget, _flags: int
     ) -> ReachProbeTiming:
         calls.append(probes)
         return _timing([[float(index)] for index, _probe in enumerate(probes)])
 
     result = list(
-        _batched_reach_probe_timings("pattern", probe_sets, 100.0, 0, fake_timing)
+        _batched_reach_probe_timings(
+            "pattern", probe_sets, ReachProbeCpuBudget(100.0), 0, fake_timing
+        )
     )
 
     assert len(calls) == 2
@@ -82,12 +84,14 @@ def test_batched_timings_fail_closed_for_malformed_child_results(
     probe_sets = [("a", "b")]
 
     def fake_timing(
-        _pattern: str, _probes: list[str], _deadline: float, _flags: int
+        _pattern: str, _probes: list[str], _budget: ReachProbeCpuBudget, _flags: int
     ) -> _ReachProbeTimingLike | None:
         return cast(_ReachProbeTimingLike, timing)
 
     result = list(
-        _batched_reach_probe_timings("pattern", probe_sets, 100.0, 0, fake_timing)
+        _batched_reach_probe_timings(
+            "pattern", probe_sets, ReachProbeCpuBudget(100.0), 0, fake_timing
+        )
     )
     assert result == [(probe_sets[0], None, 1.0)]
 
@@ -99,7 +103,7 @@ def test_first_over_budget_reason_rejects_a_later_dangerous_batch_candidate(
     quadratic = [0.064] * 5
 
     def fake_timing(
-        _pattern: str, probes: list[str], _deadline: float, _flags: int
+        _pattern: str, probes: list[str], _budget: ReachProbeCpuBudget, _flags: int
     ) -> ReachProbeTiming:
         calls.append(probes)
         rows = []
@@ -128,7 +132,7 @@ def test_first_over_budget_reason_rejects_a_later_dangerous_batch_candidate(
         safe_builders + [dangerous_builder],
         _PATTERN_SAFETY_DEFAULT_CAP,
         None,
-        time.monotonic() + 100.0,
+        ReachProbeCpuBudget(100.0),
     )
 
     assert reason is not None
@@ -157,7 +161,7 @@ def test_first_over_budget_reason_fails_closed_on_short_batch_result(
         [_tagged_builder("x", index) for index in range(_REACH_PROBE_BATCH_SIZE)],
         _PATTERN_SAFETY_DEFAULT_CAP,
         None,
-        100.0,
+        ReachProbeCpuBudget(100.0),
     )
 
     assert reason is not None
@@ -173,7 +177,7 @@ def test_first_over_budget_reason_fails_closed_on_malformed_retry_result(
     ] + [_tagged_builder("danger", 0)]
 
     def fake_timing(
-        _pattern: str, probes: list[str], _deadline: float, _flags: int
+        _pattern: str, probes: list[str], _budget: ReachProbeCpuBudget, _flags: int
     ) -> ReachProbeTiming:
         nonlocal calls
         calls += 1
@@ -192,7 +196,11 @@ def test_first_over_budget_reason_fails_closed_on_malformed_retry_result(
     )
 
     reason = _first_over_budget_reason(
-        "pattern", builders, _PATTERN_SAFETY_DEFAULT_CAP, None, time.monotonic() + 100
+        "pattern",
+        builders,
+        _PATTERN_SAFETY_DEFAULT_CAP,
+        None,
+        ReachProbeCpuBudget(100.0),
     )
 
     assert calls == 2
@@ -217,16 +225,16 @@ def test_reach_probe_child_parser_fails_closed_for_malformed_rows(
     assert _parse_reach_probe_child_output(stdout) is None
 
 
-def test_first_over_budget_reason_preserves_deadline_and_cap(
+def test_first_over_budget_reason_preserves_budget_and_cap(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    deadlines: list[float] = []
+    budgets: list[ReachProbeCpuBudget] = []
     caps: list[int] = []
 
     def fake_timing(
-        _pattern: str, probes: list[str], deadline: float, _flags: int
+        _pattern: str, probes: list[str], budget: ReachProbeCpuBudget, _flags: int
     ) -> ReachProbeTiming:
-        deadlines.append(deadline)
+        budgets.append(budget)
         return _timing([[0.001] * 5 for _probe in probes])
 
     def fake_verdict(
@@ -243,16 +251,16 @@ def test_first_over_budget_reason_preserves_deadline_and_cap(
         "guard_core.sync.detection_engine._redos_cost_arbiter._reach_probe_verdict_from_samples",
         fake_verdict,
     )
-    deadline = 123.5
+    budget = ReachProbeCpuBudget(123.5)
 
     reason = _first_over_budget_reason(
         "pattern",
         [_tagged_builder("x", index) for index in range(_REACH_PROBE_BATCH_SIZE)],
         54321,
         None,
-        deadline,
+        budget,
     )
 
     assert reason is None
-    assert deadlines == [deadline]
+    assert budgets == [budget]
     assert caps == [54321] * _REACH_PROBE_BATCH_SIZE

@@ -1,18 +1,23 @@
 import json
 import logging
 import math
+import os
 import re
+import signal
 import subprocess
 import sys
+import tempfile
 import time
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 
+from guard_core.sync.detection_engine._redos_cpu_budget import ReachProbeCpuBudget
 from guard_core.sync.detection_engine._redos_probe_batches import (
     _REACH_PROBE_BATCH_SIZE,
     _batched_reach_probe_timings,
     _decode_reach_timing,
     _probe_set_digest,
+    _valid_sample,
     _valid_timing_rows,
 )
 from guard_core.sync.detection_engine._redos_probe_fill import (
@@ -121,12 +126,13 @@ _PATTERN_SAFETY_DEFAULT_CAP = 262144
 # stride sample keeps every family and site represented while bounding the
 # timed work; the cap only engages when the enumeration explodes.
 _MAX_TIMED_PROBE_SETS = 512
-# Sample times are normalized by a host load factor, but the wall-clock
-# deadline is not: measuring a genuinely quadratic pattern costs seconds of
-# CPU per probe set, and under a loaded runner the same CPU work needs a
-# proportionally larger wall budget. The verdict deadline scales by the
-# measured load factor, floored at the idle-host behavior and ceiled to
-# stay inside the per-test wall budget.
+# Sample times are normalized by a host load factor, and so is the budget:
+# measuring a genuinely quadratic pattern costs seconds of CPU per probe set, and
+# a slower core needs proportionally more CPU seconds for the same work. The
+# budget counts the children's own CPU time (never the wall clock, which a loaded
+# host's run queue inflates), scaled by the measured load factor, floored at the
+# idle-host behavior and ceiled to stay inside the per-test wall budget. The same
+# wall window bounds only the parent's construction of the probes.
 _REACH_PROBE_DEADLINE_SCALE_CEILING_SECONDS = 240.0
 _REFERENCE_LOAD_PROBE_TIMEOUT_SECONDS = 5.0
 
@@ -143,12 +149,29 @@ _REFERENCE_LOAD_CHILD_SCRIPT = (
     "print(json.dumps({'reference': min(reference_times)}))\n"
 )
 
+# The child limits itself by CPU time, never by the wall clock: an ITIMER_PROF
+# timer (SIGPROF, default action) at its CPU limit kills it, and a loaded host that
+# leaves it waiting in the run queue spends none of that limit. An ITIMER_VIRTUAL
+# timer writes one byte to stderr per heartbeat of its own CPU time, so the parent
+# can tell a child that makes no CPU progress from one that is only scheduled late.
+# The report disarms both timers first (a timer firing after the interpreter dropped
+# its handlers kills the child by its default action) and carries the child's CPU.
 _REACH_PROBE_TIMING_CHILD_SCRIPT = (
-    "import json, math, re, signal, sys, time\n"
-    "pattern, probes, samples, deadline, flags, trigger = json.loads(\n"
+    "import json, os, re, signal, sys, time\n"
+    "for _name in ('SIGPROF', 'SIGVTALRM'):\n"
+    "    if hasattr(signal, _name):\n"
+    "        signal.signal(getattr(signal, _name), signal.SIG_DFL)\n"
+    "pattern, probes, samples, cpu_limit, flags, trigger, heartbeat = json.loads(\n"
     "    sys.stdin.read())\n"
-    "if hasattr(signal, 'alarm'):\n"
-    "    signal.alarm(math.ceil(deadline))\n"
+    "def beat(signum, frame):\n"
+    "    try:\n"
+    "        os.write(2, b'.')\n"
+    "    except OSError:\n"
+    "        pass\n"
+    "if hasattr(signal, 'setitimer'):\n"
+    "    signal.setitimer(signal.ITIMER_PROF, cpu_limit)\n"
+    "    signal.signal(signal.SIGVTALRM, beat)\n"
+    "    signal.setitimer(signal.ITIMER_VIRTUAL, heartbeat, heartbeat)\n"
     "try:\n"
     "    compiled = re.compile(pattern, flags)\n"
     "except Exception as exc:\n"
@@ -175,7 +198,11 @@ _REACH_PROBE_TIMING_CHILD_SCRIPT = (
     "                break\n"
     "    probe_times.sort()\n"
     "    results.append(probe_times)\n"
-    "print(json.dumps({'results': results, 'reference': min(reference_times)}))\n"
+    "if hasattr(signal, 'setitimer'):\n"
+    "    for _timer in (signal.ITIMER_VIRTUAL, signal.ITIMER_PROF):\n"
+    "        signal.setitimer(_timer, 0)\n"
+    "print(json.dumps({'results': results, 'reference': min(reference_times), "
+    "'cpu': time.process_time()}))\n"
 )
 
 
@@ -183,6 +210,7 @@ _REACH_PROBE_TIMING_CHILD_SCRIPT = (
 class ReachProbeTiming:
     samples_by_size: list[list[float]]
     load_factor: float
+    cpu_seconds: float = 0.0
 
 
 def _load_factor(reference_seconds: float) -> float:
@@ -220,7 +248,10 @@ def _parse_reach_probe_child_output(stdout: str) -> ReachProbeTiming | None:
     if decoded is None:
         return None
     rows, reference = decoded
-    return ReachProbeTiming(rows, _load_factor(reference))
+    cpu = json.loads(stdout.strip()).get("cpu")
+    if not _valid_sample(cpu):
+        return None
+    return ReachProbeTiming(rows, _load_factor(reference), float(cpu))
 
 
 _REACH_PROBE_CHILD_START_ALLOWANCE_SECONDS = 0.5
@@ -232,78 +263,131 @@ _REACH_PROBE_COMBINED_TIMEOUT_SECONDS = (
     * len(_REACH_PROBE_SIZES)
     * _REACH_PROBE_SAMPLE_COUNT
 )
+# The child reports CPU progress on stderr at this interval of its own CPU time.
+_REACH_PROBE_HEARTBEAT_CPU_SECONDS = 0.25
+# Wall time is only the backstop for a child that reports no CPU progress at all
+# (stopped, or starved of every slice): a late-scheduled child still beats within
+# 0.25 CPU seconds, so this window holds down to a 1% share of one core.
+_REACH_PROBE_STALL_WALL_SECONDS = 30.0
+_REACH_PROBE_STALL_POLL_SECONDS = 0.5
 
 
 def _remaining_budget(deadline: float) -> float:
     return deadline - time.monotonic()
 
 
-def _clipped_timeout(default_timeout: float, deadline: float) -> float:
-    return min(default_timeout, _remaining_budget(deadline))
+def _clipped_timeout(default_timeout: float, remaining_seconds: float) -> float:
+    return min(default_timeout, remaining_seconds)
+
+
+def _communicate_until_stalled(
+    process: "subprocess.Popen[str]",
+    payload: str,
+    progress_marks: Callable[[], int],
+    stall_seconds: float,
+) -> tuple[str, str] | None:
+    last_marks = 0
+    last_progress = time.monotonic()
+    pending: str | None = payload
+    while True:
+        try:
+            return process.communicate(pending, timeout=_REACH_PROBE_STALL_POLL_SECONDS)
+        except subprocess.TimeoutExpired:
+            pending = None
+        marks = progress_marks()
+        now = time.monotonic()
+        if marks != last_marks:
+            last_marks, last_progress = marks, now
+        elif now - last_progress > stall_seconds:
+            process.kill()
+            process.communicate()
+            return None
 
 
 def _run_reach_probe_child(
-    pattern: str, probes: list[str], timeout: float, flags: int
+    pattern: str,
+    probes: list[str],
+    budget: ReachProbeCpuBudget,
+    cpu_limit: float,
+    flags: int,
 ) -> ReachProbeTiming | None:
     payload = json.dumps(
         [
             pattern,
             probes,
             _REACH_PROBE_SAMPLE_COUNT,
-            timeout,
+            cpu_limit,
             flags,
             _REACH_PROBE_FULL_SAMPLE_TRIGGER_SECONDS,
+            _REACH_PROBE_HEARTBEAT_CPU_SECONDS,
         ]
     )
+    stall_seconds = (
+        _REACH_PROBE_STALL_WALL_SECONDS if hasattr(signal, "setitimer") else cpu_limit
+    )
     try:
-        completed = subprocess.run(
-            [sys.executable, "-S", "-I", "-c", _REACH_PROBE_TIMING_CHILD_SCRIPT],
-            input=payload,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-        )
+        with tempfile.TemporaryFile() as heartbeats:
+            process = subprocess.Popen(
+                [sys.executable, "-S", "-I", "-c", _REACH_PROBE_TIMING_CHILD_SCRIPT],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=heartbeats,
+                text=True,
+            )
+            output = _communicate_until_stalled(
+                process,
+                payload,
+                lambda: os.fstat(heartbeats.fileno()).st_size,
+                stall_seconds,
+            )
     except Exception:
         return None
-    if completed.returncode != 0 or not completed.stdout.strip():
+    if output is None or process.returncode != 0 or not output[0].strip():
         return None
-    return _parse_reach_probe_child_output(completed.stdout)
+    timing = _parse_reach_probe_child_output(output[0])
+    if timing is not None:
+        budget.charge(timing.cpu_seconds)
+    return timing
 
 
 def _time_reach_probes_subprocess(
     pattern: str,
     probes: list[str],
-    deadline: float,
+    budget: ReachProbeCpuBudget,
     flags: int = _DEFAULT_PATTERN_FLAGS,
 ) -> ReachProbeTiming | None:
-    timeout = _clipped_timeout(_REACH_PROBE_COMBINED_TIMEOUT_SECONDS, deadline)
-    if timeout <= 0:
+    cpu_limit = _clipped_timeout(
+        _REACH_PROBE_COMBINED_TIMEOUT_SECONDS, budget.remaining_seconds
+    )
+    if cpu_limit <= 0:
         return None
-    return _run_reach_probe_child(pattern, probes, timeout, flags)
+    return _run_reach_probe_child(pattern, probes, budget, cpu_limit, flags)
 
 
 def _time_single_reach_probe_subprocess(
     pattern: str,
     probe: str,
-    deadline: float,
+    budget: ReachProbeCpuBudget,
     flags: int = _DEFAULT_PATTERN_FLAGS,
 ) -> ReachProbeTiming | None:
-    timeout = _clipped_timeout(_REACH_PROBE_CHILD_TIMEOUT_SECONDS, deadline)
-    if timeout <= 0:
+    cpu_limit = _clipped_timeout(
+        _REACH_PROBE_CHILD_TIMEOUT_SECONDS, budget.remaining_seconds
+    )
+    if cpu_limit <= 0:
         return None
-    return _run_reach_probe_child(pattern, [probe], timeout, flags)
+    return _run_reach_probe_child(pattern, [probe], budget, cpu_limit, flags)
 
 
 def _time_reach_probes_ascending(
     pattern: str,
     probes: list[str],
-    deadline: float,
+    budget: ReachProbeCpuBudget,
     flags: int = _DEFAULT_PATTERN_FLAGS,
 ) -> ReachProbeTiming | None:
     samples_by_size: list[list[float]] = []
     load_factor = _LOAD_FACTOR_CEILING
     for probe in probes:
-        timing = _time_single_reach_probe_subprocess(pattern, probe, deadline, flags)
+        timing = _time_single_reach_probe_subprocess(pattern, probe, budget, flags)
         if timing is None:
             return None
         samples_by_size.extend(timing.samples_by_size)
@@ -376,7 +460,7 @@ def _log_structural_disagreement(
 
 def _reach_probe_timing_strategy(
     structural_violation: str | None, bounded_repeat_risk: bool = False
-) -> Callable[[str, list[str], float, int], ReachProbeTiming | None]:
+) -> Callable[[str, list[str], ReachProbeCpuBudget, int], ReachProbeTiming | None]:
     if structural_violation is not None or bounded_repeat_risk:
         return _time_reach_probes_ascending
     return _time_reach_probes_subprocess
@@ -424,12 +508,12 @@ def _stride_sampled_probe_sets(
 def _direct_reach_probe_timings(
     pattern: str,
     probe_sets: Iterable[tuple[str, ...]],
-    deadline: float,
+    budget: ReachProbeCpuBudget,
     flags: int,
     time_probes: Callable[..., ReachProbeTiming | None],
 ) -> Iterator[tuple[tuple[str, ...], list[list[float]] | None, float]]:
     for probes in probe_sets:
-        timing = time_probes(pattern, list(probes), deadline, flags)
+        timing = time_probes(pattern, list(probes), budget, flags)
         validated = _valid_timing_rows(timing, len(probes))
         if validated is None:
             yield probes, None, 1.0
@@ -440,7 +524,7 @@ def _direct_reach_probe_timings(
 def _timed_probe_results(
     pattern: str,
     builders: list[Callable[[int], str]],
-    deadline: float,
+    budget: ReachProbeCpuBudget,
     flags: int,
     structural_violation: str | None,
     bounded_repeat_risk: bool,
@@ -462,14 +546,14 @@ def _timed_probe_results(
         return _batched_reach_probe_timings(
             pattern,
             iter(probe_sets),
-            deadline,
+            budget,
             flags,
             time_probes,
         )
     return _direct_reach_probe_timings(
         pattern,
         iter(probe_sets),
-        deadline,
+        budget,
         flags,
         time_probes,
     )
@@ -478,12 +562,12 @@ def _timed_probe_results(
 def _retry_reach_probe_timing(
     pattern: str,
     probes: tuple[str, ...],
-    deadline: float,
+    budget: ReachProbeCpuBudget,
     flags: int,
     time_probes: Callable[..., ReachProbeTiming | None],
 ) -> ReachProbeTiming | None:
     validated = _valid_timing_rows(
-        time_probes(pattern, list(probes), deadline, flags), len(probes)
+        time_probes(pattern, list(probes), budget, flags), len(probes)
     )
     return None if validated is None else ReachProbeTiming(*validated)
 
@@ -493,7 +577,7 @@ def _first_over_budget_reason(
     builders: list[Callable[[int], str]],
     cap: int,
     structural_violation: str | None,
-    deadline: float,
+    budget: ReachProbeCpuBudget,
     flags: int = _DEFAULT_PATTERN_FLAGS,
     bounded_repeat_risk: bool = False,
 ) -> str | None:
@@ -501,7 +585,7 @@ def _first_over_budget_reason(
         structural_violation, bounded_repeat_risk
     )
     timed_probe_results = _timed_probe_results(
-        pattern, builders, deadline, flags, structural_violation, bounded_repeat_risk
+        pattern, builders, budget, flags, structural_violation, bounded_repeat_risk
     )
     for probes, sample_rows, load_factor in timed_probe_results:
         timing = (
@@ -518,9 +602,9 @@ def _first_over_budget_reason(
                 timing.samples_by_size, cap, timing.load_factor
             )
         )
-        if over and _remaining_budget(deadline) > 0:
+        if over and budget.remaining_seconds > 0:
             retry = _retry_reach_probe_timing(
-                pattern, probes, deadline, flags, time_probes
+                pattern, probes, budget, flags, time_probes
             )
             if retry is not None:
                 timing = retry
@@ -547,9 +631,9 @@ def _reach_probe_cost_verdict(
     max_content_length: int | None,
     flags: int = _DEFAULT_PATTERN_FLAGS,
 ) -> tuple[bool, str]:
-    deadline = time.monotonic() + _scaled_probe_deadline_seconds(
-        _measure_host_load_factor()
-    )
+    scaled_seconds = _scaled_probe_deadline_seconds(_measure_host_load_factor())
+    deadline = time.monotonic() + scaled_seconds
+    budget = ReachProbeCpuBudget(scaled_seconds)
     cap = max_content_length if max_content_length else _PATTERN_SAFETY_DEFAULT_CAP
     structural_violation = _first_structural_safety_violation(pattern)
     bounded_repeat_risk = _has_large_bounded_repeat(pattern, flags)
@@ -577,7 +661,7 @@ def _reach_probe_cost_verdict(
         builders,
         cap,
         structural_violation,
-        deadline,
+        budget,
         flags,
         bounded_repeat_risk,
     )

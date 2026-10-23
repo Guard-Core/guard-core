@@ -1,4 +1,5 @@
 import itertools
+import json
 import logging
 import re
 import signal
@@ -51,6 +52,7 @@ from guard_core.detection_engine._redos_cost_arbiter import (
     _time_reach_probes_subprocess,
     _time_single_reach_probe_subprocess,
 )
+from guard_core.detection_engine._redos_cpu_budget import ReachProbeCpuBudget
 from guard_core.detection_engine._redos_exact_state import (
     _exact_overlap_fill_raw,
     _isolated_alternative_exact_state,
@@ -94,8 +96,15 @@ _NEAR_BUDGET_SQLI_BUILTIN_PATTERN = (
 _NEAR_BUDGET_SQLI_BUILTIN_PROBE = "/*!" + "0" * 31997
 
 
-def _far_deadline() -> float:
-    return time.monotonic() + 30.0
+def _ample_budget() -> ReachProbeCpuBudget:
+    return ReachProbeCpuBudget(30.0)
+
+
+def _fake_popen(returncode: int, stdout: str) -> MagicMock:
+    process = MagicMock()
+    process.returncode = returncode
+    process.communicate.return_value = (stdout, "")
+    return MagicMock(return_value=process)
 
 
 def _timing(
@@ -1604,52 +1613,48 @@ def test_time_reach_probes_subprocess_returns_none_on_crash() -> None:
         raise OSError("no forkable subprocess slot")
 
     with patch(
-        "guard_core.detection_engine._redos_cost_arbiter.subprocess.run", _raise
+        "guard_core.detection_engine._redos_cost_arbiter.subprocess.Popen", _raise
     ):
-        result = _time_reach_probes_subprocess("test", ["a"], _far_deadline())
+        result = _time_reach_probes_subprocess("test", ["a"], _ample_budget())
     assert result is None
 
 
 def test_time_reach_probes_subprocess_returns_none_on_nonzero_returncode() -> None:
-    fake_completed = MagicMock()
-    fake_completed.returncode = 1
-    fake_completed.stdout = ""
+    fake_popen = _fake_popen(1, "")
 
     with patch(
-        "guard_core.detection_engine._redos_cost_arbiter.subprocess.run",
-        return_value=fake_completed,
+        "guard_core.detection_engine._redos_cost_arbiter.subprocess.Popen",
+        new=fake_popen,
     ):
-        result = _time_reach_probes_subprocess("test", ["a"], _far_deadline())
+        result = _time_reach_probes_subprocess("test", ["a"], _ample_budget())
     assert result is None
 
 
 def test_time_reach_probes_subprocess_returns_none_on_malformed_output() -> None:
-    fake_completed = MagicMock()
-    fake_completed.returncode = 0
-    fake_completed.stdout = "not json"
+    fake_popen = _fake_popen(0, "not json")
 
     with patch(
-        "guard_core.detection_engine._redos_cost_arbiter.subprocess.run",
-        return_value=fake_completed,
+        "guard_core.detection_engine._redos_cost_arbiter.subprocess.Popen",
+        new=fake_popen,
     ):
-        result = _time_reach_probes_subprocess("test", ["a"], _far_deadline())
+        result = _time_reach_probes_subprocess("test", ["a"], _ample_budget())
     assert result is None
 
 
 def test_time_reach_probes_subprocess_returns_none_on_compile_error() -> None:
-    result = _time_reach_probes_subprocess("[invalid", ["a"], _far_deadline())
+    result = _time_reach_probes_subprocess("[invalid", ["a"], _ample_budget())
     assert result is None
 
 
 def test_time_reach_probes_subprocess_returns_none_when_budget_is_exhausted() -> None:
     def _fail_if_called(*args: object, **kwargs: object) -> None:
-        raise AssertionError("subprocess.run must not run without remaining budget")
+        raise AssertionError("subprocess.Popen must not run without remaining budget")
 
     with patch(
-        "guard_core.detection_engine._redos_cost_arbiter.subprocess.run",
+        "guard_core.detection_engine._redos_cost_arbiter.subprocess.Popen",
         _fail_if_called,
     ):
-        result = _time_reach_probes_subprocess("test", ["a"], time.monotonic() - 1.0)
+        result = _time_reach_probes_subprocess("test", ["a"], ReachProbeCpuBudget(0.0))
     assert result is None
 
 
@@ -1657,23 +1662,30 @@ def _repeat_builder(unit: str) -> Callable[[int], str]:
     return lambda size: unit * size
 
 
-def test_time_reach_probes_subprocess_clips_timeout_to_remaining_budget() -> None:
+def test_time_reach_probes_subprocess_clips_cpu_limit_to_remaining_budget() -> None:
     captured: dict[str, float] = {}
 
-    def _fake_run(*args: object, **kwargs: Any) -> None:
-        captured["timeout"] = kwargs["timeout"]
-        raise OSError("stop before actually spawning")
+    def _fake_popen(*args: object, **kwargs: Any) -> MagicMock:
+        process = MagicMock()
+
+        def _communicate(payload: str, timeout: float) -> None:
+            captured["cpu_limit"] = json.loads(payload)[3]
+            raise OSError("stop before actually spawning")
+
+        process.communicate = _communicate
+        return process
 
     with patch(
-        "guard_core.detection_engine._redos_cost_arbiter.subprocess.run", _fake_run
+        "guard_core.detection_engine._redos_cost_arbiter.subprocess.Popen",
+        _fake_popen,
     ):
-        result = _time_reach_probes_subprocess("test", ["a"], time.monotonic() + 3.0)
+        result = _time_reach_probes_subprocess("test", ["a"], ReachProbeCpuBudget(3.0))
     assert result is None
-    assert captured["timeout"] <= 3.0
+    assert captured["cpu_limit"] == 3.0
 
 
 def test_time_reach_probes_subprocess_returns_sorted_samples_per_probe() -> None:
-    result = _time_reach_probes_subprocess("abc", ["abc", "abcabc"], _far_deadline())
+    result = _time_reach_probes_subprocess("abc", ["abc", "abcabc"], _ample_budget())
     assert result is not None
     assert len(result.samples_by_size) == 2
     for samples in result.samples_by_size:
@@ -1761,7 +1773,7 @@ def test_first_over_budget_reason_returns_structural_violation_when_over_budget(
     quadratic_samples = [[0.001] * 5, [0.004] * 5, [0.016] * 5, [0.064] * 5]
 
     def _fake_timing(
-        pattern: str, probes: list[str], deadline: float, flags: int
+        pattern: str, probes: list[str], budget: ReachProbeCpuBudget, flags: int
     ) -> ReachProbeTiming:
         return _timing(quadratic_samples)
 
@@ -1780,7 +1792,7 @@ def test_first_over_budget_reason_returns_structural_violation_when_over_budget(
         [_builder],
         _PATTERN_SAFETY_DEFAULT_CAP,
         "ambiguous optional tail",
-        _far_deadline(),
+        _ample_budget(),
     )
     assert reason is not None
     assert reason == "ambiguous optional tail"
@@ -1803,7 +1815,7 @@ def test_first_over_budget_reason_rejects_when_timing_probe_times_out(
         [_builder],
         _PATTERN_SAFETY_DEFAULT_CAP,
         None,
-        _far_deadline(),
+        _ample_budget(),
     )
     assert reason is not None
     assert "killable-subprocess timeout" in reason
@@ -1828,7 +1840,7 @@ def test_first_over_budget_reason_recovers_when_over_budget_does_not_repeat(
         [_builder],
         _PATTERN_SAFETY_DEFAULT_CAP,
         None,
-        _far_deadline(),
+        _ample_budget(),
     )
     assert reason is None
 
@@ -1851,7 +1863,7 @@ def test_first_over_budget_reason_rejects_when_over_budget_confirmation_times_ou
         [_builder],
         _PATTERN_SAFETY_DEFAULT_CAP,
         None,
-        _far_deadline(),
+        _ample_budget(),
     )
     assert reason is not None
     assert "extrapolated CPU cost" in reason
@@ -1874,7 +1886,7 @@ def test_first_over_budget_reason_returns_none_when_under_budget(
         [_builder],
         _PATTERN_SAFETY_DEFAULT_CAP,
         None,
-        _far_deadline(),
+        _ample_budget(),
     )
     assert reason is None
 
@@ -1887,7 +1899,7 @@ def test_first_over_budget_reason_retries_at_most_once_per_builder(
     calls: list[str] = []
 
     def _fake_timing(
-        _pattern: str, _probes: list[str], _deadline: float, _flags: int
+        _pattern: str, _probes: list[str], _budget: ReachProbeCpuBudget, _flags: int
     ) -> ReachProbeTiming:
         calls.append(_pattern)
         return over_samples if len(calls) % 2 else under_samples
@@ -1899,7 +1911,7 @@ def test_first_over_budget_reason_retries_at_most_once_per_builder(
 
     builders = [_repeat_builder(ch) for ch in ("a", "b", "c")]
     reason = _first_over_budget_reason(
-        r"(\w+)*$", builders, _PATTERN_SAFETY_DEFAULT_CAP, None, _far_deadline()
+        r"(\w+)*$", builders, _PATTERN_SAFETY_DEFAULT_CAP, None, _ample_budget()
     )
     assert reason is None
     assert len(calls) == 2 * len(builders)
@@ -1912,10 +1924,10 @@ def test_first_over_budget_reason_skips_retry_when_budget_is_exhausted(
     timing_calls: list[int] = []
 
     def _fake_timing(
-        _pattern: str, _probes: list[str], _deadline: float, _flags: int
+        _pattern: str, _probes: list[str], budget: ReachProbeCpuBudget, _flags: int
     ) -> ReachProbeTiming:
         timing_calls.append(1)
-        time.sleep(0.05)
+        budget.charge(0.05)
         return over_samples
 
     monkeypatch.setattr(
@@ -1926,9 +1938,12 @@ def test_first_over_budget_reason_skips_retry_when_budget_is_exhausted(
     def _builder(size: int) -> str:
         return "a" * size
 
-    deadline = time.monotonic() + 0.02
     reason = _first_over_budget_reason(
-        r"(\w+)*$", [_builder], _PATTERN_SAFETY_DEFAULT_CAP, None, deadline
+        r"(\w+)*$",
+        [_builder],
+        _PATTERN_SAFETY_DEFAULT_CAP,
+        None,
+        ReachProbeCpuBudget(0.02),
     )
     assert reason is not None
     assert "extrapolated CPU cost" in reason
@@ -1942,32 +1957,29 @@ def test_remaining_budget_is_deadline_minus_now() -> None:
 
 
 def test_clipped_timeout_returns_default_when_budget_is_ample() -> None:
-    deadline = time.monotonic() + 100.0
-    assert _clipped_timeout(2.0, deadline) == pytest.approx(2.0, abs=0.05)
+    assert _clipped_timeout(2.0, 100.0) == 2.0
 
 
 def test_clipped_timeout_returns_remaining_when_budget_is_tight() -> None:
-    deadline = time.monotonic() + 1.0
-    clipped = _clipped_timeout(100.0, deadline)
-    assert 0.0 < clipped <= 1.0
+    assert _clipped_timeout(100.0, 1.0) == 1.0
 
 
-def test_reach_probe_cost_verdict_bounds_the_whole_phase_to_one_shared_deadline() -> (
+def test_reach_probe_cost_verdict_bounds_the_whole_phase_to_one_shared_cpu_budget() -> (
     None
 ):
-    seen_deadlines: list[float] = []
+    seen_budgets: list[ReachProbeCpuBudget] = []
 
     def _fake_over_budget_reason(
         pattern: str,
         builders: list[object],
         cap: int,
         structural_violation: str | None,
-        deadline: float,
+        budget: ReachProbeCpuBudget,
         flags: int,
         bounded_repeat_risk: bool,
     ) -> str | None:
         assert bounded_repeat_risk is False
-        seen_deadlines.append(deadline)
+        seen_budgets.append(budget)
         return None
 
     with (
@@ -1980,16 +1992,12 @@ def test_reach_probe_cost_verdict_bounds_the_whole_phase_to_one_shared_deadline(
             lambda: 1.0,
         ),
     ):
-        before = time.monotonic()
         is_safe, reason = _reach_probe_cost_verdict(r"[a-z]+[a-z]+$", None)
-        after = time.monotonic()
 
     assert is_safe is True
     assert reason == "Pattern appears safe"
-    assert len(seen_deadlines) == 1
-    deadline = seen_deadlines[0]
-    assert before + _REACH_PROBE_COMBINED_TIMEOUT_SECONDS <= deadline
-    assert deadline <= after + _REACH_PROBE_COMBINED_TIMEOUT_SECONDS
+    assert len(seen_budgets) == 1
+    assert seen_budgets[0].remaining_seconds == _REACH_PROBE_COMBINED_TIMEOUT_SECONDS
 
 
 def test_scaled_probe_deadline_scales_with_load_and_respects_the_ceiling() -> None:
@@ -2044,8 +2052,8 @@ def test_retry_confirmation_adds_bounded_child_cpu_time_for_a_safe_pattern() -> 
 
     totals = []
     for _ in range(5):
-        baseline = _time_reach_probes_subprocess(safe_pattern, probes, _far_deadline())
-        retry = _time_reach_probes_subprocess(safe_pattern, probes, _far_deadline())
+        baseline = _time_reach_probes_subprocess(safe_pattern, probes, _ample_budget())
+        retry = _time_reach_probes_subprocess(safe_pattern, probes, _ample_budget())
         assert baseline is not None
         assert retry is not None
         child_cpu_seconds = sum(
@@ -2079,42 +2087,38 @@ def test_time_single_reach_probe_subprocess_returns_none_on_crash() -> None:
         raise OSError("no forkable subprocess slot")
 
     with patch(
-        "guard_core.detection_engine._redos_cost_arbiter.subprocess.run", _raise
+        "guard_core.detection_engine._redos_cost_arbiter.subprocess.Popen", _raise
     ):
-        result = _time_single_reach_probe_subprocess("test", "a", _far_deadline())
+        result = _time_single_reach_probe_subprocess("test", "a", _ample_budget())
     assert result is None
 
 
 def test_time_single_reach_probe_subprocess_returns_none_on_nonzero_returncode() -> (
     None
 ):
-    fake_completed = MagicMock()
-    fake_completed.returncode = 1
-    fake_completed.stdout = ""
+    fake_popen = _fake_popen(1, "")
 
     with patch(
-        "guard_core.detection_engine._redos_cost_arbiter.subprocess.run",
-        return_value=fake_completed,
+        "guard_core.detection_engine._redos_cost_arbiter.subprocess.Popen",
+        new=fake_popen,
     ):
-        result = _time_single_reach_probe_subprocess("test", "a", _far_deadline())
+        result = _time_single_reach_probe_subprocess("test", "a", _ample_budget())
     assert result is None
 
 
 def test_time_single_reach_probe_subprocess_returns_none_on_malformed_output() -> None:
-    fake_completed = MagicMock()
-    fake_completed.returncode = 0
-    fake_completed.stdout = "not json"
+    fake_popen = _fake_popen(0, "not json")
 
     with patch(
-        "guard_core.detection_engine._redos_cost_arbiter.subprocess.run",
-        return_value=fake_completed,
+        "guard_core.detection_engine._redos_cost_arbiter.subprocess.Popen",
+        new=fake_popen,
     ):
-        result = _time_single_reach_probe_subprocess("test", "a", _far_deadline())
+        result = _time_single_reach_probe_subprocess("test", "a", _ample_budget())
     assert result is None
 
 
 def test_time_single_reach_probe_subprocess_returns_none_on_compile_error() -> None:
-    result = _time_single_reach_probe_subprocess("[invalid", "a", _far_deadline())
+    result = _time_single_reach_probe_subprocess("[invalid", "a", _ample_budget())
     assert result is None
 
 
@@ -2122,20 +2126,20 @@ def test_time_single_reach_probe_subprocess_returns_none_when_budget_is_exhauste
     None
 ):
     def _fail_if_called(*args: object, **kwargs: object) -> None:
-        raise AssertionError("subprocess.run must not run without remaining budget")
+        raise AssertionError("subprocess.Popen must not run without remaining budget")
 
     with patch(
-        "guard_core.detection_engine._redos_cost_arbiter.subprocess.run",
+        "guard_core.detection_engine._redos_cost_arbiter.subprocess.Popen",
         _fail_if_called,
     ):
         result = _time_single_reach_probe_subprocess(
-            "test", "a", time.monotonic() - 1.0
+            "test", "a", ReachProbeCpuBudget(0.0)
         )
     assert result is None
 
 
 def test_time_single_reach_probe_subprocess_returns_sorted_samples() -> None:
-    result = _time_single_reach_probe_subprocess("abc", "abcabc", _far_deadline())
+    result = _time_single_reach_probe_subprocess("abc", "abcabc", _ample_budget())
     assert result is not None
     (samples,) = result.samples_by_size
     assert 1 <= len(samples) <= _REACH_PROBE_SAMPLE_COUNT
@@ -2143,7 +2147,7 @@ def test_time_single_reach_probe_subprocess_returns_sorted_samples() -> None:
 
 
 def test_time_reach_probes_ascending_returns_sorted_samples_per_probe() -> None:
-    result = _time_reach_probes_ascending("abc", ["abc", "abcabc"], _far_deadline())
+    result = _time_reach_probes_ascending("abc", ["abc", "abcabc"], _ample_budget())
     assert result is not None
     assert len(result.samples_by_size) == 2
     for samples in result.samples_by_size:
@@ -2155,7 +2159,7 @@ def test_time_reach_probes_ascending_stops_at_the_first_failing_size() -> None:
     calls: list[str] = []
 
     def _fake_single(
-        pattern: str, probe: str, deadline: float, flags: int
+        pattern: str, probe: str, budget: ReachProbeCpuBudget, flags: int
     ) -> ReachProbeTiming | None:
         calls.append(probe)
         return None if probe == "second" else _timing([[0.0] * 5])
@@ -2166,7 +2170,7 @@ def test_time_reach_probes_ascending_stops_at_the_first_failing_size() -> None:
         _fake_single,
     ):
         result = _time_reach_probes_ascending(
-            "test", ["first", "second", "third"], _far_deadline()
+            "test", ["first", "second", "third"], _ample_budget()
         )
 
     assert result is None
@@ -2177,7 +2181,7 @@ def test_time_reach_probes_ascending_keeps_the_smallest_load_factor() -> None:
     factors = iter([3.0, 2.0, 2.5])
 
     def _fake_single(
-        pattern: str, probe: str, deadline: float, flags: int
+        pattern: str, probe: str, budget: ReachProbeCpuBudget, flags: int
     ) -> ReachProbeTiming:
         return _timing([[0.0] * 5], next(factors))
 
@@ -2186,7 +2190,7 @@ def test_time_reach_probes_ascending_keeps_the_smallest_load_factor() -> None:
         "_time_single_reach_probe_subprocess",
         _fake_single,
     ):
-        result = _time_reach_probes_ascending("test", ["a", "b", "c"], _far_deadline())
+        result = _time_reach_probes_ascending("test", ["a", "b", "c"], _ample_budget())
 
     assert result is not None
     assert result.load_factor == 2.0
@@ -2210,11 +2214,25 @@ def test_parse_reach_probe_child_output_requires_the_reference_scan() -> None:
 
 def test_parse_reach_probe_child_output_normalizes_by_the_reference_scan() -> None:
     timing = _parse_reach_probe_child_output(
-        f'{{"results": [[0.3, 0.1, 0.2]], "reference": {_REFERENCE_SCAN_SECONDS * 2}}}'
+        f'{{"results": [[0.3, 0.1, 0.2]], "reference": {_REFERENCE_SCAN_SECONDS * 2}, '
+        '"cpu": 0.75}'
     )
     assert timing is not None
     assert timing.samples_by_size == [[0.1, 0.2, 0.3]]
     assert timing.load_factor == pytest.approx(2.0)
+    assert timing.cpu_seconds == 0.75
+
+
+@pytest.mark.parametrize("cpu", ["", ', "cpu": -1', ', "cpu": "x"', ', "cpu": null'])
+def test_parse_reach_probe_child_output_needs_the_childs_reported_cpu(
+    cpu: str,
+) -> None:
+    assert (
+        _parse_reach_probe_child_output(
+            f'{{"results": [[0.1]], "reference": 0.1{cpu}}}'
+        )
+        is None
+    )
 
 
 def test_verdict_divides_measurements_by_the_load_factor() -> None:
@@ -2244,7 +2262,7 @@ def test_cost_reason_echoes_a_structural_violation_over_the_measurement() -> Non
 
 
 def test_probe_child_takes_a_single_sample_below_the_full_sample_trigger() -> None:
-    timing = _time_reach_probes_subprocess("abc", ["abcabc"], _far_deadline())
+    timing = _time_reach_probes_subprocess("abc", ["abcabc"], _ample_budget())
     assert timing is not None
     assert [len(row) for row in timing.samples_by_size] == [1]
 
@@ -2257,7 +2275,7 @@ def test_probe_child_takes_five_samples_when_every_probe_meets_the_trigger(
         "_REACH_PROBE_FULL_SAMPLE_TRIGGER_SECONDS",
         0.0,
     )
-    timing = _time_reach_probes_subprocess("abc", ["abcabc"], _far_deadline())
+    timing = _time_reach_probes_subprocess("abc", ["abcabc"], _ample_budget())
     assert timing is not None
     assert [len(row) for row in timing.samples_by_size] == [_REACH_PROBE_SAMPLE_COUNT]
 
@@ -2265,7 +2283,7 @@ def test_probe_child_takes_five_samples_when_every_probe_meets_the_trigger(
 @pytest.mark.redos_timing
 def test_probe_child_stops_sampling_once_a_sample_is_large() -> None:
     probes = [_repeat_probe_to_length("foo", size) for size in _REACH_PROBE_SIZES[-2:]]
-    timing = _time_reach_probes_subprocess(r"(?:foo|bar)+$", probes, _far_deadline())
+    timing = _time_reach_probes_subprocess(r"(?:foo|bar)+$", probes, _ample_budget())
     assert timing is not None
     largest = timing.samples_by_size[-1]
     assert largest[0] > _REACH_PROBE_LARGE_SAMPLE_SECONDS
@@ -2277,7 +2295,7 @@ def test_reference_scan_costs_the_same_as_a_near_budget_builtin_probe() -> None:
     timing = _time_reach_probes_subprocess(
         _NEAR_BUDGET_SQLI_BUILTIN_PATTERN,
         [_NEAR_BUDGET_SQLI_BUILTIN_PROBE],
-        _far_deadline(),
+        _ample_budget(),
     )
     assert timing is not None
     (samples,) = timing.samples_by_size

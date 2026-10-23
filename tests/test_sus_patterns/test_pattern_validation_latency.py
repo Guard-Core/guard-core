@@ -115,7 +115,9 @@ def test_catastrophic_patterns_are_rejected_well_under_the_old_forty_second_stal
     compiler = PatternCompiler()
     for pattern in _CATASTROPHIC_PATTERNS:
         measured = _validate_measuring(compiler, pattern)
-        assert measured.verdict[0] is False, f"{pattern!r} should have been rejected"
+        assert measured.verdict[0] is False, (
+            f"{pattern!r} should have been rejected: {measured.verdict[1]}"
+        )
         assert measured.cpu_seconds < measured.cpu_ceiling, (
             f"{pattern!r} used {measured.cpu_seconds:.3f} CPU seconds to reject, "
             f"expected under {measured.cpu_ceiling:.3f}"

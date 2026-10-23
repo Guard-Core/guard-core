@@ -4,6 +4,8 @@ import math
 from collections.abc import Callable, Iterable, Iterator
 from typing import Protocol, TypeGuard
 
+from guard_core.sync.detection_engine._redos_cpu_budget import ReachProbeCpuBudget
+
 _REACH_PROBE_BATCH_SIZE = 128
 
 
@@ -91,7 +93,7 @@ def _decode_reach_timing(stdout: str) -> tuple[list[list[float]], float] | None:
 def _batched_reach_probe_timings(
     pattern: str,
     probe_sets: Iterable[tuple[str, ...]],
-    deadline: float,
+    budget: ReachProbeCpuBudget,
     flags: int,
     time_probes: Callable[..., _ReachProbeTimingLike | None],
 ) -> Iterator[tuple[tuple[str, ...], list[list[float]] | None, float]]:
@@ -100,21 +102,21 @@ def _batched_reach_probe_timings(
         batch.append(probes)
         if len(batch) < _REACH_PROBE_BATCH_SIZE:
             continue
-        yield from _measure_probe_batch(pattern, batch, deadline, flags, time_probes)
+        yield from _measure_probe_batch(pattern, batch, budget, flags, time_probes)
         batch = []
     if batch:
-        yield from _measure_probe_batch(pattern, batch, deadline, flags, time_probes)
+        yield from _measure_probe_batch(pattern, batch, budget, flags, time_probes)
 
 
 def _measure_probe_batch(
     pattern: str,
     batch: list[tuple[str, ...]],
-    deadline: float,
+    budget: ReachProbeCpuBudget,
     flags: int,
     time_probes: Callable[..., _ReachProbeTimingLike | None],
 ) -> Iterator[tuple[tuple[str, ...], list[list[float]] | None, float]]:
     flattened = [probe for probes in batch for probe in probes]
-    timing = time_probes(pattern, flattened, deadline, flags)
+    timing = time_probes(pattern, flattened, budget, flags)
     valid = _valid_timing_rows(timing, len(flattened))
     if valid is None:
         yield from ((probes, None, 1.0) for probes in batch)
