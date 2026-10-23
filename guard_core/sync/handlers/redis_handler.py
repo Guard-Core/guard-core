@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import logging
-import os
 import threading
 import uuid
 from collections.abc import Callable, Hashable, Iterator, Sequence
@@ -24,7 +23,6 @@ from guard_core.scripts.ban_write_lua import (
     PURGE_OWNED_BAN_SCRIPT,
 )
 from guard_core.scripts.detection_strikes_lua import (
-    BAN_CHECK_AND_RECORD_STRIKE_SCRIPT,
     FORGET_DETECTION_STRIKES_SCRIPT,
     READ_DETECTION_CATEGORIES_SCRIPT,
     RECORD_DETECTION_STRIKES_SCRIPT,
@@ -44,6 +42,8 @@ from guard_core.sync.handlers._dynamic_rule_persistence import (
     DYNAMIC_RULES_REDIS_NAMESPACE,
     OWNED_BANS_KEY,
 )
+from guard_core.sync.handlers._redis_ban_strike import RedisBanStrikeMixin
+from guard_core.sync.handlers._redis_fast_pool import FastPathConnectionPool
 
 if TYPE_CHECKING:
     from redis import Redis
@@ -105,9 +105,6 @@ _SLIDING_WINDOW_REFUSAL_SHA = hashlib.sha1(
 _RECORD_DETECTION_STRIKES_SHA = hashlib.sha1(
     RECORD_DETECTION_STRIKES_SCRIPT.encode(), usedforsecurity=False
 ).hexdigest()
-_BAN_CHECK_AND_RECORD_STRIKE_SHA = hashlib.sha1(
-    BAN_CHECK_AND_RECORD_STRIKE_SCRIPT.encode(), usedforsecurity=False
-).hexdigest()
 _READ_DETECTION_CATEGORIES_SHA = hashlib.sha1(
     READ_DETECTION_CATEGORIES_SCRIPT.encode(), usedforsecurity=False
 ).hexdigest()
@@ -126,7 +123,7 @@ _SUM_INDEXED_WINDOW_HITS_SHA = hashlib.sha1(
 ).hexdigest()
 
 
-class RedisManager:
+class RedisManager(RedisBanStrikeMixin):
     _instance = None
     _redis: Redis | None = None
     _pool_key: Hashable | None = None
@@ -678,85 +675,6 @@ class RedisManager:
 
         result = self.safe_operation(_record)
         return result[0], result[1], dict(zip(categories, result[2:], strict=True))
-
-    def get_bans_and_record_strike(
-        self,
-        pairs: Sequence[tuple[str, str]],
-        version_pair: tuple[str, str],
-        seen_version: str | None,
-        now: float,
-        client_ip: str,
-        categories: Sequence[str],
-        timestamp: float,
-        window_start: float,
-        ttl: int,
-        cap: int,
-    ) -> tuple[list[Any], tuple[int, int, dict[str, int]] | None]:
-        """Read the ban keys and the ban version (what ``get_many`` reads for
-        ``pairs`` plus ``version_pair``) and, in the same round trip, record one
-        detection strike (what ``record_detection_strikes`` records) when none
-        of the keys holds a live ban and the version is the one this process
-        has seen (``seen_version``, ``None`` when it has seen none).
-        ``now`` is the clock the ban expiries are compared with.
-        Returns the values read and the strike result, ``None`` when no strike
-        was recorded."""
-        prefix = self.config.redis_prefix
-        index, total, category_prefix = self._detection_strike_keys(client_ip)
-        keys = [
-            *(f"{prefix}{namespace}:{key}" for namespace, key in pairs),
-            f"{prefix}{version_pair[0]}:{version_pair[1]}",
-            index,
-            total,
-            self._rate_limit_violations_key(client_ip),
-            *(f"{category_prefix}{name}" for name in categories),
-        ]
-        arguments = "|".join(
-            (
-                repr(timestamp),
-                os.urandom(16).hex(),
-                repr(window_start),
-                str(ttl),
-                str(cap),
-                str(len(pairs)),
-                "" if seen_version is None else seen_version,
-                repr(now),
-            )
-        )
-        packed = [key.encode() for key in keys]
-        packed.append(arguments.encode())
-
-        def _get_many(conn: Redis) -> list[Any]:
-            try:
-                reply: list[Any] = conn.evalsha(
-                    _BAN_CHECK_AND_RECORD_STRIKE_SHA, len(keys), *packed
-                )
-            except NoScriptError:
-                conn.script_load(BAN_CHECK_AND_RECORD_STRIKE_SCRIPT)
-                reply = conn.evalsha(
-                    _BAN_CHECK_AND_RECORD_STRIKE_SHA, len(keys), *packed
-                )
-            return reply
-
-        reply = self.safe_operation(_get_many)
-        read = len(pairs) + 1
-        status = reply[0]
-        if status == 0:
-            return reply[1 : read + 1], None
-        if status == 1:
-            values: list[Any] = [None] * len(pairs)
-            values.append(seen_version)
-            counts = reply[1:]
-        else:
-            values = reply[1 : read + 1]
-            counts = reply[read + 1 :]
-        return values, (
-            int(counts[0]),
-            int(counts[1]),
-            {
-                name: int(count)
-                for name, count in zip(categories, counts[2:], strict=True)
-            },
-        )
 
     def read_detection_categories(
         self, client_ip: str, window_start: float

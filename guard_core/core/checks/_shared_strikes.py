@@ -154,3 +154,21 @@ async def read_shared_detection_categories(
         )
         return None
     return categories
+
+
+async def fused_or_recorded_shared_strikes(
+    request: Any,
+    middleware: "GuardMiddlewareProtocol",
+    client_ip: str,
+    categories: str | Collection[str],
+    window_seconds: int,
+    cap: int,
+) -> SharedStrikes | None:
+    fused = getattr(request.state, "guard_fused_strike", None)
+    if isinstance(fused, FusedStrike):
+        recorded = fused.take_if_recorded_for(client_ip, categories)
+        if recorded is not None:
+            return recorded
+    return await record_shared_detection_strikes(
+        middleware, client_ip, categories, window_seconds, cap
+    )

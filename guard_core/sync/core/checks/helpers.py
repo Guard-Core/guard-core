@@ -12,11 +12,10 @@ from guard_core._tracking_caps import (
 from guard_core.models import SyncSecurityConfig, ThreatBanConfig
 from guard_core.sync._utils.access_control import load_geo_database_for_route_rules
 from guard_core.sync.core.checks._shared_strikes import (
-    FusedStrike,
     SharedStrikes,
     StrikeReport,
     forget_shared_detection_strikes,
-    record_shared_detection_strikes,
+    fused_or_recorded_shared_strikes,
     strike_categories,
 )
 from guard_core.sync.core.checks._strike_counts import (
@@ -493,27 +492,6 @@ def get_cached_detection_result(
     return result
 
 
-def _fused_or_recorded_shared_strikes(
-    request: SyncGuardRequest,
-    middleware: "SyncGuardMiddlewareProtocol",
-    config: SecurityConfig,
-    strike_key: str,
-    threat_categories: Collection[str],
-) -> SharedStrikes | None:
-    fused = getattr(request.state, "guard_fused_strike", None)
-    if isinstance(fused, FusedStrike):
-        recorded = fused.take_if_recorded_for(strike_key, threat_categories)
-        if recorded is not None:
-            return recorded
-    return record_shared_detection_strikes(
-        middleware,
-        strike_key,
-        threat_categories,
-        SUSPICIOUS_COUNT_WINDOW_SECONDS,
-        _retained_strike_cap(config),
-    )
-
-
 def _try_threshold_ban(
     request: SyncGuardRequest,
     config: SyncSecurityConfig,
@@ -533,8 +511,13 @@ def _try_threshold_ban(
     shared: SharedStrikes | None = None
     strike_key = _strike_identity(config, client_ip)
     if ip_counts is None:
-        shared = _fused_or_recorded_shared_strikes(
-            request, middleware, config, strike_key, threat_categories
+        shared = fused_or_recorded_shared_strikes(
+            request,
+            middleware,
+            strike_key,
+            threat_categories,
+            SUSPICIOUS_COUNT_WINDOW_SECONDS,
+            _retained_strike_cap(config),
         )
         ip_counts = (
             shared.counts
