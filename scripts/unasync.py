@@ -309,9 +309,11 @@ SUBS: list[tuple[str, str]] = [
         "from guard_core.sync.protocols.request_protocol import SyncGuardRequest",
     ),
     (
-        r"from guard_core\.protocols\.middleware_protocol import GuardMiddlewareProtocol",  # noqa: E501
-        "from guard_core.sync.protocols.middleware_protocol import SyncGuardMiddlewareProtocol",  # noqa: E501
-    ),  # noqa: E501
+        r"from guard_core\.protocols\.middleware_protocol import "
+        r"GuardMiddlewareProtocol",
+        "from guard_core.sync.protocols.middleware_protocol import "
+        "SyncGuardMiddlewareProtocol",
+    ),
     (
         r"from guard_core\.protocols\.agent_protocol import AgentHandlerProtocol",
         "from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol",
@@ -404,7 +406,7 @@ SUBS: list[tuple[str, str]] = [
     (
         r"asyncio\.create_task\(self\.(\w+)\(",
         r"threading.Thread(target=self.\1, args=(",
-    ),  # noqa: E501
+    ),
     (
         r"(\s+)([\w.]+) = asyncio\.create_task\((\w+)\.(\w+)\(\)\)",
         r"\1\2 = threading.Thread(target=\3.\4, daemon=True)\n\1\2.start()",
@@ -537,7 +539,9 @@ def apply_subs(content: str, subs: list[tuple[str, str]]) -> str:
 
 POST_FIXUPS: list[tuple[str, str]] = [
     (
-        r"            except Exception:\n                self\.logger\.info\(\"Dynamic rule update loop cancelled\"\)\n                break\n            except Exception as e:",  # noqa: E501
+        r"            except Exception:\n                self\.logger\.info"
+        r"\(\"Dynamic rule update loop cancelled\"\)\n                break\n         "
+        r"   except Exception as e:",
         r"            except Exception as e:",
     ),
     (
@@ -559,18 +563,21 @@ POST_FIXUPS: list[tuple[str, str]] = [
         r"\1\2\n\1\3",
     ),
     (
-        r"            try:\n                self\.update_task\n            except Exception:\n                pass",  # noqa: E501
+        r"            try:\n                self\.update_task\n            except "
+        r"Exception:\n                pass",
         "            pass",
     ),
 ]
 
 DOTALL_FIXUPS: list[tuple[str, str]] = [
     (
-        r"pass\n\n(\s+)coro = (self\._send_geo_event\(.+?\))\n\s+try:\n\s+coro\n\s+except Exception:\n\s+coro\.close\(\)",  # noqa: E501
+        r"pass\n\n(\s+)coro = (self\._send_geo_event\(.+?\))\n\s+try:\n\s+coro\n"
+        r"\s+except Exception:\n\s+coro\.close\(\)",
         r"\2",
     ),
     (
-        r"([ \t]+)self\.update_task = threading\.Thread\(target=self\._rule_update_loop, args=\(\)\)\n\1self\.logger\.info",  # noqa: E501
+        r"([ \t]+)self\.update_task = threading\.Thread"
+        r"\(target=self\._rule_update_loop, args=\(\)\)\n\1self\.logger\.info",
         "\\1self.update_task = threading.Thread(\n"
         "\\1    target=self._rule_update_loop, daemon=True\n"
         "\\1)\n"
@@ -586,19 +593,26 @@ DOTALL_FIXUPS: list[tuple[str, str]] = [
         "            self._lazy_init_task.start()",
     ),
     (
-        r"def handle_security_bypass\(\n\s+self,\n\s+request: SyncGuardRequest,\n\s+call_next: Callable\[\[SyncGuardRequest\], GuardResponse\],\n\s+route_config: RouteConfig \| None,",  # noqa: E501
+        r"def handle_security_bypass\(\n\s+self,\n\s+request: SyncGuardRequest,\n"
+        r"\s+call_next: Callable\[\[SyncGuardRequest\], GuardResponse\],\n"
+        r"\s+route_config: RouteConfig \| None,",
         "def handle_security_bypass(\n"
         "        self,\n"
         "        request: SyncGuardRequest,\n"
-        "        call_next: Callable[[SyncGuardRequest], GuardResponse] | None = None,\n"  # noqa: E501
+        "        call_next: Callable[[SyncGuardRequest], GuardResponse] | None = None,"
+        "\n"
         "        route_config: RouteConfig | None = None,",
     ),
     (
         r"response = call_next\(request\)\n\s+response = self\.context\.response_factory\.apply_security_headers\(\n\s+response, str\(request\.url_path\)\n\s+\)\n\s+return self\.context\.response_factory\.apply_modifier\(response, request\)",  # noqa: E501
+        r"response = call_next\(request\)\n\s+response = "
+        r"self\.context\.response_factory\.apply_security_headers\(\n\s+response, str"
+        r"\(request\.url_path\)\n\s+\)\n\s+return "
+        r"self\.context\.response_factory\.apply_modifier\(response\)",
         "if call_next is None:\n"
         "            return None\n"
         "        response = call_next(request)\n"
-        "        response = self.context.response_factory.apply_security_headers(\n"  # noqa: E501
+        "        response = self.context.response_factory.apply_security_headers(\n"
         "            response, str(request.url_path)\n"
         "        )\n"
         "        return self.context.response_factory.apply_modifier(\n"
