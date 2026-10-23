@@ -1,6 +1,6 @@
 import logging
 from collections.abc import Callable
-from typing import Any, cast
+from typing import Any
 
 from guard_core.exceptions import ResponseBodyUnavailableError
 from guard_core.models import SecurityConfig
@@ -23,12 +23,27 @@ _PREFETCH_INCOMPLETE = (
 )
 
 
+def _load_bounded_body(state: dict[str, Any]) -> bytes | None:
+    response, method, cap = state["_gate_args"]
+    config, prefetch, logger, agent_handler, request = state["_lazy"]
+    refusal = body_gate_refusal(response, method, cap)
+    body = None
+    if refusal is None:
+        body = (prefetch or ResponseBodyPrefetch(response)).read(
+            cap, config.body_read_timeout
+        )
+        if body is None or len(body) != declared_content_length(response):
+            body, refusal = None, _PREFETCH_INCOMPLETE
+    if body is not None:
+        state["body"] = body
+        return body
+    state["_refusal"] = refusal
+    report_body_refused(logger, config, agent_handler, request, refusal)
+    return None
+
+
 class LazyBodyResponseView(ModifierResponseView):
     """Sync engines read the bounded prefix on the first ``.body`` access: one call."""
-
-    def __init__(self, real: GuardResponse, load: Callable[[], bytes]) -> None:
-        super().__init__(real)
-        self.__dict__["_load"] = load
 
     def __getattr__(self, name: str) -> Any:
         state = self.__dict__
@@ -36,12 +51,10 @@ class LazyBodyResponseView(ModifierResponseView):
             return getattr(state["_real"], name)
         state["body_requested"] = True
         if state["_refusal"] is None:
-            try:
-                state["body"] = state["_load"]()
-                return state["body"]
-            except ResponseBodyUnavailableError as refusal:
-                state["_refusal"] = refusal.reason
-        raise ResponseBodyUnavailableError(cast(str, state["_refusal"]))
+            body = _load_bounded_body(state)
+            if body is not None:
+                return body
+        raise ResponseBodyUnavailableError(state["_refusal"])
 
 
 def apply_modifier_with_bounded_body(
@@ -53,24 +66,15 @@ def apply_modifier_with_bounded_body(
     logger: logging.Logger,
     agent_handler: Any | None,
 ) -> GuardResponse:
-    def load() -> bytes:
-        cap = config.custom_response_modifier_max_body_bytes
-        refusal = body_gate_refusal(response, request.method, cap)
-        body = None
-        if refusal is None:
-            body = (prefetch or ResponseBodyPrefetch(response)).read(
-                cap, config.body_read_timeout
-            )
-            if body is None or len(body) != declared_content_length(response):
-                body, refusal = None, _PREFETCH_INCOMPLETE
-        if body is None:
-            report_body_refused(
-                logger, config, agent_handler, request, cast(str, refusal)
-            )
-            raise ResponseBodyUnavailableError(cast(str, refusal))
-        return body
-
-    view = LazyBodyResponseView(response, load)
+    view = LazyBodyResponseView(
+        response,
+        gate_args=(
+            response,
+            request.method,
+            config.custom_response_modifier_max_body_bytes,
+        ),
+    )
+    view.__dict__["_lazy"] = (config, prefetch, logger, agent_handler, request)
     result: Any = view
     try:
         result = modifier(view)
