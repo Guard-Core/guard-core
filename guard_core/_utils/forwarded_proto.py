@@ -4,12 +4,12 @@ from typing import Any
 from guard_core._utils.ip_extraction import _is_trusted_proxy
 from guard_core.protocols.request_protocol import GuardRequest
 
-_UNIX_PEER_TOKEN = "unix"
+_UNIX_PEER_NAME = "unix"
 
 
 def _peer_is_trusted(client_host: str | None, trusted_proxies: Sequence[str]) -> bool:
     if not client_host:
-        return _UNIX_PEER_TOKEN in trusted_proxies
+        return _UNIX_PEER_NAME in trusted_proxies
     return _is_trusted_proxy(client_host, trusted_proxies)
 
 
