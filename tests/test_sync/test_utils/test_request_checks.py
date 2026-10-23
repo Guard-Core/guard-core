@@ -7,7 +7,7 @@ import pytest
 from pytest_mock import MockerFixture
 
 from guard_core.models import SyncSecurityConfig
-from guard_core.sync.detection_engine.compiler import PatternCompiler
+from guard_core.sync._utils import detection_scan
 from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
 from guard_core.sync.protocols.geo_ip_protocol import SyncGeoIPHandler
 from guard_core.sync.utils import (
@@ -45,24 +45,19 @@ def test_is_user_agent_allowed(security_config: SyncSecurityConfig) -> None:
 
 
 def test_is_user_agent_allowed_uses_inline_safe_path() -> None:
-    captured: list[bool] = []
-    original = PatternCompiler.create_async_safe_finditer_matcher
+    calls: list[int] = []
+    original = detection_scan._search_user_agent_windows
 
-    def _spy(
-        self: PatternCompiler,
-        pattern: str,
-        timeout: float | None = None,
-        inline_safe: bool = False,
-    ) -> Any:
-        captured.append(inline_safe)
-        return original(self, pattern, timeout=timeout, inline_safe=inline_safe)
+    def _spy(compiled: re.Pattern[str], text: str) -> re.Match[str] | None:
+        calls.append(len(text))
+        return original(compiled, text)
 
     config = SyncSecurityConfig(blocked_user_agents=["badbot"])
-    with patch.object(PatternCompiler, "create_async_safe_finditer_matcher", _spy):
+    with patch.object(detection_scan, "_search_user_agent_windows", _spy):
         result = is_user_agent_allowed("badbot/1.0", config)
 
     assert result is False
-    assert captured == [True]
+    assert calls == [len("badbot/1.0")]
 
 
 def test_is_user_agent_allowed_matches_past_the_old_512_character_cap() -> None:

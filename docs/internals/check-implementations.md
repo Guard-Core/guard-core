@@ -178,7 +178,7 @@ ___
 
 **Purpose**: Blocks requests from matching user agents.
 
-**Blocks when**: The `User-Agent` header matches any pattern in `RouteConfig.blocked_user_agents` or `config.blocked_user_agents` (case-insensitive regex).
+**Blocks when**: The `User-Agent` header matches any pattern in `RouteConfig.blocked_user_agents` or `config.blocked_user_agents` (case-insensitive regex). Each pattern is searched across the whole `User-Agent` header in windows of 512 characters that overlap by 256 (the length the ReDoS validator proves each pattern at), searched in place so `^` matches only at the real start and `$`, `\b` and lookaheads see the real end of the header; a match of up to 256 characters (lookahead included) gives exactly the verdict a search of the full header would. Cost grows linearly with the header length.
 
 **Response**: `403 User-Agent not allowed`
 

@@ -446,19 +446,37 @@ def _build_threats_message(threats: list[dict[str, Any]]) -> str:
 
 
 _MAX_USER_AGENT_MATCH_LENGTH = 512
+_USER_AGENT_WINDOW_STRIDE = _MAX_USER_AGENT_MATCH_LENGTH // 2
+
+
+def _search_user_agent_windows(compiled: re.Pattern[str], text: str) -> re.Match | None:
+    size, stride = _MAX_USER_AGENT_MATCH_LENGTH, _USER_AGENT_WINDOW_STRIDE
+    pos = 0
+    while True:
+        end = min(pos + size, len(text))
+        final = end == len(text)
+        owned_end = end if final else pos + stride
+        probe = pos
+        while probe < owned_end:
+            found = compiled.search(text, probe, end)
+            if found is None or found.start() >= owned_end:
+                break
+            if final or found.end() < end:
+                return found
+            wider = min(len(text), found.start() + size)
+            confirmed = compiled.match(text, found.start(), wider)
+            if confirmed is not None:
+                return confirmed
+            probe = found.start() + 1
+        if final:
+            return None
+        pos += stride
 
 
 async def _user_agent_matches_blocked_pattern(
     user_agent: str, patterns: list[str]
 ) -> bool:
-    from guard_core.detection_engine.compiler import PatternCompiler
-
-    compiler = PatternCompiler()
-    for pattern in patterns:
-        finder = compiler.create_async_safe_finditer_matcher(pattern, inline_safe=True)
-        if await finder(user_agent):
-            return True
-    return False
+    return await _first_blocked_user_agent_pattern(user_agent, patterns) is not None
 
 
 async def _first_blocked_user_agent_pattern(
@@ -468,8 +486,8 @@ async def _first_blocked_user_agent_pattern(
 
     compiler = PatternCompiler()
     for pattern in patterns:
-        finder = compiler.create_async_safe_finditer_matcher(pattern, inline_safe=True)
-        if await finder(user_agent):
+        compiled = compiler.compile_pattern_sync(pattern)
+        if _search_user_agent_windows(compiled, user_agent) is not None:
             return pattern
     return None
 

@@ -68,7 +68,7 @@ IP Management
 | `exempt_ips`         | `tuple[str, ...]`       | `()`              | IPs/CIDRs that skip rate limiting, the user-agent check and cloud-provider blocking (the global `block_cloud_providers` and a route's `@block_clouds`), as a whitelist match does. Not restrictive: other IPs are checked as usual. The blacklist, dynamic bans, route IP rules and penetration detection still apply. |
 | `whitelist_countries`| `frozenset[str]`       | `frozenset()`              | Allowed countries. Non-empty = only listed pass (unknown blocked). Overrides `blocked_countries`. |
 | `blocked_countries`  | `frozenset[str]`       | `frozenset()`              | Country codes always blocked.                  |
-| `blocked_user_agents`| `list[str]`       | `[]`              | Regex patterns for blocked user agents.        |
+| `blocked_user_agents`| `list[str]`       | `[]`              | Regex patterns for blocked user agents, scanned over the whole header in 512-character windows with a 256 overlap (matches up to 256 characters get the full-string verdict). |
 | `enable_ip_banning`  | `bool`            | `True`            | Enable automatic IP banning.                   |
 | `auto_ban_threshold` | `int`             | `10`              | Suspicious requests before auto-ban (`>= 1`).  |
 | `auto_ban_duration`  | `int`             | `3600`            | Ban duration in seconds (`>= 1`).              |

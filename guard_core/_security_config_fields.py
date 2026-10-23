@@ -231,7 +231,12 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
     )
 
     blocked_user_agents: list[str] = Field(
-        default_factory=list, description="Blocked user agents"
+        default_factory=list,
+        description=(
+            "Blocked user agents. Each pattern scans the whole User-Agent header in "
+            "512-character windows that overlap by 256, so a match of up to 256 "
+            "characters (lookahead included) gets the verdict of a full-string search"
+        ),
     )
 
     auto_ban_threshold: int = Field(

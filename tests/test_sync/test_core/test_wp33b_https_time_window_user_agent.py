@@ -5,7 +5,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.implementations import (
     time_window as time_window_check_module,
 )
@@ -22,8 +22,8 @@ from tests.test_sync.test_core.conftest import (
 )
 
 
-def _config(**settings: Any) -> SecurityConfig:
-    return SecurityConfig(
+def _config(**settings: Any) -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         enable_redis=False,
         enable_penetration_detection=False,
         enable_rate_limiting=False,
@@ -139,7 +139,7 @@ def test_the_legacy_window_end_is_minute_inclusive_like_the_check(
 
 def test_a_bad_timezone_fails_at_startup_when_misconfiguration_is_fatal() -> None:
     decorator = SecurityDecorator(
-        SecurityConfig(enable_redis=False, fail_on_misconfiguration=True)
+        SyncSecurityConfig(enable_redis=False, fail_on_misconfiguration=True)
     )
 
     with pytest.raises(ValueError, match="not a known IANA time zone"):
@@ -149,7 +149,7 @@ def test_a_bad_timezone_fails_at_startup_when_misconfiguration_is_fatal() -> Non
 def test_a_blocked_name_at_character_600_of_an_8000_character_agent() -> None:
     marker = "zzq_badbot_zzq"
     user_agent = "a" * 599 + marker + "a" * (8000 - 599 - len(marker))
-    config = SecurityConfig(blocked_user_agents=[marker])
+    config = SyncSecurityConfig(blocked_user_agents=[marker])
 
     assert len(user_agent) == 8000
     assert is_user_agent_allowed(user_agent, config) is False

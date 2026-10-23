@@ -1,10 +1,12 @@
 import logging
+import re
 from ipaddress import ip_address
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from guard_core.models import SyncSecurityConfig
+from guard_core.sync._utils import detection_scan
 from guard_core.sync.core.checks.helpers import (
     _check_ip_blacklist,
     _check_ip_whitelist,
@@ -21,7 +23,6 @@ from guard_core.sync.core.checks.helpers import (
     is_referrer_domain_allowed,
 )
 from guard_core.sync.decorators.base import RouteConfig
-from guard_core.sync.detection_engine.compiler import PatternCompiler
 
 
 def test_is_ip_in_blacklist_exact_match() -> None:
@@ -502,26 +503,21 @@ def test_log_exception_safely_falls_back_to_module_logger_when_logger_raises(
 
 
 def test_check_user_agent_allowed_route_blocklist_uses_inline_safe_path() -> None:
-    captured: list[bool] = []
-    original = PatternCompiler.create_async_safe_finditer_matcher
+    calls: list[int] = []
+    original = detection_scan._search_user_agent_windows
 
-    def _spy(
-        self: PatternCompiler,
-        pattern: str,
-        timeout: float | None = None,
-        inline_safe: bool = False,
-    ) -> object:
-        captured.append(inline_safe)
-        return original(self, pattern, timeout=timeout, inline_safe=inline_safe)
+    def _spy(compiled: re.Pattern[str], text: str) -> re.Match[str] | None:
+        calls.append(len(text))
+        return original(compiled, text)
 
     rc = RouteConfig()
     rc.blocked_user_agents = ["badbot"]
     config = SyncSecurityConfig(blocked_user_agents=[])
-    with patch.object(PatternCompiler, "create_async_safe_finditer_matcher", _spy):
+    with patch.object(detection_scan, "_search_user_agent_windows", _spy):
         result = check_user_agent_allowed("badbot/1.0", rc, config)
 
     assert result is False
-    assert captured == [True]
+    assert calls == [len("badbot/1.0")]
 
 
 def test_check_user_agent_allowed_route_blocklist_sees_the_whole_user_agent() -> None:
