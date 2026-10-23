@@ -24,6 +24,8 @@ _CAP = 2048
 class _Streamed:
     """An adapter response with a bounded reader that counts its reads."""
 
+    body_is_materialized: object = False
+
     def __init__(
         self,
         body: bytes,
@@ -477,3 +479,15 @@ async def test_the_shared_prefetch_is_cleared_when_there_is_no_modifier() -> Non
         MockGuardRequest(), _as_response(response), 0.0, None
     )
     assert SHARED_PREFETCH.get() is None
+
+
+@pytest.mark.parametrize("flag", [False, None, "yes", 1])
+async def test_a_false_or_non_bool_capability_takes_the_bounded_path(
+    flag: object,
+) -> None:
+    calls = _Calls()
+    response = _Streamed(b"x" * 10)
+    response.body_is_materialized = flag
+    await _run(_reading_modifier(calls), response)
+    assert calls.seen_body == b"x" * 10
+    assert (calls.count, response.reads) == (2, 1)

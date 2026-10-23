@@ -21,6 +21,8 @@ _CAP = 2048
 
 
 class _Streamed:
+    body_is_materialized: object = False
+
     def __init__(
         self,
         body: bytes,
@@ -242,3 +244,13 @@ def test_the_shared_prefetch_is_cleared_when_there_is_no_modifier() -> None:
         SyncMockGuardRequest(), cast(GuardResponse, response), 0.0, None
     )
     assert SHARED_PREFETCH.get() is None
+
+
+@pytest.mark.parametrize("flag", [False, None, "yes", 1])
+def test_a_false_or_non_bool_capability_takes_the_bounded_path(flag: object) -> None:
+    calls: list[Any] = []
+    response = _Streamed(b"x" * 10)
+    response.body_is_materialized = flag
+    _apply(_reading(calls), response)
+    assert calls == [1, b"x" * 10]
+    assert response.reads == 1
