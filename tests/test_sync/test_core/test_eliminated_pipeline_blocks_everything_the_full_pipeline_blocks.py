@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.core.checks.factory import (
@@ -44,16 +44,16 @@ from tests.test_sync.conftest import MockGuardResponse, SyncMockGuardRequest
 _LOGGER = logging.getLogger("test_eliminated_pipeline_parity")
 
 
-def _neutral_config(**overrides: object) -> SecurityConfig:
+def _neutral_config(**overrides: object) -> SyncSecurityConfig:
     fields: dict[str, object] = {
         "enable_penetration_detection": False,
         "enable_rate_limiting": False,
     }
     fields.update(overrides)
-    return SecurityConfig(**fields)
+    return SyncSecurityConfig(**fields)
 
 
-def _always_limited_config() -> SecurityConfig:
+def _always_limited_config() -> SyncSecurityConfig:
     config = _neutral_config(
         enable_rate_limiting=True, rate_limit=1, rate_limit_window=60
     )
@@ -81,7 +81,7 @@ class EliminationCase:
     id: str
     check_class: type[SecurityCheck]
     predicate_keeps: bool
-    config: SecurityConfig
+    config: SyncSecurityConfig
     route_configs: tuple[RouteConfig, ...] | None
     request_route_id: str | None
     request_kwargs: dict[str, Any]
@@ -439,7 +439,7 @@ CORPUS: list[EliminationCase] = [
 
 
 def _decorator_for(
-    config: SecurityConfig, route_configs: tuple[RouteConfig, ...] | None
+    config: SyncSecurityConfig, route_configs: tuple[RouteConfig, ...] | None
 ) -> BaseSecurityDecorator | None:
     if route_configs is None:
         return None
@@ -452,7 +452,7 @@ def _decorator_for(
 
 
 def _build_middleware(
-    config: SecurityConfig, decorator: BaseSecurityDecorator | None
+    config: SyncSecurityConfig, decorator: BaseSecurityDecorator | None
 ) -> MagicMock:
     middleware = MagicMock()
     middleware.config = config
@@ -492,7 +492,7 @@ def _reset_external_handlers() -> None:
         cloud_instance.ip_ranges = {"AWS": set(), "GCP": set(), "Azure": set()}
     sus_patterns_handler.custom_patterns = set()
     sus_patterns_handler.compiled_custom_patterns = set()
-    rate_limit_handler(SecurityConfig()).request_timestamps.clear()
+    rate_limit_handler(SyncSecurityConfig()).request_timestamps.clear()
 
 
 def _run_pipeline(

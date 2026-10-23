@@ -3,7 +3,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.factory import build_default_pipeline
 from guard_core.sync.decorators import SecurityDecorator
 from guard_core.sync.handlers import ipban_handler
@@ -46,7 +46,7 @@ def _status(
     settings.setdefault("enable_rate_limiting", False)
     if country is not None:
         settings["geo_ip_handler"] = Mock()
-    config = SecurityConfig(enable_redis=False, fail_secure=fail_secure, **settings)
+    config = SyncSecurityConfig(enable_redis=False, fail_secure=fail_secure, **settings)
     middleware = build_middleware(config, SecurityDecorator(config))
     middleware.event_bus = _BusWithOnlySendMiddlewareEvent()
     if hide_rate_limit_agent_handler:

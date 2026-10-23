@@ -2,7 +2,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 
 from guard_core._security_headers_override import CorsParams, cors_params_of
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.security_headers_handler import SecurityHeadersManager
 
 ALLOWED_PREFLIGHT_REQUEST_HEADER = "access-control-request-method"
@@ -35,7 +35,7 @@ def _merge_vary(existing: str | None) -> str:
 
 
 class CorsHandler:
-    def __init__(self, config: SecurityConfig) -> None:
+    def __init__(self, config: SyncSecurityConfig) -> None:
         self.config = config
         self._security_headers = SecurityHeadersManager.isolated()
         self._applied_override: object | None = None
@@ -55,7 +55,7 @@ class CorsHandler:
         self._max_age = 600
         self._expose_headers: list[str] = []
 
-    def _check_wildcard_with_credentials(self, config: SecurityConfig) -> None:
+    def _check_wildcard_with_credentials(self, config: SyncSecurityConfig) -> None:
         if "*" in (config.cors_allow_origins or []) and config.cors_allow_credentials:
             raise ValueError(
                 "CORS misconfiguration: wildcard origin '*' is incompatible "

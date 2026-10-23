@@ -4,7 +4,7 @@ from collections.abc import Callable, Collection
 from typing import Any
 from unittest.mock import MagicMock, Mock
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.core.checks.factory import build_default_pipeline
 from guard_core.sync.core.checks.pipeline import SecurityCheckPipeline
@@ -37,8 +37,8 @@ def fully_enabled_route_config() -> RouteConfig:
     return route_config
 
 
-def fully_enabled_config() -> SecurityConfig:
-    return SecurityConfig(
+def fully_enabled_config() -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         emergency_mode=True,
         enforce_https=True,
         log_request_level="INFO",
@@ -49,7 +49,7 @@ def fully_enabled_config() -> SecurityConfig:
 
 
 def middleware_for(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     route_configs: Collection[RouteConfig] | None = (),
 ) -> Mock:
     middleware = Mock()
@@ -78,7 +78,7 @@ def fixed_country_geo_ip(country: str) -> MagicMock:
 
 
 def build_middleware(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     decorator: SecurityDecorator,
     geo_ip_handler: Any = None,
 ) -> MagicMock:
@@ -108,7 +108,7 @@ def build_middleware(
 
 
 def build_route_pipeline(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     *decorator_factories: Callable[[SecurityDecorator], Any],
     geo_ip_handler: Any = None,
 ) -> tuple[SecurityCheckPipeline, MagicMock, str]:

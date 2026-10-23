@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.models import DynamicRules, SyncSecurityConfig
 from guard_core.sync.core.checks.implementations.emergency_mode import (
     EmergencyModeCheck,
 )
@@ -37,7 +37,7 @@ def _rules(**overrides: Any) -> DynamicRules:
 
 def _check(**config: Any) -> EmergencyModeCheck:
     middleware = MagicMock()
-    middleware.config = SecurityConfig(
+    middleware.config = SyncSecurityConfig(
         enable_redis=False,
         emergency_mode=True,
         emergency_whitelist=[EMERGENCY_IP],
@@ -65,7 +65,7 @@ def _status(check: EmergencyModeCheck, ip: str) -> int | None:
 
 
 def test_emergency_whitelist_only_defaults_to_on() -> None:
-    assert SecurityConfig().emergency_whitelist_only is True
+    assert SyncSecurityConfig().emergency_whitelist_only is True
     assert _rules().emergency_whitelist_only is True
 
 
@@ -93,7 +93,7 @@ def test_off_also_admits_the_whitelist_and_exempt_ips(
 
 
 def test_an_emergency_rule_sets_the_flag_and_a_revocation_restores_it() -> None:
-    config = SecurityConfig(enable_redis=False)
+    config = SyncSecurityConfig(enable_redis=False)
     manager = DynamicRuleManager(config)
 
     manager._apply_rules(_rules(emergency_mode=True, emergency_whitelist_only=False))
@@ -104,7 +104,7 @@ def test_an_emergency_rule_sets_the_flag_and_a_revocation_restores_it() -> None:
 
 
 def test_an_emergency_rule_without_the_field_admits_only_the_list() -> None:
-    config = SecurityConfig(enable_redis=False, emergency_whitelist_only=False)
+    config = SyncSecurityConfig(enable_redis=False, emergency_whitelist_only=False)
     manager = DynamicRuleManager(config)
 
     manager._apply_rules(_rules(emergency_mode=True))

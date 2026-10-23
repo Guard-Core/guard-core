@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
-from guard_core.models import SecurityConfig, ThreatBanConfig
+from guard_core.models import SyncSecurityConfig, ThreatBanConfig
 from guard_core.sync._utils import access_control
 from guard_core.sync.core.checks import helpers
 from guard_core.sync.decorators import SecurityDecorator
@@ -22,7 +22,7 @@ BOT_IP = "203.0.113.7"
 CLOUD_IP = "198.51.100.77"
 
 
-def _config(**overrides: Any) -> SecurityConfig:
+def _config(**overrides: Any) -> SyncSecurityConfig:
     settings: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": False,
@@ -33,7 +33,7 @@ def _config(**overrides: Any) -> SecurityConfig:
         "geo_ip_handler": fixed_country_geo_ip("CN"),
     }
     settings.update(overrides)
-    return SecurityConfig(**settings)
+    return SyncSecurityConfig(**settings)
 
 
 HOSTILE_FAILURES = [
@@ -101,7 +101,7 @@ HOSTILE_FAILURES = [
 
 
 def _hit_until_banned(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     factory: DecoratorFactory,
     request_kwargs: dict[str, Any],
     attempts: int,

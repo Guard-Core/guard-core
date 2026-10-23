@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.ipban_handler import IPBanManager
 from guard_core.sync.handlers.redis_handler import RedisManager
 
@@ -26,7 +26,7 @@ def reset_singleton() -> Generator[None, None, None]:
 
 @pytest.fixture
 def live_redis() -> Generator[RedisManager, None]:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         redis_url=REDIS_URL, redis_prefix=f"wp6-carve:{uuid.uuid4().hex}:"
     )
     manager = RedisManager(config)
@@ -39,7 +39,9 @@ def live_redis() -> Generator[RedisManager, None]:
 def _manager(whitelist: list[str], **settings: Any) -> IPBanManager:
     manager = IPBanManager()
     manager.redis_handler = None
-    manager.config = SecurityConfig(enable_redis=False, whitelist=whitelist, **settings)
+    manager.config = SyncSecurityConfig(
+        enable_redis=False, whitelist=whitelist, **settings
+    )
     return manager
 
 
@@ -208,7 +210,7 @@ def test_the_startup_whitelist_scan_runs_the_rewrite(
     manager.redis_handler = live_redis
     carve = "2002:c000:204:100::/56"
     live_redis.set_key("banned_identities", carve, str(time.time() + 300), ttl=300)
-    config = SecurityConfig(enable_redis=False, whitelist=["203.0.113.0/24"])
+    config = SyncSecurityConfig(enable_redis=False, whitelist=["203.0.113.0/24"])
 
     reset_strikes_for_changed_whitelist(config, live_redis, manager)
 
@@ -222,7 +224,7 @@ def test_the_real_initialization_gives_the_ban_manager_the_whitelist() -> None:
     )
     from guard_core.sync.handlers.ipban_handler import ip_ban_manager
 
-    config = SecurityConfig(enable_redis=False, lazy_init=False, whitelist=[HOST])
+    config = SyncSecurityConfig(enable_redis=False, lazy_init=False, whitelist=[HOST])
     saved_config = ip_ban_manager.config
     try:
         HandlerInitializer(config=config).initialize_redis_handlers()

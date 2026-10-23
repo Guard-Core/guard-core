@@ -12,7 +12,7 @@ from guard_core._dynamic_rules import (
     load_last_known_ownership,
     load_last_known_rules_snapshot,
 )
-from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.models import DynamicRules, SyncSecurityConfig
 from guard_core.sync.handlers._dynamic_rule_persistence import (
     DYNAMIC_RULES_REDIS_NAMESPACE,
     LAST_KNOWN_RULES_KEY,
@@ -25,7 +25,7 @@ from guard_core.sync.handlers._dynamic_rule_purge import (
 
 
 class DynamicRuleSnapshotMixin(DynamicRulePurgeMixin):
-    config: SecurityConfig
+    config: SyncSecurityConfig
     redis_handler: Any = None
     logger: logging.Logger
     current_rules: DynamicRules | None

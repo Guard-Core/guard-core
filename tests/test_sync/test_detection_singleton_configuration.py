@@ -2,7 +2,7 @@ from collections.abc import Iterator
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.initialization import HandlerInitializer
 from guard_core.sync.handlers import suspatterns_handler as sph
 from guard_core.sync.handlers.suspatterns_handler import SusPatternsManager
@@ -34,7 +34,7 @@ def test_initialize_configures_detection_from_config(
     compiler_before = handler._compiler
     assert compiler_before is None
 
-    config = SecurityConfig(detection_threat_score_threshold=2.5)
+    config = SyncSecurityConfig(detection_threat_score_threshold=2.5)
     initializer = HandlerInitializer(config=config)
     initializer.initialize_redis_handlers()
 
@@ -49,7 +49,7 @@ def test_configure_applies_enhanced_config(
     fresh_legacy_singleton: SusPatternsManager,
 ) -> None:
     handler = fresh_legacy_singleton
-    config = SecurityConfig(detection_threat_score_threshold=3.0)
+    config = SyncSecurityConfig(detection_threat_score_threshold=3.0)
 
     handler.configure(config)
 
@@ -86,7 +86,7 @@ def test_pipeline_initialized_singleton_never_warns(
     sph._legacy_detection_warned = False
 
     try:
-        config = SecurityConfig()
+        config = SyncSecurityConfig()
         initializer = HandlerInitializer(config=config)
         initializer.initialize_redis_handlers()
 

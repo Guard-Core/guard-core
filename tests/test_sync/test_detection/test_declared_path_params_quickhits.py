@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.decorators.base import RouteConfig
 from guard_core.sync.utils import detect_penetration_attempt
 from tests.test_sync.conftest import SyncMockGuardRequest, declare_route
@@ -24,7 +24,7 @@ def _verdict(name: str, path_params: Any) -> tuple[bool, set[str]]:
         route_config = RouteConfig()
         route_config.excluded_detection_path_params = path_params
     result = detect_penetration_attempt(
-        request, SecurityConfig(enable_redis=False), route_config
+        request, SyncSecurityConfig(enable_redis=False), route_config
     )
     return result.is_threat, set(result.threat_categories)
 

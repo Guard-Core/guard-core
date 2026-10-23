@@ -2,7 +2,7 @@ import logging
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-from guard_core.models import BehaviorRuleConfig, SecurityConfig
+from guard_core.models import BehaviorRuleConfig, SyncSecurityConfig
 from guard_core.sync.core.responses.context import ResponseContext
 from guard_core.sync.core.responses.factory import ErrorResponseFactory
 from guard_core.sync.handlers.behavior_handler import BehaviorRule
@@ -13,7 +13,7 @@ from tests.test_sync.conftest import (
 )
 
 
-def _make_factory(config: SecurityConfig) -> ErrorResponseFactory:
+def _make_factory(config: SyncSecurityConfig) -> ErrorResponseFactory:
     metrics = MagicMock()
     metrics.collect_request_metrics = MagicMock()
     ctx = ResponseContext(
@@ -26,7 +26,7 @@ def _make_factory(config: SecurityConfig) -> ErrorResponseFactory:
 
 
 def test_factory_dispatches_global_rules_when_config_has_them() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         global_behavior_rules=[
             BehaviorRuleConfig(
                 rule_type="return_pattern",
@@ -69,7 +69,7 @@ def test_factory_dispatches_global_rules_when_config_has_them() -> None:
 
 
 def test_factory_skips_global_when_no_rules_configured() -> None:
-    factory = _make_factory(SecurityConfig())
+    factory = _make_factory(SyncSecurityConfig())
 
     called = False
 
@@ -91,7 +91,7 @@ def test_factory_skips_global_when_no_rules_configured() -> None:
 
 
 def test_factory_skips_global_when_callback_missing() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         global_behavior_rules=[
             BehaviorRuleConfig(
                 rule_type="return_pattern",

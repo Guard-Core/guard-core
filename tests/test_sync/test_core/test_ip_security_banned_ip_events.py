@@ -3,19 +3,19 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.implementations.ip_security import IpSecurityCheck
 
 
 @pytest.fixture
-def security_config() -> SecurityConfig:
-    config = SecurityConfig()
+def security_config() -> SyncSecurityConfig:
+    config = SyncSecurityConfig()
     config.passive_mode = False
     return config
 
 
 @pytest.fixture
-def mock_middleware(security_config: SecurityConfig) -> Mock:
+def mock_middleware(security_config: SyncSecurityConfig) -> Mock:
     middleware = Mock()
     middleware.config = security_config
     middleware.logger = Mock()
@@ -65,7 +65,7 @@ def test_banned_ip_block_emits_ip_blocked_event(
 def test_banned_ip_in_passive_mode_emits_logged_only_event(
     ip_security_check: IpSecurityCheck,
     mock_request: Mock,
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     security_config.passive_mode = True
     with (

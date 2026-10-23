@@ -3,7 +3,7 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.factory import build_default_pipeline
 from guard_core.sync.decorators import SecurityDecorator
 from guard_core.sync.handlers.ipban_handler import ip_ban_manager
@@ -33,7 +33,7 @@ def _fresh_ban_store() -> Generator[None, None, None]:
     ip_ban_manager.banned_networks.clear()
 
 
-def _statuses(config: SecurityConfig, addresses: list[str]) -> list[int | None]:
+def _statuses(config: SyncSecurityConfig, addresses: list[str]) -> list[int | None]:
     middleware = build_middleware(config, SecurityDecorator(config))
     pipeline = build_default_pipeline(middleware)
     outcomes: list[int | None] = []
@@ -46,7 +46,7 @@ def _statuses(config: SecurityConfig, addresses: list[str]) -> list[int | None]:
 
 
 def test_violations_of_one_slash_64_add_up_and_ban_the_whole_prefix() -> None:
-    statuses = _statuses(SecurityConfig(**SETTINGS), SLASH_64)
+    statuses = _statuses(SyncSecurityConfig(**SETTINGS), SLASH_64)
 
     assert statuses[0] is None
     assert statuses[1:3] == [429, 429]
@@ -55,20 +55,22 @@ def test_violations_of_one_slash_64_add_up_and_ban_the_whole_prefix() -> None:
 
 
 def test_a_neighbouring_prefix_is_not_banned_with_it() -> None:
-    _statuses(SecurityConfig(**SETTINGS), SLASH_64)
+    _statuses(SyncSecurityConfig(**SETTINGS), SLASH_64)
 
     assert ip_ban_manager.is_ip_banned("2001:db8:0:2::1") is False
 
 
 def test_at_prefix_length_128_every_address_counts_alone() -> None:
-    statuses = _statuses(SecurityConfig(**SETTINGS, ipv6_prefix_length=128), SLASH_64)
+    statuses = _statuses(
+        SyncSecurityConfig(**SETTINGS, ipv6_prefix_length=128), SLASH_64
+    )
 
     assert statuses == [None] * 8
     assert ip_ban_manager.is_ip_banned("2001:db8:0:1::1") is False
 
 
 def test_ipv4_clients_keep_counting_per_address() -> None:
-    statuses = _statuses(SecurityConfig(**SETTINGS), ["198.51.100.9"] * 6)
+    statuses = _statuses(SyncSecurityConfig(**SETTINGS), ["198.51.100.9"] * 6)
 
     assert statuses[0] is None
     assert 403 in statuses
@@ -83,7 +85,7 @@ def test_the_by_ip_primitive_adds_up_violations_of_one_slash_64() -> None:
     )
 
     _by_ip_request_timestamps.clear()
-    config = SecurityConfig(**SETTINGS)
+    config = SyncSecurityConfig(**SETTINGS)
 
     results = [check_rate_limit_by_ip(ip, config) for ip in SLASH_64]
 

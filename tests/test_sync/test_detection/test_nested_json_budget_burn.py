@@ -5,7 +5,7 @@ from urllib.parse import urlencode
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
 from guard_core.sync.utils import detect_penetration_attempt
 from tests.test_sync.conftest import SyncMockGuardRequest
@@ -92,7 +92,7 @@ MAX_SCANNED_VALUES_FOR_ONE_NESTED_VALUE = 20
 
 @pytest.fixture(autouse=True)
 def _force_enhanced_detection_singleton() -> None:
-    sus_patterns_handler.configure(SecurityConfig())
+    sus_patterns_handler.configure(SyncSecurityConfig())
 
 
 @pytest.mark.parametrize("depth", DEPTHS)
@@ -102,7 +102,7 @@ def test_a_nested_json_value_cannot_use_up_the_budget_before_a_later_item(
 ) -> None:
     build, direct_text = SURFACES[surface]
     nested = _nested_json(depth)
-    config = SecurityConfig(enable_redis=False, rate_limit=10_000_000)
+    config = SyncSecurityConfig(enable_redis=False, rate_limit=10_000_000)
     result = detect_penetration_attempt(build(nested), config)
     assert result.is_threat is True
     assert direct_text in (result.trigger_info or "")
@@ -122,7 +122,7 @@ def test_a_nested_json_value_is_scanned_once_per_distinct_text(
         return detect(*args, **kwargs)
 
     monkeypatch.setattr(sus_patterns_handler, "detect", counting_detect)
-    config = SecurityConfig(enable_redis=False, rate_limit=10_000_000)
+    config = SyncSecurityConfig(enable_redis=False, rate_limit=10_000_000)
     detect_penetration_attempt(build(_nested_json(depth)), config)
     assert len(scanned) <= MAX_SCANNED_VALUES_FOR_ONE_NESTED_VALUE
 
@@ -141,7 +141,7 @@ def test_a_nested_json_value_with_distinct_keys_is_scanned_once_per_level(
         return detect(*args, **kwargs)
 
     monkeypatch.setattr(sus_patterns_handler, "detect", counting_detect)
-    config = SecurityConfig(enable_redis=False, rate_limit=10_000_000)
+    config = SyncSecurityConfig(enable_redis=False, rate_limit=10_000_000)
     result = detect_penetration_attempt(_query(nested), config)
     assert result.is_threat is True
     assert len(scanned) <= depth + MAX_SCANNED_VALUES_FOR_ONE_NESTED_VALUE

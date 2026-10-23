@@ -1,7 +1,7 @@
 from typing import Any
 from unittest.mock import MagicMock, Mock, patch
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.implementations.ip_security import IpSecurityCheck
 from guard_core.sync.core.checks.implementations.rate_limit import RateLimitCheck
 from guard_core.sync.core.checks.implementations.suspicious_activity import (
@@ -12,7 +12,7 @@ from guard_core.sync.detection_result import DetectionResult
 from guard_core.sync.handlers.ratelimit_handler import RateLimitBlock
 
 
-def _mw(cfg: SecurityConfig) -> Mock:
+def _mw(cfg: SyncSecurityConfig) -> Mock:
     mw = Mock()
     mw.config = cfg
     mw.logger = Mock()
@@ -37,7 +37,7 @@ def _req(rc: RouteConfig, ip: str = "1.2.3.4") -> Mock:
 
 @patch("guard_core.sync.core.checks.implementations.ip_security.log_activity")
 def test_route_whitelist_is_not_global_trust(_mock_log: Any) -> None:
-    cfg = SecurityConfig()
+    cfg = SyncSecurityConfig()
     cfg.passive_mode = False
     rc = RouteConfig()
     rc.ip_whitelist = ["1.2.3.4"]
@@ -57,7 +57,7 @@ def test_route_whitelist_is_not_global_trust(_mock_log: Any) -> None:
 def test_route_whitelist_does_not_lift_the_global_blacklist(
     _mock_log: Any,
 ) -> None:
-    cfg = SecurityConfig()
+    cfg = SyncSecurityConfig()
     cfg.passive_mode = False
     cfg.blacklist = ("1.2.3.4",)
     rc = RouteConfig()
@@ -72,7 +72,7 @@ def test_route_whitelist_does_not_lift_the_global_blacklist(
 
 
 def test_route_whitelisted_ip_still_rate_limited() -> None:
-    cfg = SecurityConfig()
+    cfg = SyncSecurityConfig()
     cfg.passive_mode = False
     rc = RouteConfig()
     rc.ip_whitelist = ["1.2.3.4"]
@@ -95,7 +95,7 @@ def test_route_whitelisted_ip_still_rate_limited() -> None:
 
 @patch("guard_core.sync.core.checks.implementations.suspicious_activity.log_activity")
 def test_route_whitelisted_ip_still_scanned_for_attacks(_mock_log: Any) -> None:
-    cfg = SecurityConfig()
+    cfg = SyncSecurityConfig()
     cfg.passive_mode = False
     rc = RouteConfig()
     rc.ip_whitelist = ["1.2.3.4"]
@@ -120,7 +120,7 @@ def test_route_whitelisted_ip_still_scanned_for_attacks(_mock_log: Any) -> None:
 def test_global_cloud_block_is_left_to_the_cloud_provider_check(
     _mock_log: Any,
 ) -> None:
-    cfg = SecurityConfig()
+    cfg = SyncSecurityConfig()
     cfg.passive_mode = False
     cfg.block_cloud_providers = frozenset({"AWS"})
     rc = RouteConfig()

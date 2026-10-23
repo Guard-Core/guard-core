@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.ipban_handler import IPBanManager
 from guard_core.sync.handlers.redis_handler import RedisManager
 
@@ -25,7 +25,7 @@ def reset_singleton() -> Generator[None, None, None]:
 
 @pytest.fixture
 def live_redis() -> Generator[RedisManager, None]:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         redis_url=REDIS_URL, redis_prefix=f"wp17-never-shorten:{uuid.uuid4().hex}:"
     )
     manager = RedisManager(config)
@@ -38,7 +38,7 @@ def live_redis() -> Generator[RedisManager, None]:
 def _manager(redis: RedisManager | None = None, **settings: Any) -> IPBanManager:
     manager = IPBanManager()
     manager.redis_handler = redis
-    manager.config = SecurityConfig(enable_redis=redis is not None, **settings)
+    manager.config = SyncSecurityConfig(enable_redis=redis is not None, **settings)
     return manager
 
 

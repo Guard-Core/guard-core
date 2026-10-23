@@ -1,6 +1,6 @@
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.utils import detect_penetration_attempt
 from tests.test_sync.conftest import SyncMockGuardRequest
 
@@ -31,7 +31,7 @@ BENIGN = [
 def test_script_opener_without_closing_tag_is_xss(value: str) -> None:
     request = SyncMockGuardRequest(path="/s", query_params={"q": value})
 
-    result = detect_penetration_attempt(request, SecurityConfig())
+    result = detect_penetration_attempt(request, SyncSecurityConfig())
 
     assert result.is_threat is True
     assert "xss" in result.threat_categories
@@ -49,7 +49,7 @@ def test_script_opener_in_json_body_is_xss(value: str) -> None:
         body_content=body,
     )
 
-    result = detect_penetration_attempt(request, SecurityConfig())
+    result = detect_penetration_attempt(request, SyncSecurityConfig())
 
     assert result.is_threat is True
 
@@ -58,6 +58,6 @@ def test_script_opener_in_json_body_is_xss(value: str) -> None:
 def test_script_word_prose_stays_clean(value: str) -> None:
     request = SyncMockGuardRequest(path="/s", query_params={"q": value})
 
-    result = detect_penetration_attempt(request, SecurityConfig())
+    result = detect_penetration_attempt(request, SyncSecurityConfig())
 
     assert result.is_threat is False

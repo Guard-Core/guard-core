@@ -108,11 +108,11 @@ def test_no_rules_logs_at_debug(caplog: pytest.LogCaptureFixture) -> None:
 def test_country_verdict_logs_at_info_by_default(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    from guard_core.models import SecurityConfig
+    from guard_core.models import SyncSecurityConfig
     from guard_core.sync.utils import _log_country_check_result
 
     caplog.set_level(logging.DEBUG, logger="guard_core")
-    _log_country_check_result("1.2.3.4", "PL", "not_affected", SecurityConfig())
+    _log_country_check_result("1.2.3.4", "PL", "not_affected", SyncSecurityConfig())
 
     records = [
         r for r in caplog.records if "not from blocked or whitelisted" in r.message

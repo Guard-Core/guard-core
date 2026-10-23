@@ -1,7 +1,7 @@
 from collections.abc import Callable
 from typing import Any, cast
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.decorators.base import BaseSecurityDecorator, RouteConfig
 from guard_core.sync.decorators.content_filtering import ContentFilteringMixin
 
@@ -27,7 +27,7 @@ def test_route_config_detection_exclusion_defaults_to_none() -> None:
 
 
 def test_detection_exclusion_sets_scan_body() -> None:
-    d = _FakeDecorator(SecurityConfig())
+    d = _FakeDecorator(SyncSecurityConfig())
     decorated = _decorate(d.detection_exclusion(scan_body=False))
     rc = d.get_route_config(d._get_route_id(decorated))
     assert rc is not None
@@ -35,7 +35,7 @@ def test_detection_exclusion_sets_scan_body() -> None:
 
 
 def test_detection_exclusion_scan_body_unset_leaves_none() -> None:
-    d = _FakeDecorator(SecurityConfig())
+    d = _FakeDecorator(SyncSecurityConfig())
     decorated = _decorate(d.detection_exclusion(headers={"authorization"}))
     rc = d.get_route_config(d._get_route_id(decorated))
     assert rc is not None
@@ -55,7 +55,7 @@ def test_route_config_detection_exclusion_accepts_sets() -> None:
 
 
 def test_detection_exclusion_sets_all_four_fields() -> None:
-    d = _FakeDecorator(SecurityConfig())
+    d = _FakeDecorator(SyncSecurityConfig())
     decorated = _decorate(
         d.detection_exclusion(
             headers={"authorization"},
@@ -74,7 +74,7 @@ def test_detection_exclusion_sets_all_four_fields() -> None:
 
 
 def test_detection_exclusion_leaves_unset_args_as_none() -> None:
-    d = _FakeDecorator(SecurityConfig())
+    d = _FakeDecorator(SyncSecurityConfig())
     decorated = _decorate(d.detection_exclusion(headers={"authorization"}))
     rc = d.get_route_config(d._get_route_id(decorated))
     assert rc is not None
@@ -85,14 +85,14 @@ def test_detection_exclusion_leaves_unset_args_as_none() -> None:
 
 
 def test_detection_exclusion_returns_wrapped_callable() -> None:
-    d = _FakeDecorator(SecurityConfig())
+    d = _FakeDecorator(SyncSecurityConfig())
     decorated = _decorate(d.detection_exclusion(categories={"xss"}))
     assert callable(decorated)
     assert getattr(decorated, "_guard_route_id", None) == d._get_route_id(decorated)
 
 
 def test_detection_exclusion_no_args_creates_route_config() -> None:
-    d = _FakeDecorator(SecurityConfig())
+    d = _FakeDecorator(SyncSecurityConfig())
     decorated = _decorate(d.detection_exclusion())
     rc = d.get_route_config(d._get_route_id(decorated))
     assert rc is not None
@@ -103,7 +103,7 @@ def test_detection_exclusion_no_args_creates_route_config() -> None:
 
 
 def test_detection_exclusion_sets_semantic_headers() -> None:
-    d = _FakeDecorator(SecurityConfig())
+    d = _FakeDecorator(SyncSecurityConfig())
     decorated = _decorate(d.detection_exclusion(semantic_headers={"cookie"}))
     rc = d.get_route_config(d._get_route_id(decorated))
     assert rc is not None

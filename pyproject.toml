@@ -151,6 +151,7 @@ exclude = [
     ".venv",
     "\\.unasync_check_tmp_",
     "tests/live_smoke/stack/app",
+    "tests/typing_fixtures/expect_error",
 ]
 
 [[tool.mypy.overrides]]

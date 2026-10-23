@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.models import DynamicRules, SyncSecurityConfig
 from guard_core.sync._utils.detection_scan import _fallback_pattern_check
 from guard_core.sync.decorators.content_filtering import ContentFilteringMixin
 from guard_core.sync.detection_engine._redos_cost_arbiter import (
@@ -56,7 +56,7 @@ def test_check_regex_pattern_timeout_log_redacts_secret_shaped_custom_pattern(
     fresh_legacy_singleton: SusPatternsManager,
 ) -> None:
     manager = fresh_legacy_singleton
-    manager.configure(SecurityConfig(detection_compiler_timeout=0.1))
+    manager.configure(SyncSecurityConfig(detection_compiler_timeout=0.1))
     ok = manager.add_pattern(_SECRET_PATTERN, custom=True)
     assert ok
 
@@ -79,7 +79,7 @@ def test_check_regex_pattern_timeout_log_leaves_builtin_pattern_unchanged(
     fresh_legacy_singleton: SusPatternsManager,
 ) -> None:
     manager = fresh_legacy_singleton
-    manager.configure(SecurityConfig(detection_compiler_timeout=0.1))
+    manager.configure(SyncSecurityConfig(detection_compiler_timeout=0.1))
     builtin_source = r"[a-z]+attackterm[a-z]+"
     compiled = re.compile(builtin_source)
     fake_pattern_start = time.monotonic() - 1000.0
@@ -206,7 +206,7 @@ def test_detect_pattern_match_returns_redacted_pattern_label(
     fresh_legacy_singleton: SusPatternsManager,
 ) -> None:
     manager = fresh_legacy_singleton
-    manager._config = SecurityConfig()
+    manager._config = SyncSecurityConfig()
     ok = manager.add_pattern(_SECRET_PATTERN, custom=True)
     assert ok
 
@@ -242,7 +242,7 @@ def test_dynamic_rule_apply_pattern_rules_logs_redact_secret_shaped_pattern(
         def __init__(self) -> None:
             import logging
 
-            self.config = SecurityConfig()
+            self.config = SyncSecurityConfig()
             self.agent_handler = None
             self.logger = logging.getLogger(
                 "guard_core.sync.handlers.dynamic_rule_test_pattern_redaction"
@@ -349,7 +349,7 @@ def test_dynamic_rule_plan_user_agent_logs_redact_secret_shaped_pattern(
         def __init__(self) -> None:
             import logging
 
-            self.config = SecurityConfig()
+            self.config = SyncSecurityConfig()
             self.logger = logging.getLogger(
                 "guard_core.sync.handlers.dynamic_rule_test_user_agent_redaction"
             )
@@ -372,7 +372,7 @@ def test_fallback_pattern_check_recursion_log_redacts_secret_shaped_pattern(
     fresh_legacy_singleton: SusPatternsManager,
 ) -> None:
     manager = fresh_legacy_singleton
-    manager.configure(SecurityConfig())
+    manager.configure(SyncSecurityConfig())
     ok = manager.add_pattern(_SECRET_PATTERN, custom=True)
     assert ok
 
@@ -419,7 +419,7 @@ _CATASTROPHIC_SECRET_PATTERN = "(a+)+" + _SECRET_PATTERN + "$"
 
 def test_security_config_blocked_user_agents_rejection_redacts_secret_pattern() -> None:
     with pytest.raises(ValueError) as excinfo:
-        SecurityConfig(blocked_user_agents=[_CATASTROPHIC_SECRET_PATTERN])
+        SyncSecurityConfig(blocked_user_agents=[_CATASTROPHIC_SECRET_PATTERN])
     assert "hunter2" not in str(excinfo.value)
     assert "[REDACTED]" in str(excinfo.value)
 
@@ -428,7 +428,7 @@ def test_security_config_return_pattern_without_body_scan_redacts_secret_pattern
     None
 ):
     with pytest.raises(ValueError) as excinfo:
-        SecurityConfig(
+        SyncSecurityConfig(
             global_behavior_rules=[
                 {
                     "rule_type": "return_pattern",
@@ -447,7 +447,7 @@ def test_security_config_return_pattern_without_body_scan_redacts_secret_pattern
 def test_block_user_agents_decorator_rejection_redacts_secret_pattern() -> None:
     class _Decorator(ContentFilteringMixin):
         def __init__(self) -> None:
-            self.config = SecurityConfig()
+            self.config = SyncSecurityConfig()
 
     with pytest.raises(ValueError) as excinfo:
         _Decorator().block_user_agents([_CATASTROPHIC_SECRET_PATTERN])
@@ -462,7 +462,7 @@ def test_behavior_body_unavailable_warning_redacts_secret_pattern() -> None:
         def __init__(self) -> None:
             import logging
 
-            self.config = SecurityConfig()
+            self.config = SyncSecurityConfig()
             self.logger = logging.getLogger("guard_core.test_body_unavailable")
             self._body_unavailable_log_cache = TTLCache(maxsize=8, ttl=60)
 

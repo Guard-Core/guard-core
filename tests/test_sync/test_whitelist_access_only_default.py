@@ -3,7 +3,7 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.factory import build_default_pipeline
 from guard_core.sync.decorators import SecurityDecorator
 from guard_core.sync.handlers.ipban_handler import ip_ban_manager
@@ -24,7 +24,7 @@ def _fresh_ban_store() -> Generator[None, None, None]:
     ip_ban_manager.banned_networks.clear()
 
 
-def _config(**settings: Any) -> SecurityConfig:
+def _config(**settings: Any) -> SyncSecurityConfig:
     defaults: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": False,
@@ -32,10 +32,10 @@ def _config(**settings: Any) -> SecurityConfig:
         "whitelist": [CLIENT],
         "blocked_user_agents": ["badbot"],
     }
-    return SecurityConfig(**{**defaults, **settings})
+    return SyncSecurityConfig(**{**defaults, **settings})
 
 
-def _run(config: SecurityConfig) -> tuple[int | None, bool]:
+def _run(config: SyncSecurityConfig) -> tuple[int | None, bool]:
     middleware = build_middleware(config, SecurityDecorator(config))
     request = SyncMockGuardRequest(path="/x", client_host=CLIENT, headers=BAD_AGENT)
     response = build_default_pipeline(middleware).execute(request)

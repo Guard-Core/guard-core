@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils.logging_utils import setup_custom_logging
 from guard_core.sync.utils import extract_client_ip
 from tests.test_sync.conftest import SyncMockGuardRequest
@@ -13,7 +13,7 @@ def test_the_spoof_warning_goes_through_the_configured_logger_once_a_minute(
 ) -> None:
     log_file = tmp_path / "guard.log"
     logger = setup_custom_logging(str(log_file))
-    config = SecurityConfig(enable_redis=False, trusted_proxies=["10.0.0.5"])
+    config = SyncSecurityConfig(enable_redis=False, trusted_proxies=["10.0.0.5"])
 
     for _ in range(5):
         request = SyncMockGuardRequest(

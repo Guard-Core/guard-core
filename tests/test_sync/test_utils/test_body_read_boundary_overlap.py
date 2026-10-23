@@ -3,7 +3,7 @@ from typing import cast
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync import utils
 from guard_core.sync._utils import body_reader, detection_scan
 from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
@@ -65,7 +65,7 @@ def test_a_signature_split_across_the_cap_boundary_is_missed_with_no_overlap(
 ) -> None:
     monkeypatch.setattr(detection_scan, "_check_value_enhanced", _fake_component_check)
     request = _PrefixOnlyRequest(body=_straddling_body(1024))
-    config = SecurityConfig(detection_max_body_inspect_bytes=1024)
+    config = SyncSecurityConfig(detection_max_body_inspect_bytes=1024)
 
     result = utils.detect_penetration_attempt(cast(SyncGuardRequest, request), config)
 
@@ -83,7 +83,7 @@ def test_the_same_straddling_signature_is_matched_once_the_overlap_covers_it(
 
     monkeypatch.setattr(body_reader, "_straddle_overlap_bytes", _fixed_overlap)
     request = _PrefixOnlyRequest(body=_straddling_body(1024))
-    config = SecurityConfig(detection_max_body_inspect_bytes=1024)
+    config = SyncSecurityConfig(detection_max_body_inspect_bytes=1024)
 
     result = utils.detect_penetration_attempt(cast(SyncGuardRequest, request), config)
 
@@ -103,7 +103,7 @@ def test_a_straddling_signature_is_matched_on_the_oversized_content_length_path(
     body = _straddling_body(1024)
     request = _PrefixOnlyRequest(body=body)
     request.headers["content-length"] = str(len(body))
-    config = SecurityConfig(detection_max_body_inspect_bytes=1024)
+    config = SyncSecurityConfig(detection_max_body_inspect_bytes=1024)
 
     result = utils.detect_penetration_attempt(cast(SyncGuardRequest, request), config)
 
@@ -122,7 +122,7 @@ def test_a_payload_placed_entirely_past_the_cap_is_still_not_detected(
     monkeypatch.setattr(body_reader, "_straddle_overlap_bytes", _fixed_overlap)
     body = ("A" * 2048 + _MAGIC).encode()
     request = _PrefixOnlyRequest(body=body)
-    config = SecurityConfig(detection_max_body_inspect_bytes=1024)
+    config = SyncSecurityConfig(detection_max_body_inspect_bytes=1024)
 
     result = utils.detect_penetration_attempt(cast(SyncGuardRequest, request), config)
 

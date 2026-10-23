@@ -4,7 +4,7 @@ from typing import NamedTuple
 import coverage
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.suspatterns_handler import (
     ALL_DETECTION_CATEGORIES,
     CATEGORY_CONTEXT_MAP,
@@ -39,7 +39,7 @@ class BenignCase(NamedTuple):
     known_false_positive_reason: str = ""
 
 
-def _build_isolated_manager(config: SecurityConfig | None) -> SusPatternsManager:
+def _build_isolated_manager(config: SyncSecurityConfig | None) -> SusPatternsManager:
     original_instance = SusPatternsManager._instance
     original_config = SusPatternsManager._config
     SusPatternsManager._instance = None
@@ -51,9 +51,9 @@ def _build_isolated_manager(config: SecurityConfig | None) -> SusPatternsManager
 
 
 _LEGACY_MANAGER = _build_isolated_manager(None)
-_PRODUCTION_MANAGER = _build_isolated_manager(SecurityConfig())
+_PRODUCTION_MANAGER = _build_isolated_manager(SyncSecurityConfig())
 
-_ENCODING_AWARE_MANAGER = _build_isolated_manager(SecurityConfig())
+_ENCODING_AWARE_MANAGER = _build_isolated_manager(SyncSecurityConfig())
 _ENCODING_AWARE_MANAGER._semantic_analyzer = None
 
 _DETECTORS: dict[str, SusPatternsManager] = {

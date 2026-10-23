@@ -464,19 +464,19 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "evaluated before any request, carries no request data"
     ),
     "_security_config_field_validators.py:_warn_empty_enabled_detection_categories": (
-        "line 211: SecurityConfig field-validator warning about the config "
+        "line 211: SyncSecurityConfig field-validator warning about the config "
         "value itself, evaluated at config construction, before any request"
     ),
     "_security_config_field_validators.py:_warn_trusted_proxies_prefix_zero": (
-        "line 192: SecurityConfig field-validator warning about a configured "
+        "line 192: SyncSecurityConfig field-validator warning about a configured "
         "CIDR prefix, not request data"
     ),
     "_security_config_field_validators.py:_warn_whitelist_prefix_zero": (
-        "line 202: SecurityConfig field-validator warning about a configured "
+        "line 202: SyncSecurityConfig field-validator warning about a configured "
         "CIDR prefix, not request data"
     ),
     "_security_config_field_validators.py:_warn_exempt_ips_prefix_zero": (
-        "line 216: SecurityConfig field-validator warning about a configured "
+        "line 216: SyncSecurityConfig field-validator warning about a configured "
         "CIDR prefix, not request data"
     ),
     "_utils/access_control.py:_log_country_check_result": (

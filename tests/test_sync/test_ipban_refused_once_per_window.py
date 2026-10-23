@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, Mock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.ipban_handler import IPBanManager
 
 DURATION = 600
@@ -22,7 +22,7 @@ def reset_singleton() -> Generator[None, None, None]:
 def _manager() -> IPBanManager:
     manager = IPBanManager()
     manager.redis_handler = None
-    manager.config = SecurityConfig(
+    manager.config = SyncSecurityConfig(
         enable_redis=False, trusted_proxies=("10.1.0.0/16",)
     )
     manager.agent_handler = Mock(send_event=MagicMock())

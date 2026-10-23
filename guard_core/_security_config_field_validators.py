@@ -31,6 +31,7 @@ from guard_core._security_config_typed_validators import (
 from guard_core.handlers.suspatterns_handler import ALL_DETECTION_CATEGORIES
 
 if TYPE_CHECKING:
+    from guard_core._security_config_fields import RequestT
     from guard_core.models import SecurityConfig
 
 logger = logging.getLogger("guard_core.models")
@@ -155,14 +156,16 @@ def _validate_return_pattern_requires_scan(
     )
 
 
-def _validate_return_pattern_body_scan(pattern: str, config: "SecurityConfig") -> None:
+def _validate_return_pattern_body_scan(
+    pattern: str, config: "SecurityConfig[RequestT]"
+) -> None:
     _validate_return_pattern_requires_scan(
         pattern, scan_response_body=config.behavior_scan_response_body
     )
 
 
 def _validate_global_behavior_rule_assignment(
-    config: "SecurityConfig", name: str, value: Any
+    config: "SecurityConfig[RequestT]", name: str, value: Any
 ) -> None:
     candidate_rules = (
         value if name == "global_behavior_rules" else config.global_behavior_rules
@@ -180,7 +183,7 @@ def _validate_global_behavior_rule_assignment(
         )
 
 
-def _revalidate_global_behavior_rules(config: "SecurityConfig") -> None:
+def _revalidate_global_behavior_rules(config: "SecurityConfig[RequestT]") -> None:
     for rule in config.global_behavior_rules:
         if rule.rule_type != "return_pattern" or not rule.pattern:
             continue

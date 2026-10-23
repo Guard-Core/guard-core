@@ -4,7 +4,7 @@ from ipaddress import ip_network
 from itertools import product
 from unittest.mock import MagicMock
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.core.checks.implementations import (
     AuthenticationCheck,
@@ -42,7 +42,7 @@ def _blocking_custom_validator(request: object) -> MockGuardResponse:
     return MockGuardResponse("blocked-by-custom-validator", 418)
 
 
-def _neutral_config(**overrides: object) -> SecurityConfig:
+def _neutral_config(**overrides: object) -> SyncSecurityConfig:
     fields: dict[str, object] = {
         "enable_penetration_detection": False,
         "enable_rate_limiting": False,
@@ -51,7 +51,7 @@ def _neutral_config(**overrides: object) -> SecurityConfig:
     if fields.get("enable_dynamic_rules"):
         fields.setdefault("enable_agent", True)
         fields.setdefault("agent_api_key", "test-key")
-    return SecurityConfig(**fields)
+    return SyncSecurityConfig(**fields)
 
 
 def _route_config(**overrides: object) -> RouteConfig:
@@ -62,7 +62,7 @@ def _route_config(**overrides: object) -> RouteConfig:
 
 
 def _build_middleware(
-    config: SecurityConfig, decorator: BaseSecurityDecorator
+    config: SyncSecurityConfig, decorator: BaseSecurityDecorator
 ) -> MagicMock:
     middleware = MagicMock()
     middleware.config = config
@@ -96,7 +96,7 @@ def _build_middleware(
 
 def _assert_eliminated_check_cannot_block(
     check_class: type[SecurityCheck],
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     route_configs: tuple[RouteConfig, ...],
     route_id: str | None,
     adversarial_requests: Sequence[SyncMockGuardRequest],
@@ -293,8 +293,10 @@ def test_time_window_cannot_block_once_eliminated() -> None:
             )
 
 
-def _cloud_axis_combinations() -> list[tuple[SecurityConfig, tuple[RouteConfig, ...]]]:
-    combos: list[tuple[SecurityConfig, tuple[RouteConfig, ...]]] = []
+def _cloud_axis_combinations() -> list[
+    tuple[SyncSecurityConfig, tuple[RouteConfig, ...]]
+]:
+    combos: list[tuple[SyncSecurityConfig, tuple[RouteConfig, ...]]] = []
     for config_blocks, enable_dynamic_rules, route_blocks in product(
         (set(), {"AWS"}), _BOOL_AXIS, (set(), {"AWS"})
     ):

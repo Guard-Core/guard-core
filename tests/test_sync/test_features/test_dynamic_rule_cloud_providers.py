@@ -3,7 +3,7 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.models import DynamicRules, SyncSecurityConfig
 from guard_core.sync.handlers._dynamic_rule_validation import MalformedDynamicRules
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
 
@@ -17,7 +17,7 @@ def _apply(manager: DynamicRuleManager, **fields: Any) -> None:
 
 @pytest.fixture
 def manager() -> DynamicRuleManager:
-    config = SecurityConfig(enable_redis=False)
+    config = SyncSecurityConfig(enable_redis=False)
     return DynamicRuleManager(config)
 
 

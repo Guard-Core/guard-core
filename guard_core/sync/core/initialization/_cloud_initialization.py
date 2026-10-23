@@ -4,11 +4,11 @@ from typing import TYPE_CHECKING, Any, cast
 from guard_core.sync.protocols.cloud_ip_store_protocol import SyncCloudIpStoreProtocol
 
 if TYPE_CHECKING:
-    from guard_core.models import SecurityConfig
+    from guard_core.models import SyncSecurityConfig
 
 
 class CloudInitializationMixin:
-    config: "SecurityConfig"
+    config: "SyncSecurityConfig"
     redis_handler: Any = None
     geo_ip_handler: Any = None
     guard_decorator: Any = None

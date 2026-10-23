@@ -4,13 +4,13 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.decorators import SecurityDecorator
 from guard_core.sync.handlers.behavior_handler import BehaviorRule, BehaviorTracker
 
 
 def _decorator(**flag: bool) -> SecurityDecorator:
-    return SecurityDecorator(SecurityConfig(enable_redis=False, **flag))
+    return SecurityDecorator(SyncSecurityConfig(enable_redis=False, **flag))
 
 
 def _decorate(decorator: SecurityDecorator, *args: Any, **kwargs: Any) -> Any:
@@ -98,7 +98,7 @@ def test_valid_values_never_warn_and_keep_the_threshold(
 
 
 def test_a_threshold_of_zero_trips_on_the_first_request() -> None:
-    tracker = BehaviorTracker(SecurityConfig(enable_redis=False))
+    tracker = BehaviorTracker(SyncSecurityConfig(enable_redis=False))
     rule = BehaviorRule(rule_type="frequency", threshold=0, window=300)
 
     assert tracker.track_endpoint_usage("ep", "203.0.113.9", rule) is True

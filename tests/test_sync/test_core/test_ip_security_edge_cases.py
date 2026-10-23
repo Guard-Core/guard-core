@@ -3,21 +3,21 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.implementations.ip_security import IpSecurityCheck
 from guard_core.sync.decorators.base import RouteConfig
 from guard_core.sync.utils import IpAccessResult
 
 
 @pytest.fixture
-def security_config() -> SecurityConfig:
-    config = SecurityConfig()
+def security_config() -> SyncSecurityConfig:
+    config = SyncSecurityConfig()
     config.passive_mode = False
     return config
 
 
 @pytest.fixture
-def mock_middleware(security_config: SecurityConfig) -> Mock:
+def mock_middleware(security_config: SyncSecurityConfig) -> Mock:
     middleware = Mock()
     middleware.config = security_config
     middleware.logger = Mock()
@@ -59,7 +59,7 @@ def test_check_banned_ip_bypass(
 def test_check_banned_ip_passive_mode(
     ip_security_check: IpSecurityCheck,
     mock_request: Mock,
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     security_config.passive_mode = True
 
@@ -78,7 +78,7 @@ def test_check_banned_ip_passive_mode(
 def test_check_route_ip_restrictions_passive_mode(
     ip_security_check: IpSecurityCheck,
     mock_request: Mock,
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     security_config.passive_mode = True
     route_config = RouteConfig()
@@ -111,7 +111,7 @@ def test_check_no_client_ip(
 def test_check_global_ip_restrictions_passive_mode(
     ip_security_check: IpSecurityCheck,
     mock_request: Mock,
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     security_config.passive_mode = True
 
@@ -180,7 +180,7 @@ def test_unknown_client_identity_not_blocked_with_default_config(
 def test_unknown_client_identity_blocked_when_whitelist_configured(
     ip_security_check: IpSecurityCheck,
     mock_request: Mock,
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     security_config.whitelist = ("10.0.0.1",)
     mock_request.state.client_ip = "unknown"
@@ -203,7 +203,7 @@ def test_unknown_client_identity_blocked_when_whitelist_configured(
 def test_unknown_client_identity_blocked_when_whitelist_countries_configured(
     ip_security_check: IpSecurityCheck,
     mock_request: Mock,
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     security_config.geo_ip_handler = Mock()
     security_config.whitelist_countries = frozenset({"US"})

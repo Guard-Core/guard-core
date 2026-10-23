@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.initialization.handler_initializer import HandlerInitializer
 from guard_core.sync.detection_engine.monitor import PerformanceMonitor
 from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
@@ -37,8 +37,8 @@ def _threat_request() -> SyncMockGuardRequest:
     )
 
 
-def _wired(**overrides: Any) -> tuple[SecurityConfig, _Agent]:
-    config = SecurityConfig(enable_agent=True, agent_api_key="a" * 10, **overrides)
+def _wired(**overrides: Any) -> tuple[SyncSecurityConfig, _Agent]:
+    config = SyncSecurityConfig(enable_agent=True, agent_api_key="a" * 10, **overrides)
     agent = _Agent()
     HandlerInitializer(
         config=config, agent_handler=agent
@@ -47,7 +47,7 @@ def _wired(**overrides: Any) -> tuple[SecurityConfig, _Agent]:
     return config, agent
 
 
-def _event_types(config: SecurityConfig, agent: _Agent) -> list[str]:
+def _event_types(config: SyncSecurityConfig, agent: _Agent) -> list[str]:
     result = detect_penetration_attempt(_threat_request(), config)
     assert result.is_threat is True
     return [event.event_type for event in agent.events]
@@ -76,7 +76,7 @@ def test_a_directly_attached_agent_still_honors_the_mute_and_the_switch() -> Non
         {"muted_event_types": frozenset({"pattern_detected"})},
         {"agent_enable_events": False},
     ):
-        config = SecurityConfig(**overrides)
+        config = SyncSecurityConfig(**overrides)
         agent = _Agent()
         sus_patterns_handler.configure(config)
         sus_patterns_handler.agent_handler = agent

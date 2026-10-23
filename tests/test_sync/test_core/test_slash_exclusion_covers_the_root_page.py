@@ -3,14 +3,14 @@ from unittest.mock import MagicMock, Mock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.validation.context import ValidationContext
 from guard_core.sync.core.validation.path_matching import path_is_excluded
 from guard_core.sync.core.validation.validator import RequestValidator
 from tests.test_sync.conftest import SyncMockGuardRequest
 
 
-def _validator(config: SecurityConfig) -> RequestValidator:
+def _validator(config: SyncSecurityConfig) -> RequestValidator:
     event_bus: Any = Mock()
     event_bus.send_middleware_event = MagicMock()
     return RequestValidator(
@@ -18,8 +18,8 @@ def _validator(config: SecurityConfig) -> RequestValidator:
     )
 
 
-def _config(**settings: Any) -> SecurityConfig:
-    return SecurityConfig(enable_redis=False, **settings)
+def _config(**settings: Any) -> SyncSecurityConfig:
+    return SyncSecurityConfig(enable_redis=False, **settings)
 
 
 @pytest.mark.parametrize(

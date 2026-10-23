@@ -2,7 +2,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils.request_logging import (
     redact_endpoint_for_display,
     redact_header_value_for_display,
@@ -27,7 +27,7 @@ class SecurityEventBus:
     def __init__(
         self,
         agent_handler: Any,
-        config: SecurityConfig,
+        config: SyncSecurityConfig,
         geo_ip_handler: Any = None,
         event_filter: EventFilter | None = None,
     ):

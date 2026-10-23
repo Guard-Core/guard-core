@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
 from guard_core.sync.utils import detect_penetration_attempt
 from tests.test_sync.conftest import SyncMockGuardRequest
@@ -32,7 +32,7 @@ def _padded_json(payload_key: str | None = None) -> str:
 
 
 def test_payload_within_the_cap_is_still_detected() -> None:
-    config = SecurityConfig(detection_max_scan_values=2)
+    config = SyncSecurityConfig(detection_max_scan_values=2)
     request = _query_request({"q": _SQLI_PAYLOAD})
 
     result = detect_penetration_attempt(request, config)
@@ -41,7 +41,7 @@ def test_payload_within_the_cap_is_still_detected() -> None:
 
 
 def test_payload_past_the_cap_is_scanned_as_one_block() -> None:
-    config = SecurityConfig(detection_max_scan_values=2)
+    config = SyncSecurityConfig(detection_max_scan_values=2)
     params = {f"pad{i}": "benign" for i in range(20)}
     params["payload"] = _SQLI_PAYLOAD
     request = _query_request(params)
@@ -55,7 +55,7 @@ def test_payload_past_the_cap_is_scanned_as_one_block() -> None:
 def test_cap_reached_logs_a_single_warning_naming_the_client_ip(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(detection_max_scan_values=2)
+    config = SyncSecurityConfig(detection_max_scan_values=2)
     params = {f"pad{i}": "benign" for i in range(20)}
     params["payload"] = _SQLI_PAYLOAD
     request = _query_request(params, client_host="203.0.113.77")
@@ -70,7 +70,7 @@ def test_cap_reached_logs_a_single_warning_naming_the_client_ip(
 def test_scan_value_budget_resets_between_requests(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(detection_max_scan_values=2)
+    config = SyncSecurityConfig(detection_max_scan_values=2)
     params = {f"pad{i}": "benign" for i in range(20)}
     params["payload"] = _SQLI_PAYLOAD
     request = _query_request(params)
@@ -88,7 +88,7 @@ def test_default_cap_never_trips_on_an_ordinary_request(
     request = _query_request({"q": _SQLI_PAYLOAD})
 
     with caplog.at_level(logging.WARNING, logger="guard_core"):
-        result = detect_penetration_attempt(request, SecurityConfig())
+        result = detect_penetration_attempt(request, SyncSecurityConfig())
 
     assert result.is_threat is True
     assert "detection_max_scan_values" not in caplog.text
@@ -110,7 +110,7 @@ def test_config_none_still_uses_the_default_cap(
 def test_json_embedded_in_a_query_param_value_trips_the_cap(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(detection_max_scan_values=2)
+    config = SyncSecurityConfig(detection_max_scan_values=2)
     request = _query_request({"q": _padded_json()})
 
     with caplog.at_level(logging.WARNING, logger="guard_core"):
@@ -123,7 +123,7 @@ def test_json_embedded_in_a_query_param_value_trips_the_cap(
 def test_json_embedded_in_a_header_value_trips_the_cap(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(detection_max_scan_values=2)
+    config = SyncSecurityConfig(detection_max_scan_values=2)
     request = _header_request({"X-Custom-Data": _padded_json()})
 
     with caplog.at_level(logging.WARNING, logger="guard_core"):
@@ -134,7 +134,7 @@ def test_json_embedded_in_a_header_value_trips_the_cap(
 
 
 def test_json_embedded_payload_placed_before_the_cap_is_still_detected() -> None:
-    config = SecurityConfig(detection_max_scan_values=5)
+    config = SyncSecurityConfig(detection_max_scan_values=5)
     request = _query_request({"q": _padded_json(payload_key="payload")})
 
     result = detect_penetration_attempt(request, config)
@@ -145,7 +145,7 @@ def test_json_embedded_payload_placed_before_the_cap_is_still_detected() -> None
 def test_json_embedded_scan_calls_detect_no_more_than_the_cap(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(detection_max_scan_values=2)
+    config = SyncSecurityConfig(detection_max_scan_values=2)
     request = _query_request({"q": _padded_json()})
 
     call_count = 0

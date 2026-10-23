@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.models import DynamicRules, SyncSecurityConfig
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.sync.handlers.ipban_handler import ip_ban_manager
 from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
@@ -32,7 +32,7 @@ def _rules(**overrides: Any) -> DynamicRules:
 
 
 def _manager(**config_kwargs: Any) -> DynamicRuleManager:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False,
         enable_agent=True,
         agent_api_key="test-api-key",
@@ -165,7 +165,7 @@ def test_a_failing_range_unban_is_logged_and_does_not_stop_the_apply(
 def test_a_validated_name_without_a_revalidator_is_passed_through() -> None:
     from guard_core._security_config_batch import prepare_config_batch
 
-    config = SecurityConfig(enable_redis=False)
+    config = SyncSecurityConfig(enable_redis=False)
     prepared = prepare_config_batch(
         config,
         {"passive_mode": True, "rate_limit": 7},

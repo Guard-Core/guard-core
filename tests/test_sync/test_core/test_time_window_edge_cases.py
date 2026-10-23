@@ -3,13 +3,13 @@ from unittest.mock import MagicMock, Mock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.implementations.time_window import TimeWindowCheck
 
 
 @pytest.fixture
 def mock_middleware() -> Mock:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     config.passive_mode = False
 
     middleware = Mock()

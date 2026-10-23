@@ -1,6 +1,6 @@
 from typing import Any
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.factory import build_default_pipeline
 from guard_core.sync.core.checks.pipeline import SecurityCheckPipeline
 from guard_core.sync.decorators import SecurityDecorator
@@ -20,7 +20,7 @@ def _pipeline(**settings: Any) -> SecurityCheckPipeline:
         "rate_limit": 1,
         "rate_limit_window": 60,
     }
-    config = SecurityConfig(**{**defaults, **settings})
+    config = SyncSecurityConfig(**{**defaults, **settings})
     return build_default_pipeline(build_middleware(config, SecurityDecorator(config)))
 
 
@@ -70,7 +70,7 @@ def test_a_refused_override_sends_its_event_on_a_preflight_of_either_app() -> No
         {},
         {"enable_cors": True, "cors_allow_origins": ["https://app.example"]},
     ):
-        config = SecurityConfig(enable_redis=False, **settings)
+        config = SyncSecurityConfig(enable_redis=False, **settings)
         middleware = build_middleware(config, SecurityDecorator(config))
         manager = SecurityHeadersManager.isolated()
         manager.agent_handler = MagicMock(send_event=MagicMock())

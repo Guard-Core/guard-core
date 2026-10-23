@@ -14,7 +14,7 @@ from guard_core.exceptions import (
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
 if TYPE_CHECKING:
-    from guard_core.models import SecurityConfig
+    from guard_core.models import SyncSecurityConfig
 
 logger = logging.getLogger("guard_core")
 
@@ -299,7 +299,7 @@ def _read_declared_body(
 
 
 def _read_capped_body_or_raise(
-    request: SyncGuardRequest, config: "SecurityConfig | None", client_ip: str = ""
+    request: SyncGuardRequest, config: "SyncSecurityConfig | None", client_ip: str = ""
 ) -> bytes | None:
     if config is None:
         prefix = _read_under_slot(
@@ -325,7 +325,7 @@ def _read_capped_body_or_raise(
 
 
 def _read_capped_body(
-    request: SyncGuardRequest, config: "SecurityConfig | None", client_ip: str = ""
+    request: SyncGuardRequest, config: "SyncSecurityConfig | None", client_ip: str = ""
 ) -> bytes | None:
     try:
         return _read_capped_body_or_raise(request, config, client_ip)

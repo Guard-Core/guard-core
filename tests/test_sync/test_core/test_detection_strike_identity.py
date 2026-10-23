@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.implementations.suspicious_activity import (
     SuspiciousActivityCheck,
 )
@@ -18,7 +18,7 @@ OTHER_PREFIXES = [f"2001:db8:0:{index}::1" for index in range(1, 6)]
 DETECT_MODULE = "guard_core.sync.core.checks.implementations.suspicious_activity"
 
 
-def _config(**fields: Any) -> SecurityConfig:
+def _config(**fields: Any) -> SyncSecurityConfig:
     values: dict[str, Any] = {
         "enable_ip_banning": True,
         "enable_redis": False,
@@ -28,14 +28,14 @@ def _config(**fields: Any) -> SecurityConfig:
         "auto_ban_duration": 300,
     }
     values.update(fields)
-    return SecurityConfig(**values)
+    return SyncSecurityConfig(**values)
 
 
 class _Worker:
     def __init__(
         self,
         monkeypatch: pytest.MonkeyPatch,
-        config: SecurityConfig,
+        config: SyncSecurityConfig,
         redis: RedisManager | None = None,
     ) -> None:
         middleware = MagicMock()

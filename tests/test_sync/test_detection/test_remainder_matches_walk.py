@@ -4,7 +4,7 @@ from urllib.parse import quote, urlencode
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
 from guard_core.sync.utils import detect_penetration_attempt
 from tests.test_detection.benign_prompt_corpus import BENIGN_PROMPTS
@@ -99,16 +99,16 @@ _SURFACES: dict[str, Callable[[str, bool], SyncMockGuardRequest]] = {
 
 @pytest.fixture(autouse=True)
 def _force_enhanced_detection_singleton() -> None:
-    sus_patterns_handler.configure(SecurityConfig())
+    sus_patterns_handler.configure(SyncSecurityConfig())
 
 
-def _verdict(request: SyncMockGuardRequest, config: SecurityConfig) -> tuple:
+def _verdict(request: SyncMockGuardRequest, config: SyncSecurityConfig) -> tuple:
     result = detect_penetration_attempt(request, config)
     return result.is_threat, sorted(result.threat_categories)
 
 
 def _differences(surface: str, values: list[str]) -> list[str]:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False, rate_limit=10_000_000, detection_max_scan_values=2
     )
     build = _SURFACES[surface]

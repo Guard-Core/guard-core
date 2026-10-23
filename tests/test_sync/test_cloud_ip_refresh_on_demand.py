@@ -1,7 +1,7 @@
 import ipaddress
 from unittest.mock import MagicMock, patch
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.implementations.cloud_ip_refresh import (
     CloudIpRefreshCheck,
 )
@@ -9,7 +9,7 @@ from guard_core.sync.handlers.cloud_handler import cloud_handler
 
 
 def test_lazy_init_does_not_trigger_sync_refresh_in_check() -> None:
-    config = SecurityConfig(lazy_init=True, block_cloud_providers={"AWS"})
+    config = SyncSecurityConfig(lazy_init=True, block_cloud_providers={"AWS"})
     middleware = MagicMock()
     middleware.config = config
     middleware.last_cloud_ip_refresh = 9999999999
@@ -28,7 +28,7 @@ def test_lazy_init_does_not_trigger_sync_refresh_in_check() -> None:
 
 
 def test_eager_init_does_not_trigger_on_demand_refresh() -> None:
-    config = SecurityConfig(lazy_init=False, block_cloud_providers={"AWS"})
+    config = SyncSecurityConfig(lazy_init=False, block_cloud_providers={"AWS"})
     middleware = MagicMock()
     middleware.config = config
     middleware.last_cloud_ip_refresh = 9999999999
@@ -47,7 +47,7 @@ def test_eager_init_does_not_trigger_on_demand_refresh() -> None:
 
 
 def test_scheduled_refresh_still_fires_when_interval_elapsed() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         lazy_init=False,
         block_cloud_providers={"AWS"},
         cloud_ip_refresh_interval=60,
@@ -68,7 +68,7 @@ def test_scheduled_refresh_still_fires_when_interval_elapsed() -> None:
 
 
 def test_lazy_init_with_empty_block_cloud_returns_immediately() -> None:
-    config = SecurityConfig(lazy_init=True, block_cloud_providers=None)
+    config = SyncSecurityConfig(lazy_init=True, block_cloud_providers=None)
     middleware = MagicMock()
     middleware.config = config
     middleware.last_cloud_ip_refresh = 0
@@ -84,7 +84,7 @@ def test_lazy_init_with_empty_block_cloud_returns_immediately() -> None:
 
 
 def test_lazy_init_scheduled_refresh_fires_when_interval_elapsed() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         lazy_init=True,
         block_cloud_providers={"AWS"},
         cloud_ip_refresh_interval=60,
@@ -111,7 +111,7 @@ def test_handler_initializer_wires_user_supplied_store() -> None:
     from guard_core.sync.handlers.cloud_ip_stores import InMemoryCloudIpStore
 
     custom_store = InMemoryCloudIpStore()
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=True,
         lazy_init=False,
         block_cloud_providers={"AWS"},
@@ -157,7 +157,7 @@ def test_handler_initializer_user_store_wired_before_lazy_task() -> None:
     from guard_core.sync.handlers.cloud_ip_stores import InMemoryCloudIpStore
 
     custom_store = InMemoryCloudIpStore()
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=True,
         lazy_init=True,
         block_cloud_providers={"AWS"},

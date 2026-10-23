@@ -3,7 +3,7 @@ from collections import OrderedDict
 from collections.abc import Collection, Sequence
 from ipaddress import ip_address
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.agent_events import agent_receives_events
 from guard_core.sync._utils.rule_attribution import emergency_attribution
@@ -42,7 +42,7 @@ class EmergencyModeCheck(SecurityCheck):
     @classmethod
     def applies_to(
         cls,
-        config: SecurityConfig,
+        config: SyncSecurityConfig,
         route_configs: Collection[RouteConfig] | None,
     ) -> bool:
         return config.emergency_mode or config.enable_dynamic_rules

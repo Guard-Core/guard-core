@@ -3,15 +3,15 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils import sampling
 from tests.test_sync.test_core.conftest import build_route_pipeline, send_request
 
 WINDOW = 60
 
 
-def _config() -> SecurityConfig:
-    return SecurityConfig(
+def _config() -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         enable_redis=False,
         enable_penetration_detection=True,
         enable_rate_limiting=False,

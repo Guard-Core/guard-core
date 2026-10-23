@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, Mock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks._shared_strikes import (
     SharedStrikes,
     StrikeReport,
@@ -19,7 +19,7 @@ LOGGER = "guard_core.sync.core.checks.shared_strikes"
 
 def _middleware(redis: Any) -> MagicMock:
     middleware = MagicMock()
-    middleware.config = SecurityConfig(
+    middleware.config = SyncSecurityConfig(
         enable_redis=True, enable_ip_banning=True, redis_url="redis://localhost:1"
     )
     middleware.rate_limit_handler.redis_handler = redis

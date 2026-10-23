@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.initialization.handler_initializer import HandlerInitializer
 from guard_core.sync.handlers.security_headers_handler import (
     SecurityHeadersManager,
@@ -338,7 +338,7 @@ def test_csp_violation_reaches_transport_once_wired_through_handler_initializer(
     headers_manager: SecurityHeadersManager,
 ) -> None:
     transport = _RecordingTransport()
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     initializer = HandlerInitializer(config=config, agent_handler=transport)
 
     initializer.initialize_agent_integrations()
@@ -368,7 +368,7 @@ def test_headers_applied_event_sets_handler_name(
     headers_manager: SecurityHeadersManager,
 ) -> None:
     transport = _RecordingTransport()
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     initializer = HandlerInitializer(config=config, agent_handler=transport)
 
     initializer.initialize_agent_integrations()
@@ -389,7 +389,7 @@ def test_muted_event_types_silences_security_headers_applied(
     headers_manager: SecurityHeadersManager,
 ) -> None:
     transport = _RecordingTransport()
-    config = SecurityConfig(muted_event_types={"security_headers_applied"})
+    config = SyncSecurityConfig(muted_event_types={"security_headers_applied"})
     initializer = HandlerInitializer(config=config, agent_handler=transport)
 
     initializer.initialize_agent_integrations()

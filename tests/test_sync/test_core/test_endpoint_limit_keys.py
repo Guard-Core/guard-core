@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, Mock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.route_identity import RouteIdentity
 from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.core.checks.endpoint_limit_keys import (
@@ -73,11 +73,11 @@ def test_key_map_uses_the_path_only_when_the_identity_does_not_hit() -> None:
 
 
 @pytest.fixture
-def config() -> SecurityConfig:
-    return SecurityConfig(enable_redis=False, passive_mode=False)
+def config() -> SyncSecurityConfig:
+    return SyncSecurityConfig(enable_redis=False, passive_mode=False)
 
 
-def _check(config: SecurityConfig, resolver: Any) -> RateLimitCheck:
+def _check(config: SyncSecurityConfig, resolver: Any) -> RateLimitCheck:
     middleware = Mock()
     middleware.config = config
     middleware.resolve_route = resolver
@@ -95,7 +95,7 @@ def _request(path: str, identity: RouteIdentity | None) -> Any:
 
 
 def test_needs_route_identity_is_false_without_endpoint_limits(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
 ) -> None:
     resolver = Mock(return_value=())
     check = _check(config, resolver)
@@ -105,7 +105,7 @@ def test_needs_route_identity_is_false_without_endpoint_limits(
 
 
 def test_needs_route_identity_is_false_when_no_key_resolves(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
 ) -> None:
     config.endpoint_rate_limits = {"/x": (1, 60)}
 
@@ -114,7 +114,7 @@ def test_needs_route_identity_is_false_when_no_key_resolves(
 
 
 def test_needs_route_identity_rebuilds_when_the_keys_change(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
 ) -> None:
     identity = _identity(object())
     resolver = Mock(return_value=(identity,))
@@ -131,7 +131,7 @@ def test_needs_route_identity_rebuilds_when_the_keys_change(
 
 
 def test_pipeline_needs_route_identity_follows_its_checks(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
 ) -> None:
     identity = _identity(object())
     config.endpoint_rate_limits = {"/x": (1, 60)}
@@ -151,7 +151,7 @@ def _enforced_keys(check: RateLimitCheck, request: Any) -> list[str]:
 
 
 def test_every_matched_key_is_enforced_in_its_own_bucket(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
 ) -> None:
     identity = _identity(object())
     config.endpoint_rate_limits = {"/login": (5, 60), "/login/": (2, 60)}
@@ -164,7 +164,7 @@ def test_every_matched_key_is_enforced_in_its_own_bucket(
 
 
 def test_unresolved_key_still_limits_a_request_that_has_an_identity(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
 ) -> None:
     config.endpoint_rate_limits = {"/ghost": (5, 60)}
     check = _check(config, lambda p: ())
@@ -175,7 +175,7 @@ def test_unresolved_key_still_limits_a_request_that_has_an_identity(
 
 
 def test_other_ids_do_not_borrow_a_concrete_id_key(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
 ) -> None:
     handler = object()
     config.endpoint_rate_limits = {"/users/42": (5, 60)}
@@ -197,7 +197,7 @@ class _PlainCheck(SecurityCheck):
 
 
 def test_checks_without_a_key_map_never_need_a_route_identity() -> None:
-    plain = _PlainCheck(Mock(config=SecurityConfig(enable_redis=False)))
+    plain = _PlainCheck(Mock(config=SyncSecurityConfig(enable_redis=False)))
 
     assert plain.needs_route_identity is False
     assert SecurityCheckPipeline([plain]).needs_route_identity is False

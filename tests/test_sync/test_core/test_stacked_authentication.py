@@ -2,7 +2,7 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from tests.test_sync.test_core.conftest import build_route_pipeline, send_request
 
 CLIENT = "203.0.113.20"
@@ -17,14 +17,14 @@ class _RecordingAgent:
         self.events.append(event)
 
 
-def _config(**overrides: Any) -> SecurityConfig:
+def _config(**overrides: Any) -> SyncSecurityConfig:
     settings: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": False,
         "enable_rate_limiting": False,
     }
     settings.update(overrides)
-    return SecurityConfig(**settings)
+    return SyncSecurityConfig(**settings)
 
 
 def _bearer_verifier(calls: list[str]) -> Any:

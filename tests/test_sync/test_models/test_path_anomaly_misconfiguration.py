@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 
 ANOMALOUS_PATHS = [
     "/a/../b",
@@ -21,8 +21,8 @@ ANOMALOUS_PATHS = [
 ]
 
 
-def _build(**settings: Any) -> SecurityConfig:
-    return SecurityConfig(enable_redis=False, **settings)
+def _build(**settings: Any) -> SyncSecurityConfig:
+    return SyncSecurityConfig(enable_redis=False, **settings)
 
 
 def _settings(field: str, path: str) -> dict[str, Any]:

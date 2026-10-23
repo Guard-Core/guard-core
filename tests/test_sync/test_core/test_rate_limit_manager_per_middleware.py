@@ -1,4 +1,4 @@
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.ratelimit_handler import (
     RateLimitManager,
     rate_limit_handler,
@@ -12,8 +12,10 @@ def _error_response(status_code: int, message: str) -> MockGuardResponse:
     return MockGuardResponse(message, status_code)
 
 
-def _manager(limit: int) -> tuple[RateLimitManager, SecurityConfig]:
-    config = SecurityConfig(enable_redis=False, rate_limit=limit, rate_limit_window=60)
+def _manager(limit: int) -> tuple[RateLimitManager, SyncSecurityConfig]:
+    config = SyncSecurityConfig(
+        enable_redis=False, rate_limit=limit, rate_limit_window=60
+    )
     return RateLimitManager(config), config
 
 
@@ -54,7 +56,7 @@ def test_resetting_one_app_leaves_the_other_alone() -> None:
 
 
 def test_the_class_and_its_module_alias_keep_their_constructor() -> None:
-    config = SecurityConfig(enable_redis=False)
+    config = SyncSecurityConfig(enable_redis=False)
 
     assert isinstance(rate_limit_handler(config), RateLimitManager)
     assert rate_limit_handler is RateLimitManager

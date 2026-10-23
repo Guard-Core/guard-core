@@ -2,7 +2,7 @@ from typing import Any, cast
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.ipinfo_handler import IPInfoManager
 
 
@@ -14,7 +14,7 @@ def _reset_ipinfo_singleton() -> Any:
 
 
 def test_geo_ip_db_max_age_reaches_auto_constructed_handler() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         ipinfo_token="token123",
         blocked_countries=["CN"],
         geo_ip_db_max_age=7200,

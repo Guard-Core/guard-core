@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, Mock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.implementations.rate_limit import RateLimitCheck
 from guard_core.sync.core.checks.implementations.route_config import RouteConfigCheck
 from guard_core.sync.core.checks.pipeline import SecurityCheckPipeline
@@ -12,8 +12,8 @@ from guard_core.sync.core.checks.pipeline import SecurityCheckPipeline
 BLOCKED = object()
 
 
-def _config(**settings: Any) -> SecurityConfig:
-    return SecurityConfig(
+def _config(**settings: Any) -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         enable_redis=False,
         ban_on_hostile_signals=False,
         whitelist_access_only=False,
@@ -43,7 +43,9 @@ class Slotted:
         "rate_limit_handler",
     )
 
-    def __init__(self, config: SecurityConfig, prefixes: Any, resolver: Any) -> None:
+    def __init__(
+        self, config: SyncSecurityConfig, prefixes: Any, resolver: Any
+    ) -> None:
         self.config = config
         self.logger = Mock()
         self.route_resolver = Mock()
@@ -69,7 +71,7 @@ class Slotted:
         return BLOCKED
 
 
-def _slotted(config: SecurityConfig, prefixes: Any, resolver: Any) -> Any:
+def _slotted(config: SyncSecurityConfig, prefixes: Any, resolver: Any) -> Any:
     return Slotted(config, prefixes, resolver)
 
 

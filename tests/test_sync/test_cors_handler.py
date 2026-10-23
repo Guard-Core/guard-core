@@ -4,7 +4,7 @@ from typing import Any
 import pytest
 
 from guard_core._security_headers_override import CorsParams
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.cors_handler import (
     CorsHandler,
     is_preflight,
@@ -12,8 +12,8 @@ from guard_core.sync.handlers.cors_handler import (
 
 
 @pytest.fixture
-def cfg() -> SecurityConfig:
-    return SecurityConfig(
+def cfg() -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         enable_cors=True,
         cors_allow_origins=["https://app.example.com"],
         cors_allow_methods=["GET", "POST"],
@@ -73,7 +73,7 @@ def test_is_preflight_reads_header_names_from_pair_iterating_headers() -> None:
     assert is_preflight("OPTIONS", headers) is True
 
 
-def test_preflight_response_allowed_origin(cfg: SecurityConfig) -> None:
+def test_preflight_response_allowed_origin(cfg: SyncSecurityConfig) -> None:
     handler = CorsHandler(cfg)
     response = handler.build_preflight_response(
         request_headers={
@@ -90,7 +90,7 @@ def test_preflight_response_allowed_origin(cfg: SecurityConfig) -> None:
     assert response.headers["Vary"] == "Origin"
 
 
-def test_preflight_response_disallowed_origin(cfg: SecurityConfig) -> None:
+def test_preflight_response_disallowed_origin(cfg: SyncSecurityConfig) -> None:
     handler = CorsHandler(cfg)
     response = handler.build_preflight_response(
         request_headers={
@@ -102,7 +102,7 @@ def test_preflight_response_disallowed_origin(cfg: SecurityConfig) -> None:
     assert "origin" in response.body.lower()
 
 
-def test_preflight_response_disallowed_method(cfg: SecurityConfig) -> None:
+def test_preflight_response_disallowed_method(cfg: SyncSecurityConfig) -> None:
     handler = CorsHandler(cfg)
     response = handler.build_preflight_response(
         request_headers={
@@ -114,7 +114,7 @@ def test_preflight_response_disallowed_method(cfg: SecurityConfig) -> None:
     assert "method" in response.body.lower()
 
 
-def test_preflight_response_disallowed_headers(cfg: SecurityConfig) -> None:
+def test_preflight_response_disallowed_headers(cfg: SyncSecurityConfig) -> None:
     handler = CorsHandler(cfg)
     response = handler.build_preflight_response(
         request_headers={
@@ -127,7 +127,7 @@ def test_preflight_response_disallowed_headers(cfg: SecurityConfig) -> None:
     assert "headers" in response.body.lower()
 
 
-def test_response_headers_for_simple_request(cfg: SecurityConfig) -> None:
+def test_response_headers_for_simple_request(cfg: SyncSecurityConfig) -> None:
     handler = CorsHandler(cfg)
     headers = handler.build_response_headers(
         request_headers={"origin": "https://app.example.com"}
@@ -138,7 +138,7 @@ def test_response_headers_for_simple_request(cfg: SecurityConfig) -> None:
     assert headers["Vary"] == "Origin"
 
 
-def test_response_headers_for_disallowed_origin(cfg: SecurityConfig) -> None:
+def test_response_headers_for_disallowed_origin(cfg: SyncSecurityConfig) -> None:
     handler = CorsHandler(cfg)
     headers = handler.build_response_headers(
         request_headers={"origin": "https://attacker.example.com"}
@@ -146,14 +146,16 @@ def test_response_headers_for_disallowed_origin(cfg: SecurityConfig) -> None:
     assert headers == {"Vary": "Origin"}
 
 
-def test_response_headers_with_no_origin_return_only_vary(cfg: SecurityConfig) -> None:
+def test_response_headers_with_no_origin_return_only_vary(
+    cfg: SyncSecurityConfig,
+) -> None:
     handler = CorsHandler(cfg)
     headers = handler.build_response_headers(request_headers={})
     assert headers == {"Vary": "Origin"}
 
 
 def test_wildcard_origin_with_credentials_raises_at_init() -> None:
-    bad = SecurityConfig(
+    bad = SyncSecurityConfig(
         enable_cors=True,
         cors_allow_origins=["*"],
         cors_allow_credentials=True,
@@ -163,7 +165,7 @@ def test_wildcard_origin_with_credentials_raises_at_init() -> None:
 
 
 def test_wildcard_origin_without_credentials() -> None:
-    cfg = SecurityConfig(
+    cfg = SyncSecurityConfig(
         enable_cors=True,
         cors_allow_origins=["*"],
         cors_allow_credentials=False,
@@ -176,8 +178,8 @@ def test_wildcard_origin_without_credentials() -> None:
     assert headers["Access-Control-Allow-Origin"] == "*"
 
 
-def test_allow_all_headers_mirrors_requested(cfg: SecurityConfig) -> None:
-    cfg2 = SecurityConfig(
+def test_allow_all_headers_mirrors_requested(cfg: SyncSecurityConfig) -> None:
+    cfg2 = SyncSecurityConfig(
         enable_cors=True,
         cors_allow_origins=["https://app.example.com"],
         cors_allow_methods=["GET", "POST"],
@@ -197,20 +199,20 @@ def test_allow_all_headers_mirrors_requested(cfg: SecurityConfig) -> None:
 
 
 def test_disabled_cors_handler_skips_logic() -> None:
-    cfg = SecurityConfig(enable_cors=False)
+    cfg = SyncSecurityConfig(enable_cors=False)
     handler = CorsHandler(cfg)
     headers = handler.build_response_headers(request_headers={"origin": "https://x"})
     assert headers == {}
 
 
 def test_is_origin_allowed_false_when_disabled() -> None:
-    cfg = SecurityConfig(enable_cors=False)
+    cfg = SyncSecurityConfig(enable_cors=False)
     handler = CorsHandler(cfg)
     assert handler.is_origin_allowed("https://example.com") is False
 
 
 def test_is_origin_allowed_true_for_wildcard() -> None:
-    cfg = SecurityConfig(
+    cfg = SyncSecurityConfig(
         enable_cors=True,
         cors_allow_origins=["*"],
         cors_allow_credentials=False,
@@ -221,7 +223,7 @@ def test_is_origin_allowed_true_for_wildcard() -> None:
 
 
 def test_preflight_allow_all_headers_empty_requested_headers_raw() -> None:
-    cfg2 = SecurityConfig(
+    cfg2 = SyncSecurityConfig(
         enable_cors=True,
         cors_allow_origins=["https://app.example.com"],
         cors_allow_methods=["GET", "POST"],
@@ -240,7 +242,7 @@ def test_preflight_allow_all_headers_empty_requested_headers_raw() -> None:
 
 
 def test_preflight_no_credentials_flag() -> None:
-    cfg2 = SecurityConfig(
+    cfg2 = SyncSecurityConfig(
         enable_cors=True,
         cors_allow_origins=["https://app.example.com"],
         cors_allow_methods=["GET", "POST"],
@@ -258,7 +260,7 @@ def test_preflight_no_credentials_flag() -> None:
 
 
 def test_a_handler_for_an_app_without_cors_holds_the_disabled_defaults() -> None:
-    handler = CorsHandler(SecurityConfig(enable_redis=False))
+    handler = CorsHandler(SyncSecurityConfig(enable_redis=False))
 
     assert handler._enabled is False
     assert handler._allow_all is False
@@ -272,7 +274,7 @@ def test_a_handler_for_an_app_without_cors_holds_the_disabled_defaults() -> None
 
 
 def test_the_wildcard_with_credentials_error_names_both_settings() -> None:
-    bad = SecurityConfig(
+    bad = SyncSecurityConfig(
         enable_cors=True, cors_allow_origins=["*"], cors_allow_credentials=True
     )
 
@@ -286,7 +288,7 @@ def test_the_wildcard_with_credentials_error_names_both_settings() -> None:
 
 def test_a_trailing_slash_is_stripped_from_an_origin_and_nothing_else() -> None:
     handler = CorsHandler(
-        SecurityConfig(enable_cors=True, cors_allow_origins=["https://boX/"])
+        SyncSecurityConfig(enable_cors=True, cors_allow_origins=["https://boX/"])
     )
 
     assert handler.is_origin_allowed("https://boX")
@@ -295,7 +297,7 @@ def test_a_trailing_slash_is_stripped_from_an_origin_and_nothing_else() -> None:
 
 def test_an_empty_methods_list_allows_get_only() -> None:
     handler = CorsHandler(
-        SecurityConfig(
+        SyncSecurityConfig(
             enable_cors=True,
             cors_allow_origins=["https://a.example"],
             cors_allow_methods=[],
@@ -307,7 +309,7 @@ def test_an_empty_methods_list_allows_get_only() -> None:
 
 def test_a_wildcard_preflight_answers_a_star_origin() -> None:
     handler = CorsHandler(
-        SecurityConfig(
+        SyncSecurityConfig(
             enable_cors=True,
             cors_allow_origins=["*"],
             cors_allow_credentials=False,
@@ -325,7 +327,7 @@ def test_a_wildcard_preflight_answers_a_star_origin() -> None:
 def test_the_override_is_applied_once_until_its_record_changes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    handler = CorsHandler(SecurityConfig(enable_redis=False))
+    handler = CorsHandler(SyncSecurityConfig(enable_redis=False))
     calls: list[object] = []
     original = handler._apply
 

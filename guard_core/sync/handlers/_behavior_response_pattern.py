@@ -5,7 +5,7 @@ from typing import Protocol, runtime_checkable
 
 from cachetools import TTLCache
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.response_prefetch import read_shared_prefix
 from guard_core.sync.handlers._behavior_json_pattern import BehaviorJsonPatternMixin
@@ -17,7 +17,7 @@ class _BoundedResponseBodyReader(Protocol):
 
 
 class BehaviorResponsePatternMixin(BehaviorJsonPatternMixin):
-    config: SecurityConfig
+    config: SyncSecurityConfig
     logger: logging.Logger
     _body_unavailable_log_cache: TTLCache[str, bool]
 

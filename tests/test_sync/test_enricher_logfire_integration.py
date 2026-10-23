@@ -2,14 +2,14 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.models import DynamicRules, SyncSecurityConfig
 from guard_core.sync.core.events.enricher import EnrichmentContext, EventEnricher
 from guard_core.sync.core.events.logfire_handler import LogfireHandler
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
 
 
 def test_logfire_send_event_forwards_enrichment_metadata() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_agent=True,
         agent_api_key="a" * 10,
         agent_project_id="proj-log",
@@ -54,7 +54,7 @@ def test_logfire_send_event_forwards_enrichment_metadata() -> None:
 
 
 def test_logfire_send_event_without_metadata_does_not_crash() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     event = SimpleNamespace(
         event_type="ip_blocked",
         ip_address="",
@@ -81,7 +81,7 @@ def test_logfire_send_event_without_metadata_does_not_crash() -> None:
 
 def test_enricher_to_logfire_end_to_end_through_handler() -> None:
     DynamicRuleManager._instance = None
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_agent=True,
         agent_api_key="a" * 10,
         agent_project_id="proj-e2e-log",

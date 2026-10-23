@@ -14,7 +14,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
     InMemorySpanExporter,
 )
 
-from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.models import DynamicRules, SyncSecurityConfig
 from guard_core.sync.core.events.composite_handler import CompositeAgentHandler
 from guard_core.sync.core.events.enricher import EnrichmentContext, EventEnricher
 from guard_core.sync.core.events.event_types import EventFilter
@@ -35,7 +35,7 @@ def _build_request() -> MagicMock:
 
 
 def _otel_handler_with_exporter(
-    config: SecurityConfig, exporter: InMemorySpanExporter
+    config: SyncSecurityConfig, exporter: InMemorySpanExporter
 ) -> OtelHandler:
     handler = OtelHandler(config)
     provider = TracerProvider()
@@ -55,7 +55,7 @@ def _otel_handler_with_exporter(
 
 def _prewired_composite_factory(
     exporter: InMemorySpanExporter,
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     enricher: EventEnricher | None,
 ) -> Callable[[], CompositeAgentHandler]:
     def _factory() -> CompositeAgentHandler:
@@ -74,7 +74,7 @@ def _prewired_composite_factory(
 def test_enrichment_fields_land_on_otel_span(monkeypatch: MonkeyPatch) -> None:
     DynamicRuleManager._instance = None
     exporter = InMemorySpanExporter()
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_agent=True,
         agent_api_key="a" * 10,
         agent_project_id="proj-e2e",
@@ -159,7 +159,7 @@ def test_enrichment_skipped_when_enable_enrichment_false(
 ) -> None:
     DynamicRuleManager._instance = None
     exporter = InMemorySpanExporter()
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_otel=True,
         otel_service_name="api-raw",
         agent_enable_events=True,

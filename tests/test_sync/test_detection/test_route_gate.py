@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils.route_gate import normalized_last_segment
 from guard_core.sync.core.checks.implementations.suspicious_activity import (
     SuspiciousActivityCheck,
@@ -21,7 +21,7 @@ def _flagged(path: str, template: str | None = None, **state: Any) -> bool:
         declare_route(request, template)
     for name, value in state.items():
         setattr(request.state, name, value)
-    result = detect_penetration_attempt(request, SecurityConfig(enable_redis=False))
+    result = detect_penetration_attempt(request, SyncSecurityConfig(enable_redis=False))
     return result.is_threat
 
 
@@ -113,7 +113,7 @@ def test_a_template_that_is_not_text_gives_no_route_knowledge() -> None:
 
 
 def _check(template: Any) -> tuple[SuspiciousActivityCheck, MagicMock, MagicMock]:
-    config = SecurityConfig(enable_redis=False, enable_penetration_detection=True)
+    config = SyncSecurityConfig(enable_redis=False, enable_penetration_detection=True)
     middleware = MagicMock()
     middleware.config = config
     middleware.logger = logging.getLogger("test_route_gate")

@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
 from guard_core.sync.utils import detect_penetration_attempt
 from tests.test_sync.conftest import SyncMockGuardRequest
@@ -15,7 +15,7 @@ _SECRET = "SECRET-MALFORMED-MULTIPART"
 
 @pytest.fixture(autouse=True)
 def _force_enhanced_detection_singleton() -> None:
-    sus_patterns_handler.configure(SecurityConfig())
+    sus_patterns_handler.configure(SyncSecurityConfig())
 
 
 @pytest.fixture
@@ -58,7 +58,7 @@ def _wrong_boundary_body() -> bytes:
 def test_malformed_multipart_boundary_log_line_shows_redacted(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     body = _wrong_boundary_body()
     request = SyncMockGuardRequest(
         method="POST",
@@ -84,7 +84,7 @@ def test_malformed_multipart_boundary_log_line_shows_redacted(
 def test_malformed_multipart_boundary_event_content_preview_redacted(
     mock_agent: MagicMock,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     body = _wrong_boundary_body()
     request = SyncMockGuardRequest(
         method="POST",
@@ -107,7 +107,7 @@ def test_malformed_multipart_boundary_event_content_preview_redacted(
 def test_well_formed_multipart_boundary_still_scans_normally(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     body = (
         f'--B0\r\nContent-Disposition: form-data; name="password"\r\n\r\n'
         f"{_SECRET} <script>alert(1)</script>\r\n--B0--\r\n"

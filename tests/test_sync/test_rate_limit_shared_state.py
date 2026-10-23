@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, Mock
 import pytest
 
 from guard_core._security_config_batch import apply_config_batch
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.initialization.handler_initializer import HandlerInitializer
 from guard_core.sync.handlers import ratelimit_handler
 from guard_core.sync.handlers.ratelimit_handler import (
@@ -37,8 +37,8 @@ UNBOUND_RESET_WARNING = (
 )
 
 
-def _config() -> SecurityConfig:
-    return SecurityConfig(
+def _config() -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         enable_redis=False,
         enable_penetration_detection=False,
         enable_rate_limiting=True,
@@ -47,7 +47,7 @@ def _config() -> SecurityConfig:
     )
 
 
-def _guarded_app(config: SecurityConfig) -> RateLimitManager:
+def _guarded_app(config: SyncSecurityConfig) -> RateLimitManager:
     manager = RateLimitManager(config)
     HandlerInitializer(config, rate_limit_handler=manager)
     return manager
@@ -258,7 +258,7 @@ def test_the_initializer_ignores_a_limiter_that_cannot_be_bound() -> None:
 
 
 def test_reset_still_clears_the_shared_redis_keys() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=True,
         enable_penetration_detection=False,
         rate_limit=2,
@@ -295,8 +295,8 @@ def _redis_commands_issued(redis: RedisManager) -> int:
 
 
 @pytest.fixture
-def redis_app() -> Generator[tuple[SecurityConfig, RateLimitManager], None]:
-    config = SecurityConfig(
+def redis_app() -> Generator[tuple[SyncSecurityConfig, RateLimitManager], None]:
+    config = SyncSecurityConfig(
         enable_redis=True,
         redis_url=REDIS_URL,
         redis_prefix=f"test:wp3fu:{uuid.uuid4().hex}:",
@@ -317,7 +317,7 @@ def redis_app() -> Generator[tuple[SecurityConfig, RateLimitManager], None]:
 
 
 def test_after_the_documented_reset_the_app_still_counts_through_redis(
-    redis_app: tuple[SecurityConfig, RateLimitManager],
+    redis_app: tuple[SyncSecurityConfig, RateLimitManager],
 ) -> None:
     config, app = redis_app
     redis = app.redis_handler
@@ -332,7 +332,7 @@ def test_after_the_documented_reset_the_app_still_counts_through_redis(
 
 
 def test_after_the_documented_reset_the_app_still_sends_its_event(
-    redis_app: tuple[SecurityConfig, RateLimitManager],
+    redis_app: tuple[SyncSecurityConfig, RateLimitManager],
 ) -> None:
     config, app = redis_app
     agent = Mock(send_event=MagicMock())
@@ -355,7 +355,7 @@ def test_after_the_documented_reset_the_app_still_sends_its_event(
 
 
 def test_the_reset_clears_the_rate_limit_strikes_and_keeps_the_detection_strikes(
-    redis_app: tuple[SecurityConfig, RateLimitManager],
+    redis_app: tuple[SyncSecurityConfig, RateLimitManager],
 ) -> None:
     config, app = redis_app
     redis = app.redis_handler

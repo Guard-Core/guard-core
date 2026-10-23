@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.implementations.cloud_provider import (
     CloudProviderCheck,
 )
@@ -17,7 +17,7 @@ BLOCKED_NETWORK = "198.51.100.0/24"
 
 @pytest.fixture
 def cloud_check() -> CloudProviderCheck:
-    config = SecurityConfig(ban_on_hostile_signals=False)
+    config = SyncSecurityConfig(ban_on_hostile_signals=False)
     config.block_cloud_providers = frozenset({"AWS"})
     middleware = Mock()
     middleware.config = config

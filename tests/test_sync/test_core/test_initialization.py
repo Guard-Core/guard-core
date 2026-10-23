@@ -5,13 +5,13 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 
 from guard_core.exceptions import GuardRedisError
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.initialization.handler_initializer import HandlerInitializer
 
 
 @pytest.fixture
-def security_config() -> SecurityConfig:
-    config = SecurityConfig(lazy_init=False)
+def security_config() -> SyncSecurityConfig:
+    config = SyncSecurityConfig(lazy_init=False)
     config.enable_redis = True
     config.enable_agent = True
     config.enable_dynamic_rules = False
@@ -62,7 +62,7 @@ def mock_guard_decorator() -> Mock:
 
 @pytest.fixture
 def initializer(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
     mock_redis_handler: Mock,
     mock_agent_handler: Mock,
     mock_geo_ip_handler: Mock,
@@ -81,7 +81,7 @@ def initializer(
 
 def test_init(
     initializer: HandlerInitializer,
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
     mock_redis_handler: Mock,
 ) -> None:
     assert initializer.config == security_config
@@ -89,7 +89,7 @@ def test_init(
 
 
 def test_initialize_redis_handlers_disabled(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     security_config.enable_redis = False
     initializer = HandlerInitializer(config=security_config)
@@ -98,7 +98,7 @@ def test_initialize_redis_handlers_disabled(
 
 
 def test_initialize_redis_handlers_no_handler(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     initializer = HandlerInitializer(config=security_config, redis_handler=None)
 
@@ -136,7 +136,7 @@ def test_initialize_redis_handlers_basic(
 
 def test_initialize_redis_handlers_with_cloud(
     initializer: HandlerInitializer,
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
     mock_redis_handler: Mock,
 ) -> None:
     security_config.block_cloud_providers = frozenset({"AWS", "GCP"})
@@ -163,7 +163,7 @@ def test_initialize_redis_handlers_with_cloud(
 
 def test_initialize_redis_handlers_sets_cloud_ip_store_when_configured(
     initializer: HandlerInitializer,
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     custom_store = Mock()
     custom_store.get = MagicMock()
@@ -189,7 +189,7 @@ def test_initialize_redis_handlers_sets_cloud_ip_store_when_configured(
 
 
 def test_initialize_redis_handlers_no_optional_handlers(
-    security_config: SecurityConfig, mock_redis_handler: Mock
+    security_config: SyncSecurityConfig, mock_redis_handler: Mock
 ) -> None:
     initializer = HandlerInitializer(
         config=security_config,
@@ -270,7 +270,7 @@ def test_initialize_redis_handlers_connects_behavior_tracking_without_rules(
 
 
 def test_initialize_redis_handlers_connects_standalone_behavior_tracker(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
     mock_redis_handler: Mock,
 ) -> None:
     initializer = HandlerInitializer(
@@ -299,7 +299,7 @@ def test_initialize_redis_handlers_connects_standalone_behavior_tracker(
 
 
 def test_initialize_agent_for_handlers_no_agent(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     initializer = HandlerInitializer(config=security_config, agent_handler=None)
 
@@ -338,7 +338,7 @@ def test_initialize_agent_for_handlers_basic(
 
 def test_initialize_agent_for_handlers_with_cloud(
     initializer: HandlerInitializer,
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
     mock_agent_handler: Mock,
 ) -> None:
     security_config.block_cloud_providers = frozenset({"AWS"})
@@ -389,7 +389,7 @@ def test_initialize_agent_for_handlers_with_geoip(
 
 
 def test_initialize_agent_for_handlers_without_rate_limit_handler(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
     mock_agent_handler: Mock,
 ) -> None:
     initializer = HandlerInitializer(
@@ -420,7 +420,7 @@ def test_initialize_agent_for_handlers_without_rate_limit_handler(
 
 
 def test_initialize_agent_for_handlers_geoip_without_initialize_agent(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
     mock_agent_handler: Mock,
 ) -> None:
     geo_ip = Mock(spec=[])
@@ -448,7 +448,7 @@ def test_initialize_agent_for_handlers_geoip_without_initialize_agent(
 
 
 def test_initialize_dynamic_rule_manager_disabled(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     initializer = HandlerInitializer(config=security_config)
@@ -461,7 +461,7 @@ def test_initialize_dynamic_rule_manager_disabled(
 
 
 def test_initialize_dynamic_rule_manager_no_agent(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     security_config.enable_dynamic_rules = True
@@ -482,7 +482,7 @@ def test_initialize_dynamic_rule_manager_no_agent(
 
 def test_initialize_dynamic_rule_manager_enabled(
     initializer: HandlerInitializer,
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
     mock_agent_handler: Mock,
     mock_redis_handler: Mock,
 ) -> None:
@@ -504,7 +504,7 @@ def test_initialize_dynamic_rule_manager_enabled(
 
 
 def test_initialize_dynamic_rule_manager_no_redis(
-    security_config: SecurityConfig, mock_agent_handler: Mock
+    security_config: SyncSecurityConfig, mock_agent_handler: Mock
 ) -> None:
     security_config.enable_dynamic_rules = True
     initializer = HandlerInitializer(
@@ -528,7 +528,7 @@ def test_initialize_dynamic_rule_manager_no_redis(
 
 def test_initialize_dynamic_rule_manager_initializes_redis_before_agent(
     initializer: HandlerInitializer,
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
     mock_agent_handler: Mock,
     mock_redis_handler: Mock,
 ) -> None:
@@ -555,7 +555,7 @@ def test_initialize_dynamic_rule_manager_initializes_redis_before_agent(
 
 
 def test_initialize_agent_integrations_no_agent(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     initializer = HandlerInitializer(config=security_config, agent_handler=None)
 
@@ -594,7 +594,7 @@ def test_initialize_agent_integrations_full(
 
 
 def test_initialize_agent_integrations_no_redis(
-    security_config: SecurityConfig, mock_agent_handler: Mock
+    security_config: SyncSecurityConfig, mock_agent_handler: Mock
 ) -> None:
     initializer = HandlerInitializer(
         config=security_config,
@@ -612,7 +612,7 @@ def test_initialize_agent_integrations_no_redis(
 
 
 def test_initialize_agent_integrations_no_decorator(
-    security_config: SecurityConfig, mock_agent_handler: Mock
+    security_config: SyncSecurityConfig, mock_agent_handler: Mock
 ) -> None:
     initializer = HandlerInitializer(
         config=security_config,
@@ -630,7 +630,7 @@ def test_initialize_agent_integrations_no_decorator(
 
 
 def test_initialize_agent_integrations_decorator_no_method(
-    security_config: SecurityConfig, mock_agent_handler: Mock
+    security_config: SyncSecurityConfig, mock_agent_handler: Mock
 ) -> None:
     decorator_no_method = Mock(spec=[])
     initializer = HandlerInitializer(
@@ -648,7 +648,9 @@ def test_initialize_agent_integrations_decorator_no_method(
         mock_agent_handler.start.assert_called_once()
 
 
-def test_build_composite_handler_agent_only(security_config: SecurityConfig) -> None:
+def test_build_composite_handler_agent_only(
+    security_config: SyncSecurityConfig,
+) -> None:
     agent = Mock()
     security_config.enable_otel = False
     security_config.enable_logfire = False
@@ -660,7 +662,7 @@ def test_build_composite_handler_agent_only(security_config: SecurityConfig) -> 
     assert result._handlers == [agent]
 
 
-def test_build_composite_handler_with_otel(security_config: SecurityConfig) -> None:
+def test_build_composite_handler_with_otel(security_config: SyncSecurityConfig) -> None:
     agent = Mock()
     security_config.enable_otel = True
     security_config.enable_logfire = False
@@ -673,7 +675,9 @@ def test_build_composite_handler_with_otel(security_config: SecurityConfig) -> N
     assert isinstance(result, CompositeAgentHandler)
 
 
-def test_build_composite_handler_with_logfire(security_config: SecurityConfig) -> None:
+def test_build_composite_handler_with_logfire(
+    security_config: SyncSecurityConfig,
+) -> None:
     agent = Mock()
     security_config.enable_otel = False
     security_config.enable_logfire = True
@@ -687,7 +691,7 @@ def test_build_composite_handler_with_logfire(security_config: SecurityConfig) -
 
 
 def test_build_composite_handler_otel_and_logfire(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     agent = Mock()
     security_config.enable_otel = True
@@ -705,7 +709,7 @@ def test_build_composite_handler_otel_and_logfire(
     assert isinstance(result, CompositeAgentHandler)
 
 
-def test_build_composite_handler_no_agent(security_config: SecurityConfig) -> None:
+def test_build_composite_handler_no_agent(security_config: SyncSecurityConfig) -> None:
     security_config.enable_otel = True
     security_config.enable_logfire = False
     initializer = HandlerInitializer(config=security_config, agent_handler=None)
@@ -719,7 +723,7 @@ def test_build_composite_handler_no_agent(security_config: SecurityConfig) -> No
     assert result._handlers == [mock_otel]
 
 
-def test_build_event_filter(security_config: SecurityConfig) -> None:
+def test_build_event_filter(security_config: SyncSecurityConfig) -> None:
     from guard_core.sync.core.events.event_types import EventFilter
 
     security_config.muted_event_types = frozenset({"penetration_attempt"})
@@ -745,7 +749,7 @@ def test_get_initialization_status_reports_cloud_and_geo(
 
 
 def test_get_initialization_status_falls_back_without_get_status_method(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     geo_ip_handler = Mock(spec=["is_initialized"])
     geo_ip_handler.is_initialized = True
@@ -759,7 +763,7 @@ def test_get_initialization_status_falls_back_without_get_status_method(
 
 
 def test_get_initialization_status_geo_none_when_no_geo_handler(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     initializer = HandlerInitializer(config=security_config, geo_ip_handler=None)
 
@@ -771,7 +775,7 @@ def test_get_initialization_status_geo_none_when_no_geo_handler(
 
 def test_initialize_redis_handlers_degrades_to_memory_when_unreachable_fail_open(
     initializer: HandlerInitializer,
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
     mock_redis_handler: Mock,
     mock_geo_ip_handler: Mock,
     caplog: pytest.LogCaptureFixture,
@@ -826,7 +830,7 @@ def test_initialize_redis_handlers_reraises_redis_unreachable_fail_open_is_false
 @pytest.mark.parametrize("redis_fail_open", [True, False])
 def test_initialize_redis_handlers_completes_when_sus_patterns_get_key_fails(
     initializer: HandlerInitializer,
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
     mock_redis_handler: Mock,
     redis_fail_open: bool,
 ) -> None:
@@ -856,7 +860,7 @@ def test_initialize_redis_handlers_completes_when_sus_patterns_get_key_fails(
 
 @pytest.mark.parametrize("redis_fail_open", [True, False])
 def test_initialize_redis_handlers_completes_when_geo_ip_handler_get_key_fails(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
     mock_redis_handler: Mock,
     redis_fail_open: bool,
     tmp_path: Path,

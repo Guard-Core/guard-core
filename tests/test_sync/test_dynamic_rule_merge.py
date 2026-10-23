@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.models import DynamicRules, SyncSecurityConfig
 from guard_core.sync._utils.access_control import _is_loopback
 from guard_core.sync.handlers._dynamic_rule_validation import MalformedDynamicRules
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
@@ -29,7 +29,7 @@ def _rules(**overrides: Any) -> DynamicRules:
     return DynamicRules(**base)
 
 
-def _manager(**config_kwargs: Any) -> tuple[DynamicRuleManager, SecurityConfig]:
+def _manager(**config_kwargs: Any) -> tuple[DynamicRuleManager, SyncSecurityConfig]:
     settings: dict[str, Any] = {
         "enable_redis": False,
         "geo_ip_handler": MagicMock(spec=SyncGeoIPHandler),
@@ -38,7 +38,7 @@ def _manager(**config_kwargs: Any) -> tuple[DynamicRuleManager, SecurityConfig]:
         "blocked_user_agents": ["staticbot"],
     }
     settings.update(config_kwargs)
-    config = SecurityConfig(**settings)
+    config = SyncSecurityConfig(**settings)
     return DynamicRuleManager(config), config
 
 

@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from guard_core.models import SecurityConfig, ThreatBanConfig
+from guard_core.models import SyncSecurityConfig, ThreatBanConfig
 from guard_core.sync.core.checks.implementations.suspicious_activity import (
     SuspiciousActivityCheck,
 )
@@ -16,7 +16,7 @@ CLIENT_IP = "203.0.113.20"
 def _build(
     monkeypatch: pytest.MonkeyPatch, **fields: Any
 ) -> tuple[SuspiciousActivityCheck, MagicMock]:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_ip_banning=True,
         enable_redis=False,
         rate_limit=1000,

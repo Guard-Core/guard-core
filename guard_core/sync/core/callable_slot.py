@@ -3,8 +3,6 @@ from collections.abc import Awaitable, Callable
 from functools import wraps
 from typing import Generic, TypeVar
 
-from typing_extensions import TypeIs
-
 from guard_core._callable_shape import is_async_form
 from guard_core.exceptions import CallableShapeError
 
@@ -25,7 +23,9 @@ class CallableSlot(Generic[_Argument, _Result]):
     def __init__(
         self,
         field: str,
-        configured: object = None,
+        configured: Callable[[_Argument], Awaitable[_Result]]
+        | Callable[[_Argument], _Result]
+        | None = None,
     ) -> None:
         self.field = field
         self.source: object = None
@@ -36,20 +36,11 @@ class CallableSlot(Generic[_Argument, _Result]):
     def _not_configured(self, argument: _Argument) -> _Result:
         raise TypeError(f"{self.field} is not configured")
 
-    def _is_callable_of_this_tree(
-        self, configured: object
-    ) -> TypeIs[
-        Callable[[_Argument], Awaitable[_Result]] | Callable[[_Argument], _Result]
-    ]:
-        # The config field also admits the other tree's request type (typing for
-        # adopters of that tree, WP38 6.115). No type check tells the arms apart
-        # at runtime: the slot's contract is the arm of its own tree, and a value
-        # that is not callable at all is refused here.
-        return callable(configured)
-
-    def adopt(self, configured: object) -> None:
-        if not self._is_callable_of_this_tree(configured):
-            raise TypeError(f"{self.field} must be callable")
+    def adopt(
+        self,
+        configured: Callable[[_Argument], Awaitable[_Result]]
+        | Callable[[_Argument], _Result],
+    ) -> None:
         if is_async_form(configured):
             raise CallableShapeError(self.field)
         plain = configured

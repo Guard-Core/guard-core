@@ -3,7 +3,7 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.decorators import SecurityDecorator
 from guard_core.sync.handlers import ipban_handler
 from tests.test_sync.test_core.conftest import build_route_pipeline, send_request
@@ -27,7 +27,7 @@ UNSET_DENIALS = [
 ]
 
 
-def _config(**overrides: Any) -> SecurityConfig:
+def _config(**overrides: Any) -> SyncSecurityConfig:
     settings: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": False,
@@ -35,11 +35,11 @@ def _config(**overrides: Any) -> SecurityConfig:
         "auto_ban_threshold": 2,
     }
     settings.update(overrides)
-    return SecurityConfig(**settings)
+    return SyncSecurityConfig(**settings)
 
 
 def test_the_flag_defaults_to_on() -> None:
-    assert SecurityConfig(enable_redis=False).ban_on_hostile_signals is True
+    assert SyncSecurityConfig(enable_redis=False).ban_on_hostile_signals is True
 
 
 @pytest.mark.parametrize(("factory", "request_kwargs"), UNSET_DENIALS)

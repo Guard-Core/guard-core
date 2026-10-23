@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, Mock
 import pytest
 from pydantic import ValidationError
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.initialization.handler_initializer import HandlerInitializer
 from guard_core.sync.handlers._ipban_cache import _BanStore
 from guard_core.sync.handlers.ipban_handler import IPBanManager, ip_ban_manager
@@ -23,17 +23,17 @@ def reset_singleton() -> Generator[None, None, None]:
 
 
 def test_the_cap_is_a_config_field_defaulting_to_one_hundred_thousand() -> None:
-    assert SecurityConfig(enable_redis=False).banned_ips_max_entries == DEFAULT_CAP
+    assert SyncSecurityConfig(enable_redis=False).banned_ips_max_entries == DEFAULT_CAP
     assert IPBanManager.MAX_LOCAL_BANS == DEFAULT_CAP
 
 
 def test_a_cap_below_one_is_rejected() -> None:
     with pytest.raises(ValidationError):
-        SecurityConfig(enable_redis=False, banned_ips_max_entries=0)
+        SyncSecurityConfig(enable_redis=False, banned_ips_max_entries=0)
 
 
 def test_the_initializer_sizes_the_store_from_the_field() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False, lazy_init=False, banned_ips_max_entries=3
     )
 

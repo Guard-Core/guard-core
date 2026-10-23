@@ -9,7 +9,7 @@ from unittest.mock import Mock
 import pytest
 
 from guard_core import _staged_defaults as staged
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.initialization._route_limit_report import (
     report_route_limits_with_global_switch_off,
 )
@@ -46,7 +46,7 @@ def _fresh_module() -> ModuleType:
 def _build(**settings: Any) -> list[warnings.WarningMessage]:
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
-        SecurityConfig(**settings)
+        SyncSecurityConfig(**settings)
     return [w for w in caught if issubclass(w.category, DeprecationWarning)]
 
 
@@ -69,7 +69,7 @@ def test_the_default_prefix_warning_is_given_once(
 
 
 def test_the_route_limit_report_names_the_routes_that_stay_on() -> None:
-    config = SecurityConfig(enable_redis=False, enable_rate_limiting=False)
+    config = SyncSecurityConfig(enable_redis=False, enable_rate_limiting=False)
     limited = RouteConfig()
     limited.rate_limit = 3
     geo = RouteConfig()

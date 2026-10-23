@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.core.checks.implementations.cloud_provider import (
     CloudProviderCheck,
@@ -26,13 +26,13 @@ OTHER_IP = "203.0.113.9"
 _IMPL = "guard_core.sync.core.checks.implementations"
 
 
-def _config(**fields: Any) -> SecurityConfig:
-    config = SecurityConfig(**fields)
+def _config(**fields: Any) -> SyncSecurityConfig:
+    config = SyncSecurityConfig(**fields)
     config.passive_mode = False
     return config
 
 
-def _middleware(config: SecurityConfig) -> Mock:
+def _middleware(config: SyncSecurityConfig) -> Mock:
     middleware = Mock()
     middleware.config = config
     middleware.logger = Mock()
@@ -60,7 +60,7 @@ def _request(
     return request
 
 
-def _ip_check(config: SecurityConfig, request: Mock, banned: bool = False) -> Any:
+def _ip_check(config: SyncSecurityConfig, request: Mock, banned: bool = False) -> Any:
     check = IpSecurityCheck(_middleware(config))
     with (
         patch.object(check, "ip_ban_manager") as ban_manager,
@@ -229,12 +229,12 @@ def test_penetration_detection_still_scans_an_exempt_request() -> None:
 
 
 def test_exempt_ips_defaults_to_empty() -> None:
-    assert SecurityConfig().exempt_ips == ()
+    assert SyncSecurityConfig().exempt_ips == ()
 
 
 def test_a_prefix_zero_exempt_entry_warns(caplog: pytest.LogCaptureFixture) -> None:
     with caplog.at_level(logging.WARNING, logger="guard_core.models"):
-        SecurityConfig(exempt_ips=["0.0.0.0/0"])
+        SyncSecurityConfig(exempt_ips=["0.0.0.0/0"])
 
     assert any(
         "exempt_ips contains a /0 network" in record.getMessage()

@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, Mock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.implementations.rate_limit import RateLimitCheck
 from guard_core.sync.decorators.base import RouteConfig
 from guard_core.sync.handlers.ratelimit_handler import RateLimitManager
@@ -18,7 +18,7 @@ IP = "198.51.100.20"
 ROUTE_ID = "app.module.handler"
 
 
-def _config(**settings: Any) -> SecurityConfig:
+def _config(**settings: Any) -> SyncSecurityConfig:
     defaults: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": False,
@@ -26,12 +26,12 @@ def _config(**settings: Any) -> SecurityConfig:
         "rate_limit": 1000,
         "rate_limit_window": 60,
     }
-    config = SecurityConfig(**{**defaults, **settings})
+    config = SyncSecurityConfig(**{**defaults, **settings})
     config.geo_ip_handler = Mock(get_country=Mock(return_value="US"))
     return config
 
 
-def _middleware(config: SecurityConfig, manager: RateLimitManager) -> Mock:
+def _middleware(config: SyncSecurityConfig, manager: RateLimitManager) -> Mock:
     middleware = Mock()
     middleware.config = config
     middleware.logger = logging.getLogger("test_rate_limit_tiers")
@@ -106,7 +106,7 @@ def test_a_blocked_request_is_recorded_in_no_tier() -> None:
 
 @pytest.fixture
 def redis_stack() -> Generator[
-    tuple[RateLimitManager, RedisManager, SecurityConfig, Mock], None
+    tuple[RateLimitManager, RedisManager, SyncSecurityConfig, Mock], None
 ]:
     config = _config(
         enable_redis=True,
@@ -135,7 +135,7 @@ def _all_limits_route_config() -> RouteConfig:
 
 
 def test_every_tier_of_a_request_costs_one_redis_command(
-    redis_stack: tuple[RateLimitManager, RedisManager, SecurityConfig, Mock],
+    redis_stack: tuple[RateLimitManager, RedisManager, SyncSecurityConfig, Mock],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _, redis, _, middleware = redis_stack
@@ -157,7 +157,7 @@ def test_every_tier_of_a_request_costs_one_redis_command(
 
 
 def test_each_tier_kind_is_part_of_its_redis_key(
-    redis_stack: tuple[RateLimitManager, RedisManager, SecurityConfig, Mock],
+    redis_stack: tuple[RateLimitManager, RedisManager, SyncSecurityConfig, Mock],
 ) -> None:
     _, redis, config, middleware = redis_stack
     check = RateLimitCheck(middleware)

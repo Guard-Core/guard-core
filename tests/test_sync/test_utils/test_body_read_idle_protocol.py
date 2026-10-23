@@ -10,7 +10,7 @@ from guard_core.exceptions import (
     BodyReadSlotsExhaustedError,
     BodyReadStalledError,
 )
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils.body_reader import (
     _read_capped_body,
     _read_capped_body_or_raise,
@@ -26,17 +26,17 @@ CLIENT = "203.0.113.7"
 LOGGER = "guard_core"
 
 
-def _config(**overrides: Any) -> SecurityConfig:
+def _config(**overrides: Any) -> SyncSecurityConfig:
     values: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": True,
         "rate_limit": 10000,
     }
     values.update(overrides)
-    return SecurityConfig(**values)
+    return SyncSecurityConfig(**values)
 
 
-def _check(config: SecurityConfig) -> tuple[SuspiciousActivityCheck, MagicMock]:
+def _check(config: SyncSecurityConfig) -> tuple[SuspiciousActivityCheck, MagicMock]:
     middleware = MagicMock()
     middleware.config = config
     middleware.logger = logging.getLogger("test_body_read_idle_protocol")

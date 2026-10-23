@@ -2,7 +2,7 @@ from collections.abc import Generator
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.suspatterns_handler import (
     _FILE_UPLOAD_DECODED_TRUNCATION_RE,
     _FILE_UPLOAD_TRUNCATION_RE,
@@ -17,7 +17,7 @@ from tests.test_sync.conftest import SyncMockGuardRequest
 
 @pytest.fixture(autouse=True)
 def _force_enhanced_detection_singleton() -> None:
-    sus_patterns_handler.configure(SecurityConfig())
+    sus_patterns_handler.configure(SyncSecurityConfig())
 
 
 @pytest.fixture
@@ -26,7 +26,7 @@ def manager() -> Generator[SusPatternsManager, None, None]:
     original_config = SusPatternsManager._config
     SusPatternsManager._instance = None
     SusPatternsManager._config = None
-    new_instance = SusPatternsManager(SecurityConfig())
+    new_instance = SusPatternsManager(SyncSecurityConfig())
     yield new_instance
     SusPatternsManager._instance = original_instance
     SusPatternsManager._config = original_config
@@ -43,12 +43,12 @@ def _body_request(body: str) -> SyncMockGuardRequest:
 
 
 def _body_categories(body: str) -> list[str]:
-    result = detect_penetration_attempt(_body_request(body), SecurityConfig())
+    result = detect_penetration_attempt(_body_request(body), SyncSecurityConfig())
     return list(result.threat_categories)
 
 
 def _body_is_threat(body: str) -> bool:
-    result = detect_penetration_attempt(_body_request(body), SecurityConfig())
+    result = detect_penetration_attempt(_body_request(body), SyncSecurityConfig())
     return bool(result.is_threat)
 
 
@@ -89,7 +89,7 @@ def test_nul_truncation_evasion_in_body_fires_file_upload(
     original_config = SusPatternsManager._config
     SusPatternsManager._instance = None
     SusPatternsManager._config = None
-    SusPatternsManager(SecurityConfig())
+    SusPatternsManager(SyncSecurityConfig())
     try:
         categories = _body_categories(body)
         assert "file_upload" in categories
@@ -115,7 +115,7 @@ def test_bare_dangerous_extension_in_body_still_fires() -> None:
     original_config = SusPatternsManager._config
     SusPatternsManager._instance = None
     SusPatternsManager._config = None
-    SusPatternsManager(SecurityConfig())
+    SusPatternsManager(SyncSecurityConfig())
     try:
         categories = _body_categories('filename="shell.php"')
         assert "file_upload" in categories
@@ -129,7 +129,7 @@ def test_trailing_dot_truncation_in_body_still_fires() -> None:
     original_config = SusPatternsManager._config
     SusPatternsManager._instance = None
     SusPatternsManager._config = None
-    SusPatternsManager(SecurityConfig())
+    SusPatternsManager(SyncSecurityConfig())
     try:
         categories = _body_categories('filename="shell.php."')
         assert "file_upload" in categories
@@ -143,7 +143,7 @@ def test_double_extension_in_body_still_fires() -> None:
     original_config = SusPatternsManager._config
     SusPatternsManager._instance = None
     SusPatternsManager._config = None
-    SusPatternsManager(SecurityConfig())
+    SusPatternsManager(SyncSecurityConfig())
     try:
         categories = _body_categories('filename="shell.php.jpg"')
         assert "file_upload" in categories
@@ -182,7 +182,7 @@ def test_space_in_filename_is_not_a_truncation_vector(
     original_config = SusPatternsManager._config
     SusPatternsManager._instance = None
     SusPatternsManager._config = None
-    SusPatternsManager(SecurityConfig())
+    SusPatternsManager(SyncSecurityConfig())
     try:
         assert _body_is_threat(body) is False
         categories = _body_categories(body)
@@ -197,7 +197,7 @@ def test_space_bridge_is_not_a_double_extension_vector() -> None:
     original_config = SusPatternsManager._config
     SusPatternsManager._instance = None
     SusPatternsManager._config = None
-    SusPatternsManager(SecurityConfig())
+    SusPatternsManager(SyncSecurityConfig())
     try:
         assert _body_is_threat('filename="vacation photo.php .jpg"') is False
         categories = _body_categories('filename="vacation photo.php .jpg"')
@@ -220,7 +220,7 @@ def test_control_char_bridge_is_a_double_extension_vector(body: str) -> None:
     original_config = SusPatternsManager._config
     SusPatternsManager._instance = None
     SusPatternsManager._config = None
-    SusPatternsManager(SecurityConfig())
+    SusPatternsManager(SyncSecurityConfig())
     try:
         assert _body_is_threat(body) is True
         categories = _body_categories(body)
@@ -244,7 +244,7 @@ def test_semicolon_truncation_vector_still_fires(
     original_config = SusPatternsManager._config
     SusPatternsManager._instance = None
     SusPatternsManager._config = None
-    SusPatternsManager(SecurityConfig())
+    SusPatternsManager(SyncSecurityConfig())
     try:
         categories = _body_categories(body)
         assert "file_upload" in categories
@@ -259,7 +259,7 @@ def test_double_encoded_nul_truncation_fires_in_url_decoded_view() -> None:
     original_config = SusPatternsManager._config
     SusPatternsManager._instance = None
     SusPatternsManager._config = None
-    SusPatternsManager(SecurityConfig())
+    SusPatternsManager(SyncSecurityConfig())
     try:
         body = 'filename="shell.php%2500.txt"'
         assert _body_is_threat(body) is True
@@ -345,7 +345,7 @@ def test_double_encoded_nul_fires_file_upload_in_url_decoded_view(
     original_config = SusPatternsManager._config
     SusPatternsManager._instance = None
     SusPatternsManager._config = None
-    SusPatternsManager(SecurityConfig())
+    SusPatternsManager(SyncSecurityConfig())
     try:
         categories = _body_categories(body)
         assert "file_upload" in categories
@@ -375,7 +375,7 @@ def test_double_encoded_semicolon_fires_file_upload_in_url_decoded_view(
     original_config = SusPatternsManager._config
     SusPatternsManager._instance = None
     SusPatternsManager._config = None
-    SusPatternsManager(SecurityConfig())
+    SusPatternsManager(SyncSecurityConfig())
     try:
         assert _body_is_threat(body) is True
         categories = _body_categories(body)
@@ -401,7 +401,7 @@ def test_single_encoded_semicolon_fires_file_upload_in_url_decoded_view(
     original_config = SusPatternsManager._config
     SusPatternsManager._instance = None
     SusPatternsManager._config = None
-    SusPatternsManager(SecurityConfig())
+    SusPatternsManager(SyncSecurityConfig())
     try:
         assert _body_is_threat(body) is True
         categories = _body_categories(body)
@@ -431,7 +431,7 @@ def test_encoded_trailing_dot_fires_file_upload_in_url_decoded_view(
     original_config = SusPatternsManager._config
     SusPatternsManager._instance = None
     SusPatternsManager._config = None
-    SusPatternsManager(SecurityConfig())
+    SusPatternsManager(SyncSecurityConfig())
     try:
         assert _body_is_threat(body) is True
         categories = _body_categories(body)

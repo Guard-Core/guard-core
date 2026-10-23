@@ -1,6 +1,6 @@
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.utils import detect_penetration_attempt
 from tests.test_sync.conftest import SyncMockGuardRequest
 
@@ -35,7 +35,7 @@ ORDINARY_PATHS = [
 
 def _flagged(path: str) -> bool:
     request = SyncMockGuardRequest(path=path)
-    return (detect_penetration_attempt(request, SecurityConfig())).is_threat
+    return (detect_penetration_attempt(request, SyncSecurityConfig())).is_threat
 
 
 @pytest.mark.parametrize("path", INJECTED_PATHS)
@@ -53,6 +53,6 @@ def test_matrix_parameters_and_bare_separators_in_the_path_stay_clean(
 def test_the_path_row_is_flagged_as_command_injection() -> None:
     request = SyncMockGuardRequest(path="/api/ping/x;id")
 
-    result = detect_penetration_attempt(request, SecurityConfig())
+    result = detect_penetration_attempt(request, SyncSecurityConfig())
 
     assert "cmd_injection" in result.threat_categories

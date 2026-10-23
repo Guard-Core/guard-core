@@ -3,7 +3,7 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.implementations.authentication import (
     AuthenticationCheck,
 )
@@ -24,8 +24,8 @@ class _RecordingAgent:
         self.events.append(event)
 
 
-def _config() -> SecurityConfig:
-    return SecurityConfig(
+def _config() -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         enable_redis=False,
         enable_penetration_detection=False,
         enable_rate_limiting=False,

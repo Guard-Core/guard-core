@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.models import DynamicRules, SyncSecurityConfig
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.sync.protocols.geo_ip_protocol import SyncGeoIPHandler
 
@@ -32,7 +32,7 @@ def _apply(manager: DynamicRuleManager, rules: DynamicRules) -> None:
 
 
 def test_emergency_halving_does_not_compound_across_versions() -> None:
-    config = SecurityConfig(auto_ban_threshold=16)
+    config = SyncSecurityConfig(auto_ban_threshold=16)
     manager = DynamicRuleManager(config)
 
     seen = []
@@ -46,7 +46,7 @@ def test_emergency_halving_does_not_compound_across_versions() -> None:
 
 
 def test_collection_values_do_not_accumulate_across_versions() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         geo_ip_handler=MagicMock(spec=SyncGeoIPHandler),
         blocked_user_agents=["base-bot"],
         block_cloud_providers=frozenset({"AWS"}),
@@ -81,7 +81,7 @@ def test_collection_values_do_not_accumulate_across_versions() -> None:
 
 
 def test_new_version_drops_change_from_previous_version() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         rate_limit=100, enable_ip_banning=True, auto_ban_threshold=5
     )
     manager = DynamicRuleManager(config)
@@ -100,7 +100,7 @@ def test_new_version_drops_change_from_previous_version() -> None:
 
 
 def test_different_rule_id_overlays_the_base() -> None:
-    config = SecurityConfig(rate_limit=100, auto_ban_threshold=16)
+    config = SyncSecurityConfig(rate_limit=100, auto_ban_threshold=16)
     manager = DynamicRuleManager(config)
 
     _apply(manager, _rules(1, "r1", emergency_mode=True, emergency_whitelist=[]))
@@ -112,7 +112,7 @@ def test_different_rule_id_overlays_the_base() -> None:
 
 
 def test_failed_apply_rolls_back_to_the_active_version() -> None:
-    config = SecurityConfig(rate_limit=100, auto_ban_threshold=16)
+    config = SyncSecurityConfig(rate_limit=100, auto_ban_threshold=16)
     manager = DynamicRuleManager(config)
     _apply(manager, _rules(1, global_rate_limit=7, auto_ban_threshold=4))
 
@@ -129,7 +129,7 @@ def test_failed_apply_rolls_back_to_the_active_version() -> None:
 
 
 def test_expiry_restores_the_true_base_after_several_versions() -> None:
-    config = SecurityConfig(auto_ban_threshold=16)
+    config = SyncSecurityConfig(auto_ban_threshold=16)
     manager = DynamicRuleManager(config)
     _apply(manager, _rules(1, emergency_mode=True, emergency_whitelist=[]))
     _apply(
@@ -152,7 +152,7 @@ def test_expiry_restores_the_true_base_after_several_versions() -> None:
 
 
 def test_new_version_after_hydration_overlays_the_base() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_dynamic_rules=True,
         enable_agent=True,
         agent_api_key="key",
@@ -182,7 +182,7 @@ def test_new_version_after_hydration_overlays_the_base() -> None:
 def test_suspicious_patterns_are_not_duplicated_across_versions() -> None:
     from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
 
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     manager = DynamicRuleManager(config)
     pattern = "overlay-unique-marker-[0-9]{3}"
     sus_patterns_handler.patterns[:] = [

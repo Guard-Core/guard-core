@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.ratelimit_handler import RateLimitManager, RateLimitTier
 from tests.test_sync.conftest import SyncMockGuardRequest
 
@@ -21,7 +21,7 @@ class _FakeErrorResponse:
 @pytest.fixture(autouse=True)
 def bounded_ratelimit_windows() -> Generator[Any, Any, Any]:
     def custom_new(
-        cls: type[RateLimitManager], config: SecurityConfig
+        cls: type[RateLimitManager], config: SyncSecurityConfig
     ) -> RateLimitManager:
         instance = object.__new__(cls)
         instance.config = config
@@ -48,7 +48,7 @@ def bounded_ratelimit_windows() -> Generator[Any, Any, Any]:
 
 
 def test_initialize_agent() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     manager = RateLimitManager(config)
     mock_agent = MagicMock()
 
@@ -58,7 +58,7 @@ def test_initialize_agent() -> None:
 
 
 def test_send_rate_limit_event_success() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_rate_limiting=True, rate_limit=100, rate_limit_window=60
     )
     manager = RateLimitManager(config)
@@ -88,7 +88,7 @@ def test_send_rate_limit_event_success() -> None:
 def test_send_rate_limit_event_exception_handling(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_rate_limiting=True, rate_limit=100, rate_limit_window=60
     )
     manager = RateLimitManager(config)
@@ -108,7 +108,7 @@ def test_send_rate_limit_event_exception_handling(
 
 
 def test_check_rate_limit_agent_event_called() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_rate_limiting=True,
         enable_redis=False,
         rate_limit=1,
@@ -156,7 +156,7 @@ def test_check_rate_limit_agent_event_called() -> None:
 
 
 def test_check_rate_limit_redis_path_with_agent() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_rate_limiting=True,
         enable_redis=True,
         rate_limit=10,
@@ -213,7 +213,7 @@ def test_check_rate_limit_redis_path_with_agent() -> None:
 
 
 def test_send_rate_limit_event_redacts_sensitive_endpoint_matrix_params() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_rate_limiting=True,
         rate_limit=100,
         rate_limit_window=60,
@@ -236,13 +236,13 @@ def test_send_rate_limit_event_redacts_sensitive_endpoint_matrix_params() -> Non
 
 
 def test_handle_rate_limit_exceeded_uses_the_passed_configs_sensitive_sets() -> None:
-    config_a = SecurityConfig(
+    config_a = SyncSecurityConfig(
         enable_rate_limiting=True,
         rate_limit=1,
         rate_limit_window=60,
         log_sensitive_params=frozenset({"token_a"}),
     )
-    config_b = SecurityConfig(
+    config_b = SyncSecurityConfig(
         enable_rate_limiting=True,
         rate_limit=1,
         rate_limit_window=60,

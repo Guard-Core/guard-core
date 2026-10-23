@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
 from guard_core.sync.utils import detect_penetration_attempt
 from tests.test_sync.conftest import SyncMockGuardRequest
@@ -16,7 +16,7 @@ _XSS = "<script>alert(1)</script>"
 
 @pytest.fixture(autouse=True)
 def _force_enhanced_detection_singleton() -> None:
-    sus_patterns_handler.configure(SecurityConfig())
+    sus_patterns_handler.configure(SyncSecurityConfig())
 
 
 @pytest.fixture
@@ -69,7 +69,7 @@ def test_attack_in_non_sensitive_field_keeps_sibling_secret_redacted(
     request = _surface_request(surface, payload)
 
     with caplog.at_level(logging.WARNING, logger="guard_core"):
-        result = detect_penetration_attempt(request, SecurityConfig())
+        result = detect_penetration_attempt(request, SyncSecurityConfig())
 
     assert result.is_threat is True
     lines = _attack_lines(caplog)
@@ -91,7 +91,7 @@ def test_nested_two_levels_sensitive_key_redacted(
     request = _surface_request(surface, payload)
 
     with caplog.at_level(logging.WARNING, logger="guard_core"):
-        result = detect_penetration_attempt(request, SecurityConfig())
+        result = detect_penetration_attempt(request, SyncSecurityConfig())
 
     assert result.is_threat is True
     lines = _attack_lines(caplog)
@@ -112,7 +112,7 @@ def test_object_under_sensitive_key_nested_nonsensitive_leaf_redacted(
     request = _surface_request(surface, payload)
 
     with caplog.at_level(logging.WARNING, logger="guard_core"):
-        result = detect_penetration_attempt(request, SecurityConfig())
+        result = detect_penetration_attempt(request, SyncSecurityConfig())
 
     assert result.is_threat is True
     lines = _attack_lines(caplog)
@@ -133,7 +133,7 @@ def test_array_of_objects_under_sensitive_key_nested_leaf_redacted(
     request = _surface_request(surface, payload)
 
     with caplog.at_level(logging.WARNING, logger="guard_core"):
-        result = detect_penetration_attempt(request, SecurityConfig())
+        result = detect_penetration_attempt(request, SyncSecurityConfig())
 
     assert result.is_threat is True
     lines = _attack_lines(caplog)
@@ -154,7 +154,7 @@ def test_array_of_objects_sensitive_key_redacted(
     request = _surface_request(surface, payload)
 
     with caplog.at_level(logging.WARNING, logger="guard_core"):
-        result = detect_penetration_attempt(request, SecurityConfig())
+        result = detect_penetration_attempt(request, SyncSecurityConfig())
 
     assert result.is_threat is True
     lines = _attack_lines(caplog)
@@ -176,7 +176,7 @@ def test_sensitive_value_longer_than_cap_never_partially_leaks(
     request = _surface_request(surface, payload)
 
     with caplog.at_level(logging.WARNING, logger="guard_core"):
-        result = detect_penetration_attempt(request, SecurityConfig())
+        result = detect_penetration_attempt(request, SyncSecurityConfig())
 
     assert result.is_threat is True
     lines = _attack_lines(caplog)
@@ -199,7 +199,7 @@ def test_json_key_trips_pattern_key_stays_raw_for_non_sensitive_parent(
     payload = json.dumps({key: "benign"})
     request = _surface_request(surface, payload)
 
-    result = detect_penetration_attempt(request, SecurityConfig())
+    result = detect_penetration_attempt(request, SyncSecurityConfig())
 
     assert result.is_threat is True
     assert key in result.trigger_info
@@ -217,7 +217,7 @@ def test_attack_only_in_sensitive_field_outer_line_redacted(
     request = _surface_request(surface, payload)
 
     with caplog.at_level(logging.WARNING, logger="guard_core"):
-        result = detect_penetration_attempt(request, SecurityConfig())
+        result = detect_penetration_attempt(request, SyncSecurityConfig())
 
     assert result.is_threat is True
     lines = _attack_lines(caplog)
@@ -237,10 +237,10 @@ def test_sensitive_parent_blanket_redacts_nested_json(
     payload = json.dumps({"note": _XSS, "harmless_key": secret})
 
     if surface == "header":
-        config = SecurityConfig(log_sensitive_headers={"x-session"})
+        config = SyncSecurityConfig(log_sensitive_headers={"x-session"})
         request = SyncMockGuardRequest(headers={"X-Session": payload})
     else:
-        config = SecurityConfig(log_sensitive_params={"tok"})
+        config = SyncSecurityConfig(log_sensitive_params={"tok"})
         request = SyncMockGuardRequest(query_params={"tok": payload})
 
     with caplog.at_level(logging.WARNING, logger="guard_core"):

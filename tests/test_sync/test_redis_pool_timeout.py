@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.ratelimit_handler import RateLimitManager
 from guard_core.sync.handlers.redis_handler import RedisManager
 from tests.test_sync.conftest import REDIS_URL, MockGuardResponse
@@ -17,7 +17,7 @@ def _error_response(status_code: int, message: str) -> MockGuardResponse:
     return MockGuardResponse(message, status_code)
 
 
-def _config(**settings: Any) -> SecurityConfig:
+def _config(**settings: Any) -> SyncSecurityConfig:
     defaults: dict[str, Any] = {
         "enable_redis": True,
         "redis_url": REDIS_URL,
@@ -26,11 +26,11 @@ def _config(**settings: Any) -> SecurityConfig:
         "rate_limit": 1000,
         "rate_limit_window": 60,
     }
-    return SecurityConfig(**{**defaults, **settings})
+    return SyncSecurityConfig(**{**defaults, **settings})
 
 
 def _stack(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
 ) -> tuple[RateLimitManager, RedisManager]:
     redis = RedisManager(config)
     redis.initialize()
@@ -55,10 +55,10 @@ def stack_factory() -> Generator[Any, None]:
 
 
 def test_the_pool_timeout_is_a_config_field_defaulting_to_one_second() -> None:
-    assert SecurityConfig(enable_redis=False).redis_pool_timeout == 1.0
+    assert SyncSecurityConfig(enable_redis=False).redis_pool_timeout == 1.0
 
 
 @pytest.mark.parametrize("value", [0, -1.0])
 def test_a_pool_timeout_that_is_not_positive_is_rejected(value: float) -> None:
     with pytest.raises(ValidationError):
-        SecurityConfig(enable_redis=False, redis_pool_timeout=value)
+        SyncSecurityConfig(enable_redis=False, redis_pool_timeout=value)

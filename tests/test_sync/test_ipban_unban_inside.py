@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.ipban_handler import ip_ban_manager
 from guard_core.sync.handlers.redis_handler import RedisManager
 from tests.test_sync.conftest import REDIS_PREFIX, REDIS_URL
@@ -13,7 +13,7 @@ from tests.test_sync.conftest import REDIS_PREFIX, REDIS_URL
 
 @pytest.fixture
 def real_redis() -> Iterator[RedisManager]:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=True, redis_url=REDIS_URL, redis_prefix=REDIS_PREFIX
     )
     RedisManager._instance = None
@@ -129,7 +129,7 @@ def test_unban_inside_survives_a_redis_failure(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     redis = MagicMock()
-    redis.config = SecurityConfig(enable_redis=True, redis_prefix="x:")
+    redis.config = SyncSecurityConfig(enable_redis=True, redis_prefix="x:")
     redis.get_connection = MagicMock(side_effect=RuntimeError("redis down"))
     ip_ban_manager.banned_ips["198.51.100.7"] = time.time() + 600
     with patch.object(ip_ban_manager, "redis_handler", redis):

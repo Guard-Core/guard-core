@@ -2,7 +2,7 @@ import logging
 
 import pytest
 
-from guard_core.models import VALID_CLOUD_PROVIDERS, SecurityConfig
+from guard_core.models import VALID_CLOUD_PROVIDERS, SyncSecurityConfig
 from guard_core.sync.decorators.access_control import AccessControlMixin
 from guard_core.sync.decorators.access_control import (
     AccessControlMixin as SyncAccessControlMixin,
@@ -56,11 +56,11 @@ class _SyncComposedDecorator(
 
 
 def _async_decorator(**flag: bool) -> _AsyncComposedDecorator:
-    return _AsyncComposedDecorator(SecurityConfig(enable_redis=False, **flag))
+    return _AsyncComposedDecorator(SyncSecurityConfig(enable_redis=False, **flag))
 
 
 def _sync_decorator(**flag: bool) -> _SyncComposedDecorator:
-    return _SyncComposedDecorator(SecurityConfig(enable_redis=False, **flag))
+    return _SyncComposedDecorator(SyncSecurityConfig(enable_redis=False, **flag))
 
 
 def _sample_func() -> None:

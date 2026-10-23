@@ -14,7 +14,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from guard_core import _security_headers_override as override_module
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils.config_registry import REDIS_HANDLERS, ConfigHandlerRegistry
 from guard_core.sync.core.events.metrics import MetricsCollector
 from guard_core.sync.core.initialization._headers_manager_attach import (
@@ -144,7 +144,7 @@ def clock(monkeypatch: pytest.MonkeyPatch) -> Clock:
     return fake
 
 
-def _config(**overrides: Any) -> SecurityConfig:
+def _config(**overrides: Any) -> SyncSecurityConfig:
     headers = {
         "enabled": True,
         "csp": APP_CSP,
@@ -152,11 +152,11 @@ def _config(**overrides: Any) -> SecurityConfig:
         "referrer_policy": "no-referrer",
     }
     headers.update(overrides)
-    return SecurityConfig(enable_redis=False, security_headers=headers)
+    return SyncSecurityConfig(enable_redis=False, security_headers=headers)
 
 
 def _app(
-    config: SecurityConfig | None = None,
+    config: SyncSecurityConfig | None = None,
     redis: FakeRedis | None = None,
     agent: Any = None,
 ) -> ErrorResponseFactory:
@@ -305,7 +305,7 @@ def test_the_call_can_switch_a_header_off_for_every_app() -> None:
 
 
 def test_an_app_with_headers_off_stays_off() -> None:
-    app = _app(SecurityConfig(enable_redis=False, security_headers=None))
+    app = _app(SyncSecurityConfig(enable_redis=False, security_headers=None))
 
     _override(csp=GLOBAL_CSP)
 
@@ -616,10 +616,10 @@ def test_the_config_fingerprint_ignores_object_addresses_and_set_order() -> None
     def check(request: Any) -> None:
         return None
 
-    first = SecurityConfig(
+    first = SyncSecurityConfig(
         enable_redis=False, custom_request_check=check, whitelist=["10.0.0.1"]
     )
-    second = SecurityConfig(
+    second = SyncSecurityConfig(
         enable_redis=False, custom_request_check=check, whitelist=["10.0.0.1"]
     )
 
@@ -1485,9 +1485,9 @@ def test_a_direct_write_of_enabled_is_never_an_override() -> None:
 
 
 def test_a_passed_enabled_true_switches_on_an_app_whose_headers_are_off() -> None:
-    off = _app(SecurityConfig(enable_redis=False, security_headers=None))
+    off = _app(SyncSecurityConfig(enable_redis=False, security_headers=None))
     off_dict = _app(
-        SecurityConfig(enable_redis=False, security_headers={"enabled": False})
+        SyncSecurityConfig(enable_redis=False, security_headers={"enabled": False})
     )
     assert _response(off) == {}
 
@@ -1501,7 +1501,7 @@ def test_a_passed_enabled_true_switches_on_an_app_whose_headers_are_off() -> Non
 
 def test_a_passed_enabled_false_switches_every_app_off_and_not_passed_keeps() -> None:
     on = _app()
-    off = _app(SecurityConfig(enable_redis=False, security_headers=None))
+    off = _app(SyncSecurityConfig(enable_redis=False, security_headers=None))
 
     _override(csp=GLOBAL_CSP)
 
@@ -1727,7 +1727,7 @@ def test_a_response_with_a_cors_origin_resolves_the_override_once(
     clock: Clock, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     app = _app(
-        SecurityConfig(
+        SyncSecurityConfig(
             enable_redis=False,
             enable_cors=True,
             cors_allow_origins=["https://a.example"],
@@ -1916,7 +1916,7 @@ def test_a_released_adapter_gets_its_redis_found_at_the_pull_boundary(
     clock: Clock,
 ) -> None:
     redis = FakeRedis()
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=True,
         enable_agent=False,
         security_headers={"enabled": True, "csp": APP_CSP, "frame_options": "DENY"},
@@ -1943,7 +1943,7 @@ def test_a_released_adapter_gets_its_redis_found_at_the_pull_boundary(
 def test_the_lookup_runs_once_per_window_not_per_response(
     clock: Clock, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=True, enable_agent=False, security_headers={"enabled": True}
     )
     factory = _app(config)
@@ -2035,7 +2035,7 @@ def test_a_cors_handler_sees_the_override_a_manager_pulled(
     clock: Clock, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     redis = FakeRedis()
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False,
         enable_cors=True,
         cors_allow_origins=["https://app.example"],
@@ -2073,7 +2073,7 @@ def test_a_pulled_clear_reaches_the_cors_handler(
     clock: Clock,
 ) -> None:
     redis = FakeRedis()
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False,
         enable_cors=True,
         cors_allow_origins=["https://app.example"],
@@ -2202,7 +2202,7 @@ def test_a_configure_on_the_attached_manager_is_written_by_the_next_sync(
 def test_the_handler_initializer_attaches_the_headers_manager_to_redis(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=True,
         redis_url=REDIS_URL,
         redis_prefix="test:wp10fu:",
@@ -2228,7 +2228,7 @@ def test_a_mock_redis_handler_is_not_attached_to_the_headers_manager() -> None:
 
 
 def test_a_redis_handler_that_never_connected_is_not_attached() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=True,
         redis_url=REDIS_URL,
         redis_prefix="test:wp10fu:",
@@ -2352,7 +2352,7 @@ NEW_ORIGIN = "https://new.example"
 OLD_ORIGIN = "https://app.example"
 
 
-def _cors_config(**overrides: Any) -> SecurityConfig:
+def _cors_config(**overrides: Any) -> SyncSecurityConfig:
     values: dict[str, Any] = {
         "enable_redis": False,
         "enable_cors": True,
@@ -2361,7 +2361,7 @@ def _cors_config(**overrides: Any) -> SecurityConfig:
         "security_headers": {"enabled": True},
     }
     values.update(overrides)
-    return SecurityConfig(**values)
+    return SyncSecurityConfig(**values)
 
 
 def _preflight(origin: str = NEW_ORIGIN, method: str = "POST") -> dict[str, str]:
@@ -2670,7 +2670,7 @@ def test_cors_max_age_zero_and_one_are_valid() -> None:
 
 
 def test_cors_params_of_reads_every_list_from_the_config() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False,
         enable_cors=True,
         cors_allow_origins=["https://a.example"],
@@ -2693,7 +2693,7 @@ def test_cors_params_of_reads_every_list_from_the_config() -> None:
 
 
 def test_merge_cors_without_a_cors_key_returns_the_base_itself() -> None:
-    base = override_module.cors_params_of(SecurityConfig(enable_redis=False))
+    base = override_module.cors_params_of(SyncSecurityConfig(enable_redis=False))
 
     merged, refused = override_module.merge_cors(base, {"frame_options": "DENY"})
 
@@ -2702,7 +2702,7 @@ def test_merge_cors_without_a_cors_key_returns_the_base_itself() -> None:
 
 
 def test_merge_cors_applies_headers_and_the_other_passed_keys() -> None:
-    base = override_module.cors_params_of(SecurityConfig(enable_redis=False))
+    base = override_module.cors_params_of(SyncSecurityConfig(enable_redis=False))
 
     merged, refused = override_module.merge_cors(
         base,
@@ -2720,7 +2720,7 @@ def test_merge_cors_applies_headers_and_the_other_passed_keys() -> None:
 
 
 def test_switching_credentials_on_alone_widens_the_cors() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False, enable_cors=True, cors_allow_origins=["https://a.example"]
     )
     base = override_module.cors_params_of(config)
@@ -2732,7 +2732,7 @@ def test_switching_credentials_on_alone_widens_the_cors() -> None:
 
 def test_the_override_record_and_cors_params_are_immutable() -> None:
     record = override_module.OverrideRecord(1.0, {})
-    params = override_module.cors_params_of(SecurityConfig(enable_redis=False))
+    params = override_module.cors_params_of(SyncSecurityConfig(enable_redis=False))
 
     with pytest.raises(dataclasses.FrozenInstanceError):
         record.__setattr__("set_at", 2.0)
@@ -2784,10 +2784,10 @@ def test_the_cors_note_registry_holds_exactly_its_limit_with_the_real_constant()
 
 def test_the_cache_key_of_a_config_keeps_its_headers_and_adds_the_override() -> None:
     manager = SecurityHeadersManager.isolated()
-    first = SecurityConfig(
+    first = SyncSecurityConfig(
         enable_redis=False, security_headers={"frame_options": "DENY"}
     )
-    second = SecurityConfig(
+    second = SyncSecurityConfig(
         enable_redis=False, security_headers={"frame_options": "SAMEORIGIN"}
     )
     record = override_module.OverrideRecord(1.0, {"frame_options": "DENY"})

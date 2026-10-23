@@ -1,7 +1,7 @@
 from typing import Any
 from unittest.mock import MagicMock
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks import build_default_pipeline
 from guard_core.sync.handlers import ipban_handler
 from tests.test_sync.conftest import SyncMockGuardRequest
@@ -17,7 +17,7 @@ BOT_IP = "203.0.113.7"
 GOOD_HEADERS = {"X-API-Key": "secret", "referer": "https://example.com/page"}
 
 
-def _config(**overrides: Any) -> SecurityConfig:
+def _config(**overrides: Any) -> SyncSecurityConfig:
     settings: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": False,
@@ -25,7 +25,7 @@ def _config(**overrides: Any) -> SecurityConfig:
         "auto_ban_threshold": 2,
     }
     settings.update(overrides)
-    return SecurityConfig(**settings)
+    return SyncSecurityConfig(**settings)
 
 
 def test_ip_security_and_rate_limit_run_before_the_identity_checks() -> None:

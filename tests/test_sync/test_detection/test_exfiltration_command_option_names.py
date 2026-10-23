@@ -1,6 +1,6 @@
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.utils import detect_penetration_attempt
 from tests.test_sync.conftest import SyncMockGuardRequest
 
@@ -22,7 +22,7 @@ ORDINARY = [
 
 def _flagged(value: str) -> bool:
     request = SyncMockGuardRequest(path="/s", query_params={"q": value})
-    result = detect_penetration_attempt(request, SecurityConfig(enable_redis=False))
+    result = detect_penetration_attempt(request, SyncSecurityConfig(enable_redis=False))
     return result.is_threat
 
 

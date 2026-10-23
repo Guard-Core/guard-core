@@ -107,10 +107,10 @@ def _fetch_penetration_spans(ui_url: str, service_name: str) -> list[dict[str, A
 def test_otel_spans_land_with_normalized_endpoint(
     jaeger_otlp_endpoint: str, jaeger_ui_url: str
 ) -> None:
-    from guard_core.models import SecurityConfig
+    from guard_core.models import SyncSecurityConfig
     from guard_core.sync.core.events.otel_handler import OtelHandler
 
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_otel=True,
         otel_service_name="guard-core-integration",
         otel_exporter_endpoint=jaeger_otlp_endpoint,

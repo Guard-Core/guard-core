@@ -1,6 +1,6 @@
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.utils import detect_penetration_attempt
 from tests.test_sync.conftest import SyncMockGuardRequest
 
@@ -23,7 +23,7 @@ def _scan(
     if host:
         headers["host"] = host
     request = SyncMockGuardRequest(path="/x", headers=headers)
-    result = detect_penetration_attempt(request, SecurityConfig())
+    result = detect_penetration_attempt(request, SyncSecurityConfig())
     return result.is_threat, result.threat_categories
 
 

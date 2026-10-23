@@ -3,7 +3,7 @@ import time
 import coverage
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
 
 _DEFAULT_MAX_SCAN_LENGTH = 10000
@@ -36,7 +36,7 @@ ADVERSARIAL_REDOS_CORPUS = [
 
 @pytest.mark.parametrize("payload", ADVERSARIAL_REDOS_CORPUS)
 def test_adversarial_payload_stays_under_cpu_time_ceiling(payload: str) -> None:
-    sus_patterns_handler.configure(SecurityConfig())
+    sus_patterns_handler.configure(SyncSecurityConfig())
 
     samples: list[float] = []
     for _ in range(5):

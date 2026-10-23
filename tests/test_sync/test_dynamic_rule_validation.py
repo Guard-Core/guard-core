@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.models import DynamicRules, SyncSecurityConfig
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.sync.handlers.ipban_handler import ip_ban_manager
 
@@ -27,7 +27,9 @@ def _rules(**overrides: Any) -> DynamicRules:
     return DynamicRules(**base)
 
 
-def _manager(**config_kwargs: Any) -> tuple[DynamicRuleManager, SecurityConfig, Any]:
+def _manager(
+    **config_kwargs: Any,
+) -> tuple[DynamicRuleManager, SyncSecurityConfig, Any]:
     settings: dict[str, Any] = {
         "enable_redis": False,
         "enable_agent": True,
@@ -38,7 +40,7 @@ def _manager(**config_kwargs: Any) -> tuple[DynamicRuleManager, SecurityConfig, 
         "enable_rate_limiting": False,
     }
     settings.update(config_kwargs)
-    config = SecurityConfig(**settings)
+    config = SyncSecurityConfig(**settings)
     ip_ban_manager.config = config
     manager = DynamicRuleManager(config)
     agent = MagicMock()

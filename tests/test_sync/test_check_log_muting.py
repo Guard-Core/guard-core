@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 from guard_core.sync.utils import log_activity
@@ -78,7 +78,7 @@ def test_security_check_log_if_allowed_respects_config(
             return None
 
     middleware = MagicMock()
-    middleware.config = SecurityConfig(muted_check_logs={"suspicious_activity"})
+    middleware.config = SyncSecurityConfig(muted_check_logs={"suspicious_activity"})
     middleware.logger = logging.getLogger("guard_core.test.muted_check")
     check = _Check(middleware)
 
@@ -106,7 +106,7 @@ def test_security_check_log_if_allowed_emits_when_not_muted(
             return None
 
     middleware = MagicMock()
-    middleware.config = SecurityConfig(muted_check_logs={"rate_limit"})
+    middleware.config = SyncSecurityConfig(muted_check_logs={"rate_limit"})
     middleware.logger = logging.getLogger("guard_core.test.unmuted_check")
     check = _Check(middleware)
 

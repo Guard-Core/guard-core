@@ -3,7 +3,7 @@ from collections.abc import Callable
 from typing import Any
 
 from guard_core.exceptions import CallableShapeError, ResponseBodyUnavailableError
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.response_prefetch import (
     ResponseBodyPrefetch,
@@ -62,7 +62,7 @@ def apply_modifier_with_bounded_body(
     response: GuardResponse,
     request: SyncGuardRequest,
     prefetch: ResponseBodyPrefetch | None,
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     logger: logging.Logger,
     agent_handler: Any | None,
 ) -> GuardResponse:

@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from guard_core.exceptions import ResponseBodyUnavailableError
-from guard_core.models import BehaviorRuleConfig, SecurityConfig
+from guard_core.models import BehaviorRuleConfig, SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.response_prefetch import SHARED_PREFETCH
 from guard_core.sync.core.events.metrics import MetricsCollector
@@ -54,7 +54,7 @@ def _factory(
     agent_handler: Any | None = None,
     **config_overrides: Any,
 ) -> ErrorResponseFactory:
-    config = SecurityConfig(enable_redis=False, **config_overrides)
+    config = SyncSecurityConfig(enable_redis=False, **config_overrides)
     config.custom_response_modifier = cast(Any, modifier)
     return ErrorResponseFactory(
         ResponseContext(

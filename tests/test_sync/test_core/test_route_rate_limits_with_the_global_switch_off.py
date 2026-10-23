@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.pipeline import SecurityCheckPipeline
 from guard_core.sync.core.initialization.handler_initializer import HandlerInitializer
 from guard_core.sync.decorators import SecurityDecorator
@@ -17,14 +17,14 @@ from tests.test_sync.test_core.conftest import (
 IP = "198.51.100.30"
 
 
-def _config(**settings: Any) -> SecurityConfig:
+def _config(**settings: Any) -> SyncSecurityConfig:
     defaults: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": False,
         "enable_rate_limiting": False,
         "rate_limit": 1,
     }
-    return SecurityConfig(**{**defaults, **settings})
+    return SyncSecurityConfig(**{**defaults, **settings})
 
 
 def _statuses(
@@ -74,7 +74,7 @@ def test_the_switch_on_keeps_both_tiers() -> None:
 
 
 def _decorated(
-    make: Callable[[SecurityDecorator], Any], config: SecurityConfig
+    make: Callable[[SecurityDecorator], Any], config: SyncSecurityConfig
 ) -> tuple[SecurityDecorator, str]:
     decorator = SecurityDecorator(config)
 

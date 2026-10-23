@@ -7,7 +7,7 @@ from guard_core._misconfiguration import report_misconfiguration
 from guard_core.sync.core.checks.helpers import SUSPICIOUS_COUNT_WINDOW_SECONDS
 
 if TYPE_CHECKING:
-    from guard_core.models import SecurityConfig
+    from guard_core.models import SyncSecurityConfig
 
 _RATE_LIMIT_FEED = "rate_limit"
 _CATEGORIES_FED_BEFORE_RATE_LIMITING = frozenset(
@@ -53,19 +53,21 @@ def remember_ban_threshold_context(
 
 
 def _redis_outage_lets_requests_past_the_limit(
-    config: "SecurityConfig", context: _BanThresholdContext
+    config: "SyncSecurityConfig", context: _BanThresholdContext
 ) -> bool:
     if not context.redis_shared():
         return False
     return config.redis_fail_open or not config.fail_secure
 
 
-def _strike_bound(config: "SecurityConfig") -> int:
+def _strike_bound(config: "SyncSecurityConfig") -> int:
     window = config.rate_limit_window
     return math.ceil(config.rate_limit * (SUSPICIOUS_COUNT_WINDOW_SECONDS / window + 1))
 
 
-def _bound_is_unknown(config: "SecurityConfig", context: _BanThresholdContext) -> bool:
+def _bound_is_unknown(
+    config: "SyncSecurityConfig", context: _BanThresholdContext
+) -> bool:
     if not config.enable_rate_limiting or config.passive_mode:
         return True
     if config.rate_limit < 1 or config.rate_limit_window < 1 or config.exempt_ips:
@@ -79,7 +81,7 @@ def _bound_is_unknown(config: "SecurityConfig", context: _BanThresholdContext) -
 
 
 def _fed_before_rate_limiting(
-    config: "SecurityConfig", context: _BanThresholdContext
+    config: "SyncSecurityConfig", context: _BanThresholdContext
 ) -> bool:
     if not config.ban_on_hostile_signals:
         return False
@@ -92,7 +94,7 @@ def _fed_before_rate_limiting(
     )
 
 
-def _excluded_paths_reach_detection(config: "SecurityConfig") -> bool:
+def _excluded_paths_reach_detection(config: "SyncSecurityConfig") -> bool:
     from guard_core.sync.core.checks.implementations.rate_limit import RateLimitCheck
     from guard_core.sync.core.checks.implementations.suspicious_activity import (
         SuspiciousActivityCheck,
@@ -106,7 +108,7 @@ def _excluded_paths_reach_detection(config: "SecurityConfig") -> bool:
 
 
 def unreachable_ban_threshold_problems(
-    config: "SecurityConfig", context: _BanThresholdContext
+    config: "SyncSecurityConfig", context: _BanThresholdContext
 ) -> list[str]:
     if _bound_is_unknown(config, context) or _excluded_paths_reach_detection(config):
         return []
@@ -134,7 +136,7 @@ def unreachable_ban_threshold_problems(
 
 
 def report_unreachable_ban_thresholds(
-    config: "SecurityConfig",
+    config: "SyncSecurityConfig",
     context: _BanThresholdContext,
     logger: logging.Logger,
     stacklevel: int,
@@ -144,7 +146,7 @@ def report_unreachable_ban_thresholds(
 
 
 def log_unreachable_ban_thresholds_after_rule_change(
-    config: "SecurityConfig", logger: logging.Logger
+    config: "SyncSecurityConfig", logger: logging.Logger
 ) -> None:
     if _remembered_context is None:
         return

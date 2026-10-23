@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils.detection_scan import _json_depth_cap_value
 from guard_core.sync.core.checks import build_default_pipeline
 from guard_core.sync.core.events.middleware_events import SecurityEventBus
@@ -22,7 +22,7 @@ _CUSTOM_SECRET_LITERAL = "hunter2ThisIsASecretXYZ"
 
 @pytest.fixture(autouse=True)
 def _force_enhanced_detection_singleton() -> None:
-    sus_patterns_handler.configure(SecurityConfig())
+    sus_patterns_handler.configure(SyncSecurityConfig())
 
 
 @pytest.fixture
@@ -71,7 +71,7 @@ def _single_threat_event_metadata(mock_agent: MagicMock) -> dict[str, Any]:
 def test_sensitive_header_threat_event_content_preview_redacted(
     mock_agent: MagicMock,
 ) -> None:
-    config = SecurityConfig(log_sensitive_headers={"x-session"})
+    config = SyncSecurityConfig(log_sensitive_headers={"x-session"})
     secret = "tok-SECRET-EVENT"
     request = SyncMockGuardRequest(
         headers={"X-Session": f"{secret} <script>alert(1)</script>"},
@@ -88,7 +88,7 @@ def test_sensitive_header_threat_event_content_preview_redacted(
 def test_sensitive_query_param_threat_event_content_preview_redacted(
     mock_agent: MagicMock,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     secret = "SECRET-EVENT-Q"
     request = SyncMockGuardRequest(
         query_params={"token": f"{secret} <script>alert(1)</script>"},
@@ -112,7 +112,7 @@ def test_sensitive_header_embedded_json_field_content_preview_redacted(
     mock_agent: MagicMock,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(log_sensitive_headers={"x-session"})
+    config = SyncSecurityConfig(log_sensitive_headers={"x-session"})
     request = SyncMockGuardRequest(headers={"X-Session": _EMBEDDED_JSON_PAYLOAD})
 
     with caplog.at_level(logging.WARNING, logger="guard_core"):
@@ -129,7 +129,7 @@ def test_sensitive_query_param_embedded_json_field_content_preview_redacted(
     mock_agent: MagicMock,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     request = SyncMockGuardRequest(query_params={"token": _EMBEDDED_JSON_PAYLOAD})
 
     with caplog.at_level(logging.WARNING, logger="guard_core"):
@@ -145,7 +145,7 @@ def test_sensitive_query_param_embedded_json_field_content_preview_redacted(
 def test_non_sensitive_header_embedded_json_field_content_preview_is_raw(
     mock_agent: MagicMock,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     request = SyncMockGuardRequest(headers={"X-Custom": _EMBEDDED_JSON_PAYLOAD})
 
     result = detect_penetration_attempt(request, config)
@@ -175,7 +175,7 @@ def test_sensitive_query_param_embedded_json_key_redacted_in_reason(
     mock_agent: MagicMock,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(log_sensitive_params={"tok"})
+    config = SyncSecurityConfig(log_sensitive_params={"tok"})
     payload = json.dumps({_EMBEDDED_JSON_SECRET_KEY: "benign"})
     request = SyncMockGuardRequest(query_params={"tok": payload})
 
@@ -196,7 +196,7 @@ def test_sensitive_header_embedded_json_key_redacted_in_reason(
     mock_agent: MagicMock,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(log_sensitive_headers={"x-session"})
+    config = SyncSecurityConfig(log_sensitive_headers={"x-session"})
     payload = json.dumps({_EMBEDDED_JSON_SECRET_KEY: "benign"})
     request = SyncMockGuardRequest(headers={"X-Session": payload})
 
@@ -216,7 +216,7 @@ def test_sensitive_header_embedded_json_key_redacted_in_reason(
 def test_non_sensitive_query_param_embedded_json_key_reports_raw_key_in_context(
     mock_agent: MagicMock,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     payload = json.dumps({_EMBEDDED_JSON_SECRET_KEY: "benign"})
     request = SyncMockGuardRequest(query_params={"q": payload})
 
@@ -230,7 +230,7 @@ def test_non_sensitive_query_param_embedded_json_key_reports_raw_key_in_context(
 def test_sensitive_body_field_threat_event_content_preview_redacted(
     mock_agent: MagicMock,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     secret = "SECRET-EVENT-BODY"
     body = json.dumps({"password": f"{secret} {_SQLI_PAYLOAD}"}).encode()
 
@@ -245,7 +245,7 @@ def test_sensitive_body_field_threat_event_content_preview_redacted(
 def test_non_sensitive_query_param_embedded_json_sensitive_field_preview_redacted(
     mock_agent: MagicMock,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     secret = "SECRET-EMBEDDED-FIELD"
     body = json.dumps({"password": f"{secret} {_SQLI_PAYLOAD}", "note": "benign"})
     request = SyncMockGuardRequest(query_params={"data": body})
@@ -261,7 +261,7 @@ def test_non_sensitive_query_param_embedded_json_sensitive_field_preview_redacte
 def test_capped_json_subtree_threat_event_preview_matches_redacted_display(
     mock_agent: MagicMock,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     depth = _json_depth_cap_value() - 1
     secret = "SECRET-EVENT-NESTED"
     leaf = {"password": f"{secret} {_SQLI_PAYLOAD}"}
@@ -281,7 +281,7 @@ def test_capped_json_subtree_threat_event_preview_matches_redacted_display(
 def test_non_sensitive_query_param_threat_event_content_preview_is_raw(
     mock_agent: MagicMock,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     payload = "<script>alert(1)</script>"
     request = SyncMockGuardRequest(query_params={"q": payload})
 
@@ -295,7 +295,7 @@ def test_non_sensitive_query_param_threat_event_content_preview_is_raw(
 def test_non_sensitive_long_query_param_threat_event_content_preview_capped(
     mock_agent: MagicMock,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     payload = ("A" * 91) + _SQLI_PAYLOAD
     assert len(payload) > 100
     request = SyncMockGuardRequest(query_params={"q": payload})
@@ -346,7 +346,7 @@ def test_detect_content_preview_still_capped_at_100_chars(
 def test_pattern_detected_event_sets_pattern_matched_and_category_for_regex_hit(
     mock_agent: MagicMock,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     request = SyncMockGuardRequest(query_params={"q": _SQLI_PAYLOAD})
 
     result = detect_penetration_attempt(request, config)
@@ -391,7 +391,7 @@ def test_pattern_detected_event_semantic_hit_sets_pattern_matched_and_category(
 def test_pattern_detected_event_redacts_pattern_matched_for_custom_secret_pattern(
     mock_agent: MagicMock,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     sus_patterns_handler.add_pattern("password=hunter2", custom=True)
     try:
         mock_agent.reset_mock()
@@ -410,7 +410,7 @@ def test_pattern_detected_event_redacts_pattern_matched_for_custom_secret_patter
 def test_pattern_detected_event_redacts_regex_separated_custom_secret_pattern(
     mock_agent: MagicMock,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     source = r"password\s*=\s*hunter2"
     sus_patterns_handler.add_pattern(source, custom=True)
     try:
@@ -432,7 +432,7 @@ def test_pattern_detected_event_redacts_regex_separated_custom_secret_pattern(
 def test_pattern_detected_event_metadata_pattern_matches_pattern_matched(
     mock_agent: MagicMock,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     sus_patterns_handler.add_pattern(_CUSTOM_SECRET_PATTERN, custom=True)
     try:
         mock_agent.reset_mock()
@@ -452,7 +452,7 @@ def test_pattern_detected_event_metadata_pattern_matches_pattern_matched(
 def test_pattern_detected_event_builtin_pattern_source_unchanged_in_metadata(
     mock_agent: MagicMock,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     request = SyncMockGuardRequest(query_params={"q": _SQLI_PAYLOAD})
 
     result = detect_penetration_attempt(request, config)
@@ -548,7 +548,7 @@ def _event_to_dict(event: Any) -> dict[str, Any]:
     return dict(vars(event))
 
 
-def _pipeline_middleware(config: SecurityConfig, agent: MagicMock) -> MagicMock:
+def _pipeline_middleware(config: SyncSecurityConfig, agent: MagicMock) -> MagicMock:
     middleware = MagicMock()
     middleware.config = config
     middleware.logger = logging.getLogger(
@@ -591,7 +591,7 @@ def _run_custom_secret_pattern_pipeline(
     def _on_block(request: Any, payload: dict[str, Any]) -> None:
         on_block_calls.append(payload)
 
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         passive_mode=passive_mode, on_block=_on_block, enable_ip_banning=False
     )
     sus_patterns_handler.add_pattern(_CUSTOM_SECRET_PATTERN, custom=True)

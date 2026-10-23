@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 
 
 def _fresh_otel_handler_module() -> ModuleType:
@@ -25,11 +25,11 @@ def _reload_otel_handler_between_tests() -> Generator[None, None, None]:
 
 
 def test_otel_resource_attributes_default_empty() -> None:
-    assert SecurityConfig().otel_resource_attributes == {}
+    assert SyncSecurityConfig().otel_resource_attributes == {}
 
 
 def test_otel_resource_attributes_accepts_map() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         otel_resource_attributes={
             "deployment.environment": "prod",
             "service.version": "1.0.3",
@@ -293,7 +293,7 @@ def test_event_bus_attaches_tracestate_from_request_headers() -> None:
     agent.send_event = capture_send
 
     cfg = _cast(
-        SecurityConfig,
+        SyncSecurityConfig,
         _SN(
             agent_enable_events=True,
             log_sensitive_params=None,
@@ -356,7 +356,7 @@ def test_event_bus_attaches_traceparent_from_request_headers() -> None:
     agent.send_event = capture_send
 
     cfg = _cast(
-        SecurityConfig,
+        SyncSecurityConfig,
         SimpleNamespace(
             agent_enable_events=True,
             log_sensitive_params=None,

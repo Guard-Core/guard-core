@@ -7,7 +7,7 @@ import pytest
 from redis.exceptions import NoScriptError, RedisError
 
 from guard_core.exceptions import GuardRedisError
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers import ratelimit_handler
 from guard_core.sync.handlers.ipban_handler import IPBanManager
 from guard_core.sync.handlers.ratelimit_handler import (
@@ -37,8 +37,8 @@ def _request() -> SyncMockGuardRequest:
     return SyncMockGuardRequest(path="/x", client_host=IP)
 
 
-def _config(**settings: Any) -> SecurityConfig:
-    return SecurityConfig(**{"enable_redis": False, **settings})
+def _config(**settings: Any) -> SyncSecurityConfig:
+    return SyncSecurityConfig(**{"enable_redis": False, **settings})
 
 
 class _Connection:
@@ -56,7 +56,7 @@ class _Connection:
 
 class _RedisHandler:
     def __init__(self, conn: Any = None, connect_error: Exception | None = None):
-        self.config = SecurityConfig(enable_redis=True, redis_prefix="p:")
+        self.config = SyncSecurityConfig(enable_redis=True, redis_prefix="p:")
         self.conn = conn
         self.connect_error = connect_error
 

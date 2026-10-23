@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers._ipban_cache import _BanStore
 from guard_core.sync.handlers.ipban_handler import IPBanManager
 from guard_core.sync.handlers.redis_handler import RedisManager
@@ -75,7 +75,7 @@ def test_the_capacity_of_a_plain_dict_store_is_left_alone() -> None:
 
 
 def test_get_many_without_redis_enabled_returns_nothing_found() -> None:
-    redis = RedisManager(SecurityConfig(enable_redis=False))
+    redis = RedisManager(SyncSecurityConfig(enable_redis=False))
 
     found = redis.get_many([("banned_ips", "1.1.1.1"), ("ban_version", "x")])
 
@@ -129,7 +129,7 @@ def test_the_recidive_history_drops_expired_entries_before_evicting_a_live_one()
     None
 ):
     manager = IPBanManager()
-    manager.config = SecurityConfig(enable_redis=False, banned_ips_max_entries=2)
+    manager.config = SyncSecurityConfig(enable_redis=False, banned_ips_max_entries=2)
     manager.recidive_history = {
         "8.8.8.8": (1, time.time() - 5),
         "8.8.4.4": (1, time.time() + 500),
@@ -146,14 +146,14 @@ BASE = "2001:db8:0:1::/64"
 
 def _carve_manager(connection: Any) -> IPBanManager:
     manager = IPBanManager()
-    manager.config = SecurityConfig(enable_redis=False)
+    manager.config = SyncSecurityConfig(enable_redis=False)
     manager.redis_handler = redis_with_connection(connection)
     return manager
 
 
 def test_a_key_that_is_not_a_network_is_never_a_carve() -> None:
     manager = IPBanManager()
-    manager.config = SecurityConfig(enable_redis=False)
+    manager.config = SyncSecurityConfig(enable_redis=False)
 
     assert manager._base_identity_if_carve_is_gone("not-a-network") is None
 
@@ -207,7 +207,9 @@ def test_a_carve_the_whitelist_still_produces_is_left_in_redis() -> None:
     connection.scan_iter = scanning(f"guard:banned_identities:{CARVED}")
     connection.get = MagicMock()
     manager = _carve_manager(connection)
-    manager.config = SecurityConfig(enable_redis=False, whitelist=["2001:db8:0:1::5"])
+    manager.config = SyncSecurityConfig(
+        enable_redis=False, whitelist=["2001:db8:0:1::5"]
+    )
 
     assert manager._rewrite_redis_carves() == 0
 
@@ -224,7 +226,7 @@ def test_a_grouped_ban_of_text_that_is_not_a_network_is_refused() -> None:
 
 @pytest.fixture
 def live_redis() -> Generator[RedisManager, None]:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         redis_url=os.environ.get("REDIS_URL", "redis://localhost:6379"),
         redis_prefix=f"wp6-edges:{uuid.uuid4().hex}:",
     )
@@ -236,7 +238,7 @@ def live_redis() -> Generator[RedisManager, None]:
 
 
 def test_write_atomically_does_nothing_when_redis_is_off() -> None:
-    redis = RedisManager(SecurityConfig(enable_redis=False))
+    redis = RedisManager(SyncSecurityConfig(enable_redis=False))
 
     redis.write_atomically(sets=[("ns", "k", "v", None)], deletes=[("ns", "j")])
 

@@ -1,21 +1,21 @@
 import pytest
 from pydantic import ValidationError
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 
 
 def test_default_enable_enrichment_is_false() -> None:
-    assert SecurityConfig().enable_enrichment is False
+    assert SyncSecurityConfig().enable_enrichment is False
 
 
 def test_enable_enrichment_requires_enable_agent() -> None:
     with pytest.raises(ValidationError) as exc_info:
-        SecurityConfig(enable_enrichment=True)
+        SyncSecurityConfig(enable_enrichment=True)
     assert "enable_enrichment requires enable_agent=True" in str(exc_info.value)
 
 
 def test_enable_enrichment_with_agent_is_valid() -> None:
-    cfg = SecurityConfig(
+    cfg = SyncSecurityConfig(
         enable_agent=True,
         agent_api_key="a" * 10,
         enable_enrichment=True,
@@ -25,7 +25,7 @@ def test_enable_enrichment_with_agent_is_valid() -> None:
 
 
 def test_enable_enrichment_false_with_agent_is_valid() -> None:
-    cfg = SecurityConfig(
+    cfg = SyncSecurityConfig(
         enable_agent=True,
         agent_api_key="a" * 10,
         enable_enrichment=False,

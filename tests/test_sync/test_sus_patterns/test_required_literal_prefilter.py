@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers import _suspatterns_regex
 from guard_core.sync.handlers._suspatterns_literals import (
     fold_for_literals,
@@ -114,17 +114,19 @@ def test_the_fold_maps_the_four_characters_ignorecase_matches(
 def test_folded_look_alikes_are_still_flagged(value: str) -> None:
     request = SyncMockGuardRequest(path="/s", query_params={"q": value})
 
-    result = detect_penetration_attempt(request, SecurityConfig(enable_redis=False))
+    result = detect_penetration_attempt(request, SyncSecurityConfig(enable_redis=False))
 
     ascii_twin = SyncMockGuardRequest(
         path="/s", query_params={"q": value.translate(str.maketrans("ıİſK", "iisk"))}
     )
-    twin = detect_penetration_attempt(ascii_twin, SecurityConfig(enable_redis=False))
+    twin = detect_penetration_attempt(
+        ascii_twin, SyncSecurityConfig(enable_redis=False)
+    )
     assert result.is_threat is twin.is_threat
 
 
 def test_a_bare_look_alike_opener_has_the_verdict_of_the_ascii_one() -> None:
-    config = SecurityConfig(enable_redis=False)
+    config = SyncSecurityConfig(enable_redis=False)
     plain = detect_penetration_attempt(
         SyncMockGuardRequest(path="/s", query_params={"q": "<script>"}), config
     )
@@ -175,7 +177,7 @@ def _rows_reached(prefilter: bool) -> int:
 def _scan_benign() -> None:
     detect_penetration_attempt(
         SyncMockGuardRequest(path="/s", query_params={"q": "red shoes size 9"}),
-        SecurityConfig(enable_redis=False),
+        SyncSecurityConfig(enable_redis=False),
     )
 
 

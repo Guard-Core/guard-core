@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from guard_core.exceptions import CallableShapeError
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.core.callable_slot import CallableSlot
 from guard_core.sync.core.checks.implementations.custom_request import (
@@ -145,7 +145,7 @@ ASYNC_MODIFIERS: dict[str, Callable[[], Callable[..., Any]]] = {
 
 def _middleware(check: Callable[..., Any] | None) -> MagicMock:
     middleware = MagicMock()
-    middleware.config = SecurityConfig(enable_redis=False)
+    middleware.config = SyncSecurityConfig(enable_redis=False)
     middleware.config.custom_request_check = check
     middleware.logger = MagicMock()
     middleware.response_factory.apply_modifier = MagicMock(side_effect=lambda r: r)
@@ -153,7 +153,7 @@ def _middleware(check: Callable[..., Any] | None) -> MagicMock:
 
 
 def _factory(modifier: Callable[..., Any] | None) -> ErrorResponseFactory:
-    config = SecurityConfig(enable_redis=False)
+    config = SyncSecurityConfig(enable_redis=False)
     config.custom_response_modifier = modifier
     return ErrorResponseFactory(
         ResponseContext(
@@ -293,11 +293,6 @@ def test_a_slot_with_nothing_configured_refuses_to_be_called() -> None:
     slot: CallableSlot[int, int] = CallableSlot("custom_request_check")
     with pytest.raises(TypeError, match="custom_request_check is not configured"):
         slot.invoke(1)
-
-
-def test_a_slot_refuses_a_value_that_is_not_callable() -> None:
-    with pytest.raises(TypeError, match="custom_request_check must be callable"):
-        CallableSlot("custom_request_check", 5)
 
 
 def test_a_slot_adopted_by_another_thread_meanwhile_keeps_the_new_callable() -> None:

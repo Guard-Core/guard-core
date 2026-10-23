@@ -5,7 +5,7 @@ from urllib.parse import urlencode
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.decorators.base import BaseSecurityDecorator, RouteConfig
 from guard_core.sync.decorators.content_filtering import ContentFilteringMixin
 from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
@@ -23,11 +23,11 @@ class _FakeDecorator(BaseSecurityDecorator, ContentFilteringMixin):
 
 @pytest.fixture(autouse=True)
 def _force_enhanced_detection_singleton() -> None:
-    sus_patterns_handler.configure(SecurityConfig())
+    sus_patterns_handler.configure(SyncSecurityConfig())
 
 
 def _route_config(body_fields: Any) -> RouteConfig:
-    decorator = _FakeDecorator(SecurityConfig())
+    decorator = _FakeDecorator(SyncSecurityConfig())
 
     def target() -> None:
         pass
@@ -68,7 +68,7 @@ def _is_threat(
     route_fields: Any = None,
     **config_options: Any,
 ) -> bool:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False,
         rate_limit=10_000_000,
         excluded_detection_body_fields=global_fields,
@@ -79,17 +79,19 @@ def _is_threat(
 
 
 def test_the_set_form_is_stored_as_a_set() -> None:
-    config = SecurityConfig(excluded_detection_body_fields={"note", "memo"})
+    config = SyncSecurityConfig(excluded_detection_body_fields={"note", "memo"})
     assert config.excluded_detection_body_fields == {"note", "memo"}
 
 
 def test_the_map_form_is_stored_as_a_map() -> None:
-    config = SecurityConfig(excluded_detection_body_fields={"note": {"sensitive_file"}})
+    config = SyncSecurityConfig(
+        excluded_detection_body_fields={"note": {"sensitive_file"}}
+    )
     assert config.excluded_detection_body_fields == {"note": {"sensitive_file"}}
 
 
 def test_a_reassigned_map_is_validated() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     config.excluded_detection_body_fields = {"note": {"xss"}}
     assert config.excluded_detection_body_fields == {"note": {"xss"}}
     with pytest.raises(ValueError, match="Unknown detection categories"):
@@ -101,7 +103,7 @@ def test_a_reassigned_map_is_validated() -> None:
     [{"note": set()}, {"note": {"not_a_category"}}, {1: {"xss"}}, {"note": "xss"}],
 )
 def test_the_map_form_is_validated_like_the_decorator(bad: Any) -> None:
-    decorator = _FakeDecorator(SecurityConfig())
+    decorator = _FakeDecorator(SyncSecurityConfig())
 
     def target() -> None:
         pass
@@ -109,7 +111,7 @@ def test_the_map_form_is_validated_like_the_decorator(bad: Any) -> None:
     with pytest.raises(ValueError) as from_decorator:
         decorator.detection_exclusion(body_fields=bad)(target)
     with pytest.raises(ValueError) as from_config:
-        SecurityConfig(excluded_detection_body_fields=bad)
+        SyncSecurityConfig(excluded_detection_body_fields=bad)
     decorator_text = str(from_decorator.value)
     renamed_text = decorator_text.replace(
         "excluded_detection_params is invalid",
@@ -190,7 +192,7 @@ def test_the_remainder_honours_the_map_of_a_nested_field() -> None:
 
 def test_a_bare_string_is_rejected_naming_the_field() -> None:
     with pytest.raises(ValueError, match="excluded_detection_body_fields"):
-        SecurityConfig(excluded_detection_body_fields="nope")
-    config: Any = SecurityConfig()
+        SyncSecurityConfig(excluded_detection_body_fields="nope")
+    config: Any = SyncSecurityConfig()
     with pytest.raises(ValueError, match="excluded_detection_body_fields"):
         config.excluded_detection_body_fields = "nope"

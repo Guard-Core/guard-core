@@ -15,7 +15,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils.ip_extraction import extract_client_ip
 from guard_core.sync.handlers._behavior_throttle import ThrottleCheck, trip_marker_key
 from guard_core.sync.handlers.behavior_handler import BehaviorRule, BehaviorTracker
@@ -289,7 +289,7 @@ RETURN_RULE = BehaviorRule(
 )
 
 
-def _client_ip(peer: str, config: SecurityConfig) -> str:
+def _client_ip(peer: str, config: SyncSecurityConfig) -> str:
     request = SimpleNamespace(
         client_host=peer, headers={}, state=SimpleNamespace(), url_path="/x"
     )
@@ -297,7 +297,7 @@ def _client_ip(peer: str, config: SecurityConfig) -> str:
 
 
 def _observed(peer: str, **settings: Any) -> dict[str, Any]:
-    config = SecurityConfig(enable_redis=False, trusted_proxies=[], **settings)
+    config = SyncSecurityConfig(enable_redis=False, trusted_proxies=[], **settings)
     client_ip = _client_ip(peer, config)
     response = MagicMock(status_code=404)
     memory = BehaviorTracker(config)
@@ -360,7 +360,7 @@ def test_a_native_ipv6_client_has_recent_events_in_both_stores() -> None:
 
 
 def test_neighbours_in_one_network_share_the_recent_event_count() -> None:
-    config = SecurityConfig(enable_redis=False)
+    config = SyncSecurityConfig(enable_redis=False)
     tracker = BehaviorTracker(config)
     tracker.track_endpoint_usage("ep", "2001:db8:0:1::5", USAGE_RULE)
     tracker.track_endpoint_usage("ep", "2001:db8:0:1:ffff::9", USAGE_RULE)
@@ -370,7 +370,7 @@ def test_neighbours_in_one_network_share_the_recent_event_count() -> None:
 
 
 def test_the_redis_recent_count_reads_the_identity_index() -> None:
-    config = SecurityConfig(enable_redis=False)
+    config = SyncSecurityConfig(enable_redis=False)
     tracker = BehaviorTracker(config)
     handler = MagicMock()
     handler.record_sliding_window_hit = MagicMock(return_value=1)
@@ -387,7 +387,7 @@ def test_the_redis_recent_count_reads_the_identity_index() -> None:
 
 
 def _throttle_marker_keys(client_ip: str, **settings: Any) -> list[str]:
-    tracker = BehaviorTracker(SecurityConfig(enable_redis=False, **settings))
+    tracker = BehaviorTracker(SyncSecurityConfig(enable_redis=False, **settings))
     rule = BehaviorRule(rule_type="usage", threshold=1, window=60, action="throttle")
     check = ThrottleCheck(rule, "ep", True, 1)
     for _ in range(3):

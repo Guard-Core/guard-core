@@ -1,6 +1,6 @@
 import pytest
 
-from guard_core.models import VALID_CLOUD_PROVIDERS, SecurityConfig
+from guard_core.models import VALID_CLOUD_PROVIDERS, SyncSecurityConfig
 from guard_core.sync.decorators.access_control import AccessControlMixin
 from guard_core.sync.decorators.advanced import AdvancedMixin, _SimpleResponse
 from guard_core.sync.decorators.authentication import AuthenticationMixin
@@ -24,7 +24,7 @@ class ComposedDecorator(
 
 
 def _decorator() -> ComposedDecorator:
-    config = SecurityConfig(enable_redis=False)
+    config = SyncSecurityConfig(enable_redis=False)
     return ComposedDecorator(config)
 
 
@@ -403,7 +403,7 @@ def test_usage_monitor() -> None:
 
 def test_return_monitor() -> None:
     d = ComposedDecorator(
-        SecurityConfig(enable_redis=False, behavior_scan_response_body=True)
+        SyncSecurityConfig(enable_redis=False, behavior_scan_response_body=True)
     )
     decorated = d.return_monitor(
         pattern="error", max_occurrences=5, window=86400, action="log"

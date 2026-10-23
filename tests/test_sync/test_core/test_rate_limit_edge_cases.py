@@ -3,21 +3,21 @@ from unittest.mock import MagicMock, Mock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.implementations.rate_limit import RateLimitCheck
 from guard_core.sync.handlers.ratelimit_handler import RateLimitBlock, RateLimitTier
 
 
 @pytest.fixture
-def security_config() -> SecurityConfig:
-    config = SecurityConfig()
+def security_config() -> SyncSecurityConfig:
+    config = SyncSecurityConfig()
     config.passive_mode = False
     config.endpoint_rate_limits = {"/api/test": (5, 60)}
     return config
 
 
 @pytest.fixture
-def mock_middleware(security_config: SecurityConfig) -> Mock:
+def mock_middleware(security_config: SyncSecurityConfig) -> Mock:
     middleware = Mock()
     middleware.config = security_config
     middleware.resolve_route = None
@@ -62,7 +62,7 @@ def _tiers_handler(rate_limit_check: RateLimitCheck) -> MagicMock:
 def test_check_passive_mode_never_returns_the_block(
     rate_limit_check: RateLimitCheck,
     mock_request: Mock,
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     security_config.passive_mode = True
     _tiers_handler(rate_limit_check).return_value = _block()
@@ -73,7 +73,7 @@ def test_check_passive_mode_never_returns_the_block(
 def test_check_returns_the_block_response_in_active_mode(
     rate_limit_check: RateLimitCheck,
     mock_request: Mock,
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     security_config.passive_mode = False
     block = _block()
@@ -102,7 +102,7 @@ def test_check_not_exceeded_returns_none(
 def test_check_passes_every_tier_in_one_call_with_its_own_config(
     rate_limit_check: RateLimitCheck,
     mock_request: Mock,
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     mock_request.state.route_config = Mock(
         rate_limit=7, rate_limit_window=30, geo_rate_limits=None
@@ -129,7 +129,7 @@ def test_check_passes_every_tier_in_one_call_with_its_own_config(
 def test_the_old_whitelist_value_passes_no_window_identity(
     rate_limit_check: RateLimitCheck,
     mock_request: Mock,
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     security_config.whitelist_access_only = False
     mock_request.state.route_config = Mock(
@@ -145,7 +145,7 @@ def test_the_old_whitelist_value_passes_no_window_identity(
 def test_the_global_tier_is_left_out_when_rate_limiting_is_off(
     rate_limit_check: RateLimitCheck,
     mock_request: Mock,
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     security_config.enable_rate_limiting = False
     handler = _tiers_handler(rate_limit_check)
@@ -158,7 +158,7 @@ def test_the_global_tier_is_left_out_when_rate_limiting_is_off(
 def test_check_does_nothing_without_any_tier(
     rate_limit_check: RateLimitCheck,
     mock_request: Mock,
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     security_config.enable_rate_limiting = False
     security_config.endpoint_rate_limits = {}
@@ -269,7 +269,7 @@ def test_geo_block_without_decorator_uses_event_bus(
 def test_geo_block_with_decorator_uses_send_decorator_event(
     rate_limit_check: RateLimitCheck,
     mock_middleware: Mock,
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     from guard_core.sync.core.routing.context import RoutingContext
     from guard_core.sync.core.routing.resolver import RouteConfigResolver
@@ -317,7 +317,7 @@ def test_geo_block_with_decorator_uses_send_decorator_event(
 def test_endpoint_plan_passes_the_path(
     rate_limit_check: RateLimitCheck,
     mock_request: Mock,
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     security_config.endpoint_rate_limits = {"/api/test": (5, 60)}
 
@@ -329,7 +329,7 @@ def test_endpoint_plan_passes_the_path(
 def test_endpoint_plan_redacts_sensitive_endpoint_path(
     rate_limit_check: RateLimitCheck,
     mock_request: Mock,
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     secret_path = "/resource;token=super-secret-value"
     security_config.endpoint_rate_limits = {secret_path: (5, 60)}
@@ -358,7 +358,7 @@ def test_route_plan_passes_the_path(
 
 
 def test_global_plan_carries_its_own_config_and_no_bucket(
-    rate_limit_check: RateLimitCheck, security_config: SecurityConfig
+    rate_limit_check: RateLimitCheck, security_config: SyncSecurityConfig
 ) -> None:
     plan = rate_limit_check._global_plan()
 
@@ -370,10 +370,10 @@ def test_global_plan_carries_its_own_config_and_no_bucket(
 
 
 def test_initialize_redis_noop_when_redis_disabled() -> None:
-    from guard_core.models import SecurityConfig
+    from guard_core.models import SyncSecurityConfig
     from guard_core.sync.handlers.ratelimit_handler import RateLimitManager
 
-    config = SecurityConfig(enable_redis=False)
+    config = SyncSecurityConfig(enable_redis=False)
     manager = RateLimitManager(config)
     redis_handler = MagicMock()
     manager.initialize_redis(redis_handler)
@@ -382,10 +382,10 @@ def test_initialize_redis_noop_when_redis_disabled() -> None:
 
 
 def test_reset_noop_when_redis_keys_missing() -> None:
-    from guard_core.models import SecurityConfig
+    from guard_core.models import SyncSecurityConfig
     from guard_core.sync.handlers.ratelimit_handler import RateLimitManager
 
-    manager = RateLimitManager(SecurityConfig(enable_redis=True))
+    manager = RateLimitManager(SyncSecurityConfig(enable_redis=True))
     manager.redis_handler = MagicMock()
     manager.redis_handler.keys = MagicMock(return_value=[])
     manager.reset()

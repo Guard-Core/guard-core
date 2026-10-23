@@ -4,7 +4,7 @@ from typing import Any, cast
 import pytest
 
 from guard_core.exceptions import ResponseBodyUnavailableError
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.response_prefetch import (
     SHARED_PREFETCH,
@@ -297,14 +297,14 @@ def test_report_body_refused_samples_per_reason_and_skips_events_without_agent(
     request: Any = None
     with caplog.at_level(logging.WARNING, logger=logger.name):
         report_body_refused(
-            logger, SecurityConfig(enable_redis=False), None, request, "r1"
+            logger, SyncSecurityConfig(enable_redis=False), None, request, "r1"
         )
         report_body_refused(
-            logger, SecurityConfig(enable_redis=False), None, request, "r1"
+            logger, SyncSecurityConfig(enable_redis=False), None, request, "r1"
         )
         report_body_refused(
             logger,
-            SecurityConfig(enable_redis=False, agent_enable_events=False),
+            SyncSecurityConfig(enable_redis=False, agent_enable_events=False),
             object(),
             request,
             "r2",
@@ -331,7 +331,7 @@ def test_report_body_refused_reports_again_after_the_window_and_stays_bounded(
 ) -> None:
     _reported_refusals.clear()
     logger = logging.getLogger("guard_core.test_modifier_view_window")
-    config = SecurityConfig(enable_redis=False)
+    config = SyncSecurityConfig(enable_redis=False)
     request: Any = None
     with caplog.at_level(logging.WARNING, logger=logger.name):
         report_body_refused(logger, config, None, request, "again")

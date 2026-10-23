@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.detection_engine._redos_ambiguous_tail import (
     _atom_char_set,
     _detect_ambiguous_optional_tail_in_quantified_group,
@@ -59,7 +59,7 @@ from guard_core.sync.handlers.suspatterns_handler import (
 )
 from guard_core.sync.utils import _MAX_USER_AGENT_MATCH_LENGTH
 
-_CONFIG = SecurityConfig(detection_compiler_timeout=2.0)
+_CONFIG = SyncSecurityConfig(detection_compiler_timeout=2.0)
 _BENIGN_MATCHING_PAYLOAD = "<script>alert(1)</script>"
 _CUSTOM_MARKER = "zzq_custom_hardening_marker_zzq"
 _CUSTOM_PATTERN = rf"{_CUSTOM_MARKER}\d+"
@@ -73,7 +73,7 @@ _SEMVER_SCAN_PATTERN = r"(?:v(?:\d+\.){1,}\d+){1,}$"
 
 @pytest.fixture(autouse=True)
 def _force_enhanced_detection_singleton() -> None:
-    sus_patterns_handler.configure(SecurityConfig(detection_compiler_timeout=2.0))
+    sus_patterns_handler.configure(SyncSecurityConfig(detection_compiler_timeout=2.0))
     sus_patterns_handler.compiled_custom_patterns = set()
     sus_patterns_handler.custom_patterns = set()
 

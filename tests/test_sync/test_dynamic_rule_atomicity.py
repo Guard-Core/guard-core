@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.models import DynamicRules, SyncSecurityConfig
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.sync.protocols.geo_ip_protocol import SyncGeoIPHandler
 
@@ -29,7 +29,7 @@ def reset_singleton() -> Generator[None, None, None]:
 
 
 def test_apply_rules_rolls_back_on_partial_failure() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         geo_ip_handler=MagicMock(spec=SyncGeoIPHandler),
         blocked_countries=frozenset({"XX"}),
     )
@@ -47,7 +47,7 @@ def test_apply_rules_rolls_back_on_partial_failure() -> None:
 
 
 def test_apply_rules_persists_on_success() -> None:
-    config = SecurityConfig(geo_ip_handler=MagicMock(spec=SyncGeoIPHandler))
+    config = SyncSecurityConfig(geo_ip_handler=MagicMock(spec=SyncGeoIPHandler))
     manager = DynamicRuleManager(config)
 
     rules = _rules(blocked_countries=["NW"])
@@ -57,7 +57,7 @@ def test_apply_rules_persists_on_success() -> None:
 
 
 def test_concurrent_threads_serialize() -> None:
-    config = SecurityConfig(geo_ip_handler=MagicMock(spec=SyncGeoIPHandler))
+    config = SyncSecurityConfig(geo_ip_handler=MagicMock(spec=SyncGeoIPHandler))
     manager = DynamicRuleManager(config)
     observed: list[list[str]] = []
 
@@ -93,7 +93,7 @@ def test_concurrent_threads_serialize() -> None:
 
 
 def test_rollback_restores_all_snapshot_fields() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         rate_limit=100,
         enable_ip_banning=True,
         geo_ip_handler=MagicMock(spec=SyncGeoIPHandler),
@@ -121,7 +121,7 @@ def test_rollback_restores_all_snapshot_fields() -> None:
 
 
 def test_rollback_restores_auto_ban_overrides() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         geo_ip_handler=MagicMock(spec=SyncGeoIPHandler),
         auto_ban_threshold=5,
         auto_ban_duration=3600,
@@ -150,7 +150,7 @@ def test_rollback_restores_auto_ban_overrides() -> None:
 
 
 def test_rollback_restores_untouched_block_cloud_providers_to_none() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         geo_ip_handler=MagicMock(spec=SyncGeoIPHandler), auto_ban_threshold=5
     )
     assert config.block_cloud_providers is None
@@ -170,7 +170,7 @@ def test_rollback_restores_untouched_block_cloud_providers_to_none() -> None:
 
 
 def test_check_rule_expiry_restores_untouched_block_cloud_providers_to_none() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         geo_ip_handler=MagicMock(spec=SyncGeoIPHandler), auto_ban_threshold=5
     )
     assert config.block_cloud_providers is None
@@ -189,7 +189,7 @@ def test_check_rule_expiry_restores_untouched_block_cloud_providers_to_none() ->
 
 
 def test_apply_rules_captures_base_snapshot_on_first_activation() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         geo_ip_handler=MagicMock(spec=SyncGeoIPHandler), auto_ban_threshold=5
     )
     manager = DynamicRuleManager(config)
@@ -203,7 +203,7 @@ def test_apply_rules_captures_base_snapshot_on_first_activation() -> None:
 
 
 def test_apply_rules_retains_base_snapshot_across_superseding_push() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         geo_ip_handler=MagicMock(spec=SyncGeoIPHandler), auto_ban_threshold=5
     )
     manager = DynamicRuleManager(config)
@@ -224,7 +224,7 @@ def test_apply_rules_retains_base_snapshot_across_superseding_push() -> None:
 
 
 def test_check_rule_expiry_reverts_expired_rule_and_clears_state() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         geo_ip_handler=MagicMock(spec=SyncGeoIPHandler), auto_ban_threshold=5
     )
     manager = DynamicRuleManager(config)
@@ -246,7 +246,7 @@ def test_check_rule_expiry_reverts_expired_rule_and_clears_state() -> None:
 
 
 def test_check_rule_expiry_noop_for_future_expiry() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         geo_ip_handler=MagicMock(spec=SyncGeoIPHandler), auto_ban_threshold=5
     )
     manager = DynamicRuleManager(config)
@@ -265,7 +265,7 @@ def test_check_rule_expiry_noop_for_future_expiry() -> None:
 
 
 def test_check_rule_expiry_noop_when_no_active_rule() -> None:
-    config = SecurityConfig(geo_ip_handler=MagicMock(spec=SyncGeoIPHandler))
+    config = SyncSecurityConfig(geo_ip_handler=MagicMock(spec=SyncGeoIPHandler))
     manager = DynamicRuleManager(config)
 
     manager._check_rule_expiry()
@@ -274,7 +274,7 @@ def test_check_rule_expiry_noop_when_no_active_rule() -> None:
 
 
 def test_check_rule_expiry_clears_expired_rule_without_snapshot() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         geo_ip_handler=MagicMock(spec=SyncGeoIPHandler), auto_ban_threshold=5
     )
     manager = DynamicRuleManager(config)
@@ -289,7 +289,7 @@ def test_check_rule_expiry_clears_expired_rule_without_snapshot() -> None:
 
 
 def test_apply_rules_failed_first_apply_leaves_no_stale_base_snapshot() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         geo_ip_handler=MagicMock(spec=SyncGeoIPHandler), auto_ban_threshold=5
     )
     manager = DynamicRuleManager(config)
@@ -317,7 +317,7 @@ def test_apply_rules_failed_first_apply_leaves_no_stale_base_snapshot() -> None:
 
 
 def test_rollback_restores_fields_on_smuggled_invalid_auto_ban_threshold() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         rate_limit=100,
         enable_ip_banning=True,
         geo_ip_handler=MagicMock(spec=SyncGeoIPHandler),
@@ -384,7 +384,7 @@ def _full_mutation_rule(**extra: object) -> DynamicRules:
     )
 
 
-def _assert_config_matches_base_snapshot(config: SecurityConfig) -> None:
+def _assert_config_matches_base_snapshot(config: SyncSecurityConfig) -> None:
     base = _full_snapshot_base_kwargs()
     for field, value in base.items():
         assert getattr(config, field) == value, field
@@ -392,7 +392,7 @@ def _assert_config_matches_base_snapshot(config: SecurityConfig) -> None:
 
 def test_rollback_restores_every_snapshot_field_after_full_mutation() -> None:
     with pytest.warns(UserWarning, match="blocked_countries is ignored"):
-        config = SecurityConfig(
+        config = SyncSecurityConfig(
             geo_ip_handler=MagicMock(spec=SyncGeoIPHandler),
             **_full_snapshot_base_kwargs(),
         )
@@ -414,7 +414,7 @@ def test_rollback_restores_every_snapshot_field_after_full_mutation() -> None:
 
 def test_check_rule_expiry_restores_every_snapshot_field() -> None:
     with pytest.warns(UserWarning, match="blocked_countries is ignored"):
-        config = SecurityConfig(
+        config = SyncSecurityConfig(
             geo_ip_handler=MagicMock(spec=SyncGeoIPHandler),
             **_full_snapshot_base_kwargs(),
         )
@@ -436,7 +436,7 @@ def test_check_rule_expiry_restores_every_snapshot_field() -> None:
 
 
 def test_check_rule_expiry_naive_past_expiry_reverts_without_typeerror() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         geo_ip_handler=MagicMock(spec=SyncGeoIPHandler), auto_ban_threshold=5
     )
     manager = DynamicRuleManager(config)

@@ -1,6 +1,6 @@
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
 
 PUBLIC_DTD_PAYLOADS_FLAGGED = [
@@ -143,7 +143,9 @@ def test_public_dtd_payload_flagged_as_xml(payload: str) -> None:
 def test_public_dtd_payload_flagged_past_every_old_cap(
     gap1: int, gap2: int, gap3: int
 ) -> None:
-    sus_patterns_handler.configure(SecurityConfig(detection_max_content_length=30000))
+    sus_patterns_handler.configure(
+        SyncSecurityConfig(detection_max_content_length=30000)
+    )
     payload = _padded_public_dtd(gap1, gap2, gap3)
     result = sus_patterns_handler.detect(
         content=payload, ip_address="203.0.113.9", context="request_body"

@@ -1,4 +1,4 @@
-from guard_core.models import BehaviorRuleConfig, SecurityConfig
+from guard_core.models import BehaviorRuleConfig, SyncSecurityConfig
 from guard_core.sync.handlers.behavior_handler import (
     BehaviorRule,
     BehaviorTracker,
@@ -45,7 +45,7 @@ def test_config_to_rule_round_trip() -> None:
 
 
 def test_track_return_pattern_respects_effective_threshold() -> None:
-    tracker = BehaviorTracker(SecurityConfig())
+    tracker = BehaviorTracker(SyncSecurityConfig())
     rule = BehaviorRule(
         rule_type="return_pattern",
         threshold=10,
@@ -65,7 +65,7 @@ def test_track_return_pattern_respects_effective_threshold() -> None:
 
 
 def test_track_return_pattern_uses_rule_threshold_when_override_none() -> None:
-    tracker = BehaviorTracker(SecurityConfig())
+    tracker = BehaviorTracker(SyncSecurityConfig())
     rule = BehaviorRule(
         rule_type="return_pattern",
         threshold=2,

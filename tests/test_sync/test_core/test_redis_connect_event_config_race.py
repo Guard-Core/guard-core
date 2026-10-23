@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.redis_handler import redis_handler
 
 
@@ -18,8 +18,8 @@ class _RecordingAgentHandler:
 
 
 def test_connect_success_event_shows_connecting_configs_url() -> None:
-    config_a = SecurityConfig(redis_url="redis://config-a:6379")
-    config_b = SecurityConfig(redis_url="redis://config-b:6379")
+    config_a = SyncSecurityConfig(redis_url="redis://config-a:6379")
+    config_b = SyncSecurityConfig(redis_url="redis://config-b:6379")
     handler = redis_handler(config_a)
     agent_handler = _RecordingAgentHandler()
     handler.initialize_agent(agent_handler)
@@ -44,8 +44,8 @@ def test_connect_success_event_shows_connecting_configs_url() -> None:
 
 
 def test_connect_failure_event_shows_connecting_configs_url() -> None:
-    config_a = SecurityConfig(redis_url="redis://config-a:6379")
-    config_b = SecurityConfig(redis_url="redis://config-b:6379")
+    config_a = SyncSecurityConfig(redis_url="redis://config-a:6379")
+    config_b = SyncSecurityConfig(redis_url="redis://config-b:6379")
     handler = redis_handler(config_a)
     agent_handler = _RecordingAgentHandler()
     handler.initialize_agent(agent_handler)

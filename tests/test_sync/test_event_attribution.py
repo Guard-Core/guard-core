@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.models import DynamicRules, SyncSecurityConfig
 from guard_core.sync._utils import rule_attribution as attribution_view
 from guard_core.sync.core.checks.factory import build_default_pipeline
 from guard_core.sync.core.checks.implementations import (
@@ -52,7 +52,7 @@ def reset_singleton() -> Iterator[None]:
     DynamicRuleManager._instance = None
 
 
-def _config(**overrides: Any) -> SecurityConfig:
+def _config(**overrides: Any) -> SyncSecurityConfig:
     fields: dict[str, Any] = {
         "enable_redis": False,
         "enable_agent": True,
@@ -62,7 +62,7 @@ def _config(**overrides: Any) -> SecurityConfig:
         "enable_rate_limiting": False,
     }
     fields.update(overrides)
-    return SecurityConfig(**fields)
+    return SyncSecurityConfig(**fields)
 
 
 def _rules(**overrides: Any) -> DynamicRules:
@@ -76,7 +76,7 @@ def _rules(**overrides: Any) -> DynamicRules:
 
 
 def _apply(
-    config: SecurityConfig, rules: DynamicRules, applied: bool = True
+    config: SyncSecurityConfig, rules: DynamicRules, applied: bool = True
 ) -> DynamicRuleManager:
     ip_ban_manager.config = config
     manager = DynamicRuleManager(config)
@@ -90,13 +90,15 @@ def _apply(
 
 
 def _pipeline(
-    config: SecurityConfig, geo: Any = None
+    config: SyncSecurityConfig, geo: Any = None
 ) -> tuple[SecurityCheckPipeline, Any]:
     middleware = build_middleware(config, SecurityDecorator(config), geo)
     return build_default_pipeline(middleware), middleware
 
 
-def _run(config: SecurityConfig, request: SyncMockGuardRequest, geo: Any = None) -> Any:
+def _run(
+    config: SyncSecurityConfig, request: SyncMockGuardRequest, geo: Any = None
+) -> Any:
     pipeline, middleware = _pipeline(config, geo)
     pipeline.execute(request)
     return middleware
@@ -302,7 +304,7 @@ def test_a_static_user_agent_pattern_alone_carries_nothing() -> None:
 
 
 def _rate_limited_events(
-    config: SecurityConfig, path: str = "/api"
+    config: SyncSecurityConfig, path: str = "/api"
 ) -> tuple[Any, list[Any]]:
     pipeline, middleware = _pipeline(config)
     agent = _Agent()
@@ -525,12 +527,12 @@ def test_an_allowed_request_never_builds_the_view(
     assert reads == []
 
 
-def _detection_config(**overrides: Any) -> SecurityConfig:
+def _detection_config(**overrides: Any) -> SyncSecurityConfig:
     return _config(enable_penetration_detection=True, **overrides)
 
 
 def _detect(
-    config: SecurityConfig, request: SyncMockGuardRequest
+    config: SyncSecurityConfig, request: SyncMockGuardRequest
 ) -> tuple[Any, list[Any]]:
     pipeline, middleware = _pipeline(config)
     agent = _Agent()
@@ -846,14 +848,14 @@ def _count_view_reads(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     return reads
 
 
-def _real_bus(config: SecurityConfig, middleware: Any, agent: Any) -> None:
+def _real_bus(config: SyncSecurityConfig, middleware: Any, agent: Any) -> None:
     from guard_core.sync.core.events.middleware_events import SecurityEventBus
 
     middleware.event_bus = SecurityEventBus(agent, config)
 
 
 def _blocked_without_a_consumer(
-    config: SecurityConfig, request: SyncMockGuardRequest, geo: Any = None
+    config: SyncSecurityConfig, request: SyncMockGuardRequest, geo: Any = None
 ) -> Any:
     pipeline, middleware = _pipeline(config, geo)
     _real_bus(config, middleware, None)

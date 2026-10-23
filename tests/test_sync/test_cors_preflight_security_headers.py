@@ -1,6 +1,6 @@
 from typing import Any
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.cors_handler import CorsHandler
 
 ORIGIN = "https://app.example.com"
@@ -17,7 +17,7 @@ def _handler(**overrides: Any) -> CorsHandler:
         "cors_allow_origins": [ORIGIN],
     }
     fields.update(overrides)
-    return CorsHandler(SecurityConfig(**fields))
+    return CorsHandler(SyncSecurityConfig(**fields))
 
 
 def test_an_allowed_preflight_carries_the_security_headers() -> None:
@@ -64,7 +64,7 @@ def test_a_cors_header_is_never_replaced_by_a_security_header() -> None:
 
 
 def test_a_config_changed_after_construction_is_followed() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False, enable_cors=True, cors_allow_origins=[ORIGIN]
     )
     handler = CorsHandler(config)

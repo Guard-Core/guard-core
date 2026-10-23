@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils import detection_scan, scan_remainder
 from guard_core.sync.core.checks.implementations.suspicious_activity import (
     SuspiciousActivityCheck,
@@ -34,7 +34,7 @@ class _ClockThatRunsOutInTheRemainder:
 
 @pytest.fixture(autouse=True)
 def _force_enhanced_detection_singleton() -> None:
-    sus_patterns_handler.configure(SecurityConfig())
+    sus_patterns_handler.configure(SyncSecurityConfig())
 
 
 @pytest.fixture
@@ -53,7 +53,7 @@ def remainder_clock() -> Iterator[_ClockThatRunsOutInTheRemainder]:
         yield clock
 
 
-def _check(config: SecurityConfig) -> tuple[SuspiciousActivityCheck, MagicMock]:
+def _check(config: SyncSecurityConfig) -> tuple[SuspiciousActivityCheck, MagicMock]:
     middleware = MagicMock()
     middleware.config = config
     middleware.logger = logging.getLogger("test_scan_remainder_timeout")
@@ -77,7 +77,7 @@ def _request(params: dict[str, str]) -> SyncMockGuardRequest:
 
 @pytest.mark.usefixtures("remainder_clock")
 def test_a_clean_walk_then_a_remainder_timeout_is_not_a_pass() -> None:
-    config = SecurityConfig(detection_max_scan_seconds=0.5, fail_secure=True)
+    config = SyncSecurityConfig(detection_max_scan_seconds=0.5, fail_secure=True)
     result = detect_penetration_attempt(_request(_JUNK), config)
     assert result.is_threat is False
     assert result.body_read_error == "failed"
@@ -87,7 +87,7 @@ def test_a_clean_walk_then_a_remainder_timeout_is_not_a_pass() -> None:
 
 @pytest.mark.usefixtures("remainder_clock")
 def test_a_remainder_timeout_answers_400_with_an_event_and_no_strike() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         detection_max_scan_seconds=0.5, fail_secure=True, enable_redis=False
     )
     check, middleware = _check(config)
@@ -103,7 +103,7 @@ def test_a_remainder_timeout_answers_400_with_an_event_and_no_strike() -> None:
 
 
 def test_the_walks_own_timeout_keeps_the_weighted_threat_and_the_strike() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         detection_max_scan_seconds=0.5, fail_secure=True, enable_redis=False
     )
     clock = _ClockThatRunsOutInTheRemainder()

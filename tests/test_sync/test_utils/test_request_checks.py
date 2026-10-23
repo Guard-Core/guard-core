@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 from pytest_mock import MockerFixture
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.detection_engine.compiler import PatternCompiler
 from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
 from guard_core.sync.protocols.geo_ip_protocol import SyncGeoIPHandler
@@ -18,26 +18,28 @@ from guard_core.sync.utils import (
 )
 
 
-def test_is_ip_allowed(security_config: SecurityConfig, mocker: MockerFixture) -> None:
+def test_is_ip_allowed(
+    security_config: SyncSecurityConfig, mocker: MockerFixture
+) -> None:
     mocker.patch("guard_core.sync.utils.check_ip_country", return_value=False)
 
     assert is_ip_allowed("127.0.0.1", security_config)
     assert not is_ip_allowed("192.168.1.1", security_config)
 
-    empty_config = SecurityConfig(whitelist=[], blacklist=[])
+    empty_config = SyncSecurityConfig(whitelist=[], blacklist=[])
     assert is_ip_allowed("127.0.0.1", empty_config)
     assert is_ip_allowed("192.168.1.1", empty_config)
 
-    whitelist_config = SecurityConfig(whitelist=["127.0.0.1"])
+    whitelist_config = SyncSecurityConfig(whitelist=["127.0.0.1"])
     assert is_ip_allowed("127.0.0.1", whitelist_config)
     assert not is_ip_allowed("192.168.1.1", whitelist_config)
 
-    blacklist_config = SecurityConfig(blacklist=["192.168.1.1"])
+    blacklist_config = SyncSecurityConfig(blacklist=["192.168.1.1"])
     assert is_ip_allowed("127.0.0.1", blacklist_config)
     assert not is_ip_allowed("192.168.1.1", blacklist_config)
 
 
-def test_is_user_agent_allowed(security_config: SecurityConfig) -> None:
+def test_is_user_agent_allowed(security_config: SyncSecurityConfig) -> None:
     assert is_user_agent_allowed("goodbot", security_config)
     assert not is_user_agent_allowed("badbot", security_config)
 
@@ -55,7 +57,7 @@ def test_is_user_agent_allowed_uses_inline_safe_path() -> None:
         captured.append(inline_safe)
         return original(self, pattern, timeout=timeout, inline_safe=inline_safe)
 
-    config = SecurityConfig(blocked_user_agents=["badbot"])
+    config = SyncSecurityConfig(blocked_user_agents=["badbot"])
     with patch.object(PatternCompiler, "create_async_safe_finditer_matcher", _spy):
         result = is_user_agent_allowed("badbot/1.0", config)
 
@@ -69,7 +71,7 @@ def test_is_user_agent_allowed_caps_subject_length_before_matching() -> None:
     marker = "zzq_ua_length_cap_marker_zzq"
     beyond_cap = "a" * _MAX_USER_AGENT_MATCH_LENGTH + marker
     within_cap = marker + "a" * 10
-    config = SecurityConfig(blocked_user_agents=[marker])
+    config = SyncSecurityConfig(blocked_user_agents=[marker])
 
     assert is_user_agent_allowed(beyond_cap, config) is True
     assert is_user_agent_allowed(within_cap, config) is False
@@ -184,7 +186,7 @@ def test_get_ip_country(mocker: MockerFixture) -> None:
     mock_db.get_country.return_value = "US"
     mock_db.reader = True
 
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         blocked_countries=["CN"], geo_ip_handler=MagicMock(spec=SyncGeoIPHandler)
     )
 
@@ -197,7 +199,7 @@ def test_get_ip_country(mocker: MockerFixture) -> None:
 
 
 def test_is_ip_allowed_cloud_providers(
-    security_config: SecurityConfig, mocker: MockerFixture
+    security_config: SyncSecurityConfig, mocker: MockerFixture
 ) -> None:
     from guard_core.sync.handlers.cloud_handler import cloud_handler
 
@@ -208,7 +210,7 @@ def test_is_ip_allowed_cloud_providers(
         side_effect=lambda ip, *_: ip.startswith("13."),
     )
 
-    config = SecurityConfig(block_cloud_providers={"AWS"})
+    config = SyncSecurityConfig(block_cloud_providers={"AWS"})
 
     assert is_ip_allowed("127.0.0.1", config)
     assert not is_ip_allowed("13.59.255.255", config)
@@ -216,7 +218,7 @@ def test_is_ip_allowed_cloud_providers(
 
 
 def test_whitelisted_country(
-    security_config: SecurityConfig, mocker: MockerFixture
+    security_config: SyncSecurityConfig, mocker: MockerFixture
 ) -> None:
     mock_ipinfo = MagicMock(spec=SyncGeoIPHandler)
     mock_ipinfo.get_country.return_value = "US"
@@ -234,7 +236,7 @@ def test_whitelist_countries_blocks_non_member(
     mock_ipinfo = MagicMock(spec=SyncGeoIPHandler)
     mock_ipinfo.get_country.return_value = "FR"
 
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         whitelist_countries=["US", "CA"], geo_ip_handler=mock_ipinfo
     )
 
@@ -247,7 +249,7 @@ def test_whitelist_countries_blocks_unknown_country(
     mock_ipinfo = MagicMock(spec=SyncGeoIPHandler)
     mock_ipinfo.get_country.return_value = None
 
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         whitelist_countries=["US", "CA"], geo_ip_handler=mock_ipinfo
     )
 
@@ -261,7 +263,7 @@ def test_whitelist_countries_overrides_blocked_countries(
     mock_ipinfo.get_country.return_value = "US"
 
     with pytest.warns(UserWarning, match="blocked_countries is ignored"):
-        config = SecurityConfig(
+        config = SyncSecurityConfig(
             blocked_countries=["US"],
             whitelist_countries=["US"],
             geo_ip_handler=mock_ipinfo,
@@ -276,7 +278,7 @@ def test_whitelist_countries_alone_blocks_non_member_via_is_ip_allowed(
     mock_ipinfo = MagicMock(spec=SyncGeoIPHandler)
     mock_ipinfo.get_country.return_value = "DE"
 
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         whitelist_countries=["US", "CA"], geo_ip_handler=mock_ipinfo
     )
 
@@ -289,7 +291,7 @@ def test_whitelist_countries_alone_allows_member_via_is_ip_allowed(
     mock_ipinfo = MagicMock(spec=SyncGeoIPHandler)
     mock_ipinfo.get_country.return_value = "US"
 
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         whitelist_countries=["US", "CA"], geo_ip_handler=mock_ipinfo
     )
 
@@ -300,7 +302,7 @@ def test_loopback_ipv4_exempt_from_whitelist_countries() -> None:
     mock_ipinfo = MagicMock(spec=SyncGeoIPHandler)
     mock_ipinfo.get_country.return_value = None
 
-    config = SecurityConfig(whitelist_countries=["US"], geo_ip_handler=mock_ipinfo)
+    config = SyncSecurityConfig(whitelist_countries=["US"], geo_ip_handler=mock_ipinfo)
 
     assert not check_ip_country("127.0.0.1", config, mock_ipinfo)
     mock_ipinfo.get_country.assert_not_called()
@@ -310,7 +312,7 @@ def test_loopback_ipv6_exempt_from_whitelist_countries() -> None:
     mock_ipinfo = MagicMock(spec=SyncGeoIPHandler)
     mock_ipinfo.get_country.return_value = None
 
-    config = SecurityConfig(whitelist_countries=["US"], geo_ip_handler=mock_ipinfo)
+    config = SyncSecurityConfig(whitelist_countries=["US"], geo_ip_handler=mock_ipinfo)
 
     assert not check_ip_country("::1", config, mock_ipinfo)
     mock_ipinfo.get_country.assert_not_called()
@@ -320,14 +322,14 @@ def test_check_ip_country_non_ip_identity_is_not_treated_as_loopback() -> None:
     mock_ipinfo = MagicMock(spec=SyncGeoIPHandler)
     mock_ipinfo.get_country.return_value = "US"
 
-    config = SecurityConfig(whitelist_countries=["US"], geo_ip_handler=mock_ipinfo)
+    config = SyncSecurityConfig(whitelist_countries=["US"], geo_ip_handler=mock_ipinfo)
 
     assert not check_ip_country("unknown", config, mock_ipinfo)
     mock_ipinfo.get_country.assert_called_once_with("unknown")
 
 
 def test_cloud_provider_blocking(
-    security_config: SecurityConfig, mocker: MockerFixture
+    security_config: SyncSecurityConfig, mocker: MockerFixture
 ) -> None:
     mocker.patch(
         "guard_core.sync.handlers.cloud_handler.cloud_handler.is_cloud_ip",
@@ -346,7 +348,7 @@ def test_check_ip_access_skip_clouds_leaves_blocking_to_the_cloud_check(
 
     is_cloud_ip = mocker.patch.object(cloud_handler, "is_cloud_ip", return_value=True)
 
-    config = SecurityConfig(block_cloud_providers={"AWS"})
+    config = SyncSecurityConfig(block_cloud_providers={"AWS"})
 
     result = check_ip_access("13.59.255.255", config, skip_clouds=True)
 
@@ -362,7 +364,7 @@ def test_check_ip_access_country_block_names_country(
     mock_ipinfo = MagicMock(spec=SyncGeoIPHandler)
     mock_ipinfo.get_country.return_value = "RU"
 
-    config = SecurityConfig(blocked_countries=["RU"], geo_ip_handler=mock_ipinfo)
+    config = SyncSecurityConfig(blocked_countries=["RU"], geo_ip_handler=mock_ipinfo)
 
     result = check_ip_access("8.8.8.8", config, mock_ipinfo)
 
@@ -374,7 +376,7 @@ def test_check_ip_access_country_block_names_country(
 def test_check_ip_access_blocklist_block_keeps_existing_reason() -> None:
     from guard_core.sync.utils import check_ip_access
 
-    config = SecurityConfig(blacklist=["192.168.1.1"])
+    config = SyncSecurityConfig(blacklist=["192.168.1.1"])
 
     result = check_ip_access("192.168.1.1", config)
 
@@ -385,7 +387,7 @@ def test_check_ip_access_blocklist_block_keeps_existing_reason() -> None:
 def test_check_ip_access_whitelist_block_keeps_existing_reason() -> None:
     from guard_core.sync.utils import check_ip_access
 
-    config = SecurityConfig(whitelist=["10.0.0.1"])
+    config = SyncSecurityConfig(whitelist=["10.0.0.1"])
 
     result = check_ip_access("192.168.1.1", config)
 
@@ -396,7 +398,7 @@ def test_check_ip_access_whitelist_block_keeps_existing_reason() -> None:
 def test_check_ip_access_prefix_zero_whitelist_does_not_override_blacklist() -> None:
     from guard_core.sync.utils import check_ip_access
 
-    config = SecurityConfig(whitelist=["0.0.0.0/0"], blacklist=["1.2.3.4"])
+    config = SyncSecurityConfig(whitelist=["0.0.0.0/0"], blacklist=["1.2.3.4"])
 
     result = check_ip_access("1.2.3.4", config)
 
@@ -408,7 +410,7 @@ def test_check_ip_access_loopback_passes_whitelist_countries_without_geoip() -> 
     from guard_core.sync.utils import check_ip_access
 
     mock_ipinfo = MagicMock(spec=SyncGeoIPHandler)
-    config = SecurityConfig(whitelist_countries=["US"], geo_ip_handler=mock_ipinfo)
+    config = SyncSecurityConfig(whitelist_countries=["US"], geo_ip_handler=mock_ipinfo)
 
     result = check_ip_access("127.0.0.1", config, mock_ipinfo)
 
@@ -422,7 +424,7 @@ def test_check_ip_access_public_ip_with_no_country_stays_blocked() -> None:
     mock_ipinfo = MagicMock(spec=SyncGeoIPHandler)
     mock_ipinfo.get_country.return_value = None
 
-    config = SecurityConfig(whitelist_countries=["US"], geo_ip_handler=mock_ipinfo)
+    config = SyncSecurityConfig(whitelist_countries=["US"], geo_ip_handler=mock_ipinfo)
 
     result = check_ip_access("8.8.8.8", config, mock_ipinfo)
 
@@ -435,7 +437,7 @@ def test_check_ip_access_whitelisted_public_ip_with_no_country_passes() -> None:
     mock_ipinfo = MagicMock(spec=SyncGeoIPHandler)
     mock_ipinfo.get_country.return_value = None
 
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         whitelist=["8.8.8.8"],
         whitelist_countries=["US"],
         geo_ip_handler=mock_ipinfo,
@@ -453,7 +455,7 @@ def test_check_ip_access_non_whitelisted_ip_from_bad_country_stays_blocked() -> 
     mock_ipinfo = MagicMock(spec=SyncGeoIPHandler)
     mock_ipinfo.get_country.return_value = "FR"
 
-    config = SecurityConfig(whitelist_countries=["US"], geo_ip_handler=mock_ipinfo)
+    config = SyncSecurityConfig(whitelist_countries=["US"], geo_ip_handler=mock_ipinfo)
 
     result = check_ip_access("8.8.8.8", config, mock_ipinfo)
 
@@ -463,7 +465,7 @@ def test_check_ip_access_non_whitelisted_ip_from_bad_country_stays_blocked() -> 
 def test_check_ip_access_allowed_has_no_reason() -> None:
     from guard_core.sync.utils import check_ip_access
 
-    result = check_ip_access("8.8.8.8", SecurityConfig())
+    result = check_ip_access("8.8.8.8", SyncSecurityConfig())
 
     assert result.allowed is True
 
@@ -471,7 +473,7 @@ def test_check_ip_access_allowed_has_no_reason() -> None:
 def test_check_ip_access_unknown_identity_with_no_lists_is_allowed() -> None:
     from guard_core.sync.utils import check_ip_access
 
-    result = check_ip_access("unknown", SecurityConfig())
+    result = check_ip_access("unknown", SyncSecurityConfig())
 
     assert result.allowed is True
     assert result.reason == ""
@@ -480,7 +482,7 @@ def test_check_ip_access_unknown_identity_with_no_lists_is_allowed() -> None:
 def test_check_ip_access_unknown_identity_blacklist_only_allowed() -> None:
     from guard_core.sync.utils import check_ip_access
 
-    config = SecurityConfig(blacklist=["192.168.1.1"])
+    config = SyncSecurityConfig(blacklist=["192.168.1.1"])
 
     result = check_ip_access("unknown", config)
 
@@ -491,7 +493,7 @@ def test_check_ip_access_unknown_identity_blacklist_only_allowed() -> None:
 def test_check_ip_access_unknown_identity_with_whitelist_is_blocked() -> None:
     from guard_core.sync.utils import check_ip_access
 
-    config = SecurityConfig(whitelist=["10.0.0.1"])
+    config = SyncSecurityConfig(whitelist=["10.0.0.1"])
 
     result = check_ip_access("unknown", config)
 
@@ -503,7 +505,7 @@ def test_check_ip_access_unknown_identity_whitelist_countries_blocked() -> None:
     from guard_core.sync.utils import check_ip_access
 
     mock_ipinfo = MagicMock(spec=SyncGeoIPHandler)
-    config = SecurityConfig(whitelist_countries=["US"], geo_ip_handler=mock_ipinfo)
+    config = SyncSecurityConfig(whitelist_countries=["US"], geo_ip_handler=mock_ipinfo)
 
     result = check_ip_access("unknown", config)
 
@@ -517,7 +519,7 @@ def test_check_ip_access_unknown_identity_skips_country_and_cloud_checks(
     from guard_core.sync.utils import check_ip_access
 
     mock_ipinfo = MagicMock(spec=SyncGeoIPHandler)
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         blocked_countries=["RU"],
         block_cloud_providers={"AWS"},
         geo_ip_handler=mock_ipinfo,
@@ -537,7 +539,7 @@ def test_check_ip_access_unknown_identity_skips_country_and_cloud_checks(
 def test_check_ip_access_malformed_ip_string_is_still_blocked() -> None:
     from guard_core.sync.utils import check_ip_access
 
-    result = check_ip_access("not-an-ip", SecurityConfig())
+    result = check_ip_access("not-an-ip", SyncSecurityConfig())
 
     assert result.allowed is False
     assert result.reason == "IP not-an-ip not in global allowlist/blocklist"
@@ -580,7 +582,7 @@ def test_is_ip_allowed_regression_bool_outcomes_by_block_type(
     mocker.patch.object(
         cloud_handler, "is_cloud_ip", side_effect=lambda ip, *_: ip.startswith("13.")
     )
-    cloud_config = SecurityConfig(block_cloud_providers={"AWS"})
+    cloud_config = SyncSecurityConfig(block_cloud_providers={"AWS"})
     result = is_ip_allowed("13.59.255.255", cloud_config)
     assert result is False
     result = is_ip_allowed("8.8.8.8", cloud_config)
@@ -588,7 +590,7 @@ def test_is_ip_allowed_regression_bool_outcomes_by_block_type(
 
     mock_ipinfo = MagicMock(spec=SyncGeoIPHandler)
     mock_ipinfo.get_country.return_value = "RU"
-    country_config = SecurityConfig(
+    country_config = SyncSecurityConfig(
         blocked_countries=["RU"], geo_ip_handler=mock_ipinfo
     )
     result = is_ip_allowed("8.8.8.8", country_config, mock_ipinfo)
@@ -597,7 +599,7 @@ def test_is_ip_allowed_regression_bool_outcomes_by_block_type(
     result = is_ip_allowed("8.8.8.8", country_config, mock_ipinfo)
     assert result is True
 
-    blacklist_config = SecurityConfig(blacklist=["192.168.1.1"])
+    blacklist_config = SyncSecurityConfig(blacklist=["192.168.1.1"])
     result = is_ip_allowed("192.168.1.1", blacklist_config)
     assert result is False
     result = is_ip_allowed("10.0.0.1", blacklist_config)
@@ -610,7 +612,7 @@ def test_check_ip_country_not_initialized() -> None:
     mock_ipinfo.initialize = MagicMock()
     mock_ipinfo.get_country.return_value = "US"
 
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         blocked_countries=["CN"],
         geo_ip_handler=mock_ipinfo,
     )
@@ -621,7 +623,7 @@ def test_check_ip_country_not_initialized() -> None:
 
 
 def test_check_ip_country_no_country_found(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     mock_ipinfo = Mock()
     mock_ipinfo.reader = True
@@ -632,7 +634,7 @@ def test_check_ip_country_no_country_found(
 
 
 def test_check_ip_country_regression_returns_false_when_country_unresolvable(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     mock_ipinfo = Mock()
     mock_ipinfo.is_initialized = True
@@ -649,7 +651,7 @@ def test_check_ip_country_regression_returns_false_when_country_unresolvable(
 def test_check_ip_country_no_countries_configured(
     caplog: Any,
 ) -> None:
-    config = SecurityConfig(blocked_countries=[], whitelist_countries=[])
+    config = SyncSecurityConfig(blocked_countries=[], whitelist_countries=[])
 
     mock_ipinfo = Mock()
     mock_ipinfo.reader = True
@@ -663,7 +665,7 @@ def test_check_ip_country_no_countries_configured(
 
 
 def test_is_ip_allowed_cidr_blacklist() -> None:
-    config = SecurityConfig(blacklist=["192.168.1.0/24"], whitelist=[])
+    config = SyncSecurityConfig(blacklist=["192.168.1.0/24"], whitelist=[])
 
     assert not is_ip_allowed("192.168.1.100", config)
     assert not is_ip_allowed("192.168.1.1", config)
@@ -673,7 +675,7 @@ def test_is_ip_allowed_cidr_blacklist() -> None:
     assert is_ip_allowed("192.168.0.1", config)
     assert is_ip_allowed("10.0.0.1", config)
 
-    config_multiple = SecurityConfig(
+    config_multiple = SyncSecurityConfig(
         blacklist=["192.168.1.0/24", "10.0.0.0/8"],
         whitelist=[],
     )
@@ -684,7 +686,7 @@ def test_is_ip_allowed_cidr_blacklist() -> None:
 
 
 def test_is_ip_allowed_cidr_whitelist() -> None:
-    config = SecurityConfig(whitelist=["192.168.1.0/24"], blacklist=[])
+    config = SyncSecurityConfig(whitelist=["192.168.1.0/24"], blacklist=[])
 
     assert is_ip_allowed("192.168.1.100", config)
     assert is_ip_allowed("192.168.1.1", config)
@@ -694,7 +696,7 @@ def test_is_ip_allowed_cidr_whitelist() -> None:
     assert not is_ip_allowed("192.168.0.1", config)
     assert not is_ip_allowed("10.0.0.1", config)
 
-    config_multiple = SecurityConfig(
+    config_multiple = SyncSecurityConfig(
         whitelist=["192.168.1.0/24", "10.0.0.0/8"],
         blacklist=[],
     )
@@ -705,7 +707,7 @@ def test_is_ip_allowed_cidr_whitelist() -> None:
 
 
 def test_is_ip_allowed_invalid_ip(caplog: Any) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
 
     with caplog.at_level(logging.ERROR):
         result = is_ip_allowed("invalid-ip", config)
@@ -721,7 +723,7 @@ def test_is_ip_allowed_does_not_swallow_an_error_outside_the_geo_lookup(
     )
 
     with pytest.raises(RuntimeError, match="Unexpected error"):
-        is_ip_allowed("192.168.1.1", SecurityConfig())
+        is_ip_allowed("192.168.1.1", SyncSecurityConfig())
 
 
 def test_detect_penetration_attempt_body_error() -> None:
@@ -739,7 +741,7 @@ def test_detect_penetration_attempt_body_error() -> None:
 
 
 def test_is_ip_allowed_blocked_country(mocker: MockerFixture) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         blocked_countries=["CN"], geo_ip_handler=MagicMock(spec=SyncGeoIPHandler)
     )
 

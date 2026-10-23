@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, Mock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.core.checks.pipeline import SecurityCheckPipeline
@@ -42,7 +42,7 @@ def _raising_rebuild() -> list[SecurityCheck]:
 
 
 def test_execute_blocks_when_fail_secure_and_rebuild_raises() -> None:
-    config = SecurityConfig(fail_secure=True)
+    config = SyncSecurityConfig(fail_secure=True)
     middleware = _stub_middleware()
     check = _StubCheck(middleware, "route_config")
 
@@ -60,7 +60,7 @@ def test_execute_blocks_when_fail_secure_and_rebuild_raises() -> None:
 
 
 def test_execute_continues_on_last_known_good_checks_when_not_fail_secure() -> None:
-    config = SecurityConfig(fail_secure=False)
+    config = SyncSecurityConfig(fail_secure=False)
     middleware = _stub_middleware()
     check = _StubCheck(middleware, "route_config")
 
@@ -77,7 +77,7 @@ def test_execute_continues_on_last_known_good_checks_when_not_fail_secure() -> N
 
 
 def test_transient_rebuild_failure_recovers_on_a_later_request() -> None:
-    config = SecurityConfig(fail_secure=False)
+    config = SyncSecurityConfig(fail_secure=False)
     middleware = _stub_middleware()
     old_check = _StubCheck(middleware, "route_config")
     new_check = _StubCheck(middleware, "cloud_provider")
@@ -103,7 +103,7 @@ def test_transient_rebuild_failure_recovers_on_a_later_request() -> None:
 
 
 def test_execute_reraises_when_fail_secure_and_no_known_good_checks_exist() -> None:
-    config = SecurityConfig(fail_secure=True)
+    config = SyncSecurityConfig(fail_secure=True)
 
     pipeline = SecurityCheckPipeline([], config=config, rebuild_checks=_raising_rebuild)
     config.custom_log_file = "trigger-staleness.log"

@@ -2,13 +2,13 @@ from types import SimpleNamespace
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.events.enricher import EnrichmentContext, EventEnricher
 
 
 def _mk_context(**overrides: object) -> EnrichmentContext:
     defaults: dict[str, object] = {
-        "config": SecurityConfig(),
+        "config": SyncSecurityConfig(),
         "agent_handler": None,
         "dynamic_rule_handler": None,
         "behavior_tracker": None,
@@ -69,7 +69,7 @@ def test_enrich_event_catches_exceptions_from_late_strategy(
 
 
 def test_enrichment_context_stores_all_handles() -> None:
-    cfg = SecurityConfig()
+    cfg = SyncSecurityConfig()
     agent = object()
     rules = object()
     tracker = object()

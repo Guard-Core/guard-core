@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.events.metrics import MetricsCollector
 from guard_core.sync.core.responses.context import ResponseContext
 from guard_core.sync.core.responses.factory import ErrorResponseFactory
@@ -12,7 +12,7 @@ from tests.test_sync.conftest import MockGuardResponse, MockGuardResponseFactory
 
 
 def _factory(
-    config: SecurityConfig, agent: object | None = None
+    config: SyncSecurityConfig, agent: object | None = None
 ) -> ErrorResponseFactory:
     metrics = MagicMock(spec=MetricsCollector)
     metrics.collect_request_metrics = MagicMock()
@@ -27,8 +27,8 @@ def _factory(
     )
 
 
-def _config(**security_headers: object) -> SecurityConfig:
-    return SecurityConfig(
+def _config(**security_headers: object) -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         enable_redis=False, security_headers={"enabled": True, **security_headers}
     )
 

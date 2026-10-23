@@ -1,7 +1,7 @@
 import threading
 from unittest.mock import Mock
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.core.checks.pipeline import SecurityCheckPipeline
@@ -29,7 +29,7 @@ def _stub_middleware() -> Mock:
 
 
 def test_concurrent_rebuild_self_heals_a_lost_check() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_penetration_detection=False, enable_rate_limiting=False
     )
     middleware = _stub_middleware()

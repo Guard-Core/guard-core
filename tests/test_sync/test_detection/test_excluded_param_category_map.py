@@ -2,7 +2,7 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.decorators.base import RouteConfig
 from guard_core.sync.decorators.content_filtering import ContentFilteringMixin
 from guard_core.sync.utils import detect_penetration_attempt
@@ -14,7 +14,7 @@ XSS = "<script>alert(1)</script>"
 
 def _flagged(
     params: dict[str, str],
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     route_config: RouteConfig | None = None,
 ) -> bool:
     request = SyncMockGuardRequest(path="/s", query_params=params)
@@ -22,7 +22,7 @@ def _flagged(
 
 
 def test_a_plain_set_still_excludes_every_category() -> None:
-    config = SecurityConfig(excluded_detection_params={"q"})
+    config = SyncSecurityConfig(excluded_detection_params={"q"})
 
     assert _flagged({"q": SQLI}, config) is False
     assert _flagged({"q": XSS}, config) is False
@@ -30,7 +30,7 @@ def test_a_plain_set_still_excludes_every_category() -> None:
 
 
 def test_a_category_map_excludes_only_the_listed_categories_of_that_param() -> None:
-    config = SecurityConfig(excluded_detection_params={"q": {"sqli"}})
+    config = SyncSecurityConfig(excluded_detection_params={"q": {"sqli"}})
 
     assert _flagged({"q": SQLI}, config) is False
     assert _flagged({"q": XSS}, config) is True
@@ -38,7 +38,7 @@ def test_a_category_map_excludes_only_the_listed_categories_of_that_param() -> N
 
 
 def test_a_category_map_may_list_several_categories_and_ignores_name_case() -> None:
-    config = SecurityConfig(excluded_detection_params={"Q": ["sqli", "xss"]})
+    config = SyncSecurityConfig(excluded_detection_params={"Q": ["sqli", "xss"]})
 
     assert _flagged({"q": SQLI}, config) is False
     assert _flagged({"q": XSS}, config) is False
@@ -46,14 +46,14 @@ def test_a_category_map_may_list_several_categories_and_ignores_name_case() -> N
 
 
 def test_the_name_of_the_param_is_scanned_with_the_same_categories() -> None:
-    config = SecurityConfig(excluded_detection_params={SQLI: {"sqli"}})
+    config = SyncSecurityConfig(excluded_detection_params={SQLI: {"sqli"}})
 
     assert _flagged({SQLI: "ok"}, config) is False
     assert _flagged({XSS: "ok"}, config) is True
 
 
 def test_a_route_category_map_replaces_the_global_one() -> None:
-    config = SecurityConfig(excluded_detection_params={"q": {"sqli"}})
+    config = SyncSecurityConfig(excluded_detection_params={"q": {"sqli"}})
     route_config = RouteConfig()
     route_config.excluded_detection_params = {"q": {"xss"}}
 
@@ -102,20 +102,20 @@ def test_the_decorator_rejects_an_unknown_category() -> None:
 )
 def test_the_config_rejects_a_bad_param_exclusion(value: Any, message: str) -> None:
     with pytest.raises(ValueError, match=message):
-        SecurityConfig(excluded_detection_params=value)
+        SyncSecurityConfig(excluded_detection_params=value)
 
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     with pytest.raises(ValueError, match=message):
         config.excluded_detection_params = value
 
 
 def test_the_config_keeps_the_shape_it_was_given() -> None:
-    assert SecurityConfig(
+    assert SyncSecurityConfig(
         excluded_detection_params=["a", "b"]
     ).excluded_detection_params == {
         "a",
         "b",
     }
-    assert SecurityConfig(
+    assert SyncSecurityConfig(
         excluded_detection_params={"q": ["sqli"]}
     ).excluded_detection_params == {"q": {"sqli"}}

@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.implementations import emergency_mode
 from guard_core.sync.core.checks.implementations.emergency_mode import (
     EmergencyModeCheck,
@@ -17,7 +17,7 @@ _BLOCKED = "203.0.113.9"
 
 def _check(**config: Any) -> tuple[EmergencyModeCheck, MagicMock]:
     middleware = MagicMock()
-    middleware.config = SecurityConfig(
+    middleware.config = SyncSecurityConfig(
         enable_redis=False,
         emergency_mode=True,
         emergency_whitelist=[_ALLOWED],

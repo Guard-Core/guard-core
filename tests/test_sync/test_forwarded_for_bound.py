@@ -6,7 +6,7 @@ from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils import ip_extraction
 from guard_core.sync._utils.ip_extraction import (
     MAX_INSPECTED_FORWARDED_ENTRIES,
@@ -74,7 +74,7 @@ def old_claims(config: Any, forwarded_for: str, route_whitelist: Any) -> bool:
 
 
 def _check() -> Any:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False, trusted_proxies=PROXIES, whitelist=WHITELIST
     )
     return SimpleNamespace(config=config)
@@ -147,7 +147,7 @@ def test_a_claim_past_the_bound_is_never_inspected() -> None:
 def test_the_spoof_message_and_event_name_the_truncation() -> None:
     agent = MagicMock()
     agent.send_event = MagicMock()
-    config = SecurityConfig(enable_redis=False, trusted_proxies=["10.0.0.5"])
+    config = SyncSecurityConfig(enable_redis=False, trusted_proxies=["10.0.0.5"])
     request = SyncMockGuardRequest(
         client_host="198.51.100.9", headers={"X-Forwarded-For": LONG}
     )

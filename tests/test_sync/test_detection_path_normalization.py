@@ -2,7 +2,7 @@ from collections.abc import Generator
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.suspatterns_handler import SusPatternsManager
 from guard_core.sync.utils import detect_penetration_attempt
 from tests.test_sync.conftest import SyncMockGuardRequest
@@ -20,7 +20,7 @@ def _reset_suspatterns_singleton() -> Generator[None, None]:
 
 
 def _is_threat(path: str) -> bool:
-    config = SecurityConfig(enable_redis=False, enable_penetration_detection=True)
+    config = SyncSecurityConfig(enable_redis=False, enable_penetration_detection=True)
     result = detect_penetration_attempt(SyncMockGuardRequest(path=path), config)
     return result.is_threat
 

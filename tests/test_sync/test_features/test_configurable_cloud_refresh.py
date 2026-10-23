@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from pydantic import ValidationError
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.cloud_handler import cloud_handler
 
 
@@ -21,29 +21,29 @@ def reset_cloud_handler() -> None:
 
 
 def test_config_default_value() -> None:
-    config = SecurityConfig(enable_redis=False)
+    config = SyncSecurityConfig(enable_redis=False)
     assert config.cloud_ip_refresh_interval == 3600
 
 
 def test_config_custom_value() -> None:
-    config = SecurityConfig(enable_redis=False, cloud_ip_refresh_interval=120)
+    config = SyncSecurityConfig(enable_redis=False, cloud_ip_refresh_interval=120)
     assert config.cloud_ip_refresh_interval == 120
 
 
 def test_config_rejects_below_minimum() -> None:
     with pytest.raises(ValidationError, match="greater than or equal to 60"):
-        SecurityConfig(enable_redis=False, cloud_ip_refresh_interval=30)
+        SyncSecurityConfig(enable_redis=False, cloud_ip_refresh_interval=30)
 
 
 def test_config_rejects_above_maximum() -> None:
     with pytest.raises(ValidationError, match="less than or equal to 86400"):
-        SecurityConfig(enable_redis=False, cloud_ip_refresh_interval=100000)
+        SyncSecurityConfig(enable_redis=False, cloud_ip_refresh_interval=100000)
 
 
 def test_config_accepts_boundary_values() -> None:
-    low = SecurityConfig(enable_redis=False, cloud_ip_refresh_interval=60)
+    low = SyncSecurityConfig(enable_redis=False, cloud_ip_refresh_interval=60)
     assert low.cloud_ip_refresh_interval == 60
-    high = SecurityConfig(enable_redis=False, cloud_ip_refresh_interval=86400)
+    high = SyncSecurityConfig(enable_redis=False, cloud_ip_refresh_interval=86400)
     assert high.cloud_ip_refresh_interval == 86400
 
 
@@ -52,7 +52,7 @@ def test_cloud_ip_refresh_check_uses_config_value() -> None:
         CloudIpRefreshCheck,
     )
 
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False,
         block_cloud_providers={"AWS"},
         cloud_ip_refresh_interval=120,
@@ -79,7 +79,7 @@ def test_cloud_ip_refresh_check_skips_within_interval() -> None:
         CloudIpRefreshCheck,
     )
 
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False,
         block_cloud_providers={"AWS"},
         cloud_ip_refresh_interval=120,

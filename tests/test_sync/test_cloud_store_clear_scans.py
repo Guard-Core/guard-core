@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 from redis import Redis
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.cloud_ip_stores import RedisCloudIpStore
 from guard_core.sync.handlers.redis_handler import RedisManager
 from tests.test_sync.conftest import REDIS_URL
@@ -42,7 +42,7 @@ def test_the_redis_cloud_store_clear_lists_its_keys_with_scan(
     conn: Redis, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     manager = RedisManager(
-        SecurityConfig(enable_redis=True, redis_url=REDIS_URL, redis_prefix=PREFIX)
+        SyncSecurityConfig(enable_redis=True, redis_url=REDIS_URL, redis_prefix=PREFIX)
     )
 
     @contextmanager

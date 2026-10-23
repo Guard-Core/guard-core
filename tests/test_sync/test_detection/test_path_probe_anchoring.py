@@ -1,6 +1,6 @@
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.utils import detect_penetration_attempt
 from tests.test_sync.conftest import SyncMockGuardRequest, declare_route
 
@@ -104,7 +104,7 @@ def _flagged(path: str, route: str | None = None) -> bool:
     request = SyncMockGuardRequest(path=path)
     if route is not None:
         declare_route(request, route)
-    result = detect_penetration_attempt(request, SecurityConfig())
+    result = detect_penetration_attempt(request, SyncSecurityConfig())
     return result.is_threat
 
 

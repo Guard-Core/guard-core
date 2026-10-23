@@ -4,7 +4,7 @@ from urllib.parse import urlencode
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils.body_content_scan import _redact_sensitive_json
 from guard_core.sync._utils.detection_scan import _json_depth_cap_value
 from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
@@ -22,7 +22,7 @@ _SQLI_PAYLOAD = "' OR 1=1--"
 
 @pytest.fixture(autouse=True)
 def _force_enhanced_detection_singleton() -> None:
-    sus_patterns_handler.configure(SecurityConfig())
+    sus_patterns_handler.configure(SyncSecurityConfig())
 
 
 def _detection_lines(caplog: pytest.LogCaptureFixture) -> list[str]:
@@ -91,7 +91,7 @@ def _nested_wrapper_body(depth: int, wrapper_key: str, leaf: dict) -> bytes:
 def test_default_sensitive_query_param_value_redacted(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     request = SyncMockGuardRequest(
         query_params={"token": "SECRET-Q <script>alert(1)</script>"},
     )
@@ -110,7 +110,7 @@ def test_default_sensitive_query_param_value_redacted(
 def test_custom_sensitive_query_param_value_redacted(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(log_sensitive_params={"sig"})
+    config = SyncSecurityConfig(log_sensitive_params={"sig"})
     request = SyncMockGuardRequest(
         query_params={"sig": "SECRET-SIG <script>alert(1)</script>"},
     )
@@ -129,7 +129,7 @@ def test_custom_sensitive_query_param_value_redacted(
 def test_non_sensitive_query_param_value_still_logged_verbatim(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(log_sensitive_params={"sig"})
+    config = SyncSecurityConfig(log_sensitive_params={"sig"})
     request = SyncMockGuardRequest(query_params={"q": "<script>alert(1)</script>"})
 
     with caplog.at_level(logging.WARNING, logger="guard_core"):
@@ -142,7 +142,7 @@ def test_non_sensitive_query_param_value_still_logged_verbatim(
 def test_query_param_name_scan_unaffected_by_sensitive_params(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(log_sensitive_params={"token"})
+    config = SyncSecurityConfig(log_sensitive_params={"token"})
     request = SyncMockGuardRequest(
         query_params={"<script>alert(1)</script>": "benign"},
     )
@@ -157,7 +157,9 @@ def test_query_param_name_scan_unaffected_by_sensitive_params(
 def test_sensitive_query_param_with_log_suspicious_level_none_emits_no_line(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(log_sensitive_params={"token"}, log_suspicious_level=None)
+    config = SyncSecurityConfig(
+        log_sensitive_params={"token"}, log_suspicious_level=None
+    )
     request = SyncMockGuardRequest(
         query_params={"token": "SECRET-Q3 <script>alert(1)</script>"},
     )
@@ -189,7 +191,7 @@ def test_config_none_uses_default_sensitive_query_param_set(
 def test_non_sensitive_query_param_embedded_json_sensitive_field_redacted(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     body = json.dumps({"password": _SQLI_PAYLOAD, "note": "benign"})
     request = SyncMockGuardRequest(query_params={"data": body})
 
@@ -206,7 +208,7 @@ def test_non_sensitive_query_param_embedded_json_sensitive_field_redacted(
 def test_non_sensitive_query_param_embedded_json_sibling_secret_stays_redacted(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     secret = "PASSWORD-SIBLING-SECRET-Q"
     body = json.dumps({"password": secret, "note": _SQLI_PAYLOAD})
     request = SyncMockGuardRequest(query_params={"data": body})
@@ -225,7 +227,7 @@ def test_non_sensitive_query_param_embedded_json_sibling_secret_stays_redacted(
 def test_non_sensitive_query_param_embedded_json_custom_sensitive_field_redacted(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(log_sensitive_body_fields={"custom_secret"})
+    config = SyncSecurityConfig(log_sensitive_body_fields={"custom_secret"})
     body = json.dumps({"custom_secret": _SQLI_PAYLOAD, "note": "benign"})
     request = SyncMockGuardRequest(query_params={"data": body})
 
@@ -242,7 +244,7 @@ def test_non_sensitive_query_param_embedded_json_custom_sensitive_field_redacted
 def test_json_top_level_key_password_value_redacted(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     body = json.dumps({"password": "SECRET-JSON <script>alert(1)</script>"}).encode()
 
     with caplog.at_level(logging.WARNING, logger="guard_core"):
@@ -259,7 +261,7 @@ def test_json_top_level_key_password_value_redacted(
 def test_json_nested_key_at_depth_two_value_redacted(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     body = json.dumps(
         {"user": {"password": "SECRET-NESTED <script>alert(1)</script>"}}
     ).encode()
@@ -278,7 +280,7 @@ def test_json_nested_key_at_depth_two_value_redacted(
 def test_json_sensitive_key_wraps_object_nested_nonsensitive_leaf_redacted(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     body = json.dumps(
         {"password": {"inner": "SECRET-BODY-OBJVAL <script>alert(1)</script>"}}
     ).encode()
@@ -297,7 +299,7 @@ def test_json_sensitive_key_wraps_object_nested_nonsensitive_leaf_redacted(
 def test_json_sensitive_key_wraps_array_of_objects_nested_leaf_redacted(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     body = json.dumps(
         {"password": [{"inner": "SECRET-BODY-ARRVAL <script>alert(1)</script>"}]}
     ).encode()
@@ -315,7 +317,7 @@ def test_json_sensitive_key_wraps_array_of_objects_nested_leaf_redacted(
 def test_capped_json_subtree_label_redacted_when_sensitive(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(log_sensitive_body_fields={"a"})
+    config = SyncSecurityConfig(log_sensitive_body_fields={"a"})
     body = _nested_json_body(40, "a", _SQLI_PAYLOAD)
 
     with caplog.at_level(logging.WARNING, logger="guard_core"):
@@ -332,7 +334,7 @@ def test_capped_json_subtree_label_redacted_when_sensitive(
 def test_capped_json_subtree_password_leaf_under_nonsensitive_wrapper_redacted(
     caplog: pytest.LogCaptureFixture, depth_offset: int
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     depth = _json_depth_cap_value() + depth_offset
     body = _nested_wrapper_body(depth, "wrapper", {"password": _SQLI_PAYLOAD})
 
@@ -349,7 +351,7 @@ def test_capped_json_subtree_password_leaf_under_nonsensitive_wrapper_redacted(
 def test_capped_json_subtree_without_sensitive_key_logs_raw_serialization(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     depth = _json_depth_cap_value()
     body = _nested_wrapper_body(depth, "wrapper", {"comment": _SQLI_PAYLOAD})
 
@@ -366,7 +368,7 @@ def test_capped_json_subtree_without_sensitive_key_logs_raw_serialization(
 def test_capped_json_subtree_sensitive_key_inside_list_redacted(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     depth = _json_depth_cap_value()
     body = _nested_wrapper_body(
         depth, "wrapper", {"items": [{"password": _SQLI_PAYLOAD}]}
@@ -385,7 +387,7 @@ def test_capped_json_subtree_sensitive_key_inside_list_redacted(
 def test_capped_json_subtree_custom_sensitive_field_name_redacted(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(log_sensitive_body_fields={"ssn"})
+    config = SyncSecurityConfig(log_sensitive_body_fields={"ssn"})
     depth = _json_depth_cap_value()
     body = _nested_wrapper_body(depth, "wrapper", {"ssn": _SQLI_PAYLOAD})
 
@@ -402,7 +404,7 @@ def test_capped_json_subtree_custom_sensitive_field_name_redacted(
 def test_capped_json_subtree_trigger_info_unchanged_by_redaction(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     depth = _json_depth_cap_value()
     body = _nested_wrapper_body(depth, "wrapper", {"password": _SQLI_PAYLOAD})
 
@@ -418,7 +420,7 @@ def test_capped_json_subtree_trigger_info_unchanged_by_redaction(
 def test_form_field_password_value_redacted(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     body = urlencode({"password": "SECRET-FORM <script>alert(1)</script>"}).encode()
 
     with caplog.at_level(logging.WARNING, logger="guard_core"):
@@ -435,7 +437,7 @@ def test_form_field_password_value_redacted(
 def test_multipart_text_part_secret_value_redacted(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     body = _text_field_body("secret", "SECRET-MP <script>alert(1)</script>")
 
     with caplog.at_level(logging.WARNING, logger="guard_core"):
@@ -452,7 +454,7 @@ def test_multipart_text_part_secret_value_redacted(
 def test_non_sensitive_body_field_still_logged_verbatim(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     body = json.dumps({"comment": "<script>alert(1)</script>"}).encode()
 
     with caplog.at_level(logging.WARNING, logger="guard_core"):
@@ -465,7 +467,7 @@ def test_non_sensitive_body_field_still_logged_verbatim(
 def test_blob_body_value_unaffected_by_sensitive_body_fields(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(log_sensitive_body_fields={"password"})
+    config = SyncSecurityConfig(log_sensitive_body_fields={"password"})
     body = b"<script>alert(1)</script>"
     request = SyncMockGuardRequest(
         method="POST",
@@ -487,7 +489,7 @@ def test_blob_body_value_unaffected_by_sensitive_body_fields(
 def test_sensitive_body_field_with_log_suspicious_level_none_emits_no_line(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(log_suspicious_level=None)
+    config = SyncSecurityConfig(log_suspicious_level=None)
     body = json.dumps({"password": "SECRET-NONE <script>alert(1)</script>"}).encode()
 
     with caplog.at_level(logging.WARNING, logger="guard_core"):
@@ -517,7 +519,7 @@ def test_resolve_sensitive_log_params_config_none_returns_default() -> None:
 
 
 def test_resolve_sensitive_log_params_with_config_extras() -> None:
-    config = SecurityConfig(log_sensitive_params={"sig"})
+    config = SyncSecurityConfig(log_sensitive_params={"sig"})
     result = _resolve_sensitive_log_params(config)
     assert result == _DEFAULT_SENSITIVE_LOG_FIELDS | {"sig"}
 
@@ -527,7 +529,7 @@ def test_resolve_sensitive_log_body_fields_config_none_returns_default() -> None
 
 
 def test_resolve_sensitive_log_body_fields_with_config_extras() -> None:
-    config = SecurityConfig(log_sensitive_body_fields={"ssn"})
+    config = SyncSecurityConfig(log_sensitive_body_fields={"ssn"})
     result = _resolve_sensitive_log_body_fields(config)
     assert result == _DEFAULT_SENSITIVE_LOG_FIELDS | {"ssn"}
 

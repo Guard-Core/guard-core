@@ -1,6 +1,6 @@
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers._suspatterns_shell_validators import (
     _shell_token_is_command_with_arguments_or_known,
 )
@@ -24,7 +24,7 @@ def _categories(value: str, surface: str = "query") -> list[str] | None:
             },
             body_content=raw,
         )
-    result = detect_penetration_attempt(request, SecurityConfig(enable_redis=False))
+    result = detect_penetration_attempt(request, SyncSecurityConfig(enable_redis=False))
     return sorted(result.threat_categories) if result.is_threat else None
 
 

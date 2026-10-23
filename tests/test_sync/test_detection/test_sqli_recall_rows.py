@@ -1,6 +1,6 @@
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers._suspatterns_pattern_table import _PATTERN_DEFINITIONS
 from guard_core.sync.handlers.suspatterns_handler import (
     _BUILTIN_PATTERN_COMPILE_FLAGS,
@@ -38,12 +38,12 @@ BENIGN = [
 
 @pytest.fixture(autouse=True)
 def _force_enhanced_detection_singleton() -> None:
-    sus_patterns_handler.configure(SecurityConfig())
+    sus_patterns_handler.configure(SyncSecurityConfig())
 
 
 def _flagged(value: str) -> bool:
     request = SyncMockGuardRequest(path="/search", query_params={"q": value})
-    return (detect_penetration_attempt(request, SecurityConfig())).is_threat
+    return (detect_penetration_attempt(request, SyncSecurityConfig())).is_threat
 
 
 @pytest.mark.parametrize("value", ATTACKS)

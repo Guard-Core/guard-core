@@ -1,7 +1,7 @@
 from collections.abc import Mapping
 from typing import Any
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.helpers import _resolve_and_apply_threshold_ban
 
 
@@ -16,8 +16,8 @@ class _Bans:
         return duration
 
 
-def _config() -> SecurityConfig:
-    return SecurityConfig(
+def _config() -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         enable_redis=False, auto_ban_threshold=10, auto_ban_duration=3600
     )
 

@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from guard_core._dynamic_rules import content_fingerprint
-from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.models import DynamicRules, SyncSecurityConfig
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
 
 
@@ -31,8 +31,8 @@ def _rules(**overrides: Any) -> DynamicRules:
     return DynamicRules(**base)
 
 
-def _manager() -> tuple[DynamicRuleManager, SecurityConfig, MagicMock]:
-    config = SecurityConfig(
+def _manager() -> tuple[DynamicRuleManager, SyncSecurityConfig, MagicMock]:
+    config = SyncSecurityConfig(
         enable_redis=False,
         enable_agent=True,
         agent_api_key="test-api-key",

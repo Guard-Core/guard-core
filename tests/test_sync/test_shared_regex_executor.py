@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.detection_engine import compiler as compiler_module
 from guard_core.sync.detection_engine.compiler import (
     PatternCompiler,
@@ -129,7 +129,7 @@ def fresh_manager() -> Any:
 
     SusPatternsManager._instance = None
     manager = SusPatternsManager()
-    manager.configure(SecurityConfig())
+    manager.configure(SyncSecurityConfig())
     yield manager
 
     SusPatternsManager._instance = saved_instance
@@ -204,7 +204,7 @@ def test_custom_category_uses_safe_finditer_matcher(
 def test_pattern_timeout_on_custom_category_is_reported_as_a_threat(
     fresh_manager: Any,
 ) -> None:
-    fresh_manager.configure(SecurityConfig(detection_compiler_timeout=0.1))
+    fresh_manager.configure(SyncSecurityConfig(detection_compiler_timeout=0.1))
     slow_pattern = re.compile(r"(a+)+$")
     fresh_manager.compiled_custom_patterns.add((slow_pattern, _CTX_ALL, "custom"))
 
@@ -224,7 +224,7 @@ def test_pattern_timeout_on_custom_category_is_reported_as_a_threat(
 def test_normal_input_stays_clean_after_the_timeout_fix(
     fresh_manager: Any,
 ) -> None:
-    fresh_manager.configure(SecurityConfig(detection_compiler_timeout=0.1))
+    fresh_manager.configure(SyncSecurityConfig(detection_compiler_timeout=0.1))
     slow_pattern = re.compile(r"(a+)+$")
     fresh_manager.compiled_custom_patterns.add((slow_pattern, _CTX_ALL, "custom"))
 

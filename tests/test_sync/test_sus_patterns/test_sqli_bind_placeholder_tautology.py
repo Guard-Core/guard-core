@@ -5,7 +5,7 @@ from urllib.parse import urlencode
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.suspatterns_handler import (
     _SQLI_TAUTOLOGY_RE,
     sus_patterns_handler,
@@ -13,7 +13,7 @@ from guard_core.sync.handlers.suspatterns_handler import (
 from guard_core.sync.utils import detect_penetration_attempt
 from tests.test_sync.conftest import SyncMockGuardRequest
 
-_CONFIG = SecurityConfig()
+_CONFIG = SyncSecurityConfig()
 
 _SIBLING_QUOTE_OR_BIND_RE = (
     r"(?i)('\s*(?:OR|AND)\s*[\(\s]*'?(?:[@:$][A-Za-z_]\w*|[\d\w]+)\s*"
@@ -27,7 +27,7 @@ _SIBLING_QUOTED_EQUALS_RE = (
 
 @pytest.fixture(autouse=True)
 def _force_enhanced_detection_singleton() -> None:
-    sus_patterns_handler.configure(SecurityConfig())
+    sus_patterns_handler.configure(SyncSecurityConfig())
 
 
 def _text_body_request(body: bytes) -> SyncMockGuardRequest:

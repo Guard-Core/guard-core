@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.models import DynamicRules, SyncSecurityConfig
 from guard_core.sync.detection_engine.compiler import PatternCompiler
 from guard_core.sync.handlers._dynamic_rule_plan import DynamicRulePlan
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
@@ -35,7 +35,7 @@ def _manager(geo: bool = True, **config_kwargs: Any) -> DynamicRuleManager:
     if geo:
         settings["geo_ip_handler"] = MagicMock(spec=SyncGeoIPHandler)
     settings.update(config_kwargs)
-    return DynamicRuleManager(SecurityConfig(**settings))
+    return DynamicRuleManager(SyncSecurityConfig(**settings))
 
 
 def _plan(manager: DynamicRuleManager, rules: DynamicRules) -> DynamicRulePlan:

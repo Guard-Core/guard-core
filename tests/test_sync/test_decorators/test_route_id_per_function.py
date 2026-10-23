@@ -2,7 +2,7 @@ import functools
 from collections.abc import Callable
 from typing import Any
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.decorators import SecurityDecorator, get_route_decorator_config
 from tests.test_sync.conftest import SyncMockGuardRequest
 
@@ -17,7 +17,7 @@ def _endpoint_from_factory(*guard_decorators: Callable[..., Any]) -> Any:
 
 
 def test_endpoints_built_by_one_factory_keep_their_own_rate_limit(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     guard = SecurityDecorator(security_config)
     strict = _endpoint_from_factory(guard.rate_limit(requests=2, window=60))
@@ -39,7 +39,7 @@ def test_endpoints_built_by_one_factory_keep_their_own_rate_limit(
 
 
 def test_settings_of_one_factory_built_endpoint_do_not_reach_another(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     guard = SecurityDecorator(security_config)
     admin = _endpoint_from_factory(guard.require_ip(whitelist=["10.0.0.1"]))
@@ -54,7 +54,7 @@ def test_settings_of_one_factory_built_endpoint_do_not_reach_another(
 
 
 def test_the_first_endpoint_keeps_the_module_qualname_route_id(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     guard = SecurityDecorator(security_config)
     first = _endpoint_from_factory(guard.rate_limit(requests=2, window=60))
@@ -69,7 +69,7 @@ def test_the_first_endpoint_keeps_the_module_qualname_route_id(
 
 
 def test_stacked_decorators_on_one_endpoint_share_one_route_config(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     guard = SecurityDecorator(security_config)
     endpoint = _endpoint_from_factory(
@@ -85,7 +85,7 @@ def test_stacked_decorators_on_one_endpoint_share_one_route_config(
 
 
 def test_a_functools_wraps_wrapper_joins_the_route_config_it_wraps(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     guard = SecurityDecorator(security_config)
     inner = _endpoint_from_factory(guard.require_ip(whitelist=["10.0.0.1"]))
@@ -105,7 +105,7 @@ def test_a_functools_wraps_wrapper_joins_the_route_config_it_wraps(
 
 
 def test_a_stamped_route_id_is_not_reused_across_decorator_instances(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     guard_a = SecurityDecorator(security_config)
     guard_b = SecurityDecorator(security_config)

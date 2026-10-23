@@ -3,12 +3,12 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.decorators import SecurityDecorator
 
 
 def _decorator() -> SecurityDecorator:
-    return SecurityDecorator(SecurityConfig(enable_redis=False))
+    return SecurityDecorator(SyncSecurityConfig(enable_redis=False))
 
 
 def test_require_auth_after_presence_only_raises_and_changes_nothing() -> None:

@@ -2,7 +2,7 @@ import logging
 from typing import Any
 from unittest.mock import MagicMock
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.factory import build_default_pipeline
 from guard_core.sync.core.routing.context import RoutingContext
 from guard_core.sync.core.routing.resolver import RouteConfigResolver
@@ -88,17 +88,17 @@ class _SingleUseChunkedRequest:
         return {}
 
 
-def _config(**overrides: Any) -> SecurityConfig:
+def _config(**overrides: Any) -> SyncSecurityConfig:
     fields: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": True,
         "enable_ip_banning": False,
     }
     fields.update(overrides)
-    return SecurityConfig(**fields)
+    return SyncSecurityConfig(**fields)
 
 
-def _build_middleware(config: SecurityConfig, decorator: Any) -> MagicMock:
+def _build_middleware(config: SyncSecurityConfig, decorator: Any) -> MagicMock:
     middleware = MagicMock()
     middleware.config = config
     middleware.logger = _LOGGER
@@ -120,7 +120,7 @@ def _build_middleware(config: SecurityConfig, decorator: Any) -> MagicMock:
     return middleware
 
 
-def _honeypot_route(config: SecurityConfig) -> tuple[SecurityDecorator, str]:
+def _honeypot_route(config: SyncSecurityConfig) -> tuple[SecurityDecorator, str]:
     decorator = SecurityDecorator(config)
 
     def sample_endpoint() -> str:

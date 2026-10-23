@@ -10,7 +10,7 @@ from urllib.parse import quote, quote_plus
 import pytest
 from pytest_mock import MockerFixture
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils.logging_utils import _redact_sensitive_json
 from guard_core.sync._utils.request_logging import (
     _dispatch_block_hook,
@@ -63,31 +63,33 @@ def _restore_logger_state() -> Iterator[None]:
     root_logger.setLevel(original_root_level)
 
 
-def test_is_ip_allowed(security_config: SecurityConfig, mocker: MockerFixture) -> None:
+def test_is_ip_allowed(
+    security_config: SyncSecurityConfig, mocker: MockerFixture
+) -> None:
     mocker.patch("guard_core.sync.utils.check_ip_country", return_value=False)
 
     assert is_ip_allowed("127.0.0.1", security_config)
     assert not is_ip_allowed("192.168.1.1", security_config)
 
-    empty_config = SecurityConfig(whitelist=[], blacklist=[])
+    empty_config = SyncSecurityConfig(whitelist=[], blacklist=[])
     assert is_ip_allowed("127.0.0.1", empty_config)
     assert is_ip_allowed("192.168.1.1", empty_config)
 
-    whitelist_config = SecurityConfig(whitelist=["127.0.0.1"])
+    whitelist_config = SyncSecurityConfig(whitelist=["127.0.0.1"])
     assert is_ip_allowed("127.0.0.1", whitelist_config)
     assert not is_ip_allowed("192.168.1.1", whitelist_config)
 
-    blacklist_config = SecurityConfig(blacklist=["192.168.1.1"])
+    blacklist_config = SyncSecurityConfig(blacklist=["192.168.1.1"])
     assert is_ip_allowed("127.0.0.1", blacklist_config)
     assert not is_ip_allowed("192.168.1.1", blacklist_config)
 
 
-def test_is_user_agent_allowed(security_config: SecurityConfig) -> None:
+def test_is_user_agent_allowed(security_config: SyncSecurityConfig) -> None:
     assert is_user_agent_allowed("goodbot", security_config)
     assert not is_user_agent_allowed("badbot", security_config)
 
 
-def test_custom_logging(security_config: SecurityConfig, tmp_path: Any) -> None:
+def test_custom_logging(security_config: SyncSecurityConfig, tmp_path: Any) -> None:
     log_file = tmp_path / "test_log.log"
     logger = setup_custom_logging(str(log_file))
 
@@ -118,7 +120,7 @@ def test_detected_component_with_lone_surrogate_writes_intact_log_line(
         body_content=body,
     )
 
-    result = detect_penetration_attempt(request, SecurityConfig())
+    result = detect_penetration_attempt(request, SyncSecurityConfig())
     assert result.is_threat is True
 
     with open(log_file, encoding="utf-8") as f:
@@ -143,7 +145,7 @@ def test_detect_penetration_attempt_attributes_real_client_ip_behind_proxy(
         query_params={"q": "<script>alert(1)</script>"},
     )
 
-    config = SecurityConfig(trusted_proxies=["10.0.0.1"], trusted_proxy_depth=1)
+    config = SyncSecurityConfig(trusted_proxies=["10.0.0.1"], trusted_proxy_depth=1)
     result = detect_penetration_attempt(request, config)
     assert result.is_threat is True
 
@@ -730,7 +732,7 @@ def test_log_level(caplog: pytest.LogCaptureFixture) -> None:
 
 
 def test_behavior_tracker_passive_mode_logging(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     from typing import Literal
 

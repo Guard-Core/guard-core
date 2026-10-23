@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.suspatterns_handler import (
     SusPatternsManager,
     sus_patterns_handler,
@@ -49,7 +49,7 @@ def _v440_writes(patterns: set[str]) -> str:
 
 @pytest.fixture(autouse=True)
 def clean_registry() -> Any:
-    sus_patterns_handler.configure(SecurityConfig())
+    sus_patterns_handler.configure(SyncSecurityConfig())
     sus_patterns_handler.redis_handler = None
     SusPatternsManager.reset()
     yield
@@ -58,7 +58,7 @@ def clean_registry() -> Any:
 
 
 def _restore(**stored: str) -> set[str]:
-    sus_patterns_handler.configure(SecurityConfig())
+    sus_patterns_handler.configure(SyncSecurityConfig())
     sus_patterns_handler.initialize_redis(_FakeRedis(**stored))
     return set(sus_patterns_handler.custom_patterns)
 

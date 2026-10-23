@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from guard_core.models import SecurityConfig, ThreatBanConfig
+from guard_core.models import SyncSecurityConfig, ThreatBanConfig
 from guard_core.sync.core.checks.helpers import _resolve_and_apply_threshold_ban
 from guard_core.sync.core.checks.implementations.suspicious_activity import (
     SuspiciousActivityCheck,
@@ -23,8 +23,8 @@ def _reset_singleton() -> Generator[None, None, None]:
     IPBanManager._instance = None
 
 
-def _config(**settings: Any) -> SecurityConfig:
-    return SecurityConfig(
+def _config(**settings: Any) -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         enable_redis=False,
         enable_ip_banning=True,
         auto_ban_threshold=1,
@@ -33,7 +33,7 @@ def _config(**settings: Any) -> SecurityConfig:
     )
 
 
-def _manager(config: SecurityConfig) -> IPBanManager:
+def _manager(config: SyncSecurityConfig) -> IPBanManager:
     manager = IPBanManager()
     manager.redis_handler = None
     manager.config = config
@@ -41,7 +41,7 @@ def _manager(config: SecurityConfig) -> IPBanManager:
 
 
 def _threshold_ban(
-    manager: IPBanManager, config: SecurityConfig
+    manager: IPBanManager, config: SyncSecurityConfig
 ) -> tuple[int, str, str | None] | None:
     return _resolve_and_apply_threshold_ban(
         {"xss": 1},

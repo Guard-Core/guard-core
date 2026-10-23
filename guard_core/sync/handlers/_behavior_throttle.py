@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any
 from guard_core._redis_enablement import redis_is_configured
 from guard_core._redis_exceptions import NoScriptError
 from guard_core.exceptions import GuardRedisError
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.scripts.behavior_throttle_lua import BEHAVIOR_THROTTLE_SCRIPT
 from guard_core.sync._utils.identity_hash import _hash_identity_segment
 from guard_core.sync._utils.ip_extraction import _client_identity
@@ -44,7 +44,7 @@ def _warn_throttle_fail_open() -> None:
     )
 
 
-def behavior_client_identity(config: SecurityConfig, client_ip: str) -> str:
+def behavior_client_identity(config: SyncSecurityConfig, client_ip: str) -> str:
     """The client every behavior counter, key and ban is kept under: the address
     for IPv4 and ``ipv6_prefix_length`` 128, the network's CIDR text otherwise."""
     if ":" not in client_ip:
@@ -166,7 +166,7 @@ def _with_correlation(
 
 
 class BehaviorThrottleMixin(BehaviorEvictionMixin):
-    config: SecurityConfig
+    config: SyncSecurityConfig
     redis_handler: Any
     usage_counts: dict[str, dict[str, list[float]]]
     return_patterns: dict[str, dict[str, list[float]]]

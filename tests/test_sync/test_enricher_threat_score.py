@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.events.enricher import (
     EnrichmentContext,
     EventEnricher,
@@ -9,7 +9,7 @@ from guard_core.sync.core.events.enricher import (
 
 
 def _enricher() -> EventEnricher:
-    return EventEnricher(EnrichmentContext(config=SecurityConfig()))
+    return EventEnricher(EnrichmentContext(config=SyncSecurityConfig()))
 
 
 def test_threat_scorer_critical_events() -> None:

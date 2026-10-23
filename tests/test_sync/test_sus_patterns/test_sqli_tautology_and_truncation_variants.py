@@ -3,7 +3,7 @@ from urllib.parse import quote_plus
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
 from guard_core.sync.utils import detect_penetration_attempt
 from tests.test_sync.conftest import SyncMockGuardRequest
@@ -69,7 +69,7 @@ BENIGN = [
 
 @pytest.fixture(autouse=True)
 def _force_enhanced_detection_singleton() -> None:
-    sus_patterns_handler.configure(SecurityConfig())
+    sus_patterns_handler.configure(SyncSecurityConfig())
 
 
 def _post(body: bytes, content_type: str) -> SyncMockGuardRequest:
@@ -101,7 +101,7 @@ def _surfaces(value: str) -> dict[str, SyncMockGuardRequest]:
 
 
 def _flagged(request: SyncMockGuardRequest) -> bool:
-    result = detect_penetration_attempt(request, SecurityConfig())
+    result = detect_penetration_attempt(request, SyncSecurityConfig())
     return result.is_threat
 
 

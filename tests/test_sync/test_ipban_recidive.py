@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 import pytest
 from pydantic import ValidationError
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers._ipban_recidive import escalated_duration
 from guard_core.sync.handlers.ipban_handler import IPBanManager
 from guard_core.sync.handlers.redis_handler import RedisManager
@@ -30,7 +30,7 @@ def reset_singleton() -> Generator[None, None, None]:
 
 @pytest.fixture
 def live_redis() -> Generator[RedisManager, None]:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         redis_url=REDIS_URL, redis_prefix=f"wp6-recidive:{uuid.uuid4().hex}:"
     )
     manager = RedisManager(config)
@@ -43,7 +43,7 @@ def live_redis() -> Generator[RedisManager, None]:
 def _manager(**settings: Any) -> IPBanManager:
     manager = IPBanManager()
     manager.redis_handler = None
-    manager.config = SecurityConfig(
+    manager.config = SyncSecurityConfig(
         enable_redis=False, enable_recidive=True, **settings
     )
     return manager
@@ -58,7 +58,7 @@ def _expire_naturally(manager: IPBanManager, key: str) -> None:
 
 
 def test_the_recidive_fields_default_to_off_with_the_agreed_values() -> None:
-    config = SecurityConfig(enable_redis=False)
+    config = SyncSecurityConfig(enable_redis=False)
 
     assert config.enable_recidive is False
     assert config.recidive_factor == 2.0
@@ -77,12 +77,12 @@ def test_the_recidive_fields_default_to_off_with_the_agreed_values() -> None:
 )
 def test_out_of_range_recidive_values_are_rejected(settings: dict[str, Any]) -> None:
     with pytest.raises(ValidationError):
-        SecurityConfig(enable_redis=False, **settings)
+        SyncSecurityConfig(enable_redis=False, **settings)
 
 
 def test_the_cap_must_cover_the_auto_ban_duration_when_recidive_is_on() -> None:
     with pytest.raises(ValidationError, match="recidive_max_duration"):
-        SecurityConfig(
+        SyncSecurityConfig(
             enable_redis=False,
             enable_recidive=True,
             auto_ban_duration=THIRTY_DAYS,
@@ -91,7 +91,7 @@ def test_the_cap_must_cover_the_auto_ban_duration_when_recidive_is_on() -> None:
 
 
 def test_a_long_auto_ban_duration_is_fine_while_recidive_is_off() -> None:
-    config = SecurityConfig(enable_redis=False, auto_ban_duration=THIRTY_DAYS)
+    config = SyncSecurityConfig(enable_redis=False, auto_ban_duration=THIRTY_DAYS)
 
     assert config.enable_recidive is False
 
@@ -181,7 +181,7 @@ def test_a_ban_after_the_window_started_over() -> None:
 def test_a_manager_without_the_flag_never_escalates() -> None:
     manager = IPBanManager()
     manager.redis_handler = None
-    manager.config = SecurityConfig(enable_redis=False)
+    manager.config = SyncSecurityConfig(enable_redis=False)
     for _ in range(2):
         manager._ban_ip_escalating(HOST, 100, "t")
         _expire_naturally(manager, HOST)
@@ -319,7 +319,7 @@ def test_the_live_counter_lives_for_the_window_plus_the_applied_ban(
 ) -> None:
     manager = _manager(recidive_window=1000)
     manager.redis_handler = live_redis
-    manager.config = SecurityConfig(
+    manager.config = SyncSecurityConfig(
         redis_url=REDIS_URL,
         redis_prefix=live_redis.config.redis_prefix,
         enable_recidive=True,
@@ -337,7 +337,7 @@ def test_the_live_counter_lives_for_the_window_plus_the_applied_ban(
 def test_two_workers_share_one_history_through_redis(
     live_redis: RedisManager,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         redis_url=REDIS_URL,
         redis_prefix=live_redis.config.redis_prefix,
         enable_recidive=True,
@@ -361,7 +361,7 @@ def test_two_workers_share_one_history_through_redis(
 def test_only_one_of_two_simultaneous_writers_wins_the_ban(
     live_redis: RedisManager,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         redis_url=REDIS_URL,
         redis_prefix=live_redis.config.redis_prefix,
         enable_recidive=True,
@@ -380,7 +380,7 @@ def test_only_one_of_two_simultaneous_writers_wins_the_ban(
 def test_unban_ip_forgets_the_history_in_redis(live_redis: RedisManager) -> None:
     manager = _manager()
     manager.redis_handler = live_redis
-    manager.config = SecurityConfig(
+    manager.config = SyncSecurityConfig(
         redis_url=REDIS_URL,
         redis_prefix=live_redis.config.redis_prefix,
         enable_recidive=True,
@@ -398,7 +398,7 @@ def test_a_slash_64_unban_forgets_the_identity_history_in_redis(
 ) -> None:
     manager = _manager()
     manager.redis_handler = live_redis
-    manager.config = SecurityConfig(
+    manager.config = SyncSecurityConfig(
         redis_url=REDIS_URL,
         redis_prefix=live_redis.config.redis_prefix,
         enable_recidive=True,
@@ -416,7 +416,7 @@ def test_the_range_whitelist_forgets_the_history_in_redis(
 ) -> None:
     manager = _manager()
     manager.redis_handler = live_redis
-    manager.config = SecurityConfig(
+    manager.config = SyncSecurityConfig(
         redis_url=REDIS_URL,
         redis_prefix=live_redis.config.redis_prefix,
         enable_recidive=True,
@@ -433,7 +433,7 @@ def test_the_range_whitelist_forgets_the_history_in_redis(
 def test_reset_forgets_every_history_in_redis(live_redis: RedisManager) -> None:
     manager = _manager()
     manager.redis_handler = live_redis
-    manager.config = SecurityConfig(
+    manager.config = SyncSecurityConfig(
         redis_url=REDIS_URL,
         redis_prefix=live_redis.config.redis_prefix,
         enable_recidive=True,
@@ -450,7 +450,7 @@ def test_a_natural_expiry_inside_the_window_escalates_through_redis(
 ) -> None:
     manager = _manager()
     manager.redis_handler = live_redis
-    manager.config = SecurityConfig(
+    manager.config = SyncSecurityConfig(
         redis_url=REDIS_URL,
         redis_prefix=live_redis.config.redis_prefix,
         enable_recidive=True,
@@ -518,7 +518,7 @@ def test_the_public_ban_returns_a_bool() -> None:
 def test_with_the_flag_off_the_escalating_path_overwrites_like_ban_ip() -> None:
     manager = IPBanManager()
     manager.redis_handler = None
-    manager.config = SecurityConfig(enable_redis=False)
+    manager.config = SyncSecurityConfig(enable_redis=False)
     manager.ban_ip(HOST, 60, "manual")
 
     assert manager._ban_ip_escalating(HOST, 100, "t") == 100
@@ -532,7 +532,7 @@ def test_an_active_ban_in_redis_is_replaced_and_not_counted(
 ) -> None:
     manager = _manager()
     manager.redis_handler = live_redis
-    manager.config = SecurityConfig(
+    manager.config = SyncSecurityConfig(
         redis_url=REDIS_URL,
         redis_prefix=live_redis.config.redis_prefix,
         enable_recidive=True,
@@ -550,8 +550,10 @@ def test_an_unban_while_the_flag_is_off_still_forgets_the_history(
     live_redis: RedisManager,
 ) -> None:
     prefix = live_redis.config.redis_prefix
-    on = SecurityConfig(redis_url=REDIS_URL, redis_prefix=prefix, enable_recidive=True)
-    off = SecurityConfig(redis_url=REDIS_URL, redis_prefix=prefix)
+    on = SyncSecurityConfig(
+        redis_url=REDIS_URL, redis_prefix=prefix, enable_recidive=True
+    )
+    off = SyncSecurityConfig(redis_url=REDIS_URL, redis_prefix=prefix)
     manager = _manager()
     manager.redis_handler = live_redis
     manager.config = on

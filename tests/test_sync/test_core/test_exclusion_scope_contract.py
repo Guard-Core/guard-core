@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.core.behavioral.context import BehavioralContext
 from guard_core.sync.core.behavioral.processor import BehavioralProcessor
@@ -26,13 +26,13 @@ from tests.test_sync.conftest import MockGuardResponse, SyncMockGuardRequest
 _LOGGER = logging.getLogger("test_exclusion_scope_contract")
 
 
-def _config(**overrides: Any) -> SecurityConfig:
+def _config(**overrides: Any) -> SyncSecurityConfig:
     fields: dict[str, Any] = {"enable_redis": False, "exclude_paths": ["/healthz"]}
     fields.update(overrides)
-    return SecurityConfig(**fields)
+    return SyncSecurityConfig(**fields)
 
 
-def _build_middleware(config: SecurityConfig) -> MagicMock:
+def _build_middleware(config: SyncSecurityConfig) -> MagicMock:
     middleware = MagicMock()
     middleware.config = config
     middleware.logger = _LOGGER
@@ -55,7 +55,7 @@ def _build_middleware(config: SecurityConfig) -> MagicMock:
 
 
 def _build_bypass_handler(
-    config: SecurityConfig, middleware: MagicMock
+    config: SyncSecurityConfig, middleware: MagicMock
 ) -> BypassHandler:
     validator = RequestValidator(
         ValidationContext(config=config, logger=_LOGGER, event_bus=middleware.event_bus)
@@ -82,11 +82,11 @@ def _never_called(request: SyncGuardRequest) -> GuardResponse:
 def _reset_shared_handlers() -> Generator[None, None, None]:
     ip_ban_manager.banned_ips.clear()
     ip_ban_manager.banned_networks.clear()
-    rate_limit_handler(SecurityConfig()).request_timestamps.clear()
+    rate_limit_handler(SyncSecurityConfig()).request_timestamps.clear()
     yield
     ip_ban_manager.banned_ips.clear()
     ip_ban_manager.banned_networks.clear()
-    rate_limit_handler(SecurityConfig()).request_timestamps.clear()
+    rate_limit_handler(SyncSecurityConfig()).request_timestamps.clear()
 
 
 def test_banned_ip_is_blocked_on_excluded_path_end_to_end() -> None:

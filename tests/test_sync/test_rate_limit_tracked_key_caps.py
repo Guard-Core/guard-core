@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.helpers import _increment_suspicious_counts
 from guard_core.sync.decorators.base import RouteConfig
 from guard_core.sync.handlers.ratelimit_handler import RateLimitManager
@@ -12,14 +12,14 @@ def _error_response(status_code: int, message: str) -> MockGuardResponse:
     return MockGuardResponse(message, status_code)
 
 
-def _config(**settings: object) -> SecurityConfig:
-    return SecurityConfig(
+def _config(**settings: object) -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         enable_redis=False, rate_limit=1, rate_limit_window=60, **settings
     )
 
 
 def test_both_caps_are_config_fields_defaulting_to_10000() -> None:
-    config = SecurityConfig(enable_redis=False)
+    config = SyncSecurityConfig(enable_redis=False)
 
     assert config.rate_limit_max_tracked_keys == 10_000
     assert config.ban_counters_max_tracked_ips == 10_000
@@ -30,7 +30,7 @@ def test_both_caps_are_config_fields_defaulting_to_10000() -> None:
 )
 def test_a_cap_below_one_is_rejected(field: str) -> None:
     with pytest.raises(ValidationError):
-        SecurityConfig(enable_redis=False, **{field: 0})
+        SyncSecurityConfig(enable_redis=False, **{field: 0})
 
 
 def test_the_rate_limit_store_honors_its_cap() -> None:
@@ -88,7 +88,7 @@ def test_one_ip_cannot_evict_a_victim_by_requesting_many_paths() -> None:
 
 
 def test_the_ban_counter_store_honors_its_cap() -> None:
-    config = SecurityConfig(enable_redis=False, ban_counters_max_tracked_ips=3)
+    config = SyncSecurityConfig(enable_redis=False, ban_counters_max_tracked_ips=3)
     from unittest.mock import Mock
 
     middleware = Mock()

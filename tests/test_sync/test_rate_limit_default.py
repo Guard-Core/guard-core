@@ -2,7 +2,7 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.factory import build_default_pipeline
 from guard_core.sync.decorators import SecurityDecorator
 from tests.test_sync.conftest import SyncMockGuardRequest
@@ -11,15 +11,15 @@ from tests.test_sync.test_core.conftest import build_middleware
 CLIENT = "203.0.113.30"
 
 
-def _config(**settings: Any) -> SecurityConfig:
+def _config(**settings: Any) -> SyncSecurityConfig:
     defaults: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": False,
     }
-    return SecurityConfig(**{**defaults, **settings})
+    return SyncSecurityConfig(**{**defaults, **settings})
 
 
-def _statuses(config: SecurityConfig, count: int) -> list[int | None]:
+def _statuses(config: SyncSecurityConfig, count: int) -> list[int | None]:
     middleware = build_middleware(config, SecurityDecorator(config))
     pipeline = build_default_pipeline(middleware)
     statuses: list[int | None] = []

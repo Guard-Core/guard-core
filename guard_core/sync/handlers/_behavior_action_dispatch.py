@@ -3,7 +3,7 @@ from collections.abc import Callable
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers._behavior_throttle import behavior_client_identity
 from guard_core.sync.utils import _log_at_level
 
@@ -15,7 +15,7 @@ _BEHAVIOR_HANDLER_NAME = "behavior"
 
 
 class BehaviorActionDispatchMixin:
-    config: SecurityConfig
+    config: SyncSecurityConfig
     logger: logging.Logger
     agent_handler: Any
 

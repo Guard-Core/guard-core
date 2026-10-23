@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.factory import build_default_pipeline
 from guard_core.sync.core.validation.context import ValidationContext
 from guard_core.sync.core.validation.validator import RequestValidator
@@ -12,8 +12,8 @@ from tests.test_sync.conftest import SyncMockGuardRequest
 from tests.test_sync.test_core.conftest import LOGGER, build_middleware
 
 
-def _config(**settings: Any) -> SecurityConfig:
-    return SecurityConfig(
+def _config(**settings: Any) -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         enable_redis=False,
         enable_penetration_detection=False,
         enable_rate_limiting=False,
@@ -24,7 +24,7 @@ def _config(**settings: Any) -> SecurityConfig:
 
 
 def _status(
-    config: SecurityConfig, client_host: str | None, forwarded_proto: str | None
+    config: SyncSecurityConfig, client_host: str | None, forwarded_proto: str | None
 ) -> int | None:
     pipeline = build_default_pipeline(
         build_middleware(config, SecurityDecorator(config))
@@ -37,7 +37,7 @@ def _status(
     return None if response is None else response.status_code
 
 
-def _validator(config: SecurityConfig) -> RequestValidator:
+def _validator(config: SyncSecurityConfig) -> RequestValidator:
     return RequestValidator(
         ValidationContext(config=config, logger=LOGGER, event_bus=MagicMock())
     )

@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.implementations.ip_security import IpSecurityCheck
 from guard_core.sync.core.checks.implementations.user_agent import UserAgentCheck
 from guard_core.sync.decorators.base import RouteConfig
@@ -11,7 +11,7 @@ from guard_core.sync.detection_result import DetectionResult
 from guard_core.sync.utils import IpAccessResult
 
 
-def _make_middleware(config: SecurityConfig) -> MagicMock:
+def _make_middleware(config: SyncSecurityConfig) -> MagicMock:
     mw = MagicMock()
     mw.config = config
     mw.logger = MagicMock()
@@ -59,7 +59,7 @@ def _patch_detect_threat(
 def test_global_ip_block_with_threat_increments_counter(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         ban_on_hostile_signals=False,
         passive_mode=False,
         enable_ip_banning=True,
@@ -89,7 +89,7 @@ def test_global_ip_block_with_threat_increments_counter(
 def test_global_ip_block_with_threat_repeated_triggers_ban(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         ban_on_hostile_signals=False,
         passive_mode=False,
         enable_ip_banning=True,
@@ -121,7 +121,7 @@ def test_global_ip_block_with_threat_repeated_triggers_ban(
 def test_global_ip_block_no_threat_no_counter_change(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         ban_on_hostile_signals=False,
         passive_mode=False,
         enable_ip_banning=True,
@@ -152,7 +152,7 @@ def test_global_ip_block_no_threat_no_counter_change(
 def test_global_ip_block_passive_mode_no_escalation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         ban_on_hostile_signals=False,
         passive_mode=True,
         enable_ip_banning=True,
@@ -195,7 +195,7 @@ def test_global_ip_block_passive_mode_no_escalation(
 def test_globally_whitelisted_ip_blocked_by_route_whitelist_is_not_whitelisted(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         ban_on_hostile_signals=False,
         passive_mode=False,
         enable_ip_banning=True,
@@ -227,7 +227,7 @@ def test_globally_whitelisted_ip_blocked_by_route_whitelist_is_not_whitelisted(
 def test_global_whitelist_blocked_by_stricter_route_whitelist_escalates(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         ban_on_hostile_signals=False,
         passive_mode=False,
         enable_ip_banning=True,
@@ -266,7 +266,7 @@ def test_global_whitelist_blocked_by_stricter_route_whitelist_escalates(
 def test_global_whitelist_blocked_by_route_blacklist_still_escalates(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         ban_on_hostile_signals=False,
         passive_mode=False,
         enable_ip_banning=True,
@@ -304,7 +304,7 @@ def test_global_whitelist_blocked_by_route_blacklist_still_escalates(
 def test_route_blacklist_without_global_whitelist_escalates_as_control(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         ban_on_hostile_signals=False,
         passive_mode=False,
         enable_ip_banning=True,
@@ -341,7 +341,7 @@ def test_route_blacklist_without_global_whitelist_escalates_as_control(
 def test_global_whitelist_and_route_whitelist_both_containing_ip_is_allowed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         ban_on_hostile_signals=False,
         passive_mode=False,
         enable_ip_banning=True,
@@ -371,7 +371,7 @@ def test_global_whitelist_and_route_whitelist_both_containing_ip_is_allowed(
 def test_route_ip_block_with_threat_increments_counter(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         ban_on_hostile_signals=False,
         passive_mode=False,
         enable_ip_banning=True,
@@ -401,7 +401,7 @@ def test_route_ip_block_with_threat_increments_counter(
 def test_route_ip_block_no_threat_no_counter_change(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         ban_on_hostile_signals=False,
         passive_mode=False,
         enable_ip_banning=True,
@@ -432,7 +432,7 @@ def test_route_ip_block_no_threat_no_counter_change(
 def test_route_ip_block_passive_mode_no_escalation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         ban_on_hostile_signals=False,
         passive_mode=True,
         enable_ip_banning=True,
@@ -474,7 +474,7 @@ def test_route_ip_block_passive_mode_no_escalation(
 def test_user_agent_block_with_threat_increments_counter(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         ban_on_hostile_signals=False,
         passive_mode=False,
         enable_ip_banning=True,
@@ -498,7 +498,7 @@ def test_user_agent_block_with_threat_increments_counter(
 def test_user_agent_block_with_threat_repeated_triggers_ban(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         ban_on_hostile_signals=False,
         passive_mode=False,
         enable_ip_banning=True,
@@ -524,7 +524,7 @@ def test_user_agent_block_with_threat_repeated_triggers_ban(
 def test_user_agent_block_no_threat_no_counter_change(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         ban_on_hostile_signals=False,
         passive_mode=False,
         enable_ip_banning=True,
@@ -548,7 +548,7 @@ def test_user_agent_block_no_threat_no_counter_change(
 def test_user_agent_block_passive_mode_no_escalation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         ban_on_hostile_signals=False,
         passive_mode=True,
         enable_ip_banning=True,
@@ -582,7 +582,7 @@ def test_user_agent_block_passive_mode_no_escalation(
 def test_user_agent_block_no_client_ip_skips_escalation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         ban_on_hostile_signals=False,
         passive_mode=False,
         enable_ip_banning=True,
@@ -616,7 +616,7 @@ def test_user_agent_block_no_client_ip_skips_escalation(
 def test_no_double_count_blocked_probe_increments_once(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         ban_on_hostile_signals=False,
         passive_mode=False,
         enable_ip_banning=True,
@@ -649,7 +649,7 @@ def test_no_double_count_blocked_probe_increments_once(
 def test_global_ip_block_still_returns_403_when_ban_ip_raises(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         ban_on_hostile_signals=False,
         passive_mode=False,
         enable_ip_banning=True,
@@ -691,7 +691,7 @@ def test_global_ip_block_still_returns_403_when_ban_ip_raises(
 def test_user_agent_block_still_returns_403_when_ban_ip_raises(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         ban_on_hostile_signals=False,
         passive_mode=False,
         enable_ip_banning=True,
@@ -725,7 +725,7 @@ def test_user_agent_block_still_returns_403_when_ban_ip_raises(
 def test_global_ip_block_survives_ban_and_event_bus_both_failing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         ban_on_hostile_signals=False,
         passive_mode=False,
         enable_ip_banning=True,

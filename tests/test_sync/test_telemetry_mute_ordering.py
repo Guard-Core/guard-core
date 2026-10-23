@@ -5,7 +5,7 @@ from typing import Any, cast
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.events.composite_handler import CompositeAgentHandler
 from guard_core.sync.core.events.event_types import EventFilter
 from guard_core.sync.core.initialization.handler_initializer import HandlerInitializer
@@ -26,9 +26,9 @@ result["mute_unapplied_after_bare_import"] = _pydantic_plugin_mute._applied is F
 
 from guard_agent.models import EventBatch, SecurityEvent, SecurityMetric
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SecurityConfig, SyncSecurityConfig
 
-config = SecurityConfig(enable_agent=True, agent_api_key="a" * 10)
+config = SyncSecurityConfig(enable_agent=True, agent_api_key="a" * 10)
 config.to_agent_config()
 
 result["mute_applied_after_to_agent_config"] = _pydantic_plugin_mute._applied is True
@@ -95,7 +95,7 @@ def test_otel_only_config_mutes_telemetry_before_first_security_event(
     monkeypatch.setattr(SecurityEvent, "__init__", spy_init)
 
     try:
-        config = SecurityConfig(enable_otel=True)
+        config = SyncSecurityConfig(enable_otel=True)
         initializer = HandlerInitializer(config=config, agent_handler=None)
         monkeypatch.setattr(
             initializer,

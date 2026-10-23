@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.implementations.suspicious_activity import (
     SuspiciousActivityCheck,
 )
@@ -21,7 +21,7 @@ class _Decorator(BaseSecurityDecorator, ContentFilteringMixin):
 
 
 def _route_config(path_params: Any) -> RouteConfig:
-    decorator = _Decorator(SecurityConfig(enable_redis=False))
+    decorator = _Decorator(SyncSecurityConfig(enable_redis=False))
 
     def target() -> None:
         pass
@@ -43,7 +43,7 @@ def _flagged(
         declare_route(request, template)
     route_config = _route_config(path_params) if path_params is not None else None
     result = detect_penetration_attempt(
-        request, SecurityConfig(enable_redis=False), route_config
+        request, SyncSecurityConfig(enable_redis=False), route_config
     )
     return result.is_threat, result.trigger_info
 
@@ -264,7 +264,7 @@ def test_path_params_are_validated_like_params() -> None:
     assert RouteConfig().excluded_detection_path_params is None
 
 
-def _check(config: SecurityConfig) -> SuspiciousActivityCheck:
+def _check(config: SyncSecurityConfig) -> SuspiciousActivityCheck:
     middleware = MagicMock()
     middleware.config = config
     middleware.logger = logging.getLogger("test_declared_path_params")
@@ -286,7 +286,9 @@ def _request(template: str, path_params: Any) -> SyncMockGuardRequest:
 def test_a_root_capture_warns_when_the_flag_is_off(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    check = _check(SecurityConfig(enable_redis=False, fail_on_misconfiguration=False))
+    check = _check(
+        SyncSecurityConfig(enable_redis=False, fail_on_misconfiguration=False)
+    )
     request = _request("/{path:path}", {"path"})
 
     with caplog.at_level(logging.WARNING), warnings.catch_warnings():
@@ -301,7 +303,9 @@ def test_a_root_capture_warns_when_the_flag_is_off(
 
 
 def test_a_root_capture_refuses_when_the_flag_is_on() -> None:
-    check = _check(SecurityConfig(enable_redis=False, fail_on_misconfiguration=True))
+    check = _check(
+        SyncSecurityConfig(enable_redis=False, fail_on_misconfiguration=True)
+    )
     request = _request("/{path:path}", {"path"})
 
     with pytest.raises(ValueError, match="no literal segment before it"):
@@ -324,7 +328,9 @@ def test_a_root_capture_refuses_when_the_flag_is_on() -> None:
 def test_a_parameter_with_a_literal_segment_before_it_is_not_reported(
     template: str, path_params: Any
 ) -> None:
-    check = _check(SecurityConfig(enable_redis=False, fail_on_misconfiguration=True))
+    check = _check(
+        SyncSecurityConfig(enable_redis=False, fail_on_misconfiguration=True)
+    )
 
     assert check.check(_request(template, path_params)) is None
 
@@ -341,7 +347,9 @@ def test_a_parameter_with_a_literal_segment_before_it_is_not_reported(
     ],
 )
 def test_every_syntax_of_a_root_capture_is_reported(template: str) -> None:
-    check = _check(SecurityConfig(enable_redis=False, fail_on_misconfiguration=True))
+    check = _check(
+        SyncSecurityConfig(enable_redis=False, fail_on_misconfiguration=True)
+    )
 
     with pytest.raises(ValueError, match="'path'"):
         check.check(_request(template, {"path"}))

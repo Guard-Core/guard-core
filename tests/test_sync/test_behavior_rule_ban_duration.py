@@ -1,6 +1,6 @@
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.behavior_handler import BehaviorRule, BehaviorTracker
 
 
@@ -23,7 +23,7 @@ def test_behavior_rule_ban_duration_accepts_int() -> None:
 def test_execute_ban_action_uses_rule_ban_duration(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    tracker = BehaviorTracker(SecurityConfig())
+    tracker = BehaviorTracker(SyncSecurityConfig())
     rule = BehaviorRule(
         rule_type="return_pattern",
         threshold=1,
@@ -49,7 +49,7 @@ def test_execute_ban_action_uses_rule_ban_duration(
 def test_execute_ban_action_defaults_to_3600_when_rule_has_none(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    tracker = BehaviorTracker(SecurityConfig())
+    tracker = BehaviorTracker(SyncSecurityConfig())
     rule = BehaviorRule(rule_type="usage", threshold=1, action="ban")
     captured: dict[str, object] = {}
 
@@ -67,7 +67,7 @@ def test_execute_ban_action_defaults_to_3600_when_rule_has_none(
 def test_execute_ban_action_defaults_to_3600_when_no_rule_passed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    tracker = BehaviorTracker(SecurityConfig())
+    tracker = BehaviorTracker(SyncSecurityConfig())
     captured: dict[str, object] = {}
 
     def fake_ban(ip: str, duration: int, reason: str, *, grouped: bool = False) -> None:

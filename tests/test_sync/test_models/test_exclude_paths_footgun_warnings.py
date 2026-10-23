@@ -3,7 +3,7 @@ import warnings
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 
 GLOBS = ["/static/*", "/static/**", "/h*", "/health?x=1", "/a#frag"]
 
@@ -14,7 +14,7 @@ class TestGlobEntry:
         self, entry: str
     ) -> None:
         with pytest.raises(ValueError) as caught:
-            SecurityConfig(enable_redis=False, exclude_paths=[entry])
+            SyncSecurityConfig(enable_redis=False, exclude_paths=[entry])
 
         message = str(caught.value)
         assert f"exclude_paths entry {entry!r}" in message
@@ -23,7 +23,7 @@ class TestGlobEntry:
 
     def test_true_raises(self, entry: str) -> None:
         with pytest.raises(ValueError, match="excludes nothing"):
-            SecurityConfig(
+            SyncSecurityConfig(
                 enable_redis=False, exclude_paths=[entry], fail_on_misconfiguration=True
             )
 
@@ -33,7 +33,7 @@ class TestGlobEntry:
         with caplog.at_level(logging.WARNING, logger="guard_core"):
             with warnings.catch_warnings():
                 warnings.simplefilter("error")
-                config = SecurityConfig(
+                config = SyncSecurityConfig(
                     enable_redis=False,
                     exclude_paths=[entry],
                     fail_on_misconfiguration=False,
@@ -47,7 +47,7 @@ class TestGlobEntry:
 
 def test_each_glob_entry_is_reported_once(caplog: pytest.LogCaptureFixture) -> None:
     with caplog.at_level(logging.WARNING, logger="guard_core"):
-        SecurityConfig(
+        SyncSecurityConfig(
             enable_redis=False,
             fail_on_misconfiguration=False,
             exclude_paths=["/a/*", "/B", "/ok", "/c?"],
@@ -59,7 +59,7 @@ def test_each_glob_entry_is_reported_once(caplog: pytest.LogCaptureFixture) -> N
 def test_literal_entries_never_warn_even_with_upper_case() -> None:
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        SecurityConfig(
+        SyncSecurityConfig(
             enable_redis=False,
             fail_on_misconfiguration=True,
             exclude_paths=["/health", "/static", "/v1/status", "/Docs"],

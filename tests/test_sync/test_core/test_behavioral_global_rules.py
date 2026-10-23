@@ -2,7 +2,7 @@ import logging
 from typing import Any
 from unittest.mock import MagicMock
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.behavioral.context import BehavioralContext
 from guard_core.sync.core.behavioral.processor import BehavioralProcessor
 from guard_core.sync.handlers.behavior_handler import BehaviorRule, BehaviorTracker
@@ -16,7 +16,7 @@ def _build_processor(
     middleware_tracker: BehaviorTracker | None = None,
     middleware: Any = "default",
 ) -> tuple[BehavioralProcessor, MagicMock, BehaviorTracker]:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     event_bus = MagicMock()
     event_bus.send_middleware_event = MagicMock()
     tracker = middleware_tracker or BehaviorTracker(config)
@@ -129,7 +129,7 @@ def test_correlation_halves_threshold_floor_at_one() -> None:
 
 
 def test_global_return_rules_use_middleware_tracker_without_decorator() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     tracker = BehaviorTracker(config)
     processor, event_bus, _ = _build_processor(
         guard_decorator=None,
@@ -208,7 +208,7 @@ def test_global_return_rules_zero_count_ignored_for_correlation() -> None:
 
 
 def test_global_return_rules_apply_action_invoked() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     tracker = MagicMock(spec=BehaviorTracker)
     tracker.track_return_pattern = MagicMock(return_value=True)
     tracker.apply_action = MagicMock()

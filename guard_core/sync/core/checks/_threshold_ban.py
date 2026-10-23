@@ -1,7 +1,7 @@
 from collections.abc import Collection, Mapping
 from typing import TYPE_CHECKING, Any
 
-from guard_core.models import SecurityConfig, ThreatBanConfig
+from guard_core.models import SyncSecurityConfig, ThreatBanConfig
 from guard_core.sync.core.checks._strike_counts import (
     _RATE_LIMIT_FEED_CATEGORY,
 )
@@ -36,7 +36,7 @@ def _flat_total_or_shared(
 
 def _resolve_and_apply_threshold_ban(
     ip_counts: Mapping[str, int],
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     ip_ban_manager: Any,
     client_ip: str,
     threat_categories: Collection[str],
@@ -82,7 +82,7 @@ def _threshold_ban_choice(
     chosen: tuple[str, ThreatBanConfig] | None,
     total: int,
     ip_counts: Mapping[str, int],
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     reason: str,
 ) -> tuple[int, str, str | None] | None:
     flat_crossed = total >= config.auto_ban_threshold
@@ -96,7 +96,7 @@ def _threshold_ban_choice(
 
 
 def _entry_for(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     category: str,
     default_entries: Mapping[str, ThreatBanConfig] | None,
 ) -> ThreatBanConfig | None:
@@ -108,7 +108,7 @@ def _entry_for(
 
 def _longest_crossed_entry(
     ip_counts: Mapping[str, int],
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     threat_categories: Collection[str],
     default_entries: Mapping[str, ThreatBanConfig] | None,
 ) -> tuple[str, ThreatBanConfig] | None:

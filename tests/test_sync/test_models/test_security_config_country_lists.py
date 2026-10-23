@@ -5,24 +5,24 @@ from typing import cast
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.ipinfo_handler import IPInfoManager
 
 
 def test_blocked_countries_default_is_empty_frozenset() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     assert config.blocked_countries == frozenset()
     assert isinstance(config.blocked_countries, frozenset)
 
 
 def test_whitelist_countries_default_is_empty_frozenset() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     assert config.whitelist_countries == frozenset()
     assert isinstance(config.whitelist_countries, frozenset)
 
 
 def test_blocked_countries_accepts_list_input(tmp_path: Path) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         blocked_countries=["us", "FR"],
         geo_ip_handler=IPInfoManager(
             token="dummy", db_path=tmp_path / "country_asn.mmdb"
@@ -32,7 +32,7 @@ def test_blocked_countries_accepts_list_input(tmp_path: Path) -> None:
 
 
 def test_blocked_countries_accepts_set_input(tmp_path: Path) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         blocked_countries={"us", "fr"},
         geo_ip_handler=IPInfoManager(
             token="dummy", db_path=tmp_path / "country_asn.mmdb"
@@ -42,7 +42,7 @@ def test_blocked_countries_accepts_set_input(tmp_path: Path) -> None:
 
 
 def test_blocked_countries_accepts_tuple_input(tmp_path: Path) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         blocked_countries=("us", "fr"),
         geo_ip_handler=IPInfoManager(
             token="dummy", db_path=tmp_path / "country_asn.mmdb"
@@ -52,7 +52,7 @@ def test_blocked_countries_accepts_tuple_input(tmp_path: Path) -> None:
 
 
 def test_blocked_countries_accepts_frozenset_input(tmp_path: Path) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         blocked_countries=frozenset({"us", "fr"}),
         geo_ip_handler=IPInfoManager(
             token="dummy", db_path=tmp_path / "country_asn.mmdb"
@@ -63,23 +63,23 @@ def test_blocked_countries_accepts_frozenset_input(tmp_path: Path) -> None:
 
 def test_blocked_countries_invalid_type_raises() -> None:
     with pytest.raises((ValueError, TypeError)):
-        SecurityConfig(blocked_countries={"key": "value"})
+        SyncSecurityConfig(blocked_countries={"key": "value"})
 
 
 def test_blocked_countries_none_coerces_to_empty_frozenset() -> None:
-    config = SecurityConfig(blocked_countries=None)
+    config = SyncSecurityConfig(blocked_countries=None)
     assert config.blocked_countries == frozenset()
     assert isinstance(config.blocked_countries, frozenset)
 
 
 def test_whitelist_countries_none_coerces_to_empty_frozenset() -> None:
-    config = SecurityConfig(whitelist_countries=None)
+    config = SyncSecurityConfig(whitelist_countries=None)
     assert config.whitelist_countries == frozenset()
     assert isinstance(config.whitelist_countries, frozenset)
 
 
 def test_whitelist_countries_normalizes_case(tmp_path: Path) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         whitelist_countries=["us", "Gb", "DE"],
         geo_ip_handler=IPInfoManager(
             token="dummy", db_path=tmp_path / "country_asn.mmdb"
@@ -90,7 +90,7 @@ def test_whitelist_countries_normalizes_case(tmp_path: Path) -> None:
 
 def test_both_country_lists_emits_shadow_warning(tmp_path: Path) -> None:
     with pytest.warns(UserWarning, match="blocked_countries is ignored"):
-        SecurityConfig(
+        SyncSecurityConfig(
             whitelist_countries=["US", "CA"],
             blocked_countries=["CN", "RU"],
             geo_ip_handler=IPInfoManager(
@@ -102,7 +102,7 @@ def test_both_country_lists_emits_shadow_warning(tmp_path: Path) -> None:
 def test_whitelist_alone_emits_no_shadow_warning(tmp_path: Path) -> None:
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
-        SecurityConfig(
+        SyncSecurityConfig(
             whitelist_countries=["US", "CA"],
             geo_ip_handler=IPInfoManager(
                 token="dummy", db_path=tmp_path / "country_asn.mmdb"
@@ -114,7 +114,7 @@ def test_whitelist_alone_emits_no_shadow_warning(tmp_path: Path) -> None:
 def test_blocked_alone_emits_no_shadow_warning(tmp_path: Path) -> None:
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
-        SecurityConfig(
+        SyncSecurityConfig(
             blocked_countries=["CN", "RU"],
             geo_ip_handler=IPInfoManager(
                 token="dummy", db_path=tmp_path / "country_asn.mmdb"
@@ -137,7 +137,7 @@ def test_shadow_warning_points_at_constructor_call_site(tmp_path: Path) -> None:
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         line_before = _current_lineno()
-        SecurityConfig(
+        SyncSecurityConfig(
             whitelist_countries=["US", "CA"],
             blocked_countries=["CN", "RU"],
             geo_ip_handler=geo_ip_handler,
@@ -154,7 +154,7 @@ def test_shadow_warning_on_runtime_assignment_points_at_assignment_site(
     tmp_path: Path,
 ) -> None:
     geo_ip_handler = IPInfoManager(token="dummy", db_path=tmp_path / "asn2.mmdb")
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         whitelist_countries=["CA"],
         geo_ip_handler=geo_ip_handler,
     )
@@ -177,7 +177,7 @@ def test_reassigning_identical_blocked_countries_value_does_not_rewarn(
 
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
-        config = SecurityConfig(
+        config = SyncSecurityConfig(
             whitelist_countries=["US"],
             blocked_countries=["CN"],
             geo_ip_handler=geo_ip_handler,
@@ -202,7 +202,7 @@ def test_reassigning_identical_blocked_countries_as_list_tuple_set_does_not_rewa
 
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
-        config = SecurityConfig(
+        config = SyncSecurityConfig(
             whitelist_countries=["US"],
             blocked_countries=["CN"],
             geo_ip_handler=geo_ip_handler,
@@ -220,7 +220,7 @@ def test_reassigning_changed_blocked_countries_value_still_warns(
 
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
-        config = SecurityConfig(
+        config = SyncSecurityConfig(
             whitelist_countries=["US"],
             blocked_countries=["CN"],
             geo_ip_handler=geo_ip_handler,
@@ -239,7 +239,7 @@ def test_raising_bool_on_shadow_check_does_not_mutate_field_or_revision(
             raise RuntimeError("boom")
 
     geo_ip_handler = IPInfoManager(token="dummy", db_path=tmp_path / "asn5.mmdb")
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         whitelist_countries=["US"],
         geo_ip_handler=geo_ip_handler,
     )
@@ -258,7 +258,7 @@ def test_raising_bool_on_blocked_countries_without_geo_handler_propagates() -> N
         def __bool__(self) -> bool:
             raise RuntimeError("boom")
 
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     boom = _BoomBool()
     revision_before = config.revision
 
@@ -273,7 +273,7 @@ def test_whitelist_countries_reassignment_rejects_non_collection_value(
     tmp_path: Path,
 ) -> None:
     geo_ip_handler = IPInfoManager(token="dummy", db_path=tmp_path / "asn7.mmdb")
-    config = SecurityConfig(blocked_countries=["CN"], geo_ip_handler=geo_ip_handler)
+    config = SyncSecurityConfig(blocked_countries=["CN"], geo_ip_handler=geo_ip_handler)
     non_collection = object()
 
     with pytest.raises(ValueError, match="Country list must be"):
@@ -286,7 +286,7 @@ def test_blocked_countries_reassignment_rejects_invalid_type(tmp_path: Path) -> 
     geo_ip_handler = IPInfoManager(
         token="dummy", db_path=tmp_path / "asn_invalid1.mmdb"
     )
-    config = SecurityConfig(geo_ip_handler=geo_ip_handler)
+    config = SyncSecurityConfig(geo_ip_handler=geo_ip_handler)
 
     with pytest.raises(ValueError, match="Country list must be"):
         config.blocked_countries = cast(frozenset[str], {"key": "value"})
@@ -298,7 +298,7 @@ def test_whitelist_countries_reassignment_rejects_invalid_type(tmp_path: Path) -
     geo_ip_handler = IPInfoManager(
         token="dummy", db_path=tmp_path / "asn_invalid2.mmdb"
     )
-    config = SecurityConfig(geo_ip_handler=geo_ip_handler)
+    config = SyncSecurityConfig(geo_ip_handler=geo_ip_handler)
 
     with pytest.raises(ValueError, match="Country list must be"):
         config.whitelist_countries = cast(frozenset[str], {"key": "value"})
@@ -308,7 +308,7 @@ def test_whitelist_countries_reassignment_rejects_invalid_type(tmp_path: Path) -
 
 def test_blocked_countries_reassignment_accepts_valid_list(tmp_path: Path) -> None:
     geo_ip_handler = IPInfoManager(token="dummy", db_path=tmp_path / "asn_valid1.mmdb")
-    config = SecurityConfig(geo_ip_handler=geo_ip_handler)
+    config = SyncSecurityConfig(geo_ip_handler=geo_ip_handler)
 
     config.blocked_countries = cast(frozenset[str], ["fr", "de"])
 
@@ -317,7 +317,7 @@ def test_blocked_countries_reassignment_accepts_valid_list(tmp_path: Path) -> No
 
 def test_whitelist_countries_reassignment_accepts_valid_list(tmp_path: Path) -> None:
     geo_ip_handler = IPInfoManager(token="dummy", db_path=tmp_path / "asn_valid2.mmdb")
-    config = SecurityConfig(geo_ip_handler=geo_ip_handler)
+    config = SyncSecurityConfig(geo_ip_handler=geo_ip_handler)
 
     config.whitelist_countries = cast(frozenset[str], ["fr", "de"])
 
@@ -328,7 +328,7 @@ def test_model_copy_update_touching_blocked_countries_warns_on_shadow(
     tmp_path: Path,
 ) -> None:
     geo_ip_handler = IPInfoManager(token="dummy", db_path=tmp_path / "asn6.mmdb")
-    base = SecurityConfig(whitelist_countries=["US"], geo_ip_handler=geo_ip_handler)
+    base = SyncSecurityConfig(whitelist_countries=["US"], geo_ip_handler=geo_ip_handler)
 
     with pytest.warns(UserWarning, match="blocked_countries is ignored"):
         shadowed = base.model_copy(update={"blocked_countries": frozenset({"CN"})})
@@ -340,7 +340,7 @@ def test_model_copy_update_touching_whitelist_countries_warns_on_shadow(
     tmp_path: Path,
 ) -> None:
     geo_ip_handler = IPInfoManager(token="dummy", db_path=tmp_path / "asn9.mmdb")
-    base = SecurityConfig(blocked_countries=["CN"], geo_ip_handler=geo_ip_handler)
+    base = SyncSecurityConfig(blocked_countries=["CN"], geo_ip_handler=geo_ip_handler)
 
     with pytest.warns(UserWarning, match="blocked_countries is ignored"):
         shadowed = base.model_copy(update={"whitelist_countries": frozenset({"US"})})
@@ -351,7 +351,7 @@ def test_model_copy_update_touching_whitelist_countries_warns_on_shadow(
 def test_model_copy_update_touching_country_field_without_shadow_emits_no_warning(
     tmp_path: Path,
 ) -> None:
-    base = SecurityConfig()
+    base = SyncSecurityConfig()
     geo_ip_handler = IPInfoManager(token="dummy", db_path=tmp_path / "asn13.mmdb")
 
     with warnings.catch_warnings(record=True) as caught:
@@ -373,7 +373,7 @@ def test_model_copy_update_without_country_fields_skips_shadow_check(
 ) -> None:
     geo_ip_handler = IPInfoManager(token="dummy", db_path=tmp_path / "asn11.mmdb")
     with pytest.warns(UserWarning, match="blocked_countries is ignored"):
-        base = SecurityConfig(
+        base = SyncSecurityConfig(
             whitelist_countries=["US"],
             blocked_countries=["CN"],
             geo_ip_handler=geo_ip_handler,
@@ -392,7 +392,7 @@ def test_model_copy_update_country_shadow_warning_points_at_call_site(
     tmp_path: Path,
 ) -> None:
     geo_ip_handler = IPInfoManager(token="dummy", db_path=tmp_path / "asn12.mmdb")
-    base = SecurityConfig(whitelist_countries=["US"], geo_ip_handler=geo_ip_handler)
+    base = SyncSecurityConfig(whitelist_countries=["US"], geo_ip_handler=geo_ip_handler)
 
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")

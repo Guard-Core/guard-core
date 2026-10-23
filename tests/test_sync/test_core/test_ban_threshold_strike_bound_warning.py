@@ -5,14 +5,14 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from guard_core.models import SecurityConfig, ThreatBanConfig
+from guard_core.models import SyncSecurityConfig, ThreatBanConfig
 from guard_core.sync.core.initialization.handler_initializer import HandlerInitializer
 
 CAP = 610
 
 
 def _initialize(**overrides: Any) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False,
         enable_penetration_detection=False,
         rate_limit=10,
@@ -125,7 +125,7 @@ class _Messages(logging.Handler):
         self.messages.append(record.getMessage())
 
 
-def _problems(config: SecurityConfig, **parts: Any) -> list[str]:
+def _problems(config: SyncSecurityConfig, **parts: Any) -> list[str]:
     initializer = HandlerInitializer(config, **parts)
     capture = _Messages()
     package_logger = logging.getLogger("guard_core")
@@ -139,7 +139,7 @@ def _problems(config: SecurityConfig, **parts: Any) -> list[str]:
     return _unreachable(capture.messages)
 
 
-def _config(**overrides: Any) -> SecurityConfig:
+def _config(**overrides: Any) -> SyncSecurityConfig:
     values: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": False,
@@ -149,7 +149,7 @@ def _config(**overrides: Any) -> SecurityConfig:
         "fail_on_misconfiguration": False,
     }
     values.update(overrides)
-    return SecurityConfig(**values)
+    return SyncSecurityConfig(**values)
 
 
 def test_default_limit_bound_is_610_and_prints_the_live_values() -> None:
@@ -313,7 +313,7 @@ def _stopped_redis_pipeline(**fields: Any) -> tuple[Any, Any, str]:
     from guard_core.sync.handlers.redis_handler import RedisManager
     from tests.test_sync.test_core.conftest import build_route_pipeline
 
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=True,
         redis_url="redis://127.0.0.1:1",
         enable_penetration_detection=True,

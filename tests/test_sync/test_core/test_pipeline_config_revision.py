@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks import factory
 from guard_core.sync.core.checks.factory import build_default_pipeline
 from guard_core.sync.core.checks.pipeline import SecurityCheckPipeline
@@ -21,16 +21,16 @@ def _blocking_custom_request_check(request: object) -> MockGuardResponse:
     return MockGuardResponse("blocked-by-custom-request-check", 451)
 
 
-def _neutral_config(**overrides: object) -> SecurityConfig:
+def _neutral_config(**overrides: object) -> SyncSecurityConfig:
     fields: dict[str, object] = {
         "enable_penetration_detection": False,
         "enable_rate_limiting": False,
     }
     fields.update(overrides)
-    return SecurityConfig(**fields)
+    return SyncSecurityConfig(**fields)
 
 
-def _build_middleware(config: SecurityConfig) -> MagicMock:
+def _build_middleware(config: SyncSecurityConfig) -> MagicMock:
     middleware = MagicMock()
     middleware.config = config
     middleware.logger = _LOGGER
@@ -307,7 +307,7 @@ def test_reassigning_blacklist_or_whitelist_never_flips_any_check_applies_to(
 ) -> None:
     assert field_name not in factory.WATCHED_CONTAINER_FIELDS
 
-    config = SecurityConfig(**{field_name: ()})
+    config = SyncSecurityConfig(**{field_name: ()})
     before = {
         cls: cls.applies_to(config, None) for cls in factory.DEFAULT_CHECK_CLASSES
     }

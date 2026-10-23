@@ -3,7 +3,7 @@ from typing import cast
 
 from pytest_mock import MockerFixture
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 from guard_core.sync.utils import detect_penetration_attempt
 
@@ -28,7 +28,7 @@ class _BodyRequest:
         return self._body
 
 
-_CONFIG = SecurityConfig(detection_max_body_inspect_bytes=65536)
+_CONFIG = SyncSecurityConfig(detection_max_body_inspect_bytes=65536)
 
 
 def _png_bytes() -> bytes:

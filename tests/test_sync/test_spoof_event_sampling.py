@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils import ip_extraction, sampling
 from guard_core.sync.utils import extract_client_ip
 from tests.test_sync.conftest import SyncMockGuardRequest
@@ -22,7 +22,9 @@ class Spoofer:
         monkeypatch.setattr(
             sampling, "time", SimpleNamespace(monotonic=lambda: self.now)
         )
-        self.config = SecurityConfig(enable_redis=False, trusted_proxies=["10.0.0.5"])
+        self.config = SyncSecurityConfig(
+            enable_redis=False, trusted_proxies=["10.0.0.5"]
+        )
         self.agent = MagicMock()
         self.agent.send_event = MagicMock()
 

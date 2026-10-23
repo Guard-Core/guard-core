@@ -4,7 +4,7 @@ from urllib.parse import quote
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.detection_result import DetectionResult
 from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
 from guard_core.sync.utils import detect_penetration_attempt
@@ -17,7 +17,7 @@ _BOUNDARY = "guardboundary"
 
 @pytest.fixture(autouse=True)
 def _force_enhanced_detection_singleton() -> None:
-    sus_patterns_handler.configure(SecurityConfig())
+    sus_patterns_handler.configure(SyncSecurityConfig())
 
 
 def _query(
@@ -47,9 +47,9 @@ def _post(
 
 
 def _threat(
-    request: SyncMockGuardRequest, config: SecurityConfig | None = None
+    request: SyncMockGuardRequest, config: SyncSecurityConfig | None = None
 ) -> DetectionResult:
-    return detect_penetration_attempt(request, config or SecurityConfig())
+    return detect_penetration_attempt(request, config or SyncSecurityConfig())
 
 
 def test_attack_in_the_last_of_300_junk_query_params_is_flagged() -> None:
@@ -59,7 +59,7 @@ def test_attack_in_the_last_of_300_junk_query_params_is_flagged() -> None:
 
 
 def test_attack_in_the_first_query_value_after_the_value_cap_is_flagged() -> None:
-    config = SecurityConfig(detection_max_scan_values=20)
+    config = SyncSecurityConfig(detection_max_scan_values=20)
     params = {f"p{i}": "v" for i in range(10)}
     params["first_after_cut"] = ATTACK
     params.update({f"q{i}": "v" for i in range(50)})
@@ -67,13 +67,13 @@ def test_attack_in_the_first_query_value_after_the_value_cap_is_flagged() -> Non
 
 
 def test_attack_in_the_first_value_after_the_char_cap_is_flagged() -> None:
-    config = SecurityConfig(detection_max_scan_chars=1024)
+    config = SyncSecurityConfig(detection_max_scan_chars=1024)
     params = {"filler": "a" * 2000, "after_cut": ATTACK}
     assert (_threat(_query(params), config)).is_threat is True
 
 
 def test_attack_in_a_value_that_crosses_the_char_cap_is_flagged() -> None:
-    config = SecurityConfig(detection_max_scan_chars=1024)
+    config = SyncSecurityConfig(detection_max_scan_chars=1024)
     params = {"filler": "a" * 1000, "crosses": ("a" * 100) + " " + ATTACK}
     assert (_threat(_query(params), config)).is_threat is True
 
@@ -166,7 +166,7 @@ def test_json_mongo_operator_key_after_the_cut_is_flagged() -> None:
 
 
 def test_json_attack_below_the_depth_cap_after_the_cut_is_flagged() -> None:
-    config = SecurityConfig(detection_max_json_depth=2)
+    config = SyncSecurityConfig(detection_max_json_depth=2)
     junk = {f"f{i}": "v" for i in range(600)}
     body = json.dumps({**junk, "deep": {"deeper": {"q": ATTACK}}}).encode()
     assert (_threat(_post(body, "application/json"), config)).is_threat is True
@@ -267,7 +267,7 @@ def test_benign_text_body_after_a_spent_budget_is_clean() -> None:
 
 
 def test_a_param_excluded_from_a_category_stays_excluded_after_the_cut() -> None:
-    config = SecurityConfig(excluded_detection_params={"note": ["sqli"]})
+    config = SyncSecurityConfig(excluded_detection_params={"note": ["sqli"]})
     params = {**_JUNK, "note": ATTACK}
     assert (_threat(_query(params), config)).is_threat is False
 

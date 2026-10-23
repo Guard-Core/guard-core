@@ -1,6 +1,6 @@
 from typing import Any
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.factory import build_default_pipeline
 from guard_core.sync.decorators import SecurityDecorator
 from tests.test_sync.conftest import SyncMockGuardRequest
@@ -9,7 +9,7 @@ from tests.test_sync.test_core.conftest import build_middleware, fixed_country_g
 
 def _events(**rules: Any) -> list[dict[str, Any]]:
     geo = fixed_country_geo_ip("CN")
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False,
         enable_penetration_detection=False,
         enable_rate_limiting=False,

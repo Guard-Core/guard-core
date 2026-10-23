@@ -4,7 +4,7 @@ import pytest
 from redis.exceptions import NoScriptError, RedisError
 
 from guard_core.exceptions import GuardRedisError
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers import ratelimit_handler
 from guard_core.sync.handlers.ratelimit_handler import (
     RateLimitManager,
@@ -20,7 +20,7 @@ def _reset_redis_fail_open_warning() -> None:
 
 @pytest.fixture
 def manager() -> RateLimitManager:
-    config = SecurityConfig(enable_redis=True, rate_limit=100, rate_limit_window=60)
+    config = SyncSecurityConfig(enable_redis=True, rate_limit=100, rate_limit_window=60)
     mgr = RateLimitManager(config)
     mgr.rate_limit_script_sha = "deadbeef"
     return mgr
@@ -28,7 +28,7 @@ def manager() -> RateLimitManager:
 
 @pytest.fixture
 def fail_open_manager() -> RateLimitManager:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=True,
         rate_limit=100,
         rate_limit_window=60,

@@ -2,19 +2,19 @@ from unittest.mock import Mock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync import utils
 from guard_core.sync.decorators import SecurityDecorator
 from tests.test_sync.conftest import SyncMockGuardRequest
 
 
 @pytest.fixture
-def adv_security_config() -> SecurityConfig:
-    return SecurityConfig()
+def adv_security_config() -> SyncSecurityConfig:
+    return SyncSecurityConfig()
 
 
 @pytest.fixture
-def decorator(adv_security_config: SecurityConfig) -> SecurityDecorator:
+def decorator(adv_security_config: SyncSecurityConfig) -> SecurityDecorator:
     return SecurityDecorator(adv_security_config)
 
 

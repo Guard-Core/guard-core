@@ -11,10 +11,10 @@ import sys
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.sync.handlers.ipban_handler import ip_ban_manager
 from guard_core.sync.handlers.redis_handler import RedisManager
-from guard_core.models import SecurityConfig
+from guard_core.models import SecurityConfig, SyncSecurityConfig
 
 def main(url, prefix, duration, ips):
-    config = SecurityConfig(redis_url=url, redis_prefix=prefix, enable_redis=True)
+    config = SyncSecurityConfig(redis_url=url, redis_prefix=prefix, enable_redis=True)
     redis_handler = RedisManager(config)
     redis_handler.initialize()
     ip_ban_manager.config = config

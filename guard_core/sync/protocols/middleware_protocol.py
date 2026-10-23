@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 from guard_core.protocols.response_protocol import GuardResponse
 
 if TYPE_CHECKING:
-    from guard_core.models import SecurityConfig
+    from guard_core.models import SyncSecurityConfig
 
 
 @runtime_checkable
@@ -25,7 +25,7 @@ class SyncGuardMiddlewareProtocol(Protocol):
     a feature is disabled, so callers must guard for it.
     """
 
-    config: SecurityConfig
+    config: SyncSecurityConfig
     logger: logging.Logger
     last_cloud_ip_refresh: int
     suspicious_request_counts: dict[str, dict[str, int]]

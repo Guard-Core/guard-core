@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.decorators import SecurityDecorator
 from guard_core.sync.handlers import ipban_handler
 from tests.test_sync.test_core.conftest import (
@@ -19,7 +19,7 @@ BOT_IP = "203.0.113.7"
 SQLI_PATH = "/x?q=1%20UNION%20SELECT%20password%20FROM%20users--"
 
 
-def _config(**overrides: Any) -> SecurityConfig:
+def _config(**overrides: Any) -> SyncSecurityConfig:
     settings: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": False,
@@ -29,7 +29,7 @@ def _config(**overrides: Any) -> SecurityConfig:
         "ban_on_hostile_signals": False,
     }
     settings.update(overrides)
-    return SecurityConfig(**settings)
+    return SyncSecurityConfig(**settings)
 
 
 FLAGGED_DENIALS = [

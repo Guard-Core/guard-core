@@ -5,7 +5,7 @@ from typing import Any, cast
 import pytest
 
 from guard_core._security_config_field_validators import _FIELD_REVALIDATORS
-from guard_core.models import BehaviorRuleConfig, SecurityConfig
+from guard_core.models import BehaviorRuleConfig, SecurityConfig, SyncSecurityConfig
 from tests.test_models.test_immutable_collection_fields import (
     IP_CIDR_FIELDS,
     MEMBERSHIP_FROZENSET_FIELDS,
@@ -78,7 +78,7 @@ _NEWLY_REGISTERED_FIELDS: tuple[tuple[str, Any, Any], ...] = (
 def test_newly_registered_field_reassignment_accepts_valid_value(
     field_name: str, valid_value: Any, bad_value: Any
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
 
     setattr(config, field_name, valid_value)
 
@@ -91,7 +91,7 @@ def test_newly_registered_field_reassignment_accepts_valid_value(
 def test_newly_registered_field_reassignment_rejects_bare_string(
     field_name: str, valid_value: Any, bad_value: Any
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
 
     with pytest.raises(ValueError, match=field_name):
         setattr(config, field_name, bad_value)
@@ -100,7 +100,7 @@ def test_newly_registered_field_reassignment_rejects_bare_string(
 
 
 def test_global_behavior_rules_reassignment_coerces_dicts_to_model() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
 
     cast(Any, config).global_behavior_rules = [{"rule_type": "usage", "threshold": 3}]
 
@@ -111,7 +111,7 @@ def test_global_behavior_rules_reassignment_coerces_dicts_to_model() -> None:
 
 
 def test_security_headers_reassignment_accepts_none() -> None:
-    config = SecurityConfig(security_headers={"frame_options": "DENY"})
+    config = SyncSecurityConfig(security_headers={"frame_options": "DENY"})
 
     config.security_headers = None
 
@@ -119,7 +119,7 @@ def test_security_headers_reassignment_accepts_none() -> None:
 
 
 def test_agent_sensitive_headers_reassignment_accepts_none() -> None:
-    config = SecurityConfig(agent_sensitive_headers=["authorization"])
+    config = SyncSecurityConfig(agent_sensitive_headers=["authorization"])
 
     config.agent_sensitive_headers = None
 
@@ -127,7 +127,7 @@ def test_agent_sensitive_headers_reassignment_accepts_none() -> None:
 
 
 def test_excluded_detection_headers_reassignment_stores_plain_set() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
 
     cast(Any, config).excluded_detection_headers = ["x-foo", "x-bar"]
 
@@ -136,7 +136,7 @@ def test_excluded_detection_headers_reassignment_stores_plain_set() -> None:
 
 
 def test_custom_error_responses_reassignment_rejects_non_int_key() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
 
     with pytest.raises(ValueError, match="custom_error_responses"):
         cast(Any, config).custom_error_responses = {"not-an-int": "oops"}

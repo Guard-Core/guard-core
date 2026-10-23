@@ -8,11 +8,11 @@ from redis import Redis
 from redis.exceptions import ConnectionError
 
 from guard_core.exceptions import GuardRedisError
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.redis_handler import redis_handler
 
 
-def test_redis_basic_operations(security_config_redis: SecurityConfig) -> None:
+def test_redis_basic_operations(security_config_redis: SyncSecurityConfig) -> None:
     handler = redis_handler(security_config_redis)
     handler.initialize()
 
@@ -30,7 +30,7 @@ def test_redis_basic_operations(security_config_redis: SecurityConfig) -> None:
     handler.close()
 
 
-def test_redis_disabled(security_config: SecurityConfig) -> None:
+def test_redis_disabled(security_config: SyncSecurityConfig) -> None:
     handler = redis_handler(security_config)
     handler.initialize()
 
@@ -42,7 +42,7 @@ def test_redis_disabled(security_config: SecurityConfig) -> None:
     assert value is None
 
 
-def test_redis_error_handling(security_config_redis: SecurityConfig) -> None:
+def test_redis_error_handling(security_config_redis: SyncSecurityConfig) -> None:
     handler = redis_handler(security_config_redis)
     handler.initialize()
 
@@ -56,7 +56,7 @@ def test_redis_error_handling(security_config_redis: SecurityConfig) -> None:
     handler.close()
 
 
-def test_redis_ttl_operations(security_config_redis: SecurityConfig) -> None:
+def test_redis_ttl_operations(security_config_redis: SyncSecurityConfig) -> None:
     handler = redis_handler(security_config_redis)
     handler.initialize()
 
@@ -72,7 +72,7 @@ def test_redis_ttl_operations(security_config_redis: SecurityConfig) -> None:
 
 
 def test_redis_increment_operations(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
     handler = redis_handler(security_config_redis)
     handler.initialize()
@@ -97,7 +97,7 @@ def test_redis_increment_operations(
 
 
 def test_record_sliding_window_hit_accumulates_and_trips(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
     handler = redis_handler(security_config_redis)
     handler.initialize()
@@ -128,7 +128,7 @@ def test_record_sliding_window_hit_accumulates_and_trips(
 
 
 def test_record_sliding_window_hit_identical_timestamps_each_count_separately(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
     handler = redis_handler(security_config_redis)
     handler.initialize()
@@ -156,7 +156,7 @@ def test_record_sliding_window_hit_identical_timestamps_each_count_separately(
 
 
 def test_record_sliding_window_hit_prunes_entries_before_window_start(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
     handler = redis_handler(security_config_redis)
     handler.initialize()
@@ -179,7 +179,7 @@ def test_record_sliding_window_hit_prunes_entries_before_window_start(
 
 
 def test_record_sliding_window_hit_window_start_boundary_is_inclusive(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
     handler = redis_handler(security_config_redis)
     handler.initialize()
@@ -209,7 +209,7 @@ def test_record_sliding_window_hit_window_start_boundary_is_inclusive(
 
 
 def test_record_sliding_window_hit_key_expires_with_ttl(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
     handler = redis_handler(security_config_redis)
     handler.initialize()
@@ -232,7 +232,7 @@ def test_record_sliding_window_hit_key_expires_with_ttl(
 
 
 def test_record_sliding_window_hit_disabled_redis_returns_zero(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     handler = redis_handler(security_config)
     handler.initialize()
@@ -245,7 +245,7 @@ def test_record_sliding_window_hit_disabled_redis_returns_zero(
 
 
 def test_count_sliding_window_hits_counts_without_recording(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
     handler = redis_handler(security_config_redis)
     handler.initialize()
@@ -272,7 +272,7 @@ def test_count_sliding_window_hits_counts_without_recording(
 
 
 def test_count_sliding_window_hits_disabled_redis_returns_zero(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     handler = redis_handler(security_config)
     handler.initialize()
@@ -282,7 +282,7 @@ def test_count_sliding_window_hits_disabled_redis_returns_zero(
 
 
 def test_count_sliding_window_hits_returns_zero_when_the_operation_fails(
-    security_config_redis: SecurityConfig, monkeypatch: Any
+    security_config_redis: SyncSecurityConfig, monkeypatch: Any
 ) -> None:
     handler = redis_handler(security_config_redis)
     handler.initialize()
@@ -294,7 +294,7 @@ def test_count_sliding_window_hits_returns_zero_when_the_operation_fails(
 
 
 def test_redis_connection_context_get_error(
-    security_config_redis: SecurityConfig, monkeypatch: Any
+    security_config_redis: SyncSecurityConfig, monkeypatch: Any
 ) -> None:
     handler = redis_handler(security_config_redis)
     handler.initialize()
@@ -312,8 +312,8 @@ def test_redis_connection_context_get_error(
     handler.close()
 
 
-def test_redis_connection_failures(security_config_redis: SecurityConfig) -> None:
-    bad_config = SecurityConfig(
+def test_redis_connection_failures(security_config_redis: SyncSecurityConfig) -> None:
+    bad_config = SyncSecurityConfig(
         **{
             **security_config_redis.model_dump(
                 exclude={"ipinfo_token", "ipinfo_db_path"}
@@ -341,7 +341,7 @@ def test_redis_connection_failures(security_config_redis: SecurityConfig) -> Non
     assert exc_info.value.status_code == 503
 
 
-def test_redis_disabled_operations(security_config_redis: SecurityConfig) -> None:
+def test_redis_disabled_operations(security_config_redis: SyncSecurityConfig) -> None:
     security_config_redis.enable_redis = False
     handler = redis_handler(security_config_redis)
 
@@ -353,9 +353,9 @@ def test_redis_disabled_operations(security_config_redis: SecurityConfig) -> Non
 
 
 def test_redis_failed_initialization_operations(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
-    bad_config = SecurityConfig(
+    bad_config = SyncSecurityConfig(
         **{
             **security_config_redis.model_dump(
                 exclude={"ipinfo_token", "ipinfo_db_path"}
@@ -374,7 +374,7 @@ def test_redis_failed_initialization_operations(
     assert exc_info.value.status_code == 503
 
 
-def test_redis_url_none(security_config_redis: SecurityConfig) -> None:
+def test_redis_url_none(security_config_redis: SyncSecurityConfig) -> None:
     security_config_redis.redis_url = None
 
     handler = redis_handler(security_config_redis)
@@ -385,7 +385,7 @@ def test_redis_url_none(security_config_redis: SecurityConfig) -> None:
         assert handler._redis is None
 
 
-def test_safe_operation_redis_disabled(security_config: SecurityConfig) -> None:
+def test_safe_operation_redis_disabled(security_config: SyncSecurityConfig) -> None:
     handler = redis_handler(security_config)
 
     mock_func = MagicMock()
@@ -396,7 +396,7 @@ def test_safe_operation_redis_disabled(security_config: SecurityConfig) -> None:
 
 
 def test_connection_context_redis_none(
-    security_config_redis: SecurityConfig, monkeypatch: Any
+    security_config_redis: SyncSecurityConfig, monkeypatch: Any
 ) -> None:
     handler = redis_handler(security_config_redis)
 
@@ -420,7 +420,7 @@ def test_connection_context_redis_none(
 
 
 def test_redis_keys_and_delete_pattern_with_redis_disabled() -> None:
-    config = SecurityConfig(enable_redis=False)
+    config = SyncSecurityConfig(enable_redis=False)
     handler = redis_handler(config)
 
     keys_result = handler.keys("*")
@@ -431,11 +431,11 @@ def test_redis_keys_and_delete_pattern_with_redis_disabled() -> None:
 
 
 def test_initialize_logs_warning_when_redis_url_is_none() -> None:
-    from guard_core.models import SecurityConfig
+    from guard_core.models import SyncSecurityConfig
     from guard_core.sync.handlers.redis_handler import RedisManager
 
     RedisManager._instance = None
-    config = SecurityConfig(enable_redis=True, redis_url=None)
+    config = SyncSecurityConfig(enable_redis=True, redis_url=None)
     manager = RedisManager(config)
     with patch.object(manager.logger, "warning") as mock_warn:
         manager.initialize()
@@ -444,11 +444,11 @@ def test_initialize_logs_warning_when_redis_url_is_none() -> None:
 
 
 def test_close_noop_when_redis_not_connected() -> None:
-    from guard_core.models import SecurityConfig
+    from guard_core.models import SyncSecurityConfig
     from guard_core.sync.handlers.redis_handler import RedisManager
 
     RedisManager._instance = None
-    manager = RedisManager(SecurityConfig(enable_redis=True))
+    manager = RedisManager(SyncSecurityConfig(enable_redis=True))
     manager._redis = None
     manager.close()
     assert manager._closed is True
@@ -456,11 +456,11 @@ def test_close_noop_when_redis_not_connected() -> None:
 
 
 def test_initialize_when_from_url_returns_none_skips_ping() -> None:
-    from guard_core.models import SecurityConfig
+    from guard_core.models import SyncSecurityConfig
     from guard_core.sync.handlers.redis_handler import RedisManager
 
     RedisManager._instance = None
-    config = SecurityConfig(enable_redis=True, redis_url="redis://localhost:6379")
+    config = SyncSecurityConfig(enable_redis=True, redis_url="redis://localhost:6379")
     manager = RedisManager(config)
     with patch(
         "guard_core.sync.handlers.redis_handler._build_redis_client", return_value=None
@@ -471,11 +471,11 @@ def test_initialize_when_from_url_returns_none_skips_ping() -> None:
 
 
 def test_initialize_twice_closes_previous_client_exactly_once() -> None:
-    from guard_core.models import SecurityConfig
+    from guard_core.models import SyncSecurityConfig
     from guard_core.sync.handlers.redis_handler import RedisManager
 
     RedisManager._instance = None
-    config = SecurityConfig(enable_redis=True, redis_url="redis://localhost:6379")
+    config = SyncSecurityConfig(enable_redis=True, redis_url="redis://localhost:6379")
     manager = RedisManager(config)
 
     first_client = MagicMock()
@@ -500,11 +500,11 @@ def test_initialize_twice_closes_previous_client_exactly_once() -> None:
 
 
 def test_initialize_disabled_redis_closes_existing_client() -> None:
-    from guard_core.models import SecurityConfig
+    from guard_core.models import SyncSecurityConfig
     from guard_core.sync.handlers.redis_handler import RedisManager
 
     RedisManager._instance = None
-    config = SecurityConfig(enable_redis=True, redis_url="redis://localhost:6379")
+    config = SyncSecurityConfig(enable_redis=True, redis_url="redis://localhost:6379")
     manager = RedisManager(config)
 
     existing_client = MagicMock()
@@ -521,11 +521,11 @@ def test_initialize_disabled_redis_closes_existing_client() -> None:
 
 
 def test_initialize_ping_failure_closes_new_client_before_raising() -> None:
-    from guard_core.models import SecurityConfig
+    from guard_core.models import SyncSecurityConfig
     from guard_core.sync.handlers.redis_handler import RedisManager
 
     RedisManager._instance = None
-    config = SecurityConfig(enable_redis=True, redis_url="redis://localhost:6379")
+    config = SyncSecurityConfig(enable_redis=True, redis_url="redis://localhost:6379")
     manager = RedisManager(config)
 
     failing_client = MagicMock()
@@ -545,11 +545,11 @@ def test_initialize_ping_failure_closes_new_client_before_raising() -> None:
 
 
 def test_close_twice_does_not_raise() -> None:
-    from guard_core.models import SecurityConfig
+    from guard_core.models import SyncSecurityConfig
     from guard_core.sync.handlers.redis_handler import RedisManager
 
     RedisManager._instance = None
-    config = SecurityConfig(enable_redis=True, redis_url="redis://localhost:6379")
+    config = SyncSecurityConfig(enable_redis=True, redis_url="redis://localhost:6379")
     manager = RedisManager(config)
 
     client = MagicMock()
@@ -566,11 +566,11 @@ def test_close_twice_does_not_raise() -> None:
 
 
 def test_close_stale_client_failure_is_logged_and_swallowed() -> None:
-    from guard_core.models import SecurityConfig
+    from guard_core.models import SyncSecurityConfig
     from guard_core.sync.handlers.redis_handler import RedisManager
 
     RedisManager._instance = None
-    config = SecurityConfig(enable_redis=True, redis_url="redis://localhost:6379")
+    config = SyncSecurityConfig(enable_redis=True, redis_url="redis://localhost:6379")
     manager = RedisManager(config)
 
     stale_client = MagicMock()
@@ -591,7 +591,7 @@ def test_close_stale_client_failure_is_logged_and_swallowed() -> None:
 
 
 def test_initialize_twice_against_real_redis_does_not_warn(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
     import gc
     import warnings
@@ -610,7 +610,7 @@ def test_initialize_twice_against_real_redis_does_not_warn(
 
 
 def test_record_sliding_window_hit_reloads_its_script_after_a_script_flush(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
     handler = redis_handler(security_config_redis)
     handler.initialize()
@@ -648,7 +648,7 @@ def _index_members(handler: Any, index: str) -> set[str]:
 
 
 def test_record_sliding_window_hit_indexes_the_key_with_its_ttl(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
     handler = redis_handler(security_config_redis)
     handler.initialize()
@@ -671,7 +671,7 @@ def test_record_sliding_window_hit_indexes_the_key_with_its_ttl(
 
 
 def test_sum_indexed_window_hits_counts_hits_from_the_window_start(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
     handler = redis_handler(security_config_redis)
     handler.initialize()
@@ -688,7 +688,7 @@ def test_sum_indexed_window_hits_counts_hits_from_the_window_start(
 
 
 def test_sum_indexed_window_hits_drops_members_whose_key_expired(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
     handler = redis_handler(security_config_redis)
     handler.initialize()
@@ -704,7 +704,7 @@ def test_sum_indexed_window_hits_drops_members_whose_key_expired(
 
 
 def test_a_full_index_prunes_expired_keys_then_drops_the_new_key(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
     handler = redis_handler(security_config_redis)
     handler.initialize()
@@ -723,7 +723,7 @@ def test_a_full_index_prunes_expired_keys_then_drops_the_new_key(
 
 
 def test_sum_indexed_window_hits_reloads_its_script_after_a_script_flush(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
     handler = redis_handler(security_config_redis)
     handler.initialize()
@@ -739,13 +739,13 @@ def test_sum_indexed_window_hits_reloads_its_script_after_a_script_flush(
 
 
 def test_sum_indexed_window_hits_is_zero_when_redis_is_disabled() -> None:
-    handler = redis_handler(SecurityConfig(enable_redis=False))
+    handler = redis_handler(SyncSecurityConfig(enable_redis=False))
 
     assert handler.sum_indexed_window_hits("ns", "index", 0.0) == 0
 
 
 def test_sum_indexed_window_hits_is_zero_when_the_operation_fails(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
     handler = redis_handler(security_config_redis)
 

@@ -2,18 +2,18 @@ from urllib.parse import quote
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
 from guard_core.sync.utils import detect_penetration_attempt
 from tests.test_sync.conftest import SyncMockGuardRequest
 
-_CONFIG = SecurityConfig()
+_CONFIG = SyncSecurityConfig()
 _TAUTOLOGY = "' OR 1=1--"
 
 
 @pytest.fixture(autouse=True)
 def _force_enhanced_detection_singleton() -> None:
-    sus_patterns_handler.configure(SecurityConfig())
+    sus_patterns_handler.configure(SyncSecurityConfig())
 
 
 def _header_request(name: str, value: str) -> SyncMockGuardRequest:

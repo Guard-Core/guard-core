@@ -3,7 +3,7 @@ from collections.abc import Callable, MutableMapping
 from typing import Any
 from urllib.parse import urlsplit
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.body_reader import _parse_content_length
 from guard_core.sync._utils.honeypot_fields import (
@@ -50,7 +50,7 @@ _BODY_METHODS = frozenset({"POST", "PUT", "PATCH"})
 
 
 def _warn_if_body_not_fully_inspected(
-    request: SyncGuardRequest, raw_body: bytes | None, config: SecurityConfig
+    request: SyncGuardRequest, raw_body: bytes | None, config: SyncSecurityConfig
 ) -> None:
     max_bytes = config.detection_max_body_inspect_bytes
     declared = _parse_content_length(request.headers.get("content-length", ""))
@@ -80,7 +80,7 @@ def _log_unparsable_json(error: Exception | None) -> None:
 
 
 class AdvancedMixin(BaseSecurityMixin):
-    config: SecurityConfig
+    config: SyncSecurityConfig
 
     def time_window(
         self, start_time: str, end_time: str, timezone: str = "UTC"

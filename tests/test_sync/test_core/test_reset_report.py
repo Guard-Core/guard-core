@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks._strike_forget import forget_category_strikes
 from guard_core.sync.core.checks.helpers import _increment_suspicious_counts
 from guard_core.sync.handlers import ratelimit_handler
@@ -22,7 +22,7 @@ NOTHING = PREFIX + "reset() cleared nothing"
 IP = "203.0.113.31"
 
 
-def _config(**extra: object) -> SecurityConfig:
+def _config(**extra: object) -> SyncSecurityConfig:
     values: dict[str, object] = {
         "enable_redis": False,
         "rate_limit": 1,
@@ -30,7 +30,7 @@ def _config(**extra: object) -> SecurityConfig:
         "enable_rate_limiting": True,
     }
     values.update(extra)
-    return SecurityConfig(**values)
+    return SyncSecurityConfig(**values)
 
 
 @pytest.fixture(autouse=True)
@@ -48,7 +48,7 @@ def _warnings(caplog: pytest.LogCaptureFixture) -> list[str]:
     ]
 
 
-def _own_window(config: SecurityConfig) -> object:
+def _own_window(config: SyncSecurityConfig) -> object:
     def error(status: int, message: str) -> MockGuardResponse:
         return MockGuardResponse(message, status)
 

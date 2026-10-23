@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, Mock
 
 import pytest
 
-from guard_core.models import SecurityConfig, ThreatBanConfig
+from guard_core.models import SyncSecurityConfig, ThreatBanConfig
 from guard_core.sync.core.checks.helpers import SUSPICIOUS_COUNT_WINDOW_SECONDS
 from guard_core.sync.core.checks.implementations.rate_limit import RateLimitCheck
 from guard_core.sync.handlers.ipban_handler import IPBanManager
@@ -18,7 +18,7 @@ BanCalls = list[tuple[str, int, str]]
 
 
 def _install_recording_ban_manager(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
 ) -> tuple[IPBanManager, BanCalls]:
     IPBanManager._instance = None
     manager = IPBanManager()
@@ -41,7 +41,7 @@ def _install_recording_ban_manager(
 
 
 def test_knob_off_default_never_bans_on_repeated_violations() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False,
         rate_limit=1,
         rate_limit_window=60,
@@ -62,7 +62,7 @@ def test_knob_off_default_never_bans_on_repeated_violations() -> None:
 
 
 def test_threshold_crossing_bans_with_configured_duration_and_reason() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False,
         rate_limit=1,
         rate_limit_window=60,
@@ -86,7 +86,7 @@ def test_threshold_crossing_bans_with_configured_duration_and_reason() -> None:
 
 
 def test_per_category_threat_ban_config_override_honored() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False,
         rate_limit=1,
         rate_limit_window=60,
@@ -109,7 +109,7 @@ def test_per_category_threat_ban_config_override_honored() -> None:
 
 
 def test_passive_mode_suppresses_counting_and_ban() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         passive_mode=True,
         enable_redis=False,
         rate_limit=1,
@@ -132,7 +132,7 @@ def test_passive_mode_suppresses_counting_and_ban() -> None:
 
 
 def test_enable_ip_banning_false_suppresses_ban() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False,
         rate_limit=1,
         rate_limit_window=60,
@@ -152,7 +152,7 @@ def test_enable_ip_banning_false_suppresses_ban() -> None:
 
 
 def test_loopback_ip_not_banned_despite_threshold_crossing() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False,
         rate_limit=1,
         rate_limit_window=60,
@@ -175,7 +175,7 @@ def test_loopback_ip_not_banned_despite_threshold_crossing() -> None:
 
 
 def test_rejected_ip_input_records_no_autoban_count() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False,
         rate_limit=1,
         rate_limit_window=60,
@@ -197,7 +197,7 @@ def test_rejected_ip_input_records_no_autoban_count() -> None:
 def test_redis_backed_over_limit_feeds_autoban_counter(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=True,
         rate_limit=1,
         rate_limit_window=60,
@@ -232,7 +232,7 @@ def test_redis_backed_over_limit_feeds_autoban_counter(
 
 
 def test_already_banned_ip_makes_zero_additional_ban_calls() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False,
         rate_limit=1,
         rate_limit_window=60,
@@ -280,7 +280,7 @@ def test_already_banned_ip_makes_zero_additional_ban_calls() -> None:
         IPBanManager._instance = None
 
 
-def _make_middleware(config: SecurityConfig) -> Mock:
+def _make_middleware(config: SyncSecurityConfig) -> Mock:
     middleware = Mock()
     middleware.config = config
     middleware.logger = Mock()
@@ -309,7 +309,7 @@ def _make_request(client_ip: str) -> MagicMock:
 
 
 def test_dedicated_counter_isolated_from_middleware_suspicious_counts() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False,
         rate_limit=1,
         rate_limit_window=60,
@@ -346,7 +346,7 @@ def test_dedicated_counter_isolated_from_middleware_suspicious_counts() -> None:
 
 def test_autoban_counter_evicts_the_oldest_ip_a_touched_ip_survives() -> None:
     _by_ip_autoban_counts.clear()
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         ban_counters_max_tracked_ips=3,
         enable_redis=False,
         rate_limit=1,
@@ -380,8 +380,8 @@ def test_autoban_counter_evicts_the_oldest_ip_a_touched_ip_survives() -> None:
         IPBanManager._instance = None
 
 
-def _autoban_config() -> SecurityConfig:
-    return SecurityConfig(
+def _autoban_config() -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         enable_redis=False,
         rate_limit=1,
         rate_limit_window=60,
@@ -436,7 +436,7 @@ def test_violations_inside_the_window_still_ban_and_clear_the_counter(
 def test_a_failing_shared_violation_counter_falls_back_to_the_process_count(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=True,
         rate_limit=1,
         rate_limit_window=60,

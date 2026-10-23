@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils.access_control import check_ip_access
 from guard_core.sync._utils.ip_extraction import MALFORMED_FORWARDED_FOR_PREFIX
 from guard_core.sync.core.checks.implementations.ip_security import (
@@ -22,7 +22,7 @@ def test_skipping_the_ip_lists_still_applies_the_country_rules() -> None:
     geo.is_initialized = True
     geo.initialize = MagicMock()
     geo.get_country.return_value = "CN"
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False, blocked_countries=["CN"], geo_ip_handler=geo
     )
 
@@ -32,7 +32,7 @@ def test_skipping_the_ip_lists_still_applies_the_country_rules() -> None:
 
 
 def test_a_unix_peer_with_a_malformed_chain_gets_the_malformed_identity() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False, trusted_proxies=["unix"], fail_secure=False
     )
     request = SyncMockGuardRequest(

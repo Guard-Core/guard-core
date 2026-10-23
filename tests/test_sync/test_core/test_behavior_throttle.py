@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from guard_core.models import BehaviorRuleConfig, SecurityConfig
+from guard_core.models import BehaviorRuleConfig, SyncSecurityConfig
 from guard_core.sync._utils import sampling
 from guard_core.sync.core.behavioral import _throttle
 from guard_core.sync.core.behavioral.context import BehavioralContext
@@ -49,7 +49,7 @@ class _Clock:
 
 
 class _Middleware:
-    def __init__(self, config: SecurityConfig) -> None:
+    def __init__(self, config: SyncSecurityConfig) -> None:
         self.suspicious_request_counts: dict[str, dict[str, int]] = {}
         self._factory = ErrorResponseFactory(
             ResponseContext(
@@ -72,14 +72,14 @@ class _Agent:
         self.events.append(event)
 
 
-def _config(**overrides: Any) -> SecurityConfig:
+def _config(**overrides: Any) -> SyncSecurityConfig:
     fields: dict[str, Any] = {"enable_redis": False}
     fields.update(overrides)
-    return SecurityConfig(**fields)
+    return SyncSecurityConfig(**fields)
 
 
 def _processor(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     tracker: BehaviorTracker,
     middleware: bool = True,
     decorator: Any = None,
@@ -149,7 +149,7 @@ def _statuses(
 
 
 @contextmanager
-def _redis(config: SecurityConfig) -> Iterator[Any]:
+def _redis(config: SyncSecurityConfig) -> Iterator[Any]:
     manager = redis_handler(config)
     manager.initialize()
     try:
@@ -240,7 +240,7 @@ def test_retry_after_is_clamped_to_the_window(
 
 
 def test_route_usage_throttle_is_shared_over_redis(
-    monkeypatch: pytest.MonkeyPatch, security_config_redis: SecurityConfig
+    monkeypatch: pytest.MonkeyPatch, security_config_redis: SyncSecurityConfig
 ) -> None:
     clock = _Clock(monkeypatch)
     with _redis(security_config_redis) as manager:
@@ -336,7 +336,7 @@ def test_a_refusing_rule_records_no_hit_for_the_other_rules(
 
 
 def test_a_refusing_rule_records_no_hit_for_the_other_rules_over_redis(
-    monkeypatch: pytest.MonkeyPatch, security_config_redis: SecurityConfig
+    monkeypatch: pytest.MonkeyPatch, security_config_redis: SyncSecurityConfig
 ) -> None:
     _Clock(monkeypatch)
     with _redis(security_config_redis) as manager:
@@ -356,7 +356,7 @@ def test_a_refusing_rule_records_no_hit_for_the_other_rules_over_redis(
 
 
 def test_redis_script_is_reloaded_after_a_script_flush(
-    monkeypatch: pytest.MonkeyPatch, security_config_redis: SecurityConfig
+    monkeypatch: pytest.MonkeyPatch, security_config_redis: SyncSecurityConfig
 ) -> None:
     clock = _Clock(monkeypatch)
     with _redis(security_config_redis) as manager:
@@ -372,7 +372,7 @@ def test_redis_script_is_reloaded_after_a_script_flush(
 
 
 class _BrokenRedis:
-    def __init__(self, config: SecurityConfig) -> None:
+    def __init__(self, config: SyncSecurityConfig) -> None:
         self.config = config
 
     def record_sliding_window_hit(self, *args: Any) -> int:
@@ -385,7 +385,7 @@ class _BrokenRedis:
         yield None
 
 
-def _broken_redis_tracker(config: SecurityConfig) -> BehaviorTracker:
+def _broken_redis_tracker(config: SyncSecurityConfig) -> BehaviorTracker:
     tracker = BehaviorTracker(config)
     tracker.redis_handler = _BrokenRedis(config)
     return tracker
@@ -646,7 +646,7 @@ def test_an_episode_ends_after_a_window_without_refusals(
 
 
 def test_the_trip_marker_is_shared_over_redis(
-    monkeypatch: pytest.MonkeyPatch, security_config_redis: SecurityConfig
+    monkeypatch: pytest.MonkeyPatch, security_config_redis: SyncSecurityConfig
 ) -> None:
     _Clock(monkeypatch)
     with _redis(security_config_redis) as manager:
@@ -940,7 +940,7 @@ def test_redis_failure_logs_the_redacted_error_and_the_fail_secure_block(
 
 
 def test_global_throttle_hits_use_the_global_scope_key_over_redis(
-    monkeypatch: pytest.MonkeyPatch, security_config_redis: SecurityConfig
+    monkeypatch: pytest.MonkeyPatch, security_config_redis: SyncSecurityConfig
 ) -> None:
     _Clock(monkeypatch)
     rule_config = _global_rule_config(rule_type="usage", threshold=100)
@@ -1015,7 +1015,7 @@ def test_a_refused_request_counts_only_in_global_non_throttle_usage_rules(
 
 
 def test_route_return_throttle_refuses_over_redis(
-    monkeypatch: pytest.MonkeyPatch, security_config_redis: SecurityConfig
+    monkeypatch: pytest.MonkeyPatch, security_config_redis: SyncSecurityConfig
 ) -> None:
     clock = _Clock(monkeypatch)
     with _redis(security_config_redis) as manager:

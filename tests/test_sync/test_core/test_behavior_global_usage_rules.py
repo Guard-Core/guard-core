@@ -2,7 +2,7 @@ import logging
 from typing import Any
 from unittest.mock import MagicMock
 
-from guard_core.models import BehaviorRuleConfig, SecurityConfig
+from guard_core.models import BehaviorRuleConfig, SyncSecurityConfig
 from guard_core.sync.core.behavioral.context import BehavioralContext
 from guard_core.sync.core.behavioral.processor import BehavioralProcessor
 from guard_core.sync.core.initialization.handler_initializer import HandlerInitializer
@@ -11,7 +11,7 @@ from tests.test_sync.conftest import MockGuardResponse
 
 
 def _global_processor() -> tuple[BehavioralProcessor, MagicMock]:
-    config = SecurityConfig(enable_redis=False)
+    config = SyncSecurityConfig(enable_redis=False)
     event_bus = MagicMock()
     event_bus.send_middleware_event = MagicMock()
     tracker = BehaviorTracker(config)
@@ -110,7 +110,7 @@ _BAN_RULE = BehaviorRuleConfig(
 
 
 def test_exact_duplicate_global_rules_are_dropped_at_construction() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False,
         global_behavior_rules=(_DUPLICATE_RULE, _BAN_RULE, _DUPLICATE_RULE),
     )
@@ -118,13 +118,13 @@ def test_exact_duplicate_global_rules_are_dropped_at_construction() -> None:
 
 
 def test_exact_duplicate_global_rules_are_dropped_on_assignment() -> None:
-    config = SecurityConfig(enable_redis=False)
+    config = SyncSecurityConfig(enable_redis=False)
     config.global_behavior_rules = (_BAN_RULE, _BAN_RULE)
     assert config.global_behavior_rules == (_BAN_RULE,)
 
 
 def test_exact_duplicate_global_rules_are_dropped_on_model_copy() -> None:
-    config = SecurityConfig(enable_redis=False)
+    config = SyncSecurityConfig(enable_redis=False)
     copied = config.model_copy(
         update={"global_behavior_rules": (_DUPLICATE_RULE, _DUPLICATE_RULE)}
     )
@@ -132,7 +132,7 @@ def test_exact_duplicate_global_rules_are_dropped_on_model_copy() -> None:
 
 
 def test_global_rules_run_without_decorator_and_without_enrichment() -> None:
-    config = SecurityConfig(enable_redis=False, enable_enrichment=False)
+    config = SyncSecurityConfig(enable_redis=False, enable_enrichment=False)
     initializer = HandlerInitializer(config=config, guard_decorator=None)
     event_bus = MagicMock()
     event_bus.send_middleware_event = MagicMock()
@@ -173,7 +173,7 @@ class _RecordingAgent:
 
 
 def test_global_rule_without_decorator_sends_behavioral_violation() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False,
         enable_agent=True,
         agent_api_key="a" * 10,

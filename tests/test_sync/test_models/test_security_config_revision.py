@@ -1,13 +1,13 @@
-from guard_core.models import SecurityConfig
+from guard_core.models import SecurityConfig, SyncSecurityConfig
 
 
 def test_fresh_config_has_zero_revision() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     assert config.revision == 0
 
 
 def test_revision_increments_on_field_assignment() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     config.blocked_user_agents = ["badbot"]
     assert config.revision == 1
     config.rate_limit = 5
@@ -20,25 +20,25 @@ def test_revision_is_not_a_model_field() -> None:
 
 
 def test_revision_is_absent_from_model_dump() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     config.rate_limit = 5
     assert "_revision" not in config.model_dump()
     assert "revision" not in config.model_dump()
 
 
 def test_revision_does_not_affect_equality() -> None:
-    mutated = SecurityConfig()
+    mutated = SyncSecurityConfig()
     mutated.rate_limit = 5
     mutated.rate_limit_window = 30
 
-    fresh = SecurityConfig(rate_limit=5, rate_limit_window=30)
+    fresh = SyncSecurityConfig(rate_limit=5, rate_limit_window=30)
 
     assert mutated.revision != fresh.revision
     assert mutated == fresh
 
 
 def test_revision_survives_model_copy() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     config.rate_limit = 5
     copy = config.model_copy()
 
@@ -50,13 +50,13 @@ def test_revision_survives_model_copy() -> None:
 
 
 def test_directly_assigning_revision_before_any_bump_is_visible() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     config._revision = 100
     assert config.revision == 100
 
 
 def test_directly_assigning_revision_after_a_bump_does_not_change_it() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     config.rate_limit = 5
     assert config.revision == 1
 
@@ -65,8 +65,8 @@ def test_directly_assigning_revision_after_a_bump_does_not_change_it() -> None:
 
 
 def test_independent_configs_have_independent_revisions() -> None:
-    first = SecurityConfig()
-    second = SecurityConfig()
+    first = SyncSecurityConfig()
+    second = SyncSecurityConfig()
 
     first.rate_limit = 5
 
@@ -78,7 +78,7 @@ def test_revision_survives_a_class_level_private_attribute_leak() -> None:
     leaked_descriptor = SecurityConfig._revision
     SecurityConfig._revision = leaked_descriptor
     try:
-        config = SecurityConfig()
+        config = SyncSecurityConfig()
         config.rate_limit = 5
         assert config.revision == 1
         config.rate_limit_window = 30

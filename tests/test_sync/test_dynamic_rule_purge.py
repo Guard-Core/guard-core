@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.models import DynamicRules, SyncSecurityConfig
 from guard_core.sync.core.initialization.handler_initializer import HandlerInitializer
 from guard_core.sync.handlers._dynamic_rule_purge import purge_fingerprint
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
@@ -58,7 +58,7 @@ def reset_singleton() -> Iterator[None]:
 
 @pytest.fixture
 def live_redis() -> Generator[RedisManager, None]:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         redis_url=REDIS_URL,
         redis_prefix=f"wp17-purge:{uuid.uuid4().hex}:",
         enable_redis=True,
@@ -77,7 +77,9 @@ def live_redis() -> Generator[RedisManager, None]:
             sus_patterns_handler.remove_pattern(pattern)
 
 
-def _config(redis: RedisManager, tmp_path: Path, **overrides: Any) -> SecurityConfig:
+def _config(
+    redis: RedisManager, tmp_path: Path, **overrides: Any
+) -> SyncSecurityConfig:
     settings: dict[str, Any] = {
         "enable_redis": True,
         "redis_url": REDIS_URL,
@@ -88,7 +90,7 @@ def _config(redis: RedisManager, tmp_path: Path, **overrides: Any) -> SecurityCo
         "dynamic_rules_cache_path": tmp_path / "rules.json",
     }
     settings.update(overrides)
-    return SecurityConfig(**settings)
+    return SyncSecurityConfig(**settings)
 
 
 def _rules(**overrides: Any) -> DynamicRules:
@@ -106,7 +108,7 @@ def _rules(**overrides: Any) -> DynamicRules:
     return DynamicRules(**base)
 
 
-def _manager(config: SecurityConfig, redis: RedisManager, agent: Any = None) -> Any:
+def _manager(config: SyncSecurityConfig, redis: RedisManager, agent: Any = None) -> Any:
     DynamicRuleManager._instance = None
     manager = DynamicRuleManager(config)
     manager.redis_handler = redis
@@ -266,18 +268,20 @@ def test_no_setting_means_no_purge(live_redis: RedisManager, tmp_path: Path) -> 
 @pytest.mark.parametrize("value", ["", "nocolon", ":3", "id:", "id:x", "id:-1"])
 def test_a_malformed_setting_is_rejected(value: str) -> None:
     with pytest.raises(ValueError):
-        SecurityConfig(enable_redis=False, purge_dynamic_rules_on_start=value)
+        SyncSecurityConfig(enable_redis=False, purge_dynamic_rules_on_start=value)
 
 
 def test_a_rule_id_with_colons_keeps_them() -> None:
-    config = SecurityConfig(enable_redis=False, purge_dynamic_rules_on_start="a:b:c:12")
+    config = SyncSecurityConfig(
+        enable_redis=False, purge_dynamic_rules_on_start="a:b:c:12"
+    )
 
     assert config.purge_dynamic_rules_on_start == "a:b:c:12"
 
 
 def _purged_worker(
     live_redis: RedisManager, tmp_path: Path, agent: Any, holder: DynamicRules
-) -> tuple[DynamicRuleManager, DynamicRules, SecurityConfig]:
+) -> tuple[DynamicRuleManager, DynamicRules, SyncSecurityConfig]:
     config = _config(live_redis, tmp_path)
     manager = _manager(config, live_redis, agent)
     _hold(manager, holder)
@@ -430,7 +434,7 @@ def test_a_poll_costs_one_redis_read_for_the_marker(
 def test_a_purge_without_redis_still_clears_the_file_and_the_patterns(
     tmp_path: Path,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False,
         enable_agent=True,
         agent_api_key="test-api-key",

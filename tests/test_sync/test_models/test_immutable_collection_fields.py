@@ -3,7 +3,7 @@ from typing import Any, cast
 
 import pytest
 
-from guard_core.models import SecurityConfig, ThreatBanConfig
+from guard_core.models import SyncSecurityConfig, ThreatBanConfig
 
 IP_CIDR_FIELDS = [
     ("whitelist", ["10.0.0.0/24"], "not-an-ip", "Invalid IP or CIDR range"),
@@ -24,7 +24,7 @@ MEMBERSHIP_FROZENSET_FIELDS = [
 def test_ip_cidr_field_is_stored_as_tuple(
     field: str, seed: list[str], bad_entry: str, error_match: str
 ) -> None:
-    config = SecurityConfig(**{field: seed})
+    config = SyncSecurityConfig(**{field: seed})
     assert isinstance(getattr(config, field), tuple)
 
 
@@ -32,7 +32,7 @@ def test_ip_cidr_field_is_stored_as_tuple(
 def test_ip_cidr_field_in_place_append_is_rejected(
     field: str, seed: list[str], bad_entry: str, error_match: str
 ) -> None:
-    config = SecurityConfig(**{field: seed})
+    config = SyncSecurityConfig(**{field: seed})
     entries: Any = getattr(config, field)
 
     with pytest.raises(AttributeError):
@@ -43,7 +43,7 @@ def test_ip_cidr_field_in_place_append_is_rejected(
 def test_ip_cidr_field_reassignment_with_invalid_entry_raises(
     field: str, seed: list[str], bad_entry: str, error_match: str
 ) -> None:
-    config = SecurityConfig(**{field: seed})
+    config = SyncSecurityConfig(**{field: seed})
 
     with pytest.raises(ValueError, match=error_match):
         setattr(config, field, [bad_entry])
@@ -55,7 +55,7 @@ def test_ip_cidr_field_reassignment_with_invalid_entry_raises(
 def test_ip_cidr_field_reassignment_with_valid_entries_normalizes(
     field: str, seed: list[str], bad_entry: str, error_match: str
 ) -> None:
-    config = SecurityConfig(**{field: seed})
+    config = SyncSecurityConfig(**{field: seed})
 
     setattr(config, field, ["10.0.0.5", "172.16.0.0/12"])
 
@@ -66,7 +66,7 @@ def test_ip_cidr_field_reassignment_with_valid_entries_normalizes(
 def test_ip_cidr_field_model_copy_update_with_invalid_entry_raises(
     field: str, seed: list[str], bad_entry: str, error_match: str
 ) -> None:
-    base = SecurityConfig(**{field: seed})
+    base = SyncSecurityConfig(**{field: seed})
 
     with pytest.raises(ValueError, match=error_match):
         base.model_copy(update={field: [bad_entry]})
@@ -78,7 +78,7 @@ def test_ip_cidr_field_model_copy_update_with_invalid_entry_raises(
 def test_ip_cidr_field_model_copy_update_with_valid_entries_normalizes(
     field: str, seed: list[str], bad_entry: str, error_match: str
 ) -> None:
-    base = SecurityConfig(**{field: seed})
+    base = SyncSecurityConfig(**{field: seed})
 
     copied = base.model_copy(update={field: ["10.0.0.6"]})
 
@@ -86,7 +86,7 @@ def test_ip_cidr_field_model_copy_update_with_valid_entries_normalizes(
 
 
 def test_whitelist_reassignment_to_none_is_accepted() -> None:
-    config = SecurityConfig(whitelist=["10.0.0.0/24"])
+    config = SyncSecurityConfig(whitelist=["10.0.0.0/24"])
 
     config.whitelist = None
 
@@ -99,7 +99,7 @@ def test_whitelist_reassignment_to_none_is_accepted() -> None:
 def test_membership_field_is_stored_as_frozenset(
     field: str, seed: set[str], bad_value: set[str], error_match: str
 ) -> None:
-    config = SecurityConfig(**{field: seed})
+    config = SyncSecurityConfig(**{field: seed})
     assert isinstance(getattr(config, field), frozenset)
 
 
@@ -109,7 +109,7 @@ def test_membership_field_is_stored_as_frozenset(
 def test_membership_field_in_place_add_is_rejected(
     field: str, seed: set[str], bad_value: set[str], error_match: str
 ) -> None:
-    config = SecurityConfig(**{field: seed})
+    config = SyncSecurityConfig(**{field: seed})
     values: Any = getattr(config, field)
 
     with pytest.raises(AttributeError):
@@ -122,7 +122,7 @@ def test_membership_field_in_place_add_is_rejected(
 def test_membership_field_reassignment_with_unknown_value_raises(
     field: str, seed: set[str], bad_value: set[str], error_match: str
 ) -> None:
-    config = SecurityConfig(**{field: seed})
+    config = SyncSecurityConfig(**{field: seed})
 
     with pytest.raises(ValueError, match=error_match):
         setattr(config, field, bad_value)
@@ -136,7 +136,7 @@ def test_membership_field_reassignment_with_unknown_value_raises(
 def test_membership_field_model_copy_update_with_unknown_value_raises(
     field: str, seed: set[str], bad_value: set[str], error_match: str
 ) -> None:
-    base = SecurityConfig(**{field: seed})
+    base = SyncSecurityConfig(**{field: seed})
 
     with pytest.raises(ValueError, match=error_match):
         base.model_copy(update={field: bad_value})
@@ -145,14 +145,14 @@ def test_membership_field_model_copy_update_with_unknown_value_raises(
 
 
 def test_threat_ban_config_is_stored_as_mappingproxy() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         threat_ban_config={"xss": ThreatBanConfig(threshold=1, duration=1)}
     )
     assert isinstance(config.threat_ban_config, MappingProxyType)
 
 
 def test_threat_ban_config_in_place_item_assignment_is_rejected() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         threat_ban_config={"xss": ThreatBanConfig(threshold=1, duration=1)}
     )
 
@@ -163,7 +163,7 @@ def test_threat_ban_config_in_place_item_assignment_is_rejected() -> None:
 
 
 def test_threat_ban_config_reassignment_with_unknown_category_raises() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         threat_ban_config={"xss": ThreatBanConfig(threshold=1, duration=1)}
     )
 
@@ -176,7 +176,7 @@ def test_threat_ban_config_reassignment_with_unknown_category_raises() -> None:
 
 
 def test_threat_ban_config_reassignment_accepts_valid_category() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         threat_ban_config={"xss": ThreatBanConfig(threshold=1, duration=1)}
     )
 
@@ -188,7 +188,7 @@ def test_threat_ban_config_reassignment_accepts_valid_category() -> None:
 
 
 def test_threat_ban_config_reassignment_coerces_raw_dict_values() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
 
     config.threat_ban_config = cast(Any, {"xss": {"threshold": 2, "duration": 30}})
 
@@ -198,7 +198,7 @@ def test_threat_ban_config_reassignment_coerces_raw_dict_values() -> None:
 
 
 def test_threat_ban_config_model_copy_update_with_unknown_category_raises() -> None:
-    base = SecurityConfig(
+    base = SyncSecurityConfig(
         threat_ban_config={"xss": ThreatBanConfig(threshold=1, duration=1)}
     )
 
@@ -213,7 +213,7 @@ def test_threat_ban_config_model_copy_update_with_unknown_category_raises() -> N
 
 
 def test_threat_ban_config_model_copy_update_accepts_valid_category() -> None:
-    base = SecurityConfig()
+    base = SyncSecurityConfig()
 
     copied = base.model_copy(
         update={"threat_ban_config": {"sqli": ThreatBanConfig(threshold=3, duration=9)}}

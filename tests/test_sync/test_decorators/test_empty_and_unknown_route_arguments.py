@@ -5,12 +5,12 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import VALID_CLOUD_PROVIDERS, SecurityConfig
+from guard_core.models import VALID_CLOUD_PROVIDERS, SyncSecurityConfig
 from guard_core.sync.decorators import SecurityDecorator
 
 
 def _decorator(**flag: bool) -> SecurityDecorator:
-    return SecurityDecorator(SecurityConfig(enable_redis=False, **flag))
+    return SecurityDecorator(SyncSecurityConfig(enable_redis=False, **flag))
 
 
 def _decorate(

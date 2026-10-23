@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 from typing import Any
 
-from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.models import DynamicRules, SyncSecurityConfig
 from guard_core.sync.core.events.composite_handler import CompositeAgentHandler
 from guard_core.sync.core.events.enricher import EnrichmentContext, EventEnricher
 from guard_core.sync.core.events.event_types import EventFilter
@@ -24,7 +24,7 @@ class _Recorder:
 
 def test_end_to_end_enrichment_on_event_through_composite() -> None:
     DynamicRuleManager._instance = None
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_agent=True,
         agent_api_key="a" * 10,
         agent_project_id="proj-e2e",
@@ -72,7 +72,7 @@ def test_end_to_end_enrichment_on_event_through_composite() -> None:
 
 
 def test_end_to_end_enrichment_on_metric_through_composite() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_agent=True,
         agent_api_key="a" * 10,
         agent_project_id="proj-metric",
@@ -101,7 +101,7 @@ def test_end_to_end_enrichment_on_metric_through_composite() -> None:
 
 
 def test_muted_event_is_not_enriched_or_dispatched() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_agent=True,
         agent_api_key="a" * 10,
         enable_enrichment=True,

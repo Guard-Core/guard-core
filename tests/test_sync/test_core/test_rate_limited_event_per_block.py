@@ -1,7 +1,7 @@
 from collections.abc import Callable
 from typing import Any
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from tests.test_sync.test_core.conftest import (
     build_route_pipeline,
     fixed_country_geo_ip,
@@ -22,7 +22,7 @@ class _RecordingAgent:
         return [e for e in self.events if e.event_type == "rate_limited"]
 
 
-def _config(**settings: Any) -> SecurityConfig:
+def _config(**settings: Any) -> SyncSecurityConfig:
     defaults: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": False,
@@ -30,7 +30,7 @@ def _config(**settings: Any) -> SecurityConfig:
         "rate_limit": 100,
         "rate_limit_window": 60,
     }
-    return SecurityConfig(**{**defaults, **settings})
+    return SyncSecurityConfig(**{**defaults, **settings})
 
 
 def _limit(event: Any) -> int:
@@ -41,7 +41,7 @@ def _limit(event: Any) -> int:
 
 
 def _run(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     *decorators: Callable[[Any], Any],
     requests: int = 2,
 ) -> _RecordingAgent:

@@ -4,14 +4,14 @@ from collections.abc import Callable
 from typing import Any
 
 from guard_core._dynamic_rules import content_fingerprint
-from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.models import DynamicRules, SyncSecurityConfig
 from guard_core.sync.handlers._dynamic_rule_events import DynamicRuleEventSenderMixin
 from guard_core.sync.handlers._dynamic_rule_purge import DynamicRulePurgeMixin
 from guard_core.sync.handlers._dynamic_rule_validation import find_malformed_values
 
 
 class DynamicRuleIntakeMixin(DynamicRuleEventSenderMixin, DynamicRulePurgeMixin):
-    config: SecurityConfig
+    config: SyncSecurityConfig
     agent_handler: Any
     logger: logging.Logger
     last_update: float

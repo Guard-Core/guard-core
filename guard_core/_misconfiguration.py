@@ -5,6 +5,7 @@ from guard_core._emergency_exemptions import warn_unexempted_probe_paths
 from guard_core._security_headers_defaults import unknown_security_headers_keys
 
 if TYPE_CHECKING:
+    from guard_core._security_config_fields import RequestT
     from guard_core.models import SecurityConfig
 
 config_logger = logging.getLogger("guard_core.models")
@@ -16,7 +17,7 @@ _TRUE_NOTE = f"Set {FLAG_NAME}=False to start with it anyway."
 
 
 def report_misconfiguration(
-    config: "SecurityConfig",
+    config: "SecurityConfig[RequestT]",
     problem: str,
     *,
     logger: logging.Logger,
@@ -27,7 +28,7 @@ def report_misconfiguration(
     logger.warning(f"{problem} {_FALSE_NOTE}", stacklevel=stacklevel)
 
 
-def _non_positive_rate_limit_problems(config: "SecurityConfig") -> list[str]:
+def _non_positive_rate_limit_problems(config: "SecurityConfig[RequestT]") -> list[str]:
     problems = []
     if config.rate_limit < 1:
         problems.append(
@@ -47,7 +48,7 @@ def _non_positive_rate_limit_problems(config: "SecurityConfig") -> list[str]:
     return problems
 
 
-def _zero_detection_threshold_problems(config: "SecurityConfig") -> list[str]:
+def _zero_detection_threshold_problems(config: "SecurityConfig[RequestT]") -> list[str]:
     return [
         f"{name} is 0.0: every request would be flagged as a threat."
         for name in ("detection_threat_score_threshold", "detection_semantic_threshold")
@@ -55,7 +56,7 @@ def _zero_detection_threshold_problems(config: "SecurityConfig") -> list[str]:
     ]
 
 
-def _glob_exclude_path_problems(config: "SecurityConfig") -> list[str]:
+def _glob_exclude_path_problems(config: "SecurityConfig[RequestT]") -> list[str]:
     return [
         f"exclude_paths entry {entry!r} is not a glob: wildcards are literal "
         "characters, so it excludes nothing."
@@ -64,7 +65,7 @@ def _glob_exclude_path_problems(config: "SecurityConfig") -> list[str]:
     ]
 
 
-def _anomalous_path_problems(config: "SecurityConfig") -> list[str]:
+def _anomalous_path_problems(config: "SecurityConfig[RequestT]") -> list[str]:
     from guard_core.core.validation.path_matching import (
         _has_routing_anomaly_in_any_decoding,
     )
@@ -88,7 +89,9 @@ def _anomalous_path_problems(config: "SecurityConfig") -> list[str]:
     ]
 
 
-def _unknown_security_headers_key_problems(config: "SecurityConfig") -> list[str]:
+def _unknown_security_headers_key_problems(
+    config: "SecurityConfig[RequestT]",
+) -> list[str]:
     return [
         f"security_headers key {key!r} is not a known key, so it is ignored "
         "and has no effect."
@@ -96,7 +99,7 @@ def _unknown_security_headers_key_problems(config: "SecurityConfig") -> list[str
     ]
 
 
-def config_misconfigurations(config: "SecurityConfig") -> list[str]:
+def config_misconfigurations(config: "SecurityConfig[RequestT]") -> list[str]:
     return [
         *_unknown_security_headers_key_problems(config),
         *_glob_exclude_path_problems(config),
@@ -107,7 +110,7 @@ def config_misconfigurations(config: "SecurityConfig") -> list[str]:
 
 
 def report_config_misconfigurations(
-    config: "SecurityConfig", *, stacklevel: int
+    config: "SecurityConfig[RequestT]", *, stacklevel: int
 ) -> None:
     for problem in config_misconfigurations(config):
         report_misconfiguration(

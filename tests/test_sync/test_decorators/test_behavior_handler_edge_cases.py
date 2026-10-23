@@ -2,17 +2,17 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.behavior_handler import BehaviorTracker
 
 
 @pytest.fixture
-def edge_security_config() -> SecurityConfig:
-    return SecurityConfig()
+def edge_security_config() -> SyncSecurityConfig:
+    return SyncSecurityConfig()
 
 
 @pytest.fixture
-def tracker(edge_security_config: SecurityConfig) -> BehaviorTracker:
+def tracker(edge_security_config: SyncSecurityConfig) -> BehaviorTracker:
     return BehaviorTracker(edge_security_config)
 
 

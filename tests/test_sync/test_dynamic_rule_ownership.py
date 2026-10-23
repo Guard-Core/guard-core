@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.models import DynamicRules, SyncSecurityConfig
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.sync.handlers.ipban_handler import ip_ban_manager
 from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
@@ -35,7 +35,7 @@ def _rules(**overrides: Any) -> DynamicRules:
 
 
 def _manager() -> DynamicRuleManager:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False,
         enable_agent=True,
         agent_api_key="test-api-key",

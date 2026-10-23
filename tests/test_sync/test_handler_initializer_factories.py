@@ -3,13 +3,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.events.metrics import MetricsCollector
 from guard_core.sync.core.events.middleware_events import SecurityEventBus
 from guard_core.sync.core.initialization.handler_initializer import HandlerInitializer
 
 
-def _initializer(config: SecurityConfig) -> HandlerInitializer:
+def _initializer(config: SyncSecurityConfig) -> HandlerInitializer:
     agent = MagicMock()
     agent.start = MagicMock()
     agent.initialize_redis = MagicMock()
@@ -17,7 +17,7 @@ def _initializer(config: SecurityConfig) -> HandlerInitializer:
 
 
 def test_build_event_bus_returns_configured_instance() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         muted_event_types={"penetration_attempt"},
         agent_enable_events=True,
     )
@@ -35,7 +35,7 @@ def test_build_event_bus_returns_configured_instance() -> None:
 
 
 def test_build_metrics_collector_returns_configured_instance() -> None:
-    config = SecurityConfig(muted_metric_types={"response_time"})
+    config = SyncSecurityConfig(muted_metric_types={"response_time"})
     initializer = _initializer(config)
     with (
         patch.object(initializer, "initialize_agent_for_handlers", MagicMock()),
@@ -50,7 +50,7 @@ def test_build_metrics_collector_returns_configured_instance() -> None:
 
 
 def test_initialize_agent_integrations_starts_composite_handler() -> None:
-    config = SecurityConfig(enable_otel=True)
+    config = SyncSecurityConfig(enable_otel=True)
     initializer = HandlerInitializer(config=config, agent_handler=None)
     fake_composite = MagicMock()
     with (
@@ -66,7 +66,7 @@ def test_initialize_agent_integrations_starts_composite_handler() -> None:
 
 
 def test_shutdown_agent_integrations_stops_composite_handler() -> None:
-    config = SecurityConfig(enable_otel=True)
+    config = SyncSecurityConfig(enable_otel=True)
     initializer = HandlerInitializer(config=config, agent_handler=None)
     fake_composite = MagicMock()
     with (
@@ -83,7 +83,7 @@ def test_shutdown_agent_integrations_stops_composite_handler() -> None:
 
 
 def test_shutdown_is_idempotent() -> None:
-    config = SecurityConfig(enable_otel=True)
+    config = SyncSecurityConfig(enable_otel=True)
     initializer = HandlerInitializer(config=config, agent_handler=None)
     fake_composite = MagicMock()
     with (
@@ -103,25 +103,25 @@ def test_shutdown_is_idempotent() -> None:
 
 
 def test_shutdown_noop_when_not_initialized() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     initializer = HandlerInitializer(config=config, agent_handler=None)
     initializer.shutdown_agent_integrations()
 
 
 def test_build_event_bus_before_init_raises() -> None:
-    initializer = _initializer(SecurityConfig())
+    initializer = _initializer(SyncSecurityConfig())
     with pytest.raises(RuntimeError, match="initialize_agent_integrations"):
         initializer.build_event_bus()
 
 
 def test_build_metrics_collector_before_init_raises() -> None:
-    initializer = _initializer(SecurityConfig())
+    initializer = _initializer(SyncSecurityConfig())
     with pytest.raises(RuntimeError, match="initialize_agent_integrations"):
         initializer.build_metrics_collector()
 
 
 def test_composite_routes_subsystem_events_through_filter() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         muted_event_types={"access_denied"},
         agent_enable_events=True,
     )
@@ -147,7 +147,7 @@ def test_composite_routes_subsystem_events_through_filter() -> None:
 def test_composite_start_exception_is_logged_not_raised(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(enable_otel=True)
+    config = SyncSecurityConfig(enable_otel=True)
     initializer = HandlerInitializer(config=config, agent_handler=None)
 
     from guard_core.sync.core.events.composite_handler import CompositeAgentHandler

@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.events.metrics import MetricsCollector
 from guard_core.sync.core.responses.context import ResponseContext
 from guard_core.sync.core.responses.factory import ErrorResponseFactory
@@ -24,7 +24,7 @@ def _make_factory(
     security_headers: dict[str, object] | None = None,
     **config_overrides: object,
 ) -> ErrorResponseFactory:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False,
         passive_mode=passive_mode,
         custom_error_responses=custom_error_responses or {},

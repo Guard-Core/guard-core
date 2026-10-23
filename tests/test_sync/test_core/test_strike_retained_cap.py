@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from guard_core.models import SecurityConfig, ThreatBanConfig
+from guard_core.models import SyncSecurityConfig, ThreatBanConfig
 from guard_core.sync.core.checks import helpers
 from guard_core.sync.core.checks._shared_strikes import record_shared_detection_strikes
 from guard_core.sync.core.checks.helpers import (
@@ -42,21 +42,21 @@ def _pinned_clock(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
-def _middleware(config: SecurityConfig) -> Any:
+def _middleware(config: SyncSecurityConfig) -> Any:
     middleware = MagicMock()
     middleware.config = config
     middleware.suspicious_request_counts = {}
     return middleware
 
 
-def _config(**fields: Any) -> SecurityConfig:
-    return SecurityConfig(
+def _config(**fields: Any) -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         enable_redis=False, enable_ip_banning=True, enable_rate_limiting=False, **fields
     )
 
 
 def _banned_after(
-    middleware: Any, config: SecurityConfig, strikes: int, category: str = "xss"
+    middleware: Any, config: SyncSecurityConfig, strikes: int, category: str = "xss"
 ) -> list[tuple[str, int, str]]:
     bans = _RecordingBans()
     for _ in range(strikes):
@@ -153,7 +153,7 @@ def test_a_rate_limit_feed_threshold_above_the_floor_is_reachable() -> None:
 
 
 def test_shared_redis_strikes_above_the_floor_count_every_strike() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=True,
         redis_url=REDIS_URL,
         redis_prefix=f"test:wp9:cap:{uuid.uuid4().hex}:",

@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.factory import build_default_pipeline
 from guard_core.sync.decorators import SecurityDecorator
 from guard_core.sync.handlers.ipban_handler import ip_ban_manager
@@ -25,14 +25,14 @@ def _fresh_ban_store() -> Generator[None, None]:
     ip_ban_manager.banned_ips.clear()
 
 
-def _config(**settings: Any) -> SecurityConfig:
+def _config(**settings: Any) -> SyncSecurityConfig:
     defaults: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": False,
         "enable_rate_limiting": False,
         "trusted_proxies": [PEER],
     }
-    return SecurityConfig(**{**defaults, **settings})
+    return SyncSecurityConfig(**{**defaults, **settings})
 
 
 def _request(forwarded_for: str, client_host: str = PEER) -> SyncMockGuardRequest:
@@ -41,7 +41,7 @@ def _request(forwarded_for: str, client_host: str = PEER) -> SyncMockGuardReques
     )
 
 
-def _status(config: SecurityConfig, forwarded_for: str) -> int | None:
+def _status(config: SyncSecurityConfig, forwarded_for: str) -> int | None:
     middleware = build_middleware(config, SecurityDecorator(config))
     response = build_default_pipeline(middleware).execute(_request(forwarded_for))
     return None if response is None else response.status_code
@@ -57,7 +57,7 @@ def test_a_zone_id_in_forwarded_for_is_not_part_of_the_identity(
 
 
 def test_a_zoned_peer_resolves_to_its_unzoned_identity() -> None:
-    config = SecurityConfig(enable_redis=False)
+    config = SyncSecurityConfig(enable_redis=False)
     request = SyncMockGuardRequest(client_host="fe80::1%eth0")
 
     assert extract_client_ip(request, config) == "fe80::1"

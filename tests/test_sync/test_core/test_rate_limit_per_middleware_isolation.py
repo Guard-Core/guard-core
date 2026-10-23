@@ -1,7 +1,7 @@
 import logging
 from unittest.mock import MagicMock, Mock
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.implementations.rate_limit import RateLimitCheck
 from guard_core.sync.handlers.ratelimit_handler import RateLimitManager
 from tests.test_sync.conftest import SyncMockGuardRequest
@@ -14,7 +14,7 @@ class _FakeErrorResponse:
         self.headers: dict[str, str] = {}
 
 
-def _make_middleware(config: SecurityConfig) -> Mock:
+def _make_middleware(config: SyncSecurityConfig) -> Mock:
     middleware = Mock()
     middleware.config = config
     middleware.resolve_route = None
@@ -39,10 +39,10 @@ def _request(ip: str, path: str = "/x") -> SyncMockGuardRequest:
 
 
 def test_two_middlewares_enforce_their_own_rate_limit_interleaved() -> None:
-    config_tight = SecurityConfig(
+    config_tight = SyncSecurityConfig(
         enable_rate_limiting=True, rate_limit=1, rate_limit_window=60
     )
-    config_loose = SecurityConfig(
+    config_loose = SyncSecurityConfig(
         enable_rate_limiting=True, rate_limit=100, rate_limit_window=60
     )
 
@@ -79,10 +79,10 @@ def test_two_middlewares_enforce_their_own_rate_limit_interleaved() -> None:
 
 
 def test_endpoint_limit_survives_a_later_middleware_with_rate_limiting_off() -> None:
-    config_limited = SecurityConfig(
+    config_limited = SyncSecurityConfig(
         enable_rate_limiting=True, endpoint_rate_limits={"/special": (1, 60)}
     )
-    config_off = SecurityConfig(enable_rate_limiting=False)
+    config_off = SyncSecurityConfig(enable_rate_limiting=False)
 
     middleware_limited = _make_middleware(config_limited)
     _make_middleware(config_off)

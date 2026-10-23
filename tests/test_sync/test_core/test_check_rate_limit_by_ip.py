@@ -6,7 +6,7 @@ import pytest
 from redis.exceptions import NoScriptError, RedisError
 
 from guard_core.exceptions import GuardRedisError
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.ratelimit_handler import (
     RateLimitManager,
     RateLimitTier,
@@ -37,21 +37,21 @@ def _broken_redis_handler() -> MagicMock:
 
 
 def test_under_limit_stays_allowed() -> None:
-    config = SecurityConfig(enable_redis=False, rate_limit=2, rate_limit_window=60)
+    config = SyncSecurityConfig(enable_redis=False, rate_limit=2, rate_limit_window=60)
 
     assert check_rate_limit_by_ip("203.0.113.1", config) is True
     assert check_rate_limit_by_ip("203.0.113.1", config) is True
 
 
 def test_over_limit_becomes_blocked() -> None:
-    config = SecurityConfig(enable_redis=False, rate_limit=1, rate_limit_window=60)
+    config = SyncSecurityConfig(enable_redis=False, rate_limit=1, rate_limit_window=60)
 
     assert check_rate_limit_by_ip("203.0.113.2", config) is True
     assert check_rate_limit_by_ip("203.0.113.2", config) is False
 
 
 def test_window_expiry_recovers_after_block() -> None:
-    config = SecurityConfig(enable_redis=False, rate_limit=1, rate_limit_window=1)
+    config = SyncSecurityConfig(enable_redis=False, rate_limit=1, rate_limit_window=1)
 
     assert check_rate_limit_by_ip("203.0.113.3", config) is True
     assert check_rate_limit_by_ip("203.0.113.3", config) is False
@@ -62,7 +62,7 @@ def test_window_expiry_recovers_after_block() -> None:
 
 
 def test_redis_path_enforces_limit(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
     security_config_redis.rate_limit = 2
     security_config_redis.rate_limit_window = 60
@@ -93,7 +93,7 @@ def test_redis_path_enforces_limit(
 
 
 def test_falls_back_to_in_memory_when_redis_handler_not_supplied() -> None:
-    config = SecurityConfig(enable_redis=True, rate_limit=1, rate_limit_window=60)
+    config = SyncSecurityConfig(enable_redis=True, rate_limit=1, rate_limit_window=60)
 
     ip = "203.0.113.5"
     assert check_rate_limit_by_ip(ip, config) is True
@@ -101,7 +101,7 @@ def test_falls_back_to_in_memory_when_redis_handler_not_supplied() -> None:
 
 
 def test_redis_error_raises_when_fail_open_is_false() -> None:
-    config = SecurityConfig(enable_redis=True, rate_limit=1, rate_limit_window=60)
+    config = SyncSecurityConfig(enable_redis=True, rate_limit=1, rate_limit_window=60)
     redis = _broken_redis_handler()
 
     ip = "203.0.113.6"
@@ -110,7 +110,7 @@ def test_redis_error_raises_when_fail_open_is_false() -> None:
 
 
 def test_redis_error_falls_back_to_in_memory_count_when_fail_open_is_true() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=True, rate_limit=1, rate_limit_window=60, redis_fail_open=True
     )
     redis = _broken_redis_handler()
@@ -129,10 +129,14 @@ def _pipeline_hit(pipeline: RateLimitManager, ip: str, endpoint_path: str = "") 
 
 
 def test_no_singleton_mutation_regression() -> None:
-    config_a = SecurityConfig(enable_redis=False, rate_limit=5, rate_limit_window=60)
+    config_a = SyncSecurityConfig(
+        enable_redis=False, rate_limit=5, rate_limit_window=60
+    )
     pipeline_manager = RateLimitManager(config_a)
 
-    config_b = SecurityConfig(enable_redis=False, rate_limit=1, rate_limit_window=60)
+    config_b = SyncSecurityConfig(
+        enable_redis=False, rate_limit=1, rate_limit_window=60
+    )
     check_rate_limit_by_ip("203.0.113.7", config_b)
 
     assert pipeline_manager.config is config_a
@@ -140,7 +144,7 @@ def test_no_singleton_mutation_regression() -> None:
 
 
 def test_endpoint_path_namespacing_isolates_budgets() -> None:
-    config = SecurityConfig(enable_redis=False, rate_limit=1, rate_limit_window=60)
+    config = SyncSecurityConfig(enable_redis=False, rate_limit=1, rate_limit_window=60)
     ip = "203.0.113.8"
 
     assert check_rate_limit_by_ip(ip, config, endpoint_path="a") is True
@@ -149,7 +153,7 @@ def test_endpoint_path_namespacing_isolates_budgets() -> None:
 
 
 def test_default_endpoint_path_shares_pipeline_bucket_bidirectionally(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
     security_config_redis.rate_limit = 3
     security_config_redis.rate_limit_window = 60
@@ -169,7 +173,7 @@ def test_default_endpoint_path_shares_pipeline_bucket_bidirectionally(
 
 
 def test_endpoint_path_ws_is_disjoint_from_pipeline_bucket(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
     security_config_redis.rate_limit = 3
     security_config_redis.rate_limit_window = 60
@@ -203,7 +207,7 @@ def test_endpoint_path_ws_is_disjoint_from_pipeline_bucket(
 
 
 def test_enable_rate_limiting_false_returns_true() -> None:
-    config = SecurityConfig(enable_rate_limiting=False)
+    config = SyncSecurityConfig(enable_rate_limiting=False)
 
     assert check_rate_limit_by_ip("203.0.113.10", config) is True
 
@@ -234,7 +238,7 @@ def test_redis_tier_verdict_reload_without_callback() -> None:
 
 
 def test_unparseable_ip_raises_value_error_ws_collision_string() -> None:
-    config = SecurityConfig(enable_redis=False, rate_limit=5, rate_limit_window=60)
+    config = SyncSecurityConfig(enable_redis=False, rate_limit=5, rate_limit_window=60)
 
     try:
         check_rate_limit_by_ip("1.2.3.4:ws", config)
@@ -244,7 +248,7 @@ def test_unparseable_ip_raises_value_error_ws_collision_string() -> None:
 
 
 def test_unparseable_ip_raises_value_error_empty_string() -> None:
-    config = SecurityConfig(enable_redis=False, rate_limit=5, rate_limit_window=60)
+    config = SyncSecurityConfig(enable_redis=False, rate_limit=5, rate_limit_window=60)
 
     try:
         check_rate_limit_by_ip("", config)
@@ -254,7 +258,7 @@ def test_unparseable_ip_raises_value_error_empty_string() -> None:
 
 
 def test_unparseable_ip_raises_value_error_garbage_string() -> None:
-    config = SecurityConfig(enable_redis=False, rate_limit=5, rate_limit_window=60)
+    config = SyncSecurityConfig(enable_redis=False, rate_limit=5, rate_limit_window=60)
 
     try:
         check_rate_limit_by_ip("not-an-ip", config)
@@ -264,7 +268,7 @@ def test_unparseable_ip_raises_value_error_garbage_string() -> None:
 
 
 def test_colon_in_endpoint_path_raises_value_error() -> None:
-    config = SecurityConfig(enable_redis=False, rate_limit=5, rate_limit_window=60)
+    config = SyncSecurityConfig(enable_redis=False, rate_limit=5, rate_limit_window=60)
 
     try:
         check_rate_limit_by_ip("203.0.113.20", config, endpoint_path="a:b")
@@ -274,7 +278,7 @@ def test_colon_in_endpoint_path_raises_value_error() -> None:
 
 
 def test_colon_in_endpoint_path_error_message_is_redacted() -> None:
-    config = SecurityConfig(enable_redis=False, rate_limit=5, rate_limit_window=60)
+    config = SyncSecurityConfig(enable_redis=False, rate_limit=5, rate_limit_window=60)
     secret = "password=hunter2topsecretvalue"
 
     try:
@@ -287,7 +291,7 @@ def test_colon_in_endpoint_path_error_message_is_redacted() -> None:
 
 
 def test_redis_key_never_contains_endpoint_path_text(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
     security_config_redis.rate_limit = 5
     security_config_redis.rate_limit_window = 60
@@ -314,7 +318,7 @@ def test_redis_key_never_contains_endpoint_path_text(
 
 
 def test_redis_equal_paths_share_a_key_different_paths_do_not(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
     security_config_redis.rate_limit = 100
     security_config_redis.rate_limit_window = 60
@@ -342,7 +346,7 @@ def test_redis_equal_paths_share_a_key_different_paths_do_not(
 
 
 def test_in_memory_key_never_contains_endpoint_path_text() -> None:
-    config = SecurityConfig(enable_redis=False, rate_limit=5, rate_limit_window=60)
+    config = SyncSecurityConfig(enable_redis=False, rate_limit=5, rate_limit_window=60)
     secret_path = "/orders/password=hunter2topsecretvalue"
     ip = "203.0.113.41"
 
@@ -358,7 +362,7 @@ def test_in_memory_key_never_contains_endpoint_path_text() -> None:
 
 
 def test_rejected_ip_records_no_hit_when_rate_limiting_enabled() -> None:
-    config = SecurityConfig(enable_redis=False, rate_limit=1, rate_limit_window=60)
+    config = SyncSecurityConfig(enable_redis=False, rate_limit=1, rate_limit_window=60)
 
     try:
         check_rate_limit_by_ip("not-an-ip", config)
@@ -369,21 +373,21 @@ def test_rejected_ip_records_no_hit_when_rate_limiting_enabled() -> None:
 
 
 def test_rejected_ip_records_no_hit_when_rate_limiting_disabled() -> None:
-    disabled_config = SecurityConfig(enable_rate_limiting=False)
+    disabled_config = SyncSecurityConfig(enable_rate_limiting=False)
 
     try:
         check_rate_limit_by_ip("not-an-ip", disabled_config)
     except ValueError:
         pass
 
-    enabled_config = SecurityConfig(
+    enabled_config = SyncSecurityConfig(
         enable_redis=False, rate_limit=1, rate_limit_window=60
     )
     assert check_rate_limit_by_ip("203.0.113.22", enabled_config) is True
 
 
 def test_rejected_endpoint_path_records_no_hit() -> None:
-    config = SecurityConfig(enable_redis=False, rate_limit=1, rate_limit_window=60)
+    config = SyncSecurityConfig(enable_redis=False, rate_limit=1, rate_limit_window=60)
 
     try:
         check_rate_limit_by_ip("203.0.113.23", config, endpoint_path="a:b")
@@ -394,19 +398,19 @@ def test_rejected_endpoint_path_records_no_hit() -> None:
 
 
 def test_valid_ipv4_accepted() -> None:
-    config = SecurityConfig(enable_redis=False, rate_limit=5, rate_limit_window=60)
+    config = SyncSecurityConfig(enable_redis=False, rate_limit=5, rate_limit_window=60)
 
     assert check_rate_limit_by_ip("203.0.113.24", config) is True
 
 
 def test_valid_ipv6_literal_accepted() -> None:
-    config = SecurityConfig(enable_redis=False, rate_limit=5, rate_limit_window=60)
+    config = SyncSecurityConfig(enable_redis=False, rate_limit=5, rate_limit_window=60)
 
     assert check_rate_limit_by_ip("2001:db8::1", config) is True
 
 
 def test_ipv6_shares_pipeline_bucket_bidirectionally(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
     security_config_redis.rate_limit = 3
     security_config_redis.rate_limit_window = 60
@@ -426,7 +430,7 @@ def test_ipv6_shares_pipeline_bucket_bidirectionally(
 
 
 def test_primitive_raises_instead_of_colliding_with_pipeline_bucket(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
     security_config_redis.rate_limit = 2
     security_config_redis.rate_limit_window = 60
@@ -452,7 +456,7 @@ def test_primitive_raises_instead_of_colliding_with_pipeline_bucket(
 
 def test_in_memory_store_evicts_the_oldest_key_at_capacity() -> None:
     _by_ip_request_timestamps.clear()
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False,
         rate_limit=1000,
         rate_limit_window=60,
@@ -472,7 +476,7 @@ def test_in_memory_store_evicts_the_oldest_key_at_capacity() -> None:
 
 def test_in_memory_store_a_touched_key_survives_eviction() -> None:
     _by_ip_request_timestamps.clear()
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False,
         rate_limit=1000,
         rate_limit_window=60,

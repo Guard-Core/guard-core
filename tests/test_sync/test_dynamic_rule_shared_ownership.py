@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers._dynamic_rule_application import RuleSideEffects
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.sync.handlers.ipban_handler import ip_ban_manager
@@ -20,7 +20,7 @@ OWNED = ("dynamic_rules", "owned_bans")
 
 @pytest.fixture
 def live_redis() -> Generator[RedisManager, None]:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         redis_url=REDIS_URL, redis_prefix=f"wp17-owned:{uuid.uuid4().hex}:"
     )
     manager = RedisManager(config)

@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from tests.test_sync.conftest import MockGuardResponse
 from tests.test_sync.test_core.conftest import build_route_pipeline, send_request
 
@@ -22,7 +22,7 @@ class _Hook:
         self.calls.append(payload)
 
 
-def _config(hook: _Hook, **overrides: Any) -> SecurityConfig:
+def _config(hook: _Hook, **overrides: Any) -> SyncSecurityConfig:
     settings: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": False,
@@ -30,10 +30,10 @@ def _config(hook: _Hook, **overrides: Any) -> SecurityConfig:
         "on_block": hook,
     }
     settings.update(overrides)
-    return SecurityConfig(**settings)
+    return SyncSecurityConfig(**settings)
 
 
-def _trap_hit(config: SecurityConfig, *decorators: Any) -> tuple[Any, Any]:
+def _trap_hit(config: SyncSecurityConfig, *decorators: Any) -> tuple[Any, Any]:
     pipeline, middleware, route_id = build_route_pipeline(
         config, lambda d: d.honeypot_detection(["hp"]), *decorators
     )
@@ -104,7 +104,7 @@ def test_honeypot_passive_mode_fires_the_hook_without_blocking() -> None:
 
 
 def test_honeypot_without_a_hook_still_blocks() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False,
         enable_penetration_detection=False,
         enable_rate_limiting=False,
@@ -136,7 +136,7 @@ def test_other_custom_validators_still_skip_the_block_hook() -> None:
 
 
 def _trap_hit_before_a_later_validator(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
 ) -> tuple[Any, list[int]]:
     later_calls: list[int] = []
 

@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.implementations.cloud_provider import (
     CloudProviderCheck,
 )
@@ -12,7 +12,7 @@ from guard_core.sync.decorators.base import RouteConfig
 
 @pytest.fixture
 def mock_middleware() -> Mock:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     config.block_cloud_providers = frozenset({"AWS", "GCP"})
     config.passive_mode = False
 

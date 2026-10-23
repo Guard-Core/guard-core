@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.cloud_handler import (
     CloudManager,
     _decode_cached,
@@ -15,18 +15,18 @@ from guard_core.sync.handlers.redis_handler import RedisManager
 
 
 def test_security_config_keeps_region_selector() -> None:
-    config = SecurityConfig(block_cloud_providers={"GCP:!us-central1"})
+    config = SyncSecurityConfig(block_cloud_providers={"GCP:!us-central1"})
     assert config.block_cloud_providers == {"GCP:!us-central1"}
 
 
 def test_security_config_keeps_bare_provider() -> None:
-    config = SecurityConfig(block_cloud_providers={"GCP"})
+    config = SyncSecurityConfig(block_cloud_providers={"GCP"})
     assert config.block_cloud_providers == {"GCP"}
 
 
 def test_security_config_rejects_unknown_provider_selector() -> None:
     with pytest.raises(ValueError, match="Unknown cloud providers"):
-        SecurityConfig(block_cloud_providers={"Bogus:!x", "GCP"})
+        SyncSecurityConfig(block_cloud_providers={"Bogus:!x", "GCP"})
 
 
 def test_parse_selectors_bare_provider() -> None:
@@ -217,7 +217,7 @@ def test_refresh_async_with_carveout_selector_populates_bare_provider(
 
 def test_redis_refresh_with_carveout_selector_populates_bare_provider(
     monkeypatch: pytest.MonkeyPatch,
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
     net_central, net_europe, fake_gcp = _fake_gcp_two_regions()
     monkeypatch.setattr(

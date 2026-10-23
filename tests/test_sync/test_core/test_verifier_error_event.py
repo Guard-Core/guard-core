@@ -3,7 +3,7 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.events.event_types import EventFilter
 from guard_core.sync.core.events.middleware_events import SecurityEventBus
 from tests.test_sync.test_core.conftest import build_route_pipeline, send_request
@@ -22,8 +22,8 @@ class _RecordingAgent:
         return None
 
 
-def _config(**overrides: Any) -> SecurityConfig:
-    return SecurityConfig(
+def _config(**overrides: Any) -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         enable_redis=False,
         enable_penetration_detection=False,
         enable_rate_limiting=False,
@@ -38,7 +38,7 @@ def _raising(request: Any, credential: str) -> bool:
     raise RuntimeError(f"auth backend down for {credential}")
 
 
-def _wired(config: SecurityConfig, make: Any) -> tuple[Any, Any, str, Any]:
+def _wired(config: SyncSecurityConfig, make: Any) -> tuple[Any, Any, str, Any]:
     pipeline, middleware, route_id = build_route_pipeline(config, make)
     agent = _RecordingAgent()
     middleware.guard_decorator.initialize_agent(agent)

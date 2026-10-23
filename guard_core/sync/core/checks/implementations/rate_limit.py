@@ -3,7 +3,7 @@ from ipaddress import ip_address
 from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple
 
 from guard_core._redis_enablement import redis_is_configured
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.agent_events import agent_receives_events
 from guard_core.sync._utils.ip_extraction import (
@@ -70,7 +70,7 @@ def _route_rate_limit_configured(route_config: RouteConfig) -> bool:
 
 
 def _rate_limit_applies(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     route_configs: Collection[RouteConfig] | None,
 ) -> bool:
     return (
@@ -131,7 +131,7 @@ class RateLimitCheck(SecurityCheck):
     @classmethod
     def applies_to(
         cls,
-        config: SecurityConfig,
+        config: SyncSecurityConfig,
         route_configs: Collection[RouteConfig] | None,
     ) -> bool:
         return _rate_limit_applies(config, route_configs)

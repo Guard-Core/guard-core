@@ -1,15 +1,15 @@
 from typing import Any, cast
 from unittest.mock import MagicMock, Mock, patch
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.events.metrics import MetricsCollector
 from guard_core.sync.core.events.middleware_events import SecurityEventBus
 from guard_core.sync.decorators.base import RouteConfig
 from tests.test_sync.conftest import SyncMockGuardRequest
 
 
-def _config(**overrides: object) -> SecurityConfig:
-    return SecurityConfig(enable_redis=False, **overrides)
+def _config(**overrides: object) -> SyncSecurityConfig:
+    return SyncSecurityConfig(enable_redis=False, **overrides)
 
 
 def test_metrics_collector_no_agent() -> None:

@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, Mock
 import pytest
 
 from guard_core._security_config_batch import apply_config_batch
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks import _strike_forget
 from guard_core.sync.core.checks._strike_forget import (
     forget_category_strikes,
@@ -48,7 +48,7 @@ def clean_rate_limit_process_state() -> None:
     forget_category_strikes("rate_limit")
 
 
-def _config(**overrides: Any) -> SecurityConfig:
+def _config(**overrides: Any) -> SyncSecurityConfig:
     values: dict[str, Any] = {
         "enable_redis": True,
         "redis_url": REDIS_URL,
@@ -63,11 +63,11 @@ def _config(**overrides: Any) -> SecurityConfig:
         "enable_rate_limit_auto_ban": True,
     }
     values.update(overrides)
-    return SecurityConfig(**values)
+    return SyncSecurityConfig(**values)
 
 
 class _Worker:
-    def __init__(self, config: SecurityConfig, redis: RedisManager) -> None:
+    def __init__(self, config: SyncSecurityConfig, redis: RedisManager) -> None:
         self.bans: list[str] = []
         middleware = MagicMock()
         middleware.config = config
@@ -295,7 +295,7 @@ def test_the_keys_helper_returns_the_matching_keys_and_none_when_disabled(
     found = redis.keys("rate_limit:rate:*")
 
     assert found == [f"{redis.config.redis_prefix}rate_limit:rate:1.1.1.1"]
-    assert RedisManager(SecurityConfig(enable_redis=False)).keys("*") is None
+    assert RedisManager(SyncSecurityConfig(enable_redis=False)).keys("*") is None
 
 
 def test_the_scan_unlink_walks_more_than_one_batch_in_three_unlinks(
@@ -312,7 +312,7 @@ def test_the_scan_unlink_walks_more_than_one_batch_in_three_unlinks(
     assert _command_calls(redis, "unlink") - unlinks_before == 3
 
 
-def _guarded(config: SecurityConfig) -> RateLimitManager:
+def _guarded(config: SyncSecurityConfig) -> RateLimitManager:
     manager = RateLimitManager(config)
     HandlerInitializer(config, rate_limit_handler=manager)
     return manager
@@ -333,10 +333,12 @@ def _statuses(manager: RateLimitManager, count: int) -> list[int]:
 def test_an_equal_config_resets_every_equal_guarded_app(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    app_config = SecurityConfig(enable_redis=False, rate_limit=2, rate_limit_window=60)
+    app_config = SyncSecurityConfig(
+        enable_redis=False, rate_limit=2, rate_limit_window=60
+    )
     app = _guarded(app_config)
     assert _statuses(app, 3) == [200, 200, 429]
-    rebuilt = SecurityConfig(enable_redis=False, rate_limit=2, rate_limit_window=60)
+    rebuilt = SyncSecurityConfig(enable_redis=False, rate_limit=2, rate_limit_window=60)
 
     with caplog.at_level(logging.WARNING, logger="guard_core.sync.handlers.ratelimit"):
         rate_limit_handler(rebuilt).reset()
@@ -350,7 +352,7 @@ def test_equality_survives_a_dynamic_rule_update_and_callables() -> None:
     def modifier(response: Any) -> Any:
         return response
 
-    app_config = SecurityConfig(
+    app_config = SyncSecurityConfig(
         enable_redis=False,
         rate_limit=2,
         rate_limit_window=60,
@@ -359,7 +361,7 @@ def test_equality_survives_a_dynamic_rule_update_and_callables() -> None:
     app = _guarded(app_config)
     apply_config_batch(app_config, {"rate_limit": 2})
     assert _statuses(app, 3) == [200, 200, 429]
-    rebuilt = SecurityConfig(
+    rebuilt = SyncSecurityConfig(
         enable_redis=False,
         rate_limit=2,
         rate_limit_window=60,
@@ -375,10 +377,10 @@ def test_an_unequal_config_without_redis_resets_nothing_and_says_so(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     app = _guarded(
-        SecurityConfig(enable_redis=False, rate_limit=2, rate_limit_window=60)
+        SyncSecurityConfig(enable_redis=False, rate_limit=2, rate_limit_window=60)
     )
     assert _statuses(app, 3) == [200, 200, 429]
-    other = SecurityConfig(enable_redis=False, rate_limit=7, rate_limit_window=60)
+    other = SyncSecurityConfig(enable_redis=False, rate_limit=7, rate_limit_window=60)
 
     with caplog.at_level(logging.WARNING, logger="guard_core.sync.handlers.ratelimit"):
         rate_limit_handler(other).reset()
@@ -403,11 +405,11 @@ def test_an_unequal_config_with_redis_clears_the_windows_through_a_new_client(
 
 
 def test_a_config_that_cannot_be_compared_is_not_equal() -> None:
-    class Unequal(SecurityConfig):
+    class Unequal(SyncSecurityConfig):
         def __eq__(self, other: object) -> bool:
             raise RuntimeError("no comparison")
 
-    assert ratelimit_handler._configs_equal(Unequal(), SecurityConfig()) is False
+    assert ratelimit_handler._configs_equal(Unequal(), SyncSecurityConfig()) is False
 
 
 def test_the_registry_forgets_a_middleware_when_it_goes() -> None:
@@ -461,7 +463,7 @@ def test_forgetting_a_category_drops_plain_dict_counts_too() -> None:
 
 def test_a_strike_registers_its_middleware() -> None:
     middleware = MagicMock()
-    middleware.config = SecurityConfig(enable_redis=False)
+    middleware.config = SyncSecurityConfig(enable_redis=False)
     middleware.suspicious_request_counts = {}
 
     _increment_suspicious_counts(middleware, IP, "xss")
@@ -493,7 +495,7 @@ def test_a_failed_redis_clear_on_the_ban_reset_is_logged(
 ) -> None:
     manager = IPBanManager()
     manager.redis_handler = Mock(
-        config=SecurityConfig(enable_redis=False),
+        config=SyncSecurityConfig(enable_redis=False),
         get_connection=Mock(side_effect=RuntimeError("redis down")),
     )
 
@@ -529,7 +531,7 @@ def test_the_unregistrable_warning_has_the_exact_text(
 
 def test_a_forgotten_category_does_not_come_back_with_the_next_strike() -> None:
     middleware = MagicMock()
-    middleware.config = SecurityConfig(enable_redis=False)
+    middleware.config = SyncSecurityConfig(enable_redis=False)
     middleware.suspicious_request_counts = {}
     _increment_suspicious_counts(middleware, IP, "rate_limit")
     _increment_suspicious_counts(middleware, IP, "xss")

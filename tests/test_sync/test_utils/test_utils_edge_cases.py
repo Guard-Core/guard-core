@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock, Mock, patch
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.helpers import is_referrer_domain_allowed
 from guard_core.sync.utils import (
     _extract_from_forwarded_header,
@@ -39,7 +39,7 @@ def test_extract_client_ip_returns_cached_ip() -> None:
     request = Mock()
     request.state.client_ip = "10.0.0.1"
 
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     result = extract_client_ip(request, config, None)
     assert result == "10.0.0.1"
 
@@ -50,7 +50,7 @@ def test_extract_client_ip_with_invalid_forwarded_for() -> None:
     request.state.client_ip = None
     request.headers = {"X-Forwarded-For": "invalid-ip-format"}
 
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     config.trusted_proxies = ("192.168.1.1",)
     config.trusted_proxy_depth = 999
 
@@ -68,7 +68,7 @@ def test_extract_client_ip_logs_warning_on_error() -> None:
     request.state.client_ip = None
     request.headers = {"X-Forwarded-For": "1.2.3.4"}
 
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     config.trusted_proxies = ("192.168.1.1",)
     config.trusted_proxy_depth = 1
 

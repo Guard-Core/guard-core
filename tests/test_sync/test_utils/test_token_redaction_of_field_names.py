@@ -4,7 +4,7 @@ from urllib.parse import quote
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils.request_logging import (
     redact_blob_for_display,
     redact_url_for_display,
@@ -112,7 +112,7 @@ def test_the_hit_log_hides_the_value_of_a_credential_named_field(
     caplog: pytest.LogCaptureFixture, request_factory: Any
 ) -> None:
     value = "<script>alert('SECRETVALUE')</script>"
-    config = SecurityConfig(enable_penetration_detection=True)
+    config = SyncSecurityConfig(enable_penetration_detection=True)
 
     with caplog.at_level(logging.INFO, logger="guard_core"):
         sensitive = detect_penetration_attempt(

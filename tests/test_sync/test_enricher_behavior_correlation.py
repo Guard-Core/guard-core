@@ -1,13 +1,13 @@
 import time
 from types import SimpleNamespace
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.events.enricher import EnrichmentContext, EventEnricher
 from guard_core.sync.handlers.behavior_handler import BehaviorRule, BehaviorTracker
 
 
 def _tracker_with_events(ip: str, count: int, offsets: list[float]) -> BehaviorTracker:
-    tracker = BehaviorTracker(SecurityConfig())
+    tracker = BehaviorTracker(SyncSecurityConfig())
     now = time.time()
     for i in range(count):
         endpoint = f"endpoint-{i % 2}"
@@ -18,19 +18,19 @@ def _tracker_with_events(ip: str, count: int, offsets: list[float]) -> BehaviorT
 def _enricher(tracker: BehaviorTracker | None) -> EventEnricher:
     return EventEnricher(
         EnrichmentContext(
-            config=SecurityConfig(otel_service_name="svc-1"),
+            config=SyncSecurityConfig(otel_service_name="svc-1"),
             behavior_tracker=tracker,
         )
     )
 
 
 def test_get_recent_event_count_returns_zero_for_empty_tracker() -> None:
-    tracker = BehaviorTracker(SecurityConfig())
+    tracker = BehaviorTracker(SyncSecurityConfig())
     assert tracker.get_recent_event_count("1.2.3.4", 300) == 0
 
 
 def test_get_recent_event_count_returns_zero_for_empty_ip() -> None:
-    tracker = BehaviorTracker(SecurityConfig())
+    tracker = BehaviorTracker(SyncSecurityConfig())
     assert tracker.get_recent_event_count("", 300) == 0
 
 
@@ -82,7 +82,7 @@ def test_enrich_event_same_ip_same_window_yields_same_key() -> None:
 
 
 def test_enrich_event_different_ips_yield_different_keys() -> None:
-    tracker = BehaviorTracker(SecurityConfig())
+    tracker = BehaviorTracker(SyncSecurityConfig())
     enricher = _enricher(tracker)
 
     event1 = SimpleNamespace(event_type="ip_blocked", ip_address="1.1.1.1", metadata={})
@@ -105,7 +105,7 @@ def test_enrich_event_skips_behavior_fields_when_no_tracker() -> None:
 
 
 def test_enrich_event_skips_behavior_fields_when_ip_missing() -> None:
-    tracker = BehaviorTracker(SecurityConfig())
+    tracker = BehaviorTracker(SyncSecurityConfig())
     enricher = _enricher(tracker)
     event = SimpleNamespace(event_type="ip_blocked", metadata={})
     enricher.enrich_event(event)
@@ -114,7 +114,7 @@ def test_enrich_event_skips_behavior_fields_when_ip_missing() -> None:
 
 def test_enrich_event_skips_behavior_when_tracker_lacks_method() -> None:
     enricher = EventEnricher(
-        EnrichmentContext(config=SecurityConfig(), behavior_tracker=object())
+        EnrichmentContext(config=SyncSecurityConfig(), behavior_tracker=object())
     )
     event = SimpleNamespace(event_type="ip_blocked", ip_address="1.2.3.4", metadata={})
     enricher.enrich_event(event)
@@ -133,7 +133,7 @@ class _SyncOnlyTracker:
 def test_enrich_event_reads_a_tracker_with_only_the_sync_method() -> None:
     tracker = _SyncOnlyTracker()
     enricher = EventEnricher(
-        EnrichmentContext(config=SecurityConfig(), behavior_tracker=tracker)
+        EnrichmentContext(config=SyncSecurityConfig(), behavior_tracker=tracker)
     )
     event = SimpleNamespace(event_type="ip_blocked", ip_address="1.2.3.4", metadata={})
     enricher.enrich_event(event)
@@ -143,7 +143,7 @@ def test_enrich_event_reads_a_tracker_with_only_the_sync_method() -> None:
 
 
 def test_an_ipv6_clients_behavioral_hits_give_a_recent_event_count() -> None:
-    tracker = BehaviorTracker(SecurityConfig())
+    tracker = BehaviorTracker(SyncSecurityConfig())
     rule = BehaviorRule(rule_type="usage", threshold=100, window=60)
     for client in ("2001:db8:0:1::5", "2001:db8:0:1:ffff::9"):
         tracker.track_endpoint_usage("/api", client, rule)

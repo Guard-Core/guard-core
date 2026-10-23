@@ -13,7 +13,7 @@ from guard_core.exceptions import (
     BodyReadSlotsExhaustedError,
     BodyReadStalledError,
 )
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync import utils
 from guard_core.sync._utils.body_reader import _read_capped_body_or_raise
 from guard_core.sync.core.checks.implementations.suspicious_activity import (
@@ -54,14 +54,14 @@ def _honest(body: bytes) -> SyncMockGuardRequest:
     )
 
 
-def _config(**overrides: Any) -> SecurityConfig:
+def _config(**overrides: Any) -> SyncSecurityConfig:
     values: dict[str, Any] = {"enable_redis": False, "rate_limit": 10000}
     values.update(overrides)
-    return SecurityConfig(**values)
+    return SyncSecurityConfig(**values)
 
 
 def _hold_slots(
-    config: SecurityConfig, count: int, release: threading.Event
+    config: SyncSecurityConfig, count: int, release: threading.Event
 ) -> list[threading.Thread]:
     holders = [
         threading.Thread(

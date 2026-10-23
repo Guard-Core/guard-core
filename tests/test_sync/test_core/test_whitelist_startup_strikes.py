@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, Mock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.implementations.suspicious_activity import (
     SuspiciousActivityCheck,
 )
@@ -29,7 +29,7 @@ OUTSIDE = "203.0.113.10"
 LOGGER = "guard_core.sync.core.initialization.whitelist_strikes"
 
 
-def _config(**overrides: Any) -> SecurityConfig:
+def _config(**overrides: Any) -> SyncSecurityConfig:
     values: dict[str, Any] = {
         "enable_redis": True,
         "redis_url": REDIS_URL,
@@ -40,7 +40,7 @@ def _config(**overrides: Any) -> SecurityConfig:
         "enable_rate_limiting": False,
     }
     values.update(overrides)
-    return SecurityConfig(**values)
+    return SyncSecurityConfig(**values)
 
 
 @pytest.fixture
@@ -257,7 +257,7 @@ def test_an_empty_whitelist_stores_its_fingerprint_with_only_the_carve_scan(
 
 
 def test_a_disabled_redis_takes_no_lock() -> None:
-    manager = RedisManager(SecurityConfig(enable_redis=False))
+    manager = RedisManager(SyncSecurityConfig(enable_redis=False))
 
     assert manager.set_key_if_absent("ns", "key", "1", 5) is False
 
@@ -333,7 +333,7 @@ def test_the_unban_and_range_calls_keep_their_warning_without_strict(
 ) -> None:
     manager = IPBanManager()
     manager.redis_handler = Mock(
-        config=SecurityConfig(enable_redis=False),
+        config=SyncSecurityConfig(enable_redis=False),
         get_connection=Mock(side_effect=RuntimeError("down")),
         delete=MagicMock(side_effect=RuntimeError("down")),
         forget_detection_strikes=MagicMock(),

@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.core.events.metrics import MetricsCollector
 from guard_core.sync.core.responses.context import ResponseContext
@@ -43,7 +43,7 @@ def _response_with_store(store: MutableMapping[str, str]) -> MockGuardResponse:
 
 
 def _factory(**security_headers: object) -> ErrorResponseFactory:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False, security_headers={"enabled": True, **security_headers}
     )
     metrics = MagicMock(spec=MetricsCollector)

@@ -16,7 +16,7 @@ import pytest
 from guard_agent.models import AgentConfig, SecurityEvent, SecurityMetric
 from pytest import TempPathFactory
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SecurityConfig, SyncSecurityConfig
 from guard_core.sync._utils import body_reader
 from guard_core.sync._utils import detection_scan as _detection_scan_module
 from guard_core.sync._utils import ip_extraction as _ip_extraction_module
@@ -444,8 +444,8 @@ def pytest_runtest_teardown(item: pytest.Item) -> None:
 
 
 @pytest.fixture
-def security_config() -> SecurityConfig:
-    return SecurityConfig(
+def security_config() -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         enable_redis=False,
         whitelist=["127.0.0.1"],
         blacklist=["192.168.1.1"],
@@ -473,8 +473,8 @@ def ipinfo_db_path(tmp_path_factory: TempPathFactory) -> Path:
 
 
 @pytest.fixture
-def security_config_redis(ipinfo_db_path: Path) -> SecurityConfig:
-    return SecurityConfig(
+def security_config_redis(ipinfo_db_path: Path) -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         redis_url=REDIS_URL,
         redis_prefix=REDIS_PREFIX,
         whitelist=["127.0.0.1"],
@@ -497,8 +497,8 @@ def security_config_redis(ipinfo_db_path: Path) -> SecurityConfig:
     )
 
 
-def _detection_security_config() -> SecurityConfig:
-    return SecurityConfig(
+def _detection_security_config() -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         detection_compiler_timeout=2.0,
         detection_max_content_length=10000,
         detection_preserve_attack_patterns=True,
@@ -511,7 +511,7 @@ def _detection_security_config() -> SecurityConfig:
 
 
 @pytest.fixture
-def security_config_with_detection() -> SecurityConfig:
+def security_config_with_detection() -> SyncSecurityConfig:
     return _detection_security_config()
 
 
@@ -535,7 +535,7 @@ def sus_patterns_manager_with_detection_ctx() -> Generator[SusPatternsManager, N
 
 @pytest.fixture
 def sus_patterns_manager_with_detection(
-    security_config_with_detection: SecurityConfig,
+    security_config_with_detection: SyncSecurityConfig,
 ) -> Generator[SusPatternsManager, None]:
     with sus_patterns_manager_with_detection_ctx() as manager:
         yield manager
@@ -554,7 +554,7 @@ def with_detection_manager(
 
 @pytest.fixture(autouse=True)
 def redis_cleanup() -> Generator[None, None]:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         redis_url=REDIS_URL,
         redis_prefix=REDIS_PREFIX,
     )
@@ -706,8 +706,8 @@ def mock_dependencies(request: pytest.FixtureRequest) -> Generator[Any, Any, Any
 
 
 @pytest.fixture
-def config() -> SecurityConfig:
-    return SecurityConfig(
+def config() -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         enable_agent=True,
         agent_api_key="test-api-key",
         agent_endpoint="http://test.example.com",
@@ -736,8 +736,8 @@ def mock_redis_handler() -> MagicMock:
 
 
 @pytest.fixture
-def security_config_redis_isolated_prefix(ipinfo_db_path: Path) -> SecurityConfig:
-    return SecurityConfig(
+def security_config_redis_isolated_prefix(ipinfo_db_path: Path) -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         redis_url=REDIS_URL,
         redis_prefix=_CLOUD_IP_REDIS_PREFIX,
         whitelist=["127.0.0.1"],
@@ -761,7 +761,9 @@ def security_config_redis_isolated_prefix(ipinfo_db_path: Path) -> SecurityConfi
 
 
 def _flush_cloud_ip_redis_namespace() -> None:
-    config = SecurityConfig(redis_url=REDIS_URL, redis_prefix=_CLOUD_IP_REDIS_PREFIX)
+    config = SyncSecurityConfig(
+        redis_url=REDIS_URL, redis_prefix=_CLOUD_IP_REDIS_PREFIX
+    )
     redis_handler = RedisManager(config)
     redis_handler.initialize()
     try:

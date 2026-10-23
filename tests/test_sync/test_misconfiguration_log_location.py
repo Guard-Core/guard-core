@@ -3,7 +3,7 @@ import logging
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.initialization.handler_initializer import HandlerInitializer
 from guard_core.sync.decorators import SecurityDecorator
 
@@ -24,7 +24,9 @@ def test_a_config_misconfiguration_log_names_the_line_that_builds_the_config(
 ) -> None:
     with caplog.at_level(logging.WARNING, logger="guard_core"):
         expected = _next_line()
-        SecurityConfig(enable_redis=False, rate_limit=0, fail_on_misconfiguration=False)
+        SyncSecurityConfig(
+            enable_redis=False, rate_limit=0, fail_on_misconfiguration=False
+        )
 
     assert _location(caplog, "rate_limit is 0") == (__file__, expected)
 
@@ -33,7 +35,7 @@ def test_a_decorator_misconfiguration_log_names_the_decorated_line(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     decorator = SecurityDecorator(
-        SecurityConfig(enable_redis=False, fail_on_misconfiguration=False)
+        SyncSecurityConfig(enable_redis=False, fail_on_misconfiguration=False)
     )
 
     def route() -> None:
@@ -49,7 +51,7 @@ def test_a_decorator_misconfiguration_log_names_the_decorated_line(
 def test_a_startup_misconfiguration_log_names_the_bind_line(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False,
         lazy_init=False,
         auto_ban_threshold=10**9,

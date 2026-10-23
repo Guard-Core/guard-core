@@ -2,13 +2,13 @@ from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock
 
-from guard_core.models import SecurityConfig, ThreatBanConfig
+from guard_core.models import SyncSecurityConfig, ThreatBanConfig
 from guard_core.sync.core.checks.helpers import count_hostile_signal_and_maybe_ban
 
 BOT_IP = "40.0.0.1"
 
 
-def _check(config: SecurityConfig, ban: Any = None, counts: Any = None) -> Any:
+def _check(config: SyncSecurityConfig, ban: Any = None, counts: Any = None) -> Any:
     middleware = MagicMock()
     middleware.config = config
     middleware.suspicious_request_counts = counts if counts is not None else {}
@@ -31,7 +31,7 @@ def _request(client_ip: str | None = BOT_IP, whitelisted: bool = False) -> Any:
 
 
 def test_unknown_client_is_not_counted() -> None:
-    check = _check(SecurityConfig(auto_ban_threshold=1))
+    check = _check(SyncSecurityConfig(auto_ban_threshold=1))
 
     assert not count_hostile_signal_and_maybe_ban(
         check, _request(client_ip=None), "referrer", "t"
@@ -40,7 +40,7 @@ def test_unknown_client_is_not_counted() -> None:
 
 
 def test_whitelisted_client_is_not_counted() -> None:
-    check = _check(SecurityConfig(auto_ban_threshold=1))
+    check = _check(SyncSecurityConfig(auto_ban_threshold=1))
 
     assert not count_hostile_signal_and_maybe_ban(
         check, _request(whitelisted=True), "referrer", "t"
@@ -49,7 +49,7 @@ def test_whitelisted_client_is_not_counted() -> None:
 
 
 def test_banning_disabled_neither_counts_nor_bans() -> None:
-    check = _check(SecurityConfig(enable_ip_banning=False, auto_ban_threshold=1))
+    check = _check(SyncSecurityConfig(enable_ip_banning=False, auto_ban_threshold=1))
 
     assert not count_hostile_signal_and_maybe_ban(check, _request(), "referrer", "t")
     assert check.middleware.suspicious_request_counts == {}
@@ -57,7 +57,7 @@ def test_banning_disabled_neither_counts_nor_bans() -> None:
 
 
 def test_default_threshold_argument_applies_when_no_override() -> None:
-    check = _check(SecurityConfig(auto_ban_threshold=50, auto_ban_duration=90))
+    check = _check(SyncSecurityConfig(auto_ban_threshold=50, auto_ban_duration=90))
 
     banned = count_hostile_signal_and_maybe_ban(check, _request(), "honeypot", "t", 1)
 
@@ -68,7 +68,7 @@ def test_default_threshold_argument_applies_when_no_override() -> None:
 
 
 def test_threat_ban_config_entry_beats_default_threshold() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         auto_ban_threshold=50,
         threat_ban_config={"honeypot": ThreatBanConfig(threshold=2, duration=5)},
     )
@@ -84,7 +84,7 @@ def test_threat_ban_config_entry_beats_default_threshold() -> None:
 def test_ban_failure_is_swallowed_logged_and_made_visible() -> None:
     ban = MagicMock()
     ban._ban_ip_escalating = MagicMock(side_effect=ConnectionError("redis unavailable"))
-    check = _check(SecurityConfig(auto_ban_threshold=1), ban)
+    check = _check(SyncSecurityConfig(auto_ban_threshold=1), ban)
 
     banned = count_hostile_signal_and_maybe_ban(check, _request(), "referrer", "t")
 
@@ -99,7 +99,7 @@ def test_ban_failure_is_swallowed_logged_and_made_visible() -> None:
 def test_ban_and_event_bus_both_failing_does_not_raise() -> None:
     ban = MagicMock()
     ban._ban_ip_escalating = MagicMock(side_effect=RuntimeError("redis down"))
-    check = _check(SecurityConfig(auto_ban_threshold=1), ban)
+    check = _check(SyncSecurityConfig(auto_ban_threshold=1), ban)
     check.middleware.event_bus.send_middleware_event = MagicMock(
         side_effect=ConnectionError("event bus down too")
     )
@@ -111,7 +111,7 @@ def test_ban_and_event_bus_both_failing_does_not_raise() -> None:
 def test_a_broken_log_sink_never_escapes() -> None:
     ban = MagicMock()
     ban._ban_ip_escalating = MagicMock(side_effect=RuntimeError("redis down"))
-    check = _check(SecurityConfig(auto_ban_threshold=1), ban)
+    check = _check(SyncSecurityConfig(auto_ban_threshold=1), ban)
     check.middleware.event_bus.send_middleware_event = MagicMock(
         side_effect=ConnectionError("event bus down too")
     )
@@ -124,7 +124,7 @@ def test_a_broken_log_sink_never_escapes() -> None:
 def test_tracked_ips_stay_bounded() -> None:
     counts = {"1.1.1.1": {"referrer": 1}, "2.2.2.2": {"referrer": 1}}
     check = _check(
-        SecurityConfig(auto_ban_threshold=9, ban_counters_max_tracked_ips=2),
+        SyncSecurityConfig(auto_ban_threshold=9, ban_counters_max_tracked_ips=2),
         counts=counts,
     )
 
@@ -138,7 +138,7 @@ def test_tracked_ips_stay_bounded() -> None:
 def test_touching_an_entry_protects_it_from_a_fresh_ip_flood() -> None:
     cap = 20
     check = _check(
-        SecurityConfig(auto_ban_threshold=1000, ban_counters_max_tracked_ips=cap)
+        SyncSecurityConfig(auto_ban_threshold=1000, ban_counters_max_tracked_ips=cap)
     )
 
     def touch(client_ip: str) -> None:

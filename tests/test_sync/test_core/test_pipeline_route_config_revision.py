@@ -1,7 +1,7 @@
 import logging
 from unittest.mock import MagicMock, patch
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks import factory
 from guard_core.sync.core.checks.factory import build_default_pipeline
 from guard_core.sync.core.routing.context import RoutingContext
@@ -26,17 +26,17 @@ def _blocking_validator(request: object) -> MockGuardResponse:
     return MockGuardResponse("blocked-by-custom-validator", 418)
 
 
-def _neutral_config(**overrides: object) -> SecurityConfig:
+def _neutral_config(**overrides: object) -> SyncSecurityConfig:
     fields: dict[str, object] = {
         "enable_penetration_detection": False,
         "enable_rate_limiting": False,
     }
     fields.update(overrides)
-    return SecurityConfig(**fields)
+    return SyncSecurityConfig(**fields)
 
 
 def _build_middleware(
-    config: SecurityConfig, decorator: BaseSecurityDecorator | None
+    config: SyncSecurityConfig, decorator: BaseSecurityDecorator | None
 ) -> MagicMock:
     middleware = MagicMock()
     middleware.config = config

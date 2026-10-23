@@ -6,7 +6,7 @@ import sys
 from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
-from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.models import DynamicRules, SyncSecurityConfig
 from guard_core.sync._utils import rule_attribution as attribution
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.sync.handlers.ipban_handler import ip_ban_manager
@@ -16,7 +16,7 @@ RULE_IP = "198.51.100.21"
 
 
 def main(url: str, prefix: str, duration: int) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         redis_url=url,
         redis_prefix=prefix,
         enable_redis=True,

@@ -1,4 +1,4 @@
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.decorators.access_control import AccessControlMixin
 from guard_core.sync.decorators.advanced import AdvancedMixin
 from guard_core.sync.decorators.authentication import AuthenticationMixin
@@ -21,7 +21,7 @@ class _AsyncComposedDecorator(
 
 
 def _async_decorator() -> _AsyncComposedDecorator:
-    return _AsyncComposedDecorator(SecurityConfig(enable_redis=False))
+    return _AsyncComposedDecorator(SyncSecurityConfig(enable_redis=False))
 
 
 def _block_target() -> None:

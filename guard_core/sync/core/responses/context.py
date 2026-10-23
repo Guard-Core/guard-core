@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from logging import Logger
 from typing import Any
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.events import MetricsCollector
 from guard_core.sync.decorators.base import BaseSecurityDecorator
 from guard_core.sync.handlers.security_headers_handler import SecurityHeadersManager
@@ -10,7 +10,7 @@ from guard_core.sync.handlers.security_headers_handler import SecurityHeadersMan
 
 @dataclass
 class ResponseContext:
-    config: SecurityConfig
+    config: SyncSecurityConfig
     logger: Logger
     metrics_collector: MetricsCollector
 

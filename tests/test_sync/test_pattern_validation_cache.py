@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.detection_engine import _validation_cache
 from guard_core.sync.detection_engine._validation_cache import PatternValidationCache
 from guard_core.sync.detection_engine.compiler import PatternCompiler
@@ -136,7 +136,7 @@ def test_dangerous_constructs_are_checked_before_the_cache(
 
 
 def test_state_builder_wires_the_cache_from_config(tmp_path: Path) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         detection_pattern_validation_cache_path=str(tmp_path / "cache.json")
     )
     state = _build_enhanced_detection_state(config)
@@ -146,7 +146,7 @@ def test_state_builder_wires_the_cache_from_config(tmp_path: Path) -> None:
 
 
 def test_state_builder_leaves_the_cache_off_by_default() -> None:
-    state = _build_enhanced_detection_state(SecurityConfig())
+    state = _build_enhanced_detection_state(SyncSecurityConfig())
     assert state.compiler is not None
     assert state.compiler._validation_cache is None
 

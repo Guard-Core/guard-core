@@ -3,7 +3,7 @@ from typing import cast
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 from guard_core.sync.utils import (
     _parse_content_length,
@@ -50,7 +50,7 @@ def test_over_cap_declared_length_no_bounded_reader_flags_and_warns(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     request = _BodyRequest(body=_SQLI_BODY, content_length=10_000_000)
-    config = SecurityConfig(detection_max_body_inspect_bytes=1024)
+    config = SyncSecurityConfig(detection_max_body_inspect_bytes=1024)
 
     with caplog.at_level(logging.WARNING, logger="guard_core"):
         result = detect_penetration_attempt(cast(SyncGuardRequest, request), config)
@@ -68,7 +68,7 @@ def test_over_cap_declared_length_bounded_reader_reads_prefix_at_the_cap(
 ) -> None:
     request = _BoundedBodyReaderRequest(body=_SQLI_BODY)
     request.headers["content-length"] = "10000000"
-    config = SecurityConfig(detection_max_body_inspect_bytes=1024)
+    config = SyncSecurityConfig(detection_max_body_inspect_bytes=1024)
 
     with caplog.at_level(logging.WARNING, logger="guard_core"):
         result = detect_penetration_attempt(cast(SyncGuardRequest, request), config)
@@ -81,7 +81,7 @@ def test_over_cap_declared_length_bounded_reader_reads_prefix_at_the_cap(
 
 def test_at_cap_body_is_still_read_and_scanned() -> None:
     request = _BodyRequest(body=_SQLI_BODY, content_length=1024)
-    config = SecurityConfig(detection_max_body_inspect_bytes=1024)
+    config = SyncSecurityConfig(detection_max_body_inspect_bytes=1024)
 
     result = detect_penetration_attempt(cast(SyncGuardRequest, request), config)
 
@@ -91,7 +91,7 @@ def test_at_cap_body_is_still_read_and_scanned() -> None:
 
 def test_missing_content_length_no_bounded_reader_skips_body() -> None:
     request = _BodyRequest(body=_SQLI_BODY, content_length=None)
-    config = SecurityConfig(detection_max_body_inspect_bytes=1024)
+    config = SyncSecurityConfig(detection_max_body_inspect_bytes=1024)
 
     result = detect_penetration_attempt(cast(SyncGuardRequest, request), config)
 
@@ -101,7 +101,7 @@ def test_missing_content_length_no_bounded_reader_skips_body() -> None:
 
 def test_missing_content_length_bounded_reader_scans_within_cap() -> None:
     request = _BoundedBodyReaderRequest(body=_SQLI_BODY)
-    config = SecurityConfig(detection_max_body_inspect_bytes=1024)
+    config = SyncSecurityConfig(detection_max_body_inspect_bytes=1024)
 
     result = detect_penetration_attempt(cast(SyncGuardRequest, request), config)
 
@@ -117,7 +117,7 @@ def test_missing_content_length_bounded_reader_prefix_is_truncated_to_cap() -> N
 
     oversized_body = _SQLI_BODY + b"A" * 10_000
     request = _OverReportingReader(body=oversized_body, content_length=None)
-    config = SecurityConfig(detection_max_body_inspect_bytes=1024)
+    config = SyncSecurityConfig(detection_max_body_inspect_bytes=1024)
 
     result = detect_penetration_attempt(cast(SyncGuardRequest, request), config)
 
@@ -131,7 +131,7 @@ def test_missing_content_length_bounded_reader_error_not_scanned() -> None:
             raise RuntimeError("stream closed")
 
     request = _RaisingReader(body=_SQLI_BODY, content_length=None)
-    config = SecurityConfig(detection_max_body_inspect_bytes=1024)
+    config = SyncSecurityConfig(detection_max_body_inspect_bytes=1024)
 
     result = detect_penetration_attempt(cast(SyncGuardRequest, request), config)
 
@@ -144,7 +144,7 @@ def test_at_cap_body_invalid_utf8_is_read_and_scanned_lossily() -> None:
     request = _BodyRequest(
         body=invalid_utf8_body, content_length=len(invalid_utf8_body)
     )
-    config = SecurityConfig(detection_max_body_inspect_bytes=1024)
+    config = SyncSecurityConfig(detection_max_body_inspect_bytes=1024)
 
     result = detect_penetration_attempt(cast(SyncGuardRequest, request), config)
 
@@ -154,7 +154,7 @@ def test_at_cap_body_invalid_utf8_is_read_and_scanned_lossily() -> None:
 
 def test_malformed_content_length_not_read_or_scanned() -> None:
     request = _BodyRequest(body=_SQLI_BODY, content_length="not-a-number")
-    config = SecurityConfig(detection_max_body_inspect_bytes=1024)
+    config = SyncSecurityConfig(detection_max_body_inspect_bytes=1024)
 
     result = detect_penetration_attempt(cast(SyncGuardRequest, request), config)
 
@@ -164,7 +164,7 @@ def test_malformed_content_length_not_read_or_scanned() -> None:
 
 def test_negative_content_length_not_read_or_scanned() -> None:
     request = _BodyRequest(body=_SQLI_BODY, content_length=-1)
-    config = SecurityConfig(detection_max_body_inspect_bytes=1024)
+    config = SyncSecurityConfig(detection_max_body_inspect_bytes=1024)
 
     result = detect_penetration_attempt(cast(SyncGuardRequest, request), config)
 
@@ -174,7 +174,7 @@ def test_negative_content_length_not_read_or_scanned() -> None:
 
 def test_zero_content_length_not_read_or_scanned() -> None:
     request = _BodyRequest(body=_SQLI_BODY, content_length=0)
-    config = SecurityConfig(detection_max_body_inspect_bytes=1024)
+    config = SyncSecurityConfig(detection_max_body_inspect_bytes=1024)
 
     result = detect_penetration_attempt(cast(SyncGuardRequest, request), config)
 
@@ -209,7 +209,7 @@ def test_parse_content_length_tolerates_whitespace_rejects_malformed(
 
 def test_content_length_with_surrounding_whitespace_is_still_scanned() -> None:
     request = _BodyRequest(body=_SQLI_BODY, content_length=f"  {len(_SQLI_BODY)}  ")
-    config = SecurityConfig(detection_max_body_inspect_bytes=1024)
+    config = SyncSecurityConfig(detection_max_body_inspect_bytes=1024)
 
     result = detect_penetration_attempt(cast(SyncGuardRequest, request), config)
 
@@ -219,7 +219,7 @@ def test_content_length_with_surrounding_whitespace_is_still_scanned() -> None:
 
 def test_content_length_with_leading_plus_not_read_or_scanned() -> None:
     request = _BodyRequest(body=_SQLI_BODY, content_length=f"+{len(_SQLI_BODY)}")
-    config = SecurityConfig(detection_max_body_inspect_bytes=1024)
+    config = SyncSecurityConfig(detection_max_body_inspect_bytes=1024)
 
     result = detect_penetration_attempt(cast(SyncGuardRequest, request), config)
 
@@ -235,7 +235,7 @@ def test_bounded_reader_returning_non_bytes_is_logged_and_not_scanned(
             return cast(bytes, "not bytes")
 
     request = _StringReturningReader(body=_SQLI_BODY, content_length=None)
-    config = SecurityConfig(detection_max_body_inspect_bytes=1024)
+    config = SyncSecurityConfig(detection_max_body_inspect_bytes=1024)
 
     with caplog.at_level(logging.WARNING, logger="guard_core"):
         result = detect_penetration_attempt(cast(SyncGuardRequest, request), config)
@@ -247,7 +247,7 @@ def test_bounded_reader_returning_non_bytes_is_logged_and_not_scanned(
 
 def test_second_capped_read_with_same_request_reuses_the_first_stream_read() -> None:
     request = _BoundedBodyReaderRequest(body=_SQLI_BODY)
-    config = SecurityConfig(detection_max_body_inspect_bytes=1024)
+    config = SyncSecurityConfig(detection_max_body_inspect_bytes=1024)
 
     first = _read_capped_body(cast(SyncGuardRequest, request), config)
     second = _read_capped_body(cast(SyncGuardRequest, request), config)
@@ -260,10 +260,10 @@ def test_second_capped_read_with_same_request_reuses_the_first_stream_read() -> 
 def test_second_capped_read_with_a_smaller_cap_slices_the_cached_prefix() -> None:
     oversized_body = _SQLI_BODY + b"A" * 4000
     request = _BoundedBodyReaderRequest(body=oversized_body)
-    config = SecurityConfig(detection_max_body_inspect_bytes=4096)
+    config = SyncSecurityConfig(detection_max_body_inspect_bytes=4096)
 
     first = _read_capped_body(cast(SyncGuardRequest, request), config)
-    smaller_config = SecurityConfig(detection_max_body_inspect_bytes=1024)
+    smaller_config = SyncSecurityConfig(detection_max_body_inspect_bytes=1024)
     second = _read_capped_body(cast(SyncGuardRequest, request), smaller_config)
 
     assert request.read_body_prefix_calls == 1
@@ -275,7 +275,7 @@ def test_second_capped_read_with_a_smaller_cap_slices_the_cached_prefix() -> Non
 def test_second_capped_read_with_a_different_request_reads_independently() -> None:
     request_a = _BoundedBodyReaderRequest(body=_SQLI_BODY)
     request_b = _BoundedBodyReaderRequest(body=_SQLI_BODY)
-    config = SecurityConfig(detection_max_body_inspect_bytes=1024)
+    config = SyncSecurityConfig(detection_max_body_inspect_bytes=1024)
 
     _read_capped_body(cast(SyncGuardRequest, request_a), config)
     _read_capped_body(cast(SyncGuardRequest, request_b), config)
@@ -286,7 +286,7 @@ def test_second_capped_read_with_a_different_request_reads_independently() -> No
 
 def test_capped_read_cache_survives_the_reader_going_single_use_empty() -> None:
     request = _BoundedBodyReaderRequest(body=_SQLI_BODY)
-    config = SecurityConfig(detection_max_body_inspect_bytes=1024)
+    config = SyncSecurityConfig(detection_max_body_inspect_bytes=1024)
 
     first = _read_capped_body(cast(SyncGuardRequest, request), config)
     request._body = b""
@@ -311,7 +311,7 @@ class _FlakyBoundedBodyReaderRequest(_BodyRequest):
 
 def test_a_transient_read_failure_is_retried_by_the_next_consumer() -> None:
     request = _FlakyBoundedBodyReaderRequest(body=_SQLI_BODY)
-    config = SecurityConfig(detection_max_body_inspect_bytes=1024)
+    config = SyncSecurityConfig(detection_max_body_inspect_bytes=1024)
 
     first = _read_capped_body(cast(SyncGuardRequest, request), config)
     second = _read_capped_body(cast(SyncGuardRequest, request), config)
@@ -323,7 +323,7 @@ def test_a_transient_read_failure_is_retried_by_the_next_consumer() -> None:
 
 def test_a_genuinely_empty_body_is_cached_and_not_retried() -> None:
     request = _BoundedBodyReaderRequest(body=b"")
-    config = SecurityConfig(detection_max_body_inspect_bytes=1024)
+    config = SyncSecurityConfig(detection_max_body_inspect_bytes=1024)
 
     first = _read_capped_body(cast(SyncGuardRequest, request), config)
     second = _read_capped_body(cast(SyncGuardRequest, request), config)

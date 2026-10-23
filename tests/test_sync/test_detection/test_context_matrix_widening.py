@@ -1,10 +1,10 @@
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils.penetration_detection import detect_penetration_attempt
 from tests.test_sync.conftest import SyncMockGuardRequest
 
-_CONFIG = SecurityConfig()
+_CONFIG = SyncSecurityConfig()
 
 
 def _header_request(value: str) -> SyncMockGuardRequest:

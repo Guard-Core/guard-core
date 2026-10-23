@@ -1,7 +1,7 @@
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.implementations.authentication import (
     AuthenticationCheck,
 )
@@ -16,7 +16,7 @@ def _make_middleware(
     **config_overrides: object,
 ) -> MagicMock:
     mw = MagicMock()
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False,
         passive_mode=passive_mode,
         **config_overrides,

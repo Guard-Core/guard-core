@@ -3,7 +3,7 @@ from contextlib import contextmanager
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.initialization.handler_initializer import HandlerInitializer
 
 _BACKGROUND_BLOCK_SECONDS = 2.0
@@ -12,7 +12,7 @@ _BACKGROUND_BLOCK_SECONDS = 2.0
 def _make_initializer(
     lazy_init: bool, block_cloud: set[str] | None = None
 ) -> tuple[HandlerInitializer, MagicMock, MagicMock]:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         lazy_init=lazy_init,
         enable_redis=True,
         block_cloud_providers=block_cloud or set(),
@@ -142,7 +142,7 @@ def test_lazy_init_background_task_runs_geo_only_when_no_cloud_providers() -> No
 
 
 def test_lazy_init_background_task_runs_cloud_only_when_no_geo_handler() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         lazy_init=True,
         enable_redis=True,
         block_cloud_providers={"AWS"},
@@ -179,13 +179,13 @@ def test_lazy_init_with_empty_cloud_providers_skips_cloud() -> None:
 
 
 def test_no_redis_handler_returns_immediately() -> None:
-    config = SecurityConfig(lazy_init=False, enable_redis=True)
+    config = SyncSecurityConfig(lazy_init=False, enable_redis=True)
     initializer = HandlerInitializer(config=config, redis_handler=None)
     initializer.initialize_redis_handlers()
 
 
 def test_warns_when_lazy_init_inert_without_redis_and_cloud_configured() -> None:
-    config = SecurityConfig(lazy_init=True, block_cloud_providers={"AWS"})
+    config = SyncSecurityConfig(lazy_init=True, block_cloud_providers={"AWS"})
     initializer = HandlerInitializer(config=config, redis_handler=None)
 
     with patch.object(initializer.logger, "warning") as mock_warning:
@@ -196,7 +196,7 @@ def test_warns_when_lazy_init_inert_without_redis_and_cloud_configured() -> None
 
 
 def test_warns_when_lazy_init_inert_with_geo_ip_handler_configured() -> None:
-    config = SecurityConfig(lazy_init=True)
+    config = SyncSecurityConfig(lazy_init=True)
     geo_ip = MagicMock()
     initializer = HandlerInitializer(
         config=config, redis_handler=None, geo_ip_handler=geo_ip
@@ -210,7 +210,7 @@ def test_warns_when_lazy_init_inert_with_geo_ip_handler_configured() -> None:
 
 
 def test_no_warning_when_lazy_init_false_and_geo_ip_handler_configured() -> None:
-    config = SecurityConfig(lazy_init=False)
+    config = SyncSecurityConfig(lazy_init=False)
     geo_ip = MagicMock()
     geo_ip.initialize = MagicMock()
     initializer = HandlerInitializer(
@@ -224,7 +224,7 @@ def test_no_warning_when_lazy_init_false_and_geo_ip_handler_configured() -> None
 
 
 def test_no_warning_when_lazy_init_inert_but_nothing_configured() -> None:
-    config = SecurityConfig(lazy_init=True)
+    config = SyncSecurityConfig(lazy_init=True)
     initializer = HandlerInitializer(config=config, redis_handler=None)
 
     with patch.object(initializer.logger, "warning") as mock_warning:
@@ -234,7 +234,7 @@ def test_no_warning_when_lazy_init_inert_but_nothing_configured() -> None:
 
 
 def test_no_redis_eager_loads_cloud_when_lazy_init_false() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         lazy_init=False,
         enable_redis=False,
         block_cloud_providers={"AWS"},
@@ -256,7 +256,7 @@ def test_no_redis_eager_loads_cloud_when_lazy_init_false() -> None:
 
 
 def test_no_redis_eager_load_skips_cloud_when_no_providers() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         lazy_init=False,
         enable_redis=False,
         block_cloud_providers=set(),
@@ -275,7 +275,7 @@ def test_no_redis_eager_load_skips_cloud_when_no_providers() -> None:
 
 
 def test_no_redis_eager_load_skips_geo_when_no_geo_handler() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         lazy_init=False,
         enable_redis=False,
         block_cloud_providers={"AWS"},
@@ -290,7 +290,7 @@ def test_no_redis_eager_load_skips_geo_when_no_geo_handler() -> None:
 
 
 def test_no_redis_lazy_init_true_does_not_eager_load_cloud() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         lazy_init=True,
         enable_redis=False,
         block_cloud_providers={"AWS"},

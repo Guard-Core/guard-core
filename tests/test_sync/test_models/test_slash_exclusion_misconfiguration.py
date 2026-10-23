@@ -1,12 +1,12 @@
 import warnings
 from typing import Any
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.validation.path_matching import path_is_excluded
 
 
-def _build(**settings: Any) -> SecurityConfig:
-    return SecurityConfig(enable_redis=False, **settings)
+def _build(**settings: Any) -> SyncSecurityConfig:
+    return SyncSecurityConfig(enable_redis=False, **settings)
 
 
 def test_the_slash_entry_is_accepted_without_any_flag_or_warning() -> None:

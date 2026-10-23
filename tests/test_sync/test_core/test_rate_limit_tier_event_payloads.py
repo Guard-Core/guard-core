@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.implementations import rate_limit as rate_limit_module
 from guard_core.sync.core.checks.implementations.rate_limit import RateLimitCheck
 from guard_core.sync.decorators.base import RouteConfig
@@ -12,7 +12,7 @@ from guard_core.sync.handlers.ratelimit_handler import RateLimitBlock
 CLIENT_IP = "198.51.100.40"
 
 
-def _middleware(config: SecurityConfig, country: str | None = None) -> Mock:
+def _middleware(config: SyncSecurityConfig, country: str | None = None) -> Mock:
     middleware = Mock()
     middleware.config = config
     middleware.logger = Mock()
@@ -50,16 +50,16 @@ def _request(route_config: RouteConfig | None = None) -> MagicMock:
     return request
 
 
-def _config(**settings: Any) -> SecurityConfig:
+def _config(**settings: Any) -> SyncSecurityConfig:
     defaults: dict[str, Any] = {
         "enable_redis": False,
         "enable_rate_limiting": False,
     }
-    return SecurityConfig(**{**defaults, **settings})
+    return SyncSecurityConfig(**{**defaults, **settings})
 
 
 def _blocked_event(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     route_config: RouteConfig | None = None,
     country: str | None = None,
 ) -> dict[str, Any]:

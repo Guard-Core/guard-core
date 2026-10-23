@@ -3,7 +3,7 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils import ip_extraction
 from guard_core.sync.handlers import ipban_handler
 from tests.test_sync.test_core.conftest import build_route_pipeline, send_request
@@ -21,7 +21,7 @@ def clear_untrusted_peer_activity() -> Generator[None, None, None]:
     ip_extraction._untrusted_peers.clear()
 
 
-def _config(**overrides: Any) -> SecurityConfig:
+def _config(**overrides: Any) -> SyncSecurityConfig:
     settings: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": False,
@@ -31,10 +31,12 @@ def _config(**overrides: Any) -> SecurityConfig:
         "trusted_proxies": [TRUSTED_PROXY_NETWORK],
     }
     settings.update(overrides)
-    return SecurityConfig(**settings)
+    return SyncSecurityConfig(**settings)
 
 
-def _send(config: SecurityConfig, peer: str, forwarded_for_values: list[str]) -> Any:
+def _send(
+    config: SyncSecurityConfig, peer: str, forwarded_for_values: list[str]
+) -> Any:
     pipeline, middleware, route_id = build_route_pipeline(
         config, lambda d: d.max_request_size(10**6)
     )
@@ -144,7 +146,7 @@ OTHER_ALLOWED_ADDRESS = "192.0.2.77"
 
 
 def _send_to_allow_listed_route(
-    config: SecurityConfig, peer: str, claim: str, count: int
+    config: SyncSecurityConfig, peer: str, claim: str, count: int
 ) -> tuple[Any, list[int]]:
     pipeline, middleware, route_id = build_route_pipeline(
         config, lambda d: d.require_ip(whitelist=[ROUTE_ALLOWED_ADDRESS])

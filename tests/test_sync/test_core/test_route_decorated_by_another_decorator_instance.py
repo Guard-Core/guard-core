@@ -3,7 +3,7 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.routing.context import RoutingContext
 from guard_core.sync.core.routing.resolver import RouteConfigResolver
 from guard_core.sync.decorators import SecurityDecorator
@@ -12,8 +12,8 @@ from tests.test_sync.test_core.conftest import build_route_pipeline, send_reques
 _LOGGER = logging.getLogger("pipeline_harness")
 
 
-def _config(**overrides: Any) -> SecurityConfig:
-    return SecurityConfig(
+def _config(**overrides: Any) -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         enable_redis=False,
         enable_penetration_detection=False,
         enable_rate_limiting=False,
@@ -21,7 +21,7 @@ def _config(**overrides: Any) -> SecurityConfig:
     )
 
 
-def _pipeline_with_foreign_route(config: SecurityConfig) -> tuple[Any, str]:
+def _pipeline_with_foreign_route(config: SyncSecurityConfig) -> tuple[Any, str]:
     pipeline, middleware, route_id = build_route_pipeline(
         config, lambda d: d.require_auth("bearer", verifier=lambda r, k: False)
     )

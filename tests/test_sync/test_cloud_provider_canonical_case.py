@@ -6,7 +6,7 @@ import pytest
 from guard_core._security_config_field_validators import (
     canonicalize_cloud_provider_selector,
 )
-from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.models import DynamicRules, SyncSecurityConfig
 from guard_core.sync.decorators import SecurityDecorator
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
 
@@ -45,7 +45,7 @@ def test_canonicalize_cloud_provider_selector_unknown_is_none(raw: object) -> No
 
 
 def test_static_config_canonicalizes_provider_spelling() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False, block_cloud_providers={"AZURE", "aws", "gcp:!us-east1"}
     )
     assert config.block_cloud_providers == frozenset({"Azure", "AWS", "GCP:!us-east1"})
@@ -53,17 +53,17 @@ def test_static_config_canonicalizes_provider_spelling() -> None:
 
 def test_static_config_still_rejects_unknown_provider() -> None:
     with pytest.raises(ValueError, match="Unknown cloud providers"):
-        SecurityConfig(enable_redis=False, block_cloud_providers={"azur"})
+        SyncSecurityConfig(enable_redis=False, block_cloud_providers={"azur"})
 
 
 def test_runtime_assignment_canonicalizes_provider_spelling() -> None:
-    config = SecurityConfig(enable_redis=False)
+    config = SyncSecurityConfig(enable_redis=False)
     config.block_cloud_providers = frozenset({"AZURE"})
     assert config.block_cloud_providers == frozenset({"Azure"})
 
 
 def test_block_clouds_decorator_canonicalizes_provider_spelling() -> None:
-    decorator = SecurityDecorator(SecurityConfig(enable_redis=False))
+    decorator = SecurityDecorator(SyncSecurityConfig(enable_redis=False))
 
     @decorator.block_clouds(["AZURE", "aws:!eu-west-1"])
     def endpoint() -> None:
@@ -77,7 +77,7 @@ def test_block_clouds_decorator_canonicalizes_provider_spelling() -> None:
 @pytest.mark.parametrize("spelling", ["AZURE", "azure", "Azure"])
 def test_dynamic_rule_blocks_azure_in_every_spelling(spelling: str) -> None:
     DynamicRuleManager._instance = None
-    config = SecurityConfig(enable_redis=False)
+    config = SyncSecurityConfig(enable_redis=False)
     manager = DynamicRuleManager(config)
     _apply(manager, blocked_cloud_providers={spelling})
     assert config.block_cloud_providers == frozenset({"Azure"})

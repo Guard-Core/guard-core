@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from guard_core.models import SecurityConfig, ThreatBanConfig
+from guard_core.models import SyncSecurityConfig, ThreatBanConfig
 from guard_core.sync.core.checks.implementations.custom_validators import (
     CustomValidatorsCheck,
 )
@@ -25,14 +25,14 @@ def fresh_ban_manager() -> Generator[IPBanManager, None, None]:
     IPBanManager._instance = None
     manager = IPBanManager()
     manager.redis_handler = None
-    manager.config = SecurityConfig(enable_redis=False)
+    manager.config = SyncSecurityConfig(enable_redis=False)
     yield manager
     IPBanManager._instance = None
 
 
 def _middleware(**overrides: Any) -> MagicMock:
     mw = MagicMock()
-    mw.config = SecurityConfig(enable_redis=False, **overrides)
+    mw.config = SyncSecurityConfig(enable_redis=False, **overrides)
     mw.logger = MagicMock()
     mw.event_bus.send_middleware_event = MagicMock()
     mw.create_error_response = MagicMock(return_value=MockGuardResponse("banned", 403))
@@ -41,7 +41,7 @@ def _middleware(**overrides: Any) -> MagicMock:
     return mw
 
 
-def _honeypot_route_config(config: SecurityConfig) -> RouteConfig:
+def _honeypot_route_config(config: SyncSecurityConfig) -> RouteConfig:
     func = Mock()
     func.__name__ = func.__qualname__ = "form_view"
     func.__module__ = "test_module"

@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.suspatterns_handler import (
     _LDAP_NULL_BYTE_ATTR_COMPILED_RE,
     _LDAP_NULL_BYTE_ATTR_LEAD_CHAR_RE,
@@ -31,7 +31,7 @@ _NUL_OCTAL_TEXT = chr(92) + "0"
 
 @pytest.fixture(autouse=True)
 def _force_enhanced_detection_singleton() -> None:
-    sus_patterns_handler.configure(SecurityConfig())
+    sus_patterns_handler.configure(SyncSecurityConfig())
 
 
 @pytest.fixture
@@ -40,7 +40,7 @@ def manager() -> Generator[SusPatternsManager, None, None]:
     original_config = SusPatternsManager._config
     SusPatternsManager._instance = None
     SusPatternsManager._config = None
-    new_instance = SusPatternsManager(SecurityConfig())
+    new_instance = SusPatternsManager(SyncSecurityConfig())
     yield new_instance
     SusPatternsManager._instance = original_instance
     SusPatternsManager._config = original_config
@@ -57,12 +57,12 @@ def _body_request(body: str) -> SyncMockGuardRequest:
 
 
 def _body_categories(body: str) -> list[str]:
-    result = detect_penetration_attempt(_body_request(body), SecurityConfig())
+    result = detect_penetration_attempt(_body_request(body), SyncSecurityConfig())
     return list(result.threat_categories)
 
 
 def _body_is_threat(body: str) -> bool:
-    result = detect_penetration_attempt(_body_request(body), SecurityConfig())
+    result = detect_penetration_attempt(_body_request(body), SyncSecurityConfig())
     return bool(result.is_threat)
 
 
@@ -111,7 +111,7 @@ def test_nul_family_in_body_fires_ldap(body: str) -> None:
     original_config = SusPatternsManager._config
     SusPatternsManager._instance = None
     SusPatternsManager._config = None
-    SusPatternsManager(SecurityConfig())
+    SusPatternsManager(SyncSecurityConfig())
     try:
         assert _body_is_threat(body) is True
         categories = _body_categories(body)

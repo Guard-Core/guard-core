@@ -2,7 +2,7 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.decorators import SecurityDecorator
 from guard_core.sync.decorators.route_config import RouteConfig
 from tests.test_sync.test_core.conftest import build_route_pipeline, send_request
@@ -10,8 +10,8 @@ from tests.test_sync.test_core.conftest import build_route_pipeline, send_reques
 SQLI_PATH = "/x?q=1%27%20UNION%20SELECT%20password%20FROM%20users--"
 
 
-def _config(detection: bool) -> SecurityConfig:
-    return SecurityConfig(
+def _config(detection: bool) -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         enable_redis=False,
         enable_penetration_detection=detection,
         enable_rate_limiting=False,

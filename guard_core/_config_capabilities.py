@@ -2,6 +2,7 @@ import importlib.util
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from guard_core._security_config_fields import RequestT
     from guard_core.models import SecurityConfig
 
 _DOWNLOADERS = ("aiohttp", "requests")
@@ -56,7 +57,7 @@ def cloud_blocking_requested(
     return bool(block_cloud_providers) or enable_dynamic_rules
 
 
-def cloud_blocking_enabled(config: "SecurityConfig") -> bool:
+def cloud_blocking_enabled(config: "SecurityConfig[RequestT]") -> bool:
     return cloud_blocking_requested(
         config.block_cloud_providers, config.enable_dynamic_rules
     )

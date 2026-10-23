@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils.source_path_shapes import BENIGN_SOURCE_PATH_SHAPES
 from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
 from guard_core.sync.utils import detect_penetration_attempt
@@ -13,7 +13,7 @@ from tests.test_sync.conftest import SyncMockGuardRequest
 
 @pytest.fixture(autouse=True)
 def _force_enhanced_detection_singleton() -> None:
-    sus_patterns_handler.configure(SecurityConfig())
+    sus_patterns_handler.configure(SyncSecurityConfig())
 
 
 def _body(content_type: str, body: bytes) -> SyncMockGuardRequest:
@@ -38,7 +38,7 @@ def _query(value: str) -> SyncMockGuardRequest:
 
 
 def _is_threat(request: SyncMockGuardRequest) -> bool:
-    config = SecurityConfig(enable_redis=False, rate_limit=10_000_000)
+    config = SyncSecurityConfig(enable_redis=False, rate_limit=10_000_000)
     return (detect_penetration_attempt(request, config)).is_threat
 
 
@@ -238,7 +238,7 @@ def test_a_declared_body_field_exclusion_covers_an_undeclared_walk() -> None:
         "notes": json.dumps({"q": "\\u003cscript\\u003ealert(1)\\u003c/script\\u003e"})
     }
     request = _text(payload)
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False, excluded_detection_body_fields={"notes"}
     )
     assert (detect_penetration_attempt(request, config)).is_threat is False

@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.behavior_handler import BehaviorTracker
 
 
@@ -20,7 +20,7 @@ def patch_security_event() -> Any:
 
 
 def test_initialize_agent() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     tracker = BehaviorTracker(config)
     mock_agent = MagicMock()
 
@@ -30,7 +30,7 @@ def test_initialize_agent() -> None:
 
 
 def test_send_behavior_event_no_agent_handler() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     tracker = BehaviorTracker(config)
     tracker.agent_handler = None
 
@@ -43,7 +43,7 @@ def test_send_behavior_event_no_agent_handler() -> None:
 
 
 def test_send_behavior_event_success() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     tracker = BehaviorTracker(config)
     mock_agent = MagicMock()
     tracker.agent_handler = mock_agent
@@ -75,7 +75,7 @@ def test_send_behavior_event_success() -> None:
 def test_send_behavior_event_exception_handling(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     tracker = BehaviorTracker(config)
     mock_agent = MagicMock()
     mock_agent.send_event.side_effect = Exception("Network error")
@@ -94,7 +94,7 @@ def test_send_behavior_event_exception_handling(
 
 
 def test_apply_action_with_behavior_event() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     tracker = BehaviorTracker(config)
     mock_agent = MagicMock()
     tracker.agent_handler = mock_agent
@@ -126,7 +126,7 @@ def test_apply_action_with_behavior_event() -> None:
 
 
 def test_apply_action_honors_agent_enable_events() -> None:
-    config = SecurityConfig(agent_enable_events=False)
+    config = SyncSecurityConfig(agent_enable_events=False)
     tracker = BehaviorTracker(config)
     mock_agent = MagicMock()
     tracker.agent_handler = mock_agent

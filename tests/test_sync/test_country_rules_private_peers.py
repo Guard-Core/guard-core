@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 import pytest
 from pydantic import ValidationError
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.factory import build_default_pipeline
 from guard_core.sync.decorators import SecurityDecorator
 from guard_core.sync.protocols.geo_ip_protocol import SyncGeoIPHandler
@@ -24,7 +24,7 @@ def _status(
     client_host: str, headers: dict[str, str] | None = None, **settings: Any
 ) -> int | None:
     geo = _unresolving_geo()
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False,
         enable_penetration_detection=False,
         enable_rate_limiting=False,
@@ -42,13 +42,16 @@ def _status(
 
 def test_the_flag_defaults_to_off() -> None:
     assert (
-        SecurityConfig(enable_redis=False).country_rules_exempt_private_peers is False
+        SyncSecurityConfig(enable_redis=False).country_rules_exempt_private_peers
+        is False
     )
 
 
 def test_the_flag_rejects_a_non_boolean() -> None:
     with pytest.raises(ValidationError):
-        SecurityConfig(enable_redis=False, country_rules_exempt_private_peers="maybe")
+        SyncSecurityConfig(
+            enable_redis=False, country_rules_exempt_private_peers="maybe"
+        )
 
 
 @pytest.mark.parametrize(

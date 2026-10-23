@@ -3,7 +3,7 @@ import warnings
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SecurityConfig, SyncSecurityConfig
 
 
 def test_v440_after_validators_keep_their_public_names() -> None:
@@ -23,7 +23,7 @@ def test_risky_setting_warnings_keep_their_order(
         caplog.at_level(logging.WARNING, logger="guard_core.models"),
     ):
         warnings.simplefilter("ignore", DeprecationWarning)
-        SecurityConfig(
+        SyncSecurityConfig(
             enable_redis=False,
             exempt_ips=["0.0.0.0/0"],
             enabled_detection_categories=frozenset(),

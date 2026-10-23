@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.cloud_ip_stores import RedisCloudIpStore
 
 
@@ -17,7 +17,7 @@ def redis_handler() -> MagicMock:
 
 def test_instance_form_passed_to_set_store(redis_handler: MagicMock) -> None:
     instance = RedisCloudIpStore(redis_handler, key_prefix="custom")
-    config = SecurityConfig(enable_redis=True, cloud_ip_store=instance)
+    config = SyncSecurityConfig(enable_redis=True, cloud_ip_store=instance)
 
     from guard_core.sync.core.initialization.handler_initializer import (
         HandlerInitializer,
@@ -50,7 +50,7 @@ def test_callable_form_invoked_with_redis_handler(
         factory_calls.append(redis)
         return RedisCloudIpStore(redis, key_prefix="from_factory")
 
-    config = SecurityConfig(enable_redis=True, cloud_ip_store=factory)
+    config = SyncSecurityConfig(enable_redis=True, cloud_ip_store=factory)
 
     from guard_core.sync.core.initialization.handler_initializer import (
         HandlerInitializer,
@@ -81,7 +81,7 @@ def test_callable_form_invoked_with_redis_handler(
 def test_class_object_passed_as_factory_is_invoked(
     redis_handler: MagicMock,
 ) -> None:
-    config = SecurityConfig(enable_redis=True, cloud_ip_store=RedisCloudIpStore)
+    config = SyncSecurityConfig(enable_redis=True, cloud_ip_store=RedisCloudIpStore)
 
     from guard_core.sync.core.initialization.handler_initializer import (
         HandlerInitializer,
@@ -114,7 +114,9 @@ def test_callable_form_invoked_on_no_redis_path() -> None:
         factory_calls.append(redis)
         return RedisCloudIpStore(redis, key_prefix="no_redis_path")
 
-    config = SecurityConfig(enable_redis=False, lazy_init=False, cloud_ip_store=factory)
+    config = SyncSecurityConfig(
+        enable_redis=False, lazy_init=False, cloud_ip_store=factory
+    )
 
     from guard_core.sync.core.initialization.handler_initializer import (
         HandlerInitializer,
@@ -135,7 +137,7 @@ def test_callable_form_invoked_on_no_redis_path() -> None:
 
 
 def test_none_does_not_call_set_store(redis_handler: MagicMock) -> None:
-    config = SecurityConfig(enable_redis=True, cloud_ip_store=None)
+    config = SyncSecurityConfig(enable_redis=True, cloud_ip_store=None)
 
     from guard_core.sync.core.initialization.handler_initializer import (
         HandlerInitializer,

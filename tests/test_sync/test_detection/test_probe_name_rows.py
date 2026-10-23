@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers import _suspatterns_probe_names as generated
 from guard_core.sync.handlers._suspatterns_pattern_table import _PATTERN_DEFINITIONS
 from guard_core.sync.handlers._suspatterns_probe_chains import PROBE_CHAIN_ROW
@@ -48,7 +48,7 @@ def _flagged(path: str, route: str | None = None) -> bool:
     request = SyncMockGuardRequest(path=path)
     if route is not None:
         declare_route(request, route)
-    result = detect_penetration_attempt(request, SecurityConfig())
+    result = detect_penetration_attempt(request, SyncSecurityConfig())
     return result.is_threat
 
 

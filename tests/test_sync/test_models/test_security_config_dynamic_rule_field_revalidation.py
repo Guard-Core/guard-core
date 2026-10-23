@@ -6,7 +6,7 @@ from typing import Any, cast
 
 import pytest
 
-from guard_core.models import SecurityConfig, _skip_revalidation
+from guard_core.models import SecurityConfig, SyncSecurityConfig, _skip_revalidation
 
 BOOL_FIELDS = [
     "enable_penetration_detection",
@@ -25,7 +25,7 @@ STR_LIST_FIELDS = ["blocked_user_agents", "emergency_whitelist"]
 
 @pytest.mark.parametrize("field_name", BOOL_FIELDS)
 def test_bool_field_reassignment_rejects_non_bool(field_name: str) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     with pytest.raises(ValueError, match="must be a bool"):
         setattr(config, field_name, "true")
 
@@ -33,49 +33,49 @@ def test_bool_field_reassignment_rejects_non_bool(field_name: str) -> None:
 @pytest.mark.parametrize("field_name", BOOL_FIELDS)
 @pytest.mark.parametrize("value", [True, False])
 def test_bool_field_reassignment_accepts_bool(field_name: str, value: bool) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     setattr(config, field_name, value)
     assert getattr(config, field_name) is value
 
 
 @pytest.mark.parametrize("field_name", UNBOUNDED_INT_FIELDS)
 def test_unbounded_int_field_reassignment_rejects_non_int(field_name: str) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     with pytest.raises(ValueError, match="must be an int"):
         setattr(config, field_name, "10")
 
 
 @pytest.mark.parametrize("field_name", UNBOUNDED_INT_FIELDS)
 def test_unbounded_int_field_reassignment_rejects_bool(field_name: str) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     with pytest.raises(ValueError, match="must be an int"):
         setattr(config, field_name, True)
 
 
 @pytest.mark.parametrize("field_name", UNBOUNDED_INT_FIELDS)
 def test_unbounded_int_field_reassignment_accepts_int(field_name: str) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     setattr(config, field_name, 42)
     assert getattr(config, field_name) == 42
 
 
 @pytest.mark.parametrize("field_name", POSITIVE_INT_FIELDS)
 def test_positive_int_field_reassignment_rejects_zero(field_name: str) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     with pytest.raises(ValueError, match="must be >= 1"):
         setattr(config, field_name, 0)
 
 
 @pytest.mark.parametrize("field_name", POSITIVE_INT_FIELDS)
 def test_positive_int_field_reassignment_rejects_negative(field_name: str) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     with pytest.raises(ValueError, match="must be >= 1"):
         setattr(config, field_name, -5)
 
 
 @pytest.mark.parametrize("field_name", POSITIVE_INT_FIELDS)
 def test_positive_int_field_reassignment_rejects_non_int(field_name: str) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     with pytest.raises(ValueError, match="must be an int"):
         setattr(config, field_name, "5")
 
@@ -84,21 +84,21 @@ def test_positive_int_field_reassignment_rejects_non_int(field_name: str) -> Non
 def test_positive_int_field_reassignment_accepts_boundary_value(
     field_name: str,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     setattr(config, field_name, 1)
     assert getattr(config, field_name) == 1
 
 
 @pytest.mark.parametrize("field_name", STR_LIST_FIELDS)
 def test_str_list_field_reassignment_rejects_non_list(field_name: str) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     with pytest.raises(ValueError, match="must be a list of str"):
         setattr(config, field_name, "not-a-list")
 
 
 @pytest.mark.parametrize("field_name", STR_LIST_FIELDS)
 def test_str_list_field_reassignment_rejects_non_str_element(field_name: str) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     with pytest.raises(ValueError, match="must be a list of str"):
         setattr(config, field_name, ["ok", 2])
 
@@ -110,7 +110,7 @@ def test_str_list_field_reassignment_rejects_non_str_element(field_name: str) ->
 def test_str_list_field_reassignment_accepts_str_list(
     field_name: str, value: list[str]
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     setattr(config, field_name, value)
     assert getattr(config, field_name) == value
 
@@ -120,17 +120,17 @@ _CATASTROPHIC_USER_AGENT_PATTERN = r"(?:a+)+$"
 
 def test_blocked_user_agents_construction_rejects_catastrophic_pattern() -> None:
     with pytest.raises(ValueError, match="rejected by ReDoS validator"):
-        SecurityConfig(blocked_user_agents=[_CATASTROPHIC_USER_AGENT_PATTERN])
+        SyncSecurityConfig(blocked_user_agents=[_CATASTROPHIC_USER_AGENT_PATTERN])
 
 
 def test_blocked_user_agents_reassignment_rejects_catastrophic_pattern() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     with pytest.raises(ValueError, match="rejected by ReDoS validator"):
         config.blocked_user_agents = [_CATASTROPHIC_USER_AGENT_PATTERN]
 
 
 def test_blocked_user_agents_construction_accepts_safe_pattern() -> None:
-    config = SecurityConfig(blocked_user_agents=["badbot"])
+    config = SyncSecurityConfig(blocked_user_agents=["badbot"])
     assert config.blocked_user_agents == ["badbot"]
 
 
@@ -140,14 +140,14 @@ _P0_FIBONACCI_REDOS_USER_AGENT_PATTERN = r"(\d\d?)+$"
 @pytest.mark.redos_timing
 def test_blocked_user_agents_construction_rejects_fibonacci_redos_pattern() -> None:
     with pytest.raises(ValueError, match="rejected by ReDoS validator"):
-        SecurityConfig(blocked_user_agents=[_P0_FIBONACCI_REDOS_USER_AGENT_PATTERN])
+        SyncSecurityConfig(blocked_user_agents=[_P0_FIBONACCI_REDOS_USER_AGENT_PATTERN])
 
 
 _CATASTROPHIC_DANGEROUS_CONSTRUCT_PATTERN = r"(a+)+"
 
 
 def test_set_prevalidated_skip_flag_is_not_shared_across_threads() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     bypassed = threading.Event()
     stop = threading.Event()
 
@@ -195,7 +195,7 @@ def test_set_prevalidated_stays_synchronous_with_no_await_between_set_and_reset(
 
 
 def test_set_prevalidated_skip_flag_does_not_survive_model_copy() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     token = _skip_revalidation.set(True)
     try:
         copy = config.model_copy()
@@ -208,34 +208,34 @@ def test_set_prevalidated_skip_flag_does_not_survive_model_copy() -> None:
 
 
 def test_endpoint_rate_limits_reassignment_rejects_non_dict() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     bad_value: dict[str, tuple[int, int]] = cast(Any, "nope")
     with pytest.raises(ValueError, match="must be a dict"):
         config.endpoint_rate_limits = bad_value
 
 
 def test_endpoint_rate_limits_reassignment_rejects_non_str_key() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     bad_value: dict[str, tuple[int, int]] = cast(Any, {1: (5, 60)})
     with pytest.raises(ValueError, match="keys must be str"):
         config.endpoint_rate_limits = bad_value
 
 
 def test_endpoint_rate_limits_reassignment_rejects_wrong_tuple_length() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     bad_value: dict[str, tuple[int, int]] = cast(Any, {"/api": (5, 60, 1)})
     with pytest.raises(ValueError, match=r"\(int, int\) tuple"):
         config.endpoint_rate_limits = bad_value
 
 
 def test_endpoint_rate_limits_reassignment_rejects_non_int_entry() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     bad_value: dict[str, tuple[int, int]] = cast(Any, {"/api": (5.5, 60)})
     with pytest.raises(ValueError, match=r"\(int, int\) tuple"):
         config.endpoint_rate_limits = bad_value
 
 
 def test_endpoint_rate_limits_reassignment_accepts_valid_mapping() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     config.endpoint_rate_limits = {"/api": (5, 60)}
     assert config.endpoint_rate_limits == {"/api": (5, 60)}

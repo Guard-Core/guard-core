@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, Mock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.helpers import _increment_suspicious_counts
 from guard_core.sync.core.checks.implementations.emergency_mode import (
     EmergencyModeCheck,
@@ -35,13 +35,13 @@ CANONICAL_BY_RAW_FORM = {
 }
 
 
-def _trusted_proxy_config(**overrides: object) -> SecurityConfig:
-    return SecurityConfig(
+def _trusted_proxy_config(**overrides: object) -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         trusted_proxies=["127.0.0.1"], trusted_proxy_depth=1, **overrides
     )
 
 
-def _build_mock_middleware(config: SecurityConfig) -> Mock:
+def _build_mock_middleware(config: SyncSecurityConfig) -> Mock:
     middleware = Mock()
     middleware.config = config
     middleware.logger = Mock()
@@ -61,7 +61,7 @@ def test_extract_client_ip_canonicalizes_six_forms_via_connecting_host(
     raw_form: str,
 ) -> None:
     request = SyncMockGuardRequest(client_host=raw_form)
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
 
     resolved = extract_client_ip(request, config)
 
@@ -84,10 +84,10 @@ def test_extract_client_ip_canonicalizes_six_forms_via_forwarded_header(
 
 def test_zone_identifier_is_not_part_of_the_identity() -> None:
     with_zone = extract_client_ip(
-        SyncMockGuardRequest(client_host="fe80::1%eth0"), SecurityConfig()
+        SyncMockGuardRequest(client_host="fe80::1%eth0"), SyncSecurityConfig()
     )
     without_zone = extract_client_ip(
-        SyncMockGuardRequest(client_host="fe80::1"), SecurityConfig()
+        SyncMockGuardRequest(client_host="fe80::1"), SyncSecurityConfig()
     )
 
     assert with_zone == "fe80::1"
@@ -96,10 +96,10 @@ def test_zone_identifier_is_not_part_of_the_identity() -> None:
 
 def test_ipv4_mapped_addresses_with_different_zones_are_one_ipv4_identity() -> None:
     zone_eth0 = extract_client_ip(
-        SyncMockGuardRequest(client_host="::ffff:1.2.3.4%eth0"), SecurityConfig()
+        SyncMockGuardRequest(client_host="::ffff:1.2.3.4%eth0"), SyncSecurityConfig()
     )
     zone_eth1 = extract_client_ip(
-        SyncMockGuardRequest(client_host="::ffff:1.2.3.4%eth1"), SecurityConfig()
+        SyncMockGuardRequest(client_host="::ffff:1.2.3.4%eth1"), SyncSecurityConfig()
     )
 
     assert zone_eth0 == "1.2.3.4"
@@ -108,7 +108,7 @@ def test_ipv4_mapped_addresses_with_different_zones_are_one_ipv4_identity() -> N
 
 def test_ipv4_mapped_address_without_zone_still_canonicalizes_to_bare_ipv4() -> None:
     resolved = extract_client_ip(
-        SyncMockGuardRequest(client_host="::ffff:1.2.3.4"), SecurityConfig()
+        SyncMockGuardRequest(client_host="::ffff:1.2.3.4"), SyncSecurityConfig()
     )
 
     assert resolved == "1.2.3.4"
@@ -133,7 +133,7 @@ def test_direct_and_forwarded_paths_agree_on_bracketed_ipv6_identity(
     bracketed_form: str,
 ) -> None:
     direct = extract_client_ip(
-        SyncMockGuardRequest(client_host=bracketed_form), SecurityConfig()
+        SyncMockGuardRequest(client_host=bracketed_form), SyncSecurityConfig()
     )
     forwarded = extract_client_ip(
         SyncMockGuardRequest(
@@ -142,7 +142,7 @@ def test_direct_and_forwarded_paths_agree_on_bracketed_ipv6_identity(
         _trusted_proxy_config(),
     )
     unbracketed_direct = extract_client_ip(
-        SyncMockGuardRequest(client_host="2001:db8::1"), SecurityConfig()
+        SyncMockGuardRequest(client_host="2001:db8::1"), SyncSecurityConfig()
     )
 
     assert direct == forwarded == unbracketed_direct == "2001:db8::1"
@@ -150,7 +150,7 @@ def test_direct_and_forwarded_paths_agree_on_bracketed_ipv6_identity(
 
 def test_direct_path_non_ip_client_host_stays_raw_not_attacker_supplied() -> None:
     resolved = extract_client_ip(
-        SyncMockGuardRequest(client_host="garbage"), SecurityConfig()
+        SyncMockGuardRequest(client_host="garbage"), SyncSecurityConfig()
     )
 
     assert resolved == "garbage"
@@ -196,7 +196,7 @@ def test_ban_via_one_textual_form_blocks_request_arriving_in_another_form(
     form_a: str,
     form_b: str,
     canonical: str,
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
     handler = redis_handler_factory(security_config_redis)
     handler.initialize()
@@ -245,7 +245,7 @@ def test_rate_limit_bucket_shared_across_textual_forms(
     form_a: str,
     form_b: str,
     canonical: str,
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
     security_config_redis.rate_limit = 1
     security_config_redis.rate_limit_window = 60
@@ -309,7 +309,7 @@ def test_ipv4_mapped_and_bare_ipv4_share_one_suspicious_activity_counter() -> No
 
 
 def test_emergency_whitelist_mapped_entry_matches_canonical_client_ip() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         emergency_mode=True, emergency_whitelist=["::ffff:203.0.113.5"]
     )
     middleware = _build_mock_middleware(config)
@@ -324,7 +324,9 @@ def test_emergency_whitelist_mapped_entry_matches_canonical_client_ip() -> None:
 
 
 def test_emergency_check_denies_unparseable_client_ip() -> None:
-    config = SecurityConfig(emergency_mode=True, emergency_whitelist=["203.0.113.5"])
+    config = SyncSecurityConfig(
+        emergency_mode=True, emergency_whitelist=["203.0.113.5"]
+    )
     middleware = _build_mock_middleware(config)
     check = EmergencyModeCheck(middleware)
 

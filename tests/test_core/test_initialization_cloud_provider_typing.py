@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SecurityConfig, SyncSecurityConfig
 
 
 @pytest.mark.asyncio
@@ -46,7 +46,7 @@ async def test_async_initializer_passes_set_str_to_cloud_handler() -> None:
 
 
 def test_sync_initializer_passes_set_str_to_cloud_handler() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=True,
         block_cloud_providers={"AWS", "GCP"},
     )

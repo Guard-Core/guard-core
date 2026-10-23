@@ -6,7 +6,7 @@ from urllib.parse import urlencode
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.suspatterns_handler import (
     _PICKLE_OPCODE_WORK_BUDGET_BYTES,
     _pickle_global_prefix_is_opcode_stream,
@@ -30,7 +30,7 @@ def _clean_multibyte_opcode_padding(length: int) -> bytes:
 
 @pytest.fixture(autouse=True)
 def _force_enhanced_detection_singleton() -> None:
-    sus_patterns_handler.configure(SecurityConfig())
+    sus_patterns_handler.configure(SyncSecurityConfig())
 
 
 def _decoded_like_production(raw: bytes) -> str:
@@ -169,7 +169,7 @@ def test_opcode_prefix_at_window_boundary_lengths_detected_via_real_entry_point(
     tail = _WINDOW_BOUNDARY_TAIL_SHAPES[tail_shape]
     payload = _decoded_like_production(padding + tail)
     request = _WINDOW_BOUNDARY_MECHANISM_BUILDERS[mechanism](payload)
-    result = detect_penetration_attempt(request, SecurityConfig())
+    result = detect_penetration_attempt(request, SyncSecurityConfig())
     assert result.is_threat is True
 
 
@@ -206,7 +206,7 @@ def test_opcode_prefix_beyond_work_budget_still_flags(prefix_len: int) -> None:
     padding = _clean_multibyte_opcode_padding(prefix_len)
     payload = _decoded_like_production(padding + _BASELINE_PICKLE_PAYLOAD)
     request = _raw_body_request(payload)
-    result = detect_penetration_attempt(request, SecurityConfig())
+    result = detect_penetration_attempt(request, SyncSecurityConfig())
     assert result.is_threat is True
 
 
@@ -217,7 +217,7 @@ def test_byte_sensitive_opcode_prefix_detected_via_real_entry_point(
 ) -> None:
     payload = _decoded_like_production(prefix + _BASELINE_PICKLE_PAYLOAD)
     request = _REAL_ENTRY_POINT_BODY_REQUEST_BUILDERS[mechanism](payload)
-    result = detect_penetration_attempt(request, SecurityConfig())
+    result = detect_penetration_attempt(request, SyncSecurityConfig())
     assert result.is_threat is True
 
 
@@ -255,7 +255,7 @@ def test_frame_prefixed_payload_detected_via_real_entry_point(
         _FRAME_PREFIX_WITH_LENGTH_FIELD + _BASELINE_PICKLE_PAYLOAD
     )
     request = _REAL_ENTRY_POINT_BODY_REQUEST_BUILDERS[mechanism](payload)
-    result = detect_penetration_attempt(request, SecurityConfig())
+    result = detect_penetration_attempt(request, SyncSecurityConfig())
     assert result.is_threat is True
 
 

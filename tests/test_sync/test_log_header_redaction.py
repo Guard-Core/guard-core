@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import guard_core
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.implementations.ip_security import IpSecurityCheck
 from guard_core.sync.core.checks.implementations.suspicious_activity import (
     SuspiciousActivityCheck,
@@ -16,7 +16,7 @@ from guard_core.sync.core.checks.pipeline import SecurityCheckPipeline
 from tests.test_sync.conftest import SyncMockGuardRequest
 
 
-def _make_middleware(config: SecurityConfig) -> MagicMock:
+def _make_middleware(config: SyncSecurityConfig) -> MagicMock:
     middleware = MagicMock()
     middleware.config = config
     middleware.logger = logging.getLogger("guard_core.test.wire_redaction")
@@ -35,7 +35,7 @@ def test_blocked_request_log_redacts_authorization_and_custom_sensitive_header(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     client_ip = "203.0.113.50"
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         blacklist=[client_ip],
         log_sensitive_headers={"x-internal-token"},
     )
@@ -75,7 +75,7 @@ def test_suspicious_activity_check_log_redacts_json_field_in_non_sensitive_heade
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     client_ip = "203.0.113.70"
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     middleware = _make_middleware(config)
     check = SuspiciousActivityCheck(middleware)
     pipeline = SecurityCheckPipeline([check])

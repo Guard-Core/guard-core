@@ -26,11 +26,11 @@ from guard_core.sync.core.initialization._whitelist_strikes import (
 )
 
 if TYPE_CHECKING:
-    from guard_core.models import SecurityConfig
+    from guard_core.models import SyncSecurityConfig
 
 
 class _HandlerInitializerStepsMixin(CloudInitializationMixin):
-    config: "SecurityConfig"
+    config: "SyncSecurityConfig"
     redis_handler: Any = None
     agent_handler: Any = None
     geo_ip_handler: Any = None

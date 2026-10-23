@@ -3,7 +3,7 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.decorators.base import RouteConfig
 from guard_core.sync.handlers.suspatterns_handler import SusPatternsManager
 from guard_core.sync.utils import detect_penetration_attempt
@@ -30,12 +30,12 @@ def _reset_suspatterns_singleton() -> Generator[None, None]:
     SusPatternsManager._config = original_config
 
 
-def _config(**kwargs: Any) -> SecurityConfig:
-    return SecurityConfig(detection_semantic_threshold=0.3, **kwargs)
+def _config(**kwargs: Any) -> SyncSecurityConfig:
+    return SyncSecurityConfig(detection_semantic_threshold=0.3, **kwargs)
 
 
 def test_field_defaults_to_empty() -> None:
-    assert SecurityConfig().excluded_semantic_detection_headers == set()
+    assert SyncSecurityConfig().excluded_semantic_detection_headers == set()
 
 
 def test_jwt_cookie_is_flagged_semantically_by_default() -> None:
@@ -112,7 +112,7 @@ def test_exclusion_does_not_leak_to_the_next_request() -> None:
 
 
 def test_reassignment_rejects_bare_string() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
 
     with pytest.raises(ValueError, match="excluded_semantic_detection_headers"):
         config.excluded_semantic_detection_headers = "cookie"  # type: ignore[assignment]

@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.implementations.cloud_ip_refresh import (
     CloudIpRefreshCheck,
 )
@@ -34,7 +34,7 @@ def reset_cloud_handler() -> Generator[None, None]:
 
 def _make_check(interval: int = 3600, last_refresh: int = 0) -> CloudIpRefreshCheck:
     middleware = MagicMock()
-    middleware.config = SecurityConfig(
+    middleware.config = SyncSecurityConfig(
         block_cloud_providers={"AWS"},
         cloud_ip_refresh_interval=interval,
     )
@@ -151,7 +151,7 @@ def test_check_skips_refresh_within_interval() -> None:
 
 def test_check_noop_without_block_cloud_providers() -> None:
     middleware = MagicMock()
-    middleware.config = SecurityConfig(block_cloud_providers=None)
+    middleware.config = SyncSecurityConfig(block_cloud_providers=None)
     middleware.logger = logging.getLogger("test.cloud_ip_refresh")
     middleware.last_cloud_ip_refresh = 0
     middleware.route_resolver.get_cloud_providers_to_check = MagicMock(return_value=[])

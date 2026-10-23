@@ -1,7 +1,7 @@
 from ipaddress import ip_address
 from unittest.mock import MagicMock
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.helpers import (
     check_route_ip_access,
     is_ip_in_blacklist,
@@ -13,32 +13,32 @@ from tests.test_sync.conftest import SyncMockGuardRequest
 
 
 def test_whitelist_does_not_override_blacklist_exact() -> None:
-    config = SecurityConfig(whitelist=["1.2.3.4"], blacklist=["1.2.3.4"])
+    config = SyncSecurityConfig(whitelist=["1.2.3.4"], blacklist=["1.2.3.4"])
     assert is_ip_allowed("1.2.3.4", config) is False
 
 
 def test_whitelist_does_not_override_blacklist_cidr() -> None:
-    config = SecurityConfig(whitelist=["10.0.0.0/8"], blacklist=["10.0.0.0/8"])
+    config = SyncSecurityConfig(whitelist=["10.0.0.0/8"], blacklist=["10.0.0.0/8"])
     assert is_ip_allowed("10.1.2.3", config) is False
 
 
 def test_restrictive_whitelist_blocks_unlisted() -> None:
-    config = SecurityConfig(whitelist=["1.2.3.4"])
+    config = SyncSecurityConfig(whitelist=["1.2.3.4"])
     assert is_ip_allowed("5.6.7.8", config) is False
 
 
 def test_blacklist_enforced_without_whitelist() -> None:
-    config = SecurityConfig(blacklist=["1.2.3.4"])
+    config = SyncSecurityConfig(blacklist=["1.2.3.4"])
     assert is_ip_allowed("1.2.3.4", config) is False
 
 
 def test_whitelist_ipv6_compact_matches_expanded_client() -> None:
-    config = SecurityConfig(whitelist=["::1"])
+    config = SyncSecurityConfig(whitelist=["::1"])
     assert is_ip_allowed("0:0:0:0:0:0:0:1", config) is True
 
 
 def test_blacklist_ipv6_expanded_matches_compact_client() -> None:
-    config = SecurityConfig(blacklist=["2001:db8::1"])
+    config = SyncSecurityConfig(blacklist=["2001:db8::1"])
     assert is_ip_allowed("2001:0db8:0000:0000:0000:0000:0000:0001", config) is False
 
 
@@ -73,7 +73,7 @@ def test_is_ip_in_blacklist_ipv6_parsed_equality() -> None:
 
 
 def test_extract_client_ip_ignores_spoofed_xff_prefix() -> None:
-    config = SecurityConfig(trusted_proxies=["127.0.0.1"])
+    config = SyncSecurityConfig(trusted_proxies=["127.0.0.1"])
     request = SyncMockGuardRequest(
         path="/",
         method="GET",
@@ -84,7 +84,7 @@ def test_extract_client_ip_ignores_spoofed_xff_prefix() -> None:
 
 
 def test_extract_client_ip_depth2_ignores_spoofed_prefix() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         trusted_proxies=["127.0.0.1", "5.5.5.5"], trusted_proxy_depth=2
     )
     request = SyncMockGuardRequest(
@@ -97,7 +97,7 @@ def test_extract_client_ip_depth2_ignores_spoofed_prefix() -> None:
 
 
 def test_global_and_route_agree_on_ipv6_whitelist_match() -> None:
-    config = SecurityConfig(whitelist=["::1"])
+    config = SyncSecurityConfig(whitelist=["::1"])
     route_config = RouteConfig()
     route_config.ip_whitelist = ["::1"]
     middleware = MagicMock()
@@ -127,5 +127,5 @@ def test_restrictive_route_whitelist_blocks_non_member() -> None:
 
 
 def test_check_whitelist_without_whitelist_allows() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     assert _check_whitelist(ip_address("1.2.3.4"), "1.2.3.4", config) is True

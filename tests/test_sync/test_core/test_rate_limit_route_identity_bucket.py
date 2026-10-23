@@ -4,7 +4,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.implementations.rate_limit import RateLimitCheck
 
 SPELLINGS = ["/users/1", "/users/2", "/users/1/", "//users/1", "/USERS/1"]
@@ -12,7 +12,7 @@ SPELLINGS = ["/users/1", "/users/2", "/users/1/", "//users/1", "/USERS/1"]
 
 @pytest.fixture
 def check() -> RateLimitCheck:
-    config = SecurityConfig(enable_redis=False)
+    config = SyncSecurityConfig(enable_redis=False)
     geo_handler = Mock()
     geo_handler.get_country.return_value = "US"
     middleware = Mock()

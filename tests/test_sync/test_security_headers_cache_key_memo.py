@@ -3,13 +3,13 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers import _security_headers_cache
 from guard_core.sync.handlers.security_headers_handler import SecurityHeadersManager
 
 
-def _config(**csp_sources: list[str]) -> SecurityConfig:
-    return SecurityConfig(
+def _config(**csp_sources: list[str]) -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         enable_redis=False,
         security_headers={
             "enabled": True,

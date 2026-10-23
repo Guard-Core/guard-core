@@ -6,7 +6,7 @@ from ipaddress import ip_address
 from typing import TYPE_CHECKING, Any, cast
 from urllib.parse import urlparse
 
-from guard_core.models import SecurityConfig, ThreatBanConfig
+from guard_core.models import SyncSecurityConfig, ThreatBanConfig
 from guard_core.sync.core.checks._shared_strikes import (
     SharedStrikes,
     StrikeReport,
@@ -73,7 +73,7 @@ SUSPICIOUS_COUNT_WINDOW_SECONDS = 3600
 _MAX_TRACKED_SUSPICIOUS_IPS = 10_000
 _DETECTION_RESULT_STATE_ATTR = "_guard_detection_result_cache"
 _MAX_RETAINED_EVENTS_PER_CATEGORY = 10_000
-_strike_cap_cache: dict[int, tuple[weakref.ref[SecurityConfig], int, int]] = {}
+_strike_cap_cache: dict[int, tuple[weakref.ref[SyncSecurityConfig], int, int]] = {}
 
 
 def _strike_cap_forgetter(key: int) -> Callable[[Any], None]:
@@ -83,7 +83,7 @@ def _strike_cap_forgetter(key: int) -> Callable[[Any], None]:
     return forget
 
 
-def _retained_strike_cap(config: SecurityConfig) -> int:
+def _retained_strike_cap(config: SyncSecurityConfig) -> int:
     key = id(config)
     revision = config.revision
     cached = _strike_cap_cache.get(key)
@@ -428,7 +428,7 @@ def is_referrer_domain_allowed(referrer: str, allowed_domains: list[str]) -> boo
 
 
 def _get_effective_penetration_setting(
-    config: SecurityConfig, route_config: RouteConfig | None
+    config: SyncSecurityConfig, route_config: RouteConfig | None
 ) -> tuple[bool, bool | None]:
     route_specific_detection = None
     penetration_enabled = config.enable_penetration_detection
@@ -445,7 +445,7 @@ def _get_effective_penetration_setting(
 
 
 def _get_detection_disabled_reason(
-    config: SecurityConfig, route_specific_detection: bool | None
+    config: SyncSecurityConfig, route_specific_detection: bool | None
 ) -> str:
     if route_specific_detection is False and config.enable_penetration_detection:
         return "disabled_by_decorator"
@@ -455,7 +455,7 @@ def _get_detection_disabled_reason(
 def detect_penetration_patterns(
     request: SyncGuardRequest,
     route_config: RouteConfig | None,
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     should_bypass_check_fn: Any,
 ) -> DetectionResult:
     penetration_enabled, route_specific_detection = _get_effective_penetration_setting(
@@ -472,7 +472,7 @@ def detect_penetration_patterns(
 def get_cached_detection_result(
     request: SyncGuardRequest,
     route_config: RouteConfig | None,
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     should_bypass_check_fn: Any,
 ) -> DetectionResult:
     cached = getattr(request.state, _DETECTION_RESULT_STATE_ATTR, None)
@@ -490,7 +490,7 @@ def get_cached_detection_result(
 
 def _try_threshold_ban(
     request: SyncGuardRequest,
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     ip_ban_manager: Any,
     middleware: "SyncGuardMiddlewareProtocol",
     client_ip: str,
@@ -647,7 +647,7 @@ def count_hostile_signal_and_maybe_ban(
 
 def escalate_identity_violation(
     middleware: "SyncGuardMiddlewareProtocol",
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     ip_ban_manager: Any,
     request: SyncGuardRequest,
     client_ip: str,

@@ -5,7 +5,7 @@ from typing import Any
 
 from guard_core.models import (
     DynamicRules,
-    SecurityConfig,
+    SyncSecurityConfig,
 )
 from guard_core.sync._utils.rule_attribution import set_attribution_view
 from guard_core.sync.handlers._dynamic_rule_application import (
@@ -37,7 +37,7 @@ class DynamicRuleManager(
     DynamicRuleSnapshotMixin,
 ):
     _instance = None
-    config: SecurityConfig
+    config: SyncSecurityConfig
     agent_handler: Any = None
     redis_handler: Any = None
     logger: logging.Logger
@@ -59,7 +59,7 @@ class DynamicRuleManager(
     _attribution_cache: tuple[tuple[object, ...], RuleAttribution] | None = None
 
     def __new__(
-        cls: type["DynamicRuleManager"], config: SecurityConfig
+        cls: type["DynamicRuleManager"], config: SyncSecurityConfig
     ) -> "DynamicRuleManager":
         if cls._instance is None:
             cls._instance = super().__new__(cls)

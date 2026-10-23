@@ -68,9 +68,9 @@ def _instantiate_singleton(cls: type) -> object:
     except TypeError:
         pass
     try:
-        from guard_core.models import SecurityConfig
+        from guard_core.models import SyncSecurityConfig
 
-        return cls(SecurityConfig())
+        return cls(SyncSecurityConfig())
     except TypeError:
         return cls("reset-completeness-test-token")
 

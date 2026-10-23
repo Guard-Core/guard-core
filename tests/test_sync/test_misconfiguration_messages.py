@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.initialization.handler_initializer import HandlerInitializer
 from guard_core.sync.decorators import SecurityDecorator
 
@@ -61,21 +61,23 @@ def test_config_misconfiguration_text_and_location(
 ) -> None:
     with caplog.at_level("WARNING"), warnings.catch_warnings():
         warnings.simplefilter("error")
-        SecurityConfig(enable_redis=False, fail_on_misconfiguration=False, **settings)
+        SyncSecurityConfig(
+            enable_redis=False, fail_on_misconfiguration=False, **settings
+        )
     assert [
         (r.name, r.getMessage()) for r in caplog.records if problem in r.getMessage()
     ] == [("guard_core.models", f"{problem} {FALSE_NOTE}")]
 
     for flag in ({}, {"fail_on_misconfiguration": True}):
         with pytest.raises(ValueError) as error:
-            SecurityConfig(enable_redis=False, **settings, **flag)
+            SyncSecurityConfig(enable_redis=False, **settings, **flag)
         assert f"{problem} {TRUE_NOTE}" in str(error.value)
 
 
 def test_semantic_and_threat_thresholds_at_a_small_positive_value_do_not_warn() -> None:
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        SecurityConfig(
+        SyncSecurityConfig(
             enable_redis=False,
             fail_on_misconfiguration=True,
             detection_threat_score_threshold=0.01,
@@ -86,7 +88,7 @@ def test_semantic_and_threat_thresholds_at_a_small_positive_value_do_not_warn() 
 def test_endpoint_rate_limits_at_one_never_warn() -> None:
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        SecurityConfig(
+        SyncSecurityConfig(
             enable_redis=False,
             fail_on_misconfiguration=True,
             endpoint_rate_limits={"/a": (1, 60), "/b": (5, 1)},
@@ -96,7 +98,7 @@ def test_endpoint_rate_limits_at_one_never_warn() -> None:
 def test_a_path_that_merely_contains_the_letter_x_is_not_a_glob() -> None:
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        SecurityConfig(
+        SyncSecurityConfig(
             enable_redis=False,
             fail_on_misconfiguration=True,
             exclude_paths=["/XMAX", "/status"],
@@ -160,7 +162,7 @@ def test_decorator_misconfiguration_text_and_location(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     lenient = SecurityDecorator(
-        SecurityConfig(enable_redis=False, fail_on_misconfiguration=False)
+        SyncSecurityConfig(enable_redis=False, fail_on_misconfiguration=False)
     )
 
     def route() -> None:
@@ -175,8 +177,8 @@ def test_decorator_misconfiguration_text_and_location(
     ] == [("guard_core.sync.decorators", f"{problem} {FALSE_NOTE}")]
 
     for config in (
-        SecurityConfig(enable_redis=False),
-        SecurityConfig(enable_redis=False, fail_on_misconfiguration=True),
+        SyncSecurityConfig(enable_redis=False),
+        SyncSecurityConfig(enable_redis=False, fail_on_misconfiguration=True),
     ):
         with pytest.raises(ValueError) as error:
             make(SecurityDecorator(config))(route)
@@ -196,7 +198,7 @@ def test_startup_report_text_and_location_for_country_decorators(
     decorator_text: str,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(enable_redis=False, fail_on_misconfiguration=False)
+    config = SyncSecurityConfig(enable_redis=False, fail_on_misconfiguration=False)
     decorator = SecurityDecorator(config)
 
     def country_route() -> None:
@@ -222,7 +224,7 @@ def test_startup_report_text_and_location_for_country_decorators(
 def test_startup_report_text_and_location_for_an_unreachable_ban_threshold(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False,
         enable_penetration_detection=False,
         rate_limit=10,

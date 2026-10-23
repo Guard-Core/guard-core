@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 
 from guard_core.exceptions import GeoDatabaseLoadError, GuardRedisError
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.access_control import check_ip_country
 from guard_core.sync.core.checks.base import SecurityCheck
@@ -27,8 +27,8 @@ def _reset_singleton() -> Generator[None, None, None]:
     IPInfoManager._instance = None
 
 
-def _blocking_config(manager: IPInfoManager) -> SecurityConfig:
-    return SecurityConfig(
+def _blocking_config(manager: IPInfoManager) -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         enable_redis=False,
         ipinfo_token="tok",
         ipinfo_db_path=manager.db_path,
@@ -36,8 +36,8 @@ def _blocking_config(manager: IPInfoManager) -> SecurityConfig:
     )
 
 
-def _allow_list_config(manager: IPInfoManager) -> SecurityConfig:
-    return SecurityConfig(
+def _allow_list_config(manager: IPInfoManager) -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         enable_redis=False,
         ipinfo_token="tok",
         ipinfo_db_path=manager.db_path,
@@ -259,7 +259,7 @@ class _CountryCheck(SecurityCheck):
 
 
 def _pipeline_verdict(manager: IPInfoManager, **fields: Any) -> MagicMock:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False,
         ipinfo_token="tok",
         ipinfo_db_path=manager.db_path,

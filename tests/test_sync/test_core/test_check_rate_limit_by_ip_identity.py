@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, Mock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.ratelimit_handler import (
     _by_ip_request_timestamps,
     check_rate_limit_by_ip,
@@ -15,16 +15,16 @@ def _clean_primitive_store() -> None:
     _by_ip_request_timestamps.clear()
 
 
-def _config(**settings: object) -> SecurityConfig:
+def _config(**settings: object) -> SyncSecurityConfig:
     defaults: dict[str, object] = {
         "enable_redis": False,
         "rate_limit": 2,
         "rate_limit_window": 60,
     }
-    return SecurityConfig(**{**defaults, **settings})
+    return SyncSecurityConfig(**{**defaults, **settings})
 
 
-def _allowed(config: SecurityConfig, *ips: str) -> list[bool]:
+def _allowed(config: SyncSecurityConfig, *ips: str) -> list[bool]:
     return [check_rate_limit_by_ip(ip, config) for ip in ips]
 
 

@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils import ip_extraction, nat64, sampling
 from guard_core.sync._utils.ip_extraction import _canonicalize_ip, _client_identity
 from guard_core.sync._utils.nat64 import _decode_nat64_embedded_ipv4
@@ -156,7 +156,7 @@ def test_the_identity_of_a_decoded_client_is_its_ipv4() -> None:
     assert _client_identity(WELL_KNOWN_PUBLIC, 64) == PUBLIC_V4
 
 
-def _status(config: SecurityConfig, client_host: str) -> int | None:
+def _status(config: SyncSecurityConfig, client_host: str) -> int | None:
     middleware = build_middleware(config, SecurityDecorator(config))
     pipeline = build_default_pipeline(middleware)
     response = pipeline.execute(
@@ -165,8 +165,8 @@ def _status(config: SecurityConfig, client_host: str) -> int | None:
     return None if response is None else response.status_code
 
 
-def _config(**settings: Any) -> SecurityConfig:
-    return SecurityConfig(
+def _config(**settings: Any) -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         enable_redis=False,
         enable_penetration_detection=False,
         enable_rate_limiting=False,
@@ -195,7 +195,7 @@ def test_a_list_entry_written_as_a_translated_address_matches_the_ipv4() -> None
 
 
 def test_the_field_defaults_to_no_prefixes() -> None:
-    assert SecurityConfig(enable_redis=False).nat64_prefixes == []
+    assert SyncSecurityConfig(enable_redis=False).nat64_prefixes == []
 
 
 @pytest.mark.parametrize(

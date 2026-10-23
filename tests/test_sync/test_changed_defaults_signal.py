@@ -6,7 +6,7 @@ from typing import Any
 import pytest
 
 from guard_core import _staged_defaults
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.initialization.handler_initializer import HandlerInitializer
 
 MARKER = "guard-core 5.0.0 changed defaults"
@@ -46,7 +46,7 @@ def _build(caplog: pytest.LogCaptureFixture, **settings: Any) -> list[str]:
     with caplog.at_level(logging.WARNING, logger="guard_core"):
         with warnings.catch_warnings():
             warnings.simplefilter("error")
-            SecurityConfig(**settings)
+            SyncSecurityConfig(**settings)
     return _signals(caplog)
 
 
@@ -117,7 +117,7 @@ def test_a_stated_exclude_all_paths_leaves_the_slash_entry_out(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     with caplog.at_level(logging.WARNING, logger="guard_core"):
-        SecurityConfig(exclude_paths=["/"], exclude_all_paths=False)
+        SyncSecurityConfig(exclude_paths=["/"], exclude_all_paths=False)
 
     assert "exclude_all_paths=True" not in _signals(caplog)[0]
 
@@ -140,7 +140,7 @@ def test_a_later_flip_is_logged_alone_on_assignment_and_not_again_at_bind(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     with _logging(caplog):
-        config = SecurityConfig(
+        config = SyncSecurityConfig(
             enable_redis=False, enable_rate_limiting=False, lazy_init=False
         )
         [first] = _signals(caplog)
@@ -162,7 +162,7 @@ def test_a_slash_entry_assigned_after_bind_is_logged_once(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     with _logging(caplog):
-        config = SecurityConfig(enable_redis=False, lazy_init=False)
+        config = SyncSecurityConfig(enable_redis=False, lazy_init=False)
         HandlerInitializer(config=config).initialize_redis_handlers()
         before = len(_signals(caplog))
 
@@ -178,7 +178,7 @@ def test_a_slash_entry_assigned_after_bind_is_logged_once(
 def test_a_stated_trigger_assignment_logs_nothing_new(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(**EXPLICIT, whitelist=["203.0.113.5"])
+    config = SyncSecurityConfig(**EXPLICIT, whitelist=["203.0.113.5"])
 
     with _logging(caplog):
         config.rate_limit = 5
@@ -193,7 +193,7 @@ def test_the_redis_flip_keeps_one_id_for_its_two_texts(
 ) -> None:
     stated = {k: v for k, v in EXPLICIT.items() if k != "enable_redis"}
     with _logging(caplog):
-        config = SecurityConfig(**stated)
+        config = SyncSecurityConfig(**stated)
         [first] = _signals(caplog)
         config.redis_prefix = "app:"
 

@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.scripts import ban_write_lua as manager_ban_write_lua
 from guard_core.scripts import detection_strikes_lua as manager_detection_strikes_lua
 from guard_core.scripts import rule_hit_index_lua as manager_rule_hit_index_lua
@@ -68,7 +68,7 @@ def test_generated_sync_rule_hit_index_scripts_match_the_ones_the_manager_loads(
 
 
 def _make_bypass_handler() -> BypassHandler:
-    config = SecurityConfig(enable_redis=False, enable_penetration_detection=False)
+    config = SyncSecurityConfig(enable_redis=False, enable_penetration_detection=False)
     context = BypassContext(
         config=config,
         logger=MagicMock(),
@@ -184,7 +184,7 @@ def test_bypass_security_bypass_with_call_next() -> None:
 
 def test_dynamic_rule_manager_stop_with_active_thread() -> None:
     DynamicRuleManager._instance = None
-    config = SecurityConfig(enable_redis=False, enable_penetration_detection=False)
+    config = SyncSecurityConfig(enable_redis=False, enable_penetration_detection=False)
     manager = DynamicRuleManager(config)
 
     stop_flag = threading.Event()

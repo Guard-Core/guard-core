@@ -2,7 +2,7 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.helpers import extract_credential
 from tests.test_sync.test_core.conftest import build_route_pipeline, send_request
 
@@ -41,8 +41,8 @@ def test_an_empty_or_foreign_credential_is_missing(header: str, scheme: str) -> 
     assert reason
 
 
-def _config() -> SecurityConfig:
-    return SecurityConfig(
+def _config() -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         enable_redis=False,
         enable_penetration_detection=False,
         enable_rate_limiting=False,

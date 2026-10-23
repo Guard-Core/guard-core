@@ -2,6 +2,7 @@ import contextvars
 import difflib
 import logging
 from collections.abc import Mapping
+from copy import deepcopy
 from pathlib import Path
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
@@ -16,7 +17,7 @@ from guard_core._config_capabilities import (
 )
 from guard_core._dynamic_rules import DynamicRules as DynamicRules
 from guard_core._misconfiguration import report_config_misconfigurations
-from guard_core._security_config_fields import _SecurityConfigFields
+from guard_core._security_config_fields import RequestT, _SecurityConfigFields
 from guard_core._security_config_validators import (
     _FIELD_REVALIDATORS,
     _GEO_STATE_FIELDS,
@@ -80,6 +81,7 @@ from guard_core.protocols.cloud_ip_store_protocol import (
 from guard_core.protocols.geo_ip_protocol import GeoIPHandler as GeoIPHandler
 from guard_core.protocols.request_protocol import GuardRequest as GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse as GuardResponse
+from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
 if TYPE_CHECKING:
     from guard_agent import AgentConfig
@@ -96,7 +98,7 @@ _skip_revalidation: contextvars.ContextVar[bool] = contextvars.ContextVar(
 )
 
 
-class SecurityConfig(_SecurityConfigFields):
+class SecurityConfig(_SecurityConfigFields[RequestT]):
     model_config = ConfigDict(arbitrary_types_allowed=True, hide_input_in_errors=True)
 
     _revision: int = PrivateAttr(default=0)
@@ -135,6 +137,26 @@ class SecurityConfig(_SecurityConfigFields):
     @property
     def revision(self) -> int:
         return self._current_revision()
+
+    def __getstate__(self) -> dict[Any, Any]:
+        # threat_ban_config is a read-only mappingproxy, which neither pickle nor
+        # deepcopy can handle: it travels as a dict and is frozen again on load.
+        state = super().__getstate__()
+        state["__dict__"] = {
+            **state["__dict__"],
+            "threat_ban_config": dict(self.threat_ban_config),
+        }
+        return state
+
+    def __setstate__(self, state: dict[Any, Any]) -> None:
+        frozen = MappingProxyType(state["__dict__"]["threat_ban_config"])
+        state["__dict__"] = {**state["__dict__"], "threat_ban_config": frozen}
+        super().__setstate__(state)
+
+    def __deepcopy__(self, memo: dict[int, Any] | None = None) -> Self:
+        clone = self.__class__.__new__(self.__class__)
+        clone.__setstate__(deepcopy(self.__getstate__(), memo))
+        return clone
 
     def model_copy(
         self, *, update: Mapping[str, Any] | None = None, deep: bool = False
@@ -385,3 +407,9 @@ class SecurityConfig(_SecurityConfigFields):
                 "guard-agent is not installed but enable_agent=True. "
                 "Install it with: pip install guard-agent"
             ) from e
+
+
+# Parametrized here, at import time, so pydantic registers the class in this module:
+# a pickled SecurityConfig[SyncGuardRequest] then loads in an interpreter that has only
+# imported guard_core (a spawn-started process unpickles its arguments).
+SyncSecurityConfig = SecurityConfig[SyncGuardRequest]

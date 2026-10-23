@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.implementations.suspicious_activity import (
     SuspiciousActivityCheck,
 )
@@ -27,7 +27,7 @@ def _reset_singleton() -> Generator[None, None, None]:
 
 @pytest.fixture
 def redis() -> Generator[RedisManager, None]:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=True,
         redis_url=REDIS_URL,
         redis_prefix=f"test:wp9:grouped:{uuid.uuid4().hex}:",
@@ -44,7 +44,7 @@ def redis() -> Generator[RedisManager, None]:
 def _check(
     monkeypatch: pytest.MonkeyPatch, redis: RedisManager
 ) -> SuspiciousActivityCheck:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=True,
         redis_url=redis.config.redis_url,
         redis_prefix=redis.config.redis_prefix,

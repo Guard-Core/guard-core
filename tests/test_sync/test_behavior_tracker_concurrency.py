@@ -1,12 +1,12 @@
 import threading
 import time
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.behavior_handler import BehaviorRule, BehaviorTracker
 
 
 def test_concurrent_writers_and_readers_do_not_raise() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     tracker = BehaviorTracker(config)
     rule = BehaviorRule(rule_type="usage", threshold=1_000_000, window=60)
     errors: list[BaseException] = []

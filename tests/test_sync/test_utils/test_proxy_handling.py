@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils import ip_extraction
 from guard_core.sync.utils import _extract_from_forwarded_header, extract_client_ip
 from tests.test_sync.conftest import SyncMockGuardRequest
@@ -15,7 +15,7 @@ def _reset_forwarded_header_preemption_warning() -> None:
 
 
 def test_extract_client_ip_without_trusted_proxies() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
 
     request = SyncMockGuardRequest(
         path="/",
@@ -29,7 +29,7 @@ def test_extract_client_ip_without_trusted_proxies() -> None:
 
 
 def test_extract_client_ip_with_trusted_proxies() -> None:
-    config = SecurityConfig(trusted_proxies=["127.0.0.1"])
+    config = SyncSecurityConfig(trusted_proxies=["127.0.0.1"])
 
     request = SyncMockGuardRequest(
         path="/",
@@ -43,7 +43,7 @@ def test_extract_client_ip_with_trusted_proxies() -> None:
 
 
 def test_extract_client_ip_with_cidr_trusted_proxies() -> None:
-    config = SecurityConfig(trusted_proxies=["127.0.0.0/8"])
+    config = SyncSecurityConfig(trusted_proxies=["127.0.0.0/8"])
 
     request = SyncMockGuardRequest(
         path="/",
@@ -57,7 +57,7 @@ def test_extract_client_ip_with_cidr_trusted_proxies() -> None:
 
 
 def test_extract_client_ip_with_proxy_depth() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         trusted_proxies=["127.0.0.1", "1.2.3.4"], trusted_proxy_depth=2
     )
 
@@ -73,7 +73,7 @@ def test_extract_client_ip_with_proxy_depth() -> None:
 
 
 def test_extract_client_ip_without_xforwarded() -> None:
-    config = SecurityConfig(trusted_proxies=["127.0.0.1"])
+    config = SyncSecurityConfig(trusted_proxies=["127.0.0.1"])
 
     request = SyncMockGuardRequest(
         path="/",
@@ -87,7 +87,7 @@ def test_extract_client_ip_without_xforwarded() -> None:
 
 
 def test_extract_client_ip_with_untrusted_proxy() -> None:
-    config = SecurityConfig(trusted_proxies=["10.0.0.1"])
+    config = SyncSecurityConfig(trusted_proxies=["10.0.0.1"])
 
     request = SyncMockGuardRequest(
         path="/",
@@ -101,7 +101,7 @@ def test_extract_client_ip_with_untrusted_proxy() -> None:
 
 
 def test_extract_client_ip_untrusted_proxy_spoof_event_sets_handler_name() -> None:
-    config = SecurityConfig(trusted_proxies=["10.0.0.1"])
+    config = SyncSecurityConfig(trusted_proxies=["10.0.0.1"])
     mock_agent = MagicMock()
 
     request = SyncMockGuardRequest(
@@ -125,7 +125,7 @@ def test_extract_client_ip_untrusted_proxy_spoof_event_sets_handler_name() -> No
 def test_extract_client_ip_error_handling(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(trusted_proxies=["127.0.0.1"])
+    config = SyncSecurityConfig(trusted_proxies=["127.0.0.1"])
 
     request = SyncMockGuardRequest(
         path="/",
@@ -145,7 +145,7 @@ def test_extract_client_ip_error_handling(
 
 
 def test_extract_client_ip_no_client() -> None:
-    config = SecurityConfig(trusted_proxies=["127.0.0.1"])
+    config = SyncSecurityConfig(trusted_proxies=["127.0.0.1"])
 
     request = SyncMockGuardRequest(
         path="/",
@@ -159,7 +159,7 @@ def test_extract_client_ip_no_client() -> None:
 
 
 def test_extract_client_ip_unix_socket_resolves_from_forwarded_header() -> None:
-    config = SecurityConfig(trusted_proxies=["unix"])
+    config = SyncSecurityConfig(trusted_proxies=["unix"])
 
     request = SyncMockGuardRequest(
         path="/",
@@ -173,7 +173,7 @@ def test_extract_client_ip_unix_socket_resolves_from_forwarded_header() -> None:
 
 
 def test_extract_client_ip_unix_socket_without_header_stays_unknown() -> None:
-    config = SecurityConfig(trusted_proxies=["unix"])
+    config = SyncSecurityConfig(trusted_proxies=["unix"])
 
     request = SyncMockGuardRequest(
         path="/",
@@ -187,7 +187,7 @@ def test_extract_client_ip_unix_socket_without_header_stays_unknown() -> None:
 
 
 def test_extract_client_ip_fallback_to_connecting_ip() -> None:
-    config = SecurityConfig(trusted_proxies=["127.0.0.1"], trusted_proxy_depth=3)
+    config = SyncSecurityConfig(trusted_proxies=["127.0.0.1"], trusted_proxy_depth=3)
 
     request = SyncMockGuardRequest(
         path="/",
@@ -201,7 +201,7 @@ def test_extract_client_ip_fallback_to_connecting_ip() -> None:
 
 
 def test_extract_client_ip_untrusted_without_forwarded() -> None:
-    config = SecurityConfig(trusted_proxies=["10.0.0.1"])
+    config = SyncSecurityConfig(trusted_proxies=["10.0.0.1"])
 
     request = SyncMockGuardRequest(
         path="/",
@@ -220,7 +220,7 @@ PREEMPTION_WARNING_TEXT = "already appears inside its own X-Forwarded-For chain"
 def test_preemption_warning_fires_when_trusted_proxies_unset(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
 
     request = SyncMockGuardRequest(
         path="/",
@@ -239,7 +239,7 @@ def test_preemption_warning_fires_when_trusted_proxies_unset(
 def test_preemption_warning_fires_in_untrusted_peer_branch(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(trusted_proxies=["10.0.0.1"])
+    config = SyncSecurityConfig(trusted_proxies=["10.0.0.1"])
 
     request = SyncMockGuardRequest(
         path="/",
@@ -259,7 +259,7 @@ def test_preemption_warning_fires_in_untrusted_peer_branch(
 def test_preemption_warning_absent_without_forwarded_header(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
 
     request = SyncMockGuardRequest(
         path="/",
@@ -278,7 +278,7 @@ def test_preemption_warning_absent_without_forwarded_header(
 def test_preemption_warning_absent_when_peer_not_in_chain(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
 
     request = SyncMockGuardRequest(
         path="/",
@@ -297,7 +297,7 @@ def test_preemption_warning_absent_when_peer_not_in_chain(
 def test_preemption_warning_emitted_at_most_once(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
 
     with caplog.at_level(logging.WARNING):
         for _ in range(5):
@@ -324,7 +324,7 @@ def _reset_chain_too_short_warning() -> None:
 def test_chain_too_short_warning_fires_on_depth_exceeding_chain_length(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(trusted_proxies=["127.0.0.1"], trusted_proxy_depth=3)
+    config = SyncSecurityConfig(trusted_proxies=["127.0.0.1"], trusted_proxy_depth=3)
 
     request = SyncMockGuardRequest(
         path="/",
@@ -347,7 +347,7 @@ def test_chain_too_short_warning_fires_on_depth_exceeding_chain_length(
 def test_chain_too_short_warning_absent_when_chain_meets_depth(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         trusted_proxies=["127.0.0.1", "1.2.3.4"], trusted_proxy_depth=2
     )
 
@@ -368,7 +368,7 @@ def test_chain_too_short_warning_absent_when_chain_meets_depth(
 def test_chain_too_short_warning_emitted_at_most_once(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(trusted_proxies=["127.0.0.1"], trusted_proxy_depth=3)
+    config = SyncSecurityConfig(trusted_proxies=["127.0.0.1"], trusted_proxy_depth=3)
 
     with caplog.at_level(logging.WARNING):
         for _ in range(5):
@@ -394,7 +394,7 @@ def _reset_selected_entry_trusted_proxy_warning() -> None:
 def test_selected_entry_trusted_proxy_warning_fires_when_every_entry_is_trusted(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         trusted_proxies=["127.0.0.1", "10.0.0.1"], trusted_proxy_depth=2
     )
 
@@ -415,7 +415,7 @@ def test_selected_entry_trusted_proxy_warning_fires_when_every_entry_is_trusted(
 def test_selected_entry_trusted_proxy_warning_absent_for_real_client(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(trusted_proxies=["127.0.0.1"], trusted_proxy_depth=1)
+    config = SyncSecurityConfig(trusted_proxies=["127.0.0.1"], trusted_proxy_depth=1)
 
     request = SyncMockGuardRequest(
         path="/",
@@ -434,7 +434,7 @@ def test_selected_entry_trusted_proxy_warning_absent_for_real_client(
 def test_selected_entry_trusted_proxy_warning_emitted_at_most_once(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         trusted_proxies=["127.0.0.1", "10.0.0.1"], trusted_proxy_depth=2
     )
 
@@ -474,7 +474,7 @@ def test_overcounted_depth_resolves_to_proxy_appended_real_address(
     rotated_prefix: str,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(trusted_proxies=["10.0.0.1"], trusted_proxy_depth=2)
+    config = SyncSecurityConfig(trusted_proxies=["10.0.0.1"], trusted_proxy_depth=2)
 
     request = SyncMockGuardRequest(
         path="/",
@@ -493,7 +493,7 @@ def test_overcounted_depth_resolves_to_proxy_appended_real_address(
 def test_overcounted_depth_warning_emitted_at_most_once_across_rotations(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(trusted_proxies=["10.0.0.1"], trusted_proxy_depth=2)
+    config = SyncSecurityConfig(trusted_proxies=["10.0.0.1"], trusted_proxy_depth=2)
 
     with caplog.at_level(logging.WARNING):
         for i in range(5):
@@ -514,7 +514,7 @@ def test_overcounted_depth_warning_emitted_at_most_once_across_rotations(
 def test_correctly_declared_depth_resolves_with_no_overcount_warning(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         trusted_proxies=["10.0.0.1", "192.168.1.1"], trusted_proxy_depth=2
     )
 
@@ -543,7 +543,7 @@ def test_overcounted_depth_check_is_a_noop_with_empty_trusted_proxies() -> None:
 def test_overcounted_depth_right_side_recognises_ipv4_mapped_trusted_proxy(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         trusted_proxies=["10.0.0.1", "192.168.1.1"], trusted_proxy_depth=2
     )
 
@@ -564,7 +564,7 @@ def test_overcounted_depth_right_side_recognises_ipv4_mapped_trusted_proxy(
 def test_overcounted_depth_right_side_recognises_bracketed_ipv6_trusted_proxy(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         trusted_proxies=["10.0.0.1", "2001:db8::1"], trusted_proxy_depth=2
     )
 
@@ -585,7 +585,7 @@ def test_overcounted_depth_right_side_recognises_bracketed_ipv6_trusted_proxy(
 def test_rate_limit_e2e_rotating_prefix_is_limited_on_one_bucket() -> None:
     from guard_core.sync.handlers.ratelimit_handler import check_rate_limit_by_ip
 
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         trusted_proxies=["10.0.0.1"],
         trusted_proxy_depth=2,
         enable_redis=False,
@@ -611,7 +611,7 @@ def test_rate_limit_e2e_rotating_prefix_is_limited_on_one_bucket() -> None:
 
 
 def test_overcounted_depth_walk_skips_trusted_entries_to_its_right() -> None:
-    config = SecurityConfig(trusted_proxies=["10.0.0.1"], trusted_proxy_depth=3)
+    config = SyncSecurityConfig(trusted_proxies=["10.0.0.1"], trusted_proxy_depth=3)
 
     request = SyncMockGuardRequest(
         path="/",
@@ -626,7 +626,7 @@ def test_overcounted_depth_walk_skips_trusted_entries_to_its_right() -> None:
 
 
 def test_overcounted_depth_walk_gives_the_malformed_identity_on_a_bad_entry() -> None:
-    config = SecurityConfig(trusted_proxies=["10.0.0.1"], trusted_proxy_depth=2)
+    config = SyncSecurityConfig(trusted_proxies=["10.0.0.1"], trusted_proxy_depth=2)
 
     request = SyncMockGuardRequest(
         path="/",
@@ -651,7 +651,7 @@ def test_resolve_forwarded_chain_right_to_left_returns_none_when_all_trusted() -
 def test_invalid_single_entry_chain_gets_the_malformed_identity_with_one_warning(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(trusted_proxies=["127.0.0.1"], trusted_proxy_depth=1)
+    config = SyncSecurityConfig(trusted_proxies=["127.0.0.1"], trusted_proxy_depth=1)
 
     request = SyncMockGuardRequest(
         path="/",
@@ -752,7 +752,7 @@ def test_extract_from_forwarded_header_rejects_glob_in_ipv6_zone_id(
 def test_glob_metacharacters_short_chain_falls_back_to_peer(
     forwarded_for: str,
 ) -> None:
-    config = SecurityConfig(trusted_proxies=["127.0.0.1"], trusted_proxy_depth=2)
+    config = SyncSecurityConfig(trusted_proxies=["127.0.0.1"], trusted_proxy_depth=2)
 
     request = SyncMockGuardRequest(
         path="/",
@@ -783,7 +783,7 @@ def test_glob_metacharacters_short_chain_falls_back_to_peer(
 def test_glob_metacharacters_resolve_via_clean_right_entry(
     forwarded_for: str,
 ) -> None:
-    config = SecurityConfig(trusted_proxies=["127.0.0.1"], trusted_proxy_depth=2)
+    config = SyncSecurityConfig(trusted_proxies=["127.0.0.1"], trusted_proxy_depth=2)
 
     request = SyncMockGuardRequest(
         path="/",

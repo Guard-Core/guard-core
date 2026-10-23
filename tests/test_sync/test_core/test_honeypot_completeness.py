@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers import ipban_handler
 from tests.test_sync.test_core.conftest import build_route_pipeline, send_request
 
@@ -21,14 +21,14 @@ def _multipart(name: str, value: str, extra: str = "") -> bytes:
     ).encode()
 
 
-def _config(**overrides: Any) -> SecurityConfig:
+def _config(**overrides: Any) -> SyncSecurityConfig:
     settings: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": False,
         "enable_rate_limiting": False,
     }
     settings.update(overrides)
-    return SecurityConfig(**settings)
+    return SyncSecurityConfig(**settings)
 
 
 def _hit(
@@ -36,7 +36,7 @@ def _hit(
     headers: dict[str, str],
     body: bytes,
     path: str = "/x",
-    config: SecurityConfig | None = None,
+    config: SyncSecurityConfig | None = None,
     ip: str = BOT_IP,
 ) -> Any:
     pipeline, _, route_id = build_route_pipeline(

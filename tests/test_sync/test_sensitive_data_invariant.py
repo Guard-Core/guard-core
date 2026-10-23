@@ -11,7 +11,7 @@ from urllib.parse import quote, quote_plus, urlencode
 
 import pytest
 
-from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.models import DynamicRules, SyncSecurityConfig
 from guard_core.sync._utils.detection_scan import _json_depth_cap_value
 from guard_core.sync.core.behavioral.context import BehavioralContext
 from guard_core.sync.core.behavioral.processor import BehavioralProcessor
@@ -102,7 +102,7 @@ def _wire_logfire() -> Iterator[None]:
         yield
 
 
-def _build_config(**overrides: Any) -> SecurityConfig:
+def _build_config(**overrides: Any) -> SyncSecurityConfig:
     base: dict[str, Any] = {
         "log_sensitive_headers": {_CUSTOM_SENSITIVE_HEADER},
         "log_sensitive_params": {_CUSTOM_SENSITIVE_PARAM},
@@ -113,10 +113,10 @@ def _build_config(**overrides: Any) -> SecurityConfig:
         "on_error": _record_on_error,
     }
     base.update(overrides)
-    return SecurityConfig(**base)
+    return SyncSecurityConfig(**base)
 
 
-def _build_otel_handler(config: SecurityConfig) -> Any:
+def _build_otel_handler(config: SyncSecurityConfig) -> Any:
     if not _otel_sdk_available or InMemorySpanExporter is None:
         return None
     handler = OtelHandler(config)
@@ -162,7 +162,7 @@ class _RecordingAgentHandler:
         return True
 
 
-def _build_middleware(config: SecurityConfig) -> MagicMock:
+def _build_middleware(config: SyncSecurityConfig) -> MagicMock:
     middleware = MagicMock()
     middleware.config = config
     middleware.logger = logging.getLogger("guard_core.test.sensitive_invariant")
@@ -190,12 +190,12 @@ def _build_middleware(config: SecurityConfig) -> MagicMock:
     return middleware
 
 
-def _scenario_config(**overrides: Any) -> SecurityConfig:
+def _scenario_config(**overrides: Any) -> SyncSecurityConfig:
     return _build_config(**overrides)
 
 
 def _scenario_middleware(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     *,
     route_config: RouteConfig | None = None,
     geo_ip_handler: Any = None,
@@ -1002,7 +1002,7 @@ class _StreamedResponse(MockGuardResponse):
 
 
 class _SnapshotPersistTarget(DynamicRuleSnapshotMixin):
-    def __init__(self, config: SecurityConfig) -> None:
+    def __init__(self, config: SyncSecurityConfig) -> None:
         self.config = config
         self.redis_handler = None
         self.logger = logging.getLogger(

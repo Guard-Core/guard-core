@@ -4,7 +4,7 @@ from collections.abc import Callable, Iterator, MutableMapping
 from typing import Any, TypeVar, cast
 
 from guard_core.exceptions import ResponseBodyUnavailableError
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.agent_events import send_agent_event
 from guard_core.sync.core.events.event_types import EVENT_RESPONSE_BODY_UNAVAILABLE
@@ -252,7 +252,7 @@ def body_gate_refusal(
 
 def report_body_refused(
     logger: logging.Logger,
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     agent_handler: Any | None,
     request: SyncGuardRequest,
     reason: str,

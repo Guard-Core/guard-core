@@ -4,12 +4,12 @@ from unittest.mock import MagicMock, patch
 import pytest
 from guard_agent import SecurityEvent
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.decorators.base import BaseSecurityDecorator
 from tests.test_sync.conftest import SyncMockGuardRequest
 
 
-def test_initialize_agent(config: SecurityConfig) -> None:
+def test_initialize_agent(config: SyncSecurityConfig) -> None:
     decorator = BaseSecurityDecorator(config)
 
     mock_agent = MagicMock()
@@ -23,7 +23,7 @@ def test_initialize_agent(config: SecurityConfig) -> None:
 
 
 def test_initialize_agent_with_real_behavior_tracker(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
 ) -> None:
     decorator = BaseSecurityDecorator(config)
 
@@ -75,7 +75,7 @@ def test_initialize_agent_with_real_behavior_tracker(
     ],
 )
 def test_send_decorator_event_scenarios(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     mock_guard_agent: Any,
     event_type: str,
     action: str,
@@ -158,7 +158,7 @@ def test_send_decorator_event_scenarios(
     ],
 )
 def test_helper_methods(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     helper_method: str,
     expected_event_type: str,
     expected_action: str,
@@ -223,7 +223,7 @@ def test_helper_methods(
     ],
 )
 def test_error_conditions(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     caplog: pytest.LogCaptureFixture,
     error_scenario: str,
     side_effect: Any,
@@ -259,7 +259,7 @@ def test_error_conditions(
     assert expected_log_message in caplog.text
 
 
-def test_send_decorator_event_no_agent(config: SecurityConfig) -> None:
+def test_send_decorator_event_no_agent(config: SyncSecurityConfig) -> None:
     decorator = BaseSecurityDecorator(config)
     decorator.agent_handler = None
 
@@ -270,7 +270,9 @@ def test_send_decorator_event_no_agent(config: SecurityConfig) -> None:
     )
 
 
-def test_multiple_event_sends(config: SecurityConfig, mock_guard_agent: Any) -> None:
+def test_multiple_event_sends(
+    config: SyncSecurityConfig, mock_guard_agent: Any
+) -> None:
     decorator = BaseSecurityDecorator(config)
     decorator.agent_handler = MagicMock()
 
@@ -297,8 +299,8 @@ def test_multiple_event_sends(config: SecurityConfig, mock_guard_agent: Any) -> 
         assert decorator.agent_handler.send_event.call_count == 3
 
 
-def test_decorator_initialization(config: SecurityConfig) -> None:
-    config = SecurityConfig(enable_penetration_detection=True)
+def test_decorator_initialization(config: SyncSecurityConfig) -> None:
+    config = SyncSecurityConfig(enable_penetration_detection=True)
     decorator = BaseSecurityDecorator(config)
 
     assert decorator.config is config
@@ -307,7 +309,7 @@ def test_decorator_initialization(config: SecurityConfig) -> None:
     assert decorator.agent_handler is None
 
 
-def test_get_route_config(config: SecurityConfig) -> None:
+def test_get_route_config(config: SyncSecurityConfig) -> None:
     decorator = BaseSecurityDecorator(config)
 
     def test_func() -> None:
@@ -322,7 +324,7 @@ def test_get_route_config(config: SecurityConfig) -> None:
     assert decorator.get_route_config("non_existent") is None
 
 
-def test_route_id_generation(config: SecurityConfig) -> None:
+def test_route_id_generation(config: SyncSecurityConfig) -> None:
     decorator = BaseSecurityDecorator(config)
 
     def test_function() -> None:
@@ -340,7 +342,7 @@ def test_route_id_generation(config: SecurityConfig) -> None:
     ],
 )
 def test_ensure_route_config(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     enable_penetration_detection: bool,
     expected_suspicious_detection: bool,
 ) -> None:
@@ -354,7 +356,7 @@ def test_ensure_route_config(
     assert route_config.enable_suspicious_detection is expected_suspicious_detection
 
 
-def test_apply_route_config(config: SecurityConfig) -> None:
+def test_apply_route_config(config: SyncSecurityConfig) -> None:
     decorator = BaseSecurityDecorator(config)
 
     def test_func() -> None:
@@ -375,7 +377,7 @@ def test_apply_route_config(config: SecurityConfig) -> None:
     ],
 )
 def test_initialize_behavior_tracking(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     redis_handler: MagicMock | None,
     should_initialize: bool,
 ) -> None:

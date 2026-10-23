@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import Any
 from unittest.mock import MagicMock
 
-from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.models import DynamicRules, SyncSecurityConfig
 from guard_core.protocols.geo_ip_protocol import GeoIPHandler
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
 
@@ -48,7 +48,7 @@ def _signature(source: Any) -> tuple[Any, ...]:
 
 def test_a_swap_is_never_observed_half_done_by_a_concurrent_reader() -> None:
     DynamicRuleManager._instance = None
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False,
         enable_agent=True,
         agent_api_key="test-api-key",
@@ -96,7 +96,7 @@ def test_the_plan_emits_the_country_warning_not_the_swap() -> None:
     import warnings
 
     DynamicRuleManager._instance = None
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False,
         enable_agent=True,
         agent_api_key="test-api-key",

@@ -1,14 +1,14 @@
 from typing import Any
 from unittest.mock import patch
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.detection_engine.monitor import PerformanceMonitor
 from guard_core.sync.handlers import _suspatterns_applicable
 from guard_core.sync.utils import detect_penetration_attempt
 from tests.test_sync.conftest import SyncMockGuardRequest
 
 
-def _scan_benign_request(config: SecurityConfig) -> None:
+def _scan_benign_request(config: SyncSecurityConfig) -> None:
     request = SyncMockGuardRequest(
         path="/", query_params={"q": "red shoes"}, headers={"x-a": "blue boots"}
     )
@@ -17,7 +17,7 @@ def _scan_benign_request(config: SecurityConfig) -> None:
 
 
 def test_benign_scan_never_enters_the_anomaly_check() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         detection_slow_pattern_threshold=1.0, detection_min_samples_for_anomaly=1000
     )
     _scan_benign_request(config)
@@ -35,7 +35,7 @@ def test_benign_scan_never_enters_the_anomaly_check() -> None:
 
 
 def test_repeated_scan_does_not_refilter_the_pattern_table() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     _scan_benign_request(config)
     calls: list[int] = []
     original = _suspatterns_applicable._pattern_should_be_skipped
@@ -89,7 +89,7 @@ def test_exhausted_time_budget_still_flags_a_pass_with_no_applicable_row() -> No
     from guard_core.sync._utils.detection_scan import _scan_value_budget
     from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
 
-    sus_patterns_handler.configure(SecurityConfig())
+    sus_patterns_handler.configure(SyncSecurityConfig())
     with _scan_value_budget(512, max_scan_seconds=0.0):
         threats, matched, timeouts = sus_patterns_handler._check_regex_patterns(
             "red shoes", "203.0.113.7", None, "query_param", set()

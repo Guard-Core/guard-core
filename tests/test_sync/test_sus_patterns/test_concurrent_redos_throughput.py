@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from guard_core import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.suspatterns_handler import (
     SusPatternsManager,
     sus_patterns_handler,
@@ -14,7 +14,7 @@ from guard_core.sync.handlers.suspatterns_handler import (
 from guard_core.sync.utils import detect_penetration_attempt
 from tests.test_sync.conftest import SyncMockGuardRequest
 
-_CONFIG = SecurityConfig()
+_CONFIG = SyncSecurityConfig()
 
 _REDOS_PAYLOAD = "{{" * 10000
 _BENIGN_MATCHING_PAYLOAD = "<script>alert(1)</script>"
@@ -26,7 +26,7 @@ _CUSTOM_PATTERN = rf"{_CUSTOM_MARKER}\d+"
 
 @pytest.fixture(autouse=True)
 def _force_enhanced_detection_singleton() -> None:
-    sus_patterns_handler.configure(SecurityConfig())
+    sus_patterns_handler.configure(SyncSecurityConfig())
     sus_patterns_handler.compiled_custom_patterns = set()
     sus_patterns_handler.custom_patterns = set()
 

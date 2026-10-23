@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.models import DynamicRules, SyncSecurityConfig
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
 
 
@@ -66,7 +66,7 @@ def cleanup_singleton() -> Generator[Any, Any, Any]:
 
 
 def test_singleton_pattern(
-    config: SecurityConfig, cleanup_singleton: Generator[Any, Any, Any]
+    config: SyncSecurityConfig, cleanup_singleton: Generator[Any, Any, Any]
 ) -> None:
     DynamicRuleManager._instance = None
 
@@ -77,7 +77,7 @@ def test_singleton_pattern(
     assert DynamicRuleManager._instance is instance1
 
 
-def test_singleton_preserves_state(config: SecurityConfig) -> None:
+def test_singleton_preserves_state(config: SyncSecurityConfig) -> None:
     DynamicRuleManager._instance = None
 
     instance1 = DynamicRuleManager(config)
@@ -92,7 +92,7 @@ def test_singleton_preserves_state(config: SecurityConfig) -> None:
 
 
 def test_initialize_agent_with_dynamic_rules_enabled(
-    config: SecurityConfig, mock_agent_handler: MagicMock
+    config: SyncSecurityConfig, mock_agent_handler: MagicMock
 ) -> None:
     DynamicRuleManager._instance = None
 
@@ -109,7 +109,7 @@ def test_initialize_agent_with_dynamic_rules_enabled(
 
 
 def test_initialize_agent_with_dynamic_rules_disabled(
-    config: SecurityConfig, mock_agent_handler: MagicMock
+    config: SyncSecurityConfig, mock_agent_handler: MagicMock
 ) -> None:
     DynamicRuleManager._instance = None
 
@@ -125,7 +125,7 @@ def test_initialize_agent_with_dynamic_rules_disabled(
 
 
 def test_initialize_agent_prevents_duplicate_tasks(
-    config: SecurityConfig, mock_agent_handler: MagicMock
+    config: SyncSecurityConfig, mock_agent_handler: MagicMock
 ) -> None:
     DynamicRuleManager._instance = None
 
@@ -143,7 +143,7 @@ def test_initialize_agent_prevents_duplicate_tasks(
 
 
 def test_initialize_redis(
-    config: SecurityConfig, mock_redis_handler: MagicMock
+    config: SyncSecurityConfig, mock_redis_handler: MagicMock
 ) -> None:
     DynamicRuleManager._instance = None
 
@@ -155,7 +155,7 @@ def test_initialize_redis(
 
 
 def test_rule_update_loop_normal_operation(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
 ) -> None:
     DynamicRuleManager._instance = None
 
@@ -185,7 +185,7 @@ def test_rule_update_loop_normal_operation(
 
 
 def test_rule_update_loop_handles_exceptions(
-    config: SecurityConfig, caplog: pytest.LogCaptureFixture
+    config: SyncSecurityConfig, caplog: pytest.LogCaptureFixture
 ) -> None:
     DynamicRuleManager._instance = None
 
@@ -218,7 +218,7 @@ def test_rule_update_loop_handles_exceptions(
 
 
 def test_interruptible_sleep_returns_immediately_when_stopped(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
 ) -> None:
     DynamicRuleManager._instance = None
 
@@ -233,7 +233,7 @@ def test_interruptible_sleep_returns_immediately_when_stopped(
 
 
 def test_rule_update_loop_exits_when_already_stopped(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
 ) -> None:
     DynamicRuleManager._instance = None
 
@@ -246,7 +246,7 @@ def test_rule_update_loop_exits_when_already_stopped(
 
 
 def test_update_rules_disabled(
-    config: SecurityConfig, mock_agent_handler: MagicMock
+    config: SyncSecurityConfig, mock_agent_handler: MagicMock
 ) -> None:
     DynamicRuleManager._instance = None
 
@@ -259,7 +259,7 @@ def test_update_rules_disabled(
     mock_agent_handler.get_dynamic_rules.assert_not_called()
 
 
-def test_update_rules_no_agent(config: SecurityConfig) -> None:
+def test_update_rules_no_agent(config: SyncSecurityConfig) -> None:
     DynamicRuleManager._instance = None
 
     manager = DynamicRuleManager(config)
@@ -271,7 +271,7 @@ def test_update_rules_no_agent(config: SecurityConfig) -> None:
 
 
 def test_update_rules_no_rules_returned(
-    config: SecurityConfig, mock_agent_handler: MagicMock
+    config: SyncSecurityConfig, mock_agent_handler: MagicMock
 ) -> None:
     DynamicRuleManager._instance = None
 
@@ -287,7 +287,7 @@ def test_update_rules_no_rules_returned(
 
 
 def test_update_rules_same_version(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     mock_agent_handler: MagicMock,
     sample_rules: DynamicRules,
 ) -> None:
@@ -306,7 +306,7 @@ def test_update_rules_same_version(
 
 
 def test_update_rules_rollback_to_an_older_version_is_applied(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     mock_agent_handler: MagicMock,
     sample_rules: DynamicRules,
 ) -> None:
@@ -329,7 +329,7 @@ def test_update_rules_rollback_to_an_older_version_is_applied(
 
 
 def test_update_rules_success(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     mock_agent_handler: MagicMock,
     sample_rules: DynamicRules,
     caplog: pytest.LogCaptureFixture,
@@ -366,7 +366,7 @@ def test_update_rules_success(
 
 
 def test_update_rules_dynamic_rule_updated_event_failure(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     mock_agent_handler: MagicMock,
     sample_rules: DynamicRules,
     caplog: pytest.LogCaptureFixture,
@@ -414,7 +414,7 @@ def test_update_rules_dynamic_rule_updated_event_failure(
 
 
 def test_update_rules_applies_and_sends_applied_event_with_handler_name(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     mock_agent_handler: MagicMock,
 ) -> None:
     DynamicRuleManager._instance = None
@@ -443,7 +443,7 @@ def test_update_rules_applies_and_sends_applied_event_with_handler_name(
 
 
 def test_update_rules_emergency_mode_sends_emergency_event_with_handler_name(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     mock_agent_handler: MagicMock,
 ) -> None:
     DynamicRuleManager._instance = None
@@ -470,7 +470,7 @@ def test_update_rules_emergency_mode_sends_emergency_event_with_handler_name(
 
 
 def test_update_rules_apply_failure(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     mock_agent_handler: MagicMock,
     sample_rules: DynamicRules,
     caplog: pytest.LogCaptureFixture,
@@ -504,7 +504,7 @@ def test_update_rules_apply_failure(
 
 
 def test_update_rules_different_rule_id(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     mock_agent_handler: MagicMock,
     sample_rules: DynamicRules,
 ) -> None:
@@ -530,7 +530,7 @@ def test_update_rules_different_rule_id(
 
 
 def test_update_rules_already_expired_rule_never_applies(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     mock_agent_handler: MagicMock,
     sample_rules: DynamicRules,
     caplog: pytest.LogCaptureFixture,
@@ -560,7 +560,7 @@ def test_update_rules_already_expired_rule_never_applies(
 
 
 def test_update_rules_expiry_in_future_persists_config(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     mock_agent_handler: MagicMock,
     sample_rules: DynamicRules,
 ) -> None:
@@ -583,7 +583,7 @@ def test_update_rules_expiry_in_future_persists_config(
 
 
 def test_update_rules_no_expiry_persists_config(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     mock_agent_handler: MagicMock,
     sample_rules: DynamicRules,
 ) -> None:
@@ -606,7 +606,7 @@ def test_update_rules_no_expiry_persists_config(
 
 
 def test_update_rules_expiry_same_tick_ordering_new_rule_applies_after_revert(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     mock_agent_handler: MagicMock,
     sample_rules: DynamicRules,
 ) -> None:
@@ -647,7 +647,7 @@ def test_update_rules_expiry_same_tick_ordering_new_rule_applies_after_revert(
 
 
 def test_update_rules_superseding_push_then_expiry_restores_pre_a_base(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     mock_agent_handler: MagicMock,
     sample_rules: DynamicRules,
 ) -> None:
@@ -693,7 +693,7 @@ def test_update_rules_superseding_push_then_expiry_restores_pre_a_base(
 
 
 def test_update_rules_expiry_undoes_emergency_halving(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     mock_agent_handler: MagicMock,
     sample_rules: DynamicRules,
 ) -> None:
@@ -730,7 +730,7 @@ def test_update_rules_expiry_undoes_emergency_halving(
 
 
 def test_update_rules_expired_active_rule_stale_agent_settles_at_base_no_flap(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     mock_agent_handler: MagicMock,
     sample_rules: DynamicRules,
     caplog: pytest.LogCaptureFixture,
@@ -772,7 +772,7 @@ def test_update_rules_expired_active_rule_stale_agent_settles_at_base_no_flap(
 
 
 def test_update_rules_expiry_restores_deepcopy_independent_mutable_field(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     mock_agent_handler: MagicMock,
     sample_rules: DynamicRules,
 ) -> None:
@@ -813,7 +813,7 @@ def test_update_rules_expiry_restores_deepcopy_independent_mutable_field(
 
 
 def test_update_rules_expiry_exact_boundary_not_expired(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     mock_agent_handler: MagicMock,
     sample_rules: DynamicRules,
 ) -> None:
@@ -839,7 +839,7 @@ def test_update_rules_expiry_exact_boundary_not_expired(
 
 
 def test_update_rules_stale_rule_warn_suppressed_after_valid_apply(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     mock_agent_handler: MagicMock,
     sample_rules: DynamicRules,
     caplog: pytest.LogCaptureFixture,
@@ -882,7 +882,7 @@ def test_update_rules_stale_rule_warn_suppressed_after_valid_apply(
 
 
 def test_update_rules_alternating_stale_rules_warn_on_each_alternation(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     mock_agent_handler: MagicMock,
     sample_rules: DynamicRules,
     caplog: pytest.LogCaptureFixture,
@@ -928,7 +928,7 @@ def test_update_rules_alternating_stale_rules_warn_on_each_alternation(
 
 
 def test_apply_rules_all_types(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     mock_agent_handler: MagicMock,
     sample_rules: DynamicRules,
 ) -> None:
@@ -965,7 +965,7 @@ def test_apply_rules_all_types(
 
 
 def test_apply_rules_emergency_mode(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     mock_agent_handler: MagicMock,
     sample_rules: DynamicRules,
     caplog: pytest.LogCaptureFixture,
@@ -992,7 +992,7 @@ def test_apply_rules_emergency_mode(
 
 
 def test_apply_rules_partial(
-    config: SecurityConfig, mock_agent_handler: MagicMock
+    config: SyncSecurityConfig, mock_agent_handler: MagicMock
 ) -> None:
     DynamicRuleManager._instance = None
 
@@ -1036,7 +1036,7 @@ def test_apply_rules_partial(
 
 
 def test_apply_rules_exception_handling(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     mock_agent_handler: MagicMock,
     sample_rules: DynamicRules,
     caplog: pytest.LogCaptureFixture,
@@ -1056,7 +1056,7 @@ def test_apply_rules_exception_handling(
 
 
 def test_apply_ip_bans_success(
-    config: SecurityConfig, caplog: pytest.LogCaptureFixture
+    config: SyncSecurityConfig, caplog: pytest.LogCaptureFixture
 ) -> None:
     DynamicRuleManager._instance = None
 
@@ -1083,7 +1083,7 @@ def test_apply_ip_bans_success(
 
 
 def test_apply_ip_bans_with_failures(
-    config: SecurityConfig, caplog: pytest.LogCaptureFixture
+    config: SyncSecurityConfig, caplog: pytest.LogCaptureFixture
 ) -> None:
     DynamicRuleManager._instance = None
 
@@ -1107,7 +1107,7 @@ def test_apply_ip_bans_with_failures(
 
 
 def test_apply_ip_bans_does_not_log_success_when_refused(
-    config: SecurityConfig, caplog: pytest.LogCaptureFixture
+    config: SyncSecurityConfig, caplog: pytest.LogCaptureFixture
 ) -> None:
     DynamicRuleManager._instance = None
 
@@ -1132,7 +1132,7 @@ def test_apply_ip_bans_does_not_log_success_when_refused(
 
 
 def test_apply_ip_whitelist_success(
-    config: SecurityConfig, caplog: pytest.LogCaptureFixture
+    config: SyncSecurityConfig, caplog: pytest.LogCaptureFixture
 ) -> None:
     DynamicRuleManager._instance = None
 
@@ -1161,7 +1161,7 @@ def test_apply_ip_whitelist_success(
 
 
 def test_apply_ip_whitelist_with_failures(
-    config: SecurityConfig, caplog: pytest.LogCaptureFixture
+    config: SyncSecurityConfig, caplog: pytest.LogCaptureFixture
 ) -> None:
     DynamicRuleManager._instance = None
 
@@ -1181,7 +1181,7 @@ def test_apply_ip_whitelist_with_failures(
 
 
 def test_apply_country_rules_blocked_only_skipped_without_geo_handler(
-    config: SecurityConfig, caplog: pytest.LogCaptureFixture
+    config: SyncSecurityConfig, caplog: pytest.LogCaptureFixture
 ) -> None:
     DynamicRuleManager._instance = None
 
@@ -1198,7 +1198,7 @@ def test_apply_country_rules_blocked_only_skipped_without_geo_handler(
 
 
 def test_apply_country_rules_allowed_only_skipped_without_geo_handler(
-    config: SecurityConfig, caplog: pytest.LogCaptureFixture
+    config: SyncSecurityConfig, caplog: pytest.LogCaptureFixture
 ) -> None:
     DynamicRuleManager._instance = None
 
@@ -1215,7 +1215,7 @@ def test_apply_country_rules_allowed_only_skipped_without_geo_handler(
 
 
 def test_apply_country_rules_both_skipped_without_geo_handler(
-    config: SecurityConfig, caplog: pytest.LogCaptureFixture
+    config: SyncSecurityConfig, caplog: pytest.LogCaptureFixture
 ) -> None:
     DynamicRuleManager._instance = None
 
@@ -1233,7 +1233,7 @@ def test_apply_country_rules_both_skipped_without_geo_handler(
 
 
 def test_apply_country_rules_blocked_only_applies_with_geo_handler_configured(
-    config: SecurityConfig, caplog: pytest.LogCaptureFixture
+    config: SyncSecurityConfig, caplog: pytest.LogCaptureFixture
 ) -> None:
     DynamicRuleManager._instance = None
 
@@ -1252,7 +1252,7 @@ def test_apply_country_rules_blocked_only_applies_with_geo_handler_configured(
 
 
 def test_apply_country_rules_allowed_only_applies_with_geo_handler_configured(
-    config: SecurityConfig, caplog: pytest.LogCaptureFixture
+    config: SyncSecurityConfig, caplog: pytest.LogCaptureFixture
 ) -> None:
     DynamicRuleManager._instance = None
 
@@ -1271,7 +1271,7 @@ def test_apply_country_rules_allowed_only_applies_with_geo_handler_configured(
 
 
 def test_apply_rate_limit_global_only(
-    config: SecurityConfig, caplog: pytest.LogCaptureFixture
+    config: SyncSecurityConfig, caplog: pytest.LogCaptureFixture
 ) -> None:
     DynamicRuleManager._instance = None
 
@@ -1309,7 +1309,7 @@ def test_apply_rate_limit_global_only(
 
 
 def test_apply_rate_limit_endpoint_only(
-    config: SecurityConfig, caplog: pytest.LogCaptureFixture
+    config: SyncSecurityConfig, caplog: pytest.LogCaptureFixture
 ) -> None:
     DynamicRuleManager._instance = None
 
@@ -1350,7 +1350,7 @@ def test_apply_rate_limit_endpoint_only(
 
 
 def test_apply_rate_limit_both(
-    config: SecurityConfig, caplog: pytest.LogCaptureFixture
+    config: SyncSecurityConfig, caplog: pytest.LogCaptureFixture
 ) -> None:
     DynamicRuleManager._instance = None
 
@@ -1387,7 +1387,7 @@ def test_apply_rate_limit_both(
 
 
 def test_apply_cloud_provider_rules(
-    config: SecurityConfig, caplog: pytest.LogCaptureFixture
+    config: SyncSecurityConfig, caplog: pytest.LogCaptureFixture
 ) -> None:
     DynamicRuleManager._instance = None
 
@@ -1402,7 +1402,7 @@ def test_apply_cloud_provider_rules(
 
 
 def test_apply_user_agent_rules(
-    config: SecurityConfig, caplog: pytest.LogCaptureFixture
+    config: SyncSecurityConfig, caplog: pytest.LogCaptureFixture
 ) -> None:
     DynamicRuleManager._instance = None
 
@@ -1422,7 +1422,7 @@ def test_apply_user_agent_rules(
 
 
 def test_apply_user_agent_rules_rejects_catastrophic_pattern(
-    config: SecurityConfig, caplog: pytest.LogCaptureFixture
+    config: SyncSecurityConfig, caplog: pytest.LogCaptureFixture
 ) -> None:
     DynamicRuleManager._instance = None
 
@@ -1439,7 +1439,7 @@ def test_apply_user_agent_rules_rejects_catastrophic_pattern(
 
 
 def test_apply_user_agent_rules_validates_each_pattern_exactly_once(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
 ) -> None:
     from guard_core.sync.detection_engine.compiler import PatternCompiler
 
@@ -1467,7 +1467,7 @@ def test_apply_user_agent_rules_validates_each_pattern_exactly_once(
 
 
 def test_update_rules_expiry_restore_does_not_revalidate_patterns(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     mock_agent_handler: MagicMock,
     sample_rules: DynamicRules,
 ) -> None:
@@ -1507,7 +1507,7 @@ def test_update_rules_expiry_restore_does_not_revalidate_patterns(
 
 
 def test_apply_pattern_rules(
-    config: SecurityConfig, caplog: pytest.LogCaptureFixture
+    config: SyncSecurityConfig, caplog: pytest.LogCaptureFixture
 ) -> None:
     DynamicRuleManager._instance = None
 
@@ -1535,7 +1535,7 @@ def test_apply_pattern_rules(
 
 
 def test_apply_pattern_rules_logs_rejected_patterns(
-    config: SecurityConfig, caplog: pytest.LogCaptureFixture
+    config: SyncSecurityConfig, caplog: pytest.LogCaptureFixture
 ) -> None:
     DynamicRuleManager._instance = None
 
@@ -1556,7 +1556,7 @@ def test_apply_pattern_rules_logs_rejected_patterns(
 
 
 def test_apply_pattern_rules_all_rejected_logs_no_added_line(
-    config: SecurityConfig, caplog: pytest.LogCaptureFixture
+    config: SyncSecurityConfig, caplog: pytest.LogCaptureFixture
 ) -> None:
     DynamicRuleManager._instance = None
 
@@ -1577,7 +1577,7 @@ def test_apply_pattern_rules_all_rejected_logs_no_added_line(
 
 
 def test_apply_feature_toggles_all_enabled(
-    config: SecurityConfig, caplog: pytest.LogCaptureFixture
+    config: SyncSecurityConfig, caplog: pytest.LogCaptureFixture
 ) -> None:
     DynamicRuleManager._instance = None
 
@@ -1618,7 +1618,7 @@ def test_apply_feature_toggles_all_enabled(
 
 
 def test_apply_feature_toggles_all_disabled(
-    config: SecurityConfig, caplog: pytest.LogCaptureFixture
+    config: SyncSecurityConfig, caplog: pytest.LogCaptureFixture
 ) -> None:
     DynamicRuleManager._instance = None
 
@@ -1659,7 +1659,7 @@ def test_apply_feature_toggles_all_disabled(
 
 
 def test_apply_feature_toggles_none_values(
-    config: SecurityConfig, caplog: pytest.LogCaptureFixture
+    config: SyncSecurityConfig, caplog: pytest.LogCaptureFixture
 ) -> None:
     DynamicRuleManager._instance = None
 
@@ -1704,7 +1704,7 @@ def test_apply_feature_toggles_none_values(
 
 
 def test_apply_feature_toggles_auto_ban_overrides(
-    config: SecurityConfig, caplog: pytest.LogCaptureFixture
+    config: SyncSecurityConfig, caplog: pytest.LogCaptureFixture
 ) -> None:
     DynamicRuleManager._instance = None
 
@@ -1748,7 +1748,7 @@ def test_apply_feature_toggles_auto_ban_overrides(
 
 
 def test_apply_feature_toggles_auto_ban_none_values(
-    config: SecurityConfig, caplog: pytest.LogCaptureFixture
+    config: SyncSecurityConfig, caplog: pytest.LogCaptureFixture
 ) -> None:
     DynamicRuleManager._instance = None
 
@@ -1796,7 +1796,7 @@ def test_apply_feature_toggles_auto_ban_none_values(
 
 
 def test_apply_feature_toggles_rate_limit_auto_ban_false_override(
-    config: SecurityConfig, caplog: pytest.LogCaptureFixture
+    config: SyncSecurityConfig, caplog: pytest.LogCaptureFixture
 ) -> None:
     DynamicRuleManager._instance = None
 
@@ -1837,7 +1837,7 @@ def test_apply_feature_toggles_rate_limit_auto_ban_false_override(
 
 
 def test_activate_emergency_mode_with_agent(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     mock_agent_handler: MagicMock,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -1868,7 +1868,7 @@ def test_activate_emergency_mode_with_agent(
 
 
 def test_activate_emergency_mode_without_agent(
-    config: SecurityConfig, caplog: pytest.LogCaptureFixture
+    config: SyncSecurityConfig, caplog: pytest.LogCaptureFixture
 ) -> None:
     DynamicRuleManager._instance = None
 
@@ -1888,7 +1888,7 @@ def test_activate_emergency_mode_without_agent(
 
 
 def test_activate_emergency_mode_minimum_threshold(
-    config: SecurityConfig, caplog: pytest.LogCaptureFixture
+    config: SyncSecurityConfig, caplog: pytest.LogCaptureFixture
 ) -> None:
     DynamicRuleManager._instance = None
 
@@ -1907,7 +1907,7 @@ def test_activate_emergency_mode_minimum_threshold(
 
 
 def test_apply_rules_emergency_mode_halves_overridden_auto_ban_threshold(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     mock_agent_handler: MagicMock,
     sample_rules: DynamicRules,
 ) -> None:
@@ -1927,7 +1927,7 @@ def test_apply_rules_emergency_mode_halves_overridden_auto_ban_threshold(
 
 
 def test_send_rule_applied_event_success(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     mock_agent_handler: MagicMock,
     sample_rules: DynamicRules,
 ) -> None:
@@ -1954,7 +1954,7 @@ def test_send_rule_applied_event_success(
 
 
 def test_send_rule_applied_event_no_agent(
-    config: SecurityConfig, sample_rules: DynamicRules
+    config: SyncSecurityConfig, sample_rules: DynamicRules
 ) -> None:
     DynamicRuleManager._instance = None
 
@@ -1965,7 +1965,7 @@ def test_send_rule_applied_event_no_agent(
 
 
 def test_send_rule_applied_event_failure(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     mock_agent_handler: MagicMock,
     sample_rules: DynamicRules,
     caplog: pytest.LogCaptureFixture,
@@ -1984,7 +1984,7 @@ def test_send_rule_applied_event_failure(
 
 
 def test_send_emergency_event_success(
-    config: SecurityConfig, mock_agent_handler: MagicMock
+    config: SyncSecurityConfig, mock_agent_handler: MagicMock
 ) -> None:
     DynamicRuleManager._instance = None
 
@@ -2008,7 +2008,7 @@ def test_send_emergency_event_success(
 
 
 def test_send_emergency_event_large_whitelist(
-    config: SecurityConfig, mock_agent_handler: MagicMock
+    config: SyncSecurityConfig, mock_agent_handler: MagicMock
 ) -> None:
     DynamicRuleManager._instance = None
 
@@ -2024,7 +2024,7 @@ def test_send_emergency_event_large_whitelist(
     assert len(sent_event.metadata["whitelist"]) == 10
 
 
-def test_send_emergency_event_no_agent(config: SecurityConfig) -> None:
+def test_send_emergency_event_no_agent(config: SyncSecurityConfig) -> None:
     DynamicRuleManager._instance = None
 
     manager = DynamicRuleManager(config)
@@ -2034,7 +2034,7 @@ def test_send_emergency_event_no_agent(config: SecurityConfig) -> None:
 
 
 def test_send_emergency_event_failure(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     mock_agent_handler: MagicMock,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -2051,7 +2051,9 @@ def test_send_emergency_event_failure(
     assert "Failed to send emergency event: Send failed" in caplog.text
 
 
-def test_get_current_rules(config: SecurityConfig, sample_rules: DynamicRules) -> None:
+def test_get_current_rules(
+    config: SyncSecurityConfig, sample_rules: DynamicRules
+) -> None:
     DynamicRuleManager._instance = None
 
     manager = DynamicRuleManager(config)
@@ -2064,7 +2066,7 @@ def test_get_current_rules(config: SecurityConfig, sample_rules: DynamicRules) -
 
 
 def test_force_update(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     mock_agent_handler: MagicMock,
     sample_rules: DynamicRules,
 ) -> None:
@@ -2080,7 +2082,7 @@ def test_force_update(
 
 
 def test_stop_without_task(
-    config: SecurityConfig, caplog: pytest.LogCaptureFixture
+    config: SyncSecurityConfig, caplog: pytest.LogCaptureFixture
 ) -> None:
     DynamicRuleManager._instance = None
 
@@ -2097,11 +2099,11 @@ def test_stop_without_task(
 def test_apply_ip_rules_whitelist_only() -> None:
     from datetime import datetime, timezone
 
-    from guard_core.models import DynamicRules, SecurityConfig
+    from guard_core.models import DynamicRules, SyncSecurityConfig
     from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
 
     DynamicRuleManager._instance = None
-    mgr = DynamicRuleManager(SecurityConfig())
+    mgr = DynamicRuleManager(SyncSecurityConfig())
     rules = DynamicRules(
         rule_id="r1",
         version=1,
@@ -2120,11 +2122,11 @@ def test_apply_ip_rules_whitelist_only() -> None:
 def test_apply_rate_limit_rules_global_without_window() -> None:
     from datetime import datetime, timezone
 
-    from guard_core.models import DynamicRules, SecurityConfig
+    from guard_core.models import DynamicRules, SyncSecurityConfig
     from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
 
     DynamicRuleManager._instance = None
-    mgr = DynamicRuleManager(SecurityConfig())
+    mgr = DynamicRuleManager(SyncSecurityConfig())
     rules = DynamicRules(
         rule_id="r1",
         version=1,

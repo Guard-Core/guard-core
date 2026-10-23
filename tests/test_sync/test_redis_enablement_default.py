@@ -3,7 +3,7 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SecurityConfig, SyncSecurityConfig
 from guard_core.sync.core.initialization.handler_initializer import HandlerInitializer
 from guard_core.sync.handlers import ratelimit_handler
 from guard_core.sync.handlers.ratelimit_handler import RateLimitManager
@@ -22,8 +22,8 @@ CONNECTION_FIELDS = {
 }
 
 
-def _config(**settings: Any) -> SecurityConfig:
-    return SecurityConfig(rate_limit=100, **settings)
+def _config(**settings: Any) -> SyncSecurityConfig:
+    return SyncSecurityConfig(rate_limit=100, **settings)
 
 
 def test_the_field_stays_unset_and_resolves_off_without_a_connection_field() -> None:

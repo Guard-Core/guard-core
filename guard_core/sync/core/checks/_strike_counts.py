@@ -3,7 +3,7 @@ from collections import deque
 from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils.ip_extraction import _client_identity
 
 if TYPE_CHECKING:
@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 _suspicious_counts_lock = threading.Lock()
 
 
-def _strike_identity(config: SecurityConfig, client_ip: str) -> str:
+def _strike_identity(config: SyncSecurityConfig, client_ip: str) -> str:
     if ":" not in client_ip:
         return client_ip
     return _client_identity(client_ip, config.ipv6_prefix_length)

@@ -1,6 +1,6 @@
 from collections.abc import Collection
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.decorators.base import RouteConfig
@@ -16,7 +16,7 @@ class RequestLoggingCheck(SecurityCheck):
     @classmethod
     def applies_to(
         cls,
-        config: SecurityConfig,
+        config: SyncSecurityConfig,
         route_configs: Collection[RouteConfig] | None,
     ) -> bool:
         return config.log_request_level is not None

@@ -5,7 +5,7 @@ from collections.abc import Callable
 from typing import cast
 
 from guard_core.exceptions import GuardRedisError
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.block_events import fire_block_hook
 from guard_core.sync._utils.request_logging import redact_header_value_for_display
@@ -23,7 +23,7 @@ class SecurityCheckPipeline:
         checks: list[SecurityCheck],
         muted_check_logs: frozenset[str] | None = None,
         *,
-        config: SecurityConfig | None = None,
+        config: SyncSecurityConfig | None = None,
         rebuild_checks: Callable[[], list[SecurityCheck]] | None = None,
         watched_container_fields: tuple[str, ...] | None = None,
         route_config_revision: Callable[[], int | None] | None = None,
@@ -43,7 +43,7 @@ class SecurityCheckPipeline:
         self._built_route_config_revision = self._current_route_config_revision()
         warn_at_startup_if_throttle_cannot_refuse(checks)
 
-    def _container_signature(self, config: SecurityConfig) -> tuple[int, ...]:
+    def _container_signature(self, config: SyncSecurityConfig) -> tuple[int, ...]:
         # None counts as size 0; read on every request, so no helper call.
         return tuple(
             len(getattr(config, field) or ())
@@ -55,7 +55,7 @@ class SecurityCheckPipeline:
             return None
         return self._route_config_revision()
 
-    def _is_stale(self, config: SecurityConfig) -> bool:
+    def _is_stale(self, config: SyncSecurityConfig) -> bool:
         if config.revision != self._built_revision:
             return True
         if self._container_signature(config) != self._built_signature:
@@ -157,7 +157,7 @@ class SecurityCheckPipeline:
             extra={"path": request.url_path, "method": request.method},
             exc_info=True,
         )
-        config = cast(SecurityConfig, self._config)
+        config = cast(SyncSecurityConfig, self._config)
         if not config.fail_secure:
             return None
         if not self.checks:

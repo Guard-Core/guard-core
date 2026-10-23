@@ -1,7 +1,7 @@
 from collections.abc import Collection
 from typing import TYPE_CHECKING, Any, ClassVar
 
-from guard_core.models import SecurityConfig, cloud_blocking_enabled
+from guard_core.models import SyncSecurityConfig, cloud_blocking_enabled
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.agent_events import agent_receives_events
 from guard_core.sync._utils.rule_attribution import cloud_provider_attribution
@@ -50,7 +50,7 @@ class CloudProviderCheck(SecurityCheck):
     @classmethod
     def applies_to(
         cls,
-        config: SecurityConfig,
+        config: SyncSecurityConfig,
         route_configs: Collection[RouteConfig] | None,
     ) -> bool:
         return cloud_blocking_enabled(config) or route_config_applies(

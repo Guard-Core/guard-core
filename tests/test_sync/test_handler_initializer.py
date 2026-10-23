@@ -1,10 +1,10 @@
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.initialization.handler_initializer import HandlerInitializer
 from guard_core.sync.handlers.behavior_handler import BehaviorTracker
 
 
 def test_build_enricher_uses_decorator_tracker_when_present() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_agent=True,
         agent_api_key="k" * 10,
         agent_project_id="p",
@@ -26,7 +26,7 @@ def test_build_enricher_uses_decorator_tracker_when_present() -> None:
 
 
 def test_build_enricher_builds_owned_tracker_when_decorator_missing() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_agent=True,
         agent_api_key="k" * 10,
         agent_project_id="p",
@@ -46,7 +46,7 @@ def test_build_enricher_builds_owned_tracker_when_decorator_missing() -> None:
 
 
 def test_build_enricher_builds_owned_tracker_when_decorator_has_none() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_agent=True,
         agent_api_key="k" * 10,
         agent_project_id="p",
@@ -67,7 +67,7 @@ def test_build_enricher_builds_owned_tracker_when_decorator_has_none() -> None:
 
 
 def test_build_enricher_stores_owned_tracker_on_initializer() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_agent=True,
         agent_api_key="k" * 10,
         agent_project_id="p",

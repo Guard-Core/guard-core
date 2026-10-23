@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.behavioral.context import BehavioralContext
 from guard_core.sync.core.behavioral.processor import BehavioralProcessor
 from guard_core.sync.decorators.base import RouteConfig
@@ -17,7 +17,9 @@ from guard_core.sync.handlers.redis_handler import redis_handler
 _IP = "203.0.113.9"
 
 
-def _processor(tracker: BehaviorTracker, config: SecurityConfig) -> BehavioralProcessor:
+def _processor(
+    tracker: BehaviorTracker, config: SyncSecurityConfig
+) -> BehavioralProcessor:
     decorator: Any = MagicMock()
     decorator.behavior_tracker = tracker
     decorator.send_decorator_event = MagicMock()
@@ -79,7 +81,7 @@ def _one_request(
     return response
 
 
-def _redis_tracker(config: SecurityConfig) -> tuple[Any, BehaviorTracker]:
+def _redis_tracker(config: SyncSecurityConfig) -> tuple[Any, BehaviorTracker]:
     redis_mgr = redis_handler(config)
     redis_mgr.initialize()
     tracker = BehaviorTracker(config)
@@ -88,7 +90,7 @@ def _redis_tracker(config: SecurityConfig) -> tuple[Any, BehaviorTracker]:
 
 
 def test_recent_count_counts_every_rule_hit_in_memory() -> None:
-    config = SecurityConfig(enable_redis=False)
+    config = SyncSecurityConfig(enable_redis=False)
     tracker = BehaviorTracker(config)
     processor = _processor(tracker, config)
     for _ in range(3):
@@ -99,7 +101,7 @@ def test_recent_count_counts_every_rule_hit_in_memory() -> None:
 
 
 def test_recent_count_is_backed_by_redis(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
     redis_mgr, tracker = _redis_tracker(security_config_redis)
     processor = _processor(tracker, security_config_redis)
@@ -116,7 +118,9 @@ def test_recent_count_is_backed_by_redis(
         redis_mgr.close()
 
 
-def _send_mixed_sequence(tracker: BehaviorTracker, config: SecurityConfig) -> list[int]:
+def _send_mixed_sequence(
+    tracker: BehaviorTracker, config: SyncSecurityConfig
+) -> list[int]:
     processor = _processor(tracker, config)
     counts = []
     _one_request(processor, _two_rule_route())
@@ -139,9 +143,9 @@ def _send_mixed_sequence(tracker: BehaviorTracker, config: SecurityConfig) -> li
 
 
 def test_recent_count_is_the_same_in_memory_and_in_redis(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
-    memory_config = SecurityConfig(enable_redis=False)
+    memory_config = SyncSecurityConfig(enable_redis=False)
     memory_tracker = BehaviorTracker(memory_config)
     memory_counts = _send_mixed_sequence(memory_tracker, memory_config)
     redis_mgr, redis_tracker = _redis_tracker(security_config_redis)
@@ -154,7 +158,7 @@ def test_recent_count_is_the_same_in_memory_and_in_redis(
 
 
 def test_two_rule_hits_at_one_timestamp_count_two_in_redis(
-    security_config_redis: SecurityConfig, monkeypatch: pytest.MonkeyPatch
+    security_config_redis: SyncSecurityConfig, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     frozen = behavior_handler.time.time()
     monkeypatch.setattr(behavior_handler.time, "time", lambda: frozen)
@@ -172,7 +176,7 @@ def test_recent_count_excludes_hits_outside_the_window(
 ) -> None:
     clock = [1_000_000.0]
     monkeypatch.setattr(behavior_handler.time, "time", lambda: clock[0])
-    tracker = BehaviorTracker(SecurityConfig(enable_redis=False))
+    tracker = BehaviorTracker(SyncSecurityConfig(enable_redis=False))
     rule = BehaviorRule(rule_type="usage", threshold=100, window=600)
     tracker.track_endpoint_usage("route", _IP, rule)
     clock[0] += 400
@@ -181,7 +185,7 @@ def test_recent_count_excludes_hits_outside_the_window(
 
 
 def test_recent_count_is_zero_for_an_empty_ip() -> None:
-    tracker = BehaviorTracker(SecurityConfig(enable_redis=False))
+    tracker = BehaviorTracker(SyncSecurityConfig(enable_redis=False))
     assert tracker.count_recent_rule_hits("", 300) == 0
 
 
@@ -196,7 +200,7 @@ def test_recent_count_is_zero_for_an_empty_ip() -> None:
     ids=["usage", "throttle", "global-usage", "usage-and-throttle"],
 )
 def test_recent_rule_hit_rides_on_the_behavior_redis_call(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
     route_rules: list[BehaviorRule],
     global_rules: list[BehaviorRule],
     redis_calls: int,
@@ -253,7 +257,7 @@ _PARITY_CASES: dict[str, tuple[list[BehaviorRule], list[float], float, int]] = {
 @pytest.mark.parametrize("backend", ["memory", "redis"])
 @pytest.mark.parametrize("case", list(_PARITY_CASES))
 def test_recent_count_mirrors_the_in_memory_sum_on_both_backends(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
     monkeypatch: pytest.MonkeyPatch,
     backend: str,
     case: str,
@@ -264,7 +268,7 @@ def test_recent_count_mirrors_the_in_memory_sum_on_both_backends(
         behavior_handler, "time", SimpleNamespace(time=lambda: clock[0])
     )
     redis_mgr = None
-    tracker = BehaviorTracker(SecurityConfig(enable_redis=False))
+    tracker = BehaviorTracker(SyncSecurityConfig(enable_redis=False))
     if backend == "redis":
         redis_mgr, tracker = _redis_tracker(security_config_redis)
     try:
@@ -282,9 +286,9 @@ def test_recent_count_mirrors_the_in_memory_sum_on_both_backends(
 
 @pytest.mark.parametrize("backend", ["memory", "redis"])
 def test_recent_count_refuses_a_window_beyond_300_seconds(
-    security_config_redis: SecurityConfig, backend: str
+    security_config_redis: SyncSecurityConfig, backend: str
 ) -> None:
-    tracker = BehaviorTracker(SecurityConfig(enable_redis=False))
+    tracker = BehaviorTracker(SyncSecurityConfig(enable_redis=False))
     if backend == "redis":
         tracker = BehaviorTracker(security_config_redis)
         tracker.initialize_redis(redis_handler(security_config_redis))
@@ -293,7 +297,7 @@ def test_recent_count_refuses_a_window_beyond_300_seconds(
 
 
 def test_rule_keys_and_the_index_live_at_least_300_seconds(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
     redis_mgr, tracker = _redis_tracker(security_config_redis)
     prefix = f"{security_config_redis.redis_prefix}behavior_usage:"

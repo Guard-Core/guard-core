@@ -1,6 +1,6 @@
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils.ip_extraction import _is_trusted_proxy, extract_client_ip
 from tests.test_sync.conftest import SyncMockGuardRequest
 
@@ -21,7 +21,7 @@ CLIENT = "203.0.113.9"
 def test_mapped_and_cased_peers_match_trusted_proxies(
     peer: str, proxies: list[str]
 ) -> None:
-    config = SecurityConfig(trusted_proxies=proxies, enable_redis=False)
+    config = SyncSecurityConfig(trusted_proxies=proxies, enable_redis=False)
     request = SyncMockGuardRequest(
         headers={"X-Forwarded-For": CLIENT}, client_host=peer
     )

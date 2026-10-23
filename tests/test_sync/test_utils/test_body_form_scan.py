@@ -1,4 +1,4 @@
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils.body_form_scan import (
     _multipart_part_entries,
     _multipart_text_parts,
@@ -40,7 +40,7 @@ def test_filename_with_semicolon_and_single_quote_still_detected() -> None:
     filename = f"filename=\"x=1;NOTE:'benign {_XSS}';y=2\""
     request = _multipart_request(_file_part_body(filename))
 
-    result = detect_penetration_attempt(request, SecurityConfig())
+    result = detect_penetration_attempt(request, SyncSecurityConfig())
 
     assert result.is_threat is True
 
@@ -49,7 +49,7 @@ def test_filename_with_pct_encoded_equals_and_semicolon_still_detected() -> None
     filename = 'filename%3D"x%3D1;cookie: "benign ' + _XSS + '";y%3D2"'
     request = _multipart_request(_file_part_body(filename))
 
-    result = detect_penetration_attempt(request, SecurityConfig())
+    result = detect_penetration_attempt(request, SyncSecurityConfig())
 
     assert result.is_threat is True
 
@@ -58,7 +58,7 @@ def test_filename_with_bare_newline_still_detected() -> None:
     filename = f"benign {_XSS}\nx=1\ny=2"
     request = _multipart_request(_file_part_body(filename))
 
-    result = detect_penetration_attempt(request, SecurityConfig())
+    result = detect_penetration_attempt(request, SyncSecurityConfig())
 
     assert result.is_threat is True
 
@@ -67,7 +67,7 @@ def test_filename_with_bare_cr_smuggled_header_payload_still_detected() -> None:
     filename = f"x=1\rcustom-secret-field: '{_XSS}'\ry=2"
     request = _multipart_request(_file_part_body(filename))
 
-    result = detect_penetration_attempt(request, SecurityConfig())
+    result = detect_penetration_attempt(request, SyncSecurityConfig())
 
     assert result.is_threat is True
 
@@ -75,7 +75,7 @@ def test_filename_with_bare_cr_smuggled_header_payload_still_detected() -> None:
 def test_well_formed_dangerous_filename_still_detected() -> None:
     request = _multipart_request(_file_part_body("shell.php"))
 
-    result = detect_penetration_attempt(request, SecurityConfig())
+    result = detect_penetration_attempt(request, SyncSecurityConfig())
 
     assert result.is_threat is True
 
@@ -83,7 +83,7 @@ def test_well_formed_dangerous_filename_still_detected() -> None:
 def test_well_formed_benign_filename_not_detected() -> None:
     request = _multipart_request(_file_part_body("report.pdf"))
 
-    result = detect_penetration_attempt(request, SecurityConfig())
+    result = detect_penetration_attempt(request, SyncSecurityConfig())
 
     assert result.is_threat is False
 
@@ -91,7 +91,7 @@ def test_well_formed_benign_filename_not_detected() -> None:
 def test_text_field_without_filename_still_detected_via_payload() -> None:
     request = _multipart_request(_text_part_body("note", _XSS))
 
-    result = detect_penetration_attempt(request, SecurityConfig())
+    result = detect_penetration_attempt(request, SyncSecurityConfig())
 
     assert result.is_threat is True
 

@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, Mock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.bypass.context import BypassContext
 from guard_core.sync.core.bypass.handler import BypassHandler
 from guard_core.sync.core.events.metrics import MetricsCollector
@@ -17,7 +17,7 @@ from tests.test_sync.conftest import (
 )
 
 
-def _handler(config: SecurityConfig) -> BypassHandler:
+def _handler(config: SyncSecurityConfig) -> BypassHandler:
     metrics = MagicMock(spec=MetricsCollector)
     metrics.collect_request_metrics = MagicMock()
     factory = ErrorResponseFactory(
@@ -45,7 +45,7 @@ def _handler(config: SecurityConfig) -> BypassHandler:
 
 
 def _bypass(
-    config: SecurityConfig, app_headers: dict[str, str] | None = None
+    config: SyncSecurityConfig, app_headers: dict[str, str] | None = None
 ) -> MockGuardResponse | None:
     downstream = MockGuardResponse("ok", 200, dict(app_headers or {}))
     call_next = MagicMock(return_value=downstream)
@@ -61,7 +61,7 @@ def _bypass(
 def test_a_bypass_all_route_is_answered_by_the_app_in_both_modes(
     passive_mode: bool,
 ) -> None:
-    config = SecurityConfig(enable_redis=False, passive_mode=passive_mode)
+    config = SyncSecurityConfig(enable_redis=False, passive_mode=passive_mode)
 
     response = _bypass(config)
 
@@ -73,7 +73,7 @@ def test_a_bypass_all_route_is_answered_by_the_app_in_both_modes(
 def test_a_bypass_all_response_carries_the_security_headers(
     passive_mode: bool,
 ) -> None:
-    config = SecurityConfig(enable_redis=False, passive_mode=passive_mode)
+    config = SyncSecurityConfig(enable_redis=False, passive_mode=passive_mode)
 
     response = _bypass(config)
 
@@ -84,7 +84,7 @@ def test_a_bypass_all_response_carries_the_security_headers(
 
 
 def test_a_bypass_all_response_keeps_the_apps_own_headers() -> None:
-    config = SecurityConfig(enable_redis=False)
+    config = SyncSecurityConfig(enable_redis=False)
 
     response = _bypass(config, {"x-frame-options": "DENY"})
 
@@ -93,7 +93,7 @@ def test_a_bypass_all_response_keeps_the_apps_own_headers() -> None:
 
 
 def test_a_bypass_all_response_gets_no_headers_when_they_are_off() -> None:
-    config = SecurityConfig(enable_redis=False, security_headers=None)
+    config = SyncSecurityConfig(enable_redis=False, security_headers=None)
 
     response = _bypass(config)
 
@@ -102,7 +102,7 @@ def test_a_bypass_all_response_gets_no_headers_when_they_are_off() -> None:
 
 
 def test_a_passive_bypass_all_route_runs_none_of_the_pipeline() -> None:
-    config = SecurityConfig(enable_redis=False, passive_mode=True)
+    config = SyncSecurityConfig(enable_redis=False, passive_mode=True)
     handler = _handler(config)
     downstream = MockGuardResponse("ok", 200)
     call_next = MagicMock(return_value=downstream)

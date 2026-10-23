@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.cloud_handler import (
     _AZURE_DOWNLOAD_MAX_ELAPSED_SECONDS,
     _download_azure_service_tags,
@@ -850,7 +850,7 @@ def test_fetch_azure_ip_ranges_checks_elapsed_before_each_attempt(
 
 
 def test_cloud_ip_redis_caching(
-    security_config_redis_isolated_prefix: SecurityConfig,
+    security_config_redis_isolated_prefix: SyncSecurityConfig,
 ) -> None:
     with (
         patch(
@@ -908,7 +908,7 @@ def test_cloud_ip_redis_caching(
 
 
 def test_cloud_ip_redis_cache_hit(
-    security_config_redis_isolated_prefix: SecurityConfig,
+    security_config_redis_isolated_prefix: SyncSecurityConfig,
 ) -> None:
     import json as _json
 
@@ -929,7 +929,7 @@ def test_cloud_ip_redis_cache_hit(
 
 
 def test_cloud_ip_redis_sync_async(
-    security_config_redis_isolated_prefix: SecurityConfig,
+    security_config_redis_isolated_prefix: SyncSecurityConfig,
 ) -> None:
     with (
         patch(
@@ -975,7 +975,7 @@ def test_cloud_ip_redis_sync_async(
 
 
 def test_cloud_ip_redis_error_handling(
-    security_config_redis_isolated_prefix: SecurityConfig,
+    security_config_redis_isolated_prefix: SyncSecurityConfig,
 ) -> None:
     with patch(
         "guard_core.sync.handlers.cloud_handler.fetch_aws_ip_ranges",
@@ -1225,7 +1225,7 @@ def test_new_providers_wired_into_refresh_async_store_path() -> None:
 
 
 def test_new_providers_wired_into_refresh_via_redis_handler(
-    security_config_redis_isolated_prefix: SecurityConfig,
+    security_config_redis_isolated_prefix: SyncSecurityConfig,
 ) -> None:
     redis_handler = RedisManager(security_config_redis_isolated_prefix)
     redis_handler.initialize()
@@ -1303,7 +1303,7 @@ def test_refresh_via_redis_handler_falls_back_when_redis_missing() -> None:
 
 
 def test_refresh_via_redis_handler_records_empty_on_fetch_error(
-    security_config_redis_isolated_prefix: SecurityConfig,
+    security_config_redis_isolated_prefix: SyncSecurityConfig,
 ) -> None:
     redis_handler = RedisManager(security_config_redis_isolated_prefix)
     redis_handler.initialize()
@@ -1396,7 +1396,7 @@ def test_fetch_gcp_ip_ranges_skips_unknown_prefix_keys(
 
 
 def test_initialize_redis_replaces_in_memory_store(
-    security_config_redis_isolated_prefix: SecurityConfig,
+    security_config_redis_isolated_prefix: SyncSecurityConfig,
 ) -> None:
     from guard_core.sync.handlers.cloud_ip_stores import (
         InMemoryCloudIpStore,
@@ -1453,7 +1453,7 @@ def test_initialize_agent_records_handler() -> None:
 
 
 def test_initialize_redis_keeps_existing_redis_store(
-    security_config_redis_isolated_prefix: SecurityConfig,
+    security_config_redis_isolated_prefix: SyncSecurityConfig,
 ) -> None:
     from guard_core.sync.handlers.cloud_ip_stores import (
         InMemoryCloudIpStore,
@@ -1503,7 +1503,7 @@ def test_initialize_redis_keeps_existing_redis_store(
 
 
 def test_refresh_via_redis_handler_handles_empty_fetch(
-    security_config_redis_isolated_prefix: SecurityConfig,
+    security_config_redis_isolated_prefix: SyncSecurityConfig,
 ) -> None:
     redis_handler = RedisManager(security_config_redis_isolated_prefix)
     redis_handler.initialize()
@@ -1549,7 +1549,7 @@ def test_cloud_manager_returns_existing_singleton() -> None:
 
 
 def test_refresh_via_redis_handler_keeps_existing_provider_state(
-    security_config_redis_isolated_prefix: SecurityConfig,
+    security_config_redis_isolated_prefix: SyncSecurityConfig,
 ) -> None:
     redis_handler = RedisManager(security_config_redis_isolated_prefix)
     redis_handler.initialize()

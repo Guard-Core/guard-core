@@ -2,7 +2,7 @@ import logging
 from typing import Any
 from unittest.mock import MagicMock
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.behavioral.context import BehavioralContext
 from guard_core.sync.core.behavioral.processor import BehavioralProcessor
 from guard_core.sync.decorators.base import RouteConfig
@@ -21,7 +21,7 @@ class _Agent:
 
 
 def _processor() -> tuple[BehavioralProcessor, _Agent]:
-    config = SecurityConfig(enable_redis=False)
+    config = SyncSecurityConfig(enable_redis=False)
     event_bus = MagicMock()
     event_bus.send_middleware_event = MagicMock()
     tracker = BehaviorTracker(config)

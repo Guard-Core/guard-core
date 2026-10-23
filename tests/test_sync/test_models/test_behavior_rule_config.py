@@ -4,7 +4,7 @@ import pytest
 
 from guard_core.models import (
     BehaviorRuleConfig,
-    SecurityConfig,
+    SyncSecurityConfig,
     return_pattern_requires_response_body,
 )
 
@@ -76,11 +76,11 @@ def test_behavior_rule_config_rejects_non_positive_ban_duration() -> None:
 
 
 def test_security_config_global_behavior_rules_default_empty() -> None:
-    assert SecurityConfig().global_behavior_rules == ()
+    assert SyncSecurityConfig().global_behavior_rules == ()
 
 
 def test_security_config_accepts_global_rules() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         global_behavior_rules=[
             BehaviorRuleConfig(
                 rule_type="return_pattern",
@@ -98,11 +98,11 @@ def test_security_config_accepts_global_rules() -> None:
 
 
 def test_behavior_scan_response_body_defaults_false() -> None:
-    assert SecurityConfig().behavior_scan_response_body is False
+    assert SyncSecurityConfig().behavior_scan_response_body is False
 
 
 def test_behavior_max_response_body_inspect_bytes_default() -> None:
-    assert SecurityConfig().behavior_max_response_body_inspect_bytes == 262144
+    assert SyncSecurityConfig().behavior_max_response_body_inspect_bytes == 262144
 
 
 @pytest.mark.parametrize(
@@ -113,7 +113,7 @@ def test_global_body_return_pattern_rejected_when_body_scan_disabled(
     pattern: str,
 ) -> None:
     with pytest.raises(ValueError, match="behavior_scan_response_body"):
-        SecurityConfig(
+        SyncSecurityConfig(
             global_behavior_rules=[
                 BehaviorRuleConfig(
                     rule_type="return_pattern", threshold=5, pattern=pattern
@@ -129,7 +129,7 @@ def test_global_body_return_pattern_rejected_when_body_scan_disabled(
 def test_global_body_return_pattern_accepted_when_body_scan_enabled(
     pattern: str,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         behavior_scan_response_body=True,
         global_behavior_rules=[
             BehaviorRuleConfig(rule_type="return_pattern", threshold=5, pattern=pattern)
@@ -139,7 +139,7 @@ def test_global_body_return_pattern_accepted_when_body_scan_enabled(
 
 
 def test_global_status_return_pattern_accepted_when_body_scan_disabled() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         global_behavior_rules=[
             BehaviorRuleConfig(
                 rule_type="return_pattern", threshold=5, pattern="status:404"
@@ -150,7 +150,7 @@ def test_global_status_return_pattern_accepted_when_body_scan_disabled() -> None
 
 
 def test_global_return_pattern_rule_without_pattern_ignored_by_validator() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         global_behavior_rules=[
             BehaviorRuleConfig(rule_type="return_pattern", threshold=5),
         ]
@@ -159,7 +159,7 @@ def test_global_return_pattern_rule_without_pattern_ignored_by_validator() -> No
 
 
 def test_global_usage_rule_ignored_by_body_scan_validator() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         global_behavior_rules=[
             BehaviorRuleConfig(rule_type="usage", threshold=5),
             BehaviorRuleConfig(rule_type="frequency", threshold=5),
@@ -169,14 +169,14 @@ def test_global_usage_rule_ignored_by_body_scan_validator() -> None:
 
 
 def test_global_behavior_rules_is_stored_as_tuple() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         global_behavior_rules=[BehaviorRuleConfig(rule_type="usage", threshold=5)]
     )
     assert isinstance(config.global_behavior_rules, tuple)
 
 
 def test_global_behavior_rules_append_is_rejected_outright() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     rules: Any = config.global_behavior_rules
 
     with pytest.raises(AttributeError):
@@ -184,7 +184,7 @@ def test_global_behavior_rules_append_is_rejected_outright() -> None:
 
 
 def test_global_rules_assignment_rejects_body_pattern_when_scan_off() -> None:
-    config = SecurityConfig(behavior_scan_response_body=False)
+    config = SyncSecurityConfig(behavior_scan_response_body=False)
 
     with pytest.raises(ValueError, match="behavior_scan_response_body"):
         config.global_behavior_rules = (
@@ -195,7 +195,7 @@ def test_global_rules_assignment_rejects_body_pattern_when_scan_off() -> None:
 
 
 def test_global_rules_assignment_accepts_body_pattern_when_scan_on() -> None:
-    config = SecurityConfig(behavior_scan_response_body=True)
+    config = SyncSecurityConfig(behavior_scan_response_body=True)
 
     config.global_behavior_rules = (
         BehaviorRuleConfig(rule_type="return_pattern", threshold=1, pattern="json:x"),
@@ -205,7 +205,7 @@ def test_global_rules_assignment_accepts_body_pattern_when_scan_on() -> None:
 
 
 def test_global_rules_assignment_accepts_status_pattern_when_scan_off() -> None:
-    config = SecurityConfig(behavior_scan_response_body=False)
+    config = SyncSecurityConfig(behavior_scan_response_body=False)
 
     config.global_behavior_rules = (
         BehaviorRuleConfig(
@@ -217,7 +217,7 @@ def test_global_rules_assignment_accepts_status_pattern_when_scan_off() -> None:
 
 
 def test_global_rules_assignment_accepts_usage_rule_when_scan_off() -> None:
-    config = SecurityConfig(behavior_scan_response_body=False)
+    config = SyncSecurityConfig(behavior_scan_response_body=False)
 
     config.global_behavior_rules = (BehaviorRuleConfig(rule_type="usage", threshold=1),)
 
@@ -225,7 +225,7 @@ def test_global_rules_assignment_accepts_usage_rule_when_scan_off() -> None:
 
 
 def test_global_rules_assignment_accepts_return_pattern_without_pattern() -> None:
-    config = SecurityConfig(behavior_scan_response_body=False)
+    config = SyncSecurityConfig(behavior_scan_response_body=False)
 
     config.global_behavior_rules = (
         BehaviorRuleConfig(rule_type="return_pattern", threshold=1),
@@ -235,7 +235,7 @@ def test_global_rules_assignment_accepts_return_pattern_without_pattern() -> Non
 
 
 def test_global_rules_assignment_rejection_leaves_state_unchanged() -> None:
-    config = SecurityConfig(behavior_scan_response_body=False)
+    config = SyncSecurityConfig(behavior_scan_response_body=False)
     revision_before = config.revision
 
     with pytest.raises(ValueError):
@@ -250,7 +250,7 @@ def test_global_rules_assignment_rejection_leaves_state_unchanged() -> None:
 
 
 def test_scan_flag_assignment_rejects_disabling_with_body_pattern_rules() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         behavior_scan_response_body=True,
         global_behavior_rules=[
             BehaviorRuleConfig(
@@ -264,7 +264,7 @@ def test_scan_flag_assignment_rejects_disabling_with_body_pattern_rules() -> Non
 
 
 def test_scan_flag_assignment_accepts_disabling_without_body_pattern_rules() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         behavior_scan_response_body=True,
         global_behavior_rules=[
             BehaviorRuleConfig(
@@ -280,7 +280,7 @@ def test_scan_flag_assignment_accepts_disabling_without_body_pattern_rules() -> 
 
 
 def test_behavior_scan_response_body_runtime_assignment_accepts_enabling() -> None:
-    config = SecurityConfig(behavior_scan_response_body=False)
+    config = SyncSecurityConfig(behavior_scan_response_body=False)
 
     config.behavior_scan_response_body = True
 
@@ -288,7 +288,7 @@ def test_behavior_scan_response_body_runtime_assignment_accepts_enabling() -> No
 
 
 def test_scan_flag_assignment_rejection_leaves_state_unchanged() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         behavior_scan_response_body=True,
         global_behavior_rules=[
             BehaviorRuleConfig(
@@ -306,7 +306,7 @@ def test_scan_flag_assignment_rejection_leaves_state_unchanged() -> None:
 
 
 def test_model_copy_update_rejects_body_pattern_rule_when_scan_off() -> None:
-    base = SecurityConfig(behavior_scan_response_body=False)
+    base = SyncSecurityConfig(behavior_scan_response_body=False)
 
     with pytest.raises(ValueError, match="behavior_scan_response_body"):
         base.model_copy(
@@ -321,7 +321,7 @@ def test_model_copy_update_rejects_body_pattern_rule_when_scan_off() -> None:
 
 
 def test_model_copy_update_accepts_usage_global_behavior_rule() -> None:
-    base = SecurityConfig()
+    base = SyncSecurityConfig()
 
     copied = base.model_copy(
         update={
@@ -335,7 +335,7 @@ def test_model_copy_update_accepts_usage_global_behavior_rule() -> None:
 
 
 def test_model_copy_update_accepts_return_pattern_rule_without_pattern() -> None:
-    base = SecurityConfig()
+    base = SyncSecurityConfig()
 
     copied = base.model_copy(
         update={
@@ -349,7 +349,7 @@ def test_model_copy_update_accepts_return_pattern_rule_without_pattern() -> None
 
 
 def test_model_copy_update_accepts_status_pattern_rule_when_scan_off() -> None:
-    base = SecurityConfig(behavior_scan_response_body=False)
+    base = SyncSecurityConfig(behavior_scan_response_body=False)
 
     copied = base.model_copy(
         update={
@@ -365,7 +365,7 @@ def test_model_copy_update_accepts_status_pattern_rule_when_scan_off() -> None:
 
 
 def test_model_copy_update_disabling_scan_rejects_existing_body_pattern_rules() -> None:
-    base = SecurityConfig(
+    base = SyncSecurityConfig(
         behavior_scan_response_body=True,
         global_behavior_rules=[
             BehaviorRuleConfig(
@@ -381,7 +381,7 @@ def test_model_copy_update_disabling_scan_rejects_existing_body_pattern_rules() 
 
 
 def test_model_copy_update_without_global_behavior_fields_skips_revalidation() -> None:
-    base = SecurityConfig(
+    base = SyncSecurityConfig(
         behavior_scan_response_body=True,
         global_behavior_rules=[
             BehaviorRuleConfig(

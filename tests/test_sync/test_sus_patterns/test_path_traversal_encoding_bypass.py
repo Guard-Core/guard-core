@@ -2,7 +2,7 @@ from collections.abc import Generator
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.suspatterns_handler import (
     _CTX_PATH_TRAVERSAL,
     _PATH_TRAVERSAL_DECODED_SHAPE_RE,
@@ -27,7 +27,7 @@ def manager() -> Generator[SusPatternsManager, None, None]:
 
     SusPatternsManager._instance = None
     SusPatternsManager._config = None
-    new_instance = SusPatternsManager(SecurityConfig())
+    new_instance = SusPatternsManager(SyncSecurityConfig())
 
     yield new_instance
 
@@ -312,10 +312,10 @@ def test_named_matrix_semicolon_evasion_fires_dir_traversal_through_entry_point(
     original_config = SusPatternsManager._config
     SusPatternsManager._instance = None
     SusPatternsManager._config = None
-    SusPatternsManager(SecurityConfig())
+    SusPatternsManager(SyncSecurityConfig())
     try:
         request = SyncMockGuardRequest(path=path, method="GET")
-        result = detect_penetration_attempt(request, SecurityConfig())
+        result = detect_penetration_attempt(request, SyncSecurityConfig())
         assert result.is_threat is True
         assert "dir_traversal" in result.threat_categories
     finally:
@@ -328,10 +328,10 @@ def test_empty_matrix_semicolon_evasion_still_fires_through_entry_point() -> Non
     original_config = SusPatternsManager._config
     SusPatternsManager._instance = None
     SusPatternsManager._config = None
-    SusPatternsManager(SecurityConfig())
+    SusPatternsManager(SyncSecurityConfig())
     try:
         request = SyncMockGuardRequest(path="..;/..;/etc/passwd", method="GET")
-        result = detect_penetration_attempt(request, SecurityConfig())
+        result = detect_penetration_attempt(request, SyncSecurityConfig())
         assert result.is_threat is True
         assert "dir_traversal" in result.threat_categories
     finally:

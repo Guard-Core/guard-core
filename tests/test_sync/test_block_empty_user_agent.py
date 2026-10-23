@@ -2,7 +2,7 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.factory import build_default_pipeline
 from guard_core.sync.decorators import SecurityDecorator
 from tests.test_sync.conftest import SyncMockGuardRequest
@@ -12,7 +12,7 @@ from tests.test_sync.test_core.conftest import build_middleware
 def _outcome(
     headers: dict[str, str], **settings: Any
 ) -> tuple[int | None, list[dict[str, Any]]]:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False,
         enable_penetration_detection=False,
         enable_rate_limiting=False,
@@ -31,7 +31,7 @@ def _outcome(
 
 
 def test_the_flag_defaults_to_off() -> None:
-    assert SecurityConfig(enable_redis=False).block_empty_user_agent is False
+    assert SyncSecurityConfig(enable_redis=False).block_empty_user_agent is False
 
 
 def test_an_absent_user_agent_is_allowed_by_default() -> None:
@@ -98,7 +98,7 @@ def test_the_denial_counts_as_a_user_agent_strike() -> None:
     from guard_core.sync.handlers.ipban_handler import ip_ban_manager
 
     ip_ban_manager.banned_ips.clear()
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False,
         enable_penetration_detection=False,
         enable_rate_limiting=False,

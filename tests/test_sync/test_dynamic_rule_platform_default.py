@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from guard_core._dynamic_rules import dump_last_known_rules_snapshot
-from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.models import DynamicRules, SyncSecurityConfig
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
 
 
@@ -41,8 +41,10 @@ def test_engine_model_tolerates_unknown_fields() -> None:
     assert dump_last_known_rules_snapshot(rules)
 
 
-def _manager(**config_kwargs: Any) -> tuple[DynamicRuleManager, SecurityConfig, Any]:
-    config = SecurityConfig(
+def _manager(
+    **config_kwargs: Any,
+) -> tuple[DynamicRuleManager, SyncSecurityConfig, Any]:
+    config = SyncSecurityConfig(
         enable_redis=False,
         enable_agent=True,
         agent_api_key="test-api-key",

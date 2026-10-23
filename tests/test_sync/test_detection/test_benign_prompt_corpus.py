@@ -1,6 +1,6 @@
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.utils import detect_penetration_attempt
 from tests.test_detection.benign_prompt_corpus import BENIGN_PROMPTS
 from tests.test_sync.conftest import SyncMockGuardRequest
@@ -20,6 +20,6 @@ def test_prompts_and_code_questions_stay_clean_in_a_json_body(
         body_content=body,
     )
 
-    result = detect_penetration_attempt(request, SecurityConfig())
+    result = detect_penetration_attempt(request, SyncSecurityConfig())
 
     assert result.is_threat is False, result.threat_categories

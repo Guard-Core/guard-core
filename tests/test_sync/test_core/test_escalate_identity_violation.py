@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from guard_core.models import SecurityConfig, ThreatBanConfig
+from guard_core.models import SyncSecurityConfig, ThreatBanConfig
 from guard_core.sync.core.checks.helpers import escalate_identity_violation
 from guard_core.sync.detection_result import DetectionResult
 
@@ -13,7 +13,7 @@ def _make_middleware(
     cap: int = 10_000,
 ) -> Any:
     mw = MagicMock()
-    mw.config = SecurityConfig(enable_redis=False, ban_counters_max_tracked_ips=cap)
+    mw.config = SyncSecurityConfig(enable_redis=False, ban_counters_max_tracked_ips=cap)
     mw.suspicious_request_counts = counts if counts is not None else {}
     mw.route_resolver = MagicMock()
     mw.route_resolver.should_bypass_check = lambda *_: False
@@ -54,7 +54,7 @@ def _patch_detect(
 def test_whitelisted_ip_is_never_escalated(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(enable_ip_banning=True, auto_ban_threshold=1)
+    config = SyncSecurityConfig(enable_ip_banning=True, auto_ban_threshold=1)
     mw = _make_middleware()
     ban = MagicMock()
     _patch_detect(monkeypatch)
@@ -78,7 +78,7 @@ def test_whitelisted_ip_is_never_escalated(
 
 
 def test_falsy_client_ip_is_noop(monkeypatch: pytest.MonkeyPatch) -> None:
-    config = SecurityConfig(enable_ip_banning=True, auto_ban_threshold=1)
+    config = SyncSecurityConfig(enable_ip_banning=True, auto_ban_threshold=1)
     mw = _make_middleware()
     ban = MagicMock()
     _patch_detect(monkeypatch)
@@ -103,7 +103,7 @@ def test_falsy_client_ip_is_noop(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_no_threat_no_counter_change_no_ban(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(enable_ip_banning=True, auto_ban_threshold=1)
+    config = SyncSecurityConfig(enable_ip_banning=True, auto_ban_threshold=1)
     mw = _make_middleware()
     ban = MagicMock()
     _patch_detect(monkeypatch, is_threat=False, trigger_info="not_enabled")
@@ -127,7 +127,7 @@ def test_no_threat_no_counter_change_no_ban(
 
 
 def test_disabled_by_decorator_is_noop(monkeypatch: pytest.MonkeyPatch) -> None:
-    config = SecurityConfig(enable_ip_banning=True, auto_ban_threshold=1)
+    config = SyncSecurityConfig(enable_ip_banning=True, auto_ban_threshold=1)
     mw = _make_middleware()
     ban = MagicMock()
     _patch_detect(monkeypatch, is_threat=False, trigger_info="disabled_by_decorator")
@@ -156,7 +156,7 @@ def test_never_reads_the_detection_pipeline_when_not_configured(
     monkeypatch.setattr(
         "guard_core.sync.core.checks.helpers.detect_penetration_attempt", detect_mock
     )
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_ip_banning=True, auto_ban_threshold=1, enable_penetration_detection=False
     )
     mw = _make_middleware()
@@ -183,7 +183,7 @@ def test_never_reads_the_detection_pipeline_when_not_configured(
 def test_increments_the_real_detected_threat_category_not_the_synthetic_label(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(enable_ip_banning=False)
+    config = SyncSecurityConfig(enable_ip_banning=False)
     mw = _make_middleware()
     ban = MagicMock()
     _patch_detect(monkeypatch, threat_categories=["xss"])
@@ -208,7 +208,7 @@ def test_increments_the_real_detected_threat_category_not_the_synthetic_label(
 def test_increments_every_real_detected_category_in_one_call(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(enable_ip_banning=False)
+    config = SyncSecurityConfig(enable_ip_banning=False)
     mw = _make_middleware()
     ban = MagicMock()
     _patch_detect(monkeypatch, threat_categories=["xss", "sqli"])
@@ -232,7 +232,7 @@ def test_increments_every_real_detected_category_in_one_call(
 def test_no_detected_category_falls_back_to_uncategorized(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(enable_ip_banning=False)
+    config = SyncSecurityConfig(enable_ip_banning=False)
     mw = _make_middleware()
     ban = MagicMock()
     _patch_detect(monkeypatch, threat_categories=[])
@@ -254,7 +254,7 @@ def test_no_detected_category_falls_back_to_uncategorized(
 
 
 def test_ip_banning_disabled_no_ban(monkeypatch: pytest.MonkeyPatch) -> None:
-    config = SecurityConfig(enable_ip_banning=False, auto_ban_threshold=1)
+    config = SyncSecurityConfig(enable_ip_banning=False, auto_ban_threshold=1)
     mw = _make_middleware()
     ban = MagicMock()
     _patch_detect(monkeypatch)
@@ -277,7 +277,7 @@ def test_ip_banning_disabled_no_ban(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_below_flat_threshold_no_ban(monkeypatch: pytest.MonkeyPatch) -> None:
-    config = SecurityConfig(enable_ip_banning=True, auto_ban_threshold=5)
+    config = SyncSecurityConfig(enable_ip_banning=True, auto_ban_threshold=5)
     mw = _make_middleware()
     ban = MagicMock()
     _patch_detect(monkeypatch)
@@ -302,7 +302,7 @@ def test_below_flat_threshold_no_ban(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_flat_threshold_met_after_repeated_violations(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_ip_banning=True, auto_ban_threshold=2, auto_ban_duration=300
     )
     mw = _make_middleware()
@@ -343,7 +343,7 @@ def test_flat_threshold_met_after_repeated_violations(
 def test_first_violation_bans_immediately_when_threshold_is_one(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_ip_banning=True, auto_ban_threshold=1, auto_ban_duration=60
     )
     mw = _make_middleware()
@@ -371,7 +371,7 @@ def test_first_violation_bans_immediately_when_threshold_is_one(
 def test_per_category_ban_config_overrides_a_high_flat_threshold(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_ip_banning=True,
         auto_ban_threshold=1000,
         threat_ban_config={"xss": ThreatBanConfig(threshold=1, duration=99999)},
@@ -402,7 +402,7 @@ def test_per_category_ban_config_overrides_a_high_flat_threshold(
 def test_per_category_ban_takes_priority_over_flat_ban(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_ip_banning=True,
         auto_ban_threshold=1,
         auto_ban_duration=60,
@@ -431,7 +431,7 @@ def test_per_category_ban_takes_priority_over_flat_ban(
 
 
 def test_muted_check_logs_suppresses_log(monkeypatch: pytest.MonkeyPatch) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_ip_banning=True, auto_ban_threshold=1, auto_ban_duration=60
     )
     mw = _make_middleware()
@@ -461,7 +461,7 @@ def test_muted_check_logs_suppresses_log(monkeypatch: pytest.MonkeyPatch) -> Non
 def test_penetration_attempt_event_emitted_when_banned(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_ip_banning=True, auto_ban_threshold=1, auto_ban_duration=60
     )
     mw = _make_middleware()
@@ -490,7 +490,7 @@ def test_penetration_attempt_event_emitted_when_banned(
 def test_penetration_attempt_event_emitted_when_not_banned(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(enable_ip_banning=False)
+    config = SyncSecurityConfig(enable_ip_banning=False)
     mw = _make_middleware()
     ban = MagicMock()
     _patch_detect(monkeypatch)
@@ -516,7 +516,7 @@ def test_penetration_attempt_event_emitted_when_not_banned(
 def test_penetration_attempt_event_still_carries_the_synthetic_identity_label(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(enable_ip_banning=False)
+    config = SyncSecurityConfig(enable_ip_banning=False)
     mw = _make_middleware()
     ban = MagicMock()
     _patch_detect(monkeypatch, threat_categories=["xss"])
@@ -542,7 +542,7 @@ def test_penetration_attempt_event_still_carries_the_synthetic_identity_label(
 def test_ban_failure_is_swallowed_logged_and_made_visible(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_ip_banning=True, auto_ban_threshold=1, auto_ban_duration=300
     )
     mw = _make_middleware()
@@ -582,7 +582,7 @@ def test_ban_failure_is_swallowed_logged_and_made_visible(
 def test_redis_error_during_ban_is_swallowed_logged_and_made_visible(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_ip_banning=True, auto_ban_threshold=1, auto_ban_duration=300
     )
     mw = _make_middleware()
@@ -613,7 +613,7 @@ def test_redis_error_during_ban_is_swallowed_logged_and_made_visible(
 def test_ban_and_event_bus_both_failing_does_not_raise(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_ip_banning=True, auto_ban_threshold=1, auto_ban_duration=300
     )
     mw = _make_middleware()
@@ -651,7 +651,7 @@ def test_ban_and_event_bus_both_failing_does_not_raise(
 def test_a_broken_log_sink_never_escapes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_ip_banning=True, auto_ban_threshold=1, auto_ban_duration=300
     )
     mw = MagicMock()
@@ -687,7 +687,7 @@ def test_a_broken_log_sink_never_escapes(
 def test_bounds_suspicious_request_counts_size(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(enable_ip_banning=False)
+    config = SyncSecurityConfig(enable_ip_banning=False)
     mw = _make_middleware(
         {"1.1.1.1": {"ip_restriction": 1}, "2.2.2.2": {"x": 1}}, cap=2
     )
@@ -717,7 +717,7 @@ def test_touching_an_entry_protects_it_from_a_fresh_ip_flood(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     cap = 20
-    config = SecurityConfig(enable_ip_banning=False)
+    config = SyncSecurityConfig(enable_ip_banning=False)
     mw = _make_middleware(cap=cap)
     ban = MagicMock()
     _patch_detect(monkeypatch)
@@ -755,7 +755,7 @@ def test_touching_an_entry_protects_it_from_a_fresh_ip_flood(
 def test_untouched_entry_is_the_first_evicted_when_over_capacity(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(enable_ip_banning=False)
+    config = SyncSecurityConfig(enable_ip_banning=False)
     mw = _make_middleware(cap=3)
     ban = MagicMock()
     _patch_detect(monkeypatch)

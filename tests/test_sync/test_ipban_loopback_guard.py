@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.ipban_handler import IPBanManager
 
 TRUSTED_PROXY_EXACT = "203.0.113.10"
@@ -19,8 +19,8 @@ def reset_singleton() -> Generator[None, None, None]:
     IPBanManager._instance = None
 
 
-def _config() -> SecurityConfig:
-    return SecurityConfig(trusted_proxies=(TRUSTED_PROXY_EXACT, TRUSTED_PROXY_CIDR))
+def _config() -> SyncSecurityConfig:
+    return SyncSecurityConfig(trusted_proxies=(TRUSTED_PROXY_EXACT, TRUSTED_PROXY_CIDR))
 
 
 def _manager_with_config() -> IPBanManager:

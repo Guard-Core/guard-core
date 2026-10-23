@@ -2,14 +2,14 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.cors_handler import CorsHandler
 from guard_core.sync.handlers.security_headers_handler import security_headers_manager
 
 ORIGIN = "https://app.example.com"
 
 
-def _config(**overrides: Any) -> SecurityConfig:
+def _config(**overrides: Any) -> SyncSecurityConfig:
     fields: dict[str, Any] = {
         "enable_redis": False,
         "enable_cors": True,
@@ -18,7 +18,7 @@ def _config(**overrides: Any) -> SecurityConfig:
         "cors_allow_headers": ["X-Custom"],
     }
     fields.update(overrides)
-    return SecurityConfig(**fields)
+    return SyncSecurityConfig(**fields)
 
 
 def _preflight(handler: CorsHandler, requested: str = "X-Custom") -> Any:

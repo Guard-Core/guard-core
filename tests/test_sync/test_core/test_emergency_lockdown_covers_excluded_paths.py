@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.models import DynamicRules, SyncSecurityConfig
 from guard_core.sync.core.checks.factory import build_default_pipeline
 from guard_core.sync.core.checks.implementations.emergency_mode import (
     EmergencyModeCheck,
@@ -21,7 +21,7 @@ OUTSIDER = "203.0.113.5"
 OPERATOR = "198.51.100.7"
 
 
-def _config(**overrides: Any) -> SecurityConfig:
+def _config(**overrides: Any) -> SyncSecurityConfig:
     fields: dict[str, Any] = {
         "enable_redis": False,
         "emergency_mode": True,
@@ -29,10 +29,10 @@ def _config(**overrides: Any) -> SecurityConfig:
         "exclude_paths": ["/ping", "/docs", "/openapi.json"],
     }
     fields.update(overrides)
-    return SecurityConfig(**fields)
+    return SyncSecurityConfig(**fields)
 
 
-def _middleware(config: SecurityConfig) -> MagicMock:
+def _middleware(config: SyncSecurityConfig) -> MagicMock:
     middleware = MagicMock()
     middleware.config = config
     middleware.logger = _LOGGER
@@ -51,7 +51,7 @@ def _middleware(config: SecurityConfig) -> MagicMock:
 
 
 def _status(
-    config: SecurityConfig, path: str, ip: str, *, excluded: bool = True
+    config: SyncSecurityConfig, path: str, ip: str, *, excluded: bool = True
 ) -> int | None:
     middleware = _middleware(config)
     pipeline = (
@@ -112,7 +112,7 @@ def test_passive_mode_logs_and_admits_on_an_excluded_path() -> None:
 
 
 def test_the_exempt_list_defaults_to_empty() -> None:
-    assert SecurityConfig().emergency_exempt_paths == []
+    assert SyncSecurityConfig().emergency_exempt_paths == []
 
 
 def _warnings(caplog: pytest.LogCaptureFixture) -> list[str]:
@@ -158,7 +158,7 @@ def test_a_dynamic_emergency_rule_names_the_unexempted_probe_path(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     DynamicRuleManager._instance = None
-    config = SecurityConfig(enable_redis=False, exclude_paths=["/ping", "/docs"])
+    config = SyncSecurityConfig(enable_redis=False, exclude_paths=["/ping", "/docs"])
     manager = DynamicRuleManager(config)
     rules = DynamicRules(
         rule_id="R",
@@ -180,11 +180,11 @@ def test_a_dynamic_emergency_rule_names_the_unexempted_probe_path(
 @pytest.mark.parametrize("entry", ["/", "//", "/%2f", "/%ff"])
 def test_an_entry_that_exempts_everything_or_nothing_is_rejected(entry: str) -> None:
     with pytest.raises(ValueError, match="emergency_exempt_paths"):
-        SecurityConfig(enable_redis=False, emergency_exempt_paths=[entry])
+        SyncSecurityConfig(enable_redis=False, emergency_exempt_paths=[entry])
 
 
 def test_a_non_list_is_rejected_on_assignment() -> None:
-    config = SecurityConfig(enable_redis=False)
+    config = SyncSecurityConfig(enable_redis=False)
     field = "emergency_exempt_paths"
 
     with pytest.raises(ValueError, match="emergency_exempt_paths must be a list"):

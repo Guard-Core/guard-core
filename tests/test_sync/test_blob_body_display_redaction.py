@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
 from guard_core.sync.utils import detect_penetration_attempt
 from tests.test_sync.conftest import SyncMockGuardRequest
@@ -16,7 +16,7 @@ _SECRET = "SECRET-BLOB-BODY"
 
 @pytest.fixture(autouse=True)
 def _force_enhanced_detection_singleton() -> None:
-    sus_patterns_handler.configure(SecurityConfig())
+    sus_patterns_handler.configure(SyncSecurityConfig())
 
 
 @pytest.fixture
@@ -65,7 +65,7 @@ def test_text_plain_pair_body_redacts_sensitive_pair_keeps_benign_pair(
     caplog: pytest.LogCaptureFixture,
     mock_agent: MagicMock,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     body = f"password={_SECRET}&note=<script>alert(1)</script>".encode()
     request = _blob_request(body, "text/plain")
 
@@ -87,7 +87,7 @@ def test_text_plain_pair_body_redacts_sensitive_pair_keeps_benign_pair(
 def test_missing_content_type_pair_body_still_redacted(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     body = f"password={_SECRET}&note=<script>alert(1)</script>".encode()
     request = _blob_request(body, None)
 
@@ -104,7 +104,7 @@ def test_missing_content_type_pair_body_still_redacted(
 def test_xml_sensitive_element_redacted_non_sensitive_element_kept(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     body = f"<user>bob</user><password>{_SECRET}</password><script>alert(1)</script>"
     request = _blob_request(body.encode(), "application/xml")
 
@@ -122,7 +122,7 @@ def test_xml_sensitive_element_redacted_non_sensitive_element_kept(
 def test_text_body_valid_json_redacted_like_json_content_type(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     body = json.dumps({"password": _SECRET, "note": "<script>alert(1)</script>"})
     request = _blob_request(body.encode(), "text/plain")
 
@@ -140,7 +140,7 @@ def test_text_body_valid_json_redacted_like_json_content_type(
 def test_custom_sensitive_body_field_only_pair_redacted(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(log_sensitive_body_fields={"custom_secret_field"})
+    config = SyncSecurityConfig(log_sensitive_body_fields={"custom_secret_field"})
     body = f"custom_secret_field={_SECRET}&note=<script>alert(1)</script>".encode()
     request = _blob_request(body, "text/plain")
 
@@ -157,7 +157,7 @@ def test_custom_sensitive_body_field_only_pair_redacted(
 def test_blob_body_all_pair_separators_redacted(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     body = f"password={_SECRET}&a=1;b=2?c=3\nnote=<script>alert(1)</script>".encode()
     request = _blob_request(body, "text/plain")
 
@@ -175,7 +175,7 @@ def test_blob_body_all_pair_separators_redacted(
 def test_non_sensitive_blob_body_shown_verbatim(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     body = b"comment=<script>alert(1)</script>"
     request = _blob_request(body, "text/plain")
 

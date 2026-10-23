@@ -1,6 +1,6 @@
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.detection_engine.preprocessor import ContentPreprocessor
 from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
 
@@ -213,7 +213,7 @@ def test_attack_after_comment_marker_survives_preprocessing(
 def test_attack_after_comment_marker_is_flagged_in_enhanced_mode(
     payload: str, tell: str
 ) -> None:
-    sus_patterns_handler.configure(SecurityConfig())
+    sus_patterns_handler.configure(SyncSecurityConfig())
     result = sus_patterns_handler.detect(
         content=payload, ip_address="203.0.113.9", context="unknown"
     )
@@ -222,7 +222,7 @@ def test_attack_after_comment_marker_is_flagged_in_enhanced_mode(
 
 
 def test_enhanced_mode_is_genuinely_active_for_corpus_run() -> None:
-    sus_patterns_handler.configure(SecurityConfig())
+    sus_patterns_handler.configure(SyncSecurityConfig())
     result = sus_patterns_handler.detect(
         content="id=1-- <script>alert(1)</script>",
         ip_address="203.0.113.9",

@@ -9,7 +9,7 @@ from guard_core.sync.core.initialization._handler_initializer_steps import (
 from guard_core.sync.handlers.behavior_handler import BehaviorTracker
 
 if TYPE_CHECKING:
-    from guard_core.models import SecurityConfig
+    from guard_core.models import SyncSecurityConfig
     from guard_core.sync.core.events.metrics import MetricsCollector
     from guard_core.sync.core.events.middleware_events import SecurityEventBus
 
@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 class HandlerInitializer(_HandlerInitializerStepsMixin):
     def __init__(
         self,
-        config: "SecurityConfig",
+        config: "SyncSecurityConfig",
         redis_handler: Any = None,
         agent_handler: Any = None,
         geo_ip_handler: Any = None,

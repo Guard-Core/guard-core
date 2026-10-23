@@ -9,7 +9,7 @@ from guard_core.sync._utils.request_logging import (
 from guard_core.sync._utils.route_gate import PATH_PARAM_DEFAULT_CATEGORIES
 
 if TYPE_CHECKING:
-    from guard_core.models import SecurityConfig
+    from guard_core.models import SyncSecurityConfig
     from guard_core.sync.decorators.base import RouteConfig
 
 
@@ -22,7 +22,7 @@ def _excluded_params_by_name(
 
 
 def _resolve_excluded_params(
-    config: "SecurityConfig | None", route_config: "RouteConfig | None"
+    config: "SyncSecurityConfig | None", route_config: "RouteConfig | None"
 ) -> dict[str, frozenset[str]]:
     if route_config is not None and route_config.excluded_detection_params is not None:
         return _excluded_params_by_name(route_config.excluded_detection_params)
@@ -43,7 +43,7 @@ def _resolve_declared_path_params(
 
 
 def _listed_excluded_body_fields(
-    config: "SecurityConfig | None", route_config: "RouteConfig | None"
+    config: "SyncSecurityConfig | None", route_config: "RouteConfig | None"
 ) -> "Collection[str] | Mapping[str, Collection[str]]":
     if (
         route_config is not None
@@ -56,7 +56,7 @@ def _listed_excluded_body_fields(
 
 
 def _resolve_excluded_body_fields(
-    config: "SecurityConfig | None", route_config: "RouteConfig | None"
+    config: "SyncSecurityConfig | None", route_config: "RouteConfig | None"
 ) -> set[str]:
     by_name = _excluded_params_by_name(
         _listed_excluded_body_fields(config, route_config)
@@ -65,7 +65,7 @@ def _resolve_excluded_body_fields(
 
 
 def _resolve_body_field_category_skips(
-    config: "SecurityConfig | None", route_config: "RouteConfig | None"
+    config: "SyncSecurityConfig | None", route_config: "RouteConfig | None"
 ) -> dict[str, frozenset[str]]:
     by_name = _excluded_params_by_name(
         _listed_excluded_body_fields(config, route_config)
@@ -74,7 +74,7 @@ def _resolve_body_field_category_skips(
 
 
 def _resolve_enabled_categories(
-    config: "SecurityConfig | None", route_config: "RouteConfig | None"
+    config: "SyncSecurityConfig | None", route_config: "RouteConfig | None"
 ) -> set[str] | None:
     if (
         route_config is not None
@@ -87,7 +87,7 @@ def _resolve_enabled_categories(
 
 
 def _resolve_scan_body(
-    config: "SecurityConfig | None", route_config: "RouteConfig | None"
+    config: "SyncSecurityConfig | None", route_config: "RouteConfig | None"
 ) -> bool:
     if route_config is not None and route_config.detection_scan_body is not None:
         return route_config.detection_scan_body
@@ -127,7 +127,7 @@ _DEFAULT_EXCLUDED_HEADERS: frozenset[str] = frozenset(
 
 
 def _resolve_excluded_headers(
-    config: "SecurityConfig | None", route_config: "RouteConfig | None"
+    config: "SyncSecurityConfig | None", route_config: "RouteConfig | None"
 ) -> set[str]:
     excluded = set(_DEFAULT_EXCLUDED_HEADERS)
     if config is not None:
@@ -138,7 +138,7 @@ def _resolve_excluded_headers(
 
 
 def _resolve_operator_excluded_headers(
-    config: "SecurityConfig | None", route_config: "RouteConfig | None"
+    config: "SyncSecurityConfig | None", route_config: "RouteConfig | None"
 ) -> frozenset[str]:
     listed: set[str] = set()
     if config is not None:
@@ -272,17 +272,21 @@ def _param_scan_categories(
     return True, _categories_without(enabled_categories, skipped)
 
 
-def _resolve_log_level(config: "SecurityConfig | None") -> str | None:
+def _resolve_log_level(config: "SyncSecurityConfig | None") -> str | None:
     return config.log_suspicious_level if config is not None else "WARNING"
 
 
-def _resolve_sensitive_log_headers(config: "SecurityConfig | None") -> frozenset[str]:
+def _resolve_sensitive_log_headers(
+    config: "SyncSecurityConfig | None",
+) -> frozenset[str]:
     return _merge_sensitive_log_headers(
         config.log_sensitive_headers if config is not None else None
     )
 
 
-def _resolve_sensitive_log_params(config: "SecurityConfig | None") -> frozenset[str]:
+def _resolve_sensitive_log_params(
+    config: "SyncSecurityConfig | None",
+) -> frozenset[str]:
     return _merge_sensitive_names(
         _DEFAULT_SENSITIVE_LOG_FIELDS,
         config.log_sensitive_params if config is not None else None,
@@ -290,7 +294,7 @@ def _resolve_sensitive_log_params(config: "SecurityConfig | None") -> frozenset[
 
 
 def _resolve_sensitive_log_body_fields(
-    config: "SecurityConfig | None",
+    config: "SyncSecurityConfig | None",
 ) -> frozenset[str]:
     return _merge_sensitive_names(
         _DEFAULT_SENSITIVE_LOG_FIELDS,
@@ -301,7 +305,7 @@ def _resolve_sensitive_log_body_fields(
 _DEFAULT_MAX_SCAN_VALUES = 512
 
 
-def _resolve_max_scan_values(config: "SecurityConfig | None") -> int:
+def _resolve_max_scan_values(config: "SyncSecurityConfig | None") -> int:
     return (
         config.detection_max_scan_values
         if config is not None
@@ -312,7 +316,7 @@ def _resolve_max_scan_values(config: "SecurityConfig | None") -> int:
 _DEFAULT_MAX_SCAN_CHARS = 65536
 
 
-def _resolve_max_scan_chars(config: "SecurityConfig | None") -> int:
+def _resolve_max_scan_chars(config: "SyncSecurityConfig | None") -> int:
     return (
         config.detection_max_scan_chars
         if config is not None
@@ -323,7 +327,7 @@ def _resolve_max_scan_chars(config: "SecurityConfig | None") -> int:
 _DEFAULT_MAX_JSON_DEPTH = 32
 
 
-def _resolve_max_json_depth(config: "SecurityConfig | None") -> int:
+def _resolve_max_json_depth(config: "SyncSecurityConfig | None") -> int:
     return (
         config.detection_max_json_depth
         if config is not None
@@ -334,7 +338,7 @@ def _resolve_max_json_depth(config: "SecurityConfig | None") -> int:
 _DEFAULT_BINARY_MIN_RUN_LENGTH = 16
 
 
-def _resolve_binary_min_run_length(config: "SecurityConfig | None") -> int:
+def _resolve_binary_min_run_length(config: "SyncSecurityConfig | None") -> int:
     return (
         config.detection_binary_min_run_length
         if config is not None
@@ -345,7 +349,7 @@ def _resolve_binary_min_run_length(config: "SecurityConfig | None") -> int:
 _DEFAULT_MAX_SCAN_SECONDS = 10.0
 
 
-def _resolve_max_scan_seconds(config: "SecurityConfig | None") -> float:
+def _resolve_max_scan_seconds(config: "SyncSecurityConfig | None") -> float:
     return (
         config.detection_max_scan_seconds
         if config is not None
@@ -354,7 +358,7 @@ def _resolve_max_scan_seconds(config: "SecurityConfig | None") -> float:
 
 
 def _resolve_semantic_excluded_headers(
-    config: "SecurityConfig | None", route_config: "RouteConfig | None"
+    config: "SyncSecurityConfig | None", route_config: "RouteConfig | None"
 ) -> frozenset[str]:
     excluded: set[str] = set()
     if config is not None:

@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.redis_handler import RedisManager, _redact_redis_url
 
 _REAL_REDIS_MANAGER_INITIALIZE = RedisManager.initialize
@@ -61,7 +61,7 @@ def test_redact_redis_url_empty_string_does_not_raise() -> None:
 
 
 def test_initialize_agent() -> None:
-    config = SecurityConfig(enable_redis=True, redis_url="redis://localhost")
+    config = SyncSecurityConfig(enable_redis=True, redis_url="redis://localhost")
     manager = RedisManager(config)
     mock_agent = MagicMock()
 
@@ -71,7 +71,7 @@ def test_initialize_agent() -> None:
 
 
 def test_send_redis_event_no_agent() -> None:
-    config = SecurityConfig(enable_redis=True, redis_url="redis://localhost")
+    config = SyncSecurityConfig(enable_redis=True, redis_url="redis://localhost")
     manager = RedisManager(config)
     manager.agent_handler = None
 
@@ -83,7 +83,7 @@ def test_send_redis_event_no_agent() -> None:
 
 
 def test_send_redis_event_success() -> None:
-    config = SecurityConfig(enable_redis=True, redis_url="redis://localhost")
+    config = SyncSecurityConfig(enable_redis=True, redis_url="redis://localhost")
     manager = RedisManager(config)
     mock_agent = MagicMock()
     manager.agent_handler = mock_agent
@@ -108,7 +108,7 @@ def test_send_redis_event_success() -> None:
 
 
 def test_initialize_redacts_redis_url_password_on_connect_event() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=True, redis_url="redis://:secret-pw@127.0.0.1:6399"
     )
     manager = RedisManager(config)
@@ -139,7 +139,7 @@ def test_initialize_redacts_redis_url_password_on_connect_event() -> None:
 def test_initialize_redacts_redis_url_password_on_error_event() -> None:
     from guard_core.exceptions import GuardRedisError
 
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=True, redis_url="redis://:secret-pw@127.0.0.1:6399"
     )
     manager = RedisManager(config)
@@ -167,7 +167,7 @@ def test_initialize_redacts_redis_url_password_on_error_event() -> None:
 def test_send_redis_event_exception_handling(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(enable_redis=True, redis_url="redis://localhost")
+    config = SyncSecurityConfig(enable_redis=True, redis_url="redis://localhost")
     manager = RedisManager(config)
     mock_agent = MagicMock()
     mock_agent.send_event.side_effect = Exception("Network error")
@@ -185,7 +185,7 @@ def test_send_redis_event_exception_handling(
 
 
 def test_close_with_agent() -> None:
-    config = SecurityConfig(enable_redis=True, redis_url="redis://localhost")
+    config = SyncSecurityConfig(enable_redis=True, redis_url="redis://localhost")
     manager = RedisManager(config)
     mock_agent = MagicMock()
     manager.agent_handler = mock_agent
@@ -203,7 +203,7 @@ def test_close_with_agent() -> None:
 def test_get_connection_closed_error_with_agent() -> None:
     from guard_core.exceptions import GuardRedisError
 
-    config = SecurityConfig(enable_redis=True, redis_url="redis://localhost")
+    config = SyncSecurityConfig(enable_redis=True, redis_url="redis://localhost")
     manager = RedisManager(config)
     mock_agent = MagicMock()
     manager.agent_handler = mock_agent
@@ -228,7 +228,7 @@ def test_get_connection_closed_error_with_agent() -> None:
 def test_get_connection_initialization_failure_with_agent() -> None:
     from guard_core.exceptions import GuardRedisError
 
-    config = SecurityConfig(enable_redis=True, redis_url="redis://localhost")
+    config = SyncSecurityConfig(enable_redis=True, redis_url="redis://localhost")
     manager = RedisManager(config)
     mock_agent = MagicMock()
     manager.agent_handler = mock_agent
@@ -253,7 +253,7 @@ def test_get_connection_initialization_failure_with_agent() -> None:
 def test_safe_operation_failure_with_agent() -> None:
     from guard_core.exceptions import GuardRedisError
 
-    config = SecurityConfig(enable_redis=True, redis_url="redis://localhost")
+    config = SyncSecurityConfig(enable_redis=True, redis_url="redis://localhost")
     manager = RedisManager(config)
     mock_agent = MagicMock()
     manager.agent_handler = mock_agent
@@ -273,7 +273,7 @@ def test_safe_operation_failure_with_agent() -> None:
 def test_safe_operation_error_inside_context() -> None:
     from guard_core.exceptions import GuardRedisError
 
-    config = SecurityConfig(enable_redis=True, redis_url="redis://localhost")
+    config = SyncSecurityConfig(enable_redis=True, redis_url="redis://localhost")
     manager = RedisManager(config)
     mock_agent = MagicMock()
     manager.agent_handler = mock_agent

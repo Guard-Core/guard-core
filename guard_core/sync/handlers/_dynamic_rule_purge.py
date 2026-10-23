@@ -11,7 +11,7 @@ from guard_core._dynamic_rules import (
     load_last_known_ownership,
     load_last_known_rules_snapshot,
 )
-from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.models import DynamicRules, SyncSecurityConfig
 from guard_core.sync.handlers._dynamic_rule_persistence import (
     DYNAMIC_RULES_REDIS_NAMESPACE,
     PURGED_MARKER_KEY,
@@ -37,7 +37,7 @@ class PurgeMarker:
 
 
 class DynamicRulePurgeMixin:
-    config: SecurityConfig
+    config: SyncSecurityConfig
     redis_handler: Any = None
     agent_handler: Any = None
     logger: logging.Logger

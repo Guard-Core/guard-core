@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.implementations.authentication import (
     AuthenticationCheck,
 )
@@ -27,8 +27,8 @@ from guard_core.sync.detection_result import DetectionResult
 
 
 @pytest.fixture
-def security_config() -> SecurityConfig:
-    config = SecurityConfig()
+def security_config() -> SyncSecurityConfig:
+    config = SyncSecurityConfig()
     config.enforce_https = True
     config.trust_x_forwarded_proto = True
     config.trusted_proxies = ("192.168.1.0/24", "10.0.0.1")
@@ -36,7 +36,7 @@ def security_config() -> SecurityConfig:
 
 
 @pytest.fixture
-def mock_middleware(security_config: SecurityConfig) -> Mock:
+def mock_middleware(security_config: SyncSecurityConfig) -> Mock:
     middleware = Mock()
     middleware.config = security_config
     middleware.logger = Mock()
@@ -76,7 +76,7 @@ def test_is_trusted_proxy_single_ip_no_match(
 
 
 def test_check_passive_mode_no_redirect(
-    https_check: HttpsEnforcementCheck, security_config: SecurityConfig
+    https_check: HttpsEnforcementCheck, security_config: SyncSecurityConfig
 ) -> None:
     security_config.passive_mode = True
 
@@ -124,7 +124,7 @@ def test_is_trusted_proxy_various_ips(
 
 
 def test_handle_missing_referrer_passive_mode_unit() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     config.passive_mode = True
 
     middleware = Mock()
@@ -149,7 +149,7 @@ def test_handle_missing_referrer_passive_mode_unit() -> None:
 
 
 def test_handle_invalid_referrer_passive_mode_unit() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     config.passive_mode = True
 
     middleware = Mock()
@@ -176,7 +176,7 @@ def test_handle_invalid_referrer_passive_mode_unit() -> None:
 
 
 def test_authentication_check_passive_mode_unit() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     config.passive_mode = True
 
     middleware = Mock()
@@ -203,7 +203,7 @@ def test_authentication_check_passive_mode_unit() -> None:
 
 
 def test_emergency_mode_check_no_client_ip_extracts_unit() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     config.emergency_mode = True
     config.emergency_whitelist = ["192.168.1.1"]
 
@@ -236,7 +236,7 @@ def test_emergency_mode_check_no_client_ip_extracts_unit() -> None:
 
 
 def test_emergency_mode_check_passive_mode_unit() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     config.passive_mode = True
     config.emergency_mode = True
 
@@ -261,7 +261,7 @@ def test_emergency_mode_check_passive_mode_unit() -> None:
 
 
 def test_check_request_size_limit_passive_mode_unit() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     config.passive_mode = True
 
     middleware = Mock()
@@ -287,7 +287,7 @@ def test_check_request_size_limit_passive_mode_unit() -> None:
 
 
 def test_check_content_type_allowed_passive_mode_unit() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     config.passive_mode = True
 
     middleware = Mock()
@@ -313,7 +313,7 @@ def test_check_content_type_allowed_passive_mode_unit() -> None:
 
 
 def test_required_headers_check_passive_mode_unit() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     config.passive_mode = True
 
     middleware = Mock()
@@ -340,7 +340,7 @@ def test_required_headers_check_passive_mode_unit() -> None:
 
 
 def test_suspicious_activity_check_no_client_ip_unit() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     config.passive_mode = False
     config.enable_penetration_detection = True
 
@@ -365,7 +365,7 @@ def test_suspicious_activity_check_no_client_ip_unit() -> None:
 
 
 def test_suspicious_activity_check_passive_mode_unit() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     config.passive_mode = True
     config.enable_penetration_detection = True
 

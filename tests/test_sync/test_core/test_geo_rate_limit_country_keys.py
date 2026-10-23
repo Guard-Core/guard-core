@@ -1,4 +1,4 @@
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.pipeline import SecurityCheckPipeline
 from tests.test_sync.test_core.conftest import (
     build_route_pipeline,
@@ -9,8 +9,8 @@ from tests.test_sync.test_core.conftest import (
 IP = "198.51.100.77"
 
 
-def _config(**settings: object) -> SecurityConfig:
-    return SecurityConfig(
+def _config(**settings: object) -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         enable_redis=False,
         enable_penetration_detection=False,
         enable_rate_limiting=True,

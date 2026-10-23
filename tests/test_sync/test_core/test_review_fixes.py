@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, Mock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.implementations.rate_limit import RateLimitCheck
 from guard_core.sync.core.checks.implementations.suspicious_activity import (
     SuspiciousActivityCheck,
@@ -39,7 +39,7 @@ INSIDE = "198.51.100.10"
 OUTSIDE = "203.0.113.10"
 
 
-def _config(**overrides: Any) -> SecurityConfig:
+def _config(**overrides: Any) -> SyncSecurityConfig:
     values: dict[str, Any] = {
         "enable_redis": True,
         "redis_url": REDIS_URL,
@@ -54,7 +54,7 @@ def _config(**overrides: Any) -> SecurityConfig:
         "enable_rate_limit_auto_ban": True,
     }
     values.update(overrides)
-    return SecurityConfig(**values)
+    return SyncSecurityConfig(**values)
 
 
 @pytest.fixture
@@ -70,7 +70,7 @@ def redis() -> Generator[RedisManager, None]:
         ratelimit_handler.clear_by_ip_strikes()
 
 
-def _middleware(config: SecurityConfig, redis: Any) -> MagicMock:
+def _middleware(config: SyncSecurityConfig, redis: Any) -> MagicMock:
     middleware = MagicMock()
     middleware.config = config
     middleware.logger = logging.getLogger("test_review_fixes")
@@ -198,7 +198,7 @@ def test_a_failed_redis_range_clear_is_logged(
 ) -> None:
     manager = IPBanManager()
     manager.redis_handler = Mock(
-        config=SecurityConfig(enable_redis=False),
+        config=SyncSecurityConfig(enable_redis=False),
         get_connection=Mock(side_effect=RuntimeError("redis down")),
     )
 
@@ -251,7 +251,7 @@ def test_the_rate_limit_feed_never_records_detection_strikes(
 def test_keys_returns_a_key_once_when_scan_yields_it_twice(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    manager = RedisManager(SecurityConfig(enable_redis=True))
+    manager = RedisManager(SyncSecurityConfig(enable_redis=True))
 
     def scan_iter(*_args: Any, **_kwargs: Any) -> Any:
         for key in ("p:a", "p:b", "p:a", "p:c", "p:b"):
@@ -267,7 +267,7 @@ def test_keys_returns_a_key_once_when_scan_yields_it_twice(
     assert manager.keys("*") == ["p:a", "p:b", "p:c"]
 
 
-def _app(config: SecurityConfig) -> RateLimitManager:
+def _app(config: SyncSecurityConfig) -> RateLimitManager:
     from guard_core.sync.core.initialization.handler_initializer import (
         HandlerInitializer,
     )
@@ -280,7 +280,7 @@ def _app(config: SecurityConfig) -> RateLimitManager:
 def test_the_unbound_reset_warning_says_no_request_windows_were_cleared(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(enable_redis=False, rate_limit=7)
+    config = SyncSecurityConfig(enable_redis=False, rate_limit=7)
 
     with caplog.at_level(logging.INFO, logger="guard_core.sync.handlers.ratelimit"):
         rate_limit_handler(config).reset()
@@ -302,7 +302,7 @@ def test_the_unbound_reset_warning_says_no_request_windows_were_cleared(
 def test_the_app_reset_names_redis_only_when_it_was_cleared(
     caplog: pytest.LogCaptureFixture, redis: RedisManager
 ) -> None:
-    plain = SecurityConfig(enable_redis=False, rate_limit=2)
+    plain = SyncSecurityConfig(enable_redis=False, rate_limit=2)
     app = _app(plain)
     with caplog.at_level(logging.INFO, logger="guard_core.sync.handlers.ratelimit"):
         rate_limit_handler(plain).reset()
@@ -327,7 +327,7 @@ def test_the_app_reset_names_redis_only_when_it_was_cleared(
 def test_a_failed_redis_clear_is_not_reported_as_cleared(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(enable_redis=True, redis_url="redis://x:1")
+    config = SyncSecurityConfig(enable_redis=True, redis_url="redis://x:1")
     app = _app(config)
     app.redis_handler = Mock(delete_pattern=MagicMock(side_effect=RuntimeError("down")))
 

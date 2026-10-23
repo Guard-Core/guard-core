@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, Mock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.validation.context import ValidationContext
 from guard_core.sync.core.validation.validator import RequestValidator
 from tests.test_sync.conftest import SyncMockGuardRequest
@@ -16,7 +16,7 @@ WARNING = (
 )
 
 
-def _validator(config: SecurityConfig) -> RequestValidator:
+def _validator(config: SyncSecurityConfig) -> RequestValidator:
     event_bus: Any = Mock()
     event_bus.send_middleware_event = MagicMock()
     return RequestValidator(
@@ -25,13 +25,13 @@ def _validator(config: SecurityConfig) -> RequestValidator:
 
 
 def test_the_field_defaults_to_false() -> None:
-    assert SecurityConfig(enable_redis=False).exclude_all_paths is False
+    assert SyncSecurityConfig(enable_redis=False).exclude_all_paths is False
 
 
 @pytest.mark.parametrize("path", ["/", "/anything", "/a/b/c", "/docs"])
 def test_true_excludes_every_request(path: str) -> None:
     with pytest.warns(UserWarning, match="exclude_all_paths=True"):
-        config = SecurityConfig(enable_redis=False, exclude_all_paths=True)
+        config = SyncSecurityConfig(enable_redis=False, exclude_all_paths=True)
 
     assert _validator(config).is_path_excluded(SyncMockGuardRequest(path=path))
 
@@ -40,7 +40,7 @@ def test_true_excludes_every_request(path: str) -> None:
     ("path", "excluded"), [("/", True), ("/anything", False), ("/docs", False)]
 )
 def test_the_slash_entry_covers_only_the_root_page(path: str, excluded: bool) -> None:
-    config = SecurityConfig(enable_redis=False, exclude_paths=["/"])
+    config = SyncSecurityConfig(enable_redis=False, exclude_paths=["/"])
 
     assert (
         _validator(config).is_path_excluded(SyncMockGuardRequest(path=path)) is excluded
@@ -49,7 +49,7 @@ def test_the_slash_entry_covers_only_the_root_page(path: str, excluded: bool) ->
 
 def test_an_anomalous_path_is_still_never_excluded() -> None:
     with pytest.warns(UserWarning):
-        config = SecurityConfig(enable_redis=False, exclude_all_paths=True)
+        config = SyncSecurityConfig(enable_redis=False, exclude_all_paths=True)
 
     assert (
         _validator(config).is_path_excluded(SyncMockGuardRequest(path="/a/../b"))
@@ -58,7 +58,7 @@ def test_an_anomalous_path_is_still_never_excluded() -> None:
 
 
 def test_false_excludes_nothing_beyond_exclude_paths() -> None:
-    config = SecurityConfig(enable_redis=False, exclude_all_paths=False)
+    config = SyncSecurityConfig(enable_redis=False, exclude_all_paths=False)
 
     assert (
         _validator(config).is_path_excluded(SyncMockGuardRequest(path="/login"))
@@ -67,7 +67,7 @@ def test_false_excludes_nothing_beyond_exclude_paths() -> None:
 
 
 def test_flipping_the_field_at_runtime_takes_effect() -> None:
-    config = SecurityConfig(enable_redis=False)
+    config = SyncSecurityConfig(enable_redis=False)
     validator = _validator(config)
     request = SyncMockGuardRequest(path="/login")
     assert validator.is_path_excluded(request) is False
@@ -79,7 +79,7 @@ def test_flipping_the_field_at_runtime_takes_effect() -> None:
 def test_true_warns_with_the_v440_slash_warning_text() -> None:
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
-        SecurityConfig(enable_redis=False, exclude_all_paths=True)
+        SyncSecurityConfig(enable_redis=False, exclude_all_paths=True)
 
     user = [w for w in caught if w.category is UserWarning]
     assert [str(w.message) for w in user] == [WARNING]
@@ -88,6 +88,6 @@ def test_true_warns_with_the_v440_slash_warning_text() -> None:
 def test_false_never_warns() -> None:
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        SecurityConfig(
+        SyncSecurityConfig(
             enable_redis=False, exclude_all_paths=False, ban_on_hostile_signals=False
         )

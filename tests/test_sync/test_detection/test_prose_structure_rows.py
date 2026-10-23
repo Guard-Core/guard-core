@@ -1,6 +1,6 @@
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.utils import detect_penetration_attempt
 from tests.test_sync.conftest import SyncMockGuardRequest
 
@@ -55,7 +55,7 @@ INJECTIONS = [
 
 def _flagged(value: str) -> bool:
     request = SyncMockGuardRequest(path="/search", query_params={"q": value})
-    return (detect_penetration_attempt(request, SecurityConfig())).is_threat
+    return (detect_penetration_attempt(request, SyncSecurityConfig())).is_threat
 
 
 @pytest.mark.parametrize("value", PROSE)

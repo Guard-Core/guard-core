@@ -2,7 +2,7 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers import behavior_handler
 from guard_core.sync.handlers.behavior_handler import BehaviorRule, BehaviorTracker
 from tests.test_sync.conftest import MockGuardResponse
@@ -42,12 +42,12 @@ def _track_stacked(tracker: BehaviorTracker) -> list[bool]:
 
 
 def test_stacked_rules_count_each_request_once_in_memory() -> None:
-    tracker = BehaviorTracker(SecurityConfig(enable_redis=False))
+    tracker = BehaviorTracker(SyncSecurityConfig(enable_redis=False))
     assert _track_stacked(tracker) == [False] * 5 + [True]
 
 
 def test_stacked_rules_count_each_request_once_with_redis() -> None:
-    tracker = BehaviorTracker(SecurityConfig(enable_redis=False))
+    tracker = BehaviorTracker(SyncSecurityConfig(enable_redis=False))
     redis = _HitListRedis()
     tracker.initialize_redis(redis)
     assert _track_stacked(tracker) == [False] * 5 + [True]
@@ -55,7 +55,7 @@ def test_stacked_rules_count_each_request_once_with_redis() -> None:
 
 
 def test_rules_differing_only_in_threshold_do_not_share_a_hit_list() -> None:
-    tracker = BehaviorTracker(SecurityConfig(enable_redis=False))
+    tracker = BehaviorTracker(SyncSecurityConfig(enable_redis=False))
     first = BehaviorRule(rule_type="usage", threshold=2, window=60)
     second = BehaviorRule(rule_type="usage", threshold=3, window=60)
     for _ in range(3):
@@ -94,14 +94,14 @@ def _fire_sequences_for_equal_rules_with_different_actions(
 
 
 def test_return_rules_with_one_pattern_count_each_response_once_in_memory() -> None:
-    tracker = BehaviorTracker(SecurityConfig(enable_redis=False))
+    tracker = BehaviorTracker(SyncSecurityConfig(enable_redis=False))
     first, second = _fire_sequences_for_equal_rules_with_different_actions(tracker)
     assert first == [False, False, False, True]
     assert second == [False, False, False, True]
 
 
 def test_return_rules_with_one_pattern_count_each_response_once_with_redis() -> None:
-    tracker = BehaviorTracker(SecurityConfig(enable_redis=False))
+    tracker = BehaviorTracker(SyncSecurityConfig(enable_redis=False))
     redis = _HitListRedis()
     tracker.initialize_redis(redis)
     first, second = _fire_sequences_for_equal_rules_with_different_actions(tracker)
@@ -115,7 +115,7 @@ def test_short_window_return_rule_does_not_trim_the_long_window_rule(
 ) -> None:
     clock = [1_000_000.0]
     monkeypatch.setattr(behavior_handler.time, "time", lambda: clock[0])
-    tracker = BehaviorTracker(SecurityConfig(enable_redis=False))
+    tracker = BehaviorTracker(SyncSecurityConfig(enable_redis=False))
     response = MockGuardResponse("not found", status_code=404)
     short = _return_rule(threshold=10, window=1)
     long = _return_rule(threshold=5, window=300)

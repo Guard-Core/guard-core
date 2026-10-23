@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from guard_core.exceptions import GuardRedisError
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.ratelimit_handler import RateLimitManager
 from guard_core.sync.handlers.redis_handler import RedisManager
 from tests.test_sync.conftest import REDIS_URL, MockGuardResponse, SyncMockGuardRequest
@@ -33,7 +33,7 @@ def stack_factory() -> Generator[Any, None]:
             "rate_limit": 1000,
             "rate_limit_window": 60,
         }
-        config = SecurityConfig(**{**defaults, **settings})
+        config = SyncSecurityConfig(**{**defaults, **settings})
         redis = RedisManager(config)
         redis.initialize()
         manager = RateLimitManager(config)

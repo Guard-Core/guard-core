@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers import suspatterns_handler as _suspatterns_module
 from guard_core.sync.handlers.redis_handler import RedisManager
 from guard_core.sync.handlers.suspatterns_handler import (
@@ -140,7 +140,7 @@ def test_get_compiled_patterns_separation() -> None:
     assert len(custom_compiled) == len(sus_patterns_handler.compiled_custom_patterns)
 
 
-def test_redis_initialization(security_config_redis: SecurityConfig) -> None:
+def test_redis_initialization(security_config_redis: SyncSecurityConfig) -> None:
     redis_handler = RedisManager(security_config_redis)
     redis_handler.initialize()
 
@@ -155,7 +155,7 @@ def test_redis_initialization(security_config_redis: SecurityConfig) -> None:
     redis_handler.close()
 
 
-def test_redis_pattern_persistence(security_config_redis: SecurityConfig) -> None:
+def test_redis_pattern_persistence(security_config_redis: SyncSecurityConfig) -> None:
     redis_handler = RedisManager(security_config_redis)
     redis_handler.initialize()
 
@@ -299,7 +299,7 @@ def test_unconfigured_detection_warns_once_with_deprecation_text(
 
 def test_configured_detection_never_warns() -> None:
     SusPatternsManager._instance = None
-    manager = SusPatternsManager(SecurityConfig())
+    manager = SusPatternsManager(SyncSecurityConfig())
     assert manager._compiler is not None
     _suspatterns_module._legacy_detection_warned = False
 
@@ -482,7 +482,7 @@ def test_custom_category_timeout_heuristic_uses_configured_compiler_timeout(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     SusPatternsManager._instance = None
-    config = SecurityConfig(detection_compiler_timeout=0.5)
+    config = SyncSecurityConfig(detection_compiler_timeout=0.5)
     manager = SusPatternsManager(config)
     assert manager._compiler is not None
     assert manager._compiler.default_timeout == 0.5

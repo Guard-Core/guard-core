@@ -3,7 +3,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.ratelimit_handler import (
     RateLimitManager,
     _by_ip_request_timestamps,
@@ -16,8 +16,8 @@ def _error_response(status_code: int, message: str) -> MockGuardResponse:
     return MockGuardResponse(message, status_code)
 
 
-def _config(**settings: Any) -> SecurityConfig:
-    return SecurityConfig(
+def _config(**settings: Any) -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         enable_redis=False,
         enable_rate_limiting=True,
         rate_limit=2,
@@ -26,7 +26,7 @@ def _config(**settings: Any) -> SecurityConfig:
     )
 
 
-def _statuses(config: SecurityConfig, addresses: list[str]) -> list[int | None]:
+def _statuses(config: SyncSecurityConfig, addresses: list[str]) -> list[int | None]:
     manager = RateLimitManager(config)
     outcomes: list[int | None] = []
     for address in addresses:
@@ -41,12 +41,12 @@ def _one_slash_64(count: int) -> list[str]:
 
 
 def test_ipv6_prefix_length_defaults_to_64() -> None:
-    assert SecurityConfig(enable_redis=False).ipv6_prefix_length == 64
+    assert SyncSecurityConfig(enable_redis=False).ipv6_prefix_length == 64
 
 
 @pytest.mark.parametrize("length", [48, 56, 64, 128])
 def test_ipv6_prefix_length_accepts_48_to_128(length: int) -> None:
-    config = SecurityConfig(enable_redis=False, ipv6_prefix_length=length)
+    config = SyncSecurityConfig(enable_redis=False, ipv6_prefix_length=length)
 
     assert config.ipv6_prefix_length == length
 
@@ -54,7 +54,7 @@ def test_ipv6_prefix_length_accepts_48_to_128(length: int) -> None:
 @pytest.mark.parametrize("length", [0, 47, 129])
 def test_ipv6_prefix_length_outside_48_to_128_is_rejected(length: int) -> None:
     with pytest.raises(ValidationError):
-        SecurityConfig(enable_redis=False, ipv6_prefix_length=length)
+        SyncSecurityConfig(enable_redis=False, ipv6_prefix_length=length)
 
 
 def test_addresses_of_one_slash_64_share_one_rate_limit_window() -> None:

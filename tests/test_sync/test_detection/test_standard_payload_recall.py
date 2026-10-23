@@ -3,7 +3,7 @@ from collections.abc import Callable
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.utils import detect_penetration_attempt
 from tests.test_sync.conftest import SyncMockGuardRequest
 
@@ -95,7 +95,7 @@ def _json_body(value: str) -> SyncMockGuardRequest:
 def test_standard_payload_is_detected(
     surface: Callable[[str], SyncMockGuardRequest], value: str, category: str
 ) -> None:
-    result = detect_penetration_attempt(surface(value), SecurityConfig())
+    result = detect_penetration_attempt(surface(value), SyncSecurityConfig())
 
     assert result.is_threat is True
     assert category in result.threat_categories
@@ -123,7 +123,7 @@ def _multipart(filename: str) -> SyncMockGuardRequest:
     "filename", [".htaccess", ".htpasswd", "web.config", "shell.inc"]
 )
 def test_server_configuration_upload_names_are_flagged(filename: str) -> None:
-    result = detect_penetration_attempt(_multipart(filename), SecurityConfig())
+    result = detect_penetration_attempt(_multipart(filename), SyncSecurityConfig())
 
     assert result.is_threat is True
     assert "file_upload" in result.threat_categories
@@ -131,6 +131,6 @@ def test_server_configuration_upload_names_are_flagged(filename: str) -> None:
 
 @pytest.mark.parametrize("filename", ["photo.jpg", "report.pdf", "notes.config.pdf"])
 def test_ordinary_upload_names_stay_clean(filename: str) -> None:
-    result = detect_penetration_attempt(_multipart(filename), SecurityConfig())
+    result = detect_penetration_attempt(_multipart(filename), SyncSecurityConfig())
 
     assert result.is_threat is False

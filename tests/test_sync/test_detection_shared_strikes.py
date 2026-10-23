@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, Mock
 
 import pytest
 
-from guard_core.models import SecurityConfig, ThreatBanConfig
+from guard_core.models import SyncSecurityConfig, ThreatBanConfig
 from guard_core.sync.core.checks.implementations.suspicious_activity import (
     SuspiciousActivityCheck,
 )
@@ -20,7 +20,7 @@ WORKERS = 4
 DETECT_MODULE = "guard_core.sync.core.checks.implementations.suspicious_activity"
 
 
-def _config(redis: bool = True, **overrides: Any) -> SecurityConfig:
+def _config(redis: bool = True, **overrides: Any) -> SyncSecurityConfig:
     values: dict[str, Any] = {
         "enable_redis": redis,
         "redis_url": REDIS_URL,
@@ -32,7 +32,7 @@ def _config(redis: bool = True, **overrides: Any) -> SecurityConfig:
         "enable_rate_limiting": False,
     }
     values.update(overrides)
-    return SecurityConfig(**values)
+    return SyncSecurityConfig(**values)
 
 
 def _result(*categories: str) -> DetectionResult:
@@ -47,7 +47,7 @@ def _result(*categories: str) -> DetectionResult:
 class _Worker:
     def __init__(
         self,
-        config: SecurityConfig,
+        config: SyncSecurityConfig,
         redis: RedisManager | None,
         monkeypatch: pytest.MonkeyPatch,
         result: DetectionResult,

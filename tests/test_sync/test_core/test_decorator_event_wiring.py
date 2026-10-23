@@ -2,7 +2,7 @@ import logging
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.behavioral.context import BehavioralContext
 from guard_core.sync.core.behavioral.processor import BehavioralProcessor
 from guard_core.sync.core.checks.factory import build_default_pipeline
@@ -31,7 +31,7 @@ class _RecordingAgent:
         return None
 
 
-def _config(**overrides: Any) -> SecurityConfig:
+def _config(**overrides: Any) -> SyncSecurityConfig:
     fields: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": False,
@@ -39,11 +39,11 @@ def _config(**overrides: Any) -> SecurityConfig:
         "enable_rate_limiting": False,
     }
     fields.update(overrides)
-    return SecurityConfig(**fields)
+    return SyncSecurityConfig(**fields)
 
 
 def _build_middleware(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     decorator: SecurityDecorator,
     geo_ip_handler: Any = None,
 ) -> MagicMock:
@@ -205,7 +205,7 @@ def test_custom_validation_block_wires_generic_send_decorator_event() -> None:
     assert event.metadata["violation_type"] == "custom_validation"
 
 
-def _usage_violation_events(config: SecurityConfig) -> list[Any]:
+def _usage_violation_events(config: SyncSecurityConfig) -> list[Any]:
     decorator = SecurityDecorator(config)
     recording_agent = _RecordingAgent()
     decorator.initialize_agent(recording_agent)

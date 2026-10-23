@@ -3,7 +3,7 @@ from urllib.parse import quote
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
 from guard_core.sync.utils import detect_penetration_attempt
 from tests.test_sync.conftest import SyncMockGuardRequest
@@ -14,7 +14,7 @@ _BOUNDARY = "guardboundary"
 
 @pytest.fixture(autouse=True)
 def _force_enhanced_detection_singleton() -> None:
-    sus_patterns_handler.configure(SecurityConfig())
+    sus_patterns_handler.configure(SyncSecurityConfig())
 
 
 def _post(body: bytes, content_type: str, path: str = "/api") -> SyncMockGuardRequest:
@@ -27,9 +27,9 @@ def _post(body: bytes, content_type: str, path: str = "/api") -> SyncMockGuardRe
 
 
 def _is_threat(
-    request: SyncMockGuardRequest, config: SecurityConfig | None = None
+    request: SyncMockGuardRequest, config: SyncSecurityConfig | None = None
 ) -> bool:
-    result = detect_penetration_attempt(request, config or SecurityConfig())
+    result = detect_penetration_attempt(request, config or SyncSecurityConfig())
     return result.is_threat
 
 
@@ -72,7 +72,7 @@ def test_json_repeated_key_inside_a_nested_object_is_flagged() -> None:
 def test_json_repeated_key_below_the_depth_cap_is_flagged() -> None:
     inner = _json_text(("q", ATTACK), ("q", "hello")).decode()
     body = f'{{"outer": {inner}}}'.encode()
-    config = SecurityConfig(detection_max_json_depth=2)
+    config = SyncSecurityConfig(detection_max_json_depth=2)
     assert _is_threat(_post(body, "application/json"), config) is True
 
 
@@ -84,7 +84,7 @@ def test_json_repeated_key_with_benign_values_is_clean() -> None:
 def test_json_repeated_key_after_a_sensitive_name_is_redacted_in_the_report() -> None:
     body = _json_text(("password", ATTACK), ("password", "hello"))
     result = detect_penetration_attempt(
-        _post(body, "application/json"), SecurityConfig()
+        _post(body, "application/json"), SyncSecurityConfig()
     )
     assert result.is_threat is True
     assert ATTACK not in result.trigger_info

@@ -2,7 +2,7 @@ from typing import cast
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.handlers.behavior_handler import BehaviorRule, BehaviorTracker
 
@@ -95,8 +95,8 @@ class _TeeingStreamResponse:
         return bytes(sent)
 
 
-def _security_config_with_cap(max_bytes: int = _CAP) -> SecurityConfig:
-    return SecurityConfig(
+def _security_config_with_cap(max_bytes: int = _CAP) -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         behavior_scan_response_body=True,
         behavior_max_response_body_inspect_bytes=max_bytes,
     )

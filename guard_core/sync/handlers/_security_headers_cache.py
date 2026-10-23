@@ -17,7 +17,7 @@ from guard_core._security_headers_record_validation import (
     validate_cached_csp,
     validate_cached_hsts,
 )
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils.logging_utils import _sanitize_for_log
 from guard_core.sync.handlers.redis_handler import scan_unlink
 
@@ -70,7 +70,7 @@ class SecurityHeadersCacheMixin:
     def _generate_cache_key(
         self,
         request_path: str | None,
-        config: SecurityConfig | None = None,
+        config: SyncSecurityConfig | None = None,
         override: OverrideRecord | None = None,
     ) -> str:
         if config is not None:
@@ -85,7 +85,7 @@ class SecurityHeadersCacheMixin:
         return f"path_{hashlib.sha256(normalized.encode()).hexdigest()[:16]}"
 
     def initialize_redis(
-        self, redis_handler: Any, config: SecurityConfig | None = None
+        self, redis_handler: Any, config: SyncSecurityConfig | None = None
     ) -> None:
         self.redis_handler = redis_handler
         self._redis_initialized = True

@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from guard_core.models import SecurityConfig, ThreatBanConfig
+from guard_core.models import SyncSecurityConfig, ThreatBanConfig
 from guard_core.sync.core.checks.implementations.suspicious_activity import (
     SuspiciousActivityCheck,
 )
@@ -13,7 +13,9 @@ CLIENT_IP = "203.0.113.7"
 
 
 class _Harness:
-    def __init__(self, monkeypatch: pytest.MonkeyPatch, config: SecurityConfig) -> None:
+    def __init__(
+        self, monkeypatch: pytest.MonkeyPatch, config: SyncSecurityConfig
+    ) -> None:
         middleware = MagicMock()
         middleware.config = config
         middleware.suspicious_request_counts = {}
@@ -56,8 +58,8 @@ class _Harness:
         self.check.check(request)
 
 
-def _config(**fields: Any) -> SecurityConfig:
-    return SecurityConfig(
+def _config(**fields: Any) -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         enable_ip_banning=True, enable_redis=False, rate_limit=1000, **fields
     )
 

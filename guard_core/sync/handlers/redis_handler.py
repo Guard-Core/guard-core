@@ -17,7 +17,7 @@ from guard_core._redis_exceptions import (
     RedisTimeoutError,
 )
 from guard_core.exceptions import GuardRedisError
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.scripts.ban_write_lua import (
     EXTEND_ONLY_BAN_WRITE_SCRIPT,
     PURGE_OWNED_BAN_SCRIPT,
@@ -125,11 +125,11 @@ class RedisManager:
     _redis: Redis | None = None
     _connection_lock = threading.Lock()
     _closed = False
-    config: SecurityConfig
+    config: SyncSecurityConfig
     logger: logging.Logger
     agent_handler: Any = None
 
-    def __new__(cls: type[RedisManager], config: SecurityConfig) -> RedisManager:
+    def __new__(cls: type[RedisManager], config: SyncSecurityConfig) -> RedisManager:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance.logger = logging.getLogger("guard_core.sync.handlers.redis")
@@ -166,7 +166,7 @@ class RedisManager:
             self.logger.error(f"Failed to send Redis event to agent: {e}")
 
     def _connection_kwargs(
-        self, config: SecurityConfig | None = None
+        self, config: SyncSecurityConfig | None = None
     ) -> dict[str, Any]:
         """Connection tuning passed to ``Redis.from_url``.
 

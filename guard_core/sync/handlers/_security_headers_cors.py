@@ -3,7 +3,7 @@ from abc import abstractmethod
 from typing import Any
 
 from guard_core._security_headers_override import PULLED_OVERRIDES, OverrideRecord
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 
 
 class SecurityHeadersCorsMixin:
@@ -12,12 +12,12 @@ class SecurityHeadersCorsMixin:
 
     @abstractmethod
     def send_cors_override_event(
-        self, config: SecurityConfig, current: OverrideRecord | None = None
+        self, config: SyncSecurityConfig, current: OverrideRecord | None = None
     ) -> None: ...
 
     @abstractmethod
     def _resolve_cors_state(
-        self, config: SecurityConfig | None, override: OverrideRecord | None = None
+        self, config: SyncSecurityConfig | None, override: OverrideRecord | None = None
     ) -> dict[str, Any] | None: ...
 
     def _is_wildcard_with_credentials(
@@ -90,7 +90,7 @@ class SecurityHeadersCorsMixin:
     def get_cors_headers(
         self,
         origin: str,
-        config: SecurityConfig | None = None,
+        config: SyncSecurityConfig | None = None,
         override: OverrideRecord | None = None,
     ) -> dict[str, str]:
         cors_config = self._resolve_cors_state(config, override)

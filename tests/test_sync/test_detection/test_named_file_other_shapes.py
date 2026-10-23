@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
 from guard_core.sync.utils import detect_penetration_attempt
 from tests.test_sync.conftest import SyncMockGuardRequest
@@ -47,7 +47,7 @@ _PUSH_NOT_PLAIN = [
 
 @pytest.fixture(autouse=True)
 def _force_enhanced_detection_singleton() -> None:
-    sus_patterns_handler.configure(SecurityConfig())
+    sus_patterns_handler.configure(SyncSecurityConfig())
 
 
 def _is_threat(payload: Any) -> bool:
@@ -58,7 +58,7 @@ def _is_threat(payload: Any) -> bool:
         headers={"content-type": "application/json", "content-length": str(len(body))},
         body_content=body,
     )
-    config = SecurityConfig(enable_redis=False, rate_limit=10_000_000)
+    config = SyncSecurityConfig(enable_redis=False, rate_limit=10_000_000)
     return (detect_penetration_attempt(request, config)).is_threat
 
 

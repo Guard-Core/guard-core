@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 from pydantic import ValidationError
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SecurityConfig, SyncSecurityConfig
 from guard_core.sync._utils import sampling
 from guard_core.sync.handlers._behavior_throttle import ThrottleCheck, usage_hits_key
 from guard_core.sync.handlers.behavior_handler import BehaviorRule, BehaviorTracker
@@ -36,7 +36,7 @@ def _throttle_rule(threshold: int = 1) -> BehaviorRule:
 
 
 def _tracker(**caps: int) -> tuple[BehaviorTracker, MagicMock]:
-    config = SecurityConfig(enable_redis=False, **caps)
+    config = SyncSecurityConfig(enable_redis=False, **caps)
     tracker = BehaviorTracker(config)
     agent = MagicMock()
     agent.send_event = MagicMock()
@@ -110,12 +110,12 @@ EVICTING_FILLS = {
 
 
 def test_the_five_caps_default_to_ten_thousand_and_reject_zero() -> None:
-    config = SecurityConfig(enable_redis=False)
+    config = SyncSecurityConfig(enable_redis=False)
 
     assert [getattr(config, field) for field in CAP_FIELDS] == [10_000] * 5
     for field in CAP_FIELDS:
         with pytest.raises(ValidationError):
-            SecurityConfig(enable_redis=False, **{field: 0})
+            SyncSecurityConfig(enable_redis=False, **{field: 0})
 
 
 def test_each_cap_description_names_its_own_effect() -> None:
@@ -285,7 +285,7 @@ def _handler(tracker: BehaviorTracker) -> RedisManager:
 
 @pytest.fixture
 def redis_tracker() -> Generator[tuple[BehaviorTracker, MagicMock], None]:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         redis_url=REDIS_URL,
         redis_prefix=REDIS_PREFIX,
         behavior_max_tracked_endpoints=2,

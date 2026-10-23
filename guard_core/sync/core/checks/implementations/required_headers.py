@@ -1,7 +1,7 @@
 import hmac
 from collections.abc import Collection
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.core.checks.helpers import (
@@ -43,7 +43,7 @@ class RequiredHeadersCheck(SecurityCheck):
     @classmethod
     def applies_to(
         cls,
-        config: SecurityConfig,
+        config: SyncSecurityConfig,
         route_configs: Collection[RouteConfig] | None,
     ) -> bool:
         return route_config_applies(route_configs, lambda rc: bool(rc.required_headers))

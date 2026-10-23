@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.decorators import SecurityDecorator
 from guard_core.sync.handlers import ipban_handler
 from tests.test_sync.test_core.conftest import build_route_pipeline, send_request
@@ -12,13 +12,13 @@ from tests.test_sync.test_core.conftest import build_route_pipeline, send_reques
 BOT_IP = "203.0.113.170"
 
 
-def _config(**settings: Any) -> SecurityConfig:
+def _config(**settings: Any) -> SyncSecurityConfig:
     defaults: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": False,
         "enable_rate_limiting": False,
     }
-    return SecurityConfig(**{**defaults, **settings})
+    return SyncSecurityConfig(**{**defaults, **settings})
 
 
 def _whole_header_verifier(request: Any, credential: str) -> bool:

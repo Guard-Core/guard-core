@@ -5,7 +5,7 @@ from typing import cast
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 from guard_core.sync.utils import detect_penetration_attempt
@@ -17,7 +17,7 @@ _BLIND_MARKER = "1' OR '1'='1"
 
 @pytest.fixture(autouse=True)
 def _force_enhanced_detection_singleton() -> Iterator[None]:
-    sus_patterns_handler.configure(SecurityConfig())
+    sus_patterns_handler.configure(SyncSecurityConfig())
     yield
 
 
@@ -33,7 +33,7 @@ def _json_body_request(payload: str) -> SyncMockGuardRequest:
 def _is_threat(payload: str) -> bool:
     request = _json_body_request(payload)
     result = detect_penetration_attempt(
-        cast(SyncGuardRequest, request), SecurityConfig()
+        cast(SyncGuardRequest, request), SyncSecurityConfig()
     )
     return result.is_threat
 
@@ -107,7 +107,7 @@ def test_malformed_content_length_still_scans_body_via_prefix_reader() -> None:
     )
 
     result = detect_penetration_attempt(
-        cast(SyncGuardRequest, request), SecurityConfig()
+        cast(SyncGuardRequest, request), SyncSecurityConfig()
     )
 
     assert result.is_threat is True
@@ -126,7 +126,7 @@ def test_negative_content_length_still_scans_body_via_prefix_reader() -> None:
     )
 
     result = detect_penetration_attempt(
-        cast(SyncGuardRequest, request), SecurityConfig()
+        cast(SyncGuardRequest, request), SyncSecurityConfig()
     )
 
     assert result.is_threat is True
@@ -177,7 +177,7 @@ def test_oversized_declared_content_length_still_scans_the_actual_body() -> None
             return self._body[:max_bytes]
 
     body = f'{{"q": "{_MARKER}"}}'.encode()
-    config = SecurityConfig(detection_max_body_inspect_bytes=1024)
+    config = SyncSecurityConfig(detection_max_body_inspect_bytes=1024)
     request = _BoundedBodyReaderRequest(
         method="POST",
         headers={"content-length": "10000000", "content-type": "application/json"},

@@ -5,12 +5,12 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from tests.test_sync.test_core.conftest import build_route_pipeline, send_request
 
 
-def _config() -> SecurityConfig:
-    return SecurityConfig(
+def _config() -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         enable_redis=False,
         enable_penetration_detection=False,
         enable_rate_limiting=False,
@@ -77,8 +77,8 @@ def _status(pipeline: Any, route_id: str, ip: str) -> int:
     return response.status_code
 
 
-def _ban_config(**overrides: Any) -> SecurityConfig:
-    return SecurityConfig(
+def _ban_config(**overrides: Any) -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         enable_redis=False,
         enable_penetration_detection=False,
         enable_rate_limiting=False,
@@ -114,7 +114,7 @@ def test_passive_mode_lets_a_verifier_error_through_and_logs_it(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     pipeline, _, route_id = build_route_pipeline(
-        SecurityConfig(
+        SyncSecurityConfig(
             enable_redis=False,
             enable_penetration_detection=False,
             enable_rate_limiting=False,

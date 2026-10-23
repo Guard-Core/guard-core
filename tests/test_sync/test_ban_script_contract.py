@@ -2,7 +2,7 @@ import re
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.scripts import ban_write_lua
 from guard_core.sync.handlers._dynamic_rule_persistence import parse_purge_target
 from guard_core.sync.handlers.redis_handler import RedisManager
@@ -41,8 +41,8 @@ def test_a_malformed_purge_target_is_refused(value: str) -> None:
 
 
 def test_the_redis_ban_helpers_are_inert_when_redis_is_off() -> None:
-    manager = RedisManager(SecurityConfig(enable_redis=False))
-    manager.config = SecurityConfig(enable_redis=False)
+    manager = RedisManager(SyncSecurityConfig(enable_redis=False))
+    manager.config = SyncSecurityConfig(enable_redis=False)
 
     kept = manager.write_ban_extending_only(
         "banned_ips", "198.51.100.1", "123.5", 60, version=("ban_version", "counter")

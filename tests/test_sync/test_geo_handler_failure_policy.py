@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.factory import build_default_pipeline
 from guard_core.sync.decorators import SecurityDecorator
 from guard_core.sync.handlers.ipban_handler import ip_ban_manager
@@ -26,7 +26,7 @@ def _run(
     error: Exception | None = None, **settings: Any
 ) -> tuple[int | None, list[dict[str, Any]]]:
     geo = _raising_geo(error or RuntimeError("lookup exploded"))
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         geo_ip_handler=geo,
         enable_redis=False,
         enable_penetration_detection=False,
@@ -135,7 +135,7 @@ def test_a_whitelisted_client_never_reaches_the_geo_lookup() -> None:
 def test_an_error_outside_the_geo_lookup_is_not_swallowed() -> None:
     from guard_core.sync.utils import check_ip_access
 
-    config = SecurityConfig(enable_redis=False, block_cloud_providers={"AWS"})
+    config = SyncSecurityConfig(enable_redis=False, block_cloud_providers={"AWS"})
 
     with (
         patch(

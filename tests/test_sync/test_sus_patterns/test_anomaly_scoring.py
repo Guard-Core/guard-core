@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.suspatterns_handler import (
     DETECTION_CATEGORY_WEIGHTS,
     SusPatternsManager,
@@ -10,35 +10,35 @@ from guard_core.sync.handlers.suspatterns_handler import (
 
 
 def test_threshold_field_default_and_bounds() -> None:
-    assert SecurityConfig().detection_threat_score_threshold == 1.0
-    raised = SecurityConfig(detection_threat_score_threshold=2.5)
+    assert SyncSecurityConfig().detection_threat_score_threshold == 1.0
+    raised = SyncSecurityConfig(detection_threat_score_threshold=2.5)
     assert raised.detection_threat_score_threshold == 2.5
     with pytest.raises(ValidationError):
-        SecurityConfig(detection_threat_score_threshold=-1.0)
+        SyncSecurityConfig(detection_threat_score_threshold=-1.0)
 
 
 def test_anomaly_emission_cooldown_default_and_bounds() -> None:
-    assert SecurityConfig().detection_anomaly_emission_cooldown == 60.0
-    raised = SecurityConfig(detection_anomaly_emission_cooldown=300)
+    assert SyncSecurityConfig().detection_anomaly_emission_cooldown == 60.0
+    raised = SyncSecurityConfig(detection_anomaly_emission_cooldown=300)
     assert raised.detection_anomaly_emission_cooldown == 300
     with pytest.raises(ValidationError):
-        SecurityConfig(detection_anomaly_emission_cooldown=0.5)
+        SyncSecurityConfig(detection_anomaly_emission_cooldown=0.5)
     with pytest.raises(ValidationError):
-        SecurityConfig(detection_anomaly_emission_cooldown=4000.0)
+        SyncSecurityConfig(detection_anomaly_emission_cooldown=4000.0)
 
 
 def test_min_samples_for_anomaly_default_and_bounds() -> None:
-    assert SecurityConfig().detection_min_samples_for_anomaly == 30
-    raised = SecurityConfig(detection_min_samples_for_anomaly=50)
+    assert SyncSecurityConfig().detection_min_samples_for_anomaly == 30
+    raised = SyncSecurityConfig(detection_min_samples_for_anomaly=50)
     assert raised.detection_min_samples_for_anomaly == 50
     with pytest.raises(ValidationError):
-        SecurityConfig(detection_min_samples_for_anomaly=5)
+        SyncSecurityConfig(detection_min_samples_for_anomaly=5)
     with pytest.raises(ValidationError):
-        SecurityConfig(detection_min_samples_for_anomaly=2000)
+        SyncSecurityConfig(detection_min_samples_for_anomaly=2000)
 
 
 def test_new_detection_fields_round_trip() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         detection_anomaly_emission_cooldown=300,
         detection_min_samples_for_anomaly=50,
     )
@@ -75,7 +75,7 @@ def test_single_match_still_flagged_at_default_threshold(
 def test_threshold_gate_suppresses_below_threshold() -> None:
     SusPatternsManager._instance = None
     SusPatternsManager._config = None
-    config = SecurityConfig(detection_threat_score_threshold=2.0)
+    config = SyncSecurityConfig(detection_threat_score_threshold=2.0)
     manager = SusPatternsManager(config)
     try:
         result = manager.detect(

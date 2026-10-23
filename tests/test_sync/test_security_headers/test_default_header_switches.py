@@ -1,6 +1,6 @@
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.security_headers_handler import (
     SecurityHeadersManager,
     security_headers_manager,
@@ -20,7 +20,7 @@ SWITCHES = {
 
 
 def _headers(**security_headers: object) -> dict[str, str]:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False, security_headers={"enabled": True, **security_headers}
     )
     return security_headers_manager.get_headers("/x", config=config)
@@ -33,7 +33,7 @@ def test_xss_protection_defaults_to_zero() -> None:
 
 
 def test_the_default_config_dict_sends_xss_protection_zero() -> None:
-    config = SecurityConfig(enable_redis=False)
+    config = SyncSecurityConfig(enable_redis=False)
     headers = security_headers_manager.get_headers("/x", config=config)
 
     assert headers["X-XSS-Protection"] == "0"
@@ -41,7 +41,7 @@ def test_the_default_config_dict_sends_xss_protection_zero() -> None:
 
 def test_coep_is_not_sent_unless_opted_in() -> None:
     assert "Cross-Origin-Embedder-Policy" not in _headers()
-    default_config = SecurityConfig(enable_redis=False)
+    default_config = SyncSecurityConfig(enable_redis=False)
     assert "Cross-Origin-Embedder-Policy" not in security_headers_manager.get_headers(
         "/x", config=default_config
     )

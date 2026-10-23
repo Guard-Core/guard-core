@@ -3,14 +3,14 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from guard_core.exceptions import AgentPackageNotInstalledError
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 
 
 def test_agent_config_validation_missing_api_key() -> None:
     from pydantic import ValidationError
 
     with pytest.raises(ValidationError) as exc_info:
-        SecurityConfig(
+        SyncSecurityConfig(
             enable_agent=True,
             agent_api_key=None,
         )
@@ -22,7 +22,7 @@ def test_agent_config_validation_dynamic_rules_without_agent() -> None:
     from pydantic import ValidationError
 
     with pytest.raises(ValidationError) as exc_info:
-        SecurityConfig(
+        SyncSecurityConfig(
             enable_agent=False,
             enable_dynamic_rules=True,
             agent_api_key="test-key",
@@ -34,7 +34,7 @@ def test_agent_config_validation_dynamic_rules_without_agent() -> None:
 
 
 def test_to_agent_config_returns_none_when_disabled() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_agent=False,
         agent_api_key="test-key",
     )
@@ -44,7 +44,7 @@ def test_to_agent_config_returns_none_when_disabled() -> None:
 
 
 def test_to_agent_config_returns_none_when_no_api_key() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_agent=False,
     )
     config.enable_agent = True
@@ -55,7 +55,7 @@ def test_to_agent_config_returns_none_when_no_api_key() -> None:
 
 
 def test_to_agent_config_success() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_agent=True,
         agent_api_key="test-api-key",
         agent_endpoint="https://test.example.com",
@@ -74,7 +74,7 @@ def test_to_agent_config_success() -> None:
 
 
 def test_to_agent_config_propagates_encryption_key() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_agent=True,
         agent_api_key="test-api-key",
         agent_project_encryption_key="bXlfMzJfYnl0ZV9rZXlfYmFzZTY0X2VuY29kZWRfaGVyZQ==",
@@ -92,7 +92,7 @@ def test_to_agent_config_propagates_encryption_key() -> None:
 def test_to_agent_config_propagates_guard_version() -> None:
     import guard_agent
 
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_agent=True,
         agent_api_key="test-api-key",
         agent_guard_version="6.7.8",
@@ -111,7 +111,7 @@ def test_to_agent_config_propagates_guard_core_version_automatically() -> None:
 
     import guard_core
 
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_agent=True,
         agent_api_key="test-api-key",
     )
@@ -129,7 +129,7 @@ def test_to_agent_config_sends_distinct_wrapper_and_core_versions() -> None:
 
     import guard_core
 
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_agent=True,
         agent_api_key="test-api-key",
         agent_guard_version="fastapi-guard-7.1.0",
@@ -148,7 +148,7 @@ def test_to_agent_config_sends_distinct_wrapper_and_core_versions() -> None:
 def test_to_agent_config_import_error() -> None:
     import sys
 
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_agent=True,
         agent_api_key="test-api-key",
     )
@@ -172,7 +172,7 @@ def test_to_agent_config_import_error() -> None:
 
 
 def test_agent_config_with_all_defaults() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_agent=True,
         agent_api_key="test-key",
     )
@@ -192,7 +192,7 @@ def test_agent_config_with_all_defaults() -> None:
 
 
 def test_emergency_mode_defaults() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
 
     assert config.emergency_mode is False
     assert config.emergency_whitelist == []
@@ -200,7 +200,7 @@ def test_emergency_mode_defaults() -> None:
 
 
 def test_valid_agent_and_dynamic_rules_config() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_agent=True,
         agent_api_key="test-key",
         enable_dynamic_rules=True,
@@ -214,7 +214,7 @@ def test_valid_agent_and_dynamic_rules_config() -> None:
 
 def test_dynamic_rule_interval_below_agent_config_floor_is_rejected() -> None:
     with pytest.raises(ValueError):
-        SecurityConfig(
+        SyncSecurityConfig(
             enable_agent=True,
             agent_api_key="test-key",
             enable_dynamic_rules=True,
@@ -223,7 +223,7 @@ def test_dynamic_rule_interval_below_agent_config_floor_is_rejected() -> None:
 
 
 def test_dynamic_rule_interval_at_agent_config_floor_is_accepted() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_agent=True,
         agent_api_key="test-key",
         enable_dynamic_rules=True,
@@ -236,7 +236,7 @@ def test_dynamic_rule_interval_at_agent_config_floor_is_accepted() -> None:
 def test_to_agent_config_forwards_dynamic_rule_interval() -> None:
     import guard_agent
 
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_agent=True,
         agent_api_key="test-key",
         dynamic_rule_interval=600,
@@ -258,7 +258,7 @@ def test_to_agent_config_forwards_agent_status_interval() -> None:
     """
     import guard_agent
 
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_agent=True,
         agent_api_key="test-key",
         agent_status_interval=900,
@@ -273,7 +273,7 @@ def test_to_agent_config_forwards_agent_status_interval() -> None:
 
 
 def test_agent_status_interval_defaults_to_300() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     assert config.agent_status_interval == 300
 
 
@@ -281,14 +281,14 @@ def test_agent_status_interval_rejects_below_60() -> None:
     from pydantic import ValidationError
 
     with pytest.raises(ValidationError):
-        SecurityConfig(agent_status_interval=30)
+        SyncSecurityConfig(agent_status_interval=30)
 
 
 def test_agent_status_interval_rejects_above_86400() -> None:
     from pydantic import ValidationError
 
     with pytest.raises(ValidationError):
-        SecurityConfig(agent_status_interval=86401)
+        SyncSecurityConfig(agent_status_interval=86401)
 
 
 def _sample_on_error_hook(
@@ -318,7 +318,7 @@ FORWARDED_OPTIONAL_AGENT_FIELDS: list[tuple[str, str, object]] = [
 def test_to_agent_config_forwards_optional_field_when_set(
     security_field: str, agent_field: str, value: object
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_agent=True,
         agent_api_key="test-key",
         **{security_field: value},
@@ -331,7 +331,7 @@ def test_to_agent_config_forwards_optional_field_when_set(
 
 
 def test_to_agent_config_forwards_on_error_by_identity() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_agent=True,
         agent_api_key="test-key",
         on_error=_sample_on_error_hook,
@@ -346,7 +346,7 @@ def test_to_agent_config_forwards_on_error_by_identity() -> None:
 def test_to_agent_config_omits_none_optional_fields_leaving_agent_defaults() -> None:
     from guard_agent import AgentConfig
 
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_agent=True,
         agent_api_key="test-key",
     )
@@ -366,11 +366,11 @@ def test_agent_buffer_overflow_policy_rejects_invalid_value() -> None:
     from pydantic import ValidationError
 
     with pytest.raises(ValidationError):
-        SecurityConfig(agent_buffer_overflow_policy="nonsense")
+        SyncSecurityConfig(agent_buffer_overflow_policy="nonsense")
 
 
 def test_agent_optional_fields_default_to_none() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
 
     assert config.agent_high_watermark_ratio is None
     assert config.agent_max_concurrent_flushes is None

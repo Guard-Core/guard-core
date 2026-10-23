@@ -4,24 +4,24 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.events.middleware_events import SecurityEventBus
 from guard_core.sync.utils import invoke_error_hook
 
 
 def test_agent_strict_defaults_false() -> None:
-    assert SecurityConfig().agent_strict is False
+    assert SyncSecurityConfig().agent_strict is False
 
 
 def test_on_error_defaults_none() -> None:
-    assert SecurityConfig().on_error is None
+    assert SyncSecurityConfig().on_error is None
 
 
 def test_on_error_accepts_callable() -> None:
     def hook(stage: str, exc: BaseException, ctx: dict[str, Any]) -> None:
         pass
 
-    config = SecurityConfig(on_error=hook)
+    config = SyncSecurityConfig(on_error=hook)
     assert config.on_error is hook
 
 
@@ -56,7 +56,7 @@ def test_geoip_lookup_failure_logs_and_fires_hook(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     captured: list[tuple[str, BaseException, dict[str, Any]]] = []
-    config = SecurityConfig(on_error=lambda s, e, c: captured.append((s, e, c)))
+    config = SyncSecurityConfig(on_error=lambda s, e, c: captured.append((s, e, c)))
     geo = MagicMock()
     geo.get_country = MagicMock(side_effect=RuntimeError("geo down"))
     bus = SecurityEventBus(agent_handler=None, config=config, geo_ip_handler=geo)

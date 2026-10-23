@@ -7,7 +7,7 @@ _BUILD_PIPELINE_WITHOUT_CLOUD_BLOCKING = (
     "from guard_core.sync.core.checks import build_default_pipeline\n"
     "from guard_core.models import SecurityConfig\n"
     "middleware = Mock()\n"
-    "middleware.config = SecurityConfig()\n"
+    "middleware.config = SyncSecurityConfig()\n"
     "middleware.logger = Mock()\n"
     "middleware.event_bus = Mock()\n"
     "middleware.create_error_response = MagicMock(return_value=Mock(status_code=500))\n"

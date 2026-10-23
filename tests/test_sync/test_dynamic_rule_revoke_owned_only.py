@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.models import DynamicRules, SyncSecurityConfig
 from guard_core.sync.handlers._ipban_rule_exempt import (
     DYNAMIC_RULE_BAN_REASON,
     rule_ban_target,
@@ -68,7 +68,7 @@ class Fleet:
 
 
 def _open_fleet(on_redis: bool) -> Fleet:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         redis_url=REDIS_URL,
         redis_prefix=f"wp20-revoke:{uuid.uuid4().hex}:",
         enable_redis=on_redis,

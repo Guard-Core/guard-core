@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.ratelimit_handler import RateLimitManager
 from guard_core.sync.handlers.redis_handler import RedisManager
 from tests.test_sync.conftest import REDIS_URL, MockGuardResponse, SyncMockGuardRequest
@@ -23,14 +23,14 @@ def _request() -> SyncMockGuardRequest:
     return SyncMockGuardRequest(path="/x", client_host=IP)
 
 
-def _memory_config(limit: int, window: int) -> SecurityConfig:
-    return SecurityConfig(
+def _memory_config(limit: int, window: int) -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         enable_redis=False, rate_limit=limit, rate_limit_window=window
     )
 
 
-def _redis_config(limit: int, window: int) -> SecurityConfig:
-    return SecurityConfig(
+def _redis_config(limit: int, window: int) -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         enable_redis=True,
         redis_url=REDIS_URL,
         redis_prefix=f"test:wp3:{uuid.uuid4().hex}:",
@@ -42,7 +42,7 @@ def _redis_config(limit: int, window: int) -> SecurityConfig:
 @pytest.fixture
 def redis_rate_limiter(
     request: pytest.FixtureRequest,
-) -> Generator[tuple[RateLimitManager, RedisManager, SecurityConfig], None]:
+) -> Generator[tuple[RateLimitManager, RedisManager, SyncSecurityConfig], None]:
     limit, window = request.param
     config = _redis_config(limit, window)
     redis = RedisManager(config)
@@ -76,7 +76,7 @@ def test_rejected_requests_never_enter_the_memory_window() -> None:
 
 @pytest.mark.parametrize("redis_rate_limiter", [(5, 60)], indirect=True)
 def test_rejected_requests_never_enter_the_redis_window(
-    redis_rate_limiter: tuple[RateLimitManager, RedisManager, SecurityConfig],
+    redis_rate_limiter: tuple[RateLimitManager, RedisManager, SyncSecurityConfig],
 ) -> None:
     manager, redis, config = redis_rate_limiter
 
@@ -104,7 +104,7 @@ def test_a_retrying_client_is_unlocked_when_its_allowed_hits_expire(
 
 @pytest.mark.parametrize("redis_rate_limiter", [(1, 1)], indirect=True)
 def test_a_retrying_client_is_unlocked_in_redis_too(
-    redis_rate_limiter: tuple[RateLimitManager, RedisManager, SecurityConfig],
+    redis_rate_limiter: tuple[RateLimitManager, RedisManager, SyncSecurityConfig],
 ) -> None:
     manager, _, _ = redis_rate_limiter
 
@@ -119,7 +119,7 @@ def test_a_retrying_client_is_unlocked_in_redis_too(
 
 @pytest.mark.parametrize("redis_rate_limiter", [(5, 60)], indirect=True)
 def test_a_skewed_peer_clock_cannot_purge_the_shared_window(
-    redis_rate_limiter: tuple[RateLimitManager, RedisManager, SecurityConfig],
+    redis_rate_limiter: tuple[RateLimitManager, RedisManager, SyncSecurityConfig],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     manager, _, _ = redis_rate_limiter
@@ -169,7 +169,7 @@ def test_retry_after_is_at_least_one_second(
 
 @pytest.mark.parametrize("redis_rate_limiter", [(1, 5)], indirect=True)
 def test_retry_after_counts_down_in_redis(
-    redis_rate_limiter: tuple[RateLimitManager, RedisManager, SecurityConfig],
+    redis_rate_limiter: tuple[RateLimitManager, RedisManager, SyncSecurityConfig],
 ) -> None:
     manager, _, _ = redis_rate_limiter
     _hit(manager)

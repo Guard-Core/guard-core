@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils.body_content_scan import _scan_body_field
 from guard_core.sync.utils import detect_penetration_attempt
 from tests.test_sync.conftest import SyncMockGuardRequest
@@ -45,7 +45,7 @@ def test_nested_json_body_under_json_loads_limit_scans_without_exception(
 ) -> None:
     body = _nested_json_body(depth, "benign")
 
-    result = detect_penetration_attempt(_json_request(body), SecurityConfig())
+    result = detect_penetration_attempt(_json_request(body), SyncSecurityConfig())
 
     assert result.is_threat is False
 
@@ -56,7 +56,7 @@ def test_nested_json_body_beyond_json_loads_limit_falls_back_to_blob_scan(
 ) -> None:
     body = _nested_json_body(depth, _SQLI_PAYLOAD)
 
-    result = detect_penetration_attempt(_json_request(body), SecurityConfig())
+    result = detect_penetration_attempt(_json_request(body), SyncSecurityConfig())
 
     assert result.is_threat is True
     assert result.trigger_info.startswith("Request body: ")
@@ -68,7 +68,7 @@ def test_sqli_at_depth_ten_matches_a_direct_scalar_scan() -> None:
     )
     body = _nested_json_body(10, _SQLI_PAYLOAD)
 
-    result = detect_penetration_attempt(_json_request(body), SecurityConfig())
+    result = detect_penetration_attempt(_json_request(body), SyncSecurityConfig())
 
     assert result.is_threat is True
     assert result.threat_categories == ["sqli"]
@@ -81,7 +81,7 @@ def test_sqli_at_depth_ten_does_not_trip_the_depth_cap_warning(
     body = _nested_json_body(10, _SQLI_PAYLOAD)
 
     with caplog.at_level(logging.WARNING, logger="guard_core"):
-        detect_penetration_attempt(_json_request(body), SecurityConfig())
+        detect_penetration_attempt(_json_request(body), SyncSecurityConfig())
 
     assert "detection_max_json_depth" not in caplog.text
 
@@ -103,7 +103,7 @@ def test_sqli_below_default_cap_depth_detected_via_serialised_capped_subtree(
     body = _nested_json_body(40, _SQLI_PAYLOAD)
 
     with caplog.at_level(logging.WARNING, logger="guard_core"):
-        result = detect_penetration_attempt(_json_request(body), SecurityConfig())
+        result = detect_penetration_attempt(_json_request(body), SyncSecurityConfig())
 
     assert result.is_threat is True
     assert result.threat_categories == ["sqli"]
@@ -114,7 +114,7 @@ def test_sqli_below_default_cap_depth_detected_via_serialised_capped_subtree(
 def test_two_capped_subtrees_in_one_request_warn_only_once(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(detection_max_json_depth=5)
+    config = SyncSecurityConfig(detection_max_json_depth=5)
     body = json.dumps(
         {
             "branch1": _nested_json_value(10, "benign"),
@@ -132,7 +132,7 @@ def test_two_capped_subtrees_in_one_request_warn_only_once(
 def test_depth_cap_warning_resets_between_requests(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(detection_max_json_depth=5)
+    config = SyncSecurityConfig(detection_max_json_depth=5)
     body = _nested_json_body(10, "benign")
     request = _json_request(body)
 
@@ -144,7 +144,7 @@ def test_depth_cap_warning_resets_between_requests(
 
 
 def test_max_json_depth_of_one_scans_a_flat_objects_values_as_text() -> None:
-    config = SecurityConfig(detection_max_json_depth=1)
+    config = SyncSecurityConfig(detection_max_json_depth=1)
     body = json.dumps({"a": "benign", "b": _SQLI_PAYLOAD}).encode()
 
     result = detect_penetration_attempt(_json_request(body), config)
@@ -154,7 +154,7 @@ def test_max_json_depth_of_one_scans_a_flat_objects_values_as_text() -> None:
 
 
 def test_ordering_and_first_hit_parity_across_dict_and_nested_list() -> None:
-    config = SecurityConfig(excluded_detection_body_fields=["excluded_field"])
+    config = SyncSecurityConfig(excluded_detection_body_fields=["excluded_field"])
     body = json.dumps(
         {
             "excluded_field": _SQLI_PAYLOAD,
@@ -184,7 +184,7 @@ def test_excluded_key_without_the_exclusion_configured_wins_instead() -> None:
         }
     ).encode()
 
-    result = detect_penetration_attempt(_json_request(body), SecurityConfig())
+    result = detect_penetration_attempt(_json_request(body), SyncSecurityConfig())
 
     assert result.is_threat is True
     assert result.trigger_info.startswith("Request body field 'excluded_field': ")
@@ -196,7 +196,7 @@ def test_default_cap_never_trips_on_an_ordinary_shallow_json_body(
     body = json.dumps({"query": {"filter": {"active": True}}}).encode()
 
     with caplog.at_level(logging.WARNING, logger="guard_core"):
-        result = detect_penetration_attempt(_json_request(body), SecurityConfig())
+        result = detect_penetration_attempt(_json_request(body), SyncSecurityConfig())
 
     assert result.is_threat is False
     assert "detection_max_json_depth" not in caplog.text
@@ -215,28 +215,28 @@ def test_config_none_still_uses_the_default_depth_cap(
 
 
 def test_detection_max_json_depth_default_is_thirty_two() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
 
     assert config.detection_max_json_depth == 32
 
 
 def test_detection_max_json_depth_of_zero_is_rejected() -> None:
     with pytest.raises(ValueError, match="greater than or equal to 1"):
-        SecurityConfig(detection_max_json_depth=0)
+        SyncSecurityConfig(detection_max_json_depth=0)
 
 
 def test_detection_max_json_depth_of_one_is_accepted() -> None:
-    config = SecurityConfig(detection_max_json_depth=1)
+    config = SyncSecurityConfig(detection_max_json_depth=1)
 
     assert config.detection_max_json_depth == 1
 
 
 def test_detection_max_json_depth_of_one_thousand_is_accepted() -> None:
-    config = SecurityConfig(detection_max_json_depth=1000)
+    config = SyncSecurityConfig(detection_max_json_depth=1000)
 
     assert config.detection_max_json_depth == 1000
 
 
 def test_detection_max_json_depth_above_one_thousand_is_rejected() -> None:
     with pytest.raises(ValueError, match="less than or equal to 1000"):
-        SecurityConfig(detection_max_json_depth=1001)
+        SyncSecurityConfig(detection_max_json_depth=1001)

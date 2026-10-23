@@ -2,7 +2,7 @@ from collections.abc import Generator
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.suspatterns_handler import (
     _FILE_UPLOAD_DOUBLE_EXTENSION_RE,
     _FILE_UPLOAD_TRUNCATION_RE,
@@ -375,19 +375,19 @@ def _body_request(body: str) -> SyncMockGuardRequest:
 
 
 def _body_is_threat(body: str) -> bool:
-    result = detect_penetration_attempt(_body_request(body), SecurityConfig())
+    result = detect_penetration_attempt(_body_request(body), SyncSecurityConfig())
     return bool(result.is_threat)
 
 
 def _body_categories(body: str) -> list[str]:
-    result = detect_penetration_attempt(_body_request(body), SecurityConfig())
+    result = detect_penetration_attempt(_body_request(body), SyncSecurityConfig())
     return list(result.threat_categories)
 
 
 def _reset_manager() -> None:
     SusPatternsManager._instance = None
     SusPatternsManager._config = None
-    SusPatternsManager(SecurityConfig())
+    SusPatternsManager(SyncSecurityConfig())
 
 
 SPACE_BRIDGE_DOUBLE_EXTENSION_BODIES = [

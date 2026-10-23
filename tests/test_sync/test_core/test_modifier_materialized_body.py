@@ -1,7 +1,7 @@
 import logging
 from typing import Any, cast
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.core.responses import reads_response_body
 from guard_core.sync.core.responses.context import ResponseContext
@@ -69,7 +69,7 @@ def _modifier(seen: _Seen, marked: bool = False) -> Any:
 
 
 def _process(modifier: Any, response: _Response) -> GuardResponse:
-    config = SecurityConfig(enable_redis=False)
+    config = SyncSecurityConfig(enable_redis=False)
     config.custom_response_modifier = modifier
     factory = ErrorResponseFactory(
         ResponseContext(

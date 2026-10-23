@@ -28,7 +28,7 @@ sync_config = SecurityConfig(
     custom_request_check=sync_check_on_the_guard_request,
     custom_response_modifier=sync_modifier,
 )
-sync_request_config = SecurityConfig(
+sync_request_config = SecurityConfig[SyncGuardRequest](
     custom_request_check=sync_check_on_the_sync_request
 )
 async_config = SecurityConfig(

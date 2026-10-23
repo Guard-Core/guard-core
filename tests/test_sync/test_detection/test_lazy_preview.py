@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils import body_content_scan, penetration_detection
 from guard_core.sync.utils import detect_penetration_attempt
 from tests.test_sync.conftest import SyncMockGuardRequest
@@ -67,7 +67,7 @@ def test_a_benign_value_never_builds_its_display_preview(surface: str) -> None:
         ),
     ):
         result = detect_penetration_attempt(
-            BENIGN[surface], SecurityConfig(enable_redis=False)
+            BENIGN[surface], SyncSecurityConfig(enable_redis=False)
         )
 
     assert result.is_threat is False
@@ -98,7 +98,9 @@ def test_a_threat_still_reports_a_preview(
     secret_name: str | None,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    result = detect_penetration_attempt(request_, SecurityConfig(enable_redis=False))
+    result = detect_penetration_attempt(
+        request_, SyncSecurityConfig(enable_redis=False)
+    )
 
     assert result.is_threat is True
     assert "Potential attack detected" in caplog.text

@@ -13,11 +13,12 @@ from guard_core._security_config_validators import (
 )
 
 if TYPE_CHECKING:
+    from guard_core._security_config_fields import RequestT
     from guard_core.models import SecurityConfig
 
 
 def _require_cloud_extra_for_batch(
-    config: "SecurityConfig", prepared: Mapping[str, Any]
+    config: "SecurityConfig[RequestT]", prepared: Mapping[str, Any]
 ) -> None:
     if cloud_blocking_requested(
         prepared.get("block_cloud_providers", config.block_cloud_providers),
@@ -27,7 +28,9 @@ def _require_cloud_extra_for_batch(
 
 
 def prepare_config_batch(
-    config: "SecurityConfig", values: Mapping[str, Any], validated: Collection[str]
+    config: "SecurityConfig[RequestT]",
+    values: Mapping[str, Any],
+    validated: Collection[str],
 ) -> dict[str, Any]:
     prepared = {name: deepcopy(value) for name, value in values.items()}
     for name in validated:
@@ -57,7 +60,9 @@ def prepare_config_batch(
     return prepared
 
 
-def apply_config_batch(config: "SecurityConfig", prepared: Mapping[str, Any]) -> None:
+def apply_config_batch(
+    config: "SecurityConfig[RequestT]", prepared: Mapping[str, Any]
+) -> None:
     config.__dict__.update(prepared)
     config.__pydantic_fields_set__.update(prepared)
     object.__setattr__(config, "_revision", config._current_revision() + 1)

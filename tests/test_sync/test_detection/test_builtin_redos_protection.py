@@ -2,7 +2,7 @@ import multiprocessing as mp
 import time
 from typing import Any
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.suspatterns_handler import SusPatternsManager
 
 _REDOS_PAYLOAD = "{{" * 10000
@@ -20,7 +20,7 @@ def _child_detect(
     payload: str,
     q: "mp.Queue[dict[str, Any]]",
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         detection_compiler_timeout=compiler_timeout,
         detection_max_content_length=max_content_length,
     )
@@ -40,7 +40,7 @@ def _child_detect(
 
 
 def _run_detect_under_deadline(
-    config: SecurityConfig, payload: str
+    config: SyncSecurityConfig, payload: str
 ) -> dict[str, Any] | None:
     ctx = mp.get_context("forkserver")
     q: mp.Queue[dict[str, Any]] = ctx.Queue()
@@ -65,8 +65,8 @@ def _run_detect_under_deadline(
     return q.get() if not q.empty() else None
 
 
-def _enhanced_config() -> SecurityConfig:
-    return SecurityConfig(
+def _enhanced_config() -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         detection_compiler_timeout=_COMPILER_TIMEOUT_SECONDS,
         detection_max_content_length=_MAX_CONTENT_LENGTH,
     )

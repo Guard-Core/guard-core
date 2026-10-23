@@ -1,6 +1,6 @@
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.utils import detect_penetration_attempt
 from tests.test_sync.conftest import SyncMockGuardRequest
 
@@ -8,7 +8,7 @@ _JUNK = {f"k{i}": "v" for i in range(25)}
 
 
 def _flagged(value: str, spent_budget: bool) -> bool:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False,
         rate_limit=1000000,
         detection_max_scan_values=20 if spent_budget else 100000,

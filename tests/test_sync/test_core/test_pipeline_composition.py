@@ -1,6 +1,6 @@
 from collections.abc import Collection
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.core.checks import build_default_pipeline
 from guard_core.sync.core.checks.base import SecurityCheck
@@ -16,7 +16,7 @@ from tests.test_sync.test_core.conftest import (
 
 
 def test_default_config_builds_minimal_pipeline() -> None:
-    middleware = middleware_for(SecurityConfig(), route_configs=())
+    middleware = middleware_for(SyncSecurityConfig(), route_configs=())
     pipeline = build_default_pipeline(middleware)
 
     assert pipeline.get_check_names() == [
@@ -29,7 +29,7 @@ def test_default_config_builds_minimal_pipeline() -> None:
 
 
 def test_fully_enabled_config_builds_all_checks_in_canonical_order() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         emergency_mode=True,
         enforce_https=True,
         log_request_level="INFO",
@@ -63,7 +63,7 @@ def test_fully_enabled_config_builds_all_checks_in_canonical_order() -> None:
 
 
 def test_enable_dynamic_rules_keeps_mutable_checks_with_every_flag_off() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_dynamic_rules=True,
         enable_agent=True,
         agent_api_key="test-key",
@@ -88,7 +88,7 @@ def test_enable_dynamic_rules_keeps_mutable_checks_with_every_flag_off() -> None
 
 
 def test_unknown_route_configs_keeps_every_route_driven_check() -> None:
-    middleware = middleware_for(SecurityConfig(), route_configs=None)
+    middleware = middleware_for(SyncSecurityConfig(), route_configs=None)
     pipeline = build_default_pipeline(middleware)
 
     assert pipeline.get_check_names() == [
@@ -121,14 +121,14 @@ class _AlwaysDroppedCheck(SecurityCheck):
     @classmethod
     def applies_to(
         cls,
-        config: SecurityConfig,
+        config: SyncSecurityConfig,
         route_configs: Collection[RouteConfig] | None,
     ) -> bool:
         return False
 
 
 def test_applies_to_false_excludes_check_from_pipeline() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     route_configs: tuple[RouteConfig, ...] = ()
     middleware = middleware_for(config, route_configs=route_configs)
     check_classes: tuple[type[SecurityCheck], ...] = (

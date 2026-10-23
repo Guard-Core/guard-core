@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.utils import (
     _build_log_message_for_suspicious,
     _check_blocked_countries,
@@ -253,7 +253,7 @@ def test_detect_penetration_attempt_scan_body_disabled_skips_the_body() -> None:
     request.query_params = {}
     request.url_path = "/"
     request.headers = {}
-    config = SecurityConfig(detection_scan_body=False)
+    config = SyncSecurityConfig(detection_scan_body=False)
     body_called = False
 
     def _body() -> bytes:

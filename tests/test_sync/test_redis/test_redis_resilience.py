@@ -1,11 +1,11 @@
 from unittest.mock import MagicMock, patch
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.redis_handler import redis_handler
 
 
 def test_connection_kwargs_from_config() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         redis_url="redis://localhost:6379",
         redis_socket_timeout=0.5,
         redis_socket_connect_timeout=0.25,
@@ -26,7 +26,7 @@ def test_connection_kwargs_from_config() -> None:
 
 
 def test_connection_kwargs_retries_disabled() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         redis_url="redis://localhost:6379",
         redis_retries=0,
         redis_max_connections=None,
@@ -40,7 +40,7 @@ def test_connection_kwargs_retries_disabled() -> None:
 
 
 def test_initialize_passes_connection_kwargs() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         redis_url="redis://localhost:6379",
         redis_socket_timeout=0.5,
         redis_socket_connect_timeout=0.25,
@@ -61,7 +61,7 @@ def test_initialize_passes_connection_kwargs() -> None:
 
 
 def test_initialize_passes_the_pool_size_and_timeout() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         redis_url="redis://localhost:6379",
         redis_max_connections=20,
         redis_pool_timeout=0.4,

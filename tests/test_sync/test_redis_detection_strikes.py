@@ -4,7 +4,7 @@ from collections.abc import Generator
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.redis_handler import RedisManager
 from tests.test_sync.conftest import REDIS_URL
 
@@ -14,7 +14,7 @@ WINDOW = 3600
 
 @pytest.fixture
 def redis() -> Generator[RedisManager, None]:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=True,
         redis_url=REDIS_URL,
         redis_prefix=f"test:wp3fu:strikes:{uuid.uuid4().hex}:",
@@ -117,7 +117,7 @@ def test_forgetting_reloads_the_script_after_a_script_flush(
 
 
 def test_a_disabled_redis_records_and_forgets_nothing() -> None:
-    manager = RedisManager(SecurityConfig(enable_redis=False))
+    manager = RedisManager(SyncSecurityConfig(enable_redis=False))
 
     assert manager.record_detection_strikes(IP, ("xss",), 1.0, 0.0, 10, 5) == (
         0,

@@ -2,6 +2,7 @@ import logging
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from guard_core._security_config_fields import RequestT
     from guard_core.models import SecurityConfig
 
 _PROBE_SEGMENTS = frozenset(
@@ -36,7 +37,7 @@ def _is_probe_path(entry: str) -> bool:
     )
 
 
-def unexempted_probe_paths(config: "SecurityConfig") -> list[str]:
+def unexempted_probe_paths(config: "SecurityConfig[RequestT]") -> list[str]:
     from guard_core.core.validation.path_matching import path_is_excluded
 
     return [
@@ -48,7 +49,7 @@ def unexempted_probe_paths(config: "SecurityConfig") -> list[str]:
 
 
 def warn_unexempted_probe_paths(
-    config: "SecurityConfig", logger: logging.Logger
+    config: "SecurityConfig[RequestT]", logger: logging.Logger
 ) -> None:
     if not config.emergency_mode:
         return

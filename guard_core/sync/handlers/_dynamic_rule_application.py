@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from guard_core._emergency_exemptions import warn_unexempted_probe_paths
-from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.models import DynamicRules, SyncSecurityConfig
 from guard_core.sync._utils.detection_scan import _redact_pattern_source
 from guard_core.sync.handlers._dynamic_rule_events import DynamicRuleEventSenderMixin
 from guard_core.sync.handlers._dynamic_rule_plan import DynamicRulePlan
@@ -26,7 +26,7 @@ class RuleSideEffects:
 
 
 class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
-    config: SecurityConfig
+    config: SyncSecurityConfig
     agent_handler: Any
     _owned_bans: list[str]
     _owned_patterns: list[str]

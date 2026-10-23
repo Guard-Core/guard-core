@@ -3,7 +3,7 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.decorators.base import RouteConfig
 from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
 from guard_core.sync.utils import detect_penetration_attempt
@@ -16,7 +16,7 @@ MAX_SCANS_FOR_A_BODY_WITHOUT_A_BACKSLASH = 3
 
 @pytest.fixture(autouse=True)
 def _force_enhanced_detection_singleton() -> None:
-    sus_patterns_handler.configure(SecurityConfig())
+    sus_patterns_handler.configure(SyncSecurityConfig())
 
 
 def _body(content_type: str, payload: bytes) -> SyncMockGuardRequest:
@@ -44,7 +44,7 @@ def _watch_detect(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 def _is_threat(
     request: SyncMockGuardRequest, route_config: RouteConfig | None = None
 ) -> bool:
-    config = SecurityConfig(enable_redis=False, rate_limit=10_000_000)
+    config = SyncSecurityConfig(enable_redis=False, rate_limit=10_000_000)
     return (detect_penetration_attempt(request, config, route_config)).is_threat
 
 

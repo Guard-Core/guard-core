@@ -2,7 +2,7 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.decorators.base import RouteConfig
 from guard_core.sync.decorators.content_filtering import ContentFilteringMixin
 
@@ -29,9 +29,9 @@ def test_the_config_error_names_the_option_it_validates(
     option: str, value: Any, message: str
 ) -> None:
     with pytest.raises(ValueError, match=message.format(option=option)):
-        SecurityConfig(**{option: value})
+        SyncSecurityConfig(**{option: value})
 
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     with pytest.raises(ValueError, match=message.format(option=option)):
         setattr(config, option, value)
 

@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.models import DynamicRules, SyncSecurityConfig
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.sync.handlers.ipban_handler import ip_ban_manager
 from guard_core.sync.handlers.redis_handler import RedisManager
@@ -27,7 +27,7 @@ from tests.test_sync.test_event_attribution import (
 
 @pytest.fixture
 def redis() -> Generator[RedisManager, None]:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         redis_url=REDIS_URL, redis_prefix=f"wp23-attr:{uuid.uuid4().hex}:"
     )
     manager = RedisManager(config)
@@ -39,7 +39,7 @@ def redis() -> Generator[RedisManager, None]:
     manager.close()
 
 
-def _redis_config(redis: RedisManager, **overrides: Any) -> SecurityConfig:
+def _redis_config(redis: RedisManager, **overrides: Any) -> SyncSecurityConfig:
     return _config(
         enable_redis=True,
         redis_url=REDIS_URL,
@@ -49,7 +49,7 @@ def _redis_config(redis: RedisManager, **overrides: Any) -> SecurityConfig:
 
 
 def _apply_on_a_fresh_worker(
-    config: SecurityConfig, redis: RedisManager, rules: DynamicRules
+    config: SyncSecurityConfig, redis: RedisManager, rules: DynamicRules
 ) -> DynamicRuleManager:
     """What a worker that starts later sees: nothing cached locally, the shared
     ban state in Redis."""
@@ -76,7 +76,7 @@ def _fresh_client_view() -> None:
     ip_ban_manager._operator_networks = None
 
 
-def _stamp_for(config: SecurityConfig, ip: str = RULE_IP) -> dict[str, Any]:
+def _stamp_for(config: SyncSecurityConfig, ip: str = RULE_IP) -> dict[str, Any]:
     middleware = _run(config, _request(ip))
     event = _one(middleware, "ip_blocked")
     assert event["filter_type"] == "banned"

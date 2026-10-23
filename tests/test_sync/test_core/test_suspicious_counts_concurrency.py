@@ -1,13 +1,13 @@
 import threading
 from unittest.mock import MagicMock
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.helpers import _increment_suspicious_counts
 
 
 def _middleware(cap: int = 10_000) -> MagicMock:
     mw = MagicMock()
-    mw.config = SecurityConfig(enable_redis=False, ban_counters_max_tracked_ips=cap)
+    mw.config = SyncSecurityConfig(enable_redis=False, ban_counters_max_tracked_ips=cap)
     return mw
 
 

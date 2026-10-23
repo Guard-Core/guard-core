@@ -4,7 +4,7 @@ from typing import cast
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.detection_engine.preprocessor import ContentPreprocessor
 from guard_core.sync.detection_result import DetectionResult
 from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
@@ -29,7 +29,7 @@ _NULL_REMOVAL_DEPENDENCY_MESSAGE = (
 
 @pytest.fixture(autouse=True)
 def _force_enhanced_detection_singleton() -> Iterator[None]:
-    sus_patterns_handler.configure(SecurityConfig())
+    sus_patterns_handler.configure(SyncSecurityConfig())
     yield
 
 
@@ -39,7 +39,9 @@ def _detect(body: bytes, content_type: str = "text/plain") -> DetectionResult:
         headers={"content-length": str(len(body)), "content-type": content_type},
         body_content=body,
     )
-    return detect_penetration_attempt(cast(SyncGuardRequest, request), SecurityConfig())
+    return detect_penetration_attempt(
+        cast(SyncGuardRequest, request), SyncSecurityConfig()
+    )
 
 
 @pytest.mark.parametrize("family", sorted(_FAMILY_PAYLOADS))

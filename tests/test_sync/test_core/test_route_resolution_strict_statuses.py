@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.implementations.route_config import RouteConfigCheck
 from tests.test_sync.conftest import MockGuardResponse, SyncMockGuardRequest
 
@@ -20,7 +20,7 @@ def _middleware(
     **config: Any,
 ) -> MagicMock:
     mw = MagicMock()
-    mw.config = SecurityConfig(
+    mw.config = SyncSecurityConfig(
         enable_redis=False, route_resolution_strict=True, **config
     )
     mw.logger = MagicMock()

@@ -14,7 +14,7 @@ from guard_core._dynamic_rules import (
     dump_last_known_rules_snapshot,
     load_last_known_rules_snapshot,
 )
-from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.models import DynamicRules, SyncSecurityConfig
 from guard_core.sync.handlers._dynamic_rule_persistence import (
     DYNAMIC_RULES_REDIS_NAMESPACE,
     LAST_KNOWN_RULES_KEY,
@@ -69,7 +69,7 @@ def reset_singleton() -> Generator[None, None, None]:
 
 
 def test_sync_apply_rules_persists_last_known_rules_to_redis() -> None:
-    config = SecurityConfig(auto_ban_threshold=5)
+    config = SyncSecurityConfig(auto_ban_threshold=5)
     manager = DynamicRuleManager(config)
     redis = _redis(None)
     manager.initialize_redis(redis)
@@ -85,7 +85,7 @@ def test_sync_apply_rules_persists_last_known_rules_to_redis() -> None:
 
 def test_sync_apply_rules_persists_last_known_rules_to_file(tmp_path: Path) -> None:
     cache_path = tmp_path / "dynamic_rules.json"
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         auto_ban_threshold=5, dynamic_rules_cache_path=str(cache_path)
     )
     manager = DynamicRuleManager(config)
@@ -97,7 +97,7 @@ def test_sync_apply_rules_persists_last_known_rules_to_file(tmp_path: Path) -> N
 
 
 def test_sync_restart_with_saas_down_hydrates_last_known_rules() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_dynamic_rules=True,
         enable_agent=True,
         agent_api_key="key",
@@ -118,7 +118,7 @@ def test_sync_restart_with_saas_down_hydrates_last_known_rules() -> None:
 
 
 def test_sync_hydration_discards_malformed_snapshot() -> None:
-    config = SecurityConfig(auto_ban_threshold=5)
+    config = SyncSecurityConfig(auto_ban_threshold=5)
     manager = DynamicRuleManager(config)
     manager.initialize_redis(_redis("{not json"))
 
@@ -132,7 +132,7 @@ def test_sync_hydration_reads_file_when_redis_is_absent(tmp_path: Path) -> None:
     cache_path = tmp_path / "dynamic_rules.json"
     rules = _rules(auto_ban_threshold=9)
     cache_path.write_text(_snapshot(rules), encoding="utf-8")
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         auto_ban_threshold=5, dynamic_rules_cache_path=str(cache_path)
     )
     manager = DynamicRuleManager(config)
@@ -145,7 +145,7 @@ def test_sync_hydration_reads_file_when_redis_is_absent(tmp_path: Path) -> None:
 
 def test_sync_hydration_decodes_bytes_redis_payload() -> None:
     rules = _rules(auto_ban_threshold=9)
-    config = SecurityConfig(auto_ban_threshold=5)
+    config = SyncSecurityConfig(auto_ban_threshold=5)
     manager = DynamicRuleManager(config)
     manager.initialize_redis(_redis(_snapshot(rules).encode("utf-8")))
 
@@ -160,7 +160,7 @@ def test_sync_hydration_discards_expired_snapshot() -> None:
         auto_ban_threshold=9,
         expires_at=datetime.now(timezone.utc) - timedelta(hours=1),
     )
-    config = SecurityConfig(auto_ban_threshold=5)
+    config = SyncSecurityConfig(auto_ban_threshold=5)
     manager = DynamicRuleManager(config)
     manager.initialize_redis(_redis(_snapshot(expired)))
 
@@ -173,7 +173,7 @@ def test_sync_hydration_discards_expired_snapshot() -> None:
 def test_sync_hydration_survives_redis_read_failure(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(auto_ban_threshold=5)
+    config = SyncSecurityConfig(auto_ban_threshold=5)
     manager = DynamicRuleManager(config)
     redis = _redis(None)
     redis.get_key = MagicMock(side_effect=RuntimeError("connection refused"))
@@ -192,7 +192,7 @@ def test_sync_hydration_falls_back_to_file_when_redis_empty(tmp_path: Path) -> N
     rules = _rules(auto_ban_threshold=9)
     cache_path.write_text(_snapshot(rules), encoding="utf-8")
 
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         auto_ban_threshold=5, dynamic_rules_cache_path=str(cache_path)
     )
     manager = DynamicRuleManager(config)
@@ -209,7 +209,7 @@ def test_sync_hydration_discards_corrupt_cache_file(
 ) -> None:
     cache_path = tmp_path / "dynamic_rules.json"
     cache_path.write_bytes(b"\xff\xfe not utf-8 json")
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         auto_ban_threshold=5, dynamic_rules_cache_path=str(cache_path)
     )
     manager = DynamicRuleManager(config)
@@ -223,7 +223,7 @@ def test_sync_hydration_discards_corrupt_cache_file(
 
 
 def test_sync_hydration_survives_failed_apply() -> None:
-    config = SecurityConfig(auto_ban_threshold=5)
+    config = SyncSecurityConfig(auto_ban_threshold=5)
     manager = DynamicRuleManager(config)
     manager.initialize_redis(_redis(_snapshot(_rules(auto_ban_threshold=9))))
 
@@ -237,7 +237,7 @@ def test_sync_hydration_survives_failed_apply() -> None:
 
 
 def test_sync_apply_rules_survives_redis_write_failure() -> None:
-    config = SecurityConfig(auto_ban_threshold=5)
+    config = SyncSecurityConfig(auto_ban_threshold=5)
     manager = DynamicRuleManager(config)
     redis = _redis(None)
     redis.set_key = MagicMock(side_effect=RuntimeError("redis down"))
@@ -252,7 +252,7 @@ def test_sync_apply_rules_survives_cache_file_write_failure(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     cache_path = tmp_path / "missing-dir" / "dynamic_rules.json"
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         auto_ban_threshold=5, dynamic_rules_cache_path=str(cache_path)
     )
     manager = DynamicRuleManager(config)
@@ -288,7 +288,7 @@ def test_sync_resolve_redis_value_rejects_awaitable_without_close() -> None:
 def test_sync_hydration_degrades_to_base_config_with_async_redis_handler(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(auto_ban_threshold=5)
+    config = SyncSecurityConfig(auto_ban_threshold=5)
     manager = DynamicRuleManager(config)
 
     async def get_key(namespace: str, key: str) -> str:
@@ -320,7 +320,7 @@ def test_sync_hydration_falls_back_to_file_when_redis_snapshot_expired(
     cache_path = tmp_path / "dynamic_rules.json"
     cache_path.write_text(_snapshot(file_rules), encoding="utf-8")
 
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         auto_ban_threshold=5, dynamic_rules_cache_path=str(cache_path)
     )
     manager = DynamicRuleManager(config)
@@ -344,7 +344,7 @@ def test_sync_hydration_discards_snapshot_with_unknown_rule_fields(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     rules = _rules(auto_ban_threshold=9)
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         auto_ban_threshold=5,
         dynamic_rules_cache_path=str(tmp_path / "dynamic_rules.json"),
     )
@@ -366,7 +366,7 @@ def test_sync_hydration_discards_unknown_snapshot_schema_version(
 ) -> None:
     envelope = json.loads(_snapshot(_rules(auto_ban_threshold=9)))
     envelope["schema_version"] = LAST_KNOWN_RULES_SNAPSHOT_SCHEMA_VERSION + 1
-    config = SecurityConfig(auto_ban_threshold=5)
+    config = SyncSecurityConfig(auto_ban_threshold=5)
     manager = DynamicRuleManager(config)
     redis = _redis(json.dumps(envelope))
     manager.initialize_redis(redis)
@@ -384,7 +384,7 @@ def test_sync_hydration_discards_legacy_bare_payload(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     rules = _rules(auto_ban_threshold=9)
-    config = SecurityConfig(auto_ban_threshold=5)
+    config = SyncSecurityConfig(auto_ban_threshold=5)
     manager = DynamicRuleManager(config)
     manager.initialize_redis(_redis(rules.model_dump_json()))
 
@@ -403,7 +403,7 @@ def test_sync_cache_file_replace_failure_preserves_previous_snapshot(
     previous = _snapshot(_rules(rule_id="previous", version=1, auto_ban_threshold=5))
     cache_path.write_text(previous, encoding="utf-8")
 
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         auto_ban_threshold=5, dynamic_rules_cache_path=str(cache_path)
     )
     manager = DynamicRuleManager(config)
@@ -427,7 +427,7 @@ def test_sync_second_initialize_agent_does_not_reapply_hydrated_rules(
     tmp_path: Path,
 ) -> None:
     cache_path = tmp_path / "dynamic_rules.json"
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_dynamic_rules=True,
         enable_agent=True,
         agent_api_key="key",
@@ -464,7 +464,7 @@ def test_sync_hydrate_expiry_does_not_suppress_update_loop_warning(
         version=2,
         expires_at=datetime.now(timezone.utc) - timedelta(hours=1),
     )
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_dynamic_rules=True,
         enable_agent=True,
         agent_api_key="key",
@@ -516,7 +516,7 @@ def test_sync_apply_rules_persists_snapshot_built_from_real_guard_agent_rules(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     cache_path = tmp_path / "dynamic_rules.json"
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         auto_ban_threshold=5, dynamic_rules_cache_path=str(cache_path)
     )
     manager = DynamicRuleManager(config)
@@ -537,7 +537,7 @@ def test_sync_apply_rules_persists_snapshot_built_from_real_guard_agent_rules(
 def test_sync_apply_rules_persists_snapshot_built_from_real_guard_agent_rules_to_redis(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(auto_ban_threshold=5)
+    config = SyncSecurityConfig(auto_ban_threshold=5)
     manager = DynamicRuleManager(config)
     redis = _redis(None)
     manager.initialize_redis(redis)
@@ -559,7 +559,7 @@ def test_sync_apply_rules_persists_snapshot_built_from_real_guard_agent_rules_to
 def test_sync_apply_rules_survives_snapshot_build_failure(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_dynamic_rules=True,
         enable_agent=True,
         agent_api_key="key",

@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from guard_core.models import BehaviorRuleConfig, SecurityConfig
+from guard_core.models import BehaviorRuleConfig, SyncSecurityConfig
 from guard_core.sync.core.behavioral.context import BehavioralContext
 from guard_core.sync.core.behavioral.processor import BehavioralProcessor
 from guard_core.sync.decorators.base import RouteConfig
@@ -59,7 +59,7 @@ def _route(*rules: BehaviorRule) -> RouteConfig:
 @contextmanager
 def _engine(
     use_redis: bool,
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     middleware: Any = None,
 ) -> Iterator[tuple[BehavioralProcessor, MagicMock]]:
     tracker = BehaviorTracker(config)
@@ -88,8 +88,8 @@ def _engine(
             manager.close()
 
 
-def _config(use_redis: bool, redis_config: SecurityConfig, **extra: Any) -> Any:
-    base = redis_config if use_redis else SecurityConfig(enable_redis=False)
+def _config(use_redis: bool, redis_config: SyncSecurityConfig, **extra: Any) -> Any:
+    base = redis_config if use_redis else SyncSecurityConfig(enable_redis=False)
     return base.model_copy(update=extra)
 
 
@@ -106,7 +106,7 @@ def _run_route_usage(
 
 @pytest.mark.parametrize("use_redis", _BACKENDS)
 def test_one_rule_acts_from_the_request_after_its_threshold(
-    use_redis: bool, security_config_redis: SecurityConfig
+    use_redis: bool, security_config_redis: SyncSecurityConfig
 ) -> None:
     config = _config(use_redis, security_config_redis)
     with _engine(use_redis, config) as (processor, acted):
@@ -116,7 +116,7 @@ def test_one_rule_acts_from_the_request_after_its_threshold(
 
 @pytest.mark.parametrize("use_redis", _BACKENDS)
 def test_route_usage_rules_sharing_a_rule_id_count_each_request_once(
-    use_redis: bool, security_config_redis: SecurityConfig
+    use_redis: bool, security_config_redis: SyncSecurityConfig
 ) -> None:
     config = _config(use_redis, security_config_redis)
     route = _route(_rule(ban_duration=60), _rule(ban_duration=3600))
@@ -131,7 +131,7 @@ def test_route_usage_rules_sharing_a_rule_id_count_each_request_once(
 
 @pytest.mark.parametrize("use_redis", _BACKENDS)
 def test_a_usage_rule_and_the_same_rule_with_a_stray_pattern_share_one_count(
-    use_redis: bool, security_config_redis: SecurityConfig
+    use_redis: bool, security_config_redis: SyncSecurityConfig
 ) -> None:
     config = _config(use_redis, security_config_redis)
     route = _route(_rule(), _rule(pattern="ignored"))
@@ -142,7 +142,7 @@ def test_a_usage_rule_and_the_same_rule_with_a_stray_pattern_share_one_count(
 
 @pytest.mark.parametrize("use_redis", _BACKENDS)
 def test_global_usage_rules_sharing_a_rule_id_count_each_request_once(
-    use_redis: bool, security_config_redis: SecurityConfig
+    use_redis: bool, security_config_redis: SyncSecurityConfig
 ) -> None:
     config = _config(use_redis, security_config_redis)
     rules = [
@@ -164,7 +164,7 @@ def test_global_usage_rules_sharing_a_rule_id_count_each_request_once(
 
 @pytest.mark.parametrize("use_redis", _BACKENDS)
 def test_route_return_rules_sharing_a_rule_id_count_each_response_once(
-    use_redis: bool, security_config_redis: SecurityConfig
+    use_redis: bool, security_config_redis: SyncSecurityConfig
 ) -> None:
     config = _config(use_redis, security_config_redis)
     route = _route(_rule("return_pattern", ban_duration=60), _rule("return_pattern"))
@@ -180,7 +180,7 @@ def test_route_return_rules_sharing_a_rule_id_count_each_response_once(
 
 @pytest.mark.parametrize("use_redis", _BACKENDS)
 def test_global_return_rules_sharing_a_rule_id_count_each_response_once(
-    use_redis: bool, security_config_redis: SecurityConfig
+    use_redis: bool, security_config_redis: SyncSecurityConfig
 ) -> None:
     config = _config(use_redis, security_config_redis)
     rules = [_rule("return_pattern", ban_duration=d) for d in (60, 3600)]
@@ -196,7 +196,7 @@ def test_global_return_rules_sharing_a_rule_id_count_each_response_once(
 
 @pytest.mark.parametrize("use_redis", _BACKENDS)
 def test_return_rules_sharing_a_rule_id_apply_their_own_effective_threshold(
-    use_redis: bool, security_config_redis: SecurityConfig
+    use_redis: bool, security_config_redis: SyncSecurityConfig
 ) -> None:
     config = _config(use_redis, security_config_redis)
     rules = [
@@ -238,7 +238,7 @@ def _throttle(**overrides: Any) -> BehaviorRule:
 
 @pytest.mark.parametrize("use_redis", _BACKENDS)
 def test_route_throttle_rules_sharing_a_rule_id_count_each_request_once(
-    use_redis: bool, security_config_redis: SecurityConfig
+    use_redis: bool, security_config_redis: SyncSecurityConfig
 ) -> None:
     config = _config(use_redis, security_config_redis)
     route = _route(_throttle(ban_duration=60), _throttle(ban_duration=3600))
@@ -252,7 +252,7 @@ def test_route_throttle_rules_sharing_a_rule_id_count_each_request_once(
 
 @pytest.mark.parametrize("use_redis", _BACKENDS)
 def test_global_throttle_rules_sharing_a_rule_id_count_each_request_once(
-    use_redis: bool, security_config_redis: SecurityConfig
+    use_redis: bool, security_config_redis: SyncSecurityConfig
 ) -> None:
     config = _config(
         use_redis,
@@ -278,7 +278,7 @@ def test_global_throttle_rules_sharing_a_rule_id_count_each_request_once(
 
 @pytest.mark.parametrize("use_redis", _BACKENDS)
 def test_refused_requests_count_once_in_global_usage_rules_sharing_a_rule_id(
-    use_redis: bool, security_config_redis: SecurityConfig
+    use_redis: bool, security_config_redis: SyncSecurityConfig
 ) -> None:
     config = _config(
         use_redis,
@@ -318,7 +318,7 @@ def _custom_action(client_ip: str, endpoint_id: str, details: str) -> None:
 )
 @pytest.mark.parametrize("use_redis", _BACKENDS)
 def test_a_throttle_rule_and_its_custom_action_copy_count_each_request_once(
-    use_redis: bool, custom_first: bool, security_config_redis: SecurityConfig
+    use_redis: bool, custom_first: bool, security_config_redis: SyncSecurityConfig
 ) -> None:
     config = _config(use_redis, security_config_redis)
     rules = [_throttle(), _throttle(custom_action=_custom_action)]

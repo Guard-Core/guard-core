@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.factory import build_default_pipeline
 from guard_core.sync.decorators import SecurityDecorator
 from guard_core.sync.handlers.ipban_handler import ip_ban_manager
@@ -26,7 +26,7 @@ def _fresh_ban_store() -> Generator[None, None, None]:
     ip_ban_manager.banned_networks.clear()
 
 
-def _config(access_only: bool, **settings: Any) -> SecurityConfig:
+def _config(access_only: bool, **settings: Any) -> SyncSecurityConfig:
     defaults: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": False,
@@ -34,11 +34,11 @@ def _config(access_only: bool, **settings: Any) -> SecurityConfig:
         "whitelist": [CLIENT],
         "whitelist_access_only": access_only,
     }
-    return SecurityConfig(**{**defaults, **settings})
+    return SyncSecurityConfig(**{**defaults, **settings})
 
 
 def _run(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     *,
     ip: str = CLIENT,
     headers: dict[str, str] | None = None,
@@ -71,7 +71,7 @@ def test_the_whitelist_still_admits_and_still_refuses_both_ways(
 
 
 def test_the_field_defaults_to_true() -> None:
-    assert SecurityConfig(enable_redis=False).whitelist_access_only is True
+    assert SyncSecurityConfig(enable_redis=False).whitelist_access_only is True
 
 
 BAD_AGENT = {"User-Agent": "badbot/1.0"}

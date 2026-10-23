@@ -1,15 +1,15 @@
 from types import SimpleNamespace
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.events.enricher import EnrichmentContext, EventEnricher
 
 
-def _enricher(cfg: SecurityConfig) -> EventEnricher:
+def _enricher(cfg: SyncSecurityConfig) -> EventEnricher:
     return EventEnricher(EnrichmentContext(config=cfg))
 
 
 def test_identity_populates_project_and_service_from_config() -> None:
-    cfg = SecurityConfig(
+    cfg = SyncSecurityConfig(
         enable_agent=True,
         agent_api_key="a" * 10,
         agent_project_id="proj-123",
@@ -25,7 +25,7 @@ def test_identity_populates_project_and_service_from_config() -> None:
 
 
 def test_identity_adds_deployment_environment_when_set() -> None:
-    cfg = SecurityConfig(
+    cfg = SyncSecurityConfig(
         enable_agent=True,
         agent_api_key="a" * 10,
         agent_project_id="proj-9",
@@ -40,7 +40,7 @@ def test_identity_adds_deployment_environment_when_set() -> None:
 
 
 def test_identity_omits_project_id_when_unset() -> None:
-    cfg = SecurityConfig(otel_service_name="svc")
+    cfg = SyncSecurityConfig(otel_service_name="svc")
     event = SimpleNamespace(event_type="ip_blocked", metadata={})
     _enricher(cfg).enrich_event(event)
 
@@ -49,7 +49,7 @@ def test_identity_omits_project_id_when_unset() -> None:
 
 
 def test_identity_applied_to_metric_tags() -> None:
-    cfg = SecurityConfig(
+    cfg = SyncSecurityConfig(
         enable_agent=True,
         agent_api_key="a" * 10,
         agent_project_id="proj-metric",
@@ -67,7 +67,7 @@ def test_identity_applied_to_metric_tags() -> None:
 
 
 def test_identity_omits_deployment_env_when_key_missing() -> None:
-    cfg = SecurityConfig(
+    cfg = SyncSecurityConfig(
         otel_service_name="svc",
         otel_resource_attributes={"service.version": "1.2.3"},
     )

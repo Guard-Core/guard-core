@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 from guard_core._redis_enablement import configured_redis_url, redis_is_configured
 from guard_core._redis_exceptions import NoScriptError, RedisError
 from guard_core.exceptions import GuardRedisError
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.scripts.rate_lua import RATE_LIMIT_SCRIPT
 from guard_core.sync._utils.identity_hash import _hash_identity_segment
@@ -272,7 +272,7 @@ def forget_by_ip_strikes_inside(covers: Callable[[str], bool]) -> None:
 
 
 def _shared_primitive_counts(
-    ip: str, config: SecurityConfig, redis_handler: Any
+    ip: str, config: SyncSecurityConfig, redis_handler: Any
 ) -> dict[str, int] | None:
     if not (redis_is_configured(config) and redis_handler):
         return None
@@ -288,7 +288,7 @@ def _shared_primitive_counts(
 
 
 def _feed_rate_limit_autoban(
-    ip: str, config: SecurityConfig, redis_handler: Any = None
+    ip: str, config: SyncSecurityConfig, redis_handler: Any = None
 ) -> None:
     """Feed a rate-limited call into the shared auto-ban engine.
 
@@ -359,7 +359,7 @@ def _feed_rate_limit_autoban(
 
 def _report_by_ip_block(
     ip: str,
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     request_count: int,
     tier: RateLimitTier,
     agent_handler: Any,
@@ -377,7 +377,7 @@ def _report_by_ip_block(
 
 def _send_by_ip_event(
     ip: str,
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     reason: str,
     request_count: int,
     tier: RateLimitTier,
@@ -417,7 +417,7 @@ def _send_by_ip_event(
 
 def check_rate_limit_by_ip(
     ip: str,
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     redis_handler: Any = None,
     endpoint_path: str = "",
     agent_handler: Any = None,
@@ -542,7 +542,7 @@ _managers: weakref.WeakValueDictionary[tuple[type, int], "RateLimitManager"] = (
 _managers_lock = threading.RLock()
 
 
-def _configs_equal(first: SecurityConfig, second: SecurityConfig) -> bool:
+def _configs_equal(first: SyncSecurityConfig, second: SyncSecurityConfig) -> bool:
     try:
         return bool(first == second)
     except Exception:
@@ -550,7 +550,7 @@ def _configs_equal(first: SecurityConfig, second: SecurityConfig) -> bool:
 
 
 class RateLimitManager:
-    config: SecurityConfig
+    config: SyncSecurityConfig
     request_timestamps: defaultdict[str, deque[float]]
     logger: logging.Logger
     redis_handler: Any = None
@@ -560,7 +560,7 @@ class RateLimitManager:
     bound_to_app: bool = False
 
     def __new__(
-        cls: type["RateLimitManager"], config: SecurityConfig
+        cls: type["RateLimitManager"], config: SyncSecurityConfig
     ) -> "RateLimitManager":
         with _managers_lock:
             existing = _managers.get((cls, id(config)))
@@ -571,7 +571,7 @@ class RateLimitManager:
             return instance
 
     @classmethod
-    def _build(cls, config: SecurityConfig) -> "RateLimitManager":
+    def _build(cls, config: SyncSecurityConfig) -> "RateLimitManager":
         instance = super().__new__(cls)
         instance.config = config
         instance.request_timestamps = defaultdict(deque)
@@ -629,7 +629,7 @@ class RateLimitManager:
         count: int,
         create_error_response: Callable[[int, str], GuardResponse],
         rate_limit_window: int | None = None,
-        config: SecurityConfig | None = None,
+        config: SyncSecurityConfig | None = None,
         retry_after: int | None = None,
     ) -> GuardResponse:
         display_config = config or self.config
@@ -664,7 +664,7 @@ class RateLimitManager:
         self,
         client_ip: str,
         tiers: Sequence[RateLimitTier],
-        config: SecurityConfig,
+        config: SyncSecurityConfig,
         window_identity: str | None = None,
     ) -> RateLimitVerdict:
         identity = window_identity or (
@@ -699,7 +699,7 @@ class RateLimitManager:
         client_ip: str,
         create_error_response: Callable[[int, str], GuardResponse],
         tiers: Sequence[RateLimitTier],
-        config: SecurityConfig | None = None,
+        config: SyncSecurityConfig | None = None,
         window_identity: str | None = None,
     ) -> RateLimitBlock | None:
         display_config = config or self.config
@@ -723,7 +723,7 @@ class RateLimitManager:
         client_ip: str,
         block: RateLimitBlock,
         tier: RateLimitTier,
-        config: SecurityConfig | None = None,
+        config: SyncSecurityConfig | None = None,
         attribution: dict[str, Any] | None = None,
     ) -> None:
         if self.agent_handler:
@@ -745,7 +745,7 @@ class RateLimitManager:
         endpoint_path: str = "",
         rate_limit: int | None = None,
         rate_limit_window: int | None = None,
-        config: SecurityConfig | None = None,
+        config: SyncSecurityConfig | None = None,
     ) -> GuardResponse | None:
         display_config = config or self.config
         if not display_config.enable_rate_limiting:
@@ -772,7 +772,7 @@ class RateLimitManager:
         request: SyncGuardRequest,
         client_ip: str,
         request_count: int,
-        config: SecurityConfig | None = None,
+        config: SyncSecurityConfig | None = None,
         tier: RateLimitTier | None = None,
         attribution: dict[str, Any] | None = None,
     ) -> None:

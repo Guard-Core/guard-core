@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from guard_core.models import BehaviorRuleConfig, SecurityConfig
+from guard_core.models import BehaviorRuleConfig, SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.core.behavioral import _throttle
 from guard_core.sync.core.behavioral.context import BehavioralContext
@@ -43,7 +43,7 @@ def _request(method: str = "POST", headers: dict[str, str] | None = None) -> Any
 
 
 class _Middleware:
-    def __init__(self, config: SecurityConfig, route_config: RouteConfig | None):
+    def __init__(self, config: SyncSecurityConfig, route_config: RouteConfig | None):
         self.config = config
         self.logger = logging.getLogger("test_usage_rules_step")
         self.suspicious_request_counts: dict[str, dict[str, int]] = {}
@@ -81,7 +81,7 @@ class _Blocker(SecurityCheck):
 class _App:
     def __init__(
         self,
-        config: SecurityConfig,
+        config: SyncSecurityConfig,
         route_config: RouteConfig | None = None,
         *,
         released_adapter: bool = True,
@@ -149,13 +149,13 @@ def _rule(action: str = "throttle", **fields: Any) -> BehaviorRuleConfig:
     )
 
 
-def _config(**fields: Any) -> SecurityConfig:
+def _config(**fields: Any) -> SyncSecurityConfig:
     values: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": False,
     }
     values.update(fields)
-    return SecurityConfig(**values)
+    return SyncSecurityConfig(**values)
 
 
 def _route(*rules: BehaviorRule) -> RouteConfig:
@@ -347,7 +347,7 @@ def test_a_throttle_and_a_global_usage_rule_record_each_request_once() -> None:
 
 @contextmanager
 def _redis_app(
-    config: SecurityConfig, route_config: RouteConfig | None = None
+    config: SyncSecurityConfig, route_config: RouteConfig | None = None
 ) -> Iterator[_App]:
     app = _App(config, route_config)
     manager = redis_handler(config)
@@ -371,7 +371,7 @@ def _usage_cardinality(
 
 
 def test_redis_throttle_refuses_under_a_pipeline_without_middleware(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
     config = security_config_redis.model_copy(
         update={"global_behavior_rules": (_rule(),)}
@@ -381,7 +381,7 @@ def test_redis_throttle_refuses_under_a_pipeline_without_middleware(
 
 
 def test_redis_usage_zsets_hold_each_admitted_request_once(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
     route_rule = BehaviorRule("usage", 100, 60, action="log")
     config = security_config_redis.model_copy(

@@ -5,12 +5,12 @@ import pytest
 
 from guard_core._misconfiguration import config_misconfigurations
 from guard_core._security_headers_defaults import effective_security_headers_config
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.security_headers_handler import security_headers_manager
 
 
 def _headers(security_headers: dict | None) -> dict[str, str]:
-    config = SecurityConfig(enable_redis=False, security_headers=security_headers)
+    config = SyncSecurityConfig(enable_redis=False, security_headers=security_headers)
     return security_headers_manager.get_headers("/x", config=config)
 
 
@@ -57,7 +57,7 @@ def test_a_partial_dict_without_enabled_is_on() -> None:
     assert _headers({"frame_options": "DENY"}) != {}
 
 
-def _unknown_key_problems(config: SecurityConfig) -> list[str]:
+def _unknown_key_problems(config: SyncSecurityConfig) -> list[str]:
     return [p for p in config_misconfigurations(config) if "security_headers" in p]
 
 
@@ -65,7 +65,7 @@ def test_an_unknown_key_is_reported_as_misconfiguration(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     with caplog.at_level(logging.WARNING, logger="guard_core.models"):
-        config = SecurityConfig(
+        config = SyncSecurityConfig(
             enable_redis=False,
             fail_on_misconfiguration=False,
             security_headers={"enabled": True, "frame_option": "DENY"},
@@ -79,7 +79,7 @@ def test_an_unknown_key_is_reported_as_misconfiguration(
 
 def test_an_unknown_key_fails_startup_by_default() -> None:
     with pytest.raises(ValueError, match="frame_option"):
-        SecurityConfig(
+        SyncSecurityConfig(
             enable_redis=False,
             security_headers={"enabled": True, "frame_option": "DENY"},
         )
@@ -87,7 +87,7 @@ def test_an_unknown_key_fails_startup_by_default() -> None:
 
 def test_an_unknown_key_fails_startup_with_the_flag() -> None:
     with pytest.raises(ValueError, match="frame_option"):
-        SecurityConfig(
+        SyncSecurityConfig(
             enable_redis=False,
             fail_on_misconfiguration=True,
             security_headers={"enabled": True, "frame_option": "DENY"},
@@ -95,7 +95,7 @@ def test_an_unknown_key_fails_startup_with_the_flag() -> None:
 
 
 def test_an_unknown_key_in_the_hsts_dict_is_reported() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False,
         fail_on_misconfiguration=False,
         security_headers={"hsts": {"max_ag": 5}},
@@ -104,9 +104,9 @@ def test_an_unknown_key_in_the_hsts_dict_is_reported() -> None:
 
 
 def test_known_keys_and_the_default_dict_report_nothing() -> None:
-    config = SecurityConfig(enable_redis=False)
+    config = SyncSecurityConfig(enable_redis=False)
     assert _unknown_key_problems(config) == []
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False,
         security_headers={
             "enabled": True,
@@ -130,7 +130,7 @@ def test_known_keys_and_the_default_dict_report_nothing() -> None:
 
 def test_off_values_report_nothing() -> None:
     for value in (None, {}, {"enabled": False}):
-        config = SecurityConfig(enable_redis=False, security_headers=value)
+        config = SyncSecurityConfig(enable_redis=False, security_headers=value)
         assert _unknown_key_problems(config) == []
 
 

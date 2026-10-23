@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.events.middleware_events import SecurityEventBus
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.sync.handlers.ratelimit_handler import (
@@ -39,7 +39,7 @@ def _host_cpu_speed_factor() -> float:
 def test_send_rule_received_event_no_agent() -> None:
     from datetime import datetime, timezone
 
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     config.enable_dynamic_rules = False
     manager = DynamicRuleManager(config)
     manager.agent_handler = None
@@ -56,7 +56,7 @@ def test_send_rule_received_event_no_agent() -> None:
 
 
 def test_tier_verdict_without_a_redis_handler_counts_in_memory() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     config.enable_redis = False
     manager = RateLimitManager(config)
     manager.redis_handler = None
@@ -175,7 +175,7 @@ def _raising_recursion_error_detect(*_args: Any, **_kwargs: Any) -> dict[str, An
 
 
 def test_check_value_enhanced_recursion_error_escapes_the_fallback() -> None:
-    sus_patterns_handler.configure(SecurityConfig())
+    sus_patterns_handler.configure(SyncSecurityConfig())
 
     with patch.object(
         sus_patterns_handler, "detect", side_effect=_raising_recursion_error_detect
@@ -188,7 +188,7 @@ _FALLBACK_SCAN_CPU_BUDGET_SECONDS = 0.05
 
 
 def test_check_value_enhanced_fallback_scan_stays_cpu_bounded() -> None:
-    sus_patterns_handler.configure(SecurityConfig())
+    sus_patterns_handler.configure(SyncSecurityConfig())
     value = "{{" * 10000
 
     with patch.object(sus_patterns_handler, "detect", side_effect=_raising_detect):
@@ -208,7 +208,7 @@ def test_check_value_enhanced_fallback_scan_stays_cpu_bounded() -> None:
 
 
 def test_check_value_enhanced_fallback_scan_still_detects_sqli() -> None:
-    sus_patterns_handler.configure(SecurityConfig())
+    sus_patterns_handler.configure(SyncSecurityConfig())
 
     with patch.object(sus_patterns_handler, "detect", side_effect=_raising_detect):
         detected, trigger, threats, log_override = _check_value_enhanced(
@@ -257,7 +257,7 @@ def test_detect_penetration_attempt_real_path() -> None:
 
 
 def test_send_middleware_event_with_geo_ip_exception() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     config.agent_enable_events = True
 
     mock_agent = Mock()
@@ -289,7 +289,7 @@ def test_send_middleware_event_with_geo_ip_exception() -> None:
 def test_integration_all_edge_cases() -> None:
     from datetime import datetime, timezone
 
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     config.enable_redis = False
     config.enable_agent = False
     config.enable_dynamic_rules = False

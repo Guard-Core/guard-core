@@ -9,7 +9,7 @@ from typing import Any, Literal
 
 from cachetools import TTLCache
 
-from guard_core.models import BehaviorRuleConfig, SecurityConfig
+from guard_core.models import BehaviorRuleConfig, SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.identity_hash import _hash_identity_segment
 from guard_core.sync._utils.lru_store import _lru_pop_or_create
@@ -104,7 +104,7 @@ _MAX_TRACKED_CLIENTS_PER_ENDPOINT = 10_000
 class BehaviorTracker(
     BehaviorResponsePatternMixin, BehaviorActionDispatchMixin, BehaviorThrottleMixin
 ):
-    def __init__(self, config: SecurityConfig):
+    def __init__(self, config: SyncSecurityConfig):
         self.config = config
         self.logger = logging.getLogger("guard_core.sync.handlers.behavior")
         self.usage_counts: dict[str, dict[str, list[float]]] = defaultdict(

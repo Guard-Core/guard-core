@@ -3,7 +3,7 @@ import time
 from typing import Any
 from unittest.mock import MagicMock
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.ratelimit_handler import (
     RateLimitManager,
     RateLimitTier,
@@ -13,7 +13,9 @@ from guard_core.sync.handlers.ratelimit_handler import (
 
 
 def _fresh_manager(rate_limit: int = 5, rate_limit_window: int = 1) -> RateLimitManager:
-    config = SecurityConfig(rate_limit=rate_limit, rate_limit_window=rate_limit_window)
+    config = SyncSecurityConfig(
+        rate_limit=rate_limit, rate_limit_window=rate_limit_window
+    )
     return RateLimitManager(config)
 
 
@@ -51,7 +53,7 @@ def test_concurrent_eviction_and_append_does_not_raise() -> None:
 
 
 def test_initialize_redis_no_enable_redis() -> None:
-    config = SecurityConfig(enable_redis=False)
+    config = SyncSecurityConfig(enable_redis=False)
     manager = RateLimitManager(config)
     mock_redis = MagicMock()
     manager.initialize_redis(mock_redis)
@@ -70,7 +72,7 @@ def test_tier_verdict_without_a_redis_handler_counts_in_memory() -> None:
 
 
 def test_reset_redis_empty_keys() -> None:
-    config = SecurityConfig(enable_redis=True)
+    config = SyncSecurityConfig(enable_redis=True)
     manager = RateLimitManager(config)
     mock_redis = MagicMock()
     mock_redis.keys.return_value = []
@@ -83,7 +85,7 @@ def test_reset_redis_empty_keys() -> None:
 
 
 def test_reset_redis_none_keys() -> None:
-    config = SecurityConfig(enable_redis=True)
+    config = SyncSecurityConfig(enable_redis=True)
     manager = RateLimitManager(config)
     mock_redis: Any = MagicMock()
     mock_redis.keys.return_value = None

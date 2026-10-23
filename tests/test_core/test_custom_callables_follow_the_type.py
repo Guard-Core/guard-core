@@ -270,11 +270,6 @@ async def test_a_slot_with_nothing_configured_refuses_to_be_called() -> None:
         await slot.invoke(1)
 
 
-def test_a_slot_refuses_a_value_that_is_not_callable() -> None:
-    with pytest.raises(TypeError, match="custom_request_check must be callable"):
-        CallableSlot("custom_request_check", 5)
-
-
 async def test_an_async_function_is_the_invoked_callable_itself() -> None:
     slot: CallableSlot[Any, Any] = CallableSlot("custom_request_check", _async_check)
     assert slot.invoke is _async_check

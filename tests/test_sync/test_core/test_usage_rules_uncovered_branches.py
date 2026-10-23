@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.behavioral.context import BehavioralContext
 from guard_core.sync.core.behavioral.processor import BehavioralProcessor
 from guard_core.sync.core.checks._usage_rules_step import UsageRulesStepCheck
@@ -13,7 +13,7 @@ from guard_core.sync.core.checks._usage_rules_step import UsageRulesStepCheck
 _IP = "203.0.113.77"
 
 
-def _processor(config: SecurityConfig) -> BehavioralProcessor:
+def _processor(config: SyncSecurityConfig) -> BehavioralProcessor:
     context = BehavioralContext(
         config=config,
         logger=logging.getLogger("test_usage_rules_uncovered_branches"),
@@ -36,7 +36,7 @@ def _request() -> Any:
 
 def test_unenforced_trip_without_passive_mode_fires_no_on_block() -> None:
     on_block = MagicMock()
-    config = SecurityConfig(passive_mode=False, on_block=on_block)
+    config = SyncSecurityConfig(passive_mode=False, on_block=on_block)
     processor = _processor(config)
 
     with patch(
@@ -49,7 +49,7 @@ def test_unenforced_trip_without_passive_mode_fires_no_on_block() -> None:
 
 
 def test_evaluate_usage_rules_error_propagates_without_on_error() -> None:
-    processor = _processor(SecurityConfig())
+    processor = _processor(SyncSecurityConfig())
     boom = RuntimeError("tracker lookup failed")
 
     with patch.object(processor, "_behavior_tracker", side_effect=boom):

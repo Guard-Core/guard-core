@@ -3,12 +3,12 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.security_headers_handler import security_headers_manager
 
 
-def _config(**security_headers: object) -> SecurityConfig:
-    return SecurityConfig(
+def _config(**security_headers: object) -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         enable_redis=False, security_headers={"enabled": True, **security_headers}
     )
 
@@ -55,7 +55,7 @@ def test_a_freed_config_never_leaks_its_headers_to_a_later_default() -> None:
     manager.get_headers("/x", config=first)
     del first
 
-    later = SecurityConfig(enable_redis=False)
+    later = SyncSecurityConfig(enable_redis=False)
     headers = manager.get_headers("/x", config=later)
 
     assert headers["X-Frame-Options"] == "SAMEORIGIN"

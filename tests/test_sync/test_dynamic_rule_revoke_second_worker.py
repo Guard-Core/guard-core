@@ -35,10 +35,10 @@ from unittest.mock import MagicMock
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.sync.handlers.ipban_handler import ip_ban_manager
 from guard_core.sync.handlers.redis_handler import RedisManager
-from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.models import DynamicRules, SecurityConfig, SyncSecurityConfig
 
 def main(url, prefix):
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         redis_url=url, redis_prefix=prefix, enable_redis=True, enable_agent=True,
         agent_api_key="k", enable_dynamic_rules=True, enable_recidive=True,
     )

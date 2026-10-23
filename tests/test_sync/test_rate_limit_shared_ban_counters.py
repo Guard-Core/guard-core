@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, Mock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.implementations.rate_limit import RateLimitCheck
 from guard_core.sync.handlers.ratelimit_handler import RateLimitManager
 from guard_core.sync.handlers.redis_handler import RedisManager
@@ -17,8 +17,8 @@ THRESHOLD = 6
 WORKERS = 4
 
 
-def _config(redis: bool, prefix: str = "") -> SecurityConfig:
-    return SecurityConfig(
+def _config(redis: bool, prefix: str = "") -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         enable_redis=redis,
         redis_url=REDIS_URL,
         redis_prefix=prefix or f"test:wp3:{uuid.uuid4().hex}:",
@@ -33,7 +33,7 @@ def _config(redis: bool, prefix: str = "") -> SecurityConfig:
 
 
 class _Worker:
-    def __init__(self, config: SecurityConfig, redis: RedisManager | None) -> None:
+    def __init__(self, config: SyncSecurityConfig, redis: RedisManager | None) -> None:
         self.manager = RateLimitManager(config)
         self.redis = redis
         self.bans: list[tuple[str, int, str]] = []

@@ -5,7 +5,7 @@ from collections import deque
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.cloud_handler import CloudManager
 from guard_core.sync.handlers.ipban_handler import IPBanManager, reset_global_state
 from guard_core.sync.handlers.ratelimit_handler import (
@@ -50,7 +50,7 @@ def test_ipban_reset_global_state() -> None:
 
 
 def test_ratelimit_popleft_stale_timestamps() -> None:
-    config = SecurityConfig(enable_redis=False)
+    config = SyncSecurityConfig(enable_redis=False)
     mgr = RateLimitManager(config)
     old_time = time.time() - 120
     current = time.time()
@@ -80,7 +80,7 @@ def test_cloud_handler_get_details_no_match() -> None:
 
 
 def test_redis_delete_pattern_with_keys() -> None:
-    config = SecurityConfig(enable_redis=True, redis_url=REDIS_URL)
+    config = SyncSecurityConfig(enable_redis=True, redis_url=REDIS_URL)
     mgr = RedisManager(config)
     mgr.initialize()
     mgr.set_key("test_dp", "key1", "value1")
@@ -131,7 +131,7 @@ def test_responses_factory_cors_with_headers() -> None:
         cors_allow_headers=["*"],
     )
 
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False,
         security_headers={"enabled": True},
         enable_cors=True,
@@ -482,7 +482,7 @@ def test_responses_factory_cors_applies_headers() -> None:
     from guard_core.sync.core.responses.context import ResponseContext
     from guard_core.sync.core.responses.factory import ErrorResponseFactory
 
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False,
         security_headers={"enabled": True},
     )

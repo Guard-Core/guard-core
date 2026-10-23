@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.models import DynamicRules, SyncSecurityConfig
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
 
 
@@ -32,8 +32,8 @@ def _rules(**overrides: Any) -> DynamicRules:
 
 def _manager(
     tmp_path: Path | None = None,
-) -> tuple[DynamicRuleManager, SecurityConfig, MagicMock]:
-    config = SecurityConfig(
+) -> tuple[DynamicRuleManager, SyncSecurityConfig, MagicMock]:
+    config = SyncSecurityConfig(
         enable_redis=False,
         enable_agent=True,
         agent_api_key="test-api-key",

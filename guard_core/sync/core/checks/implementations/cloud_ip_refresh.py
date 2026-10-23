@@ -2,7 +2,7 @@ import time
 from collections.abc import Collection
 from typing import TYPE_CHECKING, ClassVar
 
-from guard_core.models import SecurityConfig, cloud_blocking_enabled
+from guard_core.models import SyncSecurityConfig, cloud_blocking_enabled
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.core.checks.helpers import route_config_applies
@@ -32,7 +32,7 @@ class CloudIpRefreshCheck(SecurityCheck):
     @classmethod
     def applies_to(
         cls,
-        config: SecurityConfig,
+        config: SyncSecurityConfig,
         route_configs: Collection[RouteConfig] | None,
     ) -> bool:
         return cloud_blocking_enabled(config) or route_config_applies(

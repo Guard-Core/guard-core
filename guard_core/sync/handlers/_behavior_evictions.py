@@ -4,7 +4,7 @@ from collections import OrderedDict
 from collections.abc import Callable
 from typing import Any
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils.sampling import observe_counted_key
 
 EVICTION_WARNING_WINDOW_SECONDS = 60
@@ -30,7 +30,7 @@ class BehaviorEvictionMixin:
     evictions of that kind were not reported since the last one.
     """
 
-    config: SecurityConfig
+    config: SyncSecurityConfig
     _lock: threading.Lock
     agent_handler: Any
     logger: logging.Logger

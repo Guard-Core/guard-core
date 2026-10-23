@@ -6,15 +6,15 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.initialization.handler_initializer import HandlerInitializer
 from guard_core.sync.decorators import SecurityDecorator
 
 
 def _decorated(
     make: Callable[[SecurityDecorator], Any], **flag: bool
-) -> tuple[SecurityConfig, SecurityDecorator, str]:
-    config = SecurityConfig(enable_redis=False, **flag)
+) -> tuple[SyncSecurityConfig, SecurityDecorator, str]:
+    config = SyncSecurityConfig(enable_redis=False, **flag)
     decorator = SecurityDecorator(config)
 
     def country_route() -> None:

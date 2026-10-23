@@ -5,7 +5,7 @@ from urllib.parse import urlencode
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.decorators.base import BaseSecurityDecorator, RouteConfig
 from guard_core.sync.decorators.content_filtering import ContentFilteringMixin
 from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
@@ -23,11 +23,11 @@ class _FakeDecorator(BaseSecurityDecorator, ContentFilteringMixin):
 
 @pytest.fixture(autouse=True)
 def _force_enhanced_detection_singleton() -> None:
-    sus_patterns_handler.configure(SecurityConfig())
+    sus_patterns_handler.configure(SyncSecurityConfig())
 
 
 def _route_config(body_fields: Any) -> RouteConfig:
-    decorator = _FakeDecorator(SecurityConfig())
+    decorator = _FakeDecorator(SyncSecurityConfig())
 
     def target() -> None:
         pass
@@ -67,7 +67,7 @@ def _multipart(name: str, value: str) -> SyncMockGuardRequest:
 
 
 def _is_threat(request: SyncMockGuardRequest, body_fields: Any) -> bool:
-    config = SecurityConfig(enable_redis=False, rate_limit=10_000_000)
+    config = SyncSecurityConfig(enable_redis=False, rate_limit=10_000_000)
     route_config = _route_config(body_fields)
     return (detect_penetration_attempt(request, config, route_config)).is_threat
 
@@ -91,7 +91,7 @@ def test_the_map_form_is_stored_as_a_map() -> None:
 def test_the_map_form_is_validated_like_params(bad: Any) -> None:
     errors: list[str] = []
     for keyword in ("params", "body_fields"):
-        decorator = _FakeDecorator(SecurityConfig())
+        decorator = _FakeDecorator(SyncSecurityConfig())
 
         def target() -> None:
             pass

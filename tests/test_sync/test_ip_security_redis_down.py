@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, Mock
 import pytest
 
 from guard_core.exceptions import GuardRedisError
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.factory import build_default_pipeline
 from guard_core.sync.core.checks.pipeline import SecurityCheckPipeline
 from guard_core.sync.decorators import SecurityDecorator
@@ -27,7 +27,7 @@ def _redis_down() -> Generator[None, None]:
 
 
 def _pipeline(**settings: Any) -> SecurityCheckPipeline:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False,
         enable_penetration_detection=False,
         enable_rate_limiting=False,

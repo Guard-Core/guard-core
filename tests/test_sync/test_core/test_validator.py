@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, Mock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.validation import validator as validator_module
 from guard_core.sync.core.validation.context import ValidationContext
 from guard_core.sync.core.validation.validator import RequestValidator
@@ -378,7 +378,7 @@ def test_is_path_excluded_throttle_keyed_on_normalized_path_not_raw(
 
 
 def test_is_path_excluded_reflects_exclude_paths_mutated_at_runtime() -> None:
-    config = SecurityConfig(exclude_paths=["/old"])
+    config = SyncSecurityConfig(exclude_paths=["/old"])
     event_bus = Mock()
     event_bus.send_middleware_event = MagicMock()
     context = ValidationContext(config=config, logger=Mock(), event_bus=event_bus)
@@ -398,7 +398,7 @@ def test_is_path_excluded_reflects_exclude_paths_mutated_at_runtime() -> None:
 def test_is_path_excluded_normalizes_exclude_list_once_until_content_changes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(exclude_paths=["/health"])
+    config = SyncSecurityConfig(exclude_paths=["/health"])
     event_bus = Mock()
     event_bus.send_middleware_event = MagicMock()
     context = ValidationContext(config=config, logger=Mock(), event_bus=event_bus)
@@ -430,7 +430,7 @@ def test_is_path_excluded_normalizes_exclude_list_once_until_content_changes(
 
 
 def test_is_path_excluded_reflects_exclude_paths_appended_in_place() -> None:
-    config = SecurityConfig(exclude_paths=["/healthz"])
+    config = SyncSecurityConfig(exclude_paths=["/healthz"])
     event_bus = Mock()
     event_bus.send_middleware_event = MagicMock()
     context = ValidationContext(config=config, logger=Mock(), event_bus=event_bus)
@@ -450,7 +450,7 @@ def test_is_path_excluded_reflects_exclude_paths_appended_in_place() -> None:
 
 
 def test_is_path_excluded_reflects_exclude_paths_shrunk_in_place() -> None:
-    config = SecurityConfig(exclude_paths=["/healthz", "/newsection"])
+    config = SyncSecurityConfig(exclude_paths=["/healthz", "/newsection"])
     event_bus = Mock()
     event_bus.send_middleware_event = MagicMock()
     context = ValidationContext(config=config, logger=Mock(), event_bus=event_bus)
@@ -468,7 +468,7 @@ def test_is_path_excluded_reflects_exclude_paths_shrunk_in_place() -> None:
 
 
 def test_is_path_excluded_reflects_size_preserving_in_place_replace() -> None:
-    config = SecurityConfig(exclude_paths=["/healthz", "/old"])
+    config = SyncSecurityConfig(exclude_paths=["/healthz", "/old"])
     event_bus = Mock()
     event_bus.send_middleware_event = MagicMock()
     context = ValidationContext(config=config, logger=Mock(), event_bus=event_bus)

@@ -6,7 +6,7 @@ from cachetools import TTLCache
 
 from guard_core._redis_enablement import redis_is_configured
 from guard_core._security_headers_override import OverrideRecord
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers._security_headers_cache import SecurityHeadersCacheMixin
 from guard_core.sync.handlers._security_headers_config import SecurityHeadersConfigMixin
 from guard_core.sync.handlers._security_headers_cors import SecurityHeadersCorsMixin
@@ -119,7 +119,7 @@ class SecurityHeadersManager(
 
     def _headers_for(
         self,
-        config: SecurityConfig | None,
+        config: SyncSecurityConfig | None,
         cache_key: str,
         override: OverrideRecord | None = None,
     ) -> tuple[dict[str, str], bool]:
@@ -148,7 +148,7 @@ class SecurityHeadersManager(
         return headers, True
 
     def headers_enabled_for(
-        self, config: SecurityConfig, override: OverrideRecord | None = None
+        self, config: SyncSecurityConfig, override: OverrideRecord | None = None
     ) -> bool:
         keys = (self._current_override() if override is None else override).keys
         if "enabled" in keys:
@@ -157,11 +157,11 @@ class SecurityHeadersManager(
         return bool(raw and raw.get("enabled", True))
 
     def _headers_off(
-        self, config: SecurityConfig, override: OverrideRecord | None = None
+        self, config: SyncSecurityConfig, override: OverrideRecord | None = None
     ) -> bool:
         return not self.headers_enabled_for(config, override)
 
-    def resolve_headers(self, config: SecurityConfig) -> dict[str, str]:
+    def resolve_headers(self, config: SyncSecurityConfig) -> dict[str, str]:
         override = self.override_for_reader(config)
         if self._headers_off(config, override):
             return {}
@@ -173,7 +173,7 @@ class SecurityHeadersManager(
     def get_headers(
         self,
         request_path: str | None = None,
-        config: SecurityConfig | None = None,
+        config: SyncSecurityConfig | None = None,
         override: OverrideRecord | None = None,
         checked: bool = False,
     ) -> dict[str, str]:
@@ -212,7 +212,7 @@ class SecurityHeadersManager(
     def _build_headers_and_announce(
         self,
         request_path: str | None,
-        config: SecurityConfig | None,
+        config: SyncSecurityConfig | None,
         cache_key: str,
         override: OverrideRecord | None,
     ) -> dict[str, str]:
@@ -224,7 +224,7 @@ class SecurityHeadersManager(
     def get_headers_and_forced(
         self,
         request_path: str | None = None,
-        config: SecurityConfig | None = None,
+        config: SyncSecurityConfig | None = None,
         override: OverrideRecord | None = None,
         checked: bool = False,
     ) -> tuple[dict[str, str], frozenset[str]]:

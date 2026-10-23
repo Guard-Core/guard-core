@@ -4,7 +4,7 @@ from typing import Any, cast
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.validation.path_matching import path_is_excluded
 
 DEGENERATE_TO_ROOT_ENTRIES = ["", "//", ".", "..", "%2f", "\\", "%2e%2e", "//../"]
@@ -13,7 +13,7 @@ DEGENERATE_TO_ROOT_ENTRIES = ["", "//", ".", "..", "%2f", "\\", "%2e%2e", "//../
 def test_exclude_paths_default_list_is_accepted_without_warning() -> None:
     with warnings.catch_warnings(record=True) as records:
         warnings.simplefilter("always")
-        config = SecurityConfig()
+        config = SyncSecurityConfig()
     assert config.exclude_paths == [
         "/docs",
         "/redoc",
@@ -28,7 +28,7 @@ def test_exclude_paths_default_list_is_accepted_without_warning() -> None:
 @pytest.mark.parametrize("entry", DEGENERATE_TO_ROOT_ENTRIES)
 def test_exclude_paths_rejects_entries_that_normalize_to_root(entry: str) -> None:
     with pytest.raises(ValueError) as exc:
-        SecurityConfig(exclude_paths=[entry])
+        SyncSecurityConfig(exclude_paths=[entry])
     msg = str(exc.value)
     assert repr(entry) in msg
     assert "root" in msg
@@ -36,21 +36,21 @@ def test_exclude_paths_rejects_entries_that_normalize_to_root(entry: str) -> Non
 
 def test_exclude_paths_rejects_root_entry_alongside_valid_entries() -> None:
     with pytest.raises(ValueError) as exc:
-        SecurityConfig(exclude_paths=["/static", "..", "/docs"])
+        SyncSecurityConfig(exclude_paths=["/static", "..", "/docs"])
     assert repr("..") in str(exc.value)
 
 
 def test_exclude_paths_accepts_literal_root_without_warning() -> None:
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        config = SecurityConfig(exclude_paths=["/"])
+        config = SyncSecurityConfig(exclude_paths=["/"])
     assert config.exclude_paths == ["/"]
 
 
 def test_exclude_paths_rejects_entry_that_fails_to_normalize() -> None:
     unresolvable = "%c0%af"
     with pytest.raises(ValueError) as exc:
-        SecurityConfig(exclude_paths=[unresolvable])
+        SyncSecurityConfig(exclude_paths=[unresolvable])
     msg = str(exc.value)
     assert unresolvable in msg
     assert "could not be normalized" in msg
@@ -59,7 +59,7 @@ def test_exclude_paths_rejects_entry_that_fails_to_normalize() -> None:
 def test_exclude_paths_accepts_ordinary_entries_without_warning() -> None:
     with warnings.catch_warnings(record=True) as records:
         warnings.simplefilter("always")
-        config = SecurityConfig(exclude_paths=["/static", "/docs", "health"])
+        config = SyncSecurityConfig(exclude_paths=["/static", "/docs", "health"])
     assert config.exclude_paths == ["/static", "/docs", "health"]
     assert records == []
 
@@ -68,7 +68,7 @@ def test_exclude_paths_accepts_ordinary_entries_without_warning() -> None:
 def test_exclude_paths_runtime_assignment_rejects_entries_that_normalize_to_root(
     entry: str,
 ) -> None:
-    config = SecurityConfig(exclude_paths=["/healthz"])
+    config = SyncSecurityConfig(exclude_paths=["/healthz"])
 
     with pytest.raises(ValueError) as exc:
         config.exclude_paths = [entry]
@@ -81,7 +81,7 @@ def test_exclude_paths_runtime_assignment_rejects_entries_that_normalize_to_root
 def test_exclude_paths_runtime_assignment_rejects_entry_that_fails_to_normalize() -> (
     None
 ):
-    config = SecurityConfig(exclude_paths=["/healthz"])
+    config = SyncSecurityConfig(exclude_paths=["/healthz"])
     unresolvable = "%c0%af"
 
     with pytest.raises(ValueError) as exc:
@@ -93,7 +93,7 @@ def test_exclude_paths_runtime_assignment_rejects_entry_that_fails_to_normalize(
 
 
 def test_exclude_paths_runtime_rejection_leaves_field_and_revision_unchanged() -> None:
-    config = SecurityConfig(exclude_paths=["/healthz"])
+    config = SyncSecurityConfig(exclude_paths=["/healthz"])
     revision_before = config.revision
 
     with pytest.raises(ValueError):
@@ -106,7 +106,7 @@ def test_exclude_paths_runtime_rejection_leaves_field_and_revision_unchanged() -
 def test_exclude_paths_runtime_assignment_accepts_literal_root_without_warning() -> (
     None
 ):
-    config = SecurityConfig(exclude_paths=["/healthz"])
+    config = SyncSecurityConfig(exclude_paths=["/healthz"])
 
     with warnings.catch_warnings():
         warnings.simplefilter("error")
@@ -116,7 +116,7 @@ def test_exclude_paths_runtime_assignment_accepts_literal_root_without_warning()
 
 
 def test_exclude_paths_runtime_assignment_rejects_bare_string() -> None:
-    config = SecurityConfig(exclude_paths=["/healthz"])
+    config = SyncSecurityConfig(exclude_paths=["/healthz"])
 
     with pytest.raises(ValueError, match="exclude_paths must be a list of str"):
         cast(Any, config).exclude_paths = "not-a-list"
@@ -127,7 +127,7 @@ def test_exclude_paths_runtime_assignment_rejects_bare_string() -> None:
 def test_exclude_paths_runtime_assignment_accepts_valid_value_and_bumps_revision() -> (
     None
 ):
-    config = SecurityConfig(exclude_paths=["/healthz"])
+    config = SyncSecurityConfig(exclude_paths=["/healthz"])
     revision_before = config.revision
 
     config.exclude_paths = ["/healthz", "/metrics"]
@@ -139,7 +139,7 @@ def test_exclude_paths_runtime_assignment_accepts_valid_value_and_bumps_revision
 def test_exclude_paths_runtime_assignment_bypass_no_longer_excludes_every_path() -> (
     None
 ):
-    config = SecurityConfig(exclude_paths=["/healthz"])
+    config = SyncSecurityConfig(exclude_paths=["/healthz"])
 
     with pytest.raises(ValueError):
         config.exclude_paths = [""]
@@ -148,7 +148,7 @@ def test_exclude_paths_runtime_assignment_bypass_no_longer_excludes_every_path()
 
 
 def test_model_copy_update_rejects_entries_that_normalize_to_root() -> None:
-    base = SecurityConfig(exclude_paths=["/healthz"])
+    base = SyncSecurityConfig(exclude_paths=["/healthz"])
 
     with pytest.raises(ValueError) as exc:
         base.model_copy(update={"exclude_paths": [""]})
@@ -160,7 +160,7 @@ def test_model_copy_update_rejects_entries_that_normalize_to_root() -> None:
 
 
 def test_model_copy_update_accepts_literal_root_without_warning() -> None:
-    base = SecurityConfig(exclude_paths=["/healthz"])
+    base = SyncSecurityConfig(exclude_paths=["/healthz"])
 
     with warnings.catch_warnings():
         warnings.simplefilter("error")
@@ -170,7 +170,7 @@ def test_model_copy_update_accepts_literal_root_without_warning() -> None:
 
 
 def test_model_copy_update_without_exclude_paths_skips_revalidation() -> None:
-    base = SecurityConfig(exclude_paths=["/healthz"])
+    base = SyncSecurityConfig(exclude_paths=["/healthz"])
 
     copied = base.model_copy(update={"rate_limit": 999})
 
@@ -179,7 +179,7 @@ def test_model_copy_update_without_exclude_paths_skips_revalidation() -> None:
 
 
 def test_model_copy_with_no_update_returns_valid_copy() -> None:
-    base = SecurityConfig(exclude_paths=["/healthz"])
+    base = SyncSecurityConfig(exclude_paths=["/healthz"])
 
     copied = base.model_copy()
 
@@ -188,7 +188,7 @@ def test_model_copy_with_no_update_returns_valid_copy() -> None:
 
 
 def test_model_copy_update_accepts_valid_exclude_paths() -> None:
-    base = SecurityConfig(exclude_paths=["/healthz"])
+    base = SyncSecurityConfig(exclude_paths=["/healthz"])
 
     copied = base.model_copy(update={"exclude_paths": ["/healthz", "/metrics"]})
 
@@ -201,7 +201,7 @@ def test_country_field_assignment_is_unaffected_by_exclude_paths_setattr_branch(
     from guard_core.sync.handlers.ipinfo_handler import IPInfoManager
 
     geo_ip_handler = IPInfoManager(token="dummy", db_path=tmp_path / "country_asn.mmdb")
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         whitelist_countries=["US"],
         geo_ip_handler=geo_ip_handler,
         exclude_paths=["/healthz"],

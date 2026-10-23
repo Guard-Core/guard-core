@@ -3,7 +3,7 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers import ratelimit_handler
 from guard_core.sync.handlers.ipban_handler import IPBanManager
 from guard_core.sync.handlers.ratelimit_handler import check_rate_limit_by_ip
@@ -34,7 +34,7 @@ def fresh_state() -> Generator[None, None, None]:
 
 
 def test_without_an_initializer_the_primitive_finds_a_ban_at_its_prefix() -> None:
-    config = SecurityConfig(**SETTINGS)
+    config = SyncSecurityConfig(**SETTINGS)
     manager = IPBanManager()
     assert manager.config is None
     manager.ban_ip(SLASH_56, 600, "t", grouped=True)
@@ -44,7 +44,7 @@ def test_without_an_initializer_the_primitive_finds_a_ban_at_its_prefix() -> Non
 
 
 def test_a_banned_neighbour_neither_counts_nor_re_bans_in_the_primitive() -> None:
-    config = SecurityConfig(**SETTINGS)
+    config = SyncSecurityConfig(**SETTINGS)
     IPBanManager().ban_ip(SLASH_56, 600, "t", grouped=True)
 
     results = [
@@ -57,7 +57,7 @@ def test_a_banned_neighbour_neither_counts_nor_re_bans_in_the_primitive() -> Non
 
 def test_a_whitelisted_host_inside_the_prefix_finds_its_own_carved_ban() -> None:
     host = "2001:db8:0:1::5"
-    config = SecurityConfig(**SETTINGS, whitelist=[host])
+    config = SyncSecurityConfig(**SETTINGS, whitelist=[host])
     manager = IPBanManager()
     manager.ban_ip(f"{host}/128", 600, "t", grouped=True)
 
@@ -66,7 +66,7 @@ def test_a_whitelisted_host_inside_the_prefix_finds_its_own_carved_ban() -> None
 
 
 def test_the_primitive_leaves_the_manager_config_alone() -> None:
-    config = SecurityConfig(**SETTINGS)
+    config = SyncSecurityConfig(**SETTINGS)
 
     check_rate_limit_by_ip(FIRST, config)
 
@@ -74,7 +74,7 @@ def test_the_primitive_leaves_the_manager_config_alone() -> None:
 
 
 def test_the_primitive_keys_its_window_and_ban_by_the_config_identity() -> None:
-    config = SecurityConfig(**SETTINGS)
+    config = SyncSecurityConfig(**SETTINGS)
     addresses = [f"2001:db8:0:{index:x}::1" for index in range(1, 9)]
 
     results = [check_rate_limit_by_ip(address, config) for address in addresses]

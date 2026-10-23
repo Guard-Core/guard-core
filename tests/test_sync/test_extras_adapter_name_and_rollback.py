@@ -2,7 +2,7 @@ import pytest
 
 from guard_core import _config_capabilities
 from guard_core._config_capabilities import install_hint, register_adapter
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 
 
 def test_the_registered_adapter_is_named_in_the_install_hint(
@@ -20,7 +20,7 @@ def test_the_registered_adapter_is_named_in_the_install_hint(
 def test_a_refused_assignment_leaves_the_config_exactly_as_it_was(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(enable_redis=False, redis_url="redis://configured:6379")
+    config = SyncSecurityConfig(enable_redis=False, redis_url="redis://configured:6379")
     before_dict = dict(config.__dict__)
     before_fields_set = set(config.__pydantic_fields_set__)
     monkeypatch.setattr(

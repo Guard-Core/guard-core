@@ -1,7 +1,7 @@
 import random
 import zlib
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.detection_engine.binary_islands import (
     extract_binary_islands,
     value_is_binary_like,
@@ -124,7 +124,7 @@ def test_patterns_cannot_span_separate_islands() -> None:
     payload = _compressed_bytes(17) + b"\x00" + run_one + b"\x00" + run_two + b"\x00"
     request = _multipart_request(_file_part_body("dump.bin", payload))
 
-    result = detect_penetration_attempt(request, SecurityConfig())
+    result = detect_penetration_attempt(request, SyncSecurityConfig())
 
     assert result.is_threat is False
 
@@ -133,7 +133,7 @@ def test_compressed_file_part_with_short_fragment_not_detected() -> None:
     payload = _compressed_bytes(11) + b"\x00" + _TAUTOLOGY + b"\x00"
     request = _multipart_request(_file_part_body("installer.zip", payload))
 
-    result = detect_penetration_attempt(request, SecurityConfig())
+    result = detect_penetration_attempt(request, SyncSecurityConfig())
 
     assert result.is_threat is False
 
@@ -144,7 +144,7 @@ def test_compressed_file_part_with_embedded_script_detected() -> None:
     )
     request = _multipart_request(_file_part_body("page.html.bin", payload))
 
-    result = detect_penetration_attempt(request, SecurityConfig())
+    result = detect_penetration_attempt(request, SyncSecurityConfig())
 
     assert result.is_threat is True
 
@@ -153,7 +153,7 @@ def test_text_file_part_fully_scanned() -> None:
     payload = b"-- benign --\r\nSELECT name FROM users; " + _SCRIPT + b"\r\n"
     request = _multipart_request(_file_part_body("notes.txt", payload))
 
-    result = detect_penetration_attempt(request, SecurityConfig())
+    result = detect_penetration_attempt(request, SyncSecurityConfig())
 
     assert result.is_threat is True
 
@@ -161,7 +161,7 @@ def test_text_file_part_fully_scanned() -> None:
 def test_lower_min_run_length_restores_short_fragment_detection() -> None:
     payload = _compressed_bytes(14) + b"\x00" + _TAUTOLOGY + b"\x00"
     request = _multipart_request(_file_part_body("data.bin", payload))
-    config = SecurityConfig(detection_binary_min_run_length=4)
+    config = SyncSecurityConfig(detection_binary_min_run_length=4)
 
     result = detect_penetration_attempt(request, config)
 
@@ -172,7 +172,7 @@ def test_octet_stream_binary_body_still_fully_scanned() -> None:
     body = _compressed_bytes(15) + b"\x00" + _TAUTOLOGY + b"\x00"
     request = _octet_stream_request(body)
 
-    result = detect_penetration_attempt(request, SecurityConfig())
+    result = detect_penetration_attempt(request, SyncSecurityConfig())
 
     assert result.is_threat is True
 
@@ -181,7 +181,7 @@ def test_octet_stream_binary_body_with_embedded_script_detected() -> None:
     body = _compressed_bytes(16) + b"\x00" + _SCRIPT + b"\x00"
     request = _octet_stream_request(body)
 
-    result = detect_penetration_attempt(request, SecurityConfig())
+    result = detect_penetration_attempt(request, SyncSecurityConfig())
 
     assert result.is_threat is True
 
@@ -189,7 +189,7 @@ def test_octet_stream_binary_body_with_embedded_script_detected() -> None:
 def test_short_text_body_keeps_full_scan() -> None:
     request = _text_request(_TAUTOLOGY)
 
-    result = detect_penetration_attempt(request, SecurityConfig())
+    result = detect_penetration_attempt(request, SyncSecurityConfig())
 
     assert result.is_threat is True
 
@@ -197,6 +197,6 @@ def test_short_text_body_keeps_full_scan() -> None:
 def test_mostly_text_body_with_single_null_keeps_full_scan() -> None:
     request = _text_request(b"benign body with 1 OR 1=1\x00")
 
-    result = detect_penetration_attempt(request, SecurityConfig())
+    result = detect_penetration_attempt(request, SyncSecurityConfig())
 
     assert result.is_threat is True

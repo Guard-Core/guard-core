@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from guard_core.models import SecurityConfig, ThreatBanConfig
+from guard_core.models import SyncSecurityConfig, ThreatBanConfig
 from guard_core.sync.core.checks.helpers import _resolve_and_apply_threshold_ban
 from guard_core.sync.core.checks.implementations.suspicious_activity import (
     SuspiciousActivityCheck,
@@ -31,11 +31,11 @@ def test_threat_ban_config_rejects_non_positive_duration() -> None:
 
 
 def test_security_config_threat_ban_config_default_empty() -> None:
-    assert SecurityConfig().threat_ban_config == {}
+    assert SyncSecurityConfig().threat_ban_config == {}
 
 
 def test_security_config_threat_ban_config_accepts_valid_categories() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         threat_ban_config={
             "xss": ThreatBanConfig(threshold=3, duration=86400),
             "sqli": ThreatBanConfig(threshold=1, duration=604800),
@@ -47,13 +47,13 @@ def test_security_config_threat_ban_config_accepts_valid_categories() -> None:
 
 def test_security_config_threat_ban_config_rejects_unknown_category() -> None:
     with pytest.raises(ValueError, match="Unknown threat categor"):
-        SecurityConfig(
+        SyncSecurityConfig(
             threat_ban_config={"nonsense": ThreatBanConfig(threshold=1, duration=60)}
         )
 
 
 def test_security_config_threat_ban_config_accepts_all_known_categories() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         threat_ban_config={
             cat: ThreatBanConfig(threshold=1, duration=60)
             for cat in ALL_DETECTION_CATEGORIES
@@ -62,7 +62,7 @@ def test_security_config_threat_ban_config_accepts_all_known_categories() -> Non
     assert set(config.threat_ban_config.keys()) == set(ALL_DETECTION_CATEGORIES)
 
 
-def _build_check(config: SecurityConfig) -> SuspiciousActivityCheck:
+def _build_check(config: SyncSecurityConfig) -> SuspiciousActivityCheck:
     middleware = MagicMock()
     middleware.config = config
     middleware.suspicious_request_counts = {}
@@ -112,7 +112,7 @@ def _make_request(client_ip: str) -> MagicMock:
 def test_per_category_ban_fires_at_category_threshold(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_ip_banning=True,
         auto_ban_threshold=1000,
         auto_ban_duration=60,
@@ -149,7 +149,7 @@ def test_per_category_ban_fires_at_category_threshold(
 def test_flat_ban_fires_when_no_per_category_entry(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_ip_banning=True,
         auto_ban_threshold=2,
         auto_ban_duration=60,
@@ -184,7 +184,7 @@ def test_flat_ban_fires_when_no_per_category_entry(
 def test_per_category_ban_short_circuits_flat_ban(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_ip_banning=True,
         auto_ban_threshold=1,
         auto_ban_duration=60,
@@ -216,7 +216,7 @@ def test_per_category_ban_short_circuits_flat_ban(
 def test_per_category_skip_when_entry_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_ip_banning=True,
         auto_ban_threshold=1,
         auto_ban_duration=60,
@@ -248,7 +248,7 @@ def test_per_category_skip_when_entry_missing(
 def test_no_ban_when_ip_banning_disabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_ip_banning=False,
         auto_ban_threshold=1,
         auto_ban_duration=60,
@@ -278,7 +278,7 @@ def test_no_ban_when_ip_banning_disabled(
 def test_uncategorized_threat_increments_uncategorized(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_ip_banning=True,
         auto_ban_threshold=1,
         auto_ban_duration=60,
@@ -308,7 +308,7 @@ def test_uncategorized_threat_increments_uncategorized(
 def test_passive_mode_with_threat(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         passive_mode=True,
         enable_ip_banning=True,
         auto_ban_threshold=1,
@@ -338,7 +338,7 @@ def test_passive_mode_with_threat(
 
 
 def test_no_threat_returns_none(monkeypatch: pytest.MonkeyPatch) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     check = _build_check(config)
 
     ban_calls: list[tuple[str, int, str]] = []
@@ -359,7 +359,7 @@ def test_no_threat_returns_none(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_disabled_by_decorator_emits_event(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     check = _build_check(config)
 
     ban_calls: list[tuple[str, int, str]] = []
@@ -380,7 +380,7 @@ def test_disabled_by_decorator_emits_event(
 def test_check_skips_when_whitelisted(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     check = _build_check(config)
 
     request = MagicMock()
@@ -394,7 +394,7 @@ def test_check_skips_when_whitelisted(
 def test_check_skips_when_no_client_ip(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     check = _build_check(config)
 
     request = MagicMock()
@@ -407,7 +407,7 @@ def test_check_skips_when_no_client_ip(
 
 
 def _build_check_with_fresh_ip_ban_manager(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
 ) -> tuple[SuspiciousActivityCheck, IPBanManager]:
     IPBanManager._instance = None
     fresh_manager = IPBanManager()
@@ -422,7 +422,7 @@ def test_refused_ban_falls_through_to_400_not_403(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_ip_banning=True,
         auto_ban_threshold=1,
         auto_ban_duration=60,
@@ -458,7 +458,7 @@ def test_refused_ban_falls_through_to_400_not_403(
 def test_applied_ban_still_gives_403(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_ip_banning=True,
         auto_ban_threshold=1,
         auto_ban_duration=60,
@@ -490,7 +490,7 @@ def test_applied_ban_still_gives_403(
 
 
 def test_per_category_ban_refused_returns_none() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_ip_banning=True,
         auto_ban_threshold=1000,
         auto_ban_duration=60,

@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, Mock
 
 import pytest
 
-from guard_core.models import BehaviorRuleConfig, SecurityConfig
+from guard_core.models import BehaviorRuleConfig, SyncSecurityConfig
 from guard_core.sync.core.behavioral._throttle import effective_return_threshold
 from guard_core.sync.core.behavioral.context import BehavioralContext
 from guard_core.sync.core.behavioral.processor import BehavioralProcessor
@@ -26,7 +26,7 @@ DETECT = "guard_core.sync.core.checks.implementations.suspicious_activity"
 HELPERS = "guard_core.sync.core.checks.helpers"
 
 
-def _config(**overrides: Any) -> SecurityConfig:
+def _config(**overrides: Any) -> SyncSecurityConfig:
     values: dict[str, Any] = {
         "enable_redis": True,
         "redis_url": REDIS_URL,
@@ -37,7 +37,7 @@ def _config(**overrides: Any) -> SecurityConfig:
         "enable_rate_limiting": False,
     }
     values.update(overrides)
-    return SecurityConfig(**values)
+    return SyncSecurityConfig(**values)
 
 
 def _threat(*categories: str) -> DetectionResult:
@@ -50,7 +50,7 @@ def _threat(*categories: str) -> DetectionResult:
 
 
 class _Worker:
-    def __init__(self, config: SecurityConfig, redis: RedisManager) -> None:
+    def __init__(self, config: SyncSecurityConfig, redis: RedisManager) -> None:
         middleware = MagicMock()
         middleware.config = config
         middleware.logger = logging.getLogger("test_shared_strike_readers")
@@ -153,7 +153,7 @@ def test_the_identity_violation_event_counts_every_workers_strikes(
 
 
 def _processor(
-    config: SecurityConfig, redis: RedisManager, rule: BehaviorRuleConfig
+    config: SyncSecurityConfig, redis: RedisManager, rule: BehaviorRuleConfig
 ) -> tuple[BehavioralProcessor, MagicMock, MagicMock]:
     config.global_behavior_rules = (rule,)
     tracker = BehaviorTracker(config)
@@ -468,6 +468,6 @@ def test_the_process_categories_are_asked_once_for_several_correlated_checks() -
 
 
 def test_a_disabled_redis_reads_no_categories() -> None:
-    manager = RedisManager(SecurityConfig(enable_redis=False))
+    manager = RedisManager(SyncSecurityConfig(enable_redis=False))
 
     assert manager.read_detection_categories(IP, 0.0) == []

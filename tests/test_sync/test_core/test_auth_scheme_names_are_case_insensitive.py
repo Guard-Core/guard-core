@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.helpers import _SCHEME_FAILURES
 from guard_core.sync.decorators import SecurityDecorator
 from guard_core.sync.decorators._route_arguments import BUILT_IN_AUTH_SCHEMES
@@ -15,8 +15,8 @@ CREDENTIAL_NOTE = "Its verifier receives only the credential"
 BASIC_BLOB = base64.b64encode(f"alice:{PASSWORD}".encode()).decode()
 
 
-def _config() -> SecurityConfig:
-    return SecurityConfig(
+def _config() -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         enable_redis=False,
         enable_penetration_detection=False,
         enable_rate_limiting=False,

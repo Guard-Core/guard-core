@@ -59,7 +59,7 @@ from guard_core.sync.detection_result import DetectionResult
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
 if TYPE_CHECKING:
-    from guard_core.models import SecurityConfig
+    from guard_core.models import SyncSecurityConfig
     from guard_core.sync.decorators.base import RouteConfig
 
 
@@ -218,7 +218,7 @@ def _scan_request_surface(
 
 def _scan_body_surface(
     request: SyncGuardRequest,
-    config: "SecurityConfig | None",
+    config: "SyncSecurityConfig | None",
     route_config: "RouteConfig | None",
     excluded_body_fields: set[str],
     enabled_categories: set[str] | None,
@@ -259,7 +259,7 @@ def _scan_body_surface(
     return _build_detection_miss()
 
 
-def _ensure_detection_singleton_configured(config: "SecurityConfig | None") -> None:
+def _ensure_detection_singleton_configured(config: "SyncSecurityConfig | None") -> None:
     if config is None:
         return
 
@@ -274,7 +274,7 @@ def _ensure_detection_singleton_configured(config: "SecurityConfig | None") -> N
 
 def detect_penetration_attempt(
     request: SyncGuardRequest,
-    config: "SecurityConfig | None" = None,
+    config: "SyncSecurityConfig | None" = None,
     route_config: "RouteConfig | None" = None,
 ) -> DetectionResult:
     import uuid

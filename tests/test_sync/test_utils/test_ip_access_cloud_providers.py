@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.cloud_handler import cloud_handler
 from guard_core.sync.utils import (
     IpAccessResult,
@@ -24,10 +24,10 @@ def aws_ranges() -> Iterator[None]:
         yield
 
 
-def _config(**overrides: Any) -> SecurityConfig:
+def _config(**overrides: Any) -> SyncSecurityConfig:
     settings: dict[str, Any] = {"enable_redis": False, "block_cloud_providers": {"AWS"}}
     settings.update(overrides)
-    return SecurityConfig(**settings)
+    return SyncSecurityConfig(**settings)
 
 
 def test_check_ip_access_blocks_a_blocked_cloud_provider_with_its_detail() -> None:

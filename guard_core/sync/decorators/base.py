@@ -8,7 +8,7 @@ from typing import (
 )
 
 from guard_core._misconfiguration import report_misconfiguration
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.decorators.route_config import (
     _REVISION_EXEMPT_ATTRS,
     _TRACKED_DICT_FIELDS,
@@ -63,7 +63,7 @@ class BaseSecurityMixin:
 
 
 class BaseSecurityDecorator:
-    def __init__(self, config: SecurityConfig) -> None:
+    def __init__(self, config: SyncSecurityConfig) -> None:
         from guard_core.sync.handlers.behavior_handler import BehaviorTracker
 
         self.config = config

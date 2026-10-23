@@ -2,7 +2,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.decorators.base import (
     BaseSecurityDecorator,
     BaseSecurityMixin,
@@ -80,7 +80,7 @@ def test_base_security_mixin_not_implemented() -> None:
         mixin._apply_route_config(mock_func)
 
 
-def test_base_security_decorator(security_config: SecurityConfig) -> None:
+def test_base_security_decorator(security_config: SyncSecurityConfig) -> None:
     decorator = BaseSecurityDecorator(security_config)
 
     assert decorator.config == security_config
@@ -117,7 +117,7 @@ def test_base_security_decorator(security_config: SecurityConfig) -> None:
 
 
 def test_get_route_decorator_config() -> None:
-    security_config = SecurityConfig()
+    security_config = SyncSecurityConfig()
     decorator = BaseSecurityDecorator(security_config)
 
     mock_request = SyncMockGuardRequest()
@@ -135,7 +135,7 @@ def test_get_route_decorator_config() -> None:
     assert result is route_config
 
 
-def test_initialize_behavior_tracking(security_config: SecurityConfig) -> None:
+def test_initialize_behavior_tracking(security_config: SyncSecurityConfig) -> None:
     decorator = BaseSecurityDecorator(security_config)
 
     decorator.initialize_behavior_tracking()
@@ -238,7 +238,7 @@ def test_mutating_an_untracked_container_field_does_not_bump_revision() -> None:
 
 
 def test_route_config_revision_bumps_when_ensure_route_config_adds_a_new_route(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     decorator = BaseSecurityDecorator(security_config)
     assert decorator.route_config_revision == 0
@@ -255,7 +255,7 @@ def test_route_config_revision_bumps_when_ensure_route_config_adds_a_new_route(
 
 
 def test_mutating_a_route_config_obtained_from_the_decorator_bumps_its_revision(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     decorator = BaseSecurityDecorator(security_config)
     mock_func = Mock(__module__="test_module", __qualname__="existing_route")

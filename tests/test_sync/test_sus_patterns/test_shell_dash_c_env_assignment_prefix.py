@@ -2,7 +2,7 @@ from collections.abc import Generator
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.suspatterns_handler import (
     DETECTION_RAW_VIEW_PATTERN_SOURCES,
     DETECTION_URL_DECODED_VIEW_PATTERN_SOURCES,
@@ -18,7 +18,7 @@ _MID_VALUE_ENV_ASSIGNMENT_SHELL_DASH_C_PATTERN = (
 
 @pytest.fixture(autouse=True)
 def _force_enhanced_detection_singleton() -> None:
-    sus_patterns_handler.configure(SecurityConfig())
+    sus_patterns_handler.configure(SyncSecurityConfig())
 
 
 @pytest.fixture
@@ -28,7 +28,7 @@ def manager() -> Generator[SusPatternsManager, None, None]:
 
     SusPatternsManager._instance = None
     SusPatternsManager._config = None
-    new_instance = SusPatternsManager(SecurityConfig())
+    new_instance = SusPatternsManager(SyncSecurityConfig())
 
     yield new_instance
 

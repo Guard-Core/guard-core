@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, Mock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.implementations.rate_limit import RateLimitCheck
 from guard_core.sync.core.checks.implementations.route_config import RouteConfigCheck
 from guard_core.sync.core.checks.route_prefixes import (
@@ -75,7 +75,7 @@ def test_entry_matches_route_prefixes(
     assert entry_matches_route_prefixes(entry, prefixes) is expected
 
 
-def _middleware(config: SecurityConfig, prefixes: Any = None) -> Mock:
+def _middleware(config: SyncSecurityConfig, prefixes: Any = None) -> Mock:
     middleware = Mock()
     middleware.config = config
     middleware.logger = Mock()
@@ -107,8 +107,8 @@ def _first_requests(middleware: Mock, count: int = 2) -> None:
         check.check(request)
 
 
-def _config(**settings: Any) -> SecurityConfig:
-    return SecurityConfig(enable_redis=False, **settings)
+def _config(**settings: Any) -> SyncSecurityConfig:
+    return SyncSecurityConfig(enable_redis=False, **settings)
 
 
 def test_a_typo_entry_warns_once_and_a_matched_or_default_entry_never(

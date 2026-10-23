@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.events.metrics import MetricsCollector
 from guard_core.sync.core.responses.context import ResponseContext
 from guard_core.sync.core.responses.factory import ErrorResponseFactory
@@ -8,14 +8,14 @@ from guard_core.sync.handlers.security_headers_handler import security_headers_m
 from tests.test_sync.conftest import MockGuardResponse, MockGuardResponseFactory
 
 
-def _make_config(csp: dict[str, list[str]]) -> SecurityConfig:
-    return SecurityConfig(
+def _make_config(csp: dict[str, list[str]]) -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         enable_redis=False,
         security_headers={"enabled": True, "csp": csp},
     )
 
 
-def _make_factory(config: SecurityConfig) -> ErrorResponseFactory:
+def _make_factory(config: SyncSecurityConfig) -> ErrorResponseFactory:
     metrics = MagicMock(spec=MetricsCollector)
     metrics.collect_request_metrics = MagicMock()
     ctx = ResponseContext(
@@ -79,7 +79,7 @@ def test_response_factory_headers_survive_a_later_middleware_reconfiguring() -> 
 
 
 def test_get_headers_with_config_disabled_returns_empty() -> None:
-    config = SecurityConfig(enable_redis=False, security_headers={"enabled": False})
+    config = SyncSecurityConfig(enable_redis=False, security_headers={"enabled": False})
 
     headers = security_headers_manager.get_headers("/off", config=config)
     assert headers == {}
@@ -94,13 +94,13 @@ def test_get_headers_without_config_uses_most_recently_configured_state() -> Non
 
 
 def test_get_cors_headers_with_explicit_configs_stay_isolated() -> None:
-    config_a = SecurityConfig(
+    config_a = SyncSecurityConfig(
         enable_redis=False,
         security_headers={"enabled": True},
         enable_cors=True,
         cors_allow_origins=["https://a.example.com"],
     )
-    config_b = SecurityConfig(
+    config_b = SyncSecurityConfig(
         enable_redis=False,
         security_headers={"enabled": True},
         enable_cors=True,

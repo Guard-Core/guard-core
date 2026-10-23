@@ -2,12 +2,12 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from tests.test_sync.test_core.conftest import build_route_pipeline, send_request
 
 
-def _config(**overrides: Any) -> SecurityConfig:
-    return SecurityConfig(
+def _config(**overrides: Any) -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         enable_redis=False,
         enable_penetration_detection=False,
         enable_rate_limiting=False,

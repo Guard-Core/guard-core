@@ -3,12 +3,12 @@ from collections.abc import Iterator
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
 from guard_core.sync.utils import detect_penetration_attempt
 from tests.test_sync.conftest import SyncMockGuardRequest
 
-_CONFIG = SecurityConfig()
+_CONFIG = SyncSecurityConfig()
 
 
 @pytest.fixture(autouse=True)
@@ -17,7 +17,7 @@ def _force_configured_detection_singleton() -> Iterator[None]:
     # tests exercise the production path, where the preprocessor folds LDAP
     # hex escapes ("\de" -> "Þ") before the pattern tables run and only the
     # signal-preserving raw view still carries the backslashes through.
-    sus_patterns_handler.configure(SecurityConfig())
+    sus_patterns_handler.configure(SyncSecurityConfig())
     yield
 
 

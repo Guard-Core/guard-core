@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
-from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.models import DynamicRules, SyncSecurityConfig
 from guard_core.sync.core.events.enricher import EnrichmentContext, EventEnricher
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
 
@@ -18,14 +18,16 @@ def _rules(**overrides: object) -> DynamicRules:
 
 def _manager_with(rules: DynamicRules | None) -> DynamicRuleManager:
     DynamicRuleManager._instance = None
-    mgr = DynamicRuleManager(SecurityConfig())
+    mgr = DynamicRuleManager(SyncSecurityConfig())
     mgr.current_rules = rules
     return mgr
 
 
 def _enricher(rule_handler: DynamicRuleManager) -> EventEnricher:
     return EventEnricher(
-        EnrichmentContext(config=SecurityConfig(), dynamic_rule_handler=rule_handler)
+        EnrichmentContext(
+            config=SyncSecurityConfig(), dynamic_rule_handler=rule_handler
+        )
     )
 
 
@@ -104,7 +106,7 @@ def test_enrich_event_populates_rule_id_and_version() -> None:
 
 
 def test_enrich_event_skips_rule_fields_when_no_handler() -> None:
-    enricher = EventEnricher(EnrichmentContext(config=SecurityConfig()))
+    enricher = EventEnricher(EnrichmentContext(config=SyncSecurityConfig()))
     event = SimpleNamespace(event_type="ip_blocked", metadata={})
     enricher.enrich_event(event)
     assert "guard.rule.id" not in event.metadata
@@ -112,7 +114,7 @@ def test_enrich_event_skips_rule_fields_when_no_handler() -> None:
 
 def test_enrich_event_skips_rule_fields_when_handler_has_no_match_event() -> None:
     enricher = EventEnricher(
-        EnrichmentContext(config=SecurityConfig(), dynamic_rule_handler=object())
+        EnrichmentContext(config=SyncSecurityConfig(), dynamic_rule_handler=object())
     )
     event = SimpleNamespace(event_type="ip_blocked", metadata={})
     enricher.enrich_event(event)

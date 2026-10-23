@@ -1,6 +1,6 @@
 from collections.abc import Collection
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.forwarded_proto import request_is_https
 from guard_core.sync._utils.ip_extraction import _is_trusted_proxy
@@ -18,7 +18,7 @@ class HttpsEnforcementCheck(SecurityCheck):
     @classmethod
     def applies_to(
         cls,
-        config: SecurityConfig,
+        config: SyncSecurityConfig,
         route_configs: Collection[RouteConfig] | None,
     ) -> bool:
         return config.enforce_https or route_config_applies(

@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from guard_core.exceptions import GeoDatabaseLoadError
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils.access_control import check_ip_country
 from guard_core.sync.handlers.ipinfo_handler import IPInfoManager
 from tests.geo_fixture import CLIENT_IP, country_database_bytes
@@ -23,7 +23,7 @@ def test_concurrent_first_requests_join_one_load_without_a_timeout(
     tmp_path: Path,
 ) -> None:
     manager = IPInfoManager(token="tok", db_path=tmp_path / "geo.mmdb")
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False,
         ipinfo_token="tok",
         ipinfo_db_path=manager.db_path,
@@ -60,7 +60,7 @@ def test_concurrent_first_requests_all_fail_on_one_raising_load(
     tmp_path: Path,
 ) -> None:
     manager = IPInfoManager(token="tok", db_path=tmp_path / "geo.mmdb")
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False,
         ipinfo_token="tok",
         ipinfo_db_path=manager.db_path,
@@ -103,7 +103,7 @@ def test_an_in_flight_retry_keeps_the_previous_failure_visible(
     tmp_path: Path,
 ) -> None:
     manager = IPInfoManager(token="tok", db_path=tmp_path / "geo.mmdb")
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False,
         ipinfo_token="tok",
         ipinfo_db_path=manager.db_path,

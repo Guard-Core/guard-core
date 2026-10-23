@@ -3,7 +3,7 @@ from functools import partial
 from importlib import import_module
 from pathlib import Path
 from types import MappingProxyType
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Generic, Literal
 
 from pydantic import (
     BaseModel,
@@ -12,7 +12,7 @@ from pydantic import (
     Field,
     model_validator,
 )
-from typing_extensions import Self
+from typing_extensions import Self, TypeVar
 
 from guard_core._redis_enablement import REDIS_CONNECTION_FIELDS, resolve_enable_redis
 from guard_core._security_config_field_validators import (
@@ -39,12 +39,12 @@ from guard_core.protocols.cloud_ip_store_protocol import (
 from guard_core.protocols.geo_ip_protocol import GeoIPHandler
 from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse
-from guard_core.sync.protocols.request_protocol import SyncGuardRequest
+
+RequestT = TypeVar("RequestT", default=GuardRequest)
 
 CustomRequestCheck = (
-    Callable[[GuardRequest], Awaitable[GuardResponse | None]]
-    | Callable[[GuardRequest], GuardResponse | None]
-    | Callable[[SyncGuardRequest], GuardResponse | None]
+    Callable[[RequestT], Awaitable[GuardResponse | None]]
+    | Callable[[RequestT], GuardResponse | None]
 )
 CustomResponseModifier = (
     Callable[[GuardResponse], Awaitable[GuardResponse]]
@@ -67,7 +67,7 @@ def _module_cap(module: str, name: str) -> Callable[[], int]:
     return lambda: int(getattr(import_module(module), name))
 
 
-class _SecurityConfigFields(BaseModel):
+class _SecurityConfigFields(BaseModel, Generic[RequestT]):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     trusted_proxies: tuple[str, ...] = Field(
@@ -582,7 +582,7 @@ class _SecurityConfigFields(BaseModel):
         description="Security headers configuration",
     )
 
-    custom_request_check: CustomRequestCheck | None = Field(
+    custom_request_check: CustomRequestCheck[RequestT] | None = Field(
         default=None,
         description=(
             "Perform additional checks on the request. An async or a sync callable "
@@ -591,7 +591,11 @@ class _SecurityConfigFields(BaseModel):
         ),
     )
 
-    auth_verifier: Any = Field(
+    auth_verifier: (
+        Callable[[RequestT, str], Awaitable[object]]
+        | Callable[[RequestT, str], object]
+        | None
+    ) = Field(
         default=None,
         description=(
             "Default verifier callable for require_auth and api_key_auth: "

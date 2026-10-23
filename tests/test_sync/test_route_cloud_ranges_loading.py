@@ -2,7 +2,7 @@ import ipaddress
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.initialization.handler_initializer import HandlerInitializer
 from guard_core.sync.decorators import SecurityDecorator
 from guard_core.sync.handlers.cloud_handler import cloud_handler
@@ -13,18 +13,18 @@ GCP_RANGE = ipaddress.ip_network("203.0.113.0/24")
 CLIENT = "198.51.100.77"
 
 
-def _config(**settings: Any) -> SecurityConfig:
+def _config(**settings: Any) -> SyncSecurityConfig:
     defaults: dict[str, Any] = {
         "enable_redis": False,
         "enable_penetration_detection": False,
         "enable_rate_limiting": False,
         "lazy_init": False,
     }
-    return SecurityConfig(**{**defaults, **settings})
+    return SyncSecurityConfig(**{**defaults, **settings})
 
 
 def _initializer(
-    config: SecurityConfig, decorator: SecurityDecorator, **kw: Any
+    config: SyncSecurityConfig, decorator: SecurityDecorator, **kw: Any
 ) -> HandlerInitializer:
     return HandlerInitializer(config=config, guard_decorator=decorator, **kw)
 

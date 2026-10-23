@@ -3,7 +3,7 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks import helpers as helpers_module
 from guard_core.sync.core.checks.helpers import get_cached_detection_result
 from guard_core.sync.decorators.base import RouteConfig
@@ -25,7 +25,7 @@ def _bypass_fn(calls: list[int] | None = None) -> Any:
 
 def test_second_call_with_same_route_config_reuses_cached_result() -> None:
     request = _make_request()
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     calls: list[int] = []
 
     first = get_cached_detection_result(request, None, config, _bypass_fn(calls))
@@ -37,7 +37,7 @@ def test_second_call_with_same_route_config_reuses_cached_result() -> None:
 
 def test_different_route_config_bypasses_the_cache() -> None:
     request = _make_request()
-    config = SecurityConfig(enable_penetration_detection=False)
+    config = SyncSecurityConfig(enable_penetration_detection=False)
 
     route_a = RouteConfig()
     route_b = RouteConfig()
@@ -52,7 +52,7 @@ def test_different_route_config_bypasses_the_cache() -> None:
 
 def test_cache_stores_live_object_references_not_raw_ids() -> None:
     request = _make_request()
-    config = SecurityConfig(enable_penetration_detection=False)
+    config = SyncSecurityConfig(enable_penetration_detection=False)
     route_config = RouteConfig()
 
     get_cached_detection_result(request, route_config, config, _bypass_fn())
@@ -65,7 +65,7 @@ def test_cache_stores_live_object_references_not_raw_ids() -> None:
 
 
 def test_different_requests_never_share_a_cached_result() -> None:
-    config = SecurityConfig(enable_penetration_detection=False)
+    config = SyncSecurityConfig(enable_penetration_detection=False)
 
     first_request = _make_request()
     second_request = _make_request()
@@ -81,7 +81,7 @@ def test_different_requests_never_share_a_cached_result() -> None:
 def test_reused_request_state_object_does_not_share_a_stale_result(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = SecurityConfig(enable_penetration_detection=True)
+    config = SyncSecurityConfig(enable_penetration_detection=True)
     route_config = RouteConfig()
     shared_state = SimpleNamespace()
     call_count = 0

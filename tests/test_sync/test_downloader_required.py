@@ -5,7 +5,7 @@ import pytest
 
 from guard_core._config_capabilities import install_hint
 from guard_core.exceptions import DownloaderNotInstalledError
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.initialization.handler_initializer import HandlerInitializer
 from guard_core.sync.handlers._downloader import (
     TREE_DOWNLOADER,
@@ -35,19 +35,19 @@ def test_a_present_downloader_passes_and_a_missing_one_raises_a_value_error() ->
 
 
 def test_the_initializer_refuses_cloud_blocking_without_the_downloader() -> None:
-    config = SecurityConfig(block_cloud_providers={"AWS"})
+    config = SyncSecurityConfig(block_cloud_providers={"AWS"})
     with _MISSING, pytest.raises(DownloaderNotInstalledError):
         HandlerInitializer(config, adapter="x-guard")
 
 
 def test_the_initializer_refuses_the_builtin_geo_download_without_it() -> None:
-    config = SecurityConfig(ipinfo_token="t", blocked_countries={"US"})
+    config = SyncSecurityConfig(ipinfo_token="t", blocked_countries={"US"})
     with _MISSING, pytest.raises(DownloaderNotInstalledError):
         HandlerInitializer(config, geo_ip_handler=config.geo_ip_handler)
 
 
 def test_the_initializer_accepts_a_config_that_needs_no_downloader() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     with _MISSING:
         HandlerInitializer(config)
         HandlerInitializer(config, geo_ip_handler=MagicMock())

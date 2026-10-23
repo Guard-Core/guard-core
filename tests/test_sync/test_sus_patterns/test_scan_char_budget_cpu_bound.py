@@ -4,7 +4,7 @@ import time
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
 from guard_core.sync.utils import detect_penetration_attempt
 from tests.test_sus_patterns.test_detect_penetration_attempt_benchmark import (
@@ -33,7 +33,7 @@ def _json_body_request(payload: dict[str, str]) -> SyncMockGuardRequest:
     )
 
 
-def _assert_enhanced_mode(config: SecurityConfig) -> None:
+def _assert_enhanced_mode(config: SyncSecurityConfig) -> None:
     sus_patterns_handler.configure(config)
     assert sus_patterns_handler._detection_state.compiler is not None, (
         "CPU ceiling tests must measure the enhanced-detection path; an "
@@ -45,7 +45,7 @@ def _assert_enhanced_mode(config: SecurityConfig) -> None:
 
 @pytest.mark.redos_timing
 def test_twenty_eight_large_values_body_scan_stays_cpu_bounded() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     _assert_enhanced_mode(config)
 
     rng = random.Random(7)
@@ -73,7 +73,7 @@ def test_twenty_eight_large_values_body_scan_stays_cpu_bounded() -> None:
 
 @pytest.mark.redos_timing
 def test_five_hundred_twelve_small_values_body_scan_stays_cpu_bounded() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     _assert_enhanced_mode(config)
 
     rng = random.Random(11)

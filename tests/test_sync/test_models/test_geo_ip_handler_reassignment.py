@@ -3,12 +3,12 @@ from typing import cast
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.ipinfo_handler import IPInfoManager
 
 
 def test_blocked_countries_assignment_without_geo_handler_raises() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
 
     with pytest.raises(ValueError, match="geo_ip_handler is required"):
         config.blocked_countries = cast(frozenset[str], ["US"])
@@ -18,7 +18,7 @@ def test_blocked_countries_assignment_without_geo_handler_raises() -> None:
 
 
 def test_whitelist_countries_assignment_without_geo_handler_raises() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
 
     with pytest.raises(ValueError, match="geo_ip_handler is required"):
         config.whitelist_countries = cast(frozenset[str], ["US"])
@@ -31,7 +31,7 @@ def test_blocked_countries_assignment_with_geo_handler_already_set_succeeds(
     tmp_path: Path,
 ) -> None:
     handler = IPInfoManager(token="dummy", db_path=tmp_path / "asn20.mmdb")
-    config = SecurityConfig(geo_ip_handler=handler)
+    config = SyncSecurityConfig(geo_ip_handler=handler)
 
     config.blocked_countries = cast(frozenset[str], ["US"])
 
@@ -42,7 +42,7 @@ def test_blocked_countries_assignment_with_geo_handler_already_set_succeeds(
 def test_blocked_countries_assignment_with_ipinfo_token_auto_constructs_handler() -> (
     None
 ):
-    config = SecurityConfig(ipinfo_token="tok")
+    config = SyncSecurityConfig(ipinfo_token="tok")
     assert config.geo_ip_handler is None
 
     config.blocked_countries = cast(frozenset[str], ["US"])
@@ -55,7 +55,7 @@ def test_geo_ip_handler_assignment_to_none_with_active_rules_and_no_token_raises
     tmp_path: Path,
 ) -> None:
     handler = IPInfoManager(token="dummy", db_path=tmp_path / "asn21.mmdb")
-    config = SecurityConfig(geo_ip_handler=handler, blocked_countries=["US"])
+    config = SyncSecurityConfig(geo_ip_handler=handler, blocked_countries=["US"])
 
     with pytest.raises(ValueError, match="geo_ip_handler is required"):
         config.geo_ip_handler = None
@@ -64,7 +64,7 @@ def test_geo_ip_handler_assignment_to_none_with_active_rules_and_no_token_raises
 
 
 def test_model_copy_update_blocked_countries_without_geo_handler_raises() -> None:
-    base = SecurityConfig()
+    base = SyncSecurityConfig()
 
     with pytest.raises(ValueError, match="geo_ip_handler is required"):
         base.model_copy(update={"blocked_countries": ["US"]})
@@ -75,7 +75,7 @@ def test_model_copy_update_blocked_countries_without_geo_handler_raises() -> Non
 def test_model_copy_update_blocked_countries_with_geo_handler_in_same_update_succeeds(
     tmp_path: Path,
 ) -> None:
-    base = SecurityConfig()
+    base = SyncSecurityConfig()
     handler = IPInfoManager(token="dummy", db_path=tmp_path / "asn22.mmdb")
 
     copied = base.model_copy(
@@ -89,7 +89,7 @@ def test_model_copy_update_blocked_countries_with_geo_handler_in_same_update_suc
 def test_model_copy_update_blocked_countries_with_token_auto_constructs_handler() -> (
     None
 ):
-    base = SecurityConfig(ipinfo_token="tok")
+    base = SyncSecurityConfig(ipinfo_token="tok")
     assert base.geo_ip_handler is None
 
     copied = base.model_copy(update={"blocked_countries": ["US"]})
@@ -100,7 +100,7 @@ def test_model_copy_update_blocked_countries_with_token_auto_constructs_handler(
 
 
 def test_model_copy_update_without_geo_state_fields_skips_geo_check() -> None:
-    base = SecurityConfig()
+    base = SyncSecurityConfig()
 
     copied = base.model_copy(update={"rate_limit": 42})
 
@@ -109,7 +109,7 @@ def test_model_copy_update_without_geo_state_fields_skips_geo_check() -> None:
 
 
 def test_blocked_countries_assignment_rejection_leaves_revision_unchanged() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     revision_before = config.revision
 
     with pytest.raises(ValueError, match="geo_ip_handler is required"):

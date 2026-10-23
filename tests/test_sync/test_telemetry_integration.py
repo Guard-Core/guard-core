@@ -12,7 +12,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
     InMemorySpanExporter,
 )
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.events.composite_handler import CompositeAgentHandler
 from guard_core.sync.core.events.event_types import (
     EVENT_CLOUD_BLOCKED,
@@ -35,7 +35,7 @@ def _build_request() -> MagicMock:
 
 
 def _build_otel_handler_with_exporter(
-    config: SecurityConfig, exporter: InMemorySpanExporter
+    config: SyncSecurityConfig, exporter: InMemorySpanExporter
 ) -> OtelHandler:
     handler = OtelHandler(config)
     provider = TracerProvider()
@@ -54,7 +54,7 @@ def _build_otel_handler_with_exporter(
 
 
 def _build_wired_event_bus(
-    config: SecurityConfig, exporter: InMemorySpanExporter
+    config: SyncSecurityConfig, exporter: InMemorySpanExporter
 ) -> SecurityEventBus:
     otel = _build_otel_handler_with_exporter(config, exporter)
     composite = CompositeAgentHandler([otel])
@@ -73,7 +73,7 @@ def test_end_to_end_span_emission_with_otel(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     exporter = InMemorySpanExporter()
-    config = SecurityConfig(enable_otel=True, agent_enable_events=True)
+    config = SyncSecurityConfig(enable_otel=True, agent_enable_events=True)
 
     fake_event_cls = MagicMock(side_effect=lambda **kw: type("E", (), kw)())
     monkeypatch.setattr(
@@ -113,7 +113,7 @@ def test_end_to_end_span_emission_with_otel(
 
 def test_end_to_end_mute_suppresses_span(monkeypatch: pytest.MonkeyPatch) -> None:
     exporter = InMemorySpanExporter()
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_otel=True,
         agent_enable_events=True,
         muted_event_types={EVENT_CLOUD_BLOCKED},
@@ -162,7 +162,7 @@ def test_end_to_end_traceparent_passes_through_event_bus(
     composite = MagicMock()
     composite.send_event = capture_send
 
-    cfg = SecurityConfig(enable_otel=True, agent_enable_events=True)
+    cfg = SyncSecurityConfig(enable_otel=True, agent_enable_events=True)
     bus = SecurityEventBus(agent_handler=composite, config=cfg)
 
     fake_event_cls = MagicMock(side_effect=lambda **kw: type("E", (), kw)())
@@ -200,7 +200,7 @@ def test_end_to_end_traceparent_passes_through_event_bus(
 
 
 def _prewired_composite_factory(
-    exporter: InMemorySpanExporter, config: SecurityConfig
+    exporter: InMemorySpanExporter, config: SyncSecurityConfig
 ) -> Callable[[], CompositeAgentHandler]:
     def _factory() -> CompositeAgentHandler:
         otel = _build_otel_handler_with_exporter(config, exporter)
@@ -218,7 +218,7 @@ def test_full_pipeline_through_handler_initializer(
 ) -> None:
     """Full pipeline via HandlerInitializer."""
     exporter = InMemorySpanExporter()
-    config = SecurityConfig(enable_otel=True, agent_enable_events=True)
+    config = SyncSecurityConfig(enable_otel=True, agent_enable_events=True)
 
     fake_event_cls = MagicMock(side_effect=lambda **kw: type("E", (), kw)())
     monkeypatch.setattr(
@@ -265,7 +265,7 @@ def test_full_pipeline_mute_through_handler_initializer(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     exporter = InMemorySpanExporter()
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_otel=True,
         agent_enable_events=True,
         muted_event_types={EVENT_CLOUD_BLOCKED},
@@ -318,7 +318,7 @@ def test_full_pipeline_direct_send_respects_filter(
     directly, the composite must still apply the mute filter.
     """
     exporter = InMemorySpanExporter()
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_otel=True,
         muted_event_types={"access_denied"},
     )

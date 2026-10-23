@@ -23,7 +23,7 @@ from guard_core._security_headers_override import (
     override_display,
     override_event_metadata,
 )
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils.config_registry import REDIS_HANDLERS
 from guard_core.sync._utils.logging_utils import _sanitize_for_log
 from guard_core.sync._utils.request_logging import (
@@ -96,7 +96,7 @@ class SecurityHeadersOverrideMixin:
     _current_override = resolve_override
 
     def override_for_reader(
-        self, config: SecurityConfig, current: OverrideRecord | None = None
+        self, config: SyncSecurityConfig, current: OverrideRecord | None = None
     ) -> OverrideRecord:
         if current is None:
             current = self.resolve_override()
@@ -110,7 +110,7 @@ class SecurityHeadersOverrideMixin:
         return current
 
     def cors_params_for(
-        self, config: SecurityConfig, current: OverrideRecord | None = None
+        self, config: SyncSecurityConfig, current: OverrideRecord | None = None
     ) -> CorsParams:
         base = cors_params_of(config)
         override = self.override_for_reader(config, current)
@@ -143,7 +143,7 @@ class SecurityHeadersOverrideMixin:
             self.logger.info("CORS override narrows or keeps the CORS of this app")
 
     def send_cors_override_event(
-        self, config: SecurityConfig, current: OverrideRecord | None = None
+        self, config: SyncSecurityConfig, current: OverrideRecord | None = None
     ) -> None:
         if not self.agent_handler:
             return
@@ -225,7 +225,7 @@ class SecurityHeadersOverrideMixin:
         return f"override:{self._startup_hash}"
 
     def _sync_override(
-        self, config: SecurityConfig, current: OverrideRecord
+        self, config: SyncSecurityConfig, current: OverrideRecord
     ) -> OverrideRecord:
         if current.event and current.set_at > self._override_announced_at:
             self._override_announced_at = current.set_at
@@ -240,7 +240,7 @@ class SecurityHeadersOverrideMixin:
             self._sync_override_with_redis(current)
         return current if self._override is current else self._current_override()
 
-    def _find_registered_redis_handler(self, config: SecurityConfig) -> None:
+    def _find_registered_redis_handler(self, config: SyncSecurityConfig) -> None:
         # Released adapters build the response context without their Redis handler;
         # the handler initializer registered it under the config, found at the pull
         # boundary only.

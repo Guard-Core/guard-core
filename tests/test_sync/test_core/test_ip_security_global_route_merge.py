@@ -4,20 +4,20 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.implementations.ip_security import IpSecurityCheck
 from guard_core.sync.decorators.base import RouteConfig
 
 
 @pytest.fixture
-def security_config() -> SecurityConfig:
-    config = SecurityConfig(ban_on_hostile_signals=False)
+def security_config() -> SyncSecurityConfig:
+    config = SyncSecurityConfig(ban_on_hostile_signals=False)
     config.passive_mode = False
     return config
 
 
 @pytest.fixture
-def mock_middleware(security_config: SecurityConfig) -> Mock:
+def mock_middleware(security_config: SyncSecurityConfig) -> Mock:
     middleware = Mock()
     middleware.config = security_config
     middleware.logger = Mock()
@@ -64,7 +64,7 @@ def _patches(ip_security_check: IpSecurityCheck) -> Any:
 
 
 def test_decorated_route_still_enforces_global_blacklist(
-    ip_security_check: IpSecurityCheck, security_config: SecurityConfig
+    ip_security_check: IpSecurityCheck, security_config: SyncSecurityConfig
 ) -> None:
     security_config.blacklist = ("1.2.3.4",)
     route_config = RouteConfig()
@@ -80,7 +80,7 @@ def test_decorated_route_still_enforces_global_blacklist(
 
 
 def test_route_ip_whitelist_does_not_override_global_blacklist(
-    ip_security_check: IpSecurityCheck, security_config: SecurityConfig
+    ip_security_check: IpSecurityCheck, security_config: SyncSecurityConfig
 ) -> None:
     security_config.blacklist = ("1.2.3.4",)
     route_config = RouteConfig()
@@ -95,7 +95,7 @@ def test_route_ip_whitelist_does_not_override_global_blacklist(
 
 def test_route_country_rules_keep_global_ip_blacklist_active(
     ip_security_check: IpSecurityCheck,
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
     mock_middleware: Mock,
 ) -> None:
     security_config.blacklist = ("1.2.3.4",)
@@ -115,7 +115,7 @@ def test_route_country_rules_keep_global_ip_blacklist_active(
 
 
 def test_route_without_ip_fields_leaves_global_whitelist_semantics(
-    ip_security_check: IpSecurityCheck, security_config: SecurityConfig
+    ip_security_check: IpSecurityCheck, security_config: SyncSecurityConfig
 ) -> None:
     security_config.whitelist = ("9.9.9.9",)
     route_config = RouteConfig()
@@ -129,7 +129,7 @@ def test_route_without_ip_fields_leaves_global_whitelist_semantics(
 
 
 def test_global_whitelist_match_sets_is_whitelisted_with_route_config(
-    ip_security_check: IpSecurityCheck, security_config: SecurityConfig
+    ip_security_check: IpSecurityCheck, security_config: SyncSecurityConfig
 ) -> None:
     security_config.whitelist = ("1.2.3.4",)
     security_config.whitelist_access_only = False
@@ -144,7 +144,7 @@ def test_global_whitelist_match_sets_is_whitelisted_with_route_config(
 
 
 def test_route_whitelist_with_unparseable_ip_blocks_at_route_step(
-    ip_security_check: IpSecurityCheck, security_config: SecurityConfig
+    ip_security_check: IpSecurityCheck, security_config: SyncSecurityConfig
 ) -> None:
     route_config = RouteConfig()
     route_config.ip_whitelist = ["1.2.3.4"]
@@ -161,7 +161,7 @@ def test_route_whitelist_with_unparseable_ip_blocks_at_route_step(
 
 
 def test_globally_whitelisted_config_with_unparseable_client_ip_not_whitelisted(
-    ip_security_check: IpSecurityCheck, security_config: SecurityConfig
+    ip_security_check: IpSecurityCheck, security_config: SyncSecurityConfig
 ) -> None:
     security_config.whitelist = ("1.2.3.4",)
     route_config = RouteConfig()
@@ -176,7 +176,7 @@ def test_globally_whitelisted_config_with_unparseable_client_ip_not_whitelisted(
 
 
 def test_global_check_unparseable_ip_with_route_whitelist_not_whitelisted(
-    ip_security_check: IpSecurityCheck, security_config: SecurityConfig
+    ip_security_check: IpSecurityCheck, security_config: SyncSecurityConfig
 ) -> None:
     route_config = RouteConfig()
     route_config.ip_whitelist = ["1.2.3.4"]
@@ -192,7 +192,7 @@ def test_global_check_unparseable_ip_with_route_whitelist_not_whitelisted(
 
 
 def test_route_blacklist_only_still_enforces_global_whitelist(
-    ip_security_check: IpSecurityCheck, security_config: SecurityConfig
+    ip_security_check: IpSecurityCheck, security_config: SyncSecurityConfig
 ) -> None:
     security_config.whitelist = ("1.1.1.1",)
     route_config = RouteConfig()
@@ -209,7 +209,7 @@ def test_route_blacklist_only_still_enforces_global_whitelist(
 
 
 def test_route_blacklist_only_allows_globally_whitelisted_client(
-    ip_security_check: IpSecurityCheck, security_config: SecurityConfig
+    ip_security_check: IpSecurityCheck, security_config: SyncSecurityConfig
 ) -> None:
     security_config.whitelist = ("1.2.3.4",)
     security_config.whitelist_access_only = False
@@ -225,7 +225,7 @@ def test_route_blacklist_only_allows_globally_whitelisted_client(
 
 def test_route_blocked_countries_only_still_enforces_global_blocked_countries(
     ip_security_check: IpSecurityCheck,
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
     mock_middleware: Mock,
 ) -> None:
     security_config.whitelist = ()
@@ -248,7 +248,7 @@ def test_route_blocked_countries_only_still_enforces_global_blocked_countries(
 
 
 def test_route_whitelist_match_overrides_global_whitelist_default_deny(
-    ip_security_check: IpSecurityCheck, security_config: SecurityConfig
+    ip_security_check: IpSecurityCheck, security_config: SyncSecurityConfig
 ) -> None:
     security_config.whitelist = ("1.1.1.1",)
     route_config = RouteConfig()
@@ -262,7 +262,7 @@ def test_route_whitelist_match_overrides_global_whitelist_default_deny(
 
 
 def test_route_whitelist_set_but_client_excluded_blocks_at_route_step(
-    ip_security_check: IpSecurityCheck, security_config: SecurityConfig
+    ip_security_check: IpSecurityCheck, security_config: SyncSecurityConfig
 ) -> None:
     route_config = RouteConfig()
     route_config.ip_whitelist = ["9.9.9.9"]
@@ -279,7 +279,7 @@ def test_route_whitelist_set_but_client_excluded_blocks_at_route_step(
 
 def test_route_ip_whitelist_match_still_denied_by_route_country_mismatch(
     ip_security_check: IpSecurityCheck,
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
     mock_middleware: Mock,
 ) -> None:
     mock_middleware.geo_ip_handler = Mock()
@@ -300,7 +300,7 @@ def test_route_ip_whitelist_match_still_denied_by_route_country_mismatch(
 
 def test_route_ip_whitelist_match_does_not_bypass_global_blocked_countries(
     ip_security_check: IpSecurityCheck,
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
     mock_middleware: Mock,
 ) -> None:
     security_config.geo_ip_handler = Mock()
@@ -323,7 +323,7 @@ def test_route_ip_whitelist_match_does_not_bypass_global_blocked_countries(
 
 def test_route_whitelist_countries_match_skips_global_blocked_countries(
     ip_security_check: IpSecurityCheck,
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
     mock_middleware: Mock,
 ) -> None:
     security_config.geo_ip_handler = Mock()
@@ -341,7 +341,7 @@ def test_route_whitelist_countries_match_skips_global_blocked_countries(
 
 
 def test_route_ip_whitelist_overrides_route_ip_blacklist_same_ip(
-    ip_security_check: IpSecurityCheck, security_config: SecurityConfig
+    ip_security_check: IpSecurityCheck, security_config: SyncSecurityConfig
 ) -> None:
     route_config = RouteConfig()
     route_config.ip_whitelist = ["1.2.3.4"]
@@ -355,7 +355,7 @@ def test_route_ip_whitelist_overrides_route_ip_blacklist_same_ip(
 
 
 def test_global_cloud_provider_list_is_not_evaluated_by_ip_security(
-    ip_security_check: IpSecurityCheck, security_config: SecurityConfig
+    ip_security_check: IpSecurityCheck, security_config: SyncSecurityConfig
 ) -> None:
     from guard_core.sync.handlers.cloud_handler import cloud_handler
 
@@ -370,7 +370,7 @@ def test_global_cloud_provider_list_is_not_evaluated_by_ip_security(
 
 def test_global_country_block_names_the_country(
     ip_security_check: IpSecurityCheck,
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
     mock_middleware: Mock,
 ) -> None:
     security_config.geo_ip_handler = Mock()
@@ -393,7 +393,7 @@ def test_global_country_block_names_the_country(
 
 
 def test_global_blacklist_block_keeps_existing_reason(
-    ip_security_check: IpSecurityCheck, security_config: SecurityConfig
+    ip_security_check: IpSecurityCheck, security_config: SyncSecurityConfig
 ) -> None:
     security_config.blacklist = ("1.2.3.4",)
 

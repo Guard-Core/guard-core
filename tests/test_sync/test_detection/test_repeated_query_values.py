@@ -2,7 +2,7 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.utils import detect_penetration_attempt
 from tests.test_sync.conftest import SyncMockGuardRequest
 
@@ -45,7 +45,7 @@ class _FirstValueRequest(SyncMockGuardRequest):
 def test_every_repeated_value_is_scanned(query: str, keep: str) -> None:
     request = _FirstValueRequest(query, keep=keep)
 
-    result = detect_penetration_attempt(request, SecurityConfig())
+    result = detect_penetration_attempt(request, SyncSecurityConfig())
 
     assert result.is_threat is True
     assert "xss" in result.threat_categories
@@ -54,7 +54,7 @@ def test_every_repeated_value_is_scanned(query: str, keep: str) -> None:
 def test_a_plus_sign_in_a_repeated_value_decodes_to_a_space() -> None:
     request = _FirstValueRequest("q=x&q=union+select+password+from+users", keep="first")
 
-    result = detect_penetration_attempt(request, SecurityConfig())
+    result = detect_penetration_attempt(request, SyncSecurityConfig())
 
     assert result.is_threat is True
 
@@ -71,14 +71,14 @@ def test_a_plus_sign_in_a_repeated_value_decodes_to_a_space() -> None:
 def test_benign_repeated_values_stay_clean(query: str) -> None:
     request = _FirstValueRequest(query)
 
-    result = detect_penetration_attempt(request, SecurityConfig())
+    result = detect_penetration_attempt(request, SyncSecurityConfig())
 
     assert result.is_threat is False
 
 
 def test_an_excluded_param_name_excludes_its_repeats_too() -> None:
     request = _FirstValueRequest(f"q=x&q={ATTACK}", keep="first")
-    config = SecurityConfig(excluded_detection_params={"q"})
+    config = SyncSecurityConfig(excluded_detection_params={"q"})
 
     result = detect_penetration_attempt(request, config)
 
@@ -93,6 +93,6 @@ def test_a_request_without_a_full_url_still_scans_its_params() -> None:
 
     request = _Bare(path="/s", query_params={"q": ATTACK})
 
-    result = detect_penetration_attempt(request, SecurityConfig())
+    result = detect_penetration_attempt(request, SyncSecurityConfig())
 
     assert result.is_threat is True

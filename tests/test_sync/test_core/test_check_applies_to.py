@@ -2,7 +2,7 @@ from collections.abc import Collection
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks import build_default_pipeline
 from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.core.checks.implementations import (
@@ -41,105 +41,105 @@ def _route_config(**overrides: object) -> RouteConfig:
 CONFIG_DRIVEN_CASES = [
     pytest.param(
         EmergencyModeCheck,
-        SecurityConfig(emergency_mode=True),
+        SyncSecurityConfig(emergency_mode=True),
         (),
         True,
         id="emergency_mode-keep",
     ),
     pytest.param(
         EmergencyModeCheck,
-        SecurityConfig(),
+        SyncSecurityConfig(),
         (),
         False,
         id="emergency_mode-drop",
     ),
     pytest.param(
         HttpsEnforcementCheck,
-        SecurityConfig(enforce_https=True),
+        SyncSecurityConfig(enforce_https=True),
         (),
         True,
         id="https_enforcement-keep",
     ),
     pytest.param(
         HttpsEnforcementCheck,
-        SecurityConfig(),
+        SyncSecurityConfig(),
         (),
         False,
         id="https_enforcement-drop",
     ),
     pytest.param(
         RequestLoggingCheck,
-        SecurityConfig(log_request_level="INFO"),
+        SyncSecurityConfig(log_request_level="INFO"),
         (),
         True,
         id="request_logging-keep",
     ),
     pytest.param(
         RequestLoggingCheck,
-        SecurityConfig(),
+        SyncSecurityConfig(),
         (),
         False,
         id="request_logging-drop",
     ),
     pytest.param(
         CloudIpRefreshCheck,
-        SecurityConfig(block_cloud_providers={"AWS"}),
+        SyncSecurityConfig(block_cloud_providers={"AWS"}),
         (),
         True,
         id="cloud_ip_refresh-keep",
     ),
     pytest.param(
         CloudIpRefreshCheck,
-        SecurityConfig(),
+        SyncSecurityConfig(),
         (),
         False,
         id="cloud_ip_refresh-drop",
     ),
     pytest.param(
         CloudProviderCheck,
-        SecurityConfig(block_cloud_providers={"AWS"}),
+        SyncSecurityConfig(block_cloud_providers={"AWS"}),
         (),
         True,
         id="cloud_provider-keep",
     ),
     pytest.param(
         CloudProviderCheck,
-        SecurityConfig(),
+        SyncSecurityConfig(),
         (),
         False,
         id="cloud_provider-drop",
     ),
     pytest.param(
         UserAgentCheck,
-        SecurityConfig(blocked_user_agents=["badbot"]),
+        SyncSecurityConfig(blocked_user_agents=["badbot"]),
         (),
         True,
         id="user_agent-keep",
     ),
     pytest.param(
         UserAgentCheck,
-        SecurityConfig(),
+        SyncSecurityConfig(),
         (),
         False,
         id="user_agent-drop",
     ),
     pytest.param(
         CustomRequestCheck,
-        SecurityConfig(custom_request_check=custom_check),
+        SyncSecurityConfig(custom_request_check=custom_check),
         (),
         True,
         id="custom_request-keep",
     ),
     pytest.param(
         CustomRequestCheck,
-        SecurityConfig(),
+        SyncSecurityConfig(),
         (),
         False,
         id="custom_request-drop",
     ),
     pytest.param(
         RateLimitCheck,
-        SecurityConfig(
+        SyncSecurityConfig(
             enable_rate_limiting=False, endpoint_rate_limits={"/x": (5, 60)}
         ),
         (),
@@ -148,35 +148,35 @@ CONFIG_DRIVEN_CASES = [
     ),
     pytest.param(
         RateLimitCheck,
-        SecurityConfig(enable_rate_limiting=False),
+        SyncSecurityConfig(enable_rate_limiting=False),
         (),
         False,
         id="rate_limit-drop",
     ),
     pytest.param(
         RateLimitCheck,
-        SecurityConfig(enable_rate_limiting=False),
+        SyncSecurityConfig(enable_rate_limiting=False),
         (_route_config(rate_limit=5),),
         True,
         id="rate_limit-route-keep",
     ),
     pytest.param(
         RateLimitCheck,
-        SecurityConfig(enable_rate_limiting=False),
+        SyncSecurityConfig(enable_rate_limiting=False),
         (RouteConfig(),),
         False,
         id="rate_limit-route-drop",
     ),
     pytest.param(
         SuspiciousActivityCheck,
-        SecurityConfig(enable_penetration_detection=False),
+        SyncSecurityConfig(enable_penetration_detection=False),
         (RouteConfig(),),
         True,
         id="suspicious_activity-keep",
     ),
     pytest.param(
         SuspiciousActivityCheck,
-        SecurityConfig(enable_penetration_detection=False),
+        SyncSecurityConfig(enable_penetration_detection=False),
         (),
         False,
         id="suspicious_activity-drop",
@@ -189,7 +189,7 @@ CONFIG_DRIVEN_CASES = [
 )
 def test_config_driven_check_applies_to_matches_predicate(
     check_class: type[SecurityCheck],
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
     route_configs: tuple[RouteConfig, ...],
     expected: bool,
 ) -> None:
@@ -210,7 +210,7 @@ DYNAMIC_RULE_ESCAPE_CHECKS: tuple[type[SecurityCheck], ...] = (
 def test_dynamic_rules_flag_forces_keep_regardless_of_other_flags(
     check_class: type[SecurityCheck],
 ) -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_dynamic_rules=True,
         enable_agent=True,
         agent_api_key="test-key",
@@ -375,11 +375,11 @@ def test_route_driven_check_applies_to_matches_predicate(
     route_configs: Collection[RouteConfig] | None,
     expected: bool,
 ) -> None:
-    assert check_class.applies_to(SecurityConfig(), route_configs) is expected
+    assert check_class.applies_to(SyncSecurityConfig(), route_configs) is expected
 
 
 def test_ip_security_survives_when_only_behaviour_rules_can_ban() -> None:
-    config = SecurityConfig(enable_ip_banning=False, enable_dynamic_rules=False)
+    config = SyncSecurityConfig(enable_ip_banning=False, enable_dynamic_rules=False)
     route_config = _route_config(
         behavior_rules=[BehaviorRule(rule_type="usage", threshold=5, action="ban")]
     )

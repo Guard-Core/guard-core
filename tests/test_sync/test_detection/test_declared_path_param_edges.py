@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils.route_gate import (
     declared_path_param_spans,
     isolate_declared_path_params,
@@ -42,7 +42,7 @@ def test_the_query_string_stays_untouched_when_a_path_param_is_isolated() -> Non
 
 def test_a_request_without_a_route_template_reports_no_root_path_param() -> None:
     middleware = MagicMock()
-    middleware.config = SecurityConfig(enable_redis=False)
+    middleware.config = SyncSecurityConfig(enable_redis=False)
     check = SuspiciousActivityCheck(middleware)
     route_config = RouteConfig()
     route_config.excluded_detection_path_params = {"name"}

@@ -7,7 +7,7 @@ from unittest.mock import patch
 import pytest
 from pydantic import ValidationError
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils import detection_scan
 from guard_core.sync._utils.detection_scan import (
     _scan_time_budget_exhausted,
@@ -54,12 +54,12 @@ def fake_regex_clock() -> Iterator[_FakeClock]:
 
 
 def test_field_default_and_bounds() -> None:
-    assert SecurityConfig().detection_max_scan_seconds == 10.0
-    assert SecurityConfig(detection_max_scan_seconds=0.1)
-    assert SecurityConfig(detection_max_scan_seconds=60.0)
+    assert SyncSecurityConfig().detection_max_scan_seconds == 10.0
+    assert SyncSecurityConfig(detection_max_scan_seconds=0.1)
+    assert SyncSecurityConfig(detection_max_scan_seconds=60.0)
     for bad in (0.0, 0.09, 60.1):
         with pytest.raises(ValidationError):
-            SecurityConfig(detection_max_scan_seconds=bad)
+            SyncSecurityConfig(detection_max_scan_seconds=bad)
 
 
 def test_budget_is_unbounded_outside_a_request() -> None:
@@ -83,7 +83,7 @@ def test_default_budget_does_not_flag_benign_request() -> None:
         path="/items?page=2", headers={"accept-language": "en-US,en;q=0.9"}
     )
 
-    result = detect_penetration_attempt(request, SecurityConfig())
+    result = detect_penetration_attempt(request, SyncSecurityConfig())
 
     assert result.is_threat is False
 
@@ -104,7 +104,7 @@ def test_exhausted_budget_stops_scan_and_flags_request(
 
     with patch.object(manager, "_check_regex_pattern", counting):
         result = detect_penetration_attempt(
-            request, SecurityConfig(detection_max_scan_seconds=0.1)
+            request, SyncSecurityConfig(detection_max_scan_seconds=0.1)
         )
 
     all_patterns = manager.get_all_compiled_patterns()
@@ -117,7 +117,7 @@ def test_exhausted_budget_stops_scan_and_flags_request(
 def test_budget_threat_is_weighted_and_reported_as_timeout(
     fake_regex_clock: _FakeClock,
 ) -> None:
-    config = SecurityConfig(detection_max_scan_seconds=0.1)
+    config = SyncSecurityConfig(detection_max_scan_seconds=0.1)
     manager = SusPatternsManager()
     manager.configure(config)
 
@@ -138,7 +138,7 @@ def test_budget_is_shared_across_fields_of_one_request(
     fake_regex_clock: _FakeClock,
 ) -> None:
     manager = SusPatternsManager()
-    manager.configure(SecurityConfig(detection_max_scan_seconds=2.5))
+    manager.configure(SyncSecurityConfig(detection_max_scan_seconds=2.5))
 
     with _scan_value_budget(512, max_scan_seconds=2.5):
         first = manager.detect("hello", "127.0.0.1", "query_param:a")
@@ -184,7 +184,7 @@ def test_trigger_names_the_budget_when_it_tips_the_request(
     request = SyncMockGuardRequest(path="/items", headers={"x-pad": "select a from b"})
 
     result = detect_penetration_attempt(
-        request, SecurityConfig(detection_max_scan_seconds=0.1)
+        request, SyncSecurityConfig(detection_max_scan_seconds=0.1)
     )
 
     assert result.is_threat is True
@@ -212,7 +212,7 @@ def test_threats_message_appends_the_first_later_timeout() -> None:
 
 def test_wall_slow_but_cpu_cheap_scan_does_not_exhaust_the_budget() -> None:
     manager = SusPatternsManager()
-    manager.configure(SecurityConfig())
+    manager.configure(SyncSecurityConfig())
     real = manager._check_regex_pattern
 
     def slow_wall(*args: Any, **kwargs: Any) -> Any:
@@ -233,7 +233,7 @@ def test_worker_scan_cpu_is_recorded_from_the_worker_thread(
     fake_regex_clock: _FakeClock,
 ) -> None:
     manager = SusPatternsManager()
-    manager.configure(SecurityConfig())
+    manager.configure(SyncSecurityConfig())
     manager.add_pattern("zzzworker[a-z]+q")
 
     with _scan_value_budget(512, max_scan_seconds=1000.0):
@@ -246,7 +246,7 @@ def test_worker_scan_cpu_is_recorded_from_the_worker_thread(
 
 def test_inline_cpu_is_accounted_per_pass_not_per_pattern() -> None:
     manager = SusPatternsManager()
-    manager.configure(SecurityConfig())
+    manager.configure(SyncSecurityConfig())
     calls = {"clock": 0, "patterns": 0}
     real = manager._check_regex_pattern
 
@@ -282,7 +282,7 @@ def test_inline_cpu_is_accounted_per_pass_not_per_pattern() -> None:
 
 def test_no_cpu_clock_reads_outside_a_request_scope() -> None:
     manager = SusPatternsManager()
-    manager.configure(SecurityConfig())
+    manager.configure(SyncSecurityConfig())
     calls = {"clock": 0}
 
     scan_thread = threading.get_ident()

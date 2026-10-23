@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils.access_control import check_ip_country
 from guard_core.sync.handlers.ipinfo_handler import IPInfoManager
 
@@ -17,8 +17,8 @@ def _reset_singleton() -> Generator[None, None, None]:
     IPInfoManager._instance = None
 
 
-def _config() -> SecurityConfig:
-    return SecurityConfig(
+def _config() -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         enable_redis=False, ipinfo_token="tok", whitelist_countries=["US"]
     )
 

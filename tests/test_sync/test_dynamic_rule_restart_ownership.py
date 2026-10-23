@@ -10,7 +10,7 @@ from guard_core._dynamic_rules import (
     dump_last_known_rules_snapshot,
     load_last_known_ownership,
 )
-from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.models import DynamicRules, SyncSecurityConfig
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.sync.handlers.ipban_handler import ip_ban_manager
 from guard_core.sync.handlers.redis_handler import RedisManager
@@ -28,8 +28,8 @@ def reset_singleton() -> Iterator[None]:
     DynamicRuleManager._instance = None
 
 
-def _config() -> SecurityConfig:
-    return SecurityConfig(
+def _config() -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         enable_redis=True,
         redis_url=REDIS_URL,
         redis_prefix=REDIS_PREFIX,
@@ -52,7 +52,7 @@ def _rules(**overrides: Any) -> DynamicRules:
     return DynamicRules(**base)
 
 
-def _manager(config: SecurityConfig, redis: RedisManager) -> DynamicRuleManager:
+def _manager(config: SyncSecurityConfig, redis: RedisManager) -> DynamicRuleManager:
     manager = DynamicRuleManager(config)
     manager.redis_handler = redis
     agent = MagicMock()
@@ -62,7 +62,7 @@ def _manager(config: SecurityConfig, redis: RedisManager) -> DynamicRuleManager:
     return manager
 
 
-def _restart(config: SecurityConfig, redis: RedisManager) -> DynamicRuleManager:
+def _restart(config: SyncSecurityConfig, redis: RedisManager) -> DynamicRuleManager:
     ip_ban_manager.banned_ips.clear()
     if PATTERN in sus_patterns_handler.patterns:
         sus_patterns_handler.remove_pattern(PATTERN)
@@ -78,7 +78,7 @@ def _expire(manager: DynamicRuleManager) -> None:
 
 
 @pytest.fixture
-def stack() -> Iterator[tuple[SecurityConfig, RedisManager]]:
+def stack() -> Iterator[tuple[SyncSecurityConfig, RedisManager]]:
     config = _config()
     RedisManager._instance = None
     redis = RedisManager(config)
@@ -91,7 +91,7 @@ def stack() -> Iterator[tuple[SecurityConfig, RedisManager]]:
 
 
 def test_a_rule_created_ban_is_revoked_after_a_restart(
-    stack: tuple[SecurityConfig, RedisManager],
+    stack: tuple[SyncSecurityConfig, RedisManager],
 ) -> None:
     config, redis = stack
     first = _manager(config, redis)
@@ -112,7 +112,7 @@ def test_a_rule_created_ban_is_revoked_after_a_restart(
 
 
 def test_an_operator_ban_on_a_listed_ip_survives_the_rule_after_a_restart(
-    stack: tuple[SecurityConfig, RedisManager],
+    stack: tuple[SyncSecurityConfig, RedisManager],
 ) -> None:
     config, redis = stack
     ip_ban_manager.ban_ip(RULE_IP, 3600, "operator")
@@ -131,7 +131,7 @@ def test_an_operator_ban_on_a_listed_ip_survives_the_rule_after_a_restart(
 
 
 def test_a_snapshot_written_by_4_4_0_owns_nothing(
-    stack: tuple[SecurityConfig, RedisManager],
+    stack: tuple[SyncSecurityConfig, RedisManager],
 ) -> None:
     config, redis = stack
     rules = _rules()

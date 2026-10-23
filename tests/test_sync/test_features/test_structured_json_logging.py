@@ -97,14 +97,14 @@ def test_text_format_not_json() -> None:
 
 
 def test_config_log_format_default() -> None:
-    from guard_core.models import SecurityConfig
+    from guard_core.models import SyncSecurityConfig
 
-    config = SecurityConfig(enable_redis=False)
+    config = SyncSecurityConfig(enable_redis=False)
     assert config.log_format == "text"
 
 
 def test_config_log_format_json() -> None:
-    from guard_core.models import SecurityConfig
+    from guard_core.models import SyncSecurityConfig
 
-    config = SecurityConfig(enable_redis=False, log_format="json")
+    config = SyncSecurityConfig(enable_redis=False, log_format="json")
     assert config.log_format == "json"

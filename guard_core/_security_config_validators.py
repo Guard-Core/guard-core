@@ -65,6 +65,7 @@ from guard_core._security_config_geo_validators import (
 )
 
 if TYPE_CHECKING:
+    from guard_core._security_config_fields import RequestT
     from guard_core.models import SecurityConfig
 
 
@@ -120,14 +121,14 @@ __all__ = [
 
 
 def _revalidate_exclude_paths_field(
-    copied: "SecurityConfig", update: Mapping[str, Any]
+    copied: "SecurityConfig[RequestT]", update: Mapping[str, Any]
 ) -> None:
     if "exclude_paths" in update:
         _validate_exclude_paths_value(copied.exclude_paths)
 
 
 def _revalidate_country_shadow_fields(
-    copied: "SecurityConfig", update: Mapping[str, Any]
+    copied: "SecurityConfig[RequestT]", update: Mapping[str, Any]
 ) -> None:
     if (
         _COUNTRY_RULE_FIELDS & update.keys()
@@ -138,14 +139,14 @@ def _revalidate_country_shadow_fields(
 
 
 def _revalidate_global_behavior_rule_fields(
-    copied: "SecurityConfig", update: Mapping[str, Any]
+    copied: "SecurityConfig[RequestT]", update: Mapping[str, Any]
 ) -> None:
     if _GLOBAL_BEHAVIOR_RULE_FIELDS & update.keys():
         _revalidate_global_behavior_rules(copied)
 
 
 def _revalidate_geo_state_fields(
-    copied: "SecurityConfig", update: Mapping[str, Any]
+    copied: "SecurityConfig[RequestT]", update: Mapping[str, Any]
 ) -> None:
     if _GEO_STATE_FIELDS & update.keys():
         _apply_geo_ip_handler_copy(copied)
@@ -155,7 +156,7 @@ _FIELDS_WITH_DEDICATED_COPY_REVALIDATION = frozenset({"exclude_paths"})
 
 
 def _revalidate_changed_fields(
-    copied: "SecurityConfig", update: Mapping[str, Any]
+    copied: "SecurityConfig[RequestT]", update: Mapping[str, Any]
 ) -> None:
     fields = _FIELD_REVALIDATORS.keys() & update.keys()
     fields -= _FIELDS_WITH_DEDICATED_COPY_REVALIDATION
@@ -168,7 +169,7 @@ def _revalidate_changed_fields(
 
 
 def _revalidate_copied_config(
-    copied: "SecurityConfig", update: Mapping[str, Any]
+    copied: "SecurityConfig[RequestT]", update: Mapping[str, Any]
 ) -> None:
     resolve_enable_redis(copied)
     _revalidate_exclude_paths_field(copied, update)
@@ -179,7 +180,7 @@ def _revalidate_copied_config(
     _require_optional_extras(copied)
 
 
-def _require_recidive_cap_covers_auto_ban(config: "SecurityConfig") -> None:
+def _require_recidive_cap_covers_auto_ban(config: "SecurityConfig[RequestT]") -> None:
     if (
         config.enable_recidive
         and config.recidive_max_duration < config.auto_ban_duration
@@ -201,7 +202,7 @@ _EXTRA_GATED_FIELDS = frozenset(
 
 
 def _assign_checking_optional_extras(
-    config: "SecurityConfig", name: str, assign: Callable[[], None]
+    config: "SecurityConfig[RequestT]", name: str, assign: Callable[[], None]
 ) -> None:
     if name not in _EXTRA_GATED_FIELDS:
         assign()
@@ -219,7 +220,7 @@ def _assign_checking_optional_extras(
         raise
 
 
-def _require_optional_extras(config: "SecurityConfig") -> None:
+def _require_optional_extras(config: "SecurityConfig[RequestT]") -> None:
     if redis_is_configured(config):
         require_redis_extra()
 

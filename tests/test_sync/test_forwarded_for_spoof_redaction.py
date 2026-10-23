@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.utils import extract_client_ip
 from tests.test_sync.conftest import SyncMockGuardRequest
 
@@ -17,8 +17,8 @@ def _untrusted_request(xff_value: str) -> SyncMockGuardRequest:
     )
 
 
-def _config() -> SecurityConfig:
-    return SecurityConfig(trusted_proxies=["10.0.0.1"])
+def _config() -> SyncSecurityConfig:
+    return SyncSecurityConfig(trusted_proxies=["10.0.0.1"])
 
 
 def test_spoofed_json_xff_redacted_in_log_line(

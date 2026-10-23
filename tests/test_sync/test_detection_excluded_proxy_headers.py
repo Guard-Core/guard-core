@@ -2,7 +2,7 @@ from collections.abc import Generator
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils.detection_config import _DEFAULT_EXCLUDED_HEADERS
 from guard_core.sync.handlers.suspatterns_handler import SusPatternsManager
 from guard_core.sync.utils import detect_penetration_attempt
@@ -114,7 +114,7 @@ def test_custom_header_with_address_chain_value_suppresses_ssrf_only() -> None:
             "content-type": "text/plain",
         }
     )
-    config = SecurityConfig(excluded_detection_headers={"x-custom-proxy-ip"})
+    config = SyncSecurityConfig(excluded_detection_headers={"x-custom-proxy-ip"})
 
     result = detect_penetration_attempt(request, config)
 
@@ -122,7 +122,7 @@ def test_custom_header_with_address_chain_value_suppresses_ssrf_only() -> None:
 
 
 def test_operator_listed_custom_header_is_not_scanned_for_xss() -> None:
-    config = SecurityConfig(excluded_detection_headers={"x-custom-proxy-ip"})
+    config = SyncSecurityConfig(excluded_detection_headers={"x-custom-proxy-ip"})
     request = SyncMockGuardRequest(
         headers={"x-custom-proxy-ip": "<script>alert(1)</script>"}
     )

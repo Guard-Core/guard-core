@@ -1,4 +1,4 @@
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.initialization._ban_threshold_report import (
     _BanThresholdContext,
     unreachable_ban_threshold_problems,
@@ -9,8 +9,8 @@ def _context() -> _BanThresholdContext:
     return _BanThresholdContext(lambda: [], lambda: False)
 
 
-def _config(*, ban_on_hostile_signals: bool) -> SecurityConfig:
-    return SecurityConfig(
+def _config(*, ban_on_hostile_signals: bool) -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         blacklist=["203.0.113.9"],
         rate_limit=10,
         rate_limit_window=60,

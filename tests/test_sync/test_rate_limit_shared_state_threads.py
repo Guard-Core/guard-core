@@ -1,6 +1,6 @@
 import threading
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers import ratelimit_handler
 from guard_core.sync.handlers.ratelimit_handler import RateLimitManager, RateLimitTier
 
@@ -9,8 +9,8 @@ LIMIT = 10
 ATTEMPTS_PER_THREAD = 5
 
 
-def _config() -> SecurityConfig:
-    return SecurityConfig(
+def _config() -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         enable_redis=False,
         enable_penetration_detection=False,
         rate_limit=LIMIT,

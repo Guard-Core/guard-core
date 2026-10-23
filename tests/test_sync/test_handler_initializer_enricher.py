@@ -1,6 +1,6 @@
 from typing import Any
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.events.enricher import EventEnricher
 from guard_core.sync.core.initialization.handler_initializer import HandlerInitializer
 
@@ -26,13 +26,13 @@ class _FakeAgent:
 
 
 def test_build_enricher_returns_none_when_disabled() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     initializer = HandlerInitializer(config=config)
     assert initializer.build_enricher() is None
 
 
 def test_build_enricher_returns_event_enricher_when_enabled() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_agent=True, agent_api_key="a" * 10, enable_enrichment=True
     )
     initializer = HandlerInitializer(config=config, agent_handler=_FakeAgent())
@@ -43,7 +43,7 @@ def test_build_enricher_returns_event_enricher_when_enabled() -> None:
 
 
 def test_initialize_agent_integrations_wires_enricher_into_composite() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_agent=True, agent_api_key="a" * 10, enable_enrichment=True
     )
     initializer = HandlerInitializer(config=config, agent_handler=_FakeAgent())
@@ -56,7 +56,7 @@ def test_initialize_agent_integrations_wires_enricher_into_composite() -> None:
 
 
 def test_initialize_agent_integrations_skips_enricher_when_flag_off() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_agent=True, agent_api_key="a" * 10, enable_enrichment=False
     )
     initializer = HandlerInitializer(config=config, agent_handler=_FakeAgent())
@@ -68,7 +68,7 @@ def test_initialize_agent_integrations_skips_enricher_when_flag_off() -> None:
 
 
 def test_build_enricher_resolves_dynamic_rule_handler_when_enabled() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_agent=True,
         agent_api_key="a" * 10,
         enable_enrichment=True,
@@ -85,7 +85,7 @@ def test_build_enricher_resolves_behavior_tracker_from_decorator() -> None:
         behavior_tracker = object()
 
     decorator = _Decorator()
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_agent=True, agent_api_key="a" * 10, enable_enrichment=True
     )
     initializer = HandlerInitializer(
@@ -97,7 +97,7 @@ def test_build_enricher_resolves_behavior_tracker_from_decorator() -> None:
 
 
 def test_shutdown_clears_enricher() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_agent=True, agent_api_key="a" * 10, enable_enrichment=True
     )
     initializer = HandlerInitializer(config=config, agent_handler=_FakeAgent())

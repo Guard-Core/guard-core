@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.helpers import (
     _check_ip_blacklist,
     _check_ip_whitelist,
@@ -247,7 +247,7 @@ def test_check_user_agent_blocked_by_route() -> None:
 def test_check_user_agent_allowed_by_route() -> None:
     rc = RouteConfig()
     rc.blocked_user_agents = ["badbot"]
-    config = SecurityConfig(enable_redis=False)
+    config = SyncSecurityConfig(enable_redis=False)
     result = check_user_agent_allowed("Mozilla/5.0", rc, config)
     assert result is True
 
@@ -363,14 +363,14 @@ def test_referrer_domain_bad_url() -> None:
 
 
 def test_get_effective_penetration_setting_default() -> None:
-    config = SecurityConfig(enable_redis=False, enable_penetration_detection=True)
+    config = SyncSecurityConfig(enable_redis=False, enable_penetration_detection=True)
     enabled, route_specific = _get_effective_penetration_setting(config, None)
     assert enabled is True
     assert route_specific is None
 
 
 def test_get_effective_penetration_setting_route_override() -> None:
-    config = SecurityConfig(enable_redis=False, enable_penetration_detection=True)
+    config = SyncSecurityConfig(enable_redis=False, enable_penetration_detection=True)
     rc = RouteConfig()
     rc.enable_suspicious_detection = False
     enabled, route_specific = _get_effective_penetration_setting(config, rc)
@@ -379,13 +379,13 @@ def test_get_effective_penetration_setting_route_override() -> None:
 
 
 def test_get_detection_disabled_reason_route_override() -> None:
-    config = SecurityConfig(enable_redis=False, enable_penetration_detection=True)
+    config = SyncSecurityConfig(enable_redis=False, enable_penetration_detection=True)
     reason = _get_detection_disabled_reason(config, False)
     assert reason == "disabled_by_decorator"
 
 
 def test_get_detection_disabled_reason_not_enabled() -> None:
-    config = SecurityConfig(enable_redis=False, enable_penetration_detection=False)
+    config = SyncSecurityConfig(enable_redis=False, enable_penetration_detection=False)
     reason = _get_detection_disabled_reason(config, None)
     assert reason == "not_enabled"
 
@@ -393,7 +393,7 @@ def test_get_detection_disabled_reason_not_enabled() -> None:
 def test_detect_penetration_patterns_enabled() -> None:
     from guard_core.sync.detection_result import DetectionResult
 
-    config = SecurityConfig(enable_redis=False, enable_penetration_detection=True)
+    config = SyncSecurityConfig(enable_redis=False, enable_penetration_detection=True)
     from tests.test_sync.conftest import SyncMockGuardRequest
 
     req = SyncMockGuardRequest(path="/test")
@@ -406,7 +406,7 @@ def test_detect_penetration_patterns_enabled() -> None:
 
 
 def test_detect_penetration_patterns_disabled() -> None:
-    config = SecurityConfig(enable_redis=False, enable_penetration_detection=False)
+    config = SyncSecurityConfig(enable_redis=False, enable_penetration_detection=False)
     from tests.test_sync.conftest import SyncMockGuardRequest
 
     req = SyncMockGuardRequest(path="/test")
@@ -416,7 +416,7 @@ def test_detect_penetration_patterns_disabled() -> None:
 
 
 def test_detect_penetration_patterns_bypassed() -> None:
-    config = SecurityConfig(enable_redis=False, enable_penetration_detection=True)
+    config = SyncSecurityConfig(enable_redis=False, enable_penetration_detection=True)
     from tests.test_sync.conftest import SyncMockGuardRequest
 
     req = SyncMockGuardRequest(path="/test")
@@ -457,14 +457,14 @@ def test_is_ip_in_whitelist_plain_entry_no_match() -> None:
 
 
 def test_check_user_agent_allowed_route_blocklist_no_match() -> None:
-    config = SecurityConfig(blocked_user_agents=[])
+    config = SyncSecurityConfig(blocked_user_agents=[])
     route_config = RouteConfig()
     route_config.blocked_user_agents = ["badbot"]
     assert check_user_agent_allowed("Mozilla/5.0", route_config, config) is True
 
 
 def test_check_user_agent_allowed_no_route_config_uses_global() -> None:
-    config = SecurityConfig(blocked_user_agents=[])
+    config = SyncSecurityConfig(blocked_user_agents=[])
     assert check_user_agent_allowed("Mozilla/5.0", None, config) is True
 
 
@@ -516,7 +516,7 @@ def test_check_user_agent_allowed_route_blocklist_uses_inline_safe_path() -> Non
 
     rc = RouteConfig()
     rc.blocked_user_agents = ["badbot"]
-    config = SecurityConfig(blocked_user_agents=[])
+    config = SyncSecurityConfig(blocked_user_agents=[])
     with patch.object(PatternCompiler, "create_async_safe_finditer_matcher", _spy):
         result = check_user_agent_allowed("badbot/1.0", rc, config)
 
@@ -530,7 +530,7 @@ def test_check_user_agent_allowed_route_blocklist_caps_subject_length() -> None:
     marker = "zzq_route_ua_length_cap_marker_zzq"
     rc = RouteConfig()
     rc.blocked_user_agents = [marker]
-    config = SecurityConfig(blocked_user_agents=[])
+    config = SyncSecurityConfig(blocked_user_agents=[])
 
     beyond_cap = "a" * _MAX_USER_AGENT_MATCH_LENGTH + marker
     within_cap = marker + "a" * 10

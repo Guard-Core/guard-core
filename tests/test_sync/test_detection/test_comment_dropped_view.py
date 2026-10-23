@@ -3,7 +3,7 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.detection_engine.preprocessor import ContentPreprocessor
 from guard_core.sync.handlers.suspatterns_handler import SusPatternsManager
 from guard_core.sync.utils import detect_penetration_attempt
@@ -57,7 +57,7 @@ MALICIOUS = [
 
 def _is_threat(value: str) -> bool:
     request = SyncMockGuardRequest(path="/s", query_params={"q": value})
-    return (detect_penetration_attempt(request, SecurityConfig())).is_threat
+    return (detect_penetration_attempt(request, SyncSecurityConfig())).is_threat
 
 
 @pytest.mark.parametrize("value", BENIGN, ids=lambda v: v[:40])
@@ -81,7 +81,7 @@ def test_a_hash_in_one_line_json_does_not_hide_the_rest() -> None:
         body_content=body,
     )
 
-    result = detect_penetration_attempt(request, SecurityConfig())
+    result = detect_penetration_attempt(request, SyncSecurityConfig())
 
     assert result.is_threat is True
 
@@ -114,7 +114,7 @@ def test_the_semantic_analyzer_sees_both_views(
 ) -> None:
     from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
 
-    sus_patterns_handler.configure(SecurityConfig())
+    sus_patterns_handler.configure(SyncSecurityConfig())
     seen: list[str] = []
     original = SusPatternsManager._check_semantic_threats
 

@@ -22,7 +22,7 @@ from guard_core._security_headers_override import (
     passed_or,
     validate_cors_override,
 )
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 
 
 class SecurityHeadersConfigMixin:
@@ -43,7 +43,7 @@ class SecurityHeadersConfigMixin:
 
     @abstractmethod
     def cors_params_for(
-        self, config: SecurityConfig, current: OverrideRecord | None = None
+        self, config: SyncSecurityConfig, current: OverrideRecord | None = None
     ) -> CorsParams: ...
 
     @abstractmethod
@@ -243,7 +243,7 @@ class SecurityHeadersConfigMixin:
         self.custom_headers = self._compute_custom_headers(custom_headers)
 
     def _resolve_headers_state(
-        self, config: SecurityConfig | None, current: OverrideRecord | None = None
+        self, config: SyncSecurityConfig | None, current: OverrideRecord | None = None
     ) -> tuple[
         dict[str, list[str]] | None,
         dict[str, Any] | None,
@@ -286,7 +286,7 @@ class SecurityHeadersConfigMixin:
         return headers
 
     def _resolve_cors_state(
-        self, config: SecurityConfig | None, override: OverrideRecord | None = None
+        self, config: SyncSecurityConfig | None, override: OverrideRecord | None = None
     ) -> dict[str, Any] | None:
         if config is None:
             return self.cors_config

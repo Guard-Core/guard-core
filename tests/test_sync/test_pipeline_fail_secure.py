@@ -3,14 +3,14 @@ from unittest.mock import MagicMock
 from redis.exceptions import RedisError
 
 from guard_core.exceptions import GuardRedisError
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.implementations.rate_limit import RateLimitCheck
 from guard_core.sync.core.checks.pipeline import SecurityCheckPipeline
 from guard_core.sync.handlers.ratelimit_handler import RateLimitManager
 from tests.test_sync.conftest import SyncMockGuardRequest
 
 
-def _redis_failing_check(config: SecurityConfig) -> MagicMock:
+def _redis_failing_check(config: SyncSecurityConfig) -> MagicMock:
     check = MagicMock()
     check.check_name = "ip_security"
     check.config = config
@@ -27,7 +27,7 @@ class _FailingConnection:
         return None
 
 
-def _rate_limit_check_with_broken_redis(config: SecurityConfig) -> RateLimitCheck:
+def _rate_limit_check_with_broken_redis(config: SyncSecurityConfig) -> RateLimitCheck:
     rate_limit_manager = RateLimitManager(config)
     rate_limit_manager.rate_limit_script_sha = "sha123"
     redis = MagicMock()
@@ -53,19 +53,19 @@ def _rate_limit_request() -> SyncMockGuardRequest:
 
 
 def test_default_security_config_is_fail_secure() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     assert hasattr(config, "fail_secure")
     assert config.fail_secure is True
 
 
 def test_fail_secure_can_be_disabled() -> None:
-    config = SecurityConfig(fail_secure=False)
+    config = SyncSecurityConfig(fail_secure=False)
     assert config.fail_secure is False
 
 
 def test_pipeline_returns_blocked_when_fail_secure_and_check_raises() -> None:
     middleware = MagicMock()
-    middleware.config = SecurityConfig(fail_secure=True)
+    middleware.config = SyncSecurityConfig(fail_secure=True)
     middleware.logger = MagicMock()
 
     failing_check = MagicMock()
@@ -82,7 +82,7 @@ def test_pipeline_returns_blocked_when_fail_secure_and_check_raises() -> None:
 
 def test_pipeline_falls_through_when_not_fail_secure() -> None:
     middleware = MagicMock()
-    middleware.config = SecurityConfig(fail_secure=False)
+    middleware.config = SyncSecurityConfig(fail_secure=False)
     middleware.logger = MagicMock()
 
     failing_check = MagicMock()
@@ -97,14 +97,14 @@ def test_pipeline_falls_through_when_not_fail_secure() -> None:
 
 
 def test_default_security_config_is_not_redis_fail_open() -> None:
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     assert config.redis_fail_open is False
 
 
 def test_pipeline_blocks_on_redis_error_with_default_config() -> None:
     """fail_secure is the single source of truth by default: a Redis error
     blocks the request unless redis_fail_open is explicitly opted into."""
-    failing_check = _redis_failing_check(SecurityConfig(fail_secure=True))
+    failing_check = _redis_failing_check(SyncSecurityConfig(fail_secure=True))
 
     pipeline = SecurityCheckPipeline([failing_check])
     result = pipeline.execute(MagicMock())
@@ -114,7 +114,7 @@ def test_pipeline_blocks_on_redis_error_with_default_config() -> None:
 
 def test_pipeline_fails_open_on_redis_error_despite_fail_secure() -> None:
     failing_check = _redis_failing_check(
-        SecurityConfig(fail_secure=True, redis_fail_open=True)
+        SyncSecurityConfig(fail_secure=True, redis_fail_open=True)
     )
 
     pipeline = SecurityCheckPipeline([failing_check])
@@ -127,7 +127,7 @@ def test_pipeline_fails_open_on_redis_error_despite_fail_secure() -> None:
 def test_pipeline_fails_open_on_redis_error_without_logging_when_muted() -> None:
     """Fail-open still happens for a muted check, but the skip is not logged."""
     failing_check = _redis_failing_check(
-        SecurityConfig(fail_secure=True, redis_fail_open=True)
+        SyncSecurityConfig(fail_secure=True, redis_fail_open=True)
     )
 
     pipeline = SecurityCheckPipeline(
@@ -145,7 +145,7 @@ def test_pipeline_fails_open_on_redis_error_without_logging_when_muted() -> None
 
 def test_pipeline_blocks_on_redis_error_when_fail_open_disabled() -> None:
     failing_check = _redis_failing_check(
-        SecurityConfig(fail_secure=True, redis_fail_open=False)
+        SyncSecurityConfig(fail_secure=True, redis_fail_open=False)
     )
 
     pipeline = SecurityCheckPipeline([failing_check])
@@ -155,7 +155,7 @@ def test_pipeline_blocks_on_redis_error_when_fail_open_disabled() -> None:
 
 
 def test_pipeline_rate_limit_check_blocks_when_fail_secure() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=True,
         enable_rate_limiting=True,
         rate_limit=100,
@@ -171,7 +171,7 @@ def test_pipeline_rate_limit_check_blocks_when_fail_secure() -> None:
 
 
 def test_pipeline_rate_limit_check_passes_through_when_not_fail_secure() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=True,
         enable_rate_limiting=True,
         rate_limit=100,

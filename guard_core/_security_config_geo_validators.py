@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from guard_core._config_capabilities import require_geo_extra
 
 if TYPE_CHECKING:
+    from guard_core._security_config_fields import RequestT
     from guard_core.models import SecurityConfig
 
 _COUNTRY_RULE_FIELDS = frozenset({"blocked_countries", "whitelist_countries"})
@@ -36,7 +37,7 @@ def _validate_country_set_value(v: Any) -> frozenset[str]:
 
 
 def _country_shadow_should_warn(
-    config: "SecurityConfig", name: str, value: Any
+    config: "SecurityConfig[RequestT]", name: str, value: Any
 ) -> bool:
     if name not in _COUNTRY_RULE_FIELDS:
         return False
@@ -58,7 +59,7 @@ _GEO_STATE_FIELDS = frozenset(
 
 
 def _geo_state_candidates(
-    config: "SecurityConfig", name: str, value: Any
+    config: "SecurityConfig[RequestT]", name: str, value: Any
 ) -> tuple[Any, Any, Any, Any]:
     return (
         value if name == "blocked_countries" else config.blocked_countries,
@@ -98,7 +99,7 @@ def _resolve_geo_ip_handler(
 
 
 def _apply_geo_ip_handler_assignment(
-    config: "SecurityConfig", name: str, value: Any
+    config: "SecurityConfig[RequestT]", name: str, value: Any
 ) -> Any:
     blocked, whitelist, handler, token = _geo_state_candidates(config, name, value)
     resolved = _resolve_geo_ip_handler(
@@ -116,7 +117,7 @@ def _apply_geo_ip_handler_assignment(
     return value
 
 
-def _apply_geo_ip_handler_copy(config: "SecurityConfig") -> None:
+def _apply_geo_ip_handler_copy(config: "SecurityConfig[RequestT]") -> None:
     resolved = _resolve_geo_ip_handler(
         blocked_countries=config.blocked_countries,
         whitelist_countries=config.whitelist_countries,

@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.handlers.behavior_handler import (
     BehaviorRule,
@@ -104,7 +104,7 @@ def test_behavior_rule_parameterized(
     assert rule.action == action
 
 
-def test_behavior_tracker_initialization(security_config: SecurityConfig) -> None:
+def test_behavior_tracker_initialization(security_config: SyncSecurityConfig) -> None:
     tracker = BehaviorTracker(security_config)
     assert tracker.config == security_config
     assert tracker.logger is not None
@@ -113,7 +113,7 @@ def test_behavior_tracker_initialization(security_config: SecurityConfig) -> Non
     assert tracker.redis_handler is None
 
 
-def test_initialize_redis(security_config_redis: SecurityConfig) -> None:
+def test_initialize_redis(security_config_redis: SyncSecurityConfig) -> None:
     tracker = BehaviorTracker(security_config_redis)
     redis_mgr = redis_handler(security_config_redis)
     redis_mgr.initialize()
@@ -124,7 +124,7 @@ def test_initialize_redis(security_config_redis: SecurityConfig) -> None:
     redis_mgr.close()
 
 
-def test_track_endpoint_usage_in_memory(security_config: SecurityConfig) -> None:
+def test_track_endpoint_usage_in_memory(security_config: SyncSecurityConfig) -> None:
     tracker = BehaviorTracker(security_config)
     rule = BehaviorRule(rule_type="usage", threshold=3, window=1)
 
@@ -141,7 +141,7 @@ def test_track_endpoint_usage_in_memory(security_config: SecurityConfig) -> None
 
 
 def test_track_endpoint_usage_with_window_cleanup(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     tracker = BehaviorTracker(security_config)
     rule = BehaviorRule(rule_type="usage", threshold=2, window=1)
@@ -161,7 +161,7 @@ def test_track_endpoint_usage_with_window_cleanup(
 
 
 def test_track_endpoint_usage_evicts_the_oldest_client_a_touched_client_survives(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(security_config, "behavior_max_tracked_clients_per_endpoint", 3)
@@ -183,7 +183,7 @@ def test_track_endpoint_usage_evicts_the_oldest_client_a_touched_client_survives
 
 
 def test_track_endpoint_usage_evicts_oldest_endpoint_touched_one_survives(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(security_config, "behavior_max_tracked_endpoints", 3)
@@ -204,7 +204,7 @@ def test_track_endpoint_usage_evicts_oldest_endpoint_touched_one_survives(
 
 
 def test_track_endpoint_usage_many_endpoints_settle_at_default_bound(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     tracker = BehaviorTracker(security_config)
     rule = BehaviorRule(rule_type="usage", threshold=999, window=60)
@@ -219,7 +219,7 @@ def test_track_endpoint_usage_many_endpoints_settle_at_default_bound(
 
 
 def test_track_endpoint_usage_with_redis(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
     tracker = BehaviorTracker(security_config_redis)
     redis_mgr = redis_handler(security_config_redis)
@@ -247,7 +247,7 @@ def test_track_endpoint_usage_with_redis(
 
 
 def test_track_endpoint_usage_redis_key_uses_hashed_segments(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
     tracker = BehaviorTracker(security_config_redis)
     redis_mgr = redis_handler(security_config_redis)
@@ -275,7 +275,7 @@ def test_track_endpoint_usage_redis_key_uses_hashed_segments(
     redis_mgr.close()
 
 
-def test_track_return_pattern_no_pattern(security_config: SecurityConfig) -> None:
+def test_track_return_pattern_no_pattern(security_config: SyncSecurityConfig) -> None:
     tracker = BehaviorTracker(security_config)
     rule = BehaviorRule(rule_type="return_pattern", threshold=5)
 
@@ -284,7 +284,7 @@ def test_track_return_pattern_no_pattern(security_config: SecurityConfig) -> Non
     assert not result
 
 
-def test_track_return_pattern_in_memory(security_config: SecurityConfig) -> None:
+def test_track_return_pattern_in_memory(security_config: SyncSecurityConfig) -> None:
     tracker = BehaviorTracker(security_config)
     rule = BehaviorRule(rule_type="return_pattern", threshold=2, pattern="status:200")
 
@@ -299,7 +299,7 @@ def test_track_return_pattern_in_memory(security_config: SecurityConfig) -> None
 
 
 def test_track_return_pattern_with_redis(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
     tracker = BehaviorTracker(security_config_redis)
     redis_mgr = redis_handler(security_config_redis)
@@ -321,7 +321,7 @@ def test_track_return_pattern_with_redis(
 
 
 def test_track_return_pattern_redis_key_uses_hashed_segments(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
     tracker = BehaviorTracker(security_config_redis)
     redis_mgr = redis_handler(security_config_redis)
@@ -360,7 +360,7 @@ def test_track_return_pattern_redis_key_uses_hashed_segments(
     ],
 )
 def test_check_response_pattern(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
     status_code: int,
     pattern: str,
     expected: bool,
@@ -374,7 +374,7 @@ def test_check_response_pattern(
 
 
 def test_check_response_pattern_json_invalid(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     security_config.behavior_scan_response_body = True
     tracker = BehaviorTracker(security_config)
@@ -385,7 +385,7 @@ def test_check_response_pattern_json_invalid(
 
 
 def test_check_response_pattern_no_body_when_body_scan_disabled(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     tracker = BehaviorTracker(security_config)
     response = _BoundedReaderResponse(b"test pattern", status_code=200)
@@ -397,7 +397,7 @@ def test_check_response_pattern_no_body_when_body_scan_disabled(
 
 
 def test_check_response_pattern_empty_body_is_not_matched(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     security_config.behavior_scan_response_body = True
     tracker = BehaviorTracker(security_config)
@@ -413,7 +413,7 @@ class _StreamingResponseWithoutBody:
 
 
 def test_check_response_pattern_missing_bounded_reader_logs_once(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     security_config.behavior_scan_response_body = True
     tracker = BehaviorTracker(security_config)
@@ -430,7 +430,7 @@ def test_check_response_pattern_missing_bounded_reader_logs_once(
 
 
 def test_check_response_pattern_missing_bounded_reader_logs_per_pattern(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     security_config.behavior_scan_response_body = True
     tracker = BehaviorTracker(security_config)
@@ -444,7 +444,7 @@ def test_check_response_pattern_missing_bounded_reader_logs_per_pattern(
 
 
 def test_check_response_pattern_bytes_body(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     security_config.behavior_scan_response_body = True
     tracker = BehaviorTracker(security_config)
@@ -456,7 +456,7 @@ def test_check_response_pattern_bytes_body(
 
 
 def test_check_response_pattern_json_match_via_bounded_reader(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     security_config.behavior_scan_response_body = True
     tracker = BehaviorTracker(security_config)
@@ -467,7 +467,7 @@ def test_check_response_pattern_json_match_via_bounded_reader(
 
 
 def test_check_response_pattern_regex_match_via_bounded_reader(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     security_config.behavior_scan_response_body = True
     tracker = BehaviorTracker(security_config)
@@ -480,7 +480,7 @@ def test_check_response_pattern_regex_match_via_bounded_reader(
 
 
 def test_check_response_pattern_never_reads_body_property(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     security_config.behavior_scan_response_body = True
     tracker = BehaviorTracker(security_config)
@@ -492,7 +492,7 @@ def test_check_response_pattern_never_reads_body_property(
 
 
 def test_check_response_pattern_exception(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     security_config.behavior_scan_response_body = True
     tracker = BehaviorTracker(security_config)
@@ -507,7 +507,7 @@ def test_check_response_pattern_exception(
 
 
 def test_check_response_pattern_non_bytes_prefix_is_logged_and_not_matched(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     security_config.behavior_scan_response_body = True
@@ -532,7 +532,7 @@ def test_check_response_pattern_non_bytes_prefix_is_logged_and_not_matched(
 
 
 def test_check_response_pattern_raising_bounded_reader_is_could_not_evaluate(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     security_config.behavior_scan_response_body = True
     tracker = BehaviorTracker(security_config)
@@ -551,7 +551,7 @@ def test_check_response_pattern_raising_bounded_reader_is_could_not_evaluate(
 
 
 def test_check_response_pattern_oversized_prefix_is_capped(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     security_config.behavior_scan_response_body = True
     security_config.behavior_max_response_body_inspect_bytes = 1024
@@ -576,7 +576,7 @@ def test_check_response_pattern_oversized_prefix_is_capped(
     assert response.requested_max_bytes == 1024
 
 
-def test_match_json_pattern_exception(security_config: SecurityConfig) -> None:
+def test_match_json_pattern_exception(security_config: SyncSecurityConfig) -> None:
     tracker = BehaviorTracker(security_config)
 
     class ProblematicData:
@@ -603,14 +603,17 @@ def test_match_json_pattern_exception(security_config: SecurityConfig) -> None:
     ],
 )
 def test_match_json_pattern(
-    security_config: SecurityConfig, data: dict[str, Any], pattern: str, expected: bool
+    security_config: SyncSecurityConfig,
+    data: dict[str, Any],
+    pattern: str,
+    expected: bool,
 ) -> None:
     tracker = BehaviorTracker(security_config)
     result = tracker._match_json_pattern(data, pattern)
     assert result == expected
 
 
-def test_match_json_pattern_invalid(security_config: SecurityConfig) -> None:
+def test_match_json_pattern_invalid(security_config: SyncSecurityConfig) -> None:
     tracker = BehaviorTracker(security_config)
 
     result = tracker._match_json_pattern({"status": "success"}, "status")
@@ -622,7 +625,7 @@ def test_match_json_pattern_invalid(security_config: SecurityConfig) -> None:
     assert not result
 
 
-def test_apply_action_custom(security_config: SecurityConfig) -> None:
+def test_apply_action_custom(security_config: SyncSecurityConfig) -> None:
     tracker = BehaviorTracker(security_config)
     custom_action = MagicMock()
     rule = BehaviorRule(rule_type="usage", threshold=5, custom_action=custom_action)
@@ -631,7 +634,7 @@ def test_apply_action_custom(security_config: SecurityConfig) -> None:
     custom_action.assert_called_once_with("192.168.1.1", "/api/test", "Test violation")
 
 
-def test_apply_action_ban(security_config: SecurityConfig) -> None:
+def test_apply_action_ban(security_config: SyncSecurityConfig) -> None:
     tracker = BehaviorTracker(security_config)
     rule = BehaviorRule(rule_type="usage", threshold=5, action="ban")
 
@@ -651,7 +654,7 @@ def test_apply_action_ban(security_config: SecurityConfig) -> None:
         mock_logger.assert_called_once()
 
 
-def test_apply_action_log(security_config: SecurityConfig) -> None:
+def test_apply_action_log(security_config: SyncSecurityConfig) -> None:
     tracker = BehaviorTracker(security_config)
     rule = BehaviorRule(rule_type="usage", threshold=5, action="log")
 
@@ -662,7 +665,7 @@ def test_apply_action_log(security_config: SecurityConfig) -> None:
         )
 
 
-def test_apply_action_throttle(security_config: SecurityConfig) -> None:
+def test_apply_action_throttle(security_config: SyncSecurityConfig) -> None:
     tracker = BehaviorTracker(security_config)
     rule = BehaviorRule(rule_type="usage", threshold=5, action="throttle")
 
@@ -671,7 +674,7 @@ def test_apply_action_throttle(security_config: SecurityConfig) -> None:
         mock_logger.assert_called_once_with("Throttling IP 192.168.1.1: Test violation")
 
 
-def test_apply_action_alert(security_config: SecurityConfig) -> None:
+def test_apply_action_alert(security_config: SyncSecurityConfig) -> None:
     tracker = BehaviorTracker(security_config)
     rule = BehaviorRule(rule_type="usage", threshold=5, action="alert")
 
@@ -683,7 +686,7 @@ def test_apply_action_alert(security_config: SecurityConfig) -> None:
 
 
 def test_apply_action_log_respects_log_suspicious_level(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     security_config.log_suspicious_level = "ERROR"
     tracker = BehaviorTracker(security_config)
@@ -697,7 +700,7 @@ def test_apply_action_log_respects_log_suspicious_level(
 
 
 def test_apply_action_ban_respects_log_suspicious_level(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     security_config.log_suspicious_level = "ERROR"
     tracker = BehaviorTracker(security_config)
@@ -717,7 +720,7 @@ def test_apply_action_ban_respects_log_suspicious_level(
 
 
 def test_apply_action_ban_silenced_when_log_suspicious_level_none(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     security_config.log_suspicious_level = None
     tracker = BehaviorTracker(security_config)
@@ -740,7 +743,7 @@ def test_apply_action_ban_silenced_when_log_suspicious_level_none(
 
 
 def test_apply_action_survives_a_raising_custom_action(
-    security_config: SecurityConfig, caplog: pytest.LogCaptureFixture
+    security_config: SyncSecurityConfig, caplog: pytest.LogCaptureFixture
 ) -> None:
     tracker = BehaviorTracker(security_config)
     custom_action = MagicMock(side_effect=RuntimeError("boom"))
@@ -755,7 +758,7 @@ def test_apply_action_survives_a_raising_custom_action(
 
 
 def test_execute_ban_action_returns_false_when_refused(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     tracker = BehaviorTracker(security_config)
 
@@ -770,7 +773,7 @@ def test_execute_ban_action_returns_false_when_refused(
 
 
 def test_execute_ban_action_skips_ban_when_ip_banning_disabled() -> None:
-    config = SecurityConfig(enable_redis=False, enable_ip_banning=False)
+    config = SyncSecurityConfig(enable_redis=False, enable_ip_banning=False)
     tracker = BehaviorTracker(config)
 
     with patch(
@@ -785,7 +788,7 @@ def test_execute_ban_action_skips_ban_when_ip_banning_disabled() -> None:
 
 
 def test_execute_ban_action_returns_true_when_applied(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     tracker = BehaviorTracker(security_config)
 
@@ -800,7 +803,7 @@ def test_execute_ban_action_returns_true_when_applied(
 
 
 def test_apply_action_ban_refused_does_not_log_success(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     tracker = BehaviorTracker(security_config)
     rule = BehaviorRule(rule_type="usage", threshold=5, action="ban")
@@ -822,7 +825,7 @@ def test_apply_action_ban_refused_does_not_log_success(
 
 
 def test_apply_action_ban_refused_reports_tracked_in_event(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     tracker = BehaviorTracker(security_config)
     tracker.agent_handler = MagicMock()
@@ -841,7 +844,7 @@ def test_apply_action_ban_refused_reports_tracked_in_event(
 
 
 def test_apply_action_ban_applied_reports_ban_in_event(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     tracker = BehaviorTracker(security_config)
     tracker.agent_handler = MagicMock()
@@ -860,7 +863,7 @@ def test_apply_action_ban_applied_reports_ban_in_event(
 
 
 def test_apply_action_log_silenced_when_log_suspicious_level_none(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     security_config.log_suspicious_level = None
     tracker = BehaviorTracker(security_config)
@@ -876,7 +879,7 @@ def test_apply_action_log_silenced_when_log_suspicious_level_none(
 
 
 def test_apply_action_alert_ignores_log_suspicious_level(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     security_config.log_suspicious_level = None
     tracker = BehaviorTracker(security_config)
@@ -890,7 +893,7 @@ def test_apply_action_alert_ignores_log_suspicious_level(
 
 
 def test_passive_mode_log_respects_log_suspicious_level(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     security_config.passive_mode = True
     security_config.log_suspicious_level = "ERROR"
@@ -905,7 +908,7 @@ def test_passive_mode_log_respects_log_suspicious_level(
 
 
 def test_passive_mode_log_silenced_when_log_suspicious_level_none(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     security_config.passive_mode = True
     security_config.log_suspicious_level = None
@@ -922,7 +925,7 @@ def test_passive_mode_log_silenced_when_log_suspicious_level_none(
 
 
 def test_track_endpoint_usage_redis_window_boundary(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     tracker = BehaviorTracker(security_config_redis)
@@ -955,7 +958,7 @@ def test_track_endpoint_usage_redis_window_boundary(
 
 
 def test_track_endpoint_usage_redis_frozen_clock_still_trips(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     tracker = BehaviorTracker(security_config_redis)
@@ -981,7 +984,7 @@ def test_track_endpoint_usage_redis_frozen_clock_still_trips(
     redis_mgr.close()
 
 
-def test_track_return_pattern_no_match(security_config: SecurityConfig) -> None:
+def test_track_return_pattern_no_match(security_config: SyncSecurityConfig) -> None:
     tracker = BehaviorTracker(security_config)
     rule = BehaviorRule(rule_type="return_pattern", threshold=1, pattern="status:404")
 
@@ -991,7 +994,7 @@ def test_track_return_pattern_no_match(security_config: SecurityConfig) -> None:
 
 
 def test_track_return_pattern_window_cleanup(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     tracker = BehaviorTracker(security_config)
     rule = BehaviorRule(
@@ -1015,7 +1018,7 @@ def test_track_return_pattern_window_cleanup(
 
 
 def test_track_return_pattern_evicts_the_oldest_client_a_touched_client_survives(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(security_config, "behavior_max_tracked_clients_per_endpoint", 3)
@@ -1041,7 +1044,7 @@ def test_track_return_pattern_evicts_the_oldest_client_a_touched_client_survives
 
 
 def test_track_return_pattern_evicts_oldest_endpoint_touched_one_survives(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(security_config, "behavior_max_tracked_endpoints", 3)
@@ -1065,7 +1068,7 @@ def test_track_return_pattern_evicts_oldest_endpoint_touched_one_survives(
 
 
 def test_track_return_pattern_many_endpoints_settle_at_default_bound(
-    security_config: SecurityConfig,
+    security_config: SyncSecurityConfig,
 ) -> None:
     tracker = BehaviorTracker(security_config)
     rule = BehaviorRule(
@@ -1083,7 +1086,7 @@ def test_track_return_pattern_many_endpoints_settle_at_default_bound(
 
 
 def test_track_return_pattern_redis_window_boundary(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     tracker = BehaviorTracker(security_config_redis)
@@ -1125,10 +1128,10 @@ def test_log_passive_mode_action_unknown_action_is_noop(
 ) -> None:
     import logging
 
-    from guard_core.models import SecurityConfig
+    from guard_core.models import SyncSecurityConfig
     from guard_core.sync.handlers.behavior_handler import BehaviorRule, BehaviorTracker
 
-    tracker = BehaviorTracker(SecurityConfig())
+    tracker = BehaviorTracker(SyncSecurityConfig())
     rule = BehaviorRule(rule_type="usage", threshold=1, action="log")
     cast(Any, rule).action = "unknown"
     with caplog.at_level(logging.INFO):
@@ -1142,10 +1145,10 @@ def test_execute_active_mode_action_unknown_action_is_noop(
 ) -> None:
     import logging
 
-    from guard_core.models import SecurityConfig
+    from guard_core.models import SyncSecurityConfig
     from guard_core.sync.handlers.behavior_handler import BehaviorRule, BehaviorTracker
 
-    tracker = BehaviorTracker(SecurityConfig())
+    tracker = BehaviorTracker(SyncSecurityConfig())
     rule = BehaviorRule(rule_type="usage", threshold=1, action="log")
     cast(Any, rule).action = "unknown"
     with caplog.at_level(logging.INFO):
@@ -1155,7 +1158,7 @@ def test_execute_active_mode_action_unknown_action_is_noop(
 
 
 def test_track_endpoint_usage_redis_glob_client_ip_does_not_leak_other_clients(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
     tracker = BehaviorTracker(security_config_redis)
     redis_mgr = redis_handler(security_config_redis)
@@ -1177,7 +1180,7 @@ def test_track_endpoint_usage_redis_glob_client_ip_does_not_leak_other_clients(
 
 
 def test_track_endpoint_usage_redis_glob_endpoint_id_does_not_leak(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
     tracker = BehaviorTracker(security_config_redis)
     redis_mgr = redis_handler(security_config_redis)
@@ -1199,7 +1202,7 @@ def test_track_endpoint_usage_redis_glob_endpoint_id_does_not_leak(
 
 
 def test_track_return_pattern_redis_glob_pattern_does_not_leak_other_patterns(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
     security_config_redis.behavior_scan_response_body = True
     tracker = BehaviorTracker(security_config_redis)
@@ -1227,7 +1230,7 @@ def test_track_return_pattern_redis_glob_pattern_does_not_leak_other_patterns(
 
 
 def test_track_endpoint_usage_redis_isolates_all_glob_metacharacters(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
     tracker = BehaviorTracker(security_config_redis)
     redis_mgr = redis_handler(security_config_redis)
@@ -1249,7 +1252,7 @@ def test_track_endpoint_usage_redis_isolates_all_glob_metacharacters(
 
 
 def test_track_endpoint_usage_redis_ordinary_identities_still_isolated(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
     tracker = BehaviorTracker(security_config_redis)
     redis_mgr = redis_handler(security_config_redis)
@@ -1267,7 +1270,7 @@ def test_track_endpoint_usage_redis_ordinary_identities_still_isolated(
 
 
 def test_track_endpoint_usage_redis_hashing_prevents_field_boundary_collision(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
     tracker = BehaviorTracker(security_config_redis)
     redis_mgr = redis_handler(security_config_redis)
@@ -1286,7 +1289,7 @@ def test_track_endpoint_usage_redis_hashing_prevents_field_boundary_collision(
 
 
 def test_track_return_pattern_redis_hashing_prevents_field_boundary_collision(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
     security_config_redis.behavior_scan_response_body = True
     tracker = BehaviorTracker(security_config_redis)

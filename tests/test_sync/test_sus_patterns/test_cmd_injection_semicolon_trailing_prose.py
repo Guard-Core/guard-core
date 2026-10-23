@@ -1,6 +1,6 @@
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.suspatterns_handler import SusPatternsManager
 
 
@@ -9,7 +9,7 @@ def _manager() -> SusPatternsManager:
     original_config = SusPatternsManager._config
     SusPatternsManager._instance = None
     SusPatternsManager._config = None
-    manager = SusPatternsManager(SecurityConfig())
+    manager = SusPatternsManager(SyncSecurityConfig())
     SusPatternsManager._instance = original_instance
     SusPatternsManager._config = original_config
     return manager

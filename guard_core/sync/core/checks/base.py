@@ -6,7 +6,7 @@ from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
 if TYPE_CHECKING:
-    from guard_core.models import SecurityConfig
+    from guard_core.models import SyncSecurityConfig
     from guard_core.sync.decorators.base import RouteConfig
     from guard_core.sync.protocols.middleware_protocol import (
         SyncGuardMiddlewareProtocol,
@@ -29,7 +29,7 @@ class SecurityCheck(ABC):
     @classmethod
     def applies_to(
         cls,
-        config: "SecurityConfig",
+        config: "SyncSecurityConfig",
         route_configs: "Collection[RouteConfig] | None",
     ) -> bool:
         return True

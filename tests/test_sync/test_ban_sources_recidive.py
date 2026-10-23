@@ -3,7 +3,7 @@ from collections.abc import Generator
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.behavior_handler import BehaviorRule, BehaviorTracker
 from guard_core.sync.handlers.ipban_handler import IPBanManager
 
@@ -18,7 +18,7 @@ def manager(monkeypatch: pytest.MonkeyPatch) -> Generator[IPBanManager, None, No
     IPBanManager._instance = None
     ban_manager = IPBanManager()
     ban_manager.redis_handler = None
-    ban_manager.config = SecurityConfig(enable_redis=False, enable_recidive=True)
+    ban_manager.config = SyncSecurityConfig(enable_redis=False, enable_recidive=True)
     monkeypatch.setattr(
         "guard_core.sync.handlers.ipban_handler.ip_ban_manager", ban_manager
     )
@@ -27,7 +27,7 @@ def manager(monkeypatch: pytest.MonkeyPatch) -> Generator[IPBanManager, None, No
 
 
 def _tracker() -> BehaviorTracker:
-    return BehaviorTracker(SecurityConfig(enable_redis=False, enable_recidive=True))
+    return BehaviorTracker(SyncSecurityConfig(enable_redis=False, enable_recidive=True))
 
 
 def _rule() -> BehaviorRule:
@@ -115,7 +115,7 @@ def test_a_behavioral_ban_denies_every_address_of_the_network(
 def test_a_behavioral_ban_at_prefix_128_bans_the_address(
     manager: IPBanManager,
 ) -> None:
-    manager.config = SecurityConfig(enable_redis=False, ipv6_prefix_length=128)
+    manager.config = SyncSecurityConfig(enable_redis=False, ipv6_prefix_length=128)
     tracker = BehaviorTracker(manager.config)
 
     tracker._execute_ban_action(IPV6_CLIENT, "details", _rule())

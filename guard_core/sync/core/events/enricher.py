@@ -63,7 +63,7 @@ from guard_core.sync.core.events.event_types import (
 from guard_core.sync.handlers.behavior_handler import RECENT_RULE_HITS_WINDOW_SECONDS
 
 if TYPE_CHECKING:
-    from guard_core.models import SecurityConfig
+    from guard_core.models import SyncSecurityConfig
 
 logger = logging.getLogger("guard_core.enricher")
 
@@ -127,7 +127,7 @@ class ThreatScorer:
 
 @dataclass
 class EnrichmentContext:
-    config: SecurityConfig
+    config: SyncSecurityConfig
     agent_handler: Any | None = None
     dynamic_rule_handler: Any | None = None
     behavior_tracker: Any | None = None

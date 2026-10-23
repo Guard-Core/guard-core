@@ -2,14 +2,14 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
 from guard_core.sync.utils import detect_penetration_attempt
 
 
 @pytest.fixture(autouse=True)
 def _force_enhanced_detection_singleton() -> None:
-    sus_patterns_handler.configure(SecurityConfig())
+    sus_patterns_handler.configure(SyncSecurityConfig())
 
 
 LDAP_PAREN_CONJUNCTION_STILL_FLAGGED = [
@@ -664,7 +664,7 @@ def test_ldap_cap_removal_oid_breakout_wire_flagged(
     payload: str, mechanism: str
 ) -> None:
     result = detect_penetration_attempt(
-        _WireReq(payload.encode("utf-8"), mechanism), SecurityConfig()
+        _WireReq(payload.encode("utf-8"), mechanism), SyncSecurityConfig()
     )
     assert result.is_threat is True
     assert "ldap" in result.threat_categories
@@ -676,7 +676,7 @@ def test_ldap_cap_removal_option_breakout_wire_flagged(
     payload: str, mechanism: str
 ) -> None:
     result = detect_penetration_attempt(
-        _WireReq(payload.encode("utf-8"), mechanism), SecurityConfig()
+        _WireReq(payload.encode("utf-8"), mechanism), SyncSecurityConfig()
     )
     assert result.is_threat is True
     assert "ldap" in result.threat_categories

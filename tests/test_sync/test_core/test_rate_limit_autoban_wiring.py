@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, Mock
 import pytest
 from pydantic import ValidationError
 
-from guard_core.models import SecurityConfig, ThreatBanConfig
+from guard_core.models import SyncSecurityConfig, ThreatBanConfig
 from guard_core.sync.core.checks.implementations.rate_limit import RateLimitCheck
 from guard_core.sync.handlers.ipban_handler import IPBanManager
 from guard_core.sync.handlers.ratelimit_handler import RateLimitBlock
@@ -12,7 +12,7 @@ from guard_core.sync.handlers.ratelimit_handler import RateLimitBlock
 BanCalls = list[tuple[str, int, str]]
 
 
-def _make_middleware(config: SecurityConfig) -> Mock:
+def _make_middleware(config: SyncSecurityConfig) -> Mock:
     middleware = Mock()
     middleware.config = config
     middleware.logger = Mock()
@@ -42,7 +42,7 @@ def _make_request(client_ip: str) -> MagicMock:
 
 
 def _make_check_with_recording_ban(
-    config: SecurityConfig,
+    config: SyncSecurityConfig,
 ) -> tuple[RateLimitCheck, BanCalls]:
     middleware = _make_middleware(config)
     check = RateLimitCheck(middleware)
@@ -57,7 +57,7 @@ def _make_check_with_recording_ban(
 
 
 def test_knob_off_default_never_bans_on_violation() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_rate_limiting=True,
         rate_limit=1,
         rate_limit_window=60,
@@ -74,7 +74,7 @@ def test_knob_off_default_never_bans_on_violation() -> None:
 
 
 def test_threshold_crossing_bans_with_configured_duration_and_reason() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_rate_limiting=True,
         rate_limit=1,
         rate_limit_window=60,
@@ -98,7 +98,7 @@ def test_threshold_crossing_bans_with_configured_duration_and_reason() -> None:
 
 
 def test_per_category_threat_ban_config_override_honored() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_rate_limiting=True,
         rate_limit=1,
         rate_limit_window=60,
@@ -120,7 +120,7 @@ def test_per_category_threat_ban_config_override_honored() -> None:
 
 
 def test_threat_ban_config_accepts_rate_limit_pseudo_category() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         threat_ban_config={"rate_limit": ThreatBanConfig(threshold=1, duration=60)}
     )
 
@@ -129,11 +129,11 @@ def test_threat_ban_config_accepts_rate_limit_pseudo_category() -> None:
 
 def test_enabled_detection_categories_rejects_rate_limit_pseudo_category() -> None:
     with pytest.raises(ValidationError, match="Unknown detection categor"):
-        SecurityConfig(enabled_detection_categories=["rate_limit"])
+        SyncSecurityConfig(enabled_detection_categories=["rate_limit"])
 
 
 def test_passive_mode_does_not_feed_counter_or_ban() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         passive_mode=True,
         enable_rate_limiting=True,
         rate_limit=1,
@@ -154,7 +154,7 @@ def test_passive_mode_does_not_feed_counter_or_ban() -> None:
 def test_loopback_ip_not_banned_despite_threshold_crossing() -> None:
     IPBanManager._instance = None
     try:
-        config = SecurityConfig(
+        config = SyncSecurityConfig(
             enable_rate_limiting=True,
             rate_limit=1,
             rate_limit_window=60,
@@ -177,7 +177,7 @@ def test_loopback_ip_not_banned_despite_threshold_crossing() -> None:
 
 
 def test_enable_ip_banning_false_suppresses_ban() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_rate_limiting=True,
         rate_limit=1,
         rate_limit_window=60,
@@ -193,7 +193,7 @@ def test_enable_ip_banning_false_suppresses_ban() -> None:
 
 
 def test_a_failing_shared_violation_counter_falls_back_to_the_process_count() -> None:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=True,
         enable_rate_limiting=True,
         rate_limit=1,

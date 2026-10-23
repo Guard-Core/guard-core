@@ -2,7 +2,7 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.factory import build_default_pipeline
 from guard_core.sync.decorators import SecurityDecorator
 from guard_core.sync.handlers.ipban_handler import ip_ban_manager
@@ -18,8 +18,8 @@ NEIGHBOUR = "10.0.0.5"
 OUTSIDER = "203.0.113.9"
 
 
-def _config(**settings: Any) -> SecurityConfig:
-    return SecurityConfig(
+def _config(**settings: Any) -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         enable_redis=False,
         enable_penetration_detection=False,
         enable_rate_limiting=False,
@@ -27,14 +27,14 @@ def _config(**settings: Any) -> SecurityConfig:
     )
 
 
-def _global_status(config: SecurityConfig, ip: str) -> int | None:
+def _global_status(config: SyncSecurityConfig, ip: str) -> int | None:
     middleware = build_middleware(config, SecurityDecorator(config))
     pipeline = build_default_pipeline(middleware)
     response = pipeline.execute(SyncMockGuardRequest(path="/x", client_host=ip))
     return None if response is None else response.status_code
 
 
-def _route_status(config: SecurityConfig, factory: Any, ip: str) -> int | None:
+def _route_status(config: SyncSecurityConfig, factory: Any, ip: str) -> int | None:
     pipeline, _, route_id = build_route_pipeline(config, factory)
     response = send_request(pipeline, route_id, ip=ip)
     return None if response is None else response.status_code

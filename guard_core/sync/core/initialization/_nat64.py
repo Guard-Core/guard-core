@@ -9,7 +9,7 @@ from guard_core.sync._utils.nat64 import (
 )
 
 if TYPE_CHECKING:
-    from guard_core.models import SecurityConfig
+    from guard_core.models import SyncSecurityConfig
 
 _LENGTHS = ", ".join(f"/{length}" for length in sorted(NAT64_PREFIX_LENGTHS))
 
@@ -24,7 +24,7 @@ def _valid_prefix(entry: str) -> IPv6Network | None:
     return None
 
 
-def apply_nat64_prefixes(config: "SecurityConfig", logger: logging.Logger) -> None:
+def apply_nat64_prefixes(config: "SyncSecurityConfig", logger: logging.Logger) -> None:
     valid: list[IPv6Network] = []
     for entry in config.nat64_prefixes:
         network = _valid_prefix(entry)

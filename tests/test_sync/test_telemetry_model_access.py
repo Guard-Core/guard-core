@@ -10,7 +10,7 @@ from unittest.mock import patch
 import pytest
 
 import guard_core
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from tests.test_sync.conftest import (
     _GUARD_AGENT_FINDER_ATTR,
     _calling_module_name,
@@ -286,7 +286,7 @@ def _isolated_import_finder() -> Generator[_GuardAgentImportFinder, None, None]:
 
 def test_finder_allows_to_agent_config_through_real_import_machinery() -> None:
     with _isolated_import_finder() as finder:
-        config = SecurityConfig(enable_agent=True, agent_api_key="test-key")
+        config = SyncSecurityConfig(enable_agent=True, agent_api_key="test-key")
         config.to_agent_config()
 
     assert finder.violations == []

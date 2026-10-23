@@ -5,7 +5,7 @@ from collections.abc import Iterator
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.suspatterns_handler import (
     SusPatternsManager,
     sus_patterns_handler,
@@ -48,14 +48,14 @@ def _twenty_eight_large_values_request() -> SyncMockGuardRequest:
 @pytest.fixture(autouse=True)
 def _restore_singleton_after_test() -> Iterator[None]:
     yield
-    sus_patterns_handler.configure(SecurityConfig())
+    sus_patterns_handler.configure(SyncSecurityConfig())
 
 
 def test_fresh_unconfigured_singleton_auto_configures_on_bare_call() -> None:
     _reset_singleton_to_legacy()
     assert sus_patterns_handler._detection_state.compiler is None
 
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     request = SyncMockGuardRequest(query_params={"q": "hello"})
 
     detect_penetration_attempt(request, config)
@@ -66,7 +66,7 @@ def test_fresh_unconfigured_singleton_auto_configures_on_bare_call() -> None:
 @pytest.mark.redos_timing
 def test_fresh_unconfigured_singleton_runs_enhanced_within_the_ceiling() -> None:
     _reset_singleton_to_legacy()
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     request = _twenty_eight_large_values_request()
 
     detect_penetration_attempt(request, config)
@@ -90,7 +90,7 @@ def test_fresh_unconfigured_singleton_runs_enhanced_within_the_ceiling() -> None
 
 def test_second_call_with_the_same_config_object_does_not_reconfigure() -> None:
     _reset_singleton_to_legacy()
-    config = SecurityConfig()
+    config = SyncSecurityConfig()
     request = SyncMockGuardRequest(query_params={"q": "hello"})
 
     detect_penetration_attempt(request, config)
@@ -104,13 +104,13 @@ def test_second_call_with_the_same_config_object_does_not_reconfigure() -> None:
 
 def test_call_with_a_different_config_object_reconfigures() -> None:
     _reset_singleton_to_legacy()
-    config_a = SecurityConfig()
+    config_a = SyncSecurityConfig()
     request = SyncMockGuardRequest(query_params={"q": "hello"})
 
     detect_penetration_attempt(request, config_a)
     state_after_config_a = sus_patterns_handler._detection_state
 
-    config_b = SecurityConfig()
+    config_b = SyncSecurityConfig()
     detect_penetration_attempt(request, config_b)
     state_after_config_b = sus_patterns_handler._detection_state
 

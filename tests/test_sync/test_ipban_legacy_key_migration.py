@@ -3,7 +3,7 @@ import warnings
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.ipban_handler import ip_ban_manager
 from guard_core.sync.handlers.redis_handler import (
     redis_handler as redis_handler_factory,
@@ -69,7 +69,7 @@ def _seed_legacy_ban(handler: object, duration: int = 60) -> None:
 
 
 def test_migration_blocks_canonical_request_after_restart(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
     handler = redis_handler_factory(security_config_redis)
     handler.initialize()
@@ -87,7 +87,7 @@ def test_migration_blocks_canonical_request_after_restart(
 
 
 def test_migration_preserves_remaining_ttl_within_one_second(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
     handler = redis_handler_factory(security_config_redis)
     handler.initialize()
@@ -108,7 +108,7 @@ def test_migration_preserves_remaining_ttl_within_one_second(
 
 
 def test_migration_deletes_the_legacy_key(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
     handler = redis_handler_factory(security_config_redis)
     handler.initialize()
@@ -126,7 +126,7 @@ def test_migration_deletes_the_legacy_key(
 
 
 def test_migration_second_start_is_idempotent(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
     handler = redis_handler_factory(security_config_redis)
     handler.initialize()
@@ -157,7 +157,7 @@ def test_migration_second_start_is_idempotent(
 
 
 def test_rate_limit_keys_stay_unmigrated_self_expire_within_60s(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
     handler = redis_handler_factory(security_config_redis)
     handler.initialize()
@@ -183,7 +183,7 @@ def test_migration_skipped_when_redis_handler_is_none() -> None:
 
 
 def test_migration_warns_and_continues_when_connection_fails(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     handler = redis_handler_factory(security_config_redis)
@@ -198,7 +198,7 @@ def test_migration_warns_and_continues_when_connection_fails(
 
 
 def test_migration_deletes_a_persistent_legacy_key_without_ttl(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
     handler = redis_handler_factory(security_config_redis)
     handler.initialize()
@@ -219,7 +219,7 @@ def test_migration_deletes_a_persistent_legacy_key_without_ttl(
 
 
 def test_migration_keeps_the_longer_expiry_when_canonical_key_already_exists(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
 ) -> None:
     handler = redis_handler_factory(security_config_redis)
     handler.initialize()

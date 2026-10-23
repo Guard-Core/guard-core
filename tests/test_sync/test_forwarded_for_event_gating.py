@@ -1,18 +1,20 @@
 from typing import Any
 from unittest.mock import MagicMock
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.utils import extract_client_ip
 from tests.test_sync.conftest import SyncMockGuardRequest
 
 UNTRUSTED_PEER = "198.51.100.9"
 
 
-def _config(**settings: Any) -> SecurityConfig:
-    return SecurityConfig(enable_redis=False, trusted_proxies=["10.0.0.5"], **settings)
+def _config(**settings: Any) -> SyncSecurityConfig:
+    return SyncSecurityConfig(
+        enable_redis=False, trusted_proxies=["10.0.0.5"], **settings
+    )
 
 
-def _events_sent(config: SecurityConfig, requests: int = 3) -> list[Any]:
+def _events_sent(config: SyncSecurityConfig, requests: int = 3) -> list[Any]:
     agent = MagicMock()
     agent.send_event = MagicMock()
     for _ in range(requests):

@@ -1,13 +1,16 @@
 from collections.abc import Callable
 from typing import Any, Literal
 
-from guard_core.models import SecurityConfig, _validate_return_pattern_body_scan
+from guard_core.models import (
+    SyncSecurityConfig,
+    _validate_return_pattern_body_scan,
+)
 from guard_core.sync.decorators.base import BaseSecurityMixin, DecoratedFunction
 from guard_core.sync.handlers.behavior_handler import BehaviorRule
 
 
 class BehavioralMixin(BaseSecurityMixin):
-    config: SecurityConfig
+    config: SyncSecurityConfig
 
     def usage_monitor(
         self,
