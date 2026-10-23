@@ -1,4 +1,5 @@
 import gc
+import inspect
 import logging
 import os
 import re
@@ -936,6 +937,46 @@ def _enforce_test_duration_ceiling(session: pytest.Session) -> None:
     )
     for duration, nodeid in offenders:
         print(f"  {duration:.2f}s  {nodeid}")
+
+
+_ASYNC_CONFTEST = Path(__file__).resolve()
+_SYNC_CONFTEST = _ASYNC_CONFTEST.parent / "test_sync" / "conftest.py"
+
+
+def _location(fixture: Any) -> str:
+    func = inspect.unwrap(getattr(fixture, "_get_wrapped_function", lambda: fixture)())
+    return f"{inspect.getsourcefile(func)}:{func.__code__.co_firstlineno}"
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_fixture_setup(
+    fixturedef: pytest.FixtureDef[Any], request: pytest.FixtureRequest
+) -> None:
+    if not request.node.path.is_relative_to(_SYNC_CONFTEST.parent):
+        return
+    resolved = _location(fixturedef.func)
+    if not resolved.startswith(f"{_ASYNC_CONFTEST}:"):
+        return
+    sync_conftest = next(
+        (
+            plugin
+            for plugin in request.config.pluginmanager.get_plugins()
+            if Path(getattr(plugin, "__file__", "") or "").resolve() == _SYNC_CONFTEST
+        ),
+        None,
+    )
+    sync_fixture = getattr(sync_conftest, fixturedef.argname, None)
+    if sync_fixture is None:
+        return
+    pytest.fail(
+        f"{request.node.nodeid} is a sync test but fixture '{fixturedef.argname}' "
+        f"resolved to the async one at {resolved}, not to the sync one at "
+        f"{_location(sync_fixture)}. pytest 9 binds conftest fixtures to a "
+        "Directory node, so a tests/test_sync file collected after an async "
+        "file inherits the async fixture. List every tests/test_sync file "
+        "after all async files, contiguously.",
+        pytrace=False,
+    )
 
 
 def pytest_configure(config: pytest.Config) -> None:

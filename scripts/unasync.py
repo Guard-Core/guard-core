@@ -71,6 +71,7 @@ SKIP_TESTS = {
     "network_guard.py",
     "test_network_guard.py",
     "test_ruff_pin.py",
+    "test_sync_fixture_guard.py",
 }
 
 SKIP_DIRS = {"__pycache__", "sync"}
