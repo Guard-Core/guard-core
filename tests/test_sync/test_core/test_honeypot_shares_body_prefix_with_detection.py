@@ -6,7 +6,7 @@ from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.factory import build_default_pipeline
 from guard_core.sync.core.routing.context import RoutingContext
 from guard_core.sync.core.routing.resolver import RouteConfigResolver
-from guard_core.sync.decorators import SecurityDecorator
+from guard_core.sync.decorators import SecurityDecorator, get_route_id
 from guard_core.sync.handlers.ratelimit_handler import rate_limit_handler
 from tests.test_sync.conftest import MockGuardResponse
 
@@ -131,7 +131,7 @@ def _honeypot_route(config: SyncSecurityConfig) -> tuple[SecurityDecorator, str]
     sample_endpoint.__module__ = __name__
 
     decorated = decorator.honeypot_detection(["hp_trap"])(sample_endpoint)
-    route_id: str = decorated._guard_route_id
+    route_id: str = get_route_id(decorated)
     return decorator, route_id
 
 

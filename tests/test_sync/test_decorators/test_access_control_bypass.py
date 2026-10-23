@@ -3,6 +3,7 @@ import logging
 import pytest
 
 from guard_core.models import SyncSecurityConfig
+from guard_core.sync.decorators import get_route_id
 from guard_core.sync.decorators.access_control import AccessControlMixin
 from guard_core.sync.decorators.access_control import (
     AccessControlMixin as SyncAccessControlMixin,
@@ -114,7 +115,7 @@ def _twelfth_sample_func() -> None:
 def test_async_bypass_with_valid_tokens() -> None:
     d = _async_decorator()
     decorated = d.bypass(["ip", "rate_limit"])(_sample_func)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert rc.bypassed_checks == {"ip", "rate_limit"}
 
@@ -125,7 +126,7 @@ def test_async_bypass_filters_unknown_and_warns(
     d = _async_decorator()
     caplog.set_level(logging.WARNING, logger="guard_core.sync.decorators")
     decorated = d.bypass(["ip", "geo_check"])(_other_sample_func)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert rc.bypassed_checks == {"ip"}
     assert "ignored unknown checks" in caplog.text
@@ -138,7 +139,7 @@ def test_async_bypass_all_invalid_yields_empty_and_warns(
     d = _async_decorator()
     caplog.set_level(logging.WARNING, logger="guard_core.sync.decorators")
     decorated = d.bypass(["countries", "geo_check"])(_third_sample_func)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert rc.bypassed_checks == set()
     assert "ignored unknown checks" in caplog.text
@@ -149,7 +150,7 @@ def test_async_bypass_all_invalid_yields_empty_and_warns(
 def test_sync_bypass_with_valid_tokens() -> None:
     d = _sync_decorator()
     decorated = d.bypass(["ip", "rate_limit"])(_fourth_sample_func)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert rc.bypassed_checks == {"ip", "rate_limit"}
 
@@ -160,7 +161,7 @@ def test_sync_bypass_filters_unknown_and_warns(
     d = _sync_decorator()
     caplog.set_level(logging.WARNING, logger="guard_core.sync.decorators")
     decorated = d.bypass(["ip", "geo_check"])(_fifth_sample_func)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert rc.bypassed_checks == {"ip"}
     assert "ignored unknown checks" in caplog.text
@@ -173,7 +174,7 @@ def test_sync_bypass_all_invalid_yields_empty_and_warns(
     d = _sync_decorator()
     caplog.set_level(logging.WARNING, logger="guard_core.sync.decorators")
     decorated = d.bypass(["countries", "geo_check"])(_sixth_sample_func)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert rc.bypassed_checks == set()
     assert "ignored unknown checks" in caplog.text
@@ -187,7 +188,7 @@ def test_async_bypass_filters_non_string_token_without_raising(
     d = _async_decorator()
     caplog.set_level(logging.WARNING, logger="guard_core.sync.decorators")
     decorated = d.bypass(["ip", "geo_check", 123])(_seventh_sample_func)  # type: ignore[list-item]
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert rc.bypassed_checks == {"ip"}
     assert "ignored unknown checks" in caplog.text
@@ -201,7 +202,7 @@ def test_async_bypass_empty_list_is_noop(
     d = _async_decorator()
     caplog.set_level(logging.WARNING, logger="guard_core.sync.decorators")
     decorated = d.bypass([])(_eighth_sample_func)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert rc.bypassed_checks == set()
     assert not caplog.records
@@ -213,7 +214,7 @@ def test_async_bypass_duplicate_tokens_dedupe_without_warning(
     d = _async_decorator()
     caplog.set_level(logging.WARNING, logger="guard_core.sync.decorators")
     decorated = d.bypass(["ip", "ip"])(_ninth_sample_func)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert rc.bypassed_checks == {"ip"}
     assert not caplog.records
@@ -225,7 +226,7 @@ def test_sync_bypass_filters_non_string_token_without_raising(
     d = _sync_decorator()
     caplog.set_level(logging.WARNING, logger="guard_core.sync.decorators")
     decorated = d.bypass(["ip", "geo_check", 123])(_tenth_sample_func)  # type: ignore[list-item]
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert rc.bypassed_checks == {"ip"}
     assert "ignored unknown checks" in caplog.text
@@ -239,7 +240,7 @@ def test_sync_bypass_empty_list_is_noop(
     d = _sync_decorator()
     caplog.set_level(logging.WARNING, logger="guard_core.sync.decorators")
     decorated = d.bypass([])(_eleventh_sample_func)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert rc.bypassed_checks == set()
     assert not caplog.records
@@ -251,7 +252,7 @@ def test_sync_bypass_duplicate_tokens_dedupe_without_warning(
     d = _sync_decorator()
     caplog.set_level(logging.WARNING, logger="guard_core.sync.decorators")
     decorated = d.bypass(["ip", "ip"])(_twelfth_sample_func)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert rc.bypassed_checks == {"ip"}
     assert not caplog.records

@@ -4,7 +4,7 @@ from typing import Any
 import pytest
 
 from guard_core.models import SyncSecurityConfig
-from guard_core.sync.decorators import SecurityDecorator
+from guard_core.sync.decorators import SecurityDecorator, get_route_id
 
 
 def _decorator() -> SecurityDecorator:
@@ -18,7 +18,7 @@ def test_require_auth_after_presence_only_raises_and_changes_nothing() -> None:
         pass
 
     decorated = decorator.require_authorization_header("bearer")(route)
-    route_config = decorator.get_route_config(decorated._guard_route_id)
+    route_config = decorator.get_route_config(get_route_id(decorated))
     assert route_config is not None
 
     with pytest.raises(ValueError, match="require_auth cannot be combined"):
@@ -36,7 +36,7 @@ def test_api_key_auth_after_presence_only_raises_and_changes_nothing() -> None:
         pass
 
     decorated = decorator.require_authorization_header("bearer")(route)
-    route_config = decorator.get_route_config(decorated._guard_route_id)
+    route_config = decorator.get_route_config(get_route_id(decorated))
     assert route_config is not None
 
     with pytest.raises(ValueError, match="api_key_auth cannot be combined"):
@@ -64,7 +64,7 @@ def test_presence_only_after_an_authenticated_route_raises_and_changes_nothing(
         pass
 
     decorated = first(decorator)(route)
-    route_config = decorator.get_route_config(decorated._guard_route_id)
+    route_config = decorator.get_route_config(get_route_id(decorated))
     assert route_config is not None
 
     with pytest.raises(ValueError, match="require_authorization_header cannot"):

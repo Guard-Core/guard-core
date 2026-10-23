@@ -3,7 +3,7 @@ from typing import Any
 import pytest
 
 from guard_core.models import SyncSecurityConfig
-from guard_core.sync.decorators import SecurityDecorator
+from guard_core.sync.decorators import SecurityDecorator, get_route_id
 from guard_core.sync.decorators.route_config import RouteConfig
 from tests.test_sync.test_core.conftest import build_route_pipeline, send_request
 
@@ -38,7 +38,7 @@ def test_a_decorated_route_reports_the_global_setting_it_was_created_with(
         pass
 
     decorated = decorator.rate_limit(50, 60)(route)
-    route_config = decorator.get_route_config(decorated._guard_route_id)
+    route_config = decorator.get_route_config(get_route_id(decorated))
 
     assert route_config is not None
     assert route_config.enable_suspicious_detection is detection

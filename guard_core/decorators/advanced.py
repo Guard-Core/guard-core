@@ -1,6 +1,5 @@
 import logging
 from collections.abc import Callable, MutableMapping
-from typing import Any
 from urllib.parse import urlsplit
 
 from guard_core._utils.body_reader import _parse_content_length
@@ -18,7 +17,7 @@ from guard_core.decorators._route_arguments import (
     invalid_time_of_day,
     unknown_time_zone,
 )
-from guard_core.decorators.base import BaseSecurityMixin, DecoratedFunction
+from guard_core.decorators.base import BaseSecurityMixin, GuardedCallable
 from guard_core.models import SecurityConfig
 from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse
@@ -84,8 +83,8 @@ class AdvancedMixin(BaseSecurityMixin):
 
     def time_window(
         self, start_time: str, end_time: str, timezone: str = "UTC"
-    ) -> Callable[[Callable[..., Any]], DecoratedFunction]:
-        def decorator(func: Callable[..., Any]) -> DecoratedFunction:
+    ) -> Callable[[GuardedCallable], GuardedCallable]:
+        def decorator(func: GuardedCallable) -> GuardedCallable:
             for name, value in (("start_time", start_time), ("end_time", end_time)):
                 if invalid_time_of_day(value):
                     self._report_misconfiguration(
@@ -109,8 +108,8 @@ class AdvancedMixin(BaseSecurityMixin):
 
     def suspicious_detection(
         self, enabled: bool = True
-    ) -> Callable[[Callable[..., Any]], DecoratedFunction]:
-        def decorator(func: Callable[..., Any]) -> DecoratedFunction:
+    ) -> Callable[[GuardedCallable], GuardedCallable]:
+        def decorator(func: GuardedCallable) -> GuardedCallable:
             route_config = self._ensure_route_config(func)
             route_config.enable_suspicious_detection = enabled
             return self._apply_route_config(func)
@@ -119,11 +118,11 @@ class AdvancedMixin(BaseSecurityMixin):
 
     def honeypot_detection(
         self, trap_fields: list[str]
-    ) -> Callable[[Callable[..., Any]], DecoratedFunction]:
+    ) -> Callable[[GuardedCallable], GuardedCallable]:
         config = self.config
         trap_names = frozenset(field.lower() for field in trap_fields)
 
-        def decorator(func: Callable[..., Any]) -> DecoratedFunction:
+        def decorator(func: GuardedCallable) -> GuardedCallable:
             async def honeypot_validator(
                 request: GuardRequest,
             ) -> GuardResponse | None:

@@ -3,6 +3,7 @@ import logging
 import pytest
 
 from guard_core.models import VALID_CLOUD_PROVIDERS, SyncSecurityConfig
+from guard_core.sync.decorators import get_route_id
 from guard_core.sync.decorators.access_control import AccessControlMixin
 from guard_core.sync.decorators.access_control import (
     AccessControlMixin as SyncAccessControlMixin,
@@ -86,7 +87,7 @@ def _fifth_sample_func() -> None:
 def test_async_block_clouds_default_uses_all_supported() -> None:
     d = _async_decorator()
     decorated = d.block_clouds()(_sample_func)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert rc.block_cloud_providers == set(VALID_CLOUD_PROVIDERS)
 
@@ -94,7 +95,7 @@ def test_async_block_clouds_default_uses_all_supported() -> None:
 def test_async_block_clouds_with_valid_list() -> None:
     d = _async_decorator()
     decorated = d.block_clouds(["AWS", "GCP"])(_other_sample_func)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert rc.block_cloud_providers == {"AWS", "GCP"}
 
@@ -105,7 +106,7 @@ def test_async_block_clouds_filters_unknown_and_warns(
     d = _async_decorator(fail_on_misconfiguration=False)
     caplog.set_level(logging.WARNING, logger="guard_core.sync.decorators")
     decorated = d.block_clouds(["AWS", "Bogus"])(_third_sample_func)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert rc.block_cloud_providers == {"AWS"}
     assert "ignored unknown cloud providers" in caplog.text
@@ -115,7 +116,7 @@ def test_async_block_clouds_filters_unknown_and_warns(
 def test_sync_block_clouds_default_uses_all_supported() -> None:
     d = _sync_decorator()
     decorated = d.block_clouds()(_fourth_sample_func)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert rc.block_cloud_providers == set(VALID_CLOUD_PROVIDERS)
 
@@ -126,7 +127,7 @@ def test_sync_block_clouds_filters_unknown_and_warns(
     d = _sync_decorator(fail_on_misconfiguration=False)
     caplog.set_level(logging.WARNING, logger="guard_core.sync.decorators")
     decorated = d.block_clouds(["AWS", "Bogus"])(_fifth_sample_func)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert rc.block_cloud_providers == {"AWS"}
     assert "ignored unknown cloud providers" in caplog.text

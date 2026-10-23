@@ -1,12 +1,11 @@
 import logging
 from collections.abc import Callable
-from typing import Any
 
 from guard_core._security_config_field_validators import (
     canonicalize_cloud_provider_selector,
 )
 from guard_core.decorators._route_arguments import invalid_ip_entries
-from guard_core.decorators.base import BaseSecurityMixin, DecoratedFunction
+from guard_core.decorators.base import BaseSecurityMixin, GuardedCallable
 from guard_core.models import VALID_BYPASS_CHECKS, VALID_CLOUD_PROVIDERS
 
 
@@ -15,8 +14,8 @@ class AccessControlMixin(BaseSecurityMixin):
         self,
         whitelist: list[str] | None = None,
         blacklist: list[str] | None = None,
-    ) -> Callable[[Callable[..., Any]], DecoratedFunction]:
-        def decorator(func: Callable[..., Any]) -> DecoratedFunction:
+    ) -> Callable[[GuardedCallable], GuardedCallable]:
+        def decorator(func: GuardedCallable) -> GuardedCallable:
             if whitelist is not None and not whitelist:
                 self._report_misconfiguration(
                     "@require_ip received an empty whitelist: an empty list "
@@ -40,8 +39,8 @@ class AccessControlMixin(BaseSecurityMixin):
 
     def block_countries(
         self, countries: list[str]
-    ) -> Callable[[Callable[..., Any]], DecoratedFunction]:
-        def decorator(func: Callable[..., Any]) -> DecoratedFunction:
+    ) -> Callable[[GuardedCallable], GuardedCallable]:
+        def decorator(func: GuardedCallable) -> GuardedCallable:
             route_config = self._ensure_route_config(func)
             route_config.blocked_countries = [c.upper() for c in countries]
             return self._apply_route_config(func)
@@ -50,8 +49,8 @@ class AccessControlMixin(BaseSecurityMixin):
 
     def allow_countries(
         self, countries: list[str]
-    ) -> Callable[[Callable[..., Any]], DecoratedFunction]:
-        def decorator(func: Callable[..., Any]) -> DecoratedFunction:
+    ) -> Callable[[GuardedCallable], GuardedCallable]:
+        def decorator(func: GuardedCallable) -> GuardedCallable:
             if not countries:
                 self._report_misconfiguration(
                     "@allow_countries received an empty country list: an empty "
@@ -66,8 +65,8 @@ class AccessControlMixin(BaseSecurityMixin):
 
     def block_clouds(
         self, providers: list[str] | None = None
-    ) -> Callable[[Callable[..., Any]], DecoratedFunction]:
-        def decorator(func: Callable[..., Any]) -> DecoratedFunction:
+    ) -> Callable[[GuardedCallable], GuardedCallable]:
+        def decorator(func: GuardedCallable) -> GuardedCallable:
             canonical = (
                 None
                 if providers is None
@@ -100,10 +99,8 @@ class AccessControlMixin(BaseSecurityMixin):
 
         return decorator
 
-    def bypass(
-        self, checks: list[str]
-    ) -> Callable[[Callable[..., Any]], DecoratedFunction]:
-        def decorator(func: Callable[..., Any]) -> DecoratedFunction:
+    def bypass(self, checks: list[str]) -> Callable[[GuardedCallable], GuardedCallable]:
+        def decorator(func: GuardedCallable) -> GuardedCallable:
             route_config = self._ensure_route_config(func)
             valid = {c for c in checks if c in VALID_BYPASS_CHECKS}
             route_config.bypassed_checks.update(valid)

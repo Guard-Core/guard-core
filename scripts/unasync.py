@@ -60,6 +60,7 @@ SKIP_TESTS = {
     "test_custom_callables_follow_the_type.py",
     "test_callables_follow_the_type_typing.py",
     "test_security_config_generic_request.py",
+    "test_decorated_signature_typing.py",
     "test_dynamic_rule_two_processes.py",
     "test_dynamic_rule_revoke_second_worker.py",
     "test_behavior_cap_constants.py",

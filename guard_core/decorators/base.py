@@ -3,6 +3,7 @@ from collections.abc import Callable
 from typing import (
     Any,
     Protocol,
+    TypeVar,
     cast,
     runtime_checkable,
 )
@@ -30,10 +31,12 @@ __all__ = [
     "BaseSecurityDecorator",
     "BaseSecurityMixin",
     "DecoratedFunction",
+    "GuardedCallable",
     "Principal",
     "RouteConfig",
     "RouteConfigRevision",
     "get_route_decorator_config",
+    "get_route_id",
     "_REVISION_EXEMPT_ATTRS",
     "_RevisionTrackedContainer",
     "_TRACKED_DICT_FIELDS",
@@ -52,13 +55,23 @@ class DecoratedFunction(Protocol):
     def __call__(self, *args: Any, **kwargs: Any) -> Any: ...
 
 
+GuardedCallable = TypeVar("GuardedCallable", bound=Callable[..., Any])
+
+
+def get_route_id(func: Callable[..., Any]) -> str:
+    route_id = getattr(func, "_guard_route_id", None)
+    if not isinstance(route_id, str):
+        raise AttributeError(f"{func!r} is not decorated by a guard route decorator")
+    return route_id
+
+
 class BaseSecurityMixin:
     _report_misconfiguration: Callable[[str], None]
 
     def _ensure_route_config(self, func: Callable[..., Any]) -> RouteConfig:
         raise NotImplementedError("This mixin must be used with BaseSecurityDecorator")
 
-    def _apply_route_config(self, func: Callable[..., Any]) -> "DecoratedFunction":
+    def _apply_route_config(self, func: GuardedCallable) -> GuardedCallable:
         raise NotImplementedError("This mixin must be used with BaseSecurityDecorator")
 
 
@@ -129,10 +142,10 @@ class BaseSecurityDecorator:
         cast(Any, func)._guard_route_id = route_id
         return self._route_configs[route_id]
 
-    def _apply_route_config(self, func: Callable[..., Any]) -> DecoratedFunction:
+    def _apply_route_config(self, func: GuardedCallable) -> GuardedCallable:
         route_id = self._get_route_id(func)
         cast(Any, func)._guard_route_id = route_id
-        return cast(DecoratedFunction, func)
+        return func
 
     async def initialize_behavior_tracking(self, redis_handler: Any = None) -> None:
         if redis_handler:

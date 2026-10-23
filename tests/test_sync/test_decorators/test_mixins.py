@@ -1,6 +1,7 @@
 import pytest
 
 from guard_core.models import VALID_CLOUD_PROVIDERS, SyncSecurityConfig
+from guard_core.sync.decorators import get_route_id
 from guard_core.sync.decorators.access_control import AccessControlMixin
 from guard_core.sync.decorators.advanced import AdvancedMixin, _SimpleResponse
 from guard_core.sync.decorators.authentication import AuthenticationMixin
@@ -35,7 +36,7 @@ def _sample_func() -> None:
 def test_require_ip_whitelist() -> None:
     d = _decorator()
     decorated = d.require_ip(whitelist=["10.0.0.1"])(_sample_func)
-    route_id = decorated._guard_route_id
+    route_id = get_route_id(decorated)
     rc = d.get_route_config(route_id)
     assert rc is not None
     assert rc.ip_whitelist == ["10.0.0.1"]
@@ -44,7 +45,7 @@ def test_require_ip_whitelist() -> None:
 def test_require_ip_blacklist() -> None:
     d = _decorator()
     decorated = d.require_ip(blacklist=["10.0.0.2"])(_sample_func)
-    route_id = decorated._guard_route_id
+    route_id = get_route_id(decorated)
     rc = d.get_route_config(route_id)
     assert rc is not None
     assert rc.ip_blacklist == ["10.0.0.2"]
@@ -53,7 +54,7 @@ def test_require_ip_blacklist() -> None:
 def test_block_countries() -> None:
     d = _decorator()
     decorated = d.block_countries(["CN", "RU"])(_sample_func)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert rc.blocked_countries == ["CN", "RU"]
 
@@ -61,7 +62,7 @@ def test_block_countries() -> None:
 def test_allow_countries() -> None:
     d = _decorator()
     decorated = d.allow_countries(["US", "UK"])(_sample_func)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert rc.whitelist_countries == ["US", "UK"]
 
@@ -69,7 +70,7 @@ def test_allow_countries() -> None:
 def test_block_clouds_default() -> None:
     d = _decorator()
     decorated = d.block_clouds()(_sample_func)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert rc.block_cloud_providers == set(VALID_CLOUD_PROVIDERS)
 
@@ -77,7 +78,7 @@ def test_block_clouds_default() -> None:
 def test_block_clouds_specific() -> None:
     d = _decorator()
     decorated = d.block_clouds(providers=["AWS"])(_sample_func)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert rc.block_cloud_providers == {"AWS"}
 
@@ -85,7 +86,7 @@ def test_block_clouds_specific() -> None:
 def test_bypass() -> None:
     d = _decorator()
     decorated = d.bypass(["ip", "rate_limit"])(_sample_func)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert "ip" in rc.bypassed_checks
     assert "rate_limit" in rc.bypassed_checks
@@ -94,7 +95,7 @@ def test_bypass() -> None:
 def test_require_https() -> None:
     d = _decorator()
     decorated = d.require_https()(_sample_func)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert rc.require_https is True
 
@@ -102,7 +103,7 @@ def test_require_https() -> None:
 def test_require_auth_bearer() -> None:
     d = _decorator()
     decorated = d.require_auth(type="bearer")(_sample_func)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert rc.auth_required == "bearer"
     assert rc.auth_verifier is None
@@ -114,7 +115,7 @@ def test_require_auth_bearer_with_verifier() -> None:
 
     d = _decorator()
     decorated = d.require_auth(type="bearer", verifier=verifier)(_sample_func)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert rc.auth_required == "bearer"
     assert rc.auth_verifier is verifier
@@ -123,7 +124,7 @@ def test_require_auth_bearer_with_verifier() -> None:
 def test_require_auth_basic() -> None:
     d = _decorator()
     decorated = d.require_auth(type="basic")(_sample_func)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert rc.auth_required == "basic"
 
@@ -131,7 +132,7 @@ def test_require_auth_basic() -> None:
 def test_api_key_auth() -> None:
     d = _decorator()
     decorated = d.api_key_auth(header_name="X-API-Key")(_sample_func)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert rc.api_key_required is True
     assert rc.required_headers["X-API-Key"] == "required"
@@ -145,7 +146,7 @@ def test_api_key_auth_with_verifier() -> None:
 
     d = _decorator()
     decorated = d.api_key_auth(header_name="X-Key", verifier=verifier)(_sample_func)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert rc.api_key_header == "X-Key"
     assert rc.api_key_verifier is verifier
@@ -154,7 +155,7 @@ def test_api_key_auth_with_verifier() -> None:
 def test_require_authorization_header() -> None:
     d = _decorator()
     decorated = d.require_authorization_header(scheme="bearer")(_sample_func)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert rc.authorization_header_required == "bearer"
     assert rc.auth_required is None
@@ -192,7 +193,7 @@ def test_require_authorization_header_conflicts_with_api_key() -> None:
 def test_require_headers() -> None:
     d = _decorator()
     decorated = d.require_headers({"X-Custom": "required"})(_sample_func)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert rc.required_headers.get("X-Custom") == "required"
 
@@ -200,7 +201,7 @@ def test_require_headers() -> None:
 def test_time_window() -> None:
     d = _decorator()
     decorated = d.time_window("09:00", "17:00", timezone="US/Eastern")(_sample_func)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert rc.time_restrictions is not None
     assert rc.time_restrictions["start"] == "09:00"
@@ -210,7 +211,7 @@ def test_time_window() -> None:
 def test_suspicious_detection() -> None:
     d = _decorator()
     decorated = d.suspicious_detection(enabled=False)(_sample_func)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert rc.enable_suspicious_detection is False
 
@@ -218,7 +219,7 @@ def test_suspicious_detection() -> None:
 def test_honeypot_detection_json_trigger() -> None:
     d = _decorator()
     decorated = d.honeypot_detection(trap_fields=["honeypot"])(_sample_func)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert len(rc.custom_validators) == 1
     validator = rc.custom_validators[0]
@@ -235,7 +236,7 @@ def test_honeypot_detection_json_trigger() -> None:
 def test_honeypot_detection_json_no_trigger() -> None:
     d = _decorator()
     decorated = d.honeypot_detection(trap_fields=["honeypot"])(_sample_func)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     validator = rc.custom_validators[0]
     req = SyncMockGuardRequest(
@@ -250,7 +251,7 @@ def test_honeypot_detection_json_no_trigger() -> None:
 def test_honeypot_detection_form_trigger() -> None:
     d = _decorator()
     decorated = d.honeypot_detection(trap_fields=["honeypot"])(_sample_func)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     validator = rc.custom_validators[0]
     req = SyncMockGuardRequest(
@@ -269,7 +270,7 @@ def test_honeypot_detection_form_trigger() -> None:
 def test_honeypot_detection_get_request() -> None:
     d = _decorator()
     decorated = d.honeypot_detection(trap_fields=["honeypot"])(_sample_func)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     validator = rc.custom_validators[0]
     req = SyncMockGuardRequest(method="GET")
@@ -280,7 +281,7 @@ def test_honeypot_detection_get_request() -> None:
 def test_honeypot_detection_unknown_content_type() -> None:
     d = _decorator()
     decorated = d.honeypot_detection(trap_fields=["honeypot"])(_sample_func)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     validator = rc.custom_validators[0]
     req = SyncMockGuardRequest(
@@ -295,7 +296,7 @@ def test_honeypot_detection_unknown_content_type() -> None:
 def test_honeypot_detection_form_no_trigger() -> None:
     d = _decorator()
     decorated = d.honeypot_detection(trap_fields=["honeypot"])(_sample_func)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     validator = rc.custom_validators[0]
     req = SyncMockGuardRequest(
@@ -313,7 +314,7 @@ def test_honeypot_detection_form_no_trigger() -> None:
 def test_honeypot_detection_invalid_json() -> None:
     d = _decorator()
     decorated = d.honeypot_detection(trap_fields=["honeypot"])(_sample_func)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     validator = rc.custom_validators[0]
     req = SyncMockGuardRequest(
@@ -328,7 +329,7 @@ def test_honeypot_detection_invalid_json() -> None:
 def test_block_user_agents() -> None:
     d = _decorator()
     decorated = d.block_user_agents(["badbot", "scanner"])(_sample_func)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert "badbot" in rc.blocked_user_agents
 
@@ -342,7 +343,7 @@ def test_block_user_agents_rejects_catastrophic_pattern() -> None:
 def test_content_type_filter() -> None:
     d = _decorator()
     decorated = d.content_type_filter(["application/json"])(_sample_func)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert rc.allowed_content_types == ["application/json"]
 
@@ -350,7 +351,7 @@ def test_content_type_filter() -> None:
 def test_max_request_size() -> None:
     d = _decorator()
     decorated = d.max_request_size(1024)(_sample_func)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert rc.max_request_size == 1024
 
@@ -358,7 +359,7 @@ def test_max_request_size() -> None:
 def test_require_referrer() -> None:
     d = _decorator()
     decorated = d.require_referrer(["example.com"])(_sample_func)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert rc.require_referrer == ["example.com"]
 
@@ -369,7 +370,7 @@ def test_custom_validation() -> None:
 
     d = _decorator()
     decorated = d.custom_validation(my_validator)(_sample_func)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert my_validator in rc.custom_validators
 
@@ -377,7 +378,7 @@ def test_custom_validation() -> None:
 def test_rate_limit() -> None:
     d = _decorator()
     decorated = d.rate_limit(100, window=30)(_sample_func)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert rc.rate_limit == 100
     assert rc.rate_limit_window == 30
@@ -386,7 +387,7 @@ def test_rate_limit() -> None:
 def test_geo_rate_limit() -> None:
     d = _decorator()
     decorated = d.geo_rate_limit({"US": (100, 60), "*": (50, 60)})(_sample_func)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert rc.geo_rate_limits is not None
     assert "US" in rc.geo_rate_limits
@@ -395,7 +396,7 @@ def test_geo_rate_limit() -> None:
 def test_usage_monitor() -> None:
     d = _decorator()
     decorated = d.usage_monitor(max_calls=100, window=3600, action="ban")(_sample_func)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert len(rc.behavior_rules) == 1
     assert rc.behavior_rules[0].rule_type == "usage"
@@ -408,7 +409,7 @@ def test_return_monitor() -> None:
     decorated = d.return_monitor(
         pattern="error", max_occurrences=5, window=86400, action="log"
     )(_sample_func)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert len(rc.behavior_rules) == 1
     assert rc.behavior_rules[0].rule_type == "return_pattern"
@@ -419,7 +420,7 @@ def test_return_monitor_status_pattern_does_not_require_body_scan() -> None:
     decorated = d.return_monitor(
         pattern="status:500", max_occurrences=5, window=86400, action="log"
     )(_sample_func)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert rc.behavior_rules[0].pattern == "status:500"
 
@@ -451,7 +452,7 @@ def test_behavior_analysis() -> None:
     ]
     d = _decorator()
     decorated = d.behavior_analysis(rules)(_sample_func)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert len(rc.behavior_rules) == 1
 
@@ -461,7 +462,7 @@ def test_suspicious_frequency() -> None:
     decorated = d.suspicious_frequency(max_frequency=2.0, window=300, action="alert")(
         _sample_func
     )
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert len(rc.behavior_rules) == 1
     assert rc.behavior_rules[0].rule_type == "frequency"

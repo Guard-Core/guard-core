@@ -4,8 +4,10 @@ from guard_core.sync.decorators.authentication import AuthenticationMixin
 from guard_core.sync.decorators.base import (
     BaseSecurityDecorator,
     BaseSecurityMixin,
+    GuardedCallable,
     RouteConfig,
     get_route_decorator_config,
+    get_route_id,
 )
 from guard_core.sync.decorators.behavioral import BehavioralMixin
 from guard_core.sync.decorators.content_filtering import ContentFilteringMixin
@@ -28,6 +30,8 @@ __all__ = [
     "SecurityDecorator",
     "RouteConfig",
     "get_route_decorator_config",
+    "get_route_id",
+    "GuardedCallable",
     "BaseSecurityDecorator",
     "BaseSecurityMixin",
     "AccessControlMixin",

@@ -7,7 +7,7 @@ from guard_core._security_config_field_validators import (
     canonicalize_cloud_provider_selector,
 )
 from guard_core.models import DynamicRules, SyncSecurityConfig
-from guard_core.sync.decorators import SecurityDecorator
+from guard_core.sync.decorators import SecurityDecorator, get_route_id
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
 
 
@@ -69,7 +69,7 @@ def test_block_clouds_decorator_canonicalizes_provider_spelling() -> None:
     def endpoint() -> None:
         return None
 
-    route_config = decorator.get_route_config(endpoint._guard_route_id)
+    route_config = decorator.get_route_config(get_route_id(endpoint))
     assert route_config is not None
     assert route_config.block_cloud_providers == {"Azure", "AWS:!eu-west-1"}
 

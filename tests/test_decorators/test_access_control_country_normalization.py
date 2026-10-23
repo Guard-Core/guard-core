@@ -1,3 +1,4 @@
+from guard_core.decorators import get_route_id
 from guard_core.decorators.access_control import AccessControlMixin
 from guard_core.decorators.advanced import AdvancedMixin
 from guard_core.decorators.authentication import AuthenticationMixin
@@ -35,7 +36,7 @@ def _allow_target() -> None:
 async def test_block_countries_uppercases_lowercase_input() -> None:
     d = _async_decorator()
     decorated = d.block_countries(["us", "ca", "Mx"])(_block_target)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert rc.blocked_countries == ["US", "CA", "MX"]
 
@@ -43,6 +44,6 @@ async def test_block_countries_uppercases_lowercase_input() -> None:
 async def test_allow_countries_uppercases_lowercase_input() -> None:
     d = _async_decorator()
     decorated = d.allow_countries(["br", "ar", "Cl"])(_allow_target)
-    rc = d.get_route_config(decorated._guard_route_id)
+    rc = d.get_route_config(get_route_id(decorated))
     assert rc is not None
     assert rc.whitelist_countries == ["BR", "AR", "CL"]

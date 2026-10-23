@@ -1,11 +1,11 @@
 from collections.abc import Callable
-from typing import Any, Literal
+from typing import Literal
 
 from guard_core.models import (
     SyncSecurityConfig,
     _validate_return_pattern_body_scan,
 )
-from guard_core.sync.decorators.base import BaseSecurityMixin, DecoratedFunction
+from guard_core.sync.decorators.base import BaseSecurityMixin, GuardedCallable
 from guard_core.sync.handlers.behavior_handler import BehaviorRule
 
 
@@ -17,8 +17,8 @@ class BehavioralMixin(BaseSecurityMixin):
         max_calls: int,
         window: int = 3600,
         action: Literal["ban", "log", "throttle", "alert"] = "ban",
-    ) -> Callable[[Callable[..., Any]], DecoratedFunction]:
-        def decorator(func: Callable[..., Any]) -> DecoratedFunction:
+    ) -> Callable[[GuardedCallable], GuardedCallable]:
+        def decorator(func: GuardedCallable) -> GuardedCallable:
             route_config = self._ensure_route_config(func)
 
             rule = BehaviorRule(
@@ -35,10 +35,10 @@ class BehavioralMixin(BaseSecurityMixin):
         max_occurrences: int,
         window: int = 86400,
         action: Literal["ban", "log", "throttle", "alert"] = "ban",
-    ) -> Callable[[Callable[..., Any]], DecoratedFunction]:
+    ) -> Callable[[GuardedCallable], GuardedCallable]:
         _validate_return_pattern_body_scan(pattern, self.config)
 
-        def decorator(func: Callable[..., Any]) -> DecoratedFunction:
+        def decorator(func: GuardedCallable) -> GuardedCallable:
             route_config = self._ensure_route_config(func)
 
             rule = BehaviorRule(
@@ -55,12 +55,12 @@ class BehavioralMixin(BaseSecurityMixin):
 
     def behavior_analysis(
         self, rules: list[BehaviorRule]
-    ) -> Callable[[Callable[..., Any]], DecoratedFunction]:
+    ) -> Callable[[GuardedCallable], GuardedCallable]:
         for rule in rules:
             if rule.rule_type == "return_pattern" and rule.pattern:
                 _validate_return_pattern_body_scan(rule.pattern, self.config)
 
-        def decorator(func: Callable[..., Any]) -> DecoratedFunction:
+        def decorator(func: GuardedCallable) -> GuardedCallable:
             route_config = self._ensure_route_config(func)
             route_config.behavior_rules.extend(rules)
             return self._apply_route_config(func)
@@ -72,8 +72,8 @@ class BehavioralMixin(BaseSecurityMixin):
         max_frequency: float,
         window: int = 300,
         action: Literal["ban", "log", "throttle", "alert"] = "ban",
-    ) -> Callable[[Callable[..., Any]], DecoratedFunction]:
-        def decorator(func: Callable[..., Any]) -> DecoratedFunction:
+    ) -> Callable[[GuardedCallable], GuardedCallable]:
+        def decorator(func: GuardedCallable) -> GuardedCallable:
             if max_frequency * window < 1:
                 self._report_misconfiguration(
                     f"@suspicious_frequency(max_frequency={max_frequency}, "

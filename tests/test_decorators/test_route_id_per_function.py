@@ -2,7 +2,11 @@ import functools
 from collections.abc import Callable
 from typing import Any
 
-from guard_core.decorators import SecurityDecorator, get_route_decorator_config
+from guard_core.decorators import (
+    SecurityDecorator,
+    get_route_decorator_config,
+    get_route_id,
+)
 from guard_core.models import SecurityConfig
 from tests.conftest import MockGuardRequest
 
@@ -24,15 +28,15 @@ async def test_endpoints_built_by_one_factory_keep_their_own_rate_limit(
     loose = _endpoint_from_factory(guard.rate_limit(requests=100, window=60))
 
     assert strict.__qualname__ == loose.__qualname__
-    assert strict._guard_route_id != loose._guard_route_id
+    assert get_route_id(strict) != get_route_id(loose)
 
     request = MockGuardRequest()
-    request._state.guard_route_id = strict._guard_route_id
+    request._state.guard_route_id = get_route_id(strict)
     strict_config = get_route_decorator_config(request, guard)
     assert strict_config is not None
     assert strict_config.rate_limit == 2
 
-    request._state.guard_route_id = loose._guard_route_id
+    request._state.guard_route_id = get_route_id(loose)
     loose_config = get_route_decorator_config(request, guard)
     assert loose_config is not None
     assert loose_config.rate_limit == 100
@@ -45,8 +49,8 @@ async def test_settings_of_one_factory_built_endpoint_do_not_reach_another(
     admin = _endpoint_from_factory(guard.require_ip(whitelist=["10.0.0.1"]))
     health = _endpoint_from_factory(guard.bypass(["all"]))
 
-    admin_config = guard.get_route_config(admin._guard_route_id)
-    health_config = guard.get_route_config(health._guard_route_id)
+    admin_config = guard.get_route_config(get_route_id(admin))
+    health_config = guard.get_route_config(get_route_id(health))
     assert admin_config is not None
     assert health_config is not None
     assert not admin_config.bypassed_checks
@@ -61,10 +65,10 @@ async def test_the_first_endpoint_keeps_the_module_qualname_route_id(
     second = _endpoint_from_factory(guard.rate_limit(requests=100, window=60))
 
     plain_id = f"{first.__module__}.{first.__qualname__}"
-    assert first._guard_route_id == plain_id
-    assert second._guard_route_id != plain_id
+    assert get_route_id(first) == plain_id
+    assert get_route_id(second) != plain_id
     assert guard.get_route_config(plain_id) is guard.get_route_config(
-        first._guard_route_id
+        get_route_id(first)
     )
 
 
@@ -77,8 +81,8 @@ async def test_stacked_decorators_on_one_endpoint_share_one_route_config(
         guard.rate_limit(requests=5, window=60),
     )
 
-    assert list(guard._route_configs) == [endpoint._guard_route_id]
-    config = guard.get_route_config(endpoint._guard_route_id)
+    assert list(guard._route_configs) == [get_route_id(endpoint)]
+    config = guard.get_route_config(get_route_id(endpoint))
     assert config is not None
     assert config.ip_whitelist == ["10.0.0.1"]
     assert config.rate_limit == 5
@@ -97,8 +101,8 @@ async def test_a_functools_wraps_wrapper_joins_the_route_config_it_wraps(
 
     outer = guard.rate_limit(requests=5, window=60)(wrapper)
 
-    assert outer._guard_route_id == inner._guard_route_id
-    config = guard.get_route_config(outer._guard_route_id)
+    assert get_route_id(outer) == get_route_id(inner)
+    config = guard.get_route_config(get_route_id(outer))
     assert config is not None
     assert config.ip_whitelist == ["10.0.0.1"]
     assert config.rate_limit == 5
@@ -119,8 +123,8 @@ async def test_a_stamped_route_id_is_not_reused_across_decorator_instances(
     # own config in guard_b instead of joining second's.
     redecorated = guard_b.require_ip(whitelist=["10.0.0.1"])(first)
 
-    first_config = guard_b.get_route_config(redecorated._guard_route_id)
-    second_config = guard_b.get_route_config(second._guard_route_id)
+    first_config = guard_b.get_route_config(get_route_id(redecorated))
+    second_config = guard_b.get_route_config(get_route_id(second))
     assert first_config is not None
     assert second_config is not None
     assert first_config.ip_whitelist == ["10.0.0.1"]
