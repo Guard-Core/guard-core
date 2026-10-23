@@ -16,6 +16,9 @@ from pydantic import (
 from typing_extensions import Self, TypeVar
 
 from guard_core._redis_enablement import REDIS_CONNECTION_FIELDS, resolve_enable_redis
+from guard_core._security_config_cloud_store_validators import (
+    _validate_cloud_ip_store_value,
+)
 from guard_core._security_config_field_validators import (
     EmergencyExemptPaths,
     GlobalBehaviorRules,
@@ -823,7 +826,11 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
         ),
     )
 
-    cloud_ip_store: CloudIpStoreProtocol | CloudIpStoreFactory | None = Field(
+    cloud_ip_store: (
+        Annotated[CloudIpStoreProtocol, PlainValidator(_validate_cloud_ip_store_value)]
+        | CloudIpStoreFactory
+        | None
+    ) = Field(
         default=None,
         description=(
             "Override the default cloud IP store. Accepts either an instance "
