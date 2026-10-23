@@ -15,16 +15,26 @@ lists.
 from __future__ import annotations
 
 import json
+import sys
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import parse_qsl
 
-from guard_core._utils.body_json_scan import _MONGO_OPERATOR_KEY_RE
+from guard_core._utils.body_json_scan import (
+    _MONGO_OPERATOR_KEY_RE,
+    _json_object_with_every_pair,
+)
 from guard_core._utils.detection_scan import (
+    _JSON_CONTAINER_START,
     _binary_island_min_run_length,
     _json_depth_cap_value,
 )
-from guard_core._utils.embedded_json_scan import _parse_embedded_json
+from guard_core._utils.embedded_json_scan import (
+    _TOO_DEEP_TO_PARSE,
+    _decoded_string_literal,
+    _escaped_string_literals,
+    _parse_embedded_json,
+)
 from guard_core.detection_engine.binary_islands import (
     extract_binary_islands,
     value_is_binary_like,
@@ -36,6 +46,9 @@ from guard_core.handlers._suspatterns_sources import (
 FORM_FIELD_CONTEXT = "request_body:form_field"
 MULTIPART_FIELD_CONTEXT = "request_body:multipart_field"
 REQUEST_BODY_CONTEXT = "request_body"
+# An embedded walk is always redacting (redact_keys=redact_all), so its key
+# contexts carry this label in place of the key text.
+_REDACTED_KEY = "[REDACTED]"
 
 
 @dataclass
@@ -49,13 +62,66 @@ class Entry:
     island: bool = False
 
 
-def _walk_entries(data: Any, context: str) -> list[Entry]:
-    """Mirror of _scan_json_value's traversal, collecting static entries."""
+def _escaped_literal_entries(value: str, suffixed_context: str) -> list[Entry]:
+    """_scan_string_literals: each backslash-bearing string literal, decoded.
+
+    A decoded literal is scanned like any body field: its own embedded-JSON
+    check first, then its text, both under the suffixed context.
+    """
     entries: list[Entry] = []
-    max_depth = _json_depth_cap_value()
+    for literal in _escaped_string_literals(value):
+        decoded = _decoded_string_literal(literal)
+        entries.extend(_embedded_entries(decoded, suffixed_context))
+        entries.append(Entry(decoded, suffixed_context, role="literal"))
+    return entries
+
+
+def _embedded_entries(value: str, context: str) -> list[Entry]:
+    """What _check_embedded_json scans for one string value, before the raw value.
+
+    A value that starts a JSON container and parses (within the parser depth
+    bound) is walked with the embedded suffix on its context. A value nested
+    past that bound is not parsed: only its string literals that contain a
+    backslash are scanned, decoded, under the same suffixed context.
+    """
+    if _JSON_CONTAINER_START(value) is None:
+        return []
+    data = _parse_embedded_json(value)
+    if data is None:
+        return []
+    suffixed = context + _EMBEDDED_JSON_LEAF_CONTEXT_SUFFIX
+    if data is _TOO_DEEP_TO_PARSE:
+        return _escaped_literal_entries(value, suffixed)
+    return _walk_entries(data, suffixed)
+
+
+def _signature_of(kind: str, current: Any, label: Any) -> tuple[Any, ...] | None:
+    """The frame's dedupe signature (_signature_of_frame, no exclusions)."""
+    if kind == "entry":
+        return ("key", str(current))
+    if isinstance(current, dict | list):
+        return None
+    return ("leaf", str(current), label)
+
+
+def _walk_entries(data: Any, context: str) -> list[Entry]:
+    """Mirror of _scan_json_value's traversal, collecting static entries.
+
+    An embedded walk (context ends with the embedded suffix) has no depth cap
+    and skips a key or a leaf it already scanned clean (D-124 item 1); the
+    declared body's walk keeps the depth cap and scans everything.
+    """
+    entries: list[Entry] = []
+    embedded = context.endswith(_EMBEDDED_JSON_LEAF_CONTEXT_SUFFIX)
+    max_depth = sys.maxsize if embedded else _json_depth_cap_value()
+    clean: set[tuple[Any, ...]] | None = set() if embedded else None
     stack: list[tuple[str, Any, Any, int]] = [("value", data, "", 1)]
     while stack:
         kind, current, label, depth = stack.pop()
+        signature = _signature_of(kind, current, label) if clean is not None else None
+        known_clean = clean is not None and signature in clean
+        if known_clean and kind == "value":
+            continue
         if kind == "entry":
             key_str = str(current)
             item = label
@@ -63,61 +129,50 @@ def _walk_entries(data: Any, context: str) -> list[Entry]:
                 entries.append(
                     Entry(key_str, REQUEST_BODY_CONTEXT, forced="nosql", role="key")
                 )
-                continue
-            entries.append(Entry(key_str, f"{context}:{key_str}", role="key"))
+                return entries
+            if not known_clean:
+                key_display = _REDACTED_KEY if embedded else key_str
+                entries.append(Entry(key_str, f"{context}:{key_display}", role="key"))
             stack.append(("value", item, key_str, depth + 1))
-            continue
-        if isinstance(current, dict):
+        elif isinstance(current, dict | list):
             if depth >= max_depth:
                 serialized = json.dumps(
                     current, separators=(",", ":"), ensure_ascii=False
                 )
                 entries.append(Entry(serialized, context, role="capped"))
-                continue
-            for key, item in reversed(list(current.items())):
-                stack.append(("entry", key, item, depth))
-            continue
-        if isinstance(current, list):
-            if depth >= max_depth:
-                serialized = json.dumps(
-                    current, separators=(",", ":"), ensure_ascii=False
-                )
-                entries.append(Entry(serialized, context, role="capped"))
-                continue
-            for item in reversed(current):
-                stack.append(("value", item, label, depth + 1))
-            continue
-        # Scalar leaf: when the walk context is not the plain body context,
-        # the engine's _check_value_enhanced runs the embedded-JSON check on
-        # the leaf string first (a leaf that parses as an object or array
-        # walks again with another ':embedded_json' suffix) and then scans
-        # the raw leaf unless that walk detected.
-        inner = None
-        if isinstance(current, str) and context != REQUEST_BODY_CONTEXT:
-            inner = _parse_embedded_json(current)
-            if isinstance(inner, dict | list):
-                entries.extend(
-                    _walk_entries(inner, context + _EMBEDDED_JSON_LEAF_CONTEXT_SUFFIX)
-                )
-        entries.append(Entry(str(current), context, role="leaf"))
+            elif isinstance(current, dict):
+                for key, item in reversed(list(current.items())):
+                    stack.append(("entry", key, item, depth))
+            else:
+                for item in reversed(current):
+                    stack.append(("value", item, label, depth + 1))
+        else:
+            leaf = str(current)
+            entries.extend(_embedded_entries(leaf, context))
+            entries.append(Entry(leaf, context, role="leaf"))
+        if clean is not None and signature is not None:
+            clean.add(signature)
     return entries
 
 
 def _embedded_or_raw(value: str, context: str) -> list[Entry]:
-    """The scan list of one form/multipart field value.
+    """The scan list of one form/multipart field value: embedded walk, then raw."""
+    return [*_embedded_entries(value, context), Entry(value, context, role="raw")]
 
-    The reference scans the embedded JSON walk first (context plus the
-    ':embedded_json' suffix) and then the raw value; the raw scan only
-    short-circuits when the walk itself detects, so the static worst-case
-    list always contains both.
+
+def _blob_entries(raw_body: str) -> list[Entry]:
+    """An undeclared (or unparsed) body: escaped literals, then the whole text.
+
+    Only the string literals that contain a backslash are scanned on their own,
+    decoded, under the embedded context; a body without one is not walked
+    (D-124 item 2). The raw body is scanned once afterwards.
     """
-    data = _parse_embedded_json(value)
-    if not isinstance(data, dict | list):
-        return [Entry(value, context, role="raw")]
-    return [
-        *_walk_entries(data, context + _EMBEDDED_JSON_LEAF_CONTEXT_SUFFIX),
-        Entry(value, context, role="raw"),
-    ]
+    entries: list[Entry] = []
+    if _JSON_CONTAINER_START(raw_body) is not None:
+        suffixed = REQUEST_BODY_CONTEXT + _EMBEDDED_JSON_LEAF_CONTEXT_SUFFIX
+        entries.extend(_escaped_literal_entries(raw_body, suffixed))
+    entries.append(Entry(raw_body, REQUEST_BODY_CONTEXT, role="blob"))
+    return entries
 
 
 def _per_part_entry_tuples(
@@ -214,16 +269,19 @@ def surface_entries(raw_body: str, content_type: str) -> list[Entry]:
                     )
                     listed.extend(_embedded_or_raw(value, MULTIPART_FIELD_CONTEXT))
             return _flag_islands(raw_body, content_type, listed)
+        return _blob_entries(raw_body)
 
     if "json" in lowered:
         try:
-            parsed = json.loads(raw_body)
+            parsed = json.loads(
+                raw_body, object_pairs_hook=_json_object_with_every_pair
+            )
         except Exception:
             parsed = None
         if isinstance(parsed, dict | list):
             return _walk_entries(parsed, REQUEST_BODY_CONTEXT)
 
-    return [Entry(raw_body, REQUEST_BODY_CONTEXT, role="blob")]
+    return _blob_entries(raw_body)
 
 
 async def body_verdict(

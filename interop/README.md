@@ -227,6 +227,14 @@ GUARD_EXTRACTION_GO_ROOT=../guard-core-go GUARD_EXTRACTION_PHP_ROOT=../guard-cor
     uv run python interop/extraction_differential.py
 ```
 
+### The Python model follows the engine
+
+`py_body_surface.py` models the engine's current body surface: the embedded walk has no depth cap and skips a key or leaf it already scanned clean, its key contexts carry `[REDACTED]`, and an undeclared body is scanned only through its backslash string literals (decoded, each with its own embedded check) and then as one text. `body_surface_differential.py` keeps the model honest: it runs the engine's own `_scan_request_body` with `detect` recording every (value, context) it is asked to scan and compares that record, in order, with `surface_entries` over the 220 corpus pairs, the body inputs of the conformance fixtures and the WP19 shapes (depths 1 to 600 on every surface, escaped payloads nested one to three levels, repeated keys, flat, escaped and backslash-heavy bodies). It exits 0 only when 0 inputs differ.
+
+```bash
+uv run python interop/body_surface_differential.py
+```
+
 ## Body-surface detect vectors and middleware spot checks
 
 `body_detect_vectors.py` extends the suite with vectors that go through each
