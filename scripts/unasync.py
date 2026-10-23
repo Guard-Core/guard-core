@@ -338,6 +338,7 @@ SUBS: list[tuple[str, str]] = [
     (r"from redis\.asyncio import Redis", "from redis import Redis"),
     (r"redis\.asyncio", "redis"),
     (r"import aiohttp", "import requests"),
+    (r'TREE_DOWNLOADER = "aiohttp"', 'TREE_DOWNLOADER = "requests"'),
     (r"aiohttp\.ClientSession\(\)", "requests.Session()"),
     (r"aiohttp\.ClientSession", "requests.Session"),
     (r"aiohttp\.ClientTimeout\(total=(\w+)\)", r"\1"),

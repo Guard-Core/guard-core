@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 from guard_core.core.events.event_types import (
     EVENT_GEO_LOOKUP_FAILED,
 )
+from guard_core.handlers._downloader import require_downloader_installed
 from guard_core.handlers._ipinfo_background import IpInfoBackgroundMixin
 from guard_core.handlers._ipinfo_events import IpInfoEventsMixin
 from guard_core.handlers._ipinfo_redis_copy import IpInfoRedisCopyMixin
@@ -217,6 +218,7 @@ class IPInfoManager(IpInfoBackgroundMixin, IpInfoRedisCopyMixin, IpInfoEventsMix
         retries = self._download_retries
         backoff = 1
 
+        require_downloader_installed("geo", "Downloading the GeoIP database")
         import aiohttp
 
         async with aiohttp.ClientSession() as session:

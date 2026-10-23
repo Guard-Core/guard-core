@@ -140,37 +140,6 @@ def test_a_missing_extra_is_refused_on_assignment_copy_and_batch() -> None:
     assert outcomes == dict.fromkeys(outcomes, True)
 
 
-def test_registered_sync_tree_refuses_cloud_blocking_with_only_aiohttp() -> None:
-    message = _run_without(
-        ("requests",),
-        """
-        from guard_core._config_capabilities import register_adapter
-        from guard_core import SecurityConfig
-        register_adapter("flaskapi-guard", "sync")
-        try:
-            SecurityConfig(block_cloud_providers={"AWS"})
-        except ValueError as error:
-            print(json.dumps(str(error)))
-        """,
-    )
-    assert "'requests'" in message
-    assert "flaskapi-guard[cloud]" in message
-
-
-def test_registered_async_tree_accepts_cloud_blocking_with_only_aiohttp() -> None:
-    config_kept = _run_without(
-        ("requests",),
-        """
-        from guard_core._config_capabilities import register_adapter
-        from guard_core import SecurityConfig
-        register_adapter("fastapi-guard", "async")
-        print(json.dumps(sorted(SecurityConfig(block_cloud_providers={"AWS"})
-                                .block_cloud_providers)))
-        """,
-    )
-    assert config_kept == ["AWS"]
-
-
 def test_the_redis_exceptions_fall_back_to_local_classes_without_redis(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -191,13 +160,80 @@ def test_the_redis_exceptions_fall_back_to_local_classes_without_redis(
     assert _redis_exceptions.RedisConnectionError is real_connection_error
 
 
-def test_the_downloader_follows_the_registered_tree(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from guard_core import _config_capabilities
+_TREE_PROBE = """
+import asyncio
+from guard_core import SecurityConfig
+from guard_core.core.initialization.handler_initializer import HandlerInitializer
+from guard_core.exceptions import DownloaderNotInstalledError
+from guard_core.sync.core.initialization.handler_initializer import (
+    HandlerInitializer as SyncHandlerInitializer,
+)
+from guard_core.sync.handlers.cloud_handler import cloud_handler as sync_cloud
 
-    monkeypatch.setattr(_config_capabilities, "_ADAPTER", None)
-    assert _config_capabilities._downloader_modules() == ("aiohttp", "requests")
-    _config_capabilities.register_adapter("djapi-guard", "sync")
-    assert _config_capabilities._downloader_modules() == ("requests",)
-    assert "djapi-guard[geo]" in _config_capabilities._install_hint("geo")
+
+def refused(build):
+    try:
+        build()
+    except DownloaderNotInstalledError as error:
+        assert isinstance(error, ValueError)
+        return str(error)
+    return None
+
+
+cloud_config = SecurityConfig(block_cloud_providers={"AWS"})
+geo_config = SecurityConfig(ipinfo_token="t", blocked_countries={"US"})
+out = {
+    "sync_cloud": refused(lambda: SyncHandlerInitializer(cloud_config)),
+    "async_cloud": refused(lambda: HandlerInitializer(cloud_config)),
+    "sync_geo": refused(
+        lambda: SyncHandlerInitializer(
+            geo_config, geo_ip_handler=geo_config.geo_ip_handler
+        )
+    ),
+    "async_geo": refused(
+        lambda: HandlerInitializer(geo_config, geo_ip_handler=geo_config.geo_ip_handler)
+    ),
+    "named": refused(
+        lambda: SyncHandlerInitializer(cloud_config, adapter="flaskapi-guard")
+    ),
+    "sync_fetch": refused(lambda: sync_cloud.refresh(["AWS"])),
+}
+print(json.dumps(out))
+"""
+
+
+def test_each_tree_refuses_its_own_missing_downloader_in_one_process() -> None:
+    sync_only_aiohttp = _run_without(("requests", "maxminddb_unused"), _TREE_PROBE)
+    assert "'requests'" in sync_only_aiohttp["sync_cloud"]
+    assert sync_only_aiohttp["async_cloud"] is None
+    assert "'requests'" in sync_only_aiohttp["sync_geo"]
+    assert sync_only_aiohttp["async_geo"] is None
+    assert "flaskapi-guard[cloud]" in sync_only_aiohttp["named"]
+    assert "'requests'" in sync_only_aiohttp["sync_fetch"]
+
+
+def test_the_async_tree_refuses_a_missing_aiohttp_while_the_sync_tree_does_not() -> (
+    None
+):
+    async_only_requests = _run_without(("aiohttp", "maxminddb_unused"), _TREE_PROBE)
+    assert "'aiohttp'" in async_only_requests["async_cloud"]
+    assert async_only_requests["sync_cloud"] is None
+    assert "'aiohttp'" in async_only_requests["async_geo"]
+    assert async_only_requests["sync_geo"] is None
+    assert async_only_requests["sync_fetch"] is None
+
+
+def test_the_adapter_name_comes_from_the_registration_for_the_config_message() -> None:
+    message = _run_without(
+        ("requests", "aiohttp"),
+        """
+        from guard_core._config_capabilities import register_adapter
+        from guard_core import SecurityConfig
+        register_adapter("flaskapi-guard")
+        try:
+            SecurityConfig(block_cloud_providers={"AWS"})
+        except ValueError as error:
+            print(json.dumps(str(error)))
+        """,
+    )
+    assert "flaskapi-guard[cloud]" in message

@@ -10,6 +10,7 @@ from typing import Any
 
 from guard_core._utils.logging_utils import _sanitize_for_log
 from guard_core._utils.sampling import observe_sampled_key
+from guard_core.exceptions import DownloaderNotInstalledError
 from guard_core.handlers._cloud_azure_fetch import (
     _AZURE_DOWNLOAD_ATTEMPT_TIMEOUT_SECONDS,
     _AZURE_DOWNLOAD_MAX_ATTEMPTS,
@@ -47,6 +48,7 @@ from guard_core.handlers._cloud_provider_registry import (
     _parse_cloud_selectors,
 )
 from guard_core.handlers._cloud_range_index import NetworkIndex
+from guard_core.handlers._downloader import require_downloader_installed
 from guard_core.handlers.cloud_ip_stores import InMemoryCloudIpStore
 from guard_core.protocols.agent_protocol import AgentHandlerProtocol
 from guard_core.protocols.cloud_ip_store_protocol import CloudIpStoreProtocol
@@ -92,6 +94,7 @@ logger = logging.getLogger("guard_core.handlers.cloud")
 async def _fetch_provider_ranges(
     provider: str,
 ) -> tuple[set[ipaddress.IPv4Network | ipaddress.IPv6Network], dict[str, str]]:
+    require_downloader_installed("cloud", "Fetching cloud provider ranges")
     fetchers = {
         "AWS": fetch_aws_ip_ranges,
         "GCP": fetch_gcp_ip_ranges,
@@ -259,6 +262,8 @@ class CloudManager:
                     self.ip_ranges[provider] = ranges
                     self.network_regions[provider] = regions
                     self.last_updated[provider] = datetime.now(timezone.utc)
+            except DownloaderNotInstalledError:
+                raise
             except Exception as e:
                 self.logger.error(f"Failed to fetch {provider} IP ranges: {str(e)}")
                 if provider not in self.ip_ranges:
@@ -320,6 +325,8 @@ class CloudManager:
                     self.ip_ranges[provider] = ranges
                     self.network_regions[provider] = regions
                     self.last_updated[provider] = datetime.now(timezone.utc)
+            except DownloaderNotInstalledError:
+                raise
             except Exception as e:
                 self.logger.error(f"Failed to refresh {provider} IP ranges: {str(e)}")
                 if provider not in self.ip_ranges:
@@ -361,6 +368,8 @@ class CloudManager:
                     self.ip_ranges[provider] = ranges
                     self.network_regions[provider] = regions
                     self.last_updated[provider] = datetime.now(timezone.utc)
+            except DownloaderNotInstalledError:
+                raise
             except Exception as e:
                 self.logger.error(f"Failed to refresh {provider} IP ranges: {str(e)}")
                 if provider not in self.ip_ranges:

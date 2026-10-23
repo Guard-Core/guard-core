@@ -42,6 +42,24 @@ class _HandlerInitializerStepsMixin(CloudInitializationMixin):
     _lazy_init_task: "asyncio.Task[None] | None" = None
     logger: logging.Logger
 
+    def _require_tree_downloader(self, adapter: str | None) -> None:
+        from guard_core._config_capabilities import cloud_blocking_enabled
+        from guard_core.handlers._downloader import require_downloader_installed
+
+        if cloud_blocking_enabled(self.config) or self._cloud_providers_to_load():
+            require_downloader_installed(
+                "cloud", "Cloud provider blocking or dynamic rules", adapter
+            )
+        builds_its_own_geo_database = (
+            self.geo_ip_handler is not None
+            and self.geo_ip_handler is self.config.geo_ip_handler
+            and bool(self.config.ipinfo_token)
+        )
+        if builds_its_own_geo_database:
+            require_downloader_installed(
+                "geo", "The built-in GeoIP database download", adapter
+            )
+
     def build_composite_handler(self) -> Any: ...
 
     def build_event_filter(self) -> Any: ...

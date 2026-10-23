@@ -23,6 +23,7 @@ class HandlerInitializer(_HandlerInitializerStepsMixin):
         geo_ip_handler: Any = None,
         rate_limit_handler: Any = None,
         guard_decorator: Any = None,
+        adapter: str | None = None,
     ):
         self.config = config
         self.redis_handler = redis_handler
@@ -43,6 +44,7 @@ class HandlerInitializer(_HandlerInitializerStepsMixin):
         )
         self._lazy_init_task: threading.Thread | None = None
         self.logger = logging.getLogger("guard_core.sync.core.initialization")
+        self._require_tree_downloader(adapter)
 
     def get_initialization_status(self) -> dict[str, Any]:
         from guard_core.sync.handlers.cloud_handler import cloud_handler

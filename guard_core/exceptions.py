@@ -13,6 +13,10 @@ class AgentPackageNotInstalledError(GuardCoreError):
     pass
 
 
+class DownloaderNotInstalledError(GuardCoreError, ValueError):
+    pass
+
+
 class GeoDatabaseLoadError(GuardCoreError):
     """Loading the GeoIP database raised, so a country rule cannot be evaluated.
 

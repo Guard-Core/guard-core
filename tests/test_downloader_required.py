@@ -1,0 +1,76 @@
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+from guard_core._config_capabilities import install_hint
+from guard_core.core.initialization.handler_initializer import HandlerInitializer
+from guard_core.exceptions import DownloaderNotInstalledError
+from guard_core.handlers._downloader import (
+    TREE_DOWNLOADER,
+    require_downloader_installed,
+)
+from guard_core.handlers.cloud_handler import cloud_handler
+from guard_core.handlers.cloud_ip_stores import InMemoryCloudIpStore
+from guard_core.handlers.ipinfo_handler import IPInfoManager
+from guard_core.models import SecurityConfig
+
+_MISSING = patch("guard_core.handlers._downloader._extra_installed", return_value=False)
+
+
+def test_install_hint_names_the_adapter_given_or_registered() -> None:
+    assert install_hint("cloud") == "pip install guard-core[cloud]"
+    assert install_hint("cloud", "x-guard").endswith("(or x-guard[cloud])")
+
+
+def test_a_present_downloader_passes_and_a_missing_one_raises_a_value_error() -> None:
+    require_downloader_installed("cloud", "Fetching")
+    with _MISSING, pytest.raises(DownloaderNotInstalledError) as raised:
+        require_downloader_installed("cloud", "Fetching", "x-guard")
+    assert isinstance(raised.value, ValueError)
+    assert TREE_DOWNLOADER in str(raised.value)
+    assert "x-guard[cloud]" in str(raised.value)
+
+
+def test_the_initializer_refuses_cloud_blocking_without_the_downloader() -> None:
+    config = SecurityConfig(block_cloud_providers={"AWS"})
+    with _MISSING, pytest.raises(DownloaderNotInstalledError):
+        HandlerInitializer(config, adapter="x-guard")
+
+
+def test_the_initializer_refuses_the_builtin_geo_download_without_it() -> None:
+    config = SecurityConfig(ipinfo_token="t", blocked_countries={"US"})
+    with _MISSING, pytest.raises(DownloaderNotInstalledError):
+        HandlerInitializer(config, geo_ip_handler=config.geo_ip_handler)
+
+
+def test_the_initializer_accepts_a_config_that_needs_no_downloader() -> None:
+    config = SecurityConfig()
+    with _MISSING:
+        HandlerInitializer(config)
+        HandlerInitializer(config, geo_ip_handler=MagicMock())
+
+
+async def test_a_fetch_without_the_downloader_raises_on_every_refresh_path() -> None:
+    cloud_handler.set_store(InMemoryCloudIpStore())
+    cloud_handler.redis_handler = None
+    cloud_handler.ip_ranges = {}
+    with _MISSING:
+        with pytest.raises(DownloaderNotInstalledError):
+            await cloud_handler.refresh(["AWS"])
+        with pytest.raises(DownloaderNotInstalledError):
+            await cloud_handler.refresh_async(["AWS"])
+        redis_handler = MagicMock()
+        redis_handler.get_key = AsyncMock(return_value=None)
+        cloud_handler._store = None
+        cloud_handler.redis_handler = redis_handler
+        with pytest.raises(DownloaderNotInstalledError):
+            await cloud_handler.refresh_async(["AWS"])
+    cloud_handler.redis_handler = None
+    cloud_handler.set_store(InMemoryCloudIpStore())
+    assert cloud_handler.ip_ranges == {}
+
+
+async def test_the_geo_download_without_the_downloader_raises(tmp_path) -> None:
+    manager = IPInfoManager(token="t", db_path=tmp_path / "geo.mmdb")
+    with _MISSING, pytest.raises(DownloaderNotInstalledError):
+        await manager._fetch_and_store_database()
