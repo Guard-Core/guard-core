@@ -125,13 +125,19 @@ def _watch_engine_commands(url: str) -> None:
     monitor.served_baseline = existing
 
 
-def unwatch_engine_commands(url: str) -> None:
-    monitor = _MONITORS.pop(url, None)
+def _required(url: str | None) -> str:
+    if url is None:
+        raise AssertionError("the engine has no redis_url to count the commands of")
+    return url
+
+
+def unwatch_engine_commands(engine_url: str | None) -> None:
+    monitor = _MONITORS.pop(_required(engine_url), None)
     if monitor is not None:
         monitor.close()
 
 
-def engine_commands_sent(url: str, command: str | None = None) -> int:
+def engine_commands_sent(engine_url: str | None, command: str | None = None) -> int:
     """Commands the engine's connections ran since the first read: every
     one, or those named `command` (lower case, as in INFO commandstats),
     counting the ones a Lua script ran too.
@@ -142,6 +148,7 @@ def engine_commands_sent(url: str, command: str | None = None) -> int:
     read instead of lowering the count. Some servers' MONITOR leaves out EXEC, so
     a MULTI without its EXEC line stands for it.
     """
+    url = _required(engine_url)
     if url not in _MONITORS:
         _watch_engine_commands(url)
     monitor = _MONITORS[url]
