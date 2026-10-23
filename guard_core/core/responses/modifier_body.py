@@ -69,6 +69,31 @@ async def _call_marked_modifier(
     return result
 
 
+async def _replay_or_keep_first_call(
+    modifier: Modifier,
+    first: ModifierResponseView,
+    first_result: Any,
+    response: GuardResponse,
+    request: GuardRequest,
+    prefetch: ResponseBodyPrefetch | None,
+    config: SecurityConfig,
+    logger: logging.Logger,
+    agent_handler: Any | None,
+) -> GuardResponse:
+    body, refusal = None, first.gate_refusal()
+    if refusal is None:
+        body, refusal = await _prefetched_body(
+            config, response, prefetch or ResponseBodyPrefetch(response)
+        )
+    if refusal is not None:
+        await report_body_refused(logger, config, agent_handler, request, refusal)
+        return response if first_result is first else first_result
+    first.undo()
+    return await _call_on_view(
+        modifier, ModifierResponseView(response, body), response, logger
+    )
+
+
 async def apply_modifier_with_bounded_body(
     modifier: Modifier,
     response: GuardResponse,
@@ -103,17 +128,16 @@ async def apply_modifier_with_bounded_body(
             logger.exception(_MODIFIER_RAISED, exc)
         if not first.__dict__["body_requested"]:
             return response if result is first else result
-        body, refusal = None, first.gate_refusal()
-        if refusal is None:
-            body, refusal = await _prefetched_body(
-                config, response, prefetch or ResponseBodyPrefetch(response)
-            )
-        if refusal is not None:
-            await report_body_refused(logger, config, agent_handler, request, refusal)
-            return response if result is first else result
-        first.undo()
-        return await _call_on_view(
-            modifier, ModifierResponseView(response, body), response, logger
+        return await _replay_or_keep_first_call(
+            modifier,
+            first,
+            result,
+            response,
+            request,
+            prefetch,
+            config,
+            logger,
+            agent_handler,
         )
     finally:
         if prefetch is not None:
