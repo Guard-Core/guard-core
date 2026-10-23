@@ -5,7 +5,7 @@ _BUILD_PIPELINE_WITHOUT_CLOUD_BLOCKING = (
     "import sys\n"
     "from unittest.mock import MagicMock, Mock\n"
     "from guard_core.sync.core.checks import build_default_pipeline\n"
-    "from guard_core.models import SecurityConfig\n"
+    "from guard_core.models import SecurityConfig, SyncSecurityConfig\n"
     "middleware = Mock()\n"
     "middleware.config = SyncSecurityConfig()\n"
     "middleware.logger = Mock()\n"

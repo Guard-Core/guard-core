@@ -473,6 +473,10 @@ TEST_SUBS: list[tuple[str, str]] = [
         r"from tests\.ipban_redis_fake import",
         "from tests.test_sync.ipban_redis_fake import",
     ),
+    (
+        r'"from guard_core\.models import SecurityConfig\\n"',
+        r'"from guard_core.models import SecurityConfig, SyncSecurityConfig\\n"',
+    ),
     (r"(?<!\w)SecurityConfig\(", "SyncSecurityConfig("),
     (r"\bMockGuardRequest\b", "SyncMockGuardRequest"),
     (r"AsyncMock, MagicMock", "MagicMock"),
