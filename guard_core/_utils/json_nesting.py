@@ -1,9 +1,9 @@
 import re
 
 # json.loads accepts 993 nested arrays on 3.10 and 3.11 (951 under a 40 frame call
-# stack), 9997 on 3.12, 9998 on 3.13 and 74373 on 3.14. One fixed limit below the
-# lowest keeps every interpreter on the same path.
-MAX_JSON_PARSE_DEPTH = 512
+# stack), 9997 on 3.12, 9998 on 3.13 and 74373 on 3.14. One fixed limit just below
+# the 3.10 figure gives a request body the 3.10 outcome on every interpreter.
+MAX_JSON_PARSE_DEPTH = 900
 
 _QUOTE_RUN_OR_BRACKET = re.compile(r'(?<!\\)\\*"|[\[\]{}]')
 

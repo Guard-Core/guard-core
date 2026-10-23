@@ -47,10 +47,10 @@ def test_geo_ip_handler_with_a_missing_method_is_refused(member: str) -> None:
     handler = _DuckTypedGeoHandler()
     setattr(handler, member, None)
 
-    with pytest.raises(ValidationError, match="instance of GeoIPHandler"):
+    with pytest.raises(ValidationError, match="Input should be an instance of"):
         SecurityConfig(enable_redis=False, geo_ip_handler=handler)
 
 
 def test_geo_ip_handler_without_the_members_is_refused() -> None:
-    with pytest.raises(ValidationError, match="instance of GeoIPHandler"):
+    with pytest.raises(ValidationError, match="Input should be an instance of"):
         SecurityConfig(enable_redis=False, geo_ip_handler=object())

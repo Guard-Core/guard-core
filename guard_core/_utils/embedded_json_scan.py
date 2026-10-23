@@ -12,11 +12,13 @@ from guard_core._utils.detection_scan import (
     _json_depth_cap_value,
     _scan_budget_spent,
 )
-from guard_core._utils.json_nesting import MAX_JSON_PARSE_DEPTH, _nests_deeper_than
+from guard_core._utils.json_nesting import _nests_deeper_than
 from guard_core._utils.kept_value_paths import _NOTHING_TO_KEEP, _keep_only_values
 from guard_core.handlers._suspatterns_sources import _EMBEDDED_JSON_LEAF_CONTEXT_SUFFIX
 
-_EMBEDDED_JSON_MAX_PARSE_DEPTH = MAX_JSON_PARSE_DEPTH
+# One fixed limit below the lowest json.loads limit (see json_nesting) keeps every
+# interpreter on the same path for a value that already sits inside a parsed body.
+_EMBEDDED_JSON_MAX_PARSE_DEPTH = 512
 
 _QUOTE_RUN = re.compile(r'(?<!\\)\\*"')
 _TOO_DEEP_TO_PARSE = object()
