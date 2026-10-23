@@ -1,4 +1,5 @@
 import time
+from importlib import import_module
 from unittest.mock import patch
 
 from guard_core.detection_engine import _redos_ignorecase_fold as fold
@@ -10,7 +11,12 @@ def _reference_fold_groups() -> tuple[frozenset[int], ...]:
     owner: dict[str, int] = {}
     for code_point in range(MAX_CODE_POINT + 1):
         char = chr(code_point)
-        for variant in (char.lower(), char.upper(), char.casefold()):
+        for variant in (
+            char.lower(),
+            char.upper(),
+            char.casefold(),
+            chr(import_module("_sre").unicode_tolower(code_point)),
+        ):
             fold._register_fold_variant(parent, owner, code_point, char, variant)
     return fold._multi_member_groups(parent)
 
