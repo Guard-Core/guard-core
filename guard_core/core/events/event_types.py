@@ -13,6 +13,7 @@ EVENT_IP_UNBANNED = "ip_unbanned"
 EVENT_CLOUD_BLOCKED = "cloud_blocked"
 EVENT_HTTPS_ENFORCED = "https_enforced"
 EVENT_DECORATOR_VIOLATION = "decorator_violation"
+EVENT_AUTH_VERIFIER_ERROR = "auth_verifier_error"
 EVENT_BEHAVIOR_VIOLATION = "behavioral_violation"
 EVENT_PATTERN_DETECTED = "pattern_detected"
 EVENT_DYNAMIC_RULE_UPDATED = "dynamic_rule_updated"
@@ -59,6 +60,7 @@ EVENT_TYPE_VALUES: frozenset[str] = frozenset(
         EVENT_CLOUD_BLOCKED,
         EVENT_HTTPS_ENFORCED,
         EVENT_DECORATOR_VIOLATION,
+        EVENT_AUTH_VERIFIER_ERROR,
         EVENT_BEHAVIOR_VIOLATION,
         EVENT_PATTERN_DETECTED,
         EVENT_DYNAMIC_RULE_UPDATED,

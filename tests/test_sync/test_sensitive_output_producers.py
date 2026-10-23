@@ -383,6 +383,14 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "logs the typed body-read error on the honeypot path: a fixed message "
         "or the exception class name the engine built, never a request value"
     ),
+    "core/checks/implementations/authentication.py:"
+    "AuthenticationCheck._report_verifier_error": (
+        "sends the fixed reason 'Authentication error', the route's auth type "
+        "and a constant violation type through send_middleware_event, which "
+        "applies the same redaction as every other producer in this module; "
+        "no header, parameter, URL or body value, and never the credential, is "
+        "interpolated"
+    ),
     "core/checks/implementations/suspicious_activity.py:"
     "SuspiciousActivityCheck._handle_body_read_error": (
         "logs 'Request body read stalled|failed for IP: <client identity>' "

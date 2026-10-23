@@ -75,6 +75,7 @@ These are the `event_type` strings used throughout guard-core:
 | `path_excluded` | `RequestValidator.is_path_excluded` | Request path excluded from security checks |
 | `security_bypass` | `BypassHandler` | Route configured to bypass all checks |
 | `dynamic_rule_violation` | `RateLimitCheck` | Endpoint-specific rate limit (from dynamic rules) exceeded |
+| `auth_verifier_error` | `AuthenticationCheck` | The auth verifier raised: the request answers `503`, one event per request (`request_blocked`, or `logged_only` in passive mode), with `reason`, `auth_type` and `violation_type` in the metadata; no strike, no `Authentication failure` log and no `decorator_violation` event |
 | `access_denied` | `BaseSecurityDecorator` | Decorator-level access denial |
 | `authentication_failed` | `BaseSecurityDecorator` | Authentication check failed |
 | `rate_limited` | `RateLimitManager`, `BaseSecurityDecorator` | A request was blocked by a rate limit: exactly one per blocked request, carrying the blocking tier's limit and window (`logged_only` in passive mode, skipped when muted). The decorator sends it for a route limit when a decorator is attached |

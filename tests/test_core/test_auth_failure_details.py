@@ -46,11 +46,6 @@ SCENARIOS = [
         ("Authentication failed", "bearer", "require_auth"),
     ),
     (
-        lambda d: d.require_auth("bearer", verifier=_raising),
-        {"authorization": "Bearer t"},
-        ("Authentication error", "bearer", "require_auth"),
-    ),
-    (
         lambda d: d.require_auth("bearer"),
         {"authorization": "Bearer t"},
         ("No auth verifier configured", "bearer", "require_auth"),

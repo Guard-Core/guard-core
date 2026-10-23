@@ -15,7 +15,10 @@ from guard_core.sync.core.checks.helpers import (
     report_hostile_signal,
     route_config_applies,
 )
-from guard_core.sync.core.events.event_types import EVENT_DECORATOR_VIOLATION
+from guard_core.sync.core.events.event_types import (
+    EVENT_AUTH_VERIFIER_ERROR,
+    EVENT_DECORATOR_VIOLATION,
+)
 from guard_core.sync.decorators.base import RouteConfig
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 from guard_core.sync.utils import log_activity
@@ -77,6 +80,17 @@ class AuthenticationCheck(SecurityCheck):
         verifier_error: bool = False,
         **metadata: Any,
     ) -> GuardResponse | None:
+        auth_type = (
+            auth_type
+            or route_config.auth_required
+            or route_config.authorization_header_required
+            or "api_key"
+        )
+        if verifier_error:
+            return self._report_verifier_error(
+                request, auth_reason, violation_type, auth_type
+            )
+
         log_activity(
             request,
             self.logger,
@@ -91,13 +105,6 @@ class AuthenticationCheck(SecurityCheck):
             sensitive_params=self.config.log_sensitive_params,
             sensitive_body_fields=self.config.log_sensitive_body_fields,
         )
-
-        auth_type = (
-            auth_type
-            or route_config.auth_required
-            or route_config.authorization_header_required
-            or "api_key"
-        )
         emit_authentication_failed_event(
             self.middleware,
             request,
@@ -108,10 +115,6 @@ class AuthenticationCheck(SecurityCheck):
             passive_mode=self.config.passive_mode,
             **metadata,
         )
-
-        if verifier_error:
-            return self._respond_to_verifier_error()
-
         report_hostile_signal(self, request, "auth_failure", auth_reason)
 
         if not self.config.passive_mode:
@@ -123,6 +126,26 @@ class AuthenticationCheck(SecurityCheck):
             return response
 
         return None
+
+    def _report_verifier_error(
+        self,
+        request: SyncGuardRequest,
+        auth_reason: str,
+        violation_type: str,
+        auth_type: str,
+    ) -> GuardResponse | None:
+        self.middleware.event_bus.send_middleware_event(
+            event_type=EVENT_AUTH_VERIFIER_ERROR,
+            request=request,
+            action_taken="logged_only"
+            if self.config.passive_mode
+            else "request_blocked",
+            reason=auth_reason,
+            decorator_type="authentication",
+            violation_type=violation_type,
+            auth_type=auth_type,
+        )
+        return self._respond_to_verifier_error()
 
     def _respond_to_verifier_error(self) -> GuardResponse | None:
         if self.config.passive_mode:
