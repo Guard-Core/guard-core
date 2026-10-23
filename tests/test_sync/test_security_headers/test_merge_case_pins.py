@@ -5,7 +5,10 @@ from unittest.mock import MagicMock
 from guard_core.models import SecurityConfig
 from guard_core.sync.core.events.metrics import MetricsCollector
 from guard_core.sync.core.responses.context import ResponseContext
-from guard_core.sync.core.responses.factory import ErrorResponseFactory
+from guard_core.sync.core.responses.factory import (
+    ErrorResponseFactory,
+    _merge_security_headers,
+)
 from tests.test_sync.conftest import MockGuardResponse, MockGuardResponseFactory
 
 
@@ -94,3 +97,21 @@ def test_case_insensitive_foreign_store_keeps_app_value_and_adds_defaults() -> N
     assert result.headers["X-Custom"] == "guard"
     assert result.headers["X-Content-Type-Options"] == "nosniff"
     assert len(result.headers) == len(set(name.lower() for name in result.headers))
+
+
+def test_unplanned_merge_keeps_a_present_unforced_header() -> None:
+    headers = {"x-a": "app"}
+    _merge_security_headers(headers, {"X-A": "1", "x-a": "2"}, frozenset())
+    assert headers == {"x-a": "app"}
+
+
+def test_unplanned_merge_replaces_a_forced_header_with_the_exact_name() -> None:
+    headers = {"X-A": "app"}
+    _merge_security_headers(headers, {"X-A": "1"}, frozenset({"x-a"}))
+    assert headers == {"X-A": "1"}
+
+
+def test_unplanned_merge_drops_every_other_spelling_of_a_forced_header() -> None:
+    headers = {"x-a": "app", "X-A": "app2"}
+    _merge_security_headers(headers, {"X-A": "1"}, frozenset({"x-a"}))
+    assert headers == {"X-A": "1"}
