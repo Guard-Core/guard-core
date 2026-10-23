@@ -134,16 +134,6 @@ class TargetedCase(NamedTuple):
     known_gap_reason: str = ""
 
 
-_SCAN_VALUE_CAP_KNOWN_GAP_REASON = (
-    "detection_max_scan_values bounds the number of values scanned per "
-    "request (default 512); a payload padded behind more benign values than "
-    "the configured cap is a documented, visible limitation, not a silent "
-    "bypass -- a logger.warning names the client IP the moment the cap is "
-    "hit -- and is the deliberate tradeoff GHSA-3hfx-8m47-5f9h ships in "
-    "place of an unbounded, unlogged scan"
-)
-
-
 _TARGETED_CASES: list[TargetedCase] = [
     TargetedCase(
         "embedded_probe_form_body_field_value",
@@ -538,8 +528,7 @@ _TARGETED_CASES: list[TargetedCase] = [
                 "payload": "1 OR 1=1 UNION SELECT password FROM users--",
             }
         ),
-        False,
-        _SCAN_VALUE_CAP_KNOWN_GAP_REASON,
+        True,
     ),
 ]
 
