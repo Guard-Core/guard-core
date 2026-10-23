@@ -86,3 +86,9 @@ def test_a_parse_within_the_cpu_budget_scores_the_parseable_risk() -> None:
         risk = analyzer._check_ast_parsing_risk("alpha + beta")
 
     assert risk == 0.3
+
+
+def test_a_text_that_does_not_parse_scores_no_parse_risk() -> None:
+    analyzer = SemanticAnalyzer()
+
+    assert analyzer._check_ast_parsing_risk("alpha + + +(") == 0.0

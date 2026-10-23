@@ -518,11 +518,19 @@ def test_analyze_code_injection_risk_ast_parse_exception() -> None:
 def test_check_ast_parsing_outer_exception_returns_zero() -> None:
     analyzer = SemanticAnalyzer()
     with patch(
-        "concurrent.futures.ThreadPoolExecutor",
-        side_effect=RuntimeError("executor init failed"),
+        "guard_core.sync.detection_engine.semantic.thread_time",
+        side_effect=OSError("no thread clock"),
     ):
         result = analyzer._check_ast_parsing_risk("harmless")
     assert result == 0.0
+
+
+def test_check_ast_parsing_risk_has_no_thread_pool_executor() -> None:
+    import inspect
+
+    source = inspect.getsource(SemanticAnalyzer._check_ast_parsing_risk)
+
+    assert "ThreadPoolExecutor" not in source
 
 
 def test_edge_case_unicode_content() -> None:

@@ -293,20 +293,13 @@ class SemanticAnalyzer:
             return 0.0
 
         try:
-            import concurrent.futures
-
-            def _parse_ast() -> tuple[bool, float]:
-                started = thread_time()
-                try:
-                    ast.parse(content, mode="eval")
-                    parsed = True
-                except Exception:
-                    parsed = False
-                return parsed, thread_time() - started
-
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                parsed, cpu_seconds = executor.submit(_parse_ast).result()
-            if cpu_seconds > AST_PARSE_CPU_BUDGET_SECONDS:
+            started = thread_time()
+            try:
+                ast.parse(content, mode="eval")
+                parsed = True
+            except Exception:
+                parsed = False
+            if thread_time() - started > AST_PARSE_CPU_BUDGET_SECONDS:
                 return 0.2
             if parsed:
                 return 0.3
