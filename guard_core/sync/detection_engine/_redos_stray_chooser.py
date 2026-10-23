@@ -187,14 +187,11 @@ def _build_stray_context(
 
 
 def _stray_verification_timeout(ctx: _StrayContext) -> float:
-    if ctx.deadline is None:
-        return _STRAY_VERIFY_TIMEOUT_SECONDS
-    remaining = ctx.deadline - time.monotonic()
-    if remaining <= 0:
+    if ctx.deadline is not None and ctx.deadline - time.thread_time() <= 0:
         raise TimeoutError(
             "Pattern validation probe construction exceeded its deadline"
         )
-    return min(_STRAY_VERIFY_TIMEOUT_SECONDS, remaining)
+    return _STRAY_VERIFY_TIMEOUT_SECONDS
 
 
 def _choose_stray(

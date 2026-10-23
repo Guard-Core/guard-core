@@ -21,7 +21,9 @@ def _wall_clock_jumps_once_the_probes_start_waiting(
     monkeypatch.setattr(
         arbiter,
         "time",
-        SimpleNamespace(monotonic=lambda: real_monotonic() + skew[0]),
+        SimpleNamespace(
+            monotonic=lambda: real_monotonic() + skew[0], thread_time=time.thread_time
+        ),
     )
 
     def remaining_budget_then_wait(deadline: float) -> float:

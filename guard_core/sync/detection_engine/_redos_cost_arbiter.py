@@ -1,17 +1,20 @@
 import json
 import logging
 import math
-import os
 import re
-import signal
 import subprocess
 import sys
-import tempfile
 import time
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 
 from guard_core.sync.detection_engine._redos_cpu_budget import ReachProbeCpuBudget
+from guard_core.sync.detection_engine._redos_limited_child import (
+    CPU_LIMIT_PRELUDE,
+    HEARTBEAT_CPU_SECONDS,
+    killed_by_cpu_limit,
+    run_limited_child,
+)
 from guard_core.sync.detection_engine._redos_probe_batches import (
     _REACH_PROBE_BATCH_SIZE,
     _batched_reach_probe_timings,
@@ -42,10 +45,12 @@ _PATTERN_SAFETY_PROBE_PER_STRING_THRESHOLD_SECONDS = 0.05
 
 _PATTERN_SAFETY_PROBE_CHILD_SCRIPT = (
     "import json, re, sys, time\n"
-    "pattern, test_strings, threshold, flags = json.loads(sys.stdin.read())\n"
+    "pattern, test_strings, threshold, flags, cpu_limit, heartbeat = json.loads(\n"
+    "    sys.stdin.read())\n" + CPU_LIMIT_PRELUDE + "arm()\n"
     "try:\n"
     "    compiled = re.compile(pattern, flags)\n"
     "except Exception as exc:\n"
+    "    disarm()\n"
     "    print(json.dumps({'safe': False, "
     "'reason': f'Pattern validation failed: {exc}'}))\n"
     "    raise SystemExit(0)\n"
@@ -55,8 +60,10 @@ _PATTERN_SAFETY_PROBE_CHILD_SCRIPT = (
     "    elapsed = time.process_time() - start\n"
     "    if elapsed > threshold:\n"
     "        reason = f'Pattern timed out on test string of length {len(test_str)}'\n"
+    "        disarm()\n"
     "        print(json.dumps({'safe': False, 'reason': reason}))\n"
     "        raise SystemExit(0)\n"
+    "disarm()\n"
     "print(json.dumps({'safe': True, 'reason': 'Pattern appears safe'}))\n"
 )
 
@@ -70,24 +77,24 @@ def _run_pattern_safety_probe_subprocess(
             test_strings,
             _PATTERN_SAFETY_PROBE_PER_STRING_THRESHOLD_SECONDS,
             flags,
+            _PATTERN_SAFETY_PROBE_TIMEOUT_SECONDS,
+            HEARTBEAT_CPU_SECONDS,
         ]
     )
     try:
-        completed = subprocess.run(
-            [sys.executable, "-S", "-I", "-c", _PATTERN_SAFETY_PROBE_CHILD_SCRIPT],
-            input=payload,
-            capture_output=True,
-            text=True,
-            timeout=_PATTERN_SAFETY_PROBE_TIMEOUT_SECONDS,
+        completed = run_limited_child(
+            _PATTERN_SAFETY_PROBE_CHILD_SCRIPT,
+            payload,
+            _PATTERN_SAFETY_PROBE_TIMEOUT_SECONDS,
         )
-    except subprocess.TimeoutExpired:
+    except Exception as e:
+        return False, f"Pattern validation probe failed to run: {str(e)}"
+    if completed is None or killed_by_cpu_limit(completed):
         return (
             False,
             "Pattern validation probe exceeded the "
             f"{_PATTERN_SAFETY_PROBE_TIMEOUT_SECONDS}s killable-subprocess timeout",
         )
-    except Exception as e:
-        return False, f"Pattern validation probe failed to run: {str(e)}"
 
     if completed.returncode != 0 or not completed.stdout.strip():
         return (
@@ -132,7 +139,8 @@ _MAX_TIMED_PROBE_SETS = 512
 # budget counts the children's own CPU time (never the wall clock, which a loaded
 # host's run queue inflates), scaled by the measured load factor, floored at the
 # idle-host behavior and ceiled to stay inside the per-test wall budget. The same
-# wall window bounds only the parent's construction of the probes.
+# CPU budget (the parent thread's own CPU time) bounds the parent's construction of
+# the probes, with the ceiling as a wall backstop.
 _REACH_PROBE_DEADLINE_SCALE_CEILING_SECONDS = 240.0
 _REFERENCE_LOAD_PROBE_TIMEOUT_SECONDS = 5.0
 
@@ -149,32 +157,13 @@ _REFERENCE_LOAD_CHILD_SCRIPT = (
     "print(json.dumps({'reference': min(reference_times)}))\n"
 )
 
-# The child limits itself by CPU time, never by the wall clock: an ITIMER_PROF
-# timer (SIGPROF, default action) at its CPU limit kills it, and a loaded host that
-# leaves it waiting in the run queue spends none of that limit. An ITIMER_VIRTUAL
-# timer writes one byte to stderr per heartbeat of its own CPU time, so the parent
-# can tell a child that makes no CPU progress from one that is only scheduled late.
-# The report disarms both timers first (a timer firing after the interpreter dropped
-# its handlers kills the child by its default action) and carries the child's CPU.
 _REACH_PROBE_TIMING_CHILD_SCRIPT = (
-    "import json, os, re, signal, sys, time\n"
-    "for _name in ('SIGPROF', 'SIGVTALRM'):\n"
-    "    if hasattr(signal, _name):\n"
-    "        signal.signal(getattr(signal, _name), signal.SIG_DFL)\n"
+    "import json, re, sys, time\n"
     "pattern, probes, samples, cpu_limit, flags, trigger, heartbeat = json.loads(\n"
-    "    sys.stdin.read())\n"
-    "def beat(signum, frame):\n"
-    "    try:\n"
-    "        os.write(2, b'.')\n"
-    "    except OSError:\n"
-    "        pass\n"
-    "if hasattr(signal, 'setitimer'):\n"
-    "    signal.setitimer(signal.ITIMER_PROF, cpu_limit)\n"
-    "    signal.signal(signal.SIGVTALRM, beat)\n"
-    "    signal.setitimer(signal.ITIMER_VIRTUAL, heartbeat, heartbeat)\n"
-    "try:\n"
+    "    sys.stdin.read())\n" + CPU_LIMIT_PRELUDE + "arm()\n" + "try:\n"
     "    compiled = re.compile(pattern, flags)\n"
     "except Exception as exc:\n"
+    "    disarm()\n"
     "    print(json.dumps({'error': str(exc)}))\n"
     "    raise SystemExit(0)\n"
     f"reference_compiled = re.compile({_REFERENCE_SCAN_PATTERN!r})\n"
@@ -198,9 +187,7 @@ _REACH_PROBE_TIMING_CHILD_SCRIPT = (
     "                break\n"
     "    probe_times.sort()\n"
     "    results.append(probe_times)\n"
-    "if hasattr(signal, 'setitimer'):\n"
-    "    for _timer in (signal.ITIMER_VIRTUAL, signal.ITIMER_PROF):\n"
-    "        signal.setitimer(_timer, 0)\n"
+    "disarm()\n"
     "print(json.dumps({'results': results, 'reference': min(reference_times), "
     "'cpu': time.process_time()}))\n"
 )
@@ -263,45 +250,14 @@ _REACH_PROBE_COMBINED_TIMEOUT_SECONDS = (
     * len(_REACH_PROBE_SIZES)
     * _REACH_PROBE_SAMPLE_COUNT
 )
-# The child reports CPU progress on stderr at this interval of its own CPU time.
-_REACH_PROBE_HEARTBEAT_CPU_SECONDS = 0.25
-# Wall time is only the backstop for a child that reports no CPU progress at all
-# (stopped, or starved of every slice): a late-scheduled child still beats within
-# 0.25 CPU seconds, so this window holds down to a 1% share of one core.
-_REACH_PROBE_STALL_WALL_SECONDS = 30.0
-_REACH_PROBE_STALL_POLL_SECONDS = 0.5
 
 
 def _remaining_budget(deadline: float) -> float:
-    return deadline - time.monotonic()
+    return deadline - time.thread_time()
 
 
 def _clipped_timeout(default_timeout: float, remaining_seconds: float) -> float:
     return min(default_timeout, remaining_seconds)
-
-
-def _communicate_until_stalled(
-    process: "subprocess.Popen[str]",
-    payload: str,
-    progress_marks: Callable[[], int],
-    stall_seconds: float,
-) -> tuple[str, str] | None:
-    last_marks = 0
-    last_progress = time.monotonic()
-    pending: str | None = payload
-    while True:
-        try:
-            return process.communicate(pending, timeout=_REACH_PROBE_STALL_POLL_SECONDS)
-        except subprocess.TimeoutExpired:
-            pending = None
-        marks = progress_marks()
-        now = time.monotonic()
-        if marks != last_marks:
-            last_marks, last_progress = marks, now
-        elif now - last_progress > stall_seconds:
-            process.kill()
-            process.communicate()
-            return None
 
 
 def _run_reach_probe_child(
@@ -319,32 +275,16 @@ def _run_reach_probe_child(
             cpu_limit,
             flags,
             _REACH_PROBE_FULL_SAMPLE_TRIGGER_SECONDS,
-            _REACH_PROBE_HEARTBEAT_CPU_SECONDS,
+            HEARTBEAT_CPU_SECONDS,
         ]
     )
-    stall_seconds = (
-        _REACH_PROBE_STALL_WALL_SECONDS if hasattr(signal, "setitimer") else cpu_limit
-    )
     try:
-        with tempfile.TemporaryFile() as heartbeats:
-            process = subprocess.Popen(
-                [sys.executable, "-S", "-I", "-c", _REACH_PROBE_TIMING_CHILD_SCRIPT],
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=heartbeats,
-                text=True,
-            )
-            output = _communicate_until_stalled(
-                process,
-                payload,
-                lambda: os.fstat(heartbeats.fileno()).st_size,
-                stall_seconds,
-            )
+        result = run_limited_child(_REACH_PROBE_TIMING_CHILD_SCRIPT, payload, cpu_limit)
     except Exception:
         return None
-    if output is None or process.returncode != 0 or not output[0].strip():
+    if result is None or result.returncode != 0 or not result.stdout.strip():
         return None
-    timing = _parse_reach_probe_child_output(output[0])
+    timing = _parse_reach_probe_child_output(result.stdout)
     if timing is not None:
         budget.charge(timing.cpu_seconds)
     return timing
@@ -632,7 +572,8 @@ def _reach_probe_cost_verdict(
     flags: int = _DEFAULT_PATTERN_FLAGS,
 ) -> tuple[bool, str]:
     scaled_seconds = _scaled_probe_deadline_seconds(_measure_host_load_factor())
-    deadline = time.monotonic() + scaled_seconds
+    deadline = time.thread_time() + scaled_seconds
+    wall_backstop = time.monotonic() + _REACH_PROBE_DEADLINE_SCALE_CEILING_SECONDS
     budget = ReachProbeCpuBudget(scaled_seconds)
     cap = max_content_length if max_content_length else _PATTERN_SAFETY_DEFAULT_CAP
     structural_violation = _first_structural_safety_violation(pattern)
@@ -644,7 +585,7 @@ def _reach_probe_cost_verdict(
         builders = _reach_probe_candidate_builders(pattern, flags, deadline)
     except TimeoutError as exc:
         return False, structural_violation or str(exc)
-    if _remaining_budget(deadline) <= 0:
+    if time.monotonic() >= wall_backstop or _remaining_budget(deadline) <= 0:
         return False, "Pattern validation probe construction exceeded its deadline"
     if not builders:
         if structural_violation is not None:

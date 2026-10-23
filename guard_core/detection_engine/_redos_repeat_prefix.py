@@ -48,7 +48,7 @@ _REPEAT_PREFIX_ATOM_OPS = frozenset(
 
 
 def _check_deadline(deadline: float | None) -> None:
-    if deadline is not None and time.monotonic() >= deadline:
+    if deadline is not None and time.thread_time() >= deadline:
         raise TimeoutError(
             "Pattern validation repeat-prefix construction exceeded its deadline"
         )

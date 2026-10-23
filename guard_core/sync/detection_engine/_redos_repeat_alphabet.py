@@ -44,7 +44,7 @@ def _split_alphabet(
 ) -> list[_IntervalSet]:
     result: list[_IntervalSet] = []
     for region in regions:
-        if deadline is not None and time.monotonic() >= deadline:
+        if deadline is not None and time.thread_time() >= deadline:
             raise TimeoutError("Pattern validation alphabet exceeded its deadline")
         for part in (region.intersection(constraint), region.difference(constraint)):
             if not part.is_empty():

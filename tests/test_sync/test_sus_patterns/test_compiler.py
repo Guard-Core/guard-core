@@ -14,6 +14,14 @@ from guard_core.sync.detection_engine._redos_structure import (
 from guard_core.sync.detection_engine.compiler import PatternCompiler
 
 
+def _fake_popen(returncode: int, stdout: str) -> MagicMock:
+    process = MagicMock()
+    process.returncode = returncode
+    process.__enter__.return_value = process
+    process.communicate.return_value = (stdout, "")
+    return MagicMock(return_value=process)
+
+
 @pytest.fixture
 def compiler() -> PatternCompiler:
     return PatternCompiler(default_timeout=5.0, max_cache_size=100)
@@ -115,15 +123,13 @@ def test_validate_pattern_safety_dangerous_patterns(compiler: PatternCompiler) -
 def test_validate_pattern_safety_slow_pattern(compiler: PatternCompiler) -> None:
     slow_pattern = r"^[a-z]+$"
 
-    fake_completed = MagicMock()
-    fake_completed.returncode = 0
-    fake_completed.stdout = (
-        '{"safe": false, "reason": "Pattern timed out on test string of length 5"}'
+    fake_popen = _fake_popen(
+        0, ('{"safe": false, "reason": "Pattern timed out on test string of length 5"}')
     )
 
     with patch(
-        "guard_core.sync.detection_engine._redos_cost_arbiter.subprocess.run",
-        return_value=fake_completed,
+        "guard_core.sync.detection_engine._redos_limited_child.subprocess.Popen",
+        new=fake_popen,
     ):
         is_safe, reason = compiler.validate_pattern_safety(
             slow_pattern, test_strings=["aaaaa"]
@@ -259,7 +265,7 @@ def test_validate_pattern_safety_probe_subprocess_crash() -> None:
         raise OSError("no forkable subprocess slot")
 
     with patch(
-        "guard_core.sync.detection_engine._redos_cost_arbiter.subprocess.run", _raise
+        "guard_core.sync.detection_engine._redos_limited_child.subprocess.Popen", _raise
     ):
         is_safe, reason = compiler.validate_pattern_safety(pattern, test_strings=["x"])
 
@@ -268,15 +274,17 @@ def test_validate_pattern_safety_probe_subprocess_crash() -> None:
 
 
 def test_validate_pattern_safety_probe_subprocess_timeout() -> None:
-    import subprocess
-
     compiler = PatternCompiler()
 
-    def _raise(*args: object, **kwargs: object) -> None:
-        raise subprocess.TimeoutExpired(cmd="probe", timeout=2.0)
-
-    with patch(
-        "guard_core.sync.detection_engine._redos_cost_arbiter.subprocess.run", _raise
+    with (
+        patch(
+            "guard_core.sync.detection_engine._redos_limited_child.subprocess.Popen",
+            MagicMock(),
+        ),
+        patch(
+            "guard_core.sync.detection_engine._redos_limited_child.communicate_until_stalled",
+            return_value=None,
+        ),
     ):
         is_safe, reason = compiler.validate_pattern_safety(
             r"test_pattern", test_strings=["x"]
@@ -289,14 +297,11 @@ def test_validate_pattern_safety_probe_subprocess_timeout() -> None:
 def test_validate_pattern_safety_probe_nonzero_returncode() -> None:
     compiler = PatternCompiler()
 
-    fake_completed = MagicMock()
-    fake_completed.returncode = 1
-    fake_completed.stdout = ""
-    fake_completed.stderr = "child interpreter crashed"
+    fake_popen = _fake_popen(1, "")
 
     with patch(
-        "guard_core.sync.detection_engine._redos_cost_arbiter.subprocess.run",
-        return_value=fake_completed,
+        "guard_core.sync.detection_engine._redos_limited_child.subprocess.Popen",
+        new=fake_popen,
     ):
         is_safe, reason = compiler.validate_pattern_safety(
             r"test_pattern", test_strings=["x"]
@@ -309,13 +314,11 @@ def test_validate_pattern_safety_probe_nonzero_returncode() -> None:
 def test_validate_pattern_safety_probe_malformed_output() -> None:
     compiler = PatternCompiler()
 
-    fake_completed = MagicMock()
-    fake_completed.returncode = 0
-    fake_completed.stdout = "not json"
+    fake_popen = _fake_popen(0, "not json")
 
     with patch(
-        "guard_core.sync.detection_engine._redos_cost_arbiter.subprocess.run",
-        return_value=fake_completed,
+        "guard_core.sync.detection_engine._redos_limited_child.subprocess.Popen",
+        new=fake_popen,
     ):
         is_safe, reason = compiler.validate_pattern_safety(
             r"test_pattern", test_strings=["x"]
@@ -332,7 +335,7 @@ def test_reach_probe_subprocess_crash_rejects_with_killable_subprocess_reason() 
         raise OSError("no forkable subprocess slot")
 
     with patch(
-        "guard_core.sync.detection_engine._redos_cost_arbiter.subprocess.run", _raise
+        "guard_core.sync.detection_engine._redos_limited_child.subprocess.Popen", _raise
     ):
         is_safe, reason = compiler.validate_pattern_safety(r"test_pattern")
 
@@ -343,14 +346,11 @@ def test_reach_probe_subprocess_crash_rejects_with_killable_subprocess_reason() 
 def test_reach_probe_subprocess_nonzero_returncode_rejects() -> None:
     compiler = PatternCompiler()
 
-    fake_completed = MagicMock()
-    fake_completed.returncode = 1
-    fake_completed.stdout = ""
-    fake_completed.stderr = "child interpreter crashed"
+    fake_popen = _fake_popen(1, "")
 
     with patch(
-        "guard_core.sync.detection_engine._redos_cost_arbiter.subprocess.run",
-        return_value=fake_completed,
+        "guard_core.sync.detection_engine._redos_limited_child.subprocess.Popen",
+        new=fake_popen,
     ):
         is_safe, reason = compiler.validate_pattern_safety(r"test_pattern")
 
@@ -361,13 +361,11 @@ def test_reach_probe_subprocess_nonzero_returncode_rejects() -> None:
 def test_reach_probe_subprocess_malformed_output_rejects() -> None:
     compiler = PatternCompiler()
 
-    fake_completed = MagicMock()
-    fake_completed.returncode = 0
-    fake_completed.stdout = "not json"
+    fake_popen = _fake_popen(0, "not json")
 
     with patch(
-        "guard_core.sync.detection_engine._redos_cost_arbiter.subprocess.run",
-        return_value=fake_completed,
+        "guard_core.sync.detection_engine._redos_limited_child.subprocess.Popen",
+        new=fake_popen,
     ):
         is_safe, reason = compiler.validate_pattern_safety(r"test_pattern")
 
