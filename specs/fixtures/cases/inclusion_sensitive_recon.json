@@ -16,7 +16,7 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "(?:php|data|zip|rar|file|glob|expect|input|phpinfo|zlib|phar|ssh2|rar|ogg|expect)://[^\\s]+",
+            "pattern": "(?-i:(?:[Pp][Hh][Pp](?:[Ii\\u0130\\u0131][Nn][Ff][Oo])?|[Dd][Aa][Tt][Aa]|[Zz][Ii\\u0130\\u0131][Pp]|[Rr][Aa][Rr]|[Ff][Ii\\u0130\\u0131][Ll][Ee]|[Gg][Ll][Oo][Bb]|[Ee][Xx][Pp][Ee][Cc][Tt]|[Ii\\u0130\\u0131][Nn][Pp][Uu][Tt]|[Zz][Ll][Ii\\u0130\\u0131][Bb]|[Pp][Hh][Aa][Rr]|[Ss\\u017f][Ss\\u017f][Hh]2|[Oo][Gg][Gg])://[^\\s]+)",
             "match": "php://filter/convert.base64-encode/resource=index",
             "position": 0,
             "category": "file_inclusion",
@@ -48,7 +48,7 @@
           },
           {
             "type": "regex",
-            "pattern": "(?:php|data|zip|rar|file|glob|expect|input|phpinfo|zlib|phar|ssh2|rar|ogg|expect)://[^\\s]+",
+            "pattern": "(?-i:(?:[Pp][Hh][Pp](?:[Ii\\u0130\\u0131][Nn][Ff][Oo])?|[Dd][Aa][Tt][Aa]|[Zz][Ii\\u0130\\u0131][Pp]|[Rr][Aa][Rr]|[Ff][Ii\\u0130\\u0131][Ll][Ee]|[Gg][Ll][Oo][Bb]|[Ee][Xx][Pp][Ee][Cc][Tt]|[Ii\\u0130\\u0131][Nn][Pp][Uu][Tt]|[Zz][Ll][Ii\\u0130\\u0131][Bb]|[Pp][Hh][Aa][Rr]|[Ss\\u017f][Ss\\u017f][Hh]2|[Oo][Gg][Gg])://[^\\s]+)",
             "match": "data://text/plain,<?php",
             "position": 0,
             "category": "file_inclusion",
@@ -72,7 +72,7 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "(?:php|data|zip|rar|file|glob|expect|input|phpinfo|zlib|phar|ssh2|rar|ogg|expect)://[^\\s]+",
+            "pattern": "(?-i:(?:[Pp][Hh][Pp](?:[Ii\\u0130\\u0131][Nn][Ff][Oo])?|[Dd][Aa][Tt][Aa]|[Zz][Ii\\u0130\\u0131][Pp]|[Rr][Aa][Rr]|[Ff][Ii\\u0130\\u0131][Ll][Ee]|[Gg][Ll][Oo][Bb]|[Ee][Xx][Pp][Ee][Cc][Tt]|[Ii\\u0130\\u0131][Nn][Pp][Uu][Tt]|[Zz][Ll][Ii\\u0130\\u0131][Bb]|[Pp][Hh][Aa][Rr]|[Ss\\u017f][Ss\\u017f][Hh]2|[Oo][Gg][Gg])://[^\\s]+)",
             "match": "expect://id",
             "position": 0,
             "category": "file_inclusion",
@@ -96,7 +96,7 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "(?:php|data|zip|rar|file|glob|expect|input|phpinfo|zlib|phar|ssh2|rar|ogg|expect)://[^\\s]+",
+            "pattern": "(?-i:(?:[Pp][Hh][Pp](?:[Ii\\u0130\\u0131][Nn][Ff][Oo])?|[Dd][Aa][Tt][Aa]|[Zz][Ii\\u0130\\u0131][Pp]|[Rr][Aa][Rr]|[Ff][Ii\\u0130\\u0131][Ll][Ee]|[Gg][Ll][Oo][Bb]|[Ee][Xx][Pp][Ee][Cc][Tt]|[Ii\\u0130\\u0131][Nn][Pp][Uu][Tt]|[Zz][Ll][Ii\\u0130\\u0131][Bb]|[Pp][Hh][Aa][Rr]|[Ss\\u017f][Ss\\u017f][Hh]2|[Oo][Gg][Gg])://[^\\s]+)",
             "match": "phar://archive.phar/test.txt",
             "position": 0,
             "category": "file_inclusion",
@@ -120,7 +120,7 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "(?:php|data|zip|rar|file|glob|expect|input|phpinfo|zlib|phar|ssh2|rar|ogg|expect)://[^\\s]+",
+            "pattern": "(?-i:(?:[Pp][Hh][Pp](?:[Ii\\u0130\\u0131][Nn][Ff][Oo])?|[Dd][Aa][Tt][Aa]|[Zz][Ii\\u0130\\u0131][Pp]|[Rr][Aa][Rr]|[Ff][Ii\\u0130\\u0131][Ll][Ee]|[Gg][Ll][Oo][Bb]|[Ee][Xx][Pp][Ee][Cc][Tt]|[Ii\\u0130\\u0131][Nn][Pp][Uu][Tt]|[Zz][Ll][Ii\\u0130\\u0131][Bb]|[Pp][Hh][Aa][Rr]|[Ss\\u017f][Ss\\u017f][Hh]2|[Oo][Gg][Gg])://[^\\s]+)",
             "match": "zip://upload.zip#shell.php",
             "position": 0,
             "category": "file_inclusion",
@@ -280,7 +280,7 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "\\A[/\\\\]?(?:(?![\\w.\\-~%]*\\.(?:b(?:ak|ackup)|old|orig|s(?:ave|w[po])|t(?:mp|emp))(?:[/\\\\]|\\Z))[\\w.\\-~%]+[/\\\\])*[\\w.\\-~%]*\\.(?:b(?:ak|ackup)|old|orig|s(?:ave|w[po])|t(?:mp|emp))(?:[/\\\\][/\\\\\\w.\\-~%]*)?(?:\\?\\S*)?\\s*\\Z",
+            "pattern": "\\A[/\\\\]?(?:(?![\\w.\\-~%]*\\.(?:bak|backup|old|orig|s(?:ave|w[po])|t(?:mp|emp))(?:[/\\\\]|\\Z))[\\w.\\-~%]+[/\\\\])*[\\w.\\-~%]*\\.(?:bak|backup|old|orig|s(?:ave|w[po])|t(?:mp|emp))(?:[/\\\\][/\\\\\\w.\\-~%]*)?(?:\\?\\S*)?\\s*\\Z",
             "match": "/config.php.bak",
             "position": 0,
             "category": "cms_probing",
@@ -320,7 +320,7 @@
           },
           {
             "type": "regex",
-            "pattern": "\\A[/\\\\]?(?:[\\w.\\-~%]+[/\\\\])*[\\w.\\-~%]*\\.(?:tsx?|jsx|py|rb|java|go|rs|p(?:hp(?:[3-8]|s)?|ht(?:ml)?|har|l)|s(?:h|ql))(?:;(?:(?![/\\\\?])\\S)*|\\.+|::\\$(?:DATA|INDEX_ALLOCATION)|%00(?:(?![/\\\\?])\\S)*|\\.(?:jpe?g|png|gif|ico|bmp))?(?:[/\\\\][/\\\\\\w.\\-~%]*)?(?:\\?\\S*)?\\s*\\Z",
+            "pattern": "\\A[/\\\\]?(?:[\\w.\\-~%]+[/\\\\])*[\\w.\\-~%]*\\.(?:ts|tsx|jsx|py|rb|java|go|rs|p(?:hp(?:[3-8]|s)?|ht(?:ml)?|har|l)|s(?:h|ql))(?:;(?:(?![/\\\\?])\\S)*|\\.+|::\\$(?:DATA|INDEX_ALLOCATION)|%00(?:(?![/\\\\?])\\S)*|\\.(?:jpe?g|png|gif|ico|bmp))?(?:[/\\\\][/\\\\\\w.\\-~%]*)?(?:\\?\\S*)?\\s*\\Z",
             "match": "/wp-login.php",
             "position": 0,
             "category": "sensitive_file",
@@ -360,7 +360,7 @@
           },
           {
             "type": "regex",
-            "pattern": "\\A[/\\\\]?(?:[\\w.\\-~%]+[/\\\\])*[\\w.\\-~%]*\\.(?:tsx?|jsx|py|rb|java|go|rs|p(?:hp(?:[3-8]|s)?|ht(?:ml)?|har|l)|s(?:h|ql))(?:;(?:(?![/\\\\?])\\S)*|\\.+|::\\$(?:DATA|INDEX_ALLOCATION)|%00(?:(?![/\\\\?])\\S)*|\\.(?:jpe?g|png|gif|ico|bmp))?(?:[/\\\\][/\\\\\\w.\\-~%]*)?(?:\\?\\S*)?\\s*\\Z",
+            "pattern": "\\A[/\\\\]?(?:[\\w.\\-~%]+[/\\\\])*[\\w.\\-~%]*\\.(?:ts|tsx|jsx|py|rb|java|go|rs|p(?:hp(?:[3-8]|s)?|ht(?:ml)?|har|l)|s(?:h|ql))(?:;(?:(?![/\\\\?])\\S)*|\\.+|::\\$(?:DATA|INDEX_ALLOCATION)|%00(?:(?![/\\\\?])\\S)*|\\.(?:jpe?g|png|gif|ico|bmp))?(?:[/\\\\][/\\\\\\w.\\-~%]*)?(?:\\?\\S*)?\\s*\\Z",
             "match": "/wp-admin/setup-config.php",
             "position": 0,
             "category": "sensitive_file",
@@ -384,7 +384,7 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "\\A[/\\\\]?(?:[\\w.\\-~%]+[/\\\\])*[\\w.\\-~%]*\\.(?:tsx?|jsx|py|rb|java|go|rs|p(?:hp(?:[3-8]|s)?|ht(?:ml)?|har|l)|s(?:h|ql))(?:;(?:(?![/\\\\?])\\S)*|\\.+|::\\$(?:DATA|INDEX_ALLOCATION)|%00(?:(?![/\\\\?])\\S)*|\\.(?:jpe?g|png|gif|ico|bmp))?(?:[/\\\\][/\\\\\\w.\\-~%]*)?(?:\\?\\S*)?\\s*\\Z",
+            "pattern": "\\A[/\\\\]?(?:[\\w.\\-~%]+[/\\\\])*[\\w.\\-~%]*\\.(?:ts|tsx|jsx|py|rb|java|go|rs|p(?:hp(?:[3-8]|s)?|ht(?:ml)?|har|l)|s(?:h|ql))(?:;(?:(?![/\\\\?])\\S)*|\\.+|::\\$(?:DATA|INDEX_ALLOCATION)|%00(?:(?![/\\\\?])\\S)*|\\.(?:jpe?g|png|gif|ico|bmp))?(?:[/\\\\][/\\\\\\w.\\-~%]*)?(?:\\?\\S*)?\\s*\\Z",
             "match": "/phpmyadmin/index.php",
             "position": 0,
             "category": "sensitive_file",
@@ -408,7 +408,7 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "\\A[/\\\\]?(?:[\\w.\\-~%]+[/\\\\])*[\\w.\\-~%]*\\.(?:tsx?|jsx|py|rb|java|go|rs|p(?:hp(?:[3-8]|s)?|ht(?:ml)?|har|l)|s(?:h|ql))(?:;(?:(?![/\\\\?])\\S)*|\\.+|::\\$(?:DATA|INDEX_ALLOCATION)|%00(?:(?![/\\\\?])\\S)*|\\.(?:jpe?g|png|gif|ico|bmp))?(?:[/\\\\][/\\\\\\w.\\-~%]*)?(?:\\?\\S*)?\\s*\\Z",
+            "pattern": "\\A[/\\\\]?(?:[\\w.\\-~%]+[/\\\\])*[\\w.\\-~%]*\\.(?:ts|tsx|jsx|py|rb|java|go|rs|p(?:hp(?:[3-8]|s)?|ht(?:ml)?|har|l)|s(?:h|ql))(?:;(?:(?![/\\\\?])\\S)*|\\.+|::\\$(?:DATA|INDEX_ALLOCATION)|%00(?:(?![/\\\\?])\\S)*|\\.(?:jpe?g|png|gif|ico|bmp))?(?:[/\\\\][/\\\\\\w.\\-~%]*)?(?:\\?\\S*)?\\s*\\Z",
             "match": "/installation/index.php",
             "position": 0,
             "category": "sensitive_file",

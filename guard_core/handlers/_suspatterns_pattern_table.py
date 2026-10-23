@@ -179,7 +179,8 @@ BACKTICK_WHOLE_VALUE_RE = (
 )
 
 _SHELL_KEYWORD_COMMAND_RE = (
-    r"[;|&]\s*(?:ls|cat|rm|id|whoami|uname|wget|curl|nc|netcat|socat|bash|sh|"
+    r"[;|&]\s*(?=[lLcCrRiIwWuUnNsSbBpP])"
+    r"(?:ls|cat|rm|id|whoami|uname|wget|curl|nc|netcat|socat|bash|sh|"
     r"python|perl)\b"
     r"(?!\s+(?:is|are|was|were|be|am|has|have|had|does|do|did|will|would|can|could"
     r"|should|may|might|and|or|the|a|an|to|of|in|on|for|as|at|by|it|its|that|this"
@@ -207,6 +208,19 @@ NOISE_PRONE_PATTERN_SOURCES: frozenset[str] = frozenset(
 
 _EDITOR_BACKUP_TILDE_ROW = (
     _PATH_ONLY_PREFIX_RE + rf"{_PATH_ONLY_CHAR_RE}*\.\w+~(?:\?\S*)?\s*\Z"
+)
+
+# The remote-wrapper scheme row, with every letter written as the class of the
+# characters it folds to under IGNORECASE (the same matches) inside a case-sensitive
+# group. A pattern that starts with a case-insensitive letter gets no first-character
+# scan from the regex engine, so the search tries the whole alternation at every
+# position; this form starts with a plain character class and skips to the candidates.
+_FILE_INCLUSION_SCHEME_RE = (
+    r"(?-i:(?:[Pp][Hh][Pp](?:[Ii\u0130\u0131][Nn][Ff][Oo])?|[Dd][Aa][Tt][Aa]"
+    r"|[Zz][Ii\u0130\u0131][Pp]|[Rr][Aa][Rr]|[Ff][Ii\u0130\u0131][Ll][Ee]"
+    r"|[Gg][Ll][Oo][Bb]|[Ee][Xx][Pp][Ee][Cc][Tt]|[Ii\u0130\u0131][Nn][Pp][Uu][Tt]"
+    r"|[Zz][Ll][Ii\u0130\u0131][Bb]|[Pp][Hh][Aa][Rr]|[Ss\u017f][Ss\u017f][Hh]2"
+    r"|[Oo][Gg][Gg])://[^\s]+)"
 )
 
 _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
@@ -461,8 +475,7 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
         "cmd_injection",
     ),
     (
-        r"(?:php|data|zip|rar|file|glob|expect|input|phpinfo|zlib|phar|ssh2|"
-        r"rar|ogg|expect)://[^\s]+",
+        _FILE_INCLUSION_SCHEME_RE,
         _CTX_FILE_INCLUSION,
         "file_inclusion",
     ),
@@ -722,7 +735,7 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
     ),
     (
         _path_only_pattern(
-            rf"{_PATH_ONLY_CHAR_RE}*\.(?:b(?:ak|ackup)|old|orig|s(?:ave|w[po])|t(?:mp|emp))"
+            rf"{_PATH_ONLY_CHAR_RE}*\.(?:bak|backup|old|orig|s(?:ave|w[po])|t(?:mp|emp))"
         ),
         _CTX_CMS_PROBING,
         "cms_probing",
@@ -778,7 +791,7 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
         "recon",
     ),
     (
-        r"(?:CSCOE|dana-(?:na|cached)|sslvpn|RDWeb|/owa/|/ecp/"
+        r"(?=[cCdDsSrR/gGmMvV])(?:CSCOE|dana-(?:na|cached)|sslvpn|RDWeb|/owa/|/ecp/"
         r"|global-protect|ssl-vpn/|svpn/|sonicui|/remote/login"
         r"|myvpn|vpntunnel|versa/login)",
         _CTX_RECON,

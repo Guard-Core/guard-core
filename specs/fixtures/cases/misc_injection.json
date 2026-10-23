@@ -550,7 +550,7 @@
           },
           {
             "type": "regex",
-            "pattern": "(?:php|data|zip|rar|file|glob|expect|input|phpinfo|zlib|phar|ssh2|rar|ogg|expect)://[^\\s]+",
+            "pattern": "(?-i:(?:[Pp][Hh][Pp](?:[Ii\\u0130\\u0131][Nn][Ff][Oo])?|[Dd][Aa][Tt][Aa]|[Zz][Ii\\u0130\\u0131][Pp]|[Rr][Aa][Rr]|[Ff][Ii\\u0130\\u0131][Ll][Ee]|[Gg][Ll][Oo][Bb]|[Ee][Xx][Pp][Ee][Cc][Tt]|[Ii\\u0130\\u0131][Nn][Pp][Uu][Tt]|[Zz][Ll][Ii\\u0130\\u0131][Bb]|[Pp][Hh][Aa][Rr]|[Ss\\u017f][Ss\\u017f][Hh]2|[Oo][Gg][Gg])://[^\\s]+)",
             "match": "file:///etc/passwd\">]><r>&x;</r>",
             "position": 53,
             "category": "file_inclusion",

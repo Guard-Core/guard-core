@@ -9,7 +9,7 @@ _INTERNAL_IPV4_PREFIX_RE = (
 )
 
 _CMD_EXTENDED_COMMAND_RE = (
-    r"[;|&]\s*(?:sleep\s+\d+"
+    r"[;|&]\s*(?![^sSeEpPcCnNdDiItT])(?:sleep\s+\d+"
     r"|(?-i:env|printenv)\s*(?:[|;&>]|\Z)"
     r"|cmd(?:\.exe)?\s+/[a-z]"
     r"|(?:powershell(?:\.exe)?|pwsh)\s+-\w"
@@ -29,7 +29,8 @@ _CMD_EXFILTRATION_RE = (
 )
 
 _CMD_PATH_SEPARATOR_COMMAND_RE = (
-    r"[;|&]\s*(?:ls|cat|rm|id|whoami|uname|wget|curl|nc|netcat|socat|bash|sh"
+    r"[;|&]\s*(?=[lLcCrRiIwWuUnNsSbBpP])"
+    r"(?:ls|cat|rm|id|whoami|uname|wget|curl|nc|netcat|socat|bash|sh"
     r"|python|perl)(?![\w.=:/\\-])"
     r"(?!\s+(?:is|are|was|were|be|am|has|have|had|does|do|did|will|would|can|could"
     r"|should|may|might|and|or|the|a|an|to|of|in|on|for|as|at|by|it|its|that|this"

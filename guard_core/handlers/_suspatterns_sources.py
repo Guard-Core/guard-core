@@ -218,7 +218,7 @@ _NAMED_PATH_SUFFIX_RE = (
     r"(?:\?\S*)?\s*\Z"
 )
 _SENSITIVE_SOURCE_BARE_EXTENSIONS = (
-    r"\.(?:tsx?|jsx|py|rb|java|go|rs|p(?:hp(?:[3-8]|s)?|ht(?:ml)?|har|l)|s(?:h|ql))"
+    r"\.(?:ts|tsx|jsx|py|rb|java|go|rs|p(?:hp(?:[3-8]|s)?|ht(?:ml)?|har|l)|s(?:h|ql))"
 )
 _SENSITIVE_SOURCE_EXTENSIONS = (
     _SENSITIVE_SOURCE_BARE_EXTENSIONS + _EXTENSION_TRICK_SUFFIX
@@ -227,8 +227,8 @@ _PLAIN_SOURCE_OR_MAP_PATH_END_RE = re.compile(
     rf"(?:{_SENSITIVE_SOURCE_BARE_EXTENSIONS}|\.map)\s*\Z"
 )
 _RECON_EXTENSIONS = (
-    r"\.(?:a(?:spx?|sa|shx|smx|scx|ction)|j(?:s[pa]|html)|shtml|c(?:fm|gi|er)"
-    r"|do|lua|inc|woa|nsf|esp)" + _EXTENSION_TRICK_SUFFIX
+    r"\.(?:asp|aspx|j(?:s[pa]|html)|shtml|c(?:fm|gi|er)|do|lua|inc|woa|nsf|esp"
+    r"|a(?:sa|shx|smx|scx|ction))" + _EXTENSION_TRICK_SUFFIX
 )
 
 _SENSITIVE_SOURCE_EXTENSION_PATH_RE = _path_only_extension_pattern(
@@ -259,7 +259,8 @@ def _nested_path_pattern(required: str) -> str:
 
 
 _ATTACK_REPORT_LEXICON_RE = (
-    r"\b(?:scan(?:ner|ning|ned|s)?|attack(?:er|ers|ed|s)?|attempt(?:ed|s)?"
+    r"\b(?=[sSaAeEpPmMiIbBhHcCtTvVrRwWfFdD])"
+    r"(?:scan(?:ner|ning|ned|s)?|attack(?:er|ers|ed|s)?|attempt(?:ed|s)?"
     r"|exploit(?:ation|ed|s|ing|kit)?|prob(?:e|ed|es|ing)|malicious|intrusion(?:s)?"
     r"|botnet(?:s)?|honeypot(?:s)?|brute[- ]force|credential[- ]stuffing"
     r"|threat feed|vulnerabilit(?:y|ies)|hostile|recon(?:naissance)?"
@@ -271,7 +272,7 @@ _ATTACK_REPORT_LEXICON_RE = (
 def _embedded_prose_pattern(required: str, trailing_max: int = 3) -> str:
     trailing = rf"(?:{_PATH_ONLY_SEP_RE}{_PATH_ONLY_CHAR_RE}{{1,64}})?" * trailing_max
     return (
-        rf"\A(?=(?:(?!\n).)*{_ATTACK_REPORT_LEXICON_RE})"
+        rf"\A(?=[^\n]*{_ATTACK_REPORT_LEXICON_RE})"
         rf"{_SINGLE_LINE_PREFIX_RE}{_PATH_ONLY_SEP_RE}"
         rf"(?:{required}){trailing}\b"
     )
@@ -408,7 +409,7 @@ _CMD_INJECTION_NEWLINE_SHELL_DASH_C_RE = (
     r"(?:bash|sh|ksh|csh|tsch|zsh|ash)\s+-c\b"
 )
 _CMD_INJECTION_SHELL_DASH_FLAG_RE = (
-    r"(?:\A|[;|&])\s*/?(?:[\w.-]+/)*(?:env\s+/?(?:[\w.-]+/)*)?"
+    r"(?:\A|[;|&])\s*(?=[/\w.\-])/?(?:[\w.-]+/)*(?:env\s+/?(?:[\w.-]+/)*)?"
     r"(?:bash|sh|ksh|csh|tsch|zsh|ash)\s+-[a-zA-Z]+"
     r"(?:\s+(?:'[^']*'|\"[^\"]*\"|[^\s;|&]+))?"
     r"(?=\s*(?:[;|&]|\Z))"

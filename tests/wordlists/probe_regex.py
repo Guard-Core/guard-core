@@ -40,10 +40,22 @@ def factored_alternation(names: list[str]) -> str:
     return "(?:" + _render(_trie(sorted({name.lower() for name in names}))) + ")"
 
 
+def gated_alternation(names: list[str]) -> str:
+    # A lookahead on the first character of any name: a position that cannot start a
+    # name skips the whole trie, which keeps a long run of other segments cheap.
+    first = sorted({name.lower()[0] for name in names})
+    return (
+        "(?=["
+        + "".join(re.escape(char) for char in first)
+        + "])"
+        + factored_alternation(names)
+    )
+
+
 def any_depth_regex(names: list[str]) -> str:
     return (
         rf"\A{PATH_SEP}?(?:{PATH_CHAR}+{PATH_SEP})*"
-        rf"{factored_alternation(names)}{PATH_SUFFIX}"
+        rf"{gated_alternation(names)}{PATH_SUFFIX}"
     )
 
 
@@ -51,7 +63,7 @@ def upload_only_regex(names: list[str]) -> str:
     return (
         rf"\A{PATH_SEP}(?:(?!{UPLOAD_DIRECTORIES}{PATH_SEP}){PATH_CHAR}+{PATH_SEP})*"
         rf"{UPLOAD_DIRECTORIES}{PATH_SEP}(?:{PATH_CHAR}+{PATH_SEP})*"
-        rf"{factored_alternation(names)}{PATH_SUFFIX}"
+        rf"{gated_alternation(names)}{PATH_SUFFIX}"
     )
 
 
