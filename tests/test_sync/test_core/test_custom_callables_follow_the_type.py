@@ -6,7 +6,9 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+from pydantic import ValidationError
 
+from guard_core._security_config_batch import prepare_config_batch
 from guard_core.exceptions import CallableShapeError
 from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
@@ -320,3 +322,30 @@ def test_an_awaitable_that_is_not_a_coroutine_fails_on_the_first_result() -> Non
     check = CustomRequestCheck(_middleware(lambda request: Pending()))
     with pytest.raises(CallableShapeError, match="custom_request_check"):
         check.check(SyncMockGuardRequest())
+
+
+@pytest.mark.parametrize(
+    "field", ["custom_request_check", "custom_response_modifier", "auth_verifier"]
+)
+def test_a_non_callable_is_refused_on_every_path_to_the_config(field: str) -> None:
+    config = SyncSecurityConfig(enable_redis=False)
+    with pytest.raises(ValidationError, match="callable"):
+        SyncSecurityConfig(enable_redis=False, **{field: 123})
+    with pytest.raises(ValueError, match=f"{field} must be callable"):
+        setattr(config, field, 123)
+    with pytest.raises(ValueError, match=f"{field} must be callable"):
+        config.model_copy(update={field: 123})
+    with pytest.raises(ValueError, match=f"{field} must be callable"):
+        prepare_config_batch(config, {field: 123}, {field})
+    assert getattr(config, field) is None
+
+
+@pytest.mark.parametrize(
+    "field", ["custom_request_check", "custom_response_modifier", "auth_verifier"]
+)
+def test_none_and_a_callable_are_accepted_on_assignment(field: str) -> None:
+    config = SyncSecurityConfig(enable_redis=False)
+    setattr(config, field, _sync_check)
+    assert getattr(config, field) is _sync_check
+    setattr(config, field, None)
+    assert getattr(config, field) is None

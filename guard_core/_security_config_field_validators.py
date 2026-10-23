@@ -14,6 +14,7 @@ from guard_core._config_field_revalidators import (
     _validate_bool_field_value,
     _validate_endpoint_rate_limits_value,
     _validate_int_field_value,
+    _validate_optional_callable_field_value,
     _validate_positive_int_field_value,
     _validate_str_list_field_value,
 )
@@ -452,6 +453,15 @@ _GLOBAL_BEHAVIOR_RULES_ADAPTER: TypeAdapter[tuple[BehaviorRuleConfig, ...]] = (
 
 
 _FIELD_REVALIDATORS: dict[str, Callable[[Any], Any]] = {
+    "custom_request_check": partial(
+        _validate_optional_callable_field_value, field_name="custom_request_check"
+    ),
+    "custom_response_modifier": partial(
+        _validate_optional_callable_field_value, field_name="custom_response_modifier"
+    ),
+    "auth_verifier": partial(
+        _validate_optional_callable_field_value, field_name="auth_verifier"
+    ),
     "whitelist": _validate_whitelist_value,
     "blacklist": _validate_blacklist_value,
     "exempt_ips": partial(

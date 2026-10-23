@@ -5,7 +5,9 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from pydantic import ValidationError
 
+from guard_core._security_config_batch import prepare_config_batch
 from guard_core.core.callable_slot import CallableSlot
 from guard_core.core.checks.implementations.custom_request import CustomRequestCheck
 from guard_core.core.responses.context import ResponseContext
@@ -274,3 +276,30 @@ async def test_an_async_function_is_the_invoked_callable_itself() -> None:
     slot: CallableSlot[Any, Any] = CallableSlot("custom_request_check", _async_check)
     assert slot.invoke is _async_check
     assert slot.source is _async_check
+
+
+@pytest.mark.parametrize(
+    "field", ["custom_request_check", "custom_response_modifier", "auth_verifier"]
+)
+def test_a_non_callable_is_refused_on_every_path_to_the_config(field: str) -> None:
+    config = SecurityConfig(enable_redis=False)
+    with pytest.raises(ValidationError, match="callable"):
+        SecurityConfig(enable_redis=False, **{field: 123})
+    with pytest.raises(ValueError, match=f"{field} must be callable"):
+        setattr(config, field, 123)
+    with pytest.raises(ValueError, match=f"{field} must be callable"):
+        config.model_copy(update={field: 123})
+    with pytest.raises(ValueError, match=f"{field} must be callable"):
+        prepare_config_batch(config, {field: 123}, {field})
+    assert getattr(config, field) is None
+
+
+@pytest.mark.parametrize(
+    "field", ["custom_request_check", "custom_response_modifier", "auth_verifier"]
+)
+def test_none_and_a_callable_are_accepted_on_assignment(field: str) -> None:
+    config = SecurityConfig(enable_redis=False)
+    setattr(config, field, _async_check)
+    assert getattr(config, field) is _async_check
+    setattr(config, field, None)
+    assert getattr(config, field) is None

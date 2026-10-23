@@ -7,6 +7,14 @@ def _validate_bool_field_value(v: Any, *, field_name: str) -> bool:
     return v
 
 
+def _validate_optional_callable_field_value(v: Any, *, field_name: str) -> Any:
+    if v is not None and not callable(v):
+        raise ValueError(
+            f"{field_name} must be callable or None, got {type(v).__name__}"
+        )
+    return v
+
+
 def _validate_int_field_value(v: Any, *, field_name: str) -> int:
     if isinstance(v, bool) or not isinstance(v, int):
         raise ValueError(f"{field_name} must be an int, got {type(v).__name__}")
