@@ -26,12 +26,6 @@ _DELETED_CONTROL_CHARS = frozenset(
 )
 
 
-def _carries_a_nul_marker(content: str) -> bool:
-    return not _DELETED_CONTROL_CHARS.isdisjoint(content) or any(
-        marker in content for marker in _NUL_TEXT_MARKERS
-    )
-
-
 def _legacy_decode_path_traversal_view(normalized_content: str) -> str:
     decoded = normalized_content
     for _ in range(_LEGACY_PATH_TRAVERSAL_DECODE_MAX_ITERATIONS):
@@ -68,7 +62,10 @@ class _SusPatternsViewsMixin(_SusPatternsRegexMixin):
             enabled_categories,
             state=state,
             raw_view_only=True,
-            nul_tail_rows=_carries_a_nul_marker(raw_view_content),
+            nul_tail_rows=(
+                not _DELETED_CONTROL_CHARS.isdisjoint(raw_view_content)
+                or any(map(raw_view_content.__contains__, _NUL_TEXT_MARKERS))
+            ),
         )
 
     def _check_decoded_view_path_traversal(
