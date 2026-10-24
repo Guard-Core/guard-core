@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.detection_engine.semantic import SemanticAnalyzer
 from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
 from guard_core.sync.utils import detect_penetration_attempt
@@ -17,7 +17,7 @@ _REAL_PARSE = ast.parse
 
 @pytest.fixture(autouse=True)
 def _configured_detection_singleton() -> None:
-    sus_patterns_handler.configure(SecurityConfig())
+    sus_patterns_handler.configure(SyncSecurityConfig())
 
 
 def _benign_binary_upload() -> SyncMockGuardRequest:
@@ -41,12 +41,12 @@ def _parse_that_waits_without_working(
 
 def test_benign_binary_upload_verdict_does_not_depend_on_scheduling_latency() -> None:
     alone = detect_penetration_attempt(
-        _benign_binary_upload(), SecurityConfig(enable_redis=False)
+        _benign_binary_upload(), SyncSecurityConfig(enable_redis=False)
     )
 
     with patch("ast.parse", _parse_that_waits_without_working):
         on_a_loaded_host = detect_penetration_attempt(
-            _benign_binary_upload(), SecurityConfig(enable_redis=False)
+            _benign_binary_upload(), SyncSecurityConfig(enable_redis=False)
         )
 
     assert alone.is_threat is False
