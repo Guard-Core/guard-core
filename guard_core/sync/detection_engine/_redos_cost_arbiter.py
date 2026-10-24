@@ -340,9 +340,25 @@ def _median(samples: list[float]) -> float:
     return samples[len(samples) // 2]
 
 
+def _measured_at_cap_verdict(
+    samples_by_size: list[list[float]], load_factor: float
+) -> tuple[bool, float, float, float, float]:
+    median_cap = _median(samples_by_size[-1]) / load_factor
+    min_half = samples_by_size[-2][0] / load_factor
+    min_cap = samples_by_size[-1][0] / load_factor
+    ratio = (
+        max(min_cap / min_half, 1.0)
+        if min_half > _REACH_PROBE_NOISE_FLOOR_SECONDS
+        else 1.0
+    )
+    return min_cap > _REACH_PROBE_BUDGET_SECONDS, min_cap, ratio, min_cap, median_cap
+
+
 def _reach_probe_verdict_from_samples(
     samples_by_size: list[list[float]], cap: int, load_factor: float = 1.0
 ) -> tuple[bool, float, float, float, float]:
+    if cap < _REACH_PROBE_SIZES[3]:
+        return _measured_at_cap_verdict(samples_by_size, load_factor)
     median_32 = _median(samples_by_size[-1]) / load_factor
     min_16 = samples_by_size[-2][0] / load_factor
     min_32 = samples_by_size[-1][0] / load_factor
@@ -366,10 +382,12 @@ def _reach_probe_cost_reason(
 ) -> str:
     if structural_violation is not None:
         return structural_violation
+    measured_size = min(cap, _REACH_PROBE_SIZES[3])
+    cost_kind = "measured" if cap < _REACH_PROBE_SIZES[3] else "extrapolated"
     return (
-        f"Pattern extrapolated CPU cost at cap ({cap} chars) is {extrapolated:.3f}s, "
+        f"Pattern {cost_kind} CPU cost at cap ({cap} chars) is {extrapolated:.3f}s, "
         f"exceeding the {_REACH_PROBE_BUDGET_SECONDS}s safety budget "
-        f"(growth ratio {ratio:.2f}x per doubling, CPU time at 32000 chars: "
+        f"(growth ratio {ratio:.2f}x per doubling, CPU time at {measured_size} chars: "
         f"min {min_32:.4f}s, median {median_32:.4f}s over "
         f"{_REACH_PROBE_SAMPLE_COUNT} runs, normalized by host load factor "
         f"{load_factor:.2f})"
@@ -412,8 +430,10 @@ def _reach_probe_timing_strategy(
 
 
 def _reach_probe_sizes_for_strategy(
-    structural_violation: str | None, bounded_repeat_risk: bool = False
+    structural_violation: str | None, bounded_repeat_risk: bool, cap: int
 ) -> tuple[int, ...]:
+    if cap < _REACH_PROBE_SIZES[3]:
+        return (max(cap // 2, 1), max(cap, 1))
     if structural_violation is not None or bounded_repeat_risk:
         return _REACH_PROBE_SIZES
     return _REACH_VERDICT_PROBE_SIZES
@@ -469,6 +489,7 @@ def _direct_reach_probe_timings(
 def _timed_probe_results(
     pattern: str,
     builders: list[Callable[[int], str]],
+    cap: int,
     budget: ReachProbeCpuBudget,
     flags: int,
     structural_violation: str | None,
@@ -478,7 +499,7 @@ def _timed_probe_results(
         structural_violation, bounded_repeat_risk
     )
     probe_sizes = _reach_probe_sizes_for_strategy(
-        structural_violation, bounded_repeat_risk
+        structural_violation, bounded_repeat_risk, cap
     )
     probe_sets = _stride_sampled_probe_sets(
         list(_unique_probe_sets(builders, probe_sizes)), _MAX_TIMED_PROBE_SETS
@@ -530,7 +551,13 @@ def _first_over_budget_reason(
         structural_violation, bounded_repeat_risk
     )
     timed_probe_results = _timed_probe_results(
-        pattern, builders, budget, flags, structural_violation, bounded_repeat_risk
+        pattern,
+        builders,
+        cap,
+        budget,
+        flags,
+        structural_violation,
+        bounded_repeat_risk,
     )
     for probes, sample_rows, load_factor in timed_probe_results:
         timing = (
