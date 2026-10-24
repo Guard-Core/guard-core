@@ -1,5 +1,6 @@
 import uuid
 from concurrent.futures import ThreadPoolExecutor
+from unittest.mock import patch
 
 from redis.exceptions import NoScriptError
 
@@ -60,8 +61,6 @@ def test_a_missing_script_still_raises_without_a_reload_source() -> None:
 
 
 def test_a_failed_read_disconnects_the_connection_and_raises() -> None:
-    from unittest.mock import patch
-
     from redis.connection import Connection
 
     client = _build_redis_client(REDIS_URL, 10, 1.0)
@@ -77,5 +76,18 @@ def test_a_failed_read_disconnects_the_connection_and_raises() -> None:
             else:
                 raise AssertionError("the interrupted read did not raise")
         assert lean_command(client, "GET", "lean:failed-read") is None
+    finally:
+        client.close()
+
+
+def test_a_connection_the_pool_hands_out_without_unread_replies_is_used() -> None:
+    client = _build_redis_client(REDIS_URL, 10, 1.0)
+    try:
+        pool = client.connection_pool
+        spare = pool.get_connection()
+        with patch.object(
+            pool, "take_connection_with_nothing_unread", return_value=spare
+        ):
+            assert lean_command(client, "PING") == "PONG"
     finally:
         client.close()
