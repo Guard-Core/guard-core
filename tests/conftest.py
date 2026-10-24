@@ -979,7 +979,20 @@ def pytest_fixture_setup(
     )
 
 
+def _is_sync_tree_arg(arg: str, invocation_dir: Path) -> bool:
+    path = (invocation_dir / arg.partition("::")[0]).resolve()
+    return path.is_relative_to(_SYNC_CONFTEST.parent)
+
+
+def _order_sync_tree_args_last(config: pytest.Config) -> None:
+    invocation_dir = config.invocation_params.dir
+    sync_args = [a for a in config.args if _is_sync_tree_arg(a, invocation_dir)]
+    async_args = [a for a in config.args if a not in sync_args]
+    config.args[:] = async_args + sync_args
+
+
 def pytest_configure(config: pytest.Config) -> None:
+    _order_sync_tree_args_last(config)
     if getattr(sys, _GUARD_AGENT_FINDER_ATTR, None) is not None:
         return
     finder = _GuardAgentImportFinder()
