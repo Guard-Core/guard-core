@@ -3,7 +3,6 @@ from ipaddress import ip_address
 from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple
 
 from guard_core._redis_enablement import redis_is_configured
-from guard_core._utils.access_control import load_geo_database_for_route_rules
 from guard_core._utils.agent_events import agent_receives_events
 from guard_core._utils.ip_extraction import (
     MALFORMED_FORWARDED_FOR_PREFIX,
@@ -106,6 +105,9 @@ class RateLimitCheck(SecurityCheck):
 
     def __init__(self, middleware: "GuardMiddlewareProtocol") -> None:
         super().__init__(middleware)
+        from guard_core.handlers.ipban_handler import ip_ban_manager
+
+        self.ip_ban_manager = ip_ban_manager
         self._endpoint_key_map: EndpointLimitKeyMap | None = None
 
     @property
@@ -427,9 +429,10 @@ class RateLimitCheck(SecurityCheck):
         )
 
     def _skips_rate_limiting(self, request: GuardRequest, route_config: Any) -> bool:
+        state = request.state
         if (
-            getattr(request.state, "is_whitelisted", False)
-            or getattr(request.state, "is_exempt", False) is True
+            getattr(state, "is_whitelisted", False)
+            or getattr(state, "is_exempt", False) is True
         ):
             return True
         if _is_cors_preflight(request):
@@ -442,15 +445,15 @@ class RateLimitCheck(SecurityCheck):
         )
 
     async def check(self, request: GuardRequest) -> GuardResponse | None:
-        client_ip = getattr(request.state, "client_ip", None)
-        route_config = getattr(request.state, "route_config", None)
-        active = bool(client_ip) and not self._skips_rate_limiting(
-            request, route_config
+        state = request.state
+        client_ip = getattr(state, "client_ip", None)
+        route_config = getattr(state, "route_config", None)
+        plans = (
+            self._tier_plans(request, client_ip, route_config)
+            if client_ip and not self._skips_rate_limiting(request, route_config)
+            else []
         )
-        if active and route_config and route_config.geo_rate_limits:
-            await load_geo_database_for_route_rules(self.middleware)
-        plans = self._tier_plans(request, client_ip, route_config) if active else []
-        flow = getattr(request.state, "guard_ban_flow", None)
+        flow = getattr(state, "guard_ban_flow", None)
         pending = flow.pending if isinstance(flow, BanFlow) else None
         if defer_rate_limit(self, pending, client_ip, plans):
             return None

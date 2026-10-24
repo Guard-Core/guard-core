@@ -35,24 +35,18 @@ def resolve_pending_ban(
     if not isinstance(flow, BanFlow) or flow.pending is None:
         return None
     pending, flow.pending = flow.pending, None
-    try:
-        return _resolve(flow, request, pending, category)
-    except GuardRedisError as error:
-        error.guard_check = pending.rate.check if pending.rate else pending.check
-        raise
-
-
-def _resolve(
-    flow: BanFlow, request: SyncGuardRequest, pending: PendingBan, category: str | None
-) -> GuardResponse | None:
     rate = pending.rate
-    if rate is not None:
-        from guard_core.sync.core.checks._rate_limit_ban_first import (
-            resolve_ban_and_rate,
-        )
+    try:
+        if rate is not None:
+            from guard_core.sync.core.checks._rate_limit_ban_first import (
+                resolve_ban_and_rate,
+            )
 
-        return resolve_ban_and_rate(request, pending, rate, category)
-    response = pending.check.resolve_ban_read(request, pending, category)
+            return resolve_ban_and_rate(request, pending, rate, category)
+        response = pending.check.resolve_ban_read(request, pending, category)
+    except GuardRedisError as error:
+        error.guard_check = rate.check if rate else pending.check
+        raise
     if response is not None:
         flow.banned_by = pending.check
     return response

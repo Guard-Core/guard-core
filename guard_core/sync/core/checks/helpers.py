@@ -608,12 +608,13 @@ def count_hostile_signal_and_maybe_ban(
     client was banned.
     """
     config = check.config
-    client_ip = getattr(request.state, "client_ip", None)
+    state = request.state
+    client_ip = getattr(state, "client_ip", None)
     if (
         config.passive_mode
         or not config.enable_ip_banning
         or not client_ip
-        or getattr(request.state, "is_whitelisted", False)
+        or getattr(state, "is_whitelisted", False)
     ):
         return False
     try:

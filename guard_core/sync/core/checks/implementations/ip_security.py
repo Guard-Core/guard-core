@@ -276,10 +276,11 @@ class IpSecurityCheck(IpBanReadMixin):
             precomputed
             or self._resolve_global_ip_access(request, client_ip, route_config)
         )
-        request.state.is_whitelisted = self._trusts_whitelist_match(
+        state = request.state
+        state.is_whitelisted = self._trusts_whitelist_match(
             request, client_ip, is_whitelisted
         )
-        request.state.is_exempt = is_exempt
+        state.is_exempt = is_exempt
 
         if access_result.geo_failure:
             self._report_geo_failure(request, client_ip, access_result)
@@ -418,15 +419,16 @@ class IpSecurityCheck(IpBanReadMixin):
     def _count_ip_spoofing(
         self, request: SyncGuardRequest, route_config: RouteConfig | None
     ) -> GuardResponse | None:
-        forwarded_for = getattr(request.state, "untrusted_forwarded_for", None)
+        state = request.state
+        forwarded_for = getattr(state, "untrusted_forwarded_for", None)
         if not self.config.ban_on_hostile_signals or not isinstance(forwarded_for, str):
             return None
-        client_ip = getattr(request.state, "client_ip", None)
+        client_ip = getattr(state, "client_ip", None)
         if not client_ip or not self._forwarded_for_claims_privileged_address(
             forwarded_for, route_config
         ):
             return None
-        flow = getattr(request.state, "guard_ban_flow", None)
+        flow = getattr(state, "guard_ban_flow", None)
         if isinstance(flow, BanFlow) and flow.pending is not None:
             banned = resolve_pending_ban(request, "ip_spoofing")
             if banned is not None:
@@ -449,8 +451,9 @@ class IpSecurityCheck(IpBanReadMixin):
         return response if response is not None else spoofing
 
     def _enforce_ip_rules(self, request: SyncGuardRequest) -> GuardResponse | None:
-        client_ip = getattr(request.state, "client_ip", None)
-        route_config = getattr(request.state, "route_config", None)
+        state = request.state
+        client_ip = getattr(state, "client_ip", None)
+        route_config = getattr(state, "route_config", None)
         if not client_ip:
             return None
 
@@ -458,7 +461,7 @@ class IpSecurityCheck(IpBanReadMixin):
         if ban_response:
             return ban_response
 
-        if getattr(request.state, "guard_exclusion_scoped", False) is True:
+        if getattr(state, "guard_exclusion_scoped", False) is True:
             return self._check_global_ip_restrictions(
                 request, client_ip, None, escalate=False
             )
@@ -466,7 +469,7 @@ class IpSecurityCheck(IpBanReadMixin):
         if self.middleware.route_resolver.should_bypass_check("ip", route_config):
             return None
 
-        flow = getattr(request.state, "guard_ban_flow", None)
+        flow = getattr(state, "guard_ban_flow", None)
         staged = flow.denied_access if isinstance(flow, BanFlow) else None
         precomputed = staged if isinstance(staged, tuple) else None
         if route_config:

@@ -63,17 +63,9 @@ class RedisBanStrikeMixin:
             self._rate_limit_violations_key(client_ip),
             *(f"{category_prefix}{name}" for name in categories),
         ]
-        arguments = "|".join(
-            (
-                repr(timestamp),
-                os.urandom(16).hex(),
-                repr(window_start),
-                str(ttl),
-                str(cap),
-                str(len(pairs)),
-                "" if seen_version is None else seen_version,
-                repr(now),
-            )
+        arguments = (
+            f"{timestamp!r}|{os.urandom(16).hex()}|{window_start!r}|{ttl}|{cap}|"
+            f"{len(pairs)}|{seen_version or ''}|{now!r}"
         )
         packed_keys = [key.encode() for key in keys]
         packed_arguments = [arguments.encode()]
