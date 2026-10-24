@@ -38,7 +38,8 @@ class _Monitor:
         self._socket.sendall(b"*1\r\n$7\r\nMONITOR\r\n")
         self._reader = self._socket.makefile("rb")
         assert self._reader.readline().startswith(b"+OK")
-        threading.Thread(target=self._read, daemon=True).start()
+        self._thread = threading.Thread(target=self._read, daemon=True)
+        self._thread.start()
 
     def _read(self) -> None:
         current = ""
@@ -63,7 +64,21 @@ class _Monitor:
             return list(self.lines)
 
     def close(self) -> None:
+        """Stop the stream: closing the socket alone leaves the file object made
+        from it open, so the reader thread kept appending every command."""
+        try:
+            self._socket.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
+        self._reader.close()
         self._socket.close()
+
+
+def unwatch_all_engine_commands() -> None:
+    """Close every MONITOR a test left open: each one reads, and keeps, every
+    command the shared Redis serves until it is closed."""
+    for url in list(_MONITORS):
+        unwatch_engine_commands(url)
 
 
 def engine_redis_url(url: str) -> str:

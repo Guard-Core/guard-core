@@ -49,6 +49,7 @@ from guard_core.sync.handlers.suspatterns_handler import (
     SusPatternsManager,
     sus_patterns_handler,
 )
+from tests.test_sync.engine_redis_commands import unwatch_all_engine_commands
 
 _suspatterns_module._legacy_detection_warned = True
 
@@ -136,6 +137,12 @@ def _guard_core_logger_names() -> list[str]:
         if isinstance(obj, logging.Logger)
         and (name == "guard_core" or name.startswith("guard_core."))
     ]
+
+
+@pytest.fixture(autouse=True)
+def _close_engine_command_monitors() -> Any:
+    yield
+    unwatch_all_engine_commands()
 
 
 @pytest.fixture(autouse=True)

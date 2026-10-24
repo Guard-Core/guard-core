@@ -51,6 +51,7 @@ from guard_core.handlers.suspatterns_handler import (
 )
 from guard_core.models import SecurityConfig
 from tests import network_guard
+from tests.engine_redis_commands import unwatch_all_engine_commands
 
 if TYPE_CHECKING:
     from tests.live_smoke.driver import ScenarioContext, Stack
@@ -93,6 +94,12 @@ def _no_outbound_network() -> Iterator[None]:
     yield
     violations = network_guard.drain()
     assert not violations, "test reached the network:\n" + "\n".join(violations)
+
+
+@pytest.fixture(autouse=True)
+def _close_engine_command_monitors() -> Iterator[None]:
+    yield
+    unwatch_all_engine_commands()
 
 
 @pytest.fixture(autouse=True)

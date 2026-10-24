@@ -8,8 +8,10 @@ from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import SecurityConfig
 from tests.conftest import REDIS_URL
 from tests.engine_redis_commands import (
+    _MONITORS,
     engine_commands_sent,
     engine_redis_url,
+    unwatch_all_engine_commands,
     unwatch_engine_commands,
 )
 
@@ -98,3 +100,17 @@ async def test_a_command_sent_through_a_second_pool_of_the_engine_is_counted(
         await second_pool.aclose()
 
     assert await engine_commands_sent(url) > before_all
+
+
+async def test_unwatching_all_closes_every_monitor_a_test_left_open(
+    engine: RedisManager,
+) -> None:
+    await engine_commands_sent(engine.config.redis_url)
+    monitor = next(iter(_MONITORS.values()))
+
+    unwatch_all_engine_commands()
+
+    assert not _MONITORS
+    assert monitor._reader.closed
+    monitor._thread.join(timeout=5)
+    assert not monitor._thread.is_alive()
