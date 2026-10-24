@@ -39,13 +39,16 @@ def load(name: str) -> Any:
 
 
 guard_core = load("guard_core")
+# PERF_GATE_RAW=1 turns every determinism measure off (parity runs only).
+RAW = os.environ.get("PERF_GATE_RAW") == "1"
 
 # The scan yields to the event loop when a wall-clock slice (2 ms) has passed, so
 # the number of yields, and the calls and instructions they cost, change from run
 # to run. The gate turns the yield off in both arms; a missing name fails loudly.
 for _module in (
-    "guard_core._utils.detection_scan",
-    "guard_core.handlers._suspatterns_regex",
+    ()
+    if RAW
+    else ("guard_core._utils.detection_scan", "guard_core.handlers._suspatterns_regex")
 ):
     assert hasattr(load(_module), "_EVENT_LOOP_SLICE_SECONDS"), _module
     load(_module)._EVENT_LOOP_SLICE_SECONDS = float("inf")
@@ -84,7 +87,8 @@ def install_step_clock() -> None:
 
 
 load("guard")
-install_step_clock()
+if not RAW:
+    install_step_clock()
 Step = Callable[[], Awaitable[Any]]
 Verify = Callable[[Any], None]
 
@@ -251,9 +255,10 @@ def loop_iteration_codes() -> tuple[Any, set[Any]]:
 async def calls(one: Step, verify: Verify) -> dict[str, Any]:
     # Finalizers (__del__) run when the cyclic collector happens to fire, so it is
     # off inside the counted window; the instructions mode keeps it on.
-    gc.collect()
-    gc.disable()
-    run_once, skipped = loop_iteration_codes()
+    if not RAW:
+        gc.collect()
+        gc.disable()
+    run_once, skipped = (None, set()) if RAW else loop_iteration_codes()
     root = os.path.dirname(guard_core.__file__)
     total = python = mine = depth = 0
 
@@ -309,8 +314,9 @@ async def cpu(one: Step, verify: Verify) -> dict[str, Any]:
 
 async def main() -> None:
     one, closer, verify = await setup()
-    install_step_clock()
-    start_every_regex_worker()
+    if not RAW:
+        install_step_clock()
+        start_every_regex_worker()
     if MODE == "calls":
         result = await calls(one, verify)
     elif MODE == "cpu":
