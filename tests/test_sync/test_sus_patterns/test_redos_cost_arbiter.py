@@ -1565,16 +1565,16 @@ def test_median_of_five_presorted_samples_is_the_middle_value() -> None:
     assert _median([0.01, 0.01, 0.3, 9.0, 9.0]) == 0.3
 
 
-def test_reach_probe_verdict_extrapolates_down_for_a_small_cap() -> None:
+def test_reach_probe_verdict_measures_at_a_small_cap_without_extrapolating() -> None:
     linear_samples = [[0.001] * 5, [0.002] * 5, [0.004] * 5, [0.008] * 5]
-    over, extrapolated, ratio, min_32, median_32 = _reach_probe_verdict_from_samples(
+    over, cost, ratio, min_at_cap, median_at_cap = _reach_probe_verdict_from_samples(
         linear_samples, 512
     )
     assert over is False
     assert ratio == 2.0
-    assert extrapolated < 0.008
-    assert min_32 == 0.008
-    assert median_32 == 0.008
+    assert cost == 0.008
+    assert min_at_cap == 0.008
+    assert median_at_cap == 0.008
 
 
 def test_reach_probe_verdict_rejects_when_extrapolated_cost_exceeds_budget() -> None:
