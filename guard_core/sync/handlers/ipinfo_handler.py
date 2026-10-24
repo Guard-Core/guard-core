@@ -255,19 +255,22 @@ class IPInfoManager(IpInfoBackgroundMixin, IpInfoRedisCopyMixin, IpInfoEventsMix
         age = time.time() - self.db_path.stat().st_mtime
         return age > self._max_age
 
+    def _warn_reader_unavailable(self, ip: str) -> None:
+        if self._initialization_attempted:
+            self.logger.warning(
+                "Geo-IP reader unavailable after a failed initialization "
+                "attempt; returning None for %s. Check the IPInfo token and "
+                "network reachability, then call refresh() to retry.",
+                ip,
+            )
+        else:
+            self.logger.warning(
+                "Geo-IP reader uninitialized; returning None for %s", ip
+            )
+
     def get_country(self, ip: str) -> str | None:
         if not self.reader:
-            if self._initialization_attempted:
-                self.logger.warning(
-                    "Geo-IP reader unavailable after a failed initialization "
-                    "attempt; returning None for %s. Check the IPInfo token and "
-                    "network reachability, then call refresh() to retry.",
-                    ip,
-                )
-            else:
-                self.logger.warning(
-                    "Geo-IP reader uninitialized; returning None for %s", ip
-                )
+            self._warn_reader_unavailable(ip)
             return None
 
         if self._refresh_due:
@@ -275,10 +278,15 @@ class IPInfoManager(IpInfoBackgroundMixin, IpInfoRedisCopyMixin, IpInfoEventsMix
 
         try:
             result = self.reader.get(ip)
-            if isinstance(result, dict) and "country" in result:
-                country = result.get("country")
-                return str(country) if country is not None else None
-            return None
+            if not isinstance(result, dict):
+                return None
+            if "country_code" in result:
+                country = result["country_code"]
+            elif "country" in result:
+                country = result["country"]
+            else:
+                return None
+            return str(country) if country is not None else None
         except Exception as e:
             if self.agent_handler:
                 self._send_geo_event(

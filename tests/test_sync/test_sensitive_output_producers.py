@@ -1321,8 +1321,8 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "line 345: country_blocked event carries only client_ip, the country "
         "code and the rule name, outside the secret matrix"
     ),
-    "handlers/ipinfo_handler.py:IPInfoManager.get_country": (
-        "lines 234,241: interpolates only the ip argument (client_ip), "
+    "handlers/ipinfo_handler.py:IPInfoManager._warn_reader_unavailable": (
+        "lines 265,272: interpolates only the ip argument (client_ip), "
         "outside the secret matrix"
     ),
     "handlers/ipinfo_handler.py:IPInfoManager._initialize_database": (

@@ -418,6 +418,48 @@ def test_get_country_result_without_country(tmp_path: Path) -> None:
     assert db.get_country("1.1.1.1") is None
 
 
+LITE_RECORD = {
+    "country_code": "DE",
+    "country": "Germany",
+    "continent_code": "EU",
+    "continent": "Europe",
+    "asn": "AS3320",
+}
+
+
+def test_get_country_legacy_record_gives_iso_code(tmp_path: Path) -> None:
+    db = IPInfoManager(token="test", db_path=tmp_path / "test.mmdb")
+    db.reader = Mock()
+    db.reader.get.return_value = {"country": "DE", "country_name": "Germany"}
+
+    assert db.get_country("1.1.1.1") == "DE"
+
+
+def test_get_country_lite_record_gives_iso_code_not_name(
+    tmp_path: Path,
+) -> None:
+    db = IPInfoManager(token="test", db_path=tmp_path / "test.mmdb")
+    db.reader = Mock()
+    db.reader.get.return_value = dict(LITE_RECORD)
+
+    assert db.get_country("1.1.1.1") == "DE"
+
+
+def test_country_rule_blocks_ip_with_lite_record(tmp_path: Path) -> None:
+    db = IPInfoManager(token="test", db_path=tmp_path / "test.mmdb")
+    db.reader = Mock()
+    db.reader.get.return_value = dict(LITE_RECORD)
+
+    allowed, country = db.check_country_access("1.1.1.1", ["DE"])
+    assert (allowed, country) == (False, "DE")
+
+    allowed, country = db.check_country_access("1.1.1.1", [], ["FR"])
+    assert (allowed, country) == (False, "DE")
+
+    allowed, country = db.check_country_access("1.1.1.1", [], ["DE"])
+    assert (allowed, country) == (True, "DE")
+
+
 def test_ipinfo_not_initialized() -> None:
     db = IPInfoManager(token="test")
     assert db.is_initialized is False
