@@ -105,6 +105,16 @@ class FastPathConnectionPool(ConnectionPool):
                 self._has_free_connection, max(deadline - time.monotonic(), 0.0)
             )
 
+    def take_connection_with_nothing_unread(self) -> Connection | None:
+        """The async pool takes an idle connection without a lock; here a thread
+        pool takes the plain ``get_connection``, so this twin never hands one out."""
+        return None
+
+    def give_back(self, connection: Connection, reply_read: bool) -> None:
+        """The plain ``release``: the async pool's lock-free return needs the
+        absence of an await between its pop and add, which threads do not have."""
+        self.release(connection)
+
     def release(self, connection: Connection) -> None:
         super().release(connection)
         if self._waiters:

@@ -45,6 +45,7 @@ class FastPathConnectionPool(ConnectionPool):
         self._wait_timeout = timeout
         self._condition = asyncio.Condition()
         self._waiters = 0
+        self._connections_with_nothing_unread: set[AbstractConnection] = set()
 
     def _has_free_connection(self) -> bool:
         return bool(
@@ -54,11 +55,46 @@ class FastPathConnectionPool(ConnectionPool):
 
     async def get_connection(self, *_args: Any, **_kwargs: Any) -> AbstractConnection:
         try:
-            return await super().get_connection()
+            connection = await super().get_connection()
         except RedisConnectionError as error:
             if not _is_exhaustion(error):
                 raise
-        return await self._wait_for_connection()
+            connection = await self._wait_for_connection()
+        self._connections_with_nothing_unread.discard(connection)
+        reader = connection._reader
+        if reader is not None and reader.at_eof():
+            await connection.disconnect()
+        return connection
+
+    def take_connection_with_nothing_unread(self) -> AbstractConnection | None:
+        """The newest idle connection that ``give_back`` left with its reply fully
+        read, moved to the in-use set without a lock: the pop and the add have no
+        await between them, so no other task runs in between. ``None`` when the
+        newest idle connection is not one of those; the caller then takes the
+        plain ``get_connection``, which also reconnects a connection the server closed
+        while it was idle (its reader has seen the end of the stream)."""
+        available = self._available_connections
+        if not available or available[-1] not in self._connections_with_nothing_unread:
+            return None
+        reader = available[-1]._reader
+        if reader is None or reader.at_eof():
+            return None
+        connection = available.pop()
+        self._connections_with_nothing_unread.remove(connection)
+        self._in_use_connections.add(connection)
+        return connection
+
+    async def give_back(self, connection: AbstractConnection, reply_read: bool) -> None:
+        """Release ``connection``. When its reply was fully read, nobody waits for a
+        connection and it needs no reconnect, it goes back to the idle list without
+        a lock or an event, marked so that the next fast take can use it; every
+        other case is the plain ``release``."""
+        if reply_read and not self._waiters and not connection.should_reconnect():
+            self._in_use_connections.remove(connection)
+            self._available_connections.append(connection)
+            self._connections_with_nothing_unread.add(connection)
+            return
+        await self.release(connection)
 
     async def _wait_for_connection(self) -> AbstractConnection:
         started = time.monotonic()
