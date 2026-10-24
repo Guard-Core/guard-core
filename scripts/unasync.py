@@ -29,6 +29,7 @@ SKIP_SRC = {
     "_security_config_fields.py",
     "_dynamic_rules.py",
     "_staged_defaults.py",
+    "_tracking_caps.py",
     "_redis_enablement.py",
     "_redis_exceptions.py",
     "_security_headers_defaults.py",
