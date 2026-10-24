@@ -483,10 +483,7 @@ def _assert_redact_blob_adversarial_pairs_stay_linear() -> None:
 
 
 def test_redact_blob_for_display_adversarial_pairs_stay_linear() -> None:
-    try:
-        _assert_redact_blob_adversarial_pairs_stay_linear()
-    except AssertionError:
-        _assert_redact_blob_adversarial_pairs_stay_linear()
+    _assert_redact_blob_adversarial_pairs_stay_linear()
 
 
 @pytest.mark.parametrize("unit", _BUDGET_ADVERSARIAL_UNITS[1:])
