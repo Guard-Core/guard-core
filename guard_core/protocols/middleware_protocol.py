@@ -22,13 +22,24 @@ class GuardMiddlewareProtocol(Protocol):
     ``logger``, ``last_cloud_ip_refresh`` (epoch seconds of the last cloud-IP
     refresh) and ``suspicious_request_counts`` (per-IP suspicion tallies) are
     read directly; the handler properties may return ``None`` when a feature is
-    disabled, so callers must guard for it.
+    disabled, so callers must guard for it. ``guard_decorator`` is the
+    route-decorator registry the engine reads for per-route configs and their
+    revision; ``None`` (or an absent attribute) means no route configs.
     """
 
     config: SecurityConfig
     logger: logging.Logger
     last_cloud_ip_refresh: int
     suspicious_request_counts: dict[str, dict[str, int]]
+
+    @property
+    def guard_decorator(self) -> Any | None:
+        """The route-decorator registry, or ``None`` when no route is decorated.
+
+        The engine reads it with a ``None`` default, so a middleware without the
+        attribute works and has no route configs.
+        """
+        ...
 
     @property
     def event_bus(self) -> Any:

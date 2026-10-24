@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from .ipban_handler import IPBanManager
     from .ipinfo_handler import IPInfoManager
     from .ratelimit_handler import RateLimitManager
-    from .redis_handler import RedisManager
+    from .redis_handler import RedisHandlerBase, RedisManager
     from .security_headers_handler import SecurityHeadersManager
     from .suspatterns_handler import SusPatternsManager
 
@@ -23,6 +23,7 @@ __all__ = [
     "IPBanManager",
     "IPInfoManager",
     "RateLimitManager",
+    "RedisHandlerBase",
     "RedisManager",
     "SecurityHeadersManager",
     "SusPatternsManager",
@@ -39,6 +40,7 @@ _MODULE_BY_NAME: dict[str, str] = {
     "IPBanManager": "guard_core.sync.handlers.ipban_handler",
     "IPInfoManager": "guard_core.sync.handlers.ipinfo_handler",
     "RateLimitManager": "guard_core.sync.handlers.ratelimit_handler",
+    "RedisHandlerBase": "guard_core.sync.handlers.redis_handler",
     "RedisManager": "guard_core.sync.handlers.redis_handler",
     "SecurityHeadersManager": "guard_core.sync.handlers.security_headers_handler",
     "SusPatternsManager": "guard_core.sync.handlers.suspatterns_handler",

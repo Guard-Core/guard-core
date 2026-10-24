@@ -486,6 +486,10 @@ TEST_SUBS: list[tuple[str, str]] = [
         "from tests.test_sync.ipban_redis_fake import",
     ),
     (
+        r"from tests\.protocol_only_redis import",
+        "from tests.test_sync.protocol_only_redis import",
+    ),
+    (
         r'"from guard_core\.models import SecurityConfig\\n"',
         r'"from guard_core.models import SecurityConfig, SyncSecurityConfig\\n"',
     ),

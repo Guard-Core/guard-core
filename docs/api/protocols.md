@@ -226,6 +226,8 @@ class GuardMiddlewareProtocol(Protocol):
     suspicious_request_counts: dict[str, dict[str, int]]
 
     @property
+    def guard_decorator(self) -> Any | None: ...
+    @property
     def event_bus(self) -> Any: ...
     @property
     def route_resolver(self) -> Any: ...
@@ -260,6 +262,7 @@ class GuardMiddlewareProtocol(Protocol):
 
 | Property                | Purpose                                                 |
 |-------------------------|---------------------------------------------------------|
+| `guard_decorator`       | The route-decorator registry, or `None` when no route is decorated. The engine reads it with a `None` default, so a middleware that has no such attribute works and has no route configs. |
 | `event_bus`             | `SecurityEventBus` for emitting security events.        |
 | `route_resolver`        | `RouteConfigResolver` for decorator resolution.         |
 | `response_factory`      | `ErrorResponseFactory` for creating error responses.    |
@@ -301,20 +304,116 @@ ___
 RedisHandlerProtocol
 --------------------
 
-Protocol for Redis operations. Matches the `RedisManager` interface.
+Protocol for every Redis operation the engine calls. `RedisManager` implements all of it, and startup checks a handler for every member.
 
 ```python
 @runtime_checkable
 class RedisHandlerProtocol(Protocol):
+    config: SecurityConfig
+
     async def get_key(self, namespace: str, key: str) -> Any: ...
+    async def get_many(self, pairs: Sequence[tuple[str, str]]) -> list[Any]: ...
     async def set_key(
         self, namespace: str, key: str, value: Any, ttl: int | None = None
     ) -> bool | None: ...
+    async def set_key_if_absent(
+        self, namespace: str, key: str, value: Any, ttl: int | None = None
+    ) -> bool: ...
+    async def incr(
+        self, namespace: str, key: str, ttl: int | None = None
+    ) -> int | None: ...
+    async def write_atomically(
+        self,
+        *,
+        sets: Sequence[tuple[str, str, Any, int | None]] = (),
+        deletes: Sequence[tuple[str, str]] = (),
+        increment: tuple[str, str] | None = None,
+    ) -> None: ...
     async def delete(self, namespace: str, key: str) -> int | None: ...
+    async def delete_pattern(self, pattern: str) -> int | None: ...
     async def keys(self, pattern: str) -> list[str] | None: ...
+    async def write_ban_extending_only(
+        self,
+        namespace: str,
+        key: str,
+        expiry: str,
+        duration: int,
+        *,
+        version: tuple[str, str],
+        advance_version: bool = False,
+        rule_owned: bool = False,
+    ) -> float: ...
+    async def owned_ban_members(self) -> list[str]: ...
+    async def owned_ban_state(
+        self, namespace: str, key: str
+    ) -> tuple[float | None, float | None]: ...
+    async def purge_owned_ban(self, member: str) -> int: ...
+    async def disown_ban(self, namespace: str, key: str) -> None: ...
+    async def record_sliding_window_hit(
+        self,
+        namespace: str,
+        key: str,
+        timestamp: float,
+        window_start: float,
+        ttl: int,
+        *,
+        index: tuple[str, int] | None = None,
+        index_refused: list[bool] | None = None,
+    ) -> int: ...
+    async def count_sliding_window_hits(
+        self, namespace: str, key: str, window_start: float
+    ) -> int: ...
+    async def sum_indexed_window_hits(
+        self, namespace: str, index_key: str, window_start: float
+    ) -> int: ...
+    def detection_correlation_keys(self, client_ip: str) -> list[str]: ...
+    async def record_detection_strikes(
+        self,
+        client_ip: str,
+        categories: Sequence[str],
+        timestamp: float,
+        window_start: float,
+        ttl: int,
+        cap: int,
+    ) -> tuple[int, int, dict[str, int]]: ...
+    async def read_detection_categories(
+        self, client_ip: str, window_start: float
+    ) -> list[str]: ...
+    async def forget_detection_strikes(self, client_ip: str) -> None: ...
     async def initialize(self) -> None: ...
+    async def initialize_agent(self, agent_handler: Any) -> None: ...
     def get_connection(self) -> AsyncContextManager[Any]: ...
 ```
+
+`config` is read directly: the engine uses `config.redis_prefix` and the Redis switches. `get_connection()` must yield a redis-py-compatible asyncio client, because the engine runs pipelines, `evalsha`, `scan_iter`, `zrange` and `execute_command("MGET")` on it. At startup, a handler that lacks any member is reported once with every missing name, through the same path as the other misconfigurations: a warning with `fail_on_misconfiguration=False`, a refusal to start with it on.
+
+### RedisHandlerBase
+
+Subclass `RedisHandlerBase` (importable from `guard_core` and `guard_core.handlers`) to plug in your own connection handling and keep every other method as `RedisManager` has it. It extends `RedisManager`, so the Lua scripts and the key layout exist once, and unlike `RedisManager` it is not a singleton: each instance keeps its own `config` and client.
+
+```python
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
+from redis.asyncio import Redis
+
+from guard_core import RedisHandlerBase
+
+
+class MyRedisHandler(RedisHandlerBase):
+    def __init__(self, config, client: Redis) -> None:
+        self.config = config
+        self._client = client
+
+    async def initialize(self) -> None:
+        await self._client.ping()
+
+    @asynccontextmanager
+    async def get_connection(self) -> AsyncIterator[Redis]:
+        yield self._client
+```
+
+Override `initialize` and `get_connection` to bring your own client; the inherited `initialize` and `get_connection` open `RedisManager`'s own pool from `config`. Override any other method to change it. The synchronous tree has the same class in `guard_core.sync`.
 
 ___
 

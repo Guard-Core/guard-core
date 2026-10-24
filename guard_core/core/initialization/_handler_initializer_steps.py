@@ -17,6 +17,9 @@ from guard_core.core.initialization._headers_manager_attach import (
     attach_security_headers_manager_to_redis,
 )
 from guard_core.core.initialization._nat64 import apply_nat64_prefixes
+from guard_core.core.initialization._redis_handler_members import (
+    report_incomplete_redis_handler,
+)
 from guard_core.core.initialization._route_limit_report import (
     report_route_limits_with_global_switch_off,
 )
@@ -188,6 +191,10 @@ class _HandlerInitializerStepsMixin(CloudInitializationMixin):
         self._configure_detection()
 
         without_redis = not (redis_is_configured(self.config) and self.redis_handler)
+        if not without_redis:
+            report_incomplete_redis_handler(
+                self.config, self.redis_handler, self.logger
+            )
         if without_redis and self.config.lazy_init:
             self._warn_if_lazy_init_is_inert()
         elif without_redis or not await self._connect_redis():

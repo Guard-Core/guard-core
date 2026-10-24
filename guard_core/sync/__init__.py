@@ -14,7 +14,11 @@ if TYPE_CHECKING:
         check_rate_limit_by_ip,
         rate_limit_handler,
     )
-    from guard_core.sync.handlers.redis_handler import RedisManager, redis_handler
+    from guard_core.sync.handlers.redis_handler import (
+        RedisHandlerBase,
+        RedisManager,
+        redis_handler,
+    )
     from guard_core.sync.handlers.security_headers_handler import (
         SecurityHeadersManager,
         security_headers_manager,
@@ -47,6 +51,7 @@ __all__ = [
     "RateLimitManager",
     "check_rate_limit_by_ip",
     "redis_handler",
+    "RedisHandlerBase",
     "RedisManager",
     "security_headers_manager",
     "SecurityHeadersManager",
@@ -75,6 +80,7 @@ _MODULE_BY_NAME: dict[str, str] = {
     "RateLimitManager": "guard_core.sync.handlers.ratelimit_handler",
     "check_rate_limit_by_ip": "guard_core.sync.handlers.ratelimit_handler",
     "redis_handler": "guard_core.sync.handlers.redis_handler",
+    "RedisHandlerBase": "guard_core.sync.handlers.redis_handler",
     "RedisManager": "guard_core.sync.handlers.redis_handler",
     "security_headers_manager": "guard_core.sync.handlers.security_headers_handler",
     "SecurityHeadersManager": "guard_core.sync.handlers.security_headers_handler",

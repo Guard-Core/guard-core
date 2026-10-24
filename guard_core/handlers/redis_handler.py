@@ -785,6 +785,27 @@ class RedisManager:
         return int(result) if result is not None else 0
 
 
+class RedisHandlerBase(RedisManager):
+    """Public base for a custom Redis handler: RedisManager's own implementation.
+
+    WHAT: every method of ``RedisHandlerProtocol`` as ``RedisManager`` has it, so
+    the Lua scripts and the key layout exist once. Unlike ``RedisManager`` it is
+    not a singleton: each instance keeps its own ``config`` and client.
+    WHEN: subclass it to plug your own connection handling (a custom pool, a
+    cluster client, a wrapper that traces calls) into the engine.
+    HOW: override ``initialize`` and ``get_connection``; ``get_connection`` must
+    yield a redis-py-compatible asyncio client (the engine runs pipelines,
+    ``evalsha``, ``scan_iter``, ``zrange`` and ``execute_command("MGET")`` on
+    it). Set ``config`` before the first call. Override any other method to
+    change it.
+    """
+
+    logger = logging.getLogger("guard_core.handlers.redis")
+
+    def __new__(cls, *args: Any, **kwargs: Any) -> RedisHandlerBase:
+        return object.__new__(cls)
+
+
 async def scan_unlink(
     conn: Redis, full_pattern: str, select: Callable[[str], bool] | None = None
 ) -> int:
