@@ -479,6 +479,10 @@ TEST_SUBS: list[tuple[str, str]] = [
         r'"from guard_core.models import SecurityConfig, SyncSecurityConfig\\n"',
     ),
     (r"(?<!\w)SecurityConfig\(", "SyncSecurityConfig("),
+    (
+        r"(?<!\w)SecurityConfig\.model_construct\(",
+        "SyncSecurityConfig.model_construct(",
+    ),
     (r"\bMockGuardRequest\b", "SyncMockGuardRequest"),
     (r"AsyncMock, MagicMock", "MagicMock"),
     (r"MagicMock, AsyncMock", "MagicMock"),

@@ -3,7 +3,7 @@ from typing import Any
 
 import pytest
 
-from guard_core.models import SecurityConfig, SyncSecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.initialization.handler_initializer import HandlerInitializer
 from guard_core.sync.handlers import ratelimit_handler
 from guard_core.sync.handlers.ratelimit_handler import RateLimitManager
@@ -127,7 +127,7 @@ def test_a_falsy_redis_url_never_builds_a_client_to_reset_rate_limits(
 
 
 def test_the_bind_resolves_a_flag_that_construction_never_saw() -> None:
-    config = SecurityConfig.model_construct(redis_prefix="app:", lazy_init=False)
+    config = SyncSecurityConfig.model_construct(redis_prefix="app:", lazy_init=False)
     before = config.enable_redis
 
     HandlerInitializer(config=config).initialize_redis_handlers()
