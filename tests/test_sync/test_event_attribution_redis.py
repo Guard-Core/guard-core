@@ -268,3 +268,25 @@ def test_a_redis_failure_while_attributing_logs_once_per_window(
     assert (
         len([r for r in caplog.records if "Ban attribution skipped" in r.message]) == 1
     )
+
+
+def test_a_redis_test_leaves_a_version_check_older_than_the_recheck(
+    redis: RedisManager,
+) -> None:
+    config = _redis_config(redis)
+    _apply_on_a_fresh_worker(config, redis, _rules(ip_blacklist=[RULE_IP]))
+    _stamp_for(config)
+    assert ip_ban_manager._ban_version_seen is not None
+    ip_ban_manager._ban_version_checked_at = time.time() - (
+        2 * ip_ban_manager._VERSION_RECHECK_SECONDS
+    )
+
+
+def test_the_next_redis_test_starts_without_the_earlier_ban_version(
+    redis: RedisManager,
+) -> None:
+    config = _redis_config(redis)
+    _apply_on_a_fresh_worker(config, redis, _rules(ip_blacklist=["198.51.100.0/24"]))
+    assert ip_ban_manager.ban_ip(OTHER_IP, 3600, "operator")
+
+    assert _stamp_for(config, OTHER_IP) == {}

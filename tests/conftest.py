@@ -173,7 +173,8 @@ def _reset_ip_ban_manager() -> None:
     _ORIGINAL_IP_BAN_MANAGER.banned_ips.clear()
     _ORIGINAL_IP_BAN_MANAGER.banned_networks.clear()
     _ORIGINAL_IP_BAN_MANAGER.rule_exempt_networks = ()
-    _ORIGINAL_IP_BAN_MANAGER._operator_networks = None
+    _ORIGINAL_IP_BAN_MANAGER._forget_shared_state()
+    _ORIGINAL_IP_BAN_MANAGER._ban_version_checked_at = 0.0
     _ORIGINAL_IP_BAN_MANAGER._rule_owner_answers = {}
     _rule_attribution_module.set_attribution_view(None)
     _ORIGINAL_IP_BAN_MANAGER.redis_handler = None
