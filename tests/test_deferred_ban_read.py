@@ -734,3 +734,27 @@ def test_with_the_flag_off_no_source_is_fed_before_rate_limiting() -> None:
     )
 
     assert any("auto_ban_threshold" in problem for problem in problems)
+
+
+def test_the_route_config_of_the_spoofing_check_is_the_given_one_or_the_states() -> (
+    None
+):
+    state = MagicMock()
+    state.route_config = "from the state"
+    given = RouteConfig()
+
+    assert IpSecurityCheck._route_config_of(state, given) is given
+    assert IpSecurityCheck._route_config_of(state, None) == "from the state"
+
+
+async def test_the_rate_limit_skip_reads_the_state_itself_when_it_is_not_given() -> (
+    None
+):
+    async with _rig() as rig:
+        check = next(c for c in rig.pipeline.checks if isinstance(c, RateLimitCheck))
+        request = MagicMock()
+        request.state.is_whitelisted = True
+        request.state.is_exempt = False
+        request.method = "GET"
+
+        assert check._skips_rate_limiting(request, None) is True

@@ -9,13 +9,16 @@ from guard_core.models import SecurityConfig
 
 async def test_a_failing_get_many_keeps_the_error_and_the_event() -> None:
     manager = RedisManager(SecurityConfig(redis_prefix="getmany:"))
-    client = MagicMock()
-    client.execute_command = AsyncMock(side_effect=ValueError("mget exploded"))
-    manager._redis = client
+    manager._redis = MagicMock()
 
-    with patch.object(
-        RedisManager, "_send_redis_event", new_callable=AsyncMock
-    ) as sent:
+    with (
+        patch(
+            "guard_core.handlers.redis_handler.lean_command",
+            new_callable=AsyncMock,
+            side_effect=ValueError("mget exploded"),
+        ),
+        patch.object(RedisManager, "_send_redis_event", new_callable=AsyncMock) as sent,
+    ):
         with pytest.raises(GuardRedisError) as exc_info:
             await manager.get_many([("banned_ips", "198.51.100.1")])
 
