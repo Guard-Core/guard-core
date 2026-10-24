@@ -96,9 +96,8 @@ def valgrind_window_instructions(engine: str, row: str, n: int, url: str) -> int
             f"--callgrind-out-file={tmp}/cg.out",
             *row_command(row, "window", n, url, 1),
         ]
-        proc = subprocess.run(
-            cmd, env=child_env(engine), capture_output=True, text=True, check=True
-        )
+        env = {**child_env(engine), "PERF_GATE_WARMUP": "10"}
+        proc = subprocess.run(cmd, env=env, capture_output=True, text=True, check=True)
     match = COLLECTED.search(proc.stderr)
     if match is None:
         raise RuntimeError(f"no Collected line for {row}: {proc.stderr[-400:]}")

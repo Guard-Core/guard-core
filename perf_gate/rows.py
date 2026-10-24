@@ -32,6 +32,10 @@ logging.disable(logging.CRITICAL)
 
 ROW, MODE, N, URL = sys.argv[1], sys.argv[2], int(sys.argv[3]), sys.argv[4]
 ROUNDS = int(sys.argv[5]) if len(sys.argv) > 5 else 5
+# Warm-up requests before the counted window. PERF_GATE_WARMUP lowers all three
+# (the valgrind runs set it: their wall time is mostly warm-up).
+_CAP = int(os.environ.get("PERF_GATE_WARMUP", "1000"))
+WARMUP_ALLOWED, WARMUP_BLOCKED, WARMUP_BAN = min(50, _CAP), min(40, _CAP), min(20, _CAP)
 BODY = json.dumps({"name": "Mary", "city": "Rome", "note": "hello world"}).encode()
 PATTERN_PATH = "/api/items/7?q=%3Cscript%3Ealert(1)%3C%2Fscript%3E"
 
@@ -179,7 +183,7 @@ async def allowed_step(kind: str) -> tuple[Step, Any, Verify]:
             )
         assert r.status_code == 200, r.status_code
 
-    for _ in range(50):
+    for _ in range(WARMUP_ALLOWED):
         await one()
     return one, c, lambda last: None
 
@@ -204,7 +208,7 @@ async def blocked_step(scenario: str, pen: bool) -> tuple[Step, Any, Verify]:
     def verify(response: Any) -> None:
         assert response.status_code == status, response.status_code
 
-    for _ in range(40):
+    for _ in range(WARMUP_BLOCKED):
         verify(await c.get(path))
     return partial(c.get, path), c, verify
 
@@ -225,7 +229,7 @@ async def ban_check_step() -> tuple[Step, Any, Verify]:
     ban.redis_handler = handler
 
     one = partial(ban.is_ip_banned, "198.51.100.9")
-    for _ in range(20):
+    for _ in range(WARMUP_BAN):
         await one()
     return one, handler, lambda last: None
 
