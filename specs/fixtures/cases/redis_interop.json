@@ -576,6 +576,14 @@
           "ttl": {
             "set": false
           },
+          "value": "{\"schema_version\":1,\"rules\":{\"rule_id\":\"rio-rules\",\"version\":3,\"timestamp\":\"2026-01-01T00:00:00Z\",\"expires_at\":null,\"ttl\":300,\"ip_blacklist\":[],\"ip_whitelist\":[],\"ip_ban_duration\":3600,\"blocked_countries\":[],\"whitelist_countries\":[],\"global_rate_limit\":null,\"global_rate_window\":null,\"endpoint_rate_limits\":{},\"blocked_cloud_providers\":[],\"blocked_user_agents\":[],\"suspicious_patterns\":[],\"enable_penetration_detection\":null,\"enable_ip_banning\":null,\"enable_rate_limiting\":null,\"auto_ban_threshold\":null,\"auto_ban_duration\":null,\"enable_rate_limit_auto_ban\":null,\"emergency_mode\":false,\"emergency_whitelist\":[]}}"
+        },
+        {
+          "key": "guard_core:corpus_rio:dynamic_rules:last_known_full",
+          "type": "json",
+          "ttl": {
+            "set": false
+          },
           "value": "{\"schema_version\":1,\"rules\":{\"rule_id\":\"rio-rules\",\"version\":3,\"timestamp\":\"2026-01-01T00:00:00Z\",\"expires_at\":null,\"ttl\":300,\"ip_blacklist\":[],\"ip_whitelist\":[],\"ip_ban_duration\":3600,\"blocked_countries\":[],\"whitelist_countries\":[],\"global_rate_limit\":null,\"global_rate_window\":null,\"endpoint_rate_limits\":{},\"blocked_cloud_providers\":[],\"blocked_user_agents\":[],\"suspicious_patterns\":[],\"enable_penetration_detection\":null,\"enable_ip_banning\":null,\"enable_rate_limiting\":null,\"auto_ban_threshold\":null,\"auto_ban_duration\":null,\"enable_rate_limit_auto_ban\":null,\"emergency_mode\":false,\"emergency_whitelist\":[],\"emergency_whitelist_only\":true},\"owned\":{\"bans\":[],\"patterns\":[]}}"
         }
       ]
