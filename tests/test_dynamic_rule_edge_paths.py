@@ -111,7 +111,10 @@ async def test_clearing_the_persisted_rules_deletes_the_redis_key() -> None:
     redis.delete = AsyncMock()
     manager.redis_handler = redis
     await manager._clear_last_known_rules()
-    redis.delete.assert_awaited_once_with("dynamic_rules", "last_known")
+    assert [call.args for call in redis.delete.call_args_list] == [
+        ("dynamic_rules", "last_known"),
+        ("dynamic_rules", "last_known_full"),
+    ]
 
 
 @pytest.mark.asyncio

@@ -13,10 +13,12 @@ from guard_agent.models import DynamicRules as AgentDynamicRules
 from guard_core._dynamic_rules import (
     LAST_KNOWN_RULES_SNAPSHOT_SCHEMA_VERSION,
     dump_last_known_rules_snapshot,
+    dump_legacy_last_known_rules_snapshot,
     load_last_known_rules_snapshot,
 )
 from guard_core.handlers._dynamic_rule_persistence import (
     DYNAMIC_RULES_REDIS_NAMESPACE,
+    LAST_KNOWN_RULES_FULL_KEY,
     LAST_KNOWN_RULES_KEY,
 )
 from guard_core.handlers.dynamic_rule_handler import DynamicRuleManager
@@ -39,6 +41,10 @@ def _rules(**kwargs: object) -> DynamicRules:
 
 def _snapshot(rules: DynamicRules) -> str:
     return dump_last_known_rules_snapshot(rules, [], [])
+
+
+def _legacy_snapshot(rules: DynamicRules) -> str:
+    return dump_legacy_last_known_rules_snapshot(rules)
 
 
 def _agent_rules(**kwargs: object) -> DynamicRules:
@@ -80,9 +86,10 @@ async def test_apply_rules_persists_last_known_rules_to_redis() -> None:
     rules = _rules(auto_ban_threshold=7)
     await manager._apply_rules(rules)
 
-    redis.set_key.assert_awaited_once_with(
-        DYNAMIC_RULES_REDIS_NAMESPACE, LAST_KNOWN_RULES_KEY, _snapshot(rules)
-    )
+    assert [call.args for call in redis.set_key.call_args_list] == [
+        (DYNAMIC_RULES_REDIS_NAMESPACE, LAST_KNOWN_RULES_KEY, _legacy_snapshot(rules)),
+        (DYNAMIC_RULES_REDIS_NAMESPACE, LAST_KNOWN_RULES_FULL_KEY, _snapshot(rules)),
+    ]
     assert config.auto_ban_threshold == 7
 
 
@@ -97,7 +104,9 @@ async def test_apply_rules_persists_last_known_rules_to_file(tmp_path: Path) -> 
     rules = _rules(auto_ban_threshold=7)
     await manager._apply_rules(rules)
 
-    assert cache_path.read_text(encoding="utf-8") == _snapshot(rules)
+    assert cache_path.read_text(encoding="utf-8") == _legacy_snapshot(rules)
+    full_path = tmp_path / "dynamic_rules.json.full"
+    assert full_path.read_text(encoding="utf-8") == _snapshot(rules)
 
 
 @pytest.mark.asyncio
@@ -111,8 +120,8 @@ async def test_apply_rules_persists_to_both_redis_and_file(tmp_path: Path) -> No
     rules = _rules(auto_ban_threshold=7)
     await manager._apply_rules(rules)
 
-    redis.set_key.assert_awaited_once()
-    assert cache_path.read_text(encoding="utf-8") == _snapshot(rules)
+    assert redis.set_key.await_count == 2
+    assert cache_path.read_text(encoding="utf-8") == _legacy_snapshot(rules)
 
 
 @pytest.mark.asyncio
@@ -355,7 +364,7 @@ async def test_hydration_accepts_sync_redis_handler_returning_plain_values() -> 
 
     await manager._hydrate_last_known_rules()
 
-    redis.set_key.assert_called_once()
+    assert redis.set_key.call_count == 2
     assert config.auto_ban_threshold == 9
     assert manager.current_rules == rules
 
@@ -625,7 +634,7 @@ async def test_second_initialize_agent_does_not_reapply_hydrated_rules(
 
     hydrate_mock.assert_not_awaited()
     apply_mock.assert_not_awaited()
-    assert cache_path.read_text(encoding="utf-8") == _snapshot(rules)
+    assert cache_path.read_text(encoding="utf-8") == _legacy_snapshot(rules)
     await manager.stop()
 
 
@@ -720,8 +729,8 @@ async def test_apply_rules_persists_snapshot_built_from_real_guard_agent_rules_t
     with caplog.at_level(logging.ERROR, logger=MANAGER_LOGGER):
         await manager._apply_rules(agent_rules)
 
-    redis.set_key.assert_awaited_once()
-    payload = redis.set_key.await_args.args[2]
+    assert redis.set_key.await_count == 2
+    payload = redis.set_key.call_args_list[0].args[2]
     loaded = load_last_known_rules_snapshot(payload)
     assert loaded.rule_id == "agent-rule"
     assert loaded.version == 3

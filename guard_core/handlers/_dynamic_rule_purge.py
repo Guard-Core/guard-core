@@ -6,11 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
-from guard_core._dynamic_rules import (
-    content_fingerprint,
-    load_last_known_ownership,
-    load_last_known_rules_snapshot,
-)
+from guard_core._dynamic_rules import content_fingerprint
 from guard_core.handlers._dynamic_rule_persistence import (
     DYNAMIC_RULES_REDIS_NAMESPACE,
     PURGED_MARKER_KEY,
@@ -48,6 +44,12 @@ class DynamicRulePurgeMixin:
     _reverted_rules: DynamicRules | None = None
     _read_redis_payload: Callable[[], Awaitable[str | bytes | None]]
     _read_file_payload: Callable[[], str | None]
+    _read_redis_full_payload: Callable[[], Awaitable[str | bytes | None]]
+    _read_file_full_payload: Callable[[], str | None]
+    _reconcile_snapshot: Callable[
+        [str | bytes, str | bytes | None],
+        tuple[DynamicRules, tuple[list[str], list[str]]],
+    ]
     _clear_last_known_rules: Callable[[], Awaitable[None]]
     _revert_to_base_config: Callable[[], None]
     _refresh_attribution: Callable[[], None]
@@ -76,8 +78,13 @@ class DynamicRulePurgeMixin:
         that set again before a fresh SaaS check. True when the last-known
         snapshot held the set."""
         held = self._parse_if_holding(
-            await self._read_redis_payload(), rule_id, version
-        ) or self._parse_if_holding(self._read_file_payload(), rule_id, version)
+            await self._read_redis_payload(),
+            await self._read_redis_full_payload(),
+            rule_id,
+            version,
+        ) or self._parse_if_holding(
+            self._read_file_payload(), self._read_file_full_payload(), rule_id, version
+        )
         if held is None:
             return False
         rules, snapshot_patterns = held
@@ -105,13 +112,16 @@ class DynamicRulePurgeMixin:
         return True
 
     def _parse_if_holding(
-        self, payload: str | bytes | None, rule_id: str, version: int
+        self,
+        payload: str | bytes | None,
+        full_payload: str | bytes | None,
+        rule_id: str,
+        version: int,
     ) -> tuple[DynamicRules, list[str]] | None:
         if payload is None:
             return None
         try:
-            rules = load_last_known_rules_snapshot(payload)
-            _bans, patterns = load_last_known_ownership(payload)
+            rules, (_bans, patterns) = self._reconcile_snapshot(payload, full_payload)
         except Exception as error:
             self.logger.error(f"Unusable last-known snapshot while purging: {error}")
             return None

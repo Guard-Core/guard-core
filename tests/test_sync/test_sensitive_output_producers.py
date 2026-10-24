@@ -952,12 +952,21 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "{e}' - a JSON/pydantic parse error on the policy snapshot, not a "
         "request"
     ),
-    "handlers/_dynamic_rule_snapshot.py:DynamicRuleSnapshotMixin._read_file_payload": (
-        "line 90: file-read error for the snapshot cache path (config "
+    "handlers/_dynamic_rule_snapshot.py:DynamicRuleSnapshotMixin._read_cache_file": (
+        "line 134: file-read error for the snapshot cache path (config "
         "value), not a request"
     ),
-    "handlers/_dynamic_rule_snapshot.py:DynamicRuleSnapshotMixin._read_redis_payload": (
-        "line 73: Redis-read error for the snapshot key, not a request"
+    "handlers/_dynamic_rule_snapshot.py:DynamicRuleSnapshotMixin._read_redis_key": (
+        "line 111: Redis-read error for a snapshot key, not a request"
+    ),
+    "handlers/_dynamic_rule_snapshot.py:DynamicRuleSnapshotMixin._reconcile_snapshot": (
+        "line 166: 'Ignoring the full last-known dynamic rules snapshot' - a "
+        "disagreement or parse error on the policy snapshot (type and message "
+        "of the parse error only), not a request"
+    ),
+    "handlers/_dynamic_rule_snapshot.py:"
+    "DynamicRuleSnapshotMixin._persist_snapshot_to_redis": (
+        "line 233: Redis-write error for a snapshot key, infra only"
     ),
     "core/events/composite_handler.py:CompositeAgentHandler.get_status": (
         "line 110: logs.exception for a failing handler's get_status call, no "

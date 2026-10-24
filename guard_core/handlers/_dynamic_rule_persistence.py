@@ -3,6 +3,8 @@ from typing import Any
 
 DYNAMIC_RULES_REDIS_NAMESPACE = "dynamic_rules"
 LAST_KNOWN_RULES_KEY = "last_known"
+LAST_KNOWN_RULES_FULL_KEY = "last_known_full"
+LAST_KNOWN_RULES_FULL_FILE_SUFFIX = ".full"
 OWNED_BANS_KEY = "owned_bans"
 PURGED_MARKER_KEY = "purged"
 BAN_FLOORS_NAMESPACE = "ban_floors"

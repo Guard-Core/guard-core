@@ -107,7 +107,10 @@ def test_clearing_the_persisted_rules_deletes_the_redis_key() -> None:
     redis.delete = MagicMock()
     manager.redis_handler = redis
     manager._clear_last_known_rules()
-    redis.delete.assert_called_once_with("dynamic_rules", "last_known")
+    assert [call.args for call in redis.delete.call_args_list] == [
+        ("dynamic_rules", "last_known"),
+        ("dynamic_rules", "last_known_full"),
+    ]
 
 
 def test_unbanning_a_network_removes_the_redis_record() -> None:

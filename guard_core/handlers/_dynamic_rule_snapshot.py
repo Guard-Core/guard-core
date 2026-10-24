@@ -9,11 +9,15 @@ from typing import Any
 from guard_core._dynamic_rules import (
     content_fingerprint,
     dump_last_known_rules_snapshot,
+    dump_legacy_last_known_rules_snapshot,
     load_last_known_ownership,
     load_last_known_rules_snapshot,
+    snapshot_agrees_with_legacy,
 )
 from guard_core.handlers._dynamic_rule_persistence import (
     DYNAMIC_RULES_REDIS_NAMESPACE,
+    LAST_KNOWN_RULES_FULL_FILE_SUFFIX,
+    LAST_KNOWN_RULES_FULL_KEY,
     LAST_KNOWN_RULES_KEY,
     resolve_redis_value,
 )
@@ -64,13 +68,15 @@ class DynamicRuleSnapshotMixin(DynamicRulePurgeMixin):
             self.logger.error(f"Failed to hydrate last-known dynamic rules: {e}")
 
     async def _load_last_known_rules(self) -> DynamicRules | None:
-        redis_payload = await self._read_redis_payload()
-        file_payload = self._read_file_payload()
+        stores = (
+            (await self._read_redis_payload(), await self._read_redis_full_payload()),
+            (self._read_file_payload(), self._read_file_full_payload()),
+        )
         marker = await self._read_purge_marker()
-        for payload in (redis_payload, file_payload):
+        for payload, full_payload in stores:
             if payload is None:
                 continue
-            rules = self._parse_last_known_rules(payload)
+            rules = self._parse_last_known_rules(payload, full_payload)
             if rules is None:
                 continue
             if marker is not None and purge_fingerprint(rules) == marker.fingerprint:
@@ -89,13 +95,17 @@ class DynamicRuleSnapshotMixin(DynamicRulePurgeMixin):
         return None
 
     async def _read_redis_payload(self) -> str | bytes | None:
+        return await self._read_redis_key(LAST_KNOWN_RULES_KEY)
+
+    async def _read_redis_full_payload(self) -> str | bytes | None:
+        return await self._read_redis_key(LAST_KNOWN_RULES_FULL_KEY)
+
+    async def _read_redis_key(self, key: str) -> str | bytes | None:
         if not self.redis_handler:
             return None
         try:
             raw = await resolve_redis_value(
-                self.redis_handler.get_key(
-                    DYNAMIC_RULES_REDIS_NAMESPACE, LAST_KNOWN_RULES_KEY
-                )
+                self.redis_handler.get_key(DYNAMIC_RULES_REDIS_NAMESPACE, key)
             )
         except Exception as e:
             self.logger.error(
@@ -109,7 +119,13 @@ class DynamicRuleSnapshotMixin(DynamicRulePurgeMixin):
         return str(raw)
 
     def _read_file_payload(self) -> str | None:
+        return self._read_cache_file(self.config.dynamic_rules_cache_path)
+
+    def _read_file_full_payload(self) -> str | None:
         path = self.config.dynamic_rules_cache_path
+        return self._read_cache_file(None if path is None else _full_file_path(path))
+
+    def _read_cache_file(self, path: Path | None) -> str | None:
         if path is None or not path.is_file():
             return None
         try:
@@ -118,43 +134,68 @@ class DynamicRuleSnapshotMixin(DynamicRulePurgeMixin):
             self.logger.error(f"Failed to read dynamic rules cache file {path}: {e}")
             return None
 
-    def _parse_last_known_rules(self, payload: str | bytes) -> DynamicRules | None:
+    def _parse_last_known_rules(
+        self, payload: str | bytes, full_payload: str | bytes | None = None
+    ) -> DynamicRules | None:
         try:
-            rules = load_last_known_rules_snapshot(payload)
-            self._restored_ownership = load_last_known_ownership(payload)
-            return rules
+            snapshot = self._reconcile_snapshot(payload, full_payload)
         except Exception as e:
             self.logger.error(
                 f"Discarding unusable last-known dynamic rules payload: {e}"
             )
             return None
+        self._restored_ownership = snapshot[1]
+        return snapshot[0]
+
+    def _reconcile_snapshot(
+        self, payload: str | bytes, full_payload: str | bytes | None
+    ) -> tuple[DynamicRules, tuple[list[str], list[str]]]:
+        """The full snapshot when it agrees with the legacy one as data, else the
+        legacy one (what a v4.4.0 worker last wrote or read) and one log line."""
+        legacy = load_last_known_rules_snapshot(payload)
+        if full_payload is not None:
+            try:
+                if snapshot_agrees_with_legacy(full_payload, legacy):
+                    return (
+                        load_last_known_rules_snapshot(full_payload),
+                        load_last_known_ownership(full_payload),
+                    )
+                reason = "differs from the legacy snapshot"
+            except Exception as e:
+                reason = f"is unusable ({e})"
+            self.logger.warning(
+                f"Ignoring the full last-known dynamic rules snapshot: it {reason}; "
+                "using the legacy snapshot"
+            )
+        return legacy, load_last_known_ownership(payload)
 
     async def _clear_last_known_rules(self) -> None:
         if self.redis_handler:
-            try:
-                await resolve_redis_value(
-                    self.redis_handler.delete(
-                        DYNAMIC_RULES_REDIS_NAMESPACE, LAST_KNOWN_RULES_KEY
+            for key in (LAST_KNOWN_RULES_KEY, LAST_KNOWN_RULES_FULL_KEY):
+                try:
+                    await resolve_redis_value(
+                        self.redis_handler.delete(DYNAMIC_RULES_REDIS_NAMESPACE, key)
                     )
-                )
-            except Exception as e:
-                self.logger.error(
-                    f"Failed to clear last-known dynamic rules in Redis: {e}"
-                )
+                except Exception as e:
+                    self.logger.error(
+                        f"Failed to clear last-known dynamic rules in Redis: {e}"
+                    )
 
         cache_path = self.config.dynamic_rules_cache_path
         if cache_path is None:
             return
-        try:
-            cache_path.unlink(missing_ok=True)
-        except OSError as e:
-            self.logger.error(
-                f"Failed to clear dynamic rules cache file {cache_path}: {e}"
-            )
+        for path in (cache_path, _full_file_path(cache_path)):
+            try:
+                path.unlink(missing_ok=True)
+            except OSError as e:
+                self.logger.error(
+                    f"Failed to clear dynamic rules cache file {path}: {e}"
+                )
 
     async def _persist_last_known_rules(self, rules: DynamicRules) -> None:
         try:
-            payload = dump_last_known_rules_snapshot(
+            legacy = dump_legacy_last_known_rules_snapshot(rules)
+            full = dump_last_known_rules_snapshot(
                 rules, self._owned_bans, self._owned_patterns
             )
         except Exception as e:
@@ -162,26 +203,35 @@ class DynamicRuleSnapshotMixin(DynamicRulePurgeMixin):
             return
 
         if self.redis_handler:
-            try:
-                await resolve_redis_value(
-                    self.redis_handler.set_key(
-                        DYNAMIC_RULES_REDIS_NAMESPACE,
-                        LAST_KNOWN_RULES_KEY,
-                        payload,
-                    )
-                )
-            except Exception as e:
-                self.logger.error(f"Failed to persist dynamic rules to Redis: {e}")
+            await self._persist_snapshot_to_redis(legacy, full)
 
         cache_path = self.config.dynamic_rules_cache_path
         if cache_path is None:
             return
         try:
-            self._write_last_known_rules_file(cache_path, payload)
+            self._write_last_known_rules_file(cache_path, legacy)
+            self._write_last_known_rules_file(_full_file_path(cache_path), full)
         except OSError as e:
             self.logger.error(
                 f"Failed to persist dynamic rules to cache file {cache_path}: {e}"
             )
+
+    async def _persist_snapshot_to_redis(self, legacy: str, full: str) -> None:
+        # Legacy first: a crash between the writes leaves the full key stale, which
+        # the agreement rule on read treats as a disagreement, never the reverse.
+        for key, payload in (
+            (LAST_KNOWN_RULES_KEY, legacy),
+            (LAST_KNOWN_RULES_FULL_KEY, full),
+        ):
+            try:
+                await resolve_redis_value(
+                    self.redis_handler.set_key(
+                        DYNAMIC_RULES_REDIS_NAMESPACE, key, payload
+                    )
+                )
+            except Exception as e:
+                self.logger.error(f"Failed to persist dynamic rules to Redis: {e}")
+                return
 
     def _write_last_known_rules_file(self, cache_path: Path, payload: str) -> None:
         descriptor, temp_name = tempfile.mkstemp(
@@ -195,3 +245,7 @@ class DynamicRuleSnapshotMixin(DynamicRulePurgeMixin):
         except OSError:
             temp_path.unlink(missing_ok=True)
             raise
+
+
+def _full_file_path(cache_path: Path) -> Path:
+    return cache_path.with_name(cache_path.name + LAST_KNOWN_RULES_FULL_FILE_SUFFIX)

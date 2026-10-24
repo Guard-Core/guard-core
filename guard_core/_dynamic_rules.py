@@ -93,6 +93,7 @@ def content_fingerprint(rules: Any) -> str:
 
 
 LAST_KNOWN_RULES_SNAPSHOT_SCHEMA_VERSION = 1
+_LEGACY_EXCLUDED_RULE_FIELDS = {"emergency_whitelist_only"}
 
 
 class LastKnownDynamicRules(DynamicRules):
@@ -119,18 +120,46 @@ def dump_last_known_rules_snapshot(
     owned_bans: Sequence[str] | None = None,
     owned_patterns: Sequence[str] | None = None,
 ) -> str:
+    return _build_snapshot(rules, owned_bans, owned_patterns).model_dump_json(
+        exclude={"owned"} if owned_bans is None and owned_patterns is None else None
+    )
+
+
+def dump_legacy_last_known_rules_snapshot(rules: DynamicRules) -> str:
+    """The snapshot exactly as a v4.4.0 worker parses it: no ``owned`` and no
+    ``emergency_whitelist_only`` (v4.4.0 forbids extra fields)."""
+    return _build_snapshot(rules, None, None).model_dump_json(
+        exclude={"owned": True, "rules": _LEGACY_EXCLUDED_RULE_FIELDS}
+    )
+
+
+def _build_snapshot(
+    rules: DynamicRules,
+    owned_bans: Sequence[str] | None,
+    owned_patterns: Sequence[str] | None,
+) -> LastKnownRulesSnapshot:
     mirrored_fields = rules.model_dump(include=set(DynamicRules.model_fields))
     owned = None
     if owned_bans is not None or owned_patterns is not None:
         owned = LastKnownOwnership(
             bans=list(owned_bans or ()), patterns=list(owned_patterns or ())
         )
-    snapshot = LastKnownRulesSnapshot(
+    return LastKnownRulesSnapshot(
         schema_version=LAST_KNOWN_RULES_SNAPSHOT_SCHEMA_VERSION,
         rules=LastKnownDynamicRules.model_validate(mirrored_fields),
         owned=owned,
     )
-    return snapshot.model_dump_json(exclude={"owned"} if owned is None else None)
+
+
+def snapshot_agrees_with_legacy(
+    full_payload: str | bytes, legacy: DynamicRules
+) -> bool:
+    """True when the full snapshot holds the same rule data as the legacy one,
+    compared as data on the fields the legacy format carries."""
+    full = load_last_known_rules_snapshot(full_payload)
+    return full.model_dump(exclude=_LEGACY_EXCLUDED_RULE_FIELDS) == legacy.model_dump(
+        exclude=_LEGACY_EXCLUDED_RULE_FIELDS
+    )
 
 
 def load_last_known_rules_snapshot(payload: str | bytes) -> DynamicRules:
