@@ -10,6 +10,7 @@ import pytest
 from redis import Redis
 
 from guard_core.exceptions import GuardRedisError
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.core.checks.implementations.authentication import (
     AuthenticationCheck,
@@ -66,8 +67,6 @@ class _Rig:
             ban_on_hostile_signals=True,
         )
         fields.update(overrides)
-        from guard_core.models import SyncSecurityConfig
-
         self.config = SyncSecurityConfig(**fields)
         self.redis = RedisManager(self.config)
         self.events: list[tuple[Any, Any]] = []
@@ -146,7 +145,9 @@ class _Rig:
         if method == "OPTIONS":
             headers["Access-Control-Request-Method"] = "GET"
         request.headers = SimpleNamespace(
-            get=lambda name, default="": headers.get(name, default),
+            get=lambda name, default="": {k.lower(): v for k, v in headers.items()}.get(
+                name.lower(), default
+            ),
             keys=lambda: list(headers),
             __contains__=lambda name: name in headers,
         )
@@ -653,7 +654,7 @@ def test_a_banned_client_never_reaches_the_verifier() -> None:
 def test_a_banned_client_gets_the_banned_response_at_a_referrer_denial(
     headers: dict[str, str],
 ) -> None:
-    with _rig(enable_rate_limiting=False) as rig:
+    with _rig() as rig:
         rig.ban_in_redis_only(CLIENT)
 
         assert (
@@ -698,3 +699,21 @@ def test_an_ipv6_client_is_counted_by_its_prefix_in_the_one_script() -> None:
         assert codes == [None, None, 429, 429]
         state = rig.state()
         assert any("rate_limit:rate:2001:db8::" in key for key in state)
+
+
+def test_with_the_flag_off_no_source_is_fed_before_rate_limiting() -> None:
+    from guard_core.sync.core.initialization import _ban_threshold_report as report
+
+    config = SyncSecurityConfig(
+        enable_redis=False,
+        rate_limit=1,
+        blacklist=["198.51.100.1"],
+        ban_on_hostile_signals=False,
+        auto_ban_threshold=10**6,
+    )
+
+    problems = report.unreachable_ban_threshold_problems(
+        config, report._BanThresholdContext(lambda: [], lambda: False)
+    )
+
+    assert any("auto_ban_threshold" in problem for problem in problems)
