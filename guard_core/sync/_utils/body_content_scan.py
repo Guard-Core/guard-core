@@ -1,5 +1,6 @@
 from collections import Counter
 from collections.abc import Collection, Iterator, Mapping
+from typing import TYPE_CHECKING
 from urllib.parse import parse_qsl
 
 from guard_core.sync._utils.body_form_scan import (
@@ -53,6 +54,9 @@ from guard_core.sync._utils.sensitive_names import (
     name_is_sensitive,
 )
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
+
+if TYPE_CHECKING:
+    from guard_core.sync.handlers.suspatterns_handler import SusPatternsManager
 
 __all__ = [
     "_MONGO_OPERATOR_KEY_RE",
@@ -131,6 +135,8 @@ def _scan_query_param_value(
     sensitive_body_fields: frozenset[str] = frozenset(),
     excluded_body_fields: frozenset[str] = frozenset(),
     sensitive_headers: frozenset[str] = frozenset(),
+    *,
+    patterns: "SusPatternsManager | None" = None,
 ) -> tuple[bool, str, list[dict]]:
     is_sensitive = _query_name_is_sensitive(key, sensitive_params, sensitive_headers)
     content_preview: str | LazyPreview = (
@@ -154,6 +160,7 @@ def _scan_query_param_value(
         excluded_body_fields=excluded_body_fields,
         json_redact_all=json_redact_all,
         sensitive_params=sensitive_params,
+        patterns=patterns,
     )
     if detected and is_sensitive:
         _log_detected_component(
@@ -190,6 +197,8 @@ def _scan_query_pair(
     sensitive_body_fields: frozenset[str],
     excluded_body_fields: frozenset[str],
     sensitive_headers: frozenset[str],
+    *,
+    patterns: "SusPatternsManager | None" = None,
 ) -> tuple[bool, str, list[dict]] | None:
     key_preview = redact_blob_for_display(
         key, sensitive_params, sensitive_body_fields, sensitive_headers
@@ -203,6 +212,7 @@ def _scan_query_pair(
         correlation_id,
         log_level,
         content_preview=key_preview,
+        patterns=patterns,
     )
     if detected:
         return True, f"Query param name '{key_preview}': {trigger}", threats
@@ -218,6 +228,7 @@ def _scan_query_pair(
         sensitive_body_fields,
         excluded_body_fields,
         sensitive_headers,
+        patterns=patterns,
     )
     if detected:
         return True, f"Query param '{key_preview}': {trigger}", threats
@@ -235,6 +246,8 @@ def _scan_query_params(
     sensitive_body_fields: frozenset[str] = frozenset(),
     excluded_body_fields: frozenset[str] = frozenset(),
     sensitive_headers: frozenset[str] = frozenset(),
+    *,
+    patterns: "SusPatternsManager | None" = None,
 ) -> tuple[bool, str, list[dict]]:
     all_enabled_categories = enabled_categories
     remainder = _SurfaceRemainder()
@@ -257,6 +270,7 @@ def _scan_query_params(
             sensitive_body_fields,
             excluded_body_fields,
             sensitive_headers,
+            patterns=patterns,
         )
         if hit is not None:
             return hit
@@ -279,6 +293,7 @@ def _scan_query_params(
         lambda piece: redact_blob_for_display(
             piece, sensitive_params, sensitive_body_fields, sensitive_headers
         ),
+        patterns=patterns,
     )
 
 
@@ -294,6 +309,8 @@ def _scan_excluded_header_component(
     excluded_body_fields: frozenset[str] = frozenset(),
     sensitive_headers: frozenset[str] = frozenset(),
     internal_host: bool = False,
+    *,
+    patterns: "SusPatternsManager | None" = None,
 ) -> tuple[bool, str, list[dict]] | None:
     if enabled_categories is None or "cmd_injection" in enabled_categories:
         detected, trigger, threats = _check_always_scan_header(key)
@@ -324,6 +341,7 @@ def _scan_excluded_header_component(
         excluded_body_fields=excluded_body_fields,
         sensitive_params=sensitive_params,
         sensitive_headers=sensitive_headers,
+        patterns=patterns,
     )
 
 
@@ -339,6 +357,8 @@ def _scan_normal_header_component(
     excluded_body_fields: frozenset[str] = frozenset(),
     sensitive_params: frozenset[str] = frozenset(),
     sensitive_headers: frozenset[str] = frozenset(),
+    *,
+    patterns: "SusPatternsManager | None" = None,
 ) -> tuple[bool, str, list[dict]] | None:
     detected, trigger, threats = _scan_component_name(
         key,
@@ -348,6 +368,7 @@ def _scan_normal_header_component(
         client_ip,
         correlation_id,
         log_level,
+        patterns=patterns,
     )
     if detected:
         return True, f"Header name '{key}': {trigger}", threats
@@ -370,6 +391,7 @@ def _scan_normal_header_component(
         excluded_body_fields=excluded_body_fields,
         json_redact_all=json_redact_all,
         sensitive_params=sensitive_params,
+        patterns=patterns,
     )
     if detected:
         return True, f"Header '{key}': {trigger}", threats
@@ -386,6 +408,8 @@ def _scan_sensitive_header(
     log_level: str | None,
     sensitive_body_fields: frozenset[str] = frozenset(),
     excluded_body_fields: frozenset[str] = frozenset(),
+    *,
+    patterns: "SusPatternsManager | None" = None,
 ) -> tuple[bool, str, list[dict]] | None:
     if key.strip().lower() in excluded_headers:
         hit = _scan_excluded_header_component(
@@ -397,6 +421,7 @@ def _scan_sensitive_header(
             None,
             sensitive_body_fields=sensitive_body_fields,
             excluded_body_fields=excluded_body_fields,
+            patterns=patterns,
         )
     else:
         hit = _scan_normal_header_component(
@@ -409,6 +434,7 @@ def _scan_sensitive_header(
             content_preview="[REDACTED]",
             sensitive_body_fields=sensitive_body_fields,
             excluded_body_fields=excluded_body_fields,
+            patterns=patterns,
         )
     if hit is not None:
         _log_detected_component("[REDACTED]", f"header '{key}'", client_ip, log_level)
@@ -438,6 +464,8 @@ def _scan_header_item(
     sensitive_body_fields: frozenset[str],
     excluded_body_fields: frozenset[str],
     sensitive_params: frozenset[str],
+    *,
+    patterns: "SusPatternsManager | None" = None,
 ) -> tuple[bool, str, list[dict]] | None:
     if name_is_sensitive(key, sensitive_headers):
         return _scan_sensitive_header(
@@ -450,6 +478,7 @@ def _scan_header_item(
             log_level,
             sensitive_body_fields,
             excluded_body_fields,
+            patterns=patterns,
         )
     if key.strip().lower() in excluded_headers:
         return _scan_excluded_header_component(
@@ -464,6 +493,7 @@ def _scan_header_item(
             excluded_body_fields,
             sensitive_headers,
             internal_host,
+            patterns=patterns,
         )
     return _scan_normal_header_component(
         key,
@@ -476,6 +506,7 @@ def _scan_header_item(
         excluded_body_fields=excluded_body_fields,
         sensitive_params=sensitive_params,
         sensitive_headers=sensitive_headers,
+        patterns=patterns,
     )
 
 
@@ -491,6 +522,8 @@ def _scan_headers(
     excluded_body_fields: frozenset[str] = frozenset(),
     sensitive_params: frozenset[str] = frozenset(),
     operator_excluded_headers: frozenset[str] = frozenset(),
+    *,
+    patterns: "SusPatternsManager | None" = None,
 ) -> tuple[bool, str, list[dict]]:
     items = list(_header_items_to_scan(request.headers))
     internal_host = any(
@@ -516,6 +549,7 @@ def _scan_headers(
             sensitive_body_fields,
             excluded_body_fields,
             sensitive_params,
+            patterns=patterns,
         )
         if hit is not None:
             return hit
@@ -538,6 +572,7 @@ def _scan_headers(
         lambda piece: redact_blob_for_display(
             piece, sensitive_params, sensitive_body_fields, sensitive_headers
         ),
+        patterns=patterns,
     )
 
 
@@ -562,6 +597,8 @@ def _scan_body_field(
     preview_override: str | None = None,
     sensitive_params: frozenset[str] = frozenset(),
     scan_embedded_json: bool = True,
+    *,
+    patterns: "SusPatternsManager | None" = None,
 ) -> tuple[bool, str, list[dict]]:
     is_sensitive = name_is_sensitive(label, sensitive_body_fields)
     log_value: str | LazyPreview | None = _field_log_value(
@@ -580,6 +617,7 @@ def _scan_body_field(
         scan_embedded_json=scan_embedded_json,
         content_preview=log_value,
         sensitive_params=sensitive_params,
+        patterns=patterns,
     )
     if not detected:
         return False, "", []
@@ -598,6 +636,8 @@ def _scan_blob_body_leaves(
     correlation_id: str,
     sensitive_params: frozenset[str],
     sensitive_body_fields: frozenset[str],
+    *,
+    patterns: "SusPatternsManager | None" = None,
 ) -> tuple[bool, str, list[dict]] | None:
     if _JSON_CONTAINER_START(raw_body) is None:
         return None
@@ -613,6 +653,7 @@ def _scan_blob_body_leaves(
                 sensitive_body_fields,
                 True,
                 sensitive_params,
+                patterns=patterns,
             )
         else:
             json_hit = _scan_string_literals(
@@ -624,6 +665,7 @@ def _scan_blob_body_leaves(
                 sensitive_body_fields,
                 True,
                 sensitive_params,
+                patterns=patterns,
             )
     if json_hit is None or not json_hit[0]:
         return None
@@ -640,6 +682,8 @@ def _scan_blob_body(
     sensitive_body_fields: frozenset[str] = frozenset(),
     force_redacted: bool = False,
     excluded_body_fields: frozenset[str] = frozenset(),
+    *,
+    patterns: "SusPatternsManager | None" = None,
 ) -> tuple[bool, str, list[dict]]:
     content_preview: str | LazyPreview = (
         "[REDACTED]"
@@ -658,6 +702,7 @@ def _scan_blob_body(
         correlation_id,
         sensitive_params,
         sensitive_body_fields,
+        patterns=patterns,
     )
     if leaf_hit is not None:
         _log_detected_component(
@@ -678,6 +723,7 @@ def _scan_blob_body(
             log_level,
             scan_embedded_json=False,
             content_preview=content_preview,
+            patterns=patterns,
         )
     if detected:
         return True, f"Request body: {trigger}", threats
@@ -694,6 +740,8 @@ def _scan_request_body(
     log_level: str | None,
     sensitive_body_fields: frozenset[str] = frozenset(),
     sensitive_params: frozenset[str] = frozenset(),
+    *,
+    patterns: "SusPatternsManager | None" = None,
 ) -> tuple[bool, str, list[dict]]:
     lowered = content_type.lower()
     if "application/x-www-form-urlencoded" in lowered:
@@ -706,6 +754,7 @@ def _scan_request_body(
             log_level,
             sensitive_body_fields,
             sensitive_params,
+            patterns=patterns,
         )
     if "multipart/form-data" in lowered:
         return _scan_multipart_body(
@@ -718,6 +767,7 @@ def _scan_request_body(
             log_level,
             sensitive_body_fields,
             sensitive_params,
+            patterns=patterns,
         )
 
     if "json" in lowered:
@@ -730,6 +780,7 @@ def _scan_request_body(
             log_level,
             sensitive_body_fields,
             sensitive_params,
+            patterns=patterns,
         )
         if json_hit is not None:
             return json_hit
@@ -742,4 +793,5 @@ def _scan_request_body(
         sensitive_params,
         sensitive_body_fields,
         excluded_body_fields=frozenset(excluded_body_fields),
+        patterns=patterns,
     )

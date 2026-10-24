@@ -810,7 +810,7 @@ class SusPatternsManager(_SusPatternsViewsMixin):
         instance.patterns = [definition[0] for definition in cls._pattern_definitions]
         instance._config = config
         if _supports_enhanced_config(config):
-            instance._detection_state = _build_enhanced_detection_state(config)
+            instance.configure(config)
         return instance
 
     @property
@@ -1145,18 +1145,19 @@ _APP_PATTERN_MANAGERS: AppManagers[SusPatternsManager] = AppManagers("suspattern
 def sus_patterns_manager_for(config: Any, bind: bool = False) -> SusPatternsManager:
     """The pattern manager of the app built from config.
 
-    The module-level ``sus_patterns_handler`` serves the first app and any app
-    that shares its Redis prefix or has no Redis. An app on its own prefix gets a
-    manager of its own (custom patterns, detection state, Redis handler), found by
-    config identity. ``bind`` (the app's handler set) decides; the rest look it up.
-    The compiled built-in rows, the regex thread pool and the log-redaction name
-    sets stay process-wide.
+    The module-level ``sus_patterns_handler`` serves the first app and every app
+    on its Redis prefix. Any other app (another prefix, or no Redis) gets a manager
+    of its own (custom patterns, detection state, Redis handler), found by config
+    identity. ``bind`` (the app's handler set) decides; the rest look it up. A
+    configured manager parks itself on its config, where the request path reads it
+    without a lookup. The compiled built-in rows, the regex thread pool and the
+    log-redaction name sets stay process-wide.
     """
-    if bind:
-        return _APP_PATTERN_MANAGERS.bind(
-            config, sus_patterns_handler, lambda: SusPatternsManager._for_app(config)
-        )
-    return _APP_PATTERN_MANAGERS.find(config, sus_patterns_handler)
+    if not bind:
+        return _APP_PATTERN_MANAGERS.find(config, sus_patterns_handler)
+    return _APP_PATTERN_MANAGERS.bind(
+        config, sus_patterns_handler, lambda: SusPatternsManager._for_app(config)
+    )
 
 
 _active_sus_patterns: ContextVar[SusPatternsManager | None] = ContextVar(
@@ -1165,6 +1166,9 @@ _active_sus_patterns: ContextVar[SusPatternsManager | None] = ContextVar(
 
 
 def active_sus_patterns() -> SusPatternsManager:
+    """The manager a caller scans with: the one set by ``scanning_with``, else
+    the module-level default. The engine's own request path passes its manager
+    down as an argument and never reads this."""
     return _active_sus_patterns.get() or sus_patterns_handler
 
 

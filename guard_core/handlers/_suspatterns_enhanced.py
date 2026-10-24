@@ -46,6 +46,10 @@ class _SusPatternsEnhancedMixin:
         else:
             cls._config = config
         self._detection_state = _build_enhanced_detection_state(config)
+        try:
+            object.__setattr__(config, "_guard_pattern_manager", self)
+        except (AttributeError, TypeError):
+            return
 
     def _resolve_state(self, state: _DetectionState | None) -> _DetectionState:
         return state if state is not None else self._detection_state

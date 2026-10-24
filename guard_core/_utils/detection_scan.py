@@ -5,7 +5,7 @@ import time
 from collections.abc import Awaitable, Callable, Iterator, Mapping
 from contextlib import contextmanager
 from types import MappingProxyType
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from guard_core._utils.detection_config import (
     _DEFAULT_BINARY_MIN_RUN_LENGTH,
@@ -17,6 +17,9 @@ from guard_core._utils.detection_config import (
 )
 from guard_core._utils.logging_utils import _log_at_level, _sanitize_for_reporting
 from guard_core._utils.pattern_source_redaction import _redact_pattern_source
+
+if TYPE_CHECKING:
+    from guard_core.handlers.suspatterns_handler import SusPatternsManager
 
 logger = logging.getLogger("guard_core")
 
@@ -493,12 +496,16 @@ async def _first_blocked_user_agent_pattern(
 
 
 async def _fallback_pattern_check(
-    value: str, client_ip: str, context: str
+    value: str,
+    client_ip: str,
+    context: str,
+    *,
+    patterns: "SusPatternsManager | None" = None,
 ) -> tuple[bool, str]:
     from guard_core.detection_engine.binary_prefix import build_binary_prefix
     from guard_core.handlers.suspatterns_handler import active_sus_patterns
 
-    sus_patterns_handler = active_sus_patterns()
+    sus_patterns_handler = patterns if patterns is not None else active_sus_patterns()
     normalized_context = sus_patterns_handler._normalize_context(context)
     all_compiled = await sus_patterns_handler.get_all_compiled_patterns()
     binary_prefix = build_binary_prefix(value)
@@ -592,6 +599,8 @@ async def _check_embedded_json_if_applicable(
     excluded_body_fields: frozenset[str],
     json_redact_all: bool | None,
     sensitive_params: frozenset[str] = frozenset(),
+    *,
+    patterns: "SusPatternsManager | None" = None,
 ) -> tuple[bool, str, list[dict], str | None] | None:
     if not scan_embedded_json or _JSON_CONTAINER_START(value) is None:
         return None
@@ -608,6 +617,7 @@ async def _check_embedded_json_if_applicable(
         sensitive_body_fields,
         redact_all=_resolve_json_redact_all(content_preview, json_redact_all),
         sensitive_params=sensitive_params,
+        patterns=patterns,
     )
     if json_result is None or not json_result[0]:
         return None
@@ -626,6 +636,8 @@ async def _check_value_enhanced(
     excluded_body_fields: frozenset[str] = frozenset(),
     json_redact_all: bool | None = None,
     sensitive_params: frozenset[str] = frozenset(),
+    *,
+    patterns: "SusPatternsManager | None" = None,
 ) -> tuple[bool, str, list[dict], str | None]:
     from guard_core.handlers.suspatterns_handler import active_sus_patterns
 
@@ -645,12 +657,15 @@ async def _check_value_enhanced(
         excluded_body_fields,
         json_redact_all,
         sensitive_params,
+        patterns=patterns,
     )
     if json_hit is not None:
         return json_hit
 
     try:
-        result = await active_sus_patterns().detect(
+        result = await (
+            patterns if patterns is not None else active_sus_patterns()
+        ).detect(
             content=value,
             ip_address=client_ip,
             context=context,
@@ -672,7 +687,9 @@ async def _check_value_enhanced(
         raise
     except Exception as e:
         logger.error(f"Enhanced detection failed: {e}, falling back to basic check")
-        detected, trigger = await _fallback_pattern_check(value, client_ip, context)
+        detected, trigger = await _fallback_pattern_check(
+            value, client_ip, context, patterns=patterns
+        )
         return detected, trigger, [], None
 
 
@@ -705,6 +722,8 @@ async def _check_request_component(
     excluded_body_fields: frozenset[str] = frozenset(),
     json_redact_all: bool | None = None,
     sensitive_params: frozenset[str] = frozenset(),
+    *,
+    patterns: "SusPatternsManager | None" = None,
 ) -> tuple[bool, str, list[dict]]:
     detected, trigger, threats, log_override = await _check_value_enhanced(
         value,
@@ -718,6 +737,7 @@ async def _check_request_component(
         excluded_body_fields=excluded_body_fields,
         json_redact_all=json_redact_all,
         sensitive_params=sensitive_params,
+        patterns=patterns,
     )
     if detected:
         resolved = _resolve_preview(content_preview)
@@ -740,6 +760,8 @@ async def _scan_component_name(
     correlation_id: str,
     log_level: str | None,
     content_preview: "str | LazyPreview | None" = None,
+    *,
+    patterns: "SusPatternsManager | None" = None,
 ) -> tuple[bool, str, list[dict]]:
     return await _check_request_component(
         name,
@@ -751,6 +773,7 @@ async def _scan_component_name(
         log_level,
         scan_embedded_json=False,
         content_preview=content_preview,
+        patterns=patterns,
     )
 
 

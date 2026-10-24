@@ -73,6 +73,8 @@ def _scan_url_path_variants(
     log_level: str | None,
     sensitive_body_fields: frozenset[str],
     excluded_body_fields: frozenset[str],
+    *,
+    patterns: "SusPatternsManager | None" = None,
 ) -> tuple[bool, str, list[dict]]:
     literal_path = request.url_path
     resolved_path = resolve_dot_and_empty_segments(literal_path)
@@ -96,6 +98,7 @@ def _scan_url_path_variants(
                 sensitive_body_fields=sensitive_body_fields,
                 excluded_body_fields=excluded_body_fields,
                 json_redact_all=False,
+                patterns=patterns,
             )
         if detected:
             break
@@ -112,6 +115,8 @@ def _scan_declared_path_param_values(
     sensitive_body_fields: frozenset[str],
     excluded_body_fields: frozenset[str],
     sensitive_headers: frozenset[str],
+    *,
+    patterns: "SusPatternsManager | None" = None,
 ) -> tuple[bool, str, list[dict]]:
     for name, value in declared_path_param_values(request.url_path):
         with scanning_declared_path_param_values():
@@ -127,6 +132,7 @@ def _scan_declared_path_param_values(
                 sensitive_body_fields,
                 excluded_body_fields,
                 sensitive_headers,
+                patterns=patterns,
             )
         if detected:
             return True, f"Path param '{name}': {trigger}", threats
@@ -146,6 +152,8 @@ def _scan_request_surface(
     sensitive_body_fields: frozenset[str] = frozenset(),
     excluded_body_fields: frozenset[str] = frozenset(),
     operator_excluded_headers: frozenset[str] = frozenset(),
+    *,
+    patterns: "SusPatternsManager | None" = None,
 ) -> DetectionResult | None:
     detected, trigger, threats = _scan_query_params(
         request,
@@ -158,6 +166,7 @@ def _scan_request_surface(
         sensitive_body_fields,
         excluded_body_fields,
         sensitive_headers,
+        patterns=patterns,
     )
     if detected:
         return _build_detection_hit(trigger, threats)
@@ -179,6 +188,7 @@ def _scan_request_surface(
         log_level,
         sensitive_body_fields,
         excluded_body_fields,
+        patterns=patterns,
     )
     if detected:
         return _build_detection_hit(f"URL path: {trigger}", threats)
@@ -194,6 +204,7 @@ def _scan_request_surface(
             sensitive_body_fields,
             excluded_body_fields,
             sensitive_headers,
+            patterns=patterns,
         )
         if detected:
             return _build_detection_hit(trigger, threats)
@@ -210,6 +221,7 @@ def _scan_request_surface(
         excluded_body_fields,
         sensitive_params,
         operator_excluded_headers,
+        patterns=patterns,
     )
     if detected:
         return _build_detection_hit(trigger, threats)
@@ -228,12 +240,16 @@ def _scan_body_surface(
     log_level: str | None,
     sensitive_body_fields: frozenset[str],
     sensitive_params: frozenset[str] = frozenset(),
+    *,
+    patterns: "SusPatternsManager | None" = None,
 ) -> DetectionResult:
     if not _resolve_scan_body(config, route_config):
         return _build_detection_miss()
 
     try:
-        body_bytes = _read_capped_body_or_raise(request, config, client_ip)
+        body_bytes = _read_capped_body_or_raise(
+            request, config, client_ip, patterns=patterns
+        )
     except BodyReadStalledError as error:
         return _build_body_read_error(True, error.detail)
     except BodyReadFailedError as error:
@@ -254,6 +270,7 @@ def _scan_body_surface(
         log_level,
         sensitive_body_fields,
         sensitive_params,
+        patterns=patterns,
     )
     if detected:
         return _build_detection_hit(trigger, threats)
@@ -270,8 +287,10 @@ def _ensure_detection_singleton_configured(
 
     if config is None:
         return sus_patterns_handler
-
-    manager = sus_patterns_manager_for(config)
+    manager: SusPatternsManager = config._guard_pattern_manager
+    if manager._config is config:
+        return manager
+    manager = sus_patterns_manager_for(config, bind=True)
     if manager._detection_state.compiler is None or manager._config is not config:
         manager.configure(config)
     return manager
@@ -283,8 +302,6 @@ def detect_penetration_attempt(
     route_config: "RouteConfig | None" = None,
 ) -> DetectionResult:
     import uuid
-
-    from guard_core.sync.handlers.suspatterns_handler import scanning_with
 
     patterns_manager = _ensure_detection_singleton_configured(config)
 
@@ -331,7 +348,6 @@ def detect_penetration_attempt(
             (request, sensitive_params, sensitive_body_fields, sensitive_headers),
             body_field_category_skips,
         ),
-        scanning_with(patterns_manager),
     ):
         try:
             surface_hit = _scan_request_surface(
@@ -347,6 +363,7 @@ def detect_penetration_attempt(
                 sensitive_body_fields,
                 frozenset(excluded_body_fields),
                 operator_excluded_headers,
+                patterns=patterns_manager,
             )
             if surface_hit is not None:
                 surface_hit.correlation_id = correlation_id
@@ -363,6 +380,7 @@ def detect_penetration_attempt(
                 log_level,
                 sensitive_body_fields,
                 sensitive_params,
+                patterns=patterns_manager,
             )
             body_result.correlation_id = correlation_id
             return body_result

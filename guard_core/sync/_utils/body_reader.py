@@ -19,6 +19,7 @@ from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
 if TYPE_CHECKING:
     from guard_core.models import SyncSecurityConfig
+    from guard_core.sync.handlers.suspatterns_handler import SusPatternsManager
 
 logger = logging.getLogger("guard_core")
 
@@ -181,18 +182,20 @@ def _read_under_slot(
             ) from exc
 
 
-def _straddle_overlap_bytes() -> int:
+def _straddle_overlap_bytes(*, patterns: "SusPatternsManager | None" = None) -> int:
     from guard_core.sync.handlers.suspatterns_handler import active_sus_patterns
 
     try:
-        patterns = active_sus_patterns().get_all_compiled_patterns()
+        compiled = (
+            patterns if patterns is not None else active_sus_patterns()
+        ).get_all_compiled_patterns()
     except Exception:
         return 0
 
-    if not patterns:
+    if not compiled:
         return 0
 
-    longest = max(len(pattern.pattern) for pattern, _contexts, _category in patterns)
+    longest = max(len(pattern.pattern) for pattern, _contexts, _category in compiled)
     return min(longest, _MAX_STRADDLE_OVERLAP_BYTES)
 
 
@@ -232,8 +235,10 @@ def _read_and_cache_body(
     return capped
 
 
-def _capped_body_fetch_size(max_bytes: int) -> int:
-    return max_bytes + _straddle_overlap_bytes()
+def _capped_body_fetch_size(
+    max_bytes: int, *, patterns: "SusPatternsManager | None" = None
+) -> int:
+    return max_bytes + _straddle_overlap_bytes(patterns=patterns)
 
 
 def _read_bounded_prefix(
@@ -242,8 +247,10 @@ def _read_bounded_prefix(
     max_bytes: int,
     timeout: float,
     max_concurrent: int | None,
+    *,
+    patterns: "SusPatternsManager | None" = None,
 ) -> bytes | None:
-    fetch_bytes = _capped_body_fetch_size(max_bytes)
+    fetch_bytes = _capped_body_fetch_size(max_bytes, patterns=patterns)
     return _read_and_cache_body(
         request,
         fetch_bytes,
@@ -259,12 +266,16 @@ def _read_capped_body_prefix(
     max_bytes: int,
     timeout: float,
     max_concurrent: int | None,
+    *,
+    patterns: "SusPatternsManager | None" = None,
 ) -> bytes | None:
     kind = _body_reader_kind(request)
     if kind == _FULL_BODY:
         return None
 
-    return _read_bounded_prefix(request, kind, max_bytes, timeout, max_concurrent)
+    return _read_bounded_prefix(
+        request, kind, max_bytes, timeout, max_concurrent, patterns=patterns
+    )
 
 
 def _warn_body_inspect_bytes_cap_reached(max_bytes: int, client_ip: str) -> None:
@@ -295,6 +306,8 @@ def _read_oversized_declared_body(
     timeout: float,
     max_concurrent: int | None,
     client_ip: str,
+    *,
+    patterns: "SusPatternsManager | None" = None,
 ) -> bytes | None:
     kind = _body_reader_kind(request)
     if kind == _FULL_BODY:
@@ -305,7 +318,9 @@ def _read_oversized_declared_body(
         )
 
     _warn_body_inspect_bytes_cap_reached(max_bytes, client_ip)
-    return _read_bounded_prefix(request, kind, max_bytes, timeout, max_concurrent)
+    return _read_bounded_prefix(
+        request, kind, max_bytes, timeout, max_concurrent, patterns=patterns
+    )
 
 
 def _read_declared_body(
@@ -326,7 +341,11 @@ def _read_declared_body(
 
 
 def _read_capped_body_or_raise(
-    request: SyncGuardRequest, config: "SyncSecurityConfig | None", client_ip: str = ""
+    request: SyncGuardRequest,
+    config: "SyncSecurityConfig | None",
+    client_ip: str = "",
+    *,
+    patterns: "SusPatternsManager | None" = None,
 ) -> bytes | None:
     if config is None:
         prefix = _read_under_slot(
@@ -344,18 +363,29 @@ def _read_capped_body_or_raise(
         if parsed is not None:
             if parsed > max_bytes:
                 return _read_oversized_declared_body(
-                    request, max_bytes, timeout, max_concurrent, client_ip
+                    request,
+                    max_bytes,
+                    timeout,
+                    max_concurrent,
+                    client_ip,
+                    patterns=patterns,
                 )
             return _read_declared_body(request, max_bytes, timeout, max_concurrent)
 
-    return _read_capped_body_prefix(request, max_bytes, timeout, max_concurrent)
+    return _read_capped_body_prefix(
+        request, max_bytes, timeout, max_concurrent, patterns=patterns
+    )
 
 
 def _read_capped_body(
-    request: SyncGuardRequest, config: "SyncSecurityConfig | None", client_ip: str = ""
+    request: SyncGuardRequest,
+    config: "SyncSecurityConfig | None",
+    client_ip: str = "",
+    *,
+    patterns: "SusPatternsManager | None" = None,
 ) -> bytes | None:
     try:
-        return _read_capped_body_or_raise(request, config, client_ip)
+        return _read_capped_body_or_raise(request, config, client_ip, patterns=patterns)
     except (BodyReadStalledError, BodyReadFailedError) as exc:
         logger.warning("%s; the body is treated as unavailable", exc)
         return None

@@ -1,4 +1,4 @@
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from guard_core.sync._utils.detection_scan import (
     _binary_island_min_run_length,
@@ -19,6 +19,9 @@ from guard_core.sync.detection_engine.binary_islands import (
     value_is_binary_like,
 )
 
+if TYPE_CHECKING:
+    from guard_core.sync.handlers.suspatterns_handler import SusPatternsManager
+
 _FORM_FIELD_CONTEXT = "request_body:form_field"
 _MULTIPART_FIELD_CONTEXT = "request_body:multipart_field"
 
@@ -32,6 +35,8 @@ def _scan_form_field(
     log_level: str | None,
     sensitive_body_fields: frozenset[str],
     sensitive_params: frozenset[str],
+    *,
+    patterns: "SusPatternsManager | None" = None,
 ) -> tuple[bool, str, list[dict]] | None:
     from guard_core.sync._utils.body_content_scan import _scan_body_field
 
@@ -43,6 +48,7 @@ def _scan_form_field(
         client_ip,
         correlation_id,
         log_level,
+        patterns=patterns,
     )
     if name_hit[0]:
         return True, f"Form field name '{name}': {name_hit[1]}", name_hit[2]
@@ -56,6 +62,7 @@ def _scan_form_field(
         sensitive_body_fields,
         context=_FORM_FIELD_CONTEXT,
         sensitive_params=sensitive_params,
+        patterns=patterns,
     )
     return hit if hit[0] else None
 
@@ -69,6 +76,8 @@ def _scan_form_body(
     log_level: str | None,
     sensitive_body_fields: frozenset[str] = frozenset(),
     sensitive_params: frozenset[str] = frozenset(),
+    *,
+    patterns: "SusPatternsManager | None" = None,
 ) -> tuple[bool, str, list[dict]]:
     from urllib.parse import parse_qsl
 
@@ -92,6 +101,7 @@ def _scan_form_body(
             log_level,
             sensitive_body_fields,
             sensitive_params,
+            patterns=patterns,
         )
         if hit is not None:
             return hit
@@ -112,6 +122,7 @@ def _scan_form_body(
         correlation_id,
         log_level,
         _body_remainder_display(sensitive_params, sensitive_body_fields),
+        patterns=patterns,
     )
 
 
@@ -204,6 +215,8 @@ def _scan_multipart_part(
     log_level: str | None,
     sensitive_body_fields: frozenset[str] = frozenset(),
     sensitive_params: frozenset[str] = frozenset(),
+    *,
+    patterns: "SusPatternsManager | None" = None,
 ) -> tuple[bool, str, list[dict]] | None:
     from guard_core.sync._utils.body_content_scan import _scan_body_field
 
@@ -221,6 +234,7 @@ def _scan_multipart_part(
         client_ip,
         correlation_id,
         log_level,
+        patterns=patterns,
     )
     if name_hit[0]:
         return True, f"Multipart field name '{label}': {name_hit[1]}", name_hit[2]
@@ -234,6 +248,7 @@ def _scan_multipart_part(
         sensitive_body_fields,
         context=_MULTIPART_FIELD_CONTEXT,
         sensitive_params=sensitive_params,
+        patterns=patterns,
     )
     if hit[0]:
         return hit
@@ -250,6 +265,8 @@ def _scan_multipart_body(
     log_level: str | None,
     sensitive_body_fields: frozenset[str] = frozenset(),
     sensitive_params: frozenset[str] = frozenset(),
+    *,
+    patterns: "SusPatternsManager | None" = None,
 ) -> tuple[bool, str, list[dict]]:
     from guard_core.sync._utils.body_content_scan import _scan_blob_body
 
@@ -262,6 +279,7 @@ def _scan_multipart_body(
             correlation_id,
             log_level,
             force_redacted=True,
+            patterns=patterns,
         )
     remainder = _SurfaceRemainder()
     skips = _skip_counter()
@@ -278,6 +296,7 @@ def _scan_multipart_body(
             log_level,
             sensitive_body_fields,
             sensitive_params,
+            patterns=patterns,
         )
         if hit is not None:
             return hit
@@ -296,4 +315,5 @@ def _scan_multipart_body(
         correlation_id,
         log_level,
         _body_remainder_display(sensitive_params, sensitive_body_fields),
+        patterns=patterns,
     )

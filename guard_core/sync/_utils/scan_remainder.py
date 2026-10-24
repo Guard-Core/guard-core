@@ -1,7 +1,7 @@
 import re
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from typing import NamedTuple
+from typing import TYPE_CHECKING, NamedTuple
 
 from guard_core.exceptions import BodyReadFailedError
 from guard_core.sync._utils.detection_scan import (
@@ -16,6 +16,9 @@ from guard_core.sync._utils.detection_scan import (
 )
 from guard_core.sync.detection_engine.truncation import reusing_attack_regions
 from guard_core.sync.handlers._suspatterns_literals import reusing_literal_presence
+
+if TYPE_CHECKING:
+    from guard_core.sync.handlers.suspatterns_handler import SusPatternsManager
 
 
 @contextmanager
@@ -128,7 +131,9 @@ _UNIT_PASS_MAX_SCANS = 256
 _UNIT_NEEDS_DECODING_RE = re.compile(r"[%&\\\x80-\U0010ffff]")
 
 
-def _whole_value_rows() -> list[re.Pattern]:
+def _whole_value_rows(
+    *, patterns: "SusPatternsManager | None" = None
+) -> list[re.Pattern]:
     from guard_core.sync.handlers._suspatterns_regex import (
         _CONTEXT_SENSITIVE_ROW_SOURCES,
     )
@@ -140,7 +145,9 @@ def _whole_value_rows() -> list[re.Pattern]:
     return [
         pattern
         for pattern, _contexts, _category in (
-            active_sus_patterns().get_all_compiled_patterns()
+            (
+                patterns if patterns is not None else active_sus_patterns()
+            ).get_all_compiled_patterns()
         )
         if row_needs_the_whole_value(pattern.pattern, _CONTEXT_SENSITIVE_ROW_SOURCES)
     ]
@@ -163,8 +170,10 @@ def _scan_whole_value_rows_per_unit(
     categories: frozenset[str] | None,
     log_level: str | None,
     preview_of: Callable[[str], str | None],
+    *,
+    patterns: "SusPatternsManager | None" = None,
 ) -> tuple[bool, str, list[dict]]:
-    rows = _whole_value_rows()
+    rows = _whole_value_rows(patterns=patterns)
     scans_left = _UNIT_PASS_MAX_SCANS
     for _piece, sensitive, units in skipped:
         for unit in units:
@@ -188,6 +197,7 @@ def _scan_whole_value_rows_per_unit(
                     content_preview=_REDACTED_PIECE
                     if sensitive
                     else (preview_of(unit) or unit),
+                    patterns=patterns,
                 )
             if detected:
                 return True, f"{component_name}: {trigger}", threats
@@ -203,6 +213,8 @@ def _scan_surface_remainder(
     correlation_id: str,
     log_level: str | None,
     preview_of: Callable[[str], str | None],
+    *,
+    patterns: "SusPatternsManager | None" = None,
 ) -> tuple[bool, str, list[dict]]:
     logger.info(
         "%s skipped past the scan budget for client %s; scanning them once "
@@ -229,6 +241,7 @@ def _scan_surface_remainder(
                     log_level,
                     scan_embedded_json=False,
                     content_preview=_remainder_preview(skipped, separator, preview_of),
+                    patterns=patterns,
                 )
             if detected and _only_the_time_budget_ended(threats):
                 raise BodyReadFailedError(
@@ -244,6 +257,7 @@ def _scan_surface_remainder(
                 categories,
                 log_level,
                 preview_of,
+                patterns=patterns,
             )
             if detected or unit_hit[0]:
                 return (

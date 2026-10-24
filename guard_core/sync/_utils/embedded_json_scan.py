@@ -1,6 +1,6 @@
 import json
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from guard_core.sync._utils.body_json_scan import (
     _json_object_with_every_pair,
@@ -17,6 +17,9 @@ from guard_core.sync._utils.kept_value_paths import _NOTHING_TO_KEEP, _keep_only
 from guard_core.sync.handlers._suspatterns_sources import (
     _EMBEDDED_JSON_LEAF_CONTEXT_SUFFIX,
 )
+
+if TYPE_CHECKING:
+    from guard_core.sync.handlers.suspatterns_handler import SusPatternsManager
 
 # One fixed limit below the lowest json.loads limit (see json_nesting) keeps every
 # interpreter on the same path for a value that already sits inside a parsed body.
@@ -104,6 +107,8 @@ def _scan_string_literals(
     sensitive_body_fields: frozenset[str],
     redact_all: bool,
     sensitive_params: frozenset[str],
+    *,
+    patterns: "SusPatternsManager | None" = None,
 ) -> tuple[bool, str, list[dict], str | None] | None:
     from guard_core.sync._utils.body_content_scan import _scan_body_field
 
@@ -122,6 +127,7 @@ def _scan_string_literals(
                 context=f"{context}{_EMBEDDED_JSON_LEAF_CONTEXT_SUFFIX}",
                 preview_override="[REDACTED]" if redact_all else None,
                 sensitive_params=sensitive_params,
+                patterns=patterns,
             )
             if detected:
                 return True, trigger, threats, "[REDACTED]"
@@ -138,6 +144,8 @@ def _check_embedded_json(
     sensitive_body_fields: frozenset[str],
     redact_all: bool,
     sensitive_params: frozenset[str] = frozenset(),
+    *,
+    patterns: "SusPatternsManager | None" = None,
 ) -> tuple[bool, str, list[dict], str | None] | None:
     data = _parse_embedded_json(value)
     if data is None:
@@ -152,6 +160,7 @@ def _check_embedded_json(
             sensitive_body_fields,
             redact_all,
             sensitive_params,
+            patterns=patterns,
         )
     return _walk_parsed_embedded_json(
         data,
@@ -163,6 +172,7 @@ def _check_embedded_json(
         sensitive_body_fields,
         redact_all,
         sensitive_params,
+        patterns=patterns,
     )
 
 
@@ -176,6 +186,8 @@ def _walk_parsed_embedded_json(
     sensitive_body_fields: frozenset[str],
     redact_all: bool,
     sensitive_params: frozenset[str],
+    *,
+    patterns: "SusPatternsManager | None" = None,
 ) -> tuple[bool, str, list[dict], str | None]:
     with _embedded_json_scan():
         detected, trigger, threats = _scan_json_value(
@@ -191,6 +203,7 @@ def _walk_parsed_embedded_json(
             preview_override="[REDACTED]" if redact_all else None,
             redact_keys=redact_all,
             sensitive_params=sensitive_params,
+            patterns=patterns,
         )
     if not detected:
         return False, "", [], None
@@ -211,6 +224,8 @@ def _scan_escaped_literals_through_exclusions(
     sensitive_body_fields: frozenset[str],
     redact_all: bool,
     sensitive_params: frozenset[str],
+    *,
+    patterns: "SusPatternsManager | None" = None,
 ) -> tuple[bool, str, list[dict], str | None] | None:
     literals = _escaped_string_literals(value)
     if not literals:
@@ -226,6 +241,7 @@ def _scan_escaped_literals_through_exclusions(
             sensitive_body_fields,
             redact_all,
             sensitive_params,
+            patterns=patterns,
         )
     kept = _keep_only_values(data, _decoded_string_literals(literals))
     if kept is _NOTHING_TO_KEEP:
@@ -240,4 +256,5 @@ def _scan_escaped_literals_through_exclusions(
         sensitive_body_fields,
         redact_all,
         sensitive_params,
+        patterns=patterns,
     )

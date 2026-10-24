@@ -34,6 +34,7 @@ def _describe_download_error(exc: BaseException) -> str:
 
 class IPInfoManager(IpInfoBackgroundMixin, IpInfoRedisCopyMixin, IpInfoEventsMixin):
     _instance = None
+    _by_path: dict[Path, IPInfoManager] = {}
     _download_retries: int = 3
     token: str
     db_path: Path
@@ -61,28 +62,40 @@ class IPInfoManager(IpInfoBackgroundMixin, IpInfoRedisCopyMixin, IpInfoEventsMix
         if not token:
             raise ValueError("IPInfo token is required!")
 
+        path = db_path or Path("data/ipinfo/country_asn.mmdb")
         if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance.token = token
-            cls._instance.db_path = db_path or Path("data/ipinfo/country_asn.mmdb")
-            cls._instance.reader = None
-            cls._instance.redis_handler = None
-            cls._instance.agent_handler = None
-            cls._instance.logger = logging.getLogger("guard_core.sync.handlers.ipinfo")
-            cls._instance._max_age = max_age
-            cls._instance.last_refreshed = None
-            cls._instance._initialization_attempted = False
-            cls._instance._last_attempt_at = None
-            cls._instance._background_in_flight = False
-            cls._instance._background_task = None
-            cls._instance._refresh_due = False
-            cls._instance._staleness_timer = None
+            cls._by_path = {}
+        key = path.resolve()
+        manager = cls._by_path.get(key)
+        if manager is None:
+            manager = cls._fresh(token, path, max_age)
+            cls._by_path[key] = manager
+            if cls._instance is None:
+                cls._instance = manager
+        else:
+            manager._max_age = min(manager._max_age, max_age)
+        return manager
 
-        cls._instance.token = token
-        if db_path is not None:
-            cls._instance.db_path = db_path
-        cls._instance._max_age = max_age
-        return cls._instance
+    @classmethod
+    def _fresh(
+        cls: type[IPInfoManager], token: str, db_path: Path, max_age: int
+    ) -> IPInfoManager:
+        instance = super().__new__(cls)
+        instance.token = token
+        instance.db_path = db_path
+        instance.reader = None
+        instance.redis_handler = None
+        instance.agent_handler = None
+        instance.logger = logging.getLogger("guard_core.sync.handlers.ipinfo")
+        instance._max_age = max_age
+        instance.last_refreshed = None
+        instance._initialization_attempted = False
+        instance._last_attempt_at = None
+        instance._background_in_flight = False
+        instance._background_task = None
+        instance._refresh_due = False
+        instance._staleness_timer = None
+        return instance
 
     @property
     def is_initialized(self) -> bool:

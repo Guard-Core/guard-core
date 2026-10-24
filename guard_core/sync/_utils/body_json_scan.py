@@ -1,7 +1,7 @@
 import json
 import re
 import sys
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from guard_core.sync._utils.detection_config import _categories_without
 from guard_core.sync._utils.detection_scan import (
@@ -36,6 +36,9 @@ from guard_core.sync._utils.source_path_shapes import (
 from guard_core.sync.handlers._suspatterns_sources import (
     _EMBEDDED_JSON_LEAF_CONTEXT_SUFFIX,
 )
+
+if TYPE_CHECKING:
+    from guard_core.sync.handlers.suspatterns_handler import SusPatternsManager
 
 
 class _RepeatedKey(str):
@@ -95,6 +98,8 @@ def _scan_json_dict_entry_key(
     log_level: str | None,
     context: str = "request_body",
     redact_keys: bool = False,
+    *,
+    patterns: "SusPatternsManager | None" = None,
 ) -> tuple[bool, str, list[dict]] | None:
     key_str = str(key)
     if key_str.lower() in excluded_body_fields:
@@ -111,6 +116,7 @@ def _scan_json_dict_entry_key(
         correlation_id,
         log_level,
         content_preview="[REDACTED]" if redact_keys else None,
+        patterns=patterns,
     )
     if name_hit[0]:
         return True, f"JSON key '{key_display}': {name_hit[1]}", name_hit[2]
@@ -128,6 +134,8 @@ def _scan_capped_json_subtree(
     context: str = "request_body",
     preview_override: str | None = None,
     sensitive_params: frozenset[str] = frozenset(),
+    *,
+    patterns: "SusPatternsManager | None" = None,
 ) -> tuple[bool, str, list[dict]]:
     from guard_core.sync._utils.body_content_scan import _scan_body_field
 
@@ -149,6 +157,7 @@ def _scan_capped_json_subtree(
         context=context,
         preview_override=preview_override,
         scan_embedded_json=False,
+        patterns=patterns,
     )
 
 
@@ -214,6 +223,8 @@ def _scan_json_container_frame(
     context: str = "request_body",
     preview_override: str | None = None,
     sensitive_params: frozenset[str] = frozenset(),
+    *,
+    patterns: "SusPatternsManager | None" = None,
 ) -> tuple[bool, str, list[dict]] | None:
     if depth >= max_depth:
         capped_preview = (
@@ -232,6 +243,7 @@ def _scan_json_container_frame(
             context,
             capped_preview,
             sensitive_params,
+            patterns=patterns,
         )
         return hit if hit[0] else None
     if isinstance(current, dict):
@@ -257,6 +269,8 @@ def _scan_json_entry_frame(
     redact_keys: bool = False,
     key_known_clean: bool = False,
     sensitive_params: frozenset[str] = frozenset(),
+    *,
+    patterns: "SusPatternsManager | None" = None,
 ) -> tuple[bool, str, list[dict]] | None:
     key_str = str(key)
     category_skips = _body_field_category_skips.get()
@@ -275,6 +289,7 @@ def _scan_json_entry_frame(
             log_level,
             context,
             redact_keys,
+            patterns=patterns,
         )
     )
     if key_result is None:
@@ -296,6 +311,7 @@ def _scan_json_entry_frame(
             preview_override="[REDACTED]" if own_redact else None,
             redact_keys=redact_keys,
             sensitive_params=sensitive_params,
+            patterns=patterns,
         )
         return hit if hit[0] else None
     stack.append(("value", item, key_str, depth + 1, own_redact))
@@ -366,6 +382,8 @@ def _scan_json_frame(
     redact_keys: bool,
     sensitive_params: frozenset[str],
     key_known_clean: bool = False,
+    *,
+    patterns: "SusPatternsManager | None" = None,
 ) -> tuple[bool, str, list[dict]] | None:
     from guard_core.sync._utils.body_content_scan import _scan_body_field
 
@@ -386,6 +404,7 @@ def _scan_json_frame(
             redact_keys,
             key_known_clean,
             sensitive_params,
+            patterns=patterns,
         )
     if isinstance(first, dict | list):
         return _scan_json_container_frame(
@@ -403,6 +422,7 @@ def _scan_json_frame(
             context,
             preview_override,
             sensitive_params,
+            patterns=patterns,
         )
     leaf_preview = (
         preview_override
@@ -424,6 +444,7 @@ def _scan_json_frame(
             context=context,
             preview_override=leaf_preview,
             sensitive_params=sensitive_params,
+            patterns=patterns,
         )
     finally:
         if shape_token is not None:
@@ -444,6 +465,8 @@ def _scan_json_value(
     preview_override: str | None = None,
     redact_keys: bool = False,
     sensitive_params: frozenset[str] = frozenset(),
+    *,
+    patterns: "SusPatternsManager | None" = None,
 ) -> tuple[bool, str, list[dict]]:
     max_depth, clean = _walk_limits(context)
     stack: list[tuple[str, Any, Any, int, bool]] = [
@@ -478,6 +501,7 @@ def _scan_json_value(
             redact_keys,
             sensitive_params,
             known_clean,
+            patterns=patterns,
         )
         if hit is not None:
             return hit
@@ -496,6 +520,7 @@ def _scan_json_value(
         correlation_id,
         log_level,
         _body_remainder_display(sensitive_params, sensitive_body_fields),
+        patterns=patterns,
     )
 
 
@@ -508,6 +533,8 @@ def _scan_json_content(
     log_level: str | None,
     sensitive_body_fields: frozenset[str] = frozenset(),
     sensitive_params: frozenset[str] = frozenset(),
+    *,
+    patterns: "SusPatternsManager | None" = None,
 ) -> tuple[bool, str, list[dict]] | None:
     parsed_body = None
     if not _nests_deeper_than(raw_body, MAX_JSON_PARSE_DEPTH):
@@ -528,5 +555,6 @@ def _scan_json_content(
             log_level,
             sensitive_body_fields,
             sensitive_params=sensitive_params,
+            patterns=patterns,
         )
     return None

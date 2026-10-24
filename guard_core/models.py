@@ -5,7 +5,7 @@ from collections.abc import Mapping
 from copy import deepcopy
 from pathlib import Path
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from pydantic import ConfigDict, PrivateAttr, field_validator, model_validator
 from typing_extensions import Self
@@ -98,10 +98,17 @@ _skip_revalidation: contextvars.ContextVar[bool] = contextvars.ContextVar(
 )
 
 
+class _NoPatternManager:
+    _config = None
+
+
 class SecurityConfig(_SecurityConfigFields[RequestT]):
     model_config = ConfigDict(arbitrary_types_allowed=True, hide_input_in_errors=True)
 
     _revision: int = PrivateAttr(default=0)
+    # The app's pattern manager, parked on the instance by sus_patterns_manager_for
+    # so the request path reads it as an attribute, without a registry lookup.
+    _guard_pattern_manager: ClassVar[Any] = _NoPatternManager()
 
     def _current_revision(self) -> int:
         private = self.__pydantic_private__

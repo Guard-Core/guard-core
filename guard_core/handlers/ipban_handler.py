@@ -2,8 +2,7 @@ import logging
 from collections.abc import MutableMapping
 from typing import Any
 
-from guard_core._utils.app_managers import hold_for_app, redis_prefixes_differ
-from guard_core._utils.config_registry import ConfigHandlerRegistry
+from guard_core._utils.app_managers import AppManagers
 from guard_core.handlers._ipban_bans import _LOOPBACK_NETWORKS, IpBanOperationsMixin
 from guard_core.handlers._ipban_cache import (
     DEFAULT_MAX_LOCAL_BANS,
@@ -109,9 +108,7 @@ class IPBanManager(
 
 ip_ban_manager = IPBanManager()
 
-_APP_BAN_MANAGERS = ConfigHandlerRegistry()
-_DEFAULT_APPS = ConfigHandlerRegistry()
-_BAN_KIND = "ipban"
+_APP_BAN_MANAGERS: AppManagers[IPBanManager] = AppManagers("ipban")
 
 
 def ip_ban_manager_for(
@@ -119,36 +116,26 @@ def ip_ban_manager_for(
 ) -> IPBanManager:
     """The ban manager of the app built from config.
 
-    An app that uses Redis under its own ``redis_prefix`` gets a manager of its
-    own when the module-level ``ip_ban_manager`` serves another app's prefix, so
-    two apps never share bans. Anything else shares ``ip_ban_manager`` as before.
-    ``bind`` (the app's handler set) configures it; the checks only look it up.
-    A config no app was bound to gets ``unbound``, else ``ip_ban_manager``.
+    The module-level ``ip_ban_manager`` serves the first app and every app on its
+    Redis prefix. Any other app (another prefix, or no Redis) gets a manager of
+    its own, so two apps never share bans, and never moves the prefix the default
+    serves. ``bind`` (the app's handler set) configures it; the checks only look
+    it up. A config no app was bound to gets ``unbound``, else ``ip_ban_manager``.
     """
-    own: IPBanManager | None = _APP_BAN_MANAGERS.lookup(config, _BAN_KIND)
+    if bind:
+        manager = _APP_BAN_MANAGERS.bind(config, ip_ban_manager, IPBanManager._fresh)
+        manager.config = config
+        return manager
+    own = _APP_BAN_MANAGERS.own(config)
     if own is not None:
         return own
-    if not bind:
-        if _DEFAULT_APPS.lookup(config, _BAN_KIND) is None and unbound is not None:
-            return unbound
-        return ip_ban_manager
-    served = ip_ban_manager.config
-    manager = ip_ban_manager
-    if _DEFAULT_APPS.lookup(served, _BAN_KIND) is not None and redis_prefixes_differ(
-        served, config
-    ):
-        manager = IPBanManager._fresh()
-        _APP_BAN_MANAGERS.register(config, manager, _BAN_KIND)
-        hold_for_app(config, _BAN_KIND, manager)
-    else:
-        _DEFAULT_APPS.register(config, manager, _BAN_KIND)
-    manager.config = config
-    return manager
+    if unbound is not None and not _APP_BAN_MANAGERS.uses_default(config):
+        return unbound
+    return ip_ban_manager
 
 
 def _forget_app_binding(manager: IPBanManager) -> None:
-    if manager.config is not None:
-        _DEFAULT_APPS.drop(manager.config, _BAN_KIND)
+    _APP_BAN_MANAGERS.forget_default()
 
 
 async def reset_global_state() -> None:

@@ -3,11 +3,21 @@ from collections.abc import Callable
 from typing import Any, Generic, TypeVar
 
 from guard_core._redis_enablement import redis_is_configured
-from guard_core.sync._utils.config_registry import REDIS_HANDLERS, ConfigHandlerRegistry
+from guard_core.sync._utils.config_registry import ConfigHandlerRegistry
 
 _HELD_ATTRIBUTE = "_guard_app_managers"
 
 _M = TypeVar("_M")
+
+
+class _Held(dict[str, Any]):
+    """The per-app managers a config keeps alive. A copy of the config shares it."""
+
+    def __copy__(self) -> "_Held":
+        return self
+
+    def __deepcopy__(self, memo: dict[int, Any]) -> "_Held":
+        return self
 
 
 def redis_prefixes_differ(first: Any, second: Any) -> bool:
@@ -20,27 +30,39 @@ def redis_prefixes_differ(first: Any, second: Any) -> bool:
     )
 
 
-def hold_for_app(config: Any, kind: str, manager: Any) -> None:
-    """Keep a per-app manager alive as long as the app's Redis handler.
+def share_redis_prefix(first: Any, second: Any) -> bool:
+    return (
+        redis_is_configured(first)
+        and redis_is_configured(second)
+        and not redis_prefixes_differ(first, second)
+    )
 
-    The registries below hold managers weakly, so without an owner a manager
-    would be collected once a later app replaced the default's ``_instance``.
-    The handler and the manager reference each other, so the pair is freed
-    together when the app goes away.
+
+def hold_for_app(config: Any, kind: str, manager: Any) -> None:
+    """Keep a per-app manager alive as long as the config of its app.
+
+    The registries below hold managers weakly. The manager references its
+    config and the config references the manager, so the pair is freed together
+    when the app goes away, whether or not the app uses Redis.
     """
-    handler = REDIS_HANDLERS.lookup(config)
-    held = getattr(handler, "__dict__", None)
-    if held is not None:
-        held.setdefault(_HELD_ATTRIBUTE, {})[kind] = manager
+    try:
+        held = config.__dict__.get(_HELD_ATTRIBUTE)
+        if held is None:
+            held = _Held()
+            object.__setattr__(config, _HELD_ATTRIBUTE, held)
+        held[kind] = manager
+    except (AttributeError, TypeError):
+        return
 
 
 class AppManagers(Generic[_M]):
     """Resolves the manager of one handler kind for the app built from a config.
 
-    The module-level default manager serves the first app, and every app that
-    shares its Redis prefix or has no Redis, exactly as before. An app that uses
-    Redis under another prefix than the app the default serves gets a manager of
-    its own, found by config identity, so two apps never share per-app state.
+    State held in Redis is keyed by the prefix string, settings held in config
+    by the config object. The module-level default manager serves the first app
+    and every app that uses Redis under the same prefix. Any other app, with
+    Redis under another prefix or without Redis, gets a manager of its own, found
+    by config identity, and it never moves the prefix the default serves.
     """
 
     def __init__(self, kind: str) -> None:
@@ -59,6 +81,9 @@ class AppManagers(Generic[_M]):
         found: _M | None = self._own.lookup(config, self.kind)
         return found
 
+    def uses_default(self, config: Any) -> bool:
+        return self._default_apps.lookup(config, self.kind) is not None
+
     def find(self, config: Any, default: _M) -> _M:
         own = self.own(config)
         return own if own is not None else default
@@ -67,14 +92,18 @@ class AppManagers(Generic[_M]):
         own = self.own(config)
         if own is not None:
             return own
-        if redis_prefixes_differ(self._default_serves(), config):
-            manager = fresh()
-            self._own.register(config, manager, self.kind)
-            hold_for_app(config, self.kind, manager)
-            return manager
-        self._default_apps.register(config, default, self.kind)
-        self._served = weakref.ref(config)
-        return default
+        served = self._default_serves()
+        if served is None or served is config:
+            self._default_apps.register(config, default, self.kind)
+            self._served = weakref.ref(config)
+            return default
+        if self.uses_default(config) or share_redis_prefix(served, config):
+            self._default_apps.register(config, default, self.kind)
+            return default
+        manager = fresh()
+        self._own.register(config, manager, self.kind)
+        hold_for_app(config, self.kind, manager)
+        return manager
 
     def forget_default(self) -> None:
         self._served = None
