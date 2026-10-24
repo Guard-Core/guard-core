@@ -105,7 +105,7 @@ Each check declares an `applies_to(config, route_configs)` classmethod; `build_d
 ### Package Information
 - **PyPI**: `uv add guard-core` (recommended) · `poetry add guard-core` · `pip install guard-core`
 - **Import**: `import guard_core`
-- **Python**: 3.10, 3.11, 3.12, 3.13, 3.14
+- **Python**: 3.10, 3.11, 3.12, 3.13, 3.14, 3.15
 - **License**: MIT
 - **Repository**: https://github.com/Guard-Core/guard-core
 

@@ -242,7 +242,7 @@ def test_frame_opcode_without_length_field_is_not_a_working_attack() -> None:
             resolved.append((module, name))
             raise RuntimeError("find_class reached")
 
-    with pytest.raises((pickle.UnpicklingError, RuntimeError, IndexError)):
+    with pytest.raises((pickle.UnpicklingError, RuntimeError, IndexError, EOFError)):
         _BlockingUnpickler(io.BytesIO(malformed)).load()
     assert resolved == []
 

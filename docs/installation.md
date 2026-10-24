@@ -111,7 +111,7 @@ To work on guard-core itself:
 
 ### Prerequisites
 
-- Python 3.10+ (3.10, 3.11, 3.12, 3.13, 3.14 are all tested)
+- Python 3.10+ (3.10, 3.11, 3.12, 3.13, 3.14, 3.15 are all tested)
 - [uv](https://docs.astral.sh/uv/) (modern Python package manager)
 - Docker and Docker Compose (for containerized tests)
 - Redis (for local integration tests)
