@@ -20,16 +20,21 @@ class RedisManager:
     _instance: "RedisManager | None" = None
 
     def __new__(cls, config: SecurityConfig) -> "RedisManager":
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance.logger = logging.getLogger("guard_core.handlers.redis")
-            cls._instance.agent_handler = None
-        cls._instance.config = config
-        cls._instance._closed = False
-        return cls._instance
+        manager = _MANAGERS.lookup(config, _manager_kind(cls))
+        if manager is None:
+            manager = super().__new__(cls)
+            manager.logger = logging.getLogger("guard_core.handlers.redis")
+            manager.agent_handler = None
+            manager.config = config
+            _MANAGERS.register(config, manager, _manager_kind(cls))
+        manager._closed = False
+        cls._instance = manager
+        return manager
 ```
 
-`RedisManager` is a singleton, same pattern as every other handler (`IPBanManager`, `CloudManager`, `RateLimitManager`): the `if cls._instance is None:` guard means the same underlying instance is returned on every construction. What does happen on every construction, singleton or not, is that `config` and `_closed` are re-applied to that instance -- so calling `RedisManager(new_config)` swaps the active config on the shared instance without creating a second one. The `redis_handler` module-level variable is the class itself (not an instance), allowing deferred instantiation with a config.
+`RedisManager` is one manager per `SecurityConfig` object: constructing it again with the same config object returns the same manager, and a different config object gets its own manager and its own `redis_prefix`, so two apps in one process never write under each other's prefix. The registry holds each manager weakly and is keyed by the config's identity; an entry goes when the manager or the config is collected. `config` and `_closed` are re-applied on every construction. `RedisManager._instance` stays and means the most recently constructed or initialized manager: released fastapi-guard 8.1.2 resolves its handler from it (the lifespan and the websocket path, `guard/lifespan.py:48-56`), so with several apps in one process that path sees the last one. `RedisHandlerBase` subclasses are not in the registry and never become `_instance`. The `redis_handler` module-level variable is the class itself (not an instance), allowing deferred instantiation with a config.
+
+Managers whose connection settings are equal (URL, pool size, pool timeout, socket timeouts, health-check interval, retries) and that run on the same event loop share one client and its pool, keyed by those settings and never by the prefix, so N apps on one Redis hold the connections one app holds. Each manager holds a reference; `close()` drops it and the client closes when the last reference goes.
 
 ### Connection Lifecycle
 
@@ -42,7 +47,7 @@ await redis_manager.initialize()
 
 Creates a `redis.asyncio.Redis` connection from `config.redis_url` with `decode_responses=True`, applying the configured socket timeouts (`redis_socket_timeout`, `redis_socket_connect_timeout`), connection pool (`redis_max_connections` connections, 100 when unset; a free connection is taken at once and only an exhausted pool waits, up to `redis_pool_timeout` seconds, for a free one), health-check interval (`redis_health_check_interval`), and, when `redis_retries > 0`, a client-level `Retry` with exponential backoff on connection/timeout errors. Pings to verify connectivity. Raises `GuardRedisError(503)` on failure.
 
-Since `RedisManager` is a singleton, calling `initialize()` again on the same instance (including with `enable_redis=False`, or after a failed connection attempt) first closes whatever client is already there via the same `aclose()` path `close()` uses, so the manager never holds more than one live client at a time. That close is best-effort: a failure (for example a client created on a different event loop than the one closing it) is logged as a warning and does not block creating the replacement.
+Calling `initialize()` again on the same manager (including with `enable_redis=False`, or after a failed connection attempt) drops the manager's reference to the client it holds (the same path `close()` uses; the client closes when no other manager shares it), so the manager never holds more than one client at a time. That close is best-effort: a failure (for example a client created on a different event loop than the one closing it) is logged as a warning and does not block creating the replacement.
 
 Note that the client-level retry re-sends non-idempotent commands: a lost reply after the server already committed an `INCR` over-counts by one. For guard-core's rate-limit counters that fails closed (mildly over-restrictive, self-heals next window); callers needing exactly-once semantics should not build on `incr()`.
 

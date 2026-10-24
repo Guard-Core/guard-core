@@ -79,6 +79,7 @@ Unreleased
 
 ### Fixed
 
+- **Two apps in one process keep Redis state under their own `redis_prefix`.** `RedisManager` was one process singleton that took the config of the last construction, so app A's bans, rate limits and strikes landed under app B's prefix. It is now one manager per `SecurityConfig` object; managers with equal connection settings on one event loop share one client and pool, so N apps on one Redis keep today's single pool. `RedisManager._instance` stays and means the most recently initialized manager. fastapi-guard 8.1.2's websocket path resolves its handler from `_instance` (`guard/websocket.py:303` to `guard/lifespan.py:48-56`) and so sees the last initialized app's handler; fastapi-guard's next major resolves the handler from its own middleware.
 - **A route or geo limit no longer double counts** when both are set on one route (each tier has its own bucket), `Retry-After` is the time until the blocking tier has room again instead of the full window, and `geo_rate_limit` country keys are uppercased and resolved with the same geo handler as the IP checks.
 - **A request without a client address no longer ends in a permanent 500.** The `"unknown"` identity is neither counted nor banned by the rate-limit auto-ban (logged once), and any exception from that path is logged while the 429 is kept.
 - **`check_rate_limit_by_ip`** canonicalizes the IP, never limits an `exempt_ips` address, and reports a block with the pipeline's log line and one `rate_limited` event (new optional `agent_handler`).

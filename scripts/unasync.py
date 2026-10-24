@@ -249,6 +249,25 @@ _SYNC_AWAIT_REGEX_FUTURE_REPLACEMENT = (
     "    return future.result(timeout=timeout)\n"
 )
 
+_ASYNC_CURRENT_SCOPE_SRC = (
+    "def current_scope() -> object:\n"
+    "    import asyncio\n"
+    "\n"
+    "    return asyncio.get_running_loop()\n"
+)
+
+_SYNC_CURRENT_SCOPE_REPLACEMENT = (
+    "class _ProcessScope:\n"
+    "    pass\n"
+    "\n"
+    "\n"
+    "_PROCESS_SCOPE = _ProcessScope()\n"
+    "\n"
+    "\n"
+    "def current_scope() -> object:\n"
+    "    return _PROCESS_SCOPE\n"
+)
+
 _ASYNC_YIELD_SRC = (
     "async def _yield_to_event_loop() -> None:\n    await asyncio.sleep(0)\n"
 )
@@ -289,6 +308,10 @@ _SYNC_START_OR_JOIN_LOAD_REPLACEMENT = (
 )
 
 SUBS: list[tuple[str, str]] = [
+    (
+        re.escape(_ASYNC_CURRENT_SCOPE_SRC),
+        _SYNC_CURRENT_SCOPE_REPLACEMENT.replace("\\", "\\\\"),
+    ),
     (
         re.escape(_ASYNC_START_OR_JOIN_LOAD_SRC),
         _SYNC_START_OR_JOIN_LOAD_REPLACEMENT.replace("\\", "\\\\"),
