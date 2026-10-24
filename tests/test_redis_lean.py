@@ -331,3 +331,15 @@ async def test_no_connection_count_is_recorded_while_observability_is_off(
         assert samples == []
     finally:
         await client.aclose()
+
+
+def test_a_redis_py_without_the_connection_count_recorder_loads_no_recorder(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from guard_core.handlers import _redis_fast_pool
+
+    def refuse(name: str) -> Any:
+        raise ImportError(name)
+
+    monkeypatch.setattr(_redis_fast_pool.importlib, "import_module", refuse)
+    assert _redis_fast_pool._load_count_recorder() is None
