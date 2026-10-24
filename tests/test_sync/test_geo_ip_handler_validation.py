@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, Mock
 import pytest
 from pydantic import ValidationError
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.protocols.geo_ip_protocol import SyncGeoIPHandler
 
 
@@ -37,7 +37,7 @@ class _DuckTypedGeoHandler:
 def test_geo_ip_handler_with_every_member_is_accepted_on_every_interpreter(
     handler: object,
 ) -> None:
-    config = SecurityConfig(enable_redis=False, geo_ip_handler=handler)
+    config = SyncSecurityConfig(enable_redis=False, geo_ip_handler=handler)
 
     assert config.geo_ip_handler is handler
 
@@ -48,9 +48,9 @@ def test_geo_ip_handler_with_a_missing_method_is_refused(member: str) -> None:
     setattr(handler, member, None)
 
     with pytest.raises(ValidationError, match="Input should be an instance of"):
-        SecurityConfig(enable_redis=False, geo_ip_handler=handler)
+        SyncSecurityConfig(enable_redis=False, geo_ip_handler=handler)
 
 
 def test_geo_ip_handler_without_the_members_is_refused() -> None:
     with pytest.raises(ValidationError, match="Input should be an instance of"):
-        SecurityConfig(enable_redis=False, geo_ip_handler=object())
+        SyncSecurityConfig(enable_redis=False, geo_ip_handler=object())

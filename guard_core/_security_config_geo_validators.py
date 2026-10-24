@@ -5,9 +5,8 @@ from typing import TYPE_CHECKING, Any, cast
 from pydantic import BaseModel
 from pydantic_core import PydanticCustomError
 
-from guard_core.protocols.geo_ip_protocol import GeoIPHandler
-
 from guard_core._config_capabilities import require_geo_extra
+from guard_core.protocols.geo_ip_protocol import GeoIPHandler
 
 if TYPE_CHECKING:
     from guard_core._security_config_fields import RequestT
