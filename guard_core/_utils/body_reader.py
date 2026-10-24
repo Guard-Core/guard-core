@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Protocol, cast, runtime_checkable
 from weakref import WeakKeyDictionary
 
+from guard_core._utils.capability import has_callable, serves_attributes_dynamically
 from guard_core.exceptions import (
     BodyReadFailedError,
     BodyReadSlotsExhaustedError,
@@ -105,34 +106,46 @@ _PREFIX = "read_body_prefix"
 _FULL_BODY = "body"
 
 _reader_kind_by_class: WeakKeyDictionary[type, str] = WeakKeyDictionary()
+_fallback_warned_kinds: WeakKeyDictionary[type, set[str]] = WeakKeyDictionary()
+
+
+def _first_fallback_of_kind(request: GuardRequest, kind: str) -> bool:
+    warned = _fallback_warned_kinds.setdefault(type(request), set())
+    first = kind not in warned
+    warned.add(kind)
+    return first
 
 
 def _resolve_body_reader_kind(request: GuardRequest) -> str:
     adapter = type(request).__name__
-    if isinstance(request, _IdleBoundedBodyReader):
+    if has_callable(request, _PREFIX_UNTIL_IDLE):
         return _PREFIX_UNTIL_IDLE
-    if isinstance(request, _BoundedBodyReader):
+    if has_callable(request, _PREFIX):
+        if _first_fallback_of_kind(request, _PREFIX):
+            logger.warning(
+                "%s has no read_body_prefix_until_idle; its read_body_prefix is "
+                "read in full with no idle deadline, so a client that stops "
+                "sending holds the request until the server's own timeout",
+                adapter,
+            )
+        return _PREFIX
+    if _first_fallback_of_kind(request, _FULL_BODY):
         logger.warning(
-            "%s has no read_body_prefix_until_idle; its read_body_prefix is "
-            "read in full with no idle deadline, so a client that stops sending "
-            "holds the request until the server's own timeout",
+            "%s has neither read_body_prefix_until_idle nor read_body_prefix; "
+            "body() is read in full with no idle deadline, so a client that "
+            "stops sending holds the request until the server's own timeout",
             adapter,
         )
-        return _PREFIX
-    logger.warning(
-        "%s has neither read_body_prefix_until_idle nor read_body_prefix; "
-        "body() is read in full with no idle deadline, so a client that "
-        "stops sending holds the request until the server's own timeout",
-        adapter,
-    )
     return _FULL_BODY
 
 
 def _body_reader_kind(request: GuardRequest) -> str:
-    kind = _reader_kind_by_class.get(type(request))
+    cls = type(request)
+    kind = _reader_kind_by_class.get(cls)
     if kind is None:
         kind = _resolve_body_reader_kind(request)
-        _reader_kind_by_class[type(request)] = kind
+        if not serves_attributes_dynamically(cls):
+            _reader_kind_by_class[cls] = kind
     return kind
 
 

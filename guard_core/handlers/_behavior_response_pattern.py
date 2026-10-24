@@ -5,6 +5,7 @@ from typing import Protocol, runtime_checkable
 
 from cachetools import TTLCache
 
+from guard_core._utils.capability import has_callable
 from guard_core._utils.response_prefetch import read_shared_prefix
 from guard_core.handlers._behavior_json_pattern import BehaviorJsonPatternMixin
 from guard_core.models import SecurityConfig
@@ -40,7 +41,7 @@ class BehaviorResponsePatternMixin(BehaviorJsonPatternMixin):
         if not self.config.behavior_scan_response_body:
             return None
 
-        if not isinstance(response, _BoundedResponseBodyReader):
+        if not has_callable(response, "read_body_prefix"):
             self._log_body_unavailable(pattern)
             return None
 

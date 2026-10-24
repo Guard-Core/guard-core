@@ -1,6 +1,10 @@
 import asyncio
 from typing import TYPE_CHECKING, Any, cast
 
+from guard_core._security_config_cloud_store_validators import (
+    _CLOUD_IP_STORE_MEMBERS,
+)
+from guard_core._utils.capability import has_callables
 from guard_core.protocols.cloud_ip_store_protocol import CloudIpStoreProtocol
 
 if TYPE_CHECKING:
@@ -26,7 +30,7 @@ class CloudInitializationMixin:
     def _resolve_cloud_ip_store(self) -> CloudIpStoreProtocol:
         store = self.config.cloud_ip_store
         needs_invocation = isinstance(store, type) or (
-            callable(store) and not isinstance(store, CloudIpStoreProtocol)
+            callable(store) and not has_callables(store, _CLOUD_IP_STORE_MEMBERS)
         )
         if needs_invocation:
             factory = cast(Any, store)
