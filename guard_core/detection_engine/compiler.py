@@ -10,7 +10,6 @@ from guard_core.detection_engine import _validation_cache
 from guard_core.detection_engine._redos_cost_arbiter import (
     _PATTERN_SAFETY_DEFAULT_CAP,
     TransientReason,
-    _measure_host_load_factor,
     _reach_probe_cost_verdict,
     _run_pattern_safety_probe_subprocess,
 )
@@ -154,15 +153,12 @@ class PatternCompiler:
         if self._validation_cache is None:
             return _reach_probe_cost_verdict(pattern, max_content_length, flags)
         cap = max_content_length or _PATTERN_SAFETY_DEFAULT_CAP
-        load_scale = _measure_host_load_factor()
-        cached = self._validation_cache.get(pattern, flags, cap, load_scale)
+        cached = self._validation_cache.get(pattern, flags, cap)
         if cached is not None:
             return cached
-        safe, reason = _reach_probe_cost_verdict(
-            pattern, max_content_length, flags, load_scale
-        )
+        safe, reason = _reach_probe_cost_verdict(pattern, max_content_length, flags)
         if not isinstance(reason, TransientReason):
-            self._validation_cache.put(pattern, flags, cap, safe, reason, load_scale)
+            self._validation_cache.put(pattern, flags, cap, safe, reason)
         return safe, reason
 
     def create_safe_matcher(

@@ -14,6 +14,7 @@ is not trusted and is never loaded or written.
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import json
 import logging
@@ -41,13 +42,15 @@ def _engine_version() -> str:
 ENGINE_VERSION = _engine_version()
 
 
-def _validator_fingerprint() -> str:
-    arbiter = Path(__file__).with_name("_redos_cost_arbiter.py")
+def _validator_fingerprint(package_dir: Path) -> str:
+    digest = hashlib.sha256()
     try:
-        source = arbiter.read_bytes()
+        for source in sorted(package_dir.glob("*.py")):
+            digest.update(source.name.encode("utf-8"))
+            digest.update(source.read_bytes())
     except OSError:
         return "unreadable"
-    return hashlib.sha256(source).hexdigest()
+    return digest.hexdigest()
 
 
 def _interpreter_tag() -> str:
@@ -55,17 +58,17 @@ def _interpreter_tag() -> str:
     return f"{impl.name}-{'.'.join(map(str, impl.version[:3]))}"
 
 
-VALIDATOR_TAG = f"{_interpreter_tag()}:{_validator_fingerprint()}"
+@functools.cache
+def _validator_tag() -> str:
+    return f"{_interpreter_tag()}:{_validator_fingerprint(Path(__file__).parent)}"
 
 
-def _is_current_entry(entry: object) -> bool:
+def _is_current_entry(entry: object, validator_tag: str) -> bool:
     if not isinstance(entry, dict):
         raise ValueError("cache entry is not an object")
     if entry.get("version") != ENGINE_VERSION:
         return False
-    if entry.get("validator") != VALIDATOR_TAG or not isinstance(
-        entry.get("load_scale"), (int, float)
-    ):
+    if entry.get("validator") != validator_tag:
         return False
     if not isinstance(entry.get("safe"), bool):
         raise ValueError("cache entry missing safe verdict")
@@ -96,6 +99,7 @@ class PatternValidationCache:
         self._path = Path(path)
         self._lock = threading.Lock()
         self._entries: dict[str, dict[str, object]] = {}
+        self._validator_tag = _validator_tag()
         self._trusted = _is_trusted_location(self._path)
         if self._trusted:
             self._load()
@@ -107,8 +111,8 @@ class PatternValidationCache:
             )
 
     def _key(self, pattern: str, flags: int, cap: int) -> str:
-        material = (
-            f"{pattern}\x00{flags}\x00{cap}\x00{VALIDATOR_TAG}\x00{ENGINE_VERSION}"
+        material = "\x00".join(
+            (pattern, str(flags), str(cap), self._validator_tag, ENGINE_VERSION)
         )
         return hashlib.sha256(
             material.encode("utf-8", errors="surrogatepass")
@@ -128,47 +132,30 @@ class PatternValidationCache:
                 raise ValueError("cache root is not an object")
             entries = {}
             for key, entry in data.items():
-                if _is_current_entry(entry):
+                if _is_current_entry(entry, self._validator_tag):
                     entries[str(key)] = entry
         except (ValueError, TypeError) as e:
             logger.warning("Pattern validation cache corrupt, starting empty: %s", e)
             return
         self._entries = entries
 
-    def get(
-        self, pattern: str, flags: int, cap: int, load_scale: float
-    ) -> tuple[bool, str] | None:
+    def get(self, pattern: str, flags: int, cap: int) -> tuple[bool, str] | None:
         if not self._trusted:
             return None
         with self._lock:
             entry = self._entries.get(self._key(pattern, flags, cap))
         if entry is None:
             return None
-        safe = bool(entry["safe"])
-        measured_at = entry["load_scale"]
-        if safe and not (
-            isinstance(measured_at, (int, float)) and measured_at <= load_scale
-        ):
-            return None
-        return safe, str(entry["reason"])
+        return bool(entry["safe"]), str(entry["reason"])
 
-    def put(
-        self,
-        pattern: str,
-        flags: int,
-        cap: int,
-        safe: bool,
-        reason: str,
-        load_scale: float,
-    ) -> None:
+    def put(self, pattern: str, flags: int, cap: int, safe: bool, reason: str) -> None:
         if not self._trusted:
             return
         entry = {
             "safe": safe,
             "reason": reason,
             "version": ENGINE_VERSION,
-            "validator": VALIDATOR_TAG,
-            "load_scale": load_scale,
+            "validator": self._validator_tag,
         }
         with self._lock:
             self._entries[self._key(pattern, flags, cap)] = entry

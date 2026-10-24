@@ -574,17 +574,12 @@ def _construction_exhausted(deadline: float, wall_backstop: float) -> bool:
     return time.monotonic() >= wall_backstop or _remaining_budget(deadline) <= 0
 
 
-def _resolved_load_factor(measured: float | None) -> float:
-    return _measure_host_load_factor() if measured is None else measured
-
-
 def _reach_probe_cost_verdict(
     pattern: str,
     max_content_length: int | None,
     flags: int = _DEFAULT_PATTERN_FLAGS,
-    load_factor: float | None = None,
 ) -> tuple[bool, str]:
-    scaled_seconds = _scaled_probe_deadline_seconds(_resolved_load_factor(load_factor))
+    scaled_seconds = _scaled_probe_deadline_seconds(_measure_host_load_factor())
     deadline = time.thread_time() + scaled_seconds
     wall_backstop = time.monotonic() + _REACH_PROBE_DEADLINE_SCALE_CEILING_SECONDS
     budget = ReachProbeCpuBudget(scaled_seconds)
