@@ -249,6 +249,15 @@ def loop_iteration_codes() -> tuple[Any, set[Any]]:
         method = getattr(type(loop), name, None)
         if method is not None:
             skipped.add(method.__code__)
+    # A regex worker thread that finishes before the loop adds its done-callback
+    # makes the loop thread run the state copy itself; after, the worker does.
+    skipped.add(type(loop).call_soon_threadsafe.__code__)
+    futures: Any = asyncio.futures
+    skipped.update(
+        const
+        for const in futures._chain_future.__code__.co_consts
+        if getattr(const, "co_name", "") == "_call_set_state"
+    )
     return run_once, skipped
 
 
