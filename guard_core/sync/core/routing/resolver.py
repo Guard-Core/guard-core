@@ -24,13 +24,14 @@ class RouteConfigResolver:
         )
 
     def get_route_config(self, request: SyncGuardRequest) -> RouteConfig | None:
+        state = request.state
         guard_decorator = self.context.guard_decorator
         if not guard_decorator:
-            guard_decorator = getattr(request.state, "guard_decorator", None)
+            guard_decorator = getattr(state, "guard_decorator", None)
         if not guard_decorator:
             return None
 
-        route_id = getattr(request.state, "guard_route_id", None)
+        route_id = getattr(state, "guard_route_id", None)
         if not route_id:
             return None
 
