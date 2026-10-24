@@ -822,6 +822,10 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "line 366: logs only the sampled and total probe-set counts and "
         "the stride length; no pattern text or scanned value is involved"
     ),
+    "detection_engine/_validation_cache.py:PatternValidationCache.__init__": (
+        "the trust-refusal warning is config-time and logs only the operator-set "
+        "cache file path; no pattern, verdict or request value is interpolated"
+    ),
     "detection_engine/_validation_cache.py:PatternValidationCache._load": (
         "lines 57,75: the warning carries only the OSError/ValueError text "
         "from reading or parsing the cache file; no pattern, verdict, or "
