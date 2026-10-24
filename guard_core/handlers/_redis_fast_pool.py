@@ -26,9 +26,10 @@ _WAIT_RECORDER = _load_wait_recorder()
 
 
 def _load_count_recorder() -> tuple[Any, Any, Any, Any] | None:
-    """redis-py records connection counts from 7.4.0 on, and only when its OTel
+    """redis-py records connection counts from 7.4.0 on, and only while its OTel
     observability is on. Returns the recorder, the two states, the pool-name
-    function and the observability singleton getter."""
+    function and the module that holds the observability singleton, which the
+    fast path reads on each call to see observability switched on later."""
     try:
         recorder = importlib.import_module("redis.asyncio.observability.recorder")
         attributes = importlib.import_module("redis.observability.attributes")
@@ -39,19 +40,28 @@ def _load_count_recorder() -> tuple[Any, Any, Any, Any] | None:
         recorder.record_connection_count,
         attributes.ConnectionState,
         attributes.get_pool_name,
-        providers.get_observability_instance,
+        providers,
     )
 
 
 _COUNT_RECORDER = _load_count_recorder()
 
 
-def _count_recorder_when_observed() -> tuple[Any, Any, Any, Any] | None:
-    """The count recorder while redis-py's observability is on, else None, so a
-    pool with observability off pays one attribute test per fast call."""
-    if _COUNT_RECORDER is not None and _COUNT_RECORDER[3]().is_enabled():
-        return _COUNT_RECORDER
-    return None
+def _load_release_events() -> tuple[Any, Any] | None:
+    """The event the plain release dispatches and the one listener redis-py
+    always registers for it (re-authentication, which acts only on a connection
+    holding a re-authentication token). ``None`` for a redis-py without them."""
+    try:
+        events = importlib.import_module("redis.event")
+        return (
+            events.AsyncAfterConnectionReleasedEvent,
+            events.AsyncReAuthConnectionListener,
+        )
+    except (ImportError, AttributeError):
+        return None
+
+
+_RELEASE_EVENTS = _load_release_events()
 
 
 def _is_exhaustion(error: RedisConnectionError) -> bool:
@@ -75,7 +85,12 @@ class FastPathConnectionPool(ConnectionPool):
         self._condition = asyncio.Condition()
         self._waiters = 0
         self._connections_with_nothing_unread: set[AbstractConnection] = set()
-        self._count_recorder = _count_recorder_when_observed()
+        dispatcher = getattr(self, "_event_dispatcher", None)
+        self._release_listeners: dict[Any, list[Any]] = getattr(
+            dispatcher, "_event_listeners_mapping", {}
+        )
+        self._release_event = _RELEASE_EVENTS[0] if _RELEASE_EVENTS else None
+        self._silent_release_listeners = self._only_the_default_listener()
 
     def _has_free_connection(self) -> bool:
         return bool(
@@ -90,7 +105,6 @@ class FastPathConnectionPool(ConnectionPool):
             if not _is_exhaustion(error):
                 raise
             connection = await self._wait_for_connection()
-        self._count_recorder = _count_recorder_when_observed()
         self._connections_with_nothing_unread.discard(connection)
         reader = connection._reader
         if reader is not None and reader.at_eof():
@@ -113,9 +127,11 @@ class FastPathConnectionPool(ConnectionPool):
         connection = available.pop()
         self._connections_with_nothing_unread.remove(connection)
         self._in_use_connections.add(connection)
-        recorder = self._count_recorder
+        recorder = _COUNT_RECORDER
         if recorder is not None:
-            await self._record_counts(recorder, recorder[1].IDLE, recorder[1].USED)
+            observed = recorder[3]._observability_instance
+            if observed is not None and observed._provider_manager is not None:
+                await self._record_counts(recorder, recorder[1].IDLE, recorder[1].USED)
         return connection
 
     async def _record_counts(
@@ -129,19 +145,49 @@ class FastPathConnectionPool(ConnectionPool):
         await record(pool_name=pool_name, connection_state=leaving, counter=-1)
         await record(pool_name=pool_name, connection_state=entering, counter=1)
 
+    def _only_the_default_listener(self) -> list[Any] | None:
+        """The list of listeners of the release event while it holds nothing but
+        redis-py's own re-authentication listener, else ``None``. Registering or
+        unregistering a listener replaces the list in the dispatcher's mapping,
+        so an identity test against this list tells the fast return that nobody
+        else listens."""
+        if _RELEASE_EVENTS is None:
+            return None
+        listeners = self._release_listeners.get(_RELEASE_EVENTS[0])
+        if listeners and all(
+            isinstance(listener, _RELEASE_EVENTS[1]) for listener in listeners
+        ):
+            return listeners
+        return None
+
     async def give_back(self, connection: AbstractConnection, reply_read: bool) -> None:
         """Release ``connection``. When its reply was fully read, nobody waits for a
-        connection and it needs no reconnect, it goes back to the idle list without
-        a lock or an event, marked so that the next fast take can use it; every
-        other case is the plain ``release``."""
-        if reply_read and not self._waiters and not connection.should_reconnect():
+        connection, it needs no reconnect, only redis-py's own listener hears the
+        release event and the connection holds no re-authentication token, it goes
+        back to the idle list without a lock or an event, marked so that the next
+        fast take can use it. Every other case is the plain ``release``, which
+        dispatches the event to the listeners."""
+        silent = self._silent_release_listeners
+        if (
+            reply_read
+            and silent is not None
+            and silent is self._release_listeners.get(self._release_event)
+            and not self._waiters
+            and connection._re_auth_token is None
+            and not connection.should_reconnect()
+        ):
             self._in_use_connections.remove(connection)
             self._available_connections.append(connection)
             self._connections_with_nothing_unread.add(connection)
-            recorder = self._count_recorder
+            recorder = _COUNT_RECORDER
             if recorder is not None:
-                await self._record_counts(recorder, recorder[1].USED, recorder[1].IDLE)
+                observed = recorder[3]._observability_instance
+                if observed is not None and observed._provider_manager is not None:
+                    await self._record_counts(
+                        recorder, recorder[1].USED, recorder[1].IDLE
+                    )
             return
+        self._silent_release_listeners = self._only_the_default_listener()
         await self.release(connection)
 
     async def _wait_for_connection(self) -> AbstractConnection:

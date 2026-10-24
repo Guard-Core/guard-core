@@ -1,5 +1,6 @@
 import uuid
 from concurrent.futures import ThreadPoolExecutor
+from typing import Any
 from unittest.mock import patch
 
 from redis.exceptions import NoScriptError
@@ -89,5 +90,36 @@ def test_a_connection_the_pool_hands_out_without_unread_replies_is_used() -> Non
             pool, "take_connection_with_nothing_unread", return_value=spare
         ):
             assert lean_command(client, "PING") == "PONG"
+    finally:
+        client.close()
+
+
+class _Listener:
+    def __init__(self) -> None:
+        self.events: list[Any] = []
+
+    def listen(self, event: Any) -> None:
+        self.events.append(event)
+
+
+def test_a_release_listener_hears_each_lean_call_like_each_plain_one() -> None:
+    from redis.event import AfterConnectionReleasedEvent
+
+    client = _build_redis_client(REDIS_URL, 10, 1.0)
+    try:
+        listener = _Listener()
+        client.connection_pool._event_dispatcher.register_listeners(
+            {AfterConnectionReleasedEvent: [listener]}
+        )
+        lean_command(client, "PING")
+        client.execute_command("PING")
+        listener.events.clear()
+        for _ in range(5):
+            lean_command(client, "GET", "lean:event")
+        assert len(listener.events) == 5
+        listener.events.clear()
+        for _ in range(5):
+            client.execute_command("GET", "lean:event")
+        assert len(listener.events) == 5
     finally:
         client.close()

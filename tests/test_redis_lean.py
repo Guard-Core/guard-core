@@ -274,11 +274,28 @@ async def test_a_connection_that_must_reconnect_goes_back_through_release(
         await client.aclose()
 
 
-def _observed_recorder(monkeypatch: pytest.MonkeyPatch, enabled: bool) -> list[Any]:
-    """Both recorders (the pool module's and redis-py's own) into one list, with
-    the observability switch the pool consults set to ``enabled``."""
-    from types import SimpleNamespace
+class _Observability:
+    """The module redis-py keeps its observability singleton in, reduced to the
+    one field the fast path reads."""
 
+    def __init__(self, enabled: bool) -> None:
+        self._observability_instance = self._instance(enabled)
+
+    @staticmethod
+    def _instance(enabled: bool) -> Any:
+        from types import SimpleNamespace
+
+        return SimpleNamespace(_provider_manager=object() if enabled else None)
+
+    def switch(self, enabled: bool) -> None:
+        self._observability_instance = self._instance(enabled)
+
+
+def _observed_recorder(
+    monkeypatch: pytest.MonkeyPatch, enabled: bool
+) -> tuple[list[Any], _Observability]:
+    """Both recorders (the pool module's and redis-py's own) into one list, with
+    the observability switch the fast path reads set to ``enabled``."""
     from redis.observability.attributes import ConnectionState, get_pool_name
 
     samples: list[Any] = []
@@ -288,19 +305,19 @@ def _observed_recorder(monkeypatch: pytest.MonkeyPatch, enabled: bool) -> list[A
     ) -> None:
         samples.append((connection_state, counter))
 
-    switch = SimpleNamespace(is_enabled=lambda: enabled)
+    observability = _Observability(enabled)
     monkeypatch.setattr(
         "guard_core.handlers._redis_fast_pool._COUNT_RECORDER",
-        (record, ConnectionState, get_pool_name, lambda: switch),
+        (record, ConnectionState, get_pool_name, observability),
     )
     monkeypatch.setattr("redis.asyncio.connection.record_connection_count", record)
-    return samples
+    return samples, observability
 
 
 async def test_connection_counts_after_lean_calls_equal_those_after_plain_calls(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    samples = _observed_recorder(monkeypatch, True)
+    samples, _ = _observed_recorder(monkeypatch, True)
     client = await _client()
     try:
         await lean_command(client, "PING")
@@ -321,7 +338,7 @@ async def test_connection_counts_after_lean_calls_equal_those_after_plain_calls(
 async def test_no_connection_count_is_recorded_while_observability_is_off(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    samples = _observed_recorder(monkeypatch, False)
+    samples, _ = _observed_recorder(monkeypatch, False)
     client = await _client()
     try:
         await lean_command(client, "PING")
@@ -343,3 +360,166 @@ def test_a_redis_py_without_the_connection_count_recorder_loads_no_recorder(
 
     monkeypatch.setattr(_redis_fast_pool.importlib, "import_module", refuse)
     assert _redis_fast_pool._load_count_recorder() is None
+
+
+async def test_observability_switched_on_later_is_seen_by_the_next_fast_call(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    samples, observability = _observed_recorder(monkeypatch, False)
+    client = await _client()
+    try:
+        await lean_command(client, "PING")
+        samples.clear()
+        await lean_command(client, "GET", "lean:count")
+        assert samples == []
+        observability.switch(True)
+        await lean_command(client, "GET", "lean:count")
+        assert len(samples) == 4
+        observability.switch(False)
+        await lean_command(client, "GET", "lean:count")
+        assert len(samples) == 4
+    finally:
+        await client.aclose()
+
+
+class _Listener:
+    def __init__(self) -> None:
+        self.events: list[Any] = []
+
+    async def listen(self, event: Any) -> None:
+        self.events.append(event)
+
+
+def _release_event_type() -> Any:
+    from redis.event import AsyncAfterConnectionReleasedEvent
+
+    return AsyncAfterConnectionReleasedEvent
+
+
+async def test_a_release_listener_hears_each_lean_call_like_each_plain_one() -> None:
+    client = await _client()
+    try:
+        listener = _Listener()
+        pool = client.connection_pool
+        pool._event_dispatcher.register_listeners({_release_event_type(): [listener]})
+        await lean_command(client, "PING")
+        await client.execute_command("PING")
+        listener.events.clear()
+        for _ in range(5):
+            await lean_command(client, "GET", "lean:event")
+        assert len(listener.events) == 5
+        assert all(isinstance(e.connection, Connection) for e in listener.events)
+        listener.events.clear()
+        for _ in range(5):
+            await client.execute_command("GET", "lean:event")
+        assert len(listener.events) == 5
+    finally:
+        await client.aclose()
+
+
+async def test_no_release_event_is_dispatched_with_only_the_default_listener(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = await _client()
+    try:
+        await lean_command(client, "PING")
+        dispatcher = client.connection_pool._event_dispatcher
+        dispatched: list[Any] = []
+
+        async def spy(event: Any) -> None:
+            dispatched.append(event)
+
+        monkeypatch.setattr(dispatcher, "dispatch_async", spy)
+        for _ in range(5):
+            await lean_command(client, "GET", "lean:event")
+        assert dispatched == []
+    finally:
+        await client.aclose()
+
+
+async def test_the_fast_return_resumes_when_the_last_extra_listener_is_removed() -> (
+    None
+):
+    client = await _client()
+    try:
+        listener = _Listener()
+        pool = client.connection_pool
+        mapping = {_release_event_type(): [listener]}
+        pool._event_dispatcher.register_listeners(mapping)
+        await lean_command(client, "PING")
+        await lean_command(client, "PING")
+        pool._event_dispatcher.unregister_listeners(mapping)
+        await lean_command(client, "PING")
+        await lean_command(client, "PING")
+        seen = len(listener.events)
+        await lean_command(client, "PING")
+        assert len(listener.events) == seen
+        assert pool._connections_with_nothing_unread
+    finally:
+        await client.aclose()
+
+
+async def test_a_connection_holding_a_re_authentication_token_goes_back_through_release(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = await _client()
+    try:
+        await lean_command(client, "PING")
+        re_authenticated: list[Any] = []
+
+        async def re_auth(self: Connection) -> None:
+            re_authenticated.append(self)
+            self._re_auth_token = None
+
+        monkeypatch.setattr(Connection, "re_auth", re_auth)
+        pool = client.connection_pool
+        for connection in pool._available_connections:
+            connection._re_auth_token = object()
+        await lean_command(client, "GET", "lean:token")
+        assert len(re_authenticated) == 1
+        assert not pool._connections_with_nothing_unread
+    finally:
+        await client.aclose()
+
+
+async def test_a_redis_py_without_the_release_event_never_takes_the_fast_return(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from guard_core.handlers import _redis_fast_pool
+
+    monkeypatch.setattr(_redis_fast_pool, "_RELEASE_EVENTS", None)
+    client = await _client()
+    try:
+        await lean_command(client, "PING")
+        await lean_command(client, "GET", "lean:old")
+        assert not client.connection_pool._connections_with_nothing_unread
+    finally:
+        await client.aclose()
+
+
+def test_a_redis_py_without_the_release_event_loads_none(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from guard_core.handlers import _redis_fast_pool
+
+    def refuse(name: str) -> Any:
+        raise ImportError(name)
+
+    monkeypatch.setattr(_redis_fast_pool.importlib, "import_module", refuse)
+    assert _redis_fast_pool._load_release_events() is None
+
+
+async def test_a_redis_py_without_the_count_recorder_takes_the_fast_path_unrecorded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from guard_core.handlers import _redis_fast_pool
+
+    monkeypatch.setattr(_redis_fast_pool, "_COUNT_RECORDER", None)
+    client = await _client()
+    try:
+        await lean_command(client, "PING")
+        await lean_command(client, "GET", "lean:old")
+        await lean_command(client, "GET", "lean:old")
+        assert client.connection_pool._connections_with_nothing_unread
+    finally:
+        await client.aclose()
