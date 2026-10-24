@@ -1,0 +1,155 @@
+name: Perf Gate
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    name: changes
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          # pull_request checks out the merge commit; the second commit is the base (its first parent).
+          fetch-depth: 2
+
+      - name: Decide whether the engine or its build inputs changed
+        id: diff
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" != "pull_request" ]; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # On pull_request the checkout is the merge commit: HEAD^1 is the base, so a depth-1 clone cannot answer.
+          if ! files="$(git diff --name-only HEAD^1 HEAD)"; then
+            echo "::error::cannot diff HEAD^1 HEAD (shallow or non-merge checkout), refusing to guess"
+            exit 1
+          fi
+          code=false
+          while IFS= read -r f; do
+            [ -n "$f" ] || continue
+            case "$f" in
+              guard_core/*|perf_gate/*|pyproject.toml|uv.lock|.github/workflows/perf-gate.yml) code=true; echo "perf path: $f" ;;
+            esac
+          done <<< "$files"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
+  perf-gate-per-request:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    env:
+      # uv follows .python-version (3.10) unless told otherwise.
+      UV_PYTHON: ${{ matrix.python-version }}
+      UV_PYTHON_DOWNLOADS: never
+      EXPECTED_PYTHON: ${{ matrix.python-version }}
+
+    services:
+      redis:
+        image: redis
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.14']
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install uv
+        run: |
+          pip install uv
+
+      - name: Install valgrind
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq valgrind
+          valgrind --version
+
+      - name: Probe perf instruction counting (information only, the gate does not use it)
+        continue-on-error: true
+        run: |
+          cat /proc/sys/kernel/perf_event_paranoid || true
+          perf stat -e instructions:u true || echo "perf instructions:u is not available on this runner"
+
+      - name: Build the one venv of this interpreter (fastapi-guard 8.1.2, third-party code shared by both arms)
+        run: |
+          set -euo pipefail
+          uv venv "$RUNNER_TEMP/gate-venv"
+          uv pip install --python "$RUNNER_TEMP/gate-venv/bin/python" "fastapi-guard==8.1.2" httpx
+          "$RUNNER_TEMP/gate-venv/bin/python" -c "import os, sys; assert '%d.%d' % sys.version_info[:2] == os.environ['EXPECTED_PYTHON'], sys.version; import guard; print(sys.version)"
+
+      - name: Fetch guard-core 4.4.0 from PyPI and unpack it as the base arm
+        run: |
+          set -euo pipefail
+          python -m pip download --no-deps "guard-core==4.4.0" -d "$RUNNER_TEMP/v440-download"
+          python -m zipfile -e "$RUNNER_TEMP"/v440-download/guard_core-4.4.0-*.whl "$RUNNER_TEMP/v440"
+          test -f "$RUNNER_TEMP/v440/guard_core/__init__.py"
+
+      - name: Run the per-request gate (A/A, call counts, instructions, CPU report)
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/gate-venv/bin/python" -m perf_gate.gate \
+            --head "$GITHUB_WORKSPACE" \
+            --base "$RUNNER_TEMP/v440" \
+            --redis-url "redis://localhost:6379/0" \
+            --jobs 3 \
+            --summary "$GITHUB_STEP_SUMMARY"
+
+  perf-gate:
+    name: perf-gate
+    needs: [changes, perf-gate-per-request]
+    if: always()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Require every gating job
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          CODE: ${{ needs.changes.outputs.code }}
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          if [ "$CHANGES_RESULT" != "success" ]; then
+            echo "::error::changes: $CHANGES_RESULT"
+            exit 1
+          fi
+          case "$CODE" in
+            true) accepted='["success"]' ;;
+            false) accepted='["success","skipped"]' ;;
+            *) echo "::error::changes output code is '$CODE', expected true or false"; exit 1 ;;
+          esac
+          bad="$(jq -r --argjson ok "$accepted" 'del(.changes) | to_entries[] | select(.value.result as $r | $ok | index($r) | not) | "\(.key)=\(.value.result)"' <<< "$NEEDS")"
+          if [ -n "$bad" ]; then
+            echo "::error::not green: $bad"
+            exit 1
+          fi
+          echo "every gating job is green (code=$CODE)"
