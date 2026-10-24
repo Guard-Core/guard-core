@@ -4,6 +4,7 @@ from collections.abc import Callable, Collection
 from typing import TYPE_CHECKING, Any, NamedTuple
 
 from guard_core._redis_enablement import redis_is_configured
+from guard_core.core.checks._ban_flow import BanFlow
 
 if TYPE_CHECKING:
     from guard_core.protocols.middleware_protocol import GuardMiddlewareProtocol
@@ -164,7 +165,8 @@ async def fused_or_recorded_shared_strikes(
     window_seconds: int,
     cap: Callable[[], int],
 ) -> SharedStrikes | None:
-    fused = getattr(request.state, "guard_fused_strike", None)
+    flow = getattr(request.state, "guard_ban_flow", None)
+    fused = flow.fused if isinstance(flow, BanFlow) else None
     if isinstance(fused, FusedStrike):
         recorded = fused.take_if_recorded_for(client_ip, categories)
         if recorded is not None:

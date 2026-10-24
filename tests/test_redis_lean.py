@@ -134,7 +134,7 @@ async def test_the_pool_limit_holds_and_a_high_level_call_never_hits_the_timeout
     try:
         burst = [
             asyncio.ensure_future(
-                lean_command(client, "BLPOP", f"lean:{uuid.uuid4().hex}", 0.05)
+                lean_command(client, "BLPOP", f"lean:{uuid.uuid4().hex}", 0.02)
             )
             for _ in range(200)
         ]

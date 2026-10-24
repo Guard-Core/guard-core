@@ -3,6 +3,7 @@ from ipaddress import ip_address
 from typing import TYPE_CHECKING, Any, NamedTuple
 
 from guard_core._utils.ip_extraction import UNKNOWN_CLIENT_IDENTITY, _parsed_ip_or_none
+from guard_core.core.checks._ban_flow import BanFlow
 from guard_core.core.checks._pending_ban import PendingBan
 from guard_core.core.checks._shared_strikes import FusedStrike, _shared_strikes_redis
 from guard_core.core.checks._strike_counts import _strike_identity
@@ -126,7 +127,7 @@ class IpBanReadMixin(SecurityCheck):
         )
         if result.allowed:
             return _ListVerdict(None, True)
-        state.guard_denied_ip_access = (result, False, False)
+        state.guard_ban_flow.denied_access = (result, False, False)
         return _ListVerdict(result.denial_category, True)
 
     async def _route_list_denial(
@@ -151,7 +152,7 @@ class IpBanReadMixin(SecurityCheck):
             SUSPICIOUS_COUNT_WINDOW_SECONDS,
             _retained_strike_cap(self.config),
         )
-        state.guard_fused_strike = strike
+        state.guard_ban_flow.fused = strike
         return strike
 
     def warn_ban_lookup_skipped(self, client_ip: str) -> None:
@@ -226,12 +227,13 @@ class IpBanReadMixin(SecurityCheck):
             return None
         plan: list[tuple[FusedStrike | None, bool]] = []
         state = request.state
-        state.guard_pending_ban = None
+        flow = BanFlow()
+        state.guard_ban_flow = flow
 
         async def defer(read: PendingKeysRead) -> bool:
             plan.append(await self._plan_ban_read(state, client_ip, route_config))
             if plan[0][1]:
-                state.guard_pending_ban = PendingBan(self, client_ip, read)
+                flow.pending = PendingBan(self, client_ip, read)
             return plan[0][1]
 
         async def strike() -> FusedStrike | None:
@@ -241,7 +243,7 @@ class IpBanReadMixin(SecurityCheck):
             banned = await self.ip_ban_manager.is_ip_banned(client_ip, strike, defer)
         except GuardRedisError:
             banned = self._ban_lookup_lost(client_ip)
-        state.guard_ban_read_done = True
+        flow.read_done = True
         if not banned:
             return None
         return await self.banned_response(request, client_ip)
@@ -251,8 +253,11 @@ class IpBanReadMixin(SecurityCheck):
         when this request already read the ban (a ban made earlier in the request
         is held locally), a lookup otherwise."""
         manager = self.ip_ban_manager
-        if getattr(request.state, "guard_ban_read_done", False) is True and isinstance(
-            manager, IPBanManager
+        flow = getattr(request.state, "guard_ban_flow", None)
+        if (
+            isinstance(flow, BanFlow)
+            and flow.read_done
+            and isinstance(manager, IPBanManager)
         ):
             return await manager.begin_ban_check(client_ip) is True
         return bool(await manager.is_ip_banned(client_ip))

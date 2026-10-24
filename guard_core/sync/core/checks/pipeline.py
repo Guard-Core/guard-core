@@ -9,6 +9,7 @@ from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.block_events import fire_block_hook
 from guard_core.sync._utils.request_logging import redact_header_value_for_display
+from guard_core.sync.core.checks._ban_flow import BanFlow
 from guard_core.sync.core.checks._pending_ban import PendingBan, resolve_pending_ban
 from guard_core.sync.core.checks._usage_rules_step import (
     enforce_usage_rules,
@@ -16,6 +17,11 @@ from guard_core.sync.core.checks._usage_rules_step import (
 )
 from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
+
+
+def _pending_of(state: object) -> PendingBan | None:
+    flow = getattr(state, "guard_ban_flow", None)
+    return flow.pending if isinstance(flow, BanFlow) else None
 
 
 def _owner_of(error: Exception, check: SecurityCheck) -> SecurityCheck:
@@ -157,7 +163,8 @@ class SecurityCheckPipeline:
     def _blocked(
         self, check: SecurityCheck, request: SyncGuardRequest, response: GuardResponse
     ) -> GuardResponse:
-        blocker = getattr(request.state, "guard_banned_by", None)
+        flow = getattr(request.state, "guard_ban_flow", None)
+        blocker = flow.banned_by if isinstance(flow, BanFlow) else None
         if not isinstance(blocker, SecurityCheck):
             blocker = check
         if blocker.check_name not in self.muted_check_logs:
@@ -169,8 +176,8 @@ class SecurityCheckPipeline:
         return response
 
     def _resolve_pending_ban(self, request: SyncGuardRequest) -> GuardResponse | None:
-        pending = getattr(request.state, "guard_pending_ban", None)
-        if not isinstance(pending, PendingBan):
+        pending = _pending_of(request.state)
+        if pending is None:
             return None
         response = resolve_pending_ban(request)
         if response is not None:
@@ -228,9 +235,7 @@ class SecurityCheckPipeline:
                 if response is not None:
                     return self._blocked(check, request, response)
                 if check.leaves_ban_pending:
-                    pending_open = isinstance(
-                        getattr(state, "guard_pending_ban", None), PendingBan
-                    )
+                    pending_open = _pending_of(state) is not None
 
             except Exception as e:
                 error_response = self._handle_check_error(

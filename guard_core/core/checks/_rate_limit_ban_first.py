@@ -273,9 +273,9 @@ async def resolve_ban_and_rate(
         strike,
     )
     if banned:
-        request.state.guard_banned_by = pending.check
+        request.state.guard_ban_flow.banned_by = pending.check
         return await pending.check.banned_response(request, pending.client_ip)
     response = await finish_tiers(check, request, rate.client_ip, rate.plans, verdict)
     if response is not None:
-        request.state.guard_banned_by = check
+        request.state.guard_ban_flow.banned_by = check
     return response

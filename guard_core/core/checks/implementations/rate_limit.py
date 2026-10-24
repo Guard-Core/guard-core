@@ -11,6 +11,7 @@ from guard_core._utils.ip_extraction import (
 )
 from guard_core._utils.request_logging import redact_endpoint_for_display
 from guard_core._utils.rule_attribution import rate_limit_attribution
+from guard_core.core.checks._ban_flow import BanFlow
 from guard_core.core.checks._pending_ban import PendingBan, resolve_pending_ban
 from guard_core.core.checks._rate_limit_ban_first import (
     defer_rate_limit,
@@ -449,7 +450,8 @@ class RateLimitCheck(SecurityCheck):
         if active and route_config and route_config.geo_rate_limits:
             await load_geo_database_for_route_rules(self.middleware)
         plans = self._tier_plans(request, client_ip, route_config) if active else []
-        pending = getattr(request.state, "guard_pending_ban", None)
+        flow = getattr(request.state, "guard_ban_flow", None)
+        pending = flow.pending if isinstance(flow, BanFlow) else None
         if defer_rate_limit(self, pending, client_ip, plans):
             return None
         if isinstance(pending, PendingBan):

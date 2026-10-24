@@ -35,12 +35,13 @@ def _merge_into_foreign_headers(
     security_headers: dict[str, str],
     forced: frozenset[str],
 ) -> None:
+    present = {key.lower() for key in headers}
     for name, value in security_headers.items():
         try:
             lowered = _LOWERED[name]
         except KeyError:
             lowered = _LOWERED[name] = name.lower()
-        if lowered in forced or name not in headers:
+        if lowered in forced or lowered not in present:
             headers[name] = value
 
 

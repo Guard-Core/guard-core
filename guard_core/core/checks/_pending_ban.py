@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING
 
+from guard_core.core.checks._ban_flow import BanFlow
 from guard_core.exceptions import GuardRedisError
 from guard_core.handlers._ipban_lookup import PendingKeysRead
 from guard_core.protocols.request_protocol import GuardRequest
@@ -30,19 +31,19 @@ async def resolve_pending_ban(
     """Read the pending ban, if any, recording the strike of ``category`` in the
     same round trip. Returns the banned response when the client is banned, so the
     caller returns it before any log, event or counter of its own."""
-    pending = getattr(request.state, "guard_pending_ban", None)
-    if not isinstance(pending, PendingBan):
+    flow = getattr(request.state, "guard_ban_flow", None)
+    if not isinstance(flow, BanFlow) or flow.pending is None:
         return None
-    request.state.guard_pending_ban = None
+    pending, flow.pending = flow.pending, None
     try:
-        return await _resolve(request, pending, category)
+        return await _resolve(flow, request, pending, category)
     except GuardRedisError as error:
         error.guard_check = pending.rate.check if pending.rate else pending.check
         raise
 
 
 async def _resolve(
-    request: GuardRequest, pending: PendingBan, category: str | None
+    flow: BanFlow, request: GuardRequest, pending: PendingBan, category: str | None
 ) -> GuardResponse | None:
     rate = pending.rate
     if rate is not None:
@@ -51,5 +52,5 @@ async def _resolve(
         return await resolve_ban_and_rate(request, pending, rate, category)
     response = await pending.check.resolve_ban_read(request, pending, category)
     if response is not None:
-        request.state.guard_banned_by = pending.check
+        flow.banned_by = pending.check
     return response

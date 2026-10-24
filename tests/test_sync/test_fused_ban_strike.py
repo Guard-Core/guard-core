@@ -85,7 +85,6 @@ class _Rig:
         request.state.client_ip = ip
         request.state.is_whitelisted = False
         request.state.is_exempt = False
-        request.state.guard_pending_ban = None
         request.state.route_config = route_config
         request.state.guard_exclusion_scoped = exclusion_scoped
         request.headers = {}

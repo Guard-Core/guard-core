@@ -11,6 +11,7 @@ from redis.connection import Connection
 
 from guard_core.exceptions import GuardRedisError
 from guard_core.models import SyncSecurityConfig
+from guard_core.sync.core.checks._ban_flow import BanFlow
 from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.core.checks.implementations.authentication import (
     AuthenticationCheck,
@@ -49,7 +50,8 @@ class _Probe(SecurityCheck):
         return "probe"
 
     def check(self, request: Any) -> None:
-        self.seen.append(getattr(request.state, "guard_pending_ban", None) is not None)
+        flow = getattr(request.state, "guard_ban_flow", None)
+        self.seen.append(isinstance(flow, BanFlow) and flow.pending is not None)
 
 
 class _Rig:
@@ -138,7 +140,6 @@ class _Rig:
         request.state.is_whitelisted = whitelisted
         request.state.whitelist_entry = None
         request.state.is_exempt = False
-        request.state.guard_pending_ban = None
         request.state.guard_exclusion_scoped = exclusion_scoped
         request.state.untrusted_forwarded_for = forwarded
         headers = {"User-Agent": agent, **(extra_headers or {})}
@@ -636,7 +637,7 @@ def test_the_spoofing_second_read_without_a_first_one_asks_the_manager() -> None
         check = rig.pipeline.checks[0]
         assert isinstance(check, IpSecurityCheck)
         request = MagicMock()
-        request.state.guard_ban_read_done = False
+        request.state.guard_ban_flow = BanFlow()
         manager = MagicMock()
         manager.is_ip_banned = MagicMock(return_value=True)
         check.ip_ban_manager = manager

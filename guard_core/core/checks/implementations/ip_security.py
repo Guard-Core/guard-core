@@ -13,6 +13,7 @@ from guard_core._utils.rule_attribution import (
     country_attribution,
 )
 from guard_core._utils.whitelist_match import most_specific_whitelist_entry
+from guard_core.core.checks._ban_flow import BanFlow
 from guard_core.core.checks._ip_ban_read import (
     IpBanReadMixin,
     _route_denial_category,
@@ -21,7 +22,7 @@ from guard_core.core.checks._ip_ban_read import (
 from guard_core.core.checks._ip_ban_read import (
     _route_blacklist_matches as _route_blacklist_matches,
 )
-from guard_core.core.checks._pending_ban import PendingBan, resolve_pending_ban
+from guard_core.core.checks._pending_ban import resolve_pending_ban
 from guard_core.core.checks.helpers import (
     check_country_access,
     check_route_ip_access,
@@ -427,7 +428,8 @@ class IpSecurityCheck(IpBanReadMixin):
             forwarded_for, route_config
         ):
             return None
-        if isinstance(getattr(request.state, "guard_pending_ban", None), PendingBan):
+        flow = getattr(request.state, "guard_ban_flow", None)
+        if isinstance(flow, BanFlow) and flow.pending is not None:
             banned = await resolve_pending_ban(request, "ip_spoofing")
             if banned is not None:
                 return banned
@@ -466,7 +468,8 @@ class IpSecurityCheck(IpBanReadMixin):
         if self.middleware.route_resolver.should_bypass_check("ip", route_config):
             return None
 
-        staged = getattr(request.state, "guard_denied_ip_access", None)
+        flow = getattr(request.state, "guard_ban_flow", None)
+        staged = flow.denied_access if isinstance(flow, BanFlow) else None
         precomputed = staged if isinstance(staged, tuple) else None
         if route_config:
             precomputed = precomputed or await self._resolve_global_ip_access(
