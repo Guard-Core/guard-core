@@ -61,7 +61,7 @@ class BehaviorActionDispatchMixin:
         if not self.config.enable_ip_banning:
             return "tracked"
 
-        from guard_core.sync.handlers.ipban_handler import ip_ban_manager
+        from guard_core.sync.handlers.ipban_handler import ip_ban_manager_for
 
         duration = (
             rule.ban_duration
@@ -69,7 +69,7 @@ class BehaviorActionDispatchMixin:
             else 3600
         )
         identity = behavior_client_identity(self.config, client_ip)
-        applied = ip_ban_manager._ban_ip_escalating(
+        applied = ip_ban_manager_for(self.config)._ban_ip_escalating(
             identity, duration, "behavioral_violation", grouped="/" in identity
         )
         if not applied:

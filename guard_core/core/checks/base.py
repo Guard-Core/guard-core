@@ -20,9 +20,9 @@ class SecurityCheck(ABC):
         self.middleware = middleware
         self.config = middleware.config
         self.logger = middleware.logger
-        from guard_core.handlers.ipban_handler import ip_ban_manager
+        from guard_core.handlers.ipban_handler import ip_ban_manager_for
 
-        self.ip_ban_manager = ip_ban_manager
+        self.ip_ban_manager = ip_ban_manager_for(middleware.config)
 
     @classmethod
     def applies_to(

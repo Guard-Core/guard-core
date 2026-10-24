@@ -26,6 +26,9 @@ class HandlerInitializer(_HandlerInitializerStepsMixin):
         adapter: str | None = None,
     ):
         self.config = config
+        from guard_core.sync.handlers.ipban_handler import ip_ban_manager_for
+
+        ip_ban_manager_for(config, bind=True)
         self.redis_handler = redis_handler
         if redis_handler is not None:
             REDIS_HANDLERS.register(config, redis_handler)

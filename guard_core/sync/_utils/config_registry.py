@@ -29,6 +29,9 @@ class ConfigHandlerRegistry:
     def _forget(self, key: tuple[Hashable, int], _dead: Any = None) -> None:
         self._entries.pop(key, None)
 
+    def drop(self, config: Any, kind: Hashable = None) -> None:
+        self._entries.pop((kind, id(config)), None)
+
     def lookup(self, config: Any, kind: Hashable = None) -> Any | None:
         key = (kind, id(config))
         entry = self._entries.get(key)

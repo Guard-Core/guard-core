@@ -66,7 +66,9 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
         await self._revoke_owned(effects.created_bans, effects.created_patterns)
 
     async def _revoke_owned(self, bans: list[str], patterns: list[str]) -> None:
-        from guard_core.handlers.ipban_handler import ip_ban_manager
+        from guard_core.handlers.ipban_handler import ip_ban_manager_for
+
+        ip_ban_manager = ip_ban_manager_for(self.config)
         from guard_core.handlers.suspatterns_handler import sus_patterns_handler
 
         revoked: list[tuple[str, int]] = []
@@ -122,7 +124,9 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
         created: list[str],
         skipped: list[str],
     ) -> None:
-        from guard_core.handlers.ipban_handler import ip_ban_manager
+        from guard_core.handlers.ipban_handler import ip_ban_manager_for
+
+        ip_ban_manager = ip_ban_manager_for(self.config)
 
         canonical = rule_ban_target(ip)[1]
         takes_ownership = (
@@ -139,7 +143,9 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
             skipped.append(f"ip_blacklist: {ip} (ban refused: {refusal})")
 
     async def _apply_ip_whitelist(self, ip_list: list[str]) -> None:
-        from guard_core.handlers.ipban_handler import ip_ban_manager
+        from guard_core.handlers.ipban_handler import ip_ban_manager_for
+
+        ip_ban_manager = ip_ban_manager_for(self.config)
 
         ranges = [ip for ip in ip_list if "/" in ip]
         if ranges:
@@ -216,7 +222,9 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
         """The bans a rule owns, here or in Redis (a worker that restarted or
         never applied the earlier set owns nothing locally), that the new set
         does not list."""
-        from guard_core.handlers.ipban_handler import ip_ban_manager
+        from guard_core.handlers.ipban_handler import ip_ban_manager_for
+
+        ip_ban_manager = ip_ban_manager_for(self.config)
 
         owned = [rule_ban_target(ip)[1] for ip in self._owned_bans]
         try:

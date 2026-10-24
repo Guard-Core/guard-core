@@ -91,12 +91,12 @@ class _HandlerInitializerStepsMixin(CloudInitializationMixin):
                 )
 
     def _configure_detection(self) -> None:
-        from guard_core.handlers.ipban_handler import ip_ban_manager
+        from guard_core.handlers.ipban_handler import ip_ban_manager_for
         from guard_core.handlers.suspatterns_handler import sus_patterns_handler
 
         resolve_enable_redis(self.config)
         signal_changed_defaults(self.config)
-        ip_ban_manager.config = self.config
+        ip_ban_manager = ip_ban_manager_for(self.config, bind=True)
         ip_ban_manager.set_capacity(self.config.banned_ips_max_entries)
         sus_patterns_handler.configure(self.config)
         apply_nat64_prefixes(self.config, self.logger)
@@ -162,9 +162,10 @@ class _HandlerInitializerStepsMixin(CloudInitializationMixin):
 
     async def _initialize_connected_redis_handlers(self) -> None:
         from guard_core.handlers.cloud_handler import cloud_handler
-        from guard_core.handlers.ipban_handler import ip_ban_manager
+        from guard_core.handlers.ipban_handler import ip_ban_manager_for
         from guard_core.handlers.suspatterns_handler import sus_patterns_handler
 
+        ip_ban_manager = ip_ban_manager_for(self.config, bind=True)
         if self.config.cloud_ip_store is not None:
             cloud_handler.set_store(self._resolve_cloud_ip_store())
 
@@ -225,13 +226,13 @@ class _HandlerInitializerStepsMixin(CloudInitializationMixin):
             return
 
         from guard_core.handlers.cloud_handler import cloud_handler
-        from guard_core.handlers.ipban_handler import ip_ban_manager
+        from guard_core.handlers.ipban_handler import ip_ban_manager_for
         from guard_core.handlers.security_headers_handler import (
             security_headers_manager,
         )
         from guard_core.handlers.suspatterns_handler import sus_patterns_handler
 
-        await ip_ban_manager.initialize_agent(telemetry)
+        await ip_ban_manager_for(self.config, bind=True).initialize_agent(telemetry)
         if self.rate_limit_handler is not None:
             await self.rate_limit_handler.initialize_agent(telemetry)
         await sus_patterns_handler.initialize_agent(telemetry)

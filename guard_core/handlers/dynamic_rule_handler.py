@@ -17,7 +17,7 @@ from guard_core.handlers._dynamic_rule_plan import (
     DynamicRulePlanMixin,
 )
 from guard_core.handlers._dynamic_rule_snapshot import DynamicRuleSnapshotMixin
-from guard_core.handlers.ipban_handler import ip_ban_manager
+from guard_core.handlers.ipban_handler import ip_ban_manager_for
 from guard_core.models import (
     DynamicRules,
     SecurityConfig,
@@ -191,7 +191,7 @@ class DynamicRuleManager(
             pass
 
     def _revert_to_base_config(self) -> None:
-        ip_ban_manager.set_rule_exempt_ips(())
+        ip_ban_manager_for(self.config).set_rule_exempt_ips(())
         if self._active_base_snapshot is not None:
             self._restore_config(self._active_base_snapshot)
         self.current_rules = None
@@ -264,6 +264,7 @@ class DynamicRuleManager(
                 base = self._snapshot_config()
             plan = await self._build_plan(rules, base)
             effects = RuleSideEffects()
+            ip_ban_manager = ip_ban_manager_for(self.config)
             previous_exempt = ip_ban_manager.rule_exempt_networks
             try:
                 ip_ban_manager.set_rule_exempt_ips(plan.exempt_ips)

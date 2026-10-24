@@ -99,9 +99,6 @@ class RateLimitCheck(SecurityCheck):
 
     def __init__(self, middleware: "SyncGuardMiddlewareProtocol") -> None:
         super().__init__(middleware)
-        from guard_core.sync.handlers.ipban_handler import ip_ban_manager
-
-        self.ip_ban_manager = ip_ban_manager
         self._endpoint_key_map: EndpointLimitKeyMap | None = None
 
     @property

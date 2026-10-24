@@ -88,7 +88,9 @@ class DynamicRulePurgeMixin:
         if held is None:
             return False
         rules, snapshot_patterns = held
-        from guard_core.sync.handlers.ipban_handler import ip_ban_manager
+        from guard_core.sync.handlers.ipban_handler import ip_ban_manager_for
+
+        ip_ban_manager = ip_ban_manager_for(self.config)
 
         counts = ip_ban_manager.purge_rule_owned_bans()
         patterns = list(dict.fromkeys([*snapshot_patterns, *self._owned_patterns]))

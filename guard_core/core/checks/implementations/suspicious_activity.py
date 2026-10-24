@@ -106,9 +106,6 @@ async def _refusal(check: SecurityCheck, stalled: bool) -> GuardResponse:
 class SuspiciousActivityCheck(SecurityCheck):
     def __init__(self, middleware: "GuardMiddlewareProtocol") -> None:
         super().__init__(middleware)
-        from guard_core.handlers.ipban_handler import ip_ban_manager
-
-        self.ip_ban_manager = ip_ban_manager
         self._reported_root_path_params: set[tuple[str, str]] = set()
 
     @property

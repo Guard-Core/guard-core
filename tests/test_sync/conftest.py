@@ -188,6 +188,7 @@ def _reset_ip_ban_manager() -> None:
     _ORIGINAL_IP_BAN_MANAGER.redis_handler = None
     _ORIGINAL_IP_BAN_MANAGER.agent_handler = None
     _ORIGINAL_IP_BAN_MANAGER.evictions_count = 0
+    _ipban_module._forget_app_binding(_ORIGINAL_IP_BAN_MANAGER)
 
 
 def _reset_cloud_handler() -> None:

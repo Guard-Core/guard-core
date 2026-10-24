@@ -2,6 +2,8 @@ import logging
 from collections.abc import MutableMapping
 from typing import Any
 
+from guard_core._redis_enablement import redis_is_configured
+from guard_core._utils.config_registry import ConfigHandlerRegistry
 from guard_core.handlers._ipban_bans import _LOOPBACK_NETWORKS, IpBanOperationsMixin
 from guard_core.handlers._ipban_cache import (
     DEFAULT_MAX_LOCAL_BANS,
@@ -27,6 +29,7 @@ __all__ = [
     "_canonicalize_ip",
     "_close_if_unusable",
     "ip_ban_manager",
+    "ip_ban_manager_for",
     "reset_global_state",
 ]
 
@@ -52,24 +55,29 @@ class IPBanManager(
 
     def __new__(cls: type["IPBanManager"]) -> "IPBanManager":
         if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance.evictions_count = 0
-            cls._instance.logger = logging.getLogger("guard_core.handlers.ipban")
-            cls._instance.banned_ips = _BanStore(
-                maxsize=cls.MAX_LOCAL_BANS, on_evict=cls._instance._on_eviction
-            )
-            cls._instance.evicted_to_report = []
-            cls._instance.banned_networks = []
-            cls._instance.refused_ban_reported_until = {}
-            cls._instance.recidive_history = {}
-            cls._instance.rule_exempt_networks = ()
-            cls._instance._rule_owned_expiries = {}
-            cls._instance._rule_owner_answers = {}
-            cls._instance._rule_floor_expiries = {}
-            cls._instance._foreign_network_expiries = {}
-            cls._instance.redis_handler = None
-            cls._instance.agent_handler = None
+            cls._instance = cls._fresh()
         return cls._instance
+
+    @classmethod
+    def _fresh(cls: type["IPBanManager"]) -> "IPBanManager":
+        instance = super().__new__(cls)
+        instance.evictions_count = 0
+        instance.logger = logging.getLogger("guard_core.handlers.ipban")
+        instance.banned_ips = _BanStore(
+            maxsize=cls.MAX_LOCAL_BANS, on_evict=instance._on_eviction
+        )
+        instance.evicted_to_report = []
+        instance.banned_networks = []
+        instance.refused_ban_reported_until = {}
+        instance.recidive_history = {}
+        instance.rule_exempt_networks = ()
+        instance._rule_owned_expiries = {}
+        instance._rule_owner_answers = {}
+        instance._rule_floor_expiries = {}
+        instance._foreign_network_expiries = {}
+        instance.redis_handler = None
+        instance.agent_handler = None
+        return instance
 
     def set_capacity(self, entries: int) -> None:
         """Resize the store. The memory-only bans it evicts are queued in
@@ -101,6 +109,56 @@ class IPBanManager(
 
 ip_ban_manager = IPBanManager()
 
+_APP_BAN_MANAGERS = ConfigHandlerRegistry()
+_DEFAULT_APPS = ConfigHandlerRegistry()
+_BAN_KIND = "ipban"
+
+
+def _redis_prefixes_differ(first: Any, second: Any) -> bool:
+    return (
+        first is not None
+        and first is not second
+        and redis_is_configured(first)
+        and redis_is_configured(second)
+        and first.redis_prefix != second.redis_prefix
+    )
+
+
+def ip_ban_manager_for(
+    config: Any, bind: bool = False, unbound: IPBanManager | None = None
+) -> IPBanManager:
+    """The ban manager of the app built from config.
+
+    An app that uses Redis under its own ``redis_prefix`` gets a manager of its
+    own when the module-level ``ip_ban_manager`` serves another app's prefix, so
+    two apps never share bans. Anything else shares ``ip_ban_manager`` as before.
+    ``bind`` (the app's handler set) configures it; the checks only look it up.
+    A config no app was bound to gets ``unbound``, else ``ip_ban_manager``.
+    """
+    own: IPBanManager | None = _APP_BAN_MANAGERS.lookup(config, _BAN_KIND)
+    if own is not None:
+        return own
+    if not bind:
+        if _DEFAULT_APPS.lookup(config, _BAN_KIND) is None and unbound is not None:
+            return unbound
+        return ip_ban_manager
+    served = ip_ban_manager.config
+    manager = ip_ban_manager
+    if _DEFAULT_APPS.lookup(served, _BAN_KIND) is not None and _redis_prefixes_differ(
+        served, config
+    ):
+        manager = IPBanManager._fresh()
+        _APP_BAN_MANAGERS.register(config, manager, _BAN_KIND)
+    else:
+        _DEFAULT_APPS.register(config, manager, _BAN_KIND)
+    manager.config = config
+    return manager
+
+
+def _forget_app_binding(manager: IPBanManager) -> None:
+    if manager.config is not None:
+        _DEFAULT_APPS.drop(manager.config, _BAN_KIND)
+
 
 async def reset_global_state() -> None:
     global ip_ban_manager
@@ -118,4 +176,5 @@ async def reset_global_state() -> None:
     manager.evicted_to_report = []
     manager.redis_handler = None
     manager.agent_handler = None
+    _forget_app_binding(manager)
     ip_ban_manager = manager
