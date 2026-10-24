@@ -11,13 +11,13 @@ blocked-<blacklist|banned>-pen<1|0>-redis<off|on>, blocked-pattern-redis<off|on>
 """
 
 import asyncio
-import cProfile
+import gc
 import importlib
 import json
 import logging
 import os
-import pstats
 import sys
+import threading
 import time
 import uuid
 import warnings
@@ -205,6 +205,19 @@ def redis_commands() -> dict[str, int]:
     return {k[len("cmdstat_") :]: v["calls"] for k, v in info.items()}
 
 
+def start_every_regex_worker() -> None:
+    """Create all worker threads of the shared regex pool before anything is counted.
+
+    A ThreadPoolExecutor starts a new worker whenever the previous one has not yet
+    gone idle at submit time, which is a race, and every start costs calls.
+    """
+    executor: Any = load("guard_core.detection_engine.compiler").shared_regex_executor()
+    workers = executor._max_workers
+    barrier = threading.Barrier(workers)
+    for future in [executor.submit(barrier.wait) for _ in range(workers)]:
+        future.result()
+
+
 async def setup() -> tuple[Step, Any, Verify]:
     if ROW == "ban_check":
         return await ban_check_step()
@@ -214,29 +227,51 @@ async def setup() -> tuple[Step, Any, Verify]:
     return await blocked_step(parts[1], "pen0" not in parts)
 
 
+def loop_iteration_codes() -> tuple[Any, set[Any]]:
+    """Code objects of one event-loop iteration (poll, process events, clock).
+
+    How many iterations a Redis reply takes depends on when the server answers, so
+    the counter skips these frames and the C calls `_run_once` itself makes. The
+    callbacks it runs are still counted.
+    """
+    loop: Any = asyncio.get_running_loop()
+    run_once = type(loop)._run_once.__code__
+    skipped = {
+        type(loop).time.__code__,
+        type(loop._selector).select.__code__,
+        type(loop)._process_events.__code__,
+    }
+    for name in ("_write_to_self", "_read_from_self", "_process_self_data"):
+        method = getattr(type(loop), name, None)
+        if method is not None:
+            skipped.add(method.__code__)
+    return run_once, skipped
+
+
 async def calls(one: Step, verify: Verify) -> dict[str, Any]:
-    extra: dict[str, Any] = {}
-    if ROW.startswith("blocked"):
-        prof = cProfile.Profile()
-        prof.enable()
-        for _ in range(N):
-            last = await one()
-        prof.disable()
-        verify(last)
-        stats = pstats.Stats(prof).__dict__["stats"]
-        root = os.path.dirname(guard_core.__file__)
-        mine = sum(
-            nc for (f, _, _), (_, nc, _, _, _) in stats.items() if f.startswith(root)
-        )
-        extra["guard_core_calls_per_request"] = round(mine / N, 2)
-        total = sum(nc for (_, nc, _, _, _) in stats.values())
-        return {"calls_per_request": round(total / N, 2), **extra}
-    count = 0
+    # Finalizers (__del__) run when the cyclic collector happens to fire, so it is
+    # off inside the counted window; the instructions mode keeps it on.
+    gc.collect()
+    gc.disable()
+    run_once, skipped = loop_iteration_codes()
+    root = os.path.dirname(guard_core.__file__)
+    total = python = mine = depth = 0
 
     def prof_fn(frame: Any, event: str, arg: Any) -> None:
-        nonlocal count
+        nonlocal total, python, mine, depth
+        code = frame.f_code
         if event == "call":
-            count += 1
+            if code in skipped:
+                depth += 1
+            elif depth == 0 and code is not run_once:
+                total += 1
+                python += 1
+                mine += code.co_filename.startswith(root)
+        elif event == "return":
+            if code in skipped:
+                depth -= 1
+        elif event == "c_call" and depth == 0 and code is not run_once:
+            total += 1
 
     before = redis_commands() if ROW == "ban_check" else {}
     sys.setprofile(prof_fn)
@@ -244,6 +279,7 @@ async def calls(one: Step, verify: Verify) -> dict[str, Any]:
         last = await one()
     sys.setprofile(None)
     verify(last)
+    extra: dict[str, Any] = {}
     if ROW == "ban_check":
         after = redis_commands()
         delta = {
@@ -252,7 +288,12 @@ async def calls(one: Step, verify: Verify) -> dict[str, Any]:
             if k != "info" and after[k] != before.get(k, 0)
         }
         extra["redis_commands_per_request"] = dict(sorted(delta.items()))
-    return {"calls_per_request": round(count / N, 2), **extra}
+    return {
+        "calls_per_request": round(total / N, 2),
+        "python_calls_per_request": round(python / N, 2),
+        "guard_core_calls_per_request": round(mine / N, 2),
+        **extra,
+    }
 
 
 async def cpu(one: Step, verify: Verify) -> dict[str, Any]:
@@ -269,6 +310,7 @@ async def cpu(one: Step, verify: Verify) -> dict[str, Any]:
 async def main() -> None:
     one, closer, verify = await setup()
     install_step_clock()
+    start_every_regex_worker()
     if MODE == "calls":
         result = await calls(one, verify)
     elif MODE == "cpu":
