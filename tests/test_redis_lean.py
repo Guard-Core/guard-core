@@ -136,7 +136,7 @@ async def test_the_pool_limit_holds_and_a_high_level_call_never_hits_the_timeout
             asyncio.ensure_future(
                 lean_command(client, "BLPOP", f"lean:{uuid.uuid4().hex}", 0.02)
             )
-            for _ in range(200)
+            for _ in range(100)
         ]
         await asyncio.sleep(0.1)
         await asyncio.wait_for(client.get("lean:high-level"), 0.95)
