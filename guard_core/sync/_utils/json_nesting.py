@@ -14,11 +14,11 @@ def _offset_nesting_exceeds(value: str, limit: int) -> int | None:
     depth = 0
     in_string = False
     for found in _QUOTE_RUN_OR_BRACKET.finditer(value):
-        token = found.group()
-        if token[-1] == '"':
-            in_string ^= len(token) % 2 == 1
+        piece = found.group()
+        if piece[-1] == '"':
+            in_string ^= len(piece) % 2 == 1
         elif not in_string:
-            depth += 1 if token in "[{" else -1
+            depth += 1 if piece in "[{" else -1
             if depth > limit:
                 return found.start()
     return None

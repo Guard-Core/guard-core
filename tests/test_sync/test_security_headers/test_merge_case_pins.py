@@ -2,7 +2,7 @@ from collections.abc import Iterator, MutableMapping
 from typing import cast
 from unittest.mock import MagicMock
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.events.metrics import MetricsCollector
 from guard_core.sync.core.responses.context import ResponseContext
 from guard_core.sync.core.responses.factory import (
@@ -33,7 +33,7 @@ class _CaseInsensitiveHeaders(MutableMapping[str, str]):
 
 
 def _factory(**security_headers: object) -> ErrorResponseFactory:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=False, security_headers={"enabled": True, **security_headers}
     )
     metrics = MagicMock(spec=MetricsCollector)
