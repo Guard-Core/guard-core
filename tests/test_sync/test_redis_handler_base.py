@@ -117,3 +117,40 @@ def test_a_subclass_of_the_base_is_not_the_manager_singleton() -> None:
     first, second = _OwnPoolHandler(config), _OwnPoolHandler(config)
     assert first is not second
     assert first is not RedisManager(config)
+
+
+def _singleton() -> object:
+    return RedisManager._instance
+
+
+def reset_singleton() -> None:
+    RedisManager._instance = None
+
+
+def test_a_base_subclass_leaves_the_manager_singleton_alone() -> None:
+    # D-112 item 1: RedisManager._instance stays the most recently constructed
+    # and initialized RedisManager; a RedisHandlerBase subclass is never it.
+    config = SyncSecurityConfig(
+        enable_redis=True,
+        redis_url=REDIS_URL,
+        redis_prefix=f"wp69inst:{uuid.uuid4().hex}:",
+    )
+    reset_singleton()
+    own = _OwnPoolHandler(config)
+    own.initialize()
+    try:
+        assert _singleton() is None
+        manager = RedisManager(config)
+        assert _singleton() is manager
+        assert manager is not own
+        inherited = RedisHandlerBase(config)
+        inherited.initialize()
+        try:
+            assert _singleton() is manager
+            assert RedisManager(config) is manager
+            assert inherited is not manager
+        finally:
+            inherited.close()
+    finally:
+        own.close()
+        reset_singleton()

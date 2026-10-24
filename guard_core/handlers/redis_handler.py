@@ -805,6 +805,9 @@ class RedisHandlerBase(RedisManager):
     def __new__(cls, *args: Any, **kwargs: Any) -> RedisHandlerBase:
         return object.__new__(cls)
 
+    def __init__(self, config: SecurityConfig) -> None:
+        self.config = config
+
 
 async def scan_unlink(
     conn: Redis, full_pattern: str, select: Callable[[str], bool] | None = None
