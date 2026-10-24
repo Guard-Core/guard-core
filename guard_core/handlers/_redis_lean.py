@@ -19,7 +19,7 @@ async def lean_command(client: Redis, *args: Any) -> Any:
     After an error or a cancellation the connection is disconnected before it
     goes back, so no later call reads a stale reply."""
     pool = client.connection_pool
-    connection = pool.take_connection_with_nothing_unread()
+    connection = await pool.take_connection_with_nothing_unread()
     if connection is None:
         connection = await pool.get_connection()
     packed = connection.pack_command(*args)

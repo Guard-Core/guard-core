@@ -252,7 +252,7 @@ async def test_an_idle_connection_closed_by_the_pool_is_not_handed_out() -> None
         pool = client.connection_pool
         await pool.disconnect(inuse_connections=False)
 
-        assert pool.take_connection_with_nothing_unread() is None
+        assert await pool.take_connection_with_nothing_unread() is None
         assert await lean_command(client, "GET", "lean:disconnected") is None
     finally:
         await client.aclose()
@@ -271,4 +271,63 @@ async def test_a_connection_that_must_reconnect_goes_back_through_release(
         assert not pool._connections_with_nothing_unread
     finally:
         monkeypatch.undo()
+        await client.aclose()
+
+
+def _observed_recorder(monkeypatch: pytest.MonkeyPatch, enabled: bool) -> list[Any]:
+    """Both recorders (the pool module's and redis-py's own) into one list, with
+    the observability switch the pool consults set to ``enabled``."""
+    from types import SimpleNamespace
+
+    from redis.observability.attributes import ConnectionState, get_pool_name
+
+    samples: list[Any] = []
+
+    async def record(
+        pool_name: str, connection_state: ConnectionState, counter: int = 1
+    ) -> None:
+        samples.append((connection_state, counter))
+
+    switch = SimpleNamespace(is_enabled=lambda: enabled)
+    monkeypatch.setattr(
+        "guard_core.handlers._redis_fast_pool._COUNT_RECORDER",
+        (record, ConnectionState, get_pool_name, lambda: switch),
+    )
+    monkeypatch.setattr("redis.asyncio.connection.record_connection_count", record)
+    return samples
+
+
+async def test_connection_counts_after_lean_calls_equal_those_after_plain_calls(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    samples = _observed_recorder(monkeypatch, True)
+    client = await _client()
+    try:
+        await lean_command(client, "PING")
+        await client.execute_command("PING")
+        samples.clear()
+        for _ in range(5):
+            await lean_command(client, "GET", "lean:count")
+        lean_samples = sorted(map(str, samples))
+        samples.clear()
+        for _ in range(5):
+            await client.execute_command("GET", "lean:count")
+        assert lean_samples == sorted(map(str, samples))
+        assert len(lean_samples) == 20
+    finally:
+        await client.aclose()
+
+
+async def test_no_connection_count_is_recorded_while_observability_is_off(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    samples = _observed_recorder(monkeypatch, False)
+    client = await _client()
+    try:
+        await lean_command(client, "PING")
+        samples.clear()
+        for _ in range(5):
+            await lean_command(client, "GET", "lean:count")
+        assert samples == []
+    finally:
         await client.aclose()

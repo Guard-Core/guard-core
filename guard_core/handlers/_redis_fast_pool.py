@@ -25,6 +25,35 @@ def _load_wait_recorder() -> tuple[Any, Any] | None:
 _WAIT_RECORDER = _load_wait_recorder()
 
 
+def _load_count_recorder() -> tuple[Any, Any, Any, Any] | None:
+    """redis-py records connection counts from 7.4.0 on, and only when its OTel
+    observability is on. Returns the recorder, the two states, the pool-name
+    function and the observability singleton getter."""
+    try:
+        recorder = importlib.import_module("redis.asyncio.observability.recorder")
+        attributes = importlib.import_module("redis.observability.attributes")
+        providers = importlib.import_module("redis.observability.providers")
+    except ImportError:
+        return None
+    return (
+        recorder.record_connection_count,
+        attributes.ConnectionState,
+        attributes.get_pool_name,
+        providers.get_observability_instance,
+    )
+
+
+_COUNT_RECORDER = _load_count_recorder()
+
+
+def _count_recorder_when_observed() -> tuple[Any, Any, Any, Any] | None:
+    """The count recorder while redis-py's observability is on, else None, so a
+    pool with observability off pays one attribute test per fast call."""
+    if _COUNT_RECORDER is not None and _COUNT_RECORDER[3]().is_enabled():
+        return _COUNT_RECORDER
+    return None
+
+
 def _is_exhaustion(error: RedisConnectionError) -> bool:
     return str(error) == _EXHAUSTED_MESSAGE
 
@@ -46,6 +75,7 @@ class FastPathConnectionPool(ConnectionPool):
         self._condition = asyncio.Condition()
         self._waiters = 0
         self._connections_with_nothing_unread: set[AbstractConnection] = set()
+        self._count_recorder = _count_recorder_when_observed()
 
     def _has_free_connection(self) -> bool:
         return bool(
@@ -60,13 +90,14 @@ class FastPathConnectionPool(ConnectionPool):
             if not _is_exhaustion(error):
                 raise
             connection = await self._wait_for_connection()
+        self._count_recorder = _count_recorder_when_observed()
         self._connections_with_nothing_unread.discard(connection)
         reader = connection._reader
         if reader is not None and reader.at_eof():
             await connection.disconnect()
         return connection
 
-    def take_connection_with_nothing_unread(self) -> AbstractConnection | None:
+    async def take_connection_with_nothing_unread(self) -> AbstractConnection | None:
         """The newest idle connection that ``give_back`` left with its reply fully
         read, moved to the in-use set without a lock: the pop and the add have no
         await between them, so no other task runs in between. ``None`` when the
@@ -82,7 +113,21 @@ class FastPathConnectionPool(ConnectionPool):
         connection = available.pop()
         self._connections_with_nothing_unread.remove(connection)
         self._in_use_connections.add(connection)
+        recorder = self._count_recorder
+        if recorder is not None:
+            await self._record_counts(recorder, recorder[1].IDLE, recorder[1].USED)
         return connection
+
+    async def _record_counts(
+        self, recorder: tuple[Any, Any, Any, Any], leaving: Any, entering: Any
+    ) -> None:
+        """The two connection-count samples the plain pool records for one state
+        transition (checkout: IDLE to USED, return: USED to IDLE), through the
+        same recorder."""
+        record = recorder[0]
+        pool_name = recorder[2](self)
+        await record(pool_name=pool_name, connection_state=leaving, counter=-1)
+        await record(pool_name=pool_name, connection_state=entering, counter=1)
 
     async def give_back(self, connection: AbstractConnection, reply_read: bool) -> None:
         """Release ``connection``. When its reply was fully read, nobody waits for a
@@ -93,6 +138,9 @@ class FastPathConnectionPool(ConnectionPool):
             self._in_use_connections.remove(connection)
             self._available_connections.append(connection)
             self._connections_with_nothing_unread.add(connection)
+            recorder = self._count_recorder
+            if recorder is not None:
+                await self._record_counts(recorder, recorder[1].USED, recorder[1].IDLE)
             return
         await self.release(connection)
 
