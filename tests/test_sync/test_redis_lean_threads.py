@@ -57,3 +57,25 @@ def test_a_missing_script_still_raises_without_a_reload_source() -> None:
         raise AssertionError("EVALSHA of an unknown sha did not raise NoScriptError")
     finally:
         client.close()
+
+
+def test_a_failed_read_disconnects_the_connection_and_raises() -> None:
+    from unittest.mock import patch
+
+    from redis.connection import Connection
+
+    client = _build_redis_client(REDIS_URL, 10, 1.0)
+    try:
+        lean_command(client, "PING")
+        with patch.object(
+            Connection, "read_response", side_effect=KeyboardInterrupt("interrupted")
+        ):
+            try:
+                lean_command(client, "GET", "lean:failed-read")
+            except KeyboardInterrupt:
+                pass
+            else:
+                raise AssertionError("the interrupted read did not raise")
+        assert lean_command(client, "GET", "lean:failed-read") is None
+    finally:
+        client.close()

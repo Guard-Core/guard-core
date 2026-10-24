@@ -243,3 +243,32 @@ async def test_a_send_that_fails_is_resent_with_the_same_bytes(
 
 def test_the_unique_member_of_a_strike_is_chosen_before_the_call() -> None:
     assert len(os.urandom(16).hex()) == 32
+
+
+async def test_an_idle_connection_closed_by_the_pool_is_not_handed_out() -> None:
+    client = await _client()
+    try:
+        await lean_command(client, "PING")
+        pool = client.connection_pool
+        await pool.disconnect(inuse_connections=False)
+
+        assert pool.take_connection_with_nothing_unread() is None
+        assert await lean_command(client, "GET", "lean:disconnected") is None
+    finally:
+        await client.aclose()
+
+
+async def test_a_connection_that_must_reconnect_goes_back_through_release(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = await _client()
+    try:
+        await lean_command(client, "PING")
+        monkeypatch.setattr(Connection, "should_reconnect", lambda self: True)
+        pool = client.connection_pool
+
+        assert await lean_command(client, "GET", "lean:reconnect") is None
+        assert not pool._connections_with_nothing_unread
+    finally:
+        monkeypatch.undo()
+        await client.aclose()
