@@ -7,6 +7,9 @@ from typing import Any
 
 from guard_core.sync.detection_engine import _validation_cache
 from guard_core.sync.detection_engine._redos_cost_arbiter import (
+    _PATTERN_SAFETY_DEFAULT_CAP,
+    TransientReason,
+    _measure_host_load_factor,
     _reach_probe_cost_verdict,
     _run_pattern_safety_probe_subprocess,
 )
@@ -142,14 +145,19 @@ class PatternCompiler:
                 return False, structural_violation
             return _run_pattern_safety_probe_subprocess(pattern, test_strings, flags)
 
-        if self._validation_cache is not None:
-            cached = self._validation_cache.get(pattern, flags)
-            if cached is not None:
-                return cached
-        verdict = _reach_probe_cost_verdict(pattern, max_content_length, flags)
-        if self._validation_cache is not None:
-            self._validation_cache.put(pattern, flags, *verdict)
-        return verdict
+        if self._validation_cache is None:
+            return _reach_probe_cost_verdict(pattern, max_content_length, flags)
+        cap = max_content_length or _PATTERN_SAFETY_DEFAULT_CAP
+        load_scale = _measure_host_load_factor()
+        cached = self._validation_cache.get(pattern, flags, cap, load_scale)
+        if cached is not None:
+            return cached
+        safe, reason = _reach_probe_cost_verdict(
+            pattern, max_content_length, flags, load_scale
+        )
+        if not isinstance(reason, TransientReason):
+            self._validation_cache.put(pattern, flags, cap, safe, reason, load_scale)
+        return safe, reason
 
     def create_safe_matcher(
         self,

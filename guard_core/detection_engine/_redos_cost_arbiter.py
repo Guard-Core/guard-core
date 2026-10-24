@@ -530,7 +530,7 @@ def _first_over_budget_reason(
             None if sample_rows is None else ReachProbeTiming(sample_rows, load_factor)
         )
         if timing is None:
-            return (
+            return TransientReason(
                 structural_violation
                 or "Pattern validation probe exceeded the killable-subprocess "
                 "timeout while measuring reach-probe cost at scale"
@@ -564,16 +564,25 @@ def _first_over_budget_reason(
     return None
 
 
+class TransientReason(str):
+    """A reject reason caused by the host, never by the pattern: not cacheable."""
+
+
 def _construction_exhausted(deadline: float, wall_backstop: float) -> bool:
     return time.monotonic() >= wall_backstop or _remaining_budget(deadline) <= 0
+
+
+def _resolved_load_factor(measured: float | None) -> float:
+    return _measure_host_load_factor() if measured is None else measured
 
 
 def _reach_probe_cost_verdict(
     pattern: str,
     max_content_length: int | None,
     flags: int = _DEFAULT_PATTERN_FLAGS,
+    load_factor: float | None = None,
 ) -> tuple[bool, str]:
-    scaled_seconds = _scaled_probe_deadline_seconds(_measure_host_load_factor())
+    scaled_seconds = _scaled_probe_deadline_seconds(_resolved_load_factor(load_factor))
     deadline = time.thread_time() + scaled_seconds
     wall_backstop = time.monotonic() + _REACH_PROBE_DEADLINE_SCALE_CEILING_SECONDS
     budget = ReachProbeCpuBudget(scaled_seconds)
@@ -586,9 +595,11 @@ def _reach_probe_cost_verdict(
     try:
         builders = _reach_probe_candidate_builders(pattern, flags, deadline)
     except TimeoutError as exc:
-        return False, structural_violation or str(exc)
+        return False, TransientReason(structural_violation or str(exc))
     if _construction_exhausted(deadline, wall_backstop):
-        return False, "Pattern validation probe construction exceeded its deadline"
+        return False, TransientReason(
+            "Pattern validation probe construction exceeded its deadline"
+        )
     if not builders:
         if structural_violation is not None:
             _log_structural_disagreement(
