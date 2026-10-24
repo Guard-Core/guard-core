@@ -4,8 +4,8 @@ from collections.abc import Awaitable, Callable, Sequence
 from typing import TYPE_CHECKING, Any
 
 from redis.asyncio import Redis
-from redis.exceptions import NoScriptError
 
+from guard_core.handlers._redis_lean import lean_evalsha
 from guard_core.scripts.detection_strikes_lua import (
     BAN_CHECK_AND_RECORD_STRIKE_SCRIPT,
 )
@@ -75,19 +75,17 @@ class RedisBanStrikeMixin:
                 repr(now),
             )
         )
-        packed = [key.encode() for key in keys]
-        packed.append(arguments.encode())
+        packed_keys = [key.encode() for key in keys]
+        packed_arguments = [arguments.encode()]
 
         async def _get_many(conn: Redis) -> list[Any]:
-            try:
-                reply: list[Any] = await conn.evalsha(
-                    _BAN_CHECK_AND_RECORD_STRIKE_SHA, len(keys), *packed
-                )
-            except NoScriptError:
-                await conn.script_load(BAN_CHECK_AND_RECORD_STRIKE_SCRIPT)
-                reply = await conn.evalsha(
-                    _BAN_CHECK_AND_RECORD_STRIKE_SHA, len(keys), *packed
-                )
+            reply: list[Any] = await lean_evalsha(
+                conn,
+                BAN_CHECK_AND_RECORD_STRIKE_SCRIPT,
+                _BAN_CHECK_AND_RECORD_STRIKE_SHA,
+                packed_keys,
+                packed_arguments,
+            )
             return reply
 
         reply = await self.safe_operation(_get_many)

@@ -44,6 +44,7 @@ from guard_core.sync.handlers._dynamic_rule_persistence import (
 )
 from guard_core.sync.handlers._redis_ban_strike import RedisBanStrikeMixin
 from guard_core.sync.handlers._redis_fast_pool import FastPathConnectionPool
+from guard_core.sync.handlers._redis_lean import lean_command, lean_evalsha
 
 if TYPE_CHECKING:
     from redis import Redis
@@ -365,7 +366,8 @@ class RedisManager(RedisBanStrikeMixin):
         try:
             with self.get_connection() as conn:
                 return list(
-                    conn.execute_command(
+                    lean_command(
+                        conn,
                         "MGET",
                         *[f"{prefix}{namespace}:{key}" for namespace, key in pairs],
                     )
@@ -660,15 +662,13 @@ class RedisManager(RedisBanStrikeMixin):
         ]
 
         def _record(conn: Redis) -> list[int]:
-            try:
-                counts = conn.evalsha(
-                    _RECORD_DETECTION_STRIKES_SHA, len(keys), *keys, *args
-                )
-            except NoScriptError:
-                conn.script_load(RECORD_DETECTION_STRIKES_SCRIPT)
-                counts = conn.evalsha(
-                    _RECORD_DETECTION_STRIKES_SHA, len(keys), *keys, *args
-                )
+            counts = lean_evalsha(
+                conn,
+                RECORD_DETECTION_STRIKES_SCRIPT,
+                _RECORD_DETECTION_STRIKES_SHA,
+                keys,
+                args,
+            )
             return [int(count) for count in counts]
 
         result = self.safe_operation(_record)

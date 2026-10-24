@@ -7,7 +7,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from redis.asyncio import Redis
+from redis.asyncio.connection import Connection
 
 from guard_core.core.checks.base import SecurityCheck
 from guard_core.core.checks.implementations.authentication import AuthenticationCheck
@@ -202,20 +202,32 @@ def _route(fields: dict[str, Any]) -> RouteConfig:
     return route_config
 
 
+def _command_of(packed: Any) -> str:
+    chunk = packed[0] if isinstance(packed, list) else packed
+    return str(chunk.split(b"\r\n")[2].decode())
+
+
+_HANDSHAKE = frozenset({"HELLO", "CLIENT", "SELECT", "AUTH"})
+
+
 _ACTIVE: list[_Rig] = []
 
 
 @pytest.fixture(autouse=True)
 def count_redis_round_trips(monkeypatch: pytest.MonkeyPatch) -> None:
-    real = Redis.execute_command
+    real = Connection.send_packed_command
 
-    async def counted(client: Redis, *args: Any, **kwargs: Any) -> Any:
-        for rig in _ACTIVE:
-            rig.round_trips += rig.counting
-            rig.commands.append(str(args[0]))
-        return await real(client, *args, **kwargs)
+    async def counted(
+        connection: Connection, command: Any, *rest: Any, **kw: Any
+    ) -> Any:
+        name = _command_of(command)
+        if name not in _HANDSHAKE:
+            for rig in _ACTIVE:
+                rig.round_trips += rig.counting
+                rig.commands.append(name)
+        return await real(connection, command, *rest, **kw)
 
-    monkeypatch.setattr(Redis, "execute_command", counted)
+    monkeypatch.setattr(Connection, "send_packed_command", counted)
 
 
 @asynccontextmanager
@@ -362,12 +374,14 @@ async def test_a_redis_that_drops_the_fused_script_fails_as_before(
     fail_open: bool,
     scenario: str,
 ) -> None:
-    real = Redis.execute_command
+    real = Connection.send_packed_command
 
-    async def dropping(client: Redis, *args: Any, **kwargs: Any) -> Any:
-        if str(args[0]) in ("EVALSHA", "MGET"):
+    async def dropping(
+        connection: Connection, command: Any, *rest: Any, **kw: Any
+    ) -> Any:
+        if _command_of(command) in ("EVALSHA", "MGET"):
             raise ConnectionError("dropped")
-        return await real(client, *args, **kwargs)
+        return await real(connection, command, *rest, **kw)
 
     results = []
     for deferred in (True, False):
@@ -379,7 +393,7 @@ async def test_a_redis_that_drops_the_fused_script_fails_as_before(
                     _never_planned,
                     False,
                 )
-            monkeypatch.setattr(Redis, "execute_command", dropping)
+            monkeypatch.setattr(Connection, "send_packed_command", dropping)
             caplog.clear()
             observed = await _observe(rig, CLIENT, _SCENARIOS[scenario][:3])
             observed.pop("redis")
@@ -390,7 +404,7 @@ async def test_a_redis_that_drops_the_fused_script_fails_as_before(
             ]
             results.append(observed)
             monkeypatch.undo()
-            monkeypatch.setattr(Redis, "execute_command", real)
+            monkeypatch.setattr(Connection, "send_packed_command", real)
 
     assert results[0]["codes"] == results[1]["codes"]
     assert results[0]["events"] == results[1]["events"]
@@ -519,12 +533,14 @@ async def test_a_redis_that_drops_the_group_b_script_fails_as_before(
     fail_open: bool,
     name: str,
 ) -> None:
-    real = Redis.execute_command
+    real = Connection.send_packed_command
 
-    async def dropping(client: Redis, *args: Any, **kwargs: Any) -> Any:
-        if str(args[0]) in ("EVALSHA", "MGET"):
+    async def dropping(
+        connection: Connection, command: Any, *rest: Any, **kw: Any
+    ) -> Any:
+        if _command_of(command) in ("EVALSHA", "MGET"):
             raise ConnectionError("dropped")
-        return await real(client, *args, **kwargs)
+        return await real(connection, command, *rest, **kw)
 
     results = []
     for deferred in (True, False):
@@ -536,12 +552,12 @@ async def test_a_redis_that_drops_the_group_b_script_fails_as_before(
                     _never_planned,
                     False,
                 )
-            monkeypatch.setattr(Redis, "execute_command", dropping)
+            monkeypatch.setattr(Connection, "send_packed_command", dropping)
             observed = await _observe(rig, CLIENT, [_GROUP_B[name]] * 3)
             observed.pop("redis")
             results.append(observed)
             monkeypatch.undo()
-            monkeypatch.setattr(Redis, "execute_command", real)
+            monkeypatch.setattr(Connection, "send_packed_command", real)
 
     assert results[0]["codes"] == results[1]["codes"]
     assert results[0]["events"] == results[1]["events"]
@@ -564,15 +580,17 @@ async def test_passive_mode_and_exclusion_scoped_requests_do_not_defer_the_count
 async def test_a_failed_ban_read_is_logged_under_the_ip_check(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    real = Redis.execute_command
+    real = Connection.send_packed_command
 
-    async def dropping(client: Redis, *args: Any, **kwargs: Any) -> Any:
-        if str(args[0]) in ("EVALSHA", "MGET"):
+    async def dropping(
+        connection: Connection, command: Any, *rest: Any, **kw: Any
+    ) -> Any:
+        if _command_of(command) in ("EVALSHA", "MGET"):
             raise ConnectionError("dropped")
-        return await real(client, *args, **kwargs)
+        return await real(connection, command, *rest, **kw)
 
     async with _rig(rate_limit=100, enable_rate_limiting=False) as rig:
-        monkeypatch.setattr(Redis, "execute_command", dropping)
+        monkeypatch.setattr(Connection, "send_packed_command", dropping)
         caplog.clear()
 
         assert await rig.request(CLIENT, agent=BAD_AGENT) == 500

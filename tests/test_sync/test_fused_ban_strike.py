@@ -7,7 +7,7 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
-from redis import Redis
+from redis.connection import Connection
 
 from guard_core.exceptions import GuardRedisError
 from guard_core.models import SyncSecurityConfig
@@ -128,20 +128,30 @@ class _Rig:
         self.redis.close()
 
 
+def _command_of(packed: Any) -> str:
+    chunk = packed[0] if isinstance(packed, list) else packed
+    return str(chunk.split(b"\r\n")[2].decode())
+
+
+_HANDSHAKE = frozenset({"HELLO", "CLIENT", "SELECT", "AUTH"})
+
+
 _ACTIVE: list[_Rig] = []
 
 
 @pytest.fixture(autouse=True)
 def count_redis_round_trips(monkeypatch: pytest.MonkeyPatch) -> None:
-    real = Redis.execute_command
+    real = Connection.send_packed_command
 
-    def counted(client: Redis, *args: Any, **kwargs: Any) -> Any:
-        for rig in _ACTIVE:
-            rig.round_trips += rig.counting
-            rig.commands.append(str(args[0]))
-        return real(client, *args, **kwargs)
+    def counted(connection: Connection, command: Any, *rest: Any, **kw: Any) -> Any:
+        name = _command_of(command)
+        if name not in _HANDSHAKE:
+            for rig in _ACTIVE:
+                rig.round_trips += rig.counting
+                rig.commands.append(name)
+        return real(connection, command, *rest, **kw)
 
-    monkeypatch.setattr(Redis, "execute_command", counted)
+    monkeypatch.setattr(Connection, "send_packed_command", counted)
 
 
 @contextmanager
@@ -302,12 +312,12 @@ def test_a_redis_that_drops_the_lookup_fails_as_the_two_calls_did(
     fail_open: bool,
     ip: str,
 ) -> None:
-    real = Redis.execute_command
+    real = Connection.send_packed_command
 
-    def dropping(client: Redis, *args: Any, **kwargs: Any) -> Any:
-        if str(args[0]) in ("EVALSHA", "MGET"):
+    def dropping(connection: Connection, command: Any, *rest: Any, **kw: Any) -> Any:
+        if _command_of(command) in ("EVALSHA", "MGET"):
             raise ConnectionError("dropped")
-        return real(client, *args, **kwargs)
+        return real(connection, command, *rest, **kw)
 
     results = []
     for fused in (True, False):
@@ -319,7 +329,7 @@ def test_a_redis_that_drops_the_lookup_fails_as_the_two_calls_did(
                     _never_planned,
                     False,
                 )
-            monkeypatch.setattr(Redis, "execute_command", dropping)
+            monkeypatch.setattr(Connection, "send_packed_command", dropping)
             caplog.clear()
             observed = _observed(rig, ip, 3)
             observed["logs"] = [
@@ -330,7 +340,7 @@ def test_a_redis_that_drops_the_lookup_fails_as_the_two_calls_did(
             observed.pop("redis")
             results.append(observed)
             monkeypatch.undo()
-            monkeypatch.setattr(Redis, "execute_command", real)
+            monkeypatch.setattr(Connection, "send_packed_command", real)
 
     assert results[0] == results[1]
 

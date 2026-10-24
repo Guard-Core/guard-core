@@ -5,8 +5,6 @@ import time
 from collections.abc import Sequence
 from typing import Any
 
-from redis.exceptions import NoScriptError
-
 from guard_core._redis_enablement import redis_is_configured
 from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
@@ -17,6 +15,7 @@ from guard_core.scripts.rate_lua import (
 from guard_core.sync._utils.ip_extraction import _client_identity
 from guard_core.sync.core.checks._pending_ban import PendingBan
 from guard_core.sync.core.checks._shared_strikes import FusedStrike
+from guard_core.sync.handlers._redis_lean import lean_evalsha
 from guard_core.sync.handlers.ratelimit_handler import (
     RateLimitTier,
     RateLimitVerdict,
@@ -61,11 +60,7 @@ def _identity(
 def _evalsha(
     conn: Any, script: str, sha: str, keys: list[bytes], arguments: list[bytes]
 ) -> list[Any]:
-    try:
-        reply: list[Any] = conn.evalsha(sha, len(keys), *keys, *arguments)
-    except NoScriptError:
-        conn.script_load(script)
-        reply = conn.evalsha(sha, len(keys), *keys, *arguments)
+    reply: list[Any] = lean_evalsha(conn, script, sha, keys, arguments)
     return reply
 
 

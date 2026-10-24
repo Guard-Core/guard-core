@@ -29,6 +29,7 @@ from guard_core.handlers._dynamic_rule_persistence import (
 )
 from guard_core.handlers._redis_ban_strike import RedisBanStrikeMixin
 from guard_core.handlers._redis_fast_pool import FastPathConnectionPool
+from guard_core.handlers._redis_lean import lean_command, lean_evalsha
 from guard_core.models import SecurityConfig
 from guard_core.scripts.ban_write_lua import (
     EXTEND_ONLY_BAN_WRITE_SCRIPT,
@@ -367,7 +368,8 @@ class RedisManager(RedisBanStrikeMixin):
         try:
             async with self.get_connection() as conn:
                 return list(
-                    await conn.execute_command(
+                    await lean_command(
+                        conn,
                         "MGET",
                         *[f"{prefix}{namespace}:{key}" for namespace, key in pairs],
                     )
@@ -666,15 +668,13 @@ class RedisManager(RedisBanStrikeMixin):
         ]
 
         async def _record(conn: Redis) -> list[int]:
-            try:
-                counts = await conn.evalsha(
-                    _RECORD_DETECTION_STRIKES_SHA, len(keys), *keys, *args
-                )
-            except NoScriptError:
-                await conn.script_load(RECORD_DETECTION_STRIKES_SCRIPT)
-                counts = await conn.evalsha(
-                    _RECORD_DETECTION_STRIKES_SHA, len(keys), *keys, *args
-                )
+            counts = await lean_evalsha(
+                conn,
+                RECORD_DETECTION_STRIKES_SCRIPT,
+                _RECORD_DETECTION_STRIKES_SHA,
+                keys,
+                args,
+            )
             return [int(count) for count in counts]
 
         result = await self.safe_operation(_record)
