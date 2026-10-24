@@ -29,6 +29,8 @@ from guard_core.sync.core.checks.implementations import (
 )
 from guard_core.sync.core.events import logfire_handler as _logfire_handler_module
 from guard_core.sync.core.events import otel_handler as _otel_handler_module
+from guard_core.sync.handlers import cloud_handler as _cloud_module
+from guard_core.sync.handlers import dynamic_rule_handler as _dynamic_rule_module
 from guard_core.sync.handlers import ipban_handler as _ipban_module
 from guard_core.sync.handlers import (
     security_headers_handler as _security_headers_module,
@@ -83,6 +85,7 @@ def _snapshot_sus_patterns() -> _SusPatternsSnapshot:
 
 
 def _snapshot_detection_singleton() -> _DetectionSingletonSnapshot:
+    _suspatterns_module._APP_PATTERN_MANAGERS.forget_default()
     handler = _suspatterns_module.sus_patterns_handler
     return (
         handler._detection_state,
@@ -110,6 +113,7 @@ def _restore_detection_singleton(snapshot: _DetectionSingletonSnapshot) -> None:
     SusPatternsManager._instance = saved_instance
     SusPatternsManager._config = saved_config
     _suspatterns_module.sus_patterns_handler = saved_global
+    _suspatterns_module._APP_PATTERN_MANAGERS.forget_default()
     SusPatternsManager._sensitive_headers_union = saved_sensitive_headers_union
     SusPatternsManager._sensitive_params_union = saved_sensitive_params_union
     SusPatternsManager._sensitive_body_fields_union = saved_sensitive_body_fields_union
@@ -205,6 +209,7 @@ def _reset_cloud_handler() -> None:
     cloud_handler._refresh_in_flight = False
     cloud_handler._empty_ranges_warned_at = {}
     cloud_handler._corrupt_cache_warned_at.clear()
+    _cloud_module._APP_CLOUD_MANAGERS.forget_default()
 
 
 def _reset_ipinfo_manager() -> None:
@@ -214,6 +219,7 @@ def _reset_ipinfo_manager() -> None:
             instance.reader.close()
         instance.agent_handler = None
         instance.redis_handler = None
+        instance._bound_redis_refs = ()
     IPInfoManager._instance = None
 
 
@@ -225,6 +231,7 @@ def _reset_dynamic_rule_manager() -> None:
         instance.agent_handler = None
         instance.redis_handler = None
     DynamicRuleManager._instance = None
+    _dynamic_rule_module._APP_RULE_MANAGERS.forget_default()
 
 
 def _reset_redis_manager() -> None:

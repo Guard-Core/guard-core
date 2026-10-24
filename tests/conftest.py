@@ -31,6 +31,8 @@ from guard_core.core.checks.implementations import (
 )
 from guard_core.core.events import logfire_handler as _logfire_handler_module
 from guard_core.core.events import otel_handler as _otel_handler_module
+from guard_core.handlers import cloud_handler as _cloud_module
+from guard_core.handlers import dynamic_rule_handler as _dynamic_rule_module
 from guard_core.handlers import ipban_handler as _ipban_module
 from guard_core.handlers import security_headers_handler as _security_headers_module
 from guard_core.handlers import suspatterns_handler as _suspatterns_module
@@ -124,7 +126,9 @@ def _isolate_detection_singleton() -> Any:
     saved_sensitive_headers_union = SusPatternsManager._sensitive_headers_union
     saved_sensitive_params_union = SusPatternsManager._sensitive_params_union
     saved_sensitive_body_fields_union = SusPatternsManager._sensitive_body_fields_union
+    _suspatterns_module._APP_PATTERN_MANAGERS.forget_default()
     yield
+    _suspatterns_module._APP_PATTERN_MANAGERS.forget_default()
     handler._detection_state = saved_state
     SusPatternsManager._instance = saved_instance
     SusPatternsManager._config = saved_config
@@ -197,6 +201,7 @@ def _reset_cloud_handler() -> None:
     cloud_handler._refresh_in_flight = False
     cloud_handler._empty_ranges_warned_at = {}
     cloud_handler._corrupt_cache_warned_at.clear()
+    _cloud_module._APP_CLOUD_MANAGERS.forget_default()
 
 
 def _reset_ipinfo_manager() -> None:
@@ -206,6 +211,7 @@ def _reset_ipinfo_manager() -> None:
             instance.reader.close()
         instance.agent_handler = None
         instance.redis_handler = None
+        instance._bound_redis_refs = ()
     IPInfoManager._instance = None
 
 
@@ -217,6 +223,7 @@ async def _reset_dynamic_rule_manager() -> None:
         instance.agent_handler = None
         instance.redis_handler = None
     DynamicRuleManager._instance = None
+    _dynamic_rule_module._APP_RULE_MANAGERS.forget_default()
 
 
 async def _reset_redis_manager() -> None:

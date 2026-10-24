@@ -1225,7 +1225,7 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "counter, no request data"
     ),
     "handlers/ipinfo_handler.py:IPInfoManager._download_database": (
-        "line 211: MMDB database download-failure warning, infra only"
+        "line 201: another worker is downloading the GeoIP database, infra only"
     ),
     "handlers/ipinfo_handler.py:IPInfoManager._open_database_or_none": (
         "line 91: MMDB file-open failure, infra only"
@@ -1288,8 +1288,8 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
     "handlers/_ipinfo_background.py:IpInfoBackgroundMixin.schedule_database_load": (
         "line 38: GeoIP background load could not be scheduled, infra only"
     ),
-    "handlers/_ipinfo_redis_copy.py:IpInfoRedisCopyMixin._adopt_redis_copy": (
-        "line 28: Redis-cached GeoIP database unavailable, infra only"
+    "handlers/_ipinfo_redis_copy.py:IpInfoRedisCopyMixin._adopt_copy_from": (
+        "line 86: Redis-cached GeoIP database unavailable, infra only"
     ),
     "handlers/_ipinfo_redis_copy.py:IpInfoRedisCopyMixin._claim_download_lock": (
         "line 64: GeoIP download lock unavailable, infra only"
@@ -1297,8 +1297,11 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
     "handlers/_ipinfo_redis_copy.py:IpInfoRedisCopyMixin._drop_cached_database": (
         "lines 49,53: unusable cached GeoIP database dropped, infra only"
     ),
-    "handlers/ipinfo_handler.py:IPInfoManager._fetch_and_store_database": (
-        "line 232: failure to cache the GeoIP database in Redis, infra only"
+    "handlers/_ipinfo_redis_copy.py:IpInfoRedisCopyMixin._cache_database_in_redis": (
+        "line 80: failure to cache the GeoIP database in Redis, infra only"
+    ),
+    "handlers/_ipinfo_redis_copy.py:IpInfoRedisCopyMixin._release_download_lock": (
+        "line 136: GeoIP download lock not released, infra only"
     ),
     "handlers/ipinfo_handler.py:IPInfoManager._warn_country_rules_without_database": (
         "line 184: states what country rules do without a GeoIP database, "
