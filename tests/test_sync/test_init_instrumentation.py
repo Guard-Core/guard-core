@@ -29,7 +29,7 @@ def test_pytest_configure_eagerly_mutes_pydantic_plugin_instrumentation(
     )
 
     try:
-        pytest_configure(pytest.Config.__new__(pytest.Config))
+        pytest_configure(pytest.Config.fromdictargs({}, ["tests/test_x.py"]))
     finally:
         new_finder = getattr(sys, _GUARD_AGENT_FINDER_ATTR, None)
         if new_finder is not None and new_finder in sys.meta_path:
