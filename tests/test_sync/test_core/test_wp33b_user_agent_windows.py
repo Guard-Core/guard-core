@@ -119,3 +119,17 @@ def test_differential_against_full_string_search() -> None:
                         differing += _verdict(pattern, text) is not _full(pattern, text)
     assert cases > 10000
     assert differing == 0
+
+
+def test_a_long_match_that_ends_exactly_at_a_window_end_is_confirmed_wider() -> None:
+    tail_start = _MAX_USER_AGENT_MATCH_LENGTH - len("curl/8")
+    text = "Mozilla " + "x" * (tail_start - len("Mozilla ")) + "curl/8" + "x" * 100
+    assert _verdict("^Mozilla.*curl/8", text) is True
+    assert _verdict("^Mozilla.*curl/8", text) is _full("^Mozilla.*curl/8", text)
+
+
+def test_a_long_match_cut_at_a_window_end_is_rejected_when_it_does_not_hold() -> None:
+    text = "a" * _MAX_USER_AGENT_MATCH_LENGTH + "b" * 500
+    assert _verdict("a{300}$", text) is False
+    assert _verdict("a{300}$", text) is _full("a{300}$", text)
+    assert _verdict("a{300}", text) is True
