@@ -67,3 +67,8 @@ repos:
         language: system
         types: [python]
         pass_filenames: false
+      - id: no-bytecode
+        name: no-bytecode
+        entry: bytecode files must not be committed (they are gitignored; remove with git rm --cached)
+        language: fail
+        files: (^|/)__pycache__/|\.py[co]$
