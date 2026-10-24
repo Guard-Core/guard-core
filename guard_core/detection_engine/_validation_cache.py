@@ -39,7 +39,18 @@ def _engine_version() -> str:
         return "unknown"
 
 
-ENGINE_VERSION = _engine_version()
+ENGINE_VERSION: str
+
+
+@functools.cache
+def _cached_engine_version() -> str:
+    return _engine_version()
+
+
+def __getattr__(name: str) -> str:
+    if name == "ENGINE_VERSION":
+        return _cached_engine_version()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def _validator_fingerprint(package_dir: Path) -> str:
@@ -63,10 +74,10 @@ def _validator_tag() -> str:
     return f"{_interpreter_tag()}:{_validator_fingerprint(Path(__file__).parent)}"
 
 
-def _is_current_entry(entry: object, validator_tag: str) -> bool:
+def _is_current_entry(entry: object, validator_tag: str, engine_version: str) -> bool:
     if not isinstance(entry, dict):
         raise ValueError("cache entry is not an object")
-    if entry.get("version") != ENGINE_VERSION:
+    if entry.get("version") != engine_version:
         return False
     if entry.get("validator") != validator_tag:
         return False
@@ -100,6 +111,7 @@ class PatternValidationCache:
         self._lock = threading.Lock()
         self._entries: dict[str, dict[str, object]] = {}
         self._validator_tag = _validator_tag()
+        self._engine_version = _cached_engine_version()
         self._trusted = _is_trusted_location(self._path)
         if self._trusted:
             self._load()
@@ -112,7 +124,7 @@ class PatternValidationCache:
 
     def _key(self, pattern: str, flags: int, cap: int) -> str:
         material = "\x00".join(
-            (pattern, str(flags), str(cap), self._validator_tag, ENGINE_VERSION)
+            (pattern, str(flags), str(cap), self._validator_tag, self._engine_version)
         )
         return hashlib.sha256(
             material.encode("utf-8", errors="surrogatepass")
@@ -132,7 +144,7 @@ class PatternValidationCache:
                 raise ValueError("cache root is not an object")
             entries = {}
             for key, entry in data.items():
-                if _is_current_entry(entry, self._validator_tag):
+                if _is_current_entry(entry, self._validator_tag, self._engine_version):
                     entries[str(key)] = entry
         except (ValueError, TypeError) as e:
             logger.warning("Pattern validation cache corrupt, starting empty: %s", e)
@@ -154,7 +166,7 @@ class PatternValidationCache:
         entry = {
             "safe": safe,
             "reason": reason,
-            "version": ENGINE_VERSION,
+            "version": self._engine_version,
             "validator": self._validator_tag,
         }
         with self._lock:

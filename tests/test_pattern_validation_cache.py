@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.metadata
 import json
 import os
 import re
@@ -335,10 +336,41 @@ def test_a_changed_validator_or_interpreter_misses_and_is_dropped(
 def test_a_changed_engine_version_misses(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    cache = PatternValidationCache(tmp_path / "cache.json")
-    cache.put("abc", 0, CAP, True, "ok")
-    monkeypatch.setattr(_validation_cache, "ENGINE_VERSION", "0.0.0-other")
-    assert cache.get("abc", 0, CAP) is None
+    path = tmp_path / "cache.json"
+    PatternValidationCache(path).put("abc", 0, CAP, True, "ok")
+    monkeypatch.setattr(_validation_cache, "_cached_engine_version", lambda: "0.0.0-x")
+    reopened = PatternValidationCache(path)
+    assert len(reopened) == 0
+    assert reopened.get("abc", 0, CAP) is None
+
+
+def test_engine_version_still_reads_the_installed_version() -> None:
+    assert _validation_cache.ENGINE_VERSION == importlib.metadata.version("guard-core")
+
+
+def test_an_unknown_module_attribute_still_raises() -> None:
+    with pytest.raises(AttributeError):
+        _ = _validation_cache.NOT_A_NAME
+
+
+def test_importing_the_module_does_not_look_up_the_version() -> None:
+    probe = (
+        "import importlib.metadata as m\n"
+        "import sys\n"
+        "calls = []\n"
+        "real = m.version\n"
+        "import traceback\n"
+        "def spy(name):\n"
+        "    stack = traceback.extract_stack()\n"
+        "    calls.extend(f for f in stack if '_validation_cache' in f.filename)\n"
+        "    return real(name)\n"
+        "m.version = spy\n"
+        "import guard_core\n"
+        f"import {_validation_cache.__name__}\n"
+        "sys.exit(len(calls))\n"
+    )
+    done = subprocess.run([sys.executable, "-I", "-c", probe], check=False)
+    assert done.returncode == 0
 
 
 def test_the_validator_tag_names_the_interpreter_and_the_package_sources() -> None:
