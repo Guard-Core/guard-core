@@ -547,6 +547,13 @@ async def run_binary_suite(manager: Any) -> list[dict]:
 async def run_corpus(
     config: SecurityConfig, only: str | None = None
 ) -> dict[str, dict]:
+    # The spoofing warning is sent once per peer per 60 s window of the process,
+    # so a second pass inside the window would record no event for
+    # evt_suspicious_request_untrusted_proxy. Every pass starts without it.
+    from guard_core._utils import ip_extraction
+
+    with ip_extraction._untrusted_peer_lock:
+        ip_extraction._untrusted_peers.clear()
     sus_patterns_handler.configure(config)
     manager = sus_patterns_handler
     results: dict[str, dict] = {}

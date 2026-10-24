@@ -701,6 +701,30 @@ async def _reset_redis_manager() -> None:
     RedisManager._instance = None  # noqa: SLF001 - corpus reset
 
 
+def _without_timing_noise(
+    case: dict[str, Any], sink: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Drop pattern_anomaly_slow_execution from cases that do not drive the monitor.
+
+    The first scan of a process takes 0.1 to 0.17 s while the built-in rows are
+    realised, right at the 0.1 s slow-pattern threshold, so a cold run records the
+    event in cases that test something else (evt_pattern_detected_xss) and a warm
+    run does not. It is wall time, not engine behavior; the cases that drive the
+    monitor keep it.
+    """
+    drives_monitor = any(
+        str(step.get("call", "")).startswith("monitor_")
+        for step in case.get("drives", [])
+    )
+    if drives_monitor:
+        return sink
+    return [
+        envelope
+        for envelope in sink
+        if envelope.get("event_type") != "pattern_anomaly_slow_execution"
+    ]
+
+
 async def run_events_case(case: dict[str, Any]) -> list[dict[str, Any]]:
     """Drive the case; returns the ordered flat list of event envelopes."""
     harness = EventsCase(case)
@@ -745,4 +769,4 @@ async def run_events_case(case: dict[str, Any]) -> list[dict[str, Any]]:
         if applied is not None:
             await applied._revoke_all_owned()
         DynamicRuleManager._instance = None
-    return harness.sink
+    return _without_timing_noise(case, harness.sink)
