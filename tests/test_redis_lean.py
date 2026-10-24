@@ -546,10 +546,10 @@ class _DispatcherWithoutMapping:
     def dispatch(self, event: Any) -> None:
         self.events.append(event)
 
-    def register_listeners(self, mappings: Any) -> None:
+    def register_listeners(self, _mappings: Any) -> None:
         return None
 
-    def unregister_listeners(self, mappings: Any) -> None:
+    def unregister_listeners(self, _mappings: Any) -> None:
         return None
 
 
