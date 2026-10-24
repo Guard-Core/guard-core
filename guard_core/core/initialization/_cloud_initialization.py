@@ -38,23 +38,23 @@ class CloudInitializationMixin:
         return cast(CloudIpStoreProtocol, store)
 
     async def _load_cloud_and_geo_without_redis(self) -> None:
-        from guard_core.handlers.cloud_handler import cloud_handler
+        from guard_core.handlers.cloud_handler import cloud_handler_for
 
         if self.config.cloud_ip_store is not None:
-            cloud_handler.set_store(self._resolve_cloud_ip_store())
+            cloud_handler_for(self.config).set_store(self._resolve_cloud_ip_store())
         if providers := self._cloud_providers_to_load():
-            await cloud_handler.refresh(providers)
+            await cloud_handler_for(self.config).refresh(providers)
         if self.geo_ip_handler is not None:
             await self.geo_ip_handler.initialize()
 
     async def _initialize_cloud_and_geo_redis(self) -> None:
-        from guard_core.handlers.cloud_handler import cloud_handler
+        from guard_core.handlers.cloud_handler import cloud_handler_for
 
         if self.config.lazy_init:
             self._lazy_init_task = asyncio.create_task(self._run_lazy_init())
             return
         if providers := self._cloud_providers_to_load():
-            await cloud_handler.initialize_redis(
+            await cloud_handler_for(self.config).initialize_redis(
                 self.redis_handler,
                 providers,
                 ttl=self.config.cloud_ip_refresh_interval,

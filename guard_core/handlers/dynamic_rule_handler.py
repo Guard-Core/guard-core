@@ -3,6 +3,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
+from guard_core._utils.app_managers import AppManagers
 from guard_core._utils.rule_attribution import set_attribution_view
 from guard_core.handlers._dynamic_rule_application import (
     DynamicRuleApplicationMixin,
@@ -28,6 +29,9 @@ def _coerce_naive_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=timezone.utc)
     return value
+
+
+_APP_RULE_MANAGERS: AppManagers["DynamicRuleManager"] = AppManagers("dynamic_rules")
 
 
 class DynamicRuleManager(
@@ -61,28 +65,40 @@ class DynamicRuleManager(
     def __new__(
         cls: type["DynamicRuleManager"], config: SecurityConfig
     ) -> "DynamicRuleManager":
+        own = _APP_RULE_MANAGERS.own(config)
+        if own is not None:
+            return own
         if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance.config = config
-            cls._instance.agent_handler = None
-            cls._instance.redis_handler = None
-            cls._instance.logger = logging.getLogger("guard_core.handlers.dynamic_rule")
-            cls._instance.last_update = 0
-            cls._instance.current_rules = None
-            cls._instance.update_task = None
-            cls._instance._lock = asyncio.Lock()
-            cls._instance._stop_event = asyncio.Event()
-            cls._instance._active_base_snapshot = None
-            cls._instance._last_skipped_expired_rule = None
-            cls._instance._last_ignored_platform_default = None
-            cls._instance._last_rejected_rule = None
-            cls._instance._hydrated_last_known_rules = False
-            cls._instance._current_fingerprint = None
-            cls._instance._owned_bans = []
-            cls._instance._owned_patterns = []
-            cls._instance._restored_ownership = ([], [])
-            cls._instance._reverted_rules = None
-        return cls._instance
+            cls._instance = cls._fresh(config)
+        return _APP_RULE_MANAGERS.bind(
+            config, cls._instance, lambda: cls._fresh(config)
+        )
+
+    @classmethod
+    def _fresh(
+        cls: type["DynamicRuleManager"], config: SecurityConfig
+    ) -> "DynamicRuleManager":
+        instance = super().__new__(cls)
+        instance.config = config
+        instance.agent_handler = None
+        instance.redis_handler = None
+        instance.logger = logging.getLogger("guard_core.handlers.dynamic_rule")
+        instance.last_update = 0
+        instance.current_rules = None
+        instance.update_task = None
+        instance._lock = asyncio.Lock()
+        instance._stop_event = asyncio.Event()
+        instance._active_base_snapshot = None
+        instance._last_skipped_expired_rule = None
+        instance._last_ignored_platform_default = None
+        instance._last_rejected_rule = None
+        instance._hydrated_last_known_rules = False
+        instance._current_fingerprint = None
+        instance._owned_bans = []
+        instance._owned_patterns = []
+        instance._restored_ownership = ([], [])
+        instance._reverted_rules = None
+        return instance
 
     async def initialize_agent(self, agent_handler: Any) -> None:
         self.agent_handler = agent_handler

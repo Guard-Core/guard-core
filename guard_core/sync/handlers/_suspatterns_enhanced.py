@@ -41,7 +41,10 @@ class _SusPatternsEnhancedMixin:
 
         if not _supports_enhanced_config(config):
             return
-        cls._config = config
+        if "_config" in vars(self):
+            self._config = config
+        else:
+            cls._config = config
         self._detection_state = _build_enhanced_detection_state(config)
 
     def _resolve_state(self, state: _DetectionState | None) -> _DetectionState:

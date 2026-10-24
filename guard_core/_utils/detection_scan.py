@@ -496,8 +496,9 @@ async def _fallback_pattern_check(
     value: str, client_ip: str, context: str
 ) -> tuple[bool, str]:
     from guard_core.detection_engine.binary_prefix import build_binary_prefix
-    from guard_core.handlers.suspatterns_handler import sus_patterns_handler
+    from guard_core.handlers.suspatterns_handler import active_sus_patterns
 
+    sus_patterns_handler = active_sus_patterns()
     normalized_context = sus_patterns_handler._normalize_context(context)
     all_compiled = await sus_patterns_handler.get_all_compiled_patterns()
     binary_prefix = build_binary_prefix(value)
@@ -626,7 +627,7 @@ async def _check_value_enhanced(
     json_redact_all: bool | None = None,
     sensitive_params: frozenset[str] = frozenset(),
 ) -> tuple[bool, str, list[dict], str | None]:
-    from guard_core.handlers.suspatterns_handler import sus_patterns_handler
+    from guard_core.handlers.suspatterns_handler import active_sus_patterns
 
     if _scan_budget_exhausted(client_ip, value):
         _note_skipped_value(context, enabled_categories)
@@ -649,7 +650,7 @@ async def _check_value_enhanced(
         return json_hit
 
     try:
-        result = await sus_patterns_handler.detect(
+        result = await active_sus_patterns().detect(
             content=value,
             ip_address=client_ip,
             context=context,

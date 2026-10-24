@@ -19,9 +19,9 @@ class CloudIpRefreshCheck(SecurityCheck):
 
     def __init__(self, middleware: "GuardMiddlewareProtocol") -> None:
         super().__init__(middleware)
-        from guard_core.handlers.cloud_handler import cloud_handler
+        from guard_core.handlers.cloud_handler import cloud_handler_for
 
-        self.cloud_handler = cloud_handler
+        self.cloud_handler = cloud_handler_for(middleware.config)
 
     @property
     def check_name(self) -> str:
@@ -55,11 +55,18 @@ class CloudIpRefreshCheck(SecurityCheck):
             adapter_covers_providers = providers <= set(
                 self.config.block_cloud_providers or ()
             )
+            from guard_core.handlers.cloud_handler import cloud_handler
+
+            # An adapter's refresh runs on the module-level manager, so an app with
+            # a manager of its own (another prefix) refreshes through that manager.
+            adapter_refreshes = (
+                adapter_covers_providers and self.cloud_handler is cloud_handler
+            )
             scheduled = await self.cloud_handler.schedule_refresh(
                 providers,
                 ttl=self.config.cloud_ip_refresh_interval,
                 refresh=self.middleware.refresh_cloud_ip_ranges
-                if adapter_covers_providers
+                if adapter_refreshes
                 else None,
             )
             if not scheduled:

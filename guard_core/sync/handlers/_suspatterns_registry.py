@@ -2,9 +2,10 @@ import functools
 import json
 import logging
 import re
+import types
 from collections.abc import Callable
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Concatenate, Generic, ParamSpec, TypeVar
 
 from guard_core.sync._utils.detection_scan import _redact_pattern_source
 from guard_core.sync.detection_engine import PatternCompiler, PerformanceMonitor
@@ -15,6 +16,22 @@ from guard_core.sync.handlers._suspatterns_sources import (
 )
 
 logger = logging.getLogger("guard_core.sync.handlers.suspatterns")
+
+_P = ParamSpec("_P")
+_R = TypeVar("_R")
+
+
+class _OnManagerOrDefault(Generic[_P, _R]):
+    """A method that acts on the manager it is called on, and on the default
+    manager (``cls()``) when called on the class, as the classmethods it replaces
+    did, so a per-app manager keeps its own patterns."""
+
+    def __init__(self, method: Callable[Concatenate[Any, _P], _R]) -> None:
+        self._method = method
+
+    def __get__(self, manager: Any, owner: type) -> Callable[_P, _R]:
+        return types.MethodType(self._method, owner() if manager is None else manager)
+
 
 _SUS_PATTERNS_HANDLER_NAME = "sus_patterns"
 
@@ -140,13 +157,12 @@ class _SusPatternsRegistryMixin(_SusPatternsLazyRowsMixin):
         except Exception as e:
             logger.warning("Custom pattern restore skipped: %s", e)
 
-    @classmethod
-    def add_pattern(cls, pattern: str, custom: bool = False) -> bool:
-        instance = cls()
+    @_OnManagerOrDefault
+    def add_pattern(self, pattern: str, custom: bool = False) -> bool:
 
-        compiler = instance._compiler or PatternCompiler()
+        compiler = self._compiler or PatternCompiler()
         max_content_length = getattr(
-            instance._config,
+            self._config,
             "detection_max_body_inspect_bytes",
             _DEFAULT_MAX_BODY_INSPECT_BYTES,
         )
@@ -164,34 +180,34 @@ class _SusPatternsRegistryMixin(_SusPatternsLazyRowsMixin):
         compiled_pattern = re.compile(pattern, re.IGNORECASE | re.MULTILINE)
         compiled_tuple = (compiled_pattern, _CTX_ALL, "custom")
         if custom:
-            instance.compiled_custom_patterns.add(compiled_tuple)
-            instance.custom_patterns.add(pattern)
+            self.compiled_custom_patterns.add(compiled_tuple)
+            self.custom_patterns.add(pattern)
 
-            if instance.redis_handler:
-                instance.redis_handler.write_atomically(
-                    sets=_stored_custom_pattern_writes(instance.custom_patterns)
+            if self.redis_handler:
+                self.redis_handler.write_atomically(
+                    sets=_stored_custom_pattern_writes(self.custom_patterns)
                 )
         else:
-            instance.compiled_patterns.append(compiled_tuple)
-            instance.patterns.append(pattern)
+            self.compiled_patterns.append(compiled_tuple)
+            self.patterns.append(pattern)
 
-        if instance._compiler:
-            instance._compiler.clear_cache()
+        if self._compiler:
+            self._compiler.clear_cache()
 
-        if instance.agent_handler:
+        if self.agent_handler:
             from guard_core.sync.core.events.event_types import EVENT_PATTERN_ADDED
 
             details = f"{'Custom' if custom else 'Default'} pattern added"
-            instance._send_pattern_event(
+            self._send_pattern_event(
                 event_type=EVENT_PATTERN_ADDED,
                 ip_address="system",
                 action_taken="pattern_added",
                 reason=f"{details} to detection system",
                 pattern=_redact_pattern_source(pattern),
                 pattern_type="custom" if custom else "default",
-                total_patterns=len(instance.custom_patterns)
+                total_patterns=len(self.custom_patterns)
                 if custom
-                else len(instance.patterns),
+                else len(self.patterns),
             )
 
         return True
@@ -253,61 +269,52 @@ class _SusPatternsRegistryMixin(_SusPatternsLazyRowsMixin):
             total_patterns=total_patterns,
         )
 
-    @classmethod
-    def remove_pattern(cls, pattern: str, custom: bool = False) -> bool:
-        instance = cls()
+    @_OnManagerOrDefault
+    def remove_pattern(self, pattern: str, custom: bool = False) -> bool:
 
         if custom:
-            pattern_removed = instance._remove_custom_pattern(pattern)
+            pattern_removed = self._remove_custom_pattern(pattern)
         else:
-            pattern_removed = instance._remove_default_pattern(pattern)
+            pattern_removed = self._remove_default_pattern(pattern)
 
         if pattern_removed:
-            instance._clear_pattern_caches(pattern)
+            self._clear_pattern_caches(pattern)
 
         if pattern_removed:
-            total_patterns = (
-                len(instance.custom_patterns) if custom else len(instance.patterns)
-            )
-            instance._send_pattern_removal_event(pattern, custom, total_patterns)
+            total_patterns = len(self.custom_patterns) if custom else len(self.patterns)
+            self._send_pattern_removal_event(pattern, custom, total_patterns)
 
         return pattern_removed
 
-    @classmethod
-    def get_default_patterns(cls) -> list[str]:
-        instance = cls()
-        return instance.patterns.copy()
+    @_OnManagerOrDefault
+    def get_default_patterns(self) -> list[str]:
+        return self.patterns.copy()
 
-    @classmethod
-    def get_custom_patterns(cls) -> list[str]:
-        instance = cls()
-        return list(instance.custom_patterns)
+    @_OnManagerOrDefault
+    def get_custom_patterns(self) -> list[str]:
+        return list(self.custom_patterns)
 
-    @classmethod
-    def get_all_patterns(cls) -> list[str]:
-        instance = cls()
-        return instance.patterns + list(instance.custom_patterns)
+    @_OnManagerOrDefault
+    def get_all_patterns(self) -> list[str]:
+        return self.patterns + list(self.custom_patterns)
 
-    @classmethod
+    @_OnManagerOrDefault
     def get_default_compiled_patterns(
-        cls,
+        self,
     ) -> list[tuple[re.Pattern, frozenset[str], str]]:
-        instance = cls()
-        return instance.compiled_patterns.copy()
+        return self.compiled_patterns.copy()
 
-    @classmethod
+    @_OnManagerOrDefault
     def get_custom_compiled_patterns(
-        cls,
+        self,
     ) -> list[tuple[re.Pattern, frozenset[str], str]]:
-        instance = cls()
-        return list(instance.compiled_custom_patterns)
+        return list(self.compiled_custom_patterns)
 
-    @classmethod
+    @_OnManagerOrDefault
     def get_all_compiled_patterns(
-        cls,
+        self,
     ) -> list[tuple[re.Pattern, frozenset[str], str]]:
-        instance = cls()
-        return instance.compiled_patterns + list(instance.compiled_custom_patterns)
+        return self.compiled_patterns + list(self.compiled_custom_patterns)
 
     @classmethod
     def reset(cls) -> None:

@@ -132,12 +132,15 @@ class DynamicRulePurgeMixin:
         return rules, patterns
 
     def _remove_purged_patterns(self, patterns: list[str]) -> int:
-        from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
+        from guard_core.sync.handlers.suspatterns_handler import (
+            sus_patterns_manager_for,
+        )
 
+        patterns_manager = sus_patterns_manager_for(self.config)
         removed = 0
         for pattern in patterns:
             try:
-                removed += int(sus_patterns_handler.remove_pattern(pattern))
+                removed += int(patterns_manager.remove_pattern(pattern))
             except Exception as error:
                 self.logger.error(f"Failed to remove a purged pattern: {error}")
         self._owned_patterns = [p for p in self._owned_patterns if p not in patterns]
@@ -224,7 +227,9 @@ class DynamicRulePurgeMixin:
         and patterns restored, ownership forgotten, no second unban."""
         if marker is None or not self._holds_purged_rules(marker):
             return
-        from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
+        from guard_core.sync.handlers.suspatterns_handler import (
+            sus_patterns_manager_for,
+        )
 
         # Strong reference: guard-agent below 5.0 answers a rules check that
         # changed nothing with the very object it cached, which is how a stale
@@ -233,9 +238,10 @@ class DynamicRulePurgeMixin:
         patterns = self._owned_patterns
         self._owned_bans, self._owned_patterns = [], []
         self._revert_to_base_config()
+        patterns_manager = sus_patterns_manager_for(self.config)
         for pattern in patterns:
             try:
-                sus_patterns_handler.remove_pattern(pattern)
+                patterns_manager.remove_pattern(pattern)
             except Exception as error:
                 self.logger.error(f"Failed to remove a purged pattern: {error}")
         self.logger.info(

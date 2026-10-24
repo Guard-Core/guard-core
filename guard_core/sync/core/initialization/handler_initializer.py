@@ -26,12 +26,18 @@ class HandlerInitializer(_HandlerInitializerStepsMixin):
         adapter: str | None = None,
     ):
         self.config = config
-        from guard_core.sync.handlers.ipban_handler import ip_ban_manager_for
-
-        ip_ban_manager_for(config, bind=True)
         self.redis_handler = redis_handler
         if redis_handler is not None:
             REDIS_HANDLERS.register(config, redis_handler)
+        from guard_core.sync.handlers.cloud_handler import cloud_handler_for
+        from guard_core.sync.handlers.ipban_handler import ip_ban_manager_for
+        from guard_core.sync.handlers.suspatterns_handler import (
+            sus_patterns_manager_for,
+        )
+
+        ip_ban_manager_for(config, bind=True)
+        cloud_handler_for(config, bind=True)
+        sus_patterns_manager_for(config, bind=True)
         self.agent_handler = agent_handler
         self.geo_ip_handler = geo_ip_handler
         self.rate_limit_handler = rate_limit_handler
@@ -50,7 +56,7 @@ class HandlerInitializer(_HandlerInitializerStepsMixin):
         self._require_tree_downloader(adapter)
 
     def get_initialization_status(self) -> dict[str, Any]:
-        from guard_core.sync.handlers.cloud_handler import cloud_handler
+        from guard_core.sync.handlers.cloud_handler import cloud_handler_for
 
         geo_status: dict[str, Any] | None = None
         if self.geo_ip_handler is not None:
@@ -65,7 +71,7 @@ class HandlerInitializer(_HandlerInitializerStepsMixin):
                 }
 
         return {
-            "cloud_providers": cloud_handler.get_status(),
+            "cloud_providers": cloud_handler_for(self.config).get_status(),
             "geo_ip": geo_status,
         }
 

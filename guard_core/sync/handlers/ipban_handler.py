@@ -2,7 +2,7 @@ import logging
 from collections.abc import MutableMapping
 from typing import Any
 
-from guard_core._redis_enablement import redis_is_configured
+from guard_core.sync._utils.app_managers import hold_for_app, redis_prefixes_differ
 from guard_core.sync._utils.config_registry import ConfigHandlerRegistry
 from guard_core.sync.handlers._ipban_bans import (
     _LOOPBACK_NETWORKS,
@@ -117,16 +117,6 @@ _DEFAULT_APPS = ConfigHandlerRegistry()
 _BAN_KIND = "ipban"
 
 
-def _redis_prefixes_differ(first: Any, second: Any) -> bool:
-    return (
-        first is not None
-        and first is not second
-        and redis_is_configured(first)
-        and redis_is_configured(second)
-        and first.redis_prefix != second.redis_prefix
-    )
-
-
 def ip_ban_manager_for(
     config: Any, bind: bool = False, unbound: IPBanManager | None = None
 ) -> IPBanManager:
@@ -147,11 +137,12 @@ def ip_ban_manager_for(
         return ip_ban_manager
     served = ip_ban_manager.config
     manager = ip_ban_manager
-    if _DEFAULT_APPS.lookup(served, _BAN_KIND) is not None and _redis_prefixes_differ(
+    if _DEFAULT_APPS.lookup(served, _BAN_KIND) is not None and redis_prefixes_differ(
         served, config
     ):
         manager = IPBanManager._fresh()
         _APP_BAN_MANAGERS.register(config, manager, _BAN_KIND)
+        hold_for_app(config, _BAN_KIND, manager)
     else:
         _DEFAULT_APPS.register(config, manager, _BAN_KIND)
     manager.config = config

@@ -69,8 +69,9 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
         from guard_core.handlers.ipban_handler import ip_ban_manager_for
 
         ip_ban_manager = ip_ban_manager_for(self.config)
-        from guard_core.handlers.suspatterns_handler import sus_patterns_handler
+        from guard_core.handlers.suspatterns_handler import sus_patterns_manager_for
 
+        patterns_manager = sus_patterns_manager_for(self.config)
         revoked: list[tuple[str, int]] = []
         for ip in bans:
             try:
@@ -94,7 +95,7 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
 
         for pattern in patterns:
             try:
-                await sus_patterns_handler.remove_pattern(pattern)
+                await patterns_manager.remove_pattern(pattern)
                 self.logger.info(
                     "Dynamic rule: Revoked suspicious pattern "
                     f"{_redact_pattern_source(pattern)}"
@@ -168,16 +169,17 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
         created: list[str] | None = None,
         skipped: list[str] | None = None,
     ) -> None:
-        from guard_core.handlers.suspatterns_handler import sus_patterns_handler
+        from guard_core.handlers.suspatterns_handler import sus_patterns_manager_for
 
         created = created if created is not None else []
         skipped = skipped if skipped is not None else []
-        known = set(sus_patterns_handler.patterns)
+        patterns_manager = sus_patterns_manager_for(self.config)
+        known = set(patterns_manager.patterns)
         candidates = [p for p in dict.fromkeys(patterns) if p not in known]
         rejected: list[str] = []
         added: list[str] = []
         for pattern in candidates:
-            if await sus_patterns_handler.add_pattern(pattern):
+            if await patterns_manager.add_pattern(pattern):
                 created.append(pattern)
                 added.append(pattern)
             else:

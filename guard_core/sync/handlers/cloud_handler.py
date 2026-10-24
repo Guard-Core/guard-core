@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from guard_core.exceptions import DownloaderNotInstalledError
+from guard_core.sync._utils.app_managers import AppManagers
 from guard_core.sync._utils.logging_utils import _sanitize_for_log
 from guard_core.sync._utils.sampling import observe_sampled_key
 from guard_core.sync.handlers._cloud_azure_fetch import (
@@ -79,6 +80,7 @@ __all__ = [
     "_service_tags_sort_key",
     "_warn_if_service_tags_url_is_stale",
     "cloud_handler",
+    "cloud_handler_for",
     "fetch_aws_ip_ranges",
     "fetch_azure_ip_ranges",
     "fetch_digitalocean_ip_ranges",
@@ -123,6 +125,7 @@ class CloudManager:
     _refresh_task: threading.Thread | None
     _refresh_in_flight: bool
     _refresh_lock: threading.Lock
+    _range_donor: "CloudManager | None"
     _empty_ranges_warned_at: dict[str, float]
     _range_indexes: dict[str, NetworkIndex]
     _corrupt_cache_warned_at: "OrderedDict[str, float]"
@@ -134,31 +137,64 @@ class CloudManager:
 
     def __new__(cls: type["CloudManager"]) -> "CloudManager":
         if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance.ip_ranges = {
-                "AWS": set(),
-                "GCP": set(),
-                "Azure": set(),
-                "DigitalOcean": set(),
-                "Linode": set(),
-                "Vultr": set(),
-            }
-            cls._instance.network_regions = {
-                provider: {} for provider in _ALL_PROVIDERS
-            }
-            cls._instance.last_updated = {provider: None for provider in _ALL_PROVIDERS}
-            cls._instance.redis_handler = None
-            cls._instance.agent_handler = None
-            cls._instance.logger = logging.getLogger("guard_core.sync.handlers.cloud")
-            cls._instance._store = InMemoryCloudIpStore()
-            cls._instance._refresh_task = None
-            cls._instance._refresh_in_flight = False
-            cls._instance._refresh_lock = threading.Lock()
-            cls._instance._empty_ranges_warned_at = {}
-            cls._instance._corrupt_cache_warned_at = OrderedDict()
-            cls._instance._corrupt_cache_lock = threading.Lock()
-            cls._instance._range_indexes = {}
+            cls._instance = cls._fresh()
         return cls._instance
+
+    @classmethod
+    def _fresh(cls: type["CloudManager"]) -> "CloudManager":
+        instance = super().__new__(cls)
+        instance.ip_ranges = {
+            "AWS": set(),
+            "GCP": set(),
+            "Azure": set(),
+            "DigitalOcean": set(),
+            "Linode": set(),
+            "Vultr": set(),
+        }
+        instance.network_regions = {provider: {} for provider in _ALL_PROVIDERS}
+        instance.last_updated = {provider: None for provider in _ALL_PROVIDERS}
+        instance.redis_handler = None
+        instance.agent_handler = None
+        instance.logger = logging.getLogger("guard_core.sync.handlers.cloud")
+        instance._store = InMemoryCloudIpStore()
+        instance._refresh_task = None
+        instance._refresh_in_flight = False
+        instance._refresh_lock = threading.Lock()
+        instance._empty_ranges_warned_at = {}
+        instance._corrupt_cache_warned_at = OrderedDict()
+        instance._corrupt_cache_lock = threading.Lock()
+        instance._range_indexes = {}
+        instance._range_donor = None
+        return instance
+
+    @classmethod
+    def _for_app(cls: type["CloudManager"], donor: "CloudManager") -> "CloudManager":
+        """A manager with its own store, Redis handler and agent, over the
+        provider ranges of ``donor``. The ranges, their regions, indexes and
+        timestamps are the same objects: they come from the providers, not from
+        a prefix, so N apps download and index them once."""
+        instance = cls._fresh()
+        instance.ip_ranges = donor.ip_ranges
+        instance.network_regions = donor.network_regions
+        instance.last_updated = donor.last_updated
+        instance._range_indexes = donor._range_indexes
+        instance._range_donor = donor
+        return instance
+
+    def _ranges_downloaded_within(
+        self, provider: str, ttl: int
+    ) -> (
+        tuple[set[ipaddress.IPv4Network | ipaddress.IPv6Network], dict[str, str]] | None
+    ):
+        if self._range_donor is None:
+            return None
+        stamp = self.last_updated.get(provider)
+        ranges = self.ip_ranges.get(provider)
+        if stamp is None or not ranges:
+            return None
+        if (datetime.now(timezone.utc) - stamp).total_seconds() >= ttl:
+            return None
+        return ranges, self.network_regions.get(provider, {})
 
     def _warn_unusable_cache(self, provider: str, entries: set[str]) -> None:
         bad_entry = _first_undecodable_entry(entries)
@@ -294,6 +330,21 @@ class CloudManager:
             raise RuntimeError("Use refresh_async() when Redis is enabled")
         self._refresh_providers(providers)
 
+    def _adopt_cached_ranges(self, provider: str, cached: set[str] | None) -> bool:
+        if cached is None:
+            return False
+        if not cached:
+            self._warn_unusable_cache(provider, set())
+            return False
+        try:
+            nets, regions = _decode_cached(cached)
+        except ValueError:
+            self._warn_unusable_cache(provider, cached)
+            return False
+        self.ip_ranges[provider] = nets
+        self.network_regions[provider] = regions
+        return True
+
     def refresh_async(
         self, providers: Collection[str] = _ALL_PROVIDERS, ttl: int = 3600
     ) -> None:
@@ -303,18 +354,13 @@ class CloudManager:
 
         for provider in _bare_provider_names(providers):
             try:
-                cached = self._store.get(provider)
-                if cached:
-                    try:
-                        nets, regions = _decode_cached(cached)
-                    except ValueError:
-                        self._warn_unusable_cache(provider, cached)
-                    else:
-                        self.ip_ranges[provider] = nets
-                        self.network_regions[provider] = regions
-                        continue
-                elif cached is not None:
-                    self._warn_unusable_cache(provider, set())
+                if self._adopt_cached_ranges(provider, self._store.get(provider)):
+                    continue
+
+                downloaded = self._ranges_downloaded_within(provider, ttl)
+                if downloaded is not None:
+                    self._store.set(provider, _encode_cached(*downloaded), ttl=ttl)
+                    continue
 
                 ranges, regions = _fetch_provider_ranges(provider)
                 if ranges:
@@ -493,3 +539,20 @@ class CloudManager:
 
 
 cloud_handler = CloudManager()
+
+_APP_CLOUD_MANAGERS: AppManagers[CloudManager] = AppManagers("cloud")
+
+
+def cloud_handler_for(config: Any, bind: bool = False) -> CloudManager:
+    """The cloud manager of the app built from config.
+
+    The module-level ``cloud_handler`` serves the first app and any app that
+    shares its Redis prefix or has no Redis. An app on its own prefix gets a
+    manager with its own Redis store and agent over the same provider ranges.
+    ``bind`` (the app's handler set) decides; the rest look it up.
+    """
+    if bind:
+        return _APP_CLOUD_MANAGERS.bind(
+            config, cloud_handler, lambda: CloudManager._for_app(cloud_handler)
+        )
+    return _APP_CLOUD_MANAGERS.find(config, cloud_handler)

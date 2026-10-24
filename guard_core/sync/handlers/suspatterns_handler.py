@@ -11,11 +11,14 @@ import time
 import warnings
 from collections.abc import Callable as Callable
 from collections.abc import Iterator as Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import datetime as datetime
 from datetime import timezone as timezone
 from typing import Any
 from typing import NamedTuple as NamedTuple
 
+from guard_core.sync._utils.app_managers import AppManagers
 from guard_core.sync._utils.detection_scan import (
     LazyPreview,
     _context_header_is_semantic_excluded,
@@ -693,7 +696,10 @@ __all__ = [
     "_xml_xxe_scheme_completion_end",
     "_xml_xxe_valid_quote_completions",
     "logger",
+    "active_sus_patterns",
+    "scanning_with",
     "sus_patterns_handler",
+    "sus_patterns_manager_for",
 ]
 
 
@@ -782,20 +788,30 @@ class SusPatternsManager(_SusPatternsViewsMixin):
         cls: type["SusPatternsManager"], config: Any = None
     ) -> "SusPatternsManager":
         if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance.custom_patterns = set()
-            cls._instance.compiled_custom_patterns = set()
-            cls._instance.redis_handler = None
-            cls._instance.agent_handler = None
-
+            cls._instance = cls._fresh()
             cls._config = config
-
             if _supports_enhanced_config(config):
                 cls._instance._detection_state = _build_enhanced_detection_state(config)
-            else:
-                cls._instance._detection_state = _LEGACY_DETECTION_STATE
-
         return cls._instance
+
+    @classmethod
+    def _fresh(cls: type["SusPatternsManager"]) -> "SusPatternsManager":
+        instance = super().__new__(cls)
+        instance.custom_patterns = set()
+        instance.compiled_custom_patterns = set()
+        instance.redis_handler = None
+        instance.agent_handler = None
+        instance._detection_state = _LEGACY_DETECTION_STATE
+        return instance
+
+    @classmethod
+    def _for_app(cls: type["SusPatternsManager"], config: Any) -> "SusPatternsManager":
+        instance = cls._fresh()
+        instance.patterns = [definition[0] for definition in cls._pattern_definitions]
+        instance._config = config
+        if _supports_enhanced_config(config):
+            instance._detection_state = _build_enhanced_detection_state(config)
+        return instance
 
     @property
     def _compiler(self) -> PatternCompiler | None:
@@ -1122,3 +1138,40 @@ class SusPatternsManager(_SusPatternsViewsMixin):
 
 
 sus_patterns_handler = SusPatternsManager()
+
+_APP_PATTERN_MANAGERS: AppManagers[SusPatternsManager] = AppManagers("suspatterns")
+
+
+def sus_patterns_manager_for(config: Any, bind: bool = False) -> SusPatternsManager:
+    """The pattern manager of the app built from config.
+
+    The module-level ``sus_patterns_handler`` serves the first app and any app
+    that shares its Redis prefix or has no Redis. An app on its own prefix gets a
+    manager of its own (custom patterns, detection state, Redis handler), found by
+    config identity. ``bind`` (the app's handler set) decides; the rest look it up.
+    The compiled built-in rows, the regex thread pool and the log-redaction name
+    sets stay process-wide.
+    """
+    if bind:
+        return _APP_PATTERN_MANAGERS.bind(
+            config, sus_patterns_handler, lambda: SusPatternsManager._for_app(config)
+        )
+    return _APP_PATTERN_MANAGERS.find(config, sus_patterns_handler)
+
+
+_active_sus_patterns: ContextVar[SusPatternsManager | None] = ContextVar(
+    "guard_core_active_sus_patterns", default=None
+)
+
+
+def active_sus_patterns() -> SusPatternsManager:
+    return _active_sus_patterns.get() or sus_patterns_handler
+
+
+@contextmanager
+def scanning_with(manager: SusPatternsManager) -> Iterator[None]:
+    token = _active_sus_patterns.set(manager)
+    try:
+        yield
+    finally:
+        _active_sus_patterns.reset(token)

@@ -60,6 +60,7 @@ from guard_core.protocols.request_protocol import GuardRequest
 
 if TYPE_CHECKING:
     from guard_core.decorators.base import RouteConfig
+    from guard_core.handlers.suspatterns_handler import SusPatternsManager
     from guard_core.models import SecurityConfig
 
 
@@ -259,17 +260,21 @@ async def _scan_body_surface(
     return _build_detection_miss()
 
 
-def _ensure_detection_singleton_configured(config: "SecurityConfig | None") -> None:
+def _ensure_detection_singleton_configured(
+    config: "SecurityConfig | None",
+) -> "SusPatternsManager":
+    from guard_core.handlers.suspatterns_handler import (
+        sus_patterns_handler,
+        sus_patterns_manager_for,
+    )
+
     if config is None:
-        return
+        return sus_patterns_handler
 
-    from guard_core.handlers.suspatterns_handler import sus_patterns_handler
-
-    if (
-        sus_patterns_handler._detection_state.compiler is None
-        or sus_patterns_handler._config is not config
-    ):
-        sus_patterns_handler.configure(config)
+    manager = sus_patterns_manager_for(config)
+    if manager._detection_state.compiler is None or manager._config is not config:
+        manager.configure(config)
+    return manager
 
 
 async def detect_penetration_attempt(
@@ -279,7 +284,9 @@ async def detect_penetration_attempt(
 ) -> DetectionResult:
     import uuid
 
-    _ensure_detection_singleton_configured(config)
+    from guard_core.handlers.suspatterns_handler import scanning_with
+
+    patterns_manager = _ensure_detection_singleton_configured(config)
 
     if config is not None:
         client_ip = await extract_client_ip(request, config)
@@ -324,6 +331,7 @@ async def detect_penetration_attempt(
             (request, sensitive_params, sensitive_body_fields, sensitive_headers),
             body_field_category_skips,
         ),
+        scanning_with(patterns_manager),
     ):
         try:
             surface_hit = await _scan_request_surface(

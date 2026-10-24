@@ -178,10 +178,10 @@ async def _read_under_slot(
 
 
 async def _straddle_overlap_bytes() -> int:
-    from guard_core.handlers.suspatterns_handler import sus_patterns_handler
+    from guard_core.handlers.suspatterns_handler import active_sus_patterns
 
     try:
-        patterns = await sus_patterns_handler.get_all_compiled_patterns()
+        patterns = await active_sus_patterns().get_all_compiled_patterns()
     except Exception:
         return 0
 

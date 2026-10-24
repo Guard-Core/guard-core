@@ -68,11 +68,11 @@ class _HandlerInitializerStepsMixin(CloudInitializationMixin):
     def build_event_filter(self) -> Any: ...
 
     def _run_lazy_init(self) -> None:
-        from guard_core.sync.handlers.cloud_handler import cloud_handler
+        from guard_core.sync.handlers.cloud_handler import cloud_handler_for
 
         if providers := self._cloud_providers_to_load():
             try:
-                cloud_handler.initialize_redis(
+                cloud_handler_for(self.config).initialize_redis(
                     self.redis_handler,
                     providers,
                     ttl=self.config.cloud_ip_refresh_interval,
@@ -92,13 +92,15 @@ class _HandlerInitializerStepsMixin(CloudInitializationMixin):
 
     def _configure_detection(self) -> None:
         from guard_core.sync.handlers.ipban_handler import ip_ban_manager_for
-        from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
+        from guard_core.sync.handlers.suspatterns_handler import (
+            sus_patterns_manager_for,
+        )
 
         resolve_enable_redis(self.config)
         signal_changed_defaults(self.config)
         ip_ban_manager = ip_ban_manager_for(self.config, bind=True)
         ip_ban_manager.set_capacity(self.config.banned_ips_max_entries)
-        sus_patterns_handler.configure(self.config)
+        sus_patterns_manager_for(self.config, bind=True).configure(self.config)
         apply_nat64_prefixes(self.config, self.logger)
 
     def _report_unreachable_ban_thresholds(self) -> None:
@@ -161,13 +163,15 @@ class _HandlerInitializerStepsMixin(CloudInitializationMixin):
         return True
 
     def _initialize_connected_redis_handlers(self) -> None:
-        from guard_core.sync.handlers.cloud_handler import cloud_handler
+        from guard_core.sync.handlers.cloud_handler import cloud_handler_for
         from guard_core.sync.handlers.ipban_handler import ip_ban_manager_for
-        from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
+        from guard_core.sync.handlers.suspatterns_handler import (
+            sus_patterns_manager_for,
+        )
 
         ip_ban_manager = ip_ban_manager_for(self.config, bind=True)
         if self.config.cloud_ip_store is not None:
-            cloud_handler.set_store(self._resolve_cloud_ip_store())
+            cloud_handler_for(self.config).set_store(self._resolve_cloud_ip_store())
 
         self._initialize_cloud_and_geo_redis()
         ip_ban_manager.initialize_redis(self.redis_handler)
@@ -175,7 +179,7 @@ class _HandlerInitializerStepsMixin(CloudInitializationMixin):
 
         if self.rate_limit_handler is not None:
             self.rate_limit_handler.initialize_redis(self.redis_handler)
-        sus_patterns_handler.initialize_redis(self.redis_handler)
+        sus_patterns_manager_for(self.config).initialize_redis(self.redis_handler)
         attach_security_headers_manager_to_redis(self.redis_handler, self.config)
 
         if self.guard_decorator is not None:
@@ -223,21 +227,23 @@ class _HandlerInitializerStepsMixin(CloudInitializationMixin):
         if telemetry is None:
             return
 
-        from guard_core.sync.handlers.cloud_handler import cloud_handler
+        from guard_core.sync.handlers.cloud_handler import cloud_handler_for
         from guard_core.sync.handlers.ipban_handler import ip_ban_manager_for
         from guard_core.sync.handlers.security_headers_handler import (
             security_headers_manager,
         )
-        from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
+        from guard_core.sync.handlers.suspatterns_handler import (
+            sus_patterns_manager_for,
+        )
 
         ip_ban_manager_for(self.config, bind=True).initialize_agent(telemetry)
         if self.rate_limit_handler is not None:
             self.rate_limit_handler.initialize_agent(telemetry)
-        sus_patterns_handler.initialize_agent(telemetry)
+        sus_patterns_manager_for(self.config).initialize_agent(telemetry)
         security_headers_manager.initialize_agent(telemetry)
 
         if self._cloud_providers_to_load():
-            cloud_handler.initialize_agent(telemetry)
+            cloud_handler_for(self.config).initialize_agent(telemetry)
 
         if self.geo_ip_handler and hasattr(self.geo_ip_handler, "initialize_agent"):
             self.geo_ip_handler.initialize_agent(telemetry)

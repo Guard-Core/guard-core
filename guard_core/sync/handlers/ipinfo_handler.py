@@ -205,11 +205,7 @@ class IPInfoManager(IpInfoBackgroundMixin, IpInfoRedisCopyMixin, IpInfoEventsMix
         try:
             self._fetch_and_store_database()
         finally:
-            if self.redis_handler is not None:
-                try:
-                    self.redis_handler.delete("ipinfo", "download_lock")
-                except Exception as e:
-                    self.logger.warning("GeoIP download lock not released: %s", e)
+            self._release_download_lock(self._copy_handlers())
 
     def _fetch_and_store_database(self) -> None:
         base_url = "https://ipinfo.io/data/free/country_asn.mmdb"
@@ -228,20 +224,7 @@ class IPInfoManager(IpInfoBackgroundMixin, IpInfoRedisCopyMixin, IpInfoEventsMix
                     content = response.content
                     self._write_database_atomically(content)
 
-                    if self.redis_handler is not None:
-                        try:
-                            with open(self.db_path, "rb") as f:
-                                db_content = f.read().decode("latin-1")
-                            self.redis_handler.set_key(
-                                "ipinfo",
-                                "database",
-                                db_content,
-                                ttl=self._max_age,
-                            )
-                        except Exception as e:
-                            self.logger.warning(
-                                "Failed to cache GeoIP database in Redis: %s", e
-                            )
+                    self._cache_database_in_redis()
                     return
                 except Exception:
                     if attempt == retries - 1:
@@ -318,5 +301,5 @@ class IPInfoManager(IpInfoBackgroundMixin, IpInfoRedisCopyMixin, IpInfoEventsMix
         self._apply_opened_reader(self._open_database_or_none())
 
     def initialize_redis(self, redis_handler: SyncRedisHandlerProtocol) -> None:
-        self.redis_handler = redis_handler
+        self._bind_redis_handler(redis_handler)
         self.initialize()

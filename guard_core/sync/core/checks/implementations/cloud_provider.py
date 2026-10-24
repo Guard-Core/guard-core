@@ -39,9 +39,9 @@ class CloudProviderCheck(SecurityCheck):
 
     def __init__(self, middleware: "SyncGuardMiddlewareProtocol") -> None:
         super().__init__(middleware)
-        from guard_core.sync.handlers.cloud_handler import cloud_handler
+        from guard_core.sync.handlers.cloud_handler import cloud_handler_for
 
-        self.cloud_handler = cloud_handler
+        self.cloud_handler = cloud_handler_for(middleware.config)
 
     @property
     def check_name(self) -> str:
