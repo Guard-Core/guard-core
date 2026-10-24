@@ -10,6 +10,7 @@ gate is broken (the A/A of v4.4.0 against itself differs).
 import argparse
 import subprocess
 import sys
+import sysconfig
 
 from perf_gate import compare
 from perf_gate.run import ALL_ROWS
@@ -86,7 +87,19 @@ def calls_part(a: argparse.Namespace, rows: list[str], lines: list[str]) -> int:
     return 1 if failed else 0
 
 
+def compile_bytecode_once(a: argparse.Namespace) -> None:
+    """Byte-compile both trees and the venv so no counted run compiles source.
+
+    A run that finds no .pyc compiles every module, hundreds of millions of
+    instructions that the next run does not pay; this was the start-up spread.
+    """
+    targets = [f"{a.head}/guard_core", f"{a.base}/guard_core"]
+    targets.append(sysconfig.get_paths()["purelib"])
+    subprocess.run([sys.executable, "-m", "compileall", "-q", *targets], check=True)
+
+
 def instructions_part(a: argparse.Namespace, rows: list[str], lines: list[str]) -> int:
+    compile_bytecode_once(a)
     base = collect(a.base, "instructions", a.redis_url, rows, a.k0, a.jobs)
     head = collect(a.head, "instructions", a.redis_url, rows, a.k0, a.jobs)
     spread_rows = [r for r in rows if max(base[r]) != min(base[r])]
@@ -168,6 +181,8 @@ def main() -> int:
     p.add_argument("--base", required=True)
     p.add_argument("--redis-url", required=True)
     p.add_argument("--rows", default=",".join(ALL_ROWS))
+    p.add_argument("--instruction-rows", default="")
+    p.add_argument("--cpu-rows", default="")
     p.add_argument("--parts", default="calls,instructions,cpu")
     p.add_argument("--k0", type=int, default=2)
     p.add_argument("--jobs", type=int, default=1)
@@ -180,9 +195,11 @@ def main() -> int:
     if "calls" in parts:
         codes.append(calls_part(a, rows, lines))
     if "instructions" in parts and 3 not in codes:
-        codes.append(instructions_part(a, rows, lines))
+        codes.append(
+            instructions_part(a, (a.instruction_rows or a.rows).split(","), lines)
+        )
     if "cpu" in parts:
-        cpu_part(a, rows, lines)
+        cpu_part(a, (a.cpu_rows or a.rows).split(","), lines)
     verdict = 3 if 3 in codes else int(any(codes))
     lines += ["", f"GATE {'BROKEN' if verdict == 3 else 'FAIL' if verdict else 'PASS'}"]
     print("\n".join(lines))

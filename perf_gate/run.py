@@ -35,7 +35,12 @@ IR_LINE = re.compile(r"I\s+refs:\s+([\d,]+)")
 
 
 def child_env(engine: str) -> dict[str, str]:
-    return {**os.environ, "PYTHONPATH": engine, "PYTHONHASHSEED": "0"}
+    return {
+        **os.environ,
+        "PYTHONPATH": engine,
+        "PYTHONHASHSEED": "0",
+        "PYTHONDONTWRITEBYTECODE": "1",
+    }
 
 
 def uses_redis(row: str) -> bool:
