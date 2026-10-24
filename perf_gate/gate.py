@@ -2,9 +2,16 @@
 
 usage: python -m perf_gate.gate --head <tree> --base <v4.4.0 tree>
     --redis-url <url> [--summary <markdown file>]
-Parts: calls (A/A first, exact), instructions (valgrind cachegrind Ir by
-difference), cpu (report only). Exit 0 pass, 1 a row is above v4.4.0, 3 the
-gate is broken (the A/A of v4.4.0 against itself differs).
+Parts: calls (A/A first, exact), instructions (valgrind callgrind Ir, one
+process per arm, collected only inside the measured loop), cpu (report only).
+Exit 0 pass, 1 a row is above v4.4.0, 3 the gate is broken (the A/A of v4.4.0
+against itself differs).
+
+Calls count the measuring thread only (sys.setprofile is per thread), with the
+event-loop iteration and done-callback frames skipped. cProfile counts every
+thread from 3.12 on, so the ledger tools (perf/block_bench.py and friends) match
+this counter on 3.10 only; a 3.14 ledger matrix is all-threads. Worker-thread
+regex work is gated by Ir, which sees every thread.
 """
 
 import argparse
@@ -68,6 +75,8 @@ def calls_part(a: argparse.Namespace, rows: list[str], lines: list[str]) -> int:
         "",
         f"rows differing: {broken or 'none'}",
     ]
+    for r in broken:
+        lines.append(f"- {r}: {base.get(r)} then {base_again.get(r)}")
     if broken:
         lines.append("GATE BROKEN: the call-count A/A must show 0 difference")
         return 3

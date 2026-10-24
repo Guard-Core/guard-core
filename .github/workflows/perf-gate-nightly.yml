@@ -1,0 +1,107 @@
+name: Perf Gate Nightly
+
+on:
+  schedule:
+    - cron: '17 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  perf-gate-nightly-instructions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    env:
+      # uv follows .python-version (3.10) unless told otherwise.
+      UV_PYTHON: ${{ matrix.python-version }}
+      UV_PYTHON_DOWNLOADS: never
+      EXPECTED_PYTHON: ${{ matrix.python-version }}
+
+    services:
+      redis:
+        image: redis
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.14']
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install uv
+        run: |
+          pip install uv
+
+      - name: Install valgrind
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq valgrind
+          valgrind --version
+
+      - name: Build the one venv of this interpreter (fastapi-guard 8.1.2, third-party code shared by both arms)
+        run: |
+          set -euo pipefail
+          uv venv "$RUNNER_TEMP/gate-venv"
+          uv pip install --python "$RUNNER_TEMP/gate-venv/bin/python" "fastapi-guard==8.1.2" httpx
+          "$RUNNER_TEMP/gate-venv/bin/python" -c "import os, sys; assert '%d.%d' % sys.version_info[:2] == os.environ['EXPECTED_PYTHON'], sys.version; import guard; print(sys.version)"
+
+      - name: Fetch guard-core 4.4.0 from PyPI and unpack it as the base arm
+        run: |
+          set -euo pipefail
+          python -m pip download --no-deps "guard-core==4.4.0" -d "$RUNNER_TEMP/v440-download"
+          python -m zipfile -e "$RUNNER_TEMP"/v440-download/guard_core-4.4.0-*.whl "$RUNNER_TEMP/v440"
+          test -f "$RUNNER_TEMP/v440/guard_core/__init__.py"
+
+      - name: Simulated instructions per request on all 15 rows (calls are checked first, CPU is not run)
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/gate-venv/bin/python" -m perf_gate.gate \
+            --head "$GITHUB_WORKSPACE" \
+            --base "$RUNNER_TEMP/v440" \
+            --redis-url "redis://localhost:6379/0" \
+            --parts calls,instructions \
+            --jobs 3 \
+            --summary "$GITHUB_STEP_SUMMARY"
+
+  open-or-update-issue:
+    name: open-or-update-issue
+    needs: perf-gate-nightly-instructions
+    if: failure()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Open the issue, or refresh the one that is open
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          marker='<!-- perf-gate-nightly: managed by .github/workflows/perf-gate-nightly.yml -->'
+          title='perf-gate nightly: a row costs more per request than v4.4.0'
+          printf '%s\n\nThe nightly run on all 15 rows failed (a row above v4.4.0 in simulated instructions or calls, or the gate itself is broken). The job summary of the run names the rows and the percentages: %s\n\nThis issue is refreshed by the next failing night, not duplicated. It blocks the next release until the rows are back at or below v4.4.0.\n' "$marker" "$RUN_URL" > body.md
+          number="$(gh issue list --repo "$REPO" --state open --search "\"$title\" in:title" --json number,title,body --jq "[.[] | select(.title == \"$title\" and (.body | contains(\"perf-gate-nightly: managed\")))][0].number // empty")"
+          if [ -n "$number" ]; then
+            gh issue edit "$number" --repo "$REPO" --body-file body.md
+            echo "refreshed issue #$number"
+          else
+            gh issue create --repo "$REPO" --title "$title" --body-file body.md
+          fi

@@ -114,6 +114,11 @@ jobs:
           python -m zipfile -e "$RUNNER_TEMP"/v440-download/guard_core-4.4.0-*.whl "$RUNNER_TEMP/v440"
           test -f "$RUNNER_TEMP/v440/guard_core/__init__.py"
 
+      # Calls: all 15 rows, main thread only. Ir sees every thread, so its per-PR rows are
+      # the ones with distinct regex work on pool workers (3.14 worker share of calls:
+      # allowed-get 5.3%, allowed-post 5.2%, pattern 3.6%, blacklist-pen1 1.8% at v4.4.0
+      # and 0 at the head); the other rows have none. Redis on and off share the same
+      # worker work. The nightly job runs Ir on all 15 rows.
       - name: Run the per-request gate (A/A, call counts, instructions, CPU report)
         run: |
           set -euo pipefail
@@ -121,6 +126,8 @@ jobs:
             --head "$GITHUB_WORKSPACE" \
             --base "$RUNNER_TEMP/v440" \
             --redis-url "redis://localhost:6379/0" \
+            --instruction-rows "allowed-get-redis-off,allowed-post-redis-off,blocked-blacklist-pen1-redisoff,blocked-pattern-redisoff" \
+            --cpu-rows "allowed-get-redis-off,allowed-post-redis-off,blocked-blacklist-pen1-redisoff,blocked-pattern-redisoff" \
             --jobs 3 \
             --summary "$GITHUB_STEP_SUMMARY"
 
