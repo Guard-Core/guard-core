@@ -161,9 +161,13 @@ class SecurityCheckPipeline:
         )
 
     async def _blocked(
-        self, check: SecurityCheck, request: GuardRequest, response: GuardResponse
+        self,
+        check: SecurityCheck,
+        request: GuardRequest,
+        response: GuardResponse,
+        state: object,
     ) -> GuardResponse:
-        flow = getattr(request.state, "guard_ban_flow", None)
+        flow = getattr(state, "guard_ban_flow", None)
         blocker = flow.banned_by if isinstance(flow, BanFlow) else None
         if not isinstance(blocker, SecurityCheck):
             blocker = check
@@ -233,7 +237,7 @@ class SecurityCheckPipeline:
                     pending_open = False
                 response = await check.check(request)
                 if response is not None:
-                    return await self._blocked(check, request, response)
+                    return await self._blocked(check, request, response, state)
                 if check.leaves_ban_pending:
                     pending_open = _pending_of(state) is not None
 

@@ -431,9 +431,10 @@ class RateLimitCheck(SecurityCheck):
         )
 
     def _skips_rate_limiting(
-        self, request: SyncGuardRequest, route_config: Any
+        self, request: SyncGuardRequest, route_config: Any, state: Any = None
     ) -> bool:
-        state = request.state
+        if state is None:
+            state = request.state
         if (
             getattr(state, "is_whitelisted", False)
             or getattr(state, "is_exempt", False) is True
@@ -454,7 +455,7 @@ class RateLimitCheck(SecurityCheck):
         route_config = getattr(state, "route_config", None)
         plans = (
             self._tier_plans(request, client_ip, route_config)
-            if client_ip and not self._skips_rate_limiting(request, route_config)
+            if client_ip and not self._skips_rate_limiting(request, route_config, state)
             else []
         )
         flow = getattr(state, "guard_ban_flow", None)

@@ -173,6 +173,13 @@ class IpBanReadMixin(SecurityCheck):
         self.warn_ban_lookup_skipped(client_ip)
         return False
 
+    @staticmethod
+    def _route_config_of(state: Any, given: RouteConfig | None) -> RouteConfig | None:
+        if given is not None:
+            return given
+        found: RouteConfig | None = getattr(state, "route_config", None)
+        return found
+
     def strike_for(
         self, request: SyncGuardRequest, client_ip: str, category: str | None
     ) -> FusedStrike | None:

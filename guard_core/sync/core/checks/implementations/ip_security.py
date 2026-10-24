@@ -417,7 +417,7 @@ class IpSecurityCheck(IpBanReadMixin):
         return False
 
     def _count_ip_spoofing(
-        self, request: SyncGuardRequest, route_config: RouteConfig | None
+        self, request: SyncGuardRequest, route_config: RouteConfig | None = None
     ) -> GuardResponse | None:
         state = request.state
         forwarded_for = getattr(state, "untrusted_forwarded_for", None)
@@ -425,7 +425,7 @@ class IpSecurityCheck(IpBanReadMixin):
             return None
         client_ip = getattr(state, "client_ip", None)
         if not client_ip or not self._forwarded_for_claims_privileged_address(
-            forwarded_for, route_config
+            forwarded_for, self._route_config_of(state, route_config)
         ):
             return None
         flow = getattr(state, "guard_ban_flow", None)
@@ -445,9 +445,7 @@ class IpSecurityCheck(IpBanReadMixin):
 
     def check(self, request: SyncGuardRequest) -> GuardResponse | None:
         response = self._enforce_ip_rules(request)
-        spoofing = self._count_ip_spoofing(
-            request, getattr(request.state, "route_config", None)
-        )
+        spoofing = self._count_ip_spoofing(request)
         return response if response is not None else spoofing
 
     def _enforce_ip_rules(self, request: SyncGuardRequest) -> GuardResponse | None:
