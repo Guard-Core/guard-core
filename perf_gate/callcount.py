@@ -7,6 +7,7 @@ valgrind Ir instead. Frames in `skipped` are not counted, nor is anything they
 call; `run_once` is not counted and neither are the C calls it makes itself.
 """
 
+import collections
 from typing import Any
 
 
@@ -19,6 +20,7 @@ class CallCounter:
         self.python = 0
         self.mine = 0
         self.depth = 0
+        self.by_function: collections.Counter[str] | None = None
 
     def __call__(self, frame: Any, event: str, arg: Any) -> None:
         code = frame.f_code
@@ -28,6 +30,9 @@ class CallCounter:
             elif self.depth == 0 and code is not self.run_once:
                 self.total += 1
                 self.python += 1
+                if self.by_function is not None:
+                    name = f"{code.co_filename}:{code.co_firstlineno}:{code.co_name}"
+                    self.by_function[name] += 1
                 self.mine += code.co_filename.startswith(self.root)
         elif event == "return":
             if code in self.skipped:

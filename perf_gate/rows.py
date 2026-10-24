@@ -11,6 +11,7 @@ blocked-<blacklist|banned>-pen<1|0>-redis<off|on>, blocked-pattern-redis<off|on>
 """
 
 import asyncio
+import collections
 import ctypes
 import gc
 import importlib
@@ -274,6 +275,12 @@ def loop_iteration_codes() -> tuple[Any, set[Any]]:
         method = getattr(type(loop), name, None)
         if method is not None:
             skipped.add(method.__code__)
+    # A reply that arrives in two chunks is read (and fed to the reader) twice.
+    transport = getattr(asyncio.selector_events, "_SelectorSocketTransport", None)
+    if transport is not None:
+        skipped.add(transport._read_ready.__code__)
+    stream_reader: Any = asyncio.StreamReader
+    skipped.add(stream_reader._wait_for_data.__code__)
     # A regex worker thread that finishes before the loop adds its done-callback
     # makes the loop thread run the state copy itself; after, the worker does.
     skipped.add(type(loop).call_soon_threadsafe.__code__)
@@ -296,6 +303,8 @@ async def calls(one: Step, verify: Verify) -> dict[str, Any]:
     counter = load("callcount").CallCounter(
         skipped, run_once, os.path.dirname(guard_core.__file__)
     )
+    if os.environ.get("PERF_GATE_TRACE") == "1":
+        counter.by_function = collections.Counter()
     before = redis_commands() if ROW == "ban_check" else {}
     sys.setprofile(counter)
     for _ in range(N):
@@ -311,6 +320,8 @@ async def calls(one: Step, verify: Verify) -> dict[str, Any]:
             if k != "info" and after[k] != before.get(k, 0)
         }
         extra["redis_commands_per_request"] = dict(sorted(delta.items()))
+    if counter.by_function is not None:
+        extra["by_function"] = dict(counter.by_function)
     return {
         "calls_per_request": round(counter.total / N, 2),
         "python_calls_per_request": round(counter.python / N, 2),
