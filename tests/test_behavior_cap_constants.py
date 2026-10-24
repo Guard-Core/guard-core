@@ -2,6 +2,7 @@ from typing import Any
 
 import pytest
 
+from guard_core import _tracking_caps
 from guard_core.core.checks import helpers
 from guard_core.handlers import _behavior_throttle, behavior_handler, ratelimit_handler
 from guard_core.models import SecurityConfig
@@ -40,6 +41,6 @@ def test_the_module_constant_is_the_default_of_its_field(
 ) -> None:
     assert getattr(module, constant) == 10_000
     assert getattr(SecurityConfig(), field) == 10_000
-    monkeypatch.setattr(module, constant, 7)
+    monkeypatch.setattr(_tracking_caps, constant, 7)
     assert getattr(SecurityConfig(), field) == 7
     assert getattr(SecurityConfig(**{field: 9}), field) == 9

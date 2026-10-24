@@ -7,6 +7,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any
 
+from guard_core import _tracking_caps
 from guard_core._redis_enablement import redis_is_configured
 from guard_core._redis_exceptions import NoScriptError
 from guard_core._utils.identity_hash import _hash_identity_segment
@@ -24,9 +25,9 @@ USAGE_NAMESPACE = "behavior_usage"
 RECENT_RULE_HITS_WINDOW_SECONDS = 300
 RETURN_NAMESPACE = "behavior_returns"
 TRIP_NAMESPACE = "behavior_throttle"
-MAX_TRIP_MARKERS = 10_000
-MAX_TRACKED_BUCKETS = 10_000
-MAX_TRACKED_CLIENTS_PER_BUCKET = 10_000
+MAX_TRIP_MARKERS = _tracking_caps.MAX_TRIP_MARKERS
+MAX_TRACKED_BUCKETS = _tracking_caps.MAX_TRACKED_BUCKETS
+MAX_TRACKED_CLIENTS_PER_BUCKET = _tracking_caps.MAX_TRACKED_CLIENTS_PER_BUCKET
 
 _logger = logging.getLogger("guard_core.handlers.behavior")
 _redis_fail_open_warned = False

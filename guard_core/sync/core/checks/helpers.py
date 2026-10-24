@@ -6,6 +6,9 @@ from ipaddress import ip_address
 from typing import TYPE_CHECKING, Any, cast
 from urllib.parse import urlparse
 
+from guard_core._tracking_caps import (
+    _MAX_TRACKED_SUSPICIOUS_IPS as _MAX_TRACKED_SUSPICIOUS_IPS,
+)
 from guard_core.models import SyncSecurityConfig, ThreatBanConfig
 from guard_core.sync.core.checks._shared_strikes import (
     SharedStrikes,
@@ -70,7 +73,6 @@ if TYPE_CHECKING:
     )
 
 SUSPICIOUS_COUNT_WINDOW_SECONDS = 3600
-_MAX_TRACKED_SUSPICIOUS_IPS = 10_000
 _DETECTION_RESULT_STATE_ATTR = "_guard_detection_result_cache"
 _MAX_RETAINED_EVENTS_PER_CATEGORY = 10_000
 _strike_cap_cache: dict[int, tuple[weakref.ref[SyncSecurityConfig], int, int]] = {}

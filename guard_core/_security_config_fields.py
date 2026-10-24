@@ -1,6 +1,5 @@
 from collections.abc import Awaitable, Callable
 from functools import partial
-from importlib import import_module
 from pathlib import Path
 from types import MappingProxyType
 from typing import Annotated, Any, Generic, Literal
@@ -15,6 +14,7 @@ from pydantic import (
 )
 from typing_extensions import Self, TypeVar
 
+from guard_core import _tracking_caps
 from guard_core._redis_enablement import REDIS_CONNECTION_FIELDS, resolve_enable_redis
 from guard_core._security_config_cloud_store_validators import (
     _validate_cloud_ip_store_value,
@@ -66,10 +66,11 @@ DEFAULT_EXCLUDE_PATHS: tuple[str, ...] = (
 )
 
 
-def _module_cap(module: str, name: str) -> Callable[[], int]:
-    """Default read from the handler's cap constant when the config is built (the
-    handlers import the config, so they cannot be imported at module load)."""
-    return lambda: int(getattr(import_module(module), name))
+def _module_cap(name: str) -> Callable[[], int]:
+    """Default read from the cap constant of the light module when the config is
+    built (the handlers import the config and pull in redis, so they cannot be
+    imported here)."""
+    return lambda: int(getattr(_tracking_caps, name))
 
 
 class _SecurityConfigFields(BaseModel, Generic[RequestT]):
@@ -309,9 +310,7 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
     )
 
     rate_limit_max_tracked_keys: int = Field(
-        default_factory=_module_cap(
-            "guard_core.handlers.ratelimit_handler", "_MAX_TRACKED_RATE_LIMIT_KEYS"
-        ),
+        default_factory=_module_cap("_MAX_TRACKED_RATE_LIMIT_KEYS"),
         ge=1,
         description=(
             "Cap on the in-memory rate-limit windows one process keeps (one per "
@@ -323,9 +322,7 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
     )
 
     behavior_max_tracked_endpoints: int = Field(
-        default_factory=_module_cap(
-            "guard_core.handlers.behavior_handler", "_MAX_TRACKED_ENDPOINTS"
-        ),
+        default_factory=_module_cap("_MAX_TRACKED_ENDPOINTS"),
         ge=1,
         description=(
             "Cap on the behavior-rule endpoint buckets one process keeps (one per "
@@ -343,9 +340,7 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
     )
 
     behavior_max_tracked_clients_per_endpoint: int = Field(
-        default_factory=_module_cap(
-            "guard_core.handlers.behavior_handler", "_MAX_TRACKED_CLIENTS_PER_ENDPOINT"
-        ),
+        default_factory=_module_cap("_MAX_TRACKED_CLIENTS_PER_ENDPOINT"),
         ge=1,
         description=(
             "Cap on the clients one behavior-rule endpoint bucket keeps in memory. "
@@ -357,9 +352,7 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
     )
 
     behavior_throttle_max_tracked_buckets: int = Field(
-        default_factory=_module_cap(
-            "guard_core.handlers._behavior_throttle", "MAX_TRACKED_BUCKETS"
-        ),
+        default_factory=_module_cap("MAX_TRACKED_BUCKETS"),
         ge=1,
         description=(
             "Cap on the throttle rule buckets one process keeps in memory. The "
@@ -371,9 +364,7 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
     )
 
     behavior_throttle_max_tracked_clients_per_bucket: int = Field(
-        default_factory=_module_cap(
-            "guard_core.handlers._behavior_throttle", "MAX_TRACKED_CLIENTS_PER_BUCKET"
-        ),
+        default_factory=_module_cap("MAX_TRACKED_CLIENTS_PER_BUCKET"),
         ge=1,
         description=(
             "Cap on the clients one throttle bucket keeps in memory. The least "
@@ -385,9 +376,7 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
     )
 
     behavior_throttle_max_trip_markers: int = Field(
-        default_factory=_module_cap(
-            "guard_core.handlers._behavior_throttle", "MAX_TRIP_MARKERS"
-        ),
+        default_factory=_module_cap("MAX_TRIP_MARKERS"),
         ge=1,
         description=(
             "Cap on the throttle episode markers one process keeps in memory. The "
@@ -399,9 +388,7 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
     )
 
     ban_counters_max_tracked_ips: int = Field(
-        default_factory=_module_cap(
-            "guard_core.core.checks.helpers", "_MAX_TRACKED_SUSPICIOUS_IPS"
-        ),
+        default_factory=_module_cap("_MAX_TRACKED_SUSPICIOUS_IPS"),
         ge=1,
         description=(
             "Cap on the client IPs whose automatic-ban violation counters one "

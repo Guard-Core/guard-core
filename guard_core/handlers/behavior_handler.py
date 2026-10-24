@@ -9,6 +9,12 @@ from typing import Any, Literal
 
 from cachetools import TTLCache
 
+from guard_core._tracking_caps import (
+    _MAX_TRACKED_CLIENTS_PER_ENDPOINT as _MAX_TRACKED_CLIENTS_PER_ENDPOINT,
+)
+from guard_core._tracking_caps import (
+    _MAX_TRACKED_ENDPOINTS as _MAX_TRACKED_ENDPOINTS,
+)
 from guard_core._utils.identity_hash import _hash_identity_segment
 from guard_core._utils.lru_store import _lru_pop_or_create
 from guard_core.handlers._behavior_action_dispatch import BehaviorActionDispatchMixin
@@ -95,8 +101,6 @@ class BehaviorRule:
 
 
 _RECENT_ENDPOINT_ID = "recent"
-_MAX_TRACKED_ENDPOINTS = 10_000
-_MAX_TRACKED_CLIENTS_PER_ENDPOINT = 10_000
 
 
 class BehaviorTracker(
