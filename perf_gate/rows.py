@@ -79,6 +79,29 @@ class StepClock:
         return getattr(time, name)
 
 
+def settle_redis_replies() -> None:
+    """Let every Redis reply arrive before the reader looks at it.
+
+    A StreamReader read waits (and is woken again) only when the reply has not
+    arrived yet, so the calls of a request depend on how fast the server answers
+    (traced: `_wait_for_data` and `_wakeup_waiter` in 1 request of 200 on 3.10).
+    A short sleep first makes the reply always buffered. Both arms get it.
+    """
+    reader: Any = asyncio.StreamReader
+    for name in ("readuntil", "readexactly", "read"):
+        original = getattr(reader, name)
+
+        def settled(self: Any, *args: Any, _original: Any = original) -> Any:
+            return _settled_read(_original, self, *args)
+
+        setattr(reader, name, settled)
+
+
+async def _settled_read(original: Any, reader: Any, *args: Any) -> Any:
+    await asyncio.sleep(0.02)
+    return await original(reader, *args)
+
+
 def install_step_clock() -> None:
     """Swap the `time` module global of every guard module for one StepClock."""
     clock = StepClock()
@@ -90,6 +113,7 @@ def install_step_clock() -> None:
 load("guard")
 if not RAW:
     install_step_clock()
+    settle_redis_replies()
 Step = Callable[[], Awaitable[Any]]
 Verify = Callable[[Any], None]
 
