@@ -50,7 +50,7 @@ dev = [
     "radon",
     "redis",
     "requests",
-    "ruff==0.17.2",
+    "ruff==0.17.1",
     "safety",
     "testcontainers",
     "types-cachetools",
