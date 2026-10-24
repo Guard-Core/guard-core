@@ -1,7 +1,41 @@
 from typing import Any
 
 from redis import Redis
+from redis.connection import AbstractConnection
 from redis.exceptions import NoScriptError, ResponseError
+
+
+def _packed_by_redis_py(
+    connection: AbstractConnection, args: tuple[Any, ...]
+) -> list[bytes]:
+    chunks: list[bytes] = connection.pack_command(*args)
+    return chunks
+
+
+def _pack(connection: AbstractConnection, args: tuple[Any, ...]) -> list[bytes]:
+    """The RESP chunks of ``args``, what ``connection.pack_command`` builds, with
+    one encode and one length per argument. An argument that is neither ``str``
+    nor ``bytes`` (an int or a float), a first argument that is not one word, or
+    a command big enough to be sent in chunks takes ``pack_command`` itself."""
+    encoder = connection.encoder
+    try:
+        data = [
+            arg
+            if arg.__class__ is bytes
+            else arg.encode(encoder.encoding, encoder.encoding_errors)
+            for arg in args
+        ]
+    except AttributeError:
+        return _packed_by_redis_py(connection, args)
+    if b" " in data[0]:
+        return _packed_by_redis_py(connection, args)
+    packed = b"*%d\r\n%b" % (
+        len(data),
+        b"".join([b"$%d\r\n%b\r\n" % (len(item), item) for item in data]),
+    )
+    if len(packed) > connection._buffer_cutoff:
+        return _packed_by_redis_py(connection, args)
+    return [packed]
 
 
 def lean_command(client: Redis, *args: Any) -> Any:
@@ -22,7 +56,7 @@ def lean_command(client: Redis, *args: Any) -> Any:
     connection = pool.take_connection_with_nothing_unread()
     if connection is None:
         connection = pool.get_connection()
-    packed = connection.pack_command(*args)
+    packed = _pack(connection, args)
 
     def send() -> None:
         connection.send_packed_command(packed)
@@ -49,7 +83,7 @@ def lean_evalsha(
     """``EVALSHA`` through ``lean_command``, loading the script and retrying once
     when the server does not have it (a restart or a failover)."""
     try:
-        return lean_command(client, "EVALSHA", sha, len(keys), *keys, *arguments)
+        return lean_command(client, "EVALSHA", sha, f"{len(keys)}", *keys, *arguments)
     except NoScriptError:
         lean_command(client, "SCRIPT", "LOAD", script)
-        return lean_command(client, "EVALSHA", sha, len(keys), *keys, *arguments)
+        return lean_command(client, "EVALSHA", sha, f"{len(keys)}", *keys, *arguments)
