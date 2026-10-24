@@ -3,6 +3,8 @@ from collections import OrderedDict
 from collections.abc import Collection, Sequence
 from ipaddress import ip_address
 
+from guard_core.models import SyncSecurityConfig
+from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.agent_events import agent_receives_events
 from guard_core.sync._utils.rule_attribution import emergency_attribution
 from guard_core.sync._utils.sampling import observe_sampled_key
@@ -10,9 +12,7 @@ from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.core.events.event_types import EVENT_EMERGENCY_MODE_BLOCK
 from guard_core.sync.core.validation.path_matching import path_is_excluded
 from guard_core.sync.decorators.base import RouteConfig
-from guard_core.models import SecurityConfig, SyncSecurityConfig
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
-from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.utils import _ip_in_list, extract_client_ip, log_activity
 
 EMERGENCY_RETRY_AFTER = 60
@@ -84,9 +84,7 @@ class EmergencyModeCheck(SecurityCheck):
         self._log_allowed(request, client_ip)
         return None
 
-    def _deny(
-        self, request: SyncGuardRequest, client_ip: str
-    ) -> GuardResponse | None:
+    def _deny(self, request: SyncGuardRequest, client_ip: str) -> GuardResponse | None:
         sampled = _sample_emergency_line("block", client_ip)
         log_activity(
             request,

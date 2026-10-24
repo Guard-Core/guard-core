@@ -6,11 +6,13 @@ from collections.abc import Callable, Sequence
 from typing import Any
 
 from guard_core._redis_enablement import redis_is_configured
+from guard_core.exceptions import GuardRedisError
+from guard_core.models import BehaviorRuleConfig
+from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.block_events import fire_block_hook
 from guard_core.sync._utils.request_logging import redact_header_value_for_display
 from guard_core.sync._utils.sampling import observe_sampled_key
 from guard_core.sync.core.behavioral.context import BehavioralContext
-from guard_core.exceptions import GuardRedisError
 from guard_core.sync.handlers._behavior_throttle import (
     ThrottleCheck,
     ThrottleTrip,
@@ -18,9 +20,7 @@ from guard_core.sync.handlers._behavior_throttle import (
     trip_marker_key,
 )
 from guard_core.sync.handlers.behavior_handler import BehaviorRule, config_to_rule
-from guard_core.models import BehaviorRuleConfig
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
-from guard_core.protocols.response_protocol import GuardResponse
 
 THROTTLE_EVENT_SAMPLE_SECONDS = 60
 MAX_SAMPLED_THROTTLE_KEYS = 10_000
@@ -167,9 +167,7 @@ class BehavioralThrottleMixin:
         )
         return sorted(cat for cat, n in ip_counts.items() if n > 0)
 
-    def _shared_or_process_categories(
-        self, tracker: Any, client_ip: str
-    ) -> list[str]:
+    def _shared_or_process_categories(self, tracker: Any, client_ip: str) -> list[str]:
         from guard_core.sync.core.checks._shared_strikes import (
             read_shared_detection_categories,
         )
@@ -198,9 +196,7 @@ class BehavioralThrottleMixin:
 
         def lookup() -> list[str]:
             if not cached:
-                cached.append(
-                    self._shared_or_process_categories(tracker, client_ip)
-                )
+                cached.append(self._shared_or_process_categories(tracker, client_ip))
             return cached[0]
 
         return lookup

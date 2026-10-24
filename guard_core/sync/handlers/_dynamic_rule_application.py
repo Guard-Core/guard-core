@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from guard_core._emergency_exemptions import warn_unexempted_probe_paths
+from guard_core.models import DynamicRules, SyncSecurityConfig
 from guard_core.sync._utils.detection_scan import _redact_pattern_source
 from guard_core.sync.handlers._dynamic_rule_events import DynamicRuleEventSenderMixin
 from guard_core.sync.handlers._dynamic_rule_plan import DynamicRulePlan
@@ -11,7 +12,6 @@ from guard_core.sync.handlers._ipban_rule_exempt import (
     rule_ban_target,
 )
 from guard_core.sync.handlers._ipban_rule_revoke import _LIFTED, REVOKE_REWRITTEN
-from guard_core.models import DynamicRules, SecurityConfig, SyncSecurityConfig
 
 
 def _redact_pattern_list(patterns: list[str]) -> list[str]:

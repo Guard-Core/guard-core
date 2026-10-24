@@ -2,15 +2,17 @@ import time
 from collections.abc import Collection
 from typing import TYPE_CHECKING, ClassVar
 
+from guard_core.models import SyncSecurityConfig, cloud_blocking_enabled
+from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.core.checks.helpers import route_config_applies
 from guard_core.sync.decorators.base import RouteConfig
-from guard_core.models import SecurityConfig, cloud_blocking_enabled, SyncSecurityConfig
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
-from guard_core.protocols.response_protocol import GuardResponse
 
 if TYPE_CHECKING:
-    from guard_core.sync.protocols.middleware_protocol import SyncGuardMiddlewareProtocol
+    from guard_core.sync.protocols.middleware_protocol import (
+        SyncGuardMiddlewareProtocol,
+    )
 
 
 class CloudIpRefreshCheck(SecurityCheck):

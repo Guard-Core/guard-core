@@ -1,5 +1,7 @@
 from collections.abc import Collection
 
+from guard_core.models import SyncSecurityConfig
+from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.block_events import fire_block_hook
 from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.core.checks.helpers import (
@@ -9,9 +11,7 @@ from guard_core.sync.core.checks.helpers import (
 )
 from guard_core.sync.core.events.event_types import EVENT_DECORATOR_VIOLATION
 from guard_core.sync.decorators.base import RouteConfig
-from guard_core.models import SecurityConfig, SyncSecurityConfig
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
-from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.utils import log_activity
 
 

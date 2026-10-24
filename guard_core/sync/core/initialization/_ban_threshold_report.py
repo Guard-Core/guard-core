@@ -7,7 +7,7 @@ from guard_core._misconfiguration import report_misconfiguration
 from guard_core.sync.core.checks.helpers import SUSPICIOUS_COUNT_WINDOW_SECONDS
 
 if TYPE_CHECKING:
-    from guard_core.models import SecurityConfig, SyncSecurityConfig
+    from guard_core.models import SyncSecurityConfig
 
 _RATE_LIMIT_FEED = "rate_limit"
 _CATEGORIES_FED_BEFORE_RATE_LIMITING = frozenset(
@@ -65,7 +65,9 @@ def _strike_bound(config: "SyncSecurityConfig") -> int:
     return math.ceil(config.rate_limit * (SUSPICIOUS_COUNT_WINDOW_SECONDS / window + 1))
 
 
-def _bound_is_unknown(config: "SyncSecurityConfig", context: _BanThresholdContext) -> bool:
+def _bound_is_unknown(
+    config: "SyncSecurityConfig", context: _BanThresholdContext
+) -> bool:
     if not config.enable_rate_limiting or config.passive_mode:
         return True
     if config.rate_limit < 1 or config.rate_limit_window < 1 or config.exempt_ips:

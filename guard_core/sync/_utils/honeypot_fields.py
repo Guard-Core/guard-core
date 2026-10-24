@@ -4,7 +4,10 @@ from typing import Any
 from urllib.parse import parse_qsl
 
 from guard_core.sync._utils.body_form_scan import _multipart_field_values
-from guard_core.sync._utils.json_nesting import MAX_JSON_PARSE_DEPTH, _offset_nesting_exceeds
+from guard_core.sync._utils.json_nesting import (
+    MAX_JSON_PARSE_DEPTH,
+    _offset_nesting_exceeds,
+)
 
 FORM_MEDIA_TYPE = "application/x-www-form-urlencoded"
 JSON_MEDIA_TYPE = "application/json"

@@ -1,5 +1,7 @@
 from collections.abc import Collection
 
+from guard_core.models import SyncSecurityConfig
+from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.request_logging import redact_url_for_display
 from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.core.checks.helpers import (
@@ -10,9 +12,7 @@ from guard_core.sync.core.checks.helpers import (
 )
 from guard_core.sync.core.events.event_types import EVENT_DECORATOR_VIOLATION
 from guard_core.sync.decorators.base import RouteConfig
-from guard_core.models import SecurityConfig, SyncSecurityConfig
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
-from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.utils import log_activity
 
 
@@ -58,9 +58,7 @@ class ReferrerCheck(SecurityCheck):
             allowed_domains=route_config.require_referrer,
         )
 
-        report_hostile_signal(
-            self, request, "referrer", "Missing referrer header"
-        )
+        report_hostile_signal(self, request, "referrer", "Missing referrer header")
 
         if not self.config.passive_mode:
             return self.middleware.create_error_response(

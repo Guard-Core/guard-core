@@ -1,8 +1,7 @@
-import threading
-import time
 import logging
 import re
-from collections.abc import Iterator, Callable
+import threading
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Protocol, cast, runtime_checkable
 from weakref import WeakKeyDictionary
@@ -15,7 +14,7 @@ from guard_core.exceptions import (
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
 if TYPE_CHECKING:
-    from guard_core.models import SecurityConfig, SyncSecurityConfig
+    from guard_core.models import SyncSecurityConfig
 
 logger = logging.getLogger("guard_core")
 
@@ -62,9 +61,7 @@ def _sync_body_read_semaphore(max_concurrent: int) -> threading.Semaphore:
 
 
 @contextmanager
-def _body_read_slot(
-    max_concurrent: int | None, timeout: float
-) -> Iterator[None]:
+def _body_read_slot(max_concurrent: int | None, timeout: float) -> Iterator[None]:
     if max_concurrent is None:
         yield
         return
@@ -322,9 +319,7 @@ def _read_capped_body_or_raise(
                 return _read_oversized_declared_body(
                     request, max_bytes, timeout, max_concurrent, client_ip
                 )
-            return _read_declared_body(
-                request, max_bytes, timeout, max_concurrent
-            )
+            return _read_declared_body(request, max_bytes, timeout, max_concurrent)
 
     return _read_capped_body_prefix(request, max_bytes, timeout, max_concurrent)
 

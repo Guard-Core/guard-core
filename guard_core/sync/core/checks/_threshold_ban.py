@@ -1,10 +1,10 @@
 from collections.abc import Collection, Mapping
 from typing import TYPE_CHECKING, Any
 
+from guard_core.models import SyncSecurityConfig, ThreatBanConfig
 from guard_core.sync.core.checks._strike_counts import (
     _RATE_LIMIT_FEED_CATEGORY,
 )
-from guard_core.models import SecurityConfig, ThreatBanConfig, SyncSecurityConfig
 
 if TYPE_CHECKING:
     pass

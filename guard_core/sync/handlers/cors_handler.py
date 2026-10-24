@@ -2,8 +2,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 
 from guard_core._security_headers_override import CorsParams, cors_params_of
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.security_headers_handler import SecurityHeadersManager
-from guard_core.models import SecurityConfig, SyncSecurityConfig
 
 ALLOWED_PREFLIGHT_REQUEST_HEADER = "access-control-request-method"
 

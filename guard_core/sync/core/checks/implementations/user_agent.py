@@ -1,6 +1,8 @@
 from collections.abc import Collection
 from typing import Any, ClassVar
 
+from guard_core.models import SyncSecurityConfig
+from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.agent_events import agent_receives_events
 from guard_core.sync._utils.request_logging import redact_header_value_for_display
 from guard_core.sync._utils.rule_attribution import user_agent_attribution
@@ -16,9 +18,7 @@ from guard_core.sync.core.events.event_types import (
     EVENT_USER_AGENT_BLOCKED,
 )
 from guard_core.sync.decorators.base import RouteConfig
-from guard_core.models import SecurityConfig, SyncSecurityConfig
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
-from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.utils import log_activity
 
 

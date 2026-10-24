@@ -4,7 +4,10 @@ import time
 from collections.abc import Callable
 from importlib import import_module
 
-from guard_core.sync.detection_engine._redos_intervals import MAX_CODE_POINT, _IntervalSet
+from guard_core.sync.detection_engine._redos_intervals import (
+    MAX_CODE_POINT,
+    _IntervalSet,
+)
 
 # The single character fold the re engine itself applies under (?i), which
 # str.lower gives as two characters for U+0130.

@@ -21,9 +21,7 @@ class InMemoryCloudIpStore:
             return None
         return set(ranges)
 
-    def set(
-        self, provider: str, ranges: set[str], ttl: int | None = None
-    ) -> None:
+    def set(self, provider: str, ranges: set[str], ttl: int | None = None) -> None:
         self._data[provider] = set(ranges)
         if ttl is None:
             self._expires_at.pop(provider, None)
@@ -56,9 +54,7 @@ class RedisCloudIpStore:
             return None
         return {str(item) for item in decoded}
 
-    def set(
-        self, provider: str, ranges: set[str], ttl: int | None = None
-    ) -> None:
+    def set(self, provider: str, ranges: set[str], ttl: int | None = None) -> None:
         payload = json.dumps(sorted(ranges))
         self._redis.set_key(self._prefix, provider, payload, ttl=ttl)
 

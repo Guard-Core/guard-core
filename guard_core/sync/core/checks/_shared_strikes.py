@@ -6,7 +6,9 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 from guard_core._redis_enablement import redis_is_configured
 
 if TYPE_CHECKING:
-    from guard_core.sync.protocols.middleware_protocol import SyncGuardMiddlewareProtocol
+    from guard_core.sync.protocols.middleware_protocol import (
+        SyncGuardMiddlewareProtocol,
+    )
 
 _logger = logging.getLogger("guard_core.sync.core.checks.shared_strikes")
 

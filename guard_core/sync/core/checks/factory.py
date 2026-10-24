@@ -26,7 +26,9 @@ from guard_core.sync.core.checks.pipeline import SecurityCheckPipeline
 from guard_core.sync.decorators.base import RouteConfig
 
 if TYPE_CHECKING:
-    from guard_core.sync.protocols.middleware_protocol import SyncGuardMiddlewareProtocol
+    from guard_core.sync.protocols.middleware_protocol import (
+        SyncGuardMiddlewareProtocol,
+    )
 
 DEFAULT_CHECK_CLASSES: tuple[type[SecurityCheck], ...] = (
     RouteConfigCheck,

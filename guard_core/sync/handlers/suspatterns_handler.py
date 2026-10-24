@@ -983,9 +983,7 @@ class SusPatternsManager(_SusPatternsViewsMixin):
             or len(semantic_threats) > 0
         )
 
-        threat_score = self._calculate_threat_score(
-            regex_threats, semantic_threats
-        )
+        threat_score = self._calculate_threat_score(regex_threats, semantic_threats)
 
         total_execution_time = time.monotonic() - execution_start
 

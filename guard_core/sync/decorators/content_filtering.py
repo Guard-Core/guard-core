@@ -1,9 +1,9 @@
 from collections.abc import Callable
 
-from guard_core.sync.decorators.base import BaseSecurityMixin, GuardedCallable
-from guard_core.models import SecurityConfig, SyncSecurityConfig
-from guard_core.sync.protocols.request_protocol import SyncGuardRequest
+from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
+from guard_core.sync.decorators.base import BaseSecurityMixin, GuardedCallable
+from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
 
 class ContentFilteringMixin(BaseSecurityMixin):

@@ -1,7 +1,6 @@
-import threading
-import time
 import ipaddress
 import logging
+import time
 from collections.abc import Callable, Iterable, MutableMapping
 from typing import Any
 
@@ -128,7 +127,9 @@ class IpBanQueryMixin(
             return
         coverage = NetworkCoverage(networks)
         from guard_core.sync.core.checks._strike_forget import forget_identities_inside
-        from guard_core.sync.handlers.ratelimit_handler import forget_by_ip_strikes_inside
+        from guard_core.sync.handlers.ratelimit_handler import (
+            forget_by_ip_strikes_inside,
+        )
 
         forget_identities_inside(coverage.covers_member)
         forget_by_ip_strikes_inside(coverage.covers_member)

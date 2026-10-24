@@ -2,7 +2,9 @@ import contextlib
 import logging
 from typing import Any
 
-from guard_core.sync.handlers._ipban_prefix_contract import enforce_prefix_length_contract
+from guard_core.sync.handlers._ipban_prefix_contract import (
+    enforce_prefix_length_contract,
+)
 from guard_core.sync.utils import _canonicalize_ip
 
 _BANNED_IPS_NAMESPACE = "banned_ips"
@@ -25,9 +27,7 @@ class IpBanMigrationMixin:
         self.redis_handler = redis_handler
         self._migrate_legacy_ban_keys()
         if redis_handler is not None:
-            enforce_prefix_length_contract(
-                redis_handler, self.config, self.logger
-            )
+            enforce_prefix_length_contract(redis_handler, self.config, self.logger)
 
     def _migrate_legacy_ban_keys(self) -> None:
         if self.redis_handler is None:

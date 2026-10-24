@@ -4,7 +4,10 @@ from dataclasses import dataclass, field, replace
 from typing import Any
 
 from guard_core.sync.detection_engine._redos_intervals import _IntervalSet
-from guard_core.sync.detection_engine._redos_parse_slots import _PAIRING_OPS, _node_intervals
+from guard_core.sync.detection_engine._redos_parse_slots import (
+    _PAIRING_OPS,
+    _node_intervals,
+)
 
 _REPEAT_PREFIX_BUDGET = 24000
 _REPEAT_PREFIX_STATE_LIMIT = 1024

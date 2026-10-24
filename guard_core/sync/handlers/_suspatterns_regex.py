@@ -696,9 +696,7 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
                     binary_prefix=binary_prefix,
                 )
 
-                slice_start = _yield_once_slice_elapsed(
-                    slice_start, request_scoped
-                )
+                slice_start = _yield_once_slice_elapsed(slice_start, request_scoped)
 
                 threat = _threat_after_timeout(
                     threat, timeout_occurred, pattern, category, pattern_start, timeouts

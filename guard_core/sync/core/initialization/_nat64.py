@@ -9,7 +9,7 @@ from guard_core.sync._utils.nat64 import (
 )
 
 if TYPE_CHECKING:
-    from guard_core.models import SecurityConfig, SyncSecurityConfig
+    from guard_core.models import SyncSecurityConfig
 
 _LENGTHS = ", ".join(f"/{length}" for length in sorted(NAT64_PREFIX_LENGTHS))
 

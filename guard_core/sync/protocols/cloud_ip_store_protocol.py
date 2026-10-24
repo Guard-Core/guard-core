@@ -21,9 +21,7 @@ class SyncCloudIpStoreProtocol(Protocol):
         """Return cached ranges for ``provider``, or ``None`` if not cached."""
         ...
 
-    def set(
-        self, provider: str, ranges: set[str], ttl: int | None = None
-    ) -> None:
+    def set(self, provider: str, ranges: set[str], ttl: int | None = None) -> None:
         """Cache ``ranges`` for ``provider``, expiring after ``ttl`` seconds."""
         ...
 

@@ -4,7 +4,7 @@ from collections.abc import Generator
 import pytest
 from redis import Redis
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.redis_handler import RedisManager
 from tests.test_sync.conftest import REDIS_URL
 from tests.test_sync.engine_redis_commands import (
@@ -16,7 +16,7 @@ from tests.test_sync.engine_redis_commands import (
 
 @pytest.fixture
 def engine() -> Generator[RedisManager, None]:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=True,
         redis_url=engine_redis_url(REDIS_URL),
         redis_prefix=f"test:wp43:{uuid.uuid4().hex}:",

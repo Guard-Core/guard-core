@@ -2,8 +2,14 @@ import re
 import unicodedata
 from typing import Any
 
-from guard_core.sync.detection_engine import base64_decode, encoding_decoders, truncation
-from guard_core.sync.detection_engine.base64_view import build_short_base64_additive_view
+from guard_core.sync.detection_engine import (
+    base64_decode,
+    encoding_decoders,
+    truncation,
+)
+from guard_core.sync.detection_engine.base64_view import (
+    build_short_base64_additive_view,
+)
 from guard_core.sync.detection_engine.on_handler_indicator import (
     ON_HANDLER_PATTERN,
     OnHandlerIndicator,

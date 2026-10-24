@@ -4,8 +4,8 @@ import logging
 from collections.abc import Iterable
 from typing import Any
 
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.redis_handler import is_connected_redis_manager
-from guard_core.models import SecurityConfig, SyncSecurityConfig
 
 _NAMESPACE = "whitelist"
 _APPLIED_KEY = "strikes_applied"

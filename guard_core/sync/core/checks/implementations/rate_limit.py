@@ -3,6 +3,8 @@ from ipaddress import ip_address
 from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple
 
 from guard_core._redis_enablement import redis_is_configured
+from guard_core.models import SyncSecurityConfig
+from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.agent_events import agent_receives_events
 from guard_core.sync._utils.ip_extraction import (
     MALFORMED_FORWARDED_FOR_PREFIX,
@@ -35,12 +37,12 @@ from guard_core.sync.handlers.ratelimit_handler import (
     forget_shared_violations,
     record_shared_violation,
 )
-from guard_core.models import SecurityConfig, SyncSecurityConfig
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
-from guard_core.protocols.response_protocol import GuardResponse
 
 if TYPE_CHECKING:
-    from guard_core.sync.protocols.middleware_protocol import SyncGuardMiddlewareProtocol
+    from guard_core.sync.protocols.middleware_protocol import (
+        SyncGuardMiddlewareProtocol,
+    )
 
 
 _non_ip_ban_refusal_logged = False
@@ -240,9 +242,7 @@ class RateLimitCheck(SecurityCheck):
         if not redis_handler:
             return None
         try:
-            return {
-                "rate_limit": record_shared_violation(redis_handler, client_ip)
-            }
+            return {"rate_limit": record_shared_violation(redis_handler, client_ip)}
         except Exception as error:
             self.logger.warning(
                 "Shared rate-limit violation counter unavailable, counting this "
@@ -301,7 +301,9 @@ class RateLimitCheck(SecurityCheck):
             reason,
         )
 
-    def _route_plan(self, request: SyncGuardRequest, route_config: Any) -> _TierPlan | None:
+    def _route_plan(
+        self, request: SyncGuardRequest, route_config: Any
+    ) -> _TierPlan | None:
         if not route_config or route_config.rate_limit is None:
             return None
 
@@ -420,7 +422,9 @@ class RateLimitCheck(SecurityCheck):
             request, client_ip, block, plan.tier, self.config, attribution
         )
 
-    def _skips_rate_limiting(self, request: SyncGuardRequest, route_config: Any) -> bool:
+    def _skips_rate_limiting(
+        self, request: SyncGuardRequest, route_config: Any
+    ) -> bool:
         if (
             getattr(request.state, "is_whitelisted", False)
             or getattr(request.state, "is_exempt", False) is True
@@ -451,15 +455,15 @@ class RateLimitCheck(SecurityCheck):
             if self.config.whitelist_access_only
             else {}
         )
-        block: (
-            RateLimitBlock | None
-        ) = self.middleware.rate_limit_handler.check_rate_limit_tiers(
-            request,
-            client_ip,
-            self.middleware.create_error_response,
-            [plan.tier for plan in plans],
-            config=self.config,
-            **carve,
+        block: RateLimitBlock | None = (
+            self.middleware.rate_limit_handler.check_rate_limit_tiers(
+                request,
+                client_ip,
+                self.middleware.create_error_response,
+                [plan.tier for plan in plans],
+                config=self.config,
+                **carve,
+            )
         )
         if block is None:
             return None

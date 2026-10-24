@@ -81,9 +81,7 @@ class IpBanVersionMixin:
         stem = f"{redis.config.redis_prefix}banned_networks:"
         expiries: dict[_Network, float] = {}
         with redis.get_connection() as conn:
-            keys = [
-                key for key in conn.scan_iter(match=f"{stem}*", count=_SCAN_COUNT)
-            ]
+            keys = [key for key in conn.scan_iter(match=f"{stem}*", count=_SCAN_COUNT)]
             for start in range(0, len(keys), _MGET_BATCH):
                 batch = keys[start : start + _MGET_BATCH]
                 for key, value in zip(batch, conn.mget(batch), strict=True):
@@ -98,9 +96,7 @@ class IpBanVersionMixin:
     def _reload_operator_networks(self) -> None:
         raw = self.redis_handler.get_key(*_VERSION_PAIR)
         version = "0" if raw is None else str(raw)
-        self._operator_networks = _OperatorNetworks(
-            self._read_operator_expiries()
-        )
+        self._operator_networks = _OperatorNetworks(self._read_operator_expiries())
         self._ban_version_seen = version
         self._ban_version_checked_at = time.time()
 

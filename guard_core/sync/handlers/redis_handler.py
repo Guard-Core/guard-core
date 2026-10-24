@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import threading
-import time
 import hashlib
 import logging
+import threading
 import uuid
-from collections.abc import Iterator, Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, NoReturn
@@ -17,17 +16,8 @@ from guard_core._redis_exceptions import (
     RedisConnectionError,
     RedisTimeoutError,
 )
-from guard_core.sync.core.events.event_types import (
-    EVENT_REDIS_CONNECTION,
-    EVENT_REDIS_ERROR,
-)
 from guard_core.exceptions import GuardRedisError
-from guard_core.sync.handlers._dynamic_rule_persistence import (
-    BAN_FLOORS_NAMESPACE,
-    DYNAMIC_RULES_REDIS_NAMESPACE,
-    OWNED_BANS_KEY,
-)
-from guard_core.models import SecurityConfig, SyncSecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.scripts.ban_write_lua import (
     EXTEND_ONLY_BAN_WRITE_SCRIPT,
     PURGE_OWNED_BAN_SCRIPT,
@@ -41,6 +31,15 @@ from guard_core.scripts.rule_hit_index_lua import SUM_INDEXED_WINDOW_HITS_SCRIPT
 from guard_core.scripts.sliding_window_lua import (
     SLIDING_WINDOW_HIT_REFUSAL_SCRIPT,
     SLIDING_WINDOW_HIT_SCRIPT,
+)
+from guard_core.sync.core.events.event_types import (
+    EVENT_REDIS_CONNECTION,
+    EVENT_REDIS_ERROR,
+)
+from guard_core.sync.handlers._dynamic_rule_persistence import (
+    BAN_FLOORS_NAMESPACE,
+    DYNAMIC_RULES_REDIS_NAMESPACE,
+    OWNED_BANS_KEY,
 )
 
 if TYPE_CHECKING:
@@ -183,8 +182,8 @@ class RedisManager:
             "health_check_interval": cfg.redis_health_check_interval,
         }
         if cfg.redis_retries > 0:
-            from redis.retry import Retry
             from redis.backoff import ExponentialBackoff
+            from redis.retry import Retry
 
             kwargs["retry"] = Retry(ExponentialBackoff(), cfg.redis_retries)
             kwargs["retry_on_error"] = [RedisConnectionError, RedisTimeoutError]
@@ -377,9 +376,7 @@ class RedisManager:
 
         return bool(self.safe_operation(_set))
 
-    def incr(
-        self, namespace: str, key: str, ttl: int | None = None
-    ) -> int | None:
+    def incr(self, namespace: str, key: str, ttl: int | None = None) -> int | None:
         # NOTE: when redis_retries > 0, the client-level retry can re-send this
         # non-idempotent INCR if a reply is lost after the server already
         # committed it, over-counting by one. For the counter use here that
@@ -508,9 +505,7 @@ class RedisManager:
                 None if not stored else float(stored),
             )
 
-        state: tuple[float | None, float | None] | None = self.safe_operation(
-            _state
-        )
+        state: tuple[float | None, float | None] | None = self.safe_operation(_state)
         return state if state is not None else (None, None)
 
     def purge_owned_ban(self, member: str) -> int:

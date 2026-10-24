@@ -2,6 +2,7 @@ from collections.abc import Callable, Sequence
 from functools import partial
 from typing import Any
 
+from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.request_logging import redact_endpoint_for_display
 from guard_core.sync.core.behavioral._throttle import (
     BehavioralThrottleMixin,
@@ -17,7 +18,6 @@ from guard_core.sync.decorators.base import RouteConfig
 from guard_core.sync.handlers._behavior_throttle import ReturnCorrelation
 from guard_core.sync.handlers.behavior_handler import BehaviorRule
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
-from guard_core.protocols.response_protocol import GuardResponse
 
 
 def _counts_in_response_phase(
@@ -36,7 +36,9 @@ class BehavioralProcessor(BehavioralThrottleMixin):
         self.context = context
         self._init_throttle_state()
 
-    def _behavior_tracker(self, request: SyncGuardRequest, state: Any = None) -> Any | None:
+    def _behavior_tracker(
+        self, request: SyncGuardRequest, state: Any = None
+    ) -> Any | None:
         state = request.state if state is None else state
         if getattr(state, "guard_exclusion_scoped", False) is True:
             return None

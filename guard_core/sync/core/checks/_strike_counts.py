@@ -3,11 +3,13 @@ from collections import deque
 from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils.ip_extraction import _client_identity
-from guard_core.models import SecurityConfig, SyncSecurityConfig
 
 if TYPE_CHECKING:
-    from guard_core.sync.protocols.middleware_protocol import SyncGuardMiddlewareProtocol
+    from guard_core.sync.protocols.middleware_protocol import (
+        SyncGuardMiddlewareProtocol,
+    )
 
 _suspicious_counts_lock = threading.Lock()
 

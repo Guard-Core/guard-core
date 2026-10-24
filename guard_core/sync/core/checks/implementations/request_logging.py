@@ -1,10 +1,10 @@
 from collections.abc import Collection
 
+from guard_core.models import SyncSecurityConfig
+from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.decorators.base import RouteConfig
-from guard_core.models import SecurityConfig, SyncSecurityConfig
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
-from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.utils import log_activity
 
 

@@ -1,9 +1,12 @@
-import threading
-import time
 import logging
+import threading
 from datetime import datetime, timezone
 from typing import Any
 
+from guard_core.models import (
+    DynamicRules,
+    SyncSecurityConfig,
+)
 from guard_core.sync._utils.rule_attribution import set_attribution_view
 from guard_core.sync.handlers._dynamic_rule_application import (
     DynamicRuleApplicationMixin,
@@ -19,11 +22,6 @@ from guard_core.sync.handlers._dynamic_rule_plan import (
 )
 from guard_core.sync.handlers._dynamic_rule_snapshot import DynamicRuleSnapshotMixin
 from guard_core.sync.handlers.ipban_handler import ip_ban_manager
-from guard_core.models import (
-    DynamicRules,
-    SecurityConfig,
-    SyncSecurityConfig,
-)
 
 
 def _coerce_naive_utc(value: datetime) -> datetime:
@@ -68,7 +66,9 @@ class DynamicRuleManager(
             cls._instance.config = config
             cls._instance.agent_handler = None
             cls._instance.redis_handler = None
-            cls._instance.logger = logging.getLogger("guard_core.sync.handlers.dynamic_rule")
+            cls._instance.logger = logging.getLogger(
+                "guard_core.sync.handlers.dynamic_rule"
+            )
             cls._instance.last_update = 0
             cls._instance.current_rules = None
             cls._instance.update_task = None
@@ -182,9 +182,7 @@ class DynamicRuleManager(
                 self._interruptible_sleep(self.config.dynamic_rule_interval)
             except Exception as e:
                 self.logger.error(f"Error in dynamic rule update loop: {e}")
-                self._interruptible_sleep(
-                    min(60, self.config.dynamic_rule_interval)
-                )
+                self._interruptible_sleep(min(60, self.config.dynamic_rule_interval))
 
     def _interruptible_sleep(self, timeout: float) -> None:
         self._stop_event.wait(timeout=timeout)

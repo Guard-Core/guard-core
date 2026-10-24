@@ -101,4 +101,6 @@ def send_agent_event(
 
         agent_handler.send_event(event)
     except Exception as e:
-        logging.getLogger("guard_core.sync.utils").error(f"Failed to send agent event: {e}")
+        logging.getLogger("guard_core.sync.utils").error(
+            f"Failed to send agent event: {e}"
+        )

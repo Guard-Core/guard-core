@@ -30,14 +30,9 @@ def reset_singleton() -> Generator[None, None, None]:
 
 @pytest.fixture
 def live_redis() -> Generator[RedisManager, None]:
-<<<<<<< HEAD
     config = SyncSecurityConfig(
-        redis_url=REDIS_URL, redis_prefix=f"wp6-ver:{uuid.uuid4().hex}:"
-=======
-    config = SecurityConfig(
         redis_url=engine_redis_url(REDIS_URL),
         redis_prefix=f"wp6-ver:{uuid.uuid4().hex}:",
->>>>>>> 25f80e42 (test(redis): count the commands the engine's own connections run, not the server's, so another client on the same Redis cannot fail a proof of what a request costs)
     )
     manager = RedisManager(config)
     manager.initialize()

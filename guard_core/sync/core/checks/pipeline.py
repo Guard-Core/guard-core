@@ -4,6 +4,9 @@ import time
 from collections.abc import Callable
 from typing import cast
 
+from guard_core.exceptions import GuardRedisError
+from guard_core.models import SyncSecurityConfig
+from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.block_events import fire_block_hook
 from guard_core.sync._utils.request_logging import redact_header_value_for_display
 from guard_core.sync.core.checks._usage_rules_step import (
@@ -11,10 +14,7 @@ from guard_core.sync.core.checks._usage_rules_step import (
     warn_at_startup_if_throttle_cannot_refuse,
 )
 from guard_core.sync.core.checks.base import SecurityCheck
-from guard_core.exceptions import GuardRedisError
-from guard_core.models import SecurityConfig, SyncSecurityConfig
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
-from guard_core.protocols.response_protocol import GuardResponse
 
 
 class SecurityCheckPipeline:

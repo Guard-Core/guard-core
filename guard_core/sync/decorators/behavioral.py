@@ -1,9 +1,12 @@
 from collections.abc import Callable
 from typing import Literal
 
+from guard_core.models import (
+    SyncSecurityConfig,
+    _validate_return_pattern_body_scan,
+)
 from guard_core.sync.decorators.base import BaseSecurityMixin, GuardedCallable
 from guard_core.sync.handlers.behavior_handler import BehaviorRule
-from guard_core.models import SecurityConfig, _validate_return_pattern_body_scan, SyncSecurityConfig
 
 
 class BehavioralMixin(BaseSecurityMixin):

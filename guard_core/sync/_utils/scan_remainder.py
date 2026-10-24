@@ -3,6 +3,7 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from typing import NamedTuple
 
+from guard_core.exceptions import BodyReadFailedError
 from guard_core.sync._utils.detection_scan import (
     _SCAN_TIME_BUDGET_EXHAUSTED_PATTERN,
     LazyPreview,
@@ -14,7 +15,6 @@ from guard_core.sync._utils.detection_scan import (
     logger,
 )
 from guard_core.sync.detection_engine.truncation import reusing_attack_regions
-from guard_core.exceptions import BodyReadFailedError
 from guard_core.sync.handlers._suspatterns_literals import reusing_literal_presence
 
 
@@ -129,7 +129,9 @@ _UNIT_NEEDS_DECODING_RE = re.compile(r"[%&\\\x80-\U0010ffff]")
 
 
 def _whole_value_rows() -> list[re.Pattern]:
-    from guard_core.sync.handlers._suspatterns_regex import _CONTEXT_SENSITIVE_ROW_SOURCES
+    from guard_core.sync.handlers._suspatterns_regex import (
+        _CONTEXT_SENSITIVE_ROW_SOURCES,
+    )
     from guard_core.sync.handlers._suspatterns_whole_value_rows import (
         row_needs_the_whole_value,
     )

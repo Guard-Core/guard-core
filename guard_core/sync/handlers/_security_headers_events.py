@@ -32,10 +32,10 @@ class SecurityHeadersEventsMixin:
     def initialize_agent(self, agent_handler: Any) -> None:
         self.agent_handler = agent_handler
 
-    def _send_headers_applied_event(
-        self, path: str, headers: dict[str, str]
-    ) -> None:
-        from guard_core.sync.core.events.event_types import EVENT_SECURITY_HEADERS_APPLIED
+    def _send_headers_applied_event(self, path: str, headers: dict[str, str]) -> None:
+        from guard_core.sync.core.events.event_types import (
+            EVENT_SECURITY_HEADERS_APPLIED,
+        )
 
         try:
             from guard_core._pydantic_plugin_mute import get_telemetry_model

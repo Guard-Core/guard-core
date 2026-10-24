@@ -4,15 +4,20 @@ from typing import Any
 
 from guard_core._redis_enablement import redis_is_configured
 from guard_core._security_headers_override import PROCESS_OVERRIDE, PULLED_OVERRIDES
-from guard_core.sync._utils.response_prefetch import SHARED_PREFETCH, ResponseBodyPrefetch
+from guard_core.exceptions import CallableShapeError
+from guard_core.protocols.response_protocol import GuardResponse
+from guard_core.sync._utils.response_prefetch import (
+    SHARED_PREFETCH,
+    ResponseBodyPrefetch,
+)
 from guard_core.sync.core.callable_slot import CallableSlot
 from guard_core.sync.core.responses.context import ResponseContext
-from guard_core.sync.core.responses.modifier_body import apply_modifier_with_bounded_body
+from guard_core.sync.core.responses.modifier_body import (
+    apply_modifier_with_bounded_body,
+)
 from guard_core.sync.decorators.base import RouteConfig
-from guard_core.exceptions import CallableShapeError
 from guard_core.sync.handlers.behavior_handler import BehaviorRule, config_to_rule
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
-from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.utils import extract_client_ip
 
 
@@ -99,9 +104,7 @@ class ErrorResponseFactory:
         if override is None:
             override = manager.resolve_override()
         enabled = manager.headers_enabled_for(self.context.config, override)
-        return self._apply_security_headers(
-            response, request_path, override, enabled
-        )
+        return self._apply_security_headers(response, request_path, override, enabled)
 
     def _apply_security_headers(
         self,
@@ -260,9 +263,7 @@ class ErrorResponseFactory:
             global_rules = [
                 config_to_rule(cfg) for cfg in self.context.config.global_behavior_rules
             ]
-            process_global_behavioral_rules(
-                request, response, client_ip, global_rules
-            )
+            process_global_behavioral_rules(request, response, client_ip, global_rules)
 
         self.context.metrics_collector.collect_request_metrics(
             request, response_time, response.status_code

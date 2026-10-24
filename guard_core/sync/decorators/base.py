@@ -9,6 +9,7 @@ from typing import (
 )
 
 from guard_core._misconfiguration import report_misconfiguration
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.decorators.route_config import (
     _REVISION_EXEMPT_ATTRS,
     _TRACKED_DICT_FIELDS,
@@ -23,7 +24,6 @@ from guard_core.sync.decorators.route_config import (
     _TrackedList,
     _TrackedSet,
 )
-from guard_core.models import SecurityConfig, SyncSecurityConfig
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
 __all__ = [
@@ -151,9 +151,7 @@ class BaseSecurityDecorator:
         if redis_handler:
             self.behavior_tracker.initialize_redis(redis_handler)
 
-    def initialize_agent(
-        self, agent_handler: Any, geo_ip_handler: Any = None
-    ) -> None:
+    def initialize_agent(self, agent_handler: Any, geo_ip_handler: Any = None) -> None:
         self.agent_handler = agent_handler
         self.geo_ip_handler = geo_ip_handler
         self.behavior_tracker.initialize_agent(agent_handler)

@@ -18,7 +18,9 @@ from guard_core.sync.detection_engine._redos_probe_batches import (
 from guard_core.sync.detection_engine._redos_probe_fill import (
     _reach_probe_candidate_builders,
 )
-from guard_core.sync.detection_engine._redos_reach_probe import _synthesize_reaching_probe
+from guard_core.sync.detection_engine._redos_reach_probe import (
+    _synthesize_reaching_probe,
+)
 from guard_core.sync.detection_engine._redos_repeat_alphabet import (
     _has_large_bounded_repeat,
 )
