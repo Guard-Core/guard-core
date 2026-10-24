@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
+from guard_core.sync.detection_engine import _redos_cost_arbiter as arbiter
 from guard_core.sync.detection_engine.compiler import PatternCompiler
 from guard_core.sync.handlers.suspatterns_handler import (
     _PATTERN_SCAN_WINDOW_MATCHERS,
@@ -36,6 +37,7 @@ _CALIBRATION_SCRIPT = (
     "for _ in range(100):\n"
     "    compiled.search(probe)\n"
 )
+_REACH_PROBE_PAYLOAD_FIELDS = 7
 _ACCEPTED_PATTERN_SPAWN_CEILING = 64
 _ACCEPTED_PATTERN_PROBE_WORK_CEILING = 11_000_000
 _CATASTROPHIC_PATTERN_SPAWN_CEILING = 16
@@ -70,16 +72,25 @@ def _validate_measuring(compiler: PatternCompiler, pattern: str) -> _Measured:
     measured = _Measured()
     real_run = subprocess.run
 
+    real_limited = arbiter.run_limited_child
+
     def counting_run(*args: Any, **kwargs: Any) -> Any:
         measured.spawns += 1
-        payload = json.loads(kwargs.get("input") or "[]")
-        if len(payload) == 6:
-            measured.probe_work += sum(len(probe) for probe in payload[1]) * payload[2]
         return real_run(*args, **kwargs)
+
+    def counting_limited(script: str, payload: str, cpu_limit: float) -> Any:
+        measured.spawns += 1
+        decoded = json.loads(payload)
+        if len(decoded) == _REACH_PROBE_PAYLOAD_FIELDS:
+            measured.probe_work += sum(len(probe) for probe in decoded[1]) * decoded[2]
+        return real_limited(script, payload, cpu_limit)
 
     before = _calibration_cpu_seconds()
     start = _cpu_seconds_including_probe_subprocesses()
-    with patch.object(subprocess, "run", counting_run):
+    with (
+        patch.object(subprocess, "run", counting_run),
+        patch.object(arbiter, "run_limited_child", counting_limited),
+    ):
         measured.verdict = compiler.validate_pattern_safety(pattern)
     measured.cpu_seconds = _cpu_seconds_including_probe_subprocesses() - start
     slowdown = max(before, _calibration_cpu_seconds()) / _CALIBRATION_IDLE_CPU_SECONDS
