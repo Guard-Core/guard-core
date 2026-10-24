@@ -5,6 +5,8 @@ import weakref
 from collections.abc import Hashable
 from typing import Any
 
+from guard_core.sync._utils.config_registry import ConfigHandlerRegistry
+
 
 class _ProcessScope:
     pass
@@ -103,3 +105,44 @@ def release(key: Hashable, client: Any, owner: object) -> bool:
             return False
         del _entries[key]
         return True
+
+
+_MANAGERS = ConfigHandlerRegistry()
+
+
+def _manager_kind(manager_class: type) -> str:
+    return f"{manager_class.__module__}.{manager_class.__qualname__}"
+
+
+def existing_manager(config: Any, manager_class: type) -> Any | None:
+    """The manager built for this config object, held weakly, or None."""
+    return _MANAGERS.lookup(config, _manager_kind(manager_class))
+
+
+def register_manager(config: Any, manager: Any, manager_class: type) -> None:
+    _MANAGERS.register(config, manager, _manager_kind(manager_class))
+
+
+def open_client(
+    owner: Any, url: str, config: Any, build: Any, default_pool_size: int
+) -> tuple[Any | None, Hashable, object, bool]:
+    """The shared client for these settings, else a new one from build; the last
+    item says whether it was shared."""
+    max_connections = config.redis_max_connections or default_pool_size
+    connection_kwargs = owner._connection_kwargs(config)
+    scope = current_scope()
+    key = pool_key(
+        url, max_connections, config.redis_pool_timeout, connection_kwargs, scope
+    )
+    shared = acquire(key, scope, owner)
+    if shared is not None:
+        return shared, key, scope, True
+    client = build(url, max_connections, config.redis_pool_timeout, **connection_kwargs)
+    return client, key, scope, False
+
+
+def register_client(owner: Any, client: Any, key: Hashable, scope: object) -> Any:
+    published = publish(key, scope, client, owner)
+    if published is not client:
+        owner._safe_aclose(client)
+    return published

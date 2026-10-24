@@ -77,13 +77,15 @@ def test_a_manager_nobody_holds_is_collected_and_its_config_gets_a_fresh_one() -
 def test_a_collected_config_leaves_no_registry_entry() -> None:
     config = _config(_prefix("cfg"))
     manager = RedisManager(config)
-    kind = redis_handler_module._manager_kind(RedisManager)
-    assert redis_handler_module._MANAGERS.lookup(config, kind) is manager
+    from guard_core.sync.handlers import _redis_shared_clients
+
+    kind = _redis_shared_clients._manager_kind(RedisManager)
+    assert _redis_shared_clients._MANAGERS.lookup(config, kind) is manager
     key = (kind, id(config))
     del config, manager
     RedisManager._instance = None
     gc.collect()
-    assert key not in redis_handler_module._MANAGERS._entries
+    assert key not in _redis_shared_clients._MANAGERS._entries
 
 
 def test_two_apps_keep_bans_rate_limits_and_strikes_under_their_own_prefix(
@@ -245,3 +247,77 @@ def test_ten_apps_on_one_redis_hold_the_connections_one_app_holds(
     one = connected_after(1)
     assert one >= 1
     assert connected_after(10) == one
+
+
+class _Scope:
+    pass
+
+
+class _Owner:
+    def __init__(self) -> None:
+        self.closed: list[object] = []
+
+    def _safe_aclose(self, client: object) -> None:
+        self.closed.append(client)
+
+
+def test_pool_keys_tell_settings_apart_by_value_never_by_object_identity() -> None:
+    from guard_core.sync.handlers import _redis_shared_clients as pool
+
+    scope = _Scope()
+    same = [
+        pool.pool_key(
+            "u", 5, 1.0, {"retry": _Scope(), "ids": [1, 2], "r": range(3)}, scope
+        )
+        for _ in range(2)
+    ]
+    assert same[0] == same[1]
+    assert same[0] != pool.pool_key("u", 5, 1.0, {"ids": [1, 3]}, scope)
+    assert same[0] != pool.pool_key("u", 5, 1.0, {"retry": _Scope()}, _Scope())
+
+
+def test_a_shared_client_of_another_scope_or_without_owners_is_never_handed_out() -> (
+    None
+):
+    from guard_core.sync.handlers import _redis_shared_clients as pool
+
+    scope, owner, client = _Scope(), _Owner(), object()
+    key = ("stale", id(scope))
+    assert pool.publish(key, scope, client, owner) is client
+    assert pool.acquire(key, _Scope(), _Owner()) is None
+    assert key not in pool._entries
+    assert pool.publish(key, scope, client, owner) is client
+    del owner
+    gc.collect()
+    assert pool.acquire(key, scope, _Owner()) is None
+    assert key not in pool._entries
+
+
+def test_a_client_published_first_wins_and_an_unknown_release_asks_for_a_close() -> (
+    None
+):
+    from guard_core.sync.handlers import _redis_shared_clients as pool
+
+    scope, first, second = _Scope(), _Owner(), _Owner()
+    key = ("race", id(scope))
+    winner, loser = object(), object()
+    assert pool.publish(key, scope, winner, first) is winner
+    assert pool.publish(key, scope, loser, second) is winner
+    assert pool.release(key, winner, first) is False
+    assert pool.release(key, winner, second) is True
+    assert pool.release(key, winner, second) is True
+    assert pool.release(("never", 0), loser, second) is True
+
+
+def test_a_duplicate_client_is_closed_when_another_one_was_published_first() -> None:
+    from guard_core.sync.handlers import _redis_shared_clients as pool
+
+    scope, first, second = _Scope(), _Owner(), _Owner()
+    key = ("dup", id(scope))
+    winner, loser = object(), object()
+    assert pool.register_client(first, winner, key, scope) is winner
+    assert pool.register_client(second, loser, key, scope) is winner
+    assert second.closed == [loser]
+    assert first.closed == []
+    assert pool.release(key, winner, first) is False
+    assert pool.release(key, winner, second) is True

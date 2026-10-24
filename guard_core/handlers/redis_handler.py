@@ -16,7 +16,6 @@ from guard_core._redis_exceptions import (
     RedisConnectionError,
     RedisTimeoutError,
 )
-from guard_core._utils.config_registry import ConfigHandlerRegistry
 from guard_core.core.events.event_types import (
     EVENT_REDIS_CONNECTION,
     EVENT_REDIS_ERROR,
@@ -122,13 +121,6 @@ _SUM_INDEXED_WINDOW_HITS_SHA = hashlib.sha1(
 ).hexdigest()
 
 
-_MANAGERS = ConfigHandlerRegistry()
-
-
-def _manager_kind(manager_class: type) -> str:
-    return f"{manager_class.__module__}.{manager_class.__qualname__}"
-
-
 class RedisManager:
     _instance = None
     _redis: Redis | None = None
@@ -141,14 +133,14 @@ class RedisManager:
     agent_handler: Any = None
 
     def __new__(cls: type[RedisManager], config: SecurityConfig) -> RedisManager:
-        manager = _MANAGERS.lookup(config, _manager_kind(cls))
+        manager = _redis_shared_clients.existing_manager(config, cls)
         if manager is None:
             manager = super().__new__(cls)
             manager.logger = logging.getLogger("guard_core.handlers.redis")
             manager.agent_handler = None
             manager.config = config
             manager._registered = True
-            _MANAGERS.register(config, manager, _manager_kind(cls))
+            _redis_shared_clients.register_manager(config, manager, cls)
         manager._closed = False
         cls._instance = manager
         return manager
@@ -218,31 +210,6 @@ class RedisManager:
         if key is None or _redis_shared_clients.release(key, old_redis, self):
             await self._safe_aclose(old_redis)
 
-    def _open_client(
-        self, url: str, config: SecurityConfig
-    ) -> tuple[Redis | None, Hashable, object, bool]:
-        max_connections = config.redis_max_connections or _DEFAULT_POOL_SIZE
-        connection_kwargs = self._connection_kwargs(config)
-        scope = _redis_shared_clients.current_scope()
-        key = _redis_shared_clients.pool_key(
-            url, max_connections, config.redis_pool_timeout, connection_kwargs, scope
-        )
-        shared = _redis_shared_clients.acquire(key, scope, self)
-        if shared is not None:
-            return shared, key, scope, True
-        client = _build_redis_client(
-            url, max_connections, config.redis_pool_timeout, **connection_kwargs
-        )
-        return client, key, scope, False
-
-    async def _register_client(
-        self, client: Redis, key: Hashable, scope: object
-    ) -> Redis:
-        published = _redis_shared_clients.publish(key, scope, client, self)
-        if published is not client:
-            await self._safe_aclose(client)
-        return published
-
     def _mark_most_recently_initialized(self) -> None:
         if self._registered:
             type(self)._instance = self
@@ -266,11 +233,15 @@ class RedisManager:
             key: Hashable | None = None
             shared = False
             try:
-                new_redis, key, scope, shared = self._open_client(url, config)
+                new_redis, key, scope, shared = _redis_shared_clients.open_client(
+                    self, url, config, _build_redis_client, _DEFAULT_POOL_SIZE
+                )
                 if new_redis is not None:
                     await new_redis.ping()
                     if not shared:
-                        new_redis = await self._register_client(new_redis, key, scope)
+                        new_redis = await _redis_shared_clients.register_client(
+                            self, new_redis, key, scope
+                        )
                         shared = True
                     self._redis = new_redis
                     self._pool_key = key
