@@ -64,6 +64,17 @@ def _load_release_events() -> tuple[Any, Any] | None:
 _RELEASE_EVENTS = _load_release_events()
 
 
+def _observability_is_readable() -> bool:
+    """Whether the fast path can tell if redis-py's observability is on: the
+    singleton module attribute and the provider-manager field it reads exist."""
+    if _COUNT_RECORDER is None:
+        return True
+    providers = _COUNT_RECORDER[3]
+    return hasattr(providers, "_observability_instance") and hasattr(
+        providers.get_observability_instance(), "_provider_manager"
+    )
+
+
 def _is_exhaustion(error: RedisConnectionError) -> bool:
     return str(error) == _EXHAUSTED_MESSAGE
 
@@ -85,12 +96,9 @@ class FastPathConnectionPool(ConnectionPool):
         self._condition = asyncio.Condition()
         self._waiters = 0
         self._connections_with_nothing_unread: set[AbstractConnection] = set()
-        dispatcher = getattr(self, "_event_dispatcher", None)
-        self._release_listeners: dict[Any, list[Any]] = getattr(
-            dispatcher, "_event_listeners_mapping", {}
-        )
+        self._release_listeners: dict[Any, Any] = {}
         self._release_event = _RELEASE_EVENTS[0] if _RELEASE_EVENTS else None
-        self._silent_release_listeners = self._only_the_default_listener()
+        self._silent_release_listeners: Any = None
 
     def _has_free_connection(self) -> bool:
         return bool(
@@ -145,17 +153,33 @@ class FastPathConnectionPool(ConnectionPool):
         await record(pool_name=pool_name, connection_state=leaving, counter=-1)
         await record(pool_name=pool_name, connection_state=entering, counter=1)
 
-    def _only_the_default_listener(self) -> list[Any] | None:
+    def _only_the_default_listener(self, connection: AbstractConnection) -> Any:
         """The list of listeners of the release event while it holds nothing but
         redis-py's own re-authentication listener, else ``None``. Registering or
         unregistering a listener replaces the list in the dispatcher's mapping,
         so an identity test against this list tells the fast return that nobody
-        else listens."""
-        if _RELEASE_EVENTS is None:
+        else listens. Every redis-py internal the fast return reads (the
+        dispatcher's mapping, the connection's re-authentication token, the
+        observability singleton and its provider manager) is looked up here, on
+        the slow path; one that is missing or of another type gives ``None``,
+        and the plain ``release`` does the work."""
+        mapping = getattr(
+            getattr(self, "_event_dispatcher", None), "_event_listeners_mapping", None
+        )
+        if (
+            _RELEASE_EVENTS is None
+            or not isinstance(mapping, dict)
+            or not hasattr(connection, "_re_auth_token")
+            or not _observability_is_readable()
+        ):
+            self._release_listeners = {}
             return None
-        listeners = self._release_listeners.get(_RELEASE_EVENTS[0])
-        if listeners and all(
-            isinstance(listener, _RELEASE_EVENTS[1]) for listener in listeners
+        self._release_listeners = mapping
+        listeners = mapping.get(_RELEASE_EVENTS[0])
+        if (
+            isinstance(listeners, list | tuple)
+            and listeners
+            and all(isinstance(item, _RELEASE_EVENTS[1]) for item in listeners)
         ):
             return listeners
         return None
@@ -187,7 +211,7 @@ class FastPathConnectionPool(ConnectionPool):
                         recorder, recorder[1].USED, recorder[1].IDLE
                     )
             return
-        self._silent_release_listeners = self._only_the_default_listener()
+        self._silent_release_listeners = self._only_the_default_listener(connection)
         await self.release(connection)
 
     async def _wait_for_connection(self) -> AbstractConnection:

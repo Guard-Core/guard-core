@@ -249,7 +249,9 @@ async def test_an_idle_connection_closed_by_the_pool_is_not_handed_out() -> None
     client = await _client()
     try:
         await lean_command(client, "PING")
+        await lean_command(client, "PING")
         pool = client.connection_pool
+        assert pool._connections_with_nothing_unread
         await pool.disconnect(inuse_connections=False)
 
         assert await pool.take_connection_with_nothing_unread() is None
@@ -286,6 +288,9 @@ class _Observability:
         from types import SimpleNamespace
 
         return SimpleNamespace(_provider_manager=object() if enabled else None)
+
+    def get_observability_instance(self) -> Any:
+        return self._observability_instance
 
     def switch(self, enabled: bool) -> None:
         self._observability_instance = self._instance(enabled)
@@ -342,6 +347,7 @@ async def test_no_connection_count_is_recorded_while_observability_is_off(
     client = await _client()
     try:
         await lean_command(client, "PING")
+        await lean_command(client, "PING")
         samples.clear()
         for _ in range(5):
             await lean_command(client, "GET", "lean:count")
@@ -368,6 +374,7 @@ async def test_observability_switched_on_later_is_seen_by_the_next_fast_call(
     samples, observability = _observed_recorder(monkeypatch, False)
     client = await _client()
     try:
+        await lean_command(client, "PING")
         await lean_command(client, "PING")
         samples.clear()
         await lean_command(client, "GET", "lean:count")
@@ -521,5 +528,128 @@ async def test_a_redis_py_without_the_count_recorder_takes_the_fast_path_unrecor
         await lean_command(client, "GET", "lean:old")
         await lean_command(client, "GET", "lean:old")
         assert client.connection_pool._connections_with_nothing_unread
+    finally:
+        await client.aclose()
+
+
+class _DispatcherWithoutMapping:
+    """An event dispatcher that keeps no ``_event_listeners_mapping``."""
+
+    _event_listeners_mapping: Any
+
+    def __init__(self) -> None:
+        self.events: list[Any] = []
+
+    async def dispatch_async(self, event: Any) -> None:
+        self.events.append(event)
+
+    def dispatch(self, event: Any) -> None:
+        self.events.append(event)
+
+    def register_listeners(self, mappings: Any) -> None:
+        return None
+
+    def unregister_listeners(self, mappings: Any) -> None:
+        return None
+
+
+async def _calls_take_the_plain_path(client: Redis, events: list[Any]) -> None:
+    pool = client.connection_pool
+    for _ in range(6):
+        assert await lean_command(client, "GET", "lean:fallback") is None
+    assert pool._silent_release_listeners is None
+    assert not pool._connections_with_nothing_unread
+    assert len(events) == 6
+
+
+async def test_a_dispatcher_without_the_listener_mapping_takes_the_plain_path() -> None:
+    dispatcher = _DispatcherWithoutMapping()
+    client = await _client(event_dispatcher=dispatcher)
+    try:
+        await _calls_take_the_plain_path(client, dispatcher.events)
+    finally:
+        await client.aclose()
+
+
+async def test_a_listener_mapping_of_another_type_takes_the_plain_path() -> None:
+    dispatcher = _DispatcherWithoutMapping()
+    dispatcher._event_listeners_mapping = [("not", "a dict")]
+    client = await _client(event_dispatcher=dispatcher)
+    try:
+        await _calls_take_the_plain_path(client, dispatcher.events)
+    finally:
+        await client.aclose()
+
+
+async def test_a_connection_without_a_re_authentication_token_takes_the_plain_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_init = Connection.__init__
+
+    def init_without_token(self: Connection, *args: Any, **kwargs: Any) -> None:
+        original_init(self, *args, **kwargs)
+        del self._re_auth_token
+
+    async def no_re_auth(self: Connection) -> None:
+        return None
+
+    monkeypatch.setattr(Connection, "__init__", init_without_token)
+    monkeypatch.setattr(Connection, "re_auth", no_re_auth)
+    client = await _client()
+    try:
+        events: list[Any] = []
+        dispatcher = client.connection_pool._event_dispatcher
+        original = dispatcher.dispatch_async
+
+        async def spy(event: Any) -> None:
+            events.append(event)
+            await original(event)
+
+        monkeypatch.setattr(dispatcher, "dispatch_async", spy)
+        await _calls_take_the_plain_path(client, events)
+    finally:
+        await client.aclose()
+
+
+async def test_an_observability_module_without_its_singleton_takes_the_plain_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from redis.observability import providers
+
+    monkeypatch.delattr(providers, "_observability_instance")
+    client = await _client()
+    try:
+        events: list[Any] = []
+        dispatcher = client.connection_pool._event_dispatcher
+        original = dispatcher.dispatch_async
+
+        async def spy(event: Any) -> None:
+            events.append(event)
+            await original(event)
+
+        monkeypatch.setattr(dispatcher, "dispatch_async", spy)
+        await _calls_take_the_plain_path(client, events)
+    finally:
+        await client.aclose()
+
+
+async def test_an_instance_without_a_provider_manager_takes_the_plain_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from redis.observability import providers
+
+    monkeypatch.delattr(providers.get_observability_instance(), "_provider_manager")
+    client = await _client()
+    try:
+        events: list[Any] = []
+        dispatcher = client.connection_pool._event_dispatcher
+        original = dispatcher.dispatch_async
+
+        async def spy(event: Any) -> None:
+            events.append(event)
+            await original(event)
+
+        monkeypatch.setattr(dispatcher, "dispatch_async", spy)
+        await _calls_take_the_plain_path(client, events)
     finally:
         await client.aclose()

@@ -57,6 +57,7 @@ SKIP_TESTS = {
     "test_redis_prefix_isolation.py",
     "test_redis_fast_pool.py",
     "test_redis_lean.py",
+    "test_redis_fast_path_shape.py",
     "test_ipban_unban_inside_async.py",
     "test_ipban_atomic_version.py",
     "test_module_imports_standalone.py",
