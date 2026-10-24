@@ -674,22 +674,25 @@ async def test_initialize_redis_delegates_to_initialize() -> None:
     assert mgr.redis_handler is redis_handler
 
 
-async def test_singleton_reuses_existing_instance_with_new_token() -> None:
+async def test_one_instance_per_path_keeps_first_token_smallest_max_age() -> None:
     from guard_core.handlers.ipinfo_handler import IPInfoManager
 
     IPInfoManager._instance = None
-    first = IPInfoManager(token="initial-token")
+    first = IPInfoManager(token="initial-token", max_age=2592000)
     first_id = id(first)
 
-    second = IPInfoManager(token="updated-token", db_path=Path("/tmp/different.mmdb"))
+    elsewhere = IPInfoManager(
+        token="updated-token", db_path=Path("/tmp/different.mmdb")
+    )
+    assert id(elsewhere) != first_id
+    assert elsewhere.token == "updated-token"
+    assert elsewhere.db_path == Path("/tmp/different.mmdb")
 
-    assert id(second) == first_id
-    assert second.token == "updated-token"
-    assert second.db_path == Path("/tmp/different.mmdb")
-
-    third = IPInfoManager(token="third-token")
+    third = IPInfoManager(token="third-token", max_age=86400)
     assert id(third) == first_id
-    assert third.token == "third-token"
+    assert third.token == "initial-token"
+    assert third._max_age == 86400
+    assert first.db_path == Path("data/ipinfo/country_asn.mmdb")
     IPInfoManager._instance = None
 
 

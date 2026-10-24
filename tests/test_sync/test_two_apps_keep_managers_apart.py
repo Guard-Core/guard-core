@@ -355,13 +355,22 @@ def test_three_apps_each_keep_their_own_managers_after_a_collection(
         app_c.redis.close()
 
 
-def test_apps_on_one_prefix_or_without_redis_share_the_default_managers() -> None:
-    same_a = SyncSecurityConfig(enable_redis=False, enable_dynamic_rules=False)
-    same_b = SyncSecurityConfig(enable_redis=False, enable_dynamic_rules=False)
-    initializer_a = HandlerInitializer(same_a)
-    initializer_b = HandlerInitializer(same_b)
-    assert initializer_a is not initializer_b
-    assert sus_patterns_manager_for(same_a) is sus_patterns_manager_for(same_b)
-    assert sus_patterns_manager_for(same_a) is suspatterns_module.sus_patterns_handler
-    assert cloud_handler_for(same_a) is cloud_handler_for(same_b)
-    assert DynamicRuleManager(same_a) is DynamicRuleManager(same_b)
+def test_apps_on_one_prefix_share_the_default_managers() -> None:
+    prefix = f"same{uuid.uuid4().hex[:8]}:"
+    configs = [
+        SyncSecurityConfig(
+            enable_redis=True,
+            redis_url=REDIS_URL,
+            redis_prefix=prefix,
+            enable_dynamic_rules=False,
+        )
+        for _ in range(2)
+    ]
+    for config in configs:
+        HandlerInitializer(config)
+    first, second = configs
+    assert sus_patterns_manager_for(first) is sus_patterns_manager_for(second)
+    assert sus_patterns_manager_for(first) is suspatterns_module.sus_patterns_handler
+    assert cloud_handler_for(first) is cloud_handler_for(second)
+    assert ip_ban_manager_for(first) is ip_ban_manager_for(second)
+    assert DynamicRuleManager(first) is DynamicRuleManager(second)
