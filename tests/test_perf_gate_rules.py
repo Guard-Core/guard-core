@@ -1,9 +1,15 @@
 import argparse
+import concurrent.futures
 import json
+import os
+import sys
+import threading
+from collections.abc import Callable
+from typing import Any
 
 import pytest
 
-from perf_gate import compare, gate, run
+from perf_gate import callcount, compare, gate, run
 
 
 def row_line(row: str, key: str, value: float) -> str:
@@ -139,3 +145,69 @@ def test_calls_part_passes_equal_and_fails_a_row_above_v440(
     lines: list[str] = []
     assert gate.calls_part(calls_args(), ["a"], lines) == 1
     assert any("FAIL" in line for line in lines)
+
+
+HERE = os.path.dirname(__file__)
+
+
+def counted_here(
+    skipped: set[Any], body: Callable[[concurrent.futures.Executor], None]
+) -> callcount.CallCounter:
+    counter = callcount.CallCounter(skipped, None, HERE)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+        barrier = threading.Barrier(2)
+        for future in [executor.submit(barrier.wait) for _ in range(2)]:
+            future.result()
+        sys.setprofile(counter)
+        try:
+            body(executor)
+        finally:
+            sys.setprofile(None)
+    return counter
+
+
+def idle(executor: concurrent.futures.Executor) -> None:
+    return None
+
+
+def idle_baseline() -> int:
+    """Counted frames of the harness itself (the body call): every pin is relative."""
+    return counted_here(set(), idle).mine
+
+
+def worker_only_function() -> int:
+    return 1
+
+
+def main_thread_function() -> int:
+    return 1
+
+
+def test_a_function_that_runs_only_on_a_pool_worker_counts_zero() -> None:
+    ran: list[int] = []
+
+    def body(executor: concurrent.futures.Executor) -> None:
+        ran.append(executor.submit(worker_only_function).result())
+
+    counter = counted_here(set(), body)
+    assert ran == [1]
+    assert counter.mine == idle_baseline()
+    assert counter.total > 0
+
+
+def test_the_same_function_on_the_measuring_thread_counts_once() -> None:
+    def body(executor: concurrent.futures.Executor) -> None:
+        main_thread_function()
+
+    assert counted_here(set(), body).mine == idle_baseline() + 1
+
+
+def test_a_skipped_frame_hides_everything_it_calls() -> None:
+    def hidden() -> int:
+        return main_thread_function()
+
+    def body(executor: concurrent.futures.Executor) -> None:
+        hidden()
+
+    counter = counted_here({hidden.__code__}, body)
+    assert counter.mine == idle_baseline()

@@ -32,6 +32,7 @@ ALL_ROWS = (
     + [f"blocked-pattern-redis{m}" for m in ("off", "on")]
 )
 IR_LINE = re.compile(r"I\s+refs:\s+([\d,]+)")
+COLLECTED = re.compile(r"Collected\s*:\s*(\d+)")
 
 
 def child_env(engine: str) -> dict[str, str]:
@@ -84,9 +85,32 @@ def valgrind_instructions(engine: str, row: str, n: int, url: str) -> int:
     return int(match.group(1).replace(",", ""))
 
 
+def valgrind_window_instructions(engine: str, row: str, n: int, url: str) -> int:
+    """Ir of the n measured requests only: callgrind collects inside one C call."""
+    with tempfile.TemporaryDirectory() as tmp:
+        cmd = [
+            "valgrind",
+            "--tool=callgrind",
+            "--collect-atstart=no",
+            "--toggle-collect=PyRun_SimpleString*",
+            f"--callgrind-out-file={tmp}/cg.out",
+            *row_command(row, "window", n, url, 1),
+        ]
+        proc = subprocess.run(
+            cmd, env=child_env(engine), capture_output=True, text=True, check=True
+        )
+    match = COLLECTED.search(proc.stderr)
+    if match is None:
+        raise RuntimeError(f"no Collected line for {row}: {proc.stderr[-400:]}")
+    return int(match.group(1))
+
+
 def measure(
     engine: str, row: str, mode: str, n: int, url: str, rounds: int
 ) -> dict[str, Any]:
+    if mode == "instructions" and os.environ.get("PERF_GATE_IR") != "difference":
+        ir = valgrind_window_instructions(engine, row, n, url)
+        return {"ir_per_request": ir / n, "ir_window": ir}
     if mode == "instructions":
         ir_n = valgrind_instructions(engine, row, n, url)
         ir_2n = valgrind_instructions(engine, row, 2 * n, url)
@@ -98,7 +122,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--engine", required=True)
     parser.add_argument(
-        "--mode", choices=("calls", "instructions", "cpu"), required=True
+        "--mode", choices=("calls", "instructions", "cpu", "workers"), required=True
     )
     parser.add_argument("--redis-url", required=True)
     parser.add_argument("--rows", default=",".join(ALL_ROWS))
@@ -106,7 +130,10 @@ def main() -> None:
     parser.add_argument("--rounds", type=int, default=5)
     parser.add_argument("--jobs", type=int, default=1)
     args = parser.parse_args()
-    n = args.n or {"calls": 200, "instructions": 25, "cpu": 300}[args.mode]
+    n = (
+        args.n
+        or {"calls": 200, "instructions": 25, "cpu": 300, "workers": 200}[args.mode]
+    )
     rows = args.rows.split(",")
     jobs = args.jobs if args.mode == "instructions" else 1
     with ThreadPoolExecutor(max_workers=jobs) as pool:

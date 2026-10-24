@@ -11,6 +11,7 @@ blocked-<blacklist|banned>-pen<1|0>-redis<off|on>, blocked-pattern-redis<off|on>
 """
 
 import asyncio
+import ctypes
 import gc
 import importlib
 import json
@@ -268,27 +269,11 @@ async def calls(one: Step, verify: Verify) -> dict[str, Any]:
         gc.collect()
         gc.disable()
     run_once, skipped = (None, set()) if RAW else loop_iteration_codes()
-    root = os.path.dirname(guard_core.__file__)
-    total = python = mine = depth = 0
-
-    def prof_fn(frame: Any, event: str, arg: Any) -> None:
-        nonlocal total, python, mine, depth
-        code = frame.f_code
-        if event == "call":
-            if code in skipped:
-                depth += 1
-            elif depth == 0 and code is not run_once:
-                total += 1
-                python += 1
-                mine += code.co_filename.startswith(root)
-        elif event == "return":
-            if code in skipped:
-                depth -= 1
-        elif event == "c_call" and depth == 0 and code is not run_once:
-            total += 1
-
+    counter = load("callcount").CallCounter(
+        skipped, run_once, os.path.dirname(guard_core.__file__)
+    )
     before = redis_commands() if ROW == "ban_check" else {}
-    sys.setprofile(prof_fn)
+    sys.setprofile(counter)
     for _ in range(N):
         last = await one()
     sys.setprofile(None)
@@ -303,11 +288,30 @@ async def calls(one: Step, verify: Verify) -> dict[str, Any]:
         }
         extra["redis_commands_per_request"] = dict(sorted(delta.items()))
     return {
-        "calls_per_request": round(total / N, 2),
-        "python_calls_per_request": round(python / N, 2),
-        "guard_core_calls_per_request": round(mine / N, 2),
+        "calls_per_request": round(counter.total / N, 2),
+        "python_calls_per_request": round(counter.python / N, 2),
+        "guard_core_calls_per_request": round(counter.mine / N, 2),
         **extra,
     }
+
+
+async def workers(one: Step, verify: Verify) -> dict[str, Any]:
+    """Calls made on every thread but the main one (3.12+ only), per request."""
+    main = threading.get_ident()
+    count = 0
+
+    def prof_fn(frame: Any, event: str, arg: Any) -> None:
+        nonlocal count
+        if event in ("call", "c_call") and threading.get_ident() != main:
+            count += 1
+
+    set_all = vars(threading)["setprofile_all_threads"]
+    set_all(prof_fn)
+    for _ in range(N):
+        last = await one()
+    set_all(None)
+    verify(last)
+    return {"worker_calls_per_request": round(count / N, 2)}
 
 
 async def cpu(one: Step, verify: Verify) -> dict[str, Any]:
@@ -330,6 +334,8 @@ async def main() -> None:
         result = await calls(one, verify)
     elif MODE == "cpu":
         result = await cpu(one, verify)
+    elif MODE == "workers":
+        result = await workers(one, verify)
     else:
         for _ in range(N):
             last = await one()
@@ -343,4 +349,37 @@ async def main() -> None:
     print(json.dumps({"engine": os.path.dirname(guard_core.__file__), **result}))
 
 
-asyncio.run(main())
+def window_main() -> None:
+    """One process: set up and warm up, then run the N requests inside one C call.
+
+    callgrind collects only inside PyRun_SimpleString (`--toggle-collect`), so the
+    start-up cost is not in the count and one process gives the per-request cost.
+    """
+    loop = asyncio.new_event_loop()
+    one, closer, verify = loop.run_until_complete(setup())
+    install_step_clock()
+    start_every_regex_worker()
+
+    async def measured() -> None:
+        for _ in range(N):
+            last = await one()
+        verify(last)
+
+    vars(sys.modules["__main__"])["WINDOW"] = lambda: loop.run_until_complete(
+        measured()
+    )
+    api: Any = ctypes.pythonapi
+    api.PyRun_SimpleString.argtypes = [ctypes.c_char_p]
+    status = api.PyRun_SimpleString(b"import __main__; __main__.WINDOW()")
+    assert status == 0, "the measured window raised"
+    if ROW == "ban_check":
+        loop.run_until_complete(closer.delete_pattern("*"))
+        loop.run_until_complete(closer.close())
+    else:
+        loop.run_until_complete(closer.aclose())
+
+
+if MODE == "window":
+    window_main()
+else:
+    asyncio.run(main())
