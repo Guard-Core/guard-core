@@ -1,7 +1,6 @@
 from collections.abc import Generator
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
 
 import pytest
 
@@ -29,12 +28,14 @@ def _reset_singletons() -> Generator[None, None, None]:
     SyncIPInfoManager._instance = None
 
 
-def _config(tmp_path: Path, **fields: Any) -> SecurityConfig:
+def _config(
+    tmp_path: Path, blocked_countries: list[str] | None = None
+) -> SecurityConfig:
     return SecurityConfig(
         enable_redis=False,
         ipinfo_token="tok",
         ipinfo_db_path=tmp_path / "geo.mmdb",
-        **fields,
+        blocked_countries=blocked_countries,
     )
 
 
@@ -152,9 +153,16 @@ def test_the_handler_built_from_the_token_matches_the_tree(tmp_path: Path) -> No
 
 
 def test_only_a_country_rule_on_a_route_needs_a_handler() -> None:
-    def route(**fields: Any) -> Any:
-        base = {"blocked_countries": None, "whitelist_countries": None}
-        return SimpleNamespace(**{**base, "geo_rate_limits": {}, **fields})
+    def route(
+        blocked_countries: list[str] | None = None,
+        whitelist_countries: list[str] | None = None,
+        geo_rate_limits: dict[str, tuple[int, int]] | None = None,
+    ) -> SimpleNamespace:
+        return SimpleNamespace(
+            blocked_countries=blocked_countries,
+            whitelist_countries=whitelist_countries,
+            geo_rate_limits=geo_rate_limits or {},
+        )
 
     assert not routes_need_geo_ip_handler([route()])
     assert routes_need_geo_ip_handler([route(), route(blocked_countries=["CN"])])

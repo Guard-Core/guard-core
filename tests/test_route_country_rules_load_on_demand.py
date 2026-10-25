@@ -1,7 +1,6 @@
 from collections.abc import Generator
 from pathlib import Path
 from types import SimpleNamespace
-from typing import cast
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -103,7 +102,9 @@ async def test_a_route_without_a_country_rule_never_loads_the_database(
 
     await check_route_ip_access(CLIENT_IP, plain_route, _middleware(initializer))
 
-    assert cast(IPInfoManager, initializer.geo_ip_handler).is_initialized is False
+    handler = initializer.geo_ip_handler
+    assert isinstance(handler, IPInfoManager)
+    assert handler.is_initialized is False
 
 
 async def test_the_database_loads_once_and_a_missing_handler_is_left_alone(
@@ -116,7 +117,9 @@ async def test_the_database_loads_once_and_a_missing_handler_is_left_alone(
 
     for _ in range(2):
         assert await check_route_ip_access(CLIENT_IP, route_config, middleware) is False
-    assert cast(IPInfoManager, initializer.geo_ip_handler).is_initialized is True
+    handler = initializer.geo_ip_handler
+    assert isinstance(handler, IPInfoManager)
+    assert handler.is_initialized is True
 
     middleware.geo_ip_handler = None
     assert await check_route_ip_access(CLIENT_IP, route_config, middleware) is None
