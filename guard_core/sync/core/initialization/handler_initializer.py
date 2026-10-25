@@ -2,6 +2,7 @@ import logging
 import threading
 from typing import TYPE_CHECKING, Any
 
+from guard_core._geo_handler_for_tree import geo_ip_handler_for_tree
 from guard_core.sync._utils.config_registry import REDIS_HANDLERS
 from guard_core.sync.core.initialization._handler_initializer_steps import (
     _HandlerInitializerStepsMixin,
@@ -39,7 +40,13 @@ class HandlerInitializer(_HandlerInitializerStepsMixin):
         cloud_handler_for(config, bind=True)
         sus_patterns_manager_for(config, bind=True)
         self.agent_handler = agent_handler
-        self.geo_ip_handler = geo_ip_handler
+        from guard_core.sync.handlers._downloader import TREE_DOWNLOADER
+
+        self.geo_ip_handler = geo_ip_handler_for_tree(
+            config, geo_ip_handler, tree_awaits=TREE_DOWNLOADER == "aiohttp"
+        )
+        self._geo_handler_is_ours = self.geo_ip_handler is not geo_ip_handler
+        self._adapter = adapter
         self.rate_limit_handler = rate_limit_handler
         mark_bound = getattr(rate_limit_handler, "mark_bound_to_app", None)
         if callable(mark_bound):

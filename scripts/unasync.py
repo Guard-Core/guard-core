@@ -22,6 +22,7 @@ SKIP_SRC = {
     "_security_config_batch.py",
     "_security_config_typed_validators.py",
     "_security_config_geo_validators.py",
+    "_geo_handler_for_tree.py",
     "_security_config_cloud_store_validators.py",
     "_security_config_exempt_purge_validators.py",
     "_config_capabilities.py",
@@ -42,6 +43,7 @@ SKIP_SRC = {
 SKIP_TESTS = {
     "mock_download.py",
     "test_geo_awaited_load_concurrency.py",
+    "test_geo_handler_for_tree.py",
     "test_modifier_body_replay.py",
     "test_modifier_body_pins.py",
     "test_scan_event_loop_yield.py",

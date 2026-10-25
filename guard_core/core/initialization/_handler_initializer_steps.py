@@ -2,6 +2,10 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING, Any
 
+from guard_core._geo_handler_for_tree import (
+    build_geo_ip_handler_from_token,
+    routes_need_geo_ip_handler,
+)
 from guard_core._misconfiguration import report_misconfiguration
 from guard_core._redis_enablement import redis_is_configured, resolve_enable_redis
 from guard_core._staged_defaults import signal_changed_defaults
@@ -44,6 +48,8 @@ class _HandlerInitializerStepsMixin(CloudInitializationMixin):
     behavior_tracker: Any = None
     _lazy_init_task: "asyncio.Task[None] | None" = None
     logger: logging.Logger
+    _adapter: str | None = None
+    _geo_handler_is_ours: bool = False
 
     def _require_tree_downloader(self, adapter: str | None) -> None:
         from guard_core._config_capabilities import cloud_blocking_enabled
@@ -55,7 +61,10 @@ class _HandlerInitializerStepsMixin(CloudInitializationMixin):
             )
         builds_its_own_geo_database = (
             self.geo_ip_handler is not None
-            and self.geo_ip_handler is self.config.geo_ip_handler
+            and (
+                self.geo_ip_handler is self.config.geo_ip_handler
+                or self._geo_handler_is_ours
+            )
             and bool(self.config.ipinfo_token)
         )
         if builds_its_own_geo_database:
@@ -110,6 +119,25 @@ class _HandlerInitializerStepsMixin(CloudInitializationMixin):
         report_unreachable_ban_thresholds(
             self.config, context, self.logger, stacklevel=5
         )
+
+    def _build_geo_ip_handler_for_route_rules(self) -> None:
+        if self.geo_ip_handler is not None or not self.config.ipinfo_token:
+            return
+        route_configs = getattr(self.guard_decorator, "_route_configs", {})
+        if not routes_need_geo_ip_handler(route_configs.values()):
+            return
+        from guard_core.handlers._downloader import (
+            TREE_DOWNLOADER,
+            require_downloader_installed,
+        )
+
+        require_downloader_installed(
+            "geo", "The built-in GeoIP database download", self._adapter
+        )
+        self.geo_ip_handler = build_geo_ip_handler_from_token(
+            self.config, tree_awaits=TREE_DOWNLOADER == "aiohttp"
+        )
+        self._geo_handler_is_ours = True
 
     def _report_country_decorators_without_geoip(self) -> None:
         if self.guard_decorator is None:
@@ -186,6 +214,7 @@ class _HandlerInitializerStepsMixin(CloudInitializationMixin):
             await self.behavior_tracker.initialize_redis(self.redis_handler)
 
     async def initialize_redis_handlers(self) -> None:
+        self._build_geo_ip_handler_for_route_rules()
         self._report_unreachable_ban_thresholds()
         self._report_country_decorators_without_geoip()
         self._report_route_limits_with_global_switch_off()

@@ -7,6 +7,7 @@ from pydantic_core import PydanticCustomError
 
 from guard_core._config_capabilities import require_geo_extra
 from guard_core.protocols.geo_ip_protocol import GeoIPHandler
+from guard_core.sync.protocols.geo_ip_protocol import SyncGeoIPHandler
 
 if TYPE_CHECKING:
     from guard_core._security_config_fields import RequestT
@@ -24,7 +25,7 @@ def _geo_ip_handler_has_member(value: Any, name: str) -> bool:
     return not callable(getattr(GeoIPHandler, name)) or getattr(value, name) is not None
 
 
-def _validate_geo_ip_handler_value(value: Any) -> GeoIPHandler:
+def _validate_geo_ip_handler_value(value: Any) -> GeoIPHandler | SyncGeoIPHandler:
     # The isinstance check of a runtime_checkable Protocol looks members up with
     # hasattr on 3.10 and 3.11 and with getattr_static from 3.12, which rejects a
     # Mock. One hasattr check keeps every interpreter on the 3.10 verdict.
@@ -32,7 +33,7 @@ def _validate_geo_ip_handler_value(value: Any) -> GeoIPHandler:
         raise PydanticCustomError(
             "is_instance_of", "Input should be an instance of GeoIPHandler"
         )
-    return cast(GeoIPHandler, value)
+    return cast(GeoIPHandler | SyncGeoIPHandler, value)
 
 
 def _warn_country_allowlist_shadows_blocklist(*, stacklevel: int) -> None:

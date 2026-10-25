@@ -44,6 +44,7 @@ from guard_core.protocols.cloud_ip_store_protocol import (
 from guard_core.protocols.geo_ip_protocol import GeoIPHandler
 from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse
+from guard_core.sync.protocols.geo_ip_protocol import SyncGeoIPHandler
 
 RequestT = TypeVar("RequestT", default=GuardRequest)
 
@@ -97,7 +98,11 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
     )
 
     geo_ip_handler: (
-        Annotated[GeoIPHandler, PlainValidator(_validate_geo_ip_handler_value)] | None
+        Annotated[
+            GeoIPHandler | SyncGeoIPHandler,
+            PlainValidator(_validate_geo_ip_handler_value),
+        ]
+        | None
     ) = Field(
         default=None,
         description="Geographical IP handler to use for IP geolocation",
