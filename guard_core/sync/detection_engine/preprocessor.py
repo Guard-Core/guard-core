@@ -14,6 +14,9 @@ from guard_core.sync.detection_engine.on_handler_indicator import (
     ON_HANDLER_PATTERN,
     OnHandlerIndicator,
 )
+from guard_core.sync.handlers._suspatterns_sources import (
+    _DEFAULT_MAX_BODY_INSPECT_BYTES,
+)
 
 if TYPE_CHECKING:
     from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol
@@ -35,7 +38,7 @@ def collapse_whitespace_runs(content: str) -> str:
 
 
 class ContentPreprocessor:
-    _DEFAULT_MAX_FULL_SCAN_BYTES = 262144
+    _DEFAULT_MAX_FULL_SCAN_BYTES = _DEFAULT_MAX_BODY_INSPECT_BYTES
 
     def __init__(
         self,
