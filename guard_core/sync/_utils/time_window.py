@@ -1,6 +1,6 @@
 import logging
 from collections.abc import Callable
-from datetime import datetime, timezone, tzinfo
+from datetime import datetime, tzinfo
 from zoneinfo import ZoneInfo
 
 
@@ -14,11 +14,7 @@ def time_window_allows(
         end_time = time_restrictions["end"]
 
         timezone_str = time_restrictions.get("timezone", "UTC")
-        try:
-            tz: ZoneInfo | timezone = ZoneInfo(timezone_str)
-        except (KeyError, Exception):
-            tz = timezone.utc
-        current_time = now(tz)
+        current_time = now(ZoneInfo(timezone_str))
         current_hour_minute = current_time.strftime("%H:%M")
 
         if start_time > end_time:
@@ -27,5 +23,8 @@ def time_window_allows(
             return start_time <= current_hour_minute <= end_time
 
     except Exception as e:
-        logger.error(f"Error checking time window: {e!s}")
-        return True
+        detail = (
+            f"{type(e).__name__}, request denied, restriction={time_restrictions!r}"
+        )
+        logger.error(f"Error checking time window: {detail}")
+        return False

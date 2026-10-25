@@ -222,7 +222,7 @@ async def test_check_time_window_error_handling(
 
     result = await validator.check_time_window(time_restrictions)
 
-    assert result is True
+    assert result is False
 
 
 async def test_is_path_excluded_matching_path(

@@ -261,7 +261,7 @@ ___
 
 **Purpose**: Restricts access to specific time windows.
 
-**Blocks when**: The current time falls outside the `start`/`end` range defined in `RouteConfig.time_restrictions`.
+**Blocks when**: The current time falls outside the `start`/`end` range defined in `RouteConfig.time_restrictions`, or when the window cannot be evaluated (a missing `start` or `end`, a non-string value, a time zone that fails to load, an error from the clock). An evaluation error gets the same `403` as a request outside the window and logs one ERROR naming the restriction and the error class; it never falls back to UTC or allows the request.
 
 **Response**: `403 Access not allowed at this time`
 

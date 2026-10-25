@@ -33,7 +33,7 @@ async def test_check_time_window_exception_handling(
 
     result = await time_window_check._check_time_window(invalid_restrictions)
 
-    assert result is True
+    assert result is False
     cast(MagicMock, time_window_check.logger.error).assert_called_once()
 
 
@@ -44,7 +44,7 @@ async def test_check_time_window_missing_start_key(
 
     result = await time_window_check._check_time_window(incomplete_restrictions)
 
-    assert result is True
+    assert result is False
     cast(MagicMock, time_window_check.logger.error).assert_called_once()
 
 
@@ -55,11 +55,11 @@ async def test_check_time_window_missing_end_key(
 
     result = await time_window_check._check_time_window(incomplete_restrictions)
 
-    assert result is True
+    assert result is False
     cast(MagicMock, time_window_check.logger.error).assert_called_once()
 
 
-async def test_check_time_window_invalid_timezone_fallback(
+async def test_check_time_window_invalid_timezone_denies(
     time_window_check: TimeWindowCheck,
 ) -> None:
     restrictions = {
@@ -70,4 +70,5 @@ async def test_check_time_window_invalid_timezone_fallback(
 
     result = await time_window_check._check_time_window(restrictions)
 
-    assert result is True
+    assert result is False
+    cast(MagicMock, time_window_check.logger.error).assert_called_once()

@@ -222,7 +222,7 @@ def test_check_time_window_error_handling(
 
     result = validator.check_time_window(time_restrictions)
 
-    assert result is True
+    assert result is False
 
 
 def test_is_path_excluded_matching_path(
