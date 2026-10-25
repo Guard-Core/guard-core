@@ -15,6 +15,7 @@ burns its full deadline per call. v2 scopes work:
 from __future__ import annotations
 
 import json
+import os
 import re
 import signal
 import sys
@@ -118,7 +119,7 @@ STRING_TIMEOUT_TEST_STRING = "1" * 12000
 FIXED_CASES: list[dict] = [
     {
         "id": "safety_cost_verdict_over_budget_02",
-        "pattern": r"(\d|\w)*;",
+        "pattern": r"(\w|\d)*;",
         "mode": "cost_verdict",
         "max_content_length": 262144,
         "reason_class": "over_budget",
@@ -271,6 +272,7 @@ def _fixed_reference(case: dict, reason: str) -> dict:
             "extrapolated_seconds": extrapolated,
             "budget_seconds": SAFETY_BUDGET_SECONDS,
             "margin": round(margin, 1),
+            "load_average_at_generation": round(os.getloadavg()[0], 1),
         }
     if cls == "probe_string_timeout":
         cpu = _string_timeout_cpu_seconds(case)
@@ -288,6 +290,7 @@ def _fixed_reference(case: dict, reason: str) -> dict:
             "kill_seconds": PROBE_KILL_SECONDS,
             "margin_over_threshold": round(over, 1),
             "margin_under_kill": round(under, 1),
+            "load_average_at_generation": round(os.getloadavg()[0], 1),
         }
     return {"decided_before_timing": True}
 
