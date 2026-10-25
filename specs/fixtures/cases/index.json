@@ -1,8 +1,8 @@
 {
  "spec_version": "4.1.0",
  "engine_version": "4.4.0",
- "engine_commit": "48d6c2037bc2f407c43f21a16c278e66d185bd85",
- "generated_at": "2026-10-25T00:55:08.212883+00:00",
+ "engine_commit": "3248c70a3da6324698bfcfbc6f0d135e04f753f3",
+ "generated_at": "2026-10-25T05:01:11.809444+00:00",
  "fixed_ip": "203.0.113.7",
  "config_knobs": {
   "detection_compiler_timeout": 2.0,
@@ -17,6 +17,19 @@
   "detection_min_samples_for_anomaly": 30,
   "detection_semantic_threshold": 0.7,
   "detection_threat_score_threshold": 1.0
+ },
+ "pipeline_defaults": {
+  "enable_redis": false,
+  "rate_limit": 10,
+  "whitelist_access_only": false,
+  "redis_prefix": "guard_core:",
+  "ban_on_hostile_signals": false,
+  "fail_on_misconfiguration": false,
+  "enable_rate_limit_auto_ban": false,
+  "enable_ip_banning": false,
+  "auto_ban_threshold": 1000,
+  "log_suspicious_level": "ERROR",
+  "log_request_level": "ERROR"
  },
  "suites": {
   "xss": {
@@ -262,7 +275,7 @@
    ]
   },
   "safety_gates": {
-   "case_count": 94,
+   "case_count": 96,
    "kind": "pattern_safety",
    "consumers": [
     "python",
@@ -271,6 +284,24 @@
     "ts",
     "rust",
     "jvm"
+   ],
+   "unpinned_classes": {
+    "probe_subprocess_timeout": {
+     "reason": "a loaded host turns every timed class into this one",
+     "unit_pin": null
+    },
+    "builder_deadline": {
+     "reason": "no case can sit with margin on both sides of a load-scaled deadline",
+     "unit_pin": "tests/test_sus_patterns/test_redos_cpu_deadline.py::test_the_wall_backstop_ends_construction_that_makes_no_cpu_progress"
+    }
+   },
+   "retired_case_ids": [
+    {
+     "id": "safety_cost_verdict_over_budget_01",
+     "input": "(\\d|\\w)*; cost_verdict cap 10000",
+     "reason": "extrapolated cost only 25x the budget at cap 10000; the pinned input now runs at cap 262144 (D-83 item 1: 100x or more)",
+     "replaced_by": "safety_cost_verdict_over_budget_02"
+    }
    ]
   }
  },
@@ -289,6 +320,14 @@
    "response_time",
    "timestamp"
   ],
+  "events_prefix_rules": [
+   {
+    "event_type": "redis_error",
+    "field": "reason",
+    "prefix": "Redis connection failed: ",
+    "rest": "the driver's own error detail, never compared"
+   }
+  ],
   "events_volatile_metadata": {
    "pattern_detected": [
     "correlation_id"
@@ -305,42 +344,42 @@
   "k": 5,
   "floor_ms": 250,
   "timing_runs": 5,
-  "generated_at": "2026-10-25T00:55:32+00:00",
+  "generated_at": "2026-10-25T05:01:37+00:00",
   "budgets": {
    "cost_prose_8kib": {
-    "reference_ms": 13.8,
+    "reference_ms": 14.2,
     "expected_is_threat": false
    },
    "cost_prose_64kib": {
-    "reference_ms": 75.8,
+    "reference_ms": 80.4,
     "expected_is_threat": false
    },
    "cost_prose_256kib": {
-    "reference_ms": 283.5,
+    "reference_ms": 282.2,
     "expected_is_threat": false
    },
    "cost_prose_1mib": {
-    "reference_ms": 900.9,
+    "reference_ms": 909.8,
     "expected_is_threat": false
    },
    "cost_encoded_64kib": {
-    "reference_ms": 80.2,
+    "reference_ms": 82.5,
     "expected_is_threat": false
    },
    "cost_binnoise_64kib": {
-    "reference_ms": 71.3,
+    "reference_ms": 76.8,
     "expected_is_threat": false
    },
    "cost_threat_8kib": {
-    "reference_ms": 11.7,
+    "reference_ms": 13.6,
     "expected_is_threat": true
    },
    "cost_threat_tail_256kib": {
-    "reference_ms": 323.5,
+    "reference_ms": 322.7,
     "expected_is_threat": true
    },
    "cost_threat_mid_1mib": {
-    "reference_ms": 996.3,
+    "reference_ms": 1008.0,
     "expected_is_threat": false
    }
   }
