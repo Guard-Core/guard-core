@@ -444,7 +444,8 @@ class RateLimitCheck(SecurityCheck):
         if not client_ip or self._skips_rate_limiting(request, route_config):
             return None
 
-        load_geo_database_for_route_rules(route_config, self.middleware)
+        if route_config and route_config.geo_rate_limits:
+            load_geo_database_for_route_rules(self.middleware)
         plans = self._tier_plans(request, client_ip, route_config)
         if not plans:
             return None

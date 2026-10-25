@@ -348,7 +348,8 @@ async def check_route_ip_access(
     try:
         ip_addr = ip_address(client_ip)
 
-        await load_geo_database_for_route_rules(route_config, middleware)
+        if route_config.blocked_countries or route_config.whitelist_countries:
+            await load_geo_database_for_route_rules(middleware)
         ip_result = _check_ip_whitelist(client_ip, ip_addr, route_config)
         if ip_result is None and _check_ip_blacklist(client_ip, ip_addr, route_config):
             ip_result = False
@@ -357,11 +358,10 @@ async def check_route_ip_access(
             client_ip, route_config, middleware.geo_ip_handler
         )
 
-        if ip_result is False or country_result is False:
+        verdicts = (ip_result, country_result)
+        if False in verdicts:
             return False
-        if ip_result is True or country_result is True:
-            return True
-        return None
+        return True if True in verdicts else None
     except ValueError:
         return False
 

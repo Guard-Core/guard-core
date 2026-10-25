@@ -269,7 +269,10 @@ class IpSecurityCheck(SecurityCheck):
         route_config: RouteConfig | None,
     ) -> tuple[IpAccessResult, bool, bool]:
         route_overrides_whitelist = _route_overrides_ip_lists(route_config)
-        await load_geo_database_for_route_rules(route_config, self.middleware)
+        if route_config and (
+            route_config.blocked_countries or route_config.whitelist_countries
+        ):
+            await load_geo_database_for_route_rules(self.middleware)
         skip_countries = _route_country_whitelist_matched(
             client_ip, route_config, self.middleware.geo_ip_handler
         ) or (
