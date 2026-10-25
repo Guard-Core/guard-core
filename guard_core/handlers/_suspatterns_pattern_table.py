@@ -224,8 +224,13 @@ _FILE_INCLUSION_SCHEME_RE = (
     r"|[Oo][Gg][Gg])://[^\s]+)"
 )
 
-# A value that is only UNION SELECT; flag_bare_union_select=False drops it per manager.
-BARE_UNION_SELECT_ROW = r"(?i)\A\s*UNION\s+(?:ALL\s+)?SELECT\s*\Z"
+# A value that is only UNION SELECT (a leading slash, a trailing semicolon, hash, NUL
+# or comment is still only that); flag_bare_union_select=False drops it for the
+# request's app.
+BARE_UNION_SELECT_ROW = (
+    r"(?i)\A[\s/\ufeff]*UNION\s+(?:ALL\s+)?SELECT"
+    r"(?:[\s;#\x00]|/\*.{0,40}?\*/)*\Z"
+)
 
 _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
     (r"<script[^>]*>[^<]*<\/script\s*>", _CTX_XSS, "xss"),
