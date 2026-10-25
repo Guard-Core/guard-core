@@ -40,14 +40,18 @@ class _SusPatternsEnhancedMixin:
 
     def configure(self, config: Any) -> None:
         cls = type(self)
-        cls._sensitive_headers_union = self._sensitive_headers_union | getattr(
+        # An app's own manager (it has its own _config) keeps its own names; the
+        # default manager accumulates on the class, as it always did.
+        owner: Any = self if "_config" in vars(self) else cls
+        owner._sensitive_headers_union = self._sensitive_headers_union | getattr(
             config, "log_sensitive_headers", frozenset()
         )
-        cls._sensitive_params_union = self._sensitive_params_union | getattr(
+        owner._sensitive_params_union = self._sensitive_params_union | getattr(
             config, "log_sensitive_params", frozenset()
         )
-        cls._sensitive_body_fields_union = self._sensitive_body_fields_union | getattr(
-            config, "log_sensitive_body_fields", frozenset()
+        owner._sensitive_body_fields_union = (
+            self._sensitive_body_fields_union
+            | getattr(config, "log_sensitive_body_fields", frozenset())
         )
 
         self._disabled_row_sources = (

@@ -1,8 +1,19 @@
 import re
+from contextvars import ContextVar
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from guard_core.sync.handlers.suspatterns_handler import SusPatternsManager
 
 _PATTERN_SOURCE_NON_TOKEN_RE = re.compile(r"[^a-z0-9_-]+")
 _PATTERN_SOURCE_ESCAPE_RE = re.compile(
     r"\\(?:[xX]([0-9A-Fa-f]{2})|u([0-9A-Fa-f]{4})|U([0-9A-Fa-f]{8})|([0-7]{1,3}))"
+)
+
+# The manager of the app whose request is being scanned: its own sensitive names
+# redact the pattern text, never another app's.
+_redacting_patterns: ContextVar["SusPatternsManager | None"] = ContextVar(
+    "guard_core_redacting_patterns", default=None
 )
 
 
@@ -28,11 +39,12 @@ def _redact_pattern_source(pattern_source: str) -> str:
         _merged_sensitive_names,
         redact_blob_for_display,
     )
-    from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
+    from guard_core.sync.handlers.suspatterns_handler import active_sus_patterns
 
-    sensitive_params = sus_patterns_handler._sensitive_params_union
-    sensitive_body_fields = sus_patterns_handler._sensitive_body_fields_union
-    sensitive_headers = sus_patterns_handler._sensitive_headers_union
+    patterns = _redacting_patterns.get() or active_sus_patterns()
+    sensitive_params = patterns._sensitive_params_union
+    sensitive_body_fields = patterns._sensitive_body_fields_union
+    sensitive_headers = patterns._sensitive_headers_union
 
     sensitive_names = _merged_sensitive_names(
         sensitive_params,

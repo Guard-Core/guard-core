@@ -16,7 +16,10 @@ from guard_core.sync._utils.detection_config import (
     _categories_without,
 )
 from guard_core.sync._utils.logging_utils import _log_at_level, _sanitize_for_reporting
-from guard_core.sync._utils.pattern_source_redaction import _redact_pattern_source
+from guard_core.sync._utils.pattern_source_redaction import (
+    _redact_pattern_source,
+    _redacting_patterns,
+)
 
 if TYPE_CHECKING:
     from guard_core.sync.handlers.suspatterns_handler import SusPatternsManager
@@ -121,6 +124,7 @@ def _scan_value_budget(
     semantic_excluded_headers: frozenset[str] = frozenset(),
     event_request: tuple[Any, ...] | None = None,
     body_field_category_skips: Mapping[str, frozenset[str]] | None = None,
+    patterns: "SusPatternsManager | None" = None,
 ) -> Iterator[None]:
     count_token = _scanned_value_count.set(0)
     cap_token = _scan_value_cap.set(max_values)
@@ -138,6 +142,7 @@ def _scan_value_budget(
     semantic_token = _semantic_excluded_headers.set(semantic_excluded_headers)
     skips_token = _scan_skips.set(_ScanSkips())
     body_field_token = _body_field_category_skips.set(body_field_category_skips or {})
+    patterns_token = _redacting_patterns.set(patterns)
     try:
         yield
     finally:
@@ -157,6 +162,7 @@ def _scan_value_budget(
         _semantic_excluded_headers.reset(semantic_token)
         _scan_skips.reset(skips_token)
         _body_field_category_skips.reset(body_field_token)
+        _redacting_patterns.reset(patterns_token)
 
 
 def _body_field_skipped_categories(name: str) -> frozenset[str] | None:

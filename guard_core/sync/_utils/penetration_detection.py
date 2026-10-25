@@ -347,6 +347,7 @@ def detect_penetration_attempt(
             semantic_excluded_headers,
             (request, sensitive_params, sensitive_body_fields, sensitive_headers),
             body_field_category_skips,
+            patterns_manager,
         ),
     ):
         try:

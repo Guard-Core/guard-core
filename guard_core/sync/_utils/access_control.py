@@ -251,10 +251,11 @@ def _check_blocked_countries_detail(
 
 
 def _check_cloud_providers_detail(ip: str, config: Any) -> IpAccessResult | None:
-    from guard_core.sync.handlers.cloud_handler import cloud_handler
+    from guard_core.sync.handlers.cloud_handler import cloud_handler_for
 
     if not config.block_cloud_providers:
         return None
+    cloud_handler = cloud_handler_for(config)
     if not cloud_handler.is_cloud_ip(ip, config.block_cloud_providers):
         return None
 

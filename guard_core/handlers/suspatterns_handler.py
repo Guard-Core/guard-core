@@ -809,6 +809,9 @@ class SusPatternsManager(_SusPatternsViewsMixin):
         instance = cls._fresh()
         instance.patterns = [definition[0] for definition in cls._pattern_definitions]
         instance._config = config
+        instance._sensitive_headers_union = frozenset()
+        instance._sensitive_params_union = frozenset()
+        instance._sensitive_body_fields_union = frozenset()
         if _supports_enhanced_config(config):
             instance.configure(config)
         return instance
