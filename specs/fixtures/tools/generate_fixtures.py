@@ -165,6 +165,12 @@ SQLI_SUITE = [
         "request_body",
         "echo 'debug' #\nEnables verbose output.",
     ),
+    ("sqli_bare_union_select", "query_param", "union select"),
+    (
+        "sqli_benign_union_select_prose",
+        "query_param",
+        "how to union select two tables",
+    ),
     (
         "sqli_benign_word_select",
         "request_body",

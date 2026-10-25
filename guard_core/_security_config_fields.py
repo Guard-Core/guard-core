@@ -824,15 +824,19 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
     )
 
     flag_bare_union_select: bool = Field(
-        default=False,
+        default=True,
         description=(
             "Flag a scanned value that is only UNION SELECT (or UNION ALL SELECT) "
-            "with no select list, as sqli. Off by default: a free-text field such "
-            "as a search box can carry exactly those two words as a benign query, "
-            "and the row is anchored on the whole value, so prose that merely "
-            "contains them (how to union select two tables) is never flagged. "
-            "Process-wide, like the other suspicious-pattern settings: the "
-            "latest configured value applies to every app in the process."
+            "with no select list, as sqli. On by default since 5.0.0, as v4.4.0 "
+            "flagged it. False turns off only this row, for every parameter of "
+            "the app, and gives the 5.0.0 head from before this row (351 of the "
+            "354 UNION lines of the public SQLi corpus; v4.4.0 flags all 354); "
+            "it does not restore any 4.x behaviour. A free-text field that must "
+            "accept those two words as a benign value is better excluded per "
+            "parameter with excluded_detection_params, which drops every sqli "
+            "row on that parameter. The row is anchored on the whole value, so "
+            "prose that merely contains the words (how to union select two "
+            "tables) is never flagged."
         ),
     )
 

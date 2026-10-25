@@ -12,10 +12,6 @@ _TESTS = next(p for p in Path(__file__).resolve().parents if p.name == "tests")
 _DIR = _TESTS / "wordlists" / "sqli_recall"
 _RECORD = json.loads((_DIR / "v440_flagged.json").read_text(encoding="utf-8"))
 
-# D-89 item 4: three bare fragments that v4.4.0 flags and D-18 made benign.
-# The maintainer decides between D-74 and D-18; until then they are named here.
-_PENDING_MAINTAINER = frozenset({" union select", " UNION SELECT", " UNION ALL SELECT"})
-
 
 @pytest.fixture(autouse=True)
 def _force_enhanced_detection_singleton() -> None:
@@ -26,8 +22,6 @@ async def _unflagged(texts: list[str]) -> list[str]:
     config = SecurityConfig(enable_redis=False, rate_limit=10_000_000)
     missed = []
     for text in texts:
-        if text in _PENDING_MAINTAINER:
-            continue
         request = MockGuardRequest(path="/x", query_params={"q": text})
         if not (await detect_penetration_attempt(request, config)).is_threat:
             missed.append(text)

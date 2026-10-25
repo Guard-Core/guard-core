@@ -6,6 +6,7 @@ from guard_core.detection_engine import (
     PerformanceMonitor,
     looks_like_binary_content,
 )
+from guard_core.handlers._suspatterns_pattern_table import BARE_UNION_SELECT_ROW
 from guard_core.handlers._suspatterns_sources import (
     _CTX_SQLI,
     _DEFAULT_MAX_SCAN_LENGTH,
@@ -18,7 +19,7 @@ from guard_core.handlers._suspatterns_state import (
 )
 
 _BARE_UNION_SELECT_ROW = (
-    re.compile(r"(?i)\A\s*UNION\s+(?:ALL\s+)?SELECT\s*\Z"),
+    re.compile(BARE_UNION_SELECT_ROW),
     _CTX_SQLI,
     "sqli",
 )
@@ -27,6 +28,7 @@ _BARE_UNION_SELECT_ROW = (
 class _SusPatternsEnhancedMixin:
     compiled_custom_patterns: set[tuple[re.Pattern, frozenset[str], str]]
     _config: Any = None
+    _disabled_row_sources: frozenset[str] = frozenset()
     agent_handler: Any = None
     _events_agent_handler: Any
     _detection_state: _DetectionState
@@ -48,10 +50,11 @@ class _SusPatternsEnhancedMixin:
             config, "log_sensitive_body_fields", frozenset()
         )
 
-        if getattr(config, "flag_bare_union_select", False):
-            self.compiled_custom_patterns.add(_BARE_UNION_SELECT_ROW)
-        else:
-            self.compiled_custom_patterns.discard(_BARE_UNION_SELECT_ROW)
+        self._disabled_row_sources = (
+            frozenset()
+            if getattr(config, "flag_bare_union_select", True)
+            else frozenset({_BARE_UNION_SELECT_ROW[0].pattern})
+        )
 
         if not _supports_enhanced_config(config):
             return

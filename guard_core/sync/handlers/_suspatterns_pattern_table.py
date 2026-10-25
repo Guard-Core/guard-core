@@ -224,6 +224,9 @@ _FILE_INCLUSION_SCHEME_RE = (
     r"|[Oo][Gg][Gg])://[^\s]+)"
 )
 
+# A value that is only UNION SELECT; flag_bare_union_select=False drops it per manager.
+BARE_UNION_SELECT_ROW = r"(?i)\A\s*UNION\s+(?:ALL\s+)?SELECT\s*\Z"
+
 _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
     (r"<script[^>]*>[^<]*<\/script\s*>", _CTX_XSS, "xss"),
     (
@@ -312,6 +315,7 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
         _CTX_SQLI,
         "sqli",
     ),
+    (BARE_UNION_SELECT_ROW, _CTX_SQLI, "sqli"),
     (
         r"(?i)(?:\/\*![0-9]*\s*(?:OR|AND|UNION|SELECT|INSERT|DELETE|DROP|"
         r"CONCAT|CHAR|UPDATE)\b)",

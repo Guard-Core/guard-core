@@ -32,7 +32,6 @@ BENIGN = [
     "use sleep(5) to wait",
     "chapter 1 union select committee",
     "how to union select two tables",
-    "union select",
 ]
 
 

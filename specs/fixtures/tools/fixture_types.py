@@ -64,6 +64,7 @@ class RequestStep(TypedDict, total=False):
     client_ip: str
     url_path: str
     body: str
+    query_params: dict[str, str]
     method: str
     headers: dict[str, str]
     drop_cached_client_ip: bool

@@ -112,6 +112,7 @@ CONFIG_KEYS = (
     "enable_ip_banning",
     "enable_rate_limit_auto_ban",
     "auto_ban_threshold",
+    "excluded_detection_params",
 )
 
 ROUTE_KEYS = (
@@ -506,7 +507,7 @@ class _CaseInsensitiveHeaders(dict[str, str]):
 
 class _PipelineRequest:
     def __init__(self, drive: RequestStep) -> None:
-        self.query_params: dict[str, str] = {}
+        self.query_params: dict[str, str] = dict(drive.get("query_params", {}))
         self.headers = _CaseInsensitiveHeaders(drive.get("headers", {}))
         self._body: bytes = drive.get("body", "").encode()
         if (

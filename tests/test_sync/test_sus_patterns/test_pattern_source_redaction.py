@@ -552,7 +552,7 @@ def test_builtin_pattern_table_redaction_count() -> None:
         else:
             assert redacted == pattern
 
-    assert len(_PATTERN_DEFINITIONS) == 204
+    assert len(_PATTERN_DEFINITIONS) == 205
     assert sorted(redacted_categories) == [
         "http_split",
         "http_split",

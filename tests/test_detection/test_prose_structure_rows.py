@@ -5,7 +5,6 @@ from guard_core.utils import detect_penetration_attempt
 from tests.conftest import MockGuardRequest
 
 PROSE = [
-    "union select",
     "how to union select two tables",
     "select * from the shelf",
     "select name from my favourite list",

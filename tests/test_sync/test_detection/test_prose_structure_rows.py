@@ -5,7 +5,6 @@ from guard_core.sync.utils import detect_penetration_attempt
 from tests.test_sync.conftest import SyncMockGuardRequest
 
 PROSE = [
-    "union select",
     "how to union select two tables",
     "select * from the shelf",
     "select name from my favourite list",

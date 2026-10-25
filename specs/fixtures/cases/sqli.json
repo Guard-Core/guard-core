@@ -934,6 +934,45 @@
       }
     },
     {
+      "id": "sqli_bare_union_select",
+      "input": {
+        "content": "union select",
+        "context": "query_param"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?i)\\A\\s*UNION\\s+(?:ALL\\s+)?SELECT\\s*\\Z",
+            "match": "union select",
+            "position": 0,
+            "category": "sqli",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 12,
+        "processed_length": 12,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "sqli_benign_union_select_prose",
+      "input": {
+        "content": "how to union select two tables",
+        "context": "query_param"
+      },
+      "expected": {
+        "is_threat": false,
+        "threat_score": 0.0,
+        "threats": [],
+        "original_length": 30,
+        "processed_length": 30,
+        "detection_method": "enhanced"
+      }
+    },
+    {
       "id": "sqli_benign_word_select",
       "input": {
         "content": "please select your preferred language",

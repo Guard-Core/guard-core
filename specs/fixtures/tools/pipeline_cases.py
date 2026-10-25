@@ -360,6 +360,39 @@ PIPELINE_SUITES["pipeline_detection_response"] = [
         ],
     },
     {
+        "id": "bare_union_select_query_value_blocked",
+        "config": {},
+        "drives": [
+            {
+                "client_ip": IP,
+                "url_path": "/search",
+                "query_params": {"q": "union select"},
+            },
+        ],
+    },
+    {
+        "id": "bare_union_select_excluded_param_allowed",
+        "config": {"excluded_detection_params": {"q": ["sqli"]}},
+        "drives": [
+            {
+                "client_ip": IP,
+                "url_path": "/search",
+                "query_params": {"q": "union select"},
+            },
+        ],
+    },
+    {
+        "id": "union_select_prose_query_value_allowed",
+        "config": {},
+        "drives": [
+            {
+                "client_ip": IP,
+                "url_path": "/search",
+                "query_params": {"q": "how to union select two tables"},
+            },
+        ],
+    },
+    {
         "id": "second_attack_hits_400_without_ban",
         "config": {},
         "drives": [

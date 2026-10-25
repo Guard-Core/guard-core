@@ -39,7 +39,6 @@ NILADIC_FLAGGED = [
 ]
 NILADIC_CLEAN = [
     "union select committee",
-    "union select",
     "how to union select two tables",
     "union select shelf",
 ]

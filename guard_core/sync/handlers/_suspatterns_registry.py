@@ -314,7 +314,9 @@ class _SusPatternsRegistryMixin(_SusPatternsLazyRowsMixin):
     def get_all_compiled_patterns(
         self,
     ) -> list[tuple[re.Pattern, frozenset[str], str]]:
-        return self.compiled_patterns + list(self.compiled_custom_patterns)
+        return self._without_disabled_rows(self.compiled_patterns) + list(
+            self.compiled_custom_patterns
+        )
 
     @classmethod
     def reset(cls) -> None:

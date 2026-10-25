@@ -22,6 +22,7 @@ class _SourceRow(NamedTuple):
 class _SusPatternsLazyRowsMixin:
     _pattern_definitions: list[tuple[str, frozenset[str], str]]
     compiled_custom_patterns: set[tuple[re.Pattern, frozenset[str], str]]
+    _disabled_row_sources: frozenset[str] = frozenset()
 
     @cached_property
     def compiled_patterns(self) -> list[tuple[re.Pattern, frozenset[str], str]]:
@@ -43,4 +44,15 @@ class _SusPatternsLazyRowsMixin:
             if "compiled_patterns" in self.__dict__
             else self._source_rows
         )
-        return [*builtin_rows, *self.compiled_custom_patterns]
+        return [
+            *self._without_disabled_rows(builtin_rows),
+            *self.compiled_custom_patterns,
+        ]
+
+    def _without_disabled_rows(self, rows: list[Any]) -> list[Any]:
+        disabled = self._disabled_row_sources
+        return (
+            [row for row in rows if row[0].pattern not in disabled]
+            if disabled
+            else rows
+        )

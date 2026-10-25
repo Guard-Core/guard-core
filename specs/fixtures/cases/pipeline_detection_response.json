@@ -369,6 +369,109 @@
       ]
     },
     {
+      "id": "bare_union_select_query_value_blocked",
+      "config": {},
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/search",
+          "query_params": {
+            "q": "union select"
+          }
+        }
+      ],
+      "expected": [
+        {
+          "status": 400,
+          "body": "Suspicious activity detected",
+          "headers": {
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "SAMEORIGIN",
+            "X-XSS-Protection": "0",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+            "X-Permitted-Cross-Domain-Policies": "none",
+            "X-Download-Options": "noopen",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Resource-Policy": "same-site",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains"
+          },
+          "is_exempt": false,
+          "is_whitelisted": false,
+          "events": [
+            [
+              "penetration_attempt",
+              "request_blocked"
+            ]
+          ],
+          "on_block": [
+            {
+              "check_name": "suspicious_activity",
+              "reason": "Suspicious activity detected for IP: 192.0.2.10 - Query param 'q': Value matched pattern '(?i)\\A\\s*UNION\\s+(?:ALL\\s+)?SELECT\\s*\\Z'",
+              "trigger_info": "",
+              "passive_mode": false,
+              "client_ip": "192.0.2.10",
+              "path": "/search",
+              "method": "GET",
+              "status_code": 400
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "bare_union_select_excluded_param_allowed",
+      "config": {
+        "excluded_detection_params": {
+          "q": [
+            "sqli"
+          ]
+        }
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/search",
+          "query_params": {
+            "q": "union select"
+          }
+        }
+      ],
+      "expected": [
+        {
+          "status": null,
+          "is_exempt": false,
+          "is_whitelisted": false
+        }
+      ]
+    },
+    {
+      "id": "union_select_prose_query_value_allowed",
+      "config": {},
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/search",
+          "query_params": {
+            "q": "how to union select two tables"
+          }
+        }
+      ],
+      "expected": [
+        {
+          "status": null,
+          "is_exempt": false,
+          "is_whitelisted": false
+        }
+      ]
+    },
+    {
       "id": "second_attack_hits_400_without_ban",
       "config": {},
       "geo_countries": {},
