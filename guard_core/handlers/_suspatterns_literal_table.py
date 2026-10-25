@@ -411,6 +411,7 @@ BUILTIN_REQUIRED_LITERALS: dict[str, tuple[str, ...]] = {
         "bases",
         "getattribute",
     ),
+    "796ca43188de4d28": ("select",),
     "797d3163f44abdd1": ("wp-content",),
     "7d4a3f27544263a3": (
         "where",
