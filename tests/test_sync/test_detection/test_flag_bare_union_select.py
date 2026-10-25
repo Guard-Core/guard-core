@@ -1,6 +1,10 @@
 import pytest
 
 from guard_core.models import SyncSecurityConfig
+from guard_core.sync._utils.scan_config_scope import (
+    _scan_config_scope,
+    scan_config_scope_of,
+)
 from guard_core.sync.handlers._suspatterns_pattern_table import BARE_UNION_SELECT_ROW
 from guard_core.sync.handlers.suspatterns_handler import (
     SusPatternsManager,
@@ -82,3 +86,22 @@ def _two_apps_on_one_redis_prefix() -> tuple[SyncSecurityConfig, SyncSecurityCon
     sus_patterns_manager_for(on, bind=True)
     sus_patterns_manager_for(off, bind=True)
     return on, off
+
+
+def test_a_request_scope_keeps_its_own_config_and_state_after_another_configure() -> (
+    None
+):
+    on, off = _two_apps_on_one_redis_prefix()
+    manager = sus_patterns_manager_for(on)
+    manager.configure(on)
+    scope = scan_config_scope_of(on, manager)
+    assert scope is not None
+    manager.configure(off)
+
+    token = _scan_config_scope.set(scope)
+    try:
+        assert manager._scan_config() is on
+        assert manager._resolve_state(None) is scope.state
+    finally:
+        _scan_config_scope.reset(token)
+    assert manager._scan_config() is off
