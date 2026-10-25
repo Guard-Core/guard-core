@@ -23,6 +23,7 @@ classifiers = [
 dependencies = [
     "cachetools",
     "pydantic",
+    "pydantic-core",
     "typing-extensions",
     "urllib3>=2.7.0",
 ]

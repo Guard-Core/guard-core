@@ -1203,6 +1203,7 @@ source = { editable = "." }
 dependencies = [
     { name = "cachetools" },
     { name = "pydantic" },
+    { name = "pydantic-core" },
     { name = "typing-extensions" },
     { name = "urllib3" },
 ]
@@ -1288,6 +1289,7 @@ requires-dist = [
     { name = "pip-audit", marker = "python_full_version >= '3.11' and extra == 'dev'" },
     { name = "pre-commit", marker = "python_full_version >= '3.11' and extra == 'dev'" },
     { name = "pydantic" },
+    { name = "pydantic-core" },
     { name = "pyopenssl", marker = "extra == 'dev'" },
     { name = "pysocks", marker = "extra == 'dev'" },
     { name = "pytest", marker = "extra == 'dev'" },
