@@ -394,3 +394,28 @@ def test_a_dynamic_rule_that_lowers_the_limit_logs_and_never_raises(
     assert "Dynamic rule:" in logged[0]
     assert "auto_ban_threshold is 200, above the 122 strikes" in logged[0]
     assert config.rate_limit == 2
+
+
+def test_a_second_initialization_reports_again_when_the_redis_handler_changed(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    config = SyncSecurityConfig(
+        enable_redis=True,
+        redis_fail_open=True,
+        enable_penetration_detection=False,
+        rate_limit=10,
+        rate_limit_window=60,
+        auto_ban_threshold=CAP + 1,
+        fail_on_misconfiguration=False,
+    )
+    initializer = HandlerInitializer(config)
+
+    with caplog.at_level(logging.WARNING, logger="guard_core"):
+        initializer.redis_handler = MagicMock()
+        initializer.report_route_misconfigurations()
+        shared_redis = [r for r in caplog.records if "can never fire" in r.message]
+        initializer.redis_handler = None
+        initializer.report_route_misconfigurations()
+        without_redis = [r for r in caplog.records if "can never fire" in r.message]
+
+    assert (len(shared_redis), len(without_redis)) == (0, 1)

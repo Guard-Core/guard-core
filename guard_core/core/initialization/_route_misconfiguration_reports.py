@@ -30,7 +30,7 @@ class RouteMisconfigurationReportsMixin:
     logger: logging.Logger
     _adapter: str | None = None
     _geo_handler_is_ours: bool = False
-    _route_misconfigurations_reported: tuple[int, int | None] | None = None
+    _route_misconfigurations_reported: tuple[int, int | None, int] | None = None
 
     def _report_unreachable_ban_thresholds(self) -> None:
         context = _BanThresholdContext(
@@ -73,7 +73,11 @@ class RouteMisconfigurationReportsMixin:
 
     def report_route_misconfigurations(self) -> None:
         decorator = self.guard_decorator
-        reported = (id(decorator), getattr(decorator, "route_config_revision", None))
+        reported = (
+            id(decorator),
+            getattr(decorator, "route_config_revision", None),
+            id(self.redis_handler),
+        )
         if self._route_misconfigurations_reported == reported:
             return
         self._build_geo_ip_handler_for_route_rules()
