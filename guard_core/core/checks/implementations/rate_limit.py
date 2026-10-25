@@ -1,6 +1,6 @@
 from collections.abc import Collection
 from ipaddress import ip_address
-from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from guard_core._redis_enablement import redis_is_configured
 from guard_core._utils.access_control import load_geo_database_for_route_rules
@@ -9,13 +9,19 @@ from guard_core._utils.ip_extraction import (
     MALFORMED_FORWARDED_FOR_PREFIX,
     _client_identity,
 )
-from guard_core._utils.request_logging import redact_endpoint_for_display
 from guard_core._utils.rule_attribution import rate_limit_attribution
 from guard_core.core.checks._ban_flow import BanFlow
 from guard_core.core.checks._pending_ban import PendingBan, resolve_pending_ban
 from guard_core.core.checks._rate_limit_ban_first import (
     defer_rate_limit,
     finish_tiers,
+)
+from guard_core.core.checks._rate_limit_plans import (
+    TierPlan,
+    endpoint_plan,
+    geo_plan,
+    global_plan,
+    route_plan,
 )
 from guard_core.core.checks.base import SecurityCheck
 from guard_core.core.checks.endpoint_limit_keys import EndpointLimitKeyMap
@@ -30,15 +36,10 @@ from guard_core.core.checks.helpers import (
     route_config_applies,
 )
 from guard_core.core.checks.route_prefixes import warn_unmatched_endpoint_keys
-from guard_core.core.events.event_types import (
-    EVENT_DECORATOR_VIOLATION,
-    EVENT_DYNAMIC_RULE_VIOLATION,
-)
 from guard_core.decorators.base import RouteConfig
 from guard_core.handlers.cors_handler import ALLOWED_PREFLIGHT_REQUEST_HEADER
 from guard_core.handlers.ratelimit_handler import (
     RateLimitBlock,
-    RateLimitTier,
     forget_shared_violations,
     record_shared_violation,
 )
@@ -84,19 +85,6 @@ def _rate_limit_applies(
         or route_config_applies(route_configs, _route_rate_limit_configured)
         or config.enable_dynamic_rules
     )
-
-
-def _route_bucket_key(request: GuardRequest) -> str:
-    # A pluggable route resolver can return a route config without a route id.
-    route_id = getattr(request.state, "guard_route_id", None)
-    return route_id if isinstance(route_id, str) and route_id else request.url_path
-
-
-class _TierPlan(NamedTuple):
-    tier: RateLimitTier
-    event_type: str | None
-    event_kwargs: dict[str, Any]
-    trigger_info: str
 
 
 class RateLimitCheck(SecurityCheck):
@@ -273,7 +261,7 @@ class RateLimitCheck(SecurityCheck):
             identity,
         )
 
-    def _endpoint_plans(self, request: GuardRequest) -> list[_TierPlan]:
+    def _endpoint_plans(self, request: GuardRequest) -> list[TierPlan]:
         limits = self.config.endpoint_rate_limits
         if not limits:
             return []
@@ -285,107 +273,23 @@ class RateLimitCheck(SecurityCheck):
             )
         ]
 
-    def _endpoint_plan(self, endpoint_key: str, limit: tuple[int, int]) -> _TierPlan:
-        rate_limit, window = limit
-        safe_endpoint = redact_endpoint_for_display(
-            endpoint_key,
-            self.config.log_sensitive_params,
-            self.config.log_sensitive_body_fields,
-            self.config.log_sensitive_headers,
-        )
-        reason = (
-            f"Endpoint-specific rate limit exceeded: {rate_limit} "
-            f"requests per {window}s for {safe_endpoint}"
-        )
-        return _TierPlan(
-            RateLimitTier("endpoint", rate_limit, window, endpoint_key),
-            EVENT_DYNAMIC_RULE_VIOLATION,
-            {
-                "reason": reason,
-                "rule_type": "endpoint_rate_limit",
-                "endpoint": safe_endpoint,
-                "rate_limit": rate_limit,
-                "window": window,
-            },
-            reason,
-        )
+    def _endpoint_plan(self, endpoint_key: str, limit: tuple[int, int]) -> TierPlan:
+        return endpoint_plan(self.config, endpoint_key, limit)
 
-    def _route_plan(self, request: GuardRequest, route_config: Any) -> _TierPlan | None:
-        if not route_config or route_config.rate_limit is None:
-            return None
-
-        window = route_config.rate_limit_window or 60
-        reason = (
-            f"Route-specific rate limit exceeded: "
-            f"{route_config.rate_limit} requests per {window}s"
-        )
-        return _TierPlan(
-            RateLimitTier(
-                "route", route_config.rate_limit, window, _route_bucket_key(request)
-            ),
-            EVENT_DECORATOR_VIOLATION,
-            {
-                "reason": reason,
-                "decorator_type": "rate_limiting",
-                "violation_type": "rate_limit",
-                "rate_limit": route_config.rate_limit,
-                "window": window,
-            },
-            reason,
-        )
+    def _route_plan(self, request: GuardRequest, route_config: Any) -> TierPlan | None:
+        return route_plan(request, route_config)
 
     def _geo_plan(
         self, request: GuardRequest, client_ip: str, route_config: Any
-    ) -> _TierPlan | None:
-        if not route_config or not route_config.geo_rate_limits:
-            return None
+    ) -> TierPlan | None:
+        return geo_plan(self.middleware, request, client_ip, route_config)
 
-        geo_handler = self.middleware.geo_ip_handler
-        if not geo_handler:
-            return None
-
-        country = geo_handler.get_country(client_ip)
-        limits = route_config.geo_rate_limits
-
-        if country and country in limits:
-            rate_limit, window = limits[country]
-        elif "*" in limits:
-            rate_limit, window = limits["*"]
-        else:
-            return None
-
-        reason = (
-            f"Geo rate limit exceeded for {country or 'unknown'}: "
-            f"{rate_limit} requests per {window}s"
-        )
-        return _TierPlan(
-            RateLimitTier("geo", rate_limit, window, _route_bucket_key(request)),
-            EVENT_DECORATOR_VIOLATION,
-            {
-                "reason": reason,
-                "decorator_type": "geo_rate_limiting",
-                "violation_type": "geo_rate_limit",
-                "rate_limit": rate_limit,
-                "window": window,
-            },
-            reason,
-        )
-
-    def _global_plan(self) -> _TierPlan | None:
-        if not self.config.enable_rate_limiting:
-            return None
-        return _TierPlan(
-            RateLimitTier(
-                "global", self.config.rate_limit, self.config.rate_limit_window
-            ),
-            None,
-            {},
-            "Global rate limit exceeded",
-        )
+    def _global_plan(self) -> TierPlan | None:
+        return global_plan(self.config)
 
     def _tier_plans(
         self, request: GuardRequest, client_ip: str, route_config: Any
-    ) -> list[_TierPlan]:
+    ) -> list[TierPlan]:
         candidates = [
             *self._endpoint_plans(request),
             self._route_plan(request, route_config),
@@ -395,7 +299,7 @@ class RateLimitCheck(SecurityCheck):
         return [plan for plan in candidates if plan is not None]
 
     def _decorator_sends_rate_limited(
-        self, request: GuardRequest, plan: _TierPlan
+        self, request: GuardRequest, plan: TierPlan
     ) -> bool:
         return (
             plan.event_kwargs.get("decorator_type") == "rate_limiting"
@@ -406,7 +310,7 @@ class RateLimitCheck(SecurityCheck):
         self,
         request: GuardRequest,
         client_ip: str,
-        plan: _TierPlan,
+        plan: TierPlan,
         block: RateLimitBlock,
     ) -> None:
         try:
@@ -452,7 +356,7 @@ class RateLimitCheck(SecurityCheck):
         state = request.state
         client_ip = getattr(state, "client_ip", None)
         route_config = getattr(state, "route_config", None)
-        plans: list[_TierPlan] = []
+        plans: list[TierPlan] = []
         if client_ip and not self._skips_rate_limiting(request, route_config, state):
             if route_config and route_config.geo_rate_limits:
                 await load_geo_database_for_route_rules(self.middleware)
