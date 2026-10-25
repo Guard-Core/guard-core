@@ -88,9 +88,21 @@ CLASS_RULES: list[tuple[str, str]] = [
     ("probe exceeded the", "probe_subprocess_timeout"),
     ("could not construct a test string that", "unreachable_probe"),
     ("Pattern extrapolated CPU cost", "over_budget"),
-    ("probe construction exceeded its deadline", "builder_deadline"),
+    ("exceeded its deadline", "builder_deadline"),
+    ("stray verification exceeded its", "probe_subprocess_timeout"),
+    ("Pattern validation probe failed", "probe_subprocess_timeout"),
+    ("probe returned malformed output", "probe_subprocess_timeout"),
+    ("killable-subprocess failed to run", "probe_subprocess_timeout"),
+    ("killable-subprocess exited unexpectedly", "probe_subprocess_timeout"),
+    ("killable-subprocess returned malformed output", "probe_subprocess_timeout"),
+    ("Pattern validation cannot resolve", "unreachable_probe"),
+    ("budget exceeded", "unreachable_probe"),
     ("Pattern appears safe", "safe"),
 ]
+# Every reason the engine's pattern safety can produce has a class here, pinned by
+# tests/test_safety_reason_classes.py (LEDGER 6.160). The clock and subprocess
+# reasons share probe_subprocess_timeout and the construction give-ups share
+# unreachable_probe: a class of its own would change the published unpinned list.
 
 # A backstop only: the oracle bounds its own work. A pinned over_budget probe
 # spends about 65 s of CPU (five samples at 32000 chars), so a 90 s wall cap
