@@ -1,18 +1,17 @@
+from __future__ import annotations
+
 import logging
 import time
-from typing import BinaryIO
-
-import requests
-from urllib3.response import HTTPResponse
+from typing import TYPE_CHECKING, BinaryIO
 
 from guard_core.sync.handlers._ipinfo_download_cap import (
     reject_declared_size,
     reject_received_size,
 )
-from guard_core.sync.handlers._ipinfo_download_cut import (
-    DownloadCut,
-    RecordingAdapter,
-)
+
+if TYPE_CHECKING:
+    import requests
+    from urllib3.response import HTTPResponse
 
 _TOTAL_BOUND_EXCEEDED = "GeoIP download exceeded the total time bound"
 
@@ -31,6 +30,11 @@ class IpInfoDownloadMixin:
         headers: dict[str, str],
         sink: BinaryIO,
     ) -> None:
+        from guard_core.sync.handlers._ipinfo_download_cut import (
+            DownloadCut,
+            RecordingAdapter,
+        )
+
         cut = DownloadCut(self._download_total_timeout)
         adapter = RecordingAdapter(cut)
         session.mount("http://", adapter)

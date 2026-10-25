@@ -10,7 +10,7 @@ from typing import Any, cast
 import maxminddb
 import pytest
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.ipinfo_handler import IPInfoManager
 from guard_core.sync.handlers.redis_handler import RedisManager
 from tests.geo_fixture import (
@@ -61,7 +61,7 @@ def _spawn_workers(
 
 
 def test_workers_that_adopt_one_copy_at_once_all_adopt_and_the_key_survives(
-    security_config_redis: SecurityConfig, tmp_path: Path
+    security_config_redis: SyncSecurityConfig, tmp_path: Path
 ) -> None:
     handler = RedisManager(security_config_redis)
     handler.initialize()
@@ -153,7 +153,7 @@ def test_every_attempt_gets_its_own_temp_file_next_to_the_database(
 
 
 def test_an_os_error_while_installing_an_adopted_copy_is_a_failed_attempt_only(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SyncSecurityConfig,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

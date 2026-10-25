@@ -241,6 +241,8 @@ class IPInfoManager(
             self._release_download_lock(self._copy_handlers())
 
     def _download_database_file(self, headers: dict[str, str]) -> None:
+        import requests
+
         tmp_path = self._database_tmp_path()
         try:
             with open(tmp_path, "wb") as sink:

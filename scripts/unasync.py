@@ -318,6 +318,8 @@ _ASYNC_DOWNLOAD_BODY_SRC = (
     "        headers: dict[str, str],\n"
     "        sink: BinaryIO,\n"
     "    ) -> None:\n"
+    "        import aiohttp\n"
+    "\n"
     "        timeout = aiohttp.ClientTimeout(\n"
     "            sock_connect=self._download_connect_timeout,\n"
     "            sock_read=self._download_read_timeout,\n"
@@ -346,6 +348,11 @@ _SYNC_DOWNLOAD_BODY_REPLACEMENT = (
     "        headers: dict[str, str],\n"
     "        sink: BinaryIO,\n"
     "    ) -> None:\n"
+    "        from guard_core.sync.handlers._ipinfo_download_cut import (\n"
+    "            DownloadCut,\n"
+    "            RecordingAdapter,\n"
+    "        )\n"
+    "\n"
     "        cut = DownloadCut(self._download_total_timeout)\n"
     "        adapter = RecordingAdapter(cut)\n"
     '        session.mount("http://", adapter)\n'
@@ -488,20 +495,21 @@ SUBS: list[tuple[str, str]] = [
     (r"from redis\.asyncio import Redis", "from redis import Redis"),
     (r"redis\.asyncio", "redis"),
     (
-        r"import logging\nfrom typing import BinaryIO\n\nimport aiohttp\n\n"
+        r"from __future__ import annotations\n\nimport logging\n"
+        r"from typing import TYPE_CHECKING, BinaryIO\n\n"
         r"from guard_core\.sync\.handlers\._ipinfo_download_cap import \(\n"
-        r"    reject_declared_size,\n    reject_received_size,\n\)\n\n\n"
+        r"    reject_declared_size,\n    reject_received_size,\n\)\n\n"
+        r"if TYPE_CHECKING:\n    import aiohttp\n\n\n"
         r"class IpInfoDownloadMixin",
-        "import logging\nimport time\nfrom typing import BinaryIO\n\nimport requests\n"
-        "from urllib3.response import HTTPResponse\n\n"
+        "from __future__ import annotations\n\nimport logging\nimport time\n"
+        "from typing import TYPE_CHECKING, BinaryIO\n\n"
         "from guard_core.sync.handlers._ipinfo_download_cap import (\n"
         "    reject_declared_size,\n"
         "    reject_received_size,\n"
-        ")\n"
-        "from guard_core.sync.handlers._ipinfo_download_cut import (\n"
-        "    DownloadCut,\n"
-        "    RecordingAdapter,\n"
         ")\n\n"
+        "if TYPE_CHECKING:\n"
+        "    import requests\n"
+        "    from urllib3.response import HTTPResponse\n\n"
         '_TOTAL_BOUND_EXCEEDED = "GeoIP download exceeded the total time bound"\n\n\n'
         "class IpInfoDownloadMixin",
     ),

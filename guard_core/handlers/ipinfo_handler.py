@@ -242,6 +242,8 @@ class IPInfoManager(
             await self._release_download_lock(self._copy_handlers())
 
     async def _download_database_file(self, headers: dict[str, str]) -> None:
+        import aiohttp
+
         tmp_path = self._database_tmp_path()
         try:
             with open(tmp_path, "wb") as sink:
@@ -258,7 +260,6 @@ class IPInfoManager(
         backoff = 1
 
         require_downloader_installed("geo", "Downloading the GeoIP database")
-        import aiohttp
 
         for attempt in range(retries):
             try:

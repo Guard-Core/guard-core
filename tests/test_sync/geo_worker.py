@@ -6,7 +6,7 @@ import sys
 import time
 from pathlib import Path
 
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.ipinfo_handler import IPInfoManager
 from guard_core.sync.handlers.redis_handler import RedisManager
 
@@ -17,7 +17,7 @@ def main(mode: str, url: str, prefix: str, db: str, start: float) -> None:
     manager._max_age = 3600
     handler = None
     if mode == "adopt":
-        config = SecurityConfig(
+        config = SyncSecurityConfig(
             redis_url=url,
             redis_prefix=prefix,
             enable_redis=True,

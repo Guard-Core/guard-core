@@ -1,12 +1,15 @@
-import logging
-from typing import BinaryIO
+from __future__ import annotations
 
-import aiohttp
+import logging
+from typing import TYPE_CHECKING, BinaryIO
 
 from guard_core.handlers._ipinfo_download_cap import (
     reject_declared_size,
     reject_received_size,
 )
+
+if TYPE_CHECKING:
+    import aiohttp
 
 
 class IpInfoDownloadMixin:
@@ -23,6 +26,8 @@ class IpInfoDownloadMixin:
         headers: dict[str, str],
         sink: BinaryIO,
     ) -> None:
+        import aiohttp
+
         timeout = aiohttp.ClientTimeout(
             sock_connect=self._download_connect_timeout,
             sock_read=self._download_read_timeout,
