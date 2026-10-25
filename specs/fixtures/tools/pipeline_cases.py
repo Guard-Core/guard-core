@@ -10,9 +10,9 @@ rate-limit 429 + Retry-After, IP-gate 403 "Forbidden".
 
 from __future__ import annotations
 
-from typing import Any
+from fixture_types import PipelineCaseInput, PipelineStep
 
-PIPELINE_SUITES: dict[str, list[dict[str, Any]]] = {}
+PIPELINE_SUITES: dict[str, list[PipelineCaseInput]] = {}
 
 IP = "192.0.2.10"
 IP_OTHER = "192.0.2.11"
@@ -311,7 +311,7 @@ PIPELINE_SUITES["pipeline_detection_response"] = [
     },
     {
         "id": "attack_custom_error_response_overrides_body",
-        "config": {"custom_error_responses": {400: "custom detection body"}},
+        "config": {"custom_error_responses": {"400": "custom detection body"}},
         "drives": [
             {"client_ip": IP, "url_path": "/api", "body": ATTACK},
         ],
@@ -611,8 +611,8 @@ def _modifier_drive(
     method: str = "GET",
     status: int = 200,
     headers: dict[str, str] | None = None,
-) -> dict[str, Any]:
-    drive: dict[str, Any] = {
+) -> PipelineStep:
+    drive: PipelineStep = {
         "client_ip": IP,
         "url_path": "/api",
         "stage": "process_response",

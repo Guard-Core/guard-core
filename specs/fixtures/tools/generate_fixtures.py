@@ -7,19 +7,20 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
 
 import events_harness
 import pipeline_harness
 from events_cases import EVENTS_SUITES
 from events_harness import EVENT_DROP_KEYS, run_events_case
+from fixture_types import EventsCase, PipelineCase, RedisCase
 from pipeline_cases import PIPELINE_SUITES
 from pipeline_harness import run_case
 from redis_interop_cases import REDIS_SUITES, run_redis_case
-from run_fixtures import STAGED_FIELDS
+from run_fixtures import STAGED_FIELDS, canonical_threats, normalize
 
 from guard_core import __version__ as engine_version
 from guard_core.handlers.suspatterns_handler import (
+    SusPatternsManager,
     sus_patterns_handler,
 )
 from guard_core.models import SecurityConfig
@@ -471,32 +472,8 @@ REDIS_SUITE_DOC = (
 )
 
 
-def normalize(value: Any) -> Any:
-    if isinstance(value, dict):
-        return {
-            key: normalize(item) for key, item in value.items() if key not in DROP_KEYS
-        }
-    if isinstance(value, list):
-        return [normalize(item) for item in value]
-    if isinstance(value, float):
-        return round(value, 6)
-    return value
-
-
-def canonical_threats(threats: list[dict]) -> list[dict]:
-    return sorted(
-        threats,
-        key=lambda t: (
-            str(t.get("category", "")),
-            str(t.get("pattern", "")),
-            t.get("position", 0) if isinstance(t.get("position"), int) else 0,
-            str(t.get("type", "")),
-        ),
-    )
-
-
 async def run_detect_suite(
-    manager: Any, suite_name: str, cases: list[tuple[str, str, str]]
+    manager: SusPatternsManager, suite_name: str, cases: list[tuple[str, str, str]]
 ) -> list[dict]:
     entries = []
     for case_id, context, content in cases:
@@ -520,7 +497,7 @@ async def run_detect_suite(
     return entries
 
 
-async def run_binary_suite(manager: Any) -> list[dict]:
+async def run_binary_suite(manager: SusPatternsManager) -> list[dict]:
     entries = []
     for item in BINARY_INPUTS:
         case_id = item["id"]
@@ -578,17 +555,17 @@ async def run_corpus(
             "cases": entries,
         }
     if only in (None, "pipeline"):
-        for suite_name, suite_cases in PIPELINE_SUITES.items():
-            observed = []
-            for case in suite_cases:
-                records = await run_case(case)
-                observed.append(
+        for suite_name, pipeline_cases in PIPELINE_SUITES.items():
+            pipeline_observed: list[PipelineCase] = []
+            for pipeline_case in pipeline_cases:
+                records = await run_case(pipeline_case)
+                pipeline_observed.append(
                     {
-                        "id": case["id"],
-                        "config": case.get("config", {}),
-                        "geo_countries": case.get("geo_countries", {}),
-                        "routes": case.get("routes", {}),
-                        "drives": case["drives"],
+                        "id": pipeline_case["id"],
+                        "config": pipeline_case.get("config", {}),
+                        "geo_countries": pipeline_case.get("geo_countries", {}),
+                        "routes": pipeline_case.get("routes", {}),
+                        "drives": pipeline_case["drives"],
                         "expected": records,
                     }
                 )
@@ -597,45 +574,45 @@ async def run_corpus(
                 "kind": "pipeline",
                 "spec_version": SPEC_VERSION,
                 "engine_version": engine_version,
-                "cases": observed,
+                "cases": pipeline_observed,
             }
     if only in (None, "events"):
-        for suite_name, suite_cases in EVENTS_SUITES.items():
-            observed = []
-            for case in suite_cases:
-                envelopes = await run_events_case(case)
-                entry: dict[str, Any] = {
-                    "id": case["id"],
-                    "config": case.get("config", {}),
-                    "geo_countries": case.get("geo_countries", {}),
-                    "routes": case.get("routes", {}),
-                    "drives": case["drives"],
+        for suite_name, events_cases in EVENTS_SUITES.items():
+            events_observed: list[EventsCase] = []
+            for events_case in events_cases:
+                envelopes = await run_events_case(events_case)
+                entry: EventsCase = {
+                    "id": events_case["id"],
+                    "config": events_case.get("config", {}),
+                    "geo_countries": events_case.get("geo_countries", {}),
+                    "routes": events_case.get("routes", {}),
+                    "drives": events_case["drives"],
                     "expected": envelopes,
                 }
-                if case.get("xfail"):
+                if events_case.get("xfail"):
                     entry["xfail"] = True
-                    entry["xfail_reason"] = case["xfail_reason"]
-                observed.append(entry)
+                    entry["xfail_reason"] = events_case["xfail_reason"]
+                events_observed.append(entry)
             results[suite_name] = {
                 "suite": suite_name,
                 "kind": "events",
                 "spec_version": SPEC_VERSION,
                 "engine_version": engine_version,
                 "doc": EVENTS_SUITE_DOC,
-                "cases": observed,
+                "cases": events_observed,
             }
     if only in (None, "redis"):
-        for suite_name, suite_cases in REDIS_SUITES.items():
-            observed = []
-            for case in suite_cases:
-                observed.append(await run_redis_case(case))
+        for suite_name, redis_cases in REDIS_SUITES.items():
+            redis_observed: list[RedisCase] = []
+            for redis_case in redis_cases:
+                redis_observed.append(await run_redis_case(redis_case))
             results[suite_name] = {
                 "suite": suite_name,
                 "kind": "redis_interop",
                 "spec_version": SPEC_VERSION,
                 "engine_version": engine_version,
                 "doc": REDIS_SUITE_DOC,
-                "cases": observed,
+                "cases": redis_observed,
             }
     return results
 

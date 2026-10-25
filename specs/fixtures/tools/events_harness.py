@@ -45,8 +45,15 @@ import tempfile
 from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
 
+from fixture_types import (
+    ConfigCarrier,
+    EventsCaseInput,
+    EventsStep,
+    JsonObject,
+    JsonValue,
+    RulePayload,
+)
 from pipeline_harness import (
     CONFIG_KEYS as PIPELINE_CONFIG_KEYS,
 )
@@ -60,6 +67,7 @@ from pipeline_harness import (
     _StubResponse,
     _StubRouteResolver,
     create_harness_error_response,
+    endpoint_limit_windows,
     replace_member,
     reset_check_samplers,
 )
@@ -74,6 +82,7 @@ from guard_core.core.responses.factory import ErrorResponseFactory
 from guard_core.core.validation.context import ValidationContext
 from guard_core.core.validation.validator import RequestValidator
 from guard_core.decorators.base import BaseSecurityDecorator
+from guard_core.decorators.route_config import RouteConfig, RouteConfigRevision
 from guard_core.handlers.behavior_handler import BehaviorRule, BehaviorTracker
 from guard_core.handlers.cloud_handler import cloud_handler
 from guard_core.handlers.dynamic_rule_handler import DynamicRuleManager
@@ -85,6 +94,7 @@ from guard_core.handlers.security_headers_handler import security_headers_manage
 from guard_core.handlers.suspatterns_handler import sus_patterns_handler
 from guard_core.models import DynamicRules, SecurityConfig
 from guard_core.protocols.redis_protocol import RedisHandlerProtocol
+from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse
 
 EVENTS_REDIS_PREFIX = "guard_core:corpus_evts:"
@@ -165,7 +175,7 @@ EVENTS_ROUTE_KEYS = ROUTE_KEYS + (
 )
 
 
-def _normalize(value: Any) -> Any:
+def _normalize(value: JsonValue) -> JsonValue:
     if isinstance(value, dict):
         return {
             key: _normalize(item)
@@ -181,10 +191,11 @@ def _normalize(value: Any) -> Any:
     return value
 
 
-def event_envelope(event: Any) -> dict[str, Any]:
+def event_envelope(event: object) -> JsonObject:
     """Full envelope of a captured SecurityEvent minus volatile fields."""
-    if hasattr(event, "model_dump"):
-        data: dict[str, Any] = event.model_dump(mode="json")
+    dump_event = getattr(event, "model_dump", None)
+    if dump_event is not None:
+        data: JsonObject = dump_event(mode="json")
     else:
         # Fault-injected engines emit plain namespace objects built over
         # class attributes (monitor/preprocessor events); collect the
@@ -205,7 +216,8 @@ def event_envelope(event: Any) -> dict[str, Any]:
                 if not key.startswith("_")
             }
         )
-    result: dict[str, Any] = _normalize(data)
+    result = _normalize(data)
+    assert isinstance(result, dict)
     metadata = result.get("metadata")
     if isinstance(metadata, dict):
         for key in EVENT_VOLATILE_METADATA.get(str(result.get("event_type")), ()):
@@ -216,16 +228,16 @@ def event_envelope(event: Any) -> dict[str, Any]:
 class CapturingAgentHandler:
     """Agent-handler double that records full event envelopes to a sink."""
 
-    def __init__(self, sink: list[dict[str, Any]]) -> None:
+    def __init__(self, sink: list[JsonObject]) -> None:
         self._sink = sink
 
-    async def send_event(self, event: Any) -> None:
+    async def send_event(self, event: object) -> None:
         self._sink.append(event_envelope(event))
 
     async def initialize_redis(self, redis_handler: RedisHandlerProtocol) -> None:
         return None
 
-    async def send_metric(self, metric: Any) -> None:
+    async def send_metric(self, metric: object) -> None:
         return None
 
     async def start(self) -> None:
@@ -237,7 +249,7 @@ class CapturingAgentHandler:
     async def flush_buffer(self) -> None:
         return None
 
-    async def get_dynamic_rules(self) -> Any | None:
+    async def get_dynamic_rules(self) -> DynamicRules | None:
         return None
 
     async def health_check(self) -> bool:
@@ -247,7 +259,7 @@ class CapturingAgentHandler:
 class _CorpusRulesAgent(CapturingAgentHandler):
     """Capturing handler that also serves one fixed dynamic-rules payload."""
 
-    def __init__(self, sink: list[dict[str, Any]], rules: DynamicRules) -> None:
+    def __init__(self, sink: list[JsonObject], rules: DynamicRules) -> None:
         super().__init__(sink)
         self._rules = rules
 
@@ -266,30 +278,31 @@ class _EventsResponseFactory(_HarnessResponseFactory):
 _EVENTS_RESPONSE_FACTORY = _EventsResponseFactory()
 
 
-async def corpus_reject_all(request: Any) -> _StubResponse:
+async def corpus_reject_all(request: GuardRequest) -> _StubResponse:
     return _StubResponse(418, "corpus rejected")
 
 
 _CUSTOM_REQUEST_MARKERS = {"corpus_reject_all": corpus_reject_all}
 
 
-def _make_events_config(case: dict[str, Any], geo: _StubGeoHandler) -> SecurityConfig:
-    overrides: dict[str, Any] = dict(DEFAULT_STATE)
-    case_config = dict(case.get("config", {}))
-    marker = case_config.get("custom_request_check")
-    if marker in _CUSTOM_REQUEST_MARKERS:
-        case_config["custom_request_check"] = _CUSTOM_REQUEST_MARKERS[marker]
+def _make_events_config(case: ConfigCarrier, geo: _StubGeoHandler) -> SecurityConfig:
+    overrides: dict[str, object] = dict(DEFAULT_STATE)
     overrides.update(
-        {key: value for key, value in case_config.items() if key in EVENTS_CONFIG_KEYS}
+        {
+            key: value
+            for key, value in case.get("config", {}).items()
+            if key in EVENTS_CONFIG_KEYS
+        }
     )
+    marker = overrides.get("custom_request_check")
+    if isinstance(marker, str) and marker in _CUSTOM_REQUEST_MARKERS:
+        overrides["custom_request_check"] = _CUSTOM_REQUEST_MARKERS[marker]
     if overrides.get("blocked_countries") or overrides.get("whitelist_countries"):
         overrides["geo_ip_handler"] = geo
-    if "endpoint_rate_limits" in overrides:
-        overrides["endpoint_rate_limits"] = {
-            path: tuple(limit_window)
-            for path, limit_window in overrides["endpoint_rate_limits"].items()
-        }
-    return SecurityConfig(**overrides)
+    limits = overrides.get("endpoint_rate_limits")
+    if isinstance(limits, dict):
+        overrides["endpoint_rate_limits"] = endpoint_limit_windows(limits)
+    return SecurityConfig.model_validate(overrides)
 
 
 _SET_VALUED_ROUTE_KEYS = {
@@ -301,19 +314,19 @@ _SET_VALUED_ROUTE_KEYS = {
 }
 
 
-def _build_events_route(path: str, overrides: dict[str, Any]) -> Any:
+def _build_events_route(path: str, overrides: JsonObject) -> RouteConfig:
     """Route config from JSON overrides under the events route-key
     allow-list (pipeline ROUTE_KEYS plus the decorator knobs the events
     scenarios need)."""
-    from guard_core.decorators.route_config import RouteConfig, RouteConfigRevision
-
     route_config = RouteConfig(RouteConfigRevision())
     for key, value in overrides.items():
         if key not in EVENTS_ROUTE_KEYS:
             continue
+        route_value: object = value
         if key in _SET_VALUED_ROUTE_KEYS:
-            value = set(value)
-        setattr(route_config, key, value)
+            assert isinstance(value, list)
+            route_value = set(value)
+        setattr(route_config, key, route_value)
     return route_config
 
 
@@ -325,8 +338,8 @@ class _EventsMiddleware:
         self,
         config: SecurityConfig,
         rate_limit_handler: RateLimitManager,
-        geo_ip_handler: Any,
-        routes: dict[str, Any],
+        geo_ip_handler: _StubGeoHandler,
+        routes: dict[str, RouteConfig],
         event_bus: SecurityEventBus,
         agent_handler: CapturingAgentHandler,
     ) -> None:
@@ -363,7 +376,7 @@ class _EventsMiddleware:
         return None
 
 
-def _rule_from_payload(payload: dict[str, Any]) -> BehaviorRule:
+def _rule_from_payload(payload: RulePayload) -> BehaviorRule:
     return BehaviorRule(
         rule_type=payload["rule_type"],
         threshold=payload["threshold"],
@@ -373,19 +386,18 @@ def _rule_from_payload(payload: dict[str, Any]) -> BehaviorRule:
     )
 
 
-def _rules_from_payload(payload: dict[str, Any]) -> DynamicRules:
-    return DynamicRules(
-        timestamp=datetime(2026, 1, 1, tzinfo=timezone.utc),
-        **payload,
+def _rules_from_payload(payload: JsonObject) -> DynamicRules:
+    return DynamicRules.model_validate(
+        {"timestamp": datetime(2026, 1, 1, tzinfo=timezone.utc), **payload}
     )
 
 
 class EventsCase:
     """One events case: fresh engine state, sequential steps."""
 
-    def __init__(self, case: dict[str, Any]) -> None:
+    def __init__(self, case: EventsCaseInput) -> None:
         self.case = case
-        self.sink: list[dict[str, Any]] = []
+        self.sink: list[JsonObject] = []
         self.agent = CapturingAgentHandler(self.sink)
         self.geo = _StubGeoHandler(case.get("geo_countries", {}))
         self.config = _make_events_config(case, self.geo)
@@ -418,7 +430,7 @@ class EventsCase:
         await self.rate_limit_handler.reset()
         await self.rate_limit_handler.initialize_agent(self.agent)
 
-    async def _drive(self, step: dict[str, Any]) -> None:
+    async def _drive(self, step: EventsStep) -> None:
         request = _PipelineRequest(step)
         if step.get("guard_route_unresolved"):
             request.state.guard_route_unresolved = True
@@ -428,7 +440,7 @@ class EventsCase:
             del request.state.client_ip
         await self.pipeline.execute(request)
 
-    async def _call(self, step: dict[str, Any]) -> None:
+    async def _call(self, step: EventsStep) -> None:
         op = step["call"]
         handler = getattr(self, f"_call_{op}", None)
         if handler is None:
@@ -437,28 +449,28 @@ class EventsCase:
 
     # ---- handler calls (one per event emitted outside the bus) ----
 
-    async def _call_ban_ip(self, step: dict[str, Any]) -> None:
+    async def _call_ban_ip(self, step: EventsStep) -> None:
         await ip_ban_manager.initialize_agent(self.agent)
         await ip_ban_manager.ban_ip(
             step["ip"], step.get("duration", 3600), step.get("reason", "corpus_ban")
         )
 
-    async def _call_unban_ip(self, step: dict[str, Any]) -> None:
+    async def _call_unban_ip(self, step: EventsStep) -> None:
         await ip_ban_manager.unban_ip(step["ip"])
 
-    async def _call_ipban_fault(self, step: dict[str, Any]) -> None:
+    async def _call_ipban_fault(self, step: EventsStep) -> None:
         async def _raising_ban(ip: str, duration: int, reason: str) -> bool:
             raise RuntimeError("corpus injected ban failure")
 
         replace_member(ip_ban_manager, "ban_ip", _raising_ban)
 
-    async def _call_detect(self, step: dict[str, Any]) -> None:
+    async def _call_detect(self, step: EventsStep) -> None:
         await sus_patterns_handler.initialize_agent(self.agent)
         await sus_patterns_handler.detect(
             step["content"], step.get("ip", "203.0.113.7"), step.get("context", "body")
         )
 
-    async def _call_add_pattern(self, step: dict[str, Any]) -> None:
+    async def _call_add_pattern(self, step: EventsStep) -> None:
         await sus_patterns_handler.initialize_agent(self.agent)
         sus_patterns_handler.custom_patterns.clear()
         sus_patterns_handler.compiled_custom_patterns.clear()
@@ -466,7 +478,7 @@ class EventsCase:
         if not added:
             raise RuntimeError(f"corpus pattern rejected: {step['pattern']!r}")
 
-    async def _call_remove_pattern(self, step: dict[str, Any]) -> None:
+    async def _call_remove_pattern(self, step: EventsStep) -> None:
         import re
 
         await sus_patterns_handler.initialize_agent(self.agent)
@@ -483,7 +495,7 @@ class EventsCase:
         if not removed:
             raise RuntimeError(f"corpus pattern not removed: {pattern!r}")
 
-    async def _call_monitor_anomaly(self, step: dict[str, Any]) -> None:
+    async def _call_monitor_anomaly(self, step: EventsStep) -> None:
         from guard_core.detection_engine.monitor import PerformanceMonitor
 
         monitor = PerformanceMonitor(
@@ -501,10 +513,10 @@ class EventsCase:
                 agent_handler=self.agent,
             )
 
-    async def _call_monitor_callback_fault(self, step: dict[str, Any]) -> None:
+    async def _call_monitor_callback_fault(self, step: EventsStep) -> None:
         from guard_core.detection_engine.monitor import PerformanceMonitor
 
-        def _raising_callback(anomaly: dict[str, Any]) -> None:
+        def _raising_callback(anomaly: dict[str, object]) -> None:
             raise RuntimeError("corpus injected callback failure")
 
         monitor = PerformanceMonitor(min_samples_for_anomaly=10)
@@ -517,7 +529,7 @@ class EventsCase:
             agent_handler=self.agent,
         )
 
-    async def _call_dynamic_rules(self, step: dict[str, Any]) -> None:
+    async def _call_dynamic_rules(self, step: EventsStep) -> None:
         DynamicRuleManager._instance = None  # corpus reset
         manager = DynamicRuleManager(self.config)
         rules = _rules_from_payload(step["rules"])
@@ -529,17 +541,17 @@ class EventsCase:
             if not step.get("keep_applied"):
                 DynamicRuleManager._instance = None
 
-    async def _call_wire_pattern_events(self, step: dict[str, Any]) -> None:
+    async def _call_wire_pattern_events(self, step: EventsStep) -> None:
         await sus_patterns_handler.initialize_agent(self.agent)
 
-    async def _call_decorator_event(self, step: dict[str, Any]) -> None:
+    async def _call_decorator_event(self, step: EventsStep) -> None:
         request = _PipelineRequest(step)
         decorator = BaseSecurityDecorator(self.config)
         await decorator.initialize_agent(self.agent, self.geo)
         sender = getattr(decorator, step["send"])
         await sender(request, **step.get("kwargs", {}))
 
-    async def _call_behavior_action(self, step: dict[str, Any]) -> None:
+    async def _call_behavior_action(self, step: EventsStep) -> None:
         tracker = BehaviorTracker(self.config)
         await tracker.initialize_agent(self.agent)
         rule = _rule_from_payload(step["rule"])
@@ -550,18 +562,18 @@ class EventsCase:
             step.get("details", "Usage threshold exceeded: 1 calls in 60s"),
         )
 
-    async def _call_csp_report(self, step: dict[str, Any]) -> None:
+    async def _call_csp_report(self, step: EventsStep) -> None:
         await security_headers_manager.initialize_agent(self.agent)
         valid = await security_headers_manager.validate_csp_report(step["report"])
         if not valid:
             raise RuntimeError("corpus CSP report was rejected as invalid")
 
-    async def _call_headers_applied(self, step: dict[str, Any]) -> None:
+    async def _call_headers_applied(self, step: EventsStep) -> None:
         await security_headers_manager.initialize_agent(self.agent)
         security_headers_manager.headers_cache.clear()
         await security_headers_manager.get_headers(step["path"], config=self.config)
 
-    async def _call_geo_country_stub(self, step: dict[str, Any]) -> None:
+    async def _call_geo_country_stub(self, step: EventsStep) -> None:
         handler = IPInfoManager("corpus-token")
         saved = (handler.get_country, handler.agent_handler)
         await handler.initialize_agent(self.agent)
@@ -575,7 +587,7 @@ class EventsCase:
             replace_member(handler, "get_country", saved[0])
             handler.agent_handler = saved[1]
 
-    async def _call_geo_download_failure(self, step: dict[str, Any]) -> None:
+    async def _call_geo_download_failure(self, step: EventsStep) -> None:
         handler = IPInfoManager("corpus-token")
         saved = (
             handler.agent_handler,
@@ -606,7 +618,7 @@ class EventsCase:
             ) = saved
             shutil.rmtree(scratch, ignore_errors=True)
 
-    async def _call_redis_connect(self, step: dict[str, Any]) -> None:
+    async def _call_redis_connect(self, step: EventsStep) -> None:
         await _reset_redis_manager()
         config = self.config.model_copy(
             update={
@@ -623,7 +635,7 @@ class EventsCase:
             manager._closed = True
             await manager._discard_client()
 
-    async def _call_redis_connect_error(self, step: dict[str, Any]) -> None:
+    async def _call_redis_connect_error(self, step: EventsStep) -> None:
         from guard_core.exceptions import GuardRedisError
 
         await _reset_redis_manager()
@@ -642,7 +654,7 @@ class EventsCase:
             return
         raise RuntimeError("corpus expected redis connection failure")
 
-    async def _call_rate_limit_script_reload(self, step: dict[str, Any]) -> None:
+    async def _call_rate_limit_script_reload(self, step: EventsStep) -> None:
         await _flush_events_prefix()
         await _reset_redis_manager()
         config = self.config.model_copy(
@@ -673,7 +685,7 @@ class EventsCase:
             await redis_manager._discard_client()
             await _flush_events_prefix()
 
-    async def _call_bypass(self, step: dict[str, Any]) -> None:
+    async def _call_bypass(self, step: EventsStep) -> None:
         validator = RequestValidator(
             ValidationContext(
                 config=self.config,
@@ -700,14 +712,14 @@ class EventsCase:
         )
         handler = BypassHandler(context)
 
-        async def _call_next(request: Any) -> GuardResponse:
+        async def _call_next(request: GuardRequest) -> GuardResponse:
             return _StubResponse(200, "passthrough")
 
         route_config = self.routes.get(step["url_path"])
         request = _PipelineRequest(step)
         await handler.handle_security_bypass(request, _call_next, route_config)
 
-    async def _call_path_excluded(self, step: dict[str, Any]) -> None:
+    async def _call_path_excluded(self, step: EventsStep) -> None:
         validator = RequestValidator(
             ValidationContext(
                 config=self.config,
@@ -741,8 +753,8 @@ async def _reset_redis_manager() -> None:
 
 
 def _without_timing_noise(
-    case: dict[str, Any], sink: list[dict[str, Any]]
-) -> list[dict[str, Any]]:
+    case: EventsCaseInput, sink: list[JsonObject]
+) -> list[JsonObject]:
     """Drop pattern_anomaly_slow_execution from cases that do not drive the monitor.
 
     The first scan of a process takes 0.1 to 0.17 s while the built-in rows are
@@ -777,7 +789,7 @@ def _pinned_cloud_details(
     return _details
 
 
-async def run_events_case(case: dict[str, Any]) -> list[dict[str, Any]]:
+async def run_events_case(case: EventsCaseInput) -> list[JsonObject]:
     """Drive the case; returns the ordered flat list of event envelopes."""
     harness = EventsCase(case)
     # The cloud and ban handlers are process-global singletons; pin and

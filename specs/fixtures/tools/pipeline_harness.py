@@ -41,8 +41,15 @@ rules).
 from __future__ import annotations
 
 import logging
-from typing import Any
+from collections.abc import Awaitable, Callable, Mapping
+from typing import TypeVar, overload
 
+from fixture_types import (
+    ConfigCarrier,
+    JsonObject,
+    PipelineCaseInput,
+    RequestStep,
+)
 from run_fixtures import STAGED_FIELDS
 
 from guard_core.core.behavioral.context import BehavioralContext
@@ -66,8 +73,13 @@ from guard_core.handlers.behavior_handler import BehaviorTracker
 from guard_core.handlers.ipban_handler import reset_global_state
 from guard_core.handlers.ratelimit_handler import RateLimitManager
 from guard_core.models import SecurityConfig
+from guard_core.protocols.agent_protocol import AgentHandlerProtocol
+from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse
+
+_DefaultT = TypeVar("_DefaultT")
+_ResponseModifier = Callable[[GuardResponse], Awaitable[GuardResponse]]
 
 # JSON config keys applied verbatim as SecurityConfig constructor kwargs.
 # Everything a pipeline case needs is on this allow-list; anything else in
@@ -183,27 +195,27 @@ class _ModifierCalls:
     def __init__(self) -> None:
         self.count = 0
 
-    def header_only(self) -> Any:
-        async def modifier(response: Any) -> Any:
+    def header_only(self) -> _ResponseModifier:
+        async def modifier(response: GuardResponse) -> GuardResponse:
             self.count += 1
             response.headers["X-Modifier"] = "header-only"
             return response
 
         return modifier
 
-    def reads_body(self, marked: bool) -> Any:
-        async def modifier(response: Any) -> Any:
+    def reads_body(self, marked: bool) -> _ResponseModifier:
+        async def modifier(response: GuardResponse) -> GuardResponse:
             self.count += 1
             response.headers[f"X-Call-{self.count}"] = "1"
             try:
-                response.headers["X-Body"] = response.body.decode()
+                response.headers["X-Body"] = (response.body or b"").decode()
             except ResponseBodyUnavailableError:
                 response.headers["X-Body"] = "unavailable"
             return response
 
         return reads_response_body(modifier) if marked else modifier
 
-    def named(self, name: str) -> Any:
+    def named(self, name: str) -> _ResponseModifier:
         if name == "header_only":
             return self.header_only()
         return self.reads_body(marked=name == "reads_body_marked")
@@ -222,7 +234,7 @@ class _RecordingEventBus(SecurityEventBus):
         request: GuardRequest,
         action_taken: str,
         reason: str,
-        **kwargs: Any,
+        **kwargs: object,
     ) -> None:
         self.events.append((str(event_type), str(action_taken)))
 
@@ -251,9 +263,9 @@ class _RecordingOnBlock:
     )
 
     def __init__(self) -> None:
-        self.payloads: list[dict[str, Any]] = []
+        self.payloads: list[JsonObject] = []
 
-    def __call__(self, request: Any, payload: dict[str, Any]) -> None:
+    def __call__(self, request: GuardRequest, payload: JsonObject) -> None:
         self.payloads.append({key: payload.get(key) for key in self.PAYLOAD_KEYS})
 
 
@@ -274,10 +286,10 @@ class _StubGeoHandler:
     async def initialize(self) -> None:
         return None
 
-    async def initialize_redis(self, redis_handler: Any) -> None:
+    async def initialize_redis(self, redis_handler: RedisHandlerProtocol) -> None:
         return None
 
-    async def initialize_agent(self, agent_handler: Any) -> None:
+    async def initialize_agent(self, agent_handler: AgentHandlerProtocol) -> None:
         return None
 
     async def refresh(self) -> None:
@@ -323,7 +335,9 @@ class _HarnessDecorator:
         self.route_config_revision = RouteConfigRevision()
         self.behavior_tracker = BehaviorTracker(config)
 
-    async def initialize_behavior_tracking(self, redis_handler: Any = None) -> None:
+    async def initialize_behavior_tracking(
+        self, redis_handler: RedisHandlerProtocol | None = None
+    ) -> None:
         return None
 
 
@@ -334,7 +348,7 @@ class _HarnessMiddleware:
         self,
         config: SecurityConfig,
         rate_limit_handler: RateLimitManager,
-        geo_ip_handler: Any,
+        geo_ip_handler: _StubGeoHandler,
         routes: dict[str, RouteConfig],
         event_bus: _RecordingEventBus,
         on_block: _RecordingOnBlock,
@@ -374,18 +388,21 @@ class _HarnessResponseFactory:
     """ResponseFactory protocol over _StubResponse (message becomes body)."""
 
     def create_response(
-        self, content: Any, status_code: int, headers: Any = None
+        self,
+        content: object,
+        status_code: int,
+        headers: Mapping[str, str] | None = None,
     ) -> _StubResponse:
         body = content if isinstance(content, (bytes, str)) else str(content)
         return _StubResponse(status_code, body if isinstance(body, str) else "")
 
-    async def create_https_redirect(self, request: Any) -> _StubResponse:
+    async def create_https_redirect(self, request: GuardRequest) -> _StubResponse:
         status_code = 301 if request.method.upper() in ("GET", "HEAD") else 308
         return self.create_redirect_response(
             str(request.url_replace_scheme("https")), status_code
         )
 
-    def create_redirect_response(self, url: Any, status_code: int) -> _StubResponse:
+    def create_redirect_response(self, url: object, status_code: int) -> _StubResponse:
         response = _StubResponse(status_code)
         response.headers["Location"] = str(url)
         return response
@@ -417,23 +434,36 @@ async def create_harness_error_response(
     return response
 
 
-def _build_route(path: str, overrides: dict[str, Any]) -> RouteConfig:
+def _build_route(path: str, overrides: JsonObject) -> RouteConfig:
     route_config = RouteConfig(RouteConfigRevision())
     for key, value in overrides.items():
         if key in ROUTE_KEYS:
+            route_value: object = value
             if key in {
                 "bypassed_checks",
                 "excluded_detection_headers",
                 "excluded_detection_params",
                 "excluded_detection_body_fields",
             }:
-                value = set(value)
-            setattr(route_config, key, value)
+                assert isinstance(value, list)
+                route_value = set(value)
+            setattr(route_config, key, route_value)
     return route_config
 
 
-def _make_config(case: dict[str, Any], geo: _StubGeoHandler) -> SecurityConfig:
-    overrides: dict[str, Any] = dict(DEFAULT_STATE)
+def endpoint_limit_windows(limits: JsonObject) -> dict[str, tuple[int, int]]:
+    windows: dict[str, tuple[int, int]] = {}
+    for path, limit_window in limits.items():
+        assert isinstance(limit_window, list)
+        limit, window = limit_window
+        assert isinstance(limit, int)
+        assert isinstance(window, int)
+        windows[path] = (limit, window)
+    return windows
+
+
+def _make_config(case: ConfigCarrier, geo: _StubGeoHandler) -> SecurityConfig:
+    overrides: dict[str, object] = dict(DEFAULT_STATE)
     overrides.update(
         {
             key: value
@@ -443,24 +473,31 @@ def _make_config(case: dict[str, Any], geo: _StubGeoHandler) -> SecurityConfig:
     )
     if overrides.get("blocked_countries") or overrides.get("whitelist_countries"):
         overrides["geo_ip_handler"] = geo
-    if "endpoint_rate_limits" in overrides:
-        overrides["endpoint_rate_limits"] = {
-            path: tuple(limit_window)
-            for path, limit_window in overrides["endpoint_rate_limits"].items()
-        }
-    return SecurityConfig(**overrides)
+    limits = overrides.get("endpoint_rate_limits")
+    if isinstance(limits, dict):
+        overrides["endpoint_rate_limits"] = endpoint_limit_windows(limits)
+    return SecurityConfig.model_validate(overrides)
 
 
-class _CaseInsensitiveHeaders(dict):
+class _CaseInsensitiveHeaders(dict[str, str]):
     """Header map like the framework adapters': lookup is case-insensitive."""
 
     def __init__(self, items: dict[str, str]) -> None:
         super().__init__({key.lower(): value for key, value in items.items()})
 
-    def get(self, key: str, default: Any = None) -> Any:
+    @overload
+    def get(self, key: str, default: None = None, /) -> str | None: ...
+
+    @overload
+    def get(self, key: str, default: str, /) -> str: ...
+
+    @overload
+    def get(self, key: str, default: _DefaultT, /) -> str | _DefaultT: ...
+
+    def get(self, key: str, default: object = None, /) -> object:
         return super().get(key.lower(), default)
 
-    def __getitem__(self, key: str) -> Any:
+    def __getitem__(self, key: str) -> str:
         return super().__getitem__(key.lower())
 
     def __contains__(self, key: object) -> bool:
@@ -468,7 +505,7 @@ class _CaseInsensitiveHeaders(dict):
 
 
 class _PipelineRequest:
-    def __init__(self, drive: dict[str, Any]) -> None:
+    def __init__(self, drive: RequestStep) -> None:
         self.query_params: dict[str, str] = {}
         self.headers = _CaseInsensitiveHeaders(drive.get("headers", {}))
         self._body: bytes = drive.get("body", "").encode()
@@ -491,10 +528,10 @@ class _PipelineRequest:
         return self._body
 
     @property
-    def scope(self) -> dict[str, Any]:
+    def scope(self) -> dict[str, object]:
         return {}
 
-    def url_replace_scheme(self, scheme: str) -> Any:
+    def url_replace_scheme(self, scheme: str) -> str:
         # Plain string, matching the display redaction path: the engine
         # passes the replaced-scheme URL straight into urlsplit-based
         # redaction, which requires a str.
@@ -504,7 +541,7 @@ class _PipelineRequest:
 class HarnessCase:
     """One pipeline case: fresh engine state, sequential drives."""
 
-    def __init__(self, case: dict[str, Any]) -> None:
+    def __init__(self, case: PipelineCaseInput) -> None:
         self.case = case
         self.geo = _StubGeoHandler(case.get("geo_countries", {}))
         self.on_block = _RecordingOnBlock()
@@ -572,7 +609,7 @@ def reset_check_samplers() -> None:
     suspicious_activity._disabled_detection_samples.clear()
 
 
-async def run_case(case: dict[str, Any]) -> list[dict[str, Any]]:
+async def run_case(case: PipelineCaseInput) -> list[JsonObject]:
     """Drive the case; returns the observed records (one per drive)."""
     await reset_global_state()
     reset_check_samplers()
@@ -587,10 +624,10 @@ async def run_case(case: dict[str, Any]) -> list[dict[str, Any]]:
     harness = HarnessCase(case)
     # Clear the manager's window state so every case starts from a clean slate.
     await harness.rate_limit_handler.reset()
-    observed: list[dict[str, Any]] = []
+    observed: list[JsonObject] = []
     for drive in case["drives"]:
         request = _PipelineRequest(drive)
-        record: dict[str, Any] = {}
+        record: JsonObject = {}
         harness.event_bus.events.clear()
         harness.on_block.payloads.clear()
         stage = drive.get("stage", "pipeline")

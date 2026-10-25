@@ -10,13 +10,18 @@ no deterministic in-process trigger (see its xfail_reason).
 
 from __future__ import annotations
 
-from typing import Any
+from fixture_types import AnomalySample, EventsCaseInput
 
 EVENTS_IP = "203.0.113.10"
 ATTACK = "<script>alert(1)</script>"
 ANOMALY_PATTERN = "corpuspattern-[a-z]+"
+ANOMALY_SAMPLES: list[AnomalySample] = [
+    AnomalySample(pattern=ANOMALY_PATTERN, execution_time=0.08 if i % 2 == 0 else 0.12)
+    for i in range(20)
+]
+ANOMALY_SAMPLES.append({"pattern": ANOMALY_PATTERN, "execution_time": 5.0})
 
-EVENTS_SUITES: dict[str, list[dict[str, Any]]] = {}
+EVENTS_SUITES: dict[str, list[EventsCaseInput]] = {}
 
 EVENTS_SUITES["event_stream"] = [
     # ---- penetration_attempt (active + passive variants) ----
@@ -347,7 +352,6 @@ EVENTS_SUITES["event_stream"] = [
         ),
         "config": {},
         "drives": [],
-        "expected": [],
     },
     # ---- emergency_mode_block ----
     {
@@ -526,14 +530,7 @@ EVENTS_SUITES["event_stream"] = [
                 # Slow-execution ceiling raised above the spike so the
                 # statistical detector is the only anomaly to fire.
                 "slow_pattern_threshold": 10.0,
-                "samples": [
-                    {
-                        "pattern": ANOMALY_PATTERN,
-                        "execution_time": 0.08 if i % 2 == 0 else 0.12,
-                    }
-                    for i in range(20)
-                ]
-                + [{"pattern": ANOMALY_PATTERN, "execution_time": 5.0}],
+                "samples": ANOMALY_SAMPLES,
             }
         ],
     },

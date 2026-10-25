@@ -29,11 +29,22 @@ import os
 import re
 import shutil
 import tempfile
+from collections.abc import Generator, Mapping
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
 
+from fixture_types import (
+    JsonObject,
+    JsonValue,
+    KeyProbe,
+    PinnedKey,
+    RedisArgs,
+    RedisCase,
+    RedisCaseInput,
+    TtlRecord,
+)
 from pipeline_harness import _PipelineRequest, _StubResponse, replace_member
+from redis.asyncio import Redis
 from run_fixtures import STAGED_FIELDS
 
 from guard_core.handlers._cloud_provider_registry import (
@@ -51,6 +62,8 @@ from guard_core.handlers.redis_handler import RedisManager
 from guard_core.handlers.security_headers_handler import security_headers_manager
 from guard_core.handlers.suspatterns_handler import sus_patterns_handler
 from guard_core.models import DynamicRules, SecurityConfig
+
+IPNetwork = ipaddress.IPv4Network | ipaddress.IPv6Network
 
 REDIS_PREFIX = "guard_core:corpus_rio:"
 REDIS_URL = (
@@ -74,13 +87,13 @@ FIXED_CSP_CONFIG = {
     "default-src": ["'self'"],
     "script-src": ["'self'", "https://cdn.example.com"],
 }
-FIXED_HSTS_CONFIG = {"max_age": 31536000, "include_subdomains": True}
+FIXED_HSTS_CONFIG: JsonObject = {"max_age": 31536000, "include_subdomains": True}
 FIXED_CUSTOM_HEADERS = {"X-Corpus-Header": "corpus-value"}
 FIXED_CLOUD_RANGES = ["198.51.100.0/24", "203.0.113.0/24"]
 FIXED_CLOUD_REGIONS = {"203.0.113.0/24": "us-east"}
 FIXED_CLOUD_STORE_RANGES = ["10.0.0.0/8", "192.168.0.0/16", "2001:db8::/32"]
 
-REDIS_SUITES: dict[str, list[dict[str, Any]]] = {}
+REDIS_SUITES: dict[str, list[RedisCaseInput]] = {}
 
 REDIS_SUITES["redis_interop"] = [
     {
@@ -327,15 +340,13 @@ REDIS_SUITES["redis_interop"] = [
 # ---- value/TTL probes ----
 
 
-async def _connect() -> Any:
-    import redis.asyncio as aredis
-
-    client = aredis.from_url(REDIS_URL, decode_responses=True)
+async def _connect() -> Redis:
+    client = Redis.from_url(REDIS_URL, decode_responses=True)
     await client.ping()
     return client
 
 
-async def _flush_prefix(client: Any) -> None:
+async def _flush_prefix(client: Redis) -> None:
     keys = await client.keys(f"{REDIS_PREFIX}*")
     if keys:
         await client.delete(*keys)
@@ -348,7 +359,7 @@ async def _redis_manager(config: SecurityConfig) -> RedisManager:
     return manager
 
 
-def _parse_json(value: str) -> Any:
+def _parse_json(value: str) -> JsonObject | list[JsonValue] | None:
     try:
         parsed = json.loads(value)
     except (TypeError, ValueError):
@@ -356,14 +367,14 @@ def _parse_json(value: str) -> Any:
     return parsed if isinstance(parsed, (dict, list)) else None
 
 
-async def _probe_key(client: Any, key: str) -> dict[str, Any]:
+async def _probe_key(client: Redis, key: str) -> KeyProbe:
     key_type = await client.type(key)
     ttl_seconds = await client.ttl(key)
     if ttl_seconds > 0:
-        ttl: dict[str, Any] = {"set": True, "seconds": int(ttl_seconds)}
+        ttl: TtlRecord = {"set": True, "seconds": int(ttl_seconds)}
     else:
         ttl = {"set": False}
-    record: dict[str, Any] = {"key": key, "type": key_type, "ttl": ttl}
+    record: KeyProbe = {"key": key, "type": key_type, "ttl": ttl}
     if key_type == "string":
         value: str = await client.get(key)
         record["json"] = _parse_json(value) is not None
@@ -377,11 +388,11 @@ async def _probe_key(client: Any, key: str) -> dict[str, Any]:
     return record
 
 
-def _categorize(record: dict[str, Any]) -> dict[str, Any]:
+def _categorize(record: KeyProbe) -> PinnedKey:
     """Turn a raw probe into the pinned expectation, replacing
     engine-generated volatiles with shape pins."""
     key_type = record["type"]
-    pinned: dict[str, Any] = {
+    pinned: PinnedKey = {
         "key": record["key"],
         "type": key_type,
         "ttl": record["ttl"],
@@ -417,9 +428,9 @@ def _categorize(record: dict[str, Any]) -> dict[str, Any]:
 # ---- operations ----
 
 
-def _rio_config(**overrides: Any) -> SecurityConfig:
-    return SecurityConfig(
-        **{
+def _rio_config(**overrides: object) -> SecurityConfig:
+    return SecurityConfig.model_validate(
+        {
             **STAGED_FIELDS,
             "enable_redis": True,
             "redis_url": REDIS_URL,
@@ -429,12 +440,12 @@ def _rio_config(**overrides: Any) -> SecurityConfig:
     )
 
 
-async def _discard(redis_manager: Any) -> None:
+async def _discard(redis_manager: RedisManager) -> None:
     redis_manager._closed = True
     await redis_manager._discard_client()
 
 
-async def _op_rate_limit(args: dict[str, Any]) -> None:
+async def _op_rate_limit(args: RedisArgs) -> None:
     config = _rio_config(enable_rate_limiting=True)
     redis_manager = await _redis_manager(config)
     manager = RateLimitManager(config)
@@ -461,7 +472,7 @@ async def _op_rate_limit(args: dict[str, Any]) -> None:
         await _discard(redis_manager)
 
 
-async def _op_ban_ip(args: dict[str, Any]) -> None:
+async def _op_ban_ip(args: RedisArgs) -> None:
     await reset_global_state()
     config = _rio_config(**args.get("config", {}))
     redis_manager = await _redis_manager(config)
@@ -488,7 +499,7 @@ async def _op_ban_ip(args: dict[str, Any]) -> None:
         await _discard(redis_manager)
 
 
-async def _op_behavior_usage(args: dict[str, Any]) -> None:
+async def _op_behavior_usage(args: RedisArgs) -> None:
     config = _rio_config()
     redis_manager = await _redis_manager(config)
     tracker = BehaviorTracker(config)
@@ -504,7 +515,7 @@ async def _op_behavior_usage(args: dict[str, Any]) -> None:
         await _discard(redis_manager)
 
 
-async def _op_behavior_return(args: dict[str, Any]) -> None:
+async def _op_behavior_return(args: RedisArgs) -> None:
     config = _rio_config()
     redis_manager = await _redis_manager(config)
     tracker = BehaviorTracker(config)
@@ -524,7 +535,7 @@ async def _op_behavior_return(args: dict[str, Any]) -> None:
         await _discard(redis_manager)
 
 
-async def _op_security_headers(args: dict[str, Any]) -> None:
+async def _op_security_headers(args: RedisArgs) -> None:
     config = _rio_config()
     redis_manager = await _redis_manager(config)
     manager = security_headers_manager
@@ -542,7 +553,7 @@ async def _op_security_headers(args: dict[str, Any]) -> None:
         await _discard(redis_manager)
 
 
-async def _op_add_pattern(args: dict[str, Any]) -> None:
+async def _op_add_pattern(args: RedisArgs) -> None:
     config = _rio_config()
     redis_manager = await _redis_manager(config)
     sus_patterns_handler.redis_handler = redis_manager
@@ -559,7 +570,7 @@ async def _op_add_pattern(args: dict[str, Any]) -> None:
         sus_patterns_handler.compiled_custom_patterns.clear()
 
 
-async def _op_ipinfo_database(args: dict[str, Any]) -> None:
+async def _op_ipinfo_database(args: RedisArgs) -> None:
     import aiohttp
 
     handler = IPInfoManager("corpus-token", max_age=args["max_age"])
@@ -592,10 +603,10 @@ async def _op_ipinfo_database(args: dict[str, Any]) -> None:
         async def __aenter__(self) -> _FakeResponse:
             return _FakeResponse(self._content)
 
-        async def __aexit__(self, *exc: Any) -> bool:
+        async def __aexit__(self, *exc: object) -> bool:
             return False
 
-        def __await__(self) -> Any:
+        def __await__(self) -> Generator[object, None, _FakeResponse]:
             # aiohttp request context managers are also directly awaitable.
             async def _resolve() -> _FakeResponse:
                 return _FakeResponse(self._content)
@@ -603,16 +614,16 @@ async def _op_ipinfo_database(args: dict[str, Any]) -> None:
             return _resolve().__await__()
 
     class _FakeSession:
-        def __init__(self, *a: Any, **k: Any) -> None:
+        def __init__(self, *a: object, **k: object) -> None:
             pass
 
         async def __aenter__(self) -> _FakeSession:
             return self
 
-        async def __aexit__(self, *exc: Any) -> bool:
+        async def __aexit__(self, *exc: object) -> bool:
             return False
 
-        def get(self, url: str, headers: Any = None) -> _FakeGet:
+        def get(self, url: str, headers: Mapping[str, str] | None = None) -> _FakeGet:
             return _FakeGet(FAKE_MMDB_BYTES)
 
     original_session = aiohttp.ClientSession
@@ -632,7 +643,7 @@ async def _op_ipinfo_database(args: dict[str, Any]) -> None:
         shutil.rmtree(scratch, ignore_errors=True)
 
 
-async def _op_cloud_ranges(args: dict[str, Any]) -> None:
+async def _op_cloud_ranges(args: RedisArgs) -> None:
     import guard_core.handlers.cloud_handler as cloud_module
 
     config = _rio_config()
@@ -648,11 +659,12 @@ async def _op_cloud_ranges(args: dict[str, Any]) -> None:
     ranges = {ipaddress.ip_network(cidr) for cidr in args["ranges"]}
     regions = dict(args["regions"])
 
-    async def _fixed_fetch(provider: str) -> tuple[set[Any], dict[str, str]]:
+    async def _fixed_fetch(provider: str) -> tuple[set[IPNetwork], dict[str, str]]:
         return set(ranges), dict(regions)
 
     cloud_module._fetch_provider_ranges = _fixed_fetch
     try:
+        assert args["ttl"] is not None
         await cloud_handler.refresh_async(providers=[args["provider"]], ttl=args["ttl"])
     finally:
         (
@@ -663,7 +675,7 @@ async def _op_cloud_ranges(args: dict[str, Any]) -> None:
         await _discard(redis_manager)
 
 
-async def _op_cloud_ip_store(args: dict[str, Any]) -> None:
+async def _op_cloud_ip_store(args: RedisArgs) -> None:
     config = _rio_config()
     redis_manager = await _redis_manager(config)
     store = RedisCloudIpStore(redis_manager)
@@ -673,7 +685,7 @@ async def _op_cloud_ip_store(args: dict[str, Any]) -> None:
         await _discard(redis_manager)
 
 
-async def _op_cloud_ip_store_grammar(args: dict[str, Any]) -> None:
+async def _op_cloud_ip_store_grammar(args: RedisArgs) -> None:
     config = _rio_config()
     redis_manager = await _redis_manager(config)
     store = RedisCloudIpStore(redis_manager)
@@ -689,7 +701,7 @@ async def _op_cloud_ip_store_grammar(args: dict[str, Any]) -> None:
         await _discard(redis_manager)
 
 
-async def _op_cloud_ip_store_refetch(args: dict[str, Any]) -> None:
+async def _op_cloud_ip_store_refetch(args: RedisArgs) -> None:
     import guard_core.handlers.cloud_handler as cloud_module
 
     config = _rio_config()
@@ -705,7 +717,7 @@ async def _op_cloud_ip_store_refetch(args: dict[str, Any]) -> None:
     ranges = {ipaddress.ip_network(cidr) for cidr in args["ranges"]}
     regions = dict(args["regions"])
 
-    async def _fixed_fetch(provider: str) -> tuple[set[Any], dict[str, str]]:
+    async def _fixed_fetch(provider: str) -> tuple[set[IPNetwork], dict[str, str]]:
         return set(ranges), dict(regions)
 
     cloud_module._fetch_provider_ranges = _fixed_fetch
@@ -716,6 +728,7 @@ async def _op_cloud_ip_store_refetch(args: dict[str, Any]) -> None:
             json.dumps(sorted(args["seed"])),
             ttl=args["seed_ttl"],
         )
+        assert args["ttl"] is not None
         await cloud_handler.refresh_async(providers=[args["provider"]], ttl=args["ttl"])
     finally:
         (
@@ -726,7 +739,7 @@ async def _op_cloud_ip_store_refetch(args: dict[str, Any]) -> None:
         await _discard(redis_manager)
 
 
-async def _op_dynamic_rules(args: dict[str, Any]) -> None:
+async def _op_dynamic_rules(args: RedisArgs) -> None:
     config = _rio_config(
         enable_agent=True, agent_api_key="corpus-agent-key", enable_dynamic_rules=True
     )
@@ -744,7 +757,7 @@ async def _op_dynamic_rules(args: dict[str, Any]) -> None:
         async def get_dynamic_rules(self) -> DynamicRules:
             return rules
 
-        async def send_event(self, event: Any) -> None:
+        async def send_event(self, event: object) -> None:
             return None
 
     manager.agent_handler = _RulesAgent()
@@ -771,7 +784,7 @@ _OPERATIONS = {
 }
 
 
-async def run_redis_case(case: dict[str, Any]) -> dict[str, Any]:
+async def run_redis_case(case: RedisCaseInput) -> RedisCase:
     """Execute one operation and pin everything the prefix scan observes."""
     op = _OPERATIONS[case["operation"]["op"]]
     client = await _connect()

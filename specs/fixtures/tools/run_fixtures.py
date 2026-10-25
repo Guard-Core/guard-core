@@ -3,11 +3,26 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from pathlib import Path
-from typing import Any
+from typing import Literal, overload
 
-from guard_core.handlers.suspatterns_handler import sus_patterns_handler
+from fixture_types import (
+    CorpusIndex,
+    DetectCase,
+    EventsCase,
+    JsonObject,
+    JsonValue,
+    PipelineCase,
+    RedisCase,
+    SafetyCase,
+    SuiteCase,
+)
+
+from guard_core.handlers.suspatterns_handler import (
+    SusPatternsManager,
+    sus_patterns_handler,
+)
 from guard_core.models import SecurityConfig
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -18,7 +33,7 @@ FIXED_IP = "203.0.113.7"
 # The fields 5.0.0 flipped or started to warn about. Every tool builds its
 # SecurityConfig with these stated, so a corpus case never depends on the
 # engine's own defaults of the release that runs it (D-84 item 4, LEDGER 6.60).
-STAGED_FIELDS: dict[str, Any] = {
+STAGED_FIELDS: dict[str, bool | int | str] = {
     "enable_redis": False,
     "rate_limit": 10,
     "whitelist_access_only": False,
@@ -35,7 +50,15 @@ TIMED_SAFETY_CLASSES = frozenset(
 LOAD_SHIFTED_SAFETY_CLASS = "probe_subprocess_timeout"
 
 
-def normalize(value: Any) -> Any:
+@overload
+def normalize(value: JsonObject) -> JsonObject: ...
+
+
+@overload
+def normalize(value: JsonValue) -> JsonValue: ...
+
+
+def normalize(value: JsonValue) -> JsonValue:
     if isinstance(value, dict):
         return {
             key: normalize(item) for key, item in value.items() if key not in DROP_KEYS
@@ -47,7 +70,7 @@ def normalize(value: Any) -> Any:
     return value
 
 
-def canonical_threats(threats: list[dict]) -> list[dict]:
+def canonical_threats(threats: list[JsonObject]) -> list[JsonObject]:
     return sorted(
         threats,
         key=lambda t: (
@@ -59,8 +82,10 @@ def canonical_threats(threats: list[dict]) -> list[dict]:
     )
 
 
-async def check_case(manager: Any, suite: str, case: dict) -> str | None:
-    verdict: dict = await manager.detect(
+async def check_case(
+    manager: SusPatternsManager, suite: str, case: DetectCase
+) -> str | None:
+    verdict = await manager.detect(
         case["input"]["content"], FIXED_IP, case["input"]["context"]
     )
     actual = {
@@ -81,7 +106,7 @@ async def check_case(manager: Any, suite: str, case: dict) -> str | None:
     return None
 
 
-async def check_pipeline_case(suite: str, case: dict) -> str | None:
+async def check_pipeline_case(suite: str, case: PipelineCase) -> str | None:
     from pipeline_harness import run_case
 
     observed = await run_case(case)
@@ -101,7 +126,7 @@ async def check_pipeline_case(suite: str, case: dict) -> str | None:
     return None
 
 
-def _matches_prefix_rule(actual: dict, key: str, want_value: Any) -> bool:
+def _matches_prefix_rule(actual: JsonObject, key: str, want_value: JsonValue) -> bool:
     from events_harness import EVENT_PREFIX_RULES
 
     return any(
@@ -113,7 +138,7 @@ def _matches_prefix_rule(actual: dict, key: str, want_value: Any) -> bool:
     )
 
 
-async def check_events_case(suite: str, case: dict) -> str | None:
+async def check_events_case(suite: str, case: EventsCase) -> str | None:
     if case.get("xfail"):
         return None
     from events_harness import run_events_case
@@ -140,7 +165,7 @@ async def check_events_case(suite: str, case: dict) -> str | None:
     return None
 
 
-async def check_redis_case(suite: str, case: dict) -> str | None:
+async def check_redis_case(suite: str, case: RedisCase) -> str | None:
     from redis_interop_cases import run_redis_case
 
     observed = await run_redis_case(case)
@@ -157,21 +182,30 @@ async def check_redis_case(suite: str, case: dict) -> str | None:
     return None
 
 
-def load_index() -> dict[str, Any]:
-    index: dict[str, Any] = json.loads((CASES_DIR / "index.json").read_text())
+def load_index() -> CorpusIndex:
+    index: CorpusIndex = json.loads((CASES_DIR / "index.json").read_text())
     return index
 
 
-def suite_cases(suite_name: str) -> list[dict[str, Any]]:
+@overload
+def suite_cases(suite_name: Literal["safety_gates"]) -> list[SafetyCase]: ...
+
+
+@overload
+def suite_cases(suite_name: str) -> list[SuiteCase]: ...
+
+
+def suite_cases(suite_name: str) -> list[SafetyCase] | list[SuiteCase]:
     suite = json.loads((CASES_DIR / f"{suite_name}.json").read_text())
-    cases: list[dict[str, Any]] = suite["cases"]
+    cases: list[SuiteCase] = suite["cases"]
     return cases
 
 
 def safety_case_failure(
-    case: dict[str, Any], safe: bool, observed_class: str
+    case: Mapping[str, object], safe: bool, observed_class: str
 ) -> str | None:
     want = case["expected"]
+    assert isinstance(want, dict)
     if safe != want["safe"]:
         return f"safety_gates/{case['id']}: safe is {safe}, want {want['safe']}"
     accepted = {want["reason_class"]}
@@ -185,7 +219,7 @@ def safety_case_failure(
     return None
 
 
-async def check_safety_case(suite: str, case: dict[str, Any]) -> str | None:
+async def check_safety_case(suite: str, case: SafetyCase) -> str | None:
     from generate_safety_gates import classify
 
     from guard_core.detection_engine.compiler import PatternCompiler
@@ -219,7 +253,7 @@ async def replay_suites(
     return failures, total
 
 
-async def check_detect_case(suite: str, case: dict[str, Any]) -> str | None:
+async def check_detect_case(suite: str, case: DetectCase) -> str | None:
     return await check_case(sus_patterns_handler, suite, case)
 
 
