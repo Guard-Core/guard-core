@@ -829,6 +829,7 @@ async def run_events_case(case: EventsCaseInput) -> list[JsonObject]:
         # a stale handler would append later suite operations (e.g. the
         # redis interop pattern write) into THIS case's expectation list.
         sus_patterns_handler.agent_handler = None
+        harness.patterns.agent_handler = None
         ip_ban_manager.agent_handler = None
         security_headers_manager.agent_handler = None
         # A rule a case kept applied owns bans and patterns in process-global
