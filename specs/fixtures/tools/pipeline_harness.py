@@ -41,7 +41,7 @@ rules).
 from __future__ import annotations
 
 import logging
-from typing import Any, cast
+from typing import Any
 
 from run_fixtures import STAGED_FIELDS
 
@@ -53,15 +53,20 @@ from guard_core.core.events.event_types import (
     EVENT_DECORATOR_VIOLATION,
     EVENT_HTTPS_ENFORCED,
 )
+from guard_core.core.events.metrics import MetricsCollector
+from guard_core.core.events.middleware_events import SecurityEventBus
 from guard_core.core.responses import reads_response_body
 from guard_core.core.responses.context import ResponseContext
 from guard_core.core.responses.factory import ErrorResponseFactory
+from guard_core.core.routing.context import RoutingContext
+from guard_core.core.routing.resolver import RouteConfigResolver
 from guard_core.decorators.route_config import RouteConfig, RouteConfigRevision
 from guard_core.exceptions import ResponseBodyUnavailableError
 from guard_core.handlers.behavior_handler import BehaviorTracker
 from guard_core.handlers.ipban_handler import reset_global_state
 from guard_core.handlers.ratelimit_handler import RateLimitManager
 from guard_core.models import SecurityConfig
+from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse
 
 # JSON config keys applied verbatim as SecurityConfig constructor kwargs.
@@ -204,19 +209,25 @@ class _ModifierCalls:
         return self.reads_body(marked=name == "reads_body_marked")
 
 
-class _RecordingEventBus:
+class _RecordingEventBus(SecurityEventBus):
     """Captures (event_type, action_taken) pairs in emission order."""
 
-    def __init__(self) -> None:
+    def __init__(self, config: SecurityConfig) -> None:
+        super().__init__(agent_handler=None, config=config)
         self.events: list[tuple[str, str]] = []
 
-    async def send_middleware_event(self, **kwargs: Any) -> None:
-        self.events.append(
-            (str(kwargs.get("event_type")), str(kwargs.get("action_taken", "")))
-        )
+    async def send_middleware_event(
+        self,
+        event_type: str,
+        request: GuardRequest,
+        action_taken: str,
+        reason: str,
+        **kwargs: Any,
+    ) -> None:
+        self.events.append((str(event_type), str(action_taken)))
 
     async def send_https_violation_event(
-        self, request: Any, route_config: RouteConfig | None
+        self, request: GuardRequest, route_config: RouteConfig | None
     ) -> None:
         route_demanded = bool(route_config and route_config.require_https)
         event_type = (
@@ -276,24 +287,34 @@ class _StubGeoHandler:
         return None
 
 
-class _StubRouteResolver:
+class _StubRouteResolver(RouteConfigResolver):
     """Exact-path route table over real RouteConfig objects."""
 
-    def __init__(self, routes: dict[str, RouteConfig]) -> None:
+    def __init__(
+        self,
+        config: SecurityConfig,
+        logger: logging.Logger,
+        routes: dict[str, RouteConfig],
+    ) -> None:
+        super().__init__(RoutingContext(config=config, logger=logger))
         self.routes = routes
 
-    def get_route_config(self, request: Any) -> RouteConfig | None:
+    def get_route_config(self, request: GuardRequest) -> RouteConfig | None:
         return self.routes.get(request.url_path)
 
-    def should_bypass_check(self, check_name: str, route_config: Any) -> bool:
+    def should_bypass_check(
+        self, check_name: str, route_config: RouteConfig | None
+    ) -> bool:
         if route_config is None:
             return False
         return check_name in route_config.bypassed_checks
 
-    def get_cloud_providers_to_check(self, route_config: Any) -> set[str] | None:
+    def get_cloud_providers_to_check(
+        self, route_config: RouteConfig | None
+    ) -> list[str] | None:
         if route_config is None or not route_config.block_cloud_providers:
             return None
-        return cast(set[str], route_config.block_cloud_providers)
+        return list(route_config.block_cloud_providers)
 
 
 class _HarnessDecorator:
@@ -323,7 +344,7 @@ class _HarnessMiddleware:
         self.rate_limit_handler = rate_limit_handler
         self.geo_ip_handler = geo_ip_handler
         self.event_bus = event_bus
-        self.route_resolver = _StubRouteResolver(routes)
+        self.route_resolver = _StubRouteResolver(config, self.logger, routes)
         self.guard_decorator = _HarnessDecorator(config, routes)
         self.suspicious_request_counts: dict[str, dict[str, int]] = {}
         self.last_cloud_ip_refresh = 0
@@ -450,7 +471,7 @@ class _PipelineRequest:
     def __init__(self, drive: dict[str, Any]) -> None:
         self.query_params: dict[str, str] = {}
         self.headers = _CaseInsensitiveHeaders(drive.get("headers", {}))
-        self._body = drive.get("body", "").encode()
+        self._body: bytes = drive.get("body", "").encode()
         if (
             self._body
             and "content-length" not in self.headers
@@ -467,7 +488,11 @@ class _PipelineRequest:
         self.state.client_ip = self.client_host
 
     async def body(self) -> bytes:
-        return cast(bytes, self._body)
+        return self._body
+
+    @property
+    def scope(self) -> dict[str, Any]:
+        return {}
 
     def url_replace_scheme(self, scheme: str) -> Any:
         # Plain string, matching the display redaction path: the engine
@@ -489,7 +514,7 @@ class HarnessCase:
             path: _build_route(path, overrides)
             for path, overrides in case.get("routes", {}).items()
         }
-        self.event_bus = _RecordingEventBus()
+        self.event_bus = _RecordingEventBus(self.config)
         self.rate_limit_handler = RateLimitManager(self.config)
         self.middleware = _HarnessMiddleware(
             self.config,
@@ -504,7 +529,7 @@ class HarnessCase:
             ResponseContext(
                 config=self.config,
                 logger=self.middleware.logger,
-                metrics_collector=cast(Any, _NullMetrics()),
+                metrics_collector=_NullMetrics(self.config),
                 agent_handler=None,
                 response_factory=_HARNESS_RESPONSE_FACTORY,
             )
@@ -513,7 +538,7 @@ class HarnessCase:
             BehavioralContext(
                 config=self.config,
                 logger=self.middleware.logger,
-                event_bus=cast(Any, self.event_bus),
+                event_bus=self.event_bus,
                 guard_decorator=None,
                 behavior_tracker=self.middleware.guard_decorator.behavior_tracker,
                 middleware=self.middleware,
@@ -521,9 +546,19 @@ class HarnessCase:
         )
 
 
-class _NullMetrics:
-    async def collect_request_metrics(self, *args: Any, **kwargs: Any) -> None:
+class _NullMetrics(MetricsCollector):
+    def __init__(self, config: SecurityConfig) -> None:
+        super().__init__(agent_handler=None, config=config)
+
+    async def collect_request_metrics(
+        self, request: GuardRequest, response_time: float, status_code: int
+    ) -> None:
         return None
+
+
+def replace_member(target: object, name: str, value: object) -> None:
+    """Swap one member of a process-global singleton or module for a corpus stub."""
+    setattr(target, name, value)
 
 
 def reset_check_samplers() -> None:
@@ -560,7 +595,7 @@ async def run_case(case: dict[str, Any]) -> list[dict[str, Any]]:
         harness.on_block.payloads.clear()
         stage = drive.get("stage", "pipeline")
         if stage == "pipeline":
-            response = await harness.pipeline.execute(cast(Any, request))
+            response = await harness.pipeline.execute(request)
         elif stage == "process_response":
             response = _HARNESS_RESPONSE_FACTORY.create_response(
                 drive.get("response_body", "ok"),
@@ -585,7 +620,7 @@ async def run_case(case: dict[str, Any]) -> list[dict[str, Any]]:
                     drive["modifier"]
                 )
             response = await harness.error_factory.process_response(
-                cast(Any, request),
+                request,
                 response,
                 0.0,
                 harness.middleware.route_resolver.get_route_config(request),
@@ -605,7 +640,8 @@ async def run_case(case: dict[str, Any]) -> list[dict[str, Any]]:
                 record["headers"] = dict(response.headers)
         if "modifier" in drive:
             record["modifier_calls"] = modifier_calls.count
-            record["prefix_reads"] = cast(_StubBodyResponse, response).prefix_reads
+            assert isinstance(response, _StubBodyResponse)
+            record["prefix_reads"] = response.prefix_reads
         if getattr(request.state, "is_exempt", None) is not None:
             record["is_exempt"] = request.state.is_exempt
         if getattr(request.state, "is_whitelisted", None) is not None:

@@ -42,9 +42,10 @@ import logging
 import os
 import shutil
 import tempfile
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 from pipeline_harness import (
     CONFIG_KEYS as PIPELINE_CONFIG_KEYS,
@@ -53,11 +54,13 @@ from pipeline_harness import (
     DEFAULT_STATE,
     ROUTE_KEYS,
     _HarnessResponseFactory,
+    _NullMetrics,
     _PipelineRequest,
     _StubGeoHandler,
     _StubResponse,
     _StubRouteResolver,
     create_harness_error_response,
+    replace_member,
     reset_check_samplers,
 )
 
@@ -81,6 +84,7 @@ from guard_core.handlers.redis_handler import RedisManager
 from guard_core.handlers.security_headers_handler import security_headers_manager
 from guard_core.handlers.suspatterns_handler import sus_patterns_handler
 from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 from guard_core.protocols.response_protocol import GuardResponse
 
 EVENTS_REDIS_PREFIX = "guard_core:corpus_evts:"
@@ -218,6 +222,27 @@ class CapturingAgentHandler:
     async def send_event(self, event: Any) -> None:
         self._sink.append(event_envelope(event))
 
+    async def initialize_redis(self, redis_handler: RedisHandlerProtocol) -> None:
+        return None
+
+    async def send_metric(self, metric: Any) -> None:
+        return None
+
+    async def start(self) -> None:
+        return None
+
+    async def stop(self) -> None:
+        return None
+
+    async def flush_buffer(self) -> None:
+        return None
+
+    async def get_dynamic_rules(self) -> Any | None:
+        return None
+
+    async def health_check(self) -> bool:
+        return True
+
 
 class _CorpusRulesAgent(CapturingAgentHandler):
     """Capturing handler that also serves one fixed dynamic-rules payload."""
@@ -311,9 +336,13 @@ class _EventsMiddleware:
         self.geo_ip_handler = geo_ip_handler
         self.event_bus = event_bus
         self.agent_handler = agent_handler
-        self.route_resolver = _StubRouteResolver(routes)
+        self.route_resolver = _StubRouteResolver(config, self.logger, routes)
         self.suspicious_request_counts: dict[str, dict[str, int]] = {}
         self.last_cloud_ip_refresh = 0
+
+    @property
+    def guard_decorator(self) -> None:
+        return None
 
     @property
     def response_factory(self) -> _EventsResponseFactory:
@@ -351,11 +380,6 @@ def _rules_from_payload(payload: dict[str, Any]) -> DynamicRules:
     )
 
 
-class _NullMetrics:
-    async def collect_request_metrics(self, *args: Any, **kwargs: Any) -> None:
-        return None
-
-
 class EventsCase:
     """One events case: fresh engine state, sequential steps."""
 
@@ -383,7 +407,7 @@ class EventsCase:
             self.event_bus,
             self.agent,
         )
-        self.pipeline = build_default_pipeline(cast(Any, self.middleware))
+        self.pipeline = build_default_pipeline(self.middleware)
 
     async def prepare(self) -> None:
         DynamicRuleManager._instance = None
@@ -402,7 +426,7 @@ class EventsCase:
             # Make extract_client_ip resolve from the peer/headers chain
             # (the real adapters do not pre-cache state.client_ip).
             del request.state.client_ip
-        await self.pipeline.execute(cast(Any, request))
+        await self.pipeline.execute(request)
 
     async def _call(self, step: dict[str, Any]) -> None:
         op = step["call"]
@@ -426,7 +450,7 @@ class EventsCase:
         async def _raising_ban(ip: str, duration: int, reason: str) -> bool:
             raise RuntimeError("corpus injected ban failure")
 
-        ip_ban_manager.ban_ip = _raising_ban  # type: ignore[method-assign,assignment]
+        replace_member(ip_ban_manager, "ban_ip", _raising_ban)
 
     async def _call_detect(self, step: dict[str, Any]) -> None:
         await sus_patterns_handler.initialize_agent(self.agent)
@@ -513,7 +537,7 @@ class EventsCase:
         decorator = BaseSecurityDecorator(self.config)
         await decorator.initialize_agent(self.agent, self.geo)
         sender = getattr(decorator, step["send"])
-        await sender(cast(Any, request), **step.get("kwargs", {}))
+        await sender(request, **step.get("kwargs", {}))
 
     async def _call_behavior_action(self, step: dict[str, Any]) -> None:
         tracker = BehaviorTracker(self.config)
@@ -540,15 +564,16 @@ class EventsCase:
     async def _call_geo_country_stub(self, step: dict[str, Any]) -> None:
         handler = IPInfoManager("corpus-token")
         saved = (handler.get_country, handler.agent_handler)
-        handler.agent_handler = self.agent  # type: ignore[assignment]
+        await handler.initialize_agent(self.agent)
         country = step.get("country", "CN")
-        handler.get_country = lambda ip: country  # type: ignore[method-assign]
+        replace_member(handler, "get_country", lambda ip: country)
         try:
             await handler.check_country_access(
                 step["ip"], step.get("blocked_countries", ["CN"])
             )
         finally:
-            handler.get_country, handler.agent_handler = saved  # type: ignore[method-assign]
+            replace_member(handler, "get_country", saved[0])
+            handler.agent_handler = saved[1]
 
     async def _call_geo_download_failure(self, step: dict[str, Any]) -> None:
         handler = IPInfoManager("corpus-token")
@@ -558,7 +583,7 @@ class EventsCase:
             handler.reader,
             handler._initialization_attempted,
         )
-        handler.agent_handler = self.agent  # type: ignore[assignment]
+        await handler.initialize_agent(self.agent)
         scratch = Path(tempfile.mkdtemp(prefix="guard_core_corpus_geo_"))
         handler.db_path = scratch / "corpus.mmdb"
         handler._initialization_attempted = False
@@ -568,11 +593,11 @@ class EventsCase:
             raise RuntimeError("corpus injected download failure")
 
         original_download = handler._download_database
-        handler._download_database = _failing_download  # type: ignore[method-assign]
+        replace_member(handler, "_download_database", _failing_download)
         try:
             await handler.initialize()
         finally:
-            handler._download_database = original_download  # type: ignore[method-assign]
+            replace_member(handler, "_download_database", original_download)
             (
                 handler.agent_handler,
                 handler.db_path,
@@ -638,7 +663,7 @@ class EventsCase:
         request = _PipelineRequest(step)
         try:
             await manager.check_rate_limit(
-                cast(Any, request),
+                request,
                 step["client_ip"],
                 self.middleware.create_error_response,
             )
@@ -653,24 +678,24 @@ class EventsCase:
             ValidationContext(
                 config=self.config,
                 logger=self.middleware.logger,
-                event_bus=cast(Any, self.event_bus),
+                event_bus=self.event_bus,
             )
         )
         error_factory = ErrorResponseFactory(
             ResponseContext(
                 config=self.config,
                 logger=self.middleware.logger,
-                metrics_collector=cast(Any, _NullMetrics()),
+                metrics_collector=_NullMetrics(self.config),
                 agent_handler=None,
-                response_factory=cast(Any, _EVENTS_RESPONSE_FACTORY),
+                response_factory=_EVENTS_RESPONSE_FACTORY,
             )
         )
         context = BypassContext(
             config=self.config,
             logger=self.middleware.logger,
-            event_bus=cast(Any, self.event_bus),
-            route_resolver=cast(Any, self.middleware.route_resolver),
-            response_factory=cast(Any, error_factory),
+            event_bus=self.event_bus,
+            route_resolver=self.middleware.route_resolver,
+            response_factory=error_factory,
             validator=validator,
         )
         handler = BypassHandler(context)
@@ -680,20 +705,18 @@ class EventsCase:
 
         route_config = self.routes.get(step["url_path"])
         request = _PipelineRequest(step)
-        await handler.handle_security_bypass(
-            cast(Any, request), _call_next, route_config
-        )
+        await handler.handle_security_bypass(request, _call_next, route_config)
 
     async def _call_path_excluded(self, step: dict[str, Any]) -> None:
         validator = RequestValidator(
             ValidationContext(
                 config=self.config,
                 logger=self.middleware.logger,
-                event_bus=cast(Any, self.event_bus),
+                event_bus=self.event_bus,
             )
         )
         request = _PipelineRequest(step)
-        excluded = await validator.is_path_excluded(cast(Any, request))
+        excluded = await validator.is_path_excluded(request)
         if not excluded:
             raise RuntimeError("corpus expected path exclusion")
 
@@ -741,6 +764,19 @@ def _without_timing_noise(
     ]
 
 
+def _every_ip_is_cloud(ip: str, providers: set[str]) -> bool:
+    return True
+
+
+def _pinned_cloud_details(
+    provider: str, network: str
+) -> Callable[[str, set[str]], tuple[str, str]]:
+    def _details(ip: str, providers: set[str]) -> tuple[str, str]:
+        return provider, network
+
+    return _details
+
+
 async def run_events_case(case: dict[str, Any]) -> list[dict[str, Any]]:
     """Drive the case; returns the ordered flat list of event envelopes."""
     harness = EventsCase(case)
@@ -756,12 +792,13 @@ async def run_events_case(case: dict[str, Any]) -> list[dict[str, Any]]:
             if step.get("call") == "cloud_stub":
                 provider = step.get("provider", "aws")
                 network = step.get("network", "203.0.113.0/24")
-                cloud_handler.agent_handler = harness.agent  # type: ignore[assignment]
-                cloud_handler.is_cloud_ip = (  # type: ignore[method-assign]
-                    lambda ip, providers, _always=True: _always  # type: ignore[misc,assignment]
-                )
-                cloud_handler.get_cloud_provider_details = (  # type: ignore[method-assign]
-                    lambda ip, providers, _p=provider, _n=network: (_p, _n)  # type: ignore[misc,assignment]
+                await cloud_handler.initialize_agent(harness.agent)
+
+                replace_member(cloud_handler, "is_cloud_ip", _every_ip_is_cloud)
+                replace_member(
+                    cloud_handler,
+                    "get_cloud_provider_details",
+                    _pinned_cloud_details(provider, network),
                 )
                 continue
             if "call" in step:

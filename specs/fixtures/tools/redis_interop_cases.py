@@ -33,7 +33,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from pipeline_harness import _PipelineRequest, _StubResponse
+from pipeline_harness import _PipelineRequest, _StubResponse, replace_member
 from run_fixtures import STAGED_FIELDS
 
 from guard_core.handlers._cloud_provider_registry import (
@@ -449,7 +449,7 @@ async def _op_rate_limit(args: dict[str, Any]) -> None:
 
     try:
         await manager.check_rate_limit(
-            request,  # type: ignore[arg-type]
+            request,
             args["client_ip"],
             _error,
             endpoint_path=args.get("endpoint_path", ""),
@@ -616,11 +616,11 @@ async def _op_ipinfo_database(args: dict[str, Any]) -> None:
             return _FakeGet(FAKE_MMDB_BYTES)
 
     original_session = aiohttp.ClientSession
-    aiohttp.ClientSession = _FakeSession  # type: ignore[misc,assignment]
+    replace_member(aiohttp, "ClientSession", _FakeSession)
     try:
         await handler.initialize()
     finally:
-        aiohttp.ClientSession = original_session  # type: ignore[misc]
+        replace_member(aiohttp, "ClientSession", original_session)
         (
             handler.redis_handler,
             handler.agent_handler,
