@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from ipaddress import ip_network
 from pathlib import Path
-from typing import Any
+from typing import Any, BinaryIO
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -48,29 +48,15 @@ class _App:
     geo: IPInfoManager
 
 
-class _FakeResponse:
-    def __init__(self, content: bytes) -> None:
-        self.content = content
-
-    def raise_for_status(self) -> None:
-        return None
-
-    async def read(self) -> bytes:
-        return self.content
-
-
 class _FakeSession:
     downloads = 0
 
-    async def __aenter__(self) -> "_FakeSession":
-        return self
 
-    async def __aexit__(self, *exc_info: object) -> None:
-        return None
-
-    async def get(self, *args: Any, **kwargs: Any) -> _FakeResponse:
-        type(self).downloads += 1
-        return _FakeResponse(country_database_bytes("XX"))
+async def _fake_download_body(
+    self: IPInfoManager, session: object, headers: dict[str, str], sink: BinaryIO
+) -> None:
+    _FakeSession.downloads += 1
+    sink.write(country_database_bytes("XX"))
 
 
 async def _start_app(prefix: str, database_path: Path, **settings: Any) -> _App:
@@ -113,7 +99,7 @@ async def apps() -> AsyncGenerator[tuple[_App, _App], None]:
     with (
         tempfile.TemporaryDirectory() as directory,
         patch.object(cloud_module, "_fetch_provider_ranges", _FakeProviders.fetch),
-        patch("aiohttp.ClientSession", _FakeSession),
+        patch.object(IPInfoManager, "_download_body", _fake_download_body),
     ):
         database = Path(directory) / "country_asn.mmdb"
         app_a = await _start_app(f"a{tag}:", database)

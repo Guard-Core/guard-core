@@ -1227,8 +1227,9 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
     "handlers/ipinfo_handler.py:IPInfoManager._download_database": (
         "line 201: another worker is downloading the GeoIP database, infra only"
     ),
-    "handlers/ipinfo_handler.py:IPInfoManager._open_database_or_none": (
-        "line 91: MMDB file-open failure, infra only"
+    "handlers/_ipinfo_database_file.py:"
+    "IpInfoDatabaseFileMixin._open_database_or_none": (
+        "line 25: MMDB file-open failure, infra only"
     ),
     "_utils/nat64.py:_warn_non_global_embedded_once_a_minute": (
         "line 68: sampled warning naming the non-global IPv4 address embedded "

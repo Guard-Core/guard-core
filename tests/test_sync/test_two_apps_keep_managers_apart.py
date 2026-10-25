@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from ipaddress import ip_network
 from pathlib import Path
-from typing import Any
+from typing import Any, BinaryIO
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -52,29 +52,15 @@ class _App:
     geo: IPInfoManager
 
 
-class _FakeResponse:
-    def __init__(self, content: bytes) -> None:
-        self.content = content
-
-    def raise_for_status(self) -> None:
-        return None
-
-    def read(self) -> bytes:
-        return self.content
-
-
 class _FakeSession:
     downloads = 0
 
-    def __enter__(self) -> "_FakeSession":
-        return self
 
-    def __exit__(self, *exc_info: object) -> None:
-        return None
-
-    def get(self, *args: Any, **kwargs: Any) -> _FakeResponse:
-        type(self).downloads += 1
-        return _FakeResponse(country_database_bytes("XX"))
+def _fake_download_body(
+    self: IPInfoManager, session: object, headers: dict[str, str], sink: BinaryIO
+) -> None:
+    _FakeSession.downloads += 1
+    sink.write(country_database_bytes("XX"))
 
 
 def _start_app(prefix: str, database_path: Path, **settings: Any) -> _App:
@@ -117,7 +103,7 @@ def apps() -> Generator[tuple[_App, _App], None]:
     with (
         tempfile.TemporaryDirectory() as directory,
         patch.object(cloud_module, "_fetch_provider_ranges", _FakeProviders.fetch),
-        patch("requests.Session", _FakeSession),
+        patch.object(IPInfoManager, "_download_body", _fake_download_body),
     ):
         database = Path(directory) / "country_asn.mmdb"
         app_a = _start_app(f"a{tag}:", database)
