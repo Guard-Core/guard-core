@@ -526,7 +526,7 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
         binary_prefix: BinaryPrefix | None = None,
     ) -> tuple[dict | None, bool]:
         timeout = getattr(
-            self._config, "detection_compiler_timeout", _DEFAULT_COMPILER_TIMEOUT
+            self._scan_config(), "detection_compiler_timeout", _DEFAULT_COMPILER_TIMEOUT
         )
         worker_cpu: list[float] = []
         future = shared_regex_executor().submit(
@@ -599,7 +599,7 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
         search_from: int = 0,
     ) -> tuple[re.Match | None, bool]:
         timeout = getattr(
-            self._config, "detection_compiler_timeout", _DEFAULT_COMPILER_TIMEOUT
+            self._scan_config(), "detection_compiler_timeout", _DEFAULT_COMPILER_TIMEOUT
         )
         worker_cpu: list[float] = []
         future = shared_regex_executor().submit(

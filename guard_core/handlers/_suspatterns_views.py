@@ -89,7 +89,9 @@ class _SusPatternsViewsMixin(_SusPatternsRegexMixin):
             decoded_view_content = processed_content
         else:
             max_length = getattr(
-                self._config, "detection_max_content_length", _DEFAULT_MAX_SCAN_LENGTH
+                self._scan_config(),
+                "detection_max_content_length",
+                _DEFAULT_MAX_SCAN_LENGTH,
             )
             raw_view_content = _LEGACY_PATH_TRAVERSAL_PREPROCESSOR.normalize_unicode(
                 content[:max_length]

@@ -2,6 +2,9 @@ import re
 from functools import cached_property
 from typing import Any, NamedTuple
 
+from guard_core.sync._utils.scan_config_scope import scoped_config
+from guard_core.sync.handlers._suspatterns_pattern_table import BARE_UNION_SELECT_ROW
+
 _BUILTIN_PATTERN_COMPILE_FLAGS = re.IGNORECASE
 
 
@@ -15,6 +18,14 @@ class _CompiledBuiltinPatterns(dict[str, re.Pattern]):
 COMPILED_BUILTIN_PATTERNS = _CompiledBuiltinPatterns()
 
 
+def disabled_row_sources_of(config: Any) -> frozenset[str]:
+    return (
+        frozenset()
+        if getattr(config, "flag_bare_union_select", True)
+        else frozenset({BARE_UNION_SELECT_ROW})
+    )
+
+
 class _SourceRow(NamedTuple):
     pattern: str
 
@@ -22,7 +33,11 @@ class _SourceRow(NamedTuple):
 class _SusPatternsLazyRowsMixin:
     _pattern_definitions: list[tuple[str, frozenset[str], str]]
     compiled_custom_patterns: set[tuple[re.Pattern, frozenset[str], str]]
+    _config: Any = None
     _disabled_row_sources: frozenset[str] = frozenset()
+
+    def _scan_config(self) -> Any:
+        return scoped_config(self, self._config)
 
     @cached_property
     def compiled_patterns(self) -> list[tuple[re.Pattern, frozenset[str], str]]:
@@ -50,7 +65,12 @@ class _SusPatternsLazyRowsMixin:
         ]
 
     def _without_disabled_rows(self, rows: list[Any]) -> list[Any]:
-        disabled = self._disabled_row_sources
+        request_config = scoped_config(self, None)
+        disabled = (
+            self._disabled_row_sources
+            if request_config is None
+            else disabled_row_sources_of(request_config)
+        )
         return (
             [row for row in rows if row[0].pattern not in disabled]
             if disabled

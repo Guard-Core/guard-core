@@ -903,7 +903,7 @@ class SusPatternsManager(_SusPatternsViewsMixin):
     ) -> dict[str, Any]:
         original_content = content
         execution_start = time.monotonic()
-        state = self._detection_state
+        state = self._resolve_state(None)
         _warn_if_legacy_detection(state.compiler)
 
         (

@@ -95,7 +95,7 @@ class _SusPatternsRegistryMixin(_SusPatternsLazyRowsMixin):
 
     @property
     def _events_agent_handler(self) -> Any:
-        if not getattr(self._config, "agent_enable_events", True):
+        if not getattr(self._scan_config(), "agent_enable_events", True):
             return None
         return self.agent_handler
 
@@ -112,7 +112,7 @@ class _SusPatternsRegistryMixin(_SusPatternsLazyRowsMixin):
     ) -> None:
         agent_handler = self._events_agent_handler
         if not agent_handler or event_type in getattr(
-            self._config, "muted_event_types", ()
+            self._scan_config(), "muted_event_types", ()
         ):
             return
 
@@ -165,7 +165,7 @@ class _SusPatternsRegistryMixin(_SusPatternsLazyRowsMixin):
 
         compiler = self._compiler or PatternCompiler()
         max_content_length = getattr(
-            self._config,
+            self._scan_config(),
             "detection_max_body_inspect_bytes",
             _DEFAULT_MAX_BODY_INSPECT_BYTES,
         )

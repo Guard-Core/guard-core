@@ -54,6 +54,7 @@ from guard_core._utils.route_gate import (
     scanning_declared_path_param_values,
     static_file_state_served,
 )
+from guard_core._utils.scan_config_scope import scan_config_scope_of
 from guard_core.detection_result import DetectionResult
 from guard_core.exceptions import BodyReadFailedError, BodyReadStalledError
 from guard_core.protocols.request_protocol import GuardRequest
@@ -304,6 +305,7 @@ async def detect_penetration_attempt(
     import uuid
 
     patterns_manager = _ensure_detection_singleton_configured(config)
+    config_scope = scan_config_scope_of(config, patterns_manager)
 
     if config is not None:
         client_ip = await extract_client_ip(request, config)
@@ -348,6 +350,7 @@ async def detect_penetration_attempt(
             (request, sensitive_params, sensitive_body_fields, sensitive_headers),
             body_field_category_skips,
             patterns_manager,
+            config_scope,
         ),
     ):
         try:

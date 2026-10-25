@@ -1,14 +1,14 @@
 import re
 from typing import Any
 
+from guard_core.sync._utils.scan_config_scope import scoped_state
 from guard_core.sync.detection_engine import (
     ContentPreprocessor,
     PerformanceMonitor,
     looks_like_binary_content,
 )
-from guard_core.sync.handlers._suspatterns_pattern_table import BARE_UNION_SELECT_ROW
+from guard_core.sync.handlers._suspatterns_lazy_rows import disabled_row_sources_of
 from guard_core.sync.handlers._suspatterns_sources import (
-    _CTX_SQLI,
     _DEFAULT_MAX_SCAN_LENGTH,
     _regex_anomaly,
     _supports_enhanced_config,
@@ -16,12 +16,6 @@ from guard_core.sync.handlers._suspatterns_sources import (
 from guard_core.sync.handlers._suspatterns_state import (
     _build_enhanced_detection_state,
     _DetectionState,
-)
-
-_BARE_UNION_SELECT_ROW = (
-    re.compile(BARE_UNION_SELECT_ROW),
-    _CTX_SQLI,
-    "sqli",
 )
 
 
@@ -54,11 +48,7 @@ class _SusPatternsEnhancedMixin:
             | getattr(config, "log_sensitive_body_fields", frozenset())
         )
 
-        self._disabled_row_sources = (
-            frozenset()
-            if getattr(config, "flag_bare_union_select", True)
-            else frozenset({_BARE_UNION_SELECT_ROW[0].pattern})
-        )
+        self._disabled_row_sources = disabled_row_sources_of(config)
 
         if not _supports_enhanced_config(config):
             return
@@ -73,7 +63,7 @@ class _SusPatternsEnhancedMixin:
             return
 
     def _resolve_state(self, state: _DetectionState | None) -> _DetectionState:
-        return state if state is not None else self._detection_state
+        return state if state is not None else scoped_state(self, self._detection_state)
 
     def _preprocess_content(
         self,

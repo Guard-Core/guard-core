@@ -1,7 +1,11 @@
 import pytest
 
 from guard_core.models import SyncSecurityConfig
-from guard_core.sync.handlers.suspatterns_handler import SusPatternsManager
+from guard_core.sync.handlers._suspatterns_pattern_table import BARE_UNION_SELECT_ROW
+from guard_core.sync.handlers.suspatterns_handler import (
+    SusPatternsManager,
+    sus_patterns_manager_for,
+)
 from guard_core.sync.utils import detect_penetration_attempt
 from tests.test_sync.conftest import SyncMockGuardRequest
 
@@ -63,6 +67,18 @@ def test_the_row_is_a_default_row_not_a_custom_pattern() -> None:
     manager = SusPatternsManager()
     assert manager.get_custom_compiled_patterns() == []
     assert any(
-        row[0].pattern.startswith(r"(?i)\A\s*UNION")
+        row[0].pattern == BARE_UNION_SELECT_ROW
         for row in manager.get_default_compiled_patterns()
     )
+
+
+def _two_apps_on_one_redis_prefix() -> tuple[SyncSecurityConfig, SyncSecurityConfig]:
+    on = SyncSecurityConfig(
+        flag_bare_union_select=True, enable_redis=True, redis_prefix="wp114:"
+    )
+    off = SyncSecurityConfig(
+        flag_bare_union_select=False, enable_redis=True, redis_prefix="wp114:"
+    )
+    sus_patterns_manager_for(on, bind=True)
+    sus_patterns_manager_for(off, bind=True)
+    return on, off
