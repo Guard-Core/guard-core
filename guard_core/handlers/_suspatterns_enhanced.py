@@ -1,3 +1,4 @@
+import re
 from typing import Any
 
 from guard_core.detection_engine import (
@@ -6,6 +7,7 @@ from guard_core.detection_engine import (
     looks_like_binary_content,
 )
 from guard_core.handlers._suspatterns_sources import (
+    _CTX_SQLI,
     _DEFAULT_MAX_SCAN_LENGTH,
     _regex_anomaly,
     _supports_enhanced_config,
@@ -15,8 +17,15 @@ from guard_core.handlers._suspatterns_state import (
     _DetectionState,
 )
 
+_BARE_UNION_SELECT_ROW = (
+    re.compile(r"(?i)\A\s*UNION\s+(?:ALL\s+)?SELECT\s*\Z"),
+    _CTX_SQLI,
+    "sqli",
+)
+
 
 class _SusPatternsEnhancedMixin:
+    compiled_custom_patterns: set[tuple[re.Pattern, frozenset[str], str]]
     _config: Any = None
     agent_handler: Any = None
     _events_agent_handler: Any
@@ -38,6 +47,11 @@ class _SusPatternsEnhancedMixin:
         cls._sensitive_body_fields_union = self._sensitive_body_fields_union | getattr(
             config, "log_sensitive_body_fields", frozenset()
         )
+
+        if getattr(config, "flag_bare_union_select", False):
+            self.compiled_custom_patterns.add(_BARE_UNION_SELECT_ROW)
+        else:
+            self.compiled_custom_patterns.discard(_BARE_UNION_SELECT_ROW)
 
         if not _supports_enhanced_config(config):
             return

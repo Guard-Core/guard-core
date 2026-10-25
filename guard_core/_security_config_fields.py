@@ -823,6 +823,19 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
         ),
     )
 
+    flag_bare_union_select: bool = Field(
+        default=False,
+        description=(
+            "Flag a scanned value that is only UNION SELECT (or UNION ALL SELECT) "
+            "with no select list, as sqli. Off by default: a free-text field such "
+            "as a search box can carry exactly those two words as a benign query, "
+            "and the row is anchored on the whole value, so prose that merely "
+            "contains them (how to union select two tables) is never flagged. "
+            "Process-wide, like the other suspicious-pattern settings: the "
+            "latest configured value applies to every app in the process."
+        ),
+    )
+
     cloud_ip_store: (
         Annotated[CloudIpStoreProtocol, PlainValidator(_validate_cloud_ip_store_value)]
         | CloudIpStoreFactory
