@@ -7,11 +7,21 @@ from guard_core.detection_engine import base64_alphabet
 MIN_RUN_LENGTH = 12
 DATA_ALPHABET = "A-Za-z0-9+/_\\-"
 _RUN_UNIT = rf"[{DATA_ALPHABET}][{re.escape(base64_alphabet.SEPARATOR_CHARS)}]*"
+_SEPARATORS = re.escape(base64_alphabet.SEPARATOR_CHARS)
+
+
+def _at_least_units(min_units: int) -> str:
+    return (
+        rf"(?:{_RUN_UNIT}){{{min_units - 1}}}"
+        rf"[{DATA_ALPHABET}][{DATA_ALPHABET}{_SEPARATORS}]*"
+    )
+
+
 BASE64_RE = re.compile(
     rf"(?<![{DATA_ALPHABET}])(?:"
-    rf"(?:{_RUN_UNIT}){{{MIN_RUN_LENGTH},}}={{0,2}}"
-    rf"|(?:{_RUN_UNIT}){{{MIN_RUN_LENGTH - 1},}}="
-    rf"|(?:{_RUN_UNIT}){{{MIN_RUN_LENGTH - 2},}}=="
+    rf"{_at_least_units(MIN_RUN_LENGTH)}={{0,2}}"
+    rf"|{_at_least_units(MIN_RUN_LENGTH - 1)}="
+    rf"|{_at_least_units(MIN_RUN_LENGTH - 2)}=="
     rf")(?![{DATA_ALPHABET}=])"
 )
 RUN_RE = re.compile(
@@ -24,6 +34,9 @@ SUB_FLOOR_RUN_RE = re.compile(
     rf"(?![{DATA_ALPHABET}])"
 )
 WHITESPACE_RE = re.compile(rf"[{re.escape(base64_alphabet.SEPARATOR_CHARS)}]+")
+SEPARATOR_DELETION = dict.fromkeys(map(ord, base64_alphabet.SEPARATOR_CHARS))
+NON_DATA_RE = re.compile(rf"[^{DATA_ALPHABET}]")
+FRAGMENT_SCAN_WINDOW = 32768
 HEX_LITERAL_RE = re.compile(r"0[xX][0-9a-fA-F]+")
 
 GZIP_MAGIC = b"\x1f\x8b"
@@ -52,6 +65,17 @@ def replacement_char_ratio(text: str) -> float:
     if not text:
         return 0.0
     return text.count("�") / len(text)
+
+
+def join_sub_floor_runs(token: str) -> str:
+    joined: list[str] = []
+    start = 0
+    while start < len(token):
+        cut = NON_DATA_RE.search(token, start + FRAGMENT_SCAN_WINDOW)
+        end = cut.start() if cut else len(token)
+        joined.append("".join(SUB_FLOOR_RUN_RE.findall(token, start, end)))
+        start = end
+    return "".join(joined)
 
 
 def bounded_gunzip(
@@ -101,7 +125,7 @@ def decode_base64_candidates(
     def _decode_token(token: str, min_printable_ratio: float) -> str | None:
         if is_hex_literal(token):
             return None
-        cleaned = WHITESPACE_RE.sub("", token)
+        cleaned = token.translate(SEPARATOR_DELETION)
         urlsafe_decoded = _decode_cleaned(
             cleaned.translate(base64_alphabet.URLSAFE_TRANSLATION),
             min_printable_ratio,
@@ -131,7 +155,11 @@ def decode_base64_candidates(
         )
         decoded = _decode_token(token, primary_threshold)
         base = decoded if decoded is not None else _decode_runs(token)
-        fragments = "".join(SUB_FLOOR_RUN_RE.findall(token))
+        fragments = (
+            "".join(SUB_FLOOR_RUN_RE.findall(token))
+            if len(token) <= FRAGMENT_SCAN_WINDOW
+            else join_sub_floor_runs(token)
+        )
         reassembled = (
             _decode_token(fragments, FALLBACK_PRINTABLE_RATIO_THRESHOLD)
             if len(fragments) >= MIN_RUN_LENGTH
