@@ -81,7 +81,7 @@ jobs:
       fail-fast: false
       matrix:
         # Each consumer runs on both interpreters; the include entries only add the per-consumer fields by name.
-        name: [fastapi-guard, flaskapi-guard, djapi-guard, guard-agent, guard-core-mcp]
+        name: [fastapi-guard, flaskapi-guard, djapi-guard, tornadoapi-guard, guard-agent, guard-core-mcp]
         python-version: ['3.10', '3.14']
         include:
           - name: fastapi-guard
@@ -99,6 +99,11 @@ jobs:
             sync_extra: '--extra dev'
             pytest_args: '-v --cov=djangoapi_guard'
             redis_prefix: 'test:djangoapi_guard:'
+          - name: tornadoapi-guard
+            repo: Guard-Core/tornadoapi-guard
+            sync_extra: '--extra dev'
+            pytest_args: '-v --cov=tornadoapi_guard'
+            redis_prefix: 'test:tornadoapi_guard:'
           - name: guard-agent
             repo: Guard-Core/guard-agent
             sync_extra: '--extra dev'
@@ -184,7 +189,7 @@ jobs:
       fail-fast: false
       matrix:
         # Each consumer runs on both interpreters; the include entries only add the per-consumer fields by name.
-        name: [fastapi-guard, flaskapi-guard, djapi-guard, guard-agent, guard-core-mcp]
+        name: [fastapi-guard, flaskapi-guard, djapi-guard, tornadoapi-guard, guard-agent, guard-core-mcp]
         python-version: ['3.10', '3.14']
         include:
           - name: fastapi-guard
@@ -202,6 +207,11 @@ jobs:
             sync_extra: '--extra dev'
             pytest_args: '-v --cov=djangoapi_guard'
             redis_prefix: 'test:djangoapi_guard:'
+          - name: tornadoapi-guard
+            repo: Guard-Core/tornadoapi-guard
+            sync_extra: '--extra dev'
+            pytest_args: '-v --cov=tornadoapi_guard'
+            redis_prefix: 'test:tornadoapi_guard:'
           - name: guard-agent
             repo: Guard-Core/guard-agent
             sync_extra: '--extra dev'
