@@ -45,7 +45,7 @@ STAGED_FIELDS: dict[str, bool | int | str] = {
 # The classes whose verdict comes from a clock: a loaded host may turn them into
 # probe_subprocess_timeout, which no case ever pins (D-84 item 2).
 TIMED_SAFETY_CLASSES = frozenset(
-    {"over_budget", "probe_string_timeout", "builder_deadline"}
+    {"over_budget", "probe_string_timeout", "builder_deadline", "stray_cpu_budget"}
 )
 LOAD_SHIFTED_SAFETY_CLASS = "probe_subprocess_timeout"
 
@@ -202,10 +202,17 @@ def suite_cases(suite_name: str) -> list[SafetyCase] | list[SuiteCase]:
 
 
 def safety_case_failure(
-    case: Mapping[str, object], safe: bool, observed_class: str
+    case: Mapping[str, object], safe: bool, observed_class: str, reason: str = ""
 ) -> str | None:
+    from generate_safety_gates import FAILING_CLASSES
+
     want = case["expected"]
     assert isinstance(want, dict)
+    if observed_class in FAILING_CLASSES:
+        return (
+            f"safety_gates/{case['id']}: {observed_class} reason: "
+            f"{reason.splitlines()[0] if reason else ''}"
+        )
     if safe != want["safe"]:
         return f"safety_gates/{case['id']}: safe is {safe}, want {want['safe']}"
     accepted = {want["reason_class"]}
@@ -234,7 +241,7 @@ async def check_safety_case(suite: str, case: SafetyCase) -> str | None:
         safe, reason = compiler.validate_pattern_safety(
             spec["pattern"], max_content_length=spec["max_content_length"]
         )
-    return safety_case_failure(case, safe, classify(reason))
+    return safety_case_failure(case, safe, classify(reason), reason)
 
 
 async def replay_suites(

@@ -89,20 +89,21 @@ CLASS_RULES: list[tuple[str, str]] = [
     ("could not construct a test string that", "unreachable_probe"),
     ("Pattern extrapolated CPU cost", "over_budget"),
     ("exceeded its deadline", "builder_deadline"),
+    ("exceeded its CPU budget", "stray_cpu_budget"),
     ("stray verification exceeded its", "probe_subprocess_timeout"),
-    ("Pattern validation probe failed", "probe_subprocess_timeout"),
-    ("probe returned malformed output", "probe_subprocess_timeout"),
-    ("killable-subprocess failed to run", "probe_subprocess_timeout"),
-    ("killable-subprocess exited unexpectedly", "probe_subprocess_timeout"),
-    ("killable-subprocess returned malformed output", "probe_subprocess_timeout"),
+    ("Pattern validation probe failed", "probe_subprocess_failure"),
+    ("probe returned malformed output", "probe_subprocess_failure"),
+    ("killable-subprocess failed to run", "probe_subprocess_failure"),
+    ("killable-subprocess exited unexpectedly", "probe_subprocess_failure"),
+    ("killable-subprocess returned malformed output", "probe_subprocess_failure"),
     ("Pattern validation cannot resolve", "unreachable_probe"),
-    ("budget exceeded", "unreachable_probe"),
+    ("budget exceeded", "construction_budget"),
     ("Pattern appears safe", "safe"),
 ]
 # Every reason the engine's pattern safety can produce has a class here, pinned by
-# tests/test_safety_reason_classes.py (LEDGER 6.160). The clock and subprocess
-# reasons share probe_subprocess_timeout and the construction give-ups share
-# unreachable_probe: a class of its own would change the published unpinned list.
+# tests/test_safety_reason_classes.py (LEDGER 6.160, D-91 item 2). The ones that
+# are an environment fault (probe_subprocess_failure) or "other" fail generation
+# and replay; the rest are fixture cases or named in UNPINNED_CLASSES.
 
 # A backstop only: the oracle bounds its own work. A pinned over_budget probe
 # spends about 65 s of CPU (five samples at 32000 chars), so a 90 s wall cap
@@ -144,6 +145,16 @@ FIXED_CASES: list[dict] = [
         "reason_class": "unreachable_probe",
     },
     {
+        # Eight sequential four-way literal alternations make 4**8 prefix states,
+        # over _PREFIX_WALK_STATE_LIMIT (_redos_repeat_prefix.py:59-60); a count
+        # guard, decided before any timing.
+        "id": "safety_cost_verdict_construction_budget_01",
+        "pattern": r"(?:aa|bb|cc|dd)" * 8 + r"(?:x)+y",
+        "mode": "cost_verdict",
+        "max_content_length": 10000,
+        "reason_class": "construction_budget",
+    },
+    {
         "id": "safety_test_strings_probe_string_timeout_01",
         "pattern": STRING_TIMEOUT_PATTERN,
         "mode": "test_strings",
@@ -161,6 +172,20 @@ UNPINNED_CLASSES: dict[str, dict] = {
     "probe_subprocess_timeout": {
         "reason": "a loaded host turns every timed class into this one",
         "unit_pin": None,
+    },
+    "stray_cpu_budget": {
+        "reason": "a loaded host turns the stray verification CPU budget into this one",
+        "unit_pin": None,
+    },
+    "probe_subprocess_failure": {
+        "reason": (
+            "an environment fault, never an accepted class: generation and replay "
+            "fail on it and print the first stderr line"
+        ),
+        "unit_pin": (
+            "tests/test_safety_reason_classes.py::"
+            "test_a_probe_subprocess_failure_fails_the_replay_case_with_its_first_line"
+        ),
     },
     "builder_deadline": {
         "reason": "no case can sit with margin on both sides of a load-scaled deadline",
@@ -183,6 +208,9 @@ RETIRED_CASES: list[dict] = [
         "replaced_by": "safety_cost_verdict_over_budget_02",
     }
 ]
+
+
+FAILING_CLASSES = ("other", "probe_subprocess_failure")
 
 
 def classify(reason: str) -> str:
@@ -370,15 +398,18 @@ def build_suite() -> tuple[dict, dict[str, int], dict[str, int]]:
         if len(ok_runs) < 2:
             drops[f"{mode}:allfailed"] = drops.get(f"{mode}:allfailed", 0) + 1
             continue
+        for _safe, run_reason in ok_runs:
+            if classify(run_reason) in FAILING_CLASSES:
+                first_line = run_reason.splitlines()[0]
+                raise SystemExit(
+                    f"{mode} {pattern!r}: {classify(run_reason)} reason: {first_line}"
+                )
         verdicts = {(s, classify(r)) for s, r in ok_runs}
         if len(verdicts) != 1:
             drops[f"{mode}:unstable"] = drops.get(f"{mode}:unstable", 0) + 1
             continue
         safe, reason = ok_runs[0]
         cls = classify(reason)
-        if cls == "other":
-            drops[f"{mode}:other"] = drops.get(f"{mode}:other", 0) + 1
-            continue
         if cls == "probe_subprocess_timeout":
             # Timing a >2s probe is host-speed dependent; pinning it would
             # make the suite flaky on faster runners. Excluded by design.

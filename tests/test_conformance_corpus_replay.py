@@ -61,6 +61,8 @@ def test_the_safety_corpus_pins_every_class_except_the_named_unpinned_ones() -> 
     assert wanted - pinned == set(UNPINNED_CLASSES)
     assert not pinned & set(UNPINNED_CLASSES)
     assert "probe_subprocess_timeout" in UNPINNED_CLASSES
+    assert {"stray_cpu_budget", "probe_subprocess_failure"} <= set(UNPINNED_CLASSES)
+    assert "construction_budget" in pinned
 
 
 def test_every_unpinned_class_names_a_unit_test_that_exists_in_both_trees() -> None:
@@ -117,6 +119,10 @@ def test_the_fixed_timing_cases_are_in_the_corpus_with_their_margins() -> None:
         ("over_budget", "probe_subprocess_timeout", False),
         ("probe_string_timeout", "probe_subprocess_timeout", False),
         ("builder_deadline", "probe_subprocess_timeout", False),
+        ("stray_cpu_budget", "probe_subprocess_timeout", False),
+        ("construction_budget", "probe_subprocess_timeout", True),
+        ("over_budget", "probe_subprocess_failure", True),
+        ("over_budget", "other", True),
         ("over_budget", "safe", True),
         ("structural_nested_unbounded", "probe_subprocess_timeout", True),
         ("structural_nested_unbounded", "structural_adjacent_broad", True),

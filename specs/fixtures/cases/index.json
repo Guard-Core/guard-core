@@ -1,8 +1,8 @@
 {
  "spec_version": "4.1.0",
  "engine_version": "4.4.0",
- "engine_commit": "3248c70a3da6324698bfcfbc6f0d135e04f753f3",
- "generated_at": "2026-10-25T05:01:11.809444+00:00",
+ "engine_commit": "ad8f8ccf3651a37c5f441cb913ccb3a5923fab0b",
+ "generated_at": "2026-10-25T15:43:28.471436+00:00",
  "fixed_ip": "203.0.113.7",
  "config_knobs": {
   "detection_compiler_timeout": 2.0,
@@ -275,7 +275,7 @@
    ]
   },
   "safety_gates": {
-   "case_count": 96,
+   "case_count": 97,
    "kind": "pattern_safety",
    "consumers": [
     "python",
@@ -289,6 +289,14 @@
     "probe_subprocess_timeout": {
      "reason": "a loaded host turns every timed class into this one",
      "unit_pin": null
+    },
+    "stray_cpu_budget": {
+     "reason": "a loaded host turns the stray verification CPU budget into this one",
+     "unit_pin": null
+    },
+    "probe_subprocess_failure": {
+     "reason": "an environment fault, never an accepted class: generation and replay fail on it and print the first stderr line",
+     "unit_pin": "tests/test_safety_reason_classes.py::test_a_probe_subprocess_failure_fails_the_replay_case_with_its_first_line"
     },
     "builder_deadline": {
      "reason": "no case can sit with margin on both sides of a load-scaled deadline",
@@ -344,42 +352,42 @@
   "k": 5,
   "floor_ms": 250,
   "timing_runs": 5,
-  "generated_at": "2026-10-25T05:01:37+00:00",
+  "generated_at": "2026-10-25T15:43:56+00:00",
   "budgets": {
    "cost_prose_8kib": {
-    "reference_ms": 14.2,
+    "reference_ms": 15.5,
     "expected_is_threat": false
    },
    "cost_prose_64kib": {
-    "reference_ms": 80.4,
+    "reference_ms": 79.0,
     "expected_is_threat": false
    },
    "cost_prose_256kib": {
-    "reference_ms": 282.2,
+    "reference_ms": 287.0,
     "expected_is_threat": false
    },
    "cost_prose_1mib": {
-    "reference_ms": 909.8,
+    "reference_ms": 910.2,
     "expected_is_threat": false
    },
    "cost_encoded_64kib": {
-    "reference_ms": 82.5,
+    "reference_ms": 82.9,
     "expected_is_threat": false
    },
    "cost_binnoise_64kib": {
-    "reference_ms": 76.8,
+    "reference_ms": 75.5,
     "expected_is_threat": false
    },
    "cost_threat_8kib": {
-    "reference_ms": 13.6,
+    "reference_ms": 12.9,
     "expected_is_threat": true
    },
    "cost_threat_tail_256kib": {
-    "reference_ms": 322.7,
+    "reference_ms": 333.5,
     "expected_is_threat": true
    },
    "cost_threat_mid_1mib": {
-    "reference_ms": 1008.0,
+    "reference_ms": 1015.0,
     "expected_is_threat": false
    }
   }
