@@ -139,9 +139,9 @@ _SENSITIVE_NAME_FIELDS = (
 def _revalidate_field_value(
     config: "SecurityConfig[RequestT]",
     name: str,
-    value: Any,
-    pending: Mapping[str, Any] | None = None,
-) -> Any:
+    value: object,
+    pending: Mapping[str, object] | None = None,
+) -> object:
     if name != "blocked_user_agents":
         return _FIELD_REVALIDATORS[name](value)
     from guard_core._utils.pattern_source_redaction import _ConfigSensitiveNames

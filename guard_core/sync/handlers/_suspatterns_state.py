@@ -1,6 +1,7 @@
 import re
 from typing import Any, NamedTuple
 
+from guard_core.sync._utils.pattern_source_redaction import _SensitiveNameSets
 from guard_core.sync.detection_engine import (
     ContentPreprocessor,
     PatternCompiler,
@@ -30,7 +31,7 @@ _LEGACY_DETECTION_STATE = _DetectionState(
 
 
 def _build_enhanced_detection_state(
-    config: Any, redaction_names: Any = None
+    config: Any, redaction_names: _SensitiveNameSets | None = None
 ) -> _DetectionState:
     cache_path = getattr(config, "detection_pattern_validation_cache_path", None)
     validation_cache = PatternValidationCache(cache_path) if cache_path else None

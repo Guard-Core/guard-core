@@ -6,6 +6,7 @@ import threading
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+from guard_core._utils.pattern_source_redaction import _SensitiveNameSets
 from guard_core.detection_engine import _validation_cache
 from guard_core.detection_engine._redos_cost_arbiter import (
     _PATTERN_SAFETY_DEFAULT_CAP,
@@ -92,7 +93,7 @@ class PatternCompiler:
         default_timeout: float = 5.0,
         max_cache_size: int = 1000,
         validation_cache: "_validation_cache.PatternValidationCache | None" = None,
-        redaction_names: Any = None,
+        redaction_names: _SensitiveNameSets | None = None,
     ):
         self.redaction_names = redaction_names
         self.default_timeout = default_timeout

@@ -143,7 +143,10 @@ def return_pattern_requires_response_body(pattern: str) -> bool:
 
 
 def _validate_return_pattern_requires_scan(
-    pattern: str, *, scan_response_body: bool, config: Any = None
+    pattern: str,
+    *,
+    scan_response_body: bool,
+    config: "SecurityConfig[RequestT] | None" = None,
 ) -> None:
     if not return_pattern_requires_response_body(pattern):
         return

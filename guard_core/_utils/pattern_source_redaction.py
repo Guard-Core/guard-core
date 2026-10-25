@@ -1,9 +1,11 @@
 import re
 from contextvars import ContextVar
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
+    from guard_core._security_config_fields import RequestT
     from guard_core.handlers.suspatterns_handler import SusPatternsManager
+    from guard_core.models import SecurityConfig
 
 
 class _SensitiveNameSets(Protocol):
@@ -43,7 +45,9 @@ def _pattern_source_names_a_sensitive_field(
 class _ConfigSensitiveNames:
     """The sensitive names a config declares, before any manager exists for it."""
 
-    def __init__(self, config: Any, **overrides: frozenset[str]) -> None:
+    def __init__(
+        self, config: "SecurityConfig[RequestT]", **overrides: frozenset[str]
+    ) -> None:
         def names(field: str) -> frozenset[str]:
             return overrides.get(field, getattr(config, field, frozenset()))
 
@@ -52,7 +56,9 @@ class _ConfigSensitiveNames:
         self._sensitive_body_fields_union = names("log_sensitive_body_fields")
 
 
-def _redact_pattern_source_of_app(pattern_source: str, config: Any) -> str:
+def _redact_pattern_source_of_app(
+    pattern_source: str, config: "SecurityConfig[RequestT]"
+) -> str:
     from guard_core.handlers.suspatterns_handler import sus_patterns_manager_for
 
     return _redact_pattern_source(pattern_source, sus_patterns_manager_for(config))

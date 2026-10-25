@@ -7,8 +7,8 @@ import sys
 import time
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
-from typing import Any
 
+from guard_core.sync._utils.pattern_source_redaction import _SensitiveNameSets
 from guard_core.sync.detection_engine._redos_cpu_budget import ReachProbeCpuBudget
 from guard_core.sync.detection_engine._redos_limited_child import (
     CPU_LIMIT_PRELUDE,
@@ -391,7 +391,7 @@ def _log_structural_disagreement(
     structural_violation: str,
     cap: int,
     reason: str,
-    redaction_names: Any = None,
+    redaction_names: _SensitiveNameSets | None = None,
 ) -> None:
     from guard_core.sync._utils.detection_scan import _redact_pattern_source
 
@@ -583,7 +583,7 @@ def _reach_probe_cost_verdict(
     pattern: str,
     max_content_length: int | None,
     flags: int = _DEFAULT_PATTERN_FLAGS,
-    redaction_names: Any = None,
+    redaction_names: _SensitiveNameSets | None = None,
 ) -> tuple[bool, str]:
     scaled_seconds = _scaled_probe_deadline_seconds(_measure_host_load_factor())
     deadline = time.thread_time() + scaled_seconds

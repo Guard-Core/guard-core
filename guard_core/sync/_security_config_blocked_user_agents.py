@@ -1,16 +1,15 @@
-from typing import Any
-
 from pydantic import ValidationError
 
 from guard_core._config_field_revalidators import _validate_str_list_field_value
+from guard_core.sync._utils.pattern_source_redaction import _SensitiveNameSets
 
 
-def _validate_blocked_user_agents_structure(v: Any) -> list[str]:
+def _validate_blocked_user_agents_structure(v: object) -> list[str]:
     return _validate_str_list_field_value(v, field_name="blocked_user_agents")
 
 
 def _reject_redos_unsafe_blocked_user_agents(
-    patterns: list[str], redaction_names: Any = None
+    patterns: list[str], redaction_names: _SensitiveNameSets | None = None
 ) -> None:
     from guard_core.sync._utils.detection_scan import _redact_pattern_source
     from guard_core.sync.detection_engine.compiler import PatternCompiler
@@ -29,18 +28,21 @@ def _reject_redos_unsafe_blocked_user_agents(
 
 
 def _reject_redos_unsafe_blocked_user_agents_at_field(
-    title: str, patterns: list[str], redaction_names: Any
+    title: str, patterns: list[str], redaction_names: _SensitiveNameSets | None
 ) -> None:
+    from guard_core.sync._utils.detection_scan import _redact_pattern_source
+
     try:
         _reject_redos_unsafe_blocked_user_agents(patterns, redaction_names)
     except ValueError as error:
+        redacted = [_redact_pattern_source(p, redaction_names) for p in patterns]
         raise ValidationError.from_exception_data(
             title,
             [
                 {
                     "type": "value_error",
                     "loc": ("blocked_user_agents",),
-                    "input": patterns,
+                    "input": redacted,
                     "ctx": {"error": error},
                 }
             ],
@@ -49,7 +51,7 @@ def _reject_redos_unsafe_blocked_user_agents_at_field(
 
 
 def _validate_blocked_user_agents_value(
-    v: Any, redaction_names: Any = None
+    v: object, redaction_names: _SensitiveNameSets | None = None
 ) -> list[str]:
     patterns = _validate_blocked_user_agents_structure(v)
     _reject_redos_unsafe_blocked_user_agents(patterns, redaction_names)

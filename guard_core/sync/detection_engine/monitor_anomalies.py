@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from guard_core.sync._utils.detection_scan import _redact_pattern_source
+from guard_core.sync._utils.pattern_source_redaction import _SensitiveNameSets
 
 from .monitor_types import PatternStats, PerformanceMetric
 
@@ -71,7 +72,7 @@ def detect_statistical_anomaly(
 
 
 def sanitize_anomaly_data(
-    anomaly: dict[str, Any], redaction_names: Any = None
+    anomaly: dict[str, Any], redaction_names: _SensitiveNameSets | None = None
 ) -> dict[str, Any]:
     safe_anomaly = anomaly.copy()
     if "pattern" in safe_anomaly:
@@ -96,7 +97,9 @@ def _anomaly_event_type(anomaly_type: str) -> str:
 
 
 def build_anomaly_event_data(
-    anomaly: dict[str, Any], correlation_id: str | None, redaction_names: Any = None
+    anomaly: dict[str, Any],
+    correlation_id: str | None,
+    redaction_names: _SensitiveNameSets | None = None,
 ) -> dict[str, Any]:
     event_type = _anomaly_event_type(anomaly["type"])
     safe_anomaly = anomaly.copy()

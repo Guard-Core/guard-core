@@ -239,7 +239,7 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
     @model_validator(mode="wrap")
     @classmethod
     def reject_redos_unsafe_blocked_user_agents(
-        cls, data: Any, handler: ModelWrapValidatorHandler[Self]
+        cls, data: object, handler: ModelWrapValidatorHandler[Self]
     ) -> Self:
         config = handler(data)
         _reject_redos_unsafe_blocked_user_agents_at_field(

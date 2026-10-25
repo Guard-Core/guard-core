@@ -6,6 +6,8 @@ from collections import deque
 from datetime import datetime, timezone
 from typing import Any
 
+from guard_core.sync._utils.pattern_source_redaction import _SensitiveNameSets
+
 from .monitor_anomalies import (
     build_anomaly_event_data,
     build_callback_error_event_data,
@@ -46,7 +48,7 @@ class PerformanceMonitor:
         max_tracked_patterns: int = 1000,
         anomaly_emission_cooldown: float = 60.0,
         min_samples_for_anomaly: int = 30,
-        redaction_names: Any = None,
+        redaction_names: _SensitiveNameSets | None = None,
     ):
         self.redaction_names = redaction_names
         self.anomaly_threshold = max(1.0, min(10.0, float(anomaly_threshold)))
