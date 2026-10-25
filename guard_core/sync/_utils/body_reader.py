@@ -20,6 +20,7 @@ from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
 if TYPE_CHECKING:
     from guard_core.models import SyncSecurityConfig
+    from guard_core.sync.decorators.base import RouteConfig
     from guard_core.sync.handlers.suspatterns_handler import SusPatternsManager
 
 logger = logging.getLogger("guard_core")
@@ -241,7 +242,7 @@ def _read_and_cache_body(
 def _capped_body_fetch_size(
     max_bytes: int, *, patterns: "SusPatternsManager | None" = None
 ) -> int:
-    return max_bytes + _straddle_overlap_bytes(patterns=patterns)
+    return max_bytes + max(_straddle_overlap_bytes(patterns=patterns), 1)
 
 
 def _read_bounded_prefix(
@@ -284,7 +285,8 @@ def _read_capped_body_prefix(
 def _warn_body_inspect_bytes_cap_reached(max_bytes: int, client_ip: str) -> None:
     logger.warning(
         "detection_max_body_inspect_bytes (%d) reached for client %s; only the "
-        "first %d bytes of the request body are scanned",
+        "first %d bytes of the request body are scanned and the request gets "
+        "the body-read failure outcome",
         max_bytes,
         client_ip,
         max_bytes,
@@ -343,6 +345,53 @@ def _read_declared_body(
     )
 
 
+def resolve_inspect_cap(
+    config: "SyncSecurityConfig", route_config: "RouteConfig | None"
+) -> int:
+    cap = config.detection_max_body_inspect_bytes
+    if route_config is None or route_config.max_request_size is None:
+        return cap
+    return max(cap, route_config.max_request_size)
+
+
+def read_body_for_inspection(
+    request: SyncGuardRequest,
+    config: "SyncSecurityConfig",
+    client_ip: str,
+    max_bytes: int,
+    *,
+    patterns: "SusPatternsManager | None" = None,
+) -> tuple[bytes | None, bool]:
+    timeout = config.body_read_timeout
+    max_concurrent = config.sync_body_read_max_concurrent
+    content_length = request.headers.get("content-length")
+
+    if content_length is not None:
+        parsed = _parse_content_length(content_length)
+        if parsed is not None:
+            if parsed > max_bytes:
+                return (
+                    _read_oversized_declared_body(
+                        request,
+                        max_bytes,
+                        timeout,
+                        max_concurrent,
+                        client_ip,
+                        patterns=patterns,
+                    ),
+                    True,
+                )
+            return (
+                _read_declared_body(request, max_bytes, timeout, max_concurrent),
+                False,
+            )
+
+    prefix = _read_capped_body_prefix(
+        request, max_bytes, timeout, max_concurrent, patterns=patterns
+    )
+    return prefix, prefix is not None and len(prefix) > max_bytes
+
+
 def _read_capped_body_or_raise(
     request: SyncGuardRequest,
     config: "SyncSecurityConfig | None",
@@ -356,28 +405,14 @@ def _read_capped_body_or_raise(
         )
         return prefix if isinstance(prefix, bytes) else None
 
-    max_bytes = config.detection_max_body_inspect_bytes
-    timeout = config.body_read_timeout
-    max_concurrent = config.sync_body_read_max_concurrent
-    content_length = request.headers.get("content-length")
-
-    if content_length is not None:
-        parsed = _parse_content_length(content_length)
-        if parsed is not None:
-            if parsed > max_bytes:
-                return _read_oversized_declared_body(
-                    request,
-                    max_bytes,
-                    timeout,
-                    max_concurrent,
-                    client_ip,
-                    patterns=patterns,
-                )
-            return _read_declared_body(request, max_bytes, timeout, max_concurrent)
-
-    return _read_capped_body_prefix(
-        request, max_bytes, timeout, max_concurrent, patterns=patterns
+    body, _past_cap = read_body_for_inspection(
+        request,
+        config,
+        client_ip,
+        config.detection_max_body_inspect_bytes,
+        patterns=patterns,
     )
+    return body
 
 
 def _read_capped_body(

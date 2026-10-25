@@ -15,6 +15,7 @@ from guard_core.exceptions import (
 from guard_core.protocols.request_protocol import GuardRequest, GuardRequestHeaders
 
 if TYPE_CHECKING:
+    from guard_core.decorators.base import RouteConfig
     from guard_core.handlers.suspatterns_handler import SusPatternsManager
     from guard_core.models import SecurityConfig
 
@@ -238,7 +239,7 @@ async def _read_and_cache_body(
 async def _capped_body_fetch_size(
     max_bytes: int, *, patterns: "SusPatternsManager | None" = None
 ) -> int:
-    return max_bytes + await _straddle_overlap_bytes(patterns=patterns)
+    return max_bytes + max(await _straddle_overlap_bytes(patterns=patterns), 1)
 
 
 async def _read_bounded_prefix(
@@ -281,7 +282,8 @@ async def _read_capped_body_prefix(
 def _warn_body_inspect_bytes_cap_reached(max_bytes: int, client_ip: str) -> None:
     logger.warning(
         "detection_max_body_inspect_bytes (%d) reached for client %s; only the "
-        "first %d bytes of the request body are scanned",
+        "first %d bytes of the request body are scanned and the request gets "
+        "the body-read failure outcome",
         max_bytes,
         client_ip,
         max_bytes,
@@ -340,6 +342,53 @@ async def _read_declared_body(
     )
 
 
+def resolve_inspect_cap(
+    config: "SecurityConfig", route_config: "RouteConfig | None"
+) -> int:
+    cap = config.detection_max_body_inspect_bytes
+    if route_config is None or route_config.max_request_size is None:
+        return cap
+    return max(cap, route_config.max_request_size)
+
+
+async def read_body_for_inspection(
+    request: GuardRequest,
+    config: "SecurityConfig",
+    client_ip: str,
+    max_bytes: int,
+    *,
+    patterns: "SusPatternsManager | None" = None,
+) -> tuple[bytes | None, bool]:
+    timeout = config.body_read_timeout
+    max_concurrent = config.async_body_read_max_concurrent
+    content_length = request.headers.get("content-length")
+
+    if content_length is not None:
+        parsed = _parse_content_length(content_length)
+        if parsed is not None:
+            if parsed > max_bytes:
+                return (
+                    await _read_oversized_declared_body(
+                        request,
+                        max_bytes,
+                        timeout,
+                        max_concurrent,
+                        client_ip,
+                        patterns=patterns,
+                    ),
+                    True,
+                )
+            return (
+                await _read_declared_body(request, max_bytes, timeout, max_concurrent),
+                False,
+            )
+
+    prefix = await _read_capped_body_prefix(
+        request, max_bytes, timeout, max_concurrent, patterns=patterns
+    )
+    return prefix, prefix is not None and len(prefix) > max_bytes
+
+
 async def _read_capped_body_or_raise(
     request: GuardRequest,
     config: "SecurityConfig | None",
@@ -353,30 +402,14 @@ async def _read_capped_body_or_raise(
         )
         return prefix if isinstance(prefix, bytes) else None
 
-    max_bytes = config.detection_max_body_inspect_bytes
-    timeout = config.body_read_timeout
-    max_concurrent = config.async_body_read_max_concurrent
-    content_length = request.headers.get("content-length")
-
-    if content_length is not None:
-        parsed = _parse_content_length(content_length)
-        if parsed is not None:
-            if parsed > max_bytes:
-                return await _read_oversized_declared_body(
-                    request,
-                    max_bytes,
-                    timeout,
-                    max_concurrent,
-                    client_ip,
-                    patterns=patterns,
-                )
-            return await _read_declared_body(
-                request, max_bytes, timeout, max_concurrent
-            )
-
-    return await _read_capped_body_prefix(
-        request, max_bytes, timeout, max_concurrent, patterns=patterns
+    body, _past_cap = await read_body_for_inspection(
+        request,
+        config,
+        client_ip,
+        config.detection_max_body_inspect_bytes,
+        patterns=patterns,
     )
+    return body
 
 
 async def _read_capped_body(

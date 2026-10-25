@@ -72,7 +72,7 @@ def test_a_signature_split_across_the_cap_boundary_is_missed_with_no_overlap(
     result = utils.detect_penetration_attempt(cast(SyncGuardRequest, request), config)
 
     assert result.is_threat is False
-    assert request.requested_max_bytes == 1024
+    assert request.requested_max_bytes == 1024 + 1
 
 
 def test_the_same_straddling_signature_is_matched_once_the_overlap_covers_it(

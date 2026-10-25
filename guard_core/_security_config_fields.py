@@ -36,7 +36,10 @@ from guard_core._staged_defaults import (
     signal_changed_defaults,
 )
 from guard_core.handlers._ipban_cache import DEFAULT_MAX_LOCAL_BANS
-from guard_core.handlers.suspatterns_handler import ALL_DETECTION_CATEGORIES
+from guard_core.handlers.suspatterns_handler import (
+    _DEFAULT_MAX_BODY_INSPECT_BYTES,
+    ALL_DETECTION_CATEGORIES,
+)
 from guard_core.protocols.cloud_ip_store_protocol import (
     CloudIpStoreFactory,
     CloudIpStoreProtocol,
@@ -1271,25 +1274,22 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
     )
 
     detection_max_body_inspect_bytes: int = Field(
-        default=262144,
+        default=_DEFAULT_MAX_BODY_INSPECT_BYTES,
         description=(
             "Maximum bytes read from the start of the request body and inspected "
-            "for penetration detection. Past this cap an adapter with a bounded "
-            "reader (read_body_prefix) has its first N bytes scanned, and a "
-            "one-time warning names the cap and the client. An adapter without "
-            "one gets the body-read failure outcome: the body is not read, the "
-            "request is answered 400 when fail_secure is on, an event is sent "
-            "and no strike is recorded; with fail_secure off the failure is "
-            "logged and the request passes unscanned. "
-            "This is a memory bound, "
-            "not full-body coverage: only this leading prefix is ever scanned, so "
-            "a payload placed after the first N bytes, or a signature split across "
-            "the boundary, is not detected. That tradeoff is inherent to "
-            "bounded-memory scanning and cannot be closed without reading the "
-            "whole body; raise the cap to shrink the blind spot, at the cost of "
-            "more memory held per inspected request and more CPU time spent "
-            "pattern-matching it, since the full-body scan window and "
-            "truncate_safely's own output size both follow this same cap. This "
+            "for penetration detection. A body up to this cap is scanned in "
+            "full. A body past it is never passed unscanned: an adapter with a "
+            "bounded reader (read_body_prefix) has its first N bytes scanned and, "
+            "when they are clean, the request gets the body-read failure "
+            "outcome; an adapter without one has the body left unread and gets "
+            "the same outcome. That outcome is a 400 when fail_secure is on, an "
+            "event and no strike; with fail_secure off it is logged and the "
+            "request passes on the prefix scan alone. Raise the cap to scan "
+            "larger bodies in full, at the cost of more memory held per "
+            "inspected request and more CPU time spent pattern-matching it, "
+            "since the full-body scan window and truncate_safely's own output "
+            "size both follow this same cap. A route whose max_request_size is "
+            "above this cap uses that value as its own inspect cap. This "
             "is the single memory bound for the whole preprocessing path: "
             "gzip-bomb decompression inside base64 decoding and the short-base64 "
             "additive view are bounded by it too, not by any separate constant. "

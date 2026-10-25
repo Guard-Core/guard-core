@@ -55,9 +55,11 @@ Maximum character count for content passed to the detection engine. Content exce
 
 **Type**: `int` | **Default**: `262144` | **Range**: 1024 - 10485760
 
-Maximum bytes read from the start of the request body and inspected during detection. Bodies whose `Content-Length` exceeds this are never read or scanned, bounding memory on the detection hot path.
+Maximum bytes read from the start of the request body and inspected during detection. A body up to this cap is scanned in full.
 
-This is a memory bound, not full-body coverage. Only the first `detection_max_body_inspect_bytes` bytes of the body are ever scanned, whether they come from a `Content-Length`-bounded read or from an adapter's `BoundedBodyReader.read_body_prefix`. An attacker who pads a request with that many bytes of filler before the actual payload, or splits a signature across the boundary, evades detection; this is inherent to bounded-memory scanning and cannot be closed without reading the whole body. Raise the value to shrink the blind spot at the cost of holding more memory per inspected request; it is a tradeoff, not a full-scan guarantee.
+A body past the cap is never passed unscanned. The prefix is scanned (through the adapter's `BoundedBodyReader.read_body_prefix`, or, when the adapter has none, the body is left unread), and a clean prefix is answered with the body-read failure outcome: `400` under `fail_secure`, a `suspicious_request` event and no strike. With `fail_secure=False` the request passes on the prefix scan alone, with the event. A threat inside the prefix is reported as a threat. The cap is a memory bound: raise it to scan larger bodies in full, at the cost of holding more memory per inspected request.
+
+A route whose `max_request_size` is above this cap uses that value as its own inspect cap, so a route that accepts large bodies has them scanned in full while a sibling route without it is refused past the global cap. The route's `max_request_size` then also sets how much of a body one request holds in memory for scanning.
 
 Distinct from `detection_max_content_length` (the regex scan window over already-decoded content) and `max_request_size` (the request-size gate that returns a 413).
 

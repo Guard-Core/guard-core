@@ -7,7 +7,11 @@ from guard_core._utils.body_content_scan import (
     _scan_query_params,
     _scan_request_body,
 )
-from guard_core._utils.body_reader import _read_capped_body_or_raise
+from guard_core._utils.body_reader import (
+    _read_capped_body_or_raise,
+    read_body_for_inspection,
+    resolve_inspect_cap,
+)
 from guard_core._utils.detection_config import (
     _resolve_binary_min_run_length,
     _resolve_body_field_category_skips,
@@ -234,6 +238,35 @@ async def _scan_request_surface(
     return None
 
 
+_BODY_PAST_CAP_DETAIL = (
+    "the body is past the inspect cap, so only its first bytes were scanned"
+)
+
+
+async def _read_body_for_scan(
+    request: GuardRequest,
+    config: "SecurityConfig | None",
+    route_config: "RouteConfig | None",
+    client_ip: str,
+    *,
+    patterns: "SusPatternsManager | None" = None,
+) -> tuple[bytes | None, bool]:
+    if config is None:
+        return (
+            await _read_capped_body_or_raise(
+                request, config, client_ip, patterns=patterns
+            ),
+            False,
+        )
+    return await read_body_for_inspection(
+        request,
+        config,
+        client_ip,
+        resolve_inspect_cap(config, route_config),
+        patterns=patterns,
+    )
+
+
 async def _scan_body_surface(
     request: GuardRequest,
     config: "SecurityConfig | None",
@@ -252,8 +285,8 @@ async def _scan_body_surface(
         return _build_detection_miss()
 
     try:
-        body_bytes = await _read_capped_body_or_raise(
-            request, config, client_ip, patterns=patterns
+        body_bytes, past_cap = await _read_body_for_scan(
+            request, config, route_config, client_ip, patterns=patterns
         )
     except BodyReadStalledError as error:
         return _build_body_read_error(True, error.detail)
@@ -279,6 +312,8 @@ async def _scan_body_surface(
     )
     if detected:
         return _build_detection_hit(trigger, threats)
+    if past_cap:
+        return _build_body_read_error(False, _BODY_PAST_CAP_DETAIL)
     return _build_detection_miss()
 
 

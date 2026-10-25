@@ -77,7 +77,7 @@ async def test_over_cap_declared_length_bounded_reader_reads_prefix_at_the_cap(
         result = await detect_penetration_attempt(cast(GuardRequest, request), config)
 
     assert request.body_read is False
-    assert request.prefix_requested_max_bytes == 1024
+    assert request.prefix_requested_max_bytes == 1025
     assert result.is_threat is True
     assert "detection_max_body_inspect_bytes (1024) reached" in caplog.text
 
@@ -109,7 +109,7 @@ async def test_missing_content_length_bounded_reader_scans_within_cap() -> None:
     result = await detect_penetration_attempt(cast(GuardRequest, request), config)
 
     assert request.body_read is False
-    assert request.prefix_requested_max_bytes == 1024
+    assert request.prefix_requested_max_bytes == 1025
     assert result.is_threat is True
 
 
@@ -357,8 +357,8 @@ async def test_second_capped_read_with_a_smaller_cap_slices_the_cached_prefix() 
 
     assert request.read_body_prefix_calls == 1
     assert first == oversized_body[:4096]
-    assert second == oversized_body[:1024]
-    assert len(second) <= 1024
+    assert second == oversized_body[:1025]
+    assert len(second) <= 1025
 
 
 async def test_second_capped_read_with_a_different_request_reads_independently() -> (
