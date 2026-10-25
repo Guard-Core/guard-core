@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple
 from guard_core._redis_enablement import redis_is_configured
 from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
+from guard_core.sync._utils.access_control import load_geo_database_for_route_rules
 from guard_core.sync._utils.agent_events import agent_receives_events
 from guard_core.sync._utils.ip_extraction import (
     MALFORMED_FORWARDED_FOR_PREFIX,
@@ -453,11 +454,11 @@ class RateLimitCheck(SecurityCheck):
         state = request.state
         client_ip = getattr(state, "client_ip", None)
         route_config = getattr(state, "route_config", None)
-        plans = (
-            self._tier_plans(request, client_ip, route_config)
-            if client_ip and not self._skips_rate_limiting(request, route_config, state)
-            else []
-        )
+        plans: list[_TierPlan] = []
+        if client_ip and not self._skips_rate_limiting(request, route_config, state):
+            if route_config and route_config.geo_rate_limits:
+                load_geo_database_for_route_rules(self.middleware)
+            plans = self._tier_plans(request, client_ip, route_config)
         flow = getattr(state, "guard_ban_flow", None)
         pending = flow.pending if isinstance(flow, BanFlow) else None
         if defer_rate_limit(self, pending, client_ip, plans):
