@@ -11,7 +11,7 @@ from guard_core._security_config_batch import apply_config_batch, prepare_config
 from guard_core._security_config_field_validators import (
     canonicalize_cloud_provider_selector,
 )
-from guard_core._utils.detection_scan import _redact_pattern_source
+from guard_core._utils.pattern_source_redaction import _redact_pattern_source_of_app
 from guard_core.handlers._cloud_provider_registry import merge_cloud_selectors
 from guard_core.handlers._dynamic_rule_validation import (
     MalformedDynamicRules,
@@ -45,9 +45,12 @@ class DynamicRulePlan:
 
 
 def _redact_rejected_patterns(
-    rejected: list[tuple[str, str]],
+    rejected: list[tuple[str, str]], config: SecurityConfig
 ) -> list[tuple[str, str]]:
-    return [(_redact_pattern_source(pattern), reason) for pattern, reason in rejected]
+    return [
+        (_redact_pattern_source_of_app(pattern, config), reason)
+        for pattern, reason in rejected
+    ]
 
 
 def _classify_exempt_entry(entry: str) -> tuple[str | None, str | None]:
@@ -203,13 +206,13 @@ class DynamicRulePlanMixin:
                 rejected.append((pattern, reason))
         if rejected:
             for pattern, _reason in rejected:
+                shown = _redact_pattern_source_of_app(pattern, self.config)
                 plan.skipped.append(
-                    "blocked_user_agents: pattern "
-                    f"{_redact_pattern_source(pattern)!r} failed the ReDoS validator"
+                    f"blocked_user_agents: pattern {shown!r} failed the ReDoS validator"
                 )
             plan.note(
                 f"Dynamic rule: rejected blocked_user_agents patterns failing the "
-                f"ReDoS validator: {_redact_rejected_patterns(rejected)}",
+                f"ReDoS validator: {_redact_rejected_patterns(rejected, self.config)}",
                 logging.WARNING,
             )
         return valid
@@ -221,7 +224,7 @@ class DynamicRulePlanMixin:
             return
         merged = _merge_unique(plan.state.get("blocked_user_agents"), valid_user_agents)
         plan.set("blocked_user_agents", merged, validate=False)
-        redacted = [_redact_pattern_source(p) for p in merged]
+        redacted = [_redact_pattern_source_of_app(p, self.config) for p in merged]
         plan.note(f"Dynamic rule: Blocked user agents {redacted}")
 
     def _plan_exempt_ips(self, plan: DynamicRulePlan, rules: DynamicRules) -> None:

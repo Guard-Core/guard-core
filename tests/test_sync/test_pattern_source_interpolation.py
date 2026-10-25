@@ -3,7 +3,12 @@ from pathlib import Path
 
 _PACKAGE = Path(__file__).resolve().parent.parent / "guard_core"
 _REDACTORS = frozenset(
-    {"_redact_pattern_source", "_redact_pattern_list", "_redact_rejected_patterns"}
+    {
+        "_redact_pattern_source",
+        "_redact_pattern_source_of_app",
+        "_redact_pattern_list",
+        "_redact_rejected_patterns",
+    }
 )
 _LOG_METHODS = frozenset({"debug", "info", "warning", "error", "critical", "exception"})
 _PATTERN_NAME_FRAGMENTS = ("pattern", "user_agents", "suspicious_patterns")

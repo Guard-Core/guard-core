@@ -486,7 +486,7 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
                 timeout_occurred = True
                 logger.warning(
                     "Pattern timeout: "
-                    f"{_redact_pattern_source(pattern.pattern)[:50]}..."
+                    f"{_redact_pattern_source(pattern.pattern, self)[:50]}..."
                 )
 
             threat = _first_accepted_regex_threat(
@@ -538,7 +538,8 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
         except concurrent.futures.TimeoutError:
             _record_scan_time(timeout)
             logger.warning(
-                f"Pattern timeout: {_redact_pattern_source(pattern.pattern)[:50]}..."
+                "Pattern timeout: "
+                f"{_redact_pattern_source(pattern.pattern, self)[:50]}..."
             )
             future.cancel()
             report_scan_timeout()
@@ -546,7 +547,7 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
         except Exception as e:
             logger.error(
                 f"Error in windowed regex search for pattern "
-                f"{_redact_pattern_source(pattern.pattern)[:50]}...: {e}"
+                f"{_redact_pattern_source(pattern.pattern, self)[:50]}...: {e}"
             )
             return None, False
 
@@ -612,7 +613,7 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
             _record_scan_time(timeout)
             logger.warning(
                 f"Regex timeout exceeded for pattern: "
-                f"{_redact_pattern_source(pattern.pattern)[:50]}... "
+                f"{_redact_pattern_source(pattern.pattern, self)[:50]}... "
                 f"Potential ReDoS attack blocked. IP: {ip_address}"
             )
             future.cancel()
@@ -621,7 +622,7 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
         except Exception as e:
             logger.error(
                 f"Error in regex search for pattern "
-                f"{_redact_pattern_source(pattern.pattern)[:50]}...: {e}"
+                f"{_redact_pattern_source(pattern.pattern, self)[:50]}...: {e}"
             )
             return None, False
 

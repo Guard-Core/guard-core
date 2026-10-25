@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from guard_core._emergency_exemptions import warn_unexempted_probe_paths
-from guard_core._utils.detection_scan import _redact_pattern_source
+from guard_core._utils.pattern_source_redaction import _redact_pattern_source_of_app
 from guard_core.handlers._dynamic_rule_events import DynamicRuleEventSenderMixin
 from guard_core.handlers._dynamic_rule_plan import DynamicRulePlan
 from guard_core.handlers._ipban_rule_exempt import (
@@ -14,8 +14,8 @@ from guard_core.handlers._ipban_rule_revoke import _LIFTED, REVOKE_REWRITTEN
 from guard_core.models import DynamicRules, SecurityConfig
 
 
-def _redact_pattern_list(patterns: list[str]) -> list[str]:
-    return [_redact_pattern_source(pattern) for pattern in patterns]
+def _redact_pattern_list(patterns: list[str], config: SecurityConfig) -> list[str]:
+    return [_redact_pattern_source_of_app(pattern, config) for pattern in patterns]
 
 
 @dataclass
@@ -98,7 +98,7 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
                 await patterns_manager.remove_pattern(pattern)
                 self.logger.info(
                     "Dynamic rule: Revoked suspicious pattern "
-                    f"{_redact_pattern_source(pattern)}"
+                    f"{_redact_pattern_source_of_app(pattern, self.config)}"
                 )
             except Exception as e:
                 self.logger.error(f"Failed to revoke suspicious pattern: {e}")
@@ -185,18 +185,16 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
             else:
                 rejected.append(pattern)
         if added:
-            self.logger.info(
-                f"Dynamic rule: Added suspicious patterns {_redact_pattern_list(added)}"
-            )
+            shown = _redact_pattern_list(added, self.config)
+            self.logger.info(f"Dynamic rule: Added suspicious patterns {shown}")
 
         if rejected:
             skipped.extend(
                 f"suspicious_patterns: pattern {pattern!r} rejected"
-                for pattern in _redact_pattern_list(rejected)
+                for pattern in _redact_pattern_list(rejected, self.config)
             )
-            self.logger.warning(
-                f"Dynamic rule: rejected patterns {_redact_pattern_list(rejected)}"
-            )
+            redacted = _redact_pattern_list(rejected, self.config)
+            self.logger.warning(f"Dynamic rule: rejected patterns {redacted}")
 
     async def _announce_emergency_mode(self, whitelist: list[str]) -> None:
         self.logger.critical(

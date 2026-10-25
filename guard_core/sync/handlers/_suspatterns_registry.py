@@ -89,6 +89,9 @@ class _SusPatternsRegistryMixin(_SusPatternsLazyRowsMixin):
     agent_handler: Any = None
     _compiler: PatternCompiler | None
     _performance_monitor: PerformanceMonitor | None
+    _sensitive_headers_union: frozenset[str]
+    _sensitive_params_union: frozenset[str]
+    _sensitive_body_fields_union: frozenset[str]
 
     @property
     def _events_agent_handler(self) -> Any:
@@ -152,7 +155,7 @@ class _SusPatternsRegistryMixin(_SusPatternsLazyRowsMixin):
                     if not restored:
                         logger.warning(
                             f"Skipped restoring persisted pattern: "
-                            f"{_redact_pattern_source(pattern)[:50]}..."
+                            f"{_redact_pattern_source(pattern, self)[:50]}..."
                         )
         except Exception as e:
             logger.warning("Custom pattern restore skipped: %s", e)
@@ -173,7 +176,7 @@ class _SusPatternsRegistryMixin(_SusPatternsLazyRowsMixin):
         if not is_safe:
             logger.warning(
                 f"Rejected unsafe pattern ({reason}): "
-                f"{_redact_pattern_source(pattern)[:50]}..."
+                f"{_redact_pattern_source(pattern, self)[:50]}..."
             )
             return False
 
@@ -203,7 +206,7 @@ class _SusPatternsRegistryMixin(_SusPatternsLazyRowsMixin):
                 ip_address="system",
                 action_taken="pattern_added",
                 reason=f"{details} to detection system",
-                pattern=_redact_pattern_source(pattern),
+                pattern=_redact_pattern_source(pattern, self),
                 pattern_type="custom" if custom else "default",
                 total_patterns=len(self.custom_patterns)
                 if custom
@@ -264,7 +267,7 @@ class _SusPatternsRegistryMixin(_SusPatternsLazyRowsMixin):
             ip_address="system",
             action_taken="pattern_removed",
             reason=f"{details} from detection system",
-            pattern=_redact_pattern_source(pattern),
+            pattern=_redact_pattern_source(pattern, self),
             pattern_type="custom" if custom else "default",
             total_patterns=total_patterns,
         )

@@ -1,9 +1,16 @@
 import re
 from contextvars import ContextVar
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
     from guard_core.sync.handlers.suspatterns_handler import SusPatternsManager
+
+
+class _SensitiveNameSets(Protocol):
+    _sensitive_headers_union: frozenset[str]
+    _sensitive_params_union: frozenset[str]
+    _sensitive_body_fields_union: frozenset[str]
+
 
 _PATTERN_SOURCE_NON_TOKEN_RE = re.compile(r"[^a-z0-9_-]+")
 _PATTERN_SOURCE_ESCAPE_RE = re.compile(
@@ -33,7 +40,15 @@ def _pattern_source_names_a_sensitive_field(
     return any(name in normalized for name in sensitive_names)
 
 
-def _redact_pattern_source(pattern_source: str) -> str:
+def _redact_pattern_source_of_app(pattern_source: str, config: Any) -> str:
+    from guard_core.sync.handlers.suspatterns_handler import sus_patterns_manager_for
+
+    return _redact_pattern_source(pattern_source, sus_patterns_manager_for(config))
+
+
+def _redact_pattern_source(
+    pattern_source: str, patterns: "_SensitiveNameSets | None" = None
+) -> str:
     from guard_core.sync._utils.request_logging import (
         _merge_sensitive_log_body_fields,
         _merged_sensitive_names,
@@ -41,7 +56,7 @@ def _redact_pattern_source(pattern_source: str) -> str:
     )
     from guard_core.sync.handlers.suspatterns_handler import active_sus_patterns
 
-    patterns = _redacting_patterns.get() or active_sus_patterns()
+    patterns = patterns or _redacting_patterns.get() or active_sus_patterns()
     sensitive_params = patterns._sensitive_params_union
     sensitive_body_fields = patterns._sensitive_body_fields_union
     sensitive_headers = patterns._sensitive_headers_union

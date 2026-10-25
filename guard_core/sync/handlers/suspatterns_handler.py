@@ -1081,7 +1081,7 @@ class SusPatternsManager(_SusPatternsViewsMixin):
 
         threat_categories = _collect_threat_categories(threats)
 
-        pattern_matched = _redact_pattern_source(pattern_info)
+        pattern_matched = _redact_pattern_source(pattern_info, self)
 
         self._send_pattern_event(
             event_type=EVENT_PATTERN_DETECTED,
@@ -1132,7 +1132,7 @@ class SusPatternsManager(_SusPatternsViewsMixin):
             if result["threats"]:
                 threat = result["threats"][0]
                 if threat["type"] == "regex":
-                    return True, _redact_pattern_source(threat["pattern"])
+                    return True, _redact_pattern_source(threat["pattern"], self)
                 elif threat["type"] == "semantic":
                     return True, f"semantic:{threat.get('attack_type', 'suspicious')}"
             return True, "unknown"
