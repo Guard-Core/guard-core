@@ -40,6 +40,18 @@ def _pattern_source_names_a_sensitive_field(
     return any(name in normalized for name in sensitive_names)
 
 
+class _ConfigSensitiveNames:
+    """The sensitive names a config declares, before any manager exists for it."""
+
+    def __init__(self, config: Any, **overrides: frozenset[str]) -> None:
+        def names(field: str) -> frozenset[str]:
+            return overrides.get(field, getattr(config, field, frozenset()))
+
+        self._sensitive_headers_union = names("log_sensitive_headers")
+        self._sensitive_params_union = names("log_sensitive_params")
+        self._sensitive_body_fields_union = names("log_sensitive_body_fields")
+
+
 def _redact_pattern_source_of_app(pattern_source: str, config: Any) -> str:
     from guard_core.handlers.suspatterns_handler import sus_patterns_manager_for
 

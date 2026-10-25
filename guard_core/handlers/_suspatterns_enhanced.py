@@ -56,7 +56,7 @@ class _SusPatternsEnhancedMixin:
             self._config = config
         else:
             cls._config = config
-        self._detection_state = _build_enhanced_detection_state(config)
+        self._detection_state = _build_enhanced_detection_state(config, self)
         try:
             object.__setattr__(config, "_guard_pattern_manager", self)
         except (AttributeError, TypeError):

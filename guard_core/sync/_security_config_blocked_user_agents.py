@@ -1,0 +1,34 @@
+from typing import Any
+
+from guard_core._config_field_revalidators import _validate_str_list_field_value
+
+
+def _validate_blocked_user_agents_structure(v: Any) -> list[str]:
+    return _validate_str_list_field_value(v, field_name="blocked_user_agents")
+
+
+def _reject_redos_unsafe_blocked_user_agents(
+    patterns: list[str], redaction_names: Any = None
+) -> None:
+    from guard_core.sync._utils.detection_scan import _redact_pattern_source
+    from guard_core.sync.detection_engine.compiler import PatternCompiler
+    from guard_core.sync.utils import _MAX_USER_AGENT_MATCH_LENGTH
+
+    compiler = PatternCompiler(redaction_names=redaction_names)
+    for pattern in patterns:
+        is_safe, reason = compiler.validate_pattern_safety(
+            pattern, max_content_length=_MAX_USER_AGENT_MATCH_LENGTH
+        )
+        if not is_safe:
+            raise ValueError(
+                f"blocked_user_agents pattern rejected by ReDoS validator: "
+                f"{_redact_pattern_source(pattern, redaction_names)!r} ({reason})"
+            )
+
+
+def _validate_blocked_user_agents_value(
+    v: Any, redaction_names: Any = None
+) -> list[str]:
+    patterns = _validate_blocked_user_agents_structure(v)
+    _reject_redos_unsafe_blocked_user_agents(patterns, redaction_names)
+    return patterns

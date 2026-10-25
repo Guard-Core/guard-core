@@ -70,10 +70,12 @@ def detect_statistical_anomaly(
     return None
 
 
-def sanitize_anomaly_data(anomaly: dict[str, Any]) -> dict[str, Any]:
+def sanitize_anomaly_data(
+    anomaly: dict[str, Any], redaction_names: Any = None
+) -> dict[str, Any]:
     safe_anomaly = anomaly.copy()
     if "pattern" in safe_anomaly:
-        pattern = _redact_pattern_source(str(safe_anomaly["pattern"]))
+        pattern = _redact_pattern_source(str(safe_anomaly["pattern"]), redaction_names)
         safe_anomaly["pattern"] = pattern[:50] + "..." if len(pattern) > 50 else pattern
         safe_anomaly["pattern_hash"] = str(hash(pattern))[:8]
     return safe_anomaly
@@ -94,12 +96,14 @@ def _anomaly_event_type(anomaly_type: str) -> str:
 
 
 def build_anomaly_event_data(
-    anomaly: dict[str, Any], correlation_id: str | None
+    anomaly: dict[str, Any], correlation_id: str | None, redaction_names: Any = None
 ) -> dict[str, Any]:
     event_type = _anomaly_event_type(anomaly["type"])
     safe_anomaly = anomaly.copy()
     if "pattern" in safe_anomaly:
-        safe_anomaly["pattern"] = _redact_pattern_source(str(safe_anomaly["pattern"]))
+        safe_anomaly["pattern"] = _redact_pattern_source(
+            str(safe_anomaly["pattern"]), redaction_names
+        )
     return {
         "timestamp": datetime.now(timezone.utc),
         "event_type": event_type,

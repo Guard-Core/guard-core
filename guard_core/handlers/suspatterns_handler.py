@@ -791,7 +791,9 @@ class SusPatternsManager(_SusPatternsViewsMixin):
             cls._instance = cls._fresh()
             cls._config = config
             if _supports_enhanced_config(config):
-                cls._instance._detection_state = _build_enhanced_detection_state(config)
+                cls._instance._detection_state = _build_enhanced_detection_state(
+                    config, cls._instance
+                )
         return cls._instance
 
     @classmethod

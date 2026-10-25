@@ -26,12 +26,14 @@ from guard_core._security_config_validators import (
     _assign_checking_optional_extras,
     _country_shadow_should_warn,
     _is_prefix_zero_network_entry,
+    _reject_redos_unsafe_blocked_user_agents,
     _require_optional_extras,
     _require_recidive_cap_covers_auto_ban,
     _resolve_geo_ip_handler,
     _revalidate_copied_config,
+    _revalidate_field_value,
     _validate_block_cloud_providers_value,
-    _validate_blocked_user_agents_value,
+    _validate_blocked_user_agents_structure,
     _validate_country_set_value,
     _validate_dynamic_rules_cache_path_value,
     _validate_enabled_detection_categories_value,
@@ -68,6 +70,7 @@ from guard_core._staged_defaults import (
     signal_changed_defaults,
     warn_redis_prefix_left_default,
 )
+from guard_core._utils.pattern_source_redaction import _ConfigSensitiveNames
 from guard_core.exceptions import AgentPackageNotInstalledError
 from guard_core.handlers.suspatterns_handler import (
     ALL_DETECTION_CATEGORIES as ALL_DETECTION_CATEGORIES,
@@ -120,7 +123,7 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
         if name in _GEO_STATE_FIELDS:
             value = _apply_geo_ip_handler_assignment(self, name, value)
         if name in _FIELD_REVALIDATORS and not _skip_revalidation.get():
-            value = _FIELD_REVALIDATORS[name](value)
+            value = _revalidate_field_value(self, name, value)
         if name in _GLOBAL_BEHAVIOR_RULE_FIELDS:
             _validate_global_behavior_rule_assignment(self, name, value)
 
@@ -225,7 +228,14 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
 
     @field_validator("blocked_user_agents", mode="before")
     def validate_blocked_user_agents(cls, v: Any) -> list[str]:
-        return _validate_blocked_user_agents_value(v)
+        return _validate_blocked_user_agents_structure(v)
+
+    @model_validator(mode="after")
+    def reject_redos_unsafe_blocked_user_agents(self) -> Self:
+        _reject_redos_unsafe_blocked_user_agents(
+            self.blocked_user_agents, _ConfigSensitiveNames(self)
+        )
+        return self
 
     @model_validator(mode="after")
     def validate_optional_extras_installed(self) -> Self:

@@ -7,6 +7,7 @@ import sys
 import time
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
+from typing import Any
 
 from guard_core.sync.detection_engine._redos_cpu_budget import ReachProbeCpuBudget
 from guard_core.sync.detection_engine._redos_limited_child import (
@@ -386,13 +387,17 @@ def _reach_probe_unreachable_reason(structural_violation: str | None) -> str:
 
 
 def _log_structural_disagreement(
-    pattern: str, structural_violation: str, cap: int, reason: str
+    pattern: str,
+    structural_violation: str,
+    cap: int,
+    reason: str,
+    redaction_names: Any = None,
 ) -> None:
     from guard_core.sync._utils.detection_scan import _redact_pattern_source
 
     logger.warning(
         "guard_core pattern safety: structural rule flagged %r (%s) but %s; accepting",
-        _redact_pattern_source(pattern),
+        _redact_pattern_source(pattern, redaction_names),
         structural_violation,
         reason,
     )
@@ -578,6 +583,7 @@ def _reach_probe_cost_verdict(
     pattern: str,
     max_content_length: int | None,
     flags: int = _DEFAULT_PATTERN_FLAGS,
+    redaction_names: Any = None,
 ) -> tuple[bool, str]:
     scaled_seconds = _scaled_probe_deadline_seconds(_measure_host_load_factor())
     deadline = time.thread_time() + scaled_seconds
@@ -604,6 +610,7 @@ def _reach_probe_cost_verdict(
                 structural_violation,
                 cap,
                 "no repeatable adversarial trigger could be extracted to time",
+                redaction_names,
             )
         return True, "Pattern appears safe"
 
@@ -625,5 +632,6 @@ def _reach_probe_cost_verdict(
             structural_violation,
             cap,
             f"the timed reach-probe measured it under budget and linear at cap {cap}",
+            redaction_names,
         )
     return True, "Pattern appears safe"

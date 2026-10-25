@@ -29,7 +29,9 @@ _LEGACY_DETECTION_STATE = _DetectionState(
 )
 
 
-def _build_enhanced_detection_state(config: Any) -> _DetectionState:
+def _build_enhanced_detection_state(
+    config: Any, redaction_names: Any = None
+) -> _DetectionState:
     cache_path = getattr(config, "detection_pattern_validation_cache_path", None)
     validation_cache = PatternValidationCache(cache_path) if cache_path else None
     return _DetectionState(
@@ -37,6 +39,7 @@ def _build_enhanced_detection_state(config: Any) -> _DetectionState:
             default_timeout=config.detection_compiler_timeout,
             max_cache_size=config.detection_max_tracked_patterns,
             validation_cache=validation_cache,
+            redaction_names=redaction_names,
         ),
         preprocessor=ContentPreprocessor(
             max_content_length=config.detection_max_content_length,
@@ -51,6 +54,7 @@ def _build_enhanced_detection_state(config: Any) -> _DetectionState:
             max_tracked_patterns=config.detection_max_tracked_patterns,
             anomaly_emission_cooldown=config.detection_anomaly_emission_cooldown,
             min_samples_for_anomaly=config.detection_min_samples_for_anomaly,
+            redaction_names=redaction_names,
         ),
         semantic_threshold=config.detection_semantic_threshold,
         threat_score_threshold=config.detection_threat_score_threshold,

@@ -16,6 +16,11 @@ from guard_core._redis_enablement import (
     redis_is_configured,
     resolve_enable_redis,
 )
+from guard_core._security_config_blocked_user_agents import (
+    _reject_redos_unsafe_blocked_user_agents,
+    _validate_blocked_user_agents_structure,
+    _validate_blocked_user_agents_value,
+)
 from guard_core._security_config_field_validators import (
     _FIELD_REVALIDATORS,
     _GLOBAL_BEHAVIOR_RULE_FIELDS,
@@ -28,7 +33,6 @@ from guard_core._security_config_field_validators import (
     _revalidate_global_behavior_rules,
     _validate_blacklist_value,
     _validate_block_cloud_providers_value,
-    _validate_blocked_user_agents_value,
     _validate_dynamic_rules_cache_path_value,
     _validate_enabled_detection_categories_value,
     _validate_exclude_paths_value,
@@ -87,11 +91,14 @@ __all__ = [
     "_geo_state_candidates",
     "_is_prefix_zero_network_entry",
     "_normalized_country_value",
+    "_reject_redos_unsafe_blocked_user_agents",
     "_require_optional_extras",
     "_resolve_geo_ip_handler",
     "_revalidate_copied_config",
+    "_revalidate_field_value",
     "_validate_blacklist_value",
     "_validate_block_cloud_providers_value",
+    "_validate_blocked_user_agents_structure",
     "_validate_blocked_user_agents_value",
     "_validate_country_set_value",
     "_validate_dynamic_rules_cache_path_value",
@@ -118,6 +125,33 @@ __all__ = [
     "cloud_blocking_enabled",
     "return_pattern_requires_response_body",
 ]
+
+
+_SENSITIVE_NAME_FIELDS = (
+    "log_sensitive_headers",
+    "log_sensitive_params",
+    "log_sensitive_body_fields",
+)
+
+
+def _revalidate_field_value(
+    config: "SecurityConfig[RequestT]",
+    name: str,
+    value: Any,
+    pending: Mapping[str, Any] | None = None,
+) -> Any:
+    if name != "blocked_user_agents":
+        return _FIELD_REVALIDATORS[name](value)
+    from guard_core._utils.pattern_source_redaction import _ConfigSensitiveNames
+
+    names = {
+        field: _FIELD_REVALIDATORS[field](pending[field])
+        for field in _SENSITIVE_NAME_FIELDS
+        if pending is not None and field in pending
+    }
+    return _validate_blocked_user_agents_value(
+        value, _ConfigSensitiveNames(config, **names)
+    )
 
 
 def _revalidate_exclude_paths_field(
@@ -164,7 +198,7 @@ def _revalidate_changed_fields(
         BaseModel.__setattr__(
             copied,
             field_name,
-            _FIELD_REVALIDATORS[field_name](getattr(copied, field_name)),
+            _revalidate_field_value(copied, field_name, getattr(copied, field_name)),
         )
 
 

@@ -13,9 +13,13 @@ class ContentFilteringMixin(BaseSecurityMixin):
     def block_user_agents(
         self, patterns: list[str]
     ) -> Callable[[GuardedCallable], GuardedCallable]:
+        from guard_core.sync._utils.pattern_source_redaction import (
+            _ConfigSensitiveNames,
+        )
         from guard_core.sync.detection_engine.compiler import PatternCompiler
 
-        compiler = PatternCompiler()
+        names = _ConfigSensitiveNames(self.config)
+        compiler = PatternCompiler(redaction_names=names)
         for pattern in patterns:
             is_safe, reason = compiler.validate_pattern_safety(
                 pattern,
@@ -26,7 +30,7 @@ class ContentFilteringMixin(BaseSecurityMixin):
 
                 raise ValueError(
                     f"block_user_agents pattern rejected by ReDoS validator: "
-                    f"{_redact_pattern_source(pattern)!r} ({reason})"
+                    f"{_redact_pattern_source(pattern, names)!r} ({reason})"
                 )
 
         def decorator(func: GuardedCallable) -> GuardedCallable:

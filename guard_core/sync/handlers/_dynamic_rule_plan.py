@@ -183,6 +183,9 @@ class DynamicRulePlanMixin:
             PatternValidationCache,
         )
         from guard_core.sync.detection_engine.compiler import PatternCompiler
+        from guard_core.sync.handlers.suspatterns_handler import (
+            sus_patterns_manager_for,
+        )
         from guard_core.sync.utils import _MAX_USER_AGENT_MATCH_LENGTH
 
         cache_path = getattr(
@@ -191,7 +194,8 @@ class DynamicRulePlanMixin:
         compiler = PatternCompiler(
             validation_cache=(
                 PatternValidationCache(cache_path) if cache_path else None
-            )
+            ),
+            redaction_names=sus_patterns_manager_for(self.config),
         )
         validate = functools.partial(
             compiler.validate_pattern_safety,

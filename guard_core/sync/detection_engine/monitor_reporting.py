@@ -7,8 +7,10 @@ from guard_core.sync._utils.detection_scan import _redact_pattern_source
 from .monitor_types import PatternStats, PerformanceMetric
 
 
-def build_pattern_report(pattern: str, stats: PatternStats) -> dict[str, Any]:
-    redacted_pattern = _redact_pattern_source(pattern)
+def build_pattern_report(
+    pattern: str, stats: PatternStats, redaction_names: Any = None
+) -> dict[str, Any]:
+    redacted_pattern = _redact_pattern_source(pattern, redaction_names)
     safe_pattern = (
         redacted_pattern[:50] + "..."
         if len(redacted_pattern) > 50

@@ -163,7 +163,7 @@ class _SusPatternsRegistryMixin(_SusPatternsLazyRowsMixin):
     @_OnManagerOrDefault
     def add_pattern(self, pattern: str, custom: bool = False) -> bool:
 
-        compiler = self._compiler or PatternCompiler()
+        compiler = self._compiler or PatternCompiler(redaction_names=self)
         max_content_length = getattr(
             self._scan_config(),
             "detection_max_body_inspect_bytes",

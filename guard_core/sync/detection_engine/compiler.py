@@ -86,7 +86,9 @@ class PatternCompiler:
         default_timeout: float = 5.0,
         max_cache_size: int = 1000,
         validation_cache: "_validation_cache.PatternValidationCache | None" = None,
+        redaction_names: Any = None,
     ):
+        self.redaction_names = redaction_names
         self.default_timeout = default_timeout
         self.max_cache_size = min(max_cache_size, 5000)
         self._compiled_cache: dict[str, re.Pattern] = {}
@@ -145,12 +147,16 @@ class PatternCompiler:
             return _run_pattern_safety_probe_subprocess(pattern, test_strings, flags)
 
         if self._validation_cache is None:
-            return _reach_probe_cost_verdict(pattern, max_content_length, flags)
+            return _reach_probe_cost_verdict(
+                pattern, max_content_length, flags, self.redaction_names
+            )
         cap = max_content_length or _PATTERN_SAFETY_DEFAULT_CAP
         cached = self._validation_cache.get(pattern, flags, cap)
         if cached is not None:
             return cached
-        safe, reason = _reach_probe_cost_verdict(pattern, max_content_length, flags)
+        safe, reason = _reach_probe_cost_verdict(
+            pattern, max_content_length, flags, self.redaction_names
+        )
         if not isinstance(reason, TransientReason):
             self._validation_cache.put(pattern, flags, cap, safe, reason)
         return safe, reason

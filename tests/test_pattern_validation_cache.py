@@ -297,7 +297,10 @@ def test_a_verdict_cached_at_one_cap_is_not_served_at_another(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     def verdict(
-        pattern: str, max_content_length: int | None, flags: int = 0
+        pattern: str,
+        max_content_length: int | None,
+        flags: int = 0,
+        redaction_names: object = None,
     ) -> tuple[bool, str]:
         accepted = max_content_length is not None and max_content_length <= 512
         return accepted, "accepted at a small cap" if accepted else "over budget"

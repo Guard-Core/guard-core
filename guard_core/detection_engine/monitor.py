@@ -46,7 +46,9 @@ class PerformanceMonitor:
         max_tracked_patterns: int = 1000,
         anomaly_emission_cooldown: float = 60.0,
         min_samples_for_anomaly: int = 30,
+        redaction_names: Any = None,
     ):
+        self.redaction_names = redaction_names
         self.anomaly_threshold = max(1.0, min(10.0, float(anomaly_threshold)))
         self.slow_pattern_threshold = max(
             0.01, min(10.0, float(slow_pattern_threshold))
@@ -193,7 +195,9 @@ class PerformanceMonitor:
         agent_handler: Any,
         correlation_id: str | None,
     ) -> None:
-        event_data = build_anomaly_event_data(anomaly, correlation_id)
+        event_data = build_anomaly_event_data(
+            anomaly, correlation_id, self.redaction_names
+        )
         event = type("SecurityEvent", (), event_data)()
         try:
             await agent_handler.send_event(event)
@@ -201,7 +205,7 @@ class PerformanceMonitor:
             logger.error("Failed to send anomaly event to agent: %s", e)
 
     def _sanitize_anomaly_data(self, anomaly: dict[str, Any]) -> dict[str, Any]:
-        return sanitize_anomaly_data(anomaly)
+        return sanitize_anomaly_data(anomaly, self.redaction_names)
 
     async def _send_callback_error_event(
         self,
@@ -292,7 +296,7 @@ class PerformanceMonitor:
         if not stats:
             return None
 
-        return build_pattern_report(pattern, stats)
+        return build_pattern_report(pattern, stats, self.redaction_names)
 
     async def get_slow_patterns(self, limit: int = 10) -> list[dict[str, Any]]:
         async with self._lock:

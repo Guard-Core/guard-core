@@ -80,9 +80,9 @@ def test_two_apps_without_redis_alternate_without_rebuilding_detection() -> None
     builds: list[int] = []
     real = enhanced_module._build_enhanced_detection_state
 
-    def counting(config: Any) -> Any:
+    def counting(config: Any, redaction_names: Any = None) -> Any:
         builds.append(1)
-        return real(config)
+        return real(config, redaction_names)
 
     with (
         patch.object(enhanced_module, "_build_enhanced_detection_state", counting),

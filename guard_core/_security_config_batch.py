@@ -9,6 +9,7 @@ from guard_core._config_capabilities import (
 from guard_core._security_config_validators import (
     _FIELD_REVALIDATORS,
     _resolve_geo_ip_handler,
+    _revalidate_field_value,
     _warn_country_allowlist_shadows_blocklist,
 )
 
@@ -35,7 +36,9 @@ def prepare_config_batch(
     prepared = {name: deepcopy(value) for name, value in values.items()}
     for name in validated:
         if name in _FIELD_REVALIDATORS:
-            prepared[name] = _FIELD_REVALIDATORS[name](prepared[name])
+            prepared[name] = _revalidate_field_value(
+                config, name, prepared[name], prepared
+            )
     _require_cloud_extra_for_batch(config, prepared)
     blocked = prepared.get("blocked_countries", config.blocked_countries)
     allowed = prepared.get("whitelist_countries", config.whitelist_countries)

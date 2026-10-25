@@ -18,6 +18,9 @@ from guard_core._config_field_revalidators import (
     _validate_positive_int_field_value,
     _validate_str_list_field_value,
 )
+from guard_core._security_config_blocked_user_agents import (
+    _validate_blocked_user_agents_value,
+)
 from guard_core._security_config_geo_validators import _validate_country_set_value
 from guard_core._security_config_typed_validators import (
     _INT_KEYED_STR_DICT_ADAPTER,
@@ -140,16 +143,18 @@ def return_pattern_requires_response_body(pattern: str) -> bool:
 
 
 def _validate_return_pattern_requires_scan(
-    pattern: str, *, scan_response_body: bool
+    pattern: str, *, scan_response_body: bool, config: Any = None
 ) -> None:
     if not return_pattern_requires_response_body(pattern):
         return
     if scan_response_body:
         return
     from guard_core._utils.detection_scan import _redact_pattern_source
+    from guard_core._utils.pattern_source_redaction import _ConfigSensitiveNames
 
+    names = _ConfigSensitiveNames(config) if config is not None else None
     raise ValueError(
-        f"return_pattern rule with pattern {_redact_pattern_source(pattern)!r} "
+        f"return_pattern rule with pattern {_redact_pattern_source(pattern, names)!r} "
         "requires reading the "
         "response body, but behavior_scan_response_body is False. This rule "
         "would never match: set behavior_scan_response_body=True to enable "
@@ -161,7 +166,7 @@ def _validate_return_pattern_body_scan(
     pattern: str, config: "SecurityConfig[RequestT]"
 ) -> None:
     _validate_return_pattern_requires_scan(
-        pattern, scan_response_body=config.behavior_scan_response_body
+        pattern, scan_response_body=config.behavior_scan_response_body, config=config
     )
 
 
@@ -180,7 +185,7 @@ def _validate_global_behavior_rule_assignment(
         if rule.rule_type != "return_pattern" or not rule.pattern:
             continue
         _validate_return_pattern_requires_scan(
-            rule.pattern, scan_response_body=candidate_scan_flag
+            rule.pattern, scan_response_body=candidate_scan_flag, config=config
         )
 
 
@@ -410,25 +415,6 @@ def _validate_block_cloud_providers_value(v: Any) -> frozenset[str] | None:
             "provider; suffix ':!region' to carve out a region exception)"
         )
     return result
-
-
-def _validate_blocked_user_agents_value(v: Any) -> list[str]:
-    from guard_core._utils.detection_scan import _redact_pattern_source
-    from guard_core.detection_engine.compiler import PatternCompiler
-    from guard_core.utils import _MAX_USER_AGENT_MATCH_LENGTH
-
-    patterns = _validate_str_list_field_value(v, field_name="blocked_user_agents")
-    compiler = PatternCompiler()
-    for pattern in patterns:
-        is_safe, reason = compiler.validate_pattern_safety(
-            pattern, max_content_length=_MAX_USER_AGENT_MATCH_LENGTH
-        )
-        if not is_safe:
-            raise ValueError(
-                f"blocked_user_agents pattern rejected by ReDoS validator: "
-                f"{_redact_pattern_source(pattern)!r} ({reason})"
-            )
-    return patterns
 
 
 def _validate_dynamic_rules_cache_path_value(v: Any) -> Path | None:
