@@ -12,6 +12,7 @@ from guard_core.sync.handlers import _suspatterns_enhanced as enhanced_module
 from guard_core.sync.handlers.cloud_handler import CloudManager
 from guard_core.sync.handlers.ipinfo_handler import IPInfoManager
 from guard_core.sync.handlers.suspatterns_handler import (
+    _LEGACY_DETECTION_STATE,
     SusPatternsManager,
     active_sus_patterns,
     scanning_with,
@@ -81,18 +82,22 @@ def test_scanning_with_sets_the_active_manager_only_inside_the_block() -> None:
 def test_a_config_without_the_enhanced_fields_gets_a_legacy_manager() -> None:
     manager = SusPatternsManager._for_app(SimpleNamespace())
 
-    assert manager._detection_state is sus_patterns_handler._detection_state
+    assert manager._detection_state is _LEGACY_DETECTION_STATE
 
 
 def test_configure_survives_a_config_that_refuses_the_manager_reference() -> None:
-    class _Refuses(SyncSecurityConfig):
-        def __setattr__(self, name: str, value: object) -> None:
-            if name == "_guard_pattern_manager":
-                raise AttributeError(name)
-            super().__setattr__(name, value)
+    template = SyncSecurityConfig()
+    fields = tuple(type(template).model_fields)
+
+    class _Slotted:
+        __slots__ = fields
+
+    config = _Slotted()
+    for attr in fields:
+        setattr(config, attr, getattr(template, attr))
+    assert not hasattr(config, "__dict__")
 
     manager = SusPatternsManager._fresh()
-    config = _Refuses()
 
     enhanced_module._SusPatternsEnhancedMixin.configure(manager, config)
 
