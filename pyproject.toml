@@ -126,6 +126,7 @@ select = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+pythonpath = ["specs/fixtures/tools"]
 python_files = ["test_*.py"]
 asyncio_default_fixture_loop_scope = "function"
 addopts = "--cov=guard_core --cov-branch --cov-report=term-missing -m 'not integration and not redos_timing'"
@@ -138,6 +139,7 @@ markers = [
 
 [tool.mypy]
 python_version = "3.10"
+mypy_path = "specs/fixtures/tools"
 plugins = ["pydantic.mypy"]
 warn_return_any = true
 warn_unused_configs = true
