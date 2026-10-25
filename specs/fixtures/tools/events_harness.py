@@ -91,7 +91,10 @@ from guard_core.handlers.ipinfo_handler import IPInfoManager
 from guard_core.handlers.ratelimit_handler import RateLimitManager
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.handlers.security_headers_handler import security_headers_manager
-from guard_core.handlers.suspatterns_handler import sus_patterns_handler
+from guard_core.handlers.suspatterns_handler import (
+    sus_patterns_handler,
+    sus_patterns_manager_for,
+)
 from guard_core.models import DynamicRules, SecurityConfig
 from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 from guard_core.protocols.request_protocol import GuardRequest
@@ -401,6 +404,7 @@ class EventsCase:
         self.agent = CapturingAgentHandler(self.sink)
         self.geo = _StubGeoHandler(case.get("geo_countries", {}))
         self.config = _make_events_config(case, self.geo)
+        self.patterns = sus_patterns_manager_for(self.config, bind=True)
         self.routes = {
             path: _build_events_route(path, overrides)
             for path, overrides in case.get("routes", {}).items()
@@ -542,7 +546,7 @@ class EventsCase:
                 DynamicRuleManager._instance = None
 
     async def _call_wire_pattern_events(self, step: EventsStep) -> None:
-        await sus_patterns_handler.initialize_agent(self.agent)
+        await self.patterns.initialize_agent(self.agent)
 
     async def _call_decorator_event(self, step: EventsStep) -> None:
         request = _PipelineRequest(step)
