@@ -945,7 +945,7 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "(?i)\\A\\s*UNION\\s+(?:ALL\\s+)?SELECT\\s*\\Z",
+            "pattern": "(?i)\\A[\\s/\\ufeff]*UNION\\s+(?:ALL\\s+)?SELECT(?:[\\s;#\\x00]|/\\*.{0,40}?\\*/)*\\Z",
             "match": "union select",
             "position": 0,
             "category": "sqli",

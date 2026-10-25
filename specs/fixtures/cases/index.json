@@ -1,8 +1,8 @@
 {
  "spec_version": "4.1.0",
  "engine_version": "4.4.0",
- "engine_commit": "4438ef81d0dcdb475074959b22a71e4fbef4ea4e",
- "generated_at": "2026-10-25T19:52:17.056890+00:00",
+ "engine_commit": "d8a03ffdfc6c8e116138356374beec2b41c1b1f4",
+ "generated_at": "2026-10-25T23:28:49.340646+00:00",
  "fixed_ip": "203.0.113.7",
  "config_knobs": {
   "detection_compiler_timeout": 2.0,
@@ -352,42 +352,42 @@
   "k": 5,
   "floor_ms": 250,
   "timing_runs": 5,
-  "generated_at": "2026-10-25T19:52:45+00:00",
+  "generated_at": "2026-10-25T23:29:13+00:00",
   "budgets": {
    "cost_prose_8kib": {
-    "reference_ms": 14.8,
+    "reference_ms": 13.2,
     "expected_is_threat": false
    },
    "cost_prose_64kib": {
-    "reference_ms": 81.1,
+    "reference_ms": 73.2,
     "expected_is_threat": false
    },
    "cost_prose_256kib": {
-    "reference_ms": 295.9,
+    "reference_ms": 265.9,
     "expected_is_threat": false
    },
    "cost_prose_1mib": {
-    "reference_ms": 996.8,
+    "reference_ms": 848.4,
     "expected_is_threat": false
    },
    "cost_encoded_64kib": {
-    "reference_ms": 83.9,
+    "reference_ms": 77.3,
     "expected_is_threat": false
    },
    "cost_binnoise_64kib": {
-    "reference_ms": 77.0,
+    "reference_ms": 69.8,
     "expected_is_threat": false
    },
    "cost_threat_8kib": {
-    "reference_ms": 13.1,
+    "reference_ms": 11.7,
     "expected_is_threat": true
    },
    "cost_threat_tail_256kib": {
-    "reference_ms": 338.1,
+    "reference_ms": 308.2,
     "expected_is_threat": true
    },
    "cost_threat_mid_1mib": {
-    "reference_ms": 1018.3,
+    "reference_ms": 917.4,
     "expected_is_threat": false
    }
   }
