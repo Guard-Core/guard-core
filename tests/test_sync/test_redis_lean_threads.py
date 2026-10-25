@@ -3,6 +3,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 from unittest.mock import patch
 
+from redis import Redis
 from redis.exceptions import NoScriptError
 
 from guard_core.sync.handlers._redis_lean import lean_command, lean_evalsha
@@ -123,3 +124,25 @@ def test_a_release_listener_hears_each_lean_call_like_each_plain_one() -> None:
         assert len(listener.events) == 5
     finally:
         client.close()
+
+
+def test_a_stock_client_answers_every_lean_routed_method_like_the_fast_pool() -> None:
+    fast = _build_redis_client(REDIS_URL, 10, 1.0)
+    stock = Redis.from_url(REDIS_URL, decode_responses=True)
+    try:
+        sha = stock.script_load(SCRIPT)
+        key = f"lean:{uuid.uuid4().hex}"
+        stock.set(key, "1")
+        for client in (stock, fast):
+            assert lean_command(client, "GET", key) == "1"
+            assert lean_command(client, "MGET", key, f"{key}:none") == ["1", None]
+            assert lean_evalsha(client, SCRIPT, sha, ["a", "b"], ["x"]) == (
+                stock.evalsha(sha, 2, "a", "b", "x")
+            )
+        stock.script_flush()
+        assert lean_evalsha(stock, SCRIPT, sha, ["a", "b"], ["x"]) == lean_evalsha(
+            fast, SCRIPT, sha, ["a", "b"], ["x"]
+        )
+    finally:
+        stock.close()
+        fast.close()

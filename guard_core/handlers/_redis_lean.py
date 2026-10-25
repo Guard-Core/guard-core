@@ -55,9 +55,16 @@ async def lean_command(client: Redis, *args: Any) -> Any:
     a command that never left; the read is never retried, because a script that
     already ran must not run twice (the rate-limit members are the server's clock).
     After an error or a cancellation the connection is disconnected before it
-    goes back, so no later call reads a stale reply."""
+    goes back, so no later call reads a stale reply.
+
+    A client whose pool is not a ``FastPathConnectionPool`` (a ``RedisHandlerBase``
+    subclass brings its own) has no fast return to take from, so the command goes
+    through the client's own ``execute_command``."""
     pool = client.connection_pool
-    connection = await pool.take_connection_with_nothing_unread()
+    take_connection = getattr(pool, "take_connection_with_nothing_unread", None)
+    if take_connection is None:
+        return await client.execute_command(*args)
+    connection = await take_connection()
     if connection is None:
         connection = await pool.get_connection()
     packed = _pack(connection, args)

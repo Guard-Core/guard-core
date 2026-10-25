@@ -653,3 +653,26 @@ async def test_an_instance_without_a_provider_manager_takes_the_plain_path(
         await _calls_take_the_plain_path(client, events)
     finally:
         await client.aclose()
+
+
+async def test_a_stock_client_answers_every_lean_routed_method_like_the_fast_pool(
+    client: Redis,
+) -> None:
+    stock = Redis.from_url(REDIS_URL, decode_responses=True)
+    try:
+        sha = await stock.script_load(SCRIPT)
+        prefix = f"lean:{uuid.uuid4().hex}:"
+        await stock.set(f"{prefix}a", "1")
+        names = [f"{prefix}a", f"{prefix}missing"]
+        for lean_client in (stock, client):
+            assert await lean_command(lean_client, "GET", f"{prefix}a") == "1"
+            assert await lean_command(lean_client, "MGET", *names) == ["1", None]
+            assert await lean_evalsha(
+                lean_client, SCRIPT, sha, ["a", "b"], ["x"]
+            ) == await stock.evalsha(sha, 2, "a", "b", "x")
+        await stock.script_flush()
+        assert await lean_evalsha(stock, SCRIPT, sha, ["a", "b"], ["x"]) == (
+            await lean_evalsha(client, SCRIPT, sha, ["a", "b"], ["x"])
+        )
+    finally:
+        await stock.aclose()
