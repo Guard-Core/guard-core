@@ -77,7 +77,7 @@ git clone --branch "$ref" --depth 1 "https://github.com/$repo" "$clone_dir"
 cd "$clone_dir"
 echo "::endgroup::"
 
-# The consumer's .python-version says 3.10, so the job's interpreter is passed to uv explicitly.
+# The consumer's .python-version says 3.11, so the job's interpreter is passed to uv explicitly.
 python_version="${UV_PYTHON:?UV_PYTHON must name the interpreter this job tests}"
 echo "::group::uv sync --python $python_version $sync_extra"
 if [ ! -f uv.lock ]; then

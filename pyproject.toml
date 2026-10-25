@@ -42,8 +42,8 @@ dev = [
     "guard-agent",
     "maxminddb",
     "mypy",
-    "pip-audit",
-    "pre-commit",
+    "pip-audit; python_version >= '3.11'",
+    "pre-commit; python_version >= '3.11'",
     "pyopenssl",
     "pysocks",
     "pytest",
@@ -54,7 +54,7 @@ dev = [
     "redis",
     "requests",
     "ruff==0.17.1",
-    "safety",
+    "safety; python_version >= '3.11'",
     "testcontainers",
     "types-cachetools",
     "types-requests",
@@ -282,9 +282,11 @@ ignore = []
 
 [tool.uv]
 exclude-newer = "7 days"
+override-dependencies = ["filelock>=4.2.1"]
 
 [tool.uv.exclude-newer-package]
 guard-agent = "0 days"
+virtualenv = "2026-10-23T00:00:00Z"
 
 [tool.deptry]
 extend_exclude = ['vulture_whitelist\.py', 'docs', 'conftest\.py', '\.claude', 'interop']

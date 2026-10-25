@@ -21,6 +21,9 @@ concurrency:
 jobs:
   redaction-gate:
     runs-on: ubuntu-latest
+    env:
+      UV_PYTHON: '3.10'
+      UV_PYTHON_DOWNLOADS: never
 
     timeout-minutes: 40
 

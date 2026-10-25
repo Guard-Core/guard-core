@@ -24,6 +24,9 @@ concurrency:
 jobs:
   build-wheel:
     runs-on: ubuntu-latest
+    env:
+      UV_PYTHON: '3.10'
+      UV_PYTHON_DOWNLOADS: never
 
     outputs:
       version: ${{ steps.wheel.outputs.version }}
@@ -111,7 +114,7 @@ jobs:
       IPINFO_TOKEN: test_token
       REDIS_URL: redis://localhost:6379
       GH_TOKEN: ${{ github.token }}
-      # The consumers' own .python-version says 3.10, so ecosystem_gate.sh syncs with this version explicitly.
+      # The consumers' own .python-version says 3.11, so ecosystem_gate.sh syncs with this version explicitly.
       UV_PYTHON: ${{ matrix.python-version }}
       UV_PYTHON_DOWNLOADS: never
       EXPECTED_PYTHON: ${{ matrix.python-version }}
@@ -214,7 +217,7 @@ jobs:
       IPINFO_TOKEN: test_token
       REDIS_URL: redis://localhost:6379
       GH_TOKEN: ${{ github.token }}
-      # The consumers' own .python-version says 3.10, so ecosystem_gate.sh syncs with this version explicitly.
+      # The consumers' own .python-version says 3.11, so ecosystem_gate.sh syncs with this version explicitly.
       UV_PYTHON: ${{ matrix.python-version }}
       UV_PYTHON_DOWNLOADS: never
       EXPECTED_PYTHON: ${{ matrix.python-version }}

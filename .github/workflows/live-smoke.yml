@@ -23,6 +23,9 @@ permissions:
 jobs:
   live-smoke:
     runs-on: ubuntu-latest
+    env:
+      UV_PYTHON: '3.10'
+      UV_PYTHON_DOWNLOADS: never
 
     services:
       redis:

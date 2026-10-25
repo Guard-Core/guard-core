@@ -58,7 +58,7 @@ jobs:
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     env:
-      # uv follows .python-version (3.10) unless told otherwise.
+      # uv follows .python-version (3.11) unless told otherwise.
       UV_PYTHON: ${{ matrix.python-version }}
       UV_PYTHON_DOWNLOADS: never
       EXPECTED_PYTHON: ${{ matrix.python-version }}
@@ -226,7 +226,7 @@ jobs:
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     env:
-      # uv follows .python-version (3.10) unless told otherwise.
+      # uv follows .python-version (3.11) unless told otherwise.
       UV_PYTHON: ${{ matrix.python-version }}
       UV_PYTHON_DOWNLOADS: never
       EXPECTED_PYTHON: ${{ matrix.python-version }}
@@ -365,7 +365,7 @@ jobs:
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     env:
-      # uv follows .python-version (3.10) unless told otherwise.
+      # uv follows .python-version (3.11) unless told otherwise.
       UV_PYTHON: ${{ matrix.python-version }}
       UV_PYTHON_DOWNLOADS: never
       EXPECTED_PYTHON: ${{ matrix.python-version }}
