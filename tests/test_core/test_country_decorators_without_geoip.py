@@ -118,7 +118,10 @@ def test_the_reverse_mixed_pair_still_raises_at_declaration() -> None:
     decorator = SecurityDecorator(
         SecurityConfig(enable_redis=False, fail_on_misconfiguration=True)
     )
-    assert SecurityConfig(enable_redis=False, fail_on_misconfiguration=False)
+    HandlerInitializer(
+        SecurityConfig(enable_redis=False, fail_on_misconfiguration=False),
+        guard_decorator=decorator,
+    )
 
     with pytest.raises(ValueError, match="no GeoIP database is configured"):
         decorator.block_countries(["CN"])(lambda: None)
