@@ -1,6 +1,7 @@
 from ipaddress import ip_address
 from typing import Any
 
+from guard_core._utils.access_control import load_geo_database_for_route_rules
 from guard_core._utils.agent_events import agent_receives_events
 from guard_core._utils.ip_extraction import (
     _is_trusted_proxy,
@@ -268,6 +269,7 @@ class IpSecurityCheck(SecurityCheck):
         route_config: RouteConfig | None,
     ) -> tuple[IpAccessResult, bool, bool]:
         route_overrides_whitelist = _route_overrides_ip_lists(route_config)
+        await load_geo_database_for_route_rules(route_config, self.middleware)
         skip_countries = _route_country_whitelist_matched(
             client_ip, route_config, self.middleware.geo_ip_handler
         ) or (

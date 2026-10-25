@@ -9,6 +9,7 @@ from urllib.parse import urlparse
 from guard_core._tracking_caps import (
     _MAX_TRACKED_SUSPICIOUS_IPS as _MAX_TRACKED_SUSPICIOUS_IPS,
 )
+from guard_core._utils.access_control import load_geo_database_for_route_rules
 from guard_core.core.checks._shared_strikes import (
     SharedStrikes,
     StrikeReport,
@@ -347,6 +348,7 @@ async def check_route_ip_access(
     try:
         ip_addr = ip_address(client_ip)
 
+        await load_geo_database_for_route_rules(route_config, middleware)
         ip_result = _check_ip_whitelist(client_ip, ip_addr, route_config)
         if ip_result is None and _check_ip_blacklist(client_ip, ip_addr, route_config):
             ip_result = False

@@ -3,6 +3,7 @@ from ipaddress import ip_address
 from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple
 
 from guard_core._redis_enablement import redis_is_configured
+from guard_core._utils.access_control import load_geo_database_for_route_rules
 from guard_core._utils.agent_events import agent_receives_events
 from guard_core._utils.ip_extraction import (
     MALFORMED_FORWARDED_FOR_PREFIX,
@@ -439,6 +440,7 @@ class RateLimitCheck(SecurityCheck):
         if not client_ip or self._skips_rate_limiting(request, route_config):
             return None
 
+        await load_geo_database_for_route_rules(route_config, self.middleware)
         plans = self._tier_plans(request, client_ip, route_config)
         if not plans:
             return None

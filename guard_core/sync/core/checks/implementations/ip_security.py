@@ -3,6 +3,7 @@ from typing import Any
 
 from guard_core.exceptions import GuardRedisError
 from guard_core.protocols.response_protocol import GuardResponse
+from guard_core.sync._utils.access_control import load_geo_database_for_route_rules
 from guard_core.sync._utils.agent_events import agent_receives_events
 from guard_core.sync._utils.ip_extraction import (
     _is_trusted_proxy,
@@ -269,6 +270,7 @@ class IpSecurityCheck(SecurityCheck):
         route_config: RouteConfig | None,
     ) -> tuple[IpAccessResult, bool, bool]:
         route_overrides_whitelist = _route_overrides_ip_lists(route_config)
+        load_geo_database_for_route_rules(route_config, self.middleware)
         skip_countries = _route_country_whitelist_matched(
             client_ip, route_config, self.middleware.geo_ip_handler
         ) or (

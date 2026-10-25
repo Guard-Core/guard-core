@@ -107,6 +107,25 @@ def _load_geo_database(geo_ip_handler: SyncGeoIPHandler) -> None:
     ensure_database_loaded()
 
 
+def _route_reads_a_country(route_config: Any) -> bool:
+    return bool(
+        route_config
+        and (
+            route_config.blocked_countries
+            or route_config.whitelist_countries
+            or route_config.geo_rate_limits
+        )
+    )
+
+
+def load_geo_database_for_route_rules(route_config: Any, middleware: Any) -> None:
+    if not _route_reads_a_country(route_config):
+        return
+    geo_ip_handler: SyncGeoIPHandler | None = middleware.geo_ip_handler
+    if geo_ip_handler is not None and not geo_ip_handler.is_initialized:
+        _load_geo_database(geo_ip_handler)
+
+
 def _resolve_country_verdict(
     ip: str, config: Any, geo_ip_handler: SyncGeoIPHandler
 ) -> tuple[bool, str | None]:
