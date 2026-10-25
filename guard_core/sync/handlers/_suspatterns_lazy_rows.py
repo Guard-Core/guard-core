@@ -1,9 +1,12 @@
 import re
 from functools import cached_property
-from typing import Any, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 from guard_core.sync._utils.scan_config_scope import scoped_config
 from guard_core.sync.handlers._suspatterns_pattern_table import BARE_UNION_SELECT_ROW
+
+if TYPE_CHECKING:
+    from guard_core.models import SyncSecurityConfig
 
 _BUILTIN_PATTERN_COMPILE_FLAGS = re.IGNORECASE
 
@@ -18,7 +21,7 @@ class _CompiledBuiltinPatterns(dict[str, re.Pattern]):
 COMPILED_BUILTIN_PATTERNS = _CompiledBuiltinPatterns()
 
 
-def disabled_row_sources_of(config: Any) -> frozenset[str]:
+def disabled_row_sources_of(config: "SyncSecurityConfig") -> frozenset[str]:
     return (
         frozenset()
         if getattr(config, "flag_bare_union_select", True)
@@ -33,10 +36,10 @@ class _SourceRow(NamedTuple):
 class _SusPatternsLazyRowsMixin:
     _pattern_definitions: list[tuple[str, frozenset[str], str]]
     compiled_custom_patterns: set[tuple[re.Pattern, frozenset[str], str]]
-    _config: Any = None
+    _config: "SyncSecurityConfig | None" = None
     _disabled_row_sources: frozenset[str] = frozenset()
 
-    def _scan_config(self) -> Any:
+    def _scan_config(self) -> "SyncSecurityConfig | None":
         return scoped_config(self, self._config)
 
     @cached_property
