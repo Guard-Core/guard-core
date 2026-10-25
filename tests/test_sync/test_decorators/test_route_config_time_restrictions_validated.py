@@ -1,6 +1,6 @@
 import pytest
 
-from guard_core.sync.decorators.route_config import RouteConfig
+from guard_core.sync.decorators.route_config import RouteConfig, RouteConfigRevision
 
 
 @pytest.mark.parametrize(
@@ -34,3 +34,38 @@ def test_direct_assignment_of_a_valid_window_works() -> None:
     route_config.time_restrictions = None
 
     assert route_config.time_restrictions is None
+
+
+def _window() -> tuple[RouteConfigRevision, RouteConfig]:
+    revision = RouteConfigRevision()
+    route_config = RouteConfig(revision)
+    route_config.time_restrictions = {"start": "09:00", "end": "17:00"}
+    return revision, route_config
+
+
+def test_item_mutations_leaving_a_bad_window_raise_and_change_nothing() -> None:
+    mutations = [
+        lambda d: d.__setitem__("start", "25:99"),
+        lambda d: d.__setitem__("timezone", "Mars/Olympus"),
+        lambda d: d.__delitem__("end"),
+        lambda d: d.update(end="9pm"),
+        lambda d: d.pop("start"),
+        lambda d: d.__ior__({"start": None}),
+    ]
+    for mutation in mutations:
+        _, route_config = _window()
+        with pytest.raises(ValueError, match="time_restrictions"):
+            mutation(route_config.time_restrictions)
+        assert route_config.time_restrictions == {"start": "09:00", "end": "17:00"}
+
+
+def test_a_valid_item_set_works_and_bumps_the_revision() -> None:
+    revision, route_config = _window()
+    revision.value = 0
+
+    route_config.time_restrictions["start"] = "08:30"
+    route_config.time_restrictions.setdefault("timezone", "Europe/Berlin")
+
+    assert route_config.time_restrictions["start"] == "08:30"
+    assert route_config.time_restrictions["timezone"] == "Europe/Berlin"
+    assert revision.value == 2

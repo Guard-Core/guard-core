@@ -197,9 +197,7 @@ def test_appending_to_a_tracked_list_field_bumps_revision(
     assert getattr(route_config, field_name) == ["value"]
 
 
-@pytest.mark.parametrize(
-    "field_name", ["required_headers", "time_restrictions", "geo_rate_limits"]
-)
+@pytest.mark.parametrize("field_name", ["required_headers", "geo_rate_limits"])
 def test_setting_an_item_on_a_tracked_dict_field_bumps_revision(
     field_name: str,
 ) -> None:

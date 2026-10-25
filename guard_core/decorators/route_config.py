@@ -145,6 +145,30 @@ class _TrackedDict(_RevisionTrackedContainer, dict):
         return self
 
 
+def _refusing_an_invalid_window(method: Callable[..., Any]) -> Callable[..., Any]:
+    def mutate(self: "_TrackedTimeRestrictions", *args: Any, **kwargs: Any) -> Any:
+        before = dict(self)
+        result = method(self, *args, **kwargs)
+        problems = time_restriction_problems(self) if self else []
+        if problems:
+            dict.clear(self)
+            dict.update(self, before)
+            raise ValueError(" ".join(problems))
+        return result
+
+    return mutate
+
+
+class _TrackedTimeRestrictions(_TrackedDict):
+    __setitem__ = _refusing_an_invalid_window(_TrackedDict.__setitem__)
+    __delitem__ = _refusing_an_invalid_window(_TrackedDict.__delitem__)
+    update = _refusing_an_invalid_window(_TrackedDict.update)
+    setdefault = _refusing_an_invalid_window(_TrackedDict.setdefault)
+    pop = _refusing_an_invalid_window(_TrackedDict.pop)
+    popitem = _refusing_an_invalid_window(_TrackedDict.popitem)
+    __ior__ = _refusing_an_invalid_window(_TrackedDict.__ior__)
+
+
 class _TrackedSet(_RevisionTrackedContainer, set):
     def __init__(
         self,
@@ -244,6 +268,8 @@ def _wrap_in_tracked_container(
 ) -> Any:
     if name in _TRACKED_LIST_FIELDS and isinstance(value, list):
         return _TrackedList(value, revision=revision)
+    if name == "time_restrictions" and isinstance(value, dict):
+        return _TrackedTimeRestrictions(value, revision=revision)
     if name in _TRACKED_DICT_FIELDS and isinstance(value, dict):
         return _TrackedDict(value, revision=revision)
     if name in _TRACKED_SET_FIELDS and isinstance(value, set):
