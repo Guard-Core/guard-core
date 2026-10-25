@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import importlib.util
 import json
 import subprocess
 import sys
@@ -8,21 +9,22 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(REPO_ROOT))
+import events_harness
+import pipeline_harness
+from events_cases import EVENTS_SUITES
+from events_harness import EVENT_DROP_KEYS, run_events_case
+from pipeline_cases import PIPELINE_SUITES
+from pipeline_harness import run_case
+from redis_interop_cases import REDIS_SUITES, run_redis_case
+from run_fixtures import STAGED_FIELDS
 
-from events_cases import EVENTS_SUITES  # noqa: E402
-from events_harness import EVENT_DROP_KEYS, run_events_case  # noqa: E402
-from pipeline_cases import PIPELINE_SUITES  # noqa: E402
-from pipeline_harness import run_case  # noqa: E402
-from redis_interop_cases import REDIS_SUITES, run_redis_case  # noqa: E402
-
-from guard_core import __version__ as engine_version  # noqa: E402
-from guard_core.handlers.suspatterns_handler import (  # noqa: E402
+from guard_core import __version__ as engine_version
+from guard_core.handlers.suspatterns_handler import (
     sus_patterns_handler,
 )
-from guard_core.models import SecurityConfig  # noqa: E402
+from guard_core.models import SecurityConfig
 
+REPO_ROOT = Path(__file__).resolve().parents[3]
 CASES_DIR = REPO_ROOT / "specs" / "fixtures" / "cases"
 SPEC_VERSION = "4.1.0"
 DETECTION_KNOBS = [
@@ -663,8 +665,6 @@ def suite_consumers(kind: str) -> list[str]:
 def build_index(
     results: dict[str, dict], config: SecurityConfig, generated_at: str
 ) -> dict:
-    import events_harness
-
     return {
         "spec_version": SPEC_VERSION,
         "engine_version": engine_version,
@@ -672,6 +672,7 @@ def build_index(
         "generated_at": generated_at,
         "fixed_ip": FIXED_IP,
         "config_knobs": {knob: getattr(config, knob) for knob in DETECTION_KNOBS},
+        "pipeline_defaults": json.loads(json.dumps(pipeline_harness.DEFAULT_STATE)),
         "suites": {
             name: {
                 "case_count": len(payload["cases"]),
@@ -697,6 +698,9 @@ def build_index(
                 "advisory and carry no expectations"
             ),
             "events_volatile_fields": sorted(EVENT_DROP_KEYS),
+            "events_prefix_rules": [
+                dict(rule) for rule in events_harness.EVENT_PREFIX_RULES
+            ],
             "events_volatile_metadata": {
                 event_type: list(keys)
                 for event_type, keys in sorted(
@@ -746,17 +750,15 @@ def main() -> None:
     # the bus swallows the import error and every event case silently pins
     # zero envelopes, producing a corpus that xfails every real engine
     # (2026-10-10 incident). Fail loudly instead.
-    try:
-        import guard_agent  # noqa: F401
-    except ModuleNotFoundError as exc:
+    if importlib.util.find_spec("guard_agent") is None:
         raise SystemExit(
-            "corpus generation requires the optional agent seam: "
-            f"{exc}. Install it (e.g. `uv pip install -e "
+            "corpus generation requires the optional agent seam: guard_agent is "
+            "not importable. Install it (e.g. `uv pip install -e "
             "../guard-agent` from the ecosystem checkout) and rerun; "
             "generating without it pins zero event envelopes."
-        ) from exc
+        )
 
-    config = SecurityConfig()
+    config = SecurityConfig(**STAGED_FIELDS)
     results = asyncio.run(run_corpus(config, only=only))
     write_corpus(results, config, write_index=only is None)
     total = sum(len(payload["cases"]) for payload in results.values())

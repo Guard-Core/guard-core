@@ -43,6 +43,8 @@ from __future__ import annotations
 import logging
 from typing import Any, cast
 
+from run_fixtures import STAGED_FIELDS
+
 from guard_core.core.behavioral.context import BehavioralContext
 from guard_core.core.behavioral.processor import BehavioralProcessor
 from guard_core.core.checks.factory import build_default_pipeline
@@ -115,9 +117,9 @@ ROUTE_KEYS = (
 )
 
 DEFAULT_STATE = {
+    **STAGED_FIELDS,
     # Ban-free, redis-free determinism knobs; a case config may raise
     # auto_ban_threshold but never lower it below this floor in the corpus.
-    "enable_redis": False,
     "enable_rate_limit_auto_ban": False,
     "enable_ip_banning": False,
     "auto_ban_threshold": 1000,

@@ -14,22 +14,19 @@ from __future__ import annotations
 
 import asyncio
 import json
-import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(REPO_ROOT))
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+from run_fixtures import STAGED_FIELDS, canonical_threats, normalize
 
-from run_fixtures import canonical_threats, normalize  # noqa: E402
-
-from guard_core import __version__ as engine_version  # noqa: E402
-from guard_core.handlers.suspatterns_handler import (  # noqa: E402
+from guard_core import __version__ as engine_version
+from guard_core.handlers.suspatterns_handler import (
     sus_patterns_handler,
 )
-from guard_core.models import SecurityConfig  # noqa: E402
+from guard_core.models import SecurityConfig
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
 
 CASES_DIR = REPO_ROOT / "specs" / "fixtures" / "cases"
 SPEC_VERSION = "4.1.0"
@@ -66,8 +63,11 @@ def to_size(unit: str, size: int) -> str:
     return (unit * (size // len(unit) + 1))[:size]
 
 
+def prose(size: int) -> str:
+    return to_size(PROSE_UNIT, size)
+
+
 def build_workloads() -> list[dict]:
-    prose = lambda n: to_size(PROSE_UNIT, n)  # noqa: E731
     k, m = 1024, 1024 * 1024
     workloads: list[dict] = [
         {
@@ -133,7 +133,7 @@ def build_workloads() -> list[dict]:
 
 
 async def main_async() -> int:
-    config = SecurityConfig()
+    config = SecurityConfig(**STAGED_FIELDS)
     sus_patterns_handler.configure(config)
     manager = sus_patterns_handler
 

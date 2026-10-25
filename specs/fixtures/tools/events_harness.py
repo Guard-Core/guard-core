@@ -89,11 +89,27 @@ EVENTS_CANONICAL_REDIS_URL = "redis://localhost:6379/0"
 # GUARD_CORE_CORPUS_REDIS_URL or GUARD_CORE_FIXTURE_REDIS_URL; the captured
 # envelopes still report the canonical URL (see _normalize), so no port leaks
 # into the corpus.
-EVENTS_REDIS_URL = os.environ.get(
-    "GUARD_CORE_FIXTURE_REDIS_URL",
-    os.environ.get("GUARD_CORE_CORPUS_REDIS_URL", EVENTS_CANONICAL_REDIS_URL),
+EVENTS_REDIS_URL = (
+    os.environ.get("GUARD_CORE_FIXTURE_REDIS_URL")
+    or os.environ.get("GUARD_CORE_CORPUS_REDIS_URL")
+    or os.environ.get("REDIS_URL")
+    or EVENTS_CANONICAL_REDIS_URL
 )
 EVENTS_REDIS_ERROR_URL = "redis://localhost:59999/0"
+
+# The one envelope field that carries the driver's own error text, which differs
+# by operating system (redis-py reports [Errno 61] on macOS and [Errno 111] on
+# Linux): the fixed prefix is compared, the driver detail after it is not.
+# Published in index.json as comparison.events_prefix_rules; every other field
+# of every envelope stays exact.
+EVENT_PREFIX_RULES = (
+    {
+        "event_type": "redis_error",
+        "field": "reason",
+        "prefix": "Redis connection failed: ",
+        "rest": "the driver's own error detail, never compared",
+    },
+)
 
 # Volatile envelope fields: identity (uuid4), wall-clock timestamps, and
 # every timing-derived measurement. Dropped recursively at capture time and
@@ -478,7 +494,7 @@ class EventsCase:
         )
 
     async def _call_dynamic_rules(self, step: dict[str, Any]) -> None:
-        DynamicRuleManager._instance = None  # noqa: SLF001 - corpus reset
+        DynamicRuleManager._instance = None  # corpus reset
         manager = DynamicRuleManager(self.config)
         rules = _rules_from_payload(step["rules"])
         manager.agent_handler = _CorpusRulesAgent(self.sink, rules)
@@ -698,7 +714,7 @@ async def _flush_events_prefix() -> None:
 
 
 async def _reset_redis_manager() -> None:
-    RedisManager._instance = None  # noqa: SLF001 - corpus reset
+    RedisManager._instance = None  # corpus reset
 
 
 def _without_timing_noise(

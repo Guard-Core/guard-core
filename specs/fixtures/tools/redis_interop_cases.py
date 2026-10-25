@@ -34,6 +34,7 @@ from pathlib import Path
 from typing import Any
 
 from pipeline_harness import _PipelineRequest, _StubResponse
+from run_fixtures import STAGED_FIELDS
 
 from guard_core.handlers._cloud_provider_registry import (
     _decode_cached,
@@ -52,9 +53,11 @@ from guard_core.handlers.suspatterns_handler import sus_patterns_handler
 from guard_core.models import DynamicRules, SecurityConfig
 
 REDIS_PREFIX = "guard_core:corpus_rio:"
-REDIS_URL = os.environ.get(
-    "GUARD_CORE_FIXTURE_REDIS_URL",
-    os.environ.get("GUARD_CORE_CORPUS_REDIS_URL", "redis://localhost:6379/0"),
+REDIS_URL = (
+    os.environ.get("GUARD_CORE_FIXTURE_REDIS_URL")
+    or os.environ.get("GUARD_CORE_CORPUS_REDIS_URL")
+    or os.environ.get("REDIS_URL")
+    or "redis://localhost:6379/0"
 )
 RIO_IP = "203.0.113.20"
 
@@ -339,7 +342,7 @@ async def _flush_prefix(client: Any) -> None:
 
 
 async def _redis_manager(config: SecurityConfig) -> RedisManager:
-    RedisManager._instance = None  # noqa: SLF001 - corpus reset
+    RedisManager._instance = None  # corpus reset
     manager = RedisManager(config)
     await manager.initialize()
     return manager
@@ -416,10 +419,13 @@ def _categorize(record: dict[str, Any]) -> dict[str, Any]:
 
 def _rio_config(**overrides: Any) -> SecurityConfig:
     return SecurityConfig(
-        enable_redis=True,
-        redis_url=REDIS_URL,
-        redis_prefix=REDIS_PREFIX,
-        **overrides,
+        **{
+            **STAGED_FIELDS,
+            "enable_redis": True,
+            "redis_url": REDIS_URL,
+            "redis_prefix": REDIS_PREFIX,
+            **overrides,
+        }
     )
 
 
@@ -725,7 +731,7 @@ async def _op_dynamic_rules(args: dict[str, Any]) -> None:
         enable_agent=True, agent_api_key="corpus-agent-key", enable_dynamic_rules=True
     )
     redis_manager = await _redis_manager(config)
-    DynamicRuleManager._instance = None  # noqa: SLF001 - corpus reset
+    DynamicRuleManager._instance = None  # corpus reset
     manager = DynamicRuleManager(config)
     manager.redis_handler = redis_manager
     rules = DynamicRules(
@@ -745,7 +751,7 @@ async def _op_dynamic_rules(args: dict[str, Any]) -> None:
     try:
         await manager.update_rules()
     finally:
-        DynamicRuleManager._instance = None  # noqa: SLF001 - corpus reset
+        DynamicRuleManager._instance = None  # corpus reset
         await _discard(redis_manager)
 
 

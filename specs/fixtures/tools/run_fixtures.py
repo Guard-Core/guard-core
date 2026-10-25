@@ -3,20 +3,36 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
+from guard_core.handlers.suspatterns_handler import sus_patterns_handler
+from guard_core.models import SecurityConfig
+
 REPO_ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(REPO_ROOT))
-
-from guard_core.handlers.suspatterns_handler import (  # noqa: E402
-    sus_patterns_handler,
-)
-from guard_core.models import SecurityConfig  # noqa: E402
-
 CASES_DIR = REPO_ROOT / "specs" / "fixtures" / "cases"
 DROP_KEYS = {"execution_time"}
 FIXED_IP = "203.0.113.7"
+
+# The fields 5.0.0 flipped or started to warn about. Every tool builds its
+# SecurityConfig with these stated, so a corpus case never depends on the
+# engine's own defaults of the release that runs it (D-84 item 4, LEDGER 6.60).
+STAGED_FIELDS: dict[str, Any] = {
+    "enable_redis": False,
+    "rate_limit": 10,
+    "whitelist_access_only": False,
+    "redis_prefix": "guard_core:",
+    "ban_on_hostile_signals": False,
+    "fail_on_misconfiguration": False,
+}
+
+# The classes whose verdict comes from a clock: a loaded host may turn them into
+# probe_subprocess_timeout, which no case ever pins (D-84 item 2).
+TIMED_SAFETY_CLASSES = frozenset(
+    {"over_budget", "probe_string_timeout", "builder_deadline"}
+)
+LOAD_SHIFTED_SAFETY_CLASS = "probe_subprocess_timeout"
 
 
 def normalize(value: Any) -> Any:
@@ -85,6 +101,18 @@ async def check_pipeline_case(suite: str, case: dict) -> str | None:
     return None
 
 
+def _matches_prefix_rule(actual: dict, key: str, want_value: Any) -> bool:
+    from events_harness import EVENT_PREFIX_RULES
+
+    return any(
+        rule["event_type"] == actual.get("event_type")
+        and rule["field"] == key
+        and str(actual.get(key)).startswith(rule["prefix"])
+        and str(want_value).startswith(rule["prefix"])
+        for rule in EVENT_PREFIX_RULES
+    )
+
+
 async def check_events_case(suite: str, case: dict) -> str | None:
     if case.get("xfail"):
         return None
@@ -101,6 +129,8 @@ async def check_events_case(suite: str, case: dict) -> str | None:
         # Compare only the pinned keys of each envelope; emitter seams
         # differ in the surface they carry.
         for key, want_value in want.items():
+            if _matches_prefix_rule(actual, key, want_value):
+                continue
             if normalize(actual.get(key)) != normalize(want_value):
                 return (
                     f"{suite}/{case['id']} event {index}: "
@@ -127,37 +157,93 @@ async def check_redis_case(suite: str, case: dict) -> str | None:
     return None
 
 
-async def main_async() -> int:
-    config = SecurityConfig()
-    sus_patterns_handler.configure(config)
-    manager = sus_patterns_handler
+def load_index() -> dict[str, Any]:
+    index: dict[str, Any] = json.loads((CASES_DIR / "index.json").read_text())
+    return index
 
-    index = json.loads((CASES_DIR / "index.json").read_text())
+
+def suite_cases(suite_name: str) -> list[dict[str, Any]]:
+    suite = json.loads((CASES_DIR / f"{suite_name}.json").read_text())
+    cases: list[dict[str, Any]] = suite["cases"]
+    return cases
+
+
+def safety_case_failure(
+    case: dict[str, Any], safe: bool, observed_class: str
+) -> str | None:
+    want = case["expected"]
+    if safe != want["safe"]:
+        return f"safety_gates/{case['id']}: safe is {safe}, want {want['safe']}"
+    accepted = {want["reason_class"]}
+    if want["reason_class"] in TIMED_SAFETY_CLASSES:
+        accepted.add(LOAD_SHIFTED_SAFETY_CLASS)
+    if observed_class not in accepted:
+        return (
+            f"safety_gates/{case['id']}: reason class is {observed_class}, "
+            f"want {want['reason_class']}"
+        )
+    return None
+
+
+async def check_safety_case(suite: str, case: dict[str, Any]) -> str | None:
+    from generate_safety_gates import classify
+
+    from guard_core.detection_engine.compiler import PatternCompiler
+
+    spec = case["input"]
+    compiler = PatternCompiler()
+    if spec["mode"] == "test_strings":
+        safe, reason = compiler.validate_pattern_safety(
+            spec["pattern"], test_strings=spec["test_strings"]
+        )
+    else:
+        safe, reason = compiler.validate_pattern_safety(
+            spec["pattern"], max_content_length=spec["max_content_length"]
+        )
+    return safety_case_failure(case, safe, classify(reason))
+
+
+async def replay_suites(
+    names: list[str], checkers: dict[str, Callable[..., Awaitable[str | None]]]
+) -> tuple[list[str], int]:
+    suites = load_index()["suites"]
     failures: list[str] = []
     total = 0
-    for suite_name, suite_meta in index["suites"].items():
-        suite_path = CASES_DIR / f"{suite_name}.json"
-        suite_data = json.loads(suite_path.read_text())
-        kind = suite_meta.get("kind")
-        if kind == "pattern_safety":
-            # Safety-gates cases carry their own schema (validatePatternSafety
-            # chain, reason classes) and are replayed by the dedicated
-            # safety-gates harness, not the detect checker.
-            continue
-        if kind == "pipeline":
-            checker = check_pipeline_case
-        elif kind == "events":
-            checker = check_events_case
-        elif kind == "redis_interop":
-            checker = check_redis_case
-        else:
-            checker = lambda suite, case: check_case(manager, suite, case)  # noqa: E731
-        for case in suite_data["cases"]:
+    for name in names:
+        checker = checkers.get(suites[name]["kind"], check_detect_case)
+        for case in suite_cases(name):
             total += 1
-            failure = await checker(suite_name, case)
+            failure = await checker(name, case)
             if failure:
                 failures.append(failure)
+    return failures, total
 
+
+async def check_detect_case(suite: str, case: dict[str, Any]) -> str | None:
+    return await check_case(sus_patterns_handler, suite, case)
+
+
+async def replay_corpus(*, safety: bool) -> tuple[list[str], int]:
+    sus_patterns_handler.configure(SecurityConfig(**STAGED_FIELDS))
+    suites = load_index()["suites"]
+    checkers: dict[str, Callable[..., Awaitable[str | None]]] = {
+        "pipeline": check_pipeline_case,
+        "events": check_events_case,
+        "redis_interop": check_redis_case,
+        "pattern_safety": check_safety_case,
+    }
+    names = [
+        name
+        for name, meta in suites.items()
+        if (meta["kind"] == "pattern_safety") == safety
+    ]
+    return await replay_suites(names, checkers)
+
+
+async def main_async() -> int:
+    safety = "--safety-only" in sys.argv[1:]
+    failures, total = await replay_corpus(safety=safety)
+    index = load_index()
     if failures:
         print(f"CONFORMANCE DRIFT: {len(failures)}/{total} cases differ")
         for failure in failures:

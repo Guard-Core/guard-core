@@ -14,6 +14,7 @@ services:
       volumes:
         - ./guard_core:/app/guard_core:z
         - ./tests:/app/tests:z
+        - ./specs:/app/specs:z
         - ./pyproject.toml:/app/pyproject.toml:z
         - ./Makefile:/app/Makefile:z
         - ./.git:/app/.git:ro
