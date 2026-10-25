@@ -27,7 +27,7 @@ class ComposedDecorator(
 
 
 def _decorator() -> ComposedDecorator:
-    config = SyncSecurityConfig(enable_redis=False)
+    config = SyncSecurityConfig(enable_redis=False, ipinfo_token="test-token")
     return ComposedDecorator(config)
 
 

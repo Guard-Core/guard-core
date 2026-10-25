@@ -10,7 +10,9 @@ from guard_core.sync.decorators import SecurityDecorator
 
 
 def _decorator(**flag: bool) -> SecurityDecorator:
-    return SecurityDecorator(SyncSecurityConfig(enable_redis=False, **flag))
+    return SecurityDecorator(
+        SyncSecurityConfig(enable_redis=False, ipinfo_token="test-token", **flag)
+    )
 
 
 def _decorate(

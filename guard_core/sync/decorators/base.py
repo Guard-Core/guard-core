@@ -8,6 +8,7 @@ from typing import (
     runtime_checkable,
 )
 
+from guard_core._geo_source import geo_source_problem
 from guard_core._misconfiguration import report_misconfiguration
 from guard_core.models import SyncSecurityConfig
 from guard_core.sync.decorators.route_config import (
@@ -24,6 +25,7 @@ from guard_core.sync.decorators.route_config import (
     _TrackedList,
     _TrackedSet,
 )
+from guard_core.sync.handlers._downloader import TREE_DOWNLOADER
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
 __all__ = [
@@ -67,6 +69,7 @@ def get_route_id(func: Callable[..., Any]) -> str:
 
 class BaseSecurityMixin:
     _report_misconfiguration: Callable[[str], None]
+    _require_geo_source: Callable[[str], None]
 
     def _ensure_route_config(self, func: Callable[..., Any]) -> RouteConfig:
         raise NotImplementedError("This mixin must be used with BaseSecurityDecorator")
@@ -98,6 +101,18 @@ class BaseSecurityDecorator:
             logger=logging.getLogger("guard_core.sync.decorators"),
             stacklevel=4,
         )
+
+    def _require_geo_source(self, rule: str) -> None:
+        if not self.config.fail_on_misconfiguration:
+            return
+        problem = geo_source_problem(
+            rule,
+            self.config.geo_ip_handler,
+            self.config.ipinfo_token,
+            TREE_DOWNLOADER,
+        )
+        if problem is not None:
+            self._report_misconfiguration(problem)
 
     @property
     def route_config_revision(self) -> int:

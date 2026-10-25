@@ -3,7 +3,7 @@ from typing_extensions import assert_type
 from guard_core.decorators import SecurityDecorator, get_route_id
 from guard_core.models import SecurityConfig
 
-guard = SecurityDecorator(SecurityConfig())
+guard = SecurityDecorator(SecurityConfig(ipinfo_token="token"))
 
 
 @guard.require_https()

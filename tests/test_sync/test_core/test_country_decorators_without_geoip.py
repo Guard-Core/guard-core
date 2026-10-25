@@ -15,7 +15,9 @@ def _decorated(
     make: Callable[[SecurityDecorator], Any], **flag: bool
 ) -> tuple[SyncSecurityConfig, SecurityDecorator, str]:
     config = SyncSecurityConfig(enable_redis=False, **flag)
-    decorator = SecurityDecorator(config)
+    decorator = SecurityDecorator(
+        SyncSecurityConfig(enable_redis=False, fail_on_misconfiguration=False)
+    )
 
     def country_route() -> None:
         pass
@@ -120,3 +122,94 @@ def test_the_report_names_the_decorator_in_use(
 
     assert "geo_rate_limit" in caplog.text
     assert "block_countries" not in caplog.text
+
+
+@pytest.mark.parametrize("make", COUNTRY_DECORATORS)
+class TestCountryRuleDeclaration:
+    def test_true_raises_at_declaration(
+        self, make: Callable[[SecurityDecorator], Any]
+    ) -> None:
+        decorator = SecurityDecorator(SyncSecurityConfig(enable_redis=False))
+
+        with pytest.raises(ValueError, match="no GeoIP database is configured"):
+            make(decorator)(lambda: None)
+
+    def test_false_does_nothing_at_declaration(
+        self,
+        make: Callable[[SecurityDecorator], Any],
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        decorator = SecurityDecorator(
+            SyncSecurityConfig(enable_redis=False, fail_on_misconfiguration=False)
+        )
+
+        with caplog.at_level(logging.WARNING, logger="guard_core"):
+            make(decorator)(lambda: None)
+
+        assert "GeoIP" not in caplog.text
+
+    def test_a_geo_handler_means_no_error(
+        self, make: Callable[[SecurityDecorator], Any]
+    ) -> None:
+        decorator = SecurityDecorator(
+            SyncSecurityConfig(enable_redis=False, geo_ip_handler=MagicMock())
+        )
+
+        make(decorator)(lambda: None)
+
+    def test_a_token_with_the_extras_means_no_error(
+        self, make: Callable[[SecurityDecorator], Any]
+    ) -> None:
+        decorator = SecurityDecorator(
+            SyncSecurityConfig(enable_redis=False, ipinfo_token="t")
+        )
+
+        make(decorator)(lambda: None)
+
+    def test_a_token_without_the_downloader_raises_at_declaration(
+        self,
+        make: Callable[[SecurityDecorator], Any],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(
+            "guard_core._geo_source._extra_installed", lambda name: False
+        )
+        decorator = SecurityDecorator(
+            SyncSecurityConfig(enable_redis=False, ipinfo_token="t")
+        )
+
+        with pytest.raises(ValueError, match="'maxminddb' and '(aiohttp|requests)'"):
+            make(decorator)(lambda: None)
+
+    def test_the_two_config_case_raises_at_declaration(
+        self, make: Callable[[SecurityDecorator], Any]
+    ) -> None:
+        middleware_config = SyncSecurityConfig(enable_redis=False, ipinfo_token="t")
+        decorator = SecurityDecorator(SyncSecurityConfig(enable_redis=False))
+
+        assert middleware_config.ipinfo_token == "t"
+        with pytest.raises(ValueError, match="no GeoIP database is configured"):
+            make(decorator)(lambda: None)
+
+
+def test_empty_country_rules_declare_no_geo_requirement() -> None:
+    strict = SecurityDecorator(SyncSecurityConfig(enable_redis=False))
+
+    strict.block_countries([])(lambda: None)
+    strict.geo_rate_limit({})(lambda: None)
+
+
+def test_the_route_report_is_emitted_once_across_two_calls(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    config, decorator, _ = _decorated(
+        lambda d: d.block_countries(["CN"]), fail_on_misconfiguration=False
+    )
+    initializer = HandlerInitializer(config, guard_decorator=decorator)
+
+    with caplog.at_level(logging.WARNING, logger="guard_core"):
+        initializer.report_route_misconfigurations()
+        initializer.report_route_misconfigurations()
+        initializer.initialize_redis_handlers()
+
+    assert caplog.text.count("no GeoIP database") == 1

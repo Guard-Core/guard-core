@@ -31,6 +31,8 @@ class RateLimitingMixin(BaseSecurityMixin):
                         f"{window}): the limit and the window must both be at "
                         "least 1."
                     )
+            if limits:
+                self._require_geo_source("@geo_rate_limit")
             route_config = self._ensure_route_config(func)
             route_config.geo_rate_limits = {
                 country.upper(): entry for country, entry in limits.items()

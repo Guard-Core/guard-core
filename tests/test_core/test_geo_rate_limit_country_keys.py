@@ -54,7 +54,7 @@ async def test_the_wildcard_key_still_works() -> None:
 
 
 async def test_the_geo_limit_reads_the_handler_the_ip_checks_read() -> None:
-    config = _config()
+    config = _config(ipinfo_token="test-token")
     geo = fixed_country_geo_ip("US")
     pipeline, middleware, route_id = build_route_pipeline(
         config, lambda d: d.geo_rate_limit({"US": (1, 60)}), geo_ip_handler=geo

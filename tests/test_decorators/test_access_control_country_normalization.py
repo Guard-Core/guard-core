@@ -22,7 +22,9 @@ class _AsyncComposedDecorator(
 
 
 def _async_decorator() -> _AsyncComposedDecorator:
-    return _AsyncComposedDecorator(SecurityConfig(enable_redis=False))
+    return _AsyncComposedDecorator(
+        SecurityConfig(enable_redis=False, ipinfo_token="test-token")
+    )
 
 
 def _block_target() -> None:

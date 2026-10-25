@@ -1,6 +1,7 @@
 import logging
 from typing import Any
 
+from guard_core._geo_source import lacks_geo_source
 from guard_core._misconfiguration import report_misconfiguration
 
 
@@ -19,7 +20,9 @@ def report_country_decorators_without_geoip(
     geo_ip_handler: Any,
     logger: logging.Logger,
 ) -> None:
-    if guard_decorator is None or geo_ip_handler is not None:
+    if guard_decorator is None or not lacks_geo_source(
+        geo_ip_handler, config.ipinfo_token
+    ):
         return
     route_configs = getattr(guard_decorator, "_route_configs", {})
     for route_id, route_config in route_configs.items():

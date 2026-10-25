@@ -41,6 +41,8 @@ class AccessControlMixin(BaseSecurityMixin):
         self, countries: list[str]
     ) -> Callable[[GuardedCallable], GuardedCallable]:
         def decorator(func: GuardedCallable) -> GuardedCallable:
+            if countries:
+                self._require_geo_source("@block_countries")
             route_config = self._ensure_route_config(func)
             route_config.blocked_countries = [c.upper() for c in countries]
             return self._apply_route_config(func)
@@ -57,6 +59,8 @@ class AccessControlMixin(BaseSecurityMixin):
                     "list restricts nothing, so every country is allowed on this "
                     "route."
                 )
+            if countries:
+                self._require_geo_source("@allow_countries")
             route_config = self._ensure_route_config(func)
             route_config.whitelist_countries = [c.upper() for c in countries]
             return self._apply_route_config(func)

@@ -340,7 +340,7 @@ def test_decorator_event_carries_country_from_geo_ip_handler() -> None:
 
 
 def test_route_block_countries_wires_send_access_denied_event() -> None:
-    config = _config()
+    config = _config(ipinfo_token="test-token")
     decorator = SecurityDecorator(config)
     recording_agent = _RecordingAgent()
     decorator.initialize_agent(recording_agent)
@@ -368,7 +368,7 @@ def test_route_block_countries_wires_send_access_denied_event() -> None:
 
 
 def test_route_allow_countries_mismatch_wires_send_access_denied_event() -> None:
-    config = _config()
+    config = _config(ipinfo_token="test-token")
     decorator = SecurityDecorator(config)
     recording_agent = _RecordingAgent()
     decorator.initialize_agent(recording_agent)
