@@ -7,7 +7,13 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, ClassVar
 
-from pydantic import ConfigDict, PrivateAttr, field_validator, model_validator
+from pydantic import (
+    ConfigDict,
+    ModelWrapValidatorHandler,
+    PrivateAttr,
+    field_validator,
+    model_validator,
+)
 from typing_extensions import Self
 
 from guard_core import __version__
@@ -26,7 +32,7 @@ from guard_core._security_config_validators import (
     _assign_checking_optional_extras,
     _country_shadow_should_warn,
     _is_prefix_zero_network_entry,
-    _reject_redos_unsafe_blocked_user_agents,
+    _reject_redos_unsafe_blocked_user_agents_at_field,
     _require_optional_extras,
     _require_recidive_cap_covers_auto_ban,
     _resolve_geo_ip_handler,
@@ -230,12 +236,16 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
     def validate_blocked_user_agents(cls, v: Any) -> list[str]:
         return _validate_blocked_user_agents_structure(v)
 
-    @model_validator(mode="after")
-    def reject_redos_unsafe_blocked_user_agents(self) -> Self:
-        _reject_redos_unsafe_blocked_user_agents(
-            self.blocked_user_agents, _ConfigSensitiveNames(self)
+    @model_validator(mode="wrap")
+    @classmethod
+    def reject_redos_unsafe_blocked_user_agents(
+        cls, data: Any, handler: ModelWrapValidatorHandler[Self]
+    ) -> Self:
+        config = handler(data)
+        _reject_redos_unsafe_blocked_user_agents_at_field(
+            cls.__name__, config.blocked_user_agents, _ConfigSensitiveNames(config)
         )
-        return self
+        return config
 
     @model_validator(mode="after")
     def validate_optional_extras_installed(self) -> Self:

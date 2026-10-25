@@ -1,5 +1,7 @@
 from typing import Any
 
+from pydantic import ValidationError
+
 from guard_core._config_field_revalidators import _validate_str_list_field_value
 
 
@@ -24,6 +26,26 @@ def _reject_redos_unsafe_blocked_user_agents(
                 f"blocked_user_agents pattern rejected by ReDoS validator: "
                 f"{_redact_pattern_source(pattern, redaction_names)!r} ({reason})"
             )
+
+
+def _reject_redos_unsafe_blocked_user_agents_at_field(
+    title: str, patterns: list[str], redaction_names: Any
+) -> None:
+    try:
+        _reject_redos_unsafe_blocked_user_agents(patterns, redaction_names)
+    except ValueError as error:
+        raise ValidationError.from_exception_data(
+            title,
+            [
+                {
+                    "type": "value_error",
+                    "loc": ("blocked_user_agents",),
+                    "input": patterns,
+                    "ctx": {"error": error},
+                }
+            ],
+            hide_input=True,
+        ) from None
 
 
 def _validate_blocked_user_agents_value(

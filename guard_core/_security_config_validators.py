@@ -18,6 +18,7 @@ from guard_core._redis_enablement import (
 )
 from guard_core._security_config_blocked_user_agents import (
     _reject_redos_unsafe_blocked_user_agents,
+    _reject_redos_unsafe_blocked_user_agents_at_field,
     _validate_blocked_user_agents_structure,
     _validate_blocked_user_agents_value,
 )
@@ -92,6 +93,7 @@ __all__ = [
     "_is_prefix_zero_network_entry",
     "_normalized_country_value",
     "_reject_redos_unsafe_blocked_user_agents",
+    "_reject_redos_unsafe_blocked_user_agents_at_field",
     "_require_optional_extras",
     "_resolve_geo_ip_handler",
     "_revalidate_copied_config",

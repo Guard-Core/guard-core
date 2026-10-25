@@ -3,7 +3,9 @@ from collections.abc import Iterator
 from typing import Any
 
 import pytest
+from pydantic import ValidationError
 
+from guard_core._security_config_batch import prepare_config_batch
 from guard_core.decorators.base import BaseSecurityDecorator
 from guard_core.decorators.content_filtering import ContentFilteringMixin
 from guard_core.detection_engine.monitor_types import PatternStats
@@ -138,6 +140,43 @@ def test_the_blocked_user_agents_error_redacts_the_names_of_its_config(
         _app_b(blocked_user_agents=[pattern])
 
     assert f"{name}=hunter2" not in str(excinfo.value)
+    assert "[REDACTED]" in str(excinfo.value)
+
+
+def test_the_blocked_user_agents_construction_error_keeps_its_location() -> None:
+    pattern = VALIDATOR_PATTERN.format(name=APP_B_NAME)
+
+    with pytest.raises(ValidationError, match="rejected by ReDoS validator") as excinfo:
+        _app_b(blocked_user_agents=[pattern])
+
+    assert excinfo.value.errors()[0]["loc"] == ("blocked_user_agents",)
+    assert f"{APP_B_NAME}=hunter2" not in str(excinfo.value)
+    assert "[REDACTED]" in str(excinfo.value)
+
+
+def test_the_blocked_user_agents_copy_error_redacts_the_names_of_its_config() -> None:
+    config = _app_b()
+    pattern = VALIDATOR_PATTERN.format(name=APP_B_NAME)
+
+    with pytest.raises(ValueError, match="rejected by ReDoS validator") as excinfo:
+        config.model_copy(update={"blocked_user_agents": [pattern]})
+
+    assert f"{APP_B_NAME}=hunter2" not in str(excinfo.value)
+    assert "[REDACTED]" in str(excinfo.value)
+
+
+def test_the_blocked_user_agents_batch_error_redacts_the_pending_names() -> None:
+    config = _app()
+    pattern = VALIDATOR_PATTERN.format(name=APP_B_NAME)
+    values = {
+        "blocked_user_agents": [pattern],
+        "log_sensitive_params": frozenset({APP_B_NAME}),
+    }
+
+    with pytest.raises(ValueError, match="rejected by ReDoS validator") as excinfo:
+        prepare_config_batch(config, values, set(values))
+
+    assert f"{APP_B_NAME}=hunter2" not in str(excinfo.value)
     assert "[REDACTED]" in str(excinfo.value)
 
 
