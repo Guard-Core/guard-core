@@ -6,7 +6,6 @@ from guard_core._geo_handler_for_tree import (
     build_geo_ip_handler_from_token,
     routes_need_geo_ip_handler,
 )
-from guard_core._misconfiguration import report_misconfiguration
 from guard_core._redis_enablement import redis_is_configured, resolve_enable_redis
 from guard_core._staged_defaults import signal_changed_defaults
 from guard_core.core.initialization._ban_threshold_report import (
@@ -16,6 +15,9 @@ from guard_core.core.initialization._ban_threshold_report import (
 )
 from guard_core.core.initialization._cloud_initialization import (
     CloudInitializationMixin,
+)
+from guard_core.core.initialization._country_decorator_report import (
+    report_country_decorators_without_geoip,
 )
 from guard_core.core.initialization._headers_manager_attach import (
     attach_security_headers_manager_to_redis,
@@ -140,26 +142,9 @@ class _HandlerInitializerStepsMixin(CloudInitializationMixin):
         self._geo_handler_is_ours = True
 
     def _report_country_decorators_without_geoip(self) -> None:
-        if self.guard_decorator is None:
-            return
-        route_configs = getattr(self.guard_decorator, "_route_configs", {})
-        for route_id, route_config in route_configs.items():
-            decorators = []
-            if self.geo_ip_handler is None and (
-                route_config.blocked_countries or route_config.whitelist_countries
-            ):
-                decorators.append("block_countries or allow_countries")
-            if self.geo_ip_handler is None and route_config.geo_rate_limits:
-                decorators.append("geo_rate_limit")
-            for decorator in decorators:
-                report_misconfiguration(
-                    self.config,
-                    f"Route {route_id!r} uses {decorator} but no GeoIP database "
-                    "is configured (geo_ip_handler is None; set ipinfo_token or "
-                    "geo_ip_handler), so the country rule is ignored.",
-                    logger=self.logger,
-                    stacklevel=4,
-                )
+        report_country_decorators_without_geoip(
+            self.config, self.guard_decorator, self.geo_ip_handler, self.logger
+        )
 
     def _report_route_limits_with_global_switch_off(self) -> None:
         report_route_limits_with_global_switch_off(

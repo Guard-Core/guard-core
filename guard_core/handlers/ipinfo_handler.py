@@ -14,6 +14,7 @@ from guard_core.core.events.event_types import (
 )
 from guard_core.handlers._downloader import require_downloader_installed
 from guard_core.handlers._ipinfo_background import IpInfoBackgroundMixin
+from guard_core.handlers._ipinfo_database_file import IpInfoDatabaseFileMixin
 from guard_core.handlers._ipinfo_download import IpInfoDownloadMixin
 from guard_core.handlers._ipinfo_events import IpInfoEventsMixin
 from guard_core.handlers._ipinfo_redis_copy import IpInfoRedisCopyMixin
@@ -35,6 +36,7 @@ def _describe_download_error(exc: BaseException) -> str:
 
 
 class IPInfoManager(
+    IpInfoDatabaseFileMixin,
     IpInfoBackgroundMixin,
     IpInfoRedisCopyMixin,
     IpInfoEventsMixin,
@@ -129,57 +131,12 @@ class IPInfoManager(
     async def initialize_agent(self, agent_handler: AgentHandlerProtocol) -> None:
         self.agent_handler = agent_handler
 
-    def _open_database_or_none(self) -> Reader | None:
-        import maxminddb
-
-        try:
-            return maxminddb.open_database(str(self.db_path))
-        except Exception as e:
-            self.logger.error(
-                f"IPInfo database at {self.db_path} is corrupted, removing: {e}"
-            )
-            if self.db_path.exists():
-                self.db_path.unlink()
-            return None
-
     def _apply_opened_reader(self, reader: Reader | None) -> None:
         if reader is not None:
             self.reader = reader
             self.last_refreshed = datetime.now(timezone.utc)
             self._refresh_due = False
             self._arm_staleness_timer()
-
-    def _validate_database_file(self, path: Path) -> None:
-        import maxminddb
-
-        try:
-            reader = maxminddb.open_database(str(path))
-            try:
-                reader.get("192.0.2.1")
-            finally:
-                reader.close()
-        except OSError:
-            raise
-        except Exception as e:
-            raise ValueError(f"not a usable GeoIP database: {e}") from e
-
-    def _install_database_file(self, tmp_path: Path) -> None:
-        try:
-            self._validate_database_file(tmp_path)
-            os.replace(tmp_path, self.db_path)
-        except Exception:
-            tmp_path.unlink(missing_ok=True)
-            raise
-
-    def _write_database_atomically(self, content: bytes) -> None:
-        tmp_path = self._database_tmp_path()
-        try:
-            with open(tmp_path, "wb") as f:
-                f.write(content)
-        except Exception:
-            tmp_path.unlink(missing_ok=True)
-            raise
-        self._install_database_file(tmp_path)
 
     async def initialize(self) -> None:
         await asyncio.shield(self._start_or_join_load(self._initialize_database))
