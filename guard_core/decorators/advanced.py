@@ -97,11 +97,10 @@ class AdvancedMixin(BaseSecurityMixin):
                     "time zone, so the window silently falls back to UTC."
                 )
             route_config = self._ensure_route_config(func)
-            route_config.time_restrictions = {
-                "start": start_time,
-                "end": end_time,
-                "timezone": timezone,
-            }
+            route_config.store_attribute(
+                "time_restrictions",
+                {"start": start_time, "end": end_time, "timezone": timezone},
+            )
             return self._apply_route_config(func)
 
         return decorator

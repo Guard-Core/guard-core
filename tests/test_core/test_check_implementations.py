@@ -901,7 +901,7 @@ async def test_time_window_error_handling() -> None:
     mw = _make_middleware()
     check = TimeWindowCheck(mw)
     result = await check._check_time_window({})
-    assert result is True
+    assert result is False
 
 
 async def test_cloud_ip_refresh_check_name() -> None:

@@ -46,3 +46,21 @@ def unknown_time_zone(name: str) -> bool:
     except (ZoneInfoNotFoundError, ValueError, OSError):
         return True
     return False
+
+
+def time_restriction_problems(restrictions: object) -> list[str]:
+    if not isinstance(restrictions, dict):
+        return [f"time_restrictions {restrictions!r} is not a dict."]
+    problems = []
+    for key in ("start", "end"):
+        value = restrictions.get(key)
+        if not isinstance(value, str) or invalid_time_of_day(value):
+            problems.append(
+                f"time_restrictions {key} {value!r} is not a valid HH:MM time."
+            )
+    zone = restrictions.get("timezone", "UTC")
+    if not isinstance(zone, str) or unknown_time_zone(zone):
+        problems.append(
+            f"time_restrictions timezone {zone!r} is not a known IANA zone."
+        )
+    return problems

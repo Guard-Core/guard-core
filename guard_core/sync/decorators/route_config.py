@@ -5,6 +5,7 @@ from typing import (
     SupportsIndex,
 )
 
+from guard_core.sync.decorators._route_arguments import time_restriction_problems
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
 if TYPE_CHECKING:
@@ -305,6 +306,13 @@ class RouteConfig:
         object.__setattr__(self, "_inherits_suspicious_detection", True)
 
     def __setattr__(self, name: str, value: Any) -> None:
+        if name == "time_restrictions" and value:  # empty means no restriction
+            problems = time_restriction_problems(value)
+            if problems:
+                raise ValueError(" ".join(problems))
+        self.store_attribute(name, value)
+
+    def store_attribute(self, name: str, value: Any) -> None:
         value = _wrap_in_tracked_container(name, value, self._revision)
         object.__setattr__(self, name, value)
         if name == "enable_suspicious_detection":
