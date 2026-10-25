@@ -16,7 +16,7 @@ _REPO_ROOT = next(
 )
 _ENGINE_DIR = _REPO_ROOT / "guard_core" / "detection_engine"
 _REASON_TEXT = re.compile(
-    r"""Pattern (?:validation|timed out|appears|extrapolated|contains)[^'"\\\n]*"""
+    r"""Pattern (?:validation|timed out|appears|\{\}|contains)[^'"\\\n]*"""
 )
 _NOT_A_VERDICT_REASON = ("Pattern validation cache not trusted",)
 _SAFETY_CHAIN_FILES = sorted(_ENGINE_DIR.glob("_redos_*.py")) + [
@@ -69,9 +69,8 @@ EXPECTED_CLASS: dict[str, str] = {
     "Pattern contains dangerous construct:": "dangerous_construct",
     "Pattern contains dangerous construct: {}": "dangerous_construct",
     "Pattern contains nested unbounded quantifier:": "structural_nested_unbounded",
-    "Pattern extrapolated CPU cost at cap (": "over_budget",
-    "Pattern extrapolated CPU cost at cap ({} chars) is {}s, exceeding the {}s "
-    "safety budget (growth ratio {}x per doubling, CPU time at 32000 chars: min {}s, "
+    "Pattern {} CPU cost at cap ({} chars) is {}s, exceeding the {}s "
+    "safety budget (growth ratio {}x per doubling, CPU time at {} chars: min {}s, "
     "median {}s over {} runs, normalized by host load factor {})": "over_budget",
     "Pattern timed out on test string of length {len(test_str)}": (
         "probe_string_timeout"

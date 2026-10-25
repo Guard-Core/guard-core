@@ -87,7 +87,7 @@ CLASS_RULES: list[tuple[str, str]] = [
     ("Pattern timed out on test string", "probe_string_timeout"),
     ("probe exceeded the", "probe_subprocess_timeout"),
     ("could not construct a test string that", "unreachable_probe"),
-    ("Pattern extrapolated CPU cost", "over_budget"),
+    ("CPU cost at cap (", "over_budget"),
     ("exceeded its deadline", "builder_deadline"),
     ("exceeded its CPU budget", "stray_cpu_budget"),
     ("stray verification exceeded its", "probe_subprocess_timeout"),
@@ -283,7 +283,7 @@ def harvest() -> list[str]:
 
 
 _EXTRAPOLATED = re.compile(
-    r"extrapolated CPU cost at cap \((\d+) chars\) is ([0-9.]+)s"
+    r"(?:extrapolated|measured) CPU cost at cap \((\d+) chars\) is ([0-9.]+)s"
 )
 
 
