@@ -15,7 +15,8 @@ def _is_built_from_the_token(config: "SecurityConfig[RequestT]", handler: Any) -
 
     token = config.ipinfo_token
     return bool(token) and (
-        isinstance(handler, AsyncIPInfoManager) and handler.token == token
+        isinstance(handler, AsyncIPInfoManager)
+        and getattr(handler, "token", None) == token
     )
 
 
