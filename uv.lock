@@ -1235,12 +1235,14 @@ dependencies = [
     { name = "cachetools" },
     { name = "pydantic" },
     { name = "typing-extensions" },
+    { name = "urllib3" },
 ]
 
 [package.optional-dependencies]
 cloud = [
     { name = "aiohttp" },
     { name = "requests" },
+    { name = "urllib3" },
 ]
 dev = [
     { name = "aiohttp" },
@@ -1252,6 +1254,8 @@ dev = [
     { name = "pip-audit" },
     { name = "pre-commit", version = "4.6.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "pre-commit", version = "4.7.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "pyopenssl" },
+    { name = "pysocks" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
@@ -1300,9 +1304,9 @@ release = [
 
 [package.metadata]
 requires-dist = [
-    { name = "aiohttp", marker = "extra == 'cloud'" },
+    { name = "aiohttp", marker = "extra == 'cloud'", specifier = ">=3.13.3" },
     { name = "aiohttp", marker = "extra == 'dev'" },
-    { name = "aiohttp", marker = "extra == 'geo'" },
+    { name = "aiohttp", marker = "extra == 'geo'", specifier = ">=3.13.3" },
     { name = "bandit", extras = ["toml"], marker = "extra == 'dev'" },
     { name = "cachetools" },
     { name = "deptry", marker = "extra == 'dev'" },
@@ -1316,6 +1320,8 @@ requires-dist = [
     { name = "pip-audit", marker = "extra == 'dev'" },
     { name = "pre-commit", marker = "extra == 'dev'" },
     { name = "pydantic" },
+    { name = "pyopenssl", marker = "extra == 'dev'" },
+    { name = "pysocks", marker = "extra == 'dev'" },
     { name = "pytest", marker = "extra == 'dev'" },
     { name = "pytest-asyncio", marker = "extra == 'dev'" },
     { name = "pytest-cov", marker = "extra == 'dev'" },
@@ -1332,6 +1338,8 @@ requires-dist = [
     { name = "types-cachetools", marker = "extra == 'dev'" },
     { name = "types-requests", marker = "extra == 'dev'" },
     { name = "typing-extensions" },
+    { name = "urllib3", specifier = ">=2.7.0" },
+    { name = "urllib3", marker = "extra == 'cloud'", specifier = ">=2.7.0" },
     { name = "vulture", marker = "extra == 'dev'" },
     { name = "xenon", marker = "extra == 'dev'" },
 ]
@@ -3107,6 +3115,19 @@ wheels = [
 ]
 
 [[package]]
+name = "pyopenssl"
+version = "26.4.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cryptography" },
+    { name = "typing-extensions", marker = "python_full_version < '3.13'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/3f/e8/7325d258199b159eb2c03fe32107533e2832e70e63f4fb88a6aa00023201/pyopenssl-26.4.0.tar.gz", hash = "sha256:28dfcce0162b9211413e26dfbfdf1d24317fbeba18fc93c12400a1856b2a0bc7", size = 182046, upload-time = "2026-08-01T19:50:50.512Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/51/ad/2cf6d3fa2fae5c79e1ed9960c0d42badd0f94d81dd12b50604cdc839e648/pyopenssl-26.4.0-py3-none-any.whl", hash = "sha256:f0eb0cb2d581d3ad2b9c489468485e7f2ab6727d08401bcf9d824c3caddf3c1c", size = 56026, upload-time = "2026-08-01T19:50:48.94Z" },
+]
+
+[[package]]
 name = "pyparsing"
 version = "3.3.3"
 source = { registry = "https://pypi.org/simple" }
@@ -3122,6 +3143,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/6d/5d/f2ddeef4a855a102aaae5e97826a0260007522ab504421b75addfdb1517c/pyproject_hooks-1.3.3.tar.gz", hash = "sha256:defda19b854fa0d3bd4f76ea4ddcba8abd7dcfcdd585a6690ade050744fc5f43", size = 21013, upload-time = "2026-09-16T08:58:03.999Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/85/11/044d1ae1b4ec0d7af88ee5bc91e081be1022533032b906a7bdabdbb60977/pyproject_hooks-1.3.3-py3-none-any.whl", hash = "sha256:5fc53fdac9f7bd63fbcdc868fb5f90b4784d78a53a3d3388cd738b807441a20b", size = 10724, upload-time = "2026-09-16T08:58:02.96Z" },
+]
+
+[[package]]
+name = "pysocks"
+version = "1.7.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/bd/11/293dd436aea955d45fc4e8a35b6ae7270f5b8e00b53cf6c024c83b657a11/PySocks-1.7.1.tar.gz", hash = "sha256:3f8804571ebe159c380ac6de37643bb4685970655d3bba243530d6558b799aa0", size = 284429, upload-time = "2019-09-20T02:07:35.714Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/8d/59/b4572118e098ac8e46e399a1dd0f2d85403ce8bbaad9ec79373ed6badaf9/PySocks-1.7.1-py3-none-any.whl", hash = "sha256:2725bd0a9925919b9b51739eea5f9e2bae91e83288108a9ad338b2e3a4435ee5", size = 16725, upload-time = "2019-09-20T02:06:22.938Z" },
 ]
 
 [[package]]
