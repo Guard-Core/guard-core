@@ -28,7 +28,6 @@ from guard_core.handlers._dynamic_rule_persistence import (
     OWNED_BANS_KEY,
 )
 from guard_core.handlers._redis_ban_strike import RedisBanStrikeMixin
-from guard_core.handlers._redis_fast_pool import FastPathConnectionPool
 from guard_core.handlers._redis_lean import lean_command, lean_evalsha
 from guard_core.models import SecurityConfig
 from guard_core.scripts.ban_write_lua import (

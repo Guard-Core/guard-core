@@ -43,7 +43,6 @@ from guard_core.sync.handlers._dynamic_rule_persistence import (
     OWNED_BANS_KEY,
 )
 from guard_core.sync.handlers._redis_ban_strike import RedisBanStrikeMixin
-from guard_core.sync.handlers._redis_fast_pool import FastPathConnectionPool
 from guard_core.sync.handlers._redis_lean import lean_command, lean_evalsha
 
 if TYPE_CHECKING:
@@ -84,6 +83,8 @@ def _build_redis_client(
     url: str, max_connections: int, pool_timeout: float, **connection_kwargs: Any
 ) -> Redis:
     from redis import Redis
+
+    from guard_core.sync.handlers._redis_fast_pool import FastPathConnectionPool
 
     pool = FastPathConnectionPool.from_url(
         url,

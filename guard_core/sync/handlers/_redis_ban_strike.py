@@ -1,9 +1,9 @@
+from __future__ import annotations
+
 import hashlib
 import os
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any
-
-from redis import Redis
 
 from guard_core.scripts.detection_strikes_lua import (
     BAN_CHECK_AND_RECORD_STRIKE_SCRIPT,
@@ -11,6 +11,8 @@ from guard_core.scripts.detection_strikes_lua import (
 from guard_core.sync.handlers._redis_lean import lean_evalsha
 
 if TYPE_CHECKING:
+    from redis import Redis
+
     from guard_core.models import SyncSecurityConfig
 
 _BAN_CHECK_AND_RECORD_STRIKE_SHA = hashlib.sha1(

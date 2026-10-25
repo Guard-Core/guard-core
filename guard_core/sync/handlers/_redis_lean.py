@@ -1,8 +1,12 @@
-from typing import Any
+from __future__ import annotations
 
-from redis import Redis
-from redis.connection import AbstractConnection
-from redis.exceptions import NoScriptError, ResponseError
+from typing import TYPE_CHECKING, Any
+
+from guard_core._redis_exceptions import NoScriptError, ResponseError
+
+if TYPE_CHECKING:
+    from redis import Redis
+    from redis.connection import AbstractConnection
 
 
 def _packed_by_redis_py(

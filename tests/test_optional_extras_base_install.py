@@ -41,6 +41,19 @@ def test_every_public_name_and_a_default_config_work_without_the_four() -> None:
     assert names == [False, True]
 
 
+def test_the_redis_fast_path_modules_import_without_redis_in_both_trees() -> None:
+    names = _run_without(
+        ("redis",),
+        """
+        import guard_core.handlers._redis_lean, guard_core.handlers._redis_ban_strike
+        import guard_core.sync.handlers._redis_lean
+        import guard_core.sync.handlers._redis_ban_strike
+        print(json.dumps(sys.modules.get("redis")))
+        """,
+    )
+    assert names is None
+
+
 def test_a_redis_config_with_an_agent_needs_neither_aiohttp_nor_requests() -> None:
     loaded = _run_without(
         ("maxminddb", "aiohttp", "requests"),

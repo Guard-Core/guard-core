@@ -2,12 +2,12 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from redis.exceptions import ConnectionError as RedisConnectionError
-    from redis.exceptions import NoScriptError, RedisError
+    from redis.exceptions import NoScriptError, RedisError, ResponseError
     from redis.exceptions import TimeoutError as RedisTimeoutError
 else:
     try:
         from redis.exceptions import ConnectionError as RedisConnectionError
-        from redis.exceptions import NoScriptError, RedisError
+        from redis.exceptions import NoScriptError, RedisError, ResponseError
         from redis.exceptions import TimeoutError as RedisTimeoutError
     except ImportError:
 
@@ -23,10 +23,14 @@ else:
         class NoScriptError(RedisError):
             pass
 
+        class ResponseError(RedisError):
+            pass
+
 
 __all__ = [
     "NoScriptError",
     "RedisConnectionError",
     "RedisError",
     "RedisTimeoutError",
+    "ResponseError",
 ]
