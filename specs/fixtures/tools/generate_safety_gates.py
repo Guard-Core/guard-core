@@ -386,6 +386,9 @@ def build_suite() -> tuple[dict, dict[str, int], dict[str, int]]:
                 drops.get(f"{mode}:nondeterministic", 0) + 1
             )
             continue
+        if cls in UNPINNED_CLASSES:
+            drops[f"{mode}:unpinned"] = drops.get(f"{mode}:unpinned", 0) + 1
+            continue
         if cls in FIXED_CLASSES:
             drops[f"{mode}:fixed_class"] = drops.get(f"{mode}:fixed_class", 0) + 1
             continue

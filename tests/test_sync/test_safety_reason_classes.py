@@ -3,7 +3,8 @@ import re
 from pathlib import Path
 
 import pytest
-from generate_safety_gates import classify
+from generate_safety_gates import UNPINNED_CLASSES, classify
+from run_fixtures import suite_cases
 
 _REPO_ROOT = next(
     path for path in Path(__file__).resolve().parents if (path / "guard_core").is_dir()
@@ -73,3 +74,9 @@ def test_no_reason_the_engine_can_produce_classifies_as_other() -> None:
 )
 def test_every_exceeded_its_deadline_reason_is_builder_deadline(reason: str) -> None:
     assert classify(reason) == "builder_deadline"
+
+
+def test_no_engine_reason_class_would_add_a_case_to_the_safety_corpus() -> None:
+    pinned = {case["expected"]["reason_class"] for case in suite_cases("safety_gates")}
+    classes = {classify(reason) for reason in _engine_reason_texts()}
+    assert classes <= pinned | set(UNPINNED_CLASSES)
