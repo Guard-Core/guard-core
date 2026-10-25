@@ -161,6 +161,18 @@ async def test_the_fallback_warning_of_a_wrapper_is_logged_once_per_class(
     assert len([r for r in caplog.records if "neither" in r.message]) == 1
 
 
+async def test_the_prefix_fallback_warning_of_a_wrapper_is_logged_once_per_class(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    class _Wrapper(_Delegating):
+        pass
+
+    with caplog.at_level(logging.WARNING, logger=LOGGER):
+        for _ in range(3):
+            assert _body_reader_kind(_Wrapper(_Prefix())) == "read_body_prefix"
+    assert len([r for r in caplog.records if "no read_body_prefix" in r.message]) == 1
+
+
 async def test_a_plain_class_verdict_is_cached_per_class() -> None:
     request = _PlainIdle(method="POST", path="/x", headers=POST)
     _body_reader_kind(request)
