@@ -29,7 +29,7 @@ import os
 import re
 import shutil
 import tempfile
-from collections.abc import Generator, Mapping
+from collections.abc import AsyncIterator, Generator, Mapping
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -586,15 +586,24 @@ async def _op_ipinfo_database(args: RedisArgs) -> None:
     handler.redis_handler = redis_manager
     handler.db_path = scratch / "corpus.mmdb"
 
-    class _FakeResponse:
+    class _FakeBody:
         def __init__(self, content: bytes) -> None:
             self._content = content
+
+        async def iter_chunked(self, size: int) -> AsyncIterator[bytes]:
+            for start in range(0, len(self._content), size):
+                yield self._content[start : start + size]
+
+    class _FakeResponse:
+        def __init__(self, content: bytes) -> None:
+            self.content = _FakeBody(content)
+            self.content_length: int | None = len(content)
 
         def raise_for_status(self) -> None:
             return None
 
-        async def read(self) -> bytes:
-            return self._content
+        def close(self) -> None:
+            return None
 
     class _FakeGet:
         def __init__(self, content: bytes) -> None:
@@ -623,7 +632,12 @@ async def _op_ipinfo_database(args: RedisArgs) -> None:
         async def __aexit__(self, *exc: object) -> bool:
             return False
 
-        def get(self, url: str, headers: Mapping[str, str] | None = None) -> _FakeGet:
+        def get(
+            self,
+            url: str,
+            headers: Mapping[str, str] | None = None,
+            timeout: object = None,
+        ) -> _FakeGet:
             return _FakeGet(FAKE_MMDB_BYTES)
 
     original_session = aiohttp.ClientSession
