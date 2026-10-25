@@ -13,6 +13,7 @@ import pipeline_harness
 from events_cases import EVENTS_SUITES
 from events_harness import EVENT_DROP_KEYS, run_events_case
 from fixture_types import EventsCase, PipelineCase, RedisCase
+from host_dependent_fields import without_host_fields
 from pipeline_cases import PIPELINE_SUITES
 from pipeline_harness import run_case
 from redis_interop_cases import REDIS_SUITES, run_redis_case
@@ -751,7 +752,7 @@ def main() -> None:
 
     # Determinism proof: regenerate from scratch and require every suite
     # file to be byte-identical. The index pins a generation timestamp, so
-    # it is compared with generated_at masked out.
+    # it is compared with the host-dependent fields masked out.
     if verify and only is None:
         second = asyncio.run(run_corpus(config))
         drifted = [
@@ -759,19 +760,21 @@ def main() -> None:
             for name, payload in second.items()
             if (CASES_DIR / f"{name}.json").read_text() != suite_bytes(payload)
         ]
-        index_now = json.loads((CASES_DIR / "index.json").read_text())
-        index_second = build_index(second, config, "masked")
-        for blob in (index_now, index_second):
-            blob.pop("generated_at", None)
+        index_now = without_host_fields(
+            "index.json", json.loads((CASES_DIR / "index.json").read_text())
+        )
+        index_second = without_host_fields(
+            "index.json", build_index(second, config, "masked")
+        )
         if drifted or index_now != index_second:
             raise SystemExit(
                 f"NON-DETERMINISTIC corpus generation: suites {sorted(drifted)} "
-                "or index (excluding generated_at) differ between two "
-                "consecutive runs"
+                "or index (excluding the host-dependent fields of "
+                "host_dependent_fields.py) differ between two consecutive runs"
             )
         print(
             "determinism proof: second full regeneration byte-identical "
-            f"({len(second)} suites, index equal modulo generated_at)"
+            f"({len(second)} suites, index equal modulo the host-dependent fields)"
         )
 
     # The cost suite is chained, never optional: build_index rebuilds the

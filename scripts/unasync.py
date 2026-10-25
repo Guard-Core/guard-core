@@ -81,6 +81,7 @@ SKIP_TESTS = {
     "test_safety_gates_corpus_consistency.py",
     "test_conformance_corpus_replay.py",
     "test_conformance_safety_replay.py",
+    "test_fixture_generator_determinism.py",
 }
 
 SKIP_DIRS = {"__pycache__", "sync"}
