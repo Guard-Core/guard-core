@@ -2,9 +2,6 @@ import codecs
 from pathlib import Path
 from typing import Any
 
-from redis.client import NEVER_DECODE
-from redis.exceptions import WatchError
-
 PIECE_BYTES = 1048576
 WATCH_RETRIES = 3
 
@@ -41,6 +38,9 @@ def read_pieces_into_file(conn: Any, key: str, target: Path) -> bool:
 
 
 def _read_watched(conn: Any, key: str, target: Path) -> bool:
+    from redis.client import NEVER_DECODE
+    from redis.exceptions import WatchError
+
     with conn.pipeline(transaction=True) as watched:
         watched.watch(key)
         size = watched.strlen(key)
