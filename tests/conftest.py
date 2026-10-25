@@ -52,6 +52,8 @@ from guard_core.handlers.suspatterns_handler import (
     sus_patterns_handler,
 )
 from guard_core.models import SecurityConfig
+from guard_core.sync.handlers import ipban_handler as _sync_ipban_module
+from guard_core.sync.handlers import suspatterns_handler as _sync_suspatterns_module
 from tests import network_guard
 from tests.engine_redis_commands import unwatch_all_engine_commands
 
@@ -136,6 +138,44 @@ def _isolate_detection_singleton() -> Any:
     SusPatternsManager._sensitive_headers_union = saved_sensitive_headers_union
     SusPatternsManager._sensitive_params_union = saved_sensitive_params_union
     SusPatternsManager._sensitive_body_fields_union = saved_sensitive_body_fields_union
+
+
+_DEFAULT_APP_PATTERN_FIELDS = (
+    "_config",
+    "_sensitive_headers_union",
+    "_sensitive_params_union",
+    "_sensitive_body_fields_union",
+)
+_DEFAULT_APP_STATE = (
+    (_suspatterns_module.sus_patterns_handler, ("_detection_state",)),
+    (_suspatterns_module.SusPatternsManager, _DEFAULT_APP_PATTERN_FIELDS),
+    (_ipban_module.ip_ban_manager, ("config",)),
+    (_sync_suspatterns_module.sus_patterns_handler, ("_detection_state",)),
+    (_sync_suspatterns_module.SusPatternsManager, _DEFAULT_APP_PATTERN_FIELDS),
+    (_sync_ipban_module.ip_ban_manager, ("config",)),
+)
+
+
+def _default_app_state() -> list[object]:
+    return [
+        getattr(owner, name) for owner, names in _DEFAULT_APP_STATE for name in names
+    ]
+
+
+_PRISTINE_DEFAULT_APP_STATE = _default_app_state()
+
+
+@pytest.fixture(autouse=True)
+def _restore_default_app_state() -> Iterator[None]:
+    # Autouse in the root conftest, so it wraps every test of both trees and
+    # finalizes after the file-level fixtures, which re-save a state the test
+    # already configured (a `manager` fixture after an autouse `configure`) and
+    # put it back after the per-tree teardown hooks have run.
+    yield
+    values = iter(_PRISTINE_DEFAULT_APP_STATE)
+    for owner, names in _DEFAULT_APP_STATE:
+        for name in names:
+            setattr(owner, name, next(values))
 
 
 def _restore_submodule_identity(module: Any) -> None:
