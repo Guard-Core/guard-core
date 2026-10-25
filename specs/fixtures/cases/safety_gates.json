@@ -1396,10 +1396,10 @@
         "reason_class": "over_budget"
       },
       "reference": {
-        "extrapolated_seconds": 815.674,
+        "extrapolated_seconds": 799.937,
         "budget_seconds": 0.05,
-        "margin": 16313.5,
-        "load_average_at_generation": 28.3
+        "margin": 15998.7,
+        "load_average_at_generation": 20.0
       }
     },
     {
@@ -1446,12 +1446,12 @@
         "reason_class": "probe_string_timeout"
       },
       "reference": {
-        "observed_cpu_seconds": 0.281,
+        "observed_cpu_seconds": 0.285,
         "threshold_seconds": 0.05,
         "kill_seconds": 2.0,
-        "margin_over_threshold": 5.6,
-        "margin_under_kill": 7.1,
-        "load_average_at_generation": 28.3
+        "margin_over_threshold": 5.7,
+        "margin_under_kill": 7.0,
+        "load_average_at_generation": 20.0
       }
     }
   ]
