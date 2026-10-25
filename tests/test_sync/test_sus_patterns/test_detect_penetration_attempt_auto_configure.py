@@ -9,6 +9,7 @@ from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.suspatterns_handler import (
     SusPatternsManager,
     sus_patterns_handler,
+    sus_patterns_manager_for,
 )
 from guard_core.sync.utils import detect_penetration_attempt
 from tests.test_sus_patterns.test_detect_penetration_attempt_benchmark import (
@@ -108,11 +109,15 @@ def test_call_with_a_different_config_object_reconfigures() -> None:
     request = SyncMockGuardRequest(query_params={"q": "hello"})
 
     detect_penetration_attempt(request, config_a)
-    state_after_config_a = sus_patterns_handler._detection_state
+    manager_a = sus_patterns_manager_for(config_a)
+    state_after_config_a = manager_a._detection_state
 
     config_b = SyncSecurityConfig()
     detect_penetration_attempt(request, config_b)
-    state_after_config_b = sus_patterns_handler._detection_state
+    manager_b = sus_patterns_manager_for(config_b)
 
-    assert state_after_config_b is not state_after_config_a
-    assert sus_patterns_handler._config is config_b
+    assert manager_b is not manager_a
+    assert manager_b._detection_state is not state_after_config_a
+    assert manager_b._config is config_b
+    assert manager_a._detection_state is state_after_config_a
+    assert manager_a._config is config_a

@@ -44,6 +44,8 @@ def _fake_component_check(
     excluded_body_fields: frozenset[str] = frozenset(),
     json_redact_all: bool | None = None,
     sensitive_params: frozenset[str] = frozenset(),
+    *,
+    patterns: object = None,
 ) -> tuple[bool, str, list[dict], str | None]:
     if _MAGIC in value:
         return (
@@ -78,7 +80,7 @@ def test_the_same_straddling_signature_is_matched_once_the_overlap_covers_it(
 ) -> None:
     monkeypatch.setattr(detection_scan, "_check_value_enhanced", _fake_component_check)
 
-    def _fixed_overlap() -> int:
+    def _fixed_overlap(*, patterns: object = None) -> int:
         return len(_MAGIC)
 
     monkeypatch.setattr(body_reader, "_straddle_overlap_bytes", _fixed_overlap)
@@ -96,7 +98,7 @@ def test_a_straddling_signature_is_matched_on_the_oversized_content_length_path(
 ) -> None:
     monkeypatch.setattr(detection_scan, "_check_value_enhanced", _fake_component_check)
 
-    def _fixed_overlap() -> int:
+    def _fixed_overlap(*, patterns: object = None) -> int:
         return len(_MAGIC)
 
     monkeypatch.setattr(body_reader, "_straddle_overlap_bytes", _fixed_overlap)
@@ -116,7 +118,7 @@ def test_a_payload_placed_entirely_past_the_cap_is_still_not_detected(
 ) -> None:
     monkeypatch.setattr(detection_scan, "_check_value_enhanced", _fake_component_check)
 
-    def _fixed_overlap() -> int:
+    def _fixed_overlap(*, patterns: object = None) -> int:
         return len(_MAGIC)
 
     monkeypatch.setattr(body_reader, "_straddle_overlap_bytes", _fixed_overlap)

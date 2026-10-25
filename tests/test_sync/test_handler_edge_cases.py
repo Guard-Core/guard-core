@@ -370,6 +370,8 @@ def test_utils_detect_penetration_header_match() -> None:
             excluded_body_fields: frozenset[str] = frozenset(),
             json_redact_all: bool | None = None,
             sensitive_params: frozenset[str] = frozenset(),
+            *,
+            patterns: object = None,
         ) -> tuple[bool, str, list[dict]]:
             nonlocal call_count
             call_count += 1

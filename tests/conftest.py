@@ -215,13 +215,21 @@ def _reset_ipinfo_manager() -> None:
     IPInfoManager._instance = None
 
 
+_APP_RULE_MANAGERS_OWN = _dynamic_rule_module._APP_RULE_MANAGERS._own
+
+
 async def _reset_dynamic_rule_manager() -> None:
-    instance = DynamicRuleManager._instance
-    if instance is not None:
-        if instance.update_task:
-            await instance.stop()
-        instance.agent_handler = None
-        instance.redis_handler = None
+    bound = [
+        manager
+        for ref in list(_APP_RULE_MANAGERS_OWN._entries.values())
+        if (manager := ref()) is not None
+    ]
+    for instance in [DynamicRuleManager._instance, *bound]:
+        if instance is not None:
+            if instance.update_task:
+                await instance.stop()
+            instance.agent_handler = None
+            instance.redis_handler = None
     DynamicRuleManager._instance = None
     _dynamic_rule_module._APP_RULE_MANAGERS.forget_default()
 
@@ -798,7 +806,7 @@ def _zero_straddle_overlap_by_default(
         yield
         return
 
-    async def _zero_overlap() -> int:
+    async def _zero_overlap(*, patterns: object = None) -> int:
         return 0
 
     with patch.object(body_reader, "_straddle_overlap_bytes", _zero_overlap):
