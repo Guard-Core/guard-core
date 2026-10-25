@@ -3,7 +3,6 @@ import subprocess
 import sys
 import textwrap
 from collections.abc import Iterator
-from typing import Any
 from unittest.mock import MagicMock, Mock
 
 import pytest
@@ -127,17 +126,23 @@ def test_keys_scans_with_a_count_of_500() -> None:
     assert connection.scan_counts == [500]
 
 
-def _built_with(monkeypatch: pytest.MonkeyPatch, **settings: Any) -> tuple[Any, ...]:
-    calls: list[tuple[Any, ...]] = []
+def _built_with(
+    monkeypatch: pytest.MonkeyPatch, redis_max_connections: int | None = None
+) -> tuple[object, ...]:
+    calls: list[tuple[object, ...]] = []
 
-    def build(*args: Any, **kwargs: Any) -> Any:
+    def build(*args: object, **kwargs: object) -> Mock:
         calls.append(args)
         return Mock(ping=MagicMock(), aclose=MagicMock())
 
     monkeypatch.setattr(
         "guard_core.sync.handlers.redis_handler._build_redis_client", build
     )
-    config = SyncSecurityConfig(enable_redis=True, redis_url="redis://x", **settings)
+    config = SyncSecurityConfig(
+        enable_redis=True,
+        redis_url="redis://x",
+        redis_max_connections=redis_max_connections,
+    )
     RedisHandlerBase(config).initialize()
     return calls[0]
 

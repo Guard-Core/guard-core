@@ -1,5 +1,4 @@
 import logging
-from typing import Any
 from unittest.mock import Mock
 
 import pytest
@@ -406,18 +405,16 @@ def test_configured_headers_skip_unset_values_and_an_empty_permissions_policy(
     }
 
 
-def _cors_config(**overrides: Any) -> SyncSecurityConfig:
-    values: dict[str, Any] = {
-        "enable_redis": False,
-        "enable_cors": True,
-        "cors_allow_origins": ["https://a.example/"],
-        "cors_allow_credentials": True,
-        "cors_allow_methods": ["PUT"],
-        "cors_allow_headers": ["X-One"],
-        "cors_max_age": 42,
-    }
-    values.update(overrides)
-    return SyncSecurityConfig(**values)
+def _cors_config(enable_cors: bool = True) -> SyncSecurityConfig:
+    return SyncSecurityConfig(
+        enable_redis=False,
+        enable_cors=enable_cors,
+        cors_allow_origins=["https://a.example/"],
+        cors_allow_credentials=True,
+        cors_allow_methods=["PUT"],
+        cors_allow_headers=["X-One"],
+        cors_max_age=42,
+    )
 
 
 def test_resolving_cors_without_a_config_returns_the_current_cors(

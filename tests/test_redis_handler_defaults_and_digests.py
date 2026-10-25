@@ -3,7 +3,6 @@ import subprocess
 import sys
 import textwrap
 from collections.abc import AsyncIterator
-from typing import Any
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -128,16 +127,20 @@ async def test_keys_scans_with_a_count_of_500() -> None:
 
 
 async def _built_with(
-    monkeypatch: pytest.MonkeyPatch, **settings: Any
-) -> tuple[Any, ...]:
-    calls: list[tuple[Any, ...]] = []
+    monkeypatch: pytest.MonkeyPatch, redis_max_connections: int | None = None
+) -> tuple[object, ...]:
+    calls: list[tuple[object, ...]] = []
 
-    def build(*args: Any, **kwargs: Any) -> Any:
+    def build(*args: object, **kwargs: object) -> Mock:
         calls.append(args)
         return Mock(ping=AsyncMock(), aclose=AsyncMock())
 
     monkeypatch.setattr("guard_core.handlers.redis_handler._build_redis_client", build)
-    config = SecurityConfig(enable_redis=True, redis_url="redis://x", **settings)
+    config = SecurityConfig(
+        enable_redis=True,
+        redis_url="redis://x",
+        redis_max_connections=redis_max_connections,
+    )
     await RedisHandlerBase(config).initialize()
     return calls[0]
 

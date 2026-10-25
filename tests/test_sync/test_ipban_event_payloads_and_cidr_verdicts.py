@@ -2,7 +2,6 @@ import logging
 import time
 from collections.abc import Generator
 from ipaddress import ip_network
-from typing import Any
 from unittest.mock import MagicMock, Mock
 
 import pytest
@@ -30,9 +29,10 @@ def _manager(trusted: tuple[str, ...] = ()) -> IPBanManager:
     return manager
 
 
-def _event(manager: IPBanManager) -> Any:
+def _event(manager: IPBanManager) -> MagicMock:
     manager.agent_handler.send_event.assert_called_once()
-    return manager.agent_handler.send_event.call_args.args[0]
+    event: MagicMock = manager.agent_handler.send_event.call_args.args[0]
+    return event
 
 
 def _messages(caplog: pytest.LogCaptureFixture) -> list[str]:
@@ -182,34 +182,41 @@ def test_an_unban_event_without_details_holds_only_the_action() -> None:
 
 
 @pytest.mark.parametrize(
-    ("call", "text"),
+    ("method", "arguments", "text"),
     [
         (
-            lambda m: m._send_ban_event("203.0.113.9", 60, "r"),
+            "_send_ban_event",
+            ("203.0.113.9", 60, "r"),
             "Failed to send ban event to agent: boom",
         ),
         (
-            lambda m: m._send_ban_refused_event("203.0.113.9", 60, "r", "loopback"),
+            "_send_ban_refused_event",
+            ("203.0.113.9", 60, "r", "loopback"),
             "Failed to send ban refused event to agent: boom",
         ),
         (
-            lambda m: m._send_ban_evicted_event("203.0.113.9", 1.0, 1, 1),
+            "_send_ban_evicted_event",
+            ("203.0.113.9", 1.0, 1, 1),
             "Failed to send ban evicted event to agent: boom",
         ),
         (
-            lambda m: m._send_unban_event("203.0.113.9", "r"),
+            "_send_unban_event",
+            ("203.0.113.9", "r"),
             "Failed to send unban event to agent: boom",
         ),
     ],
 )
 def test_an_agent_failure_is_logged_with_its_cause(
-    call: Any, text: str, caplog: pytest.LogCaptureFixture
+    method: str,
+    arguments: tuple[str | int | float, ...],
+    text: str,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     manager = _manager()
     manager.agent_handler.send_event.side_effect = RuntimeError("boom")
 
     with caplog.at_level(logging.ERROR, logger=LOGGER):
-        call(manager)
+        getattr(manager, method)(*arguments)
 
     assert text in _messages(caplog)
 
