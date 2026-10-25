@@ -18,15 +18,14 @@ import json
 import re
 import signal
 import sys
+import time
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
+from guard_core import __version__ as engine_version
+from guard_core.detection_engine.compiler import PatternCompiler
+
 REPO = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(REPO))
-
-from guard_core import __version__ as engine_version  # noqa: E402
-from guard_core.detection_engine.compiler import PatternCompiler  # noqa: E402
-
 SUITE_PATH = REPO / "specs/fixtures/cases/safety_gates.json"
 
 HARVEST_FILES = [
@@ -99,13 +98,78 @@ WORKER_WALL_CAP_SECONDS = 600
 
 TEST_STRINGS = ["abcdefghij", "attack-test-string-123", "x"]
 
-# over_budget is the one class whose membership the oracle measures with a
-# clock. Case selection must not depend on host speed (LEDGER 6.75), so the
-# cases are a fixed list: a pinned (pattern, mode) is always kept and the
-# generator fails when the oracle stops classing it over_budget; every other
-# over_budget result is dropped. Add a pattern here only when its growth is
-# exponential, so the verdict holds on any host.
-OVER_BUDGET_PINNED = {(r"(\d|\w)*;", "cost_verdict")}
+# The classes decided by a clock are never selected by a run: each is a fixed
+# case with its own ID, listed here, chosen once on a quiet reference run with
+# margin on both sides (D-83 items 1 to 4). A listed case that no longer lands in
+# its class FAILS generation (never dropped), and the ordinal path below drops
+# every other result of these classes, so case selection never depends on host
+# speed (LEDGER 6.75). The over_budget margin is the extrapolated cost over the
+# safety budget (cap 262144 is detection_max_body_inspect_bytes); the string
+# timeout margin is the observed CPU over the per-string threshold and under the
+# probe's CPU kill, which bounds both sides at about 6.3x (2.0 / 0.05 = 40).
+SAFETY_BUDGET_SECONDS = 0.05
+PROBE_THRESHOLD_SECONDS = 0.05
+PROBE_KILL_SECONDS = 2.0
+STRING_TIMEOUT_MARGIN = 5.0
+OVER_BUDGET_MARGIN = 100.0
+STRING_TIMEOUT_PATTERN = r"\d+/"
+STRING_TIMEOUT_TEST_STRING = "1" * 12000
+
+FIXED_CASES: list[dict] = [
+    {
+        "id": "safety_cost_verdict_over_budget_02",
+        "pattern": r"(\d|\w)*;",
+        "mode": "cost_verdict",
+        "max_content_length": 262144,
+        "reason_class": "over_budget",
+    },
+    {
+        "id": "safety_cost_verdict_unreachable_probe_01",
+        "pattern": r"(?P<n>a)(?P=n)",
+        "mode": "cost_verdict",
+        "max_content_length": 10000,
+        "reason_class": "unreachable_probe",
+    },
+    {
+        "id": "safety_test_strings_probe_string_timeout_01",
+        "pattern": STRING_TIMEOUT_PATTERN,
+        "mode": "test_strings",
+        "test_strings": [STRING_TIMEOUT_TEST_STRING],
+        "reason_class": "probe_string_timeout",
+    },
+]
+FIXED_CLASSES = {case["reason_class"] for case in FIXED_CASES}
+
+# Classes with no fixture case, each with the reason and the unit test that pins
+# it in both trees. probe_subprocess_timeout is never pinned (a loaded host turns
+# every timed class into it); builder_deadline cannot sit with margin on both
+# sides of a load-scaled 40 s deadline (D-91 item 1).
+UNPINNED_CLASSES: dict[str, dict] = {
+    "probe_subprocess_timeout": {
+        "reason": "a loaded host turns every timed class into this one",
+        "unit_pin": None,
+    },
+    "builder_deadline": {
+        "reason": "no case can sit with margin on both sides of a load-scaled deadline",
+        "unit_pin": (
+            "tests/test_sus_patterns/test_redos_cpu_deadline.py::"
+            "test_the_wall_backstop_ends_construction_that_makes_no_cpu_progress"
+        ),
+    },
+}
+
+# An ID names one input: when the input of a pinned case changes the old ID retires.
+RETIRED_CASES: list[dict] = [
+    {
+        "id": "safety_cost_verdict_over_budget_01",
+        "input": r"(\d|\w)*; cost_verdict cap 10000",
+        "reason": (
+            "extrapolated cost only 25x the budget at cap 10000; the pinned input "
+            "now runs at cap 262144 (D-83 item 1: 100x or more)"
+        ),
+        "replaced_by": "safety_cost_verdict_over_budget_02",
+    }
+]
 
 
 def classify(reason: str) -> str:
@@ -115,8 +179,26 @@ def classify(reason: str) -> str:
     return "other"
 
 
-def _worker(job: tuple[str, str]) -> tuple[str, str, bool, str, str]:
-    pattern, mode = job
+Job = tuple[str, str, str, str, int, list[str]]
+
+
+def _normal_job(pattern: str, mode: str) -> Job:
+    return (pattern, mode, pattern, mode, 10000, TEST_STRINGS)
+
+
+def _fixed_job(case: dict) -> Job:
+    return (
+        case["id"],
+        "fixed",
+        case["pattern"],
+        case["mode"],
+        case.get("max_content_length", 10000),
+        case.get("test_strings", TEST_STRINGS),
+    )
+
+
+def _worker(job: Job) -> tuple[str, str, bool, str, str]:
+    key, key_mode, pattern, mode, cap, strings = job
 
     def _alarm(signum: int, frame: object) -> None:
         raise TimeoutError()
@@ -126,16 +208,14 @@ def _worker(job: tuple[str, str]) -> tuple[str, str, bool, str, str]:
     try:
         pc = PatternCompiler()
         if mode == "test_strings":
-            safe, reason = pc.validate_pattern_safety(
-                pattern, test_strings=TEST_STRINGS
-            )
+            safe, reason = pc.validate_pattern_safety(pattern, test_strings=strings)
         else:
-            safe, reason = pc.validate_pattern_safety(pattern, max_content_length=10000)
-        return pattern, mode, safe, reason, "ok"
+            safe, reason = pc.validate_pattern_safety(pattern, max_content_length=cap)
+        return key, key_mode, safe, reason, "ok"
     except TimeoutError:
-        return pattern, mode, False, "", "timeout"
-    except Exception as exc:  # noqa: BLE001
-        return pattern, mode, False, f"oracle crash: {exc}", "crash"
+        return key, key_mode, False, "", "timeout"
+    except Exception as exc:
+        return key, key_mode, False, f"oracle crash: {exc}", "crash"
     finally:
         signal.alarm(0)
         signal.signal(signal.SIGALRM, old)
@@ -161,27 +241,107 @@ def harvest() -> list[str]:
     return out
 
 
+_EXTRAPOLATED = re.compile(
+    r"extrapolated CPU cost at cap \((\d+) chars\) is ([0-9.]+)s"
+)
+
+
+def _string_timeout_cpu_seconds(case: dict) -> float:
+    compiled = re.compile(case["pattern"], re.IGNORECASE | re.MULTILINE)
+    start = time.process_time()
+    compiled.search(case["test_strings"][0])
+    return time.process_time() - start
+
+
+def _fixed_reference(case: dict, reason: str) -> dict:
+    cls = case["reason_class"]
+    if cls == "over_budget":
+        found = _EXTRAPOLATED.search(reason)
+        if found is None:
+            raise SystemExit(f"{case['id']}: no extrapolated cost in {reason!r}")
+        extrapolated = float(found.group(2))
+        margin = extrapolated / SAFETY_BUDGET_SECONDS
+        if margin < OVER_BUDGET_MARGIN:
+            raise SystemExit(
+                f"{case['id']}: extrapolated {extrapolated}s is {margin:.1f}x the "
+                f"{SAFETY_BUDGET_SECONDS}s budget, under the "
+                f"{OVER_BUDGET_MARGIN}x margin"
+            )
+        return {
+            "extrapolated_seconds": extrapolated,
+            "budget_seconds": SAFETY_BUDGET_SECONDS,
+            "margin": round(margin, 1),
+        }
+    if cls == "probe_string_timeout":
+        cpu = _string_timeout_cpu_seconds(case)
+        over = cpu / PROBE_THRESHOLD_SECONDS
+        under = PROBE_KILL_SECONDS / cpu
+        if min(over, under) < STRING_TIMEOUT_MARGIN:
+            raise SystemExit(
+                f"{case['id']}: observed {cpu:.3f}s CPU is {over:.1f}x over the "
+                f"{PROBE_THRESHOLD_SECONDS}s threshold and {under:.1f}x under the "
+                f"{PROBE_KILL_SECONDS}s kill, under the {STRING_TIMEOUT_MARGIN}x margin"
+            )
+        return {
+            "observed_cpu_seconds": round(cpu, 3),
+            "threshold_seconds": PROBE_THRESHOLD_SECONDS,
+            "kill_seconds": PROBE_KILL_SECONDS,
+            "margin_over_threshold": round(over, 1),
+            "margin_under_kill": round(under, 1),
+        }
+    return {"decided_before_timing": True}
+
+
+def _fixed_cases_from(results: dict) -> list[dict]:
+    out: list[dict] = []
+    for fixed in FIXED_CASES:
+        runs = results.get((fixed["id"], "fixed"), [])
+        verdicts = {
+            (safe, classify(reason)) for safe, reason, status in runs if status == "ok"
+        }
+        if len(runs) != 2 or verdicts != {(False, fixed["reason_class"])}:
+            raise SystemExit(f"fixed case {fixed['id']} left its class: {runs}")
+        reason = next(reason for _safe, reason, _status in runs)
+        spec: dict = {"pattern": fixed["pattern"], "mode": fixed["mode"]}
+        if fixed["mode"] == "test_strings":
+            spec["test_strings"] = fixed["test_strings"]
+        else:
+            spec["max_content_length"] = fixed["max_content_length"]
+        out.append(
+            {
+                "id": fixed["id"],
+                "input": spec,
+                "expected": {"safe": False, "reason_class": fixed["reason_class"]},
+                "reference": _fixed_reference(fixed, reason),
+            }
+        )
+    return out
+
+
 def build_suite() -> tuple[dict, dict[str, int], dict[str, int]]:
-    jobs: list[tuple[str, str]] = []
+    jobs: list[Job] = []
     seen: set[str] = set()
     for pattern, _mode in CURATED:
         if pattern not in seen:
             seen.add(pattern)
         for mode in ("test_strings", "cost_verdict"):
-            jobs.append((pattern, mode))
-            jobs.append((pattern, mode))
+            jobs.append(_normal_job(pattern, mode))
+            jobs.append(_normal_job(pattern, mode))
     for s in harvest():
         if s in seen:
             continue
         seen.add(s)
-        jobs.append((s, "test_strings"))
-        jobs.append((s, "test_strings"))
+        jobs.append(_normal_job(s, "test_strings"))
+        jobs.append(_normal_job(s, "test_strings"))
+    for fixed in FIXED_CASES:
+        jobs.append(_fixed_job(fixed))
+        jobs.append(_fixed_job(fixed))
     print(f"jobs: {len(jobs)}", flush=True)
 
     results: dict[tuple[str, str], list[tuple[bool, str, str]]] = {}
     with ProcessPoolExecutor(max_workers=8) as pool:
-        for pattern, mode, safe, reason, status in pool.map(_worker, jobs):
-            results.setdefault((pattern, mode), []).append((safe, reason, status))
+        for key, key_mode, safe, reason, status in pool.map(_worker, jobs):
+            results.setdefault((key, key_mode), []).append((safe, reason, status))
 
     cases: list[dict] = []
     per_class: dict[str, int] = {}
@@ -189,6 +349,8 @@ def build_suite() -> tuple[dict, dict[str, int], dict[str, int]]:
     MAX_PER_CLASS = 8
 
     for (pattern, mode), runs in sorted(results.items()):
+        if mode == "fixed":
+            continue
         ok_runs = [(s, r) for s, r, st in runs if st == "ok"]
         if len(ok_runs) < 2:
             drops[f"{mode}:allfailed"] = drops.get(f"{mode}:allfailed", 0) + 1
@@ -209,8 +371,8 @@ def build_suite() -> tuple[dict, dict[str, int], dict[str, int]]:
                 drops.get(f"{mode}:nondeterministic", 0) + 1
             )
             continue
-        if cls == "over_budget" and (pattern, mode) not in OVER_BUDGET_PINNED:
-            drops[f"{mode}:notpinned"] = drops.get(f"{mode}:notpinned", 0) + 1
+        if cls in FIXED_CLASSES:
+            drops[f"{mode}:fixed_class"] = drops.get(f"{mode}:fixed_class", 0) + 1
             continue
         key = f"{mode}:{cls}"
         limit = MAX_PER_CLASS * (2 if cls == "safe" else 1)
@@ -230,13 +392,10 @@ def build_suite() -> tuple[dict, dict[str, int], dict[str, int]]:
         case["expected"] = {"safe": safe, "reason_class": cls}
         cases.append(case)
 
-    kept = {(c["input"]["pattern"], c["input"]["mode"]) for c in cases}
-    missing = sorted(OVER_BUDGET_PINNED - kept)
-    if missing:
-        seen_runs = {key: results.get(key) for key in missing}
-        raise SystemExit(
-            f"pinned over_budget cases not produced by the oracle: {seen_runs}"
-        )
+    for fixed_case in _fixed_cases_from(results):
+        cases.append(fixed_case)
+        key = f"{fixed_case['input']['mode']}:{fixed_case['expected']['reason_class']}"
+        per_class[key] = 1
 
     suite = {
         "suite": "safety_gates",
@@ -248,11 +407,16 @@ def build_suite() -> tuple[dict, dict[str, int], dict[str, int]]:
     return suite, per_class, drops
 
 
+def _without_reference(case: dict) -> dict:
+    # The reference holds measured seconds, which differ on every run.
+    return {key: value for key, value in case.items() if key != "reference"}
+
+
 def check_committed() -> int:
     suite, _per_class, _drops = build_suite()
     committed = json.loads(SUITE_PATH.read_text(encoding="utf-8"))
-    fresh = {c["id"]: c for c in suite["cases"]}
-    kept = {c["id"]: c for c in committed["cases"]}
+    fresh = {c["id"]: _without_reference(c) for c in suite["cases"]}
+    kept = {c["id"]: _without_reference(c) for c in committed["cases"]}
     problems = [f"only committed: {i}" for i in sorted(kept.keys() - fresh.keys())]
     problems += [f"only regenerated: {i}" for i in sorted(fresh.keys() - kept.keys())]
     problems += [
@@ -282,6 +446,8 @@ def main() -> None:
         "case_count": len(cases),
         "kind": "pattern_safety",
         "consumers": ["python", "go", "php", "ts", "rust", "jvm"],
+        "unpinned_classes": UNPINNED_CLASSES,
+        "retired_case_ids": RETIRED_CASES,
     }
     index["comparison"]["pattern_safety_records"] = (
         "compare expected.safe and expected.reason_class; the numeric parts "
