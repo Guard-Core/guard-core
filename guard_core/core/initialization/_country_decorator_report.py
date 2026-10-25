@@ -25,10 +25,11 @@ def report_country_decorators_without_geoip(
     ):
         return
     route_configs = getattr(guard_decorator, "_route_configs", {})
+    rule_owner = guard_decorator.config
     for route_id, route_config in route_configs.items():
         for decorator in _country_decorators_without_geoip(route_config):
             report_misconfiguration(
-                config,
+                rule_owner,
                 f"Route {route_id!r} uses {decorator} but no GeoIP database "
                 "is configured (geo_ip_handler is None; set ipinfo_token or "
                 "geo_ip_handler), so the country rule is ignored.",

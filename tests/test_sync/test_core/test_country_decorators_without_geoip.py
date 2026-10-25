@@ -16,7 +16,7 @@ def _decorated(
 ) -> tuple[SyncSecurityConfig, SecurityDecorator, str]:
     config = SyncSecurityConfig(enable_redis=False, **flag)
     decorator = SecurityDecorator(
-        SyncSecurityConfig(enable_redis=False, fail_on_misconfiguration=False)
+        SyncSecurityConfig(enable_redis=False, geo_ip_handler=MagicMock(), **flag)
     )
 
     def country_route() -> None:
@@ -93,6 +93,35 @@ class TestCountryDecoratorWithoutGeoIp:
         with warnings.catch_warnings():
             warnings.simplefilter("error")
             initializer.initialize_redis_handlers()
+
+
+def test_a_mixed_pair_with_the_decorator_opted_out_starts_and_warns_once(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    middleware_config = SyncSecurityConfig(
+        enable_redis=False, fail_on_misconfiguration=True
+    )
+    decorator = SecurityDecorator(
+        SyncSecurityConfig(enable_redis=False, fail_on_misconfiguration=False)
+    )
+    decorator.block_countries(["CN"])(lambda: None)
+    initializer = HandlerInitializer(middleware_config, guard_decorator=decorator)
+
+    with caplog.at_level(logging.WARNING, logger="guard_core"):
+        initializer.initialize_redis_handlers()
+        initializer.initialize_redis_handlers()
+
+    assert caplog.text.count("no GeoIP database") == 1
+
+
+def test_the_reverse_mixed_pair_still_raises_at_declaration() -> None:
+    decorator = SecurityDecorator(
+        SyncSecurityConfig(enable_redis=False, fail_on_misconfiguration=True)
+    )
+    assert SyncSecurityConfig(enable_redis=False, fail_on_misconfiguration=False)
+
+    with pytest.raises(ValueError, match="no GeoIP database is configured"):
+        decorator.block_countries(["CN"])(lambda: None)
 
 
 def test_other_decorators_and_no_decorator_never_report() -> None:
