@@ -15,6 +15,21 @@ from guard_core.sync.detection_engine.on_handler_indicator import (
     OnHandlerIndicator,
 )
 
+_WHITESPACE_RUN_RE = re.compile(r"\s+")
+_NON_WHITESPACE_RE = re.compile(r"\S")
+_COLLAPSE_WINDOW = 32768
+
+
+def collapse_whitespace_runs(content: str) -> str:
+    collapsed: list[str] = []
+    start = 0
+    while start < len(content):
+        cut = _NON_WHITESPACE_RE.search(content, start + _COLLAPSE_WINDOW)
+        end = cut.start() if cut else len(content)
+        collapsed.append(_WHITESPACE_RUN_RE.sub(" ", content[start:end]))
+        start = end
+    return "".join(collapsed)
+
 
 class ContentPreprocessor:
     _DEFAULT_MAX_FULL_SCAN_BYTES = 262144
@@ -157,7 +172,7 @@ class ContentPreprocessor:
         return normalized
 
     def remove_excessive_whitespace(self, content: str) -> str:
-        content = re.sub(r"\s+", " ", content)
+        content = collapse_whitespace_runs(content)
         content = content.strip()
         return content
 

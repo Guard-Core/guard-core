@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from guard_core.detection_engine.binary_prefix import BinaryPrefix
 from guard_core.handlers import suspatterns_handler as _suspatterns_module
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.handlers.suspatterns_handler import (
@@ -480,7 +481,7 @@ async def test_pattern_timeout_preserves_existing_regex_threat(
         *,
         state: object = None,
         context: str = "unknown",
-        binary_prefix: list[int] | None = None,
+        binary_prefix: BinaryPrefix | None = None,
     ) -> tuple[dict | None, bool]:
         if pattern.pattern == custom_pattern:
             return dict(existing_threat), True

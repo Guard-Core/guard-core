@@ -102,9 +102,8 @@ def decode_base64_candidates(
 
     def _decode_cleaned(cleaned: str, min_printable_ratio: float) -> str | None:
         padding = (4 - len(cleaned) % 4) % 4
-        padded = cleaned + "=" * padding
         try:
-            raw = base64.b64decode(padded, validate=True)
+            raw = base64.b64decode(cleaned + "=" * padding, validate=True)
         except (ValueError, binascii.Error):
             return None
         if raw[:2] == GZIP_MAGIC and gunzip_attempts_left[0] > 0:
@@ -126,17 +125,17 @@ def decode_base64_candidates(
         if is_hex_literal(token):
             return None
         cleaned = token.translate(SEPARATOR_DELETION)
-        urlsafe_decoded = _decode_cleaned(
-            cleaned.translate(base64_alphabet.URLSAFE_TRANSLATION),
-            min_printable_ratio,
-        )
-        if urlsafe_decoded is not None:
-            return urlsafe_decoded
-        if "-" in cleaned or "_" in cleaned:
+        urlsafe = cleaned.translate(base64_alphabet.URLSAFE_TRANSLATION)
+        has_urlsafe_chars = "-" in cleaned or "_" in cleaned
+        if has_urlsafe_chars:
+            urlsafe_decoded = _decode_cleaned(urlsafe, min_printable_ratio)
+            if urlsafe_decoded is not None:
+                return urlsafe_decoded
             return _decode_cleaned(
                 cleaned.replace("-", "").replace("_", ""), min_printable_ratio
             )
-        return None
+        del cleaned
+        return _decode_cleaned(urlsafe, min_printable_ratio)
 
     def _decode_runs(token: str) -> str:
         def _replace_run(match: re.Match[str]) -> str:

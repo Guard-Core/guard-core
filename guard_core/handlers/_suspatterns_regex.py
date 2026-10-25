@@ -25,6 +25,7 @@ from guard_core._utils.detection_scan import (
     _warn_scan_time_cap_reached_once,
 )
 from guard_core.detection_engine.binary_prefix import (
+    BinaryPrefix,
     build_binary_prefix,
     match_is_binary_dense,
 )
@@ -314,7 +315,7 @@ def _build_regex_threat(
     category: str,
     pattern_start: float,
     context: str = "unknown",
-    binary_prefix: list[int] | None = None,
+    binary_prefix: BinaryPrefix | None = None,
 ) -> dict[str, Any] | None:
     if not _candidate_passes_the_route_gates(pattern, match, context):
         return None
@@ -381,7 +382,7 @@ def _first_accepted_regex_threat(
     category: str,
     pattern_start: float,
     context: str = "unknown",
-    binary_prefix: list[int] | None = None,
+    binary_prefix: BinaryPrefix | None = None,
 ) -> dict[str, Any] | None:
     for match in matches:
         threat = _build_regex_threat(
@@ -429,7 +430,7 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
         *,
         state: _DetectionState | None = None,
         context: str = "unknown",
-        binary_prefix: list[int] | None = None,
+        binary_prefix: BinaryPrefix | None = None,
     ) -> tuple[dict | None, bool]:
         state = self._resolve_state(state)
         match pattern:
@@ -522,7 +523,7 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
         pattern_start: float,
         category: str,
         context: str,
-        binary_prefix: list[int] | None = None,
+        binary_prefix: BinaryPrefix | None = None,
     ) -> tuple[dict | None, bool]:
         timeout = getattr(
             self._config, "detection_compiler_timeout", _DEFAULT_COMPILER_TIMEOUT
@@ -564,7 +565,7 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
         pattern_start: float,
         category: str,
         context: str = "unknown",
-        binary_prefix: list[int] | None = None,
+        binary_prefix: BinaryPrefix | None = None,
     ) -> tuple[dict | None, bool]:
         search_from = 0
         timeout_occurred = False

@@ -14,6 +14,7 @@ from guard_core.sync.decorators.content_filtering import ContentFilteringMixin
 from guard_core.sync.detection_engine._redos_cost_arbiter import (
     _log_structural_disagreement,
 )
+from guard_core.sync.detection_engine.binary_prefix import BinaryPrefix
 from guard_core.sync.detection_engine.monitor import PerformanceMonitor
 from guard_core.sync.detection_engine.monitor_anomalies import (
     build_anomaly_event_data,
@@ -383,7 +384,7 @@ def test_fallback_pattern_check_recursion_log_redacts_secret_shaped_pattern(
         pattern_start: float,
         category: str,
         context: str = "unknown",
-        binary_prefix: list[int] | None = None,
+        binary_prefix: BinaryPrefix | None = None,
     ) -> tuple[None, bool]:
         raise RecursionError("simulated regex recursion")
 

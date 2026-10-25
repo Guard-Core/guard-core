@@ -7,6 +7,7 @@ from guard_core.sync._utils.detection_scan import (
     _scan_component_name,
     _skip_counter,
 )
+from guard_core.sync._utils.form_pairs import iter_form_pairs
 from guard_core.sync._utils.scan_remainder import (
     _body_remainder_display,
     _scan_surface_remainder,
@@ -79,14 +80,10 @@ def _scan_form_body(
     *,
     patterns: "SusPatternsManager | None" = None,
 ) -> tuple[bool, str, list[dict]]:
-    from urllib.parse import parse_qsl
-
     remainder = _SurfaceRemainder()
     skips = _skip_counter()
     category_skips = _body_field_category_skips.get()
-    for name, value in parse_qsl(
-        raw_body, keep_blank_values=True, errors="surrogateescape"
-    ):
+    for name, value in iter_form_pairs(raw_body):
         if name.lower() in excluded_body_fields:
             continue
         skipped_before = skips.count
