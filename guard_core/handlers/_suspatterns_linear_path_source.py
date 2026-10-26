@@ -3,7 +3,7 @@ from collections.abc import Iterator
 
 from guard_core.handlers._suspatterns_literals import _PARSER
 
-SEGMENT_RUN_RE = re.compile(r"[\w.\-~%]+")
+SEGMENT_STEP_RE = re.compile(r"[\w.\-~%]+[/\\]")
 PATH_SEPARATORS = "/\\"
 FLAT_CHAIN_CLASS = r"[\w.\-~%/\\]"
 SEPARATOR = r"[/\\]"
@@ -18,6 +18,7 @@ _FLAT_EQUIVALENTS = (
     (r"(?:(?![/\\?])\S)*", r"[^\s/\\?]*"),
     (r"(?:(?!\n).)*", r".*"),
     (r"(?:[/\\][\w.\-~%]*)*", r"(?:[/\\][/\\\w.\-~%]*)?"),
+    (r"(?:[^`\\\n]|\\.)*", r"[^`\\\n]*(?:\\.[^`\\\n]*)*"),
 )
 
 

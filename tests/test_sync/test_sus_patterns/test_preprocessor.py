@@ -273,7 +273,10 @@ def test_decode_common_encodings_url_decode_error() -> None:
     agent_handler.send_event = MagicMock()
     preprocessor = ContentPreprocessor(agent_handler=agent_handler)
 
-    with patch("urllib.parse.unquote", side_effect=Exception("URL decode error")):
+    with patch(
+        "guard_core.sync.detection_engine.encoding_decoders.percent_decode",
+        side_effect=Exception("URL decode error"),
+    ):
         content = "%3Cscript%3E"
         preprocessor.decode_common_encodings(content)
 

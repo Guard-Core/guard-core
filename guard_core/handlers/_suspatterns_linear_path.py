@@ -7,7 +7,7 @@ from guard_core.handlers._suspatterns_linear_path_source import (
     FLAT_CHAIN_CLASS,
     OPTIONAL_SEPARATOR,
     PATH_SEPARATORS,
-    SEGMENT_RUN_RE,
+    SEGMENT_STEP_RE,
     SEPARATOR,
     flattened,
     mandatory_characters,
@@ -18,6 +18,7 @@ from guard_core.handlers._suspatterns_linear_path_source import (
 _MAX_BUILT_PATTERNS = 128
 _UNSET = -2
 _NO_END = -1
+_STEP = SEGMENT_STEP_RE.match
 
 
 class _LinearPathRow:
@@ -45,39 +46,35 @@ class _LinearPathRow:
             parts.extend((f"{FLAT_CHAIN_CLASS}{{{count}}}", piece))
         return re.compile("".join(parts), self._flags)
 
-    def _next_boundary(self, text: str, chain: int, pos: int) -> int:
+    def _walk(
+        self, text: str, chain: int, start: int, memo: array
+    ) -> tuple[array, int]:
         guard = self._guards[chain]
-        if guard is not None and guard.match(text, pos) is not None:
-            return -1
-        run = SEGMENT_RUN_RE.match(text, pos)
-        if run is None or run.end() >= len(text):
-            return -1
-        return run.end() + 1 if text[run.end()] in PATH_SEPARATORS else -1
+        guard_match = None if guard is None else guard.match
+        path = array("i")
+        position = start
+        while position != -1:
+            if memo[position] != _UNSET:
+                return path, memo[position]
+            path.append(position)
+            blocked = guard_match is not None and guard_match(text, position)
+            step = None if blocked else _STEP(text, position)
+            position = -1 if step is None else step.end()
+        return path, _NO_END
 
     def _best_end(self, text: str, chain: int, start: int, memos: list[array]) -> int:
         memo = memos[chain]
-        path = array("i")
-        position = start
-        best = _NO_END
-        while position != -1:
-            if memo[position] != _UNSET:
-                best = memo[position]
-                break
-            path.append(position)
-            position = self._next_boundary(text, chain, position)
+        path, best = self._walk(text, chain, start, memo)
+        tail_test = self._tests[chain].match
+        final_chain = chain + 1 == len(self._guards)
         for position in reversed(path):
-            if best == _NO_END and self._tail_fits(text, chain, position, memos):
-                best = position
+            if best == _NO_END and (tail := tail_test(text, position)) is not None:
+                if final_chain or (
+                    self._best_end(text, chain + 1, tail.end(), memos) != _NO_END
+                ):
+                    best = position
             memo[position] = best
         return best
-
-    def _tail_fits(self, text: str, chain: int, end: int, memos: list[array]) -> bool:
-        tail = self._tests[chain].match(text, end)
-        if tail is None:
-            return False
-        if chain + 1 == len(self._guards):
-            return True
-        return self._best_end(text, chain + 1, tail.end(), memos) != _NO_END
 
     def _solve(self, text: str, start: int) -> list[int] | None:
         if not all(any(map(text.__contains__, cases)) for cases in self._mandatory):

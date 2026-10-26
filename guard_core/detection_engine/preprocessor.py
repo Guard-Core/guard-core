@@ -277,9 +277,7 @@ class ContentPreprocessor:
             content = self._decode_overlong_utf8_percent_runs(content)
 
             try:
-                import urllib.parse
-
-                decoded = urllib.parse.unquote(content, errors="ignore")
+                decoded = encoding_decoders.percent_decode(content, errors="ignore")
                 if decoded != content:
                     content = decoded
             except Exception as e:

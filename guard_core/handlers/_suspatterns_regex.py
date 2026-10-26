@@ -53,7 +53,7 @@ from guard_core.handlers._suspatterns_applicable import (
     _pattern_should_be_skipped as _pattern_should_be_skipped,
 )
 from guard_core.handlers._suspatterns_enhanced import _SusPatternsEnhancedMixin
-from guard_core.handlers._suspatterns_inline_matches import inline_scan_matches
+from guard_core.handlers._suspatterns_inline_matches import _INLINE_FINDERS
 from guard_core.handlers._suspatterns_lazy_rows import (
     COMPILED_BUILTIN_PATTERNS,
     _SourceRow,
@@ -109,10 +109,7 @@ from guard_core.handlers._suspatterns_probe_chains import (
     chain_row_tail_is_query_or_space,
 )
 from guard_core.handlers._suspatterns_registry import _SusPatternsRegistryMixin
-from guard_core.handlers._suspatterns_scan_windows import (
-    _SCAN_WINDOW_PATTERNS,
-    _iter_scan_window_matches,
-)
+from guard_core.handlers._suspatterns_scan_windows import _SCAN_WINDOW_PATTERNS
 from guard_core.handlers._suspatterns_shell_sources import (
     _BRACE_EXPANSION_COMMAND_RE,
     _GLOB_WILDCARD_ATOM_RE,
@@ -458,25 +455,10 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
 
         timeout_occurred = False
 
-        matches = inline_scan_matches(pattern, content)
-        if matches is not None:
+        inline = _INLINE_FINDERS[pattern.pattern]
+        if inline is not None and (found := inline(content, pattern)) is not None:
             threat = _first_accepted_regex_threat(
-                iter(matches),
-                pattern,
-                category,
-                pattern_start,
-                context,
-                binary_prefix,
-            )
-            return threat, timeout_occurred
-
-        scan_window_bounds = _SCAN_WINDOW_PATTERNS.get(pattern.pattern)
-        if scan_window_bounds is not None:
-            scan_window_matches = _iter_scan_window_matches(
-                content, pattern, scan_window_bounds
-            )
-            threat = _first_accepted_regex_threat(
-                scan_window_matches,
+                iter(found),
                 pattern,
                 category,
                 pattern_start,

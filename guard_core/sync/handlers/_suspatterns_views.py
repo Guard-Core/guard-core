@@ -1,11 +1,11 @@
 import time
-import urllib.parse
 from typing import Any
 
 from guard_core.sync.detection_engine import ContentPreprocessor
 from guard_core.sync.detection_engine.encoding_decoders import (
     decode_overlong_utf8_percent_runs,
     decode_percent_u_escapes,
+    percent_decode,
 )
 from guard_core.sync.handlers._suspatterns_regex import (
     _resolve_pattern_weight,
@@ -31,7 +31,7 @@ def _legacy_decode_path_traversal_view(normalized_content: str) -> str:
     for _ in range(_LEGACY_PATH_TRAVERSAL_DECODE_MAX_ITERATIONS):
         previous = decoded
         decoded = decode_overlong_utf8_percent_runs(decoded)
-        decoded = urllib.parse.unquote(decoded, errors="ignore")
+        decoded = percent_decode(decoded, errors="ignore")
         decoded = decode_percent_u_escapes(decoded)
         decoded = _LEGACY_PATH_TRAVERSAL_PREPROCESSOR.normalize_unicode(decoded)
         if decoded == previous:

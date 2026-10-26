@@ -4,6 +4,13 @@ HEX_ESCAPE_RE = re.compile(r"\\x([0-9a-fA-F]{2})")
 UNICODE_ESCAPE_RE = re.compile(r"\\u([0-9a-fA-F]{4})")
 PERCENT_U_ESCAPE_RE = re.compile(r"%u([0-9a-fA-F]{4})", re.IGNORECASE)
 PERCENT_BYTE_RUN_RE = re.compile(r"(?:%[0-9a-fA-F]{2})+")
+_ASCII_RUN_SPLIT_RE = re.compile("([\x00-\x7f]+)")
+_PERCENT_BYTE_TABLE = {
+    (high + low).encode(): bytes.fromhex(high + low)
+    for high in "0123456789ABCDEFabcdef"
+    for low in "0123456789ABCDEFabcdef"
+}
+_PERCENT_PIECES_PER_JOIN = 4096
 
 OVERLONG_LEAD_SPECS: dict[int, tuple[int, int, int, int]] = {
     0xC0: (2, 0x1F, 0x80, 0xBF),
@@ -11,6 +18,37 @@ OVERLONG_LEAD_SPECS: dict[int, tuple[int, int, int, int]] = {
     0xE0: (3, 0x0F, 0x80, 0x9F),
     0xF0: (4, 0x07, 0x80, 0x8F),
 }
+
+
+def _percent_decode_ascii_run(run: str) -> bytes:
+    pieces = run.encode().split(b"%")
+    decoded = bytearray(pieces[0])
+    table = _PERCENT_BYTE_TABLE
+    for start in range(1, len(pieces), _PERCENT_PIECES_PER_JOIN):
+        block = pieces[start : start + _PERCENT_PIECES_PER_JOIN]
+        decoded += b"".join(
+            [
+                byte + piece[2:] if (byte := table.get(piece[:2])) else b"%" + piece
+                for piece in block
+            ]
+        )
+    return bytes(decoded)
+
+
+def percent_decode(content: str, errors: str = "replace") -> str:
+    if "%" not in content:
+        return content
+    bits = _ASCII_RUN_SPLIT_RE.split(content)
+    decoded = [bits[0]]
+    for index in range(1, len(bits), 2):
+        run = bits[index]
+        decoded.append(
+            _percent_decode_ascii_run(run).decode("utf-8", errors)
+            if "%" in run
+            else run
+        )
+        decoded.append(bits[index + 1])
+    return "".join(decoded)
 
 
 def decode_hex_escapes(content: str) -> str:

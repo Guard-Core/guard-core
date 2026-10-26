@@ -1,5 +1,6 @@
 import re
 
+from guard_core.sync.handlers._suspatterns_linear_path_source import flattened
 from guard_core.sync.handlers._suspatterns_pattern_table import BACKTICK_WHOLE_VALUE_RE
 from guard_core.sync.handlers._suspatterns_shell_sources import (
     _GLUED_BACKTICK_CANDIDATE_RE,
@@ -14,8 +15,10 @@ from guard_core.sync.handlers._suspatterns_sources import (
     _source_extension_path_is_probe,
 )
 
-_GLUED_BACKTICK_CANDIDATE_COMPILED_RE = re.compile(_GLUED_BACKTICK_CANDIDATE_RE)
-_BACKTICK_WHOLE_VALUE_COMPILED_RE = re.compile(BACKTICK_WHOLE_VALUE_RE)
+_GLUED_BACKTICK_CANDIDATE_COMPILED_RE = re.compile(
+    flattened(_GLUED_BACKTICK_CANDIDATE_RE)
+)
+_BACKTICK_WHOLE_VALUE_COMPILED_RE = re.compile(flattened(BACKTICK_WHOLE_VALUE_RE))
 _DASH_C_COMPILED_RE = re.compile(r"(?:ba|z|da|k)?sh\s+-c\b")
 _SEPARATED_DASH_C_COMPILED_RE = re.compile(r"\s+-c\b")
 _DOCROOT_WEB_ASSET_RE = re.compile(

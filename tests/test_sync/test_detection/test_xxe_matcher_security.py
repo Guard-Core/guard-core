@@ -7,7 +7,7 @@ import sys
 
 import pytest
 
-from guard_core.sync.handlers._suspatterns_regex import (
+from guard_core.sync.handlers._suspatterns_scan_windows import (
     _SCAN_WINDOW_PATTERNS,
     _iter_scan_window_matches,
 )

@@ -26,7 +26,9 @@ module still guarantees span identity for its patterns.
 
 import bisect
 import re
-from collections.abc import Iterator
+from array import array
+from collections import deque
+from collections.abc import Iterator, Sequence
 
 
 def bounded_finditer(
@@ -35,12 +37,12 @@ def bounded_finditer(
     prefix: re.Pattern,
     terminator: re.Pattern,
 ) -> Iterator[re.Match]:
-    terminator_ends = [m.end() for m in terminator.finditer(text)]
-    if not terminator_ends:
+    last_terminator = deque(terminator.finditer(text), maxlen=1)
+    if not last_terminator:
         return
-    ceiling = terminator_ends[-1]
+    ceiling = last_terminator[0].end()
 
-    prefix_starts = [m.start() for m in prefix.finditer(text)]
+    prefix_starts = array("i", (m.start() for m in prefix.finditer(text)))
     if not prefix_starts:
         return
 
@@ -59,7 +61,7 @@ def bounded_finditer(
 def _match_from_live_prefixes(
     text: str,
     compiled: re.Pattern,
-    prefix_starts: list[int],
+    prefix_starts: Sequence[int],
     start_idx: int,
     ceiling: int,
 ) -> re.Match | None:
