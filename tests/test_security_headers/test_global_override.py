@@ -1902,7 +1902,7 @@ async def test_the_offset_costs_no_round_trip_of_its_own(clock: Clock) -> None:
 
 
 def test_the_registry_finds_a_handler_by_config_and_holds_it_weakly() -> None:
-    registry = ConfigHandlerRegistry()
+    registry: ConfigHandlerRegistry[object] = ConfigHandlerRegistry()
     config = _config()
 
     class Handler:
@@ -1998,7 +1998,7 @@ async def test_an_app_without_redis_never_looks_a_handler_up(
 
 
 def test_the_registry_forgets_a_config_that_was_collected() -> None:
-    registry = ConfigHandlerRegistry()
+    registry: ConfigHandlerRegistry[object] = ConfigHandlerRegistry()
 
     class Handler:
         pass
@@ -2021,7 +2021,7 @@ def test_the_registry_accepts_a_config_that_cannot_be_weakly_referenced() -> Non
     class Handler:
         pass
 
-    registry = ConfigHandlerRegistry()
+    registry: ConfigHandlerRegistry[object] = ConfigHandlerRegistry()
     config, handler = Slotted(), Handler()
 
     registry.register(config, handler)
@@ -2030,7 +2030,7 @@ def test_the_registry_accepts_a_config_that_cannot_be_weakly_referenced() -> Non
 
 
 def test_the_registry_keeps_kinds_apart_and_a_dead_entry_is_dropped_once() -> None:
-    registry = ConfigHandlerRegistry()
+    registry: ConfigHandlerRegistry[object] = ConfigHandlerRegistry()
     config = _config()
 
     class Handler:
@@ -2264,14 +2264,14 @@ async def test_a_redis_handler_that_never_connected_is_not_attached() -> None:
 def test_the_registry_drops_an_entry_whose_handler_is_gone_without_its_callback() -> (
     None
 ):
-    registry = ConfigHandlerRegistry()
+    registry: ConfigHandlerRegistry[object] = ConfigHandlerRegistry()
     config = _config()
 
     class Handler:
         pass
 
     handler = Handler()
-    dead = weakref.ref(handler)
+    dead: weakref.ref[object] = weakref.ref(handler)
     del handler
     gc.collect()
     registry._entries[(None, id(config))] = dead

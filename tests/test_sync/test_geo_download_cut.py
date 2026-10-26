@@ -13,6 +13,7 @@ from urllib3.contrib import socks
 from guard_core.models import SecurityConfig
 from guard_core.sync._utils.access_control import check_ip_country
 from guard_core.sync.handlers.ipinfo_handler import IPInfoManager
+from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 from tests.geo_fixture import (
     CLIENT_IP,
     HOST,
@@ -120,7 +121,7 @@ def test_a_silent_body_ends_each_attempt_at_the_idle_bound(
 ) -> None:
     with stalling_server("idle", keep_alive) as server:
         manager = _manager(server.url, tmp_path, retries=3)
-        config = SecurityConfig(
+        config = SecurityConfig[SyncGuardRequest](
             enable_redis=False,
             ipinfo_token="tok",
             ipinfo_db_path=manager.db_path,

@@ -1,4 +1,4 @@
-from typing import Any, NamedTuple
+from typing import NamedTuple, TypedDict
 
 from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils.request_logging import redact_endpoint_for_display
@@ -6,14 +6,26 @@ from guard_core.sync.core.events.event_types import (
     EVENT_DECORATOR_VIOLATION,
     EVENT_DYNAMIC_RULE_VIOLATION,
 )
+from guard_core.sync.decorators.base import RouteConfig
 from guard_core.sync.handlers.ratelimit_handler import RateLimitTier
+from guard_core.sync.protocols.middleware_protocol import SyncGuardMiddlewareProtocol
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
+
+
+class TierEventKwargs(TypedDict, total=False):
+    reason: str
+    decorator_type: str
+    violation_type: str
+    rule_type: str
+    endpoint: str
+    rate_limit: int
+    window: int
 
 
 class TierPlan(NamedTuple):
     tier: RateLimitTier
     event_type: str | None
-    event_kwargs: dict[str, Any]
+    event_kwargs: TierEventKwargs
     trigger_info: str
 
 
@@ -51,7 +63,9 @@ def endpoint_plan(
     )
 
 
-def route_plan(request: SyncGuardRequest, route_config: Any) -> TierPlan | None:
+def route_plan(
+    request: SyncGuardRequest, route_config: RouteConfig | None
+) -> TierPlan | None:
     if not route_config or route_config.rate_limit is None:
         return None
 
@@ -77,7 +91,10 @@ def route_plan(request: SyncGuardRequest, route_config: Any) -> TierPlan | None:
 
 
 def geo_plan(
-    middleware: Any, request: SyncGuardRequest, client_ip: str, route_config: Any
+    middleware: SyncGuardMiddlewareProtocol,
+    request: SyncGuardRequest,
+    client_ip: str,
+    route_config: RouteConfig | None,
 ) -> TierPlan | None:
     if not route_config or not route_config.geo_rate_limits:
         return None

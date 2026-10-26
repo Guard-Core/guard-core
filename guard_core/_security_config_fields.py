@@ -965,7 +965,7 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
         ),
     )
 
-    on_error: Callable[[str, BaseException, dict[str, Any]], None] | None = Field(
+    on_error: Callable[[str, BaseException, dict[str, object]], None] | None = Field(
         default=None,
         description=(
             "Optional best-effort callback invoked when a middleware/agent step "
@@ -975,7 +975,7 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
         ),
     )
 
-    on_block: Callable[[GuardRequest, dict[str, Any]], None] | None = Field(
+    on_block: Callable[[GuardRequest, dict[str, object]], None] | None = Field(
         default=None,
         description=(
             "Optional best-effort callback invoked exactly once per blocked or "
@@ -1621,7 +1621,7 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
         resolve_enable_redis(self)
         return self
 
-    def __setattr__(self, name: str, value: Any) -> None:
+    def __setattr__(self, name: str, value: object) -> None:
         super().__setattr__(name, value)
         if name in REDIS_CONNECTION_FIELDS:
             resolve_enable_redis(self)

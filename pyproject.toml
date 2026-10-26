@@ -135,7 +135,6 @@ select = [
 "scripts/**" = ["ANN401"]  # tests and tools keep Any inside fakes (D-177)
 "specs/**" = ["ANN401"]  # tests and tools keep Any inside fakes (D-177)
 "guard_core/__init__.py" = ["ANN401"]  # open value
-"guard_core/_security_config_batch.py" = ["ANN401"]  # framework object
 "guard_core/_security_config_field_validators.py" = ["ANN401"]  # open value
 "guard_core/_security_config_fields.py" = ["ANN401"]  # framework object
 "guard_core/_security_config_geo_validators.py" = ["ANN401"]  # framework object
@@ -143,30 +142,18 @@ select = [
 "guard_core/_security_headers_defaults.py" = ["ANN401"]  # handler slot
 "guard_core/_security_headers_override.py" = ["ANN401"]  # JSON payload
 "guard_core/_utils/access_control.py" = ["ANN401"]  # handler slot
-"guard_core/_utils/agent_events.py" = ["ANN401"]  # handler slot
 "guard_core/_utils/app_managers.py" = ["ANN401"]  # handler slot
-"guard_core/_utils/block_events.py" = ["ANN401"]  # framework object
 "guard_core/_utils/body_json_scan.py" = ["ANN401"]  # JSON payload
-"guard_core/_utils/config_registry.py" = ["ANN401"]  # handler slot
 "guard_core/_utils/detection_scan.py" = ["ANN401"]  # JSON payload
-"guard_core/_utils/request_logging.py" = ["ANN401"]  # framework object
 "guard_core/_utils/rule_attribution.py" = ["ANN401"]  # JSON payload
 "guard_core/core/__init__.py" = ["ANN401"]  # open value
 "guard_core/core/behavioral/_throttle.py" = ["ANN401"]  # framework object
 "guard_core/core/behavioral/processor.py" = ["ANN401"]  # framework object
 "guard_core/core/checks/_rate_limit_ban_first.py" = ["ANN401"]  # handler slot
-"guard_core/core/checks/_rate_limit_plans.py" = ["ANN401"]  # handler slot
 "guard_core/core/checks/_strike_forget.py" = ["ANN401"]  # JSON payload
 "guard_core/core/checks/_verifier.py" = ["ANN401"]  # open value
 "guard_core/core/checks/helpers.py" = ["ANN401"]  # framework object
-"guard_core/core/checks/implementations/authentication.py" = ["ANN401"]  # framework object
-"guard_core/core/checks/implementations/cloud_provider.py" = ["ANN401"]  # framework object
-"guard_core/core/checks/implementations/ip_security.py" = ["ANN401"]  # framework object
-"guard_core/core/checks/implementations/rate_limit.py" = ["ANN401"]  # framework object
-"guard_core/core/checks/implementations/suspicious_activity.py" = ["ANN401"]  # handler slot
-"guard_core/core/checks/implementations/user_agent.py" = ["ANN401"]  # handler slot
 "guard_core/core/events/__init__.py" = ["ANN401"]  # open value
-"guard_core/core/events/middleware_events.py" = ["ANN401"]  # framework object
 "guard_core/core/initialization/_cloud_initialization.py" = ["ANN401"]  # handler slot
 "guard_core/core/initialization/_handler_initializer_steps.py" = ["ANN401"]  # handler slot
 "guard_core/core/initialization/handler_initializer.py" = ["ANN401"]  # handler slot
@@ -218,30 +205,18 @@ select = [
 "guard_core/protocols/request_protocol.py" = ["ANN401"]  # protocol
 "guard_core/sync/__init__.py" = ["ANN401"]  # open value
 "guard_core/sync/_utils/access_control.py" = ["ANN401"]  # handler slot
-"guard_core/sync/_utils/agent_events.py" = ["ANN401"]  # handler slot
 "guard_core/sync/_utils/app_managers.py" = ["ANN401"]  # handler slot
-"guard_core/sync/_utils/block_events.py" = ["ANN401"]  # framework object
 "guard_core/sync/_utils/body_json_scan.py" = ["ANN401"]  # JSON payload
-"guard_core/sync/_utils/config_registry.py" = ["ANN401"]  # handler slot
 "guard_core/sync/_utils/detection_scan.py" = ["ANN401"]  # JSON payload
-"guard_core/sync/_utils/request_logging.py" = ["ANN401"]  # framework object
 "guard_core/sync/_utils/rule_attribution.py" = ["ANN401"]  # JSON payload
 "guard_core/sync/core/__init__.py" = ["ANN401"]  # open value
 "guard_core/sync/core/behavioral/_throttle.py" = ["ANN401"]  # framework object
 "guard_core/sync/core/behavioral/processor.py" = ["ANN401"]  # framework object
 "guard_core/sync/core/checks/_rate_limit_ban_first.py" = ["ANN401"]  # handler slot
-"guard_core/sync/core/checks/_rate_limit_plans.py" = ["ANN401"]  # handler slot
 "guard_core/sync/core/checks/_strike_forget.py" = ["ANN401"]  # JSON payload
 "guard_core/sync/core/checks/_verifier.py" = ["ANN401"]  # open value
 "guard_core/sync/core/checks/helpers.py" = ["ANN401"]  # framework object
-"guard_core/sync/core/checks/implementations/authentication.py" = ["ANN401"]  # framework object
-"guard_core/sync/core/checks/implementations/cloud_provider.py" = ["ANN401"]  # framework object
-"guard_core/sync/core/checks/implementations/ip_security.py" = ["ANN401"]  # framework object
-"guard_core/sync/core/checks/implementations/rate_limit.py" = ["ANN401"]  # framework object
-"guard_core/sync/core/checks/implementations/suspicious_activity.py" = ["ANN401"]  # handler slot
-"guard_core/sync/core/checks/implementations/user_agent.py" = ["ANN401"]  # handler slot
 "guard_core/sync/core/events/__init__.py" = ["ANN401"]  # open value
-"guard_core/sync/core/events/middleware_events.py" = ["ANN401"]  # framework object
 "guard_core/sync/core/initialization/_cloud_initialization.py" = ["ANN401"]  # handler slot
 "guard_core/sync/core/initialization/_handler_initializer_steps.py" = ["ANN401"]  # handler slot
 "guard_core/sync/core/initialization/handler_initializer.py" = ["ANN401"]  # handler slot
@@ -340,7 +315,6 @@ disallow_any_explicit = true
 [[tool.mypy.overrides]]
 module = [
     "guard_core",  # open value
-    "guard_core._security_config_batch",  # framework object
     "guard_core._security_config_field_validators",  # open value
     "guard_core._security_config_fields",  # framework object
     "guard_core._security_config_geo_validators",  # framework object
@@ -348,30 +322,18 @@ module = [
     "guard_core._security_headers_defaults",  # handler slot
     "guard_core._security_headers_override",  # JSON payload
     "guard_core._utils.access_control",  # handler slot
-    "guard_core._utils.agent_events",  # handler slot
     "guard_core._utils.app_managers",  # handler slot
-    "guard_core._utils.block_events",  # framework object
     "guard_core._utils.body_json_scan",  # JSON payload
-    "guard_core._utils.config_registry",  # handler slot
     "guard_core._utils.detection_scan",  # JSON payload
-    "guard_core._utils.request_logging",  # framework object
     "guard_core._utils.rule_attribution",  # JSON payload
     "guard_core.core",  # open value
     "guard_core.core.behavioral._throttle",  # framework object
     "guard_core.core.behavioral.processor",  # framework object
     "guard_core.core.checks._rate_limit_ban_first",  # handler slot
-    "guard_core.core.checks._rate_limit_plans",  # handler slot
     "guard_core.core.checks._strike_forget",  # JSON payload
     "guard_core.core.checks._verifier",  # open value
     "guard_core.core.checks.helpers",  # framework object
-    "guard_core.core.checks.implementations.authentication",  # framework object
-    "guard_core.core.checks.implementations.cloud_provider",  # framework object
-    "guard_core.core.checks.implementations.ip_security",  # framework object
-    "guard_core.core.checks.implementations.rate_limit",  # framework object
-    "guard_core.core.checks.implementations.suspicious_activity",  # handler slot
-    "guard_core.core.checks.implementations.user_agent",  # handler slot
     "guard_core.core.events",  # open value
-    "guard_core.core.events.middleware_events",  # framework object
     "guard_core.core.initialization._cloud_initialization",  # handler slot
     "guard_core.core.initialization._handler_initializer_steps",  # handler slot
     "guard_core.core.initialization.handler_initializer",  # handler slot
@@ -429,30 +391,18 @@ disallow_any_explicit = false
 module = [
     "guard_core.sync",  # open value
     "guard_core.sync._utils.access_control",  # handler slot
-    "guard_core.sync._utils.agent_events",  # handler slot
     "guard_core.sync._utils.app_managers",  # handler slot
-    "guard_core.sync._utils.block_events",  # framework object
     "guard_core.sync._utils.body_json_scan",  # JSON payload
-    "guard_core.sync._utils.config_registry",  # handler slot
     "guard_core.sync._utils.detection_scan",  # JSON payload
-    "guard_core.sync._utils.request_logging",  # framework object
     "guard_core.sync._utils.rule_attribution",  # JSON payload
     "guard_core.sync.core",  # open value
     "guard_core.sync.core.behavioral._throttle",  # framework object
     "guard_core.sync.core.behavioral.processor",  # framework object
     "guard_core.sync.core.checks._rate_limit_ban_first",  # handler slot
-    "guard_core.sync.core.checks._rate_limit_plans",  # handler slot
     "guard_core.sync.core.checks._strike_forget",  # JSON payload
     "guard_core.sync.core.checks._verifier",  # open value
     "guard_core.sync.core.checks.helpers",  # framework object
-    "guard_core.sync.core.checks.implementations.authentication",  # framework object
-    "guard_core.sync.core.checks.implementations.cloud_provider",  # framework object
-    "guard_core.sync.core.checks.implementations.ip_security",  # framework object
-    "guard_core.sync.core.checks.implementations.rate_limit",  # framework object
-    "guard_core.sync.core.checks.implementations.suspicious_activity",  # handler slot
-    "guard_core.sync.core.checks.implementations.user_agent",  # handler slot
     "guard_core.sync.core.events",  # open value
-    "guard_core.sync.core.events.middleware_events",  # framework object
     "guard_core.sync.core.initialization._cloud_initialization",  # handler slot
     "guard_core.sync.core.initialization._handler_initializer_steps",  # handler slot
     "guard_core.sync.core.initialization.handler_initializer",  # handler slot

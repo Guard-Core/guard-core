@@ -1,7 +1,7 @@
 import threading
 from collections import OrderedDict
 from collections.abc import Collection
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from guard_core._misconfiguration import report_misconfiguration
 from guard_core.models import SyncSecurityConfig
@@ -133,11 +133,11 @@ class SuspiciousActivityCheck(SecurityCheck):
         request_total = getattr(ip_counts, "request_total", None)
         return sum(ip_counts.values()) if request_total is None else request_total
 
-    def _detection_event_fields(self, result: DetectionResult) -> dict[str, Any]:
+    def _detection_event_fields(self, result: DetectionResult) -> dict[str, object]:
         """What the penetration events carry about the detection: the per-request
         id, the categories and, for a rule that decided, its attribution. Built
         only when an agent consumes events, which the callers check."""
-        fields: dict[str, Any] = pattern_attribution(result.matched_pattern_source)
+        fields: dict[str, object] = pattern_attribution(result.matched_pattern_source)
         if result.correlation_id is not None:
             fields["correlation_id"] = result.correlation_id
         if result.threat_categories:

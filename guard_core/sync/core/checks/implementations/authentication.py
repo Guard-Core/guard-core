@@ -2,8 +2,7 @@ import base64
 import binascii
 import contextlib
 import traceback
-from collections.abc import Collection
-from typing import Any
+from collections.abc import Callable, Collection
 
 from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
@@ -82,7 +81,7 @@ class AuthenticationCheck(SecurityCheck):
         violation_type: str = "require_auth",
         auth_type: str | None = None,
         verifier_error: bool = False,
-        **metadata: Any,
+        **metadata: object,
     ) -> GuardResponse | None:
         auth_type = (
             auth_type
@@ -180,16 +179,18 @@ class AuthenticationCheck(SecurityCheck):
         *,
         credential: str | None,
         missing_reason: str,
-        verifier: Any,
+        verifier: Callable[[SyncGuardRequest, str], object] | None,
         auth_type: str,
         violation_type: str,
-        missing_metadata: dict[str, Any] | None = None,
-    ) -> tuple[bool, GuardResponse | None, Any]:
+        missing_metadata: dict[str, object] | None = None,
+    ) -> tuple[bool, GuardResponse | None, object]:
         missing_metadata = missing_metadata or {}
 
         def fail(
-            reason: str, verifier_error: bool = False, **metadata: Any
-        ) -> tuple[bool, GuardResponse | None, Any]:
+            reason: str,
+            metadata: dict[str, object] | None = None,
+            verifier_error: bool = False,
+        ) -> tuple[bool, GuardResponse | None, object]:
             response = self._handle_auth_failure(
                 request,
                 reason,
@@ -197,12 +198,12 @@ class AuthenticationCheck(SecurityCheck):
                 violation_type=violation_type,
                 auth_type=auth_type,
                 verifier_error=verifier_error,
-                **metadata,
+                **(metadata or {}),
             )
             return True, response, None
 
         if credential is None:
-            return fail(missing_reason, **missing_metadata)
+            return fail(missing_reason, missing_metadata)
         if verifier is None:
             return fail("No auth verifier configured")
         banned = resolve_pending_ban(request)
@@ -221,7 +222,7 @@ class AuthenticationCheck(SecurityCheck):
 
     def _verify_bearer_credential(
         self, request: SyncGuardRequest, route_config: RouteConfig
-    ) -> tuple[bool, GuardResponse | None, Any]:
+    ) -> tuple[bool, GuardResponse | None, object]:
         scheme = route_config.auth_required or ""
         auth_header = request.headers.get("authorization", "")
         credential, reason = extract_credential(auth_header, scheme)
@@ -237,7 +238,7 @@ class AuthenticationCheck(SecurityCheck):
 
     def _verify_api_key_credential(
         self, request: SyncGuardRequest, route_config: RouteConfig
-    ) -> tuple[bool, GuardResponse | None, Any]:
+    ) -> tuple[bool, GuardResponse | None, object]:
         key = request.headers.get(route_config.api_key_header or "", "")
         return self._verify_credential(
             request,
@@ -259,7 +260,7 @@ class AuthenticationCheck(SecurityCheck):
         if presence_scheme:
             return self._check_presence(request, route_config, presence_scheme)
 
-        principal: Any = None
+        principal: object = None
         if route_config.auth_required:
             failed, response, principal = self._verify_bearer_credential(
                 request, route_config

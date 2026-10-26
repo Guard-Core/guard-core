@@ -1,6 +1,6 @@
 from collections.abc import Collection, Mapping
 from copy import deepcopy
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from guard_core._config_capabilities import (
     cloud_blocking_requested,
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 
 def _require_cloud_extra_for_batch(
-    config: "SecurityConfig[RequestT]", prepared: Mapping[str, Any]
+    config: "SecurityConfig[RequestT]", prepared: Mapping[str, object]
 ) -> None:
     if cloud_blocking_requested(
         prepared.get("block_cloud_providers", config.block_cloud_providers),
@@ -30,9 +30,9 @@ def _require_cloud_extra_for_batch(
 
 def prepare_config_batch(
     config: "SecurityConfig[RequestT]",
-    values: Mapping[str, Any],
+    values: Mapping[str, object],
     validated: Collection[str],
-) -> dict[str, Any]:
+) -> dict[str, object]:
     prepared = {name: deepcopy(value) for name, value in values.items()}
     for name in validated:
         if name in _FIELD_REVALIDATORS:
@@ -65,7 +65,7 @@ def prepare_config_batch(
 
 
 def apply_config_batch(
-    config: "SecurityConfig[RequestT]", prepared: Mapping[str, Any]
+    config: "SecurityConfig[RequestT]", prepared: Mapping[str, object]
 ) -> None:
     config.__dict__.update(prepared)
     config.__pydantic_fields_set__.update(prepared)

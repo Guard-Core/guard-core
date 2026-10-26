@@ -1,5 +1,5 @@
 from ipaddress import ip_address
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from guard_core._utils.access_control import load_geo_database_for_route_rules
 from guard_core._utils.agent_events import agent_receives_events
@@ -36,6 +36,7 @@ from guard_core.core.events.event_types import (
     EVENT_IP_BLOCKED,
 )
 from guard_core.decorators.base import RouteConfig
+from guard_core.protocols.geo_ip_protocol import GeoIPHandler
 from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.utils import (
@@ -61,7 +62,9 @@ def _is_private_peer_without_forwarded_for(
 
 
 def _route_country_whitelist_matched(
-    client_ip: str, route_config: RouteConfig | None, geo_ip_handler: Any
+    client_ip: str,
+    route_config: RouteConfig | None,
+    geo_ip_handler: GeoIPHandler | None,
 ) -> bool:
     if not route_config:
         return False
@@ -92,7 +95,7 @@ def _resolve_is_exempt(
 
 def _classify_route_ip_denial(
     route_config: RouteConfig,
-    geo_ip_handler: Any,
+    geo_ip_handler: GeoIPHandler,
     client_ip: str,
     country_result: bool | None,
 ) -> tuple[str, str]:
@@ -102,11 +105,10 @@ def _classify_route_ip_denial(
         or route_config.ip_blacklist
     ):
         return "access_control", "ip_restriction"
-    if (
-        route_config.blocked_countries
-        and geo_ip_handler.get_country(client_ip) in route_config.blocked_countries
-    ):
-        return "block_countries", "country_restriction"
+    if route_config.blocked_countries:
+        country = geo_ip_handler.get_country(client_ip)
+        if country is not None and country in route_config.blocked_countries:
+            return "block_countries", "country_restriction"
     return "allow_countries", "country_restriction"
 
 
@@ -136,7 +138,7 @@ class IpSecurityCheck(IpBanReadMixin):
             sensitive_body_fields=self.config.log_sensitive_body_fields,
         )
 
-        attribution: dict[str, Any] = {}
+        attribution: dict[str, object] = {}
         try:
             agent_handler = self.middleware.event_bus.agent_handler
         except AttributeError:
@@ -319,7 +321,7 @@ class IpSecurityCheck(IpBanReadMixin):
             sensitive_body_fields=self.config.log_sensitive_body_fields,
         )
 
-        attribution: dict[str, Any] = {}
+        attribution: dict[str, object] = {}
         if access_result.country_rule:
             attribution = await self._send_country_blocked_event(
                 request, client_ip, access_result
@@ -394,7 +396,7 @@ class IpSecurityCheck(IpBanReadMixin):
 
     async def _send_country_blocked_event(
         self, request: GuardRequest, client_ip: str, access_result: IpAccessResult
-    ) -> dict[str, Any]:
+    ) -> dict[str, object]:
         """Send country_blocked and return the rule attribution it carried (empty
         when no agent consumes events), for the ip_blocked event that follows."""
         attribution = (

@@ -3,7 +3,7 @@ import logging
 import re
 from collections.abc import Callable, Mapping
 from functools import lru_cache
-from typing import Any, Literal
+from typing import Literal
 from urllib.parse import quote, unquote, urlsplit, urlunsplit
 
 from guard_core._utils.block_events import fire_block_hook
@@ -350,7 +350,7 @@ def _extract_request_context(
     sensitive_headers: frozenset[str] | None,
     sensitive_params: frozenset[str] | None,
     sensitive_body_fields: frozenset[str] | None = None,
-) -> dict[str, Any]:
+) -> dict[str, object]:
     cached_ip = getattr(request.state, "client_ip", None)
     if cached_ip:
         client_ip = cached_ip
@@ -377,7 +377,7 @@ def _extract_request_context(
     }
 
 
-def _build_log_message_for_request(context: dict[str, Any]) -> tuple[str, str]:
+def _build_log_message_for_request(context: dict[str, object]) -> tuple[str, str]:
     message = "Request from"
     details = f"{message} {context['client_ip']}: {context['method']} {context['url']}"
     reason_message = f"Headers: {context['headers']}"
@@ -385,7 +385,7 @@ def _build_log_message_for_request(context: dict[str, Any]) -> tuple[str, str]:
 
 
 def _build_log_message_for_suspicious(
-    context: dict[str, Any], reason: str, passive_mode: bool, trigger_info: str
+    context: dict[str, object], reason: str, passive_mode: bool, trigger_info: str
 ) -> tuple[str, str]:
     if passive_mode:
         label = "Penetration attempt" if trigger_info else "Suspicious activity"
@@ -409,7 +409,7 @@ def _build_log_message_for_suspicious(
 
 
 def _build_log_message_generic(
-    context: dict[str, Any], log_type: str, reason: str
+    context: dict[str, object], log_type: str, reason: str
 ) -> tuple[str, str]:
     message = f"{log_type.capitalize()} from"
     details = f"{message} {context['client_ip']}: {context['method']} {context['url']}"
@@ -424,7 +424,7 @@ async def _dispatch_block_hook(
     reason: str,
     trigger_info: str,
     passive_mode: bool,
-    on_block: Callable[[GuardRequest, dict[str, Any]], Any] | None,
+    on_block: Callable[[GuardRequest, dict[str, object]], object] | None,
     sensitive_params: frozenset[str] | None,
     sensitive_body_fields: frozenset[str] | None,
     sensitive_headers: frozenset[str] | None = None,
@@ -461,7 +461,7 @@ async def log_activity(
     level: Literal["INFO", "DEBUG", "WARNING", "ERROR", "CRITICAL"] | None = "WARNING",
     check_name: str | None = None,
     muted_check_logs: frozenset[str] | None = None,
-    on_block: Callable[[GuardRequest, dict[str, Any]], Any] | None = None,
+    on_block: Callable[[GuardRequest, dict[str, object]], object] | None = None,
     sensitive_headers: frozenset[str] | None = None,
     sensitive_params: frozenset[str] | None = None,
     sensitive_body_fields: frozenset[str] | None = None,

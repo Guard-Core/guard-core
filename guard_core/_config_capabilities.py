@@ -52,9 +52,9 @@ def require_geo_extra() -> None:
 
 
 def cloud_blocking_requested(
-    block_cloud_providers: object, enable_dynamic_rules: bool
+    block_cloud_providers: object, enable_dynamic_rules: object
 ) -> bool:
-    return bool(block_cloud_providers) or enable_dynamic_rules
+    return bool(block_cloud_providers) or bool(enable_dynamic_rules)
 
 
 def cloud_blocking_enabled(config: "SecurityConfig[RequestT]") -> bool:

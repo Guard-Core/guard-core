@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime, timezone
-from typing import Any
+from typing import TYPE_CHECKING, Protocol
 
 from guard_core._utils.request_logging import (
     redact_endpoint_for_display,
@@ -13,6 +13,7 @@ from guard_core.core.events.event_types import (
 )
 from guard_core.decorators.base import RouteConfig
 from guard_core.models import SecurityConfig
+from guard_core.protocols.agent_protocol import AgentHandlerProtocol
 from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.utils import (
     extract_client_ip,
@@ -20,15 +21,22 @@ from guard_core.utils import (
     invoke_error_hook,
 )
 
+if TYPE_CHECKING:
+    from guard_core.handlers.cloud_handler import CloudManager
+
 _MIDDLEWARE_HANDLER_NAME = "middleware"
+
+
+class _CountryLookup(Protocol):
+    def get_country(self, ip: str) -> str | None: ...
 
 
 class SecurityEventBus:
     def __init__(
         self,
-        agent_handler: Any,
+        agent_handler: AgentHandlerProtocol | None,
         config: SecurityConfig,
-        geo_ip_handler: Any = None,
+        geo_ip_handler: _CountryLookup | None = None,
         event_filter: EventFilter | None = None,
     ):
         self.agent_handler = agent_handler
@@ -55,8 +63,8 @@ class SecurityEventBus:
 
     @staticmethod
     def _forward_trace_headers(
-        request: GuardRequest, kwargs: dict[str, Any]
-    ) -> dict[str, Any]:
+        request: GuardRequest, kwargs: dict[str, object]
+    ) -> dict[str, object]:
         forwarded = kwargs
         for header in ("traceparent", "tracestate"):
             value = request.headers.get(header)
@@ -72,8 +80,8 @@ class SecurityEventBus:
         country: str | None,
         action_taken: str,
         reason: str,
-        metadata: dict[str, Any],
-    ) -> Any:
+        metadata: dict[str, object],
+    ) -> object:
         from guard_core._pydantic_plugin_mute import get_telemetry_model
 
         SecurityEvent = get_telemetry_model("SecurityEvent")
@@ -114,7 +122,7 @@ class SecurityEventBus:
         request: GuardRequest,
         action_taken: str,
         reason: str,
-        **kwargs: Any,
+        **kwargs: object,
     ) -> None:
         if not self.agent_handler or not self.config.agent_enable_events:
             return
@@ -171,10 +179,10 @@ class SecurityEventBus:
         client_ip: str,
         cloud_providers_to_check: list[str],
         route_config: RouteConfig | None,
-        cloud_handler: Any,
+        cloud_handler: "CloudManager",
         passive_mode: bool,
         cloud_details: tuple[str, str] | None = None,
-        attribution: dict[str, Any] | None = None,
+        attribution: dict[str, object] | None = None,
     ) -> None:
         if cloud_details is None:
             cloud_details = cloud_handler.get_cloud_provider_details(

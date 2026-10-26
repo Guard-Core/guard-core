@@ -55,7 +55,7 @@ def test_extract_request_context_falls_back_to_client_host_without_state_ip() ->
 
 
 def test_build_log_message_for_suspicious_passive_mode_no_trigger() -> None:
-    context = {
+    context: dict[str, object] = {
         "client_ip": "1.2.3.4",
         "method": "GET",
         "url": "http://x/",

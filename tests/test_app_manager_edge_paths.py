@@ -45,7 +45,7 @@ def test_hold_for_app_ignores_a_config_that_cannot_keep_attributes() -> None:
 
 
 def test_registry_drop_removes_the_entry_of_a_config() -> None:
-    registry = ConfigHandlerRegistry()
+    registry: ConfigHandlerRegistry[object] = ConfigHandlerRegistry()
     config, handler = _Slotted(), _Target()
     registry.register(config, handler, "kind")
     assert registry.lookup(config, "kind") is handler

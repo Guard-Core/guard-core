@@ -1,5 +1,5 @@
 from collections.abc import Collection
-from typing import Any, ClassVar
+from typing import ClassVar
 
 from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
@@ -66,7 +66,7 @@ class UserAgentCheck(SecurityCheck):
 
     def _rule_attribution(
         self, user_agent: str, empty_user_agent: bool
-    ) -> dict[str, Any]:
+    ) -> dict[str, object]:
         if empty_user_agent or not agent_receives_events(
             self.middleware.event_bus, self.config
         ):

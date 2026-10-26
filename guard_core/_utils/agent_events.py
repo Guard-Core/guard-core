@@ -2,7 +2,7 @@ import logging
 import time
 from collections.abc import Callable
 from datetime import datetime, timezone
-from typing import Any
+from typing import Protocol
 
 from guard_core.protocols.agent_protocol import AgentHandlerProtocol
 from guard_core.protocols.request_protocol import GuardRequest
@@ -13,10 +13,10 @@ _IP_EXTRACTION_HANDLER_NAME = "ip_extraction"
 
 
 def invoke_error_hook(
-    hook: Callable[[str, BaseException, dict[str, Any]], None] | None,
+    hook: Callable[[str, BaseException, dict[str, object]], None] | None,
     stage: str,
     exc: BaseException,
-    context: dict[str, Any],
+    context: dict[str, object],
 ) -> None:
     if hook is None:
         return
@@ -36,13 +36,15 @@ def get_pipeline_response_time(request: GuardRequest | None) -> float | None:
     return time.monotonic() - pipeline_start
 
 
-def agent_receives_events(event_bus: Any, config: Any) -> bool:
+class _EventsEnabled(Protocol):
+    @property
+    def agent_enable_events(self) -> bool: ...
+
+
+def agent_receives_events(event_bus: object, config: _EventsEnabled) -> bool:
     """True when an agent is attached to the bus and events are enabled; a bus
     without an ``agent_handler`` attribute has no agent."""
-    try:
-        agent_handler = event_bus.agent_handler
-    except AttributeError:
-        return False
+    agent_handler = getattr(event_bus, "agent_handler", None)
     return bool(agent_handler and config.agent_enable_events)
 
 
@@ -53,7 +55,8 @@ async def send_agent_event(
     action_taken: str,
     reason: str,
     request: GuardRequest | None = None,
-    **kwargs: Any,
+    metadata: dict[str, object] | None = None,
+    **kwargs: object,
 ) -> None:
     if not agent_handler:
         return
@@ -75,7 +78,7 @@ async def send_agent_event(
 
         decorator_type = kwargs.pop("decorator_type", None)
         rule_type = kwargs.pop("rule_type", None)
-        metadata: dict[str, Any] = kwargs.pop("metadata", {})
+        metadata = {} if metadata is None else metadata
         if decorator_type is not None:
             metadata = {**metadata, "decorator_type": decorator_type}
         if rule_type is not None:

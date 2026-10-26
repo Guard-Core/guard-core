@@ -249,6 +249,12 @@ class _RecordingEventBus(SecurityEventBus):
         self.events.append((event_type, "https_redirect"))
 
 
+def _json_scalar(value: object) -> str | int | float | None:
+    if value is None or isinstance(value, str | int | float):
+        return value
+    raise TypeError(f"on_block payload value is not a JSON scalar: {value!r}")
+
+
 class _RecordingOnBlock:
     """Captures the on_block hook payloads (the observable subset)."""
 
@@ -266,8 +272,10 @@ class _RecordingOnBlock:
     def __init__(self) -> None:
         self.payloads: list[JsonObject] = []
 
-    def __call__(self, request: GuardRequest, payload: JsonObject) -> None:
-        self.payloads.append({key: payload.get(key) for key in self.PAYLOAD_KEYS})
+    def __call__(self, request: GuardRequest, payload: dict[str, object]) -> None:
+        self.payloads.append(
+            {key: _json_scalar(payload.get(key)) for key in self.PAYLOAD_KEYS}
+        )
 
 
 class _StubGeoHandler:

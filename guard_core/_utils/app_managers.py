@@ -114,8 +114,8 @@ class AppManagers(Generic[_M]):
         self._shared_default: weakref.ref[object] | None = None
         self._warns = warns_on_split_connection
         self._served_key: Hashable | None = None
-        self._own = ConfigHandlerRegistry()
-        self._default_apps = ConfigHandlerRegistry()
+        self._own: ConfigHandlerRegistry[_M] = ConfigHandlerRegistry()
+        self._default_apps: ConfigHandlerRegistry[_M] = ConfigHandlerRegistry()
         self._served: weakref.ref[Any] | None = None
 
     def _default_serves(self) -> Any | None:

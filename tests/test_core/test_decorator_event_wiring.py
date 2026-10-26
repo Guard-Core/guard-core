@@ -30,6 +30,24 @@ class _RecordingAgent:
     async def initialize_redis(self, redis_handler: Any) -> None:
         return None
 
+    async def send_metric(self, metric: object) -> None:
+        return None
+
+    async def start(self) -> None:
+        return None
+
+    async def stop(self) -> None:
+        return None
+
+    async def flush_buffer(self) -> None:
+        return None
+
+    async def get_dynamic_rules(self) -> None:
+        return None
+
+    async def health_check(self) -> bool:
+        return True
+
 
 def _config(**overrides: Any) -> SecurityConfig:
     fields: dict[str, Any] = {

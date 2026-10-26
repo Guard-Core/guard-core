@@ -1,19 +1,31 @@
-from typing import Any, NamedTuple
+from typing import NamedTuple, TypedDict
 
 from guard_core._utils.request_logging import redact_endpoint_for_display
 from guard_core.core.events.event_types import (
     EVENT_DECORATOR_VIOLATION,
     EVENT_DYNAMIC_RULE_VIOLATION,
 )
+from guard_core.decorators.base import RouteConfig
 from guard_core.handlers.ratelimit_handler import RateLimitTier
 from guard_core.models import SecurityConfig
+from guard_core.protocols.middleware_protocol import GuardMiddlewareProtocol
 from guard_core.protocols.request_protocol import GuardRequest
+
+
+class TierEventKwargs(TypedDict, total=False):
+    reason: str
+    decorator_type: str
+    violation_type: str
+    rule_type: str
+    endpoint: str
+    rate_limit: int
+    window: int
 
 
 class TierPlan(NamedTuple):
     tier: RateLimitTier
     event_type: str | None
-    event_kwargs: dict[str, Any]
+    event_kwargs: TierEventKwargs
     trigger_info: str
 
 
@@ -51,7 +63,9 @@ def endpoint_plan(
     )
 
 
-def route_plan(request: GuardRequest, route_config: Any) -> TierPlan | None:
+def route_plan(
+    request: GuardRequest, route_config: RouteConfig | None
+) -> TierPlan | None:
     if not route_config or route_config.rate_limit is None:
         return None
 
@@ -77,7 +91,10 @@ def route_plan(request: GuardRequest, route_config: Any) -> TierPlan | None:
 
 
 def geo_plan(
-    middleware: Any, request: GuardRequest, client_ip: str, route_config: Any
+    middleware: GuardMiddlewareProtocol,
+    request: GuardRequest,
+    client_ip: str,
+    route_config: RouteConfig | None,
 ) -> TierPlan | None:
     if not route_config or not route_config.geo_rate_limits:
         return None

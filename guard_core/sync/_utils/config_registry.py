@@ -1,10 +1,12 @@
 import weakref
 from collections.abc import Hashable
 from functools import partial
-from typing import Any
+from typing import Generic, TypeVar
+
+HandlerT = TypeVar("HandlerT")
 
 
-class ConfigHandlerRegistry:
+class ConfigHandlerRegistry(Generic[HandlerT]):
     """Maps a SecurityConfig, by identity, to a handler built for it.
 
     The handler is held weakly, so the registry never keeps an app's connection
@@ -16,9 +18,11 @@ class ConfigHandlerRegistry:
     """
 
     def __init__(self) -> None:
-        self._entries: dict[tuple[Hashable, int], weakref.ref[Any]] = {}
+        self._entries: dict[tuple[Hashable, int], weakref.ref[HandlerT]] = {}
 
-    def register(self, config: Any, handler: Any, kind: Hashable = None) -> None:
+    def register(
+        self, config: object, handler: HandlerT, kind: Hashable = None
+    ) -> None:
         key = (kind, id(config))
         self._entries[key] = weakref.ref(handler, partial(self._forget, key))
         try:
@@ -26,13 +30,13 @@ class ConfigHandlerRegistry:
         except TypeError:
             pass
 
-    def _forget(self, key: tuple[Hashable, int], _dead: Any = None) -> None:
+    def _forget(self, key: tuple[Hashable, int], _dead: object = None) -> None:
         self._entries.pop(key, None)
 
-    def drop(self, config: Any, kind: Hashable = None) -> None:
+    def drop(self, config: object, kind: Hashable = None) -> None:
         self._entries.pop((kind, id(config)), None)
 
-    def lookup(self, config: Any, kind: Hashable = None) -> Any | None:
+    def lookup(self, config: object, kind: Hashable = None) -> HandlerT | None:
         key = (kind, id(config))
         entry = self._entries.get(key)
         if entry is None:
@@ -43,4 +47,4 @@ class ConfigHandlerRegistry:
         return handler
 
 
-REDIS_HANDLERS = ConfigHandlerRegistry()
+REDIS_HANDLERS: ConfigHandlerRegistry[object] = ConfigHandlerRegistry()

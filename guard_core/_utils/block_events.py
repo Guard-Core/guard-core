@@ -1,7 +1,6 @@
 import inspect
 import logging
 from collections.abc import Callable
-from typing import Any
 
 from guard_core._utils.ip_extraction import UNKNOWN_CLIENT_IDENTITY, _canonicalize_ip
 from guard_core.protocols.request_protocol import GuardRequest
@@ -14,9 +13,9 @@ ON_BLOCK_EXCLUDED_CHECK_NAMES = frozenset(
 
 
 async def invoke_block_hook(
-    hook: Callable[[GuardRequest, dict[str, Any]], Any] | None,
+    hook: Callable[[GuardRequest, dict[str, object]], object] | None,
     request: GuardRequest,
-    payload: dict[str, Any],
+    payload: dict[str, object],
 ) -> None:
     if hook is None:
         return
@@ -38,7 +37,7 @@ def build_block_payload(
     sensitive_params: frozenset[str] | None = None,
     sensitive_body_fields: frozenset[str] | None = None,
     sensitive_headers: frozenset[str] | None = None,
-) -> dict[str, Any]:
+) -> dict[str, object]:
     from guard_core._utils.request_logging import redact_url_for_display
 
     cached_ip = getattr(request.state, "client_ip", None)
@@ -64,7 +63,7 @@ def build_block_payload(
 
 
 async def fire_block_hook(
-    hook: Callable[[GuardRequest, dict[str, Any]], Any] | None,
+    hook: Callable[[GuardRequest, dict[str, object]], object] | None,
     request: GuardRequest,
     check_name: str,
     reason: str,

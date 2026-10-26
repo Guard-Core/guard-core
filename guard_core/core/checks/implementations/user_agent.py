@@ -1,5 +1,5 @@
 from collections.abc import Collection
-from typing import Any, ClassVar
+from typing import ClassVar
 
 from guard_core._utils.agent_events import agent_receives_events
 from guard_core._utils.request_logging import redact_header_value_for_display
@@ -66,7 +66,7 @@ class UserAgentCheck(SecurityCheck):
 
     async def _rule_attribution(
         self, user_agent: str, empty_user_agent: bool
-    ) -> dict[str, Any]:
+    ) -> dict[str, object]:
         if empty_user_agent or not agent_receives_events(
             self.middleware.event_bus, self.config
         ):

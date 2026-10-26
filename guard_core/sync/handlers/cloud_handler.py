@@ -450,7 +450,7 @@ class CloudManager:
             provider,
         )
 
-    def is_cloud_ip(self, ip: str, providers: set[str] = _ALL_PROVIDERS) -> bool:
+    def is_cloud_ip(self, ip: str, providers: Collection[str] = _ALL_PROVIDERS) -> bool:
         try:
             ip_obj = ipaddress.ip_address(ip)
             blocked, carveouts = _parse_cloud_selectors(providers)
@@ -483,7 +483,7 @@ class CloudManager:
         }
 
     def get_cloud_provider_details(
-        self, ip: str, providers: set[str] = _ALL_PROVIDERS
+        self, ip: str, providers: Collection[str] = _ALL_PROVIDERS
     ) -> tuple[str, str] | None:
         try:
             ip_obj = ipaddress.ip_address(ip)

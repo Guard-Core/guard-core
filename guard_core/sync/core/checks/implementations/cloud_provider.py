@@ -1,5 +1,5 @@
 from collections.abc import Collection
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 from guard_core.models import SyncSecurityConfig, cloud_blocking_enabled
 from guard_core.protocols.response_protocol import GuardResponse
@@ -178,7 +178,7 @@ class CloudProviderCheck(SecurityCheck):
 
     def _cloud_attribution(
         self, cloud_details: tuple[str, str] | None
-    ) -> dict[str, Any]:
+    ) -> dict[str, object]:
         if cloud_details is None:
             return {}
         provider, network = cloud_details
@@ -190,7 +190,7 @@ class CloudProviderCheck(SecurityCheck):
         request: SyncGuardRequest,
         client_ip: str,
         cloud_details: tuple[str, str] | None,
-        attribution: dict[str, Any],
+        attribution: dict[str, object],
     ) -> None:
         reason = f"Blocked cloud provider IP: {client_ip}"
         provider_fields: dict[str, str] = {}

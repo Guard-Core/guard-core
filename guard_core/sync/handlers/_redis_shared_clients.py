@@ -132,7 +132,7 @@ def release(key: Hashable, client: Any, owner: object) -> bool:
         return True
 
 
-_MANAGERS = ConfigHandlerRegistry()
+_MANAGERS: ConfigHandlerRegistry[object] = ConfigHandlerRegistry()
 
 
 def _manager_kind(manager_class: type) -> str:

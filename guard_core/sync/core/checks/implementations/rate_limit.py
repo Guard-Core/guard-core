@@ -1,6 +1,6 @@
 from collections.abc import Collection
 from ipaddress import ip_address
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 from guard_core._redis_enablement import redis_is_configured
 from guard_core.models import SyncSecurityConfig
@@ -19,6 +19,7 @@ from guard_core.sync.core.checks._rate_limit_ban_first import (
     finish_tiers,
 )
 from guard_core.sync.core.checks._rate_limit_plans import (
+    TierEventKwargs,
     TierPlan,
     endpoint_plan,
     geo_plan,
@@ -45,6 +46,7 @@ from guard_core.sync.handlers.ratelimit_handler import (
     forget_shared_violations,
     record_shared_violation,
 )
+from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
 if TYPE_CHECKING:
@@ -137,8 +139,8 @@ class RateLimitCheck(SecurityCheck):
         self,
         request: SyncGuardRequest,
         event_type: str,
-        event_kwargs: dict[str, Any],
-        attribution: dict[str, Any],
+        event_kwargs: TierEventKwargs,
+        attribution: dict[str, object],
     ) -> None:
         decorator_type = event_kwargs.get("decorator_type")
         reason = str(event_kwargs.get("reason", ""))
@@ -229,7 +231,7 @@ class RateLimitCheck(SecurityCheck):
         )
         return _client_identity(client_ip, self.config.ipv6_prefix_length, entry)
 
-    def _shared_redis(self) -> Any:
+    def _shared_redis(self) -> SyncRedisHandlerProtocol | None:
         if not redis_is_configured(self.config):
             return None
         return getattr(self.middleware.rate_limit_handler, "redis_handler", None)
@@ -277,12 +279,15 @@ class RateLimitCheck(SecurityCheck):
         return endpoint_plan(self.config, endpoint_key, limit)
 
     def _route_plan(
-        self, request: SyncGuardRequest, route_config: Any
+        self, request: SyncGuardRequest, route_config: RouteConfig | None
     ) -> TierPlan | None:
         return route_plan(request, route_config)
 
     def _geo_plan(
-        self, request: SyncGuardRequest, client_ip: str, route_config: Any
+        self,
+        request: SyncGuardRequest,
+        client_ip: str,
+        route_config: RouteConfig | None,
     ) -> TierPlan | None:
         return geo_plan(self.middleware, request, client_ip, route_config)
 
@@ -290,7 +295,10 @@ class RateLimitCheck(SecurityCheck):
         return global_plan(self.config)
 
     def _tier_plans(
-        self, request: SyncGuardRequest, client_ip: str, route_config: Any
+        self,
+        request: SyncGuardRequest,
+        client_ip: str,
+        route_config: RouteConfig | None,
     ) -> list[TierPlan]:
         candidates = [
             *self._endpoint_plans(request),
@@ -336,7 +344,10 @@ class RateLimitCheck(SecurityCheck):
         )
 
     def _skips_rate_limiting(
-        self, request: SyncGuardRequest, route_config: Any, state: Any = None
+        self,
+        request: SyncGuardRequest,
+        route_config: RouteConfig | None,
+        state: object | None = None,
     ) -> bool:
         if state is None:
             state = request.state

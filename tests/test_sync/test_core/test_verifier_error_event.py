@@ -21,6 +21,24 @@ class _RecordingAgent:
     def initialize_redis(self, redis_handler: Any) -> None:
         return None
 
+    def send_metric(self, metric: object) -> None:
+        return None
+
+    def start(self) -> None:
+        return None
+
+    def stop(self) -> None:
+        return None
+
+    def flush_buffer(self) -> None:
+        return None
+
+    def get_dynamic_rules(self) -> None:
+        return None
+
+    def health_check(self) -> bool:
+        return True
+
 
 def _config(**overrides: Any) -> SyncSecurityConfig:
     return SyncSecurityConfig(

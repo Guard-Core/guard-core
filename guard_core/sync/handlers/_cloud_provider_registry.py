@@ -5,7 +5,7 @@ _ALL_PROVIDERS = set({"AWS", "GCP", "Azure", "DigitalOcean", "Linode", "Vultr"})
 
 
 def _parse_cloud_selectors(
-    selectors: set[str],
+    selectors: Collection[str],
 ) -> tuple[set[str], dict[str, set[str]]]:
     blocked: set[str] = set()
     carveouts: dict[str, set[str]] = {}
