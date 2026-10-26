@@ -191,6 +191,7 @@ async def test_a_foreign_ban_the_rule_did_not_take_over_is_not_the_rules_with_re
 def _count_ownership_reads(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     reads: list[str] = []
     handler = ip_ban_manager.redis_handler
+    assert handler is not None
     original = handler.owned_ban_state
 
     async def counting(namespace: str, key: str) -> Any:

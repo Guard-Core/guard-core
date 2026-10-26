@@ -9,6 +9,8 @@ import pytest
 from guard_core.handlers.ipban_handler import IPBanManager
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import SecurityConfig
+from guard_core.protocols.redis_protocol import RedisHandlerProtocol
+from tests.fake_agent import mock_agent
 from tests.ipban_redis_fake import fake_ban_redis
 
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379")
@@ -34,7 +36,7 @@ async def live_redis() -> AsyncGenerator[RedisManager, None]:
     await manager.close()
 
 
-def _manager(redis: object | None) -> IPBanManager:
+def _manager(redis: RedisHandlerProtocol | None) -> IPBanManager:
     manager = IPBanManager()
     manager.redis_handler = redis
     manager.config = SecurityConfig(enable_redis=False)
@@ -44,7 +46,10 @@ def _manager(redis: object | None) -> IPBanManager:
 
 
 def _evicted(manager: IPBanManager) -> list[str]:
-    events = [call.args[0] for call in manager.agent_handler.send_event.call_args_list]
+    events = [
+        call.args[0]
+        for call in mock_agent(manager.agent_handler).send_event.call_args_list
+    ]
     return [e.ip_address for e in events if e.event_type == "ip_ban_evicted"]
 
 
@@ -88,7 +93,10 @@ async def test_the_event_carries_the_remaining_expiry() -> None:
 
     await _ban_all(manager, 3)
 
-    events = [call.args[0] for call in manager.agent_handler.send_event.call_args_list]
+    events = [
+        call.args[0]
+        for call in mock_agent(manager.agent_handler).send_event.call_args_list
+    ]
     event = next(e for e in events if e.event_type == "ip_ban_evicted")
     assert event.metadata["remaining_seconds"] == pytest.approx(600, abs=2)
 

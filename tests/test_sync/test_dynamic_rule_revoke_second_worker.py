@@ -125,7 +125,9 @@ class SecondWorker:
 def redis_fleet() -> Generator[Fleet, None]:
     opened = _open_fleet(True)
     assert opened.redis is not None
-    ip_ban_manager.config.enable_recidive = True
+    config = ip_ban_manager.config
+    assert config is not None
+    config.enable_recidive = True
     yield opened
     _close_fleet(opened)
 

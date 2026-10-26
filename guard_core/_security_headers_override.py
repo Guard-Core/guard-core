@@ -12,7 +12,7 @@ import json
 import time
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Protocol, TypeVar
 
 from guard_core._security_headers_defaults import SECURITY_HEADER_NAMES
 
@@ -32,7 +32,11 @@ class _NotPassed:
 NOT_PASSED = _NotPassed()
 
 
-def passed_or(value: Any, default: Any) -> Any:
+_Value = TypeVar("_Value")
+_Default = TypeVar("_Default")
+
+
+def passed_or(value: _Value | _NotPassed, default: _Default) -> _Value | _Default:
     return default if isinstance(value, _NotPassed) else value
 
 
@@ -62,8 +66,8 @@ def approximate_now() -> float:
 @dataclass(frozen=True)
 class OverrideRecord:
     set_at: float
-    keys: Mapping[str, Any]
-    event: Mapping[str, Any] | None = field(default=None, compare=False)
+    keys: Mapping[str, object]
+    event: Mapping[str, object] | None = field(default=None, compare=False)
 
     def ordered_at(self) -> float:
         # A record stamped further ahead than any plausible clock skew (a clock
@@ -115,26 +119,26 @@ def first_time(seen: dict[tuple[int, float], None], key: tuple[int, float]) -> b
 
 def override_from_call(
     *,
-    enabled: Any,
-    csp: Any,
-    hsts_max_age: Any,
-    hsts_include_subdomains: Any,
-    hsts_preload: Any,
-    frame_options: Any,
-    content_type_options: Any,
-    xss_protection: Any,
-    referrer_policy: Any,
-    permissions_policy: Any,
-    custom_headers: Any,
-    enable_cors: Any = NOT_PASSED,
-    cors_origins: Any = NOT_PASSED,
-    cors_allow_credentials: Any = NOT_PASSED,
-    cors_allow_methods: Any = NOT_PASSED,
-    cors_allow_headers: Any = NOT_PASSED,
-    cors_max_age: Any = NOT_PASSED,
-    cors_expose_headers: Any = NOT_PASSED,
-) -> dict[str, Any]:
-    passed: dict[str, Any] = {}
+    enabled: bool | _NotPassed,
+    csp: dict[str, list[str]] | None | _NotPassed,
+    hsts_max_age: int | None | _NotPassed,
+    hsts_include_subdomains: bool | _NotPassed,
+    hsts_preload: bool | _NotPassed,
+    frame_options: str | None | _NotPassed,
+    content_type_options: str | None | _NotPassed,
+    xss_protection: str | None | _NotPassed,
+    referrer_policy: str | None | _NotPassed,
+    permissions_policy: str | None,
+    custom_headers: dict[str, str] | None | _NotPassed,
+    enable_cors: bool | _NotPassed = NOT_PASSED,
+    cors_origins: list[str] | None | _NotPassed = NOT_PASSED,
+    cors_allow_credentials: bool | _NotPassed = NOT_PASSED,
+    cors_allow_methods: list[str] | None | _NotPassed = NOT_PASSED,
+    cors_allow_headers: list[str] | None | _NotPassed = NOT_PASSED,
+    cors_max_age: int | None | _NotPassed = NOT_PASSED,
+    cors_expose_headers: list[str] | None | _NotPassed = NOT_PASSED,
+) -> dict[str, object]:
+    passed: dict[str, object] = {}
     for key, value in (
         ("enabled", enabled),
         ("csp", csp),
@@ -161,10 +165,14 @@ def override_from_call(
     return passed
 
 
-def _hsts_from_call(max_age: Any, include_subdomains: Any, preload: Any) -> Any:
+def _hsts_from_call(
+    max_age: int | None | _NotPassed,
+    include_subdomains: bool | _NotPassed,
+    preload: bool | _NotPassed,
+) -> dict[str, object] | None | _NotPassed:
     if max_age is None:
         return None
-    sub_keys = {
+    sub_keys: dict[str, object] = {
         key: value
         for key, value in (
             ("max_age", max_age),
@@ -177,8 +185,8 @@ def _hsts_from_call(max_age: Any, include_subdomains: Any, preload: Any) -> Any:
 
 
 def apply_override(
-    effective: dict[str, Any], override: Mapping[str, Any]
-) -> dict[str, Any]:
+    effective: Mapping[str, object], override: Mapping[str, object]
+) -> dict[str, object]:
     merged = dict(effective)
     for key, value in override.items():
         current = merged.get(key)
@@ -189,14 +197,14 @@ def apply_override(
     return merged
 
 
-def override_fingerprint(override: Mapping[str, Any]) -> str:
+def override_fingerprint(override: Mapping[str, object]) -> str:
     if not override:
         return ""
     content = json.dumps(override, sort_keys=True, default=str)
     return hashlib.sha256(content.encode()).hexdigest()[:16]
 
 
-def _stable(value: Any) -> Any:
+def _stable(value: object) -> list[str] | str:
     if isinstance(value, (set, frozenset)):
         return sorted(str(item) for item in value)
     if callable(value):
@@ -205,20 +213,24 @@ def _stable(value: Any) -> Any:
     return f"<{type(value).__module__}.{type(value).__qualname__}>"
 
 
-def config_fingerprint(config: Any) -> str:
+class ModelDumpable(Protocol):
+    def model_dump(self, *, mode: str) -> Mapping[str, object]: ...
+
+
+def config_fingerprint(config: ModelDumpable) -> str:
     content = json.dumps(
         config.model_dump(mode="python"), sort_keys=True, default=_stable
     )
     return hashlib.sha256(content.encode()).hexdigest()[:32]
 
 
-def _display_value(value: Any) -> str:
+def _display_value(value: object) -> str:
     if isinstance(value, dict):
         return json.dumps(value, sort_keys=True, default=str)
     return str(value)
 
 
-def override_display(keys: Mapping[str, Any]) -> dict[str, str]:
+def override_display(keys: Mapping[str, object]) -> dict[str, str]:
     shown: dict[str, str] = {}
     for key, value in keys.items():
         if key == "custom" and isinstance(value, dict):
@@ -239,7 +251,7 @@ def override_event_metadata(
     dropped: Iterable[str],
     values: Mapping[str, str],
     dropped_values: Mapping[str, str],
-) -> dict[str, Any]:
+) -> dict[str, object]:
     return {
         "override_keys": sorted(keys),
         "dropped_keys": sorted(dropped),
@@ -261,19 +273,19 @@ CORS_OVERRIDE_KEYS = frozenset(
 )
 
 
-def _is_string_list(value: Any) -> bool:
+def _is_string_list(value: object) -> bool:
     return isinstance(value, list) and all(isinstance(item, str) for item in value)
 
 
-def _is_bool(value: Any) -> bool:
+def _is_bool(value: object) -> bool:
     return isinstance(value, bool)
 
 
-def _is_seconds(value: Any) -> bool:
+def _is_seconds(value: object) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and value >= 0
 
 
-_CORS_RULES: dict[str, tuple[Callable[[Any], bool], str]] = {
+_CORS_RULES: dict[str, tuple[Callable[[object], bool], str]] = {
     "cors_origins": (_is_string_list, "a list of strings"),
     "cors_allow_methods": (_is_string_list, "a list of strings"),
     "cors_allow_headers": (_is_string_list, "a list of strings"),
@@ -284,7 +296,7 @@ _CORS_RULES: dict[str, tuple[Callable[[Any], bool], str]] = {
 }
 
 
-def validate_cors_override(keys: Mapping[str, Any]) -> None:
+def validate_cors_override(keys: Mapping[str, object]) -> None:
     for name, (valid, expected) in _CORS_RULES.items():
         if name in keys and not valid(keys[name]):
             raise ValueError(f"{name} must be {expected}")
@@ -301,7 +313,30 @@ class CorsParams:
     expose: tuple[str, ...]
 
 
-def cors_params_of(config: Any) -> CorsParams:
+class CorsFieldsConfig(Protocol):
+    @property
+    def enable_cors(self) -> bool: ...
+
+    @property
+    def cors_allow_origins(self) -> list[str]: ...
+
+    @property
+    def cors_allow_credentials(self) -> bool: ...
+
+    @property
+    def cors_allow_methods(self) -> list[str]: ...
+
+    @property
+    def cors_allow_headers(self) -> list[str]: ...
+
+    @property
+    def cors_max_age(self) -> int: ...
+
+    @property
+    def cors_expose_headers(self) -> list[str]: ...
+
+
+def cors_params_of(config: CorsFieldsConfig) -> CorsParams:
     return CorsParams(
         enabled=bool(config.enable_cors),
         origins=tuple(config.cors_allow_origins or ()),
@@ -313,8 +348,24 @@ def cors_params_of(config: Any) -> CorsParams:
     )
 
 
+def _bool_key(keys: Mapping[str, object], name: str, default: bool) -> bool:
+    return bool(keys.get(name, default))
+
+
+def _strings_key(
+    keys: Mapping[str, object], name: str, default: tuple[str, ...]
+) -> tuple[str, ...]:
+    value = keys.get(name, default)
+    return tuple(map(str, value)) if isinstance(value, (list, tuple)) else default
+
+
+def _seconds_key(keys: Mapping[str, object], name: str, default: int) -> int:
+    value = keys.get(name, default)
+    return value if isinstance(value, int) and not isinstance(value, bool) else default
+
+
 def merge_cors(
-    base: CorsParams, keys: Mapping[str, Any]
+    base: CorsParams, keys: Mapping[str, object]
 ) -> tuple[CorsParams, str | None]:
     """The app's CORS with the override's passed keys applied, and why it was refused.
 
@@ -324,13 +375,13 @@ def merge_cors(
     if not CORS_OVERRIDE_KEYS & keys.keys():
         return base, None
     merged = CorsParams(
-        enabled=keys.get("enable_cors", base.enabled),
-        origins=tuple(keys.get("cors_origins", base.origins)),
-        credentials=keys.get("cors_allow_credentials", base.credentials),
-        methods=tuple(keys.get("cors_allow_methods", base.methods)),
-        headers=tuple(keys.get("cors_allow_headers", base.headers)),
-        max_age=keys.get("cors_max_age", base.max_age),
-        expose=tuple(keys.get("cors_expose_headers", base.expose)),
+        enabled=_bool_key(keys, "enable_cors", base.enabled),
+        origins=_strings_key(keys, "cors_origins", base.origins),
+        credentials=_bool_key(keys, "cors_allow_credentials", base.credentials),
+        methods=_strings_key(keys, "cors_allow_methods", base.methods),
+        headers=_strings_key(keys, "cors_allow_headers", base.headers),
+        max_age=_seconds_key(keys, "cors_max_age", base.max_age),
+        expose=_strings_key(keys, "cors_expose_headers", base.expose),
     )
     if merged.enabled and "*" in merged.origins and merged.credentials:
         return base, "a wildcard origin cannot be combined with credentials"

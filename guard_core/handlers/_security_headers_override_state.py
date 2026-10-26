@@ -1,5 +1,5 @@
 import logging
-from typing import Any
+from collections.abc import Mapping, Sequence
 
 from cachetools import TTLCache
 
@@ -29,25 +29,31 @@ from guard_core._utils.request_logging import (
     _redact_sensitive_headers,
     redact_endpoint_for_display,
 )
+from guard_core.handlers._security_headers_persistence_calls import (
+    SecurityHeadersPersistenceCalls,
+)
 from guard_core.models import SecurityConfig
+from guard_core.protocols.agent_protocol import AgentHandlerProtocol
+from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 
 _OVERRIDE_NAMESPACE = "security_headers"
 _OWN_STATE_KEYS = ("csp_config", "hsts_config", "custom_headers")
 
 
-def _redacted(keys: dict[str, Any]) -> dict[str, str]:
+def _redacted(keys: Mapping[str, object]) -> dict[str, str]:
     return _redact_sensitive_headers(override_display(keys), None)
 
 
-def _safe(value: Any) -> str:
+def _safe(value: object) -> str:
     return _sanitize_for_log(str(value))
 
 
-class SecurityHeadersOverrideMixin:
-    _instance: Any
+class SecurityHeadersOverrideMixin(SecurityHeadersPersistenceCalls):
+    # the process-wide manager, read here for its own-state flag and its Redis handler
+    _instance: "SecurityHeadersOverrideMixin | None"
     headers_cache: TTLCache
-    redis_handler: Any
-    agent_handler: Any
+    redis_handler: RedisHandlerProtocol | None
+    agent_handler: AgentHandlerProtocol | None
     logger: logging.Logger
 
     _override: OverrideRecord
@@ -62,10 +68,6 @@ class SecurityHeadersOverrideMixin:
     _override_next_lookup: float
     _reader_hash: tuple[int, str] | None
     _own_state_dirty: bool
-
-    def _persistence(self) -> Any:
-        # the persistence methods live in the cache mixin
-        return self
 
     def _initialize_override_state(self) -> None:
         self._override = OverrideRecord(0.0, {})
@@ -163,7 +165,7 @@ class SecurityHeadersOverrideMixin:
     def _next_set_at(self) -> float:
         return max(corrected_wall_now(), self._current_override().ordered_at() + 1e-6)
 
-    def _record_override_from_call(self, passed: dict[str, Any]) -> None:
+    def _record_override_from_call(self, passed: dict[str, object]) -> None:
         if not self._is_global_manager():
             return
         previous = dict(self._current_override().keys)
@@ -182,8 +184,8 @@ class SecurityHeadersOverrideMixin:
 
     def _log_override_change(
         self,
-        passed: dict[str, Any],
-        dropped: dict[str, Any],
+        passed: dict[str, object],
+        dropped: dict[str, object],
         shown: dict[str, str],
         shown_dropped: dict[str, str],
     ) -> None:
@@ -235,7 +237,7 @@ class SecurityHeadersOverrideMixin:
         if self.redis_handler is None:
             return current
         if not self._redis_initialized:
-            await self._persistence().initialize_redis(self.redis_handler, config)
+            await self.initialize_redis(self.redis_handler, config)
         else:
             await self._sync_override_with_redis(current)
         return current if self._override is current else self._current_override()
@@ -250,7 +252,12 @@ class SecurityHeadersOverrideMixin:
         if now < self._override_next_lookup:
             return
         self._override_next_lookup = now + OVERRIDE_PULL_INTERVAL_SECONDS
-        self.redis_handler = REDIS_HANDLERS.lookup(config)
+        # the registry holds handlers of any kind; only one that speaks the Redis
+        # protocol is used
+        registered = REDIS_HANDLERS.lookup(config)
+        self.redis_handler = (
+            registered if isinstance(registered, RedisHandlerProtocol) else None
+        )
 
     async def _flush_own_state(self) -> None:
         manager = type(self)._instance
@@ -259,17 +266,17 @@ class SecurityHeadersOverrideMixin:
         shared = self._global_sharing_state()
         if shared is not None:
             shared._own_state_dirty = False
-            await shared._persistence()._cache_configuration(own_state=True)
+            await shared._cache_configuration(own_state=True)
 
     async def _sync_override_with_redis(self, current: OverrideRecord) -> None:
         await self._flush_own_state()
         if current.set_at > self._override_saved_at:
             saving = bool(current.keys) or self._override_in_redis
-            await self._persistence()._cache_configuration(own_state=False)
+            await self._cache_configuration(own_state=False)
             if saving:
                 return
         if now_monotonic() >= self._override_next_pull:
-            await self._persistence()._load_cached_config(own_state=False)
+            await self._load_cached_config(own_state=False)
 
     async def _save_override_record(self) -> None:
         record = self._current_override()
@@ -281,15 +288,19 @@ class SecurityHeadersOverrideMixin:
         now = now_monotonic()
         if now < self._override_save_retry_at:
             return
+        # _cache_configuration only saves with a handler; none means nothing to save to
+        redis_handler = self.redis_handler
+        if redis_handler is None:
+            return
         try:
             if record.keys:
-                await self.redis_handler.set_key(
+                await redis_handler.set_key(
                     _OVERRIDE_NAMESPACE, self._override_key(), record.to_json()
                 )
             else:
-                async with self.redis_handler.get_connection() as conn:
+                async with redis_handler.get_connection() as conn:
                     await conn.delete(
-                        f"{self.redis_handler.config.redis_prefix}"
+                        f"{redis_handler.config.redis_prefix}"
                         f"{_OVERRIDE_NAMESPACE}:{self._override_key()}"
                     )
         except Exception as e:
@@ -301,7 +312,7 @@ class SecurityHeadersOverrideMixin:
         self._override_saved_at = record.set_at
         self._override_in_redis = bool(record.keys)
 
-    def _global_sharing_state(self) -> Any:
+    def _global_sharing_state(self) -> "SecurityHeadersOverrideMixin | None":
         # The process-wide manager, when it is attached to the same Redis and config
         # as this app's manager: its own csp, hsts and custom headers ride this pull.
         manager = type(self)._instance
@@ -314,18 +325,22 @@ class SecurityHeadersOverrideMixin:
             return None
         return manager
 
-    async def _read_override_and_clock(self) -> Any:
+    async def _read_override_and_clock(
+        self, redis_handler: RedisHandlerProtocol
+    ) -> str | bytes | None:
         # GET and TIME in one round trip: the offset to Redis time costs no extra trip.
-        prefix = self.redis_handler.config.redis_prefix
+        prefix = redis_handler.config.redis_prefix
         shared = self._global_sharing_state()
         before = clocks.wall_now()
-        async with self.redis_handler.get_connection() as conn:
+        async with redis_handler.get_connection() as conn:
             pipe = conn.pipeline(transaction=False)
             pipe.get(f"{prefix}{_OVERRIDE_NAMESPACE}:{self._override_key()}")
             pipe.time()
             if shared is not None:
                 for name in _OWN_STATE_KEYS:
                     pipe.get(f"{prefix}{_OVERRIDE_NAMESPACE}:{name}")
+            # the pipeline replies are untyped; the override key holds JSON text
+            raw: str | bytes | None
             raw, (seconds, microseconds), *own = await pipe.execute()
         after = clocks.wall_now()
         PROCESS_OVERRIDE.clock_offset = (
@@ -335,7 +350,10 @@ class SecurityHeadersOverrideMixin:
             self._apply_shared_own_state(shared, own)
         return raw
 
-    def _apply_shared_own_state(self, shared: Any, own: list[Any]) -> None:
+    # one raw cached value per own-state key (csp, hsts, custom), None when absent
+    def _apply_shared_own_state(
+        self, shared: "SecurityHeadersOverrideMixin", own: Sequence[str | bytes | None]
+    ) -> None:
         try:
             shared._apply_own_state(*own)
         except Exception as e:
@@ -345,8 +363,12 @@ class SecurityHeadersOverrideMixin:
 
     async def _pull_override(self) -> None:
         self._override_next_pull = now_monotonic() + OVERRIDE_PULL_INTERVAL_SECONDS
+        # _load_cached_config only pulls with a handler; none means nothing to pull from
+        redis_handler = self.redis_handler
+        if redis_handler is None:
+            return
         try:
-            raw = await self._read_override_and_clock()
+            raw = await self._read_override_and_clock(redis_handler)
         except Exception as e:
             self.logger.warning(
                 "Failed to pull the security headers override, keeping the last "
@@ -393,7 +415,7 @@ class SecurityHeadersOverrideMixin:
         )
 
     async def _send_override_event_for(
-        self, action: str, metadata: dict[str, Any]
+        self, action: str, metadata: Mapping[str, object]
     ) -> None:
         if not self.agent_handler:
             return

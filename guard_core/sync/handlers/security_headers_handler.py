@@ -1,6 +1,5 @@
 import logging
 import threading
-from typing import Any
 
 from cachetools import TTLCache
 
@@ -14,6 +13,8 @@ from guard_core.sync.handlers._security_headers_events import SecurityHeadersEve
 from guard_core.sync.handlers._security_headers_override_state import (
     SecurityHeadersOverrideMixin,
 )
+from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol
+from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
 
 
 class ResolvedHeaders(dict[str, str]):
@@ -39,14 +40,14 @@ class SecurityHeadersManager(
     _instance: "SecurityHeadersManager | None" = None
     _lock = threading.Lock()
     headers_cache: TTLCache
-    redis_handler: Any = None
-    agent_handler: Any = None
+    redis_handler: SyncRedisHandlerProtocol | None = None
+    agent_handler: SyncAgentHandlerProtocol | None = None
     logger: logging.Logger
     enabled: bool
     custom_headers: dict[str, str]
     csp_config: dict[str, list[str]] | None
-    hsts_config: dict[str, Any] | None
-    cors_config: dict[str, Any] | None
+    hsts_config: dict[str, object] | None
+    cors_config: dict[str, object] | None
 
     default_headers: dict[str, str] = {
         "X-Content-Type-Options": "nosniff",
@@ -98,7 +99,7 @@ class SecurityHeadersManager(
                 directives.append(directive)
         return "; ".join(directives)
 
-    def _build_hsts(self, hsts_config: dict[str, Any]) -> str:
+    def _build_hsts(self, hsts_config: dict[str, object]) -> str:
         parts = [f"max-age={hsts_config['max_age']}"]
         if hsts_config.get("include_subdomains"):
             parts.append("includeSubDomains")
@@ -109,7 +110,7 @@ class SecurityHeadersManager(
     def _forced_header_names(
         self,
         csp_config: dict[str, list[str]] | None,
-        hsts_config: dict[str, Any] | None,
+        hsts_config: dict[str, object] | None,
         default_headers: dict[str, str],
         custom_headers: dict[str, str],
     ) -> frozenset[str]:

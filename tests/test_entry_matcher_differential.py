@@ -8,7 +8,6 @@ a verdict or the ValueError an invalid entry raises, must be equal.
 import random
 from collections.abc import Sequence
 from ipaddress import IPv6Network, ip_address, ip_network
-from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -25,6 +24,7 @@ from guard_core._utils.whitelist_match import (
     clear_entry_indexes,
     entry_index,
 )
+from guard_core.models import SecurityConfig
 from guard_core.utils import _ip_in_list
 
 EXACT = [
@@ -249,7 +249,9 @@ def test_the_trusted_proxy_networks_of_a_ban_are_parsed_once_per_list(
     monkeypatch.setattr(whitelist_match, "ip_network", counting)
     IPBanManager._instance = None
     manager = IPBanManager()
-    manager.config = SimpleNamespace(trusted_proxies=["10.0.0.0/8", "not-a-network"])
+    manager.config = SecurityConfig.model_construct(
+        trusted_proxies=("10.0.0.0/8", "not-a-network")
+    )
 
     first = manager._trusted_proxy_networks()
     second = manager._trusted_proxy_networks()

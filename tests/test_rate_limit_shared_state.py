@@ -19,6 +19,7 @@ from guard_core.handlers.ratelimit_handler import (
 )
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import SecurityConfig
+from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 from tests.conftest import REDIS_URL, MockGuardRequest, MockGuardResponse
 from tests.engine_redis_commands import (
     engine_commands_sent,
@@ -293,7 +294,7 @@ async def test_a_class_level_assignment_changes_no_manager(
     assert getattr(RateLimitManager(_config()), name) != "class-level"
 
 
-async def _redis_commands_issued(redis: RedisManager) -> int:
+async def _redis_commands_issued(redis: RedisHandlerProtocol) -> int:
     return await engine_commands_sent(redis.config.redis_url)
 
 
@@ -325,6 +326,7 @@ async def test_after_the_documented_reset_the_app_still_counts_through_redis(
 ) -> None:
     config, app = redis_app
     redis = app.redis_handler
+    assert redis is not None
     await _exhaust(app)
 
     await rate_limit_handler(config).reset()
@@ -363,6 +365,7 @@ async def test_the_reset_clears_the_rate_limit_strikes_and_keeps_the_detection_s
 ) -> None:
     config, app = redis_app
     redis = app.redis_handler
+    assert redis is not None
     for _ in range(3):
         await record_shared_violation(redis, "203.0.113.9")
     now = time.time()

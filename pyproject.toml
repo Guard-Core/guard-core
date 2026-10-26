@@ -139,8 +139,6 @@ select = [
 "guard_core/_security_config_fields.py" = ["ANN401"]  # framework object
 "guard_core/_security_config_geo_validators.py" = ["ANN401"]  # framework object
 "guard_core/_security_config_name_set_validators.py" = ["ANN401"]  # open value
-"guard_core/_security_headers_defaults.py" = ["ANN401"]  # handler slot
-"guard_core/_security_headers_override.py" = ["ANN401"]  # JSON payload
 "guard_core/_utils/access_control.py" = ["ANN401"]  # handler slot
 "guard_core/_utils/app_managers.py" = ["ANN401"]  # handler slot
 "guard_core/_utils/body_json_scan.py" = ["ANN401"]  # JSON payload
@@ -169,26 +167,17 @@ select = [
 "guard_core/handlers/_dynamic_rule_plan.py" = ["ANN401"]  # JSON payload
 "guard_core/handlers/_dynamic_rule_validation.py" = ["ANN401"]  # open value
 "guard_core/handlers/_ipban_cache.py" = ["ANN401"]  # JSON payload
-"guard_core/handlers/_ipban_lookup.py" = ["ANN401"]  # handler slot
 "guard_core/handlers/_redis_ban_strike.py" = ["ANN401"]  # handler slot
 "guard_core/handlers/_redis_fast_pool.py" = ["ANN401"]  # JSON payload
 "guard_core/handlers/_redis_lean.py" = ["ANN401"]  # handler slot
 "guard_core/handlers/_redis_shared_clients.py" = ["ANN401"]  # framework object
-"guard_core/handlers/_security_headers_cache.py" = ["ANN401"]  # handler slot
-"guard_core/handlers/_security_headers_config.py" = ["ANN401"]  # handler slot
-"guard_core/handlers/_security_headers_cors.py" = ["ANN401"]  # handler slot
-"guard_core/handlers/_security_headers_events.py" = ["ANN401"]  # handler slot
-"guard_core/handlers/_security_headers_override_state.py" = ["ANN401"]  # handler slot
 "guard_core/handlers/_suspatterns_enhanced.py" = ["ANN401"]  # handler slot
 "guard_core/handlers/_suspatterns_lazy_rows.py" = ["ANN401"]  # JSON payload
 "guard_core/handlers/_suspatterns_literals.py" = ["ANN401"]  # regex engine internals
 "guard_core/handlers/_suspatterns_pickle.py" = ["ANN401"]  # open value
 "guard_core/handlers/_suspatterns_regex.py" = ["ANN401"]  # regex engine internals
 "guard_core/handlers/_suspatterns_views.py" = ["ANN401"]  # framework object
-"guard_core/handlers/ipban_handler.py" = ["ANN401"]  # handler slot
-"guard_core/handlers/ratelimit_handler.py" = ["ANN401"]  # handler slot
 "guard_core/handlers/redis_handler.py" = ["ANN401"]  # handler slot
-"guard_core/handlers/security_headers_handler.py" = ["ANN401"]  # handler slot
 "guard_core/handlers/suspatterns_handler.py" = ["ANN401"]  # regex engine internals
 "guard_core/models.py" = ["ANN401"]  # open value
 "guard_core/protocols/agent_protocol.py" = ["ANN401"]  # protocol
@@ -224,27 +213,18 @@ select = [
 "guard_core/sync/handlers/_dynamic_rule_plan.py" = ["ANN401"]  # JSON payload
 "guard_core/sync/handlers/_dynamic_rule_validation.py" = ["ANN401"]  # open value
 "guard_core/sync/handlers/_ipban_cache.py" = ["ANN401"]  # JSON payload
-"guard_core/sync/handlers/_ipban_lookup.py" = ["ANN401"]  # handler slot
 "guard_core/sync/handlers/_ipinfo_download_cut.py" = ["ANN401"]  # open value
 "guard_core/sync/handlers/_redis_ban_strike.py" = ["ANN401"]  # handler slot
 "guard_core/sync/handlers/_redis_fast_pool.py" = ["ANN401"]  # kwargs pass-through
 "guard_core/sync/handlers/_redis_lean.py" = ["ANN401"]  # handler slot
 "guard_core/sync/handlers/_redis_shared_clients.py" = ["ANN401"]  # framework object
-"guard_core/sync/handlers/_security_headers_cache.py" = ["ANN401"]  # handler slot
-"guard_core/sync/handlers/_security_headers_config.py" = ["ANN401"]  # handler slot
-"guard_core/sync/handlers/_security_headers_cors.py" = ["ANN401"]  # handler slot
-"guard_core/sync/handlers/_security_headers_events.py" = ["ANN401"]  # handler slot
-"guard_core/sync/handlers/_security_headers_override_state.py" = ["ANN401"]  # handler slot
 "guard_core/sync/handlers/_suspatterns_enhanced.py" = ["ANN401"]  # handler slot
 "guard_core/sync/handlers/_suspatterns_lazy_rows.py" = ["ANN401"]  # JSON payload
 "guard_core/sync/handlers/_suspatterns_literals.py" = ["ANN401"]  # regex engine internals
 "guard_core/sync/handlers/_suspatterns_pickle.py" = ["ANN401"]  # open value
 "guard_core/sync/handlers/_suspatterns_regex.py" = ["ANN401"]  # regex engine internals
 "guard_core/sync/handlers/_suspatterns_views.py" = ["ANN401"]  # framework object
-"guard_core/sync/handlers/ipban_handler.py" = ["ANN401"]  # handler slot
-"guard_core/sync/handlers/ratelimit_handler.py" = ["ANN401"]  # handler slot
 "guard_core/sync/handlers/redis_handler.py" = ["ANN401"]  # handler slot
-"guard_core/sync/handlers/security_headers_handler.py" = ["ANN401"]  # handler slot
 "guard_core/sync/handlers/suspatterns_handler.py" = ["ANN401"]  # regex engine internals
 "guard_core/sync/protocols/agent_protocol.py" = ["ANN401"]  # protocol
 "guard_core/sync/protocols/middleware_protocol.py" = ["ANN401"]  # protocol
@@ -303,8 +283,6 @@ module = [
     "guard_core._security_config_fields",  # framework object
     "guard_core._security_config_geo_validators",  # framework object
     "guard_core._security_config_name_set_validators",  # open value
-    "guard_core._security_headers_defaults",  # handler slot
-    "guard_core._security_headers_override",  # JSON payload
     "guard_core._utils.access_control",  # handler slot
     "guard_core._utils.app_managers",  # handler slot
     "guard_core._utils.body_json_scan",  # JSON payload
@@ -333,26 +311,17 @@ module = [
     "guard_core.handlers._dynamic_rule_plan",  # JSON payload
     "guard_core.handlers._dynamic_rule_validation",  # open value
     "guard_core.handlers._ipban_cache",  # JSON payload
-    "guard_core.handlers._ipban_lookup",  # handler slot
     "guard_core.handlers._redis_ban_strike",  # handler slot
     "guard_core.handlers._redis_fast_pool",  # JSON payload
     "guard_core.handlers._redis_lean",  # handler slot
     "guard_core.handlers._redis_shared_clients",  # framework object
-    "guard_core.handlers._security_headers_cache",  # handler slot
-    "guard_core.handlers._security_headers_config",  # handler slot
-    "guard_core.handlers._security_headers_cors",  # handler slot
-    "guard_core.handlers._security_headers_events",  # handler slot
-    "guard_core.handlers._security_headers_override_state",  # handler slot
     "guard_core.handlers._suspatterns_enhanced",  # handler slot
     "guard_core.handlers._suspatterns_lazy_rows",  # JSON payload
     "guard_core.handlers._suspatterns_literals",  # regex engine internals
     "guard_core.handlers._suspatterns_pickle",  # open value
     "guard_core.handlers._suspatterns_regex",  # regex engine internals
     "guard_core.handlers._suspatterns_views",  # framework object
-    "guard_core.handlers.ipban_handler",  # handler slot
-    "guard_core.handlers.ratelimit_handler",  # handler slot
     "guard_core.handlers.redis_handler",  # handler slot
-    "guard_core.handlers.security_headers_handler",  # handler slot
     "guard_core.handlers.suspatterns_handler",  # regex engine internals
     "guard_core.models",  # open value
     "guard_core.protocols.agent_protocol",  # protocol
@@ -394,27 +363,18 @@ module = [
     "guard_core.sync.handlers._dynamic_rule_plan",  # JSON payload
     "guard_core.sync.handlers._dynamic_rule_validation",  # open value
     "guard_core.sync.handlers._ipban_cache",  # JSON payload
-    "guard_core.sync.handlers._ipban_lookup",  # handler slot
     "guard_core.sync.handlers._ipinfo_download_cut",  # open value
     "guard_core.sync.handlers._redis_ban_strike",  # handler slot
     "guard_core.sync.handlers._redis_fast_pool",  # kwargs pass-through
     "guard_core.sync.handlers._redis_lean",  # handler slot
     "guard_core.sync.handlers._redis_shared_clients",  # framework object
-    "guard_core.sync.handlers._security_headers_cache",  # handler slot
-    "guard_core.sync.handlers._security_headers_config",  # handler slot
-    "guard_core.sync.handlers._security_headers_cors",  # handler slot
-    "guard_core.sync.handlers._security_headers_events",  # handler slot
-    "guard_core.sync.handlers._security_headers_override_state",  # handler slot
     "guard_core.sync.handlers._suspatterns_enhanced",  # handler slot
     "guard_core.sync.handlers._suspatterns_lazy_rows",  # JSON payload
     "guard_core.sync.handlers._suspatterns_literals",  # regex engine internals
     "guard_core.sync.handlers._suspatterns_pickle",  # open value
     "guard_core.sync.handlers._suspatterns_regex",  # regex engine internals
     "guard_core.sync.handlers._suspatterns_views",  # framework object
-    "guard_core.sync.handlers.ipban_handler",  # handler slot
-    "guard_core.sync.handlers.ratelimit_handler",  # handler slot
     "guard_core.sync.handlers.redis_handler",  # handler slot
-    "guard_core.sync.handlers.security_headers_handler",  # handler slot
     "guard_core.sync.handlers.suspatterns_handler",  # regex engine internals
     "guard_core.sync.protocols.agent_protocol",  # protocol
     "guard_core.sync.protocols.middleware_protocol",  # protocol

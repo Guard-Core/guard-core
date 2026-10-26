@@ -67,14 +67,15 @@ class IpBanSharedAppsMixin(
 
     logger: logging.Logger
 
-    def _ban_stands_for(self, ip: str, config: "SecurityConfig") -> bool:
+    def _ban_stands_for(self, ip: str, config: "SecurityConfig | None") -> bool:
         """Whether a ban a lookup found is enforced for the app running under
         ``config``: not when ``config`` would refuse to record it (its trusted
         proxies and loopback), so this app's reads match its writes."""
         if self._self_dos_refusal_reason(ip, config) is None:
             return True
         if (
-            ip not in _warned_unenforced_bans
+            config is not None
+            and ip not in _warned_unenforced_bans
             and len(_warned_unenforced_bans) < _MAX_WARNED_UNENFORCED_BANS
         ):
             from guard_core.handlers.redis_handler import _redact_redis_url

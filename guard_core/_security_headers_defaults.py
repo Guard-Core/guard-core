@@ -1,5 +1,5 @@
 import copy
-from typing import Any
+from collections.abc import Mapping
 
 SECURITY_HEADER_NAMES: dict[str, str] = {
     "content_type_options": "X-Content-Type-Options",
@@ -22,13 +22,15 @@ KNOWN_HSTS_KEYS: frozenset[str] = frozenset(
     {"max_age", "include_subdomains", "preload"}
 )
 
-_DEFAULT_SECURITY_HEADERS_CONFIG: dict[str, Any] = {
+_DEFAULT_HSTS: dict[str, object] = {
+    "max_age": 31536000,
+    "include_subdomains": True,
+    "preload": False,
+}
+
+_DEFAULT_SECURITY_HEADERS_CONFIG: dict[str, object] = {
     "enabled": True,
-    "hsts": {
-        "max_age": 31536000,
-        "include_subdomains": True,
-        "preload": False,
-    },
+    "hsts": _DEFAULT_HSTS,
     "csp": None,
     "frame_options": "SAMEORIGIN",
     "content_type_options": "nosniff",
@@ -44,29 +46,29 @@ _DEFAULT_SECURITY_HEADERS_CONFIG: dict[str, Any] = {
 }
 
 
-def default_security_headers_config() -> dict[str, Any]:
+def default_security_headers_config() -> dict[str, object]:
     return copy.deepcopy(_DEFAULT_SECURITY_HEADERS_CONFIG)
 
 
-def security_headers_are_off(raw: dict[str, Any] | None) -> bool:
+def security_headers_are_off(raw: Mapping[str, object] | None) -> bool:
     return not raw or not raw.get("enabled", True)
 
 
 def effective_security_headers_config(
-    raw: dict[str, Any] | None,
-) -> dict[str, Any] | None:
+    raw: Mapping[str, object] | None,
+) -> dict[str, object] | None:
     if not raw or security_headers_are_off(raw):
         return None
     effective = default_security_headers_config()
     for key, value in raw.items():
         if key == "hsts" and isinstance(value, dict):
-            effective["hsts"] = {**effective["hsts"], **value}
+            effective["hsts"] = {**_DEFAULT_HSTS, **value}
         else:
             effective[key] = value
     return effective
 
 
-def unknown_security_headers_keys(raw: dict[str, Any] | None) -> list[str]:
+def unknown_security_headers_keys(raw: Mapping[str, object] | None) -> list[str]:
     if not raw or security_headers_are_off(raw):
         return []
     unknown = [str(key) for key in raw if key not in KNOWN_SECURITY_HEADERS_KEYS]

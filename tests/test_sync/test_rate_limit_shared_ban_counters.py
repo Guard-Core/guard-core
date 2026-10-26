@@ -127,6 +127,7 @@ def test_the_shared_counter_survives_a_restart(
         first.violate()
     assert _all_bans(redis_workers) == []
 
+    assert first.redis is not None
     restarted = _Worker(first.manager.config, first.redis)
     restarted.manager.initialize_redis(first.redis)
     restarted.violate()

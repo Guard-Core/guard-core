@@ -2,7 +2,7 @@ import ipaddress
 import logging
 import time
 from collections.abc import Awaitable, Callable, MutableMapping
-from typing import TYPE_CHECKING, Any, NamedTuple
+from typing import TYPE_CHECKING, NamedTuple
 
 from guard_core._utils.app_scope import (
     SHARED_BY_APPS,
@@ -24,12 +24,16 @@ from guard_core.handlers._ipban_version import (
     _VERSION_PAIR,
     IpBanVersionMixin,
 )
+from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 
 if TYPE_CHECKING:
     from guard_core.core.checks._shared_strikes import FusedStrike
     from guard_core.models import SecurityConfig
 
 _DEFAULT_IPV6_PREFIX_LENGTH = 64
+# RedisBanStrikeMixin, not a member of RedisHandlerProtocol: a handler without it
+# fails here, as it did before.
+_FUSED_BAN_READ = "get_bans_and_record_strike"
 
 
 class PendingKeysRead(NamedTuple):
@@ -43,13 +47,21 @@ class PendingKeysRead(NamedTuple):
 class IpBanLookupMixin(IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptionMixin):
     banned_ips: MutableMapping[str, float]
     banned_networks: list[tuple[_Network, float]]
-    redis_handler: Any = None
-    config: Any = None
+    redis_handler: RedisHandlerProtocol | None = None
+    config: "SecurityConfig | None" = None
     logger: logging.Logger
     _is_ip_banned_across_sharing_apps: Callable[[str], Awaitable[bool]]
-    _ban_stands_for: Callable[[str, "SecurityConfig"], bool]
+    _ban_stands_for: Callable[[str, "SecurityConfig | None"], bool]
 
-    def _grouped_identity_of(self, ip: str, config: Any) -> str | None:
+    def _redis_or_raise(self) -> RedisHandlerProtocol:
+        redis_handler = self.redis_handler
+        if redis_handler is None:
+            raise RuntimeError("the ban lookup needs the Redis handler it read from")
+        return redis_handler
+
+    def _grouped_identity_of(
+        self, ip: str, config: "SecurityConfig | None"
+    ) -> str | None:
         if ":" not in ip:
             return None
         prefix_length = self._prefix_length(config)
@@ -91,13 +103,17 @@ class IpBanLookupMixin(IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptionMix
         namespaces = [("banned_ips", ip)]
         if identity is not None:
             namespaces.append(("banned_identities", identity))
+        redis_handler = self.redis_handler
+        if redis_handler is None:
+            return False
         strike = await fused_strike() if fused_strike is not None else None
         if strike is None:
-            values: list[Any] = await self.redis_handler.get_many(
+            values: list[str | bytes | float | None] = await redis_handler.get_many(
                 [*namespaces, _VERSION_PAIR]
             )
         else:
-            values, recorded = await self.redis_handler.get_bans_and_record_strike(
+            fused_read = getattr(redis_handler, _FUSED_BAN_READ)
+            values, recorded = await fused_read(
                 namespaces,
                 _VERSION_PAIR,
                 self._ban_version_seen,
@@ -121,14 +137,14 @@ class IpBanLookupMixin(IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptionMix
     async def decide_from_ban_values(
         self,
         namespaces: list[tuple[str, str]],
-        values: list[Any],
+        values: list[str | bytes | float | None],
         now: float,
         addr: ipaddress.IPv4Address | ipaddress.IPv6Address | None = None,
     ) -> bool:
         """The ban verdict of the values read for ``namespaces`` plus, last, the
         ban version, by whatever round trip read them."""
         if self._version_moved(values.pop(), now):
-            await self._reload_operator_networks(self.redis_handler)
+            await self._reload_operator_networks(self._redis_or_raise())
             networks = self._operator_networks
             if addr is not None and networks is not None and networks.covers(addr, now):
                 return True
@@ -141,13 +157,13 @@ class IpBanLookupMixin(IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptionMix
                 self.banned_ips[key] = self._local_expiry(expiry_time)
                 banned = True
             else:
-                await self.redis_handler.delete(namespace, key)
+                await self._redis_or_raise().delete(namespace, key)
         if self.agent_handler:
             await self._report_evictions(self.agent_handler)
         return banned
 
     def _local_lookup(
-        self, ip: str, config: Any, now: float
+        self, ip: str, config: "SecurityConfig | None", now: float
     ) -> tuple[str | None, bool | None]:
         if self.rule_exempt_networks and self._is_rule_exempt_ip(ip):
             return None, False
@@ -164,7 +180,7 @@ class IpBanLookupMixin(IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptionMix
             return identity, True
         return identity, None
 
-    def _prefix_length(self, config: Any) -> int:
+    def _prefix_length(self, config: "SecurityConfig | None") -> int:
         configured = getattr(config, "ipv6_prefix_length", None)
         return configured or _DEFAULT_IPV6_PREFIX_LENGTH
 
@@ -241,7 +257,7 @@ class IpBanLookupMixin(IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptionMix
     async def _is_ip_banned_under(
         self,
         ip: str,
-        config: Any,
+        config: "SecurityConfig | None",
         fused_strike: Callable[[], Awaitable["FusedStrike | None"]] | None = None,
         defer_read: Callable[[PendingKeysRead], Awaitable[bool]] | None = None,
     ) -> bool:
@@ -277,7 +293,7 @@ class IpBanLookupMixin(IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptionMix
         )
 
     async def _ban_outcome_before_keys(
-        self, ip: str, config: Any
+        self, ip: str, config: "SecurityConfig | None"
     ) -> bool | PendingKeysRead:
         ip = _canonicalize_ip(ip)
         now = time.time()
@@ -306,7 +322,7 @@ class IpBanLookupMixin(IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptionMix
         self, addr: ipaddress.IPv4Address | ipaddress.IPv6Address, now: float
     ) -> bool:
         if self._operator_networks is None:
-            await self._reload_operator_networks(self.redis_handler)
+            await self._reload_operator_networks(self._redis_or_raise())
         networks = self._operator_networks
         return (
             networks is not None

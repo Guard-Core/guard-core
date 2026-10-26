@@ -6,6 +6,7 @@ from unittest.mock import patch
 import pytest
 
 from guard_core.handlers.ipban_handler import IPBanManager
+from tests.fake_agent import redis_slot
 
 LONG_BAN = 86_400
 
@@ -62,7 +63,7 @@ async def test_a_redis_write_failure_keeps_the_whole_duration_in_this_process(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     manager = IPBanManager()
-    manager.redis_handler = _FailingRedisHandler()
+    manager.redis_handler = redis_slot(_FailingRedisHandler())
     caplog.set_level(logging.WARNING, logger="guard_core.handlers.ipban")
 
     await manager.ban_ip("8.8.8.9", duration=LONG_BAN, reason="test")

@@ -127,6 +127,7 @@ async def test_the_shared_counter_survives_a_restart(
         await first.violate()
     assert _all_bans(redis_workers) == []
 
+    assert first.redis is not None
     restarted = _Worker(first.manager.config, first.redis)
     await restarted.manager.initialize_redis(first.redis)
     await restarted.violate()

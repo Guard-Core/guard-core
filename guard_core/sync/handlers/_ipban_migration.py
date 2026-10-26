@@ -29,15 +29,16 @@ def _close_if_unusable(obj: object, required_attr: str) -> bool:
 class IpBanMigrationMixin:
     logger: logging.Logger
     redis_handler: SyncRedisHandlerProtocol | None = None
-    config: "SyncSecurityConfig"
+    config: "SyncSecurityConfig | None" = None
     _instance: object
 
     def initialize_redis(self, redis_handler: SyncRedisHandlerProtocol | None) -> None:
         type(self)._instance = self
         self.redis_handler = redis_handler
         self._migrate_legacy_ban_keys()
-        if redis_handler is not None:
-            enforce_prefix_length_contract(redis_handler, self.config, self.logger)
+        config = self.config
+        if redis_handler is not None and config is not None:
+            enforce_prefix_length_contract(redis_handler, config, self.logger)
 
     def _migrate_legacy_ban_keys(self) -> None:
         if self.redis_handler is None:

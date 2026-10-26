@@ -507,7 +507,7 @@ def test_configure_can_switch_the_headers_off() -> None:
 def test_configure_marks_own_state_dirty_only_with_redis_and_a_startup_hash() -> None:
     manager = SecurityHeadersManager.isolated()
     manager._own_state_dirty = False
-    manager.redis_handler = object()
+    manager.redis_handler = Mock()
     manager._startup_hash = None
     manager.configure()
     assert manager._own_state_dirty is False
@@ -517,7 +517,7 @@ def test_configure_marks_own_state_dirty_only_with_redis_and_a_startup_hash() ->
     manager.configure()
     assert manager._own_state_dirty is False
 
-    manager.redis_handler = object()
+    manager.redis_handler = Mock()
     manager.configure()
     assert manager._own_state_dirty is True
 

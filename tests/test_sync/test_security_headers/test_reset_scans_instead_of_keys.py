@@ -2,11 +2,12 @@ import os
 from collections.abc import Generator, Iterator
 from contextlib import contextmanager
 from typing import Any
-from unittest.mock import MagicMock
 
 import pytest
 from redis import Redis
 
+from guard_core.models import SyncSecurityConfig
+from guard_core.sync.handlers.redis_handler import RedisHandlerBase
 from guard_core.sync.handlers.security_headers_handler import SecurityHeadersManager
 
 REDIS_URL = os.getenv("REDIS_URL") or "redis://localhost:6379"
@@ -24,9 +25,9 @@ class NoKeysConnection:
         return getattr(self._conn, name)
 
 
-class SharedRedis:
+class SharedRedis(RedisHandlerBase):
     def __init__(self, conn: Redis) -> None:
-        self.config = MagicMock(redis_prefix=PREFIX)
+        super().__init__(SyncSecurityConfig(enable_redis=False, redis_prefix=PREFIX))
         self._conn = conn
 
     @contextmanager

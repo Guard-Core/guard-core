@@ -7,7 +7,7 @@ import weakref
 from collections import defaultdict, deque
 from collections.abc import Callable, Sequence
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, NamedTuple
+from typing import TYPE_CHECKING, NamedTuple, TypedDict
 
 from guard_core._redis_enablement import configured_redis_url, redis_is_configured
 from guard_core._redis_exceptions import NoScriptError, RedisError
@@ -23,12 +23,24 @@ from guard_core.sync._utils.lru_store import (
 )
 from guard_core.sync._utils.request_logging import redact_endpoint_for_display
 from guard_core.sync.handlers.redis_handler import scan_unlink_through_new_client
+from guard_core.sync.protocols.agent_protocol import (
+    SyncAgentHandlerProtocol as _Agent,
+)
+from guard_core.sync.protocols.redis_protocol import (
+    SyncRedisHandlerProtocol as _Redis,
+)
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 from guard_core.sync.utils import _canonicalize_ip, _ip_in_list, log_activity
 
 if TYPE_CHECKING:
+    # the client get_connection() yields, typed for the Lua and pipeline helpers
+    from redis import Redis
+
     from guard_core.sync.core.checks.helpers import _WindowedCategoryCounts
 
+# The Lua script returns integers, a redis client without decode_responses returns
+# bytes, one with it returns str: all three reach int() below.
+_Reply = Sequence[str | bytes | int | float]
 _by_ip_logger = logging.getLogger("guard_core.sync.handlers.ratelimit")
 _RATE_LIMIT_HANDLER_NAME = "rate_limit"
 _by_ip_request_timestamps: defaultdict[str, deque[float]] = defaultdict(deque)
@@ -63,6 +75,11 @@ def _resolve_redis_rate_limit_failure(
         return
     logger.error(f"{context}: {error}")
     raise GuardRedisError(503, "Redis rate limiting unavailable") from error
+
+
+# the optional keyword the block report adds to the event call when it has one
+class _Attributed(TypedDict, total=False):
+    attribution: dict[str, object]
 
 
 class RateLimitTier(NamedTuple):
@@ -113,7 +130,7 @@ def _script_arguments(tiers: Sequence[RateLimitTier]) -> list[int]:
     return [value for tier in tiers for value in (tier.limit, tier.window)]
 
 
-def _verdict_from_script_result(result: Sequence[Any]) -> RateLimitVerdict:
+def _verdict_from_script_result(result: _Reply) -> RateLimitVerdict:
     tier_number, count, retry_after = (int(value) for value in result)
     if tier_number == 0:
         return _ALLOWED
@@ -121,13 +138,13 @@ def _verdict_from_script_result(result: Sequence[Any]) -> RateLimitVerdict:
 
 
 def _evalsha_tiers(
-    conn: Any,
+    conn: "Redis",
     logger: logging.Logger,
     script_sha: str,
     keys: list[str],
     tiers: Sequence[RateLimitTier],
     on_script_reloaded: Callable[[], None] | None,
-) -> tuple[Sequence[Any], str]:
+) -> tuple[_Reply, str]:
     arguments = _script_arguments(tiers)
     try:
         return conn.evalsha(script_sha, len(keys), *keys, *arguments), script_sha
@@ -140,7 +157,7 @@ def _evalsha_tiers(
 
 
 def _pipeline_tiers_verdict(
-    conn: Any, keys: list[str], tiers: Sequence[RateLimitTier]
+    conn: "Redis", keys: list[str], tiers: Sequence[RateLimitTier]
 ) -> RateLimitVerdict:
     seconds, microseconds = conn.time()
     now = int(seconds) + int(microseconds) / 1_000_000
@@ -166,7 +183,7 @@ def _pipeline_tiers_verdict(
 
 
 def _redis_tier_verdict(
-    redis_handler: Any,
+    redis_handler: _Redis,
     logger: logging.Logger,
     client_ip: str,
     tiers: Sequence[RateLimitTier],
@@ -231,7 +248,7 @@ def _violations_key(client_ip: str) -> str:
     return f"violations:{client_ip}"
 
 
-def record_shared_violation(redis_handler: Any, client_ip: str) -> int:
+def record_shared_violation(redis_handler: _Redis, client_ip: str) -> int:
     from guard_core.sync.core.checks.helpers import SUSPICIOUS_COUNT_WINDOW_SECONDS
 
     now = time.time()
@@ -245,7 +262,7 @@ def record_shared_violation(redis_handler: Any, client_ip: str) -> int:
     return count
 
 
-def forget_shared_violations(redis_handler: Any, client_ip: str) -> None:
+def forget_shared_violations(redis_handler: _Redis, client_ip: str) -> None:
     redis_handler.delete(_VIOLATIONS_NAMESPACE, _violations_key(client_ip))
 
 
@@ -272,7 +289,7 @@ def forget_by_ip_strikes_inside(covers: Callable[[str], bool]) -> None:
 
 
 def _shared_primitive_counts(
-    ip: str, config: SyncSecurityConfig, redis_handler: Any
+    ip: str, config: SyncSecurityConfig, redis_handler: _Redis | None
 ) -> dict[str, int] | None:
     if not (redis_is_configured(config) and redis_handler):
         return None
@@ -288,7 +305,9 @@ def _shared_primitive_counts(
 
 
 def _feed_rate_limit_autoban(
-    ip: str, config: SyncSecurityConfig, redis_handler: Any = None
+    ip: str,
+    config: SyncSecurityConfig,
+    redis_handler: _Redis | None = None,
 ) -> None:
     """Feed a rate-limited call into the shared auto-ban engine.
 
@@ -353,7 +372,8 @@ def _feed_rate_limit_autoban(
     )
     if result is not None:
         _by_ip_autoban_counts.pop(identity, None)
-        if shared is not None:
+        # a shared count only exists when a Redis handler produced it
+        if shared is not None and redis_handler is not None:
             forget_shared_violations(redis_handler, identity)
         _by_ip_logger.warning(
             "check_rate_limit_by_ip: auto-banned %s (rate_limit_exceeded)", ip
@@ -365,7 +385,7 @@ def _report_by_ip_block(
     config: SyncSecurityConfig,
     request_count: int,
     tier: RateLimitTier,
-    agent_handler: Any,
+    agent_handler: _Agent | None,
 ) -> None:
     reason = (
         f"Rate limit exceeded for IP: {ip} "
@@ -384,7 +404,7 @@ def _send_by_ip_event(
     reason: str,
     request_count: int,
     tier: RateLimitTier,
-    agent_handler: Any,
+    agent_handler: _Agent,
 ) -> None:
     try:
         from guard_core._pydantic_plugin_mute import get_telemetry_model
@@ -421,9 +441,9 @@ def _send_by_ip_event(
 def check_rate_limit_by_ip(
     ip: str,
     config: SyncSecurityConfig,
-    redis_handler: Any = None,
+    redis_handler: _Redis | None = None,
     endpoint_path: str = "",
-    agent_handler: Any = None,
+    agent_handler: _Agent | None = None,
 ) -> bool:
     """Check and record a rate-limit hit for a raw IP, outside the HTTP pipeline.
 
@@ -556,8 +576,8 @@ class RateLimitManager:
     config: SyncSecurityConfig
     request_timestamps: defaultdict[str, deque[float]]
     logger: logging.Logger
-    redis_handler: Any = None
-    agent_handler: Any = None
+    redis_handler: _Redis | None = None
+    agent_handler: _Agent | None = None
     rate_limit_script_sha: str | None = None
     _lock: threading.Lock
     bound_to_app: bool = False
@@ -588,7 +608,7 @@ class RateLimitManager:
     def mark_bound_to_app(self) -> None:
         self.bound_to_app = True
 
-    def initialize_redis(self, redis_handler: Any) -> None:
+    def initialize_redis(self, redis_handler: _Redis | None) -> None:
         self.redis_handler = redis_handler
 
         if self.redis_handler and redis_is_configured(self.config):
@@ -599,7 +619,7 @@ class RateLimitManager:
             except Exception as e:
                 self.logger.error(f"Failed to load rate limiting Lua script: {str(e)}")
 
-    def initialize_agent(self, agent_handler: Any) -> None:
+    def initialize_agent(self, agent_handler: _Agent) -> None:
         self.agent_handler = agent_handler
 
     def _emit_script_reloaded_event(self) -> None:
@@ -730,10 +750,13 @@ class RateLimitManager:
         block: RateLimitBlock,
         tier: RateLimitTier,
         config: SyncSecurityConfig | None = None,
-        attribution: dict[str, Any] | None = None,
+        attribution: dict[str, object] | None = None,
     ) -> None:
         if self.agent_handler:
-            attributed = {"attribution": attribution} if attribution else {}
+            # an empty attribution is left out of the call, as before
+            attributed: _Attributed = (
+                {"attribution": attribution} if attribution else {}
+            )
             self._send_rate_limit_event(
                 request,
                 client_ip,
@@ -780,8 +803,13 @@ class RateLimitManager:
         request_count: int,
         config: SyncSecurityConfig | None = None,
         tier: RateLimitTier | None = None,
-        attribution: dict[str, Any] | None = None,
+        attribution: dict[str, object] | None = None,
     ) -> None:
+        # report_rate_limit_block only calls this with an agent; a direct call
+        # without one has nothing to send to
+        agent_handler = self.agent_handler
+        if agent_handler is None:
+            return
         display_config = config or self.config
         limit = tier.limit if tier else display_config.rate_limit
         window = tier.window if tier else display_config.rate_limit_window
@@ -822,7 +850,7 @@ class RateLimitManager:
                     **(attribution or {}),
                 },
             )
-            self.agent_handler.send_event(event)
+            agent_handler.send_event(event)
         except Exception as e:
             self.logger.error(f"Failed to send rate limit event to agent: {e}")
 

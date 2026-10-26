@@ -5,6 +5,7 @@ from collections.abc import Generator
 import pytest
 
 from guard_core.sync.handlers.ipban_handler import IPBanManager
+from tests.fake_agent import redis_slot
 
 
 @pytest.fixture(autouse=True)
@@ -105,7 +106,7 @@ def test_ban_exact_ip_longer_than_cap_keeps_its_duration_when_redis_set_key_fail
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     manager = IPBanManager()
-    manager.redis_handler = _FailingRedisHandler()
+    manager.redis_handler = redis_slot(_FailingRedisHandler())
     manager.banned_ips.clear()
 
     caplog.set_level(logging.WARNING, logger="guard_core.sync.handlers.ipban")
@@ -132,7 +133,7 @@ def test_ban_exact_ip_at_cap_warns_that_it_is_kept_in_this_process(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     manager = IPBanManager()
-    manager.redis_handler = _FailingRedisHandler()
+    manager.redis_handler = redis_slot(_FailingRedisHandler())
     manager.banned_ips.clear()
 
     caplog.set_level(logging.WARNING, logger="guard_core.sync.handlers.ipban")

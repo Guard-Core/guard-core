@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from guard_core.sync.handlers.ipban_handler import IPBanManager
+from tests.fake_agent import mock_redis
 from tests.test_sync.ipban_redis_fake import fake_ban_redis
 
 
@@ -75,7 +76,7 @@ def test_unban_ip_with_agent(cleanup_ipban_singleton: None) -> None:
 
     assert manager.is_ip_banned("192.168.1.103") is False
 
-    manager.redis_handler.write_atomically.assert_any_call(
+    mock_redis(manager.redis_handler).write_atomically.assert_any_call(
         sets=(),
         deletes=[
             ("banned_ips", "192.168.1.103"),

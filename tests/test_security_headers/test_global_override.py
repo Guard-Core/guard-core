@@ -23,7 +23,7 @@ from guard_core.core.initialization.handler_initializer import HandlerInitialize
 from guard_core.core.responses.context import ResponseContext
 from guard_core.core.responses.factory import ErrorResponseFactory
 from guard_core.handlers.cors_handler import CorsHandler
-from guard_core.handlers.redis_handler import RedisManager
+from guard_core.handlers.redis_handler import RedisHandlerBase, RedisManager
 from guard_core.handlers.security_headers_handler import (
     SecurityHeadersManager,
     security_headers_manager,
@@ -45,9 +45,9 @@ PULLED_OVERRIDES = override_module.PULLED_OVERRIDES
 REDIS_URL = os.getenv("REDIS_URL") or "redis://localhost:6379"
 
 
-class FakeRedis:
+class FakeRedis(RedisHandlerBase):
     def __init__(self, prefix: str = "t:") -> None:
-        self.config = MagicMock(redis_prefix=prefix)
+        super().__init__(SecurityConfig(enable_redis=False, redis_prefix=prefix))
         self.store: dict[str, Any] = {}
         self.ttls: dict[str, int | None] = {}
         self.gets = 0

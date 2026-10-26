@@ -49,7 +49,7 @@ class IpBanOperationsMixin(
     evictions_count: int
     evicted_to_report: list[tuple[str, float, int]]
     MAX_LOCAL_BANS: int
-    config: "SyncSecurityConfig"
+    config: "SyncSecurityConfig | None" = None
     redis_handler: SyncRedisHandlerProtocol | None = None
     logger: logging.Logger
 

@@ -1,6 +1,6 @@
 import logging
 from collections.abc import MutableMapping
-from typing import Any
+from typing import TYPE_CHECKING
 
 from guard_core.sync._utils.app_managers import AppManagers
 from guard_core.sync._utils.app_scope import (
@@ -21,7 +21,12 @@ from guard_core.sync.handlers._ipban_migration import (
     _close_if_unusable,
 )
 from guard_core.sync.handlers._ipban_sharing import IpBanSharedAppsMixin
+from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol
+from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
 from guard_core.sync.utils import _canonicalize_ip
+
+if TYPE_CHECKING:
+    from guard_core.models import SyncSecurityConfig
 
 __all__ = [
     "IPBanManager",
@@ -50,11 +55,16 @@ class IPBanManager(IpBanSharedAppsMixin):
     evictions_count: int
     evicted_to_report: list[tuple[str, float, int]]
     logger: logging.Logger
-    # Declared Any as before D-176 (tests assign fakes to these slots); at runtime
-    # each descriptor serves the slot from the app scope in force.
-    config: Any = ScopedConfig()
-    redis_handler: Any = ScopedRedisHandler()
-    agent_handler: Any = ScopedAgentHandler()
+    # At runtime each descriptor serves the slot from the app scope in force; the
+    # type checker sees the plain slot the descriptor returns and accepts.
+    if TYPE_CHECKING:
+        config: SyncSecurityConfig | None
+        redis_handler: SyncRedisHandlerProtocol | None
+        agent_handler: SyncAgentHandlerProtocol | None
+    else:
+        config = ScopedConfig()
+        redis_handler = ScopedRedisHandler()
+        agent_handler = ScopedAgentHandler()
     rule_exempt_networks = ScopedRuleExemptNetworks()
 
     def __new__(cls: type["IPBanManager"]) -> "IPBanManager":
@@ -89,7 +99,7 @@ class IPBanManager(IpBanSharedAppsMixin):
         if isinstance(self.banned_ips, _BanStore):
             self.banned_ips.resize(entries)
 
-    def _on_eviction(self, *evicted: Any) -> None:
+    def _on_eviction(self, key: str | None = None, expiry: float = 0.0) -> None:
         self.evictions_count += 1
         if self.evictions_count == 1 or (
             self.evictions_count % self._EVICTION_LOG_EVERY == 0
@@ -101,14 +111,12 @@ class IPBanManager(IpBanSharedAppsMixin):
             )
         store = self.banned_ips
         if (
-            evicted
+            key is not None
             and self.agent_handler
             and isinstance(store, _BanStore)
-            and store.is_memory_only(evicted[0])
+            and store.is_memory_only(key)
         ):
-            self.evicted_to_report.append(
-                (evicted[0], evicted[1], self.evictions_count)
-            )
+            self.evicted_to_report.append((key, expiry, self.evictions_count))
 
 
 ip_ban_manager = IPBanManager()
@@ -119,7 +127,9 @@ _APP_BAN_MANAGERS: AppManagers[IPBanManager] = AppManagers(
 
 
 def ip_ban_manager_for(
-    config: Any, bind: bool = False, unbound: IPBanManager | None = None
+    config: "SyncSecurityConfig",
+    bind: bool = False,
+    unbound: IPBanManager | None = None,
 ) -> IPBanManager:
     """The ban manager of the app built from config.
 

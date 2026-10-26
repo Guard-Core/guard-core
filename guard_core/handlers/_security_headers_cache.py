@@ -4,7 +4,7 @@ import json
 import logging
 from abc import abstractmethod
 from collections.abc import Callable
-from typing import Any
+from typing import TypeVar
 
 from cachetools import TTLCache
 
@@ -20,23 +20,27 @@ from guard_core._security_headers_record_validation import (
 from guard_core._utils.logging_utils import _sanitize_for_log
 from guard_core.handlers.redis_handler import scan_unlink
 from guard_core.models import SecurityConfig
+from guard_core.protocols.agent_protocol import AgentHandlerProtocol
+from guard_core.protocols.redis_protocol import RedisHandlerProtocol
+
+_Validated = TypeVar("_Validated")
 
 
 class SecurityHeadersCacheMixin:
     headers_cache: TTLCache
-    redis_handler: Any
-    agent_handler: Any
+    redis_handler: RedisHandlerProtocol | None
+    agent_handler: AgentHandlerProtocol | None
     logger: logging.Logger
     enabled: bool
     custom_headers: dict[str, str]
     csp_config: dict[str, list[str]] | None
-    hsts_config: dict[str, Any] | None
-    cors_config: dict[str, Any] | None
+    hsts_config: dict[str, object] | None
+    cors_config: dict[str, object] | None
     default_headers: dict[str, str]
-    _instance: Any
+    _instance: object
     _startup_hash: str | None
     _redis_initialized: bool
-    _headers_json_memo: tuple[Any, str] | None = None
+    _headers_json_memo: tuple[object, str] | None = None
 
     @abstractmethod
     async def _pull_override(self) -> None: ...
@@ -56,7 +60,7 @@ class SecurityHeadersCacheMixin:
     @abstractmethod
     def _validate_header_value(self, value: str) -> str: ...
 
-    def _security_headers_json(self, headers: Any) -> str:
+    def _security_headers_json(self, headers: object) -> str:
         memo = self._headers_json_memo
         if memo is not None and memo[0] == headers:
             return memo[1]
@@ -85,7 +89,9 @@ class SecurityHeadersCacheMixin:
         return f"path_{hashlib.sha256(normalized.encode()).hexdigest()[:16]}"
 
     async def initialize_redis(
-        self, redis_handler: Any, config: SecurityConfig | None = None
+        self,
+        redis_handler: RedisHandlerProtocol,
+        config: SecurityConfig | None = None,
     ) -> None:
         self.redis_handler = redis_handler
         self._redis_initialized = True
@@ -101,12 +107,12 @@ class SecurityHeadersCacheMixin:
         # app builds its headers from its config and never reads them.
         return self._startup_hash is None or bool(type(self)._instance is self)
 
-    def _encode_own_state(self, value: Any) -> str:
+    def _encode_own_state(self, value: object) -> str:
         if self._startup_hash is None:
             return json.dumps(value)
         return json.dumps({"fingerprint": self._startup_hash, "value": value})
 
-    def _decode_own_state(self, raw: Any) -> Any:
+    def _decode_own_state(self, raw: str | bytes) -> object:
         data = json.loads(raw)
         if self._startup_hash is None:
             return data
@@ -115,8 +121,8 @@ class SecurityHeadersCacheMixin:
         return None
 
     def _validated_cached_record(
-        self, name: str, loaded: Any, validate: Callable[[Any], Any]
-    ) -> Any:
+        self, name: str, loaded: object, validate: Callable[[object], _Validated]
+    ) -> _Validated | None:
         try:
             return validate(loaded)
         except ValueError as error:
@@ -127,7 +133,12 @@ class SecurityHeadersCacheMixin:
             )
             return None
 
-    def _apply_own_state(self, csp: Any, hsts: Any, custom: Any) -> None:
+    def _apply_own_state(
+        self,
+        csp: str | bytes | None,
+        hsts: str | bytes | None,
+        custom: str | bytes | None,
+    ) -> None:
         if csp:
             loaded = self._decode_own_state(csp)
             if loaded:
@@ -147,12 +158,18 @@ class SecurityHeadersCacheMixin:
                     or self.hsts_config
                 )
         if custom:
-            loaded = self._decode_own_state(custom)
-            if loaded:
-                self.custom_headers = {
-                    self._validate_header_name(name): self._validate_header_value(value)
-                    for name, value in loaded.items()
-                }
+            self._apply_own_custom_headers(custom)
+
+    def _apply_own_custom_headers(self, custom: str | bytes) -> None:
+        loaded = self._decode_own_state(custom)
+        if not loaded:
+            return
+        if not isinstance(loaded, dict):
+            raise ValueError("cached custom headers are not a JSON object")
+        self.custom_headers = {
+            self._validate_header_name(name): self._validate_header_value(value)
+            for name, value in loaded.items()
+        }
 
     async def _load_cached_config(self, own_state: bool = True) -> None:
         if not self.redis_handler:

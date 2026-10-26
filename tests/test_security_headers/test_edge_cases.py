@@ -57,8 +57,9 @@ async def test_reset_global_state_drops_a_populated_redis_handler_reference() ->
 
     await reset_global_state()
 
-    assert manager.redis_handler is None
-    assert manager.agent_handler is None
+    after_reset = SecurityHeadersManager()
+    assert after_reset.redis_handler is None
+    assert after_reset.agent_handler is None
 
 
 @pytest.mark.asyncio

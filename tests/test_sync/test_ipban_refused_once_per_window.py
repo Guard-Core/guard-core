@@ -8,6 +8,7 @@ import pytest
 
 from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.ipban_handler import IPBanManager
+from tests.fake_agent import mock_agent
 
 DURATION = 600
 
@@ -34,7 +35,10 @@ def _refusal_logs(caplog: pytest.LogCaptureFixture) -> list[logging.LogRecord]:
 
 
 def _events(manager: IPBanManager) -> list[Any]:
-    return [call.args[0] for call in manager.agent_handler.send_event.call_args_list]
+    return [
+        call.args[0]
+        for call in mock_agent(manager.agent_handler).send_event.call_args_list
+    ]
 
 
 def test_a_refused_ban_is_logged_once_per_ip_per_ban_window(

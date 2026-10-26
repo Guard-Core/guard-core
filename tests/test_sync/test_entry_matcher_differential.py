@@ -8,11 +8,11 @@ a verdict or the ValueError an invalid entry raises, must be equal.
 import random
 from collections.abc import Sequence
 from ipaddress import IPv6Network, ip_address, ip_network
-from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils.ip_extraction import (
     _canonicalize_ip,
     _is_trusted_proxy,
@@ -249,7 +249,9 @@ def test_the_trusted_proxy_networks_of_a_ban_are_parsed_once_per_list(
     monkeypatch.setattr(whitelist_match, "ip_network", counting)
     IPBanManager._instance = None
     manager = IPBanManager()
-    manager.config = SimpleNamespace(trusted_proxies=["10.0.0.0/8", "not-a-network"])
+    manager.config = SyncSecurityConfig.model_construct(
+        trusted_proxies=("10.0.0.0/8", "not-a-network")
+    )
 
     first = manager._trusted_proxy_networks()
     second = manager._trusted_proxy_networks()

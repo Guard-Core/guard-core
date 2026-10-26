@@ -1,6 +1,5 @@
 import logging
 from collections.abc import Generator
-from types import SimpleNamespace
 
 import pytest
 
@@ -166,7 +165,9 @@ async def test_ban_refused_target_never_reaches_redis() -> None:
 async def test_ban_with_malformed_trusted_proxies_entry_does_not_raise() -> None:
     manager = IPBanManager()
     manager.redis_handler = None
-    manager.config = SimpleNamespace(trusted_proxies=["not-an-ip-or-cidr"])
+    manager.config = SecurityConfig.model_construct(
+        trusted_proxies=("not-an-ip-or-cidr",)
+    )
 
     await manager.ban_ip("8.8.8.8", duration=300, reason="threshold_exceeded")
 

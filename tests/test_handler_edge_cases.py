@@ -544,9 +544,10 @@ async def test_is_ip_banned_redis_stale_expiry_cleanup() -> None:
 
     manager = IPBanManager()
     manager.banned_ips.clear()
-    manager.redis_handler = fake_ban_redis(str(time.time() - 3600))
+    redis = fake_ban_redis(str(time.time() - 3600))
+    manager.redis_handler = redis
     assert await manager.is_ip_banned("1.2.3.4") is False
-    manager.redis_handler.delete.assert_awaited()
+    redis.delete.assert_awaited()
 
 
 async def test_fetch_gcp_ignores_prefixes_lacking_both_ipv4_and_ipv6() -> None:

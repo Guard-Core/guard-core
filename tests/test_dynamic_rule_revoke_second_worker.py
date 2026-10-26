@@ -125,7 +125,9 @@ class SecondWorker:
 async def redis_fleet() -> AsyncGenerator[Fleet, None]:
     opened = await _open_fleet(True)
     assert opened.redis is not None
-    ip_ban_manager.config.enable_recidive = True
+    config = ip_ban_manager.config
+    assert config is not None
+    config.enable_recidive = True
     yield opened
     await _close_fleet(opened)
 

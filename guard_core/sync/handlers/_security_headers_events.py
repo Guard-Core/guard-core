@@ -1,35 +1,38 @@
 import logging
+from collections.abc import Mapping
 from datetime import datetime, timezone
-from typing import Any
 
 from guard_core.sync._utils.request_logging import (
     redact_endpoint_for_display,
     redact_header_value_for_display,
 )
+from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol
 
 _SECURITY_HEADERS_HANDLER_NAME = "security_headers"
 
 
-def _safe_csp_uri(value: Any) -> str:
+def _safe_csp_uri(value: object) -> str:
     return redact_endpoint_for_display(str(value), None, None)
 
 
-def _safe_csp_directive(value: Any) -> str:
+def _safe_csp_directive(value: object) -> str:
     return redact_header_value_for_display(str(value), None, None)
 
 
-def _safe_csp_line_number(value: Any) -> int | None:
+def _safe_csp_line_number(value: object) -> int | None:
+    if not isinstance(value, (str, int, float)):
+        return None
     try:
         return int(value)
-    except (TypeError, ValueError):
+    except ValueError:
         return None
 
 
 class SecurityHeadersEventsMixin:
-    agent_handler: Any
+    agent_handler: SyncAgentHandlerProtocol | None
     logger: logging.Logger
 
-    def initialize_agent(self, agent_handler: Any) -> None:
+    def initialize_agent(self, agent_handler: SyncAgentHandlerProtocol) -> None:
         self.agent_handler = agent_handler
 
     def _send_headers_applied_event(self, path: str, headers: dict[str, str]) -> None:
@@ -37,6 +40,9 @@ class SecurityHeadersEventsMixin:
             EVENT_SECURITY_HEADERS_APPLIED,
         )
 
+        agent_handler = self.agent_handler
+        if agent_handler is None:
+            return
         try:
             from guard_core._pydantic_plugin_mute import get_telemetry_model
 
@@ -54,15 +60,17 @@ class SecurityHeadersEventsMixin:
                     "has_hsts": "Strict-Transport-Security" in headers,
                 },
             )
-            self.agent_handler.send_event(event)
+            agent_handler.send_event(event)
         except Exception as e:
             self.logger.debug(f"Failed to send headers event to agent: {e}")
 
-    def validate_csp_report(self, report: dict[str, Any]) -> bool:
+    def validate_csp_report(self, report: Mapping[str, object]) -> bool:
         required_fields = ["document-uri", "violated-directive", "blocked-uri"]
 
         csp_report = report.get("csp-report", {})
-        if not all(field in csp_report for field in required_fields):
+        if not isinstance(csp_report, dict) or not all(
+            field in csp_report for field in required_fields
+        ):
             return False
 
         safe_directive = _safe_csp_directive(csp_report.get("violated-directive"))
@@ -79,9 +87,12 @@ class SecurityHeadersEventsMixin:
 
         return True
 
-    def _send_csp_violation_event(self, report: dict[str, Any]) -> None:
+    def _send_csp_violation_event(self, report: Mapping[str, object]) -> None:
         from guard_core.sync.core.events.event_types import EVENT_CSP_VIOLATION
 
+        agent_handler = self.agent_handler
+        if agent_handler is None:
+            return
         try:
             from guard_core._pydantic_plugin_mute import get_telemetry_model
 
@@ -102,7 +113,7 @@ class SecurityHeadersEventsMixin:
                     "line_number": _safe_csp_line_number(report.get("line-number")),
                 },
             )
-            self.agent_handler.send_event(event)
+            agent_handler.send_event(event)
         except Exception as e:
             safe_error = redact_header_value_for_display(str(e), None, None)
             self.logger.debug(

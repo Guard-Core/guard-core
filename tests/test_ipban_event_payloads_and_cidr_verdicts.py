@@ -11,6 +11,7 @@ from guard_core.handlers._ipban_cache import _BanStore
 from guard_core.handlers._ipban_rule_revoke import REVOKE_DELETED
 from guard_core.handlers.ipban_handler import IPBanManager
 from guard_core.models import SecurityConfig
+from tests.fake_agent import mock_agent
 
 LOGGER = "guard_core.handlers.ipban"
 
@@ -31,8 +32,8 @@ def _manager(trusted: tuple[str, ...] = ()) -> IPBanManager:
 
 
 def _event(manager: IPBanManager) -> MagicMock:
-    manager.agent_handler.send_event.assert_awaited_once()
-    event: MagicMock = manager.agent_handler.send_event.await_args.args[0]
+    mock_agent(manager.agent_handler).send_event.assert_awaited_once()
+    event: MagicMock = mock_agent(manager.agent_handler).send_event.await_args.args[0]
     return event
 
 
@@ -102,7 +103,7 @@ async def test_the_evicted_event_states_the_remaining_time_and_capacity() -> Non
     manager = _manager()
 
     await manager._send_ban_evicted_event(
-        manager.agent_handler, "203.0.113.9", time.time() + 100, 4, 50
+        mock_agent(manager.agent_handler), "203.0.113.9", time.time() + 100, 4, 50
     )
 
     event = _event(manager)
@@ -123,7 +124,7 @@ async def test_the_evicted_event_never_reports_negative_remaining_time() -> None
     manager = _manager()
 
     await manager._send_ban_evicted_event(
-        manager.agent_handler, "203.0.113.9", time.time() - 500, 1, 5
+        mock_agent(manager.agent_handler), "203.0.113.9", time.time() - 500, 1, 5
     )
 
     assert _event(manager).metadata["remaining_seconds"] == 0
@@ -135,7 +136,7 @@ async def test_pending_evictions_are_reported_once_with_the_store_capacity() -> 
     assert isinstance(manager.banned_ips, _BanStore)
     capacity = manager.banned_ips.maxsize
 
-    await manager._report_evictions(manager.agent_handler)
+    await manager._report_evictions(mock_agent(manager.agent_handler))
 
     event = _event(manager)
     assert event.metadata["capacity"] == capacity
@@ -148,7 +149,7 @@ async def test_the_capacity_falls_back_to_the_local_cap_for_a_plain_mapping() ->
     manager.banned_ips = {}
     manager.evicted_to_report = [("203.0.113.9", time.time() + 60, 1)]
 
-    await manager._report_evictions(manager.agent_handler)
+    await manager._report_evictions(mock_agent(manager.agent_handler))
 
     assert _event(manager).metadata["capacity"] == manager.MAX_LOCAL_BANS
 
@@ -158,7 +159,7 @@ async def test_the_capacity_is_the_store_maxsize_when_it_has_one() -> None:
     manager.banned_ips = TTLCache(maxsize=7, ttl=60)
     manager.evicted_to_report = [("203.0.113.9", time.time() + 60, 1)]
 
-    await manager._report_evictions(manager.agent_handler)
+    await manager._report_evictions(mock_agent(manager.agent_handler))
 
     assert manager.MAX_LOCAL_BANS != 7
     assert _event(manager).metadata["capacity"] == 7
@@ -168,7 +169,7 @@ async def test_an_unban_event_carries_the_action_and_the_details() -> None:
     manager = _manager()
 
     await manager._send_unban_event(
-        manager.agent_handler, "203.0.113.9", "manual", {"by": "ops"}
+        mock_agent(manager.agent_handler), "203.0.113.9", "manual", {"by": "ops"}
     )
 
     event = _event(manager)
@@ -183,7 +184,9 @@ async def test_an_unban_event_carries_the_action_and_the_details() -> None:
 async def test_an_unban_event_without_details_holds_only_the_action() -> None:
     manager = _manager()
 
-    await manager._send_unban_event(manager.agent_handler, "203.0.113.9", "manual")
+    await manager._send_unban_event(
+        mock_agent(manager.agent_handler), "203.0.113.9", "manual"
+    )
 
     assert _event(manager).metadata == {"action": "unban"}
 
@@ -220,7 +223,7 @@ async def test_an_agent_failure_is_logged_with_its_cause(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     manager = _manager()
-    manager.agent_handler.send_event.side_effect = RuntimeError("boom")
+    mock_agent(manager.agent_handler).send_event.side_effect = RuntimeError("boom")
 
     with caplog.at_level(logging.ERROR, logger=LOGGER):
         await getattr(manager, method)(manager.agent_handler, *arguments)
@@ -412,7 +415,7 @@ async def test_a_refusal_is_reported_only_once_per_window() -> None:
     await manager.ban_ip("127.0.0.1", 600)
     await manager.ban_ip("127.0.0.1", 600)
 
-    manager.agent_handler.send_event.assert_awaited_once()
+    mock_agent(manager.agent_handler).send_event.assert_awaited_once()
     assert manager.refused_ban_reported_until["127.0.0.1"] > time.time() + 590
 
 

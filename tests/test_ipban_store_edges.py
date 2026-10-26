@@ -167,6 +167,7 @@ async def test_a_carve_that_expired_between_scan_and_read_is_not_moved() -> None
     connection.pttl = AsyncMock(return_value=5000)
     manager = _carve_manager(connection)
 
+    assert manager.redis_handler is not None
     assert await manager._rewrite_redis_carves(manager.redis_handler) == 0
 
 
@@ -177,6 +178,7 @@ async def test_a_carve_without_a_ttl_is_not_moved() -> None:
     connection.pttl = AsyncMock(return_value=-1)
     manager = _carve_manager(connection)
 
+    assert manager.redis_handler is not None
     assert await manager._rewrite_redis_carves(manager.redis_handler) == 0
 
 
@@ -193,6 +195,7 @@ async def test_a_carve_keeps_a_longer_ban_of_its_base_identity() -> None:
     connection.pipeline = pipeline_of(pipe)
     manager = _carve_manager(connection)
 
+    assert manager.redis_handler is not None
     assert await manager._rewrite_redis_carves(manager.redis_handler) == 1
 
     pipe.set.assert_not_awaited()
@@ -211,6 +214,7 @@ async def test_a_carve_the_whitelist_still_produces_is_left_in_redis() -> None:
     manager = _carve_manager(connection)
     manager.config = SecurityConfig(enable_redis=False, whitelist=["2001:db8:0:1::5"])
 
+    assert manager.redis_handler is not None
     assert await manager._rewrite_redis_carves(manager.redis_handler) == 0
 
     connection.get.assert_not_awaited()

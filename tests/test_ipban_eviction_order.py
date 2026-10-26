@@ -8,6 +8,7 @@ import pytest
 
 from guard_core.handlers._ipban_cache import _BanStore
 from guard_core.handlers.ipban_handler import IPBanManager
+from tests.fake_agent import mock_agent
 
 
 @pytest.fixture(autouse=True)
@@ -26,7 +27,10 @@ def _manager(maxsize: int) -> IPBanManager:
 
 
 def _events(manager: IPBanManager) -> list[Any]:
-    sent = [call.args[0] for call in manager.agent_handler.send_event.call_args_list]
+    sent = [
+        call.args[0]
+        for call in mock_agent(manager.agent_handler).send_event.call_args_list
+    ]
     return [event for event in sent if event.event_type == "ip_ban_evicted"]
 
 

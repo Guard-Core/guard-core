@@ -9,6 +9,7 @@ import pytest
 from guard_core.handlers.ipban_handler import IPBanManager
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import SecurityConfig
+from tests.fake_agent import mock_agent
 
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379")
 
@@ -33,7 +34,10 @@ async def live_redis() -> AsyncGenerator[RedisManager, None]:
 
 
 def _events(manager: IPBanManager) -> list[Any]:
-    return [call.args[0] for call in manager.agent_handler.send_event.call_args_list]
+    return [
+        call.args[0]
+        for call in mock_agent(manager.agent_handler).send_event.call_args_list
+    ]
 
 
 async def test_a_cidr_ban_sends_an_ip_banned_event() -> None:
@@ -70,7 +74,7 @@ async def test_a_manual_unban_reports_its_own_reason() -> None:
     manager.redis_handler = None
     manager.agent_handler = Mock(send_event=AsyncMock())
     await manager.ban_ip("198.51.100.8", 600, "operator")
-    manager.agent_handler.send_event.reset_mock()
+    mock_agent(manager.agent_handler).send_event.reset_mock()
 
     await manager.unban_ip("198.51.100.8")
     await manager.unban_ip("198.51.100.9", reason="dynamic_rule_whitelist")

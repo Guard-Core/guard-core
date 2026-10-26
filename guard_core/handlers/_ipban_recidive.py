@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from guard_core.models import SecurityConfig
 
 _RECIDIVE_NAMESPACE = "recidive"
+_NO_CONFIG = "recidive escalation needs the app config, none is bound to this manager"
 
 
 def escalated_duration(base: int, prior_bans: int, factor: float, cap: int) -> int:
@@ -35,7 +36,7 @@ class IpBanRecidiveMixin:
 
     recidive_history: dict[str, tuple[int, float]]
     banned_ips: MutableMapping[str, float]
-    config: "SecurityConfig"
+    config: "SecurityConfig | None" = None
     redis_handler: RedisHandlerProtocol | None = None
     logger: logging.Logger
 
@@ -72,11 +73,14 @@ class IpBanRecidiveMixin:
         banning the same client at once exactly one counts.
         """
         prior = await self._recidive_prior_bans(key)
+        config = self.config
+        if config is None:
+            raise RuntimeError(_NO_CONFIG)
         applied = escalated_duration(
             base,
             prior,
-            self.config.recidive_factor,
-            self.config.recidive_max_duration,
+            config.recidive_factor,
+            config.recidive_max_duration,
         )
         if not await self._claim_ban_key(namespace, key, applied):
             return applied, None
@@ -100,7 +104,10 @@ class IpBanRecidiveMixin:
         return self.banned_ips.get(key, 0.0) <= now
 
     async def _record_recidive_ban(self, identity: str, applied_duration: int) -> int:
-        lifetime = self.config.recidive_window + applied_duration
+        config = self.config
+        if config is None:
+            raise RuntimeError(_NO_CONFIG)
+        lifetime = config.recidive_window + applied_duration
         now = time.time()
         count = self._recidive_memory_count(identity, now) + 1
         self._remember_recidive(identity, count, now + lifetime)

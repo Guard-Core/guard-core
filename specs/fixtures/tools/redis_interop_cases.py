@@ -542,7 +542,10 @@ async def _op_security_headers(args: RedisArgs) -> None:
     manager = security_headers_manager
     saved = (manager.csp_config, manager.hsts_config, manager.custom_headers)
     manager.csp_config = args.get("csp_config")
-    manager.hsts_config = args.get("hsts_config")
+    hsts_config = args.get("hsts_config")
+    manager.hsts_config = (
+        None if hsts_config is None else dict[str, object](hsts_config)
+    )
     manager.custom_headers = args.get("custom_headers") or {}
     manager.headers_cache.clear()
     try:

@@ -1,6 +1,5 @@
 import logging
 from abc import abstractmethod
-from typing import Any
 
 from guard_core._security_headers_override import PULLED_OVERRIDES, OverrideRecord
 from guard_core.models import SecurityConfig
@@ -8,7 +7,7 @@ from guard_core.models import SecurityConfig
 
 class SecurityHeadersCorsMixin:
     logger: logging.Logger
-    cors_config: dict[str, Any] | None
+    cors_config: dict[str, object] | None
 
     @abstractmethod
     async def send_cors_override_event(
@@ -18,10 +17,10 @@ class SecurityHeadersCorsMixin:
     @abstractmethod
     def _resolve_cors_state(
         self, config: SecurityConfig | None, override: OverrideRecord | None = None
-    ) -> dict[str, Any] | None: ...
+    ) -> dict[str, object] | None: ...
 
     def _is_wildcard_with_credentials(
-        self, allowed_origins: list[str], cors_config: dict[str, Any] | None = None
+        self, allowed_origins: list[str], cors_config: dict[str, object] | None = None
     ) -> bool:
         if "*" not in allowed_origins:
             return False
@@ -41,7 +40,7 @@ class SecurityHeadersCorsMixin:
         return "*" in allowed_origins or origin in allowed_origins
 
     def _get_validated_cors_config(
-        self, cors_config: dict[str, Any] | None = None
+        self, cors_config: dict[str, object] | None = None
     ) -> tuple[list[str], list[str]]:
         effective_cors_config = (
             cors_config if cors_config is not None else self.cors_config
@@ -65,7 +64,7 @@ class SecurityHeadersCorsMixin:
         allowed_origins: list[str],
         allow_methods: list[str],
         allow_headers: list[str],
-        cors_config: dict[str, Any] | None = None,
+        cors_config: dict[str, object] | None = None,
     ) -> dict[str, str]:
         effective_cors_config = (
             cors_config if cors_config is not None else self.cors_config

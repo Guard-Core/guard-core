@@ -8,6 +8,7 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+from pydantic import BaseModel, ConfigDict
 
 from guard_core.sync.handlers.ipban_handler import IPBanManager, reset_global_state
 from tests.test_sync.ipban_redis_fake import fake_ban_redis
@@ -32,10 +33,8 @@ def reset_singleton() -> Generator[None, None, None]:
 def fake_guard_agent() -> Generator[None, None, None]:
     module = ModuleType("guard_agent")
 
-    class _SecurityEvent:
-        def __init__(self, **kwargs: object) -> None:
-            for key, value in kwargs.items():
-                setattr(self, key, value)
+    class _SecurityEvent(BaseModel):
+        model_config = ConfigDict(extra="allow")
 
     module.__dict__["SecurityEvent"] = _SecurityEvent
     sys.modules["guard_agent"] = module
@@ -262,8 +261,9 @@ def test_reset_global_state_clears_a_populated_singleton() -> None:
 
     reset_global_state()
 
-    assert ipban_handler.ip_ban_manager is manager
-    assert "203.0.113.250" not in manager.banned_ips
-    assert manager.banned_networks == []
-    assert manager.redis_handler is None
-    assert manager.agent_handler is None
+    after_reset = ipban_handler.ip_ban_manager
+    assert after_reset is manager
+    assert "203.0.113.250" not in after_reset.banned_ips
+    assert after_reset.banned_networks == []
+    assert after_reset.redis_handler is None
+    assert after_reset.agent_handler is None

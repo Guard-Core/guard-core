@@ -8,6 +8,7 @@ import pytest
 from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers import _ipban_bans
 from guard_core.sync.handlers.ipban_handler import IPBanManager
+from tests.fake_agent import mock_agent
 
 LOGGER = "guard_core.sync.handlers.ipban"
 
@@ -78,7 +79,9 @@ def test_the_refusal_event_states_the_reason_and_the_ban_it_stopped() -> None:
 
     manager.ban_ip("127.0.0.1", 600, "rate_limit_exceeded")
 
-    (event,) = [c.args[0] for c in manager.agent_handler.send_event.call_args_list]
+    (event,) = [
+        c.args[0] for c in mock_agent(manager.agent_handler).send_event.call_args_list
+    ]
     assert event.reason == (
         "Refused to ban 127.0.0.1: loopback would self-DoS this deployment"
     )
@@ -95,7 +98,9 @@ def test_a_failing_agent_send_is_logged_and_does_not_fail_the_refusal(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     manager = _manager()
-    manager.agent_handler.send_event = MagicMock(side_effect=RuntimeError("boom"))
+    mock_agent(manager.agent_handler).send_event = MagicMock(
+        side_effect=RuntimeError("boom")
+    )
 
     with caplog.at_level(logging.ERROR, logger=LOGGER):
         banned = manager.ban_ip("127.0.0.1", 600, "rate_limit_exceeded")

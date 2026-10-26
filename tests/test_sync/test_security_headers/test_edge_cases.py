@@ -55,8 +55,9 @@ def test_reset_global_state_drops_a_populated_redis_handler_reference() -> None:
 
     reset_global_state()
 
-    assert manager.redis_handler is None
-    assert manager.agent_handler is None
+    after_reset = SecurityHeadersManager()
+    assert after_reset.redis_handler is None
+    assert after_reset.agent_handler is None
 
 
 def test_get_headers_with_cached_non_dict_value(

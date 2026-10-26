@@ -1,7 +1,7 @@
 import logging
 import re
 from abc import abstractmethod
-from typing import Any
+from collections.abc import Mapping
 
 from cachetools import TTLCache
 
@@ -23,6 +23,7 @@ from guard_core._security_headers_override import (
     validate_cors_override,
 )
 from guard_core.models import SyncSecurityConfig
+from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
 
 
 class SecurityHeadersConfigMixin:
@@ -30,11 +31,11 @@ class SecurityHeadersConfigMixin:
     enabled: bool
     custom_headers: dict[str, str]
     csp_config: dict[str, list[str]] | None
-    hsts_config: dict[str, Any] | None
-    cors_config: dict[str, Any] | None
+    hsts_config: dict[str, object] | None
+    cors_config: dict[str, object] | None
     default_headers: dict[str, str]
     headers_cache: TTLCache
-    redis_handler: Any
+    redis_handler: SyncRedisHandlerProtocol | None
     _startup_hash: str | None
     _own_state_dirty: bool
 
@@ -47,7 +48,7 @@ class SecurityHeadersConfigMixin:
     ) -> CorsParams: ...
 
     @abstractmethod
-    def _record_override_from_call(self, passed: dict[str, Any]) -> None: ...
+    def _record_override_from_call(self, passed: dict[str, object]) -> None: ...
 
     _HEADER_NAME_TOKEN_RE = re.compile(r"[!#$%&'*+.^_`|~0-9A-Za-z-]+")
 
@@ -64,11 +65,11 @@ class SecurityHeadersConfigMixin:
         sanitized = "".join(char for char in value if ord(char) >= 32 or char == "\t")
         return sanitized
 
-    def _compute_csp_config(
-        self, csp: dict[str, list[str]] | None
-    ) -> dict[str, list[str]] | None:
+    def _compute_csp_config(self, csp: object) -> dict[str, list[str]] | None:
         if not csp:
             return None
+        if not isinstance(csp, dict):
+            raise TypeError("the csp setting must map each directive to its sources")
 
         for directive, sources in csp.items():
             if "'unsafe-inline'" in sources or "'unsafe-eval'" in sources:
@@ -85,7 +86,7 @@ class SecurityHeadersConfigMixin:
         hsts_max_age: int | None,
         hsts_include_subdomains: bool,
         hsts_preload: bool,
-    ) -> dict[str, Any] | None:
+    ) -> dict[str, object] | None:
         if hsts_max_age is None:
             return None
 
@@ -120,7 +121,7 @@ class SecurityHeadersConfigMixin:
         cors_allow_methods: list[str] | None,
         cors_allow_headers: list[str] | None,
         cors_max_age: int | None = None,
-    ) -> dict[str, Any] | None:
+    ) -> dict[str, object] | None:
         if not cors_origins:
             return None
 
@@ -228,11 +229,11 @@ class SecurityHeadersConfigMixin:
             permissions_policy,
         )
 
-    def _compute_custom_headers(
-        self, custom_headers: dict[str, str] | None
-    ) -> dict[str, str]:
+    def _compute_custom_headers(self, custom_headers: object) -> dict[str, str]:
         if not custom_headers:
             return {}
+        if not isinstance(custom_headers, dict):
+            raise TypeError("the custom setting must map header names to values")
 
         return {
             self._validate_header_name(name): self._validate_header_value(value)
@@ -246,7 +247,7 @@ class SecurityHeadersConfigMixin:
         self, config: SyncSecurityConfig | None, current: OverrideRecord | None = None
     ) -> tuple[
         dict[str, list[str]] | None,
-        dict[str, Any] | None,
+        dict[str, object] | None,
         dict[str, str],
         dict[str, str],
     ]:
@@ -264,6 +265,8 @@ class SecurityHeadersConfigMixin:
             base = default_security_headers_config() if override.get("enabled") else {}
         effective = apply_override(base, override)
         hsts_cfg = effective.get("hsts") or {}
+        if not isinstance(hsts_cfg, dict):
+            raise TypeError("the hsts setting must be a mapping of its options")
 
         csp_config = self._compute_csp_config(effective.get("csp"))
         hsts_config = self._compute_hsts_config(
@@ -276,18 +279,22 @@ class SecurityHeadersConfigMixin:
 
         return csp_config, hsts_config, default_headers, custom_headers
 
-    def _compute_configured_headers(self, effective: dict[str, Any]) -> dict[str, str]:
+    def _compute_configured_headers(
+        self, effective: Mapping[str, object]
+    ) -> dict[str, str]:
         headers: dict[str, str] = {}
         for key, header_name in SECURITY_HEADER_NAMES.items():
             value = effective.get(key)
             if value is None or (key == "permissions_policy" and not value):
                 continue
+            if not isinstance(value, str):
+                raise TypeError(f"the {key} setting must be a string")
             headers[header_name] = self._validate_header_value(value)
         return headers
 
     def _resolve_cors_state(
         self, config: SyncSecurityConfig | None, override: OverrideRecord | None = None
-    ) -> dict[str, Any] | None:
+    ) -> dict[str, object] | None:
         if config is None:
             return self.cors_config
 

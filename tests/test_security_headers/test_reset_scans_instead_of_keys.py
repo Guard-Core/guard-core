@@ -2,12 +2,13 @@ import os
 from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
-from unittest.mock import MagicMock
 
 import pytest
 from redis.asyncio import Redis
 
+from guard_core.handlers.redis_handler import RedisHandlerBase
 from guard_core.handlers.security_headers_handler import SecurityHeadersManager
+from guard_core.models import SecurityConfig
 
 REDIS_URL = os.getenv("REDIS_URL") or "redis://localhost:6379"
 PREFIX = "wp16reset:"
@@ -24,9 +25,9 @@ class NoKeysConnection:
         return getattr(self._conn, name)
 
 
-class SharedRedis:
+class SharedRedis(RedisHandlerBase):
     def __init__(self, conn: Redis) -> None:
-        self.config = MagicMock(redis_prefix=PREFIX)
+        super().__init__(SecurityConfig(enable_redis=False, redis_prefix=PREFIX))
         self._conn = conn
 
     @asynccontextmanager

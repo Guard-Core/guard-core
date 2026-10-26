@@ -1,5 +1,7 @@
 import logging
 from collections import defaultdict, deque
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
@@ -22,6 +24,7 @@ from guard_core.handlers.ratelimit_handler import (
     _warn_redis_fail_open_in_memory_fallback,
     check_rate_limit_by_ip,
 )
+from guard_core.handlers.redis_handler import RedisHandlerBase
 from guard_core.models import SecurityConfig
 from tests.conftest import MockGuardRequest, MockGuardResponse
 
@@ -41,27 +44,17 @@ def _config(**settings: Any) -> SecurityConfig:
     return SecurityConfig(**{"enable_redis": False, **settings})
 
 
-class _Connection:
-    def __init__(self, handler: "_RedisHandler") -> None:
-        self.handler = handler
-
-    async def __aenter__(self) -> Any:
-        if self.handler.connect_error is not None:
-            raise self.handler.connect_error
-        return self.handler.conn
-
-    async def __aexit__(self, *exc_info: object) -> None:
-        return None
-
-
-class _RedisHandler:
+class _RedisHandler(RedisHandlerBase):
     def __init__(self, conn: Any = None, connect_error: Exception | None = None):
-        self.config = SecurityConfig(enable_redis=True, redis_prefix="p:")
+        super().__init__(SecurityConfig(enable_redis=True, redis_prefix="p:"))
         self.conn = conn
         self.connect_error = connect_error
 
-    def get_connection(self) -> _Connection:
-        return _Connection(self)
+    @asynccontextmanager
+    async def get_connection(self) -> AsyncIterator[Any]:
+        if self.connect_error is not None:
+            raise self.connect_error
+        yield self.conn
 
 
 class _Pipeline:
@@ -461,6 +454,17 @@ async def test_an_endpoint_check_keeps_its_window_apart_from_the_global_key() ->
 
     (key,) = list(manager.request_timestamps)
     assert key.startswith(f"{IP}:endpoint:")
+
+
+async def test_a_rate_limit_event_without_an_agent_sends_and_logs_nothing(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    manager = RateLimitManager(_config())
+
+    with caplog.at_level(logging.DEBUG, logger=HANDLER_LOGGER):
+        await manager._send_rate_limit_event(_request(), IP, 3)
+
+    assert caplog.records == []
 
 
 async def test_a_failing_agent_does_not_fail_the_rate_limit_event(
