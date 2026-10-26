@@ -5,6 +5,7 @@ import tracemalloc
 import pytest
 
 from guard_core.sync._utils.detection_scan import _scan_time_cap, _scan_time_spent
+from guard_core.sync.handlers._suspatterns_inline_matches import _INLINE_FINDERS
 from guard_core.sync.handlers._suspatterns_lazy_rows import COMPILED_BUILTIN_PATTERNS
 from guard_core.sync.handlers.suspatterns_handler import SusPatternsManager
 
@@ -52,6 +53,31 @@ def test_a_256_kb_hostile_value_costs_a_path_row_at_most_5_mb(
 ) -> None:
     content = (unit * (_SIZE // len(unit) + 1))[:_SIZE]
     assert _row_peak_bytes(_row_for(prefix), content) <= _MEMORY_SLACK_BYTES
+
+
+@pytest.mark.parametrize("prefix", _ROW_PREFIXES)
+def test_a_recompiled_row_keeps_its_linear_finder(prefix: str) -> None:
+    content = ("%/" * (_SIZE // 2))[:_SIZE]
+    first = _row_for(prefix)
+    _row_peak_bytes(first, content)
+    saved = dict(COMPILED_BUILTIN_PATTERNS)
+    COMPILED_BUILTIN_PATTERNS.clear()
+    re.purge()
+    try:
+        second = _row_for(prefix)
+        assert second is not first
+        assert _row_peak_bytes(second, content) <= _MEMORY_SLACK_BYTES
+    finally:
+        COMPILED_BUILTIN_PATTERNS.clear()
+        COMPILED_BUILTIN_PATTERNS.update(saved)
+
+
+def test_a_row_with_other_flags_never_gets_the_finder() -> None:
+    row = _row_for(_ROW_PREFIXES[0])
+    inline = _INLINE_FINDERS[row.pattern]
+    assert inline is not None
+    assert inline("a", row) is not None
+    assert inline("a", re.compile(row.pattern)) is None
 
 
 def test_the_linear_finder_cpu_is_charged_to_the_scan_budget() -> None:

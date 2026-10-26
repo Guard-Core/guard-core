@@ -16,22 +16,22 @@ _Finder = Callable[[str], Iterable[re.Match]]
 
 
 class _InlineFinder:
-    __slots__ = ("finder", "matcher", "owner")
+    __slots__ = ("finder", "flags", "matcher")
 
     def __init__(
         self,
-        owner: re.Pattern | None,
+        flags: int | None,
         matcher: _Matcher | None,
         finder: _Finder | None,
     ) -> None:
-        self.owner = owner
+        self.flags = flags
         self.matcher = matcher
         self.finder = finder
 
     def __call__(self, content: str, pattern: re.Pattern) -> Iterable[re.Match] | None:
         if self.matcher is not None:
             return self.matcher(content, pattern)
-        if self.finder is not None and self.owner is pattern:
+        if self.finder is not None and self.flags == pattern.flags:
             return self.finder(content)
         return None
 
@@ -66,7 +66,7 @@ class _InlineFinders(dict[str, _InlineFinder | None]):
         if builtin is None:
             return None
         finder = linear_path_finder(builtin)
-        entry = None if finder is None else _InlineFinder(builtin, None, finder)
+        entry = None if finder is None else _InlineFinder(builtin.flags, None, finder)
         self[source] = entry
         return entry
 

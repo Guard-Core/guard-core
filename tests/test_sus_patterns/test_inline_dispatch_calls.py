@@ -66,5 +66,5 @@ def test_a_custom_pattern_with_a_builtin_text_does_not_take_the_builtin_finder()
     assert custom is not builtin
     inline = _INLINE_FINDERS[builtin.pattern]
     assert inline is not None
-    assert inline.owner is builtin
+    assert inline.flags == builtin.flags
     assert inline("/wp-content/uploads/x", custom) is None
