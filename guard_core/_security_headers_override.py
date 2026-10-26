@@ -319,15 +319,22 @@ def is_clean_cors_value(value: str) -> bool:
     return not has_control_character(value)
 
 
+_HTTP_TOKEN_RE = re.compile(r"[!#$%&'*+.^_`|~0-9A-Za-z-]+")
+
+
+def is_http_token(value: str) -> bool:
+    return _HTTP_TOKEN_RE.fullmatch(value) is not None
+
+
 def is_valid_cors_origin(value: str) -> bool:
     return _ORIGIN_TOKEN_RE.fullmatch(value) is not None
 
 
 CORS_VALUE_CHECKS: dict[str, Callable[[str], bool]] = {
     "cors_origins": is_valid_cors_origin,
-    "cors_allow_methods": is_clean_cors_value,
-    "cors_allow_headers": is_clean_cors_value,
-    "cors_expose_headers": is_clean_cors_value,
+    "cors_allow_methods": is_http_token,
+    "cors_allow_headers": is_http_token,
+    "cors_expose_headers": is_http_token,
 }
 
 

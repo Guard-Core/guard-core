@@ -51,6 +51,7 @@ class SecurityHeadersConfigMixin:
     def _record_override_from_call(self, passed: dict[str, object]) -> None: ...
 
     _HEADER_NAME_TOKEN_RE = re.compile(r"[!#$%&'*+.^_`|~0-9A-Za-z-]+")
+    _HEADER_VALUE_FORBIDDEN_RE = re.compile(r"[^\t\x20-\x7e\x80-\xff]")
 
     def _validate_header_name(self, name: str) -> str:
         if not self._HEADER_NAME_TOKEN_RE.fullmatch(name):
@@ -63,6 +64,10 @@ class SecurityHeadersConfigMixin:
         if len(value) > 8192:
             raise ValueError(f"Header value too long: {len(value)} bytes")
         sanitized = "".join(char for char in value if ord(char) >= 32 or char == "\t")
+        if self._HEADER_VALUE_FORBIDDEN_RE.search(sanitized):
+            raise ValueError(
+                "Invalid header value contains a character a response cannot carry"
+            )
         return sanitized
 
     def _compute_csp_config(self, csp: object) -> dict[str, list[str]] | None:
