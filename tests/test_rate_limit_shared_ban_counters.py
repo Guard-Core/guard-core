@@ -118,6 +118,45 @@ async def test_the_shared_counter_is_cleared_when_the_ban_lands(
     assert len(_all_bans(redis_workers)) == 1
 
 
+async def test_the_ban_clears_the_violations_on_the_handler_that_counted_them(
+    redis_workers: list[_Worker], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from guard_core.core.checks.implementations import rate_limit as module
+
+    counted_on: list[Any] = []
+    forgotten_on: list[Any] = []
+    real_record = module.record_shared_violation
+    real_forget = module.forget_shared_violations
+
+    async def record(handler: Any, ip: str) -> int:
+        counted_on.append(handler)
+        return await real_record(handler, ip)
+
+    async def forget(handler: Any, ip: str) -> None:
+        forgotten_on.append(handler)
+        await real_forget(handler, ip)
+
+    monkeypatch.setattr(module, "record_shared_violation", record)
+    monkeypatch.setattr(module, "forget_shared_violations", forget)
+    worker = redis_workers[0]
+    handler_reads: list[Any] = []
+    real_read = worker.check._shared_redis
+
+    def read_handler() -> Any:
+        handler_reads.append(None)
+        return real_read()
+
+    monkeypatch.setattr(worker.check, "_shared_redis", read_handler)
+
+    for _ in range(THRESHOLD + 1):
+        await worker.violate()
+
+    assert len(worker.bans) == 1
+    assert len(forgotten_on) == 1
+    assert forgotten_on[0] is counted_on[-1]
+    assert len(handler_reads) == len(counted_on)
+
+
 async def test_the_shared_counter_survives_a_restart(
     redis_workers: list[_Worker],
 ) -> None:

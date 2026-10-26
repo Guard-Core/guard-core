@@ -195,7 +195,8 @@ class RateLimitCheck(SecurityCheck):
         identity = self._strike_identity(request, client_ip)
         try:
             _increment_suspicious_counts(self.middleware, identity, "rate_limit")
-            shared = await self._shared_violation_counts(identity)
+            redis_handler = self._shared_redis()
+            shared = await self._shared_violation_counts(redis_handler, identity)
             banned = await _try_threshold_ban(
                 request,
                 self.config,
@@ -212,8 +213,8 @@ class RateLimitCheck(SecurityCheck):
                 if shared is not None
                 else _ip_strike_counts(self.middleware, identity),
             )
-            if banned and shared is not None:
-                await forget_shared_violations(self._shared_redis(), identity)
+            if banned and shared is not None and redis_handler is not None:
+                await forget_shared_violations(redis_handler, identity)
         except Exception:
             _log_exception_safely(
                 self.logger, "rate-limit auto-ban failed for %s", client_ip
@@ -234,8 +235,9 @@ class RateLimitCheck(SecurityCheck):
             return None
         return getattr(self.middleware.rate_limit_handler, "redis_handler", None)
 
-    async def _shared_violation_counts(self, client_ip: str) -> dict[str, int] | None:
-        redis_handler = self._shared_redis()
+    async def _shared_violation_counts(
+        self, redis_handler: RedisHandlerProtocol | None, client_ip: str
+    ) -> dict[str, int] | None:
         if not redis_handler:
             return None
         try:
