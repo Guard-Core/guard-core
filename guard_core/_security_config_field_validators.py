@@ -40,6 +40,7 @@ from guard_core._security_config_typed_validators import (
     _STR_SET_OR_CATEGORY_MAP_ADAPTER,
     _validate_typed_collection_field_value,
 )
+from guard_core._security_headers_override import CORS_VALUE_CHECKS
 from guard_core.handlers.suspatterns_handler import ALL_DETECTION_CATEGORIES
 
 if TYPE_CHECKING:
@@ -414,6 +415,17 @@ _GLOBAL_BEHAVIOR_RULES_ADAPTER: TypeAdapter[tuple[BehaviorRuleConfig, ...]] = (
 )
 
 
+def _validate_cors_values(
+    v: object, *, override_key: str, field_name: str
+) -> list[str]:
+    values = _validate_typed_collection_field_value(
+        v, adapter=_STR_LIST_ADAPTER, field_name=field_name
+    )
+    if not all(map(CORS_VALUE_CHECKS[override_key], values)):
+        raise ValueError(f"{field_name} holds a control character or an invalid origin")
+    return values
+
+
 _FIELD_REVALIDATORS: dict[str, Callable[[Any], Any]] = {
     "custom_request_check": partial(
         _validate_optional_callable_field_value, field_name="custom_request_check"
@@ -495,23 +507,23 @@ _FIELD_REVALIDATORS: dict[str, Callable[[Any], Any]] = {
         field_name="security_headers",
     ),
     "cors_allow_origins": partial(
-        _validate_typed_collection_field_value,
-        adapter=_STR_LIST_ADAPTER,
+        _validate_cors_values,
+        override_key="cors_origins",
         field_name="cors_allow_origins",
     ),
     "cors_allow_methods": partial(
-        _validate_typed_collection_field_value,
-        adapter=_STR_LIST_ADAPTER,
+        _validate_cors_values,
+        override_key="cors_allow_methods",
         field_name="cors_allow_methods",
     ),
     "cors_allow_headers": partial(
-        _validate_typed_collection_field_value,
-        adapter=_STR_LIST_ADAPTER,
+        _validate_cors_values,
+        override_key="cors_allow_headers",
         field_name="cors_allow_headers",
     ),
     "cors_expose_headers": partial(
-        _validate_typed_collection_field_value,
-        adapter=_STR_LIST_ADAPTER,
+        _validate_cors_values,
+        override_key="cors_expose_headers",
         field_name="cors_expose_headers",
     ),
     "nat64_prefixes": partial(

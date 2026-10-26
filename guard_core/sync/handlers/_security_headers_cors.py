@@ -15,6 +15,9 @@ class SecurityHeadersCorsMixin:
     ) -> None: ...
 
     @abstractmethod
+    def _validate_header_value(self, value: str) -> str: ...
+
+    @abstractmethod
     def _resolve_cors_state(
         self, config: SyncSecurityConfig | None, override: OverrideRecord | None = None
     ) -> dict[str, object] | None: ...
@@ -84,7 +87,10 @@ class SecurityHeadersCorsMixin:
         if effective_cors_config and effective_cors_config.get("allow_credentials"):
             cors_headers["Access-Control-Allow-Credentials"] = "true"
 
-        return cors_headers
+        return {
+            name: self._validate_header_value(value)
+            for name, value in cors_headers.items()
+        }
 
     def get_cors_headers(
         self,
@@ -111,6 +117,10 @@ class SecurityHeadersCorsMixin:
             return {}
 
         allow_methods, allow_headers = self._get_validated_cors_config(cors_config)
-        return self._build_cors_headers(
-            origin, allowed_origins, allow_methods, allow_headers, cors_config
-        )
+        try:
+            return self._build_cors_headers(
+                origin, allowed_origins, allow_methods, allow_headers, cors_config
+            )
+        except ValueError:
+            self.logger.warning("CORS headers not emitted, a header value is invalid")
+            return {}

@@ -11,6 +11,7 @@ from pydantic import (
     ConfigDict,
     ModelWrapValidatorHandler,
     PrivateAttr,
+    ValidationInfo,
     field_validator,
     model_validator,
 )
@@ -229,6 +230,16 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
     @field_validator("whitelist_countries", "blocked_countries", mode="before")
     def coerce_country_set(cls, v: Any) -> frozenset[str]:
         return _validate_country_set_value(v)
+
+    @field_validator(
+        "cors_allow_origins",
+        "cors_allow_methods",
+        "cors_allow_headers",
+        "cors_expose_headers",
+        mode="before",
+    )
+    def validate_cors_values(cls, v: Any, info: ValidationInfo) -> Any:
+        return _FIELD_REVALIDATORS[str(info.field_name)](v)
 
     @field_validator("block_cloud_providers", mode="before")
     def validate_cloud_providers(cls, v: Any) -> frozenset[str] | None:

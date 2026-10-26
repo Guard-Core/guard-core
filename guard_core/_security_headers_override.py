@@ -9,6 +9,7 @@ mirror share one copy.
 
 import hashlib
 import json
+import re
 import time
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
@@ -302,6 +303,42 @@ def validate_cors_override(keys: Mapping[str, object]) -> None:
             raise ValueError(f"{name} must be {expected}")
 
 
+_ORIGIN_TOKEN_RE = re.compile(
+    r"(?:\*|null|[A-Za-z][A-Za-z0-9+.-]*://[^\s/?#@\\\x00-\x1f\x7f]+/?)"
+)
+
+
+def has_control_character(value: str) -> bool:
+    return any(ord(char) < 0x20 or ord(char) == 0x7F for char in value)
+
+
+def is_clean_cors_value(value: str) -> bool:
+    return not has_control_character(value)
+
+
+def is_valid_cors_origin(value: str) -> bool:
+    return _ORIGIN_TOKEN_RE.fullmatch(value) is not None
+
+
+CORS_VALUE_CHECKS: dict[str, Callable[[str], bool]] = {
+    "cors_origins": is_valid_cors_origin,
+    "cors_allow_methods": is_clean_cors_value,
+    "cors_allow_headers": is_clean_cors_value,
+    "cors_expose_headers": is_clean_cors_value,
+}
+
+
+def _refused_cors_fields(keys: Mapping[str, object]) -> list[str]:
+    refused: list[str] = []
+    for name, accepts in CORS_VALUE_CHECKS.items():
+        value = keys.get(name)
+        if isinstance(value, list) and not all(
+            isinstance(item, str) and accepts(item) for item in value
+        ):
+            refused.append(name)
+    return refused
+
+
 @dataclass(frozen=True)
 class CorsParams:
     enabled: bool
@@ -374,6 +411,8 @@ def merge_cors(
     """
     if not CORS_OVERRIDE_KEYS & keys.keys():
         return base, None
+    refused = _refused_cors_fields(keys)
+    keys = {name: value for name, value in keys.items() if name not in refused}
     merged = CorsParams(
         enabled=_bool_key(keys, "enable_cors", base.enabled),
         origins=_strings_key(keys, "cors_origins", base.origins),
@@ -385,6 +424,11 @@ def merge_cors(
     )
     if merged.enabled and "*" in merged.origins and merged.credentials:
         return base, "a wildcard origin cannot be combined with credentials"
+    if refused:
+        return merged, (
+            f"{', '.join(refused)} hold a control character or an invalid origin, "
+            "each of those fields keeps the app's own value"
+        )
     return merged, None
 
 

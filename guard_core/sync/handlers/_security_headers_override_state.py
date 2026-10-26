@@ -126,7 +126,9 @@ class SecurityHeadersOverrideMixin(SecurityHeadersPersistenceCalls):
     def _log_cors_override(
         self, base: CorsParams, merged: CorsParams, reason: str | None
     ) -> None:
-        if reason is not None:
+        if reason is not None and merged is not base:
+            self.logger.warning("CORS override fields refused for this app: %s", reason)
+        elif reason is not None:
             self.logger.warning(
                 "CORS override refused for this app, it keeps its own CORS: %s", reason
             )
