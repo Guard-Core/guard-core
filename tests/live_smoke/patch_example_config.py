@@ -34,6 +34,14 @@ def _smoke_on_error(stage, exc, context):
         handle.write(_smoke_json.dumps(payload, default=str) + "\\n")
 
 
+async def _smoke_body_reading_modifier(response):
+    try:
+        response.headers["X-Smoke-Body-Bytes"] = str(len(response.body))
+    except AttributeError:
+        response.headers["X-Smoke-Body-Bytes"] = "unavailable"
+    return response
+
+
 smoke_nonce = "unknown"
 
 
@@ -54,6 +62,7 @@ def _smoke_apply_overrides() -> None:
     Path("/tmp/smoke_nonce.txt").write_text(smoke_nonce, encoding="utf-8")
     smoke_geoip_db = overrides.pop("smoke_geoip_db", None)
     smoke_cors_override = overrides.pop("smoke_cors_override", None)
+    smoke_body_reading_modifier = overrides.pop("smoke_body_reading_modifier", False)
 
     merged = security_config.model_dump()
     merged.update(overrides)
@@ -62,6 +71,9 @@ def _smoke_apply_overrides() -> None:
     merged["exclude_paths"] = sorted(
         {*merged.get("exclude_paths", []), "/smoke/nonce", "/smoke/agent-config"}
     )
+
+    if smoke_body_reading_modifier:
+        merged["custom_response_modifier"] = _smoke_body_reading_modifier
 
     if smoke_geoip_db:
         from guard_core.handlers.ipinfo_handler import IPInfoManager
