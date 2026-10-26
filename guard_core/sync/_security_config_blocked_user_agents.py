@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 from pydantic import ValidationError
 
 from guard_core._config_field_revalidators import _validate_str_list_field_value
@@ -6,6 +8,30 @@ from guard_core.sync._utils.pattern_source_redaction import _SensitiveNameSets
 
 def _validate_blocked_user_agents_structure(v: object) -> list[str]:
     return _validate_str_list_field_value(v, field_name="blocked_user_agents")
+
+
+class _RedactedInput:
+    def __init__(self, value: object) -> None:
+        self._shown = f"<redacted {type(value).__name__}>"
+
+    def __repr__(self) -> str:
+        return self._shown
+
+
+def _redact_invalid_blocked_user_agents_input(
+    value: object, redact: Callable[[str], str]
+) -> object:
+    # Stand-in that fails the structure check the way the original does, so the
+    # ValidationError carries redacted text as its input and nothing else changes.
+    try:
+        _validate_blocked_user_agents_structure(value)
+    except ValueError:
+        pass
+    else:
+        return value
+    if not isinstance(value, list):
+        return _RedactedInput(value)
+    return [redact(p) if isinstance(p, str) else _RedactedInput(p) for p in value]
 
 
 def _reject_redos_unsafe_blocked_user_agents(

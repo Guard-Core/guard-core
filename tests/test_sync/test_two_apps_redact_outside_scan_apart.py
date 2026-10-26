@@ -6,7 +6,7 @@ import pytest
 from pydantic import ValidationError
 
 from guard_core._security_config_batch import prepare_config_batch
-from guard_core.models import BehaviorRuleConfig, SyncSecurityConfig
+from guard_core.models import BehaviorRuleConfig, SecurityConfig, SyncSecurityConfig
 from guard_core.sync.decorators.base import BaseSecurityDecorator
 from guard_core.sync.decorators.content_filtering import ContentFilteringMixin
 from guard_core.sync.detection_engine.monitor_types import PatternStats
@@ -176,6 +176,73 @@ def test_the_blocked_user_agents_batch_error_redacts_the_pending_names() -> None
 
     assert f"{APP_B_NAME}=hunter2" not in str(excinfo.value)
     assert "[REDACTED]" in str(excinfo.value)
+
+
+def _assert_the_error_shows_no_hunter2(error: BaseException) -> None:
+    shown = [str(error)]
+    if isinstance(error, ValidationError):
+        shown += [repr(error.errors()), error.json()]
+    assert not any("hunter2" in text for text in shown)
+
+
+@pytest.mark.parametrize("name", [APP_B_NAME, DEFAULT_NAME])
+@pytest.mark.parametrize(
+    "bad_value",
+    [
+        lambda pattern: [object(), pattern],
+        lambda pattern: (pattern,),
+        lambda pattern: pattern,
+    ],
+)
+def test_the_blocked_user_agents_type_error_shows_no_sensitive_pattern_text(
+    name: str, bad_value: Any
+) -> None:
+    value = bad_value(VALIDATOR_PATTERN.format(name=name))
+    settings = {"log_sensitive_params": frozenset({name})}
+
+    with pytest.raises(ValidationError, match="must be a list of str") as excinfo:
+        _app(blocked_user_agents=value, **settings)
+    _assert_the_error_shows_no_hunter2(excinfo.value)
+    assert excinfo.value.errors()[0]["loc"] == ("blocked_user_agents",)
+
+    with pytest.raises(ValidationError, match="must be a list of str") as excinfo:
+        SecurityConfig.model_validate(
+            {"enable_redis": False, "blocked_user_agents": value, **settings}
+        )
+    _assert_the_error_shows_no_hunter2(excinfo.value)
+
+    config = _app(**settings)
+    with pytest.raises(ValueError, match="must be a list of str") as plain:
+        config.model_copy(update={"blocked_user_agents": value})
+    _assert_the_error_shows_no_hunter2(plain.value)
+    with pytest.raises(ValueError, match="must be a list of str") as plain:
+        config.blocked_user_agents = value
+    _assert_the_error_shows_no_hunter2(plain.value)
+
+
+def test_the_blocked_user_agents_type_error_uses_the_input_names() -> None:
+    with pytest.raises(ValidationError) as excinfo:
+        _app(
+            blocked_user_agents=[object(), "plain-agent", "x=hunter2"],
+            log_sensitive_params=frozenset({"x"}),
+        )
+
+    assert excinfo.value.errors()[0]["input"] == [
+        excinfo.value.errors()[0]["input"][0],
+        "plain-agent",
+        "[REDACTED]",
+    ]
+
+
+def test_the_blocked_user_agents_type_error_hides_all_on_invalid_names() -> None:
+    with pytest.raises(ValidationError) as excinfo:
+        _app(
+            blocked_user_agents=[object(), "(a+)+zebratok=hunter2"],
+            log_sensitive_params="zebratok",
+        )
+
+    _assert_the_error_shows_no_hunter2(excinfo.value)
+    assert "blocked_user_agents" in [e["loc"][0] for e in excinfo.value.errors()]
 
 
 @pytest.mark.parametrize("name", [APP_B_NAME, DEFAULT_NAME])

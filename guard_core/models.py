@@ -28,10 +28,12 @@ from guard_core._security_config_validators import (
     _FIELD_REVALIDATORS,
     _GEO_STATE_FIELDS,
     _GLOBAL_BEHAVIOR_RULE_FIELDS,
+    _SENSITIVE_NAME_FIELDS,
     _apply_geo_ip_handler_assignment,
     _assign_checking_optional_extras,
     _country_shadow_should_warn,
     _is_prefix_zero_network_entry,
+    _redact_blocked_user_agents_in_input,
     _reject_redos_unsafe_blocked_user_agents_at_field,
     _require_optional_extras,
     _require_recidive_cap_covers_auto_ban,
@@ -241,7 +243,15 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
     def reject_redos_unsafe_blocked_user_agents(
         cls, data: object, handler: ModelWrapValidatorHandler[Self]
     ) -> Self:
-        config = handler(data)
+        config = handler(
+            _redact_blocked_user_agents_in_input(
+                data,
+                {
+                    f: cls.model_fields[f].get_default(call_default_factory=True)
+                    for f in _SENSITIVE_NAME_FIELDS
+                },
+            )
+        )
         _reject_redos_unsafe_blocked_user_agents_at_field(
             cls.__name__, config.blocked_user_agents, _ConfigSensitiveNames(config)
         )

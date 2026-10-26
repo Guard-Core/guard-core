@@ -17,6 +17,7 @@ from guard_core._redis_enablement import (
     resolve_enable_redis,
 )
 from guard_core._security_config_blocked_user_agents import (
+    _redact_invalid_blocked_user_agents_input,
     _reject_redos_unsafe_blocked_user_agents,
     _reject_redos_unsafe_blocked_user_agents_at_field,
     _validate_blocked_user_agents_structure,
@@ -93,6 +94,7 @@ __all__ = [
     "_is_prefix_zero_network_entry",
     "_normalized_country_value",
     "_reject_redos_unsafe_blocked_user_agents",
+    "_redact_blocked_user_agents_in_input",
     "_reject_redos_unsafe_blocked_user_agents_at_field",
     "_require_optional_extras",
     "_resolve_geo_ip_handler",
@@ -134,6 +136,45 @@ _SENSITIVE_NAME_FIELDS = (
     "log_sensitive_params",
     "log_sensitive_body_fields",
 )
+
+
+class _InputSensitiveNames:
+    def __init__(self, names: Mapping[str, frozenset[str]]) -> None:
+        self._sensitive_headers_union = names["log_sensitive_headers"]
+        self._sensitive_params_union = names["log_sensitive_params"]
+        self._sensitive_body_fields_union = names["log_sensitive_body_fields"]
+
+
+def _redact_blocked_user_agents_in_input(
+    data: object, field_defaults: Mapping[str, object]
+) -> object:
+    if not isinstance(data, Mapping) or "blocked_user_agents" not in data:
+        return data
+    from guard_core._utils.detection_scan import _redact_pattern_source
+
+    def redact_everything(pattern: str) -> str:
+        return "[REDACTED]"
+
+    redact = redact_everything
+    try:
+        names = {
+            field: _FIELD_REVALIDATORS[field](data.get(field, field_defaults[field]))
+            for field in _SENSITIVE_NAME_FIELDS
+        }
+    except (TypeError, ValueError):
+        pass
+    else:
+        sensitive = _InputSensitiveNames(names)
+
+        def redact(pattern: str) -> str:
+            return _redact_pattern_source(pattern, sensitive)
+
+    return {
+        **data,
+        "blocked_user_agents": _redact_invalid_blocked_user_agents_input(
+            data["blocked_user_agents"], redact
+        ),
+    }
 
 
 def _revalidate_field_value(
