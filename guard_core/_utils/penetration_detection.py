@@ -54,7 +54,11 @@ from guard_core._utils.route_gate import (
     scanning_declared_path_param_values,
     static_file_state_served,
 )
-from guard_core._utils.scan_config_scope import scan_config_scope_of
+from guard_core._utils.scan_config_scope import (
+    ScanConfigScope,
+    configure_lock,
+    scan_config_scope_of,
+)
 from guard_core.detection_result import DetectionResult
 from guard_core.exceptions import BodyReadFailedError, BodyReadStalledError
 from guard_core.protocols.request_protocol import GuardRequest
@@ -297,6 +301,14 @@ def _ensure_detection_singleton_configured(
     return manager
 
 
+def _configured_manager_and_scope(
+    config: "SecurityConfig | None",
+) -> "tuple[SusPatternsManager, ScanConfigScope | None]":
+    with configure_lock:
+        manager = _ensure_detection_singleton_configured(config)
+        return manager, scan_config_scope_of(config, manager)
+
+
 async def detect_penetration_attempt(
     request: GuardRequest,
     config: "SecurityConfig | None" = None,
@@ -304,8 +316,7 @@ async def detect_penetration_attempt(
 ) -> DetectionResult:
     import uuid
 
-    patterns_manager = _ensure_detection_singleton_configured(config)
-    config_scope = scan_config_scope_of(config, patterns_manager)
+    patterns_manager, config_scope = _configured_manager_and_scope(config)
 
     if config is not None:
         client_ip = await extract_client_ip(request, config)

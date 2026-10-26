@@ -1,7 +1,7 @@
 import re
 from typing import Any
 
-from guard_core.sync._utils.scan_config_scope import scoped_state
+from guard_core.sync._utils.scan_config_scope import configure_lock, scoped_state
 from guard_core.sync.detection_engine import (
     ContentPreprocessor,
     PerformanceMonitor,
@@ -33,6 +33,10 @@ class _SusPatternsEnhancedMixin:
     _sensitive_body_fields_union: frozenset[str] = frozenset()
 
     def configure(self, config: Any) -> None:
+        with configure_lock:
+            self._configure_locked(config)
+
+    def _configure_locked(self, config: Any) -> None:
         cls = type(self)
         # An app's own manager (it has its own _config) keeps its own names; the
         # default manager accumulates on the class, as it always did.

@@ -1,4 +1,5 @@
 from contextvars import ContextVar
+from threading import RLock
 from typing import TYPE_CHECKING, NamedTuple
 
 if TYPE_CHECKING:
@@ -20,6 +21,12 @@ class ScanConfigScope(NamedTuple):
 _scan_config_scope: ContextVar[ScanConfigScope | None] = ContextVar(
     "guard_core_scan_config_scope", default=None
 )
+
+
+# Held for the synchronous configure-and-capture step only, never across a scan:
+# with threads, another app's configure between this request's configure and the
+# read of the manager's detection state would hand it the other app's state.
+configure_lock = RLock()
 
 
 def scoped_config(
