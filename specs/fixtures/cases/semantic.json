@@ -85,7 +85,7 @@
           },
           {
             "type": "regex",
-            "pattern": "(?i)UNION(?:\\s|/\\*/?[^/]{0,40}\\*/)+(?:ALL(?:\\s|/\\*/?[^/]{0,40}\\*/)+)?SELECT\\s*(?:/\\*/?[^/]{0,40}\\*/\\s*){0,3}(?:null\\b|[\\d@'\\\"`(*\\[+~!-]|[\\w.$`\\\"]+\\s*(?:,|\\(|\\bfrom\\b|\\)|--|#|/\\*|;)|(?:current_user|session_user|system_user|user|current_role|current_schema|current_date|current_time|current_timestamp|localtime|localtimestamp)\\s*\\Z)",
+            "pattern": "(?i)UNION(?:[\\s#-]+(?![\\s#-])|/\\*[^/]{0,40}\\*/|/\\*(?=[^*]{0,40}/)[^*]{0,40}\\*/)+(?<![#-])(?:ALL(?:[\\s#-]+(?![\\s#-])|/\\*[^/]{0,40}\\*/|/\\*(?=[^*]{0,40}/)[^*]{0,40}\\*/)+(?<![#-]))?SELECT\\s*(?:/\\*/?[^/]{0,40}\\*/\\s*){0,3}(?:null\\b|[\\d@'\\\"`(*\\[+~!-]|[\\w.$`\\\"]+\\s*(?:,|\\(|\\bfrom\\b|\\)|--|#|/\\*|;)|(?:current_user|session_user|system_user|user|current_role|current_schema|current_date|current_time|current_timestamp|localtime|localtimestamp)\\s*\\Z)",
             "match": "union select concat(",
             "position": 51,
             "category": "sqli",
