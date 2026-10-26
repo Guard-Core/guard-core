@@ -234,22 +234,29 @@ _FILE_INCLUSION_SCHEME_RE = (
 # comments split in exponentially many ways). A gap between the keywords is
 # whitespace or comments (the processed view drops a control character next to a
 # comment, which leaves the comment alone in the gap), and a trailing comment may be
-# left open. The pattern safety validator must accept the row
-# (tests/test_detection/test_bare_union_select_redos.py): a form with an optional
-# group around the second gap exceeded its repeat-unit budget.
+# left open, as is one that opens the value. The pattern safety validator must accept
+# the row (tests/test_detection/test_bare_union_select_redos.py): a form with an
+# optional group around the second gap, or with a line comment marker in a gap,
+# exceeded its repeat-unit budget.
 # flag_bare_union_select=False drops it for the request's app.
-_BARE_UNION_SELECT_COMMENT_RE = r"/\*(?:[^*]|\*(?!/)){0,40}\*/"
-_BARE_UNION_SELECT_NOISE_RE = (
-    r"(?:[^\w/]|\d|/(?!\*)|" + _BARE_UNION_SELECT_COMMENT_RE + r")*"
-)
-_BARE_UNION_SELECT_GAP_RE = r"(?:\s|" + _BARE_UNION_SELECT_COMMENT_RE + r")+"
+# One bounded comment form for both rows: "/*", an optional slash (a nested "/*/*"),
+# up to 40 characters without a slash, then "*/". The body is a single-character
+# repeat, so the regex engine keeps one stack frame per comment and not one per
+# comment character (an alternation per character held 45 MB for a run of 3000
+# comments, 33 MB per request for a 256 KB text body), and the pattern safety
+# validator accepts the rows (a body that excludes the star and repeats a star group
+# did not fit its budget). A comment ends at its first slash, so a slash inside a
+# comment body ends the comment early.
+_SQL_BOUNDED_COMMENT_RE = r"/\*/?[^/]{0,40}\*/"
+_BARE_UNION_SELECT_NOISE_RE = r"(?:[^\w/]|\d|/(?!\*)|" + _SQL_BOUNDED_COMMENT_RE + r")*"
+_SQL_KEYWORD_GAP_RE = r"(?:\s|" + _SQL_BOUNDED_COMMENT_RE + r")+"
 BARE_UNION_SELECT_ROW = (
-    r"(?i)\A"
+    r"(?i)\A(?:/\*)?"
     + _BARE_UNION_SELECT_NOISE_RE
     + r"UNION"
-    + _BARE_UNION_SELECT_GAP_RE
+    + _SQL_KEYWORD_GAP_RE
     + r"(?:ALL"
-    + _BARE_UNION_SELECT_GAP_RE
+    + _SQL_KEYWORD_GAP_RE
     + r")?SELECT"
     + _BARE_UNION_SELECT_NOISE_RE
     + r"(?:/\*(?:[^*]|\*(?!/))*)?\Z"
@@ -306,7 +313,13 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
     (_WHERE_CLAUSE_RE, _CTX_SQLI, "sqli"),
     (_SQLI_TAUTOLOGY_RE, _CTX_SQLI, "sqli"),
     (
-        r"(?i)UNION\s+(?:ALL\s+)?SELECT\s*(?:/\*.{0,40}?\*/\s*){0,3}"
+        r"(?i)UNION"
+        + _SQL_KEYWORD_GAP_RE
+        + r"(?:ALL"
+        + _SQL_KEYWORD_GAP_RE
+        + r")?SELECT\s*(?:"
+        + _SQL_BOUNDED_COMMENT_RE
+        + r"\s*){0,3}"
         r"(?:null\b|[\d@'\"`(*\[+~!-]"
         r"|[\w.$`\"]+\s*(?:,|\(|\bfrom\b|\)|--|#|/\*|;)"
         r"|(?:current_user|session_user|system_user|user|current_role"
