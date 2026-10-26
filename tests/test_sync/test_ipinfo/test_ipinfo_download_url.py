@@ -1,3 +1,4 @@
+import logging
 import socket
 from collections.abc import Generator
 from pathlib import Path
@@ -69,3 +70,49 @@ def test_the_bearer_header_goes_only_to_the_configured_host(
     assert b"Authorization: Bearer tok" in configured[0]
     assert len(other) == 1
     assert b"authorization" not in other[0].lower()
+
+
+FIRST_URL = "https://ipinfo.io/data/ipinfo_lite.mmdb"
+SECOND_URL = "https://example.invalid/other.mmdb"
+WARNING_LOGGER = "guard_core.sync.handlers.ipinfo"
+
+
+def _warnings(caplog: pytest.LogCaptureFixture) -> list[str]:
+    return [
+        r.getMessage()
+        for r in caplog.records
+        if r.name == WARNING_LOGGER and r.levelno == logging.WARNING
+    ]
+
+
+def test_a_conflicting_second_url_is_logged_once_and_the_first_stays(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    path = tmp_path / "geo.mmdb"
+    first = IPInfoManager(token="tok", db_path=path, download_url=FIRST_URL)
+
+    with caplog.at_level(logging.WARNING, logger=WARNING_LOGGER):
+        second = IPInfoManager(token="sekret", db_path=path, download_url=SECOND_URL)
+        IPInfoManager(token="sekret", db_path=path, download_url=SECOND_URL)
+
+    assert second is first
+    assert first._download_url == FIRST_URL
+    [message] = _warnings(caplog)
+    assert str(path.resolve()) in message
+    assert FIRST_URL in message
+    assert SECOND_URL in message
+    assert "sekret" not in message
+
+
+def test_the_same_url_or_none_does_not_warn(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    path = tmp_path / "geo.mmdb"
+    first = IPInfoManager(token="tok", db_path=path, download_url=FIRST_URL)
+
+    with caplog.at_level(logging.WARNING, logger=WARNING_LOGGER):
+        IPInfoManager(token="tok", db_path=path, download_url=FIRST_URL)
+        IPInfoManager(token="tok", db_path=path)
+
+    assert _warnings(caplog) == []
+    assert first._download_url == FIRST_URL

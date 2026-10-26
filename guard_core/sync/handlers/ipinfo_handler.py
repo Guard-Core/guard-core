@@ -43,6 +43,7 @@ class IPInfoManager(
 ):
     _instance = None
     _by_path: dict[Path, IPInfoManager] = {}
+    _warned_ignored_urls: set[tuple[Path, str]] = set()
     _download_retries: int = 3
     _download_url: str = "https://ipinfo.io/data/free/country_asn.mmdb"
     _download_connect_timeout: float = 30
@@ -79,6 +80,7 @@ class IPInfoManager(
         path = db_path or Path("data/ipinfo/country_asn.mmdb")
         if cls._instance is None:
             cls._by_path = {}
+            cls._warned_ignored_urls = set()
         key = path.resolve()
         manager = cls._by_path.get(key)
         if manager is None:
@@ -88,7 +90,28 @@ class IPInfoManager(
                 cls._instance = manager
         else:
             manager._max_age = min(manager._max_age, max_age)
+            cls._warn_once_if_download_url_ignored(manager, key, download_url)
         return manager
+
+    @classmethod
+    def _warn_once_if_download_url_ignored(
+        cls: type[IPInfoManager],
+        manager: IPInfoManager,
+        key: Path,
+        download_url: str | None,
+    ) -> None:
+        if download_url is None or download_url == manager._download_url:
+            return
+        if (key, download_url) in cls._warned_ignored_urls:
+            return
+        cls._warned_ignored_urls.add((key, download_url))
+        manager.logger.warning(
+            "ipinfo_download_url %s is ignored for %s, which already downloads "
+            "from %s: one database file has one source URL",
+            download_url,
+            key,
+            manager._download_url,
+        )
 
     @classmethod
     def _fresh(
