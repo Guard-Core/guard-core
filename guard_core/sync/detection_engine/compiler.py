@@ -62,17 +62,21 @@ def submit_to_regex_executor(
     work: Callable[[], Any],
     executor: concurrent.futures.ThreadPoolExecutor | None = None,
     ran_for: list[float] | None = None,
+    worker_cpu: list[float] | None = None,
 ) -> tuple[concurrent.futures.Future[Any], list[float]]:
     started: list[float] = []
 
     def run() -> Any:
         start = time.monotonic()
         started.append(start)
+        cpu_start = time.thread_time()
         try:
             return work()
         finally:
             if ran_for is not None:
                 ran_for.append(time.monotonic() - start)
+            if worker_cpu is not None:
+                worker_cpu.append(time.thread_time() - cpu_start)
 
     return (executor or shared_regex_executor()).submit(run), started
 
@@ -291,21 +295,22 @@ class PatternCompiler:
             def work() -> list[re.Match]:
                 return list(compiled.finditer(text))
 
-            ran_for: list[float] = []
+            worker_cpu: list[float] = []
             future, started = submit_to_regex_executor(
                 work if worker_wrapper is None else worker_wrapper(work),
-                ran_for=ran_for,
+                worker_cpu=worker_cpu,
             )
             try:
                 result: list[re.Match] = wait_for_regex_run(
                     future, started, match_timeout
                 )
                 report_scan_success()
-                ran_past_budget = sum(ran_for) >= 0.9 * match_timeout
+                ran_past_budget = sum(worker_cpu) >= 0.9 * match_timeout
                 if not result and ran_past_budget:
                     scan_outcome.append(SCAN_OUTCOME_RUN_TIMEOUT)
                 return result
             except RegexQueueWaitExpired:
+                report_scan_timeout()
                 scan_outcome.append(SCAN_OUTCOME_QUEUE_WAIT)
                 return []
             except concurrent.futures.TimeoutError:

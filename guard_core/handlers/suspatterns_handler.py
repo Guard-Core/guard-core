@@ -903,6 +903,11 @@ class SusPatternsManager(_SusPatternsViewsMixin):
         *,
         content_preview: "str | LazyPreview | None" = None,
     ) -> dict[str, Any]:
+        """Scan ``content`` against every pattern.
+
+        Raises ``BodyReadFailedError`` when a scan gets no regex worker within
+        ``detection_compiler_timeout``: the content was not fully scanned.
+        """
         original_content = content
         execution_start = time.monotonic()
         state = self._resolve_state(None)
@@ -1128,6 +1133,10 @@ class SusPatternsManager(_SusPatternsViewsMixin):
         context: str = "unknown",
         correlation_id: str | None = None,
     ) -> tuple[bool, str | None]:
+        """Whether ``content`` matches a pattern, and which.
+
+        Raises ``BodyReadFailedError`` as ``detect()`` does.
+        """
         from guard_core._utils.detection_scan import _redact_pattern_source
 
         result = await self.detect(content, ip_address, context, correlation_id)

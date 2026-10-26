@@ -548,6 +548,7 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
             report_scan_success()
             _record_scan_time(sum(worker_cpu))
         except RegexQueueWaitExpired as exc:
+            report_scan_timeout()
             raise no_regex_worker_time(timeout) from exc
         except concurrent.futures.TimeoutError:
             _record_scan_time(timeout)
@@ -625,6 +626,7 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
             _record_scan_time(sum(worker_cpu))
             return match, False
         except RegexQueueWaitExpired as exc:
+            report_scan_timeout()
             raise no_regex_worker_time(timeout) from exc
         except concurrent.futures.TimeoutError:
             _record_scan_time(timeout)

@@ -1202,10 +1202,13 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
     detection_compiler_timeout: float = Field(
         default=2.0,
         description=(
-            "Time (seconds) one pattern may run in a regex worker, counted from the "
-            "moment the worker starts it. Waiting for a free worker is bounded by the "
-            "same value and ends the scan as incomplete (400 with an event and no "
-            "strike under fail_secure, a pass with the event otherwise)."
+            "Time (seconds) one pattern may use, judged by the CPU the pattern itself "
+            "used (a custom pattern by its worker's CPU, a built-in pattern by the "
+            "scan's own CPU), so waiting for the GIL or a free worker is not counted. "
+            "The hard wait for a started worker stays wall time. Waiting for a free "
+            "worker is bounded by the same value and ends the scan as incomplete "
+            "(400 with an event and no strike under fail_secure, a pass with the "
+            "event otherwise); a pool held by stuck workers is still replaced."
         ),
         ge=0.1,
         le=10.0,

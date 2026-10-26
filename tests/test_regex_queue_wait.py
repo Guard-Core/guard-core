@@ -9,6 +9,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from guard_core._utils import detection_scan as scan_module
+from guard_core._utils.compiler_finditer import _compiler_finditer
 from guard_core.core.checks.implementations.suspicious_activity import (
     SuspiciousActivityCheck,
 )
@@ -135,18 +137,20 @@ async def test_a_queue_wait_answers_400_with_an_event_and_no_strike(
 
 @pytest.mark.usefixtures("saturated_regex_pool")
 async def test_queue_waits_never_ban_a_client_on_the_default_threshold(
-    custom_rows: SecurityConfig,
+    custom_rows: SecurityConfig, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    monkeypatch.setattr(compiler_module, "_consecutive_timeouts", 0)
     check, middleware = _check()
     attempts = SecurityConfig().auto_ban_threshold + 2
 
     statuses = []
     for _ in range(attempts):
         response = await check.check(_request("hello"))
-        assert response is not None
-        statuses.append(response.status_code)
+        statuses.append(None if response is None else response.status_code)
 
-    assert statuses == [400] * attempts
+    held = compiler_module._SHARED_EXECUTOR_MAX_WORKERS
+    assert statuses[:held] == [400] * held
+    assert set(statuses) <= {400, None}
     assert middleware.ip_ban_manager.ban_ip.await_count == 0
     assert middleware.suspicious_request_counts == {}
 
@@ -249,32 +253,55 @@ def test_the_finditer_matcher_reports_a_queue_wait_and_no_matches() -> None:
     assert outcome == [compiler_module.SCAN_OUTCOME_QUEUE_WAIT]
 
 
-@pytest.mark.usefixtures("fresh_regex_pool")
-def test_the_finditer_matcher_reports_a_run_that_used_its_budget_without_a_match(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def _wait_without_bound(
+    future: concurrent.futures.Future[Any], started: object, timeout: float
+) -> Any:
+    return future.result()
+
+
+def _finditer_outcome_of_a_run_that(
+    monkeypatch: pytest.MonkeyPatch, pause: Callable[[], None]
+) -> list[str]:
     outcome: list[str] = []
     compiler = compiler_module.PatternCompiler(default_timeout=0.2)
 
-    def slow(work: Callable[[], Any]) -> Callable[[], Any]:
+    def paused(work: Callable[[], Any]) -> Callable[[], Any]:
         def run() -> Any:
-            time.sleep(0.25)
+            pause()
             return work()
 
         return run
 
-    def wait_without_bound(
-        future: concurrent.futures.Future[Any], started: object, timeout: float
-    ) -> Any:
-        return future.result()
-
     matcher = compiler.create_safe_finditer_matcher(
-        re.compile("zzz"), worker_wrapper=slow, outcome=outcome
+        re.compile("zzz"), worker_wrapper=paused, outcome=outcome
     )
-    monkeypatch.setattr(compiler_module, "wait_for_regex_run", wait_without_bound)
-
+    monkeypatch.setattr(compiler_module, "wait_for_regex_run", _wait_without_bound)
     assert matcher("so evil") == []
+    return outcome
+
+
+def _burn_cpu(seconds: float) -> None:
+    end = time.thread_time() + seconds
+    while time.thread_time() < end:
+        pass
+
+
+@pytest.mark.usefixtures("fresh_regex_pool")
+def test_the_finditer_matcher_reports_a_run_that_used_its_cpu_budget_without_a_match(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    outcome = _finditer_outcome_of_a_run_that(monkeypatch, lambda: _burn_cpu(0.25))
+
     assert outcome == [compiler_module.SCAN_OUTCOME_RUN_TIMEOUT]
+
+
+@pytest.mark.usefixtures("fresh_regex_pool")
+def test_the_finditer_matcher_does_not_charge_a_worker_that_only_waited(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    outcome = _finditer_outcome_of_a_run_that(monkeypatch, lambda: time.sleep(0.25))
+
+    assert outcome == []
 
 
 def test_a_worker_that_started_after_the_queue_bound_still_gets_its_run_budget() -> (
@@ -319,3 +346,127 @@ async def test_the_async_wait_reports_a_futures_own_timeout_as_a_run_timeout() -
 
     with pytest.raises(concurrent.futures.TimeoutError):
         await compiler_module._await_regex_future(future, [], 0.05)
+
+
+_INLINE_BUDGET = 0.1
+_CATASTROPHIC_INLINE_CONTENT = "a" * 25 + "!"
+
+
+def _mark_scan_cpu() -> None:
+    scan_module._scan_cpu_mark.set(time.thread_time())
+
+
+async def test_an_inline_pattern_that_only_waited_for_the_gil_stays_clean() -> None:
+    compiler = compiler_module.PatternCompiler(default_timeout=_INLINE_BUDGET)
+    holding = threading.Event()
+
+    def hold_the_gil() -> None:
+        holding.set()
+        re.match(r"(a+)+$", _CATASTROPHIC_INLINE_CONTENT)
+
+    holder = threading.Thread(target=hold_the_gil)
+    _mark_scan_cpu()
+    pattern_start = time.monotonic()
+    holder.start()
+    holding.wait(10)
+    try:
+        _, outcome = await _compiler_finditer(
+            compiler, re.compile("zzz"), "sqli", "so evil", pattern_start
+        )
+    finally:
+        holder.join()
+
+    assert time.monotonic() - pattern_start >= 0.9 * _INLINE_BUDGET
+    assert outcome is None
+
+
+async def test_an_inline_pattern_that_used_its_cpu_past_the_budget_is_a_timeout() -> (
+    None
+):
+    compiler = compiler_module.PatternCompiler(default_timeout=_INLINE_BUDGET)
+    _mark_scan_cpu()
+
+    _, outcome = await _compiler_finditer(
+        compiler,
+        re.compile(r"(a+)+$"),
+        "sqli",
+        _CATASTROPHIC_INLINE_CONTENT,
+        time.monotonic(),
+    )
+
+    assert outcome == compiler_module.SCAN_OUTCOME_RUN_TIMEOUT
+
+
+async def test_an_inline_pattern_outside_a_request_scope_is_judged_by_wall_time() -> (
+    None
+):
+    compiler = compiler_module.PatternCompiler(default_timeout=_INLINE_BUDGET)
+
+    _, outcome = await _compiler_finditer(
+        compiler, re.compile("zzz"), "sqli", "so evil", time.monotonic() - 5
+    )
+
+    assert outcome == compiler_module.SCAN_OUTCOME_RUN_TIMEOUT
+
+
+@pytest.mark.usefixtures("fresh_regex_pool")
+async def test_one_queue_expiry_on_a_free_pool_is_the_flag_with_no_fallback(
+    custom_rows: SecurityConfig,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    expired = AsyncMock(side_effect=BodyReadFailedError("no regex worker took it"))
+    monkeypatch.setattr(SusPatternsManager, "detect", expired)
+
+    with caplog.at_level(logging.ERROR):
+        result = await detect_penetration_attempt(_request("1' OR '1'='1"), custom_rows)
+
+    assert result.is_threat is False
+    assert result.body_read_error == "failed"
+    assert "Enhanced detection failed" not in caplog.text
+
+
+async def _scanned_pattern_count(
+    config: SecurityConfig, monkeypatch: pytest.MonkeyPatch
+) -> int:
+    scanned = 0
+    original = SusPatternsManager._check_regex_pattern
+
+    async def counting(self: SusPatternsManager, *args: Any, **kwargs: Any) -> Any:
+        nonlocal scanned
+        scanned += 1
+        return await original(self, *args, **kwargs)
+
+    monkeypatch.setattr(SusPatternsManager, "_check_regex_pattern", counting)
+    result = await detect_penetration_attempt(_request("hello"), config)
+    monkeypatch.setattr(SusPatternsManager, "_check_regex_pattern", original)
+    assert result.body_read_error is None
+    return scanned
+
+
+@pytest.mark.usefixtures("saturated_regex_pool")
+async def test_a_pool_held_by_stuck_workers_is_replaced_and_scans_in_full(
+    custom_rows: SecurityConfig, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(compiler_module, "_consecutive_timeouts", 0)
+    held_pool = compiler_module._shared_executor
+    check, _ = _check()
+    for _ in range(compiler_module._SHARED_EXECUTOR_MAX_WORKERS):
+        response = await check.check(_request("hello"))
+        assert response is not None
+        assert response.status_code == 400
+    replacement = compiler_module._shared_executor
+
+    try:
+        assert replacement is not held_pool
+        after_replacement = await _scanned_pattern_count(custom_rows, monkeypatch)
+        compiler_module._shared_executor = concurrent.futures.ThreadPoolExecutor(
+            max_workers=compiler_module._SHARED_EXECUTOR_MAX_WORKERS
+        )
+        free_pool = await _scanned_pattern_count(custom_rows, monkeypatch)
+        compiler_module._shared_executor.shutdown(wait=True)
+    finally:
+        assert replacement is not None
+        replacement.shutdown(wait=True)
+
+    assert after_replacement == free_pool > 0

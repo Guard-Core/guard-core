@@ -17,7 +17,7 @@ Configuration Fields
 
 **Type**: `float` | **Default**: `2.0` | **Range**: 0.1 - 10.0
 
-Maximum time in seconds for a single regex pattern match, counted from the moment a worker starts running it. Patterns that exceed this timeout are cancelled, preventing ReDoS attacks from consuming server resources. Waiting for a free worker is not part of the budget but is bounded by the same value: a scan that gets no worker in that time is incomplete, so the request answers 400 with a `suspicious_request` event and no strike under `fail_secure=True` and passes with the event under `fail_secure=False`.
+Maximum time in seconds for a single regex pattern match, judged by the CPU the pattern itself used (a custom pattern by its worker's CPU, a built-in pattern by the scan's own CPU), so time spent waiting for the GIL or a free worker is not counted. The hard wait for a worker that already started stays wall time, so a started worker starved past the budget is still cancelled. Patterns that exceed this timeout are cancelled, preventing ReDoS attacks from consuming server resources. Waiting for a free worker is not part of the budget but is bounded by the same value: a scan that gets no worker in that time is incomplete, so the request answers 400 with a `suspicious_request` event and no strike under `fail_secure=True` and passes with the event under `fail_secure=False`. Such an expiry still counts toward replacing a pool held by stuck workers.
 
 | Value    | Tradeoff                                                     |
 |----------|--------------------------------------------------------------|

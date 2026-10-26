@@ -8,6 +8,7 @@ from guard_core.sync._utils._scan_outcomes import (
 )
 from guard_core.sync._utils.detection_scan import (
     _record_scan_time,
+    _scan_cpu_reached,
     _suspended,
     _timed_in_worker,
 )
@@ -41,5 +42,6 @@ def _compiler_finditer(
         return _worker_finditer(compiler, pattern, content)
     finder = compiler.create_async_safe_finditer_matcher(pattern, inline_safe=True)
     found: list[re.Match] = finder(content)
-    late = time.monotonic() - pattern_start >= 0.9 * compiler.default_timeout
+    budget = 0.9 * compiler.default_timeout
+    late = time.monotonic() - pattern_start >= budget and _scan_cpu_reached(budget)
     return found, SCAN_OUTCOME_RUN_TIMEOUT if late and not found else None

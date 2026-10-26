@@ -7,6 +7,7 @@ from contextlib import contextmanager
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, TypeVar
 
+from guard_core.exceptions import BodyReadFailedError
 from guard_core.sync._utils.detection_config import (
     _DEFAULT_BINARY_MIN_RUN_LENGTH,
     _DEFAULT_MAX_JSON_DEPTH,
@@ -234,6 +235,11 @@ def _charge_inline_cpu() -> None:
         now = _thread_cpu_seconds()
         _record_scan_time(now - mark)
         _scan_cpu_mark.set(now)
+
+
+def _scan_cpu_reached(budget: float) -> bool:
+    mark = _scan_cpu_mark.get()
+    return mark is None or _thread_cpu_seconds() - mark >= budget
 
 
 def _restart_inline_cpu() -> None:
@@ -689,7 +695,7 @@ def _check_value_enhanced(
 
         return True, "Threat detected", threats, None
 
-    except RecursionError:
+    except (RecursionError, BodyReadFailedError):
         raise
     except Exception as e:
         logger.error(f"Enhanced detection failed: {e}, falling back to basic check")

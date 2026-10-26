@@ -21,6 +21,7 @@ from guard_core._utils.pattern_source_redaction import (
     _redacting_patterns,
 )
 from guard_core._utils.scan_config_scope import ScanConfigScope, _scan_config_scope
+from guard_core.exceptions import BodyReadFailedError
 
 if TYPE_CHECKING:
     from guard_core.handlers.suspatterns_handler import SusPatternsManager
@@ -234,6 +235,11 @@ def _charge_inline_cpu() -> None:
         now = _thread_cpu_seconds()
         _record_scan_time(now - mark)
         _scan_cpu_mark.set(now)
+
+
+def _scan_cpu_reached(budget: float) -> bool:
+    mark = _scan_cpu_mark.get()
+    return mark is None or _thread_cpu_seconds() - mark >= budget
 
 
 def _restart_inline_cpu() -> None:
@@ -693,7 +699,7 @@ async def _check_value_enhanced(
 
         return True, "Threat detected", threats, None
 
-    except RecursionError:
+    except (RecursionError, BodyReadFailedError):
         raise
     except Exception as e:
         logger.error(f"Enhanced detection failed: {e}, falling back to basic check")

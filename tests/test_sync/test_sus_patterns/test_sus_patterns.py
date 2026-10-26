@@ -2,7 +2,6 @@ import concurrent.futures
 import logging
 import re
 import time
-from collections.abc import Callable
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -325,8 +324,8 @@ def test_regex_timeout_fallback() -> None:
     with patch(
         "guard_core.sync.handlers._suspatterns_regex.shared_regex_executor"
     ) as mock_shared_executor:
-        mock_future = MagicMock()
-        mock_future.result.side_effect = concurrent.futures.TimeoutError()
+        mock_future: concurrent.futures.Future[None] = concurrent.futures.Future()
+        mock_future.set_exception(concurrent.futures.TimeoutError())
         mock_shared_executor.return_value.submit.return_value = mock_future
 
         with patch("guard_core.sync.handlers._suspatterns_regex.logger") as mock_logger:
@@ -478,7 +477,7 @@ def test_pattern_timeout_with_compiler(manager: SusPatternsManager) -> None:
     manager.remove_pattern(custom_pattern, custom=True)
 
 
-def test_custom_category_timeout_heuristic_uses_configured_compiler_timeout(
+def test_custom_category_timeout_uses_configured_compiler_timeout(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     SusPatternsManager._instance = None
@@ -487,14 +486,15 @@ def test_custom_category_timeout_heuristic_uses_configured_compiler_timeout(
     assert manager._compiler is not None
     assert manager._compiler.default_timeout == 0.5
 
-    def _never_matches(
-        pattern: object, timeout: float | None = None
-    ) -> Callable[[str], None]:
-        return lambda text: None
+    waited: list[float] = []
 
-    monkeypatch.setattr(manager._compiler, "create_safe_matcher", _never_matches)
+    def _run_past_the_budget(future: object, started: object, timeout: float) -> None:
+        waited.append(timeout)
+        raise concurrent.futures.TimeoutError()
+
     monkeypatch.setattr(
-        "guard_core.sync.handlers.suspatterns_handler.time.monotonic", lambda: 100.5
+        "guard_core.sync.detection_engine.compiler.wait_for_regex_run",
+        _run_past_the_budget,
     )
 
     pattern = re.compile(r"zzz_custom_zzz")
@@ -503,6 +503,7 @@ def test_custom_category_timeout_heuristic_uses_configured_compiler_timeout(
     )
 
     assert timed_out is True
+    assert waited == [0.5]
 
     SusPatternsManager._instance = None
 
@@ -522,8 +523,14 @@ def test_legacy_pattern_timeout_uses_configured_compiler_timeout(
             captured_timeouts.append(timeout)
             raise concurrent.futures.TimeoutError()
 
-        def cancel(self) -> None:
-            pass
+        def cancel(self) -> bool:
+            return False
+
+        def cancelled(self) -> bool:
+            return False
+
+        def done(self) -> bool:
+            return False
 
     class FakeExecutor:
         def submit(self, fn: object, *args: object) -> "FakeFuture":
@@ -539,7 +546,7 @@ def test_legacy_pattern_timeout_uses_configured_compiler_timeout(
 
     assert match is None
     assert timed_out is True
-    assert captured_timeouts == [7.5]
+    assert captured_timeouts[0] == 7.5
 
     SusPatternsManager._instance = None
 
