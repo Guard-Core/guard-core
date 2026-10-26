@@ -238,8 +238,9 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
         "cors_expose_headers",
         mode="before",
     )
-    def validate_cors_values(cls, v: Any, info: ValidationInfo) -> Any:
-        return _FIELD_REVALIDATORS[str(info.field_name)](v)
+    def validate_cors_values(cls, v: object, info: ValidationInfo) -> list[str]:
+        validated: list[str] = _FIELD_REVALIDATORS[str(info.field_name)](v)
+        return validated
 
     @field_validator("block_cloud_providers", mode="before")
     def validate_cloud_providers(cls, v: Any) -> frozenset[str] | None:

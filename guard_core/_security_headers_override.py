@@ -308,8 +308,11 @@ _ORIGIN_TOKEN_RE = re.compile(
 )
 
 
+_CONTROL_CHARACTER_RE = re.compile(r"[\x00-\x1f\x7f]")
+
+
 def has_control_character(value: str) -> bool:
-    return any(ord(char) < 0x20 or ord(char) == 0x7F for char in value)
+    return _CONTROL_CHARACTER_RE.search(value) is not None
 
 
 def is_clean_cors_value(value: str) -> bool:
