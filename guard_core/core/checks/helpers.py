@@ -478,10 +478,13 @@ async def get_cached_detection_result(
     should_bypass_check_fn: Any,
 ) -> DetectionResult:
     cached = getattr(request.state, _DETECTION_RESULT_STATE_ATTR, None)
-    if cached is not None and cached[0] is request and cached[1] is route_config:
-        hit = cached[2]
-        if isinstance(hit, DetectionResult):
-            return hit
+    if (
+        cached is not None
+        and cached[0] is request
+        and cached[1] is route_config
+        and isinstance(hit := cached[2], DetectionResult)
+    ):
+        return hit
 
     result = await detect_penetration_patterns(
         request, route_config, config, should_bypass_check_fn
