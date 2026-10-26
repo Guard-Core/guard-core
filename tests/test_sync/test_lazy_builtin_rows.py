@@ -4,6 +4,7 @@ from collections.abc import Iterator
 import pytest
 
 from guard_core.models import SyncSecurityConfig
+from guard_core.sync.handlers._suspatterns_inline_matches import _INLINE_FINDERS
 from guard_core.sync.handlers._suspatterns_lazy_rows import COMPILED_BUILTIN_PATTERNS
 from guard_core.sync.handlers.suspatterns_handler import SusPatternsManager
 
@@ -18,12 +19,20 @@ def fresh_manager() -> Iterator[SusPatternsManager]:
     )
     SusPatternsManager._instance = None
     SusPatternsManager._config = None
+    previous_rows, previous_finders = (
+        dict(COMPILED_BUILTIN_PATTERNS),
+        dict(_INLINE_FINDERS),
+    )
     COMPILED_BUILTIN_PATTERNS.clear()
     try:
         yield SusPatternsManager(SyncSecurityConfig())
     finally:
         SusPatternsManager._instance = previous_instance
         SusPatternsManager._config = previous_config
+        COMPILED_BUILTIN_PATTERNS.clear()
+        COMPILED_BUILTIN_PATTERNS.update(previous_rows)
+        _INLINE_FINDERS.clear()
+        _INLINE_FINDERS.update(previous_finders)
 
 
 def test_new_manager_compiles_no_builtin_row(
