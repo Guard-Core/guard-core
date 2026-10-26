@@ -1,6 +1,6 @@
 import logging
 import warnings
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from functools import partial
 from ipaddress import ip_address, ip_network
 from pathlib import Path
@@ -22,6 +22,14 @@ from guard_core._security_config_blocked_user_agents import (
     _validate_blocked_user_agents_value,
 )
 from guard_core._security_config_geo_validators import _validate_country_set_value
+from guard_core._security_config_name_set_validators import (
+    _frozenset_of_names,
+    _validate_enabled_detection_categories_value,
+    _validate_muted_check_logs_value,
+    _validate_muted_event_types_value,
+    _validate_muted_metric_types_value,
+    _validate_sensitive_name_set_value,
+)
 from guard_core._security_config_typed_validators import (
     _INT_KEYED_STR_DICT_ADAPTER,
     _OPTIONAL_STR_ANY_DICT_ADAPTER,
@@ -204,8 +212,16 @@ def _validate_ip_or_cidr_list(
 ) -> Any:
     if v is None:
         return None
+    try:
+        entries = iter(v)
+    except TypeError:
+        raise ValueError(
+            f"{invalid_message}: expected a list of strings, got {type(v).__name__}"
+        ) from None
     validated: list[str] = []
-    for entry in v:
+    for entry in entries:
+        if not isinstance(entry, str):
+            raise ValueError(f"{invalid_message}: {entry}")
         if allow_unix and entry == "unix":
             validated.append("unix")
             continue
@@ -297,29 +313,34 @@ def _warn_empty_enabled_detection_categories() -> None:
     )
 
 
+def _threat_ban_entry(key: Any, value: Any) -> ThreatBanConfig:
+    if isinstance(value, ThreatBanConfig):
+        return value
+    if not isinstance(value, Mapping) or not all(isinstance(k, str) for k in value):
+        raise ValueError(
+            f"threat_ban_config[{key!r}] must be a ThreatBanConfig or a dict "
+            f"with str keys, got {type(value).__name__}"
+        )
+    return ThreatBanConfig(**value)
+
+
 def _validate_threat_ban_config_value(v: Any) -> MappingProxyType[str, Any]:
-    mapping = {
-        key: value if isinstance(value, ThreatBanConfig) else ThreatBanConfig(**value)
-        for key, value in dict(v).items()
-    }
+    try:
+        items = dict(v).items()
+    except TypeError:
+        raise ValueError(
+            "threat_ban_config must be a dict of category to ThreatBanConfig, "
+            f"got {type(v).__name__}"
+        ) from None
+    mapping = {key: _threat_ban_entry(key, value) for key, value in items}
     unknown = set(mapping.keys()) - THREAT_BAN_CONFIG_CATEGORIES
     if unknown:
         raise ValueError(
-            f"Unknown threat categories in threat_ban_config: {sorted(unknown)}. "
+            f"Unknown threat categories in threat_ban_config: "
+            f"{sorted(unknown, key=str)}. "
             f"Valid: {sorted(THREAT_BAN_CONFIG_CATEGORIES)}"
         )
     return MappingProxyType(mapping)
-
-
-def _validate_enabled_detection_categories_value(v: Any) -> frozenset[str]:
-    result = frozenset(v)
-    unknown = result - ALL_DETECTION_CATEGORIES
-    if unknown:
-        raise ValueError(
-            f"Unknown detection categories: {sorted(unknown)}. "
-            f"Valid: {sorted(ALL_DETECTION_CATEGORIES)}"
-        )
-    return result
 
 
 def _validate_excluded_detection_params_value(
@@ -354,66 +375,17 @@ def _check_excluded_params_categories(
             )
 
 
-def _validate_muted_event_types_value(v: Any) -> frozenset[str]:
-    from guard_core.core.events.event_types import EVENT_TYPE_VALUES
-
-    result = frozenset(v)
-    invalid = result - EVENT_TYPE_VALUES
-    if invalid:
-        raise ValueError(
-            f"Unknown event types in muted_event_types: {sorted(invalid)}. "
-            f"Valid: {sorted(EVENT_TYPE_VALUES)}"
-        )
-    return result
-
-
-def _validate_muted_metric_types_value(v: Any) -> frozenset[str]:
-    from guard_core.core.events.event_types import METRIC_TYPE_VALUES
-
-    result = frozenset(v)
-    invalid = result - METRIC_TYPE_VALUES
-    if invalid:
-        raise ValueError(
-            f"Unknown metric types in muted_metric_types: {sorted(invalid)}. "
-            f"Valid: {sorted(METRIC_TYPE_VALUES)}"
-        )
-    return result
-
-
-def _validate_muted_check_logs_value(v: Any) -> frozenset[str]:
-    from guard_core.core.events.event_types import CHECK_NAME_VALUES
-
-    result = frozenset(v)
-    invalid = result - CHECK_NAME_VALUES
-    if invalid:
-        raise ValueError(
-            f"Unknown check names in muted_check_logs: {sorted(invalid)}. "
-            f"Valid: {sorted(CHECK_NAME_VALUES)}"
-        )
-    return result
-
-
-def _validate_sensitive_name_set_value(v: Any, field_name: str) -> frozenset[str]:
-    if isinstance(v, str | bytes):
-        raise ValueError(
-            f"{field_name} must be a collection of names, not a bare string"
-        )
-    result = frozenset(v)
-    if not all(isinstance(item, str) for item in result):
-        raise ValueError(f"{field_name} items must be strings")
-    return result
-
-
 def _validate_block_cloud_providers_value(v: Any) -> frozenset[str] | None:
     if v is None:
         return None
-    selectors = frozenset(v)
+    selectors = _frozenset_of_names(v, "block_cloud_providers")
     canonical = {sel: canonicalize_cloud_provider_selector(sel) for sel in selectors}
     invalid = {sel for sel, name in canonical.items() if name is None}
     result = frozenset(name for name in canonical.values() if name is not None)
     if invalid:
         raise ValueError(
-            f"Unknown cloud providers in block_cloud_providers: {sorted(invalid)}. "
+            "Unknown cloud providers in block_cloud_providers: "
+            f"{sorted(invalid, key=str)}. "
             f"Valid: {sorted(VALID_CLOUD_PROVIDERS)} (a bare name blocks the whole "
             "provider; suffix ':!region' to carve out a region exception)"
         )

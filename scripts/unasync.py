@@ -22,6 +22,7 @@ SKIP_SRC = {
     "_security_config_batch.py",
     "_security_config_typed_validators.py",
     "_security_config_geo_validators.py",
+    "_security_config_name_set_validators.py",
     "_geo_handler_for_tree.py",
     "_geo_source.py",
     "_security_config_cloud_store_validators.py",
