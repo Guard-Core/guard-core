@@ -513,3 +513,34 @@ async def test_a_nested_hold_restores_the_outer_scope_and_never_sets_none() -> N
     assert _current_app_scope.get() is app_scope_of(first.config)
     release_app_scope(outer)
     assert _current_app_scope.get() is None
+
+
+class _ReadsScope(SecurityCheck):
+    check_name = "reads_scope"
+
+    def __init__(self, middleware: Any, seen: list[Any]) -> None:
+        super().__init__(middleware)
+        self.seen = seen
+
+    async def check(self, request: Any) -> None:
+        self.seen.append(_current_app_scope.get())
+        return None
+
+
+async def test_a_pipeline_whose_app_has_no_scope_leaves_the_held_scope_in_force() -> (
+    None
+):
+    held = await _start("wp136-nest:", ONE, [])
+    unbound = SecurityConfig(enable_agent=False)
+    seen: list[Any] = []
+    pipeline = SecurityCheckPipeline(
+        [_ReadsScope(Mock(config=unbound), seen)], config=unbound
+    )
+    token = hold_app_scope(held.config)
+    try:
+        assert await pipeline.execute(MockGuardRequest(path="/")) is None
+        assert _current_app_scope.get() is app_scope_of(held.config)
+    finally:
+        release_app_scope(token)
+    assert seen == [app_scope_of(held.config)]
+    assert _current_app_scope.get() is None

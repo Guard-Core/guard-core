@@ -232,9 +232,13 @@ class SecurityCheckPipeline:
         self._app_scope = None if config is None else existing_app_scope_of(config)
         return self._app_scope
 
+    def _scope_in_force(self) -> AppScope | None:
+        """This app's scope, else the one already held (an outer app's scope is
+        never replaced by None)."""
+        return self._app_scope or self._resolve_app_scope() or _current_app_scope.get()
+
     def execute(self, request: SyncGuardRequest) -> GuardResponse | None:
-        scope = self._app_scope or self._resolve_app_scope()
-        token = None if scope is None else _current_app_scope.set(scope)
+        token = _current_app_scope.set(self._scope_in_force())
         try:
             response = self._rebuild_response(request)
             if response is not None:
@@ -266,8 +270,7 @@ class SecurityCheckPipeline:
 
             return self._finish(request)
         finally:
-            if token is not None:
-                _current_app_scope.reset(token)
+            _current_app_scope.reset(token)
 
     def _finish(self, request: SyncGuardRequest) -> GuardResponse | None:
         try:
