@@ -8,6 +8,7 @@ from guard_core.sync._utils.detection_scan import (
     _scan_time_remaining,
     _thread_cpu_seconds,
 )
+from guard_core.sync.detection_engine.on_handler_indicator import OnHandlerIndicator
 
 if TYPE_CHECKING:
     from guard_core.sync.detection_engine.preprocessor import ContentPreprocessor
@@ -29,7 +30,7 @@ def reusing_attack_regions() -> Iterator[None]:
 
 
 def _find_regions(
-    pattern: re.Pattern[str], text: str, max_regions: int
+    pattern: re.Pattern[str] | OnHandlerIndicator, text: str, max_regions: int
 ) -> list[tuple[int, int]]:
     found: list[tuple[int, int]] = []
     for match in pattern.finditer(text):

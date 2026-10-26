@@ -381,7 +381,7 @@ def _record_store_ban(
     monkeypatch.setattr(manager, "_store_ban", store_ban)
 
 
-async def _two_apps(prefix: str, **second_settings: Any) -> tuple[_App, _App, Any]:
+async def _two_apps(prefix: str) -> tuple[_App, _App, Any]:
     first = await _start(prefix, ONE, [PROXY])
     second = await _start(prefix, ONE, [])
     return first, second, ip_ban_manager_for(first.config)

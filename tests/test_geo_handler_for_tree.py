@@ -225,6 +225,9 @@ def test_a_configured_download_url_reaches_the_manager_of_either_tree(
 
     manager = build_geo_ip_handler_from_token(config, tree_awaits=tree_awaits)
 
+    assert isinstance(
+        manager, SyncIPInfoManager if not tree_awaits else AsyncIPInfoManager
+    )
     assert manager._download_url == LITE_URL
 
 

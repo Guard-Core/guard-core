@@ -384,7 +384,7 @@ def _record_store_ban(
     monkeypatch.setattr(manager, "_store_ban", store_ban)
 
 
-def _two_apps(prefix: str, **second_settings: Any) -> tuple[_App, _App, Any]:
+def _two_apps(prefix: str) -> tuple[_App, _App, Any]:
     first = _start(prefix, ONE, [PROXY])
     second = _start(prefix, ONE, [])
     return first, second, ip_ban_manager_for(first.config)
