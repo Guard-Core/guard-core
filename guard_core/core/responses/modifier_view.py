@@ -1,7 +1,7 @@
 import logging
 import time
-from collections.abc import Callable, Iterator, MutableMapping
-from typing import Any, TypeVar, cast
+from collections.abc import Callable, Iterable, Iterator, MutableMapping
+from typing import Any, Protocol, TypeGuard, TypeVar
 
 from guard_core._utils.agent_events import send_agent_event
 from guard_core.core.events.event_types import EVENT_RESPONSE_BODY_UNAVAILABLE
@@ -35,6 +35,24 @@ def modifier_reads_response_body(modifier: Callable[..., Any]) -> bool:
     return getattr(modifier, READS_BODY_MARKER, False) is True
 
 
+class _AppendableHeaders(Protocol):
+    def items(self) -> Iterable[tuple[str, str]]: ...
+
+    def append(self, key: str, value: str) -> None: ...
+
+
+def _is_appendable(headers: MutableMapping[str, str]) -> TypeGuard[_AppendableHeaders]:
+    return callable(getattr(headers, "append", None))
+
+
+def _require_appendable(headers: MutableMapping[str, str]) -> _AppendableHeaders:
+    if not _is_appendable(headers):
+        raise AttributeError(
+            f"{type(headers).__name__!r} object has no attribute 'append'"
+        )
+    return headers
+
+
 class RecordingHeaders(MutableMapping[str, str]):
     """The real headers, written through, with an undo log only a replay uses.
 
@@ -66,9 +84,9 @@ class RecordingHeaders(MutableMapping[str, str]):
         del real[key]
 
     def append(self, key: str, value: str) -> None:
-        real = self._real
-        self._undo += [("", list(cast(Any, real).items()))]
-        cast(Any, real).append(key, value)
+        real = _require_appendable(self._real)
+        self._undo += [("", list(real.items()))]
+        real.append(key, value)
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._real, name)
@@ -98,10 +116,11 @@ class RecordingHeaders(MutableMapping[str, str]):
 def _restore_items(
     real: MutableMapping[str, str], items: list[tuple[str, str]]
 ) -> None:
-    for key in {name for name, _ in list(cast(Any, real).items())}:
+    appendable = _require_appendable(real)
+    for key in {name for name, _ in list(appendable.items())}:
         del real[key]
     for name, value in items:
-        cast(Any, real).append(name, value)
+        appendable.append(name, value)
 
 
 _ABSENT: Any = object()

@@ -2,7 +2,6 @@ import logging
 import threading
 import time
 from collections.abc import Callable
-from typing import cast
 
 from guard_core.exceptions import GuardRedisError
 from guard_core.models import SyncSecurityConfig
@@ -202,7 +201,9 @@ class SecurityCheckPipeline:
             extra={"path": request.url_path, "method": request.method},
             exc_info=True,
         )
-        config = cast(SyncSecurityConfig, self._config)
+        config = self._config
+        if config is None:
+            raise error
         if not config.fail_secure:
             return None
         if not self.checks:

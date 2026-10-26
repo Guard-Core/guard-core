@@ -1,5 +1,5 @@
 import threading
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, TypeGuard
 
 from guard_core._security_config_cloud_store_validators import (
     _CLOUD_IP_STORE_MEMBERS,
@@ -9,6 +9,19 @@ from guard_core.sync.protocols.cloud_ip_store_protocol import SyncCloudIpStorePr
 
 if TYPE_CHECKING:
     from guard_core.models import SyncSecurityConfig
+    from guard_core.sync.protocols.cloud_ip_store_protocol import (
+        SyncCloudIpStoreFactory,
+    )
+
+
+def _is_cloud_ip_store_factory(store: object) -> TypeGuard["SyncCloudIpStoreFactory"]:
+    return isinstance(store, type) or (
+        callable(store) and not has_callables(store, _CLOUD_IP_STORE_MEMBERS)
+    )
+
+
+def _is_cloud_ip_store(store: object) -> TypeGuard[SyncCloudIpStoreProtocol]:
+    return store is not None and not _is_cloud_ip_store_factory(store)
 
 
 class CloudInitializationMixin:
@@ -29,13 +42,11 @@ class CloudInitializationMixin:
 
     def _resolve_cloud_ip_store(self) -> SyncCloudIpStoreProtocol:
         store = self.config.cloud_ip_store
-        needs_invocation = isinstance(store, type) or (
-            callable(store) and not has_callables(store, _CLOUD_IP_STORE_MEMBERS)
-        )
-        if needs_invocation:
-            factory = cast(Any, store)
-            return cast(SyncCloudIpStoreProtocol, factory(self.redis_handler))
-        return cast(SyncCloudIpStoreProtocol, store)
+        if _is_cloud_ip_store_factory(store):
+            return store(self.redis_handler)
+        if _is_cloud_ip_store(store):
+            return store
+        raise TypeError("cloud_ip_store is neither a store nor a store factory")
 
     def _load_cloud_and_geo_without_redis(self) -> None:
         from guard_core.sync.handlers.cloud_handler import cloud_handler_for

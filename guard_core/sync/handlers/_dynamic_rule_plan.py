@@ -4,7 +4,7 @@ import logging
 from collections.abc import Iterable
 from copy import deepcopy
 from dataclasses import dataclass, field
-from typing import Any, cast
+from typing import Any
 
 from guard_core._security_config_batch import apply_config_batch, prepare_config_batch
 from guard_core._security_config_field_validators import (
@@ -304,7 +304,9 @@ class DynamicRulePlanMixin:
         plan.set("emergency_whitelist", rules.emergency_whitelist)
         plan.set("emergency_whitelist_only", rules.emergency_whitelist_only)
         plan.emergency_whitelist = rules.emergency_whitelist
-        threshold = cast(int, plan.state["auto_ban_threshold"])
+        threshold = plan.state["auto_ban_threshold"]
+        if not isinstance(threshold, int):
+            raise TypeError("auto_ban_threshold must be an int")
         plan.set("auto_ban_threshold", max(1, threshold // 2))
         plan.note(
             "[EMERGENCY MODE] Reduced auto-ban threshold "

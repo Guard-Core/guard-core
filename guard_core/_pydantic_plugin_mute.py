@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Literal, cast
+from typing import Any, Literal
 
 _applied = False
 
@@ -36,11 +36,9 @@ def _mute_pydantic_plugin_instrumentation() -> None:
 
     try:
         for model in (SecurityEvent, SecurityMetric, EventBatch):
-            plugin_settings = cast(
-                "dict[str, Any]",
-                model.model_config.setdefault("plugin_settings", {}),
-            )
+            plugin_settings = model.model_config.get("plugin_settings") or {}
             plugin_settings["logfire"] = {"record": "off"}
+            model.model_config["plugin_settings"] = plugin_settings
             model.model_rebuild(force=True)
     except Exception:
         logging.getLogger("guard_core").warning(
@@ -67,4 +65,7 @@ def get_telemetry_model(name: TelemetryModelName) -> type[Any]:
     _mute_pydantic_plugin_instrumentation()
     import guard_agent
 
-    return cast("type[Any]", getattr(guard_agent, name))
+    model = getattr(guard_agent, name)
+    if not isinstance(model, type):
+        raise TypeError(f"guard_agent.{name} is not a class")
+    return model

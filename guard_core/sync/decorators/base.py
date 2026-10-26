@@ -4,7 +4,6 @@ from typing import (
     Any,
     Protocol,
     TypeVar,
-    cast,
     runtime_checkable,
 )
 
@@ -48,6 +47,9 @@ __all__ = [
     "_TrackedList",
     "_TrackedSet",
 ]
+
+
+_ROUTE_ID_ATTR = "_guard_route_id"
 
 
 @runtime_checkable
@@ -154,12 +156,12 @@ class BaseSecurityDecorator:
             self._route_configs[route_id] = config
             self._route_config_revision.bump()
         self._route_id_owner.setdefault(route_id, id(func))
-        cast(Any, func)._guard_route_id = route_id
+        setattr(func, _ROUTE_ID_ATTR, route_id)
         return self._route_configs[route_id]
 
     def _apply_route_config(self, func: GuardedCallable) -> GuardedCallable:
         route_id = self._get_route_id(func)
-        cast(Any, func)._guard_route_id = route_id
+        setattr(func, _ROUTE_ID_ATTR, route_id)
         return func
 
     def initialize_behavior_tracking(self, redis_handler: Any = None) -> None:

@@ -1,6 +1,6 @@
 import warnings
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, TypeGuard
 
 from pydantic import BaseModel
 from pydantic_core import PydanticCustomError
@@ -25,15 +25,21 @@ def _geo_ip_handler_has_member(value: Any, name: str) -> bool:
     return not callable(getattr(GeoIPHandler, name)) or getattr(value, name) is not None
 
 
-def _validate_geo_ip_handler_value(value: Any) -> GeoIPHandler | SyncGeoIPHandler:
+def _has_every_geo_ip_handler_member(
+    value: Any,
+) -> TypeGuard[GeoIPHandler | SyncGeoIPHandler]:
     # The isinstance check of a runtime_checkable Protocol looks members up with
     # hasattr on 3.10 and 3.11 and with getattr_static from 3.12, which rejects a
     # Mock. One hasattr check keeps every interpreter on the 3.10 verdict.
-    if not all(_geo_ip_handler_has_member(value, n) for n in _GEO_IP_HANDLER_MEMBERS):
+    return all(_geo_ip_handler_has_member(value, n) for n in _GEO_IP_HANDLER_MEMBERS)
+
+
+def _validate_geo_ip_handler_value(value: Any) -> GeoIPHandler | SyncGeoIPHandler:
+    if not _has_every_geo_ip_handler_member(value):
         raise PydanticCustomError(
             "is_instance_of", "Input should be an instance of GeoIPHandler"
         )
-    return cast(GeoIPHandler | SyncGeoIPHandler, value)
+    return value
 
 
 def _warn_country_allowlist_shadows_blocklist(*, stacklevel: int) -> None:

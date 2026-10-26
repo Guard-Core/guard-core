@@ -3,7 +3,7 @@ import time as time  # the strike-window tests patch the clock through this modu
 import weakref
 from collections.abc import Callable, Collection, Mapping
 from ipaddress import ip_address
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
 from guard_core._tracking_caps import (
@@ -481,7 +481,8 @@ def get_cached_detection_result(
 ) -> DetectionResult:
     cached = getattr(request.state, _DETECTION_RESULT_STATE_ATTR, None)
     if cached is not None and cached[0] is request and cached[1] is route_config:
-        return cast(DetectionResult, cached[2])
+        hit: DetectionResult = cached[2]
+        return hit
 
     result = detect_penetration_patterns(
         request, route_config, config, should_bypass_check_fn
