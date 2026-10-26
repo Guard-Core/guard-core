@@ -47,14 +47,14 @@ class _LinearPathRow:
         return re.compile("".join(parts), self._flags)
 
     def _walk(
-        self, text: str, chain: int, start: int, memo: array
+        self, text: str, chain: int, start: int, memo: array | None
     ) -> tuple[array, int]:
         guard = self._guards[chain]
         guard_match = None if guard is None else guard.match
         path = array("i")
         position = start
         while position != -1:
-            if memo[position] != _UNSET:
+            if memo is not None and memo[position] != _UNSET:
                 return path, memo[position]
             path.append(position)
             blocked = guard_match is not None and guard_match(text, position)
@@ -62,8 +62,12 @@ class _LinearPathRow:
             position = -1 if step is None else step.end()
         return path, _NO_END
 
-    def _best_end(self, text: str, chain: int, start: int, memos: list[array]) -> int:
+    def _best_end(
+        self, text: str, chain: int, start: int, memos: list[array | None]
+    ) -> int:
         memo = memos[chain]
+        if memo is None and chain:
+            memo = memos[chain] = array("i", [_UNSET]) * (len(text) + 2)
         path, best = self._walk(text, chain, start, memo)
         tail_test = self._tests[chain].match
         final_chain = chain + 1 == len(self._guards)
@@ -73,13 +77,14 @@ class _LinearPathRow:
                     self._best_end(text, chain + 1, tail.end(), memos) != _NO_END
                 ):
                     best = position
-            memo[position] = best
+            if memo is not None:
+                memo[position] = best
         return best
 
     def _solve(self, text: str, start: int) -> list[int] | None:
         if not all(any(map(text.__contains__, cases)) for cases in self._mandatory):
             return None
-        memos = [array("i", [_UNSET]) * (len(text) + 2) for _ in self._guards]
+        memos: list[array | None] = [None] * len(self._guards)
         counts: list[int] = []
         position = start
         for chain in range(len(self._guards)):
