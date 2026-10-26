@@ -39,13 +39,6 @@ _current_app_scope: ContextVar[AppScope | None] = ContextVar(
 )
 
 
-def _scope_of_scan_in_flight(manager: Any) -> AppScope | None:
-    scan = _scan_config_scope.get()
-    if scan is None or scan.manager is not manager:
-        return None
-    return existing_app_scope_of(scan.config)
-
-
 class ScopedToApp:
     """A manager attribute served by the app scope in force, else by what was set.
 
@@ -63,7 +56,9 @@ class ScopedToApp:
             return self
         scope = _current_app_scope.get()
         if scope is None:
-            scope = _scope_of_scan_in_flight(instance)
+            scan = _scan_config_scope.get()
+            if scan is not None and scan.manager is instance:
+                scope = existing_app_scope_of(scan.config)
         if scope is not None:
             return getattr(scope, self._name)
         stored = instance.__dict__
