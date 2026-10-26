@@ -1353,6 +1353,12 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
     "handlers/ipinfo_handler.py:IPInfoManager._refresh_database": (
         "line 313: MMDB refresh failure, infra only"
     ),
+    "handlers/ipinfo_handler.py:IPInfoManager._warn_once_if_download_url_ignored": (
+        "line 109: one WARNING per database path and URL, raised from "
+        "IPInfoManager.__new__ (ipinfo_handler.py:94) when an existing manager is "
+        "reused with a different download URL; it names the configured URLs and "
+        "the database path, never request data"
+    ),
     "handlers/ratelimit_handler.py:RateLimitManager.initialize_redis": (
         "lines 323,325: Lua rate-limit script load lifecycle log, infra only"
     ),
