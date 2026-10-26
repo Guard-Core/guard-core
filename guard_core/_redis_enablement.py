@@ -1,4 +1,16 @@
-from typing import Any
+from typing import Protocol
+
+
+class RedisFieldsConfig(Protocol):
+    @property
+    def model_fields_set(self) -> set[str]: ...
+
+    @property
+    def redis_url(self) -> str | None: ...
+
+    @property
+    def enable_redis(self) -> bool: ...
+
 
 REDIS_CONNECTION_FIELDS = (
     "redis_url",
@@ -13,14 +25,14 @@ REDIS_CONNECTION_FIELDS = (
 )
 
 
-def redis_connection_field_set_explicitly(config: Any) -> str | None:
+def redis_connection_field_set_explicitly(config: RedisFieldsConfig) -> str | None:
     return next(
         (name for name in REDIS_CONNECTION_FIELDS if name in config.model_fields_set),
         None,
     )
 
 
-def resolve_enable_redis(config: Any) -> None:
+def resolve_enable_redis(config: RedisFieldsConfig) -> None:
     if "enable_redis" in config.model_fields_set:
         return
     # Written to __dict__ so enable_redis never joins model_fields_set: the
@@ -30,10 +42,10 @@ def resolve_enable_redis(config: Any) -> None:
     )
 
 
-def configured_redis_url(config: Any) -> str | None:
+def configured_redis_url(config: RedisFieldsConfig) -> str | None:
     url: str | None = config.redis_url
     return url if config.enable_redis and url else None
 
 
-def redis_is_configured(config: Any) -> bool:
+def redis_is_configured(config: RedisFieldsConfig) -> bool:
     return configured_redis_url(config) is not None

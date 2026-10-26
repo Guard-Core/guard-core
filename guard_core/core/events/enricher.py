@@ -4,7 +4,7 @@ import hashlib
 import logging
 import time
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from guard_core.core.events.event_types import (
     ENRICHMENT_KEY_BEHAVIOR_KEY,
@@ -64,6 +64,7 @@ from guard_core.handlers.behavior_handler import RECENT_RULE_HITS_WINDOW_SECONDS
 
 if TYPE_CHECKING:
     from guard_core.models import SecurityConfig
+    from guard_core.protocols.agent_protocol import AgentHandlerProtocol
 
 logger = logging.getLogger("guard_core.enricher")
 
@@ -128,16 +129,16 @@ class ThreatScorer:
 @dataclass
 class EnrichmentContext:
     config: SecurityConfig
-    agent_handler: Any | None = None
-    dynamic_rule_handler: Any | None = None
-    behavior_tracker: Any | None = None
+    agent_handler: AgentHandlerProtocol | None = None
+    dynamic_rule_handler: object | None = None
+    behavior_tracker: object | None = None
 
 
 class EventEnricher:
     def __init__(self, context: EnrichmentContext) -> None:
         self._context = context
 
-    async def enrich_event(self, event: Any) -> None:
+    async def enrich_event(self, event: object) -> None:
         try:
             metadata = getattr(event, "metadata", None)
             if metadata is None:
@@ -149,7 +150,7 @@ class EventEnricher:
         except Exception:
             logger.exception("event enrichment failed; event will be sent unenriched")
 
-    async def enrich_metric(self, metric: Any) -> None:
+    async def enrich_metric(self, metric: object) -> None:
         try:
             tags = getattr(metric, "tags", None)
             if tags is None:
@@ -158,7 +159,7 @@ class EventEnricher:
         except Exception:
             logger.exception("metric enrichment failed; metric will be sent unenriched")
 
-    def _apply_identity(self, bag: dict[str, Any]) -> None:
+    def _apply_identity(self, bag: dict[str, object]) -> None:
         cfg = self._context.config
         if cfg.agent_project_id:
             bag[ENRICHMENT_KEY_PROJECT_ID] = cfg.agent_project_id
@@ -167,13 +168,15 @@ class EventEnricher:
         if env:
             bag[ENRICHMENT_KEY_DEPLOYMENT_ENV] = env
 
-    def _apply_threat_score(self, event: Any, bag: dict[str, Any]) -> None:
+    def _apply_threat_score(self, event: object, bag: dict[str, object]) -> None:
         event_type = getattr(event, "event_type", None)
         if not event_type:
             return
         bag[ENRICHMENT_KEY_THREAT_SCORE] = ThreatScorer.score_for(event_type)
 
-    async def _apply_rule_correlation(self, event: Any, bag: dict[str, Any]) -> None:
+    async def _apply_rule_correlation(
+        self, event: object, bag: dict[str, object]
+    ) -> None:
         rule_handler = self._context.dynamic_rule_handler
         if rule_handler is None or not hasattr(rule_handler, "match_event"):
             return
@@ -185,7 +188,7 @@ class EventEnricher:
         bag[ENRICHMENT_KEY_RULE_VERSION] = rule_version
 
     async def _apply_behavior_correlation(
-        self, event: Any, bag: dict[str, Any]
+        self, event: object, bag: dict[str, object]
     ) -> None:
         tracker = self._context.behavior_tracker
         ip = getattr(event, "ip_address", None)

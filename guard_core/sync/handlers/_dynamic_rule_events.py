@@ -1,14 +1,14 @@
 import logging
 from datetime import datetime, timezone
-from typing import Any
 
 from guard_core.models import DynamicRules
+from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol
 
 _DYNAMIC_RULES_HANDLER_NAME = "dynamic_rules"
 
 
 class DynamicRuleEventSenderMixin:
-    agent_handler: Any
+    agent_handler: SyncAgentHandlerProtocol | None
     current_rules: DynamicRules | None
     logger: logging.Logger
 

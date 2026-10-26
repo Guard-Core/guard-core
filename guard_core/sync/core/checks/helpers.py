@@ -369,7 +369,7 @@ def check_route_ip_access(
 
 
 def check_user_agent_allowed(
-    user_agent: str, route_config: RouteConfig | None, config: Any
+    user_agent: str, route_config: RouteConfig | None, config: "SyncSecurityConfig"
 ) -> bool:
     from guard_core.sync.utils import is_user_agent_allowed as global_user_agent_check
 

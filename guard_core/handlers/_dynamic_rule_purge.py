@@ -4,7 +4,7 @@ import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any
+from typing import Protocol
 
 from guard_core._dynamic_rules import content_fingerprint
 from guard_core.handlers._dynamic_rule_persistence import (
@@ -14,14 +14,20 @@ from guard_core.handlers._dynamic_rule_persistence import (
     resolve_redis_value,
 )
 from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.protocols.agent_protocol import AgentHandlerProtocol
+from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 
 _NESTED_AUTO_BANS_NOTE = (
     "auto-bans nested inside the purged rule bans are cut back to their own expiry"
 )
 
 
-def purge_fingerprint(rules: Any) -> str:
+def purge_fingerprint(rules: object) -> str:
     return hashlib.sha256(content_fingerprint(rules).encode()).hexdigest()
+
+
+class _RulesCheckStatus(Protocol):
+    rules_last_checked: datetime | None
 
 
 @dataclass(frozen=True)
@@ -34,8 +40,8 @@ class PurgeMarker:
 
 class DynamicRulePurgeMixin:
     config: SecurityConfig
-    redis_handler: Any = None
-    agent_handler: Any = None
+    redis_handler: RedisHandlerProtocol | None = None
+    agent_handler: AgentHandlerProtocol | None = None
     logger: logging.Logger
     current_rules: DynamicRules | None
     _current_fingerprint: str | None
@@ -254,7 +260,7 @@ class DynamicRulePurgeMixin:
             return checked is not None and checked > marker.purged_at
         return rules is not self._reverted_rules
 
-    async def _agent_status_with_rules_check_time(self) -> Any | None:
+    async def _agent_status_with_rules_check_time(self) -> _RulesCheckStatus | None:
         """The agent's status when it reports the time of its last successful
         rules check (guard-agent 5.0 and later), else None."""
         get_status = getattr(self.agent_handler, "get_status", None)
@@ -267,17 +273,17 @@ class DynamicRulePurgeMixin:
             return None
         return status if hasattr(status, "rules_last_checked") else None
 
-    async def _has_applicable_answer(
+    async def _rules_that_apply(
         self, rules: DynamicRules | None, marker: PurgeMarker | None
-    ) -> bool:
-        """An answer exists and, after a purge, is not the purged set: that set
-        applies again only once a fresh SaaS check, newer than the purge,
+    ) -> DynamicRules | None:
+        """The answer when one exists and, after a purge, is not the purged set:
+        that set applies again only once a fresh SaaS check, newer than the purge,
         returns it. Any fresh answer ends the marker."""
         if not rules:
-            return False
+            return None
         if marker is None:
-            return True
+            return rules
         if await self._answer_is_fresh(rules, marker):
             await self._clear_purge_marker()
-            return True
-        return purge_fingerprint(rules) != marker.fingerprint
+            return rules
+        return rules if purge_fingerprint(rules) != marker.fingerprint else None

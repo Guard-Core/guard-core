@@ -1,6 +1,3 @@
-from typing import Any
-
-
 class BehaviorJsonPatternMixin:
     def _parse_pattern(self, pattern: str) -> tuple[str, str] | None:
         if "==" not in pattern:
@@ -11,7 +8,7 @@ class BehaviorJsonPatternMixin:
         expected = expected.strip().strip("\"'")
         return path, expected
 
-    def _handle_array_match(self, current: Any, part: str, expected: str) -> bool:
+    def _handle_array_match(self, current: object, part: str, expected: str) -> bool:
         part = part[:-2]
 
         if not isinstance(current, dict) or part not in current:
@@ -23,7 +20,7 @@ class BehaviorJsonPatternMixin:
 
         return any(str(item).lower() == expected.lower() for item in current)
 
-    def _traverse_json_path(self, data: Any, path: str) -> Any | None:
+    def _traverse_json_path(self, data: object, path: str) -> object | None:
         current = data
         for part in path.split("."):
             if not isinstance(current, dict) or part not in current:
@@ -31,7 +28,7 @@ class BehaviorJsonPatternMixin:
             current = current[part]
         return current
 
-    def _match_json_pattern(self, data: Any, pattern: str) -> bool:
+    def _match_json_pattern(self, data: object, pattern: str) -> bool:
         try:
             parsed = self._parse_pattern(pattern)
             if not parsed:

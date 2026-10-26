@@ -1,6 +1,5 @@
 import logging
 from datetime import datetime, timezone
-from typing import Any
 
 from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils.request_logging import redact_endpoint_for_display
@@ -10,13 +9,14 @@ from guard_core.sync.core.events.event_types import (
     METRIC_RESPONSE_TIME,
     EventFilter,
 )
+from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
 
 class MetricsCollector:
     def __init__(
         self,
-        agent_handler: Any,
+        agent_handler: SyncAgentHandlerProtocol | None,
         config: SyncSecurityConfig,
         event_filter: EventFilter | None = None,
     ):

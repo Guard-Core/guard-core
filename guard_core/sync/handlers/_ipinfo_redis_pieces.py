@@ -1,6 +1,9 @@
 import codecs
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from redis import Redis
 
 PIECE_BYTES = 1048576
 WATCH_RETRIES = 3
@@ -11,7 +14,7 @@ class DatabaseKeyChanged(Exception):
 
 
 def store_file_in_pieces(
-    conn: Any, path: Path, final_key: str, temp_key: str, ttl: int, temp_ttl: int
+    conn: "Redis", path: Path, final_key: str, temp_key: str, ttl: int, temp_ttl: int
 ) -> None:
     try:
         with open(path, "rb") as source:
@@ -28,7 +31,7 @@ def store_file_in_pieces(
         raise
 
 
-def read_pieces_into_file(conn: Any, key: str, target: Path) -> bool:
+def read_pieces_into_file(conn: "Redis", key: str, target: Path) -> bool:
     for _ in range(WATCH_RETRIES):
         try:
             return _read_watched(conn, key, target)
@@ -37,7 +40,7 @@ def read_pieces_into_file(conn: Any, key: str, target: Path) -> bool:
     raise DatabaseKeyChanged(key)
 
 
-def _read_watched(conn: Any, key: str, target: Path) -> bool:
+def _read_watched(conn: "Redis", key: str, target: Path) -> bool:
     from redis.client import NEVER_DECODE
     from redis.exceptions import WatchError
 

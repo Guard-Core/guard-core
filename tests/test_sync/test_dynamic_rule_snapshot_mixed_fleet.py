@@ -3,7 +3,6 @@ import logging
 from collections.abc import Iterator
 from datetime import datetime, timezone
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -18,6 +17,7 @@ from guard_core.sync.handlers._dynamic_rule_persistence import (
     LAST_KNOWN_RULES_KEY,
 )
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
+from guard_core.sync.handlers.redis_handler import RedisHandlerBase
 
 MANAGER_LOGGER = "guard_core.sync.handlers.dynamic_rule"
 
@@ -39,21 +39,23 @@ def _rules(**kwargs: object) -> DynamicRules:
     return DynamicRules.model_validate(base)
 
 
-class _DictRedis:
+class _DictRedis(RedisHandlerBase):
     def __init__(self) -> None:
+        super().__init__(SyncSecurityConfig())
         self.store: dict[tuple[str, str], str] = {}
-        self.get_key = MagicMock(side_effect=self._get)
-        self.set_key = MagicMock(side_effect=self._set)
-        self.delete = MagicMock(side_effect=self._delete)
+        self.set_keys: list[str] = []
 
-    def _get(self, namespace: str, key: str) -> str | None:
+    def get_key(self, namespace: str, key: str) -> str | None:
         return self.store.get((namespace, key))
 
-    def _set(self, namespace: str, key: str, value: str) -> bool:
-        self.store[(namespace, key)] = value
+    def set_key(
+        self, namespace: str, key: str, value: object, ttl: int | None = None
+    ) -> bool:
+        self.set_keys.append(key)
+        self.store[(namespace, key)] = str(value)
         return True
 
-    def _delete(self, namespace: str, key: str) -> int:
+    def delete(self, namespace: str, key: str) -> int:
         return int(self.store.pop((namespace, key), None) is not None)
 
 
@@ -108,7 +110,7 @@ def test_persist_writes_the_legacy_key_and_the_full_key() -> None:
     assert set(legacy["rules"]) == V440_RULE_FIELDS
     assert full["owned"]["bans"] == ["203.0.113.7"]
     assert full["rules"]["emergency_whitelist_only"] is False
-    assert [call.args[1] for call in redis.set_key.call_args_list] == [
+    assert redis.set_keys == [
         LAST_KNOWN_RULES_KEY,
         LAST_KNOWN_RULES_FULL_KEY,
     ]

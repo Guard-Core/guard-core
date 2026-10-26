@@ -8,6 +8,7 @@ import pytest
 
 from guard_core.models import DynamicRules, SyncSecurityConfig
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
+from tests.fake_agent import mock_agent
 
 
 @pytest.fixture(autouse=True)
@@ -52,7 +53,7 @@ def _manager(
 
 
 def _poll(manager: DynamicRuleManager, answer: Any) -> None:
-    manager.agent_handler.get_dynamic_rules.return_value = answer
+    mock_agent(manager.agent_handler).get_dynamic_rules.return_value = answer
     manager.update_rules()
 
 
@@ -126,9 +127,9 @@ def test_same_version_with_different_content_is_applied() -> None:
 def test_an_identical_poll_is_not_reapplied() -> None:
     manager, config, _ = _manager()
     _poll(manager, _rules(version=3))
-    sent = manager.agent_handler.send_event.call_count
+    sent = mock_agent(manager.agent_handler).send_event.call_count
     _poll(manager, _rules(version=3, ttl=999))
-    assert manager.agent_handler.send_event.call_count == sent
+    assert mock_agent(manager.agent_handler).send_event.call_count == sent
 
 
 def test_revocation_clears_the_persisted_last_known_rules(

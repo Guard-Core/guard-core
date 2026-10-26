@@ -1,5 +1,5 @@
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from typing_extensions import get_protocol_members
 
@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from guard_core.models import SyncSecurityConfig
 
 
-def missing_redis_handler_members(handler: Any) -> list[str]:
+def missing_redis_handler_members(handler: object) -> list[str]:
     return sorted(
         name
         for name in get_protocol_members(SyncRedisHandlerProtocol)
@@ -19,7 +19,7 @@ def missing_redis_handler_members(handler: Any) -> list[str]:
 
 
 def report_incomplete_redis_handler(
-    config: "SyncSecurityConfig", handler: Any, logger: logging.Logger
+    config: "SyncSecurityConfig", handler: object, logger: logging.Logger
 ) -> None:
     missing = missing_redis_handler_members(handler)
     if missing:

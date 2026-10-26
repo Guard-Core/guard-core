@@ -504,7 +504,7 @@ def test_global_return_throttle_uses_the_correlated_threshold(
     )
     processor, _, _ = _processor(config, BehaviorTracker(config))
     middleware = processor.context.middleware
-    assert middleware is not None
+    assert isinstance(middleware, _Middleware)
     middleware.suspicious_request_counts[_IP] = {"xss": 1}
     assert _serve_404s(processor, clock, None, 5) == [404, 404, 404, 429, 429]
 

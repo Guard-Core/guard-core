@@ -1,5 +1,5 @@
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from guard_core._geo_handler_for_tree import (
     build_geo_ip_handler_from_token,
@@ -20,13 +20,16 @@ from guard_core.sync.core.initialization._route_limit_report import (
 
 if TYPE_CHECKING:
     from guard_core.models import SyncSecurityConfig
+    from guard_core.sync.decorators.base import BaseSecurityDecorator
+    from guard_core.sync.protocols.geo_ip_protocol import SyncGeoIPHandler
+    from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
 
 
 class RouteMisconfigurationReportsMixin:
     config: "SyncSecurityConfig"
-    redis_handler: Any = None
-    geo_ip_handler: Any = None
-    guard_decorator: Any = None
+    redis_handler: "SyncRedisHandlerProtocol | None" = None
+    geo_ip_handler: "SyncGeoIPHandler | SyncGeoIPHandler | None" = None
+    guard_decorator: "BaseSecurityDecorator | None" = None
     logger: logging.Logger
     _adapter: str | None = None
     _geo_handler_is_ours: bool = False

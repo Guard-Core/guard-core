@@ -1,7 +1,7 @@
 import re
 import weakref
 from collections.abc import Iterable
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from guard_core._misconfiguration import config_logger
 from guard_core._security_config_fields import DEFAULT_EXCLUDE_PATHS
@@ -57,24 +57,24 @@ def entry_matches_route_prefixes(entry: str, prefixes: Iterable[str]) -> bool:
     return False
 
 
-_reported_by_middleware: "weakref.WeakKeyDictionary[Any, set[str]]" = (
+_reported_by_middleware: "weakref.WeakKeyDictionary[object, set[str]]" = (
     weakref.WeakKeyDictionary()
 )
 # shortcut: a middleware that cannot be weakly referenced (for example one with
 # __slots__ and no __weakref__) is held strongly here, keyed by id() so an id is
 # never reused, one small set per such middleware and never released; upgrade if
 # middlewares are created per request.
-_reported_by_id: dict[int, tuple[Any, set[str]]] = {}
+_reported_by_id: dict[int, tuple[object, set[str]]] = {}
 
 
-def _reported(middleware: Any) -> set[str]:
+def _reported(middleware: object) -> set[str]:
     try:
         return _reported_by_middleware.setdefault(middleware, set())
     except TypeError:
         return _reported_by_id.setdefault(id(middleware), (middleware, set()))[1]
 
 
-def _warn_once(middleware: Any, message: str) -> None:
+def _warn_once(middleware: object, message: str) -> None:
     reported = _reported(middleware)
     if message in reported:
         return
@@ -82,7 +82,7 @@ def _warn_once(middleware: Any, message: str) -> None:
     config_logger.warning(message)
 
 
-def warn_unmatched_endpoint_keys(middleware: Any, keys: Iterable[str]) -> None:
+def warn_unmatched_endpoint_keys(middleware: object, keys: Iterable[str]) -> None:
     for key in sorted(keys):
         _warn_once(
             middleware,
@@ -92,7 +92,7 @@ def warn_unmatched_endpoint_keys(middleware: Any, keys: Iterable[str]) -> None:
         )
 
 
-def warn_unmatched_exclude_paths(middleware: Any, config: "SecurityConfig") -> None:
+def warn_unmatched_exclude_paths(middleware: object, config: "SecurityConfig") -> None:
     try:
         _warn_unmatched_exclude_paths(middleware, config)
     except Exception as error:
@@ -102,7 +102,7 @@ def warn_unmatched_exclude_paths(middleware: Any, config: "SecurityConfig") -> N
         )
 
 
-def _warn_unmatched_exclude_paths(middleware: Any, config: "SecurityConfig") -> None:
+def _warn_unmatched_exclude_paths(middleware: object, config: "SecurityConfig") -> None:
     reported = _reported(middleware)
     if _EXCLUDE_PATHS_EXAMINED in reported:
         return

@@ -1,6 +1,6 @@
 import logging
 from collections.abc import Callable, Mapping
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
 
@@ -198,14 +198,14 @@ def _revalidate_field_value(
 
 
 def _revalidate_exclude_paths_field(
-    copied: "SecurityConfig[RequestT]", update: Mapping[str, Any]
+    copied: "SecurityConfig[RequestT]", update: Mapping[str, object]
 ) -> None:
     if "exclude_paths" in update:
         _validate_exclude_paths_value(copied.exclude_paths)
 
 
 def _revalidate_country_shadow_fields(
-    copied: "SecurityConfig[RequestT]", update: Mapping[str, Any]
+    copied: "SecurityConfig[RequestT]", update: Mapping[str, object]
 ) -> None:
     if (
         _COUNTRY_RULE_FIELDS & update.keys()
@@ -216,14 +216,14 @@ def _revalidate_country_shadow_fields(
 
 
 def _revalidate_global_behavior_rule_fields(
-    copied: "SecurityConfig[RequestT]", update: Mapping[str, Any]
+    copied: "SecurityConfig[RequestT]", update: Mapping[str, object]
 ) -> None:
     if _GLOBAL_BEHAVIOR_RULE_FIELDS & update.keys():
         _revalidate_global_behavior_rules(copied)
 
 
 def _revalidate_geo_state_fields(
-    copied: "SecurityConfig[RequestT]", update: Mapping[str, Any]
+    copied: "SecurityConfig[RequestT]", update: Mapping[str, object]
 ) -> None:
     if _GEO_STATE_FIELDS & update.keys():
         _apply_geo_ip_handler_copy(copied)
@@ -233,7 +233,7 @@ _FIELDS_WITH_DEDICATED_COPY_REVALIDATION = frozenset({"exclude_paths"})
 
 
 def _revalidate_changed_fields(
-    copied: "SecurityConfig[RequestT]", update: Mapping[str, Any]
+    copied: "SecurityConfig[RequestT]", update: Mapping[str, object]
 ) -> None:
     fields = _FIELD_REVALIDATORS.keys() & update.keys()
     fields -= _FIELDS_WITH_DEDICATED_COPY_REVALIDATION
@@ -246,7 +246,7 @@ def _revalidate_changed_fields(
 
 
 def _revalidate_copied_config(
-    copied: "SecurityConfig[RequestT]", update: Mapping[str, Any]
+    copied: "SecurityConfig[RequestT]", update: Mapping[str, object]
 ) -> None:
     resolve_enable_redis(copied)
     _revalidate_exclude_paths_field(copied, update)

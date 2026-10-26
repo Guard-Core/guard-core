@@ -6,7 +6,7 @@ import uuid
 import weakref
 from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from guard_core.sync.handlers._ipinfo_redis_pieces import (
     DatabaseKeyChanged,
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 class IpInfoRedisCopyMixin:
     db_path: Path
     redis_handler: SyncRedisHandlerProtocol | None
-    _bound_redis_refs: tuple[Callable[[], Any], ...] = ()
+    _bound_redis_refs: tuple[Callable[[], SyncRedisHandlerProtocol | None], ...] = ()
     logger: logging.Logger
     _DOWNLOAD_LOCK_SECONDS: int
     _download_total_timeout: float
@@ -65,10 +65,12 @@ class IpInfoRedisCopyMixin:
             if ref() is not None and ref() is not redis_handler
         )
         try:
-            newest: Callable[[], Any] = weakref.ref(redis_handler)
+            newest: Callable[[], SyncRedisHandlerProtocol | None] = weakref.ref(
+                redis_handler
+            )
         except TypeError:
 
-            def newest() -> Any:
+            def newest() -> SyncRedisHandlerProtocol | None:
                 return redis_handler
 
         self._bound_redis_refs = (*kept, newest)
@@ -207,7 +209,7 @@ class IpInfoRedisCopyMixin:
             self.logger.warning("Cached GeoIP database could not be dropped: %s", e)
 
     def _claim_download_lock(self) -> bool:
-        claimed: list[Any] = []
+        claimed: list[SyncRedisHandlerProtocol] = []
         for redis in self._copy_handlers():
             try:
                 won = redis.set_key_if_absent(
@@ -224,7 +226,7 @@ class IpInfoRedisCopyMixin:
             claimed.append(redis)
         return True
 
-    def _release_download_lock(self, handlers: list[Any]) -> None:
+    def _release_download_lock(self, handlers: list[SyncRedisHandlerProtocol]) -> None:
         for redis in handlers:
             try:
                 redis.delete("ipinfo", "download_lock")

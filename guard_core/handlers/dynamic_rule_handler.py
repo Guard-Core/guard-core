@@ -1,7 +1,6 @@
 import asyncio
 import logging
 from datetime import datetime, timezone
-from typing import Any
 
 from guard_core._utils.app_managers import AppManagers
 from guard_core._utils.app_scope import app_scope_of, in_app_scope
@@ -16,6 +15,7 @@ from guard_core.handlers._dynamic_rule_attribution import (
 )
 from guard_core.handlers._dynamic_rule_intake import DynamicRuleIntakeMixin
 from guard_core.handlers._dynamic_rule_plan import (
+    DynamicRulePlan,
     DynamicRulePlanMixin,
 )
 from guard_core.handlers._dynamic_rule_snapshot import DynamicRuleSnapshotMixin
@@ -24,6 +24,8 @@ from guard_core.models import (
     DynamicRules,
     SecurityConfig,
 )
+from guard_core.protocols.agent_protocol import AgentHandlerProtocol
+from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 
 
 def _coerce_naive_utc(value: datetime) -> datetime:
@@ -45,8 +47,8 @@ class DynamicRuleManager(
 ):
     _instance = None
     config: SecurityConfig
-    agent_handler: Any = None
-    redis_handler: Any = None
+    agent_handler: AgentHandlerProtocol | None = None
+    redis_handler: RedisHandlerProtocol | None = None
     logger: logging.Logger
     last_update: float = 0
     current_rules: DynamicRules | None = None
@@ -103,7 +105,7 @@ class DynamicRuleManager(
         instance._reverted_rules = None
         return instance
 
-    async def initialize_agent(self, agent_handler: Any) -> None:
+    async def initialize_agent(self, agent_handler: AgentHandlerProtocol) -> None:
         self.agent_handler = agent_handler
 
         if self.config.enable_dynamic_rules:
@@ -115,7 +117,7 @@ class DynamicRuleManager(
                 self.update_task = asyncio.create_task(self._rule_update_loop())
                 self.logger.info("Started dynamic rule update loop")
 
-    async def initialize_redis(self, redis_handler: Any) -> None:
+    async def initialize_redis(self, redis_handler: RedisHandlerProtocol) -> None:
         self.redis_handler = redis_handler
 
     def _refresh_attribution(self, rules: DynamicRules | None = None) -> None:
@@ -155,7 +157,7 @@ class DynamicRuleManager(
         self._attribution_cache = (inputs, view)
         set_attribution_view(view)
 
-    def match_event(self, event: Any) -> tuple[str, int] | None:
+    def match_event(self, event: object) -> tuple[str, int] | None:
         rules = self.current_rules
         if rules is None:
             return None
@@ -167,17 +169,17 @@ class DynamicRuleManager(
             return rules.rule_id, rules.version
         return None
 
-    def _event_matches_ip(self, event: Any, rules: DynamicRules) -> bool:
+    def _event_matches_ip(self, event: object, rules: DynamicRules) -> bool:
         ip = getattr(event, "ip_address", None)
         if not ip:
             return False
         return ip in (rules.ip_blacklist or []) or ip in (rules.ip_whitelist or [])
 
-    def _event_matches_country(self, event: Any, rules: DynamicRules) -> bool:
+    def _event_matches_country(self, event: object, rules: DynamicRules) -> bool:
         country = getattr(event, "country", None)
         return bool(country and country in (rules.blocked_countries or []))
 
-    def _event_matches_type(self, event: Any, rules: DynamicRules) -> bool:
+    def _event_matches_type(self, event: object, rules: DynamicRules) -> bool:
         event_type = getattr(event, "event_type", None)
         if event_type == "rate_limited":
             return rules.global_rate_limit is not None or bool(
@@ -260,7 +262,7 @@ class DynamicRuleManager(
     )
 
     def _log_unreachable_ban_thresholds_after_swap(
-        self, base: dict[str, object], plan: Any
+        self, base: dict[str, object], plan: DynamicRulePlan
     ) -> None:
         if all(
             base.get(name) == plan.state.get(name)

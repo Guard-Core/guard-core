@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from guard_core.models import SyncSecurityConfig
 
 logger = logging.getLogger("guard_core")
 
@@ -48,7 +51,7 @@ _EVENT_SPAN_ATTRS: tuple[tuple[str, str], ...] = (
 
 
 class OtelHandler:
-    def __init__(self, config: Any) -> None:
+    def __init__(self, config: SyncSecurityConfig) -> None:
         self._config = config
         self._tracer: Any = None
         self._meter: Any = None

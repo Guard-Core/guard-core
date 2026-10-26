@@ -1,18 +1,18 @@
 import logging
 import time
 from collections.abc import Awaitable, Callable
-from typing import Any
 
 from guard_core._dynamic_rules import content_fingerprint
 from guard_core.handlers._dynamic_rule_events import DynamicRuleEventSenderMixin
 from guard_core.handlers._dynamic_rule_purge import DynamicRulePurgeMixin
 from guard_core.handlers._dynamic_rule_validation import find_malformed_values
 from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.protocols.agent_protocol import AgentHandlerProtocol
 
 
 class DynamicRuleIntakeMixin(DynamicRuleEventSenderMixin, DynamicRulePurgeMixin):
     config: SecurityConfig
-    agent_handler: Any
+    agent_handler: AgentHandlerProtocol | None
     logger: logging.Logger
     last_update: float
     current_rules: DynamicRules | None
@@ -90,8 +90,9 @@ class DynamicRuleIntakeMixin(DynamicRuleEventSenderMixin, DynamicRulePurgeMixin)
 
             marker = await self._read_marker_and_revert_if_purged()
 
-            rules = await self.agent_handler.get_dynamic_rules()
-            if not await self._has_applicable_answer(rules, marker):
+            answer: DynamicRules | None = await self.agent_handler.get_dynamic_rules()
+            rules = await self._rules_that_apply(answer, marker)
+            if rules is None:
                 return
 
             if self._ignore_platform_default(rules):

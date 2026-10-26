@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -69,7 +70,7 @@ async def test_enrich_event_catches_exceptions_from_late_strategy(
 @pytest.mark.asyncio
 async def test_enrichment_context_stores_all_handles() -> None:
     cfg = SecurityConfig()
-    agent = object()
+    agent = MagicMock()
     rules = object()
     tracker = object()
     ctx = EnrichmentContext(

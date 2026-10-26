@@ -1,12 +1,28 @@
 import logging
-from typing import Any
+from typing import Protocol
 
 from guard_core._redis_enablement import (
+    RedisFieldsConfig,
     redis_connection_field_set_explicitly,
     redis_is_configured,
 )
 
 logger = logging.getLogger("guard_core.models")
+
+
+class StagedDefaultsConfig(RedisFieldsConfig, Protocol):
+    @property
+    def enable_rate_limiting(self) -> bool: ...
+
+    @property
+    def whitelist(self) -> tuple[str, ...] | None: ...
+
+    @property
+    def exclude_paths(self) -> list[str]: ...
+
+    @property
+    def redis_prefix(self) -> str: ...
+
 
 DEFAULT_REDIS_PREFIX = "guard_core:"
 
@@ -70,14 +86,14 @@ def _redis_kept_on_entry(field: str) -> str:
     )
 
 
-def _redis_entry(config: Any) -> str | None:
+def _redis_entry(config: StagedDefaultsConfig) -> str | None:
     if "enable_redis" in config.model_fields_set:
         return None
     field = redis_connection_field_set_explicitly(config)
     return _REDIS_OFF_ENTRY if field is None else _redis_kept_on_entry(field)
 
 
-def _changed_default_entries(config: Any) -> list[tuple[str, str]]:
+def _changed_default_entries(config: StagedDefaultsConfig) -> list[tuple[str, str]]:
     stated = config.model_fields_set
     redis_entry = _redis_entry(config)
     candidates = (
@@ -101,7 +117,7 @@ def _changed_default_entries(config: Any) -> list[tuple[str, str]]:
     ]
 
 
-def signal_changed_defaults(config: Any) -> None:
+def signal_changed_defaults(config: StagedDefaultsConfig) -> None:
     fresh = [
         (flip_id, entry)
         for flip_id, entry in _changed_default_entries(config)
@@ -130,6 +146,6 @@ def _warn_default_redis_prefix() -> None:
     )
 
 
-def warn_redis_prefix_left_default(config: Any) -> None:
+def warn_redis_prefix_left_default(config: StagedDefaultsConfig) -> None:
     if redis_is_configured(config) and config.redis_prefix == DEFAULT_REDIS_PREFIX:
         _warn_default_redis_prefix()

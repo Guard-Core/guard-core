@@ -11,6 +11,7 @@ from guard_core._dynamic_rules import dump_last_known_rules_snapshot
 from guard_core.models import DynamicRules, SyncSecurityConfig
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.sync.handlers.ipban_handler import ip_ban_manager
+from tests.fake_agent import mock_agent
 
 
 @pytest.fixture(autouse=True)
@@ -75,7 +76,10 @@ def test_a_stored_snapshot_the_validation_rejects_is_not_applied(
     assert manager.config.emergency_mode is False
     assert manager._active_base_snapshot is None
     assert not ip_ban_manager.is_ip_banned("198.51.100.99")
-    sent = [call.args[0] for call in manager.agent_handler.send_event.call_args_list]
+    sent = [
+        call.args[0]
+        for call in mock_agent(manager.agent_handler).send_event.call_args_list
+    ]
     assert [(e.event_type, e.action_taken) for e in sent] == [
         ("dynamic_rule_updated", "rules_rejected")
     ]
@@ -89,7 +93,7 @@ def test_the_rejected_snapshot_is_not_reported_again_by_the_first_poll(
     manager = _hydrating_manager(tmp_path, bad)
     manager._hydrate_last_known_rules()
 
-    manager.agent_handler.get_dynamic_rules = MagicMock(return_value=bad)
+    mock_agent(manager.agent_handler).get_dynamic_rules = MagicMock(return_value=bad)
     manager.update_rules()
 
-    assert manager.agent_handler.send_event.call_count == 1
+    assert mock_agent(manager.agent_handler).send_event.call_count == 1

@@ -8,6 +8,7 @@ import pytest
 from guard_core.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.handlers.ipban_handler import ip_ban_manager
 from guard_core.models import DynamicRules, SecurityConfig
+from tests.fake_agent import mock_agent
 
 
 @pytest.fixture(autouse=True)
@@ -49,7 +50,7 @@ def _manager(**config_kwargs: Any) -> tuple[DynamicRuleManager, SecurityConfig, 
 
 
 async def _poll(manager: DynamicRuleManager, rules: DynamicRules) -> None:
-    manager.agent_handler.get_dynamic_rules.return_value = rules
+    mock_agent(manager.agent_handler).get_dynamic_rules.return_value = rules
     await manager.update_rules()
 
 

@@ -1,11 +1,39 @@
 from types import SimpleNamespace
 from typing import Any
 
+from guard_core.models import DynamicRules
 from guard_core.sync.core.events.composite_handler import CompositeAgentHandler
 from guard_core.sync.core.events.event_types import EventFilter
+from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
 
 
-class _RecorderHandler:
+class NullAgent:
+    def initialize_redis(self, redis_handler: SyncRedisHandlerProtocol) -> None:
+        return None
+
+    def send_event(self, event: object) -> None:
+        return None
+
+    def send_metric(self, metric: object) -> None:
+        return None
+
+    def start(self) -> None:
+        return None
+
+    def stop(self) -> None:
+        return None
+
+    def flush_buffer(self) -> None:
+        return None
+
+    def get_dynamic_rules(self) -> DynamicRules | None:
+        return None
+
+    def health_check(self) -> bool:
+        return True
+
+
+class _RecorderHandler(NullAgent):
     def __init__(self) -> None:
         self.events: list[Any] = []
         self.metrics: list[Any] = []

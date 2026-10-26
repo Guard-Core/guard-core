@@ -20,6 +20,7 @@ from guard_core.handlers.suspatterns_handler import sus_patterns_handler
 from guard_core.models import DynamicRules, SecurityConfig
 from guard_core.utils import detect_penetration_attempt
 from tests.conftest import MockGuardRequest
+from tests.fake_agent import mock_agent
 from tests.test_core.conftest import (
     build_middleware,
     build_route_pipeline,
@@ -498,7 +499,7 @@ async def test_the_view_follows_the_set_that_is_applied() -> None:
     first = await _run(config, _request(), geo)
     assert _attr(await _one(first, "country_blocked")) == DYNAMIC
 
-    manager.agent_handler.get_dynamic_rules.return_value = _rules(
+    mock_agent(manager.agent_handler).get_dynamic_rules.return_value = _rules(
         rule_id="rule-two", version=2, blocked_countries=["CN"]
     )
     await manager.update_rules()
@@ -807,7 +808,7 @@ async def test_the_view_is_built_when_the_set_changes_not_on_the_first_block() -
     assert cached[0][0] is manager.current_rules
     assert attribution_view._applied is cached[1]
 
-    manager.agent_handler.get_dynamic_rules.return_value = _rules(
+    mock_agent(manager.agent_handler).get_dynamic_rules.return_value = _rules(
         rule_id="rule-two", version=2, ip_blacklist=[OTHER_IP]
     )
     await manager.update_rules()

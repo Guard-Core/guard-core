@@ -5,9 +5,37 @@ import pytest
 
 from guard_core.core.events.composite_handler import CompositeAgentHandler
 from guard_core.core.events.event_types import EventFilter
+from guard_core.models import DynamicRules
+from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 
 
-class _RecorderHandler:
+class NullAgent:
+    async def initialize_redis(self, redis_handler: RedisHandlerProtocol) -> None:
+        return None
+
+    async def send_event(self, event: object) -> None:
+        return None
+
+    async def send_metric(self, metric: object) -> None:
+        return None
+
+    async def start(self) -> None:
+        return None
+
+    async def stop(self) -> None:
+        return None
+
+    async def flush_buffer(self) -> None:
+        return None
+
+    async def get_dynamic_rules(self) -> DynamicRules | None:
+        return None
+
+    async def health_check(self) -> bool:
+        return True
+
+
+class _RecorderHandler(NullAgent):
     def __init__(self) -> None:
         self.events: list[Any] = []
         self.metrics: list[Any] = []

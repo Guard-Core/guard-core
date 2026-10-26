@@ -18,6 +18,7 @@ from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.sync.handlers.ipban_handler import ip_ban_manager
 from guard_core.sync.handlers.redis_handler import RedisManager
 from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
+from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
 from tests.test_sync.conftest import REDIS_URL
 
 PATTERN = r"wp17purgepattern\d{2,4}"
@@ -28,11 +29,36 @@ MARKER = ("dynamic_rules", "purged")
 LAST_KNOWN = ("dynamic_rules", "last_known")
 
 
-class _AgentWithStatus:
+class NullAgent:
+    def initialize_redis(self, redis_handler: SyncRedisHandlerProtocol) -> None:
+        return None
+
+    def send_event(self, event: object) -> None:
+        return None
+
+    def send_metric(self, metric: object) -> None:
+        return None
+
+    def start(self) -> None:
+        return None
+
+    def stop(self) -> None:
+        return None
+
+    def flush_buffer(self) -> None:
+        return None
+
+    def get_dynamic_rules(self) -> DynamicRules | None:
+        return None
+
+    def health_check(self) -> bool:
+        return True
+
+
+class _AgentWithStatus(NullAgent):
     def __init__(self, answer: DynamicRules | None, checked: datetime | None) -> None:
         self.answer = answer
         self.checked = checked
-        self.send_event = MagicMock()
 
     def get_dynamic_rules(self) -> DynamicRules | None:
         return self.answer
@@ -41,10 +67,9 @@ class _AgentWithStatus:
         return SimpleNamespace(rules_last_checked=self.checked)
 
 
-class _AgentWithoutStatus:
+class _AgentWithoutStatus(NullAgent):
     def __init__(self, answer: DynamicRules | None) -> None:
         self.answer = answer
-        self.send_event = MagicMock()
 
     def get_dynamic_rules(self) -> DynamicRules | None:
         return self.answer

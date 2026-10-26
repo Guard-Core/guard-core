@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import Any
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from guard_core.models import DynamicRules, SecurityConfig
+    from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 
 logger = logging.getLogger("guard_core")
 
@@ -19,7 +23,7 @@ _configure_lock = threading.Lock()
 
 
 class LogfireHandler:
-    def __init__(self, config: Any) -> None:
+    def __init__(self, config: SecurityConfig) -> None:
         self._config = config
         self._started = False
         self._configured_by_guard = False
@@ -53,12 +57,12 @@ class LogfireHandler:
                 self._configured_by_guard = False
             self._started = False
 
-    async def send_event(self, event: Any) -> None:
+    async def send_event(self, event: object) -> None:
         if not _logfire_available:
             return
         event_type = getattr(event, "event_type", "unknown")
         metadata = getattr(event, "metadata", None)
-        enrichment: dict[str, Any] = {}
+        enrichment: dict[str, object] = {}
         if isinstance(metadata, dict):
             for key, value in metadata.items():
                 if (
@@ -80,7 +84,7 @@ class LogfireHandler:
         ):
             pass
 
-    async def send_metric(self, metric: Any) -> None:
+    async def send_metric(self, metric: object) -> None:
         if not _logfire_available:
             return
         metric_type = getattr(metric, "metric_type", "unknown")
@@ -95,13 +99,13 @@ class LogfireHandler:
             **safe_tags,
         )
 
-    async def initialize_redis(self, redis_handler: Any) -> None:
+    async def initialize_redis(self, redis_handler: RedisHandlerProtocol) -> None:
         pass
 
     async def flush_buffer(self) -> None:
         pass
 
-    async def get_dynamic_rules(self) -> Any | None:
+    async def get_dynamic_rules(self) -> DynamicRules | None:
         return None
 
     async def health_check(self) -> bool:

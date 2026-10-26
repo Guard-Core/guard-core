@@ -1,19 +1,30 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Protocol
 
 from guard_core.core.events.event_types import EventFilter
 
+if TYPE_CHECKING:
+    from guard_core.models import DynamicRules
+    from guard_core.protocols.agent_protocol import AgentHandlerProtocol
+    from guard_core.protocols.redis_protocol import RedisHandlerProtocol
+
 logger = logging.getLogger("guard_core")
+
+
+class EventEnrichment(Protocol):
+    async def enrich_event(self, event: object) -> None: ...
+
+    async def enrich_metric(self, metric: object) -> None: ...
 
 
 class CompositeAgentHandler:
     def __init__(
         self,
-        handlers: list[Any],
+        handlers: list[AgentHandlerProtocol],
         event_filter: EventFilter | None = None,
-        enricher: Any | None = None,
+        enricher: EventEnrichment | None = None,
     ) -> None:
         self._handlers = handlers
         self._event_filter = event_filter or EventFilter()
@@ -33,7 +44,7 @@ class CompositeAgentHandler:
     def failed_handlers(self) -> list[str]:
         return list(self._failed_handlers)
 
-    async def send_event(self, event: Any) -> None:
+    async def send_event(self, event: object) -> None:
         event_type = getattr(event, "event_type", None)
         if event_type and not self._event_filter.is_event_allowed(event_type):
             return
@@ -45,7 +56,7 @@ class CompositeAgentHandler:
             except Exception:
                 logger.exception("handler.send_event failed")
 
-    async def send_metric(self, metric: Any) -> None:
+    async def send_metric(self, metric: object) -> None:
         metric_type = getattr(metric, "metric_type", None)
         if metric_type and not self._event_filter.is_metric_allowed(metric_type):
             return
@@ -57,7 +68,7 @@ class CompositeAgentHandler:
             except Exception:
                 logger.exception("handler.send_metric failed")
 
-    async def initialize_redis(self, redis_handler: Any) -> None:
+    async def initialize_redis(self, redis_handler: RedisHandlerProtocol) -> None:
         for handler in self._handlers:
             try:
                 await handler.initialize_redis(redis_handler)
@@ -89,23 +100,24 @@ class CompositeAgentHandler:
             except Exception:
                 logger.exception("handler.flush_buffer failed")
 
-    async def get_dynamic_rules(self) -> Any | None:
+    async def get_dynamic_rules(self) -> DynamicRules | None:
         for handler in self._handlers:
             try:
-                result = await handler.get_dynamic_rules()
+                result: DynamicRules | None = await handler.get_dynamic_rules()
                 if result is not None:
                     return result
             except Exception:
                 logger.exception("handler.get_dynamic_rules failed")
         return None
 
-    async def get_status(self) -> Any | None:
+    async def get_status(self) -> object | None:
         for handler in self._handlers:
             get_status = getattr(handler, "get_status", None)
             if get_status is None:
                 continue
             try:
-                return await get_status()
+                status: object = await get_status()
+                return status
             except Exception:
                 logger.exception("handler.get_status failed")
         return None

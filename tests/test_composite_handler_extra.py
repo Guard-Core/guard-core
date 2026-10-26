@@ -3,6 +3,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from guard_core.core.events.composite_handler import CompositeAgentHandler
+from guard_core.models import DynamicRules
+from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 
 
 @pytest.fixture
@@ -126,7 +128,33 @@ def test_degraded_true_when_started_with_failed_handlers() -> None:
     assert composite.failed_handlers == ["handler_a"]
 
 
-class _NoStatus:
+class NullAgent:
+    async def initialize_redis(self, redis_handler: RedisHandlerProtocol) -> None:
+        return None
+
+    async def send_event(self, event: object) -> None:
+        return None
+
+    async def send_metric(self, metric: object) -> None:
+        return None
+
+    async def start(self) -> None:
+        return None
+
+    async def stop(self) -> None:
+        return None
+
+    async def flush_buffer(self) -> None:
+        return None
+
+    async def get_dynamic_rules(self) -> DynamicRules | None:
+        return None
+
+    async def health_check(self) -> bool:
+        return True
+
+
+class _NoStatus(NullAgent):
     pass
 
 

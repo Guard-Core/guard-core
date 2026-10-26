@@ -4,7 +4,6 @@ import tempfile
 import time
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
 
 from guard_core._dynamic_rules import (
     content_fingerprint,
@@ -26,11 +25,12 @@ from guard_core.sync.handlers._dynamic_rule_purge import (
     DynamicRulePurgeMixin,
     purge_fingerprint,
 )
+from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
 
 
 class DynamicRuleSnapshotMixin(DynamicRulePurgeMixin):
     config: SyncSecurityConfig
-    redis_handler: Any = None
+    redis_handler: SyncRedisHandlerProtocol | None = None
     logger: logging.Logger
     current_rules: DynamicRules | None
     last_update: float
@@ -203,7 +203,7 @@ class DynamicRuleSnapshotMixin(DynamicRulePurgeMixin):
             return
 
         if self.redis_handler:
-            self._persist_snapshot_to_redis(legacy, full)
+            self._persist_snapshot_to_redis(self.redis_handler, legacy, full)
 
         cache_path = self.config.dynamic_rules_cache_path
         if cache_path is None:
@@ -216,7 +216,9 @@ class DynamicRuleSnapshotMixin(DynamicRulePurgeMixin):
                 f"Failed to persist dynamic rules to cache file {cache_path}: {e}"
             )
 
-    def _persist_snapshot_to_redis(self, legacy: str, full: str) -> None:
+    def _persist_snapshot_to_redis(
+        self, redis_handler: SyncRedisHandlerProtocol, legacy: str, full: str
+    ) -> None:
         # Legacy first: a crash between the writes leaves the full key stale, which
         # the agreement rule on read treats as a disagreement, never the reverse.
         for key, payload in (
@@ -225,9 +227,7 @@ class DynamicRuleSnapshotMixin(DynamicRulePurgeMixin):
         ):
             try:
                 resolve_redis_value(
-                    self.redis_handler.set_key(
-                        DYNAMIC_RULES_REDIS_NAMESPACE, key, payload
-                    )
+                    redis_handler.set_key(DYNAMIC_RULES_REDIS_NAMESPACE, key, payload)
                 )
             except Exception as e:
                 self.logger.error(f"Failed to persist dynamic rules to Redis: {e}")

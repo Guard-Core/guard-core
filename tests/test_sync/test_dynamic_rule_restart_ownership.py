@@ -15,6 +15,7 @@ from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.sync.handlers.ipban_handler import ip_ban_manager
 from guard_core.sync.handlers.redis_handler import RedisManager
 from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
+from tests.fake_agent import mock_agent
 from tests.test_sync.conftest import REDIS_PREFIX, REDIS_URL
 
 PATTERN = r"wp11restartpattern\d{2,4}"
@@ -95,7 +96,7 @@ def test_a_rule_created_ban_is_revoked_after_a_restart(
 ) -> None:
     config, redis = stack
     first = _manager(config, redis)
-    first.agent_handler.get_dynamic_rules.return_value = _rules()
+    mock_agent(first.agent_handler).get_dynamic_rules.return_value = _rules()
     first.update_rules()
     assert ip_ban_manager.is_ip_banned(RULE_IP)
 
@@ -117,7 +118,7 @@ def test_an_operator_ban_on_a_listed_ip_survives_the_rule_after_a_restart(
     config, redis = stack
     ip_ban_manager.ban_ip(RULE_IP, 3600, "operator")
     first = _manager(config, redis)
-    first.agent_handler.get_dynamic_rules.return_value = _rules()
+    mock_agent(first.agent_handler).get_dynamic_rules.return_value = _rules()
     first.update_rules()
     assert first._owned_bans == []
 

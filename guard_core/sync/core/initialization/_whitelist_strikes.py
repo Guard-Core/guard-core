@@ -2,16 +2,27 @@ import hashlib
 import ipaddress
 import logging
 from collections.abc import Iterable
-from typing import Any
+from typing import Protocol
 
 from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.redis_handler import is_connected_redis_manager
+from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
 
 _NAMESPACE = "whitelist"
 _APPLIED_KEY = "strikes_applied"
 _LOCK_KEY = "strikes_lock"
 _LOCK_SECONDS = 60
 _logger = logging.getLogger("guard_core.sync.core.initialization.whitelist_strikes")
+
+
+class StrikeResetBanManager(Protocol):
+    def forget_strikes_of_ip(self, ip: str, strict: bool = False) -> None: ...
+
+    def forget_strikes_inside(
+        self, entries: Iterable[str], strict: bool = False
+    ) -> None: ...
+
+    def rewrite_carved_bans_without_whitelist(self) -> int: ...
 
 
 def whitelist_fingerprint(entries: Iterable[str]) -> str:
@@ -21,7 +32,9 @@ def whitelist_fingerprint(entries: Iterable[str]) -> str:
     return hashlib.sha256("\n".join(canonical).encode()).hexdigest()[:32]
 
 
-def _claim_changed_whitelist(redis_handler: Any, fingerprint: str) -> bool:
+def _claim_changed_whitelist(
+    redis_handler: SyncRedisHandlerProtocol, fingerprint: str
+) -> bool:
     if redis_handler.get_key(_NAMESPACE, _APPLIED_KEY) == fingerprint:
         return False
     return bool(
@@ -29,7 +42,9 @@ def _claim_changed_whitelist(redis_handler: Any, fingerprint: str) -> bool:
     )
 
 
-def _reset_covered_identities(entries: list[str], ip_ban_manager: Any) -> None:
+def _reset_covered_identities(
+    entries: list[str], ip_ban_manager: StrikeResetBanManager
+) -> None:
     for entry in entries:
         if "/" not in entry:
             ip_ban_manager.forget_strikes_of_ip(entry, strict=True)
@@ -39,7 +54,9 @@ def _reset_covered_identities(entries: list[str], ip_ban_manager: Any) -> None:
 
 
 def reset_strikes_for_changed_whitelist(
-    config: SyncSecurityConfig, redis_handler: Any, ip_ban_manager: Any
+    config: SyncSecurityConfig,
+    redis_handler: SyncRedisHandlerProtocol,
+    ip_ban_manager: StrikeResetBanManager,
 ) -> None:
     """Start every identity the startup whitelist covers with no strikes.
 
@@ -68,7 +85,9 @@ def reset_strikes_for_changed_whitelist(
 
 
 def reset_startup_whitelist_strikes(
-    config: SyncSecurityConfig, redis_handler: Any, ip_ban_manager: Any
+    config: SyncSecurityConfig,
+    redis_handler: SyncRedisHandlerProtocol,
+    ip_ban_manager: StrikeResetBanManager,
 ) -> None:
     if is_connected_redis_manager(redis_handler):
         reset_strikes_for_changed_whitelist(config, redis_handler, ip_ban_manager)

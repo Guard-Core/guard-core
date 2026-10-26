@@ -1,6 +1,7 @@
 from collections.abc import Callable, Sequence
+from enum import Enum
 from functools import partial
-from typing import Any
+from typing import TYPE_CHECKING, Final
 
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.core.behavioral._throttle import (
@@ -14,7 +15,17 @@ from guard_core.sync.handlers.behavior_handler import BehaviorRule, config_to_ru
 from guard_core.sync.handlers.cors_handler import is_preflight
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
-_ROUTE_NOT_RESOLVED = object()
+if TYPE_CHECKING:
+    from guard_core.sync.protocols.middleware_protocol import (
+        SyncGuardMiddlewareProtocol,
+    )
+
+
+class _Unresolved(Enum):
+    ROUTE_NOT_RESOLVED = object()
+
+
+_ROUTE_NOT_RESOLVED: Final = _Unresolved.ROUTE_NOT_RESOLVED
 
 CheckErrorHandler = Callable[
     [SecurityCheck, SyncGuardRequest, Exception], GuardResponse | None
@@ -38,7 +49,7 @@ def _no_usage_step() -> GuardResponse | None:
 
 def _handle_usage_step_error(
     handle_check_error: CheckErrorHandler,
-    middleware: Any,
+    middleware: "SyncGuardMiddlewareProtocol",
     request: SyncGuardRequest,
     error: Exception,
 ) -> GuardResponse | None:
@@ -46,16 +57,16 @@ def _handle_usage_step_error(
 
 
 def enforce_usage_rules(
-    checks: Sequence[Any],
+    checks: Sequence[SecurityCheck],
     request: SyncGuardRequest,
-    state: Any,
+    state: object,
     handle_check_error: CheckErrorHandler,
 ) -> GuardResponse | None:
     # Plain function returning the processor's coroutine: the pipeline awaits it
     # directly, so the step adds no coroutine layer of its own. The request state
     # is passed in, not read again. Both matter because this runs on every
     # request of a pipeline that resolved a route.
-    route_config: Any = getattr(state, "route_config", _ROUTE_NOT_RESOLVED)
+    route_config = getattr(state, "route_config", _ROUTE_NOT_RESOLVED)
     if route_config is _ROUTE_NOT_RESOLVED or not checks:
         return _no_usage_step()
     middleware = checks[0].middleware
@@ -81,7 +92,7 @@ def enforce_usage_rules(
     )
 
 
-def _configured_throttle_rules(middleware: Any) -> list[BehaviorRule]:
+def _configured_throttle_rules(middleware: object) -> list[BehaviorRule]:
     configured = getattr(
         getattr(middleware, "config", None), "global_behavior_rules", ()
     )
@@ -90,7 +101,7 @@ def _configured_throttle_rules(middleware: Any) -> list[BehaviorRule]:
     return [rule for rule in map(config_to_rule, configured) if is_throttle_rule(rule)]
 
 
-def _reachable_error_builder(middleware: Any) -> bool:
+def _reachable_error_builder(middleware: object) -> bool:
     processor = getattr(middleware, "behavioral_processor", None)
     context_middleware = getattr(
         getattr(processor, "context", None), "middleware", None
@@ -103,7 +114,7 @@ def _reachable_error_builder(middleware: Any) -> bool:
 def warn_at_startup_if_throttle_cannot_refuse(checks: Sequence[SecurityCheck]) -> None:
     if not checks:
         return
-    middleware: Any = getattr(checks[0], "middleware", None)
+    middleware = getattr(checks[0], "middleware", None)
     rules = _configured_throttle_rules(middleware)
     if rules and not _reachable_error_builder(middleware):
         warn_throttle_needs_middleware(rules)

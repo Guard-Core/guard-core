@@ -1,5 +1,4 @@
 import re
-from typing import Any
 
 from guard_core.sync.handlers._suspatterns_pattern_table import (
     DETECTION_NUL_TAIL_RAW_VIEW_PATTERN_SOURCES,
@@ -76,7 +75,7 @@ def _pattern_should_be_skipped(
 
 _APPLICABLE_PATTERN_CACHE_MAX_ENTRIES = 256
 _applicable_pattern_cache: dict[
-    tuple[Any, ...],
+    tuple[object, ...],
     tuple[
         list[tuple[re.Pattern, frozenset[str], str]],
         list[tuple[re.Pattern, frozenset[str], str]],
@@ -92,7 +91,7 @@ def _applicable_cache_key(
     normalized_context: str,
     enabled_categories: set[str] | None,
     nul_tail_rows: bool,
-) -> tuple[Any, ...]:
+) -> tuple[object, ...]:
     return (
         nul_tail_rows,
         raw_view_only,

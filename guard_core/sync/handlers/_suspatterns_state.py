@@ -1,5 +1,5 @@
 import re
-from typing import Any, NamedTuple
+from typing import TYPE_CHECKING, NamedTuple
 
 from guard_core.sync._utils.pattern_source_redaction import _SensitiveNameSets
 from guard_core.sync.detection_engine import (
@@ -9,6 +9,9 @@ from guard_core.sync.detection_engine import (
     SemanticAnalyzer,
 )
 from guard_core.sync.detection_engine._validation_cache import PatternValidationCache
+
+if TYPE_CHECKING:
+    from guard_core.models import SyncSecurityConfig
 
 
 class _DetectionState(NamedTuple):
@@ -31,7 +34,7 @@ _LEGACY_DETECTION_STATE = _DetectionState(
 
 
 def _build_enhanced_detection_state(
-    config: Any, redaction_names: _SensitiveNameSets | None = None
+    config: "SyncSecurityConfig", redaction_names: _SensitiveNameSets | None = None
 ) -> _DetectionState:
     cache_path = getattr(config, "detection_pattern_validation_cache_path", None)
     validation_cache = PatternValidationCache(cache_path) if cache_path else None

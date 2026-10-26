@@ -62,6 +62,7 @@ from guard_core.handlers.redis_handler import RedisManager
 from guard_core.handlers.security_headers_handler import security_headers_manager
 from guard_core.handlers.suspatterns_handler import sus_patterns_handler
 from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 
 IPNetwork = ipaddress.IPv4Network | ipaddress.IPv6Network
 
@@ -773,6 +774,24 @@ async def _op_dynamic_rules(args: RedisArgs) -> None:
 
         async def send_event(self, event: object) -> None:
             return None
+
+        async def initialize_redis(self, redis_handler: RedisHandlerProtocol) -> None:
+            return None
+
+        async def send_metric(self, metric: object) -> None:
+            return None
+
+        async def start(self) -> None:
+            return None
+
+        async def stop(self) -> None:
+            return None
+
+        async def flush_buffer(self) -> None:
+            return None
+
+        async def health_check(self) -> bool:
+            return True
 
     manager.agent_handler = _RulesAgent()
     try:

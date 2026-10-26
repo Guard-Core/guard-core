@@ -1,6 +1,6 @@
 from abc import abstractmethod
 from ipaddress import ip_address
-from typing import TYPE_CHECKING, Any, NamedTuple
+from typing import NamedTuple, Protocol
 
 from guard_core.exceptions import GuardRedisError
 from guard_core.protocols.response_protocol import GuardResponse
@@ -27,8 +27,9 @@ from guard_core.sync.handlers.ipban_handler import IPBanManager
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 from guard_core.sync.utils import _ip_in_list, allow_list_miss_category, check_ip_access
 
-if TYPE_CHECKING:
-    pass
+
+class _BanFlowState(Protocol):
+    guard_ban_flow: BanFlow
 
 
 def _route_blacklist_matches(route_config: RouteConfig, client_ip: str) -> bool:
@@ -70,7 +71,9 @@ class IpBanReadMixin(SecurityCheck):
         self, request: SyncGuardRequest, client_ip: str
     ) -> GuardResponse | None: ...
 
-    def _strike_gates_open(self, state: Any, whitelisted_counts_nothing: bool) -> bool:
+    def _strike_gates_open(
+        self, state: object, whitelisted_counts_nothing: bool
+    ) -> bool:
         """The conditions under which ``count_hostile_signal_and_maybe_ban``
         records a strike, and the strike goes to the Redis the ban manager reads."""
         config = self.config
@@ -108,7 +111,7 @@ class IpBanReadMixin(SecurityCheck):
         )
 
     def _static_denial_verdict(
-        self, state: Any, client_ip: str, route_config: RouteConfig | None
+        self, state: _BanFlowState, client_ip: str, route_config: RouteConfig | None
     ) -> _ListVerdict:
         """What the IP lists decide for this client, in the order the check
         applies them (the route's lists, then the global ones), without a country
@@ -137,7 +140,7 @@ class IpBanReadMixin(SecurityCheck):
         return _ListVerdict(result.denial_category, True)
 
     def _route_list_denial(
-        self, state: Any, client_ip: str, route_config: RouteConfig | None
+        self, state: _BanFlowState, client_ip: str, route_config: RouteConfig | None
     ) -> _ListVerdict | None:
         if not route_config or (
             check_route_ip_access(client_ip, route_config, self.middleware) is not False
@@ -149,7 +152,7 @@ class IpBanReadMixin(SecurityCheck):
         return _ListVerdict(category, True)
 
     def _fused_strike_for(
-        self, state: Any, client_ip: str, category: str
+        self, state: _BanFlowState, client_ip: str, category: str
     ) -> FusedStrike:
         strike = FusedStrike(
             _strike_identity(self.config, client_ip),
@@ -174,7 +177,9 @@ class IpBanReadMixin(SecurityCheck):
         return False
 
     @staticmethod
-    def _route_config_of(state: Any, given: RouteConfig | None) -> RouteConfig | None:
+    def _route_config_of(
+        state: object, given: RouteConfig | None
+    ) -> RouteConfig | None:
         if given is not None:
             return given
         found: RouteConfig | None = getattr(state, "route_config", None)
@@ -213,7 +218,7 @@ class IpBanReadMixin(SecurityCheck):
         return None
 
     def _plan_ban_read(
-        self, state: Any, client_ip: str, route_config: RouteConfig | None
+        self, state: _BanFlowState, client_ip: str, route_config: RouteConfig | None
     ) -> tuple[FusedStrike | None, bool]:
         """What to do with a ban read only Redis can decide: the strike that rides
         in it when the IP lists deny the client, and whether to leave it pending

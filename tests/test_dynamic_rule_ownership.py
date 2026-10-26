@@ -9,6 +9,7 @@ from guard_core.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.handlers.ipban_handler import ip_ban_manager
 from guard_core.handlers.suspatterns_handler import sus_patterns_handler
 from guard_core.models import DynamicRules, SecurityConfig
+from tests.fake_agent import mock_agent
 
 PATTERN = r"wp11ownedpattern\d{2,4}"
 OTHER_PATTERN = r"wp11otherpattern[a-z]{2,4}"
@@ -51,7 +52,7 @@ def _manager() -> DynamicRuleManager:
 
 
 async def _poll(manager: DynamicRuleManager, answer: Any) -> None:
-    manager.agent_handler.get_dynamic_rules.return_value = answer
+    mock_agent(manager.agent_handler).get_dynamic_rules.return_value = answer
     await manager.update_rules()
 
 

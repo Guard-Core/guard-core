@@ -10,6 +10,7 @@ import pytest
 from guard_core._dynamic_rules import content_fingerprint
 from guard_core.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.models import DynamicRules, SecurityConfig
+from tests.fake_agent import mock_agent
 
 
 @pytest.fixture(autouse=True)
@@ -48,7 +49,7 @@ def _manager() -> tuple[DynamicRuleManager, SecurityConfig, AsyncMock]:
 
 
 async def _poll(manager: DynamicRuleManager, answer: Any) -> None:
-    manager.agent_handler.get_dynamic_rules.return_value = answer
+    mock_agent(manager.agent_handler).get_dynamic_rules.return_value = answer
     await manager.update_rules()
 
 
@@ -144,7 +145,7 @@ async def test_update_rules_is_a_no_op_without_the_feature_or_without_an_agent()
     None
 ):
     manager, config, _ = _manager()
-    manager.agent_handler.get_dynamic_rules.return_value = _rules()
+    mock_agent(manager.agent_handler).get_dynamic_rules.return_value = _rules()
     manager.agent_handler = None
     await manager.update_rules()
     assert manager.current_rules is None
@@ -166,7 +167,9 @@ async def test_applying_and_failing_updates_are_logged(
         await _poll(manager, _rules())
     assert "Applying dynamic rules: R v1" in [r.getMessage() for r in caplog.records]
 
-    manager.agent_handler.get_dynamic_rules.side_effect = RuntimeError("boom")
+    mock_agent(manager.agent_handler).get_dynamic_rules.side_effect = RuntimeError(
+        "boom"
+    )
     with caplog.at_level(logging.ERROR, logger="guard_core.handlers.dynamic_rule"):
         await manager.update_rules()
     assert "Failed to update dynamic rules: boom" in [

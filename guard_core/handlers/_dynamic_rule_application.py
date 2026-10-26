@@ -1,6 +1,5 @@
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any
 
 from guard_core._emergency_exemptions import warn_unexempted_probe_paths
 from guard_core._utils.pattern_source_redaction import _redact_pattern_source_of_app
@@ -12,6 +11,7 @@ from guard_core.handlers._ipban_rule_exempt import (
 )
 from guard_core.handlers._ipban_rule_revoke import _LIFTED, REVOKE_REWRITTEN
 from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.protocols.agent_protocol import AgentHandlerProtocol
 
 
 def _redact_pattern_list(patterns: list[str], config: SecurityConfig) -> list[str]:
@@ -27,7 +27,7 @@ class RuleSideEffects:
 
 class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
     config: SecurityConfig
-    agent_handler: Any
+    agent_handler: AgentHandlerProtocol | None
     _owned_bans: list[str]
     _owned_patterns: list[str]
     _refresh_attribution: Callable[[], None]

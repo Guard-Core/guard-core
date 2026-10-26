@@ -1,18 +1,22 @@
+import re
 from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
-from typing import Any
+from typing import TYPE_CHECKING
 
 from guard_core.sync._utils.detection_scan import (
     _scan_time_remaining,
     _thread_cpu_seconds,
 )
 
+if TYPE_CHECKING:
+    from guard_core.sync.detection_engine.preprocessor import ContentPreprocessor
+
 _FULL_SCAN_TAIL_BYTES = 4096
 
-_attack_region_memo: ContextVar[dict[Any, list[tuple[int, int]]] | None] = ContextVar(
-    "attack_region_memo", default=None
-)
+_attack_region_memo: ContextVar[
+    dict[tuple[int, tuple[tuple[str, int], ...], str], list[tuple[int, int]]] | None
+] = ContextVar("attack_region_memo", default=None)
 
 
 @contextmanager
@@ -24,7 +28,9 @@ def reusing_attack_regions() -> Iterator[None]:
         _attack_region_memo.reset(token)
 
 
-def _find_regions(pattern: Any, text: str, max_regions: int) -> list[tuple[int, int]]:
+def _find_regions(
+    pattern: re.Pattern[str], text: str, max_regions: int
+) -> list[tuple[int, int]]:
     found: list[tuple[int, int]] = []
     for match in pattern.finditer(text):
         if len(found) >= max_regions:
@@ -36,7 +42,7 @@ def _find_regions(pattern: Any, text: str, max_regions: int) -> list[tuple[int, 
 
 
 def _collect_regions(
-    preprocessor: Any, content: str, max_regions: int
+    preprocessor: "ContentPreprocessor", content: str, max_regions: int
 ) -> tuple[list[tuple[int, int]], bool]:
     regions: list[tuple[int, int]] = []
     started = _thread_cpu_seconds()
@@ -65,7 +71,9 @@ def _merge_regions(
     return merged[:max_regions]
 
 
-def extract_attack_regions(preprocessor: Any, content: str) -> list[tuple[int, int]]:
+def extract_attack_regions(
+    preprocessor: "ContentPreprocessor", content: str
+) -> list[tuple[int, int]]:
     max_regions = min(100, preprocessor.max_content_length // 100)
     memo = _attack_region_memo.get()
     indicators = tuple((p.pattern, p.flags) for p in preprocessor.compiled_indicators)
@@ -135,7 +143,7 @@ def cap_with_tail(content: str, max_full_scan_bytes: int) -> str:
     return content[:head_len] + content[-tail:]
 
 
-def truncate_safely(preprocessor: Any, content: str) -> str:
+def truncate_safely(preprocessor: "ContentPreprocessor", content: str) -> str:
     max_full_scan_bytes = preprocessor._MAX_FULL_SCAN_BYTES
 
     if len(content) <= max_full_scan_bytes:

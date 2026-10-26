@@ -1,16 +1,32 @@
 import inspect
-from typing import TYPE_CHECKING, Any
+from collections.abc import Iterable
+from typing import TYPE_CHECKING, Protocol
 
 from guard_core._config_capabilities import require_geo_extra
 
 if TYPE_CHECKING:
     from guard_core._security_config_fields import RequestT
     from guard_core.models import SecurityConfig
+    from guard_core.protocols.geo_ip_protocol import GeoIPHandler
+    from guard_core.sync.protocols.geo_ip_protocol import SyncGeoIPHandler
 
 _LIFECYCLE_MEMBERS = ("initialize", "initialize_redis", "initialize_agent", "refresh")
 
 
-def _is_built_from_the_token(config: "SecurityConfig[RequestT]", handler: Any) -> bool:
+class GeoRuleRoute(Protocol):
+    @property
+    def blocked_countries(self) -> object: ...
+
+    @property
+    def whitelist_countries(self) -> object: ...
+
+    @property
+    def geo_rate_limits(self) -> object: ...
+
+
+def _is_built_from_the_token(
+    config: "SecurityConfig[RequestT]", handler: object
+) -> bool:
     from guard_core.handlers.ipinfo_handler import IPInfoManager as AsyncIPInfoManager
 
     token = config.ipinfo_token
@@ -20,7 +36,9 @@ def _is_built_from_the_token(config: "SecurityConfig[RequestT]", handler: Any) -
     )
 
 
-def _sync_ipinfo_manager(config: "SecurityConfig[RequestT]", token: str) -> Any:
+def _sync_ipinfo_manager(
+    config: "SecurityConfig[RequestT]", token: str
+) -> "GeoIPHandler | SyncGeoIPHandler":
     from guard_core.sync.handlers.ipinfo_handler import IPInfoManager
 
     return IPInfoManager(
@@ -33,7 +51,7 @@ def _sync_ipinfo_manager(config: "SecurityConfig[RequestT]", token: str) -> Any:
 
 def build_geo_ip_handler_from_token(
     config: "SecurityConfig[RequestT]", *, tree_awaits: bool
-) -> Any:
+) -> "GeoIPHandler | SyncGeoIPHandler":
     require_geo_extra()
     token = config.ipinfo_token or ""
     if not tree_awaits:
@@ -49,8 +67,11 @@ def build_geo_ip_handler_from_token(
 
 
 def geo_ip_handler_for_tree(
-    config: "SecurityConfig[RequestT]", handler: Any, *, tree_awaits: bool
-) -> Any:
+    config: "SecurityConfig[RequestT]",
+    handler: "GeoIPHandler | SyncGeoIPHandler | None",
+    *,
+    tree_awaits: bool,
+) -> "GeoIPHandler | SyncGeoIPHandler | None":
     if handler is None or tree_awaits:
         return handler
     if _is_built_from_the_token(config, handler):
@@ -71,7 +92,7 @@ def geo_ip_handler_for_tree(
     return handler
 
 
-def routes_need_geo_ip_handler(route_configs: Any) -> bool:
+def routes_need_geo_ip_handler(route_configs: Iterable[GeoRuleRoute]) -> bool:
     return any(
         rc.blocked_countries or rc.whitelist_countries or rc.geo_rate_limits
         for rc in route_configs

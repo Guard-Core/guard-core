@@ -1,13 +1,16 @@
 from collections.abc import Collection, Mapping
-from typing import TYPE_CHECKING, Any
+from typing import Protocol
 
 from guard_core.models import SyncSecurityConfig, ThreatBanConfig
 from guard_core.sync.core.checks._strike_counts import (
     _RATE_LIMIT_FEED_CATEGORY,
 )
 
-if TYPE_CHECKING:
-    pass
+
+class EscalatingBanner(Protocol):
+    def _ban_ip_escalating(
+        self, ip: str, duration: int, reason: str, *, grouped: bool = False
+    ) -> int | None: ...
 
 
 def _flat_threshold_total(
@@ -37,7 +40,7 @@ def _flat_total_or_shared(
 def _resolve_and_apply_threshold_ban(
     ip_counts: Mapping[str, int],
     config: SyncSecurityConfig,
-    ip_ban_manager: Any,
+    ip_ban_manager: EscalatingBanner,
     client_ip: str,
     threat_categories: Collection[str],
     reason: str,

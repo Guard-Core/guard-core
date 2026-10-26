@@ -367,7 +367,7 @@ async def check_route_ip_access(
 
 
 async def check_user_agent_allowed(
-    user_agent: str, route_config: RouteConfig | None, config: Any
+    user_agent: str, route_config: RouteConfig | None, config: "SecurityConfig"
 ) -> bool:
     from guard_core.utils import is_user_agent_allowed as global_user_agent_check
 

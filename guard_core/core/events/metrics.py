@@ -1,6 +1,5 @@
 import logging
 from datetime import datetime, timezone
-from typing import Any
 
 from guard_core._utils.request_logging import redact_endpoint_for_display
 from guard_core.core.events.event_types import (
@@ -10,13 +9,14 @@ from guard_core.core.events.event_types import (
     EventFilter,
 )
 from guard_core.models import SecurityConfig
+from guard_core.protocols.agent_protocol import AgentHandlerProtocol
 from guard_core.protocols.request_protocol import GuardRequest
 
 
 class MetricsCollector:
     def __init__(
         self,
-        agent_handler: Any,
+        agent_handler: AgentHandlerProtocol | None,
         config: SecurityConfig,
         event_filter: EventFilter | None = None,
     ):

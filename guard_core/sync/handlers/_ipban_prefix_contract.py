@@ -1,14 +1,18 @@
 import logging
-from typing import Any
+from typing import TYPE_CHECKING
 
 from guard_core._misconfiguration import report_misconfiguration
+
+if TYPE_CHECKING:
+    from guard_core.models import SyncSecurityConfig
+    from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
 
 _NAMESPACE = "config"
 _KEY = "ipv6_prefix_length"
 
 
 def _recorded_prefix_length(
-    redis_handler: Any, wanted: int, logger: logging.Logger
+    redis_handler: "SyncRedisHandlerProtocol", wanted: int, logger: logging.Logger
 ) -> tuple[str | None, str]:
     key = f"{redis_handler.config.redis_prefix}{_NAMESPACE}:{_KEY}"
     try:
@@ -24,7 +28,9 @@ def _recorded_prefix_length(
 
 
 def enforce_prefix_length_contract(
-    redis_handler: Any, config: Any, logger: logging.Logger
+    redis_handler: "SyncRedisHandlerProtocol",
+    config: "SyncSecurityConfig",
+    logger: logging.Logger,
 ) -> None:
     """Make every worker on one Redis agree on ipv6_prefix_length.
 

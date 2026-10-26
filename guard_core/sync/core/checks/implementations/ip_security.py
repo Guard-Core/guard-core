@@ -1,5 +1,5 @@
 from ipaddress import ip_address
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.access_control import load_geo_database_for_route_rules
@@ -45,6 +45,9 @@ from guard_core.sync.utils import (
     log_activity,
 )
 
+if TYPE_CHECKING:
+    from guard_core.models import SyncSecurityConfig
+
 
 def _is_private_peer_without_forwarded_for(
     request: SyncGuardRequest, client_ip: str
@@ -68,7 +71,7 @@ def _route_country_whitelist_matched(
 def _resolve_is_whitelisted(
     client_ip: str,
     route_config: RouteConfig | None,
-    config: Any,
+    config: "SyncSecurityConfig",
     is_allowed: bool,
     skip_ip_lists: bool,
 ) -> bool:
@@ -76,7 +79,7 @@ def _resolve_is_whitelisted(
 
 
 def _resolve_is_exempt(
-    client_ip: str, config: Any, is_allowed: bool, skip_ip_lists: bool
+    client_ip: str, config: "SyncSecurityConfig", is_allowed: bool, skip_ip_lists: bool
 ) -> bool:
     if not is_allowed or skip_ip_lists or not config.exempt_ips:
         return False

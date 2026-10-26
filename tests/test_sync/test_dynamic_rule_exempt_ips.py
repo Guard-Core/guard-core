@@ -9,6 +9,7 @@ from guard_core.models import DynamicRules, SyncSecurityConfig
 from guard_core.sync.core.checks.implementations.ip_security import _resolve_is_exempt
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.sync.handlers.ipban_handler import ip_ban_manager
+from tests.fake_agent import mock_agent
 
 EXEMPT_IP = "198.51.100.20"
 STATIC_EXEMPT = "192.0.2.50"
@@ -50,7 +51,7 @@ def _manager() -> tuple[DynamicRuleManager, SyncSecurityConfig, MagicMock]:
 
 
 def _poll(manager: DynamicRuleManager, rules: DynamicRules) -> None:
-    manager.agent_handler.get_dynamic_rules.return_value = rules
+    mock_agent(manager.agent_handler).get_dynamic_rules.return_value = rules
     manager.update_rules()
 
 

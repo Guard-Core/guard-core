@@ -1,11 +1,18 @@
 import logging
-from typing import Any
+from typing import TYPE_CHECKING
 
 from guard_core._geo_source import lacks_geo_source
 from guard_core._misconfiguration import report_misconfiguration
 
+if TYPE_CHECKING:
+    from guard_core.decorators.base import BaseSecurityDecorator
+    from guard_core.decorators.route_config import RouteConfig
+    from guard_core.models import SecurityConfig
+    from guard_core.protocols.geo_ip_protocol import GeoIPHandler
+    from guard_core.sync.protocols.geo_ip_protocol import SyncGeoIPHandler
 
-def _country_decorators_without_geoip(route_config: Any) -> list[str]:
+
+def _country_decorators_without_geoip(route_config: "RouteConfig") -> list[str]:
     decorators = []
     if route_config.blocked_countries or route_config.whitelist_countries:
         decorators.append("block_countries or allow_countries")
@@ -15,9 +22,9 @@ def _country_decorators_without_geoip(route_config: Any) -> list[str]:
 
 
 def report_country_decorators_without_geoip(
-    config: Any,
-    guard_decorator: Any,
-    geo_ip_handler: Any,
+    config: "SecurityConfig",
+    guard_decorator: "BaseSecurityDecorator | None",
+    geo_ip_handler: "GeoIPHandler | SyncGeoIPHandler | None",
     logger: logging.Logger,
 ) -> None:
     if guard_decorator is None or not lacks_geo_source(

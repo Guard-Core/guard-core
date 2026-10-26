@@ -211,6 +211,7 @@ def test_return_rules_sharing_a_rule_id_apply_their_own_effective_threshold(
         assert tracker is not None
         if use_redis:
             now = time.time()
+            assert tracker.redis_handler is not None
             tracker.redis_handler.record_detection_strikes(
                 _IP, ("xss",), now, now - 3600, 3600, 10_000
             )
