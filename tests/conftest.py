@@ -146,11 +146,12 @@ _DEFAULT_APP_PATTERN_FIELDS = (
     "_sensitive_params_union",
     "_sensitive_body_fields_union",
 )
+_DEFAULT_HANDLER_FIELDS = ("_detection_state", "redis_handler", "agent_handler")
 _DEFAULT_APP_STATE = (
-    (_suspatterns_module.sus_patterns_handler, ("_detection_state",)),
+    (_suspatterns_module.sus_patterns_handler, _DEFAULT_HANDLER_FIELDS),
     (_suspatterns_module.SusPatternsManager, _DEFAULT_APP_PATTERN_FIELDS),
     (_ipban_module.ip_ban_manager, ("config",)),
-    (_sync_suspatterns_module.sus_patterns_handler, ("_detection_state",)),
+    (_sync_suspatterns_module.sus_patterns_handler, _DEFAULT_HANDLER_FIELDS),
     (_sync_suspatterns_module.SusPatternsManager, _DEFAULT_APP_PATTERN_FIELDS),
     (_sync_ipban_module.ip_ban_manager, ("config",)),
 )
