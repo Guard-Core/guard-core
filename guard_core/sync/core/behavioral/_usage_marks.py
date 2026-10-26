@@ -1,4 +1,4 @@
-from typing import Any, NamedTuple
+from typing import NamedTuple
 
 from guard_core.protocols.response_protocol import GuardResponse
 
@@ -10,13 +10,13 @@ class UsageMarks(NamedTuple):
     global_usage_rule_ids: frozenset[str]
 
 
-def usage_marks_of(state: Any) -> UsageMarks | None:
+def usage_marks_of(state: object) -> UsageMarks | None:
     marks = getattr(state, USAGE_MARKS_ATTR, None)
     return marks if isinstance(marks, UsageMarks) else None
 
 
 def mark_usage_rules_evaluated(
-    state: Any,
+    state: object,
     result: GuardResponse | None,
     global_usage_rule_ids: frozenset[str],
 ) -> None:

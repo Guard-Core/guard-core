@@ -6,7 +6,7 @@ import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from guard_core.sync.core.events.event_types import (
     EVENT_GEO_LOOKUP_FAILED,
@@ -120,7 +120,7 @@ class IPInfoManager(
             return 0
         return self.reader.metadata().node_count
 
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self) -> dict[str, bool | int | datetime | None]:
         return {
             "ready": self.is_initialized,
             "last_refreshed": self.last_refreshed,

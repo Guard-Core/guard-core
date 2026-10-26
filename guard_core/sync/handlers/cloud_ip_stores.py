@@ -1,6 +1,5 @@
 import json
 import time
-from typing import Any
 
 from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
 
@@ -43,7 +42,7 @@ class RedisCloudIpStore:
         self._prefix = key_prefix
 
     def get(self, provider: str) -> set[str] | None:
-        raw: Any = self._redis.get_key(self._prefix, provider)
+        raw: str | bytes | None = self._redis.get_key(self._prefix, provider)
         if raw is None:
             return None
         try:

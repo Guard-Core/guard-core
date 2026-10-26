@@ -1,5 +1,5 @@
 from collections.abc import Callable, MutableMapping
-from typing import Any, TypeVar
+from typing import TypeVar
 
 _V = TypeVar("_V")
 
@@ -11,7 +11,7 @@ def _lru_pop_or_create(
     key: str,
     max_size: int,
     default: Callable[[], _V],
-    evicted: list[tuple[str, Any]] | None = None,
+    evicted: list[tuple[str, object]] | None = None,
     kind: str = "",
 ) -> _V:
     value = store.pop(key, None)

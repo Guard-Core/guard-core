@@ -1,6 +1,5 @@
 import json
 from collections.abc import Collection, Iterable
-from typing import Any
 from urllib.parse import parse_qsl
 
 from guard_core.sync._utils.body_form_scan import _multipart_field_values
@@ -18,14 +17,14 @@ def media_type_of(content_type: str) -> str:
     return content_type.split(";")[0].strip().lower()
 
 
-def _value_is_filled(value: Any) -> bool:
+def _value_is_filled(value: object) -> bool:
     if value is None:
         return False
     return not (isinstance(value, str) and not value.strip())
 
 
 def _any_trap_filled(
-    fields: Iterable[tuple[str, Any]], trap_names: Collection[str]
+    fields: Iterable[tuple[str, object]], trap_names: Collection[str]
 ) -> bool:
     return any(
         name.lower() in trap_names and _value_is_filled(value) for name, value in fields
@@ -72,7 +71,7 @@ def json_has_filled_trap(
     """
     filled = False
 
-    def inspect_object(pairs: list[tuple[str, Any]]) -> list[tuple[str, Any]]:
+    def inspect_object(pairs: list[tuple[str, object]]) -> list[tuple[str, object]]:
         nonlocal filled
         filled = filled or _any_trap_filled(pairs, trap_names)
         return pairs

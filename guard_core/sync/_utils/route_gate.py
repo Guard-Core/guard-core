@@ -4,7 +4,6 @@ from collections.abc import Collection, Iterator, Mapping
 from contextlib import contextmanager
 from functools import lru_cache
 from types import MappingProxyType
-from typing import Any
 
 ROUTE_TEMPLATE_STATE_ATTR = "guard_route_template"
 STATIC_FILE_STATE_ATTR = "guard_static_file_served"
@@ -69,14 +68,14 @@ def might_be_a_gated_probe(path: str) -> bool:
     return any(token in lowered for token in _NAMED_PROBE_TOKENS)
 
 
-def route_state_template(state: Any) -> str | None:
+def route_state_template(state: object) -> str | None:
     if getattr(state, "guard_route_unresolved", False) is True:
         return None
     template = getattr(state, ROUTE_TEMPLATE_STATE_ATTR, None)
     return template if isinstance(template, str) else None
 
 
-def static_file_state_served(state: Any) -> bool:
+def static_file_state_served(state: object) -> bool:
     return getattr(state, STATIC_FILE_STATE_ATTR, False) is True
 
 

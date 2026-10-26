@@ -1,8 +1,11 @@
 from collections.abc import Sequence
-from typing import Any
+from typing import TYPE_CHECKING
 
 from guard_core.sync._utils.ip_extraction import _is_trusted_proxy
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
+
+if TYPE_CHECKING:
+    from guard_core.models import SyncSecurityConfig
 
 _UNIX_PEER_NAME = "unix"
 
@@ -21,7 +24,7 @@ def forwarded_proto_is_https(header_value: str | None, proxy_depth: int) -> bool
     return entry.strip().lower() == "https"
 
 
-def request_is_https(request: SyncGuardRequest, config: Any) -> bool:
+def request_is_https(request: SyncGuardRequest, config: "SyncSecurityConfig") -> bool:
     if request.url_scheme == "https":
         return True
     if not (config.trust_x_forwarded_proto and config.trusted_proxies):

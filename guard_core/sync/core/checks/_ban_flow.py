@@ -1,6 +1,7 @@
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from guard_core.sync._utils.access_control import IpAccessResult
     from guard_core.sync.core.checks._pending_ban import PendingBan
     from guard_core.sync.core.checks._shared_strikes import FusedStrike
     from guard_core.sync.core.checks.base import SecurityCheck
@@ -20,4 +21,4 @@ class BanFlow:
         self.fused: FusedStrike | None = None
         self.banned_by: SecurityCheck | None = None
         self.read_done = False
-        self.denied_access: Any = None
+        self.denied_access: tuple[IpAccessResult, bool, bool] | None = None

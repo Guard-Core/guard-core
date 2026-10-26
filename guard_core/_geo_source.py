@@ -1,9 +1,7 @@
-from typing import Any
-
 from guard_core._config_capabilities import _extra_installed, install_hint
 
 
-def lacks_geo_source(geo_ip_handler: Any, ipinfo_token: str | None) -> bool:
+def lacks_geo_source(geo_ip_handler: object, ipinfo_token: str | None) -> bool:
     return geo_ip_handler is None and not ipinfo_token
 
 
@@ -13,7 +11,7 @@ def missing_geo_download_extras(downloader: str) -> list[str]:
 
 def geo_source_problem(
     rule: str,
-    geo_ip_handler: Any,
+    geo_ip_handler: object,
     ipinfo_token: str | None,
     downloader: str,
     adapter: str | None = None,

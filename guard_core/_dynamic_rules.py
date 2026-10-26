@@ -1,7 +1,6 @@
 import json
 from collections.abc import Sequence
 from datetime import datetime
-from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -82,7 +81,7 @@ class DynamicRules(BaseModel):
 _FINGERPRINT_EXCLUDED_FIELDS = frozenset({"timestamp", "ttl"})
 
 
-def content_fingerprint(rules: Any) -> str:
+def content_fingerprint(rules: object) -> str:
     content: dict[str, object] = {}
     for name in DynamicRules.model_fields:
         if name in _FINGERPRINT_EXCLUDED_FIELDS:

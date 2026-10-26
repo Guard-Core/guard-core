@@ -1,4 +1,4 @@
-from typing import Any, cast
+from typing import cast
 
 from pydantic_core import PydanticCustomError
 
@@ -9,7 +9,7 @@ _CLOUD_IP_STORE_MEMBERS = tuple(
 )
 
 
-def _validate_cloud_ip_store_value(value: Any) -> CloudIpStoreProtocol:
+def _validate_cloud_ip_store_value(value: object) -> CloudIpStoreProtocol:
     # The isinstance check of a runtime_checkable Protocol looks members up with
     # hasattr on 3.10 and 3.11 and with getattr_static from 3.12, which rejects an
     # object that serves its members from __getattr__. One hasattr check keeps

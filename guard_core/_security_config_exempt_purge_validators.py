@@ -1,4 +1,4 @@
-from typing import Annotated, Any
+from typing import Annotated
 
 from pydantic import AfterValidator, BeforeValidator
 
@@ -15,7 +15,7 @@ def _validate_purge_target(value: str | None) -> str | None:
 PurgeTarget = Annotated[str | None, AfterValidator(_validate_purge_target)]
 
 
-def _validate_emergency_exempt_paths_value(v: Any) -> list[str]:
+def _validate_emergency_exempt_paths_value(v: object) -> list[str]:
     from guard_core.core.validation.path_matching import normalize_url_path
 
     entries = _validate_str_list_field_value(v, field_name="emergency_exempt_paths")

@@ -1,12 +1,12 @@
 import re
-from typing import Any
+from collections.abc import Iterable, Mapping
 
 _DEFAULT_MAX_SCAN_LENGTH = 10000
 _DEFAULT_COMPILER_TIMEOUT = 2.0
 _DEFAULT_MAX_BODY_INSPECT_BYTES = 262144
 
 
-def _regex_anomaly(regex_threats: list[dict[str, Any]]) -> float:
+def _regex_anomaly(regex_threats: Iterable[Mapping[str, float]]) -> float:
     return float(sum(t.get("weight", 1.0) for t in regex_threats))
 
 
@@ -25,7 +25,7 @@ _ENHANCED_CONFIG_REQUIRED_ATTRS = (
 )
 
 
-def _supports_enhanced_config(config: Any) -> bool:
+def _supports_enhanced_config(config: object) -> bool:
     return config is not None and all(
         hasattr(config, attr) for attr in _ENHANCED_CONFIG_REQUIRED_ATTRS
     )

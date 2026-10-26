@@ -1,12 +1,13 @@
 import logging
 import math
 from collections.abc import Callable, Collection
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from guard_core._misconfiguration import report_misconfiguration
 from guard_core.core.checks.helpers import SUSPICIOUS_COUNT_WINDOW_SECONDS
 
 if TYPE_CHECKING:
+    from guard_core.decorators.route_config import RouteConfig
     from guard_core.models import SecurityConfig
 
 _RATE_LIMIT_FEED = "rate_limit"
@@ -37,7 +38,7 @@ _remembered_context: "_BanThresholdContext | None" = None
 class _BanThresholdContext:
     def __init__(
         self,
-        route_configs: Callable[[], Collection[Any]],
+        route_configs: Callable[[], Collection["RouteConfig"]],
         redis_shared: Callable[[], bool],
     ) -> None:
         self.route_configs = route_configs
@@ -45,7 +46,7 @@ class _BanThresholdContext:
 
 
 def remember_ban_threshold_context(
-    route_configs: Callable[[], Collection[Any]],
+    route_configs: Callable[[], Collection["RouteConfig"]],
     redis_shared: Callable[[], bool],
 ) -> None:
     global _remembered_context

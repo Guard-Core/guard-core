@@ -1,6 +1,9 @@
 import binascii
 import re
-from typing import Any
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from guard_core.sync.detection_engine.preprocessor import ContentPreprocessor
 
 _RUN_FLOOR = 12
 
@@ -38,7 +41,9 @@ def _decoded_fragment(token: str) -> str | None:
     return decoded if _printable_ratio(decoded) >= PRINTABLE_RATIO_THRESHOLD else None
 
 
-def build_short_base64_additive_view(preprocessor: Any, content: str) -> str:
+def build_short_base64_additive_view(
+    preprocessor: "ContentPreprocessor", content: str
+) -> str:
     if not content:
         return ""
 
