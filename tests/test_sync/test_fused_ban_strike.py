@@ -17,6 +17,9 @@ from guard_core.sync.decorators.base import RouteConfig
 from guard_core.sync.handlers.ipban_handler import IPBanManager
 from guard_core.sync.handlers.redis_handler import RedisManager
 from tests.test_sync.conftest import REDIS_URL
+from tests.test_sync.engine_redis_commands import (
+    server_loses_the_script_of_the_next_evalsha,
+)
 
 BLACKLISTED = "198.51.100.21"
 BLACKLISTED_TWIN = "198.51.100.22"
@@ -46,6 +49,14 @@ class _Rig:
         self.counting = True
         self.commands: list[str] = []
         self.events: list[tuple[str, str | None]] = []
+
+    def note_command(self, name: str) -> None:
+        if name == "SCRIPT" and self.commands[-1:] == ["EVALSHA"]:
+            self.commands.pop()
+            self.round_trips -= self.counting
+            return
+        self.round_trips += self.counting
+        self.commands.append(name)
 
     def start(self) -> None:
         self.redis.initialize()
@@ -146,8 +157,7 @@ def count_redis_round_trips(monkeypatch: pytest.MonkeyPatch) -> None:
         name = _command_of(command)
         if name not in _HANDSHAKE:
             for rig in _ACTIVE:
-                rig.round_trips += rig.counting
-                rig.commands.append(name)
+                rig.note_command(name)
         return real(connection, command, *rest, **kw)
 
     monkeypatch.setattr(Connection, "send_packed_command", counted)
@@ -377,12 +387,14 @@ def test_a_banned_client_records_no_strike() -> None:
         assert rig.events == [("ip_blocked", "banned")]
 
 
-def test_a_flushed_script_cache_still_blocks_and_records_the_strike() -> None:
+def test_a_flushed_script_cache_still_blocks_and_records_the_strike(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     with _rig(10**6) as rig:
-        with rig.redis.get_connection() as conn:
-            conn.script_flush()
+        turned = server_loses_the_script_of_the_next_evalsha(monkeypatch)
 
         assert rig.request(BLACKLISTED) == 403
+        assert len(turned) == 1
         state = rig.state()
         assert state[f"detection:strikes:{BLACKLISTED}"] == ("zset", 1)
 

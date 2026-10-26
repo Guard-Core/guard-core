@@ -11,6 +11,7 @@ from tests.test_sync.engine_redis_commands import (
     _MONITORS,
     engine_commands_sent,
     engine_redis_url,
+    server_loses_the_script_of_the_next_evalsha,
     unwatch_all_engine_commands,
     unwatch_engine_commands,
 )
@@ -114,3 +115,22 @@ def test_unwatching_all_closes_every_monitor_a_test_left_open(
     assert monitor._reader.closed
     monitor._thread.join(timeout=5)
     assert not monitor._thread.is_alive()
+
+
+def test_a_noscript_retry_counts_as_one_script_call(
+    engine: RedisManager, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    url = engine.config.redis_url
+    key = f"noscript_{uuid.uuid4().hex}"
+    engine.record_sliding_window_hit("wp152", key, 2e9, 2e9 - 1000, 60)
+    before_evalsha = engine_commands_sent(url, "evalsha")
+    before_script = engine_commands_sent(url, "script")
+    turned = server_loses_the_script_of_the_next_evalsha(monkeypatch)
+
+    engine.record_sliding_window_hit("wp152", key, 2e9, 2e9 - 1000, 60)
+
+    assert len(turned) == 1
+    assert engine_commands_sent(url, "evalsha") - before_evalsha == 1
+    assert engine_commands_sent(url, "script") - before_script == 0
+    engine.record_sliding_window_hit("wp152", key, 2e9, 2e9 - 1000, 60)
+    assert engine_commands_sent(url, "evalsha") - before_evalsha == 2

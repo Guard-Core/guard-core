@@ -7,6 +7,9 @@ import pytest
 from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.redis_handler import RedisManager
 from tests.test_sync.conftest import REDIS_URL
+from tests.test_sync.engine_redis_commands import (
+    server_loses_the_script_of_the_next_evalsha,
+)
 
 IP = "203.0.113.200"
 WINDOW = 3600
@@ -82,13 +85,13 @@ def test_every_key_expires_with_the_window(redis: RedisManager) -> None:
 
 
 def test_the_script_is_reloaded_after_a_script_flush(
-    redis: RedisManager,
+    redis: RedisManager, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _record(redis, ("xss",))
-    with redis.get_connection() as conn:
-        conn.script_flush()
+    turned = server_loses_the_script_of_the_next_evalsha(monkeypatch)
 
     assert _record(redis, ("xss",)) == (2, 0, {"xss": 2})
+    assert len(turned) == 1
 
 
 def test_forgetting_deletes_every_counter_of_the_ip(
@@ -105,14 +108,14 @@ def test_forgetting_deletes_every_counter_of_the_ip(
 
 
 def test_forgetting_reloads_the_script_after_a_script_flush(
-    redis: RedisManager,
+    redis: RedisManager, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _record(redis, ("xss",))
-    with redis.get_connection() as conn:
-        conn.script_flush()
+    turned = server_loses_the_script_of_the_next_evalsha(monkeypatch)
 
     redis.forget_detection_strikes(IP)
 
+    assert len(turned) == 1
     assert _keys(redis) == []
 
 

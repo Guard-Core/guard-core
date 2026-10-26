@@ -6,13 +6,17 @@ import uuid
 from collections import Counter
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
+import pytest
 from redis import Redis
+from redis.connection import Connection
 
 _PROCESS_CLIENT_NAME = f"guardtest-{uuid.uuid4().hex}"
 _OBSERVER_CLIENT_NAME = f"guardtest-observer-{uuid.uuid4().hex}"
 _MONITOR_LINE = re.compile(r"^\+?[\d.]+ \[(\d+) (.+?)\] (.*)$")
 _QUOTED = re.compile(r'"((?:[^"\\]|\\.)*)"')
 _MONITORS: dict[str, "_Monitor"] = {}
+_SHA_OF_AN_EVALSHA = re.compile(rb"(EVALSHA\r\n\$40\r\n)[0-9a-f]{40}")
+_SHA_THE_SERVER_NEVER_LOADED = b"0" * 40
 
 
 class _Monitor:
@@ -72,6 +76,56 @@ class _Monitor:
             pass
         self._reader.close()
         self._socket.close()
+
+
+def server_loses_the_script_of_the_next_evalsha(
+    monkeypatch: pytest.MonkeyPatch,
+) -> list[bytes]:
+    """Make the next EVALSHA the engine sends name a script the server never
+    loaded, so the server answers NOSCRIPT for real, exactly as it does after the
+    script cache was flushed, without flushing the cache every other client of
+    the server shares. Returns the list of EVALSHAs it turned (one entry each),
+    so a test can prove the reload path ran."""
+    real = Connection.send_packed_command
+    turned: list[bytes] = []
+
+    def lose(
+        connection: Connection,
+        command: bytes | list[bytes],
+        *rest: object,
+        **kw: object,
+    ) -> None:
+        chunks = command if isinstance(command, list) else [command]
+        if not turned and chunks[0].split(b"\r\n")[2] == b"EVALSHA":
+            turned.append(chunks[0])
+            lost = _SHA_OF_AN_EVALSHA.sub(
+                rb"\g<1>" + _SHA_THE_SERVER_NEVER_LOADED, chunks[0], count=1
+            )
+            command = [lost, *chunks[1:]] if isinstance(command, list) else lost
+        real(connection, command, *rest, **kw)
+
+    monkeypatch.setattr(Connection, "send_packed_command", lose)
+    return turned
+
+
+def _without_script_reloads(
+    lines: list[tuple[str, list[str]]],
+) -> list[tuple[str, list[str]]]:
+    """The commands without the NOSCRIPT retry: an EVALSHA the server could not
+    run (no command of a script follows it) and the SCRIPT LOAD straight after
+    it on the same connection go, so the EVALSHA that then ran counts once."""
+    kept: list[tuple[str, list[str]]] = []
+    for owner, arguments in lines:
+        if (
+            arguments[0].lower() == "script"
+            and kept
+            and kept[-1][0] == owner
+            and kept[-1][1][0].lower() == "evalsha"
+        ):
+            kept.pop()
+            continue
+        kept.append((owner, arguments))
+    return kept
 
 
 def unwatch_all_engine_commands() -> None:
@@ -155,7 +209,8 @@ def unwatch_engine_commands(engine_url: str | None) -> None:
 def engine_commands_sent(engine_url: str | None, command: str | None = None) -> int:
     """Commands the engine's connections ran since the first read: every
     one, or those named `command` (lower case, as in INFO commandstats),
-    counting the ones a Lua script ran too.
+    counting the ones a Lua script ran too, and not counting a NOSCRIPT retry (the
+    EVALSHA the server could not run and the SCRIPT LOAD after it).
 
     The count is proven complete on every read: the server's own `tot-cmds` of
     the engine's connections (which no other client can change) must equal the
@@ -172,11 +227,16 @@ def engine_commands_sent(engine_url: str | None, command: str | None = None) -> 
     monitor.engine_addresses |= set(connections)
     sent: Counter[str] = Counter()
     sent_on_live_connections: Counter[str] = Counter()
-    for owner, _address, arguments in monitor.snapshot()[monitor.start :]:
-        if owner in monitor.engine_addresses and arguments:
-            sent[arguments[0].lower()] += 1
-            if owner in connections:
-                sent_on_live_connections[arguments[0].lower()] += 1
+    engine_lines = [
+        (owner, arguments)
+        for owner, _address, arguments in monitor.snapshot()[monitor.start :]
+        if owner in monitor.engine_addresses and arguments
+    ]
+    for owner, arguments in engine_lines:
+        if owner in connections:
+            sent_on_live_connections[arguments[0].lower()] += 1
+    for _owner, arguments in _without_script_reloads(engine_lines):
+        sent[arguments[0].lower()] += 1
     seen = sum(sent_on_live_connections.values()) + max(
         sent_on_live_connections["multi"] - sent_on_live_connections["exec"], 0
     )

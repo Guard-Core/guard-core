@@ -3,27 +3,34 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 from unittest.mock import patch
 
+import pytest
 from redis import Redis
 from redis.exceptions import NoScriptError
 
 from guard_core.sync.handlers._redis_lean import lean_command, lean_evalsha
 from guard_core.sync.handlers.redis_handler import _build_redis_client
 from tests.conftest import REDIS_URL
+from tests.test_sync.engine_redis_commands import (
+    server_loses_the_script_of_the_next_evalsha,
+)
 
 SCRIPT = "return {KEYS[1], ARGV[1], false, 7, {KEYS[2], 'x'}}"
 
 
-def test_replies_equal_the_high_level_path_and_a_lost_script_is_reloaded() -> None:
+def test_replies_equal_the_high_level_path_and_a_lost_script_is_reloaded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     client = _build_redis_client(REDIS_URL, 10, 1.0)
     try:
         sha = client.script_load(SCRIPT)
         assert lean_evalsha(client, SCRIPT, sha, ["a", "b"], ["x"]) == client.evalsha(
             sha, 2, "a", "b", "x"
         )
-        client.script_flush()
+        turned = server_loses_the_script_of_the_next_evalsha(monkeypatch)
         assert lean_evalsha(client, SCRIPT, sha, ["a", "b"], ["x"]) == client.evalsha(
             sha, 2, "a", "b", "x"
         )
+        assert len(turned) == 1
         key = f"lean:{uuid.uuid4().hex}"
         client.set(key, "1")
         assert lean_command(client, "GET", key) == "1"
@@ -126,7 +133,9 @@ def test_a_release_listener_hears_each_lean_call_like_each_plain_one() -> None:
         client.close()
 
 
-def test_a_stock_client_answers_every_lean_routed_method_like_the_fast_pool() -> None:
+def test_a_stock_client_answers_every_lean_routed_method_like_the_fast_pool(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     fast = _build_redis_client(REDIS_URL, 10, 1.0)
     stock = Redis.from_url(REDIS_URL, decode_responses=True)
     try:
@@ -139,10 +148,11 @@ def test_a_stock_client_answers_every_lean_routed_method_like_the_fast_pool() ->
             assert lean_evalsha(client, SCRIPT, sha, ["a", "b"], ["x"]) == (
                 stock.evalsha(sha, 2, "a", "b", "x")
             )
-        stock.script_flush()
+        turned = server_loses_the_script_of_the_next_evalsha(monkeypatch)
         assert lean_evalsha(stock, SCRIPT, sha, ["a", "b"], ["x"]) == lean_evalsha(
             fast, SCRIPT, sha, ["a", "b"], ["x"]
         )
+        assert len(turned) == 1
     finally:
         stock.close()
         fast.close()

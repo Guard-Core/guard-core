@@ -28,6 +28,7 @@ from guard_core.handlers.ratelimit_handler import RateLimitManager
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import SecurityConfig
 from tests.conftest import REDIS_URL
+from tests.engine_redis_commands import server_loses_the_script_of_the_next_evalsha
 
 CLIENT = "198.51.100.31"
 TWIN = "198.51.100.32"
@@ -72,6 +73,14 @@ class _Rig:
         self.counting = True
         self.commands: list[str] = []
         self.bypassed: set[str] = set()
+
+    def note_command(self, name: str) -> None:
+        if name == "SCRIPT" and self.commands[-1:] == ["EVALSHA"]:
+            self.commands.pop()
+            self.round_trips -= self.counting
+            return
+        self.round_trips += self.counting
+        self.commands.append(name)
 
     async def start(self, extra_checks: bool = False) -> None:
         await self.redis.initialize()
@@ -224,8 +233,7 @@ def count_redis_round_trips(monkeypatch: pytest.MonkeyPatch) -> None:
         name = _command_of(command)
         if name not in _HANDSHAKE:
             for rig in _ACTIVE:
-                rig.round_trips += rig.counting
-                rig.commands.append(name)
+                rig.note_command(name)
         return await real(connection, command, *rest, **kw)
 
     monkeypatch.setattr(Connection, "send_packed_command", counted)
@@ -616,6 +624,17 @@ async def test_a_bypassed_ip_check_still_defers_the_ban_read() -> None:
     async with _rig() as rig:
         rig.bypassed.add("ip")
         assert await rig.request(CLIENT, route={"required_headers": {}}) is None
+        assert rig.commands.count("EVALSHA") == 1
+
+
+async def test_a_script_the_server_lost_is_still_one_call_for_a_bypassed_ip_check(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async with _rig() as rig:
+        rig.bypassed.add("ip")
+        turned = server_loses_the_script_of_the_next_evalsha(monkeypatch)
+        assert await rig.request(CLIENT, route={"required_headers": {}}) is None
+        assert len(turned) == 1
         assert rig.commands.count("EVALSHA") == 1
 
 

@@ -17,6 +17,7 @@ from guard_core.handlers._redis_lean import lean_command, lean_evalsha
 from guard_core.handlers.redis_handler import RedisManager, _build_redis_client
 from guard_core.models import SecurityConfig
 from tests.conftest import REDIS_URL
+from tests.engine_redis_commands import server_loses_the_script_of_the_next_evalsha
 
 SCRIPT = "return {KEYS[1], ARGV[1], false, 7, {KEYS[2], 'x'}}"
 
@@ -58,14 +59,15 @@ async def test_replies_equal_the_high_level_path_for_every_key_shape(
 
 
 async def test_a_script_the_server_lost_is_loaded_and_the_call_answered(
-    client: Redis,
+    client: Redis, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     sha = await client.script_load(SCRIPT)
-    await client.script_flush()
+    turned = server_loses_the_script_of_the_next_evalsha(monkeypatch)
 
     assert await lean_evalsha(
         client, SCRIPT, sha, ["a", "b"], ["x"]
     ) == await client.evalsha(sha, 2, "a", "b", "x")
+    assert len(turned) == 1
 
 
 async def test_a_cancelled_call_never_hands_its_connection_on_with_a_reply_unread(
@@ -656,7 +658,7 @@ async def test_an_instance_without_a_provider_manager_takes_the_plain_path(
 
 
 async def test_a_stock_client_answers_every_lean_routed_method_like_the_fast_pool(
-    client: Redis,
+    client: Redis, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     stock = Redis.from_url(REDIS_URL, decode_responses=True)
     try:
@@ -670,9 +672,10 @@ async def test_a_stock_client_answers_every_lean_routed_method_like_the_fast_poo
             assert await lean_evalsha(
                 lean_client, SCRIPT, sha, ["a", "b"], ["x"]
             ) == await stock.evalsha(sha, 2, "a", "b", "x")
-        await stock.script_flush()
+        turned = server_loses_the_script_of_the_next_evalsha(monkeypatch)
         assert await lean_evalsha(stock, SCRIPT, sha, ["a", "b"], ["x"]) == (
             await lean_evalsha(client, SCRIPT, sha, ["a", "b"], ["x"])
         )
+        assert len(turned) == 1
     finally:
         await stock.aclose()

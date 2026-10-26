@@ -17,6 +17,7 @@ from guard_core.handlers.ipban_handler import IPBanManager
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import SecurityConfig
 from tests.conftest import REDIS_URL
+from tests.engine_redis_commands import server_loses_the_script_of_the_next_evalsha
 
 BLACKLISTED = "198.51.100.21"
 BLACKLISTED_TWIN = "198.51.100.22"
@@ -46,6 +47,14 @@ class _Rig:
         self.counting = True
         self.commands: list[str] = []
         self.events: list[tuple[str, str | None]] = []
+
+    def note_command(self, name: str) -> None:
+        if name == "SCRIPT" and self.commands[-1:] == ["EVALSHA"]:
+            self.commands.pop()
+            self.round_trips -= self.counting
+            return
+        self.round_trips += self.counting
+        self.commands.append(name)
 
     async def start(self) -> None:
         await self.redis.initialize()
@@ -148,8 +157,7 @@ def count_redis_round_trips(monkeypatch: pytest.MonkeyPatch) -> None:
         name = _command_of(command)
         if name not in _HANDSHAKE:
             for rig in _ACTIVE:
-                rig.round_trips += rig.counting
-                rig.commands.append(name)
+                rig.note_command(name)
         return await real(connection, command, *rest, **kw)
 
     monkeypatch.setattr(Connection, "send_packed_command", counted)
@@ -381,12 +389,14 @@ async def test_a_banned_client_records_no_strike() -> None:
         assert rig.events == [("ip_blocked", "banned")]
 
 
-async def test_a_flushed_script_cache_still_blocks_and_records_the_strike() -> None:
+async def test_a_flushed_script_cache_still_blocks_and_records_the_strike(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     async with _rig(10**6) as rig:
-        async with rig.redis.get_connection() as conn:
-            await conn.script_flush()
+        turned = server_loses_the_script_of_the_next_evalsha(monkeypatch)
 
         assert await rig.request(BLACKLISTED) == 403
+        assert len(turned) == 1
         state = await rig.state()
         assert state[f"detection:strikes:{BLACKLISTED}"] == ("zset", 1)
 

@@ -10,6 +10,9 @@ from redis.exceptions import ConnectionError
 from guard_core.exceptions import GuardRedisError
 from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.redis_handler import redis_handler
+from tests.test_sync.engine_redis_commands import (
+    server_loses_the_script_of_the_next_evalsha,
+)
 
 
 def test_redis_basic_operations(security_config_redis: SyncSecurityConfig) -> None:
@@ -610,18 +613,18 @@ def test_initialize_twice_against_real_redis_does_not_warn(
 
 
 def test_record_sliding_window_hit_reloads_its_script_after_a_script_flush(
-    security_config_redis: SyncSecurityConfig,
+    security_config_redis: SyncSecurityConfig, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     handler = redis_handler(security_config_redis)
     handler.initialize()
     key = f"script_flush_{uuid.uuid4().hex}"
-    with handler.get_connection() as conn:
-        conn.script_flush()
+    turned = server_loses_the_script_of_the_next_evalsha(monkeypatch)
 
     count = handler.record_sliding_window_hit(
         "sliding_window_test", key, 2_000_000_000.0, 1_999_999_000.0, 60
     )
 
+    assert len(turned) == 1
     assert count == 1
     handler.delete("sliding_window_test", key)
     handler.close()
@@ -723,16 +726,16 @@ def test_a_full_index_prunes_expired_keys_then_drops_the_new_key(
 
 
 def test_sum_indexed_window_hits_reloads_its_script_after_a_script_flush(
-    security_config_redis: SyncSecurityConfig,
+    security_config_redis: SyncSecurityConfig, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     handler = redis_handler(security_config_redis)
     handler.initialize()
     index, key = f"index_{uuid.uuid4().hex}", f"key_{uuid.uuid4().hex}"
     try:
         _indexed_hits(handler, index, 10, {key: [5.0]})
-        with handler.get_connection() as conn:
-            conn.script_flush()
+        turned = server_loses_the_script_of_the_next_evalsha(monkeypatch)
         assert handler.sum_indexed_window_hits(_NS, index, 0.0) == 1
+        assert len(turned) == 1
     finally:
         handler.delete_pattern(f"{_NS}:*")
         handler.close()

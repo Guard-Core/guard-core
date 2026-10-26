@@ -11,6 +11,7 @@ from redis.exceptions import ConnectionError
 from guard_core.exceptions import GuardRedisError
 from guard_core.handlers.redis_handler import redis_handler
 from guard_core.models import SecurityConfig
+from tests.engine_redis_commands import server_loses_the_script_of_the_next_evalsha
 
 
 @pytest.mark.asyncio
@@ -645,18 +646,18 @@ async def test_initialize_twice_against_real_redis_does_not_warn(
 
 @pytest.mark.asyncio
 async def test_record_sliding_window_hit_reloads_its_script_after_a_script_flush(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SecurityConfig, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     handler = redis_handler(security_config_redis)
     await handler.initialize()
     key = f"script_flush_{uuid.uuid4().hex}"
-    async with handler.get_connection() as conn:
-        await conn.script_flush()
+    turned = server_loses_the_script_of_the_next_evalsha(monkeypatch)
 
     count = await handler.record_sliding_window_hit(
         "sliding_window_test", key, 2_000_000_000.0, 1_999_999_000.0, 60
     )
 
+    assert len(turned) == 1
     assert count == 1
     await handler.delete("sliding_window_test", key)
     await handler.close()
@@ -763,16 +764,16 @@ async def test_a_full_index_prunes_expired_keys_then_drops_the_new_key(
 
 @pytest.mark.asyncio
 async def test_sum_indexed_window_hits_reloads_its_script_after_a_script_flush(
-    security_config_redis: SecurityConfig,
+    security_config_redis: SecurityConfig, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     handler = redis_handler(security_config_redis)
     await handler.initialize()
     index, key = f"index_{uuid.uuid4().hex}", f"key_{uuid.uuid4().hex}"
     try:
         await _indexed_hits(handler, index, 10, {key: [5.0]})
-        async with handler.get_connection() as conn:
-            await conn.script_flush()
+        turned = server_loses_the_script_of_the_next_evalsha(monkeypatch)
         assert await handler.sum_indexed_window_hits(_NS, index, 0.0) == 1
+        assert len(turned) == 1
     finally:
         await handler.delete_pattern(f"{_NS}:*")
         await handler.close()

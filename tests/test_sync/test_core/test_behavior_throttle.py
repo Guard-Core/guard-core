@@ -26,6 +26,9 @@ from guard_core.sync.handlers._behavior_throttle import (
 from guard_core.sync.handlers.behavior_handler import BehaviorRule, BehaviorTracker
 from guard_core.sync.handlers.redis_handler import redis_handler
 from tests.test_sync.conftest import MockGuardResponse, MockGuardResponseFactory
+from tests.test_sync.engine_redis_commands import (
+    server_loses_the_script_of_the_next_evalsha,
+)
 
 _IP = "203.0.113.50"
 _ENDPOINT = "module.view"
@@ -365,9 +368,9 @@ def test_redis_script_is_reloaded_after_a_script_flush(
         processor, _, _ = _processor(security_config_redis, tracker)
         route = _route(_throttle_rule(1))
         assert _statuses(processor, clock, route, 1) == [None]
-        with manager.get_connection() as conn:
-            conn.script_flush()
+        turned = server_loses_the_script_of_the_next_evalsha(monkeypatch)
         response = processor.process_usage_rules(_request(), _IP, route)
+        assert len(turned) == 1
         assert response is not None and response.status_code == 429
 
 

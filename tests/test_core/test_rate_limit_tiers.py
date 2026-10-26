@@ -6,6 +6,7 @@ from typing import Any
 from unittest.mock import AsyncMock, Mock
 
 import pytest
+from redis.asyncio import Redis
 
 from guard_core.core.checks.implementations.rate_limit import RateLimitCheck
 from guard_core.decorators.base import RouteConfig
@@ -13,6 +14,7 @@ from guard_core.handlers.ratelimit_handler import RateLimitManager
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import SecurityConfig
 from tests.conftest import REDIS_URL, MockGuardRequest, MockGuardResponse
+from tests.engine_redis_commands import server_loses_the_script_of_the_next_evalsha
 
 IP = "198.51.100.20"
 ROUTE_ID = "app.module.handler"
@@ -136,25 +138,51 @@ def _all_limits_route_config() -> RouteConfig:
     return route_config
 
 
+def _record_commands(client: Redis, monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    commands: list[str] = []
+    original = client.execute_command
+
+    async def recording(*args: Any, **kwargs: Any) -> Any:
+        name = str(args[0])
+        if name == "SCRIPT LOAD" and commands[-1:] == ["EVALSHA"]:
+            commands.pop()
+        else:
+            commands.append(name)
+        return await original(*args, **kwargs)
+
+    monkeypatch.setattr(client, "execute_command", recording)
+    return commands
+
+
 async def test_every_tier_of_a_request_costs_one_redis_command(
     redis_stack: tuple[RateLimitManager, RedisManager, SecurityConfig, Mock],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _, redis, _, middleware = redis_stack
     check = RateLimitCheck(middleware)
-    commands: list[str] = []
     client = redis._redis
     assert client is not None
-    original = client.execute_command
-
-    async def recording(*args: Any, **kwargs: Any) -> Any:
-        commands.append(str(args[0]))
-        return await original(*args, **kwargs)
-
-    monkeypatch.setattr(client, "execute_command", recording)
+    commands = _record_commands(client, monkeypatch)
     response = await check.check(_request(route_config=_all_limits_route_config()))
 
     assert response is None
+    assert commands == ["EVALSHA"]
+
+
+async def test_a_script_the_server_lost_still_costs_one_redis_command(
+    redis_stack: tuple[RateLimitManager, RedisManager, SecurityConfig, Mock],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, redis, _, middleware = redis_stack
+    check = RateLimitCheck(middleware)
+    client = redis._redis
+    assert client is not None
+    commands = _record_commands(client, monkeypatch)
+    turned = server_loses_the_script_of_the_next_evalsha(monkeypatch)
+    response = await check.check(_request(route_config=_all_limits_route_config()))
+
+    assert response is None
+    assert len(turned) == 1
     assert commands == ["EVALSHA"]
 
 
