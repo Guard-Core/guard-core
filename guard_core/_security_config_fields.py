@@ -1191,7 +1191,8 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
     emergency_whitelist_only: bool = Field(
         default=True,
         description="During emergency mode, admit only emergency_whitelist IPs. "
-        "False keeps the lockdown but also admits whitelist and exempt_ips "
+        "False keeps the lockdown but also admits whitelist, exempt_ips and the "
+        "ip_whitelist entries of the active dynamic rule "
         "(set by dynamic rules)",
     )
 

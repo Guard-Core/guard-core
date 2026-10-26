@@ -36,8 +36,11 @@ def _rules(**overrides: Any) -> DynamicRules:
 
 
 def _check(**config: Any) -> EmergencyModeCheck:
-    middleware = MagicMock()
-    middleware.config = SyncSecurityConfig(
+    return _check_for(_config(**config))
+
+
+def _config(**config: Any) -> SyncSecurityConfig:
+    return SyncSecurityConfig(
         enable_redis=False,
         emergency_mode=True,
         emergency_whitelist=[EMERGENCY_IP],
@@ -45,6 +48,11 @@ def _check(**config: Any) -> EmergencyModeCheck:
         exempt_ips=[EXEMPT_IP],
         **config,
     )
+
+
+def _check_for(config: SyncSecurityConfig) -> EmergencyModeCheck:
+    middleware = MagicMock()
+    middleware.config = config
     middleware.logger = MagicMock()
     middleware.event_bus.send_middleware_event = MagicMock()
     middleware.create_error_response = MagicMock(
@@ -109,3 +117,49 @@ def test_an_emergency_rule_without_the_field_admits_only_the_list() -> None:
 
     manager._apply_rules(_rules(emergency_mode=True))
     assert config.emergency_whitelist_only is True
+
+
+DYNAMIC_IP = "198.18.0.7"
+DYNAMIC_CIDR_IP = "198.19.4.20"
+
+
+def _apply_dynamic_whitelist(
+    config: SyncSecurityConfig, entries: list[str], version: int = 1
+) -> None:
+    DynamicRuleManager(config)._apply_rules(
+        _rules(version=version, ip_whitelist=entries)
+    )
+
+
+@pytest.mark.parametrize(
+    ("ip", "expected"),
+    [(DYNAMIC_IP, None), (DYNAMIC_CIDR_IP, None), (UNKNOWN_IP, 503)],
+)
+def test_off_admits_the_dynamic_rule_ip_whitelist(
+    ip: str, expected: int | None
+) -> None:
+    config = _config(emergency_whitelist_only=False)
+    _apply_dynamic_whitelist(config, [DYNAMIC_IP, "198.19.4.0/24"])
+    assert _status(_check_for(config), ip) == expected
+
+
+@pytest.mark.parametrize("ip", [DYNAMIC_IP, DYNAMIC_CIDR_IP])
+def test_on_still_blocks_the_dynamic_rule_ip_whitelist(ip: str) -> None:
+    config = _config()
+    _apply_dynamic_whitelist(config, [DYNAMIC_IP, "198.19.4.0/24"])
+    assert _status(_check_for(config), ip) == 503
+
+
+def test_off_blocks_again_once_the_rule_drops_the_ip() -> None:
+    config = _config(emergency_whitelist_only=False)
+    _apply_dynamic_whitelist(config, [DYNAMIC_IP])
+    assert _status(_check_for(config), DYNAMIC_IP) is None
+    _apply_dynamic_whitelist(config, [EXEMPT_IP], version=2)
+    assert _status(_check_for(config), DYNAMIC_IP) == 503
+
+
+def test_passive_mode_logs_only_for_a_dynamic_rule_ip_when_off() -> None:
+    config = _config(emergency_whitelist_only=False, passive_mode=True)
+    _apply_dynamic_whitelist(config, [DYNAMIC_IP])
+    assert _status(_check_for(config), DYNAMIC_IP) is None
+    assert _status(_check_for(config), UNKNOWN_IP) is None
