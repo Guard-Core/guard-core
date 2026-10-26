@@ -6,12 +6,16 @@ from collections.abc import Callable, Iterator
 from functools import partial
 from typing import Any
 
+from guard_core._utils._scan_outcomes import (
+    SCAN_OUTCOME_QUEUE_WAIT,
+    SCAN_OUTCOME_RUN_TIMEOUT,
+)
+from guard_core._utils.compiler_finditer import _compiler_finditer
 from guard_core._utils.detection_scan import (
     _EVENT_LOOP_SLICE_SECONDS,
     _SCAN_TIME_BUDGET_EXHAUSTED_PATTERN,
     _charge_inline_cpu,
     _close_cpu_pass,
-    _compiler_finditer,
     _open_cpu_pass,
     _record_scan_time,
     _redact_pattern_source,
@@ -30,11 +34,14 @@ from guard_core.detection_engine.binary_prefix import (
     match_is_binary_dense,
 )
 from guard_core.detection_engine.compiler import (
+    RegexQueueWaitExpired,
     _await_regex_future,
     _yield_to_event_loop,
+    no_regex_worker_time,
     report_scan_success,
     report_scan_timeout,
     shared_regex_executor,
+    submit_to_regex_executor,
 )
 from guard_core.handlers._suspatterns_applicable import (
     _applicable_patterns,
@@ -481,9 +488,12 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
         compiler = state.compiler
 
         if compiler:
-            matches = await _compiler_finditer(compiler, pattern, category, content)
-            timeout_threshold = 0.9 * compiler.default_timeout
-            if not matches and time.monotonic() - pattern_start >= timeout_threshold:
+            matches, outcome = await _compiler_finditer(
+                compiler, pattern, category, content, pattern_start
+            )
+            if outcome == SCAN_OUTCOME_QUEUE_WAIT:
+                raise no_regex_worker_time(compiler.default_timeout)
+            if outcome == SCAN_OUTCOME_RUN_TIMEOUT:
                 timeout_occurred = True
                 logger.warning(
                     "Pattern timeout: "
@@ -529,13 +539,16 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
             self._scan_config(), "detection_compiler_timeout", _DEFAULT_COMPILER_TIMEOUT
         )
         worker_cpu: list[float] = []
-        future = shared_regex_executor().submit(
-            _timed_in_worker(lambda: list(finder(content)), worker_cpu)
+        future, started = submit_to_regex_executor(
+            _timed_in_worker(lambda: list(finder(content)), worker_cpu),
+            shared_regex_executor(),
         )
         try:
-            matches = await _suspended(_await_regex_future(future, timeout))
+            matches = await _suspended(_await_regex_future(future, started, timeout))
             report_scan_success()
             _record_scan_time(sum(worker_cpu))
+        except RegexQueueWaitExpired as exc:
+            raise no_regex_worker_time(timeout) from exc
         except concurrent.futures.TimeoutError:
             _record_scan_time(timeout)
             logger.warning(
@@ -602,14 +615,17 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
             self._scan_config(), "detection_compiler_timeout", _DEFAULT_COMPILER_TIMEOUT
         )
         worker_cpu: list[float] = []
-        future = shared_regex_executor().submit(
-            _timed_in_worker(lambda: pattern.search(content, search_from), worker_cpu)
+        future, started = submit_to_regex_executor(
+            _timed_in_worker(lambda: pattern.search(content, search_from), worker_cpu),
+            shared_regex_executor(),
         )
         try:
-            match = await _suspended(_await_regex_future(future, timeout))
+            match = await _suspended(_await_regex_future(future, started, timeout))
             report_scan_success()
             _record_scan_time(sum(worker_cpu))
             return match, False
+        except RegexQueueWaitExpired as exc:
+            raise no_regex_worker_time(timeout) from exc
         except concurrent.futures.TimeoutError:
             _record_scan_time(timeout)
             logger.warning(

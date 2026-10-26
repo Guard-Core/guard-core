@@ -2,9 +2,15 @@ import concurrent.futures
 import logging
 import re
 import threading
+import time
 from collections.abc import Callable
 from typing import Any
 
+from guard_core.exceptions import BodyReadFailedError
+from guard_core.sync._utils._scan_outcomes import (
+    SCAN_OUTCOME_QUEUE_WAIT,
+    SCAN_OUTCOME_RUN_TIMEOUT,
+)
 from guard_core.sync._utils.pattern_source_redaction import _SensitiveNameSets
 from guard_core.sync.detection_engine import _validation_cache
 from guard_core.sync.detection_engine._redos_cost_arbiter import (
@@ -41,8 +47,69 @@ def shared_regex_executor() -> concurrent.futures.ThreadPoolExecutor:
     return _shared_executor
 
 
-def _await_regex_future(future: concurrent.futures.Future[Any], timeout: float) -> Any:
-    return future.result(timeout=timeout)
+class RegexQueueWaitExpired(Exception):
+    """No worker took the scan within its bound: the pattern never ran."""
+
+
+def no_regex_worker_time(waited: float) -> BodyReadFailedError:
+    return BodyReadFailedError(
+        f"no regex worker took the scan within {waited} s, so the request was not "
+        "fully scanned"
+    )
+
+
+def submit_to_regex_executor(
+    work: Callable[[], Any],
+    executor: concurrent.futures.ThreadPoolExecutor | None = None,
+    ran_for: list[float] | None = None,
+) -> tuple[concurrent.futures.Future[Any], list[float]]:
+    started: list[float] = []
+
+    def run() -> Any:
+        start = time.monotonic()
+        started.append(start)
+        try:
+            return work()
+        finally:
+            if ran_for is not None:
+                ran_for.append(time.monotonic() - start)
+
+    return (executor or shared_regex_executor()).submit(run), started
+
+
+def _run_budget_left(
+    future: concurrent.futures.Future[Any],
+    started: list[float],
+    timeout: float,
+    expired: BaseException,
+) -> float:
+    """The run budget a scan has left once its first wait of ``timeout`` ended.
+
+    A future that finished with an error of its own, or a worker that started, is
+    judged by its own run; a worker that never started gets
+    RegexQueueWaitExpired.
+    """
+    if not started and (future.cancelled() or future.cancel()):
+        raise RegexQueueWaitExpired() from expired
+    if future.done():
+        raise expired
+    return max(timeout - (time.monotonic() - (started or [time.monotonic()])[0]), 0.0)
+
+
+def wait_for_regex_run(
+    future: concurrent.futures.Future[Any], started: list[float], timeout: float
+) -> Any:
+    try:
+        return future.result(timeout=timeout)
+    except concurrent.futures.TimeoutError as exc:
+        left = _run_budget_left(future, started, timeout, exc)
+    return future.result(timeout=left)
+
+
+def _await_regex_future(
+    future: concurrent.futures.Future[Any], started: list[float], timeout: float
+) -> Any:
+    return wait_for_regex_run(future, started, timeout)
 
 
 def _yield_to_event_loop() -> None:
@@ -203,6 +270,7 @@ class PatternCompiler:
         timeout: float | None = None,
         inline_safe: bool = False,
         worker_wrapper: Callable[[Callable[[], Any]], Callable[[], Any]] | None = None,
+        outcome: list[str] | None = None,
     ) -> Callable[[str], list[re.Match]]:
         compiled = (
             pattern
@@ -210,6 +278,7 @@ class PatternCompiler:
             else self.compile_pattern_sync(pattern)
         )
         match_timeout = timeout or self.default_timeout
+        scan_outcome = [] if outcome is None else outcome
 
         if inline_safe:
 
@@ -222,16 +291,27 @@ class PatternCompiler:
             def work() -> list[re.Match]:
                 return list(compiled.finditer(text))
 
-            future = shared_regex_executor().submit(
-                work if worker_wrapper is None else worker_wrapper(work)
+            ran_for: list[float] = []
+            future, started = submit_to_regex_executor(
+                work if worker_wrapper is None else worker_wrapper(work),
+                ran_for=ran_for,
             )
             try:
-                result: list[re.Match] = future.result(timeout=match_timeout)
+                result: list[re.Match] = wait_for_regex_run(
+                    future, started, match_timeout
+                )
                 report_scan_success()
+                ran_past_budget = sum(ran_for) >= 0.9 * match_timeout
+                if not result and ran_past_budget:
+                    scan_outcome.append(SCAN_OUTCOME_RUN_TIMEOUT)
                 return result
+            except RegexQueueWaitExpired:
+                scan_outcome.append(SCAN_OUTCOME_QUEUE_WAIT)
+                return []
             except concurrent.futures.TimeoutError:
                 future.cancel()
                 report_scan_timeout()
+                scan_outcome.append(SCAN_OUTCOME_RUN_TIMEOUT)
                 return []
             except Exception:
                 return []
@@ -244,6 +324,7 @@ class PatternCompiler:
         timeout: float | None = None,
         inline_safe: bool = False,
         worker_wrapper: Callable[[Callable[[], Any]], Callable[[], Any]] | None = None,
+        outcome: list[str] | None = None,
     ) -> Callable[[str], list[re.Match]]:
         compiled = (
             pattern
@@ -260,7 +341,10 @@ class PatternCompiler:
             return async_inline_finditer
 
         sync_finder = self.create_safe_finditer_matcher(
-            pattern, timeout=match_timeout, worker_wrapper=worker_wrapper
+            pattern,
+            timeout=match_timeout,
+            worker_wrapper=worker_wrapper,
+            outcome=outcome,
         )
 
         def async_safe_finditer(text: str) -> list[re.Match]:

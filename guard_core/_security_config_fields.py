@@ -1201,7 +1201,12 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
 
     detection_compiler_timeout: float = Field(
         default=2.0,
-        description="Timeout for pattern compilation and matching (seconds)",
+        description=(
+            "Time (seconds) one pattern may run in a regex worker, counted from the "
+            "moment the worker starts it. Waiting for a free worker is bounded by the "
+            "same value and ends the scan as incomplete (400 with an event and no "
+            "strike under fail_secure, a pass with the event otherwise)."
+        ),
         ge=0.1,
         le=10.0,
     )

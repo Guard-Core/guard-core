@@ -147,10 +147,15 @@ def test_builtin_category_uses_safe_finditer_matcher(
         timeout: float | None = None,
         inline_safe: bool = False,
         worker_wrapper: Any = None,
+        outcome: list[str] | None = None,
     ) -> Any:
         calls.append(pattern)
         return real(
-            pattern, timeout, inline_safe=inline_safe, worker_wrapper=worker_wrapper
+            pattern,
+            timeout,
+            inline_safe=inline_safe,
+            worker_wrapper=worker_wrapper,
+            outcome=outcome,
         )
 
     monkeypatch.setattr(
@@ -180,10 +185,15 @@ def test_custom_category_uses_safe_finditer_matcher(
         timeout: float | None = None,
         inline_safe: bool = False,
         worker_wrapper: Any = None,
+        outcome: list[str] | None = None,
     ) -> Any:
         calls.append(pattern)
         return real(
-            pattern, timeout, inline_safe=inline_safe, worker_wrapper=worker_wrapper
+            pattern,
+            timeout,
+            inline_safe=inline_safe,
+            worker_wrapper=worker_wrapper,
+            outcome=outcome,
         )
 
     monkeypatch.setattr(

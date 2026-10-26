@@ -11,8 +11,10 @@ import pytest
 
 from guard_core._utils import detection_scan
 from guard_core._utils.detection_scan import _scan_value_budget
-from guard_core.detection_engine import compiler as compiler_module
-from guard_core.detection_engine.compiler import _await_regex_future
+from guard_core.detection_engine.compiler import (
+    _await_regex_future,
+    submit_to_regex_executor,
+)
 from guard_core.handlers import _suspatterns_regex as regex_module
 from guard_core.handlers._suspatterns_regex import _WINDOWED_PATTERN_FINDERS
 from guard_core.handlers.suspatterns_handler import SusPatternsManager
@@ -42,19 +44,19 @@ async def test_await_regex_future_returns_result_and_yields_to_loop() -> None:
             await asyncio.sleep(0)
 
     task = asyncio.create_task(ticker())
-    future = compiler_module.shared_regex_executor().submit(lambda: "done")
+    future, started = submit_to_regex_executor(lambda: "done")
 
-    assert await _await_regex_future(future, 5.0) == "done"
+    assert await _await_regex_future(future, started, 5.0) == "done"
     await task
     assert ticks == [0, 1, 2]
 
 
 async def test_await_regex_future_timeout_is_concurrent_timeout() -> None:
     release = threading.Event()
-    future = compiler_module.shared_regex_executor().submit(release.wait, 5.0)
+    future, started = submit_to_regex_executor(lambda: release.wait(5.0))
     try:
         with pytest.raises(concurrent.futures.TimeoutError):
-            await _await_regex_future(future, 0.01)
+            await _await_regex_future(future, started, 0.01)
     finally:
         release.set()
 

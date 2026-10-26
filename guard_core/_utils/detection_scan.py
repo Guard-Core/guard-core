@@ -805,23 +805,3 @@ def _check_always_scan_header(value: str) -> tuple[bool, str, list[dict]]:
             )
             return True, trigger, [threat]
     return False, "", []
-
-
-async def _compiler_finditer(
-    compiler: Any, pattern: re.Pattern, category: str, content: str
-) -> list[re.Match]:
-    if category != "custom":
-        inline_finder = compiler.create_async_safe_finditer_matcher(
-            pattern, inline_safe=True
-        )
-        inline_matches: list[re.Match] = await inline_finder(content)
-        return inline_matches
-    worker_cpu: list[float] = []
-    finder = compiler.create_async_safe_finditer_matcher(
-        pattern,
-        inline_safe=False,
-        worker_wrapper=lambda work: _timed_in_worker(work, worker_cpu),
-    )
-    matches: list[re.Match] = await _suspended(finder(content))
-    _record_scan_time(sum(worker_cpu) if worker_cpu else compiler.default_timeout)
-    return matches

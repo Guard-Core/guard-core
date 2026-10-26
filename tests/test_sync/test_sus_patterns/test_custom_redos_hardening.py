@@ -929,6 +929,7 @@ def test_custom_pattern_routed_through_pool_path() -> None:
         timeout: float | None = None,
         inline_safe: bool = False,
         worker_wrapper: Any = None,
+        outcome: list[str] | None = None,
     ) -> Callable[[str], list[re.Match]]:
         captured.append(inline_safe)
         return original(
@@ -937,6 +938,7 @@ def test_custom_pattern_routed_through_pool_path() -> None:
             timeout=timeout,
             inline_safe=inline_safe,
             worker_wrapper=worker_wrapper,
+            outcome=outcome,
         )
 
     with patch.object(PatternCompiler, "create_async_safe_finditer_matcher", _spy):
@@ -958,6 +960,7 @@ def test_built_in_pattern_routed_through_inline_safe_path() -> None:
         timeout: float | None = None,
         inline_safe: bool = False,
         worker_wrapper: Any = None,
+        outcome: list[str] | None = None,
     ) -> Callable[[str], list[re.Match]]:
         captured.append(inline_safe)
         return original(
@@ -966,6 +969,7 @@ def test_built_in_pattern_routed_through_inline_safe_path() -> None:
             timeout=timeout,
             inline_safe=inline_safe,
             worker_wrapper=worker_wrapper,
+            outcome=outcome,
         )
 
     with patch.object(PatternCompiler, "create_async_safe_finditer_matcher", _spy):

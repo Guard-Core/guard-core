@@ -17,7 +17,7 @@ Configuration Fields
 
 **Type**: `float` | **Default**: `2.0` | **Range**: 0.1 - 10.0
 
-Maximum time in seconds for a single regex pattern match. Patterns that exceed this timeout are cancelled, preventing ReDoS attacks from consuming server resources.
+Maximum time in seconds for a single regex pattern match, counted from the moment a worker starts running it. Patterns that exceed this timeout are cancelled, preventing ReDoS attacks from consuming server resources. Waiting for a free worker is not part of the budget but is bounded by the same value: a scan that gets no worker in that time is incomplete, so the request answers 400 with a `suspicious_request` event and no strike under `fail_secure=True` and passes with the event under `fail_secure=False`.
 
 | Value    | Tradeoff                                                     |
 |----------|--------------------------------------------------------------|

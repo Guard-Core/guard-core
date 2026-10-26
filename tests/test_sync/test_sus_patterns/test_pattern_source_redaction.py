@@ -64,7 +64,13 @@ def test_check_regex_pattern_timeout_log_redacts_secret_shaped_custom_pattern(
     compiled = re.compile(_SECRET_PATTERN, re.IGNORECASE | re.MULTILINE)
     fake_pattern_start = time.monotonic() - 1000.0
 
-    with patch("guard_core.sync.handlers._suspatterns_regex.logger") as mock_logger:
+    with (
+        patch(
+            "guard_core.sync.detection_engine.compiler.wait_for_regex_run",
+            side_effect=concurrent.futures.TimeoutError(),
+        ),
+        patch("guard_core.sync.handlers._suspatterns_regex.logger") as mock_logger,
+    ):
         threat, timed_out = manager._check_regex_pattern(
             compiled, "unrelated content", "203.0.113.5", fake_pattern_start, "custom"
         )
@@ -85,7 +91,13 @@ def test_check_regex_pattern_timeout_log_leaves_builtin_pattern_unchanged(
     compiled = re.compile(builtin_source)
     fake_pattern_start = time.monotonic() - 1000.0
 
-    with patch("guard_core.sync.handlers._suspatterns_regex.logger") as mock_logger:
+    with (
+        patch(
+            "guard_core.sync.detection_engine.compiler.wait_for_regex_run",
+            side_effect=concurrent.futures.TimeoutError(),
+        ),
+        patch("guard_core.sync.handlers._suspatterns_regex.logger") as mock_logger,
+    ):
         manager._check_regex_pattern(
             compiled, "unrelated content", "203.0.113.5", fake_pattern_start, "custom"
         )
