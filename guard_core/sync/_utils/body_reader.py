@@ -3,7 +3,7 @@ import re
 import threading
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Protocol, cast, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 from weakref import WeakKeyDictionary
 
 from guard_core.exceptions import (
@@ -158,11 +158,13 @@ def _body_reader_call(
     request: SyncGuardRequest, kind: str, max_bytes: int, idle_timeout: float
 ) -> Callable[[], bytes]:
     if kind == _PREFIX_UNTIL_IDLE:
-        idle_reader = cast(_IdleBoundedBodyReader, request)
-        return lambda: idle_reader.read_body_prefix_until_idle(max_bytes, idle_timeout)
+        idle_reader: Callable[[int, float], bytes] = getattr(
+            request, _PREFIX_UNTIL_IDLE
+        )
+        return lambda: idle_reader(max_bytes, idle_timeout)
     if kind == _PREFIX:
-        prefix_reader = cast(_BoundedBodyReader, request)
-        return lambda: prefix_reader.read_body_prefix(max_bytes)
+        prefix_reader: Callable[[int], bytes] = getattr(request, _PREFIX)
+        return lambda: prefix_reader(max_bytes)
     return request.body
 
 

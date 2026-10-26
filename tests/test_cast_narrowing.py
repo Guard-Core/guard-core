@@ -6,11 +6,16 @@ import guard_agent
 import pytest
 
 from guard_core._pydantic_plugin_mute import get_telemetry_model
+from guard_core.core.checks.helpers import (
+    _DETECTION_RESULT_STATE_ATTR,
+    get_cached_detection_result,
+)
 from guard_core.core.checks.pipeline import SecurityCheckPipeline
 from guard_core.core.initialization._cloud_initialization import (
     CloudInitializationMixin,
 )
 from guard_core.core.responses.modifier_view import RecordingHeaders
+from guard_core.detection_result import DetectionResult
 from guard_core.handlers._dynamic_rule_plan import (
     DynamicRulePlan,
     DynamicRulePlanMixin,
@@ -121,3 +126,29 @@ def test_recording_headers_append_is_recorded_and_undone() -> None:
     assert real == {"a": "1", "b": "2"}
     headers.undo()
     assert real == {"a": "1"}
+
+
+async def test_cached_detection_that_is_not_a_result_is_recomputed() -> None:
+    config = SecurityConfig(enable_penetration_detection=False)
+    request = MockGuardRequest()
+    setattr(
+        request.state,
+        _DETECTION_RESULT_STATE_ATTR,
+        (request, None, "not a result"),
+    )
+    result = await get_cached_detection_result(
+        request, None, config, lambda *_args: True
+    )
+    assert isinstance(result, DetectionResult)
+    assert result.is_threat is False
+
+
+async def test_cached_detection_result_is_returned_as_is() -> None:
+    config = SecurityConfig(enable_penetration_detection=False)
+    request = MockGuardRequest()
+    cached = DetectionResult(is_threat=True, trigger_info="cached")
+    setattr(request.state, _DETECTION_RESULT_STATE_ATTR, (request, None, cached))
+    assert (
+        await get_cached_detection_result(request, None, config, lambda *_args: True)
+        is cached
+    )

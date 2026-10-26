@@ -7,11 +7,16 @@ import pytest
 
 from guard_core._pydantic_plugin_mute import get_telemetry_model
 from guard_core.models import DynamicRules, SyncSecurityConfig
+from guard_core.sync.core.checks.helpers import (
+    _DETECTION_RESULT_STATE_ATTR,
+    get_cached_detection_result,
+)
 from guard_core.sync.core.checks.pipeline import SecurityCheckPipeline
 from guard_core.sync.core.initialization._cloud_initialization import (
     CloudInitializationMixin,
 )
 from guard_core.sync.core.responses.modifier_view import RecordingHeaders
+from guard_core.sync.detection_result import DetectionResult
 from guard_core.sync.handlers._dynamic_rule_plan import (
     DynamicRulePlan,
     DynamicRulePlanMixin,
@@ -118,3 +123,27 @@ def test_recording_headers_append_is_recorded_and_undone() -> None:
     assert real == {"a": "1", "b": "2"}
     headers.undo()
     assert real == {"a": "1"}
+
+
+def test_cached_detection_that_is_not_a_result_is_recomputed() -> None:
+    config = SyncSecurityConfig(enable_penetration_detection=False)
+    request = SyncMockGuardRequest()
+    setattr(
+        request.state,
+        _DETECTION_RESULT_STATE_ATTR,
+        (request, None, "not a result"),
+    )
+    result = get_cached_detection_result(request, None, config, lambda *_args: True)
+    assert isinstance(result, DetectionResult)
+    assert result.is_threat is False
+
+
+def test_cached_detection_result_is_returned_as_is() -> None:
+    config = SyncSecurityConfig(enable_penetration_detection=False)
+    request = SyncMockGuardRequest()
+    cached = DetectionResult(is_threat=True, trigger_info="cached")
+    setattr(request.state, _DETECTION_RESULT_STATE_ATTR, (request, None, cached))
+    assert (
+        get_cached_detection_result(request, None, config, lambda *_args: True)
+        is cached
+    )
