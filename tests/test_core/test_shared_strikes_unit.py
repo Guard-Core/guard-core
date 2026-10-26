@@ -95,6 +95,15 @@ async def test_a_failed_clear_logs_the_exact_message(
     ]
 
 
+async def test_a_clear_without_a_shared_redis_handler_has_nothing_to_clear(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING, logger=LOGGER):
+        await forget_shared_detection_strikes(_middleware(None), "203.0.113.5")
+
+    assert caplog.records == []
+
+
 async def test_a_failed_category_read_logs_the_exact_message(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
