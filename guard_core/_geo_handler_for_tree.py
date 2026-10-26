@@ -24,7 +24,10 @@ def _sync_ipinfo_manager(config: "SecurityConfig[RequestT]", token: str) -> Any:
     from guard_core.sync.handlers.ipinfo_handler import IPInfoManager
 
     return IPInfoManager(
-        token=token, db_path=config.ipinfo_db_path, max_age=config.geo_ip_db_max_age
+        token=token,
+        db_path=config.ipinfo_db_path,
+        max_age=config.geo_ip_db_max_age,
+        download_url=config.ipinfo_download_url,
     )
 
 
@@ -38,7 +41,10 @@ def build_geo_ip_handler_from_token(
     from guard_core.handlers.ipinfo_handler import IPInfoManager
 
     return IPInfoManager(
-        token=token, db_path=config.ipinfo_db_path, max_age=config.geo_ip_db_max_age
+        token=token,
+        db_path=config.ipinfo_db_path,
+        max_age=config.geo_ip_db_max_age,
+        download_url=config.ipinfo_download_url,
     )
 
 

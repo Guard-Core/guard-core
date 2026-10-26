@@ -72,6 +72,7 @@ class IPInfoManager(
         token: str,
         db_path: Path | None = None,
         max_age: int = 86400,
+        download_url: str | None = None,
     ) -> IPInfoManager:
         if not token:
             raise ValueError("IPInfo token is required!")
@@ -82,7 +83,7 @@ class IPInfoManager(
         key = path.resolve()
         manager = cls._by_path.get(key)
         if manager is None:
-            manager = cls._fresh(token, path, max_age)
+            manager = cls._fresh(token, path, max_age, download_url)
             cls._by_path[key] = manager
             if cls._instance is None:
                 cls._instance = manager
@@ -92,9 +93,15 @@ class IPInfoManager(
 
     @classmethod
     def _fresh(
-        cls: type[IPInfoManager], token: str, db_path: Path, max_age: int
+        cls: type[IPInfoManager],
+        token: str,
+        db_path: Path,
+        max_age: int,
+        download_url: str | None = None,
     ) -> IPInfoManager:
         instance = super().__new__(cls)
+        if download_url is not None:
+            instance._download_url = download_url
         instance.token = token
         instance.db_path = db_path
         instance.reader = None

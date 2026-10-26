@@ -3,6 +3,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from pydantic import ValidationError
 
 from guard_core._geo_handler_for_tree import (
     build_geo_ip_handler_from_token,
@@ -197,3 +198,45 @@ def test_sync_handler_initializer_runs_with_the_sync_handler_for_the_token(
     initializer = SyncHandlerInitializer(config, geo_ip_handler=config.geo_ip_handler)
 
     assert isinstance(initializer.geo_ip_handler, SyncIPInfoManager)
+
+
+LEGACY_URL = "https://ipinfo.io/data/free/country_asn.mmdb"
+LITE_URL = "https://ipinfo.io/data/ipinfo_lite.mmdb"
+
+
+def test_the_default_download_url_is_the_legacy_file(tmp_path: Path) -> None:
+    config = _config(tmp_path, blocked_countries=["CN"])
+
+    assert config.ipinfo_download_url == LEGACY_URL
+    assert isinstance(config.geo_ip_handler, AsyncIPInfoManager)
+    assert config.geo_ip_handler._download_url == LEGACY_URL
+
+
+@pytest.mark.parametrize("tree_awaits", [True, False])
+def test_a_configured_download_url_reaches_the_manager_of_either_tree(
+    tmp_path: Path, tree_awaits: bool
+) -> None:
+    config = SecurityConfig(
+        enable_redis=False,
+        ipinfo_token="tok",
+        ipinfo_db_path=tmp_path / "geo.mmdb",
+        ipinfo_download_url=LITE_URL,
+    )
+
+    manager = build_geo_ip_handler_from_token(config, tree_awaits=tree_awaits)
+
+    assert manager._download_url == LITE_URL
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://ipinfo.io/data/ipinfo_lite.mmdb",
+        "ftp://ipinfo.io/x.mmdb",
+        "https://",
+        "",
+    ],
+)
+def test_a_download_url_that_is_not_https_is_rejected(url: str) -> None:
+    with pytest.raises(ValidationError):
+        SecurityConfig(ipinfo_download_url=url)

@@ -99,6 +99,7 @@ def _resolve_geo_ip_handler(
     geo_ip_handler: Any,
     ipinfo_token: str | None,
     ipinfo_db_path: Path | None,
+    ipinfo_download_url: str,
     geo_ip_db_max_age: int,
 ) -> Any:
     has_country_rules = bool(blocked_countries or whitelist_countries)
@@ -116,6 +117,7 @@ def _resolve_geo_ip_handler(
             token=ipinfo_token,
             db_path=ipinfo_db_path,
             max_age=geo_ip_db_max_age,
+            download_url=ipinfo_download_url,
         )
 
     return geo_ip_handler
@@ -131,6 +133,7 @@ def _apply_geo_ip_handler_assignment(
         geo_ip_handler=handler,
         ipinfo_token=token,
         ipinfo_db_path=config.ipinfo_db_path,
+        ipinfo_download_url=config.ipinfo_download_url,
         geo_ip_db_max_age=config.geo_ip_db_max_age,
     )
     if name == "geo_ip_handler":
@@ -147,6 +150,7 @@ def _apply_geo_ip_handler_copy(config: "SecurityConfig[RequestT]") -> None:
         geo_ip_handler=config.geo_ip_handler,
         ipinfo_token=config.ipinfo_token,
         ipinfo_db_path=config.ipinfo_db_path,
+        ipinfo_download_url=config.ipinfo_download_url,
         geo_ip_db_max_age=config.geo_ip_db_max_age,
     )
     if resolved is not config.geo_ip_handler:

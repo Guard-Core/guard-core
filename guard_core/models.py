@@ -270,6 +270,7 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
             geo_ip_handler=self.geo_ip_handler,
             ipinfo_token=self.ipinfo_token,
             ipinfo_db_path=self.ipinfo_db_path,
+            ipinfo_download_url=self.ipinfo_download_url,
             geo_ip_db_max_age=self.geo_ip_db_max_age,
         )
         if resolved is not self.geo_ip_handler:

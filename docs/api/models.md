@@ -122,6 +122,9 @@ class SecurityConfig(BaseModel):
 
     ipinfo_token: str | None = Field(default=None)
     ipinfo_db_path: Path | None = Field(default=Path("data/ipinfo/country_asn.mmdb"))
+    ipinfo_download_url: str = Field(
+        default="https://ipinfo.io/data/free/country_asn.mmdb"
+    )
 
     enable_agent: bool = Field(default=False)
     agent_api_key: str | None = Field(default=None)

@@ -48,6 +48,7 @@ def prepare_config_batch(
         geo_ip_handler=config.geo_ip_handler,
         ipinfo_token=config.ipinfo_token,
         ipinfo_db_path=config.ipinfo_db_path,
+        ipinfo_download_url=config.ipinfo_download_url,
         geo_ip_db_max_age=config.geo_ip_db_max_age,
     )
     if resolved is not config.geo_ip_handler:

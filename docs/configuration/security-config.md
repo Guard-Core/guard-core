@@ -300,8 +300,9 @@ Geolocation
 | `geo_ip_handler`   | `GeoIPHandler \| None` | `None`  | Custom geolocation handler implementing the protocol.|
 | `ipinfo_token`     | `str \| None`     | `None`  | IPInfo API token for IP geolocation.                |
 | `ipinfo_db_path`   | `Path \| None`    | `data/ipinfo/country_asn.mmdb` | Path to the local IPInfo MMDB database file. |
+| `ipinfo_download_url` | `str` | `https://ipinfo.io/data/free/country_asn.mmdb` | HTTPS URL the IPInfo MMDB database is downloaded from, sent with `ipinfo_token` as a Bearer header; `http://` is rejected at validation. IPinfo labels the default file "Legacy"; its current file is `https://ipinfo.io/data/ipinfo_lite.mmdb`. The default path above is unchanged, so an upgrade reuses the cached file. |
 
-**Database schema**: the default download is IPinfo's free `country_asn.mmdb`, which stores the ISO 3166 code under `country`. IPinfo Lite (`ipinfo_lite.mmdb`) stores the ISO code under `country_code` and the country name under `country`. `IPInfoManager.get_country` returns the ISO code from either file (`country_code` when the record has it, otherwise `country`), so `blocked_countries` and `whitelist_countries` match on both. The download URL is not configurable; an operator reaches a Lite file by placing it at `ipinfo_db_path`.
+**Database schema**: the default download is IPinfo's free `country_asn.mmdb`, which stores the ISO 3166 code under `country`. IPinfo Lite (`ipinfo_lite.mmdb`) stores the ISO code under `country_code` and the country name under `country`. `IPInfoManager.get_country` returns the ISO code from either file (`country_code` when the record has it, otherwise `country`), so `blocked_countries` and `whitelist_countries` match on both. Set `ipinfo_download_url` to download either file.
 
 **Model validator**: If `blocked_countries` or `whitelist_countries` are set, `geo_ip_handler` must be provided (or `ipinfo_token`, from which one is constructed automatically). Raises `ValueError` otherwise.
 

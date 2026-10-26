@@ -939,6 +939,15 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
         "geolocation.",
     )
 
+    ipinfo_download_url: str = Field(
+        default="https://ipinfo.io/data/free/country_asn.mmdb",
+        pattern=r"^https://[^/\s]+",
+        description="HTTPS URL the IPInfo MMDB database is downloaded from, "
+        "sent with the ipinfo_token as a Bearer header. The default is the "
+        "file IPInfo labels Legacy; IPInfo's current file is "
+        "https://ipinfo.io/data/ipinfo_lite.mmdb. Only https:// is accepted.",
+    )
+
     enable_agent: bool = Field(
         default=False, description="Enable Guard Agent telemetry and monitoring"
     )
