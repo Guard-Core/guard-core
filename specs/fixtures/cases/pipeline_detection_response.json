@@ -409,7 +409,7 @@
           "on_block": [
             {
               "check_name": "suspicious_activity",
-              "reason": "Suspicious activity detected for IP: 192.0.2.10 - Query param 'q': Value matched pattern '(?i)\\A(?:[^\\w/]|\\d|/(?!\\*)|/\\*(?:[^*]|\\*(?!/)){0,40}\\*/)*UNION(?:\\s|/\\*(?:[^*]|\\*(?!/)){0,40}\\*/)+(?:ALL(?:\\s|/\\*(?:[^*]|\\*(?!/)){0,40}\\*/)+)?SELECT(?:[^\\w/]|\\d|/(?!\\*)|/\\*(?:[^*]|\\*(?!/)){0,40}\\*/)*(?:/\\*(?:[^*]|\\*(?!/))*)?\\Z'",
+              "reason": "Suspicious activity detected for IP: 192.0.2.10 - Query param 'q': Value matched pattern '(?i)\\A(?:/\\*)?(?:[^\\w/]|\\d|/(?!\\*)|/\\*/?[^/]{0,40}\\*/)*UNION(?:\\s|/\\*/?[^/]{0,40}\\*/)+(?:ALL(?:\\s|/\\*/?[^/]{0,40}\\*/)+)?SELECT(?:[^\\w/]|\\d|/(?!\\*)|/\\*/?[^/]{0,40}\\*/)*(?:/\\*(?:[^*]|\\*(?!/))*)?\\Z'",
               "trigger_info": "",
               "passive_mode": false,
               "client_ip": "192.0.2.10",
