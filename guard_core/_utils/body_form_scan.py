@@ -163,12 +163,30 @@ def _multipart_part_entries(part: Any) -> list[tuple[str | None, str, str]]:
     return entries
 
 
+class _HeaderThenBody:
+    def __init__(self, header: str, body: str) -> None:
+        self._header = header
+        self._body = body
+        self._position = 0
+
+    def read(self, size: int = -1, /) -> str:
+        header_length = len(self._header)
+        start = self._position
+        stop = start + size if size >= 0 else header_length + len(self._body)
+        self._position = stop
+        if start >= header_length:
+            return self._body[start - header_length : stop - header_length]
+        if stop <= header_length:
+            return self._header[start:stop]
+        return self._header[start:] + self._body[: stop - header_length]
+
+
 def _multipart_leaf_parts(raw_body: str, content_type: str) -> list[Any] | None:
     from email.parser import Parser
     from email.policy import compat32
 
     header = f"Content-Type: {content_type}\r\nMIME-Version: 1.0\r\n\r\n"
-    message = Parser(policy=compat32).parsestr(header + raw_body)
+    message = Parser(policy=compat32).parse(_HeaderThenBody(header, raw_body))
     if not message.is_multipart():
         return None
     return [part for part in message.walk() if not part.is_multipart()]

@@ -2,6 +2,7 @@ import base64
 import email.message
 import email.parser
 import os
+from typing import TextIO
 from unittest.mock import patch
 
 import pytest
@@ -350,19 +351,19 @@ def test_multipart_text_parts_no_name_file_part_has_no_exclusion_key() -> None:
 
 
 def test_multipart_text_parts_skips_non_string_payload() -> None:
-    original_parsestr = email.parser.Parser.parsestr
+    original_parse = email.parser.Parser.parse
 
-    def fake_parsestr(
-        self: email.parser.Parser, text: str, headersonly: bool = False
+    def fake_parse(
+        self: email.parser.Parser, fp: TextIO, headersonly: bool = False
     ) -> email.message.Message:
-        message = original_parsestr(self, text, headersonly)
+        message = original_parse(self, fp, headersonly)
         for part in message.walk():
             if not part.is_multipart():
                 object.__setattr__(part, "_payload", None)
         return message
 
     file_body = _file_part_body("shell.php.jpg", "payload-bytes").decode()
-    with patch.object(email.parser.Parser, "parsestr", fake_parsestr):
+    with patch.object(email.parser.Parser, "parse", fake_parse):
         file_parts = _multipart_text_parts(file_body, _CONTENT_TYPE)
     assert file_parts == [
         ("file", "file", 'filename="shell.php.jpg"'),
@@ -375,7 +376,7 @@ def test_multipart_text_parts_skips_non_string_payload() -> None:
     ]
 
     text_body = _text_field_body("field", "value").decode()
-    with patch.object(email.parser.Parser, "parsestr", fake_parsestr):
+    with patch.object(email.parser.Parser, "parse", fake_parse):
         text_parts = _multipart_text_parts(text_body, _CONTENT_TYPE)
     assert text_parts == [
         ("field", "field", 'Content-Disposition: form-data; name="field"'),

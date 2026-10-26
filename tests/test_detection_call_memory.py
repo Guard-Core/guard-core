@@ -1,13 +1,25 @@
 import random
 import re
 import tracemalloc
+from email.message import Message
+from email.parser import Parser
+from email.policy import compat32
+from io import StringIO
 from urllib.parse import parse_qsl, quote_from_bytes
 
 import pytest
 
 from guard_core._utils import form_pairs
+from guard_core._utils.body_form_scan import (
+    _HeaderThenBody,
+    _multipart_leaf_parts,
+)
 from guard_core._utils.form_pairs import iter_form_pairs
-from guard_core.detection_engine import preprocessor
+from guard_core.detection_engine import binary_islands, preprocessor
+from guard_core.detection_engine.binary_islands import (
+    _ISLAND_RUN_RE,
+    extract_binary_islands,
+)
 from guard_core.detection_engine.binary_prefix import (
     _BINARY_ARTIFACT_RE,
     _BINARY_DENSITY_LIMIT,
@@ -27,6 +39,7 @@ from tests.test_sus_patterns.test_detection_benchmark import (
 _GENERATED_CASES = 20000
 _ONE_MIB = 1048576
 _BODY_MEMORY_FACTOR = 8
+_MULTIPART_BODY_MEMORY_FACTOR = 14
 _WORDS = (
     b"quarterly onboarding metrics for the regional sales team include revenue "
     b"churn retention pipeline coverage forecast accuracy and headcount plans "
@@ -169,10 +182,154 @@ def test_inputs_longer_than_the_windows_keep_the_stdlib_and_re_output() -> None:
         )
 
 
+_MULTIPART_TOKENS = [
+    "--B",
+    "--B--",
+    "--B\r\n",
+    "\r\n",
+    "\n",
+    "\r",
+    'Content-Disposition: form-data; name="a"',
+    'Content-Disposition: form-data; name="f"; filename="x.bin"',
+    "Content-Type: text/plain",
+    "Content-Type: multipart/mixed; boundary=C",
+    "--C",
+    "--C--",
+    "Content-Transfer-Encoding: base64",
+    "X-Folded: a\r\n b",
+    ": ",
+    "abc def",
+    "\x80\x81",
+    "é",
+    "\udc80",
+    "\x00",
+    "1 OR 1=1",
+]
+_MULTIPART_TYPE = "multipart/form-data; boundary=B"
+_MULTIPART_HEADER = f"Content-Type: {_MULTIPART_TYPE}\r\nMIME-Version: 1.0\r\n\r\n"
+
+
+def _generated_multipart_bodies(count: int, seed: int) -> list[str]:
+    rng = random.Random(seed)
+    bodies = [
+        "".join(
+            rng.choice(_MULTIPART_TOKENS) for _ in range(rng.choice([0, 3, 12, 40]))
+        )
+        for _ in range(count)
+    ]
+    filler = "".join(
+        rng.choice(["x", "\n", "\r\n", "é", "\udc80"]) for _ in range(9000)
+    )
+    for edge in (8191, 8192, 8193, 16383, 16384, 16385):
+        for tail in ("\r\n--B--\r\n", "\n--B--", ""):
+            bodies.append(
+                '--B\r\nContent-Disposition: form-data; name="f"; filename="x"'
+                "\r\n\r\n" + (filler * 2)[:edge] + tail
+            )
+    return bodies
+
+
+def test_header_then_body_reader_returns_the_stringio_chunks() -> None:
+    rng = random.Random(20261028)
+    for body in _generated_multipart_bodies(300, 20261028):
+        for size in (1, 7, 8192, rng.randint(1, 500)):
+            reference = StringIO(_MULTIPART_HEADER + body)
+            reader = _HeaderThenBody(_MULTIPART_HEADER, body)
+            while True:
+                expected = reference.read(size)
+                assert reader.read(size) == expected
+                if not expected:
+                    break
+
+
+def _reference_leaf_shape(body: str) -> object:
+    # The joined-string parsestr form as in 7edb5c8d (landing-6d), kept only here.
+    try:
+        message = Parser(policy=compat32).parsestr(_MULTIPART_HEADER + body)
+        if not message.is_multipart():
+            return None
+        return _message_shape_of([p for p in message.walk() if not p.is_multipart()])
+    except UnicodeError as error:
+        return type(error)
+
+
+def _chunked_leaf_shape(body: str) -> object:
+    try:
+        leaves = _multipart_leaf_parts(body, _MULTIPART_TYPE)
+        return None if leaves is None else _message_shape_of(leaves)
+    except UnicodeError as error:
+        return type(error)
+
+
+def test_header_then_body_reader_without_a_size_returns_the_rest() -> None:
+    reader = _HeaderThenBody("head\r\n", "body")
+    assert reader.read(2) == "he"
+    assert reader.read() == "ad\r\nbody"
+    assert reader.read(8192) == ""
+
+
+def test_multipart_parse_without_the_joined_copy_equals_parsestr() -> None:
+    inputs = _corpus_payloads() + _generated_multipart_bodies(
+        _GENERATED_CASES, 20261029
+    )
+    shapes = [_reference_leaf_shape(body) for body in inputs]
+    for body, shape in zip(inputs, shapes, strict=True):
+        assert _chunked_leaf_shape(body) == shape, repr(body)
+    assert any(isinstance(shape, list) and shape for shape in shapes)
+    assert any(shape is None for shape in shapes)
+
+
+def _message_shape_of(parts: list[Message]) -> list[tuple[object, ...]]:
+    return [
+        (
+            part.get_content_type(),
+            [(name, str(value)) for name, value in part.items()],
+            getattr(part, "_payload", None),
+            [type(defect) for defect in part.defects],
+        )
+        for part in parts
+    ]
+
+
+def _reference_extract_binary_islands(content: str, min_run_length: int) -> list[str]:
+    # The findall form exactly as in 7edb5c8d (landing-6d), kept only here.
+    if min_run_length <= 1:
+        return [content]
+    return [
+        run for run in _ISLAND_RUN_RE.findall(content) if len(run) >= min_run_length
+    ]
+
+
+@pytest.mark.parametrize("window", [*_WINDOWS, None])
+def test_extract_binary_islands_equals_the_findall_form(
+    window: int | None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    if window is not None:
+        monkeypatch.setattr(binary_islands, "_ISLAND_WINDOW", window)
+    inputs = _BINARY_INPUTS + _generated(
+        "ab \t\n\x00\x80\udc80é\U0001f600\ufffd", [0, 1, 9, 80, 300], 20261030
+    )
+    for content in inputs:
+        for minimum in (0, 1, 2, 4, 8, 16):
+            assert extract_binary_islands(content, minimum) == (
+                _reference_extract_binary_islands(content, minimum)
+            ), repr(content)
+
+
 def _one_mib_request(shape: str) -> MockGuardRequest:
     if shape == "flat":
         body = (_WORDS * (_ONE_MIB // len(_WORDS) + 1))[:_ONE_MIB]
         content_type = "text/plain"
+    elif shape == "multipart-binary":
+        boundary = "wp99boundary"
+        head = (
+            f'--{boundary}\r\nContent-Disposition: form-data; name="file"; '
+            f'filename="blob.bin"\r\nContent-Type: application/octet-stream\r\n\r\n'
+        ).encode()
+        tail = f"\r\n--{boundary}--\r\n".encode()
+        blob = random.Random(99).randbytes(_ONE_MIB - len(head) - len(tail))
+        body = head + blob + tail
+        content_type = f"multipart/form-data; boundary={boundary}"
     else:
         raw = (_WORDS * (_ONE_MIB // (3 * len(_WORDS)) + 1))[: _ONE_MIB // 3]
         encoded = ("note=" + quote_from_bytes(raw, safe="")).encode()
@@ -186,7 +343,7 @@ def _one_mib_request(shape: str) -> MockGuardRequest:
     )
 
 
-@pytest.mark.parametrize("shape", ["flat", "escaped"])
+@pytest.mark.parametrize("shape", ["flat", "escaped", "multipart-binary"])
 async def test_one_mib_detection_call_peak_stays_a_small_multiple_of_the_body(
     shape: str,
 ) -> None:
@@ -204,4 +361,9 @@ async def test_one_mib_detection_call_peak_stays_a_small_multiple_of_the_body(
     finally:
         tracemalloc.stop()
     assert not result.is_threat
-    assert peak <= _BODY_MEMORY_FACTOR * _ONE_MIB
+    factor = (
+        _MULTIPART_BODY_MEMORY_FACTOR
+        if shape == "multipart-binary"
+        else _BODY_MEMORY_FACTOR
+    )
+    assert peak <= factor * _ONE_MIB
