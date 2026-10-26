@@ -18,6 +18,7 @@ from guard_core.handlers.ipban_handler import ip_ban_manager
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.handlers.suspatterns_handler import sus_patterns_handler
 from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.protocols.agent_protocol import JsonValue
 from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 from tests.conftest import REDIS_URL
 
@@ -50,6 +51,9 @@ class NullAgent:
 
     async def get_dynamic_rules(self) -> DynamicRules | None:
         return None
+
+    def get_stats(self) -> dict[str, JsonValue]:
+        return {}
 
     async def health_check(self) -> bool:
         return True

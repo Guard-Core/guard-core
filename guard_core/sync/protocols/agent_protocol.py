@@ -1,6 +1,10 @@
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Protocol, TypeAlias, runtime_checkable
 
 from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
+
+JsonValue: TypeAlias = (
+    str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
+)
 
 
 @runtime_checkable
@@ -46,4 +50,8 @@ class SyncAgentHandlerProtocol(Protocol):
 
     def health_check(self) -> bool:
         """Return ``True`` when the agent can reach its collector."""
+        ...
+
+    def get_stats(self) -> dict[str, JsonValue]:
+        """Return the handler's counters as a JSON-shaped mapping."""
         ...

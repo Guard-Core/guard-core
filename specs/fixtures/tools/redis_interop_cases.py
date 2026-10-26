@@ -47,6 +47,7 @@ from pipeline_harness import _PipelineRequest, _StubResponse, replace_member
 from redis.asyncio import Redis
 from run_fixtures import STAGED_FIELDS
 
+from guard_core.protocols.agent_protocol import JsonValue
 from guard_core.handlers._cloud_provider_registry import (
     _decode_cached,
     _encode_cached,
@@ -792,6 +793,9 @@ async def _op_dynamic_rules(args: RedisArgs) -> None:
 
         async def flush_buffer(self) -> None:
             return None
+
+        def get_stats(self) -> dict[str, JsonValue]:
+            return {}
 
         async def health_check(self) -> bool:
             return True

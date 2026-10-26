@@ -12,6 +12,7 @@ from urllib.parse import quote, quote_plus, urlencode
 import pytest
 
 from guard_core.models import DynamicRules, SyncSecurityConfig
+from guard_core.protocols.agent_protocol import JsonValue
 from guard_core.sync._utils.detection_scan import _json_depth_cap_value
 from guard_core.sync.core.behavioral.context import BehavioralContext
 from guard_core.sync.core.behavioral.processor import BehavioralProcessor
@@ -157,6 +158,9 @@ class _RecordingAgentHandler:
 
     def get_dynamic_rules(self) -> Any | None:
         return None
+
+    def get_stats(self) -> dict[str, JsonValue]:
+        return {}
 
     def health_check(self) -> bool:
         return True

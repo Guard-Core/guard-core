@@ -14,6 +14,7 @@ from guard_core.decorators import SecurityDecorator
 from guard_core.handlers.cloud_handler import cloud_handler
 from guard_core.handlers.ratelimit_handler import rate_limit_handler
 from guard_core.models import SecurityConfig
+from guard_core.protocols.agent_protocol import JsonValue
 from guard_core.protocols.geo_ip_protocol import GeoIPHandler
 from tests.conftest import MockGuardRequest
 
@@ -44,6 +45,9 @@ class _RecordingAgent:
 
     async def get_dynamic_rules(self) -> None:
         return None
+
+    def get_stats(self) -> dict[str, JsonValue]:
+        return {}
 
     async def health_check(self) -> bool:
         return True

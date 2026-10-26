@@ -72,6 +72,7 @@ from pipeline_harness import (
     reset_check_samplers,
 )
 
+from guard_core.protocols.agent_protocol import JsonValue
 from guard_core._utils.rule_attribution import set_attribution_view
 from guard_core.core.bypass.context import BypassContext
 from guard_core.core.bypass.handler import BypassHandler
@@ -254,6 +255,9 @@ class CapturingAgentHandler:
 
     async def get_dynamic_rules(self) -> DynamicRules | None:
         return None
+
+    def get_stats(self) -> dict[str, JsonValue]:
+        return {}
 
     async def health_check(self) -> bool:
         return True

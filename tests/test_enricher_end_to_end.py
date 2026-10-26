@@ -10,6 +10,7 @@ from guard_core.core.events.event_types import EventFilter
 from guard_core.handlers.behavior_handler import BehaviorTracker
 from guard_core.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.protocols.agent_protocol import JsonValue
 from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 
 
@@ -34,6 +35,9 @@ class NullAgent:
 
     async def get_dynamic_rules(self) -> DynamicRules | None:
         return None
+
+    def get_stats(self) -> dict[str, JsonValue]:
+        return {}
 
     async def health_check(self) -> bool:
         return True

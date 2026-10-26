@@ -31,6 +31,7 @@ from guard_core.handlers.ratelimit_handler import RateLimitManager
 from guard_core.handlers.security_headers_handler import security_headers_manager
 from guard_core.handlers.suspatterns_handler import sus_patterns_handler
 from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.protocols.agent_protocol import JsonValue
 from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.utils import detect_penetration_attempt, extract_client_ip, log_activity
 from tests.conftest import MockGuardRequest, MockGuardResponse
@@ -153,6 +154,9 @@ class _RecordingAgentHandler:
 
     async def get_dynamic_rules(self) -> Any | None:
         return None
+
+    def get_stats(self) -> dict[str, JsonValue]:
+        return {}
 
     async def health_check(self) -> bool:
         return True

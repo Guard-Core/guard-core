@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from guard_core.models import DynamicRules, SyncSecurityConfig
+    from guard_core.protocols.agent_protocol import JsonValue
     from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
 
 logger = logging.getLogger("guard_core")
@@ -107,6 +108,9 @@ class LogfireHandler:
 
     def get_dynamic_rules(self) -> DynamicRules | None:
         return None
+
+    def get_stats(self) -> dict[str, JsonValue]:
+        return {}
 
     def health_check(self) -> bool:
         return _logfire_available

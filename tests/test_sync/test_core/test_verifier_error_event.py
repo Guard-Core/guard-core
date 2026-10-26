@@ -4,6 +4,7 @@ from typing import Any
 import pytest
 
 from guard_core.models import SyncSecurityConfig
+from guard_core.protocols.agent_protocol import JsonValue
 from guard_core.sync.core.events.event_types import EventFilter
 from guard_core.sync.core.events.middleware_events import SecurityEventBus
 from tests.test_sync.test_core.conftest import build_route_pipeline, send_request
@@ -35,6 +36,9 @@ class _RecordingAgent:
 
     def get_dynamic_rules(self) -> None:
         return None
+
+    def get_stats(self) -> dict[str, JsonValue]:
+        return {}
 
     def health_check(self) -> bool:
         return True

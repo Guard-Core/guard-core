@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from guard_core.models import DynamicRules, SyncSecurityConfig
+from guard_core.protocols.agent_protocol import JsonValue
 from guard_core.sync._utils.app_scope import app_scope_of
 from guard_core.sync.core.initialization.handler_initializer import HandlerInitializer
 from guard_core.sync.handlers._dynamic_rule_purge import purge_fingerprint
@@ -50,6 +51,9 @@ class NullAgent:
 
     def get_dynamic_rules(self) -> DynamicRules | None:
         return None
+
+    def get_stats(self) -> dict[str, JsonValue]:
+        return {}
 
     def health_check(self) -> bool:
         return True

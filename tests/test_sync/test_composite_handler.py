@@ -2,6 +2,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from guard_core.protocols.agent_protocol import JsonValue
 from guard_core.sync.core.events.composite_handler import CompositeAgentHandler
 
 
@@ -204,3 +205,87 @@ def test_composite_event_without_event_type_passes_through() -> None:
     )
     composite.send_event(object())
     h.send_event.assert_called_once()
+
+
+class _StatsAgent:
+    def __init__(self, stats: dict[str, JsonValue]) -> None:
+        self._stats = stats
+
+    def start(self) -> None:
+        return None
+
+    def stop(self) -> None:
+        return None
+
+    def send_event(self, _: object) -> None:
+        return None
+
+    def send_metric(self, _: object) -> None:
+        return None
+
+    def initialize_redis(self, _: object) -> None:
+        return None
+
+    def flush_buffer(self) -> None:
+        return None
+
+    def get_dynamic_rules(self) -> None:
+        return None
+
+    def health_check(self) -> bool:
+        return True
+
+    def get_stats(self) -> dict[str, JsonValue]:
+        return self._stats
+
+
+class _BrokenStatsAgent(_StatsAgent):
+    def get_stats(self) -> dict[str, JsonValue]:
+        raise RuntimeError("stats unavailable")
+
+
+def test_composite_stats_equal_the_agent_stats_after_initialization() -> None:
+    from guard_core.models import SyncSecurityConfig
+    from guard_core.sync.core.initialization.handler_initializer import (
+        HandlerInitializer,
+    )
+
+    agent_stats: dict[str, JsonValue] = {
+        "running": True,
+        "events_sent": 3,
+        "buffer_stats": {"events": 1},
+    }
+    initializer = HandlerInitializer(
+        config=SyncSecurityConfig(enable_agent=True, agent_api_key="a" * 10),
+        agent_handler=_StatsAgent(agent_stats),
+    )
+
+    initializer.initialize_agent_integrations()
+
+    assert initializer.composite_handler.get_stats() == agent_stats
+
+
+def test_composite_without_an_agent_has_empty_stats() -> None:
+    from guard_core.models import SyncSecurityConfig
+    from guard_core.sync.core.initialization.handler_initializer import (
+        HandlerInitializer,
+    )
+
+    initializer = HandlerInitializer(config=SyncSecurityConfig(enable_otel=True))
+
+    initializer.initialize_agent_integrations()
+
+    assert initializer.composite_handler.get_stats() == {}
+
+
+def test_composite_stats_skip_a_handler_that_fails(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    composite = CompositeAgentHandler(
+        [_BrokenStatsAgent({}), _StatsAgent({"events_sent": 1})]
+    )
+
+    with caplog.at_level("ERROR", logger="guard_core"):
+        assert composite.get_stats() == {"events_sent": 1}
+
+    assert "handler.get_stats failed" in caplog.text

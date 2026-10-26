@@ -991,6 +991,10 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "line 110: logs.exception for a failing handler's get_status call, no "
         "request content"
     ),
+    "core/events/composite_handler.py:CompositeAgentHandler.get_stats": (
+        "line 134: logs.exception for a failing handler's get_stats call, no "
+        "request content"
+    ),
     "core/initialization/_handler_initializer_steps.py:"
     "_HandlerInitializerStepsMixin._purge_configured_dynamic_rules": (
         "line 181: logs.exception when the start-time purge of a configured rule "

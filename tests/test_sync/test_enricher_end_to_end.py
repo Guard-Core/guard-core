@@ -3,6 +3,7 @@ from types import SimpleNamespace
 from typing import Any
 
 from guard_core.models import DynamicRules, SyncSecurityConfig
+from guard_core.protocols.agent_protocol import JsonValue
 from guard_core.sync.core.events.composite_handler import CompositeAgentHandler
 from guard_core.sync.core.events.enricher import EnrichmentContext, EventEnricher
 from guard_core.sync.core.events.event_types import EventFilter
@@ -32,6 +33,9 @@ class NullAgent:
 
     def get_dynamic_rules(self) -> DynamicRules | None:
         return None
+
+    def get_stats(self) -> dict[str, JsonValue]:
+        return {}
 
     def health_check(self) -> bool:
         return True

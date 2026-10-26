@@ -7,7 +7,10 @@ from guard_core.sync.core.events.event_types import EventFilter
 
 if TYPE_CHECKING:
     from guard_core.models import DynamicRules
-    from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol
+    from guard_core.sync.protocols.agent_protocol import (
+        JsonValue,
+        SyncAgentHandlerProtocol,
+    )
     from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
 
 logger = logging.getLogger("guard_core")
@@ -121,6 +124,18 @@ class CompositeAgentHandler:
             except Exception:
                 logger.exception("handler.get_status failed")
         return None
+
+    def get_stats(self) -> dict[str, JsonValue]:
+        stats: dict[str, JsonValue] = {}
+        for handler in self._handlers:
+            get_stats = getattr(handler, "get_stats", None)
+            if get_stats is None:
+                continue
+            try:
+                stats.update(get_stats())
+            except Exception:
+                logger.exception("handler.get_stats failed")
+        return stats
 
     def health_check(self) -> bool:
         if not self._handlers:

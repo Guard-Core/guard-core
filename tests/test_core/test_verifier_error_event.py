@@ -6,6 +6,7 @@ import pytest
 from guard_core.core.events.event_types import EventFilter
 from guard_core.core.events.middleware_events import SecurityEventBus
 from guard_core.models import SecurityConfig
+from guard_core.protocols.agent_protocol import JsonValue
 from tests.test_core.conftest import build_route_pipeline, send_request
 
 _REQUESTS = 5
@@ -35,6 +36,9 @@ class _RecordingAgent:
 
     async def get_dynamic_rules(self) -> None:
         return None
+
+    def get_stats(self) -> dict[str, JsonValue]:
+        return {}
 
     async def health_check(self) -> bool:
         return True
