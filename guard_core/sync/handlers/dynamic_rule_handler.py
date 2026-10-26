@@ -32,7 +32,9 @@ def _coerce_naive_utc(value: datetime) -> datetime:
     return value
 
 
-_APP_RULE_MANAGERS: AppManagers["DynamicRuleManager"] = AppManagers("dynamic_rules")
+_APP_RULE_MANAGERS: AppManagers["DynamicRuleManager"] = AppManagers(
+    "dynamic_rules", shares_default_between_apps=False
+)
 
 
 class DynamicRuleManager(

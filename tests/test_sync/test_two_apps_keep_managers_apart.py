@@ -359,4 +359,4 @@ def test_apps_on_one_prefix_share_the_default_managers() -> None:
     assert sus_patterns_manager_for(first) is suspatterns_module.sus_patterns_handler
     assert cloud_handler_for(first) is cloud_handler_for(second)
     assert ip_ban_manager_for(first) is ip_ban_manager_for(second)
-    assert DynamicRuleManager(first) is DynamicRuleManager(second)
+    assert DynamicRuleManager(first) is not DynamicRuleManager(second)

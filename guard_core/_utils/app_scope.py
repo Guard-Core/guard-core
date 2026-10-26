@@ -3,7 +3,10 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Any
 
+from guard_core._utils.scan_config_scope import _scan_config_scope
+
 _RECORD_ATTRIBUTE = "_guard_app_scope"
+SHARED_BY_APPS = "_guard_shared_by_apps"
 
 
 class AppScope:
@@ -36,11 +39,20 @@ _current_app_scope: ContextVar[AppScope | None] = ContextVar(
 )
 
 
+def _scope_of_scan_in_flight(manager: Any) -> AppScope | None:
+    scan = _scan_config_scope.get()
+    if scan is None or scan.manager is not manager:
+        return None
+    return existing_app_scope_of(scan.config)
+
+
 class ScopedToApp:
     """A manager attribute served by the app scope in force, else by what was set.
 
-    The value set last (the app that initialized last) answers only outside any
-    scope: a call from code that never went through an app's pipeline or init.
+    Outside a pipeline or init, a scan that was handed a config reads that app's
+    scope. With no scope at all, the value set last answers only for a manager one
+    app owns; a manager several apps share answers None for the agent and the
+    Redis handler, never another app's.
     """
 
     def __set_name__(self, owner: type, name: str) -> None:
@@ -51,8 +63,13 @@ class ScopedToApp:
             return self
         scope = _current_app_scope.get()
         if scope is None:
-            return instance.__dict__.get(self._name)
-        return getattr(scope, self._name)
+            scope = _scope_of_scan_in_flight(instance)
+        if scope is not None:
+            return getattr(scope, self._name)
+        stored = instance.__dict__
+        if self._name != "config" and stored.get(SHARED_BY_APPS):
+            return None
+        return stored.get(self._name)
 
     def __set__(self, instance: Any, value: Any) -> None:
         instance.__dict__[self._name] = value

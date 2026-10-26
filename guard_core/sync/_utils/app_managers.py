@@ -4,6 +4,7 @@ from collections.abc import Callable, Hashable
 from typing import Any, Generic, TypeVar
 
 from guard_core._redis_enablement import redis_is_configured
+from guard_core.sync._utils.app_scope import SHARED_BY_APPS
 from guard_core.sync._utils.config_registry import ConfigHandlerRegistry
 
 _HELD_ATTRIBUTE = "_guard_app_managers"
@@ -58,6 +59,14 @@ def _warn_split_connection(first: Any, second: Any) -> None:
     )
 
 
+def mark_shared_by_apps(manager: Any) -> None:
+    manager.__dict__[SHARED_BY_APPS] = True
+
+
+def unmark_shared_by_apps(manager: Any) -> None:
+    manager.__dict__.pop(SHARED_BY_APPS, None)
+
+
 def hold_for_app(config: Any, kind: str, manager: Any) -> None:
     """Keep a per-app manager alive as long as the config of its app.
 
@@ -85,8 +94,15 @@ class AppManagers(Generic[_M]):
     by config identity, and it never moves the prefix the default serves.
     """
 
-    def __init__(self, kind: str, warns_on_split_connection: bool = False) -> None:
+    def __init__(
+        self,
+        kind: str,
+        warns_on_split_connection: bool = False,
+        shares_default_between_apps: bool = True,
+    ) -> None:
         self.kind = kind
+        self._shares_default = shares_default_between_apps
+        self._shared_default: weakref.ref[Any] | None = None
         self._warns = warns_on_split_connection
         self._served_key: Hashable | None = None
         self._own = ConfigHandlerRegistry()
@@ -124,10 +140,12 @@ class AppManagers(Generic[_M]):
             self._default_apps.register(config, default, self.kind)
             return default
         if share_redis_prefix(served, config):
-            if _connection_key_of(config) == self._served_key:
+            if self._shares_default and _connection_key_of(config) == self._served_key:
                 self._default_apps.register(config, default, self.kind)
+                mark_shared_by_apps(default)
+                self._shared_default = weakref.ref(default)
                 return default
-            if self._warns:
+            if self._warns and _connection_key_of(config) != self._served_key:
                 _warn_split_connection(served, config)
         manager = fresh()
         self._own.register(config, manager, self.kind)
@@ -135,5 +153,9 @@ class AppManagers(Generic[_M]):
         return manager
 
     def forget_default(self) -> None:
+        shared = self._shared_default() if self._shared_default is not None else None
+        if shared is not None:
+            unmark_shared_by_apps(shared)
+        self._shared_default = None
         self._served = None
         self._served_key = None
