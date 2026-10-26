@@ -74,7 +74,7 @@ class SecurityCheckPipeline:
         return None
 ```
 
-`_handle_check_error` logs the exception (unless the check is in `muted_check_logs`), skips the check and returns `None` when it is a `GuardRedisError` and `config.redis_fail_open` is `True`, and otherwise blocks with a 500 when `config.fail_secure` is `True` -- the same fail-secure decision shown in [Fail-Open vs Fail-Secure](#fail-open-vs-fail-secure) below, just factored into its own method. The generic `"Request blocked by {check.check_name}"` summary line logs at `DEBUG`, not `INFO`: every check that can block already logs its own detailed, configurable-level line before returning, so this line is a secondary trace, not the primary block-decision log.
+`_handle_check_error` logs the exception (unless the check is in `muted_check_logs`), skips the check and returns `None` when it is a `GuardRedisError` and `config.redis_fail_open` is `True`, and otherwise blocks when `config.fail_secure` is `True`, with a 503 and `Retry-After: 5` for a `GuardRedisError` and a 500 for any other error -- the same fail-secure decision shown in [Fail-Open vs Fail-Secure](#fail-open-vs-fail-secure) below, just factored into its own method. The generic `"Request blocked by {check.check_name}"` summary line logs at `DEBUG`, not `INFO`: every check that can block already logs its own detailed, configurable-level line before returning, so this line is a secondary trace, not the primary block-decision log.
 
 ### Config-Revision Rebuild
 
@@ -491,6 +491,8 @@ except Exception as e:
 ```
 
 `fail_secure` is a standard field on the `SecurityConfig` model (`fail_secure: bool = Field(default=True)`). When `True` (the default), any check exception results in a 500 response, blocking the request. Setting `fail_secure = False` opts into fail-open behavior: the pipeline logs the error and falls through to the next check.
+
+A `GuardRedisError` (a Redis outage at request time) answers with the error'"'"'s own 503 status and a `Retry-After: 5` header instead of the 500, so a load balancer or client retries instead of treating the app as broken. Excluded paths still run the ban lookup, so a probe on one sees the 503 during an outage under `fail_secure`; `redis_fail_open=True` is the switch that admits it. Passive mode and `fail_secure=False` admit the request.
 
 !!! tip "Choosing a failure mode"
     Keep fail-secure (the default) in production so check bugs surface as 500s rather than letting unchecked requests through. Set `fail_secure = False` to opt into fail-open behavior, intended only for staging diagnostics where availability is preferred over blocking on a check error.

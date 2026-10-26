@@ -14,7 +14,7 @@ The `"unknown"` identity is not automatically blocked once inside the pipeline: 
 ## Execution semantics
 
 * `check.check(request) -> GuardResponse | None`: `None` passes, a `GuardResponse` blocks.
-* On a check exception, the pipeline catches it. `fail_secure=True` (default) blocks with HTTP 500 via `check.create_error_response(500, ...)`; `fail_secure=False` continues to the next check.
+* On a check exception, the pipeline catches it. `fail_secure=True` (default) blocks with HTTP 500 via `check.create_error_response(500, ...)` (a `GuardRedisError` answers its own 503 with `Retry-After: 5`); `fail_secure=False` continues to the next check.
 * All checks returning `None` means the request is allowed (pipeline returns `None`).
 
 ## The check catalogue, in order

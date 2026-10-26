@@ -157,7 +157,7 @@ flowchart TD
 When a check raises an exception:
 
 - The error is logged with `exc_info=True` for full traceback.
-- `fail_secure` is a standard `SecurityConfig` field, defaulting to `True`; when it is `True`, the pipeline returns a `500` error response (fail-closed behavior).
+- `fail_secure` is a standard `SecurityConfig` field, defaulting to `True`; when it is `True`, the pipeline returns a `500` error response (fail-closed behavior), or a `503` with `Retry-After: 5` when the error is a `GuardRedisError`.
 - With `fail_secure=False`, the pipeline continues to the next check (fail-open behavior).
 
 ### Pipeline Manipulation
