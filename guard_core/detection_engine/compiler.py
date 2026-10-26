@@ -117,6 +117,10 @@ async def _await_regex_future(
     try:
         return await asyncio.wait_for(asyncio.wrap_future(future), timeout=timeout)
     except asyncio.TimeoutError as exc:
+        # 3.10 wrap_future turns a future's own concurrent TimeoutError into
+        # asyncio.TimeoutError, so read a finished future for its own outcome.
+        if future.done() and not future.cancelled():
+            return future.result()
         left = _run_budget_left(future, started, timeout, exc)
     try:
         return await asyncio.wait_for(asyncio.wrap_future(future), timeout=left)
