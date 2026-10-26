@@ -898,3 +898,28 @@ def test_initialize_redis_handlers_completes_when_geo_ip_handler_get_key_fails(
 
     assert real_geo.redis_handler is mock_redis_handler
     IPInfoManager._instance = None
+
+
+def test_initialize_redis_handlers_logs_the_failure_once_inside_the_window(
+    initializer: HandlerInitializer,
+    security_config: SyncSecurityConfig,
+    mock_redis_handler: Mock,
+    mock_geo_ip_handler: Mock,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    security_config.redis_fail_open = True
+    mock_redis_handler.initialize = MagicMock(
+        side_effect=GuardRedisError(503, "Redis connection failed")
+    )
+    mock_geo_ip_handler.initialize = MagicMock()
+
+    with caplog.at_level(logging.ERROR, logger="guard_core.sync.core.initialization"):
+        initializer.initialize_redis_handlers()
+        initializer.initialize_redis_handlers()
+
+    lines = [
+        r
+        for r in caplog.records
+        if "Redis unavailable during initialization" in r.getMessage()
+    ]
+    assert len(lines) == 1

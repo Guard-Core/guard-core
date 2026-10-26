@@ -1,10 +1,13 @@
 import asyncio
 import logging
+import threading
+from collections import OrderedDict
 from typing import TYPE_CHECKING, Any
 
 from guard_core._redis_enablement import redis_is_configured, resolve_enable_redis
 from guard_core._staged_defaults import signal_changed_defaults
 from guard_core._utils.app_scope import app_scope_of, in_app_scope
+from guard_core._utils.sampling import observe_sampled_key
 from guard_core.core.initialization._cloud_initialization import (
     CloudInitializationMixin,
 )
@@ -26,6 +29,20 @@ from guard_core.exceptions import GuardRedisError
 if TYPE_CHECKING:
     from guard_core.models import SecurityConfig
     from guard_core.protocols.agent_protocol import AgentHandlerProtocol
+
+_INIT_FAILURE_SAMPLE_WINDOW_SECONDS = 60
+_init_failure_lock = threading.Lock()
+_init_failure_samples: OrderedDict[str, float] = OrderedDict()
+
+
+def _sample_init_failure_line() -> bool:
+    return observe_sampled_key(
+        _init_failure_samples,
+        _init_failure_lock,
+        "redis-unavailable-during-initialization",
+        window=_INIT_FAILURE_SAMPLE_WINDOW_SECONDS,
+        max_tracked=1,
+    )
 
 
 class _HandlerInitializerStepsMixin(
@@ -122,9 +139,10 @@ class _HandlerInitializerStepsMixin(
         try:
             await self.redis_handler.initialize()
         except GuardRedisError as e:
-            self.logger.error(
-                "Redis unavailable during initialization: %s", e, exc_info=True
-            )
+            if _sample_init_failure_line():
+                self.logger.error(
+                    "Redis unavailable during initialization: %s", e, exc_info=True
+                )
             if not self.config.redis_fail_open:
                 raise
             return False

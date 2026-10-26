@@ -31,6 +31,9 @@ from guard_core.sync.core.checks.implementations import (
 )
 from guard_core.sync.core.events import logfire_handler as _logfire_handler_module
 from guard_core.sync.core.events import otel_handler as _otel_handler_module
+from guard_core.sync.core.initialization import (
+    _handler_initializer_steps as _handler_initializer_steps_module,
+)
 from guard_core.sync.handlers import cloud_handler as _cloud_module
 from guard_core.sync.handlers import dynamic_rule_handler as _dynamic_rule_module
 from guard_core.sync.handlers import ipban_handler as _ipban_module
@@ -179,6 +182,7 @@ def _reset_untrusted_forwarded_for_tracking() -> None:
     _ip_extraction_module._evicted_suppressed_total = 0
     _suspicious_activity_module._disabled_detection_samples.clear()
     _emergency_mode_module._emergency_samples.clear()
+    _handler_initializer_steps_module._init_failure_samples.clear()
 
 
 def _reset_ip_ban_manager() -> None:
