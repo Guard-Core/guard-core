@@ -1,8 +1,6 @@
 import logging
 from typing import Literal
 
-from pydantic import BaseModel
-
 _applied = False
 
 TelemetryModelName = Literal["SecurityEvent", "SecurityMetric", "EventBatch"]
@@ -52,7 +50,7 @@ def _mute_pydantic_plugin_instrumentation() -> None:
         _applied = True
 
 
-def get_telemetry_model(name: TelemetryModelName) -> type[BaseModel]:
+def get_telemetry_model(name: TelemetryModelName) -> type:
     """The supported way for guard-core to obtain a guard-agent telemetry
     model class. Always mutes pydantic plugin instrumentation first, so a
     caller using this accessor cannot construct
@@ -70,6 +68,4 @@ def get_telemetry_model(name: TelemetryModelName) -> type[BaseModel]:
     model = getattr(guard_agent, name)
     if not isinstance(model, type):
         raise TypeError(f"guard_agent.{name} is not a class")
-    if not issubclass(model, BaseModel):
-        raise TypeError(f"guard_agent.{name} is not a pydantic model")
     return model
