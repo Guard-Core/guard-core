@@ -181,7 +181,9 @@ async def test_same_prefix_and_connection_logs_no_split_warning(
     assert not [r for r in caplog.records if r.name.endswith("app_managers")]
 
 
-async def test_a_dynamic_rule_ban_from_the_second_app_uses_its_own_handlers() -> None:
+async def test_a_dynamic_rule_ban_from_the_second_app_uses_its_own_handlers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     first = await _start("wp136-rules:", ONE, [PROXY])
     second = await _start("wp136-rules:", ONE, [])
     object.__setattr__(first.config, "enable_dynamic_rules", True)
@@ -213,12 +215,9 @@ async def test_a_dynamic_rule_ban_from_the_second_app_uses_its_own_handlers() ->
         seen["config"] = ban_manager.config
         return True
 
-    object.__setattr__(ban_manager, "is_ip_banned", not_banned)
-    object.__setattr__(ban_manager, "ban_ip", record_ban)
-    try:
-        await second_rules.force_update()
-    finally:
-        del ban_manager.__dict__["ban_ip"], ban_manager.__dict__["is_ip_banned"]
+    monkeypatch.setattr(ban_manager, "is_ip_banned", not_banned)
+    monkeypatch.setattr(ban_manager, "ban_ip", record_ban)
+    await second_rules.force_update()
 
     assert seen["redis"] is second.redis
     assert seen["agent"] is _telemetry(second)
@@ -369,11 +368,15 @@ async def test_a_rule_revert_clears_only_its_own_apps_exempt_set() -> None:
 V6 = "2001:db8:1:2::9"
 
 
-def _record_store_ban(manager: Any, seen: list[tuple[str, str, Any, Any]]) -> None:
+def _record_store_ban(
+    monkeypatch: pytest.MonkeyPatch,
+    manager: Any,
+    seen: list[tuple[str, str, Any, Any]],
+) -> None:
     async def store_ban(namespace: str, key: str, *args: Any, **kwargs: Any) -> None:
         seen.append((namespace, key, manager.redis_handler, manager.agent_handler))
 
-    object.__setattr__(manager, "_store_ban", store_ban)
+    monkeypatch.setattr(manager, "_store_ban", store_ban)
 
 
 async def _two_apps(prefix: str, **second_settings: Any) -> tuple[_App, _App, Any]:
@@ -382,19 +385,21 @@ async def _two_apps(prefix: str, **second_settings: Any) -> tuple[_App, _App, An
     return first, second, ip_ban_manager_for(first.config)
 
 
-async def test_a_ban_with_config_runs_as_that_app_with_one_write_and_one_event() -> (
-    None
-):
+async def test_a_ban_with_config_runs_as_that_app_with_one_write_and_one_event(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     first, second, ban = await _two_apps("wp136-m2:")
     writes: list[tuple[str, str, Any, Any]] = []
-    _record_store_ban(ban, writes)
+    _record_store_ban(monkeypatch, ban, writes)
     assert await ban.ban_ip(PROXY, 60, config=first.config) is False
     assert writes == []
     assert await ban.ban_ip("198.51.100.20", 60, config=second.config) is True
     assert writes == [("banned_ips", "198.51.100.20", second.redis, _telemetry(second))]
 
 
-async def test_an_unban_with_config_removes_only_that_apps_identity() -> None:
+async def test_an_unban_with_config_removes_only_that_apps_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     first = await _start("wp136-m2u:", ONE, [])
     second = await _start("wp136-m2u:", ONE, [])
     object.__setattr__(first.config, "ipv6_prefix_length", 64)
@@ -405,8 +410,8 @@ async def test_an_unban_with_config_removes_only_that_apps_identity() -> None:
     assert identity_a and identity_b and identity_a != identity_b
     for key in (V6, identity_a, identity_b):
         ban.banned_ips[key] = 10**12
-    object.__setattr__(ban, "_write_with_version_bump", AsyncMock())
-    object.__setattr__(ban, "_forget_strikes", AsyncMock())
+    monkeypatch.setattr(ban, "_write_with_version_bump", AsyncMock())
+    monkeypatch.setattr(ban, "_forget_strikes", AsyncMock())
 
     await ban.unban_ip(V6, config=second.config)
 
@@ -430,14 +435,14 @@ async def test_an_unscoped_ban_on_a_shared_manager_is_refused_when_any_app_refus
     assert "hunter2" not in warnings[0] and "config=" in warnings[0]
 
 
-async def test_an_unscoped_ban_writes_every_distinct_identity_without_an_event() -> (
-    None
-):
+async def test_an_unscoped_ban_writes_every_distinct_identity_without_an_event(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     first, second, ban = await _two_apps("wp136-m3w:")
     object.__setattr__(first.config, "ipv6_prefix_length", 64)
     object.__setattr__(second.config, "ipv6_prefix_length", 48)
     writes: list[tuple[str, str, Any, Any]] = []
-    _record_store_ban(ban, writes)
+    _record_store_ban(monkeypatch, ban, writes)
 
     assert await ban.ban_ip(V6, 60, grouped=True) is True
 
@@ -448,9 +453,9 @@ async def test_an_unscoped_ban_writes_every_distinct_identity_without_an_event()
     assert all(agent is None for *_, agent in writes)
 
 
-async def test_an_unscoped_unban_removes_every_identity_and_a_lookup_checks_each() -> (
-    None
-):
+async def test_an_unscoped_unban_removes_every_identity_and_a_lookup_checks_each(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     first, second, ban = await _two_apps("wp136-m3u:")
     object.__setattr__(first.config, "ipv6_prefix_length", 64)
     object.__setattr__(second.config, "ipv6_prefix_length", 48)
@@ -459,19 +464,21 @@ async def test_an_unscoped_unban_removes_every_identity_and_a_lookup_checks_each
     ban.banned_ips[identity_a] = 10**12
     ban.banned_ips[identity_b] = 10**12
     assert await ban.is_ip_banned(V6) is True
-    object.__setattr__(ban, "_write_with_version_bump", AsyncMock())
-    object.__setattr__(ban, "_forget_strikes", AsyncMock())
+    monkeypatch.setattr(ban, "_write_with_version_bump", AsyncMock())
+    monkeypatch.setattr(ban, "_forget_strikes", AsyncMock())
 
     await ban.unban_ip(V6)
 
     assert identity_a not in ban.banned_ips and identity_b not in ban.banned_ips
 
 
-async def test_an_unscoped_ban_reaches_redis_through_a_live_sharing_app() -> None:
+async def test_an_unscoped_ban_reaches_redis_through_a_live_sharing_app(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     first, second, ban = await _two_apps("wp136-m3l:")
     first.redis._closed = True
     writes: list[tuple[str, str, Any, Any]] = []
-    _record_store_ban(ban, writes)
+    _record_store_ban(monkeypatch, ban, writes)
 
     assert await ban.ban_ip("198.51.100.30", 60) is True
 
@@ -482,11 +489,13 @@ async def test_an_unscoped_ban_reaches_redis_through_a_live_sharing_app() -> Non
     assert writes[0][2] is None
 
 
-async def test_a_single_app_manager_answers_its_own_handlers_unscoped() -> None:
+async def test_a_single_app_manager_answers_its_own_handlers_unscoped(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     only = await _start("wp136-m3s:", ONE, [])
     ban = ip_ban_manager_for(only.config)
     writes: list[tuple[str, str, Any, Any]] = []
-    _record_store_ban(ban, writes)
+    _record_store_ban(monkeypatch, ban, writes)
     assert await ban.ban_ip("198.51.100.40", 60) is True
     assert writes == [("banned_ips", "198.51.100.40", only.redis, _telemetry(only))]
 

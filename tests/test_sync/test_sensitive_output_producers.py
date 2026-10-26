@@ -359,6 +359,11 @@ COVERED_PRODUCERS: dict[str, frozenset[str]] = {
 }
 
 NON_REQUEST_PRODUCERS: dict[str, str] = {
+    "handlers/_ipban_sharing.py:IpBanSharedAppsMixin._across_apps_scopes": (
+        "one WARNING per process naming the sharing apps by Redis prefix and "
+        "redacted URL when a ban call has no app in scope and no config=; it "
+        "carries no request data and no request is in scope"
+    ),
     "_utils/app_managers.py:_warn_split_connection": (
         "startup WARNING naming the prefix and both redacted Redis URLs when two "
         "apps share a prefix on different connections; adapter init only, no "
