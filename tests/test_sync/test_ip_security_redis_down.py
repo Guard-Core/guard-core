@@ -36,9 +36,13 @@ def _pipeline(**settings: Any) -> SecurityCheckPipeline:
     return build_default_pipeline(build_middleware(config, SecurityDecorator(config)))
 
 
-def _status(pipeline: SecurityCheckPipeline, ip: str) -> int | None:
-    response = pipeline.execute(SyncMockGuardRequest(path="/x", client_host=ip))
+def _status(pipeline: SecurityCheckPipeline, ip: str, path: str = "/x") -> int | None:
+    response = pipeline.execute(SyncMockGuardRequest(path=path, client_host=ip))
     return None if response is None else response.status_code
+
+
+def _response(pipeline: SecurityCheckPipeline, path: str = "/x") -> Any:
+    return pipeline.execute(SyncMockGuardRequest(path=path, client_host="203.0.113.8"))
 
 
 def test_a_blacklisted_ip_is_still_denied_when_redis_is_down_and_fails_open() -> None:
@@ -66,7 +70,42 @@ def test_a_clean_ip_passes_when_redis_fails_open() -> None:
     assert _status(pipeline, "203.0.113.8") is None
 
 
-def test_redis_down_without_fail_open_still_answers_500() -> None:
-    pipeline = _pipeline()
+def test_redis_down_without_fail_open_answers_503_with_retry_after() -> None:
+    response = _response(_pipeline())
 
-    assert _status(pipeline, "203.0.113.8") == 500
+    assert response.status_code == 503
+    assert response.headers["Retry-After"] == "5"
+
+
+def test_redis_down_on_an_excluded_path_answers_503_with_retry_after() -> None:
+    response = _response(_pipeline(exclude_paths=["/health"]), "/health")
+
+    assert response.status_code == 503
+    assert response.headers["Retry-After"] == "5"
+
+
+def test_redis_down_in_passive_mode_admits_the_request() -> None:
+    assert _status(_pipeline(passive_mode=True), "203.0.113.8") is None
+
+
+def test_redis_down_with_fail_secure_off_admits_the_request() -> None:
+    assert _status(_pipeline(fail_secure=False), "203.0.113.8") is None
+
+
+def test_redis_fail_open_admits_an_excluded_path() -> None:
+    pipeline = _pipeline(redis_fail_open=True, exclude_paths=["/health"])
+
+    assert _status(pipeline, "203.0.113.8", "/health") is None
+
+
+def test_a_non_redis_check_error_still_answers_500_without_retry_after(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        ip_ban_manager, "is_ip_banned", MagicMock(side_effect=RuntimeError("boom"))
+    )
+
+    response = _response(_pipeline())
+
+    assert response.status_code == 500
+    assert "Retry-After" not in response.headers

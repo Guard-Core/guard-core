@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 from redis.exceptions import RedisError
@@ -15,7 +16,9 @@ def _redis_failing_check(config: SyncSecurityConfig) -> MagicMock:
     check.check_name = "ip_security"
     check.config = config
     check.check = MagicMock(side_effect=GuardRedisError(503, "Redis connection failed"))
-    check.create_error_response = MagicMock(return_value="BLOCKED")
+    check.create_error_response = MagicMock(
+        return_value=SimpleNamespace(status_code=503, headers={})
+    )
     return check
 
 
@@ -40,7 +43,9 @@ def _rate_limit_check_with_broken_redis(config: SyncSecurityConfig) -> RateLimit
     middleware.logger = MagicMock()
     middleware.route_resolver.should_bypass_check = MagicMock(return_value=False)
     middleware.rate_limit_handler = rate_limit_manager
-    middleware.create_error_response = MagicMock(return_value="BLOCKED")
+    middleware.create_error_response = MagicMock(
+        side_effect=lambda code, _message: SimpleNamespace(status_code=code, headers={})
+    )
     return RateLimitCheck(middleware)
 
 
@@ -73,11 +78,16 @@ def test_pipeline_returns_blocked_when_fail_secure_and_check_raises() -> None:
     failing_check.config = middleware.config
     failing_check.is_muted = False
     failing_check.check = MagicMock(side_effect=RuntimeError("boom"))
-    failing_check.create_error_response = MagicMock(return_value="BLOCKED")
+    blocked = SimpleNamespace(status_code=500, headers={})
+    failing_check.create_error_response = MagicMock(return_value=blocked)
 
     pipeline = SecurityCheckPipeline([failing_check])
     result = pipeline.execute(MagicMock())
-    assert result == "BLOCKED"
+    assert result is blocked
+    assert "Retry-After" not in blocked.headers
+    failing_check.create_error_response.assert_called_once_with(
+        status_code=500, default_message="Security check failed"
+    )
 
 
 def test_pipeline_falls_through_when_not_fail_secure() -> None:
@@ -109,7 +119,8 @@ def test_pipeline_blocks_on_redis_error_with_default_config() -> None:
     pipeline = SecurityCheckPipeline([failing_check])
     result = pipeline.execute(MagicMock())
 
-    assert result == "BLOCKED"
+    assert result is failing_check.create_error_response.return_value
+    assert result.headers["Retry-After"] == "5"
 
 
 def test_pipeline_fails_open_on_redis_error_despite_fail_secure() -> None:
@@ -151,7 +162,8 @@ def test_pipeline_blocks_on_redis_error_when_fail_open_disabled() -> None:
     pipeline = SecurityCheckPipeline([failing_check])
     result = pipeline.execute(MagicMock())
 
-    assert result == "BLOCKED"
+    assert result is failing_check.create_error_response.return_value
+    assert result.headers["Retry-After"] == "5"
 
 
 def test_pipeline_rate_limit_check_blocks_when_fail_secure() -> None:
@@ -167,7 +179,9 @@ def test_pipeline_rate_limit_check_blocks_when_fail_secure() -> None:
     pipeline = SecurityCheckPipeline([check])
     result = pipeline.execute(_rate_limit_request())
 
-    assert result == "BLOCKED"
+    assert result is not None
+    assert result.status_code == 503
+    assert result.headers["Retry-After"] == "5"
 
 
 def test_pipeline_rate_limit_check_passes_through_when_not_fail_secure() -> None:

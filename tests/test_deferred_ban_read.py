@@ -602,7 +602,7 @@ async def test_a_failed_ban_read_is_logged_under_the_ip_check(
         monkeypatch.setattr(Connection, "send_packed_command", dropping)
         caplog.clear()
 
-        assert await rig.request(CLIENT, agent=BAD_AGENT) == 500
+        assert await rig.request(CLIENT, agent=BAD_AGENT) == 503
 
         messages = [
             r.getMessage() for r in caplog.records if "security check" in r.getMessage()

@@ -22,6 +22,8 @@ from guard_core.sync.core.checks._usage_rules_step import (
 from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
+REDIS_OUTAGE_RETRY_AFTER = 5
+
 
 def _pending_of(state: object) -> PendingBan | None:
     flow = getattr(state, "guard_ban_flow", None)
@@ -141,12 +143,24 @@ class SecurityCheckPipeline:
                     f"Blocking request due to check error "
                     f"in fail-secure mode: {check.check_name}"
                 )
+            return self._fail_secure_response(check, error)
+
+        return None
+
+    def _fail_secure_response(
+        self, check: SecurityCheck, error: Exception
+    ) -> GuardResponse:
+        if not isinstance(error, GuardRedisError):
             return check.create_error_response(
                 status_code=500,
                 default_message="Security check failed",
             )
-
-        return None
+        response = check.create_error_response(
+            status_code=error.status_code,
+            default_message="Security check failed",
+        )
+        response.headers["Retry-After"] = str(REDIS_OUTAGE_RETRY_AFTER)
+        return response
 
     def _fire_block_hook(
         self, check: SecurityCheck, request: SyncGuardRequest, response: GuardResponse
