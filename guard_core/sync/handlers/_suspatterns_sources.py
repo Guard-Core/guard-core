@@ -1,5 +1,9 @@
 import re
 from collections.abc import Iterable, Mapping
+from typing import TYPE_CHECKING, TypeGuard
+
+if TYPE_CHECKING:
+    from guard_core.models import SyncSecurityConfig
 
 _DEFAULT_MAX_SCAN_LENGTH = 10000
 _DEFAULT_COMPILER_TIMEOUT = 2.0
@@ -25,7 +29,7 @@ _ENHANCED_CONFIG_REQUIRED_ATTRS = (
 )
 
 
-def _supports_enhanced_config(config: object) -> bool:
+def _supports_enhanced_config(config: object) -> TypeGuard["SyncSecurityConfig"]:
     return config is not None and all(
         hasattr(config, attr) for attr in _ENHANCED_CONFIG_REQUIRED_ATTRS
     )

@@ -1,8 +1,8 @@
 import logging
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
-from ipaddress import ip_address
-from typing import Any
+from ipaddress import IPv4Address, IPv6Address, ip_address
+from typing import TYPE_CHECKING
 
 from guard_core._utils.detection_scan import _user_agent_matches_blocked_pattern
 from guard_core._utils.ip_extraction import (
@@ -15,10 +15,14 @@ from guard_core._utils.whitelist_match import is_listed
 from guard_core.protocols.geo_ip_protocol import GeoIPHandler
 from guard_core.protocols.request_protocol import GuardRequest
 
+if TYPE_CHECKING:
+    from guard_core.models import SecurityConfig
+    from guard_core.protocols.middleware_protocol import GuardMiddlewareProtocol
+
 logger = logging.getLogger("guard_core")
 
 
-async def is_user_agent_allowed(user_agent: str, config: Any) -> bool:
+async def is_user_agent_allowed(user_agent: str, config: "SecurityConfig") -> bool:
     blocked = await _user_agent_matches_blocked_pattern(
         user_agent, config.blocked_user_agents
     )
@@ -35,7 +39,7 @@ def _extract_ip_from_request(request: str | GuardRequest) -> str:
     )
 
 
-def _has_country_rules(config: Any) -> bool:
+def _has_country_rules(config: "SecurityConfig") -> bool:
     return bool(config.blocked_countries or config.whitelist_countries)
 
 
@@ -47,7 +51,7 @@ def _is_loopback(ip: str) -> bool:
 
 
 def _log_country_check_result(
-    ip: str, country: str | None, result_type: str, config: Any
+    ip: str, country: str | None, result_type: str, config: "SecurityConfig"
 ) -> None:
     if result_type == "no_rules":
         logger.debug(
@@ -87,7 +91,9 @@ def _log_country_check_result(
             )
 
 
-def _evaluate_country_access(country: str, config: Any) -> tuple[bool, str]:
+def _evaluate_country_access(
+    country: str, config: "SecurityConfig"
+) -> tuple[bool, str]:
     if config.whitelist_countries:
         if country in config.whitelist_countries:
             return False, "whitelisted"
@@ -107,14 +113,16 @@ async def _load_geo_database(geo_ip_handler: GeoIPHandler) -> None:
     await ensure_database_loaded()
 
 
-async def load_geo_database_for_route_rules(middleware: Any) -> None:
+async def load_geo_database_for_route_rules(
+    middleware: "GuardMiddlewareProtocol",
+) -> None:
     geo_ip_handler: GeoIPHandler | None = middleware.geo_ip_handler
     if geo_ip_handler is not None and not geo_ip_handler.is_initialized:
         await _load_geo_database(geo_ip_handler)
 
 
 async def _resolve_country_verdict(
-    ip: str, config: Any, geo_ip_handler: GeoIPHandler
+    ip: str, config: "SecurityConfig", geo_ip_handler: GeoIPHandler
 ) -> tuple[bool, str | None]:
     if not _has_country_rules(config):
         _log_country_check_result(ip, None, "no_rules", config)
@@ -141,7 +149,7 @@ async def _resolve_country_verdict(
 
 async def check_ip_country(
     request: str | GuardRequest,
-    config: Any,
+    config: "SecurityConfig",
     geo_ip_handler: GeoIPHandler,
 ) -> bool:
     ip = _extract_ip_from_request(request)
@@ -149,24 +157,28 @@ async def check_ip_country(
     return is_blocked
 
 
-def _ip_in_list(ip_addr: Any, ip: str, entries: Sequence[str] | None) -> bool:
+def _ip_in_list(ip_addr: object, ip: str, entries: Sequence[str] | None) -> bool:
     if not entries:
         return False
-    return is_listed(ip_addr, _canonicalize_ip(ip), entries, "list")
+    match ip_addr:
+        case IPv4Address() | IPv6Address():
+            return is_listed(ip_addr, _canonicalize_ip(ip), entries, "list")
+        case _:
+            raise TypeError("ip_addr must be an IPv4Address or an IPv6Address")
 
 
-async def _check_blacklist(ip_addr: Any, ip: str, config: Any) -> bool:
+async def _check_blacklist(ip_addr: object, ip: str, config: "SecurityConfig") -> bool:
     return not _ip_in_list(ip_addr, ip, config.blacklist)
 
 
-async def _check_whitelist(ip_addr: Any, ip: str, config: Any) -> bool:
+async def _check_whitelist(ip_addr: object, ip: str, config: "SecurityConfig") -> bool:
     if config.whitelist:
         return _ip_in_list(ip_addr, ip, config.whitelist)
     return True
 
 
 async def _check_blocked_countries(
-    ip: str, config: Any, geo_ip_handler: GeoIPHandler | None
+    ip: str, config: "SecurityConfig", geo_ip_handler: GeoIPHandler | None
 ) -> bool:
     if (config.blocked_countries or config.whitelist_countries) and geo_ip_handler:
         country_blocked = await check_ip_country(ip, config, geo_ip_handler)
@@ -210,14 +222,16 @@ class _GeoLookupError(Exception):
         self.kind = kind
 
 
-def _result_for_geo_failure(kind: str, config: Any) -> IpAccessResult | None:
+def _result_for_geo_failure(
+    kind: str, config: "SecurityConfig"
+) -> IpAccessResult | None:
     if config.fail_secure:
         return IpAccessResult(False, f"GeoIP lookup failed ({kind})", geo_failure=kind)
     return None
 
 
 async def _check_blocked_countries_detail(
-    ip: str, config: Any, geo_ip_handler: GeoIPHandler | None
+    ip: str, config: "SecurityConfig", geo_ip_handler: GeoIPHandler | None
 ) -> IpAccessResult | None:
     if (
         not (config.blocked_countries or config.whitelist_countries)
@@ -250,7 +264,9 @@ async def _check_blocked_countries_detail(
     )
 
 
-async def _check_cloud_providers_detail(ip: str, config: Any) -> IpAccessResult | None:
+async def _check_cloud_providers_detail(
+    ip: str, config: "SecurityConfig"
+) -> IpAccessResult | None:
     from guard_core.handlers.cloud_handler import cloud_handler_for
 
     if not config.block_cloud_providers:
@@ -276,7 +292,7 @@ async def _check_cloud_providers_detail(ip: str, config: Any) -> IpAccessResult 
 
 
 def _check_unknown_identity_access(
-    ip: str, config: Any, skip_ip_lists: bool, skip_countries: bool
+    ip: str, config: "SecurityConfig", skip_ip_lists: bool, skip_countries: bool
 ) -> IpAccessResult | None:
     if ip != UNKNOWN_CLIENT_IDENTITY:
         return None
@@ -294,7 +310,7 @@ def _check_unknown_identity_access(
 
 
 def _unparsable_identity_result(
-    ip: str, config: Any, skip_ip_lists: bool, skip_countries: bool
+    ip: str, config: "SecurityConfig", skip_ip_lists: bool, skip_countries: bool
 ) -> IpAccessResult:
     if ip.startswith(MALFORMED_FORWARDED_FOR_PREFIX):
         return _malformed_forwarded_for_result(
@@ -304,7 +320,7 @@ def _unparsable_identity_result(
 
 
 def _malformed_forwarded_for_result(
-    ip: str, config: Any, skip_ip_lists: bool, skip_countries: bool
+    ip: str, config: "SecurityConfig", skip_ip_lists: bool, skip_countries: bool
 ) -> IpAccessResult:
     if config.fail_secure:
         return IpAccessResult(
@@ -321,7 +337,7 @@ def _malformed_forwarded_for_result(
 
 
 async def _check_ip_lists_detail(
-    ip_addr: Any, ip: str, config: Any, skip_whitelist: bool = False
+    ip_addr: object, ip: str, config: "SecurityConfig", skip_whitelist: bool = False
 ) -> IpAccessResult | None:
     reason = _GENERIC_LIST_BLOCK_REASON.format(ip=ip)
     if config.blacklist and not await _check_blacklist(ip_addr, ip, config):
@@ -338,9 +354,9 @@ async def _check_ip_lists_detail(
 
 
 async def _check_country_and_cloud_detail(
-    ip_addr: Any,
+    ip_addr: object,
     ip: str,
-    config: Any,
+    config: "SecurityConfig",
     geo_ip_handler: GeoIPHandler | None,
     skip_countries: bool,
     skip_clouds: bool,
@@ -365,7 +381,7 @@ async def _check_country_and_cloud_detail(
 
 async def check_ip_access(
     ip: str,
-    config: Any,
+    config: "SecurityConfig",
     geo_ip_handler: GeoIPHandler | None = None,
     *,
     skip_ip_lists: bool = False,
@@ -406,7 +422,7 @@ async def check_ip_access(
 
 async def is_ip_allowed(
     ip: str,
-    config: Any,
+    config: "SecurityConfig",
     geo_ip_handler: GeoIPHandler | None = None,
     *,
     skip_ip_lists: bool = False,

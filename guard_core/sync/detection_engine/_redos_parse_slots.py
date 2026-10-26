@@ -4,31 +4,56 @@ import functools
 import importlib
 import re
 from collections.abc import Callable
-from typing import Any, NamedTuple
+from types import ModuleType
+from typing import NamedTuple, Protocol
 
 from guard_core.sync.detection_engine._redos_ignorecase_fold import expand_ignorecase
 from guard_core.sync.detection_engine._redos_intervals import (
     _IntervalSet,
     cached_category_intervals,
 )
+from guard_core.sync.detection_engine._redos_parse_nodes import (
+    _assertion_parts,
+    _Body,
+    _body_of,
+    _branch_alternatives,
+    _code_point_of,
+    _group_parts,
+    _Node,
+    _range_bounds,
+    _repeat_parts,
+)
 
 
-def _import_regex_parser_module() -> Any:
+def _import_regex_parser_module() -> ModuleType:
     try:
         return importlib.import_module("re._parser")
     except ImportError:
         return importlib.import_module("sre_parse")
 
 
-def _import_regex_compiler_module() -> Any:
+def _import_regex_compiler_module() -> ModuleType:
     try:
         return importlib.import_module("re._compiler")
     except ImportError:
         return importlib.import_module("sre_compile")
 
 
-_regex_parser: Any = _import_regex_parser_module()
-_regex_compiler: Any = _import_regex_compiler_module()
+class _ParserState(Protocol):
+    @property
+    def flags(self) -> int: ...
+
+
+class _SubPatternLike(Protocol):
+    @property
+    def data(self) -> _Body: ...
+
+    @property
+    def state(self) -> _ParserState: ...
+
+
+_regex_parser: ModuleType = _import_regex_parser_module()
+_regex_compiler: ModuleType = _import_regex_compiler_module()
 
 
 class _PairingAtom(NamedTuple):
@@ -77,7 +102,7 @@ _REPEAT_OPS = frozenset(
     {_regex_parser.MAX_REPEAT, _regex_parser.MIN_REPEAT, _POSSESSIVE_REPEAT}
 )
 _ASSERT_OPS = frozenset({_regex_parser.ASSERT, _regex_parser.ASSERT_NOT})
-_CATEGORY_ESCAPES: dict[Any, str] = {
+_CATEGORY_ESCAPES: dict[object, str] = {
     _regex_parser.CATEGORY_DIGIT: r"\d",
     _regex_parser.CATEGORY_NOT_DIGIT: r"\D",
     _regex_parser.CATEGORY_SPACE: r"\s",
@@ -87,33 +112,37 @@ _CATEGORY_ESCAPES: dict[Any, str] = {
 }
 
 
-def _subpattern_body_and_flags(av: Any, flags: int) -> tuple[list[Any], int]:
-    _group, add_flags, del_flags, body = av
+def _subpattern_body_and_flags(av: object, flags: int) -> tuple[_Body, int]:
+    _group, add_flags, del_flags, body = _group_parts(av)
     return body, (flags | add_flags) & ~del_flags
 
 
-def _atomic_group_body_and_flags(av: Any, flags: int) -> tuple[list[Any], int]:
-    return av, flags
+def _atomic_group_body_and_flags(av: object, flags: int) -> tuple[_Body, int]:
+    return _body_of(av), flags
 
 
-_GROUP_LIKE_BODY_EXTRACTORS: dict[Any, Callable[[Any, int], tuple[list[Any], int]]] = {
+_GROUP_LIKE_BODY_EXTRACTORS: dict[
+    object, Callable[[object, int], tuple[_Body, int]]
+] = {
     _regex_parser.SUBPATTERN: _subpattern_body_and_flags,
     _ATOMIC_GROUP: _atomic_group_body_and_flags,
 }
 
 
-def _parse_pattern(pattern: str, flags: int) -> Any:
-    return _regex_parser.parse(pattern, flags)
+def _parse_pattern(pattern: str, flags: int) -> _SubPatternLike:
+    parsed: _SubPatternLike = _regex_parser.parse(pattern, flags)
+    return parsed
 
 
-def _compile_class_node(op: Any, av: Any, flags: int) -> Any:
+def _compile_class_node(op: object, av: object, flags: int) -> re.Pattern[str]:
     state = _regex_parser.State()
     state.flags = flags
     subpattern = _regex_parser.SubPattern(state, [(op, av)])
-    return _regex_compiler.compile(subpattern, flags)
+    compiled: re.Pattern[str] = _regex_compiler.compile(subpattern, flags)
+    return compiled
 
 
-def _category_predicate(category: Any, flags: int) -> Callable[[int], bool]:
+def _category_predicate(category: object, flags: int) -> Callable[[int], bool]:
     escape = _CATEGORY_ESCAPES.get(category)
     if escape is None:
         return lambda code_point: True
@@ -121,26 +150,30 @@ def _category_predicate(category: Any, flags: int) -> Callable[[int], bool]:
     return lambda code_point: compiled.fullmatch(chr(code_point)) is not None
 
 
-def _class_node_cache_key(op: Any, av: Any, flags: int) -> tuple[Any, Any, int]:
+def _class_node_cache_key(
+    op: object, av: object, flags: int
+) -> tuple[object, object, int]:
     if op is _regex_parser.IN:
-        return (op, tuple(av), flags)
+        return (op, tuple(_body_of(av)), flags)
     return (op, av, flags)
 
 
-def _compiled_node_predicate(compiled: Any) -> Callable[[int], bool]:
+def _compiled_node_predicate(compiled: re.Pattern[str]) -> Callable[[int], bool]:
     def predicate(code_point: int) -> bool:
         return compiled.fullmatch(chr(code_point)) is not None
 
     return predicate
 
 
-def _class_node_predicate(op: Any, av: Any, flags: int) -> Callable[[int], bool]:
+def _class_node_predicate(op: object, av: object, flags: int) -> Callable[[int], bool]:
     key = _class_node_cache_key(op, av, flags)
     return _cached_class_node_predicate(*key)
 
 
 @functools.lru_cache(maxsize=1024)
-def _cached_class_node_predicate(op: Any, av: Any, flags: int) -> Callable[[int], bool]:
+def _cached_class_node_predicate(
+    op: object, av: object, flags: int
+) -> Callable[[int], bool]:
     if op is _regex_parser.CATEGORY:
         predicate = _category_predicate(av, flags)
     else:
@@ -148,7 +181,7 @@ def _cached_class_node_predicate(op: Any, av: Any, flags: int) -> Callable[[int]
     return predicate
 
 
-def _category_intervals(category: Any, flags: int) -> _IntervalSet:
+def _category_intervals(category: object, flags: int) -> _IntervalSet:
     predicate = _category_predicate(category, flags)
     return cached_category_intervals((category, flags & re.ASCII), predicate)
 
@@ -159,21 +192,21 @@ def _apply_ignorecase(intervals: _IntervalSet, flags: int) -> _IntervalSet:
     return expand_ignorecase(intervals, ascii_only=bool(flags & re.ASCII))
 
 
-def _member_intervals(op: Any, av: Any, flags: int) -> _IntervalSet:
+def _member_intervals(op: object, av: object, flags: int) -> _IntervalSet:
     if op is _regex_parser.CATEGORY:
         return _category_intervals(av, flags)
     if op is _regex_parser.RANGE:
-        low, high = av
+        low, high = _range_bounds(av)
         return _apply_ignorecase(_IntervalSet.from_range(low, high), flags)
     if op is _regex_parser.LITERAL:
-        return _apply_ignorecase(_IntervalSet.single(av), flags)
+        return _apply_ignorecase(_IntervalSet.single(_code_point_of(av)), flags)
     return _IntervalSet.empty()
 
 
-def _in_intervals(av: Any, flags: int) -> _IntervalSet:
+def _in_intervals(av: object, flags: int) -> _IntervalSet:
     negate = False
     member = _IntervalSet.empty()
-    for item_op, item_av in av:
+    for item_op, item_av in _body_of(av):
         if item_op is _regex_parser.NEGATE:
             negate = True
             continue
@@ -187,9 +220,11 @@ def _any_intervals(flags: int) -> _IntervalSet:
     return _IntervalSet.full().difference(_IntervalSet.single(ord("\n")))
 
 
-def _node_intervals(op: Any, av: Any, flags: int) -> _IntervalSet:
+def _node_intervals(op: object, av: object, flags: int) -> _IntervalSet:
     if op is _regex_parser.NOT_LITERAL:
-        return _apply_ignorecase(_IntervalSet.single(av), flags).complement()
+        return _apply_ignorecase(
+            _IntervalSet.single(_code_point_of(av)), flags
+        ).complement()
     if op is _regex_parser.IN:
         return _in_intervals(av, flags)
     if op is _regex_parser.ANY:
@@ -210,8 +245,8 @@ def _candidate_chars_for_atom_text(atom_text: str, flags: int) -> frozenset[str]
 
 
 def _pairing_atom(
-    op: Any,
-    av: Any,
+    op: object,
+    av: object,
     flags: int,
     allows_zero: bool,
     unbounded: bool,
@@ -226,8 +261,8 @@ def _pairing_atom(
 
 
 def _nonpairing_slot(
-    op: Any,
-    av: Any,
+    op: object,
+    av: object,
     flags: int,
     allows_zero: bool,
     unbounded: bool,
@@ -235,7 +270,7 @@ def _nonpairing_slot(
     variable_bounded: bool = False,
 ) -> _NonPairingSlot:
     if op is _regex_parser.BRANCH:
-        _ref, branches = av
+        branches = _branch_alternatives(av)
         inner = [_walk_sequence(alt, flags) for alt in branches]
         return _NonPairingSlot(
             not allows_zero, inner, unbounded, max_repeat, variable_bounded
@@ -251,21 +286,21 @@ def _nonpairing_slot(
             variable_bounded,
         )
     if op in _ASSERT_OPS:
-        _direction, body = av
+        _direction, body = _assertion_parts(av)
         return _NonPairingSlot(False, _sequence_to_alternatives(body, flags), False)
     if op is _regex_parser.AT:
         return _NonPairingSlot(False, None, False)
     return _NonPairingSlot(True, None, False)
 
 
-def _unrepeated_slot(op: Any, av: Any, flags: int) -> _Slot:
+def _unrepeated_slot(op: object, av: object, flags: int) -> _Slot:
     if op in _PAIRING_OPS:
         return _pairing_atom(op, av, flags, False, False)
     return _nonpairing_slot(op, av, flags, False, False)
 
 
-def _repeat_slot(av: tuple[int, int, list[Any]], flags: int) -> _Slot:
-    low, high, body = av
+def _repeat_slot(av: object, flags: int) -> _Slot:
+    low, high, body = _repeat_parts(av)
     allows_zero = low == 0
     unbounded = high == _regex_parser.MAXREPEAT
     variable_bounded = not unbounded and low < high
@@ -300,20 +335,20 @@ def _repeat_slot(av: tuple[int, int, list[Any]], flags: int) -> _Slot:
     )
 
 
-def _slot_for_flat_item(item: tuple[Any, Any], flags: int) -> _Slot:
+def _slot_for_flat_item(item: _Node, flags: int) -> _Slot:
     op, av = item
     if op in _REPEAT_OPS:
         return _repeat_slot(av, flags)
     return _unrepeated_slot(op, av, flags)
 
 
-def _walk_sequence(items: list[Any], flags: int) -> list[_Slot]:
+def _walk_sequence(items: _Body, flags: int) -> list[_Slot]:
     return [_slot_for_flat_item(item, flags) for item in items]
 
 
-def _sequence_to_alternatives(items: list[Any], flags: int) -> list[list[_Slot]]:
+def _sequence_to_alternatives(items: _Body, flags: int) -> list[list[_Slot]]:
     if len(items) == 1 and items[0][0] is _regex_parser.BRANCH:
-        _ref, branches = items[0][1]
+        branches = _branch_alternatives(items[0][1])
         return [_walk_sequence(alt, flags) for alt in branches]
     return [_walk_sequence(items, flags)]
 

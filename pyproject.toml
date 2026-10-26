@@ -137,9 +137,7 @@ select = [
 "guard_core/__init__.py" = ["ANN401"]  # open value
 "guard_core/_security_config_field_validators.py" = ["ANN401"]  # open value
 "guard_core/_security_config_fields.py" = ["ANN401"]  # framework object
-"guard_core/_security_config_geo_validators.py" = ["ANN401"]  # framework object
 "guard_core/_security_config_name_set_validators.py" = ["ANN401"]  # open value
-"guard_core/_utils/access_control.py" = ["ANN401"]  # handler slot
 "guard_core/_utils/app_managers.py" = ["ANN401"]  # handler slot
 "guard_core/_utils/body_json_scan.py" = ["ANN401"]  # JSON payload
 "guard_core/_utils/detection_scan.py" = ["ANN401"]  # JSON payload
@@ -158,8 +156,6 @@ select = [
 "guard_core/core/validation/__init__.py" = ["ANN401"]  # open value
 "guard_core/decorators/base.py" = ["ANN401"]  # kwargs pass-through
 "guard_core/decorators/route_config.py" = ["ANN401"]  # open value
-"guard_core/detection_engine/_redos_parse_slots.py" = ["ANN401"]  # regex engine internals
-"guard_core/detection_engine/_redos_prefix_history.py" = ["ANN401"]  # regex engine internals
 "guard_core/detection_engine/monitor.py" = ["ANN401"]  # handler slot
 "guard_core/handlers/__init__.py" = ["ANN401"]  # open value
 "guard_core/handlers/_dynamic_rule_attribution.py" = ["ANN401"]  # JSON payload
@@ -171,12 +167,10 @@ select = [
 "guard_core/handlers/_redis_fast_pool.py" = ["ANN401"]  # JSON payload
 "guard_core/handlers/_redis_lean.py" = ["ANN401"]  # handler slot
 "guard_core/handlers/_redis_shared_clients.py" = ["ANN401"]  # framework object
-"guard_core/handlers/_suspatterns_enhanced.py" = ["ANN401"]  # handler slot
 "guard_core/handlers/_suspatterns_lazy_rows.py" = ["ANN401"]  # JSON payload
 "guard_core/handlers/_suspatterns_literals.py" = ["ANN401"]  # regex engine internals
 "guard_core/handlers/_suspatterns_pickle.py" = ["ANN401"]  # open value
 "guard_core/handlers/_suspatterns_regex.py" = ["ANN401"]  # regex engine internals
-"guard_core/handlers/_suspatterns_views.py" = ["ANN401"]  # framework object
 "guard_core/handlers/redis_handler.py" = ["ANN401"]  # handler slot
 "guard_core/handlers/suspatterns_handler.py" = ["ANN401"]  # regex engine internals
 "guard_core/models.py" = ["ANN401"]  # open value
@@ -185,7 +179,6 @@ select = [
 "guard_core/protocols/redis_protocol.py" = ["ANN401"]  # protocol
 "guard_core/protocols/request_protocol.py" = ["ANN401"]  # protocol
 "guard_core/sync/__init__.py" = ["ANN401"]  # open value
-"guard_core/sync/_utils/access_control.py" = ["ANN401"]  # handler slot
 "guard_core/sync/_utils/app_managers.py" = ["ANN401"]  # handler slot
 "guard_core/sync/_utils/body_json_scan.py" = ["ANN401"]  # JSON payload
 "guard_core/sync/_utils/detection_scan.py" = ["ANN401"]  # JSON payload
@@ -204,8 +197,6 @@ select = [
 "guard_core/sync/core/validation/__init__.py" = ["ANN401"]  # open value
 "guard_core/sync/decorators/base.py" = ["ANN401"]  # kwargs pass-through
 "guard_core/sync/decorators/route_config.py" = ["ANN401"]  # open value
-"guard_core/sync/detection_engine/_redos_parse_slots.py" = ["ANN401"]  # regex engine internals
-"guard_core/sync/detection_engine/_redos_prefix_history.py" = ["ANN401"]  # regex engine internals
 "guard_core/sync/detection_engine/monitor.py" = ["ANN401"]  # handler slot
 "guard_core/sync/handlers/__init__.py" = ["ANN401"]  # open value
 "guard_core/sync/handlers/_dynamic_rule_attribution.py" = ["ANN401"]  # JSON payload
@@ -218,12 +209,10 @@ select = [
 "guard_core/sync/handlers/_redis_fast_pool.py" = ["ANN401"]  # kwargs pass-through
 "guard_core/sync/handlers/_redis_lean.py" = ["ANN401"]  # handler slot
 "guard_core/sync/handlers/_redis_shared_clients.py" = ["ANN401"]  # framework object
-"guard_core/sync/handlers/_suspatterns_enhanced.py" = ["ANN401"]  # handler slot
 "guard_core/sync/handlers/_suspatterns_lazy_rows.py" = ["ANN401"]  # JSON payload
 "guard_core/sync/handlers/_suspatterns_literals.py" = ["ANN401"]  # regex engine internals
 "guard_core/sync/handlers/_suspatterns_pickle.py" = ["ANN401"]  # open value
 "guard_core/sync/handlers/_suspatterns_regex.py" = ["ANN401"]  # regex engine internals
-"guard_core/sync/handlers/_suspatterns_views.py" = ["ANN401"]  # framework object
 "guard_core/sync/handlers/redis_handler.py" = ["ANN401"]  # handler slot
 "guard_core/sync/handlers/suspatterns_handler.py" = ["ANN401"]  # regex engine internals
 "guard_core/sync/protocols/agent_protocol.py" = ["ANN401"]  # protocol
@@ -281,9 +270,7 @@ module = [
     "guard_core",  # open value
     "guard_core._security_config_field_validators",  # open value
     "guard_core._security_config_fields",  # framework object
-    "guard_core._security_config_geo_validators",  # framework object
     "guard_core._security_config_name_set_validators",  # open value
-    "guard_core._utils.access_control",  # handler slot
     "guard_core._utils.app_managers",  # handler slot
     "guard_core._utils.body_json_scan",  # JSON payload
     "guard_core._utils.detection_scan",  # JSON payload
@@ -302,8 +289,6 @@ module = [
     "guard_core.core.validation",  # open value
     "guard_core.decorators.base",  # kwargs pass-through
     "guard_core.decorators.route_config",  # open value
-    "guard_core.detection_engine._redos_parse_slots",  # regex engine internals
-    "guard_core.detection_engine._redos_prefix_history",  # regex engine internals
     "guard_core.detection_engine.monitor",  # handler slot
     "guard_core.handlers",  # open value
     "guard_core.handlers._dynamic_rule_attribution",  # JSON payload
@@ -315,12 +300,10 @@ module = [
     "guard_core.handlers._redis_fast_pool",  # JSON payload
     "guard_core.handlers._redis_lean",  # handler slot
     "guard_core.handlers._redis_shared_clients",  # framework object
-    "guard_core.handlers._suspatterns_enhanced",  # handler slot
     "guard_core.handlers._suspatterns_lazy_rows",  # JSON payload
     "guard_core.handlers._suspatterns_literals",  # regex engine internals
     "guard_core.handlers._suspatterns_pickle",  # open value
     "guard_core.handlers._suspatterns_regex",  # regex engine internals
-    "guard_core.handlers._suspatterns_views",  # framework object
     "guard_core.handlers.redis_handler",  # handler slot
     "guard_core.handlers.suspatterns_handler",  # regex engine internals
     "guard_core.models",  # open value
@@ -335,7 +318,6 @@ disallow_any_explicit = false
 [[tool.mypy.overrides]]
 module = [
     "guard_core.sync",  # open value
-    "guard_core.sync._utils.access_control",  # handler slot
     "guard_core.sync._utils.app_managers",  # handler slot
     "guard_core.sync._utils.body_json_scan",  # JSON payload
     "guard_core.sync._utils.detection_scan",  # JSON payload
@@ -354,8 +336,6 @@ module = [
     "guard_core.sync.core.validation",  # open value
     "guard_core.sync.decorators.base",  # kwargs pass-through
     "guard_core.sync.decorators.route_config",  # open value
-    "guard_core.sync.detection_engine._redos_parse_slots",  # regex engine internals
-    "guard_core.sync.detection_engine._redos_prefix_history",  # regex engine internals
     "guard_core.sync.detection_engine.monitor",  # handler slot
     "guard_core.sync.handlers",  # open value
     "guard_core.sync.handlers._dynamic_rule_attribution",  # JSON payload
@@ -368,12 +348,10 @@ module = [
     "guard_core.sync.handlers._redis_fast_pool",  # kwargs pass-through
     "guard_core.sync.handlers._redis_lean",  # handler slot
     "guard_core.sync.handlers._redis_shared_clients",  # framework object
-    "guard_core.sync.handlers._suspatterns_enhanced",  # handler slot
     "guard_core.sync.handlers._suspatterns_lazy_rows",  # JSON payload
     "guard_core.sync.handlers._suspatterns_literals",  # regex engine internals
     "guard_core.sync.handlers._suspatterns_pickle",  # open value
     "guard_core.sync.handlers._suspatterns_regex",  # regex engine internals
-    "guard_core.sync.handlers._suspatterns_views",  # framework object
     "guard_core.sync.handlers.redis_handler",  # handler slot
     "guard_core.sync.handlers.suspatterns_handler",  # regex engine internals
     "guard_core.sync.protocols.agent_protocol",  # protocol

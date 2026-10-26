@@ -1,6 +1,7 @@
 import warnings
+from collections.abc import Iterable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, TypeGuard
+from typing import TYPE_CHECKING, TypeGuard, TypeVar
 
 from pydantic import BaseModel
 from pydantic_core import PydanticCustomError
@@ -13,20 +14,22 @@ if TYPE_CHECKING:
     from guard_core._security_config_fields import RequestT
     from guard_core.models import SecurityConfig
 
+_HandlerT = TypeVar("_HandlerT")
+
 _COUNTRY_RULE_FIELDS = frozenset({"blocked_countries", "whitelist_countries"})
 _GEO_IP_HANDLER_MEMBERS = tuple(
     name for name in vars(GeoIPHandler) if not name.startswith("_")
 )
 
 
-def _geo_ip_handler_has_member(value: Any, name: str) -> bool:
+def _geo_ip_handler_has_member(value: object, name: str) -> bool:
     if not hasattr(value, name):
         return False
     return not callable(getattr(GeoIPHandler, name)) or getattr(value, name) is not None
 
 
 def _has_every_geo_ip_handler_member(
-    value: Any,
+    value: object,
 ) -> TypeGuard[GeoIPHandler | SyncGeoIPHandler]:
     # The isinstance check of a runtime_checkable Protocol looks members up with
     # hasattr on 3.10 and 3.11 and with getattr_static from 3.12, which rejects a
@@ -34,7 +37,7 @@ def _has_every_geo_ip_handler_member(
     return all(_geo_ip_handler_has_member(value, n) for n in _GEO_IP_HANDLER_MEMBERS)
 
 
-def _validate_geo_ip_handler_value(value: Any) -> GeoIPHandler | SyncGeoIPHandler:
+def _validate_geo_ip_handler_value(value: object) -> GeoIPHandler | SyncGeoIPHandler:
     if not _has_every_geo_ip_handler_member(value):
         raise PydanticCustomError(
             "is_instance_of", "Input should be an instance of GeoIPHandler"
@@ -53,11 +56,13 @@ def _warn_country_allowlist_shadows_blocklist(*, stacklevel: int) -> None:
     )
 
 
-def _normalized_country_value(value: Any) -> frozenset[str]:
+def _normalized_country_value(value: object) -> frozenset[str]:
+    if not isinstance(value, Iterable):
+        raise TypeError("a country value must be an iterable of country codes")
     return frozenset(str(item).upper() for item in value)
 
 
-def _validate_country_set_value(v: Any) -> frozenset[str]:
+def _validate_country_set_value(v: object) -> frozenset[str]:
     if v is None:
         return frozenset()
     if isinstance(v, list | tuple | set | frozenset):
@@ -66,7 +71,7 @@ def _validate_country_set_value(v: Any) -> frozenset[str]:
 
 
 def _country_shadow_should_warn(
-    config: "SecurityConfig[RequestT]", name: str, value: Any
+    config: "SecurityConfig[RequestT]", name: str, value: object
 ) -> bool:
     if name not in _COUNTRY_RULE_FIELDS:
         return False
@@ -88,8 +93,8 @@ _GEO_STATE_FIELDS = frozenset(
 
 
 def _geo_state_candidates(
-    config: "SecurityConfig[RequestT]", name: str, value: Any
-) -> tuple[Any, Any, Any, Any]:
+    config: "SecurityConfig[RequestT]", name: str, value: object
+) -> tuple[object, object, object, object]:
     return (
         value if name == "blocked_countries" else config.blocked_countries,
         value if name == "whitelist_countries" else config.whitelist_countries,
@@ -100,14 +105,14 @@ def _geo_state_candidates(
 
 def _resolve_geo_ip_handler(
     *,
-    blocked_countries: Any,
-    whitelist_countries: Any,
-    geo_ip_handler: Any,
-    ipinfo_token: str | None,
+    blocked_countries: object,
+    whitelist_countries: object,
+    geo_ip_handler: _HandlerT,
+    ipinfo_token: object,
     ipinfo_db_path: Path | None,
     ipinfo_download_url: str,
     geo_ip_db_max_age: int,
-) -> Any:
+) -> _HandlerT | GeoIPHandler:
     has_country_rules = bool(blocked_countries or whitelist_countries)
 
     if geo_ip_handler is None and has_country_rules:
@@ -120,7 +125,7 @@ def _resolve_geo_ip_handler(
         from guard_core.handlers.ipinfo_handler import IPInfoManager
 
         return IPInfoManager(
-            token=ipinfo_token,
+            token=str(ipinfo_token),
             db_path=ipinfo_db_path,
             max_age=geo_ip_db_max_age,
             download_url=ipinfo_download_url,
@@ -130,8 +135,8 @@ def _resolve_geo_ip_handler(
 
 
 def _apply_geo_ip_handler_assignment(
-    config: "SecurityConfig[RequestT]", name: str, value: Any
-) -> Any:
+    config: "SecurityConfig[RequestT]", name: str, value: object
+) -> object:
     blocked, whitelist, handler, token = _geo_state_candidates(config, name, value)
     resolved = _resolve_geo_ip_handler(
         blocked_countries=blocked,

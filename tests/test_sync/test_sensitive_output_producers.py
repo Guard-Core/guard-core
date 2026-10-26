@@ -992,7 +992,7 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "request content"
     ),
     "core/events/composite_handler.py:CompositeAgentHandler.get_stats": (
-        "line 134: logs.exception for a failing handler's get_stats call, no "
+        "line 135: logs.exception for a failing handler's get_stats call, no "
         "request content"
     ),
     "core/initialization/_handler_initializer_steps.py:"

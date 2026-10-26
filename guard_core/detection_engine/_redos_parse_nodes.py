@@ -13,6 +13,8 @@ _BRANCH_SHAPE = "a branch node is (None, alternatives)"
 _CONDITIONAL_SHAPE = "a conditional node is (group, yes_branch, no_branch)"
 _BODY_SHAPE = "a group body is a sequence of (op, av) nodes"
 _GROUP_NUMBER_SHAPE = "a back-reference node is a group number"
+_CODE_POINT_SHAPE = "a literal node is a code point"
+_RANGE_SHAPE = "a range node is (low, high)"
 
 
 def _is_body(av: object) -> TypeGuard[_Body]:
@@ -28,6 +30,18 @@ def _body_of(av: object) -> _Body:
 def _group_number_of(av: object) -> int:
     if not isinstance(av, int):
         raise TypeError(_GROUP_NUMBER_SHAPE)
+    return av
+
+
+def _code_point_of(av: object) -> int:
+    if not isinstance(av, int):
+        raise TypeError(_CODE_POINT_SHAPE)
+    return av
+
+
+def _range_bounds(av: object) -> tuple[int, int]:
+    if not (isinstance(av, tuple) and len(av) == 2):
+        raise TypeError(_RANGE_SHAPE)
     return av
 
 

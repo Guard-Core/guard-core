@@ -8,7 +8,7 @@ from guard_core.detection_engine._redos_parse_slots import (
 
 
 def _first_av(pattern: str, op_name: str) -> object:
-    for op, av in _parse_pattern(pattern, 0):
+    for op, av in _parse_pattern(pattern, 0).data:
         if op == getattr(_regex_parser, op_name):
             return av
     raise AssertionError(f"{pattern} has no {op_name} node")
@@ -29,7 +29,10 @@ def test_the_accessors_read_the_shapes_sre_produces() -> None:
     )
     assert (cond_group, len(yes_branch), len(no_branch or [])) == (1, 1, 1)
     assert nodes._group_number_of(_first_av("(a)\\1", "GROUPREF")) == 1
-    assert nodes._body_of(_parse_pattern("ab", 0)) is not None
+    assert nodes._body_of(_parse_pattern("ab", 0).data) is not None
+    range_node = nodes._body_of(_first_av("[a-z]", "IN"))[0]
+    assert nodes._range_bounds(range_node[1]) == (97, 122)
+    assert nodes._code_point_of(_first_av("a", "LITERAL")) == 97
 
 
 @pytest.mark.parametrize(
@@ -42,6 +45,8 @@ def test_the_accessors_read_the_shapes_sre_produces() -> None:
         nodes._conditional_parts,
         nodes._group_number_of,
         nodes._body_of,
+        nodes._code_point_of,
+        nodes._range_bounds,
     ],
 )
 def test_a_malformed_node_is_a_type_error_naming_the_shape(accessor: object) -> None:

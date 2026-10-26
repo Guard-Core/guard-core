@@ -21,7 +21,7 @@ class _CompiledBuiltinPatterns(dict[str, re.Pattern]):
 COMPILED_BUILTIN_PATTERNS = _CompiledBuiltinPatterns()
 
 
-def disabled_row_sources_of(config: "SecurityConfig") -> frozenset[str]:
+def disabled_row_sources_of(config: object) -> frozenset[str]:
     return (
         frozenset()
         if getattr(config, "flag_bare_union_select", True)

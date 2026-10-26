@@ -954,7 +954,9 @@ class SusPatternsManager(_SusPatternsViewsMixin):
         )
         if decoded_view_threat:
             regex_threats = regex_threats + [decoded_view_threat]
-            matched_patterns = matched_patterns + [decoded_view_threat["pattern"]]
+            matched_patterns = matched_patterns + [
+                _PATH_TRAVERSAL_DECODED_SHAPE_RE.pattern
+            ]
 
         (
             url_decoded_threats,

@@ -1,5 +1,4 @@
 import time
-from typing import Any
 
 from guard_core.sync.detection_engine import ContentPreprocessor
 from guard_core.sync.detection_engine.encoding_decoders import (
@@ -75,7 +74,7 @@ class _SusPatternsViewsMixin(_SusPatternsRegexMixin):
         context: str,
         enabled_categories: set[str] | None,
         state: _DetectionState,
-    ) -> dict[str, Any] | None:
+    ) -> dict[str, str | float] | None:
         if (
             enabled_categories is not None
             and "path_traversal" not in enabled_categories

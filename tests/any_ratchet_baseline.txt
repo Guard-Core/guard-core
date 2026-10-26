@@ -1,9 +1,7 @@
 guard_core
 guard_core._security_config_field_validators
 guard_core._security_config_fields
-guard_core._security_config_geo_validators
 guard_core._security_config_name_set_validators
-guard_core._utils.access_control
 guard_core._utils.app_managers
 guard_core._utils.body_json_scan
 guard_core._utils.detection_scan
@@ -22,8 +20,6 @@ guard_core.core.responses.modifier_view
 guard_core.core.validation
 guard_core.decorators.base
 guard_core.decorators.route_config
-guard_core.detection_engine._redos_parse_slots
-guard_core.detection_engine._redos_prefix_history
 guard_core.detection_engine.monitor
 guard_core.handlers
 guard_core.handlers._dynamic_rule_attribution
@@ -35,12 +31,10 @@ guard_core.handlers._redis_ban_strike
 guard_core.handlers._redis_fast_pool
 guard_core.handlers._redis_lean
 guard_core.handlers._redis_shared_clients
-guard_core.handlers._suspatterns_enhanced
 guard_core.handlers._suspatterns_lazy_rows
 guard_core.handlers._suspatterns_literals
 guard_core.handlers._suspatterns_pickle
 guard_core.handlers._suspatterns_regex
-guard_core.handlers._suspatterns_views
 guard_core.handlers.redis_handler
 guard_core.handlers.suspatterns_handler
 guard_core.models
@@ -49,7 +43,6 @@ guard_core.protocols.middleware_protocol
 guard_core.protocols.redis_protocol
 guard_core.protocols.request_protocol
 guard_core.sync
-guard_core.sync._utils.access_control
 guard_core.sync._utils.app_managers
 guard_core.sync._utils.body_json_scan
 guard_core.sync._utils.detection_scan
@@ -68,8 +61,6 @@ guard_core.sync.core.responses.modifier_view
 guard_core.sync.core.validation
 guard_core.sync.decorators.base
 guard_core.sync.decorators.route_config
-guard_core.sync.detection_engine._redos_parse_slots
-guard_core.sync.detection_engine._redos_prefix_history
 guard_core.sync.detection_engine.monitor
 guard_core.sync.handlers
 guard_core.sync.handlers._dynamic_rule_attribution
@@ -82,12 +73,10 @@ guard_core.sync.handlers._redis_ban_strike
 guard_core.sync.handlers._redis_fast_pool
 guard_core.sync.handlers._redis_lean
 guard_core.sync.handlers._redis_shared_clients
-guard_core.sync.handlers._suspatterns_enhanced
 guard_core.sync.handlers._suspatterns_lazy_rows
 guard_core.sync.handlers._suspatterns_literals
 guard_core.sync.handlers._suspatterns_pickle
 guard_core.sync.handlers._suspatterns_regex
-guard_core.sync.handlers._suspatterns_views
 guard_core.sync.handlers.redis_handler
 guard_core.sync.handlers.suspatterns_handler
 guard_core.sync.protocols.agent_protocol

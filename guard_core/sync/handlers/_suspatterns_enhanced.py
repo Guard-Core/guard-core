@@ -1,11 +1,15 @@
 import re
-from typing import Any
+from typing import TYPE_CHECKING, TypedDict
 
 from guard_core.sync._utils.scan_config_scope import configure_lock, scoped_state
 from guard_core.sync.detection_engine import (
     ContentPreprocessor,
     PerformanceMonitor,
     looks_like_binary_content,
+)
+from guard_core.sync.detection_engine.monitor_reporting import (
+    PatternReport,
+    PerformanceSummary,
 )
 from guard_core.sync.handlers._suspatterns_lazy_rows import disabled_row_sources_of
 from guard_core.sync.handlers._suspatterns_sources import (
@@ -18,13 +22,22 @@ from guard_core.sync.handlers._suspatterns_state import (
     _DetectionState,
 )
 
+if TYPE_CHECKING:
+    from guard_core.models import SyncSecurityConfig
+    from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol
+
+
+class PerformanceStats(TypedDict):
+    summary: PerformanceSummary
+    slow_patterns: list[PatternReport]
+    problematic_patterns: list[PatternReport]
+
 
 class _SusPatternsEnhancedMixin:
     compiled_custom_patterns: set[tuple[re.Pattern, frozenset[str], str]]
-    _config: Any = None
+    _config: "SyncSecurityConfig | None" = None
     _disabled_row_sources: frozenset[str] = frozenset()
-    agent_handler: Any = None
-    _events_agent_handler: Any
+    agent_handler: "SyncAgentHandlerProtocol | None" = None
     _detection_state: _DetectionState
     _performance_monitor: PerformanceMonitor | None
     _semantic_threshold: float
@@ -32,15 +45,22 @@ class _SusPatternsEnhancedMixin:
     _sensitive_params_union: frozenset[str] = frozenset()
     _sensitive_body_fields_union: frozenset[str] = frozenset()
 
-    def configure(self, config: Any) -> None:
+    if TYPE_CHECKING:
+
+        @property
+        def _events_agent_handler(self) -> "SyncAgentHandlerProtocol | None": ...
+
+    def configure(self, config: object) -> None:
         with configure_lock:
             self._configure_locked(config)
 
-    def _configure_locked(self, config: Any) -> None:
+    def _configure_locked(self, config: object) -> None:
         cls = type(self)
         # An app's own manager (it has its own _config) keeps its own names; the
         # default manager accumulates on the class, as it always did.
-        owner: Any = self if "_config" in vars(self) else cls
+        owner: _SusPatternsEnhancedMixin | type[_SusPatternsEnhancedMixin] = (
+            self if "_config" in vars(self) else cls
+        )
         owner._sensitive_headers_union = self._sensitive_headers_union | getattr(
             config, "log_sensitive_headers", frozenset()
         )
@@ -164,7 +184,7 @@ class _SusPatternsEnhancedMixin:
         return min(max(anomaly, semantic_max), 1.0)
 
     @classmethod
-    def get_performance_stats(cls) -> dict[str, Any] | None:
+    def get_performance_stats(cls) -> PerformanceStats | None:
         instance = cls()
         performance_monitor = instance._performance_monitor
         if performance_monitor:
