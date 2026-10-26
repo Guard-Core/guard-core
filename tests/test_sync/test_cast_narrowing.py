@@ -41,6 +41,16 @@ def test_telemetry_model_that_is_not_a_class_raises(
         get_telemetry_model("SecurityEvent")
 
 
+def test_telemetry_model_that_is_not_a_pydantic_model_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(guard_agent, "SecurityEvent", SimpleNamespace)
+    with pytest.raises(
+        TypeError, match="guard_agent.SecurityEvent is not a pydantic model"
+    ):
+        get_telemetry_model("SecurityEvent")
+
+
 def test_telemetry_model_that_is_a_class_is_returned() -> None:
     assert get_telemetry_model("SecurityEvent") is guard_agent.SecurityEvent
 
