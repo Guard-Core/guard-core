@@ -5,7 +5,10 @@ import pytest
 
 from guard_core._utils import embedded_json_scan
 from guard_core.decorators.base import RouteConfig
-from guard_core.handlers.suspatterns_handler import sus_patterns_handler
+from guard_core.handlers.suspatterns_handler import (
+    SusPatternsManager,
+    sus_patterns_handler,
+)
 from guard_core.models import SecurityConfig
 from guard_core.utils import detect_penetration_attempt
 from tests.conftest import MockGuardRequest
@@ -40,14 +43,16 @@ def _inner(payload: str) -> str:
 
 def _watch_detect(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     scanned: list[str] = []
-    detect = sus_patterns_handler.detect
+    detect = SusPatternsManager.detect
 
-    async def counting_detect(*args: Any, **kwargs: Any) -> Any:
+    async def counting_detect(
+        self: SusPatternsManager, *args: Any, **kwargs: Any
+    ) -> Any:
         if str(kwargs.get("context")).startswith("request_body"):
             scanned.append(kwargs.get("content", ""))
-        return await detect(*args, **kwargs)
+        return await detect(self, *args, **kwargs)
 
-    monkeypatch.setattr(sus_patterns_handler, "detect", counting_detect)
+    monkeypatch.setattr(SusPatternsManager, "detect", counting_detect)
     return scanned
 
 

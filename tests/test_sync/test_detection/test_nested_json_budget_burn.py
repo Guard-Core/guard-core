@@ -6,7 +6,10 @@ from urllib.parse import urlencode
 import pytest
 
 from guard_core.models import SyncSecurityConfig
-from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
+from guard_core.sync.handlers.suspatterns_handler import (
+    SusPatternsManager,
+    sus_patterns_handler,
+)
 from guard_core.sync.utils import detect_penetration_attempt
 from tests.test_sync.conftest import SyncMockGuardRequest
 
@@ -115,13 +118,13 @@ def test_a_nested_json_value_is_scanned_once_per_distinct_text(
 ) -> None:
     build, _direct_text = SURFACES[surface]
     scanned: list[str] = []
-    detect = sus_patterns_handler.detect
+    detect = SusPatternsManager.detect
 
-    def counting_detect(*args: Any, **kwargs: Any) -> Any:
+    def counting_detect(self: SusPatternsManager, *args: Any, **kwargs: Any) -> Any:
         scanned.append(kwargs.get("content", ""))
-        return detect(*args, **kwargs)
+        return detect(self, *args, **kwargs)
 
-    monkeypatch.setattr(sus_patterns_handler, "detect", counting_detect)
+    monkeypatch.setattr(SusPatternsManager, "detect", counting_detect)
     config = SyncSecurityConfig(enable_redis=False, rate_limit=10_000_000)
     detect_penetration_attempt(build(_nested_json(depth)), config)
     assert len(scanned) <= MAX_SCANNED_VALUES_FOR_ONE_NESTED_VALUE
@@ -134,13 +137,13 @@ def test_a_nested_json_value_with_distinct_keys_is_scanned_once_per_level(
     nested = "".join(f'{{"k{level}":' for level in range(depth))
     nested += json.dumps("hello") + "}" * depth
     scanned: list[str] = []
-    detect = sus_patterns_handler.detect
+    detect = SusPatternsManager.detect
 
-    def counting_detect(*args: Any, **kwargs: Any) -> Any:
+    def counting_detect(self: SusPatternsManager, *args: Any, **kwargs: Any) -> Any:
         scanned.append(kwargs.get("content", ""))
-        return detect(*args, **kwargs)
+        return detect(self, *args, **kwargs)
 
-    monkeypatch.setattr(sus_patterns_handler, "detect", counting_detect)
+    monkeypatch.setattr(SusPatternsManager, "detect", counting_detect)
     config = SyncSecurityConfig(enable_redis=False, rate_limit=10_000_000)
     result = detect_penetration_attempt(_query(nested), config)
     assert result.is_threat is True

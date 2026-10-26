@@ -35,11 +35,9 @@ _LOOKUP_FUNCTIONS = frozenset(
         "scanning_with",
         "ip_ban_manager_for",
         "cloud_handler_for",
-        "find",
-        "own",
-        "bind",
     }
 )
+_MANAGER_REGISTRY_FILE = "app_managers.py"
 
 
 def _config(prefix: str | None = None, **settings: Any) -> SecurityConfig:
@@ -157,7 +155,10 @@ async def test_a_warm_request_resolves_its_manager_in_one_call_without_a_lookup(
         if event == "call":
             if frame.f_code.co_name == name:
                 resolution_calls += 1
-            elif frame.f_code.co_name in _LOOKUP_FUNCTIONS:
+            elif (
+                frame.f_code.co_name in _LOOKUP_FUNCTIONS
+                or Path(frame.f_code.co_filename).name == _MANAGER_REGISTRY_FILE
+            ):
                 lookups.add(frame.f_code.co_name)
             if frame.f_back is not None and frame.f_back.f_code.co_name == name:
                 calls_made_by_it += 1

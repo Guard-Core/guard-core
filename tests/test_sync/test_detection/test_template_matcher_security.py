@@ -240,7 +240,9 @@ def test_template_registry_precedes_regex_fallback_without_a_scan_cap(
 
     if compiler is None:
         monkeypatch.setattr(
-            manager, "_check_regex_pattern_with_retry", unexpected_legacy_fallback
+            SusPatternsManager,
+            "_check_regex_pattern_with_retry",
+            unexpected_legacy_fallback,
         )
     else:
         monkeypatch.setattr(

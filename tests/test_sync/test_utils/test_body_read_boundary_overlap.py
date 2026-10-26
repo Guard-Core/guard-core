@@ -6,7 +6,7 @@ import pytest
 from guard_core.models import SyncSecurityConfig
 from guard_core.sync import utils
 from guard_core.sync._utils import body_reader, detection_scan
-from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
+from guard_core.sync.handlers.suspatterns_handler import SusPatternsManager
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
 _MAGIC = "MAGIC-STRADDLE-SIGNATURE-0000000000"
@@ -139,12 +139,12 @@ def test_straddle_overlap_uses_the_longest_compiled_pattern_length(
         (re.compile("a" * 40), frozenset(), "cat"),
     ]
 
-    def _fake_get_all() -> list[tuple[re.Pattern[str], frozenset[str], str]]:
+    def _fake_get_all(
+        self: SusPatternsManager,
+    ) -> list[tuple[re.Pattern[str], frozenset[str], str]]:
         return fake_patterns
 
-    monkeypatch.setattr(
-        sus_patterns_handler, "get_all_compiled_patterns", _fake_get_all
-    )
+    monkeypatch.setattr(SusPatternsManager, "get_all_compiled_patterns", _fake_get_all)
 
     assert _real_straddle_overlap_bytes() == 40
 
@@ -156,12 +156,12 @@ def test_straddle_overlap_is_clamped_to_the_documented_ceiling(
         (re.compile("x" * 5000), frozenset(), "cat")
     ]
 
-    def _fake_get_all() -> list[tuple[re.Pattern[str], frozenset[str], str]]:
+    def _fake_get_all(
+        self: SusPatternsManager,
+    ) -> list[tuple[re.Pattern[str], frozenset[str], str]]:
         return fake_patterns
 
-    monkeypatch.setattr(
-        sus_patterns_handler, "get_all_compiled_patterns", _fake_get_all
-    )
+    monkeypatch.setattr(SusPatternsManager, "get_all_compiled_patterns", _fake_get_all)
 
     overlap = _real_straddle_overlap_bytes()
 
@@ -172,12 +172,10 @@ def test_straddle_overlap_is_clamped_to_the_documented_ceiling(
 def test_straddle_overlap_is_zero_when_there_are_no_patterns(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def _fake_get_all() -> list:
+    def _fake_get_all(self: SusPatternsManager) -> list:
         return []
 
-    monkeypatch.setattr(
-        sus_patterns_handler, "get_all_compiled_patterns", _fake_get_all
-    )
+    monkeypatch.setattr(SusPatternsManager, "get_all_compiled_patterns", _fake_get_all)
 
     assert _real_straddle_overlap_bytes() == 0
 
@@ -185,10 +183,10 @@ def test_straddle_overlap_is_zero_when_there_are_no_patterns(
 def test_straddle_overlap_degrades_to_zero_if_the_pattern_engine_raises(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def _raise() -> list:
+    def _raise(self: SusPatternsManager) -> list:
         raise RuntimeError("boom")
 
-    monkeypatch.setattr(sus_patterns_handler, "get_all_compiled_patterns", _raise)
+    monkeypatch.setattr(SusPatternsManager, "get_all_compiled_patterns", _raise)
 
     assert _real_straddle_overlap_bytes() == 0
 

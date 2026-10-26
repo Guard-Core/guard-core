@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from guard_core.handlers.suspatterns_handler import sus_patterns_handler
+from guard_core.handlers.suspatterns_handler import SusPatternsManager
 from guard_core.models import SecurityConfig
 from guard_core.utils import detect_penetration_attempt
 from tests.conftest import MockGuardRequest
@@ -149,15 +149,17 @@ async def test_json_embedded_scan_calls_detect_no_more_than_the_cap(
     request = _query_request({"q": _padded_json()})
 
     call_count = 0
-    original_detect = sus_patterns_handler.detect
+    original_detect = SusPatternsManager.detect
 
-    async def counting_detect(*args: Any, **kwargs: Any) -> dict[str, Any]:
+    async def counting_detect(
+        self: SusPatternsManager, *args: Any, **kwargs: Any
+    ) -> dict[str, Any]:
         nonlocal call_count
         if kwargs["context"].startswith("query_param"):
             call_count += 1
-        return await original_detect(*args, **kwargs)
+        return await original_detect(self, *args, **kwargs)
 
-    monkeypatch.setattr(sus_patterns_handler, "detect", counting_detect)
+    monkeypatch.setattr(SusPatternsManager, "detect", counting_detect)
 
     await detect_penetration_attempt(request, config)
 

@@ -88,7 +88,7 @@ def test_every_script_digest_is_declared_not_for_security() -> None:
         timeout=60,
     )
 
-    assert result.stdout.split() == ["8", "True"]
+    assert result.stdout.split() == ["9", "True"]
 
 
 def test_a_redis_event_carries_the_action_and_the_system_address() -> None:
@@ -617,6 +617,19 @@ class _ScriptConnection:
         return "sha"
 
 
+class _LeanScriptConnection(_ScriptConnection):
+    """A client whose pool has no fast return, so ``lean_command`` sends each
+    command through ``execute_command`` (the path a RedisHandlerBase subclass
+    takes), with the command's arguments as the server would receive them."""
+
+    connection_pool = object()
+
+    def execute_command(self, name: str, *args: str) -> object:
+        if name == "SCRIPT":
+            return self.script_load(args[1])
+        return self.evalsha(*args)
+
+
 @pytest.mark.parametrize(
     ("advance", "owned", "flags"),
     [(False, False, ("0", "0")), (True, True, ("1", "1")), (True, False, ("1", "0"))],
@@ -823,7 +836,7 @@ def test_detection_strikes_are_recorded_read_and_forgotten(
 
 def test_a_missing_detection_script_is_loaded_and_the_call_repeated() -> None:
     handler = _handler()
-    connection = _ScriptConnection([3, 1, 2, 5], missing_first=True)
+    connection = _LeanScriptConnection([3, 1, 2, 5], missing_first=True)
     handler._redis = Mock(wraps=connection)
 
     result = handler.record_detection_strikes("1.2.3.4", ["a", "b"], 10.5, 5.5, 60, 9)
@@ -832,7 +845,7 @@ def test_a_missing_detection_script_is_loaded_and_the_call_repeated() -> None:
     assert connection.loaded == [RECORD_DETECTION_STRIKES_SCRIPT]
     first, second = connection.evalsha_calls
     assert first == second
-    assert first[:2] == (_RECORD_DETECTION_STRIKES_SHA, 5)
+    assert first[:2] == (_RECORD_DETECTION_STRIKES_SHA, "5")
     assert first[2:5] == (
         "p:detection:strikes_index:1.2.3.4",
         "p:detection:strikes:1.2.3.4",

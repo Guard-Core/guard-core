@@ -5,7 +5,10 @@ from urllib.parse import urlencode
 
 import pytest
 
-from guard_core.handlers.suspatterns_handler import sus_patterns_handler
+from guard_core.handlers.suspatterns_handler import (
+    SusPatternsManager,
+    sus_patterns_handler,
+)
 from guard_core.models import SecurityConfig
 from guard_core.utils import detect_penetration_attempt
 from tests.conftest import MockGuardRequest
@@ -115,13 +118,15 @@ async def test_a_nested_json_value_is_scanned_once_per_distinct_text(
 ) -> None:
     build, _direct_text = SURFACES[surface]
     scanned: list[str] = []
-    detect = sus_patterns_handler.detect
+    detect = SusPatternsManager.detect
 
-    async def counting_detect(*args: Any, **kwargs: Any) -> Any:
+    async def counting_detect(
+        self: SusPatternsManager, *args: Any, **kwargs: Any
+    ) -> Any:
         scanned.append(kwargs.get("content", ""))
-        return await detect(*args, **kwargs)
+        return await detect(self, *args, **kwargs)
 
-    monkeypatch.setattr(sus_patterns_handler, "detect", counting_detect)
+    monkeypatch.setattr(SusPatternsManager, "detect", counting_detect)
     config = SecurityConfig(enable_redis=False, rate_limit=10_000_000)
     await detect_penetration_attempt(build(_nested_json(depth)), config)
     assert len(scanned) <= MAX_SCANNED_VALUES_FOR_ONE_NESTED_VALUE
@@ -134,13 +139,15 @@ async def test_a_nested_json_value_with_distinct_keys_is_scanned_once_per_level(
     nested = "".join(f'{{"k{level}":' for level in range(depth))
     nested += json.dumps("hello") + "}" * depth
     scanned: list[str] = []
-    detect = sus_patterns_handler.detect
+    detect = SusPatternsManager.detect
 
-    async def counting_detect(*args: Any, **kwargs: Any) -> Any:
+    async def counting_detect(
+        self: SusPatternsManager, *args: Any, **kwargs: Any
+    ) -> Any:
         scanned.append(kwargs.get("content", ""))
-        return await detect(*args, **kwargs)
+        return await detect(self, *args, **kwargs)
 
-    monkeypatch.setattr(sus_patterns_handler, "detect", counting_detect)
+    monkeypatch.setattr(SusPatternsManager, "detect", counting_detect)
     config = SecurityConfig(enable_redis=False, rate_limit=10_000_000)
     result = await detect_penetration_attempt(_query(nested), config)
     assert result.is_threat is True
