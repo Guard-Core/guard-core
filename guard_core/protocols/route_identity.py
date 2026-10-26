@@ -1,4 +1,4 @@
-from typing import Any, NamedTuple
+from typing import NamedTuple
 
 
 class RouteIdentity(NamedTuple):
@@ -13,5 +13,5 @@ class RouteIdentity(NamedTuple):
     converted values as strings, sorted by name, positional args as "0", "1".
     """
 
-    handler: Any
+    handler: object
     path_params: tuple[tuple[str, str], ...]

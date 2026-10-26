@@ -1,6 +1,5 @@
 import logging
 from collections.abc import Awaitable, Callable
-from typing import Any
 
 from guard_core._utils.response_prefetch import ResponseBodyPrefetch
 from guard_core.core.responses.modifier_view import (
@@ -12,10 +11,11 @@ from guard_core.core.responses.modifier_view import (
 )
 from guard_core.exceptions import CallableShapeError
 from guard_core.models import SecurityConfig
+from guard_core.protocols.agent_protocol import AgentHandlerProtocol
 from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse
 
-Modifier = Callable[[Any], Awaitable[Any]]
+Modifier = Callable[[GuardResponse], Awaitable[GuardResponse]]
 
 _PREFETCH_INCOMPLETE = (
     "the bounded read did not return exactly the declared Content-Length bytes"
@@ -56,7 +56,7 @@ async def _call_marked_modifier(
     shared: ResponseBodyPrefetch | None,
     config: SecurityConfig,
     logger: logging.Logger,
-    agent_handler: Any | None,
+    agent_handler: AgentHandlerProtocol | None,
     gate_args: tuple[GuardResponse, str, int],
 ) -> GuardResponse:
     refusal = body_gate_refusal(*gate_args)
@@ -93,7 +93,7 @@ async def apply_modifier_with_bounded_body(
     prefetch: ResponseBodyPrefetch | None,
     config: SecurityConfig,
     logger: logging.Logger,
-    agent_handler: Any | None,
+    agent_handler: AgentHandlerProtocol | None,
 ) -> GuardResponse:
     gate_args = (
         response,
@@ -112,7 +112,7 @@ async def apply_modifier_with_bounded_body(
             gate_args,
         )
     first = ModifierResponseView(response, gate_args=gate_args)
-    result: Any = first
+    result: GuardResponse = first
     try:
         result = await modifier(first)
     except CallableShapeError:

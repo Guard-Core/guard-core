@@ -150,10 +150,10 @@ def test_stop_shuts_down_only_owned_providers(config: MagicMock) -> None:
 
         mock_tracer_provider.shutdown.assert_called_once()
         mock_meter_provider.shutdown.assert_called_once()
-        assert handler._tracer is None
-        assert handler._meter is None
-        assert handler._owned_tracer_provider is None
-        assert handler._owned_meter_provider is None
+        assert vars(handler)["_tracer"] is None
+        assert vars(handler)["_meter"] is None
+        assert vars(handler)["_owned_tracer_provider"] is None
+        assert vars(handler)["_owned_meter_provider"] is None
 
 
 def test_stop_does_not_shut_down_borrowed_providers(config: MagicMock) -> None:
@@ -172,8 +172,8 @@ def test_stop_does_not_shut_down_borrowed_providers(config: MagicMock) -> None:
             mock_trace.get_tracer_provider.assert_not_called()
             mock_metrics.get_meter_provider.assert_not_called()
 
-        assert handler._tracer is None
-        assert handler._meter is None
+        assert vars(handler)["_tracer"] is None
+        assert vars(handler)["_meter"] is None
 
 
 def test_stop_no_tracer_or_meter(config: MagicMock) -> None:
@@ -201,8 +201,8 @@ def test_stop_is_idempotent(config: MagicMock) -> None:
 
         mock_tracer_provider.shutdown.assert_called_once()
         mock_meter_provider.shutdown.assert_called_once()
-        assert handler._tracer is None
-        assert handler._meter is None
+        assert vars(handler)["_tracer"] is None
+        assert vars(handler)["_meter"] is None
 
 
 def test_stop_providers_without_shutdown_attr(config: MagicMock) -> None:
@@ -219,8 +219,8 @@ def test_stop_providers_without_shutdown_attr(config: MagicMock) -> None:
 
         handler.stop()
 
-        assert handler._owned_tracer_provider is None
-        assert handler._owned_meter_provider is None
+        assert vars(handler)["_owned_tracer_provider"] is None
+        assert vars(handler)["_owned_meter_provider"] is None
 
 
 def test_start_configures_otel(config: MagicMock) -> None:
@@ -382,7 +382,7 @@ def test_start_matrix_ambient_tracer_no_ambient_meter_borrows_tracer_owns_meter(
         with caplog.at_level(logging.WARNING, logger="guard_core"):
             handler.start()
 
-        assert handler._owned_tracer_provider is None
+        assert vars(handler)["_owned_tracer_provider"] is None
         assert handler._owned_meter_provider is mock_mp
         mock_tp.shutdown.assert_called_once()
         host_tp.shutdown.assert_not_called()
@@ -423,7 +423,7 @@ def test_start_matrix_no_ambient_tracer_ambient_meter_owns_tracer_borrows_meter(
             handler.start()
 
         assert handler._owned_tracer_provider is mock_tp
-        assert handler._owned_meter_provider is None
+        assert vars(handler)["_owned_meter_provider"] is None
         mock_tp.shutdown.assert_not_called()
         mock_mp.shutdown.assert_called_once()
         host_mp.shutdown.assert_not_called()
@@ -463,8 +463,8 @@ def test_start_matrix_ambient_tracer_and_ambient_meter_borrows_both(
         with caplog.at_level(logging.WARNING, logger="guard_core"):
             handler.start()
 
-        assert handler._owned_tracer_provider is None
-        assert handler._owned_meter_provider is None
+        assert vars(handler)["_owned_tracer_provider"] is None
+        assert vars(handler)["_owned_meter_provider"] is None
         mock_tp.shutdown.assert_called_once()
         mock_mp.shutdown.assert_called_once()
         host_tp.shutdown.assert_not_called()

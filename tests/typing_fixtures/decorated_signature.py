@@ -31,3 +31,19 @@ assert_type(get_route_id(sync_route), str)
 
 async def use_async_route() -> None:
     assert_type(await async_route(1), list[int])
+
+
+@guard.rate_limit(5, 60)
+def varied_route(item: int, /, *names: str, flag: bool = False, **extra: float) -> int:
+    return item
+
+
+class CallableRoute:
+    def __call__(self, item: int) -> str:
+        return str(item)
+
+
+callable_route = guard.rate_limit(5, 60)(CallableRoute())
+
+assert_type(varied_route(1, "a", "b", flag=True, scale=2.0), int)
+assert_type(callable_route(1), str)

@@ -38,7 +38,11 @@ class AuthenticationMixin(BaseSecurityMixin):
                 )
             scheme = canonical_auth_scheme(type)
             if scheme != type:
-                logger.warning(capitalized_scheme_note(func.__qualname__, type, scheme))
+                logger.warning(
+                    capitalized_scheme_note(
+                        getattr(func, "__qualname__", repr(func)), type, scheme
+                    )
+                )
             route_config.auth_required = scheme
             route_config.auth_verifier = verifier
             return self._apply_route_config(func)

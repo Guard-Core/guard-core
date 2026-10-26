@@ -2,10 +2,15 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from guard_core.models import SecurityConfig
+    from opentelemetry.context import Context
+    from opentelemetry.metrics import Counter, Histogram, Meter
+    from opentelemetry.trace import Span, Tracer
+
+    from guard_core.models import DynamicRules, SecurityConfig
+    from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 
 logger = logging.getLogger("guard_core")
 
@@ -53,13 +58,13 @@ _EVENT_SPAN_ATTRS: tuple[tuple[str, str], ...] = (
 class OtelHandler:
     def __init__(self, config: SecurityConfig) -> None:
         self._config = config
-        self._tracer: Any = None
-        self._meter: Any = None
-        self._rt_histogram: Any = None
-        self._request_counter: Any = None
-        self._error_counter: Any = None
-        self._owned_tracer_provider: Any = None
-        self._owned_meter_provider: Any = None
+        self._tracer: Tracer | None = None
+        self._meter: Meter | None = None
+        self._rt_histogram: Histogram | None = None
+        self._request_counter: Counter | None = None
+        self._error_counter: Counter | None = None
+        self._owned_tracer_provider: TracerProvider | None = None
+        self._owned_meter_provider: MeterProvider | None = None
         self._lock = threading.Lock()
 
     async def start(self) -> None:
@@ -69,7 +74,7 @@ class OtelHandler:
         with self._lock:
             if self._tracer is not None:
                 return
-            attrs: dict[str, Any] = {"service.name": self._config.otel_service_name}
+            attrs: dict[str, object] = {"service.name": self._config.otel_service_name}
             extra = getattr(self._config, "otel_resource_attributes", {}) or {}
             attrs.update(extra)
             resource = Resource.create(attrs)
@@ -91,7 +96,9 @@ class OtelHandler:
             self._error_counter = self._meter.create_counter("guard.error.count")
 
     @staticmethod
-    def _claim_tracer_provider(resource: Any, traces_endpoint: str | None) -> Any:
+    def _claim_tracer_provider(
+        resource: Resource, traces_endpoint: str | None
+    ) -> TracerProvider | None:
         tp = TracerProvider(resource=resource)
         tp.add_span_processor(
             BatchSpanProcessor(OTLPSpanExporter(endpoint=traces_endpoint))
@@ -109,7 +116,9 @@ class OtelHandler:
         return None
 
     @staticmethod
-    def _claim_meter_provider(resource: Any, metrics_endpoint: str | None) -> Any:
+    def _claim_meter_provider(
+        resource: Resource, metrics_endpoint: str | None
+    ) -> MeterProvider | None:
         reader = PeriodicExportingMetricReader(
             OTLPMetricExporter(endpoint=metrics_endpoint)
         )
@@ -143,7 +152,7 @@ class OtelHandler:
             self._owned_meter_provider = None
             self._meter = None
 
-    async def send_event(self, event: Any) -> None:
+    async def send_event(self, event: object) -> None:
         if not _otel_available or not self._tracer:
             return
         event_type = getattr(event, "event_type", "unknown")
@@ -167,7 +176,7 @@ class OtelHandler:
                 break
         return base + signal_path
 
-    def _extract_parent_context(self, metadata: Any) -> Any:
+    def _extract_parent_context(self, metadata: object) -> Context | None:
         if not isinstance(metadata, dict):
             return None
         traceparent = metadata.get("traceparent")
@@ -182,7 +191,9 @@ class OtelHandler:
         except Exception:
             return None
 
-    def _apply_event_attributes(self, span: Any, event: Any, event_type: str) -> None:
+    def _apply_event_attributes(
+        self, span: Span, event: object, event_type: str
+    ) -> None:
         span.set_attribute("guard.event_type", event_type)
         for attr_key, event_attr in _EVENT_SPAN_ATTRS:
             span.set_attribute(attr_key, getattr(event, event_attr, ""))
@@ -190,7 +201,7 @@ class OtelHandler:
         if status_code:
             span.set_attribute("guard.status_code", status_code)
 
-    def _forward_enrichment_metadata(self, span: Any, metadata: Any) -> None:
+    def _forward_enrichment_metadata(self, span: Span, metadata: object) -> None:
         if not isinstance(metadata, dict):
             return
         for key, value in metadata.items():
@@ -201,7 +212,7 @@ class OtelHandler:
             ):
                 span.set_attribute(key, value)
 
-    async def send_metric(self, metric: Any) -> None:
+    async def send_metric(self, metric: object) -> None:
         if not _otel_available or not self._meter:
             return
         metric_type = getattr(metric, "metric_type", "unknown")
@@ -220,13 +231,13 @@ class OtelHandler:
                 "Unknown OTEL metric type %s - no instrument recorded", metric_type
             )
 
-    async def initialize_redis(self, redis_handler: Any) -> None:
+    async def initialize_redis(self, redis_handler: RedisHandlerProtocol) -> None:
         pass
 
     async def flush_buffer(self) -> None:
         pass
 
-    async def get_dynamic_rules(self) -> Any | None:
+    async def get_dynamic_rules(self) -> DynamicRules | None:
         return None
 
     async def health_check(self) -> bool:

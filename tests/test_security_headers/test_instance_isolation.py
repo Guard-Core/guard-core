@@ -8,11 +8,12 @@ from guard_core.handlers.security_headers_handler import (
     security_headers_manager,
 )
 from guard_core.models import SecurityConfig
+from guard_core.protocols.agent_protocol import AgentHandlerProtocol
 from tests.conftest import MockGuardResponse, MockGuardResponseFactory
 
 
 def _factory(
-    config: SecurityConfig, agent: object | None = None
+    config: SecurityConfig, agent: AgentHandlerProtocol | None = None
 ) -> ErrorResponseFactory:
     metrics = MagicMock(spec=MetricsCollector)
     metrics.collect_request_metrics = AsyncMock()

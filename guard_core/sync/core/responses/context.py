@@ -6,6 +6,8 @@ from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.events import MetricsCollector
 from guard_core.sync.decorators.base import BaseSecurityDecorator
 from guard_core.sync.handlers.security_headers_handler import SecurityHeadersManager
+from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol
+from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
 
 
 @dataclass
@@ -14,8 +16,8 @@ class ResponseContext:
     logger: Logger
     metrics_collector: MetricsCollector
 
-    agent_handler: Any | None = None
-    redis_handler: Any | None = None
+    agent_handler: SyncAgentHandlerProtocol | None = None
+    redis_handler: SyncRedisHandlerProtocol | None = None
     guard_decorator: BaseSecurityDecorator | None = None
     response_factory: Any = field(default=None)
     security_headers_manager: SecurityHeadersManager = field(

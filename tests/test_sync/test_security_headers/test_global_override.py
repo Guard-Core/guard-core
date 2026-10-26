@@ -29,6 +29,7 @@ from guard_core.sync.handlers.security_headers_handler import (
     SecurityHeadersManager,
     security_headers_manager,
 )
+from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
 from tests.test_sync.conftest import (
     MockGuardResponse,
     MockGuardResponseFactory,
@@ -542,7 +543,7 @@ def test_a_bare_call_deletes_the_saved_override(clock: Clock) -> None:
 
 
 def test_the_factory_hands_the_context_redis_to_its_manager() -> None:
-    redis = FakeRedis()
+    redis = MagicMock(spec=SyncRedisHandlerProtocol)
     metrics = MagicMock(spec=MetricsCollector)
 
     factory = ErrorResponseFactory(

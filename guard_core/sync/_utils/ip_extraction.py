@@ -11,9 +11,9 @@ from ipaddress import (
     ip_address,
     ip_network,
 )
-from typing import Any
 
 from guard_core.sync._utils.agent_events import send_agent_event
+from guard_core.sync._utils.forwarded_config import ForwardedForConfig
 from guard_core.sync._utils.logging_utils import _sanitize_for_log
 from guard_core.sync._utils.nat64 import (
     _decoded_nat64_embedded_ipv4,
@@ -229,7 +229,7 @@ def _forwarded_header_ips(forwarded_for: str) -> list[str]:
 
 
 def _forwarded_header_right_side_unlisted_count(
-    ips: list[str], proxy_depth: int, trusted_proxies: list[str]
+    ips: list[str], proxy_depth: int, trusted_proxies: Sequence[str]
 ) -> int:
     right_side = ips[len(ips) - proxy_depth + 1 :]
     return sum(
@@ -244,7 +244,7 @@ class _MalformedForwardedEntry(Exception):
 
 
 def _resolve_forwarded_chain_right_to_left(
-    ips: list[str], trusted_proxies: list[str]
+    ips: list[str], trusted_proxies: Sequence[str]
 ) -> str | None:
     for entry in reversed(ips):
         if _is_trusted_proxy(_canonicalize_ip(entry), trusted_proxies):
@@ -383,7 +383,7 @@ def forwarded_for_addresses(forwarded_for: str) -> list[IPv4Address | IPv6Addres
 
 
 def _agent_open_to_suspicious_requests(
-    config: Any, agent_handler: SyncAgentHandlerProtocol | None
+    config: ForwardedForConfig, agent_handler: SyncAgentHandlerProtocol | None
 ) -> SyncAgentHandlerProtocol | None:
     from guard_core.sync.core.events.event_types import EVENT_SUSPICIOUS_REQUEST
 
@@ -401,7 +401,7 @@ def _handle_untrusted_proxy(
     canonical_connecting_ip: str,
     forwarded_for: str | None,
     agent_handler: SyncAgentHandlerProtocol | None,
-    config: Any,
+    config: ForwardedForConfig,
 ) -> str:
     if forwarded_for:
         _warn_forwarded_header_preempted(connecting_ip, forwarded_for)
@@ -508,7 +508,7 @@ def _resolve_client_ip_from_forwarded_chain(
     canonical_connecting_ip: str,
     forwarded_for: str | None,
     proxy_depth: int,
-    trusted_proxies: list[str],
+    trusted_proxies: Sequence[str],
 ) -> str:
     try:
         if not forwarded_for:
@@ -549,7 +549,7 @@ def _malformed_forwarded_for_identity(
     peer: str,
     forwarded_for: str | None,
     agent_handler: SyncAgentHandlerProtocol | None,
-    config: Any,
+    config: ForwardedForConfig,
 ) -> str:
     if observe_counted_key(
         _untrusted_peers,
@@ -583,7 +583,7 @@ def _malformed_forwarded_for_identity(
 
 def extract_client_ip(
     request: SyncGuardRequest,
-    config: Any,
+    config: ForwardedForConfig,
     agent_handler: SyncAgentHandlerProtocol | None = None,
 ) -> str:
     cached_ip: str | None = getattr(request.state, "client_ip", None)

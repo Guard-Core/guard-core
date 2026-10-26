@@ -1,9 +1,12 @@
 import logging
 from collections.abc import Callable, MutableMapping
-from typing import Any
 
 from guard_core._redis_enablement import redis_is_configured
-from guard_core._security_headers_override import PROCESS_OVERRIDE, PULLED_OVERRIDES
+from guard_core._security_headers_override import (
+    PROCESS_OVERRIDE,
+    PULLED_OVERRIDES,
+    OverrideRecord,
+)
 from guard_core.exceptions import CallableShapeError
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.response_prefetch import (
@@ -128,7 +131,7 @@ class ErrorResponseFactory:
         self,
         response: GuardResponse,
         request_path: str | None = None,
-        override: Any = None,
+        override: OverrideRecord | None = None,
     ) -> GuardResponse:
         manager = self.security_headers_manager
         if override is None:
@@ -140,7 +143,7 @@ class ErrorResponseFactory:
         self,
         response: GuardResponse,
         request_path: str | None,
-        override: Any,
+        override: OverrideRecord,
         enabled: bool,
     ) -> GuardResponse:
         if not enabled:
@@ -160,14 +163,17 @@ class ErrorResponseFactory:
         return response
 
     def apply_cors_headers(
-        self, response: GuardResponse, origin: str, override: Any = None
+        self,
+        response: GuardResponse,
+        origin: str,
+        override: OverrideRecord | None = None,
     ) -> GuardResponse:
         if override is None:
             override = self.security_headers_manager.resolve_override()
         return self._apply_cors_headers(response, origin, override)
 
     def _apply_cors_headers(
-        self, response: GuardResponse, origin: str, override: Any
+        self, response: GuardResponse, origin: str, override: OverrideRecord
     ) -> GuardResponse:
         # CORS follows the CORS settings alone: the security headers switch never
         # governs it.
@@ -196,11 +202,7 @@ class ErrorResponseFactory:
         modifier = slot.invoke
         materialized = False
         if request is not None:
-            declared: Any = response
-            try:
-                materialized = declared.body_is_materialized is True
-            except AttributeError:
-                pass
+            materialized = getattr(response, "body_is_materialized", False) is True
         if request is not None and not materialized:
             return apply_modifier_with_bounded_body(
                 modifier,

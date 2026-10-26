@@ -89,6 +89,22 @@ def test_mute_pydantic_instrumentation_survives_rebuild_failure(
     assert _pydantic_plugin_mute._applied is False
 
 
+def test_mute_pydantic_instrumentation_survives_a_none_plugin_settings(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    from guard_agent.models import SecurityEvent
+
+    monkeypatch.setattr(_pydantic_plugin_mute, "_applied", False)
+    monkeypatch.setitem(SecurityEvent.model_config, "plugin_settings", None)
+
+    with caplog.at_level(logging.WARNING, logger="guard_core"):
+        guard_core._mute_pydantic_plugin_instrumentation()
+
+    assert "Could not opt guard-agent telemetry models" in caplog.text
+    assert _pydantic_plugin_mute._applied is False
+
+
 def test_mute_pydantic_instrumentation_is_idempotent_after_first_success(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

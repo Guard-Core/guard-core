@@ -59,7 +59,11 @@ class DecoratedFunction(Protocol):
     def __call__(self, *args: Any, **kwargs: Any) -> Any: ...
 
 
-GuardedCallable = TypeVar("GuardedCallable", bound=Callable[..., Any])
+class _AnyCallable(Protocol):
+    def __call__(self, *args: Any, **kwargs: Any) -> object: ...
+
+
+GuardedCallable = TypeVar("GuardedCallable", bound=_AnyCallable)
 
 
 def get_route_id(func: Callable[..., Any]) -> str:

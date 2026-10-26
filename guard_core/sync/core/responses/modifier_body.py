@@ -1,6 +1,5 @@
 import logging
 from collections.abc import Callable
-from typing import Any
 
 from guard_core.exceptions import CallableShapeError, ResponseBodyUnavailableError
 from guard_core.models import SyncSecurityConfig
@@ -14,16 +13,18 @@ from guard_core.sync.core.responses.modifier_view import (
     declared_content_length,
     report_body_refused,
 )
+from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
-Modifier = Callable[[Any], Any]
+Modifier = Callable[[GuardResponse], GuardResponse]
 
 _PREFETCH_INCOMPLETE = (
     "the bounded read did not return exactly the declared Content-Length bytes"
 )
 
 
-def _load_bounded_body(state: dict[str, Any]) -> bytes | None:
+def _load_bounded_body(view: ModifierResponseView) -> bytes | None:
+    state = view.__dict__
     response, method, cap = state["_gate_args"]
     config, prefetch, logger, agent_handler, request = state["_lazy"]
     refusal = body_gate_refusal(response, method, cap)
@@ -45,13 +46,13 @@ def _load_bounded_body(state: dict[str, Any]) -> bytes | None:
 class LazyBodyResponseView(ModifierResponseView):
     """Sync engines read the bounded prefix on the first ``.body`` access: one call."""
 
-    def __getattr__(self, name: str) -> Any:
+    def __getattr__(self, name: str) -> object:
         state = self.__dict__
         if name != "body":
             return getattr(state["_real"], name)
         state["body_requested"] = True
         if state["_refusal"] is None:
-            body = _load_bounded_body(state)
+            body = _load_bounded_body(self)
             if body is not None:
                 return body
         raise ResponseBodyUnavailableError(state["_refusal"])
@@ -64,7 +65,7 @@ def apply_modifier_with_bounded_body(
     prefetch: ResponseBodyPrefetch | None,
     config: SyncSecurityConfig,
     logger: logging.Logger,
-    agent_handler: Any | None,
+    agent_handler: SyncAgentHandlerProtocol | None,
 ) -> GuardResponse:
     view = LazyBodyResponseView(
         response,
@@ -76,7 +77,7 @@ def apply_modifier_with_bounded_body(
         record_writes=False,
     )
     view.__dict__["_lazy"] = (config, prefetch, logger, agent_handler, request)
-    result: Any = view
+    result: GuardResponse = view
     try:
         result = modifier(view)
     except CallableShapeError:
