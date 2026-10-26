@@ -19,7 +19,7 @@ from typing import Any
 from typing import NamedTuple as NamedTuple
 
 from guard_core.sync._utils.app_managers import AppManagers
-from guard_core.sync._utils.app_scope import ScopedToApp
+from guard_core.sync._utils.app_scope import ScopedAgentHandler, ScopedRedisHandler
 from guard_core.sync._utils.detection_scan import (
     LazyPreview,
     _context_header_is_semantic_excluded,
@@ -781,8 +781,10 @@ class SusPatternsManager(_SusPatternsViewsMixin):
 
     compiled_patterns: list[tuple[re.Pattern, frozenset[str], str]]
     compiled_custom_patterns: set[tuple[re.Pattern, frozenset[str], str]]
-    redis_handler = ScopedToApp()
-    agent_handler = ScopedToApp()
+    # Declared Any as before D-176 (tests assign fakes to these slots); at runtime
+    # each descriptor serves the slot from the app scope in force.
+    redis_handler: Any = ScopedRedisHandler()
+    agent_handler: Any = ScopedAgentHandler()
     _detection_state: _DetectionState
 
     def __new__(

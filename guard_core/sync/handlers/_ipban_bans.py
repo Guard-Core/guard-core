@@ -2,7 +2,7 @@ import ipaddress
 import logging
 import time
 from collections.abc import Callable, MutableMapping
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from guard_core.sync._utils.app_scope import (
     SHARED_BY_APPS,
@@ -22,6 +22,9 @@ from guard_core.sync.handlers._ipban_rule_exempt import (
 from guard_core.sync.handlers._ipban_rule_revoke import IpBanRuleRevokeMixin
 from guard_core.sync.handlers._ipban_version import _VERSION_PAIR, IpBanVersionMixin
 from guard_core.sync.utils import _canonicalize_ip
+
+if TYPE_CHECKING:
+    from guard_core.models import SyncSecurityConfig
 
 _MAX_TRACKED_REFUSED_BANS = 10_000
 
@@ -236,12 +239,16 @@ class IpBanOperationsMixin(
         except ValueError:
             return None
 
-    def _trusted_proxy_networks(self, config: Any = None) -> list[_Network]:
+    def _trusted_proxy_networks(
+        self, config: "SyncSecurityConfig | None" = None
+    ) -> list[_Network]:
         owner = self.config if config is None else config
         trusted_proxies = getattr(owner, "trusted_proxies", None) or ()
         return list(parsed_networks(tuple(trusted_proxies)))
 
-    def _self_dos_refusal_reason(self, ip: str, config: Any = None) -> str | None:
+    def _self_dos_refusal_reason(
+        self, ip: str, config: "SyncSecurityConfig | None" = None
+    ) -> str | None:
         target = self._target_network(ip)
         if target is None:
             return None
@@ -321,7 +328,7 @@ class IpBanOperationsMixin(
         reason: str = "threshold_exceeded",
         *,
         grouped: bool = False,
-        config: Any = None,
+        config: "SyncSecurityConfig | None" = None,
     ) -> bool:
         if config is not None:
             with in_app_scope(app_scope_of(config)):

@@ -25,6 +25,7 @@ from guard_core.exceptions import GuardRedisError
 
 if TYPE_CHECKING:
     from guard_core.models import SecurityConfig
+    from guard_core.protocols.agent_protocol import AgentHandlerProtocol
 
 
 class _HandlerInitializerStepsMixin(
@@ -202,7 +203,9 @@ class _HandlerInitializerStepsMixin(
         with in_app_scope(scope):
             await self._initialize_agent_for_handlers_in_scope(telemetry)
 
-    async def _initialize_agent_for_handlers_in_scope(self, telemetry: Any) -> None:
+    async def _initialize_agent_for_handlers_in_scope(
+        self, telemetry: "AgentHandlerProtocol"
+    ) -> None:
         from guard_core.handlers.cloud_handler import cloud_handler_for
         from guard_core.handlers.ipban_handler import ip_ban_manager_for
         from guard_core.handlers.security_headers_handler import (

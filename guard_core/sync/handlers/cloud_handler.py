@@ -9,7 +9,7 @@ from typing import Any
 
 from guard_core.exceptions import DownloaderNotInstalledError
 from guard_core.sync._utils.app_managers import AppManagers
-from guard_core.sync._utils.app_scope import ScopedToApp
+from guard_core.sync._utils.app_scope import ScopedAgentHandler, ScopedRedisHandler
 from guard_core.sync._utils.logging_utils import _sanitize_for_log
 from guard_core.sync._utils.sampling import observe_sampled_key
 from guard_core.sync.handlers._cloud_azure_fetch import (
@@ -118,8 +118,8 @@ class CloudManager:
     _instance = None
     ip_ranges: dict[str, set[ipaddress.IPv4Network | ipaddress.IPv6Network]]
     network_regions: dict[str, dict[str, str]]
-    redis_handler = ScopedToApp()
-    agent_handler = ScopedToApp()
+    redis_handler = ScopedRedisHandler()
+    agent_handler = ScopedAgentHandler()
     logger: logging.Logger
     last_updated: dict[str, datetime | None]
     _store: SyncCloudIpStoreProtocol | None

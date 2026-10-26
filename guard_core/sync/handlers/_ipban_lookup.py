@@ -26,6 +26,7 @@ from guard_core.sync.handlers._ipban_version import (
 )
 
 if TYPE_CHECKING:
+    from guard_core.models import SyncSecurityConfig
     from guard_core.sync.core.checks._shared_strikes import FusedStrike
 
 _DEFAULT_IPV6_PREFIX_LENGTH = 64
@@ -46,7 +47,7 @@ class IpBanLookupMixin(IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptionMix
     config: Any = None
     logger: logging.Logger
     _is_ip_banned_across_sharing_apps: Callable[[str], bool]
-    _ban_stands_for: Callable[[str, Any], bool]
+    _ban_stands_for: Callable[[str, "SyncSecurityConfig"], bool]
 
     def _grouped_identity_of(self, ip: str, config: Any) -> str | None:
         if ":" not in ip:
@@ -222,7 +223,7 @@ class IpBanLookupMixin(IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptionMix
         ip: str,
         fused_strike: Callable[[], "FusedStrike | None"] | None = None,
         defer_read: Callable[[PendingKeysRead], bool] | None = None,
-        config: Any = None,
+        config: "SyncSecurityConfig | None" = None,
     ) -> bool:
         """The ban lookup. ``defer_read`` may take over the Redis ban keys read
         (return ``True``): the caller then holds the read and the answer here is
@@ -263,7 +264,7 @@ class IpBanLookupMixin(IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptionMix
         self,
         read: PendingKeysRead,
         fused_strike: Callable[[], "FusedStrike | None"] | None = None,
-        config: Any = None,
+        config: "SyncSecurityConfig | None" = None,
     ) -> bool:
         banned = self._check_redis_keys(
             read.ip, read.identity, time.time(), read.addr, fused_strike

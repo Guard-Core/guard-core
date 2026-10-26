@@ -2,7 +2,7 @@ import ipaddress
 import logging
 import time
 from collections.abc import Callable, Iterable, MutableMapping
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from guard_core.sync._utils.app_scope import (
     SHARED_BY_APPS,
@@ -19,6 +19,9 @@ from guard_core.sync.handlers._ipban_recidive import IpBanRecidiveMixin
 from guard_core.sync.handlers._ipban_rule_exempt import IpBanRuleExemptionMixin
 from guard_core.sync.handlers.redis_handler import scan_unlink
 from guard_core.sync.utils import _canonicalize_ip
+
+if TYPE_CHECKING:
+    from guard_core.models import SyncSecurityConfig
 
 _BATCH = 2000
 _MEMORY_BATCH = 1000
@@ -243,7 +246,11 @@ class IpBanQueryMixin(
         return removed
 
     def unban_ip(
-        self, ip: str, *, reason: str = "manual_unban", config: Any = None
+        self,
+        ip: str,
+        *,
+        reason: str = "manual_unban",
+        config: "SyncSecurityConfig | None" = None,
     ) -> None:
         if config is not None:
             with in_app_scope(app_scope_of(config)):

@@ -1,11 +1,14 @@
 import logging
 import weakref
 from collections.abc import Callable, Hashable
-from typing import Any, Generic, TypeVar
+from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
 from guard_core._redis_enablement import redis_is_configured
 from guard_core.sync._utils.app_scope import SHARED_BY_APPS
 from guard_core.sync._utils.config_registry import ConfigHandlerRegistry
+
+if TYPE_CHECKING:
+    from guard_core.models import SyncSecurityConfig
 
 _HELD_ATTRIBUTE = "_guard_app_managers"
 
@@ -40,13 +43,15 @@ def share_redis_prefix(first: Any, second: Any) -> bool:
     )
 
 
-def _connection_key_of(config: Any) -> Hashable | None:
+def _connection_key_of(config: "SyncSecurityConfig") -> Hashable | None:
     from guard_core.sync.handlers._redis_shared_clients import connection_key_of
 
     return connection_key_of(config)
 
 
-def _warn_split_connection(first: Any, second: Any) -> None:
+def _warn_split_connection(
+    first: "SyncSecurityConfig", second: "SyncSecurityConfig"
+) -> None:
     from guard_core.sync.handlers.redis_handler import _redact_redis_url
 
     logging.getLogger("guard_core.sync.handlers.app_managers").warning(
@@ -59,7 +64,7 @@ def _warn_split_connection(first: Any, second: Any) -> None:
     )
 
 
-def mark_shared_by_apps(manager: Any, *configs: Any) -> None:
+def mark_shared_by_apps(manager: object, *configs: "SyncSecurityConfig") -> None:
     """Record the configs of the apps that share this manager, held weakly."""
     sharing = manager.__dict__.get(SHARED_BY_APPS)
     if sharing is None:
@@ -69,7 +74,7 @@ def mark_shared_by_apps(manager: Any, *configs: Any) -> None:
         sharing[id(config)] = config
 
 
-def unmark_shared_by_apps(manager: Any) -> None:
+def unmark_shared_by_apps(manager: object) -> None:
     manager.__dict__.pop(SHARED_BY_APPS, None)
 
 
@@ -108,7 +113,7 @@ class AppManagers(Generic[_M]):
     ) -> None:
         self.kind = kind
         self._shares_default = shares_default_between_apps
-        self._shared_default: weakref.ref[Any] | None = None
+        self._shared_default: weakref.ref[object] | None = None
         self._warns = warns_on_split_connection
         self._served_key: Hashable | None = None
         self._own = ConfigHandlerRegistry()

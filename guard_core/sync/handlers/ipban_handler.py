@@ -3,7 +3,12 @@ from collections.abc import MutableMapping
 from typing import Any
 
 from guard_core.sync._utils.app_managers import AppManagers
-from guard_core.sync._utils.app_scope import ScopedToApp
+from guard_core.sync._utils.app_scope import (
+    ScopedAgentHandler,
+    ScopedConfig,
+    ScopedRedisHandler,
+    ScopedRuleExemptNetworks,
+)
 from guard_core.sync.handlers._ipban_bans import _LOOPBACK_NETWORKS
 from guard_core.sync.handlers._ipban_cache import (
     DEFAULT_MAX_LOCAL_BANS,
@@ -45,10 +50,12 @@ class IPBanManager(IpBanSharedAppsMixin):
     evictions_count: int
     evicted_to_report: list[tuple[str, float, int]]
     logger: logging.Logger
-    config = ScopedToApp()
-    redis_handler = ScopedToApp()
-    agent_handler = ScopedToApp()
-    rule_exempt_networks = ScopedToApp(writes_to_scope=True, default=())
+    # Declared Any as before D-176 (tests assign fakes to these slots); at runtime
+    # each descriptor serves the slot from the app scope in force.
+    config: Any = ScopedConfig()
+    redis_handler: Any = ScopedRedisHandler()
+    agent_handler: Any = ScopedAgentHandler()
+    rule_exempt_networks = ScopedRuleExemptNetworks()
 
     def __new__(cls: type["IPBanManager"]) -> "IPBanManager":
         if cls._instance is None:

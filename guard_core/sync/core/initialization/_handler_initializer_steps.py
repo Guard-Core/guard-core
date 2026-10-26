@@ -25,6 +25,7 @@ from guard_core.sync.core.initialization._whitelist_strikes import (
 
 if TYPE_CHECKING:
     from guard_core.models import SyncSecurityConfig
+    from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol
 
 
 class _HandlerInitializerStepsMixin(
@@ -204,7 +205,9 @@ class _HandlerInitializerStepsMixin(
         with in_app_scope(scope):
             self._initialize_agent_for_handlers_in_scope(telemetry)
 
-    def _initialize_agent_for_handlers_in_scope(self, telemetry: Any) -> None:
+    def _initialize_agent_for_handlers_in_scope(
+        self, telemetry: "SyncAgentHandlerProtocol"
+    ) -> None:
         from guard_core.sync.handlers.cloud_handler import cloud_handler_for
         from guard_core.sync.handlers.ipban_handler import ip_ban_manager_for
         from guard_core.sync.handlers.security_headers_handler import (

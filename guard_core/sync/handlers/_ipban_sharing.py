@@ -1,5 +1,5 @@
 import logging
-from typing import Any
+from typing import TYPE_CHECKING
 
 from guard_core.sync._utils.app_scope import (
     SHARED_BY_APPS,
@@ -12,6 +12,10 @@ from guard_core.sync.handlers._ipban_carve import IpBanCarveMixin
 from guard_core.sync.handlers._ipban_migration import IpBanMigrationMixin
 from guard_core.sync.handlers._ipban_queries import IpBanQueryMixin
 from guard_core.sync.utils import _canonicalize_ip
+
+if TYPE_CHECKING:
+    from guard_core.models import SyncSecurityConfig
+    from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
 
 _UNSCOPED_WARNING = (
     "A ban, unban or ban lookup ran on a ban manager shared by the apps %s with "
@@ -39,11 +43,13 @@ def _redacted_apps_of(scopes: list[AppScope]) -> str:
     )
 
 
-def _redis_still_open(handler: Any) -> bool:
+def _redis_still_open(handler: "SyncRedisHandlerProtocol | None") -> bool:
     return handler is not None and getattr(handler, "_closed", False) is not True
 
 
-def _scope_through(scope: AppScope, live_redis: Any) -> AppScope:
+def _scope_through(
+    scope: AppScope, live_redis: "SyncRedisHandlerProtocol | None"
+) -> AppScope:
     """A copy of the app's scope that writes through a live sharing app's Redis
     handler and sends no agent event."""
     through = AppScope(scope.config)
@@ -61,7 +67,7 @@ class IpBanSharedAppsMixin(
 
     logger: logging.Logger
 
-    def _ban_stands_for(self, ip: str, config: Any) -> bool:
+    def _ban_stands_for(self, ip: str, config: "SyncSecurityConfig") -> bool:
         """Whether a ban a lookup found is enforced for the app running under
         ``config``: not when ``config`` would refuse to record it (its trusted
         proxies and loopback), so this app's reads match its writes."""
