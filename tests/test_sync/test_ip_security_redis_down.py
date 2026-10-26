@@ -6,6 +6,7 @@ import pytest
 
 from guard_core.exceptions import GuardRedisError
 from guard_core.models import SyncSecurityConfig
+from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.core.checks.factory import build_default_pipeline
 from guard_core.sync.core.checks.pipeline import SecurityCheckPipeline
 from guard_core.sync.decorators import SecurityDecorator
@@ -41,8 +42,13 @@ def _status(pipeline: SecurityCheckPipeline, ip: str, path: str = "/x") -> int |
     return None if response is None else response.status_code
 
 
-def _response(pipeline: SecurityCheckPipeline, path: str = "/x") -> Any:
-    return pipeline.execute(SyncMockGuardRequest(path=path, client_host="203.0.113.8"))
+def _response(pipeline: SecurityCheckPipeline, path: str = "/x") -> GuardResponse:
+    response = pipeline.execute(
+        SyncMockGuardRequest(path=path, client_host="203.0.113.8")
+    )
+    if response is None:
+        pytest.fail("the pipeline admitted the request")
+    return response
 
 
 def test_a_blacklisted_ip_is_still_denied_when_redis_is_down_and_fails_open() -> None:

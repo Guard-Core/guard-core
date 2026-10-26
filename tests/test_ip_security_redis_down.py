@@ -10,6 +10,7 @@ from guard_core.decorators import SecurityDecorator
 from guard_core.exceptions import GuardRedisError
 from guard_core.handlers.ipban_handler import ip_ban_manager
 from guard_core.models import SecurityConfig
+from guard_core.protocols.response_protocol import GuardResponse
 from tests.conftest import MockGuardRequest
 from tests.test_core.conftest import build_middleware
 
@@ -43,10 +44,13 @@ async def _status(
     return None if response is None else response.status_code
 
 
-async def _response(pipeline: SecurityCheckPipeline, path: str = "/x") -> Any:
-    return await pipeline.execute(
+async def _response(pipeline: SecurityCheckPipeline, path: str = "/x") -> GuardResponse:
+    response = await pipeline.execute(
         MockGuardRequest(path=path, client_host="203.0.113.8")
     )
+    if response is None:
+        pytest.fail("the pipeline admitted the request")
+    return response
 
 
 async def test_a_blacklisted_ip_is_still_denied_when_redis_is_down_and_fails_open() -> (
