@@ -1,5 +1,6 @@
+import logging
 import weakref
-from collections.abc import Callable
+from collections.abc import Callable, Hashable
 from typing import Any, Generic, TypeVar
 
 from guard_core._redis_enablement import redis_is_configured
@@ -38,6 +39,25 @@ def share_redis_prefix(first: Any, second: Any) -> bool:
     )
 
 
+def _connection_key_of(config: Any) -> Hashable | None:
+    from guard_core.sync.handlers._redis_shared_clients import connection_key_of
+
+    return connection_key_of(config)
+
+
+def _warn_split_connection(first: Any, second: Any) -> None:
+    from guard_core.sync.handlers.redis_handler import _redact_redis_url
+
+    logging.getLogger("guard_core.sync.handlers.app_managers").warning(
+        "Two apps use the Redis prefix %r on different Redis connections (%s and "
+        "%s): each keeps its own in-process managers and they share state only "
+        "through Redis.",
+        first.redis_prefix,
+        _redact_redis_url(first.redis_url),
+        _redact_redis_url(second.redis_url),
+    )
+
+
 def hold_for_app(config: Any, kind: str, manager: Any) -> None:
     """Keep a per-app manager alive as long as the config of its app.
 
@@ -65,8 +85,10 @@ class AppManagers(Generic[_M]):
     by config identity, and it never moves the prefix the default serves.
     """
 
-    def __init__(self, kind: str) -> None:
+    def __init__(self, kind: str, warns_on_split_connection: bool = False) -> None:
         self.kind = kind
+        self._warns = warns_on_split_connection
+        self._served_key: Hashable | None = None
         self._own = ConfigHandlerRegistry()
         self._default_apps = ConfigHandlerRegistry()
         self._served: weakref.ref[Any] | None = None
@@ -96,10 +118,17 @@ class AppManagers(Generic[_M]):
         if served is None or served is config:
             self._default_apps.register(config, default, self.kind)
             self._served = weakref.ref(config)
+            self._served_key = _connection_key_of(config)
             return default
-        if self.uses_default(config) or share_redis_prefix(served, config):
+        if self.uses_default(config):
             self._default_apps.register(config, default, self.kind)
             return default
+        if share_redis_prefix(served, config):
+            if _connection_key_of(config) == self._served_key:
+                self._default_apps.register(config, default, self.kind)
+                return default
+            if self._warns:
+                _warn_split_connection(served, config)
         manager = fresh()
         self._own.register(config, manager, self.kind)
         hold_for_app(config, self.kind, manager)
@@ -107,3 +136,4 @@ class AppManagers(Generic[_M]):
 
     def forget_default(self) -> None:
         self._served = None
+        self._served_key = None

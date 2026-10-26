@@ -3,6 +3,7 @@ from collections.abc import MutableMapping
 from typing import Any
 
 from guard_core.sync._utils.app_managers import AppManagers
+from guard_core.sync._utils.app_scope import ScopedToApp
 from guard_core.sync.handlers._ipban_bans import (
     _LOOPBACK_NETWORKS,
     IpBanOperationsMixin,
@@ -51,9 +52,9 @@ class IPBanManager(
     evictions_count: int
     evicted_to_report: list[tuple[str, float, int]]
     logger: logging.Logger
-    config: Any = None
-    redis_handler: Any = None
-    agent_handler: Any = None
+    config = ScopedToApp()
+    redis_handler = ScopedToApp()
+    agent_handler = ScopedToApp()
 
     def __new__(cls: type["IPBanManager"]) -> "IPBanManager":
         if cls._instance is None:
@@ -111,7 +112,9 @@ class IPBanManager(
 
 ip_ban_manager = IPBanManager()
 
-_APP_BAN_MANAGERS: AppManagers[IPBanManager] = AppManagers("ipban")
+_APP_BAN_MANAGERS: AppManagers[IPBanManager] = AppManagers(
+    "ipban", warns_on_split_connection=True
+)
 
 
 def ip_ban_manager_for(

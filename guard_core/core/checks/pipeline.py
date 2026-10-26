@@ -4,6 +4,11 @@ import time
 from collections.abc import Callable
 from typing import cast
 
+from guard_core._utils.app_scope import (
+    AppScope,
+    _current_app_scope,
+    existing_app_scope_of,
+)
 from guard_core._utils.block_events import fire_block_hook
 from guard_core._utils.request_logging import redact_header_value_for_display
 from guard_core.core.checks._ban_flow import BanFlow
@@ -47,6 +52,7 @@ class SecurityCheckPipeline:
         self._watched_container_fields = watched_container_fields or ()
         self._route_config_revision = route_config_revision
         self._rebuild_lock = threading.Lock()
+        self._app_scope: AppScope | None = None
         self._built_revision = config.revision if config is not None else None
         self._built_signature = (
             self._container_signature(config) if config is not None else ()
@@ -219,36 +225,49 @@ class SecurityCheckPipeline:
             return self.checks
         return [check for check in self.checks if check.enforced_on_excluded_paths]
 
+    def _resolve_app_scope(self) -> AppScope | None:
+        config = self._config
+        if config is None and self.checks:
+            config = self.checks[0].config
+        self._app_scope = None if config is None else existing_app_scope_of(config)
+        return self._app_scope
+
     async def execute(self, request: GuardRequest) -> GuardResponse | None:
-        response = await self._rebuild_response(request)
-        if response is not None:
-            return response
+        scope = self._app_scope or self._resolve_app_scope()
+        token = None if scope is None else _current_app_scope.set(scope)
+        try:
+            response = await self._rebuild_response(request)
+            if response is not None:
+                return response
 
-        state = request.state
-        state._guard_pipeline_start = time.monotonic()
+            state = request.state
+            state._guard_pipeline_start = time.monotonic()
 
-        pending_open = False
-        for check in self._applicable_checks(state):
-            try:
-                if pending_open and not check.defers_ban_read:
-                    banned = await self._resolve_pending_ban(request)
-                    if banned is not None:
-                        return banned
-                    pending_open = False
-                response = await check.check(request)
-                if response is not None:
-                    return await self._blocked(check, request, response, state)
-                if check.leaves_ban_pending:
-                    pending_open = _pending_of(state) is not None
+            pending_open = False
+            for check in self._applicable_checks(state):
+                try:
+                    if pending_open and not check.defers_ban_read:
+                        banned = await self._resolve_pending_ban(request)
+                        if banned is not None:
+                            return banned
+                        pending_open = False
+                    response = await check.check(request)
+                    if response is not None:
+                        return await self._blocked(check, request, response, state)
+                    if check.leaves_ban_pending:
+                        pending_open = _pending_of(state) is not None
 
-            except Exception as e:
-                error_response = await self._handle_check_error(
-                    _owner_of(e, check), request, e
-                )
-                if error_response is not None:
-                    return error_response
+                except Exception as e:
+                    error_response = await self._handle_check_error(
+                        _owner_of(e, check), request, e
+                    )
+                    if error_response is not None:
+                        return error_response
 
-        return await self._finish(request)
+            return await self._finish(request)
+        finally:
+            if token is not None:
+                _current_app_scope.reset(token)
 
     async def _finish(self, request: GuardRequest) -> GuardResponse | None:
         try:

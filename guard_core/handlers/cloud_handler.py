@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from guard_core._utils.app_managers import AppManagers
+from guard_core._utils.app_scope import ScopedToApp
 from guard_core._utils.logging_utils import _sanitize_for_log
 from guard_core._utils.sampling import observe_sampled_key
 from guard_core.exceptions import DownloaderNotInstalledError
@@ -118,8 +119,8 @@ class CloudManager:
     _instance = None
     ip_ranges: dict[str, set[ipaddress.IPv4Network | ipaddress.IPv6Network]]
     network_regions: dict[str, dict[str, str]]
-    redis_handler: RedisHandlerProtocol | None = None
-    agent_handler: AgentHandlerProtocol | None = None
+    redis_handler = ScopedToApp()
+    agent_handler = ScopedToApp()
     logger: logging.Logger
     last_updated: dict[str, datetime | None]
     _store: CloudIpStoreProtocol | None

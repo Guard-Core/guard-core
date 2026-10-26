@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from guard_core._utils.app_scope import app_scope_of
 from guard_core.core.initialization.handler_initializer import HandlerInitializer
 from guard_core.handlers._dynamic_rule_purge import purge_fingerprint
 from guard_core.handlers.dynamic_rule_handler import DynamicRuleManager
@@ -225,7 +226,15 @@ async def test_the_setting_purges_at_start_whatever_dynamic_rules_say(
 
     with (
         caplog.at_level(logging.WARNING),
-        patch.object(initializer, "_initialize_connected_redis_handlers", AsyncMock()),
+        patch.object(
+            initializer,
+            "_initialize_connected_redis_handlers",
+            AsyncMock(
+                side_effect=lambda: setattr(
+                    app_scope_of(config), "redis_handler", live_redis
+                )
+            ),
+        ),
     ):
         await initializer.initialize_redis_handlers()
 

@@ -19,6 +19,7 @@ from typing import Any
 from typing import NamedTuple as NamedTuple
 
 from guard_core.sync._utils.app_managers import AppManagers
+from guard_core.sync._utils.app_scope import ScopedToApp
 from guard_core.sync._utils.detection_scan import (
     LazyPreview,
     _context_header_is_semantic_excluded,
@@ -780,8 +781,8 @@ class SusPatternsManager(_SusPatternsViewsMixin):
 
     compiled_patterns: list[tuple[re.Pattern, frozenset[str], str]]
     compiled_custom_patterns: set[tuple[re.Pattern, frozenset[str], str]]
-    redis_handler: Any
-    agent_handler: Any
+    redis_handler = ScopedToApp()
+    agent_handler = ScopedToApp()
     _detection_state: _DetectionState
 
     def __new__(

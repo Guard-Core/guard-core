@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from guard_core.models import DynamicRules, SyncSecurityConfig
+from guard_core.sync._utils.app_scope import app_scope_of
 from guard_core.sync.core.initialization.handler_initializer import HandlerInitializer
 from guard_core.sync.handlers._dynamic_rule_purge import purge_fingerprint
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
@@ -224,7 +225,15 @@ def test_the_setting_purges_at_start_whatever_dynamic_rules_say(
 
     with (
         caplog.at_level(logging.WARNING),
-        patch.object(initializer, "_initialize_connected_redis_handlers", MagicMock()),
+        patch.object(
+            initializer,
+            "_initialize_connected_redis_handlers",
+            MagicMock(
+                side_effect=lambda: setattr(
+                    app_scope_of(config), "redis_handler", live_redis
+                )
+            ),
+        ),
     ):
         initializer.initialize_redis_handlers()
 

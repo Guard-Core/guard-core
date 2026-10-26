@@ -5,13 +5,26 @@ import weakref
 from collections.abc import Hashable
 from typing import Any
 
+from guard_core._redis_enablement import configured_redis_url
+from guard_core._redis_exceptions import RedisConnectionError, RedisTimeoutError
 from guard_core._utils.config_registry import ConfigHandlerRegistry
+
+DEFAULT_POOL_SIZE = 100
 
 
 def current_scope() -> object:
     import asyncio
 
     return asyncio.get_running_loop()
+
+
+def current_scope_or_none() -> object | None:
+    import asyncio
+
+    try:
+        return asyncio.get_running_loop()
+    except RuntimeError:
+        return None
 
 
 class _Entry:
@@ -55,6 +68,23 @@ def pool_key(
         pool_timeout,
         _freeze(connection_kwargs),
         id(scope),
+    )
+
+
+def pool_key_of_settings(
+    url: str,
+    config: Any,
+    connection_kwargs: dict[str, Any],
+    default_pool_size: int,
+    scope: object,
+) -> Hashable:
+    """The pool key a config's connection settings give, the one place it is built."""
+    return pool_key(
+        url,
+        config.redis_max_connections or default_pool_size,
+        config.redis_pool_timeout,
+        connection_kwargs,
+        scope,
     )
 
 
@@ -123,16 +153,18 @@ def open_client(
 ) -> tuple[Any | None, Hashable, object, bool]:
     """The shared client for these settings, else a new one from build; the last
     item says whether it was shared."""
-    max_connections = config.redis_max_connections or default_pool_size
     connection_kwargs = owner._connection_kwargs(config)
     scope = current_scope()
-    key = pool_key(
-        url, max_connections, config.redis_pool_timeout, connection_kwargs, scope
-    )
+    key = pool_key_of_settings(url, config, connection_kwargs, default_pool_size, scope)
     shared = acquire(key, scope, owner)
     if shared is not None:
         return shared, key, scope, True
-    client = build(url, max_connections, config.redis_pool_timeout, **connection_kwargs)
+    client = build(
+        url,
+        config.redis_max_connections or default_pool_size,
+        config.redis_pool_timeout,
+        **connection_kwargs,
+    )
     return client, key, scope, False
 
 
@@ -141,3 +173,40 @@ async def register_client(owner: Any, client: Any, key: Hashable, scope: object)
     if published is not client:
         await owner._safe_aclose(client)
     return published
+
+
+def connection_kwargs_of(cfg: Any) -> dict[str, Any]:
+    """Connection tuning passed to ``Redis.from_url``.
+
+    Without bounded timeouts a partitioned Redis blocks every request that
+    touches it indefinitely, so these default to non-None. Any value already
+    encoded in ``redis_url`` query params still wins (redis-py applies URL
+    params last), so this only sets a floor.
+    """
+    kwargs: dict[str, Any] = {
+        "socket_connect_timeout": cfg.redis_socket_connect_timeout,
+        "socket_timeout": cfg.redis_socket_timeout,
+        "health_check_interval": cfg.redis_health_check_interval,
+    }
+    if cfg.redis_retries > 0:
+        from redis.asyncio.retry import Retry
+        from redis.backoff import ExponentialBackoff
+
+        kwargs["retry"] = Retry(ExponentialBackoff(), cfg.redis_retries)
+        kwargs["retry_on_error"] = [RedisConnectionError, RedisTimeoutError]
+    return kwargs
+
+
+def connection_key_of(config: Any) -> Hashable | None:
+    """The key ``RedisManager.initialize`` pools this config's client under, or
+    None without a configured Redis; the running event loop is part of it."""
+    url = configured_redis_url(config)
+    if url is None:
+        return None
+    return pool_key_of_settings(
+        url,
+        config,
+        connection_kwargs_of(config),
+        DEFAULT_POOL_SIZE,
+        current_scope_or_none(),
+    )

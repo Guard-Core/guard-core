@@ -14,7 +14,6 @@ from guard_core._redis_enablement import configured_redis_url, redis_is_configur
 from guard_core._redis_exceptions import (
     NoScriptError,
     RedisConnectionError,
-    RedisTimeoutError,
 )
 from guard_core.core.events.event_types import (
     EVENT_REDIS_CONNECTION,
@@ -75,7 +74,7 @@ def _redact_redis_url(url: str | None) -> str | None:
 
 
 _REDIS_HANDLER_NAME = "redis"
-_DEFAULT_POOL_SIZE = 100
+_DEFAULT_POOL_SIZE = _redis_shared_clients.DEFAULT_POOL_SIZE
 _SCAN_BATCH = 500
 
 
@@ -184,19 +183,9 @@ class RedisManager(RedisBanStrikeMixin):
         encoded in ``redis_url`` query params still wins (redis-py applies URL
         params last), so this only sets a floor.
         """
-        cfg = config if config is not None else self.config
-        kwargs: dict[str, Any] = {
-            "socket_connect_timeout": cfg.redis_socket_connect_timeout,
-            "socket_timeout": cfg.redis_socket_timeout,
-            "health_check_interval": cfg.redis_health_check_interval,
-        }
-        if cfg.redis_retries > 0:
-            from redis.asyncio.retry import Retry
-            from redis.backoff import ExponentialBackoff
-
-            kwargs["retry"] = Retry(ExponentialBackoff(), cfg.redis_retries)
-            kwargs["retry_on_error"] = [RedisConnectionError, RedisTimeoutError]
-        return kwargs
+        return _redis_shared_clients.connection_kwargs_of(
+            config if config is not None else self.config
+        )
 
     async def _safe_aclose(self, client: Redis) -> None:
         try:

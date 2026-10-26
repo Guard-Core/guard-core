@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from guard_core._utils.app_managers import AppManagers
+from guard_core._utils.app_scope import app_scope_of, in_app_scope
 from guard_core._utils.rule_attribution import set_attribution_view
 from guard_core.handlers._dynamic_rule_application import (
     DynamicRuleApplicationMixin,
@@ -303,7 +304,8 @@ class DynamicRuleManager(
         return self.current_rules
 
     async def force_update(self) -> None:
-        await self.update_rules()
+        with in_app_scope(app_scope_of(self.config)):
+            await self.update_rules()
 
     async def stop(self) -> None:
         if self.update_task:

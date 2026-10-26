@@ -58,6 +58,7 @@ SKIP_TESTS = {
     "test_redis_fast_pool.py",
     "test_redis_lean.py",
     "test_redis_fast_path_shape.py",
+    "test_per_app_sharing_by_event_loop.py",
     "test_ipban_unban_inside_async.py",
     "test_ipban_atomic_version.py",
     "test_module_imports_standalone.py",
@@ -281,6 +282,15 @@ _ASYNC_CURRENT_SCOPE_SRC = (
     "    import asyncio\n"
     "\n"
     "    return asyncio.get_running_loop()\n"
+    "\n"
+    "\n"
+    "def current_scope_or_none() -> object | None:\n"
+    "    import asyncio\n"
+    "\n"
+    "    try:\n"
+    "        return asyncio.get_running_loop()\n"
+    "    except RuntimeError:\n"
+    "        return None\n"
 )
 
 _SYNC_CURRENT_SCOPE_REPLACEMENT = (
@@ -292,6 +302,10 @@ _SYNC_CURRENT_SCOPE_REPLACEMENT = (
     "\n"
     "\n"
     "def current_scope() -> object:\n"
+    "    return _PROCESS_SCOPE\n"
+    "\n"
+    "\n"
+    "def current_scope_or_none() -> object | None:\n"
     "    return _PROCESS_SCOPE\n"
 )
 

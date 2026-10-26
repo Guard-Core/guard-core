@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any
 from guard_core._redis_enablement import redis_is_configured, resolve_enable_redis
 from guard_core._staged_defaults import signal_changed_defaults
 from guard_core.exceptions import GuardRedisError
+from guard_core.sync._utils.app_scope import app_scope_of, in_app_scope
 from guard_core.sync.core.initialization._cloud_initialization import (
     CloudInitializationMixin,
 )
@@ -69,6 +70,10 @@ class _HandlerInitializerStepsMixin(
     def build_event_filter(self) -> Any: ...
 
     def _run_lazy_init(self) -> None:
+        with in_app_scope(app_scope_of(self.config)):
+            self._run_lazy_init_in_scope()
+
+    def _run_lazy_init_in_scope(self) -> None:
         from guard_core.sync.handlers.cloud_handler import cloud_handler_for
 
         if providers := self._cloud_providers_to_load():
@@ -133,6 +138,7 @@ class _HandlerInitializerStepsMixin(
             sus_patterns_manager_for,
         )
 
+        app_scope_of(self.config).redis_handler = self.redis_handler
         ip_ban_manager = ip_ban_manager_for(self.config, bind=True)
         if self.config.cloud_ip_store is not None:
             cloud_handler_for(self.config).set_store(self._resolve_cloud_ip_store())
@@ -152,22 +158,27 @@ class _HandlerInitializerStepsMixin(
             self.behavior_tracker.initialize_redis(self.redis_handler)
 
     def initialize_redis_handlers(self) -> None:
-        self.report_route_misconfigurations()
-        self._configure_detection()
+        scope = app_scope_of(self.config)
+        scope.redis_handler = None
+        with in_app_scope(scope):
+            self.report_route_misconfigurations()
+            self._configure_detection()
 
-        without_redis = not (redis_is_configured(self.config) and self.redis_handler)
-        if not without_redis:
-            report_incomplete_redis_handler(
-                self.config, self.redis_handler, self.logger
+            without_redis = not (
+                redis_is_configured(self.config) and self.redis_handler
             )
-        if without_redis and self.config.lazy_init:
-            self._warn_if_lazy_init_is_inert()
-        elif without_redis or not self._connect_redis():
-            self._load_cloud_and_geo_without_redis()
-        else:
-            self._initialize_connected_redis_handlers()
+            if not without_redis:
+                report_incomplete_redis_handler(
+                    self.config, self.redis_handler, self.logger
+                )
+            if without_redis and self.config.lazy_init:
+                self._warn_if_lazy_init_is_inert()
+            elif without_redis or not self._connect_redis():
+                self._load_cloud_and_geo_without_redis()
+            else:
+                self._initialize_connected_redis_handlers()
 
-        self._purge_configured_dynamic_rules()
+            self._purge_configured_dynamic_rules()
 
     def _purge_configured_dynamic_rules(self) -> None:
         if self.config.purge_dynamic_rules_on_start is None:
@@ -188,7 +199,12 @@ class _HandlerInitializerStepsMixin(
         telemetry = self.composite_handler or self.agent_handler
         if telemetry is None:
             return
+        scope = app_scope_of(self.config)
+        scope.agent_handler = telemetry
+        with in_app_scope(scope):
+            self._initialize_agent_for_handlers_in_scope(telemetry)
 
+    def _initialize_agent_for_handlers_in_scope(self, telemetry: Any) -> None:
         from guard_core.sync.handlers.cloud_handler import cloud_handler_for
         from guard_core.sync.handlers.ipban_handler import ip_ban_manager_for
         from guard_core.sync.handlers.security_headers_handler import (
@@ -226,10 +242,13 @@ class _HandlerInitializerStepsMixin(
         dynamic_rule_manager = DynamicRuleManager(self.config)
         telemetry = self.composite_handler or self.agent_handler
 
-        if self.redis_handler:
-            dynamic_rule_manager.initialize_redis(self.redis_handler)
+        # The update loop task copies this scope, so its bans and pattern
+        # writes use this app's handlers.
+        with in_app_scope(app_scope_of(self.config)):
+            if self.redis_handler:
+                dynamic_rule_manager.initialize_redis(self.redis_handler)
 
-        dynamic_rule_manager.initialize_agent(telemetry)
+            dynamic_rule_manager.initialize_agent(telemetry)
 
     def initialize_agent_integrations(self) -> None:
         if (
@@ -271,6 +290,7 @@ class _HandlerInitializerStepsMixin(
         if self.composite_handler is None:
             return
         self.composite_handler.stop()
+        app_scope_of(self.config).agent_handler = None
         self.composite_handler = None
         self.event_filter = None
         self.enricher = None

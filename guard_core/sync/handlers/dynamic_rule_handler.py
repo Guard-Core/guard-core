@@ -8,6 +8,7 @@ from guard_core.models import (
     SyncSecurityConfig,
 )
 from guard_core.sync._utils.app_managers import AppManagers
+from guard_core.sync._utils.app_scope import app_scope_of, in_app_scope
 from guard_core.sync._utils.rule_attribution import set_attribution_view
 from guard_core.sync.handlers._dynamic_rule_application import (
     DynamicRuleApplicationMixin,
@@ -298,7 +299,8 @@ class DynamicRuleManager(
         return self.current_rules
 
     def force_update(self) -> None:
-        self.update_rules()
+        with in_app_scope(app_scope_of(self.config)):
+            self.update_rules()
 
     def stop(self) -> None:
         if self.update_task:
