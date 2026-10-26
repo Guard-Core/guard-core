@@ -274,3 +274,21 @@ def test_the_recording_adapter_keeps_the_proxy_pool_connection_classes() -> None
 
     assert issubclass(http_pool.ConnectionCls, socks.SOCKSConnection)
     assert issubclass(https_pool.ConnectionCls, socks.SOCKSHTTPSConnection)
+
+
+def test_the_recording_pool_of_a_class_that_is_not_a_pool_raises() -> None:
+    from operator import methodcaller
+
+    from urllib3.connection import HTTPConnection
+
+    from guard_core.sync.handlers._ipinfo_download_cut import (
+        DownloadCut,
+        RecordingAdapter,
+    )
+
+    class NotAPool:
+        ConnectionCls = HTTPConnection
+
+    adapter = RecordingAdapter(DownloadCut(total=60))
+    with pytest.raises(TypeError, match="not an HTTPConnectionPool subclass"):
+        methodcaller("_recording_pool", NotAPool)(adapter)

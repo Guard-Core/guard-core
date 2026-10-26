@@ -2,7 +2,7 @@ import socket
 import ssl
 import threading
 import time
-from typing import Any, cast
+from typing import Any
 
 from requests.adapters import HTTPAdapter
 from urllib3.connection import HTTPConnection
@@ -70,7 +70,7 @@ class DownloadCut:
             return
 
 
-_SSL_CREATE_CODE = cast(Any, ssl.SSLSocket)._create.__func__.__code__
+_SSL_CREATE_CODE = vars(ssl.SSLSocket)["_create"].__func__.__code__
 
 
 def _close_sockets_ssl_create_left_open(error: BaseException) -> None:
@@ -188,4 +188,6 @@ class RecordingAdapter(HTTPAdapter):
             {"_cut": self._cut},
         )
         pool = type("RecordingPool", (pool_class,), {"ConnectionCls": recording})
-        return cast(type[HTTPConnectionPool], pool)
+        if not issubclass(pool, HTTPConnectionPool):
+            raise TypeError("RecordingPool is not an HTTPConnectionPool subclass")
+        return pool
