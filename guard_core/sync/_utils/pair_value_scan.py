@@ -21,7 +21,13 @@ def _bounded_percent_decode(
     return decoded
 
 
-_EXTENDED_NAME_RUN_RE = re.compile(r"(?:[A-Za-z0-9_.\-]|%[0-9A-Fa-f]{2}|\+)+")
+_NAME_CHAR_CLASS = r"[A-Za-z0-9_.\-+]"
+_PERCENT_ESCAPE_SOURCE = r"%[0-9A-Fa-f]{2}"
+_EXTENDED_NAME_RUN_SOURCE = (
+    rf"(?={_NAME_CHAR_CLASS}|{_PERCENT_ESCAPE_SOURCE})"
+    rf"{_NAME_CHAR_CLASS}*(?:{_PERCENT_ESCAPE_SOURCE}{_NAME_CHAR_CLASS}*)*"
+)
+_EXTENDED_NAME_RUN_RE = re.compile(_EXTENDED_NAME_RUN_SOURCE)
 _ASSIGN_RE = re.compile(r"[^\S\r\n]*[=:][^\S\r\n]*")
 _HARD_SEP_CHARS = frozenset("&;,?|/[]{}()\r\n<>")
 _QUOTE_CHARS = frozenset("'\"")

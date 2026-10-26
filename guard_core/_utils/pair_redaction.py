@@ -29,10 +29,15 @@ def _bounded_percent_decode(
     return decoded
 
 
-_NAME_CORE = r"(?:[A-Za-z0-9_.\-]|%[0-9A-Fa-f]{2}|\+)+"
+_NAME_CHAR_CLASS = r"[A-Za-z0-9_.\-+]"
+_PERCENT_ESCAPE_SOURCE = r"%[0-9A-Fa-f]{2}"
+_NAME_CORE = (
+    rf"(?={_NAME_CHAR_CLASS}|{_PERCENT_ESCAPE_SOURCE})"
+    rf"{_NAME_CHAR_CLASS}*(?:{_PERCENT_ESCAPE_SOURCE}{_NAME_CHAR_CLASS}*)*"
+)
 _PAIR_HEAD_RE = re.compile(
     rf"(?P<name>\"{_NAME_CORE}\"|'{_NAME_CORE}'|{_NAME_CORE})"
-    r"(?P<assign>(?:[^\S\r\n]*[=:])+[^\S\r\n]*)?"
+    r"(?P<assign>[^\S\r\n]*[=:][=:]*(?:[^\S\r\n]+[=:]*)*)?"
 )
 _NON_NAME_RUN_RE = re.compile(r"[^A-Za-z0-9_.\-%+'\"]+")
 
