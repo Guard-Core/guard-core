@@ -72,6 +72,7 @@ These are the `event_type` strings used throughout guard-core:
 | `decorator_violation` | Multiple checks | Route-level security rule violated (generic) |
 | `ip_blocked` | `IpSecurityCheck` | IP blocked by global allowlist/blocklist (`filter_type="global"`) or a banned IP (`filter_type="banned"`) |
 | `country_blocked` | `IpSecurityCheck` | A global `blocked_countries` or `whitelist_countries` rule denied the request, sent next to the `ip_blocked` event of the same denial; metadata carries `country` and `rule_type` (`country_blacklist` or `country_whitelist`), and `ip_blocked` carries `country` too |
+| `cloud_blocked` | `CloudProviderCheck` (sent by `SecurityEventBus.send_cloud_detection_events`) | A global `block_cloud_providers` or route-level `block_clouds` rule denied the request (`logged_only` in passive mode); metadata carries `cloud_provider`, `network` and `rule_type` (`cloud_blacklist`), and `rule_type` is also set top-level on the event |
 | `path_excluded` | `RequestValidator.is_path_excluded` | Request path excluded from security checks |
 | `security_bypass` | `BypassHandler` | Route configured to bypass all checks |
 | `dynamic_rule_violation` | `RateLimitCheck` | Endpoint-specific rate limit (from dynamic rules) exceeded |

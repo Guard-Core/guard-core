@@ -330,12 +330,13 @@
           "method": null,
           "status_code": null,
           "decorator_type": null,
-          "rule_type": null,
+          "rule_type": "cloud_blacklist",
           "pattern_matched": null,
           "handler_name": "cloud",
           "metadata": {
             "cloud_provider": "AWS",
-            "network": "203.0.113.0/24"
+            "network": "203.0.113.0/24",
+            "rule_type": "cloud_blacklist"
           }
         },
         {

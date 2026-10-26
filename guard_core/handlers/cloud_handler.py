@@ -519,6 +519,7 @@ class CloudManager:
             reason=f"IP belongs to blocked cloud provider: {provider}",
             cloud_provider=provider,
             network=network,
+            rule_type="cloud_blacklist",
             **attribution,
         )
 
@@ -544,6 +545,7 @@ class CloudManager:
                 ip_address=ip_address,
                 action_taken=action_taken,
                 reason=reason,
+                rule_type=kwargs.get("rule_type"),
                 handler_name=_CLOUD_HANDLER_NAME,
                 metadata=kwargs,
             )
