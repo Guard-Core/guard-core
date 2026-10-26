@@ -232,7 +232,7 @@ COVERED_PRODUCERS: dict[str, frozenset[str]] = {
         frozenset({"banned_ip"})
     ),
     "core/checks/implementations/ip_security.py:"
-    "IpSecurityCheck._check_global_ip_restrictions": frozenset({"blacklist_hit"}),
+    "IpSecurityCheck._deny_globally_blocked_ip": frozenset({"blacklist_hit"}),
     "core/checks/implementations/ip_security.py:"
     "IpSecurityCheck._check_route_ip_restrictions": frozenset({"route_ip_restricted"}),
     "core/checks/implementations/rate_limit.py:"

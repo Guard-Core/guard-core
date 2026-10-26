@@ -288,6 +288,17 @@ class IpSecurityCheck(IpBanReadMixin):
         if access_result.allowed:
             return None
 
+        return self._deny_globally_blocked_ip(
+            request, client_ip, access_result, escalate
+        )
+
+    def _deny_globally_blocked_ip(
+        self,
+        request: SyncGuardRequest,
+        client_ip: str,
+        access_result: IpAccessResult,
+        escalate: bool,
+    ) -> GuardResponse | None:
         log_activity(
             request,
             self.logger,

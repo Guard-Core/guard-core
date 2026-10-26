@@ -358,7 +358,7 @@ class RateLimitCheck(SecurityCheck):
         route_config = getattr(state, "route_config", None)
         plans: list[TierPlan] = []
         if client_ip and not self._skips_rate_limiting(request, route_config, state):
-            if route_config and route_config.geo_rate_limits:
+            if getattr(route_config, "geo_rate_limits", None):
                 await load_geo_database_for_route_rules(self.middleware)
             plans = self._tier_plans(request, client_ip, route_config)
         flow = getattr(state, "guard_ban_flow", None)
