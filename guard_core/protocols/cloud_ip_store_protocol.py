@@ -32,4 +32,4 @@ class CloudIpStoreProtocol(Protocol):
         ...
 
 
-CloudIpStoreFactory = Callable[[RedisHandlerProtocol], CloudIpStoreProtocol]
+CloudIpStoreFactory = Callable[[RedisHandlerProtocol | None], CloudIpStoreProtocol]

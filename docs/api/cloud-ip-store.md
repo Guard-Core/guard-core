@@ -106,7 +106,7 @@ When `enable_redis=False` (or no Redis URL is reachable), the same path falls ba
 
 ### Custom prefix or implementation via callable
 
-`cloud_ip_store` accepts a `CloudIpStoreFactory` callable: `Callable[[RedisHandlerProtocol], CloudIpStoreProtocol]`. The handler initializer invokes it with the live Redis handler once Redis is up, so user code never has to construct a throwaway `RedisManager` purely to feed the store.
+`cloud_ip_store` accepts a `CloudIpStoreFactory` callable: `Callable[[RedisHandlerProtocol | None], CloudIpStoreProtocol]`. The handler initializer invokes it with the live Redis handler once Redis is up, and with `None` when Redis is off, so user code never has to construct a throwaway `RedisManager` purely to feed the store.
 
 ```python
 from guard_core.handlers.cloud_ip_stores import RedisCloudIpStore

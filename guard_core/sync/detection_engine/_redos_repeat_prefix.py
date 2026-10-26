@@ -3,8 +3,17 @@ from __future__ import annotations
 import re
 import time
 from collections.abc import Callable
-from typing import Any
 
+from guard_core.sync.detection_engine._redos_parse_nodes import (
+    _assertion_parts,
+    _Body,
+    _body_of,
+    _branch_alternatives,
+    _conditional_parts,
+    _group_number_of,
+    _group_parts,
+    _repeat_parts,
+)
 from guard_core.sync.detection_engine._redos_parse_slots import (
     _node_intervals,
     _regex_parser,
@@ -68,7 +77,7 @@ def _unique_states(states: list[_RepeatPrefixState]) -> list[_RepeatPrefixState]
 
 
 def _assertion_witnesses(
-    body: list[Any], flags: int, deadline: float | None
+    body: _Body, flags: int, deadline: float | None
 ) -> list[_RepeatPrefixState]:
     states = _PrefixWalk(flags, [], deadline, False).walk(
         body, [_RepeatPrefixState("")]
@@ -91,7 +100,7 @@ class _PrefixWalk:
         deadline: float | None,
         collect: bool,
         alphabet: list[str] | None = None,
-        repeat_collector: Callable[[list[Any], int, list[_RepeatPrefixState]], None]
+        repeat_collector: Callable[[_Body, int, list[_RepeatPrefixState]], None]
         | None = None,
         canonical_optionals: bool = False,
         require_reachable: bool = False,
@@ -107,7 +116,7 @@ class _PrefixWalk:
 
     def walk(
         self,
-        items: list[Any],
+        items: _Body,
         states: list[_RepeatPrefixState],
         history_observable: bool = False,
     ) -> list[_RepeatPrefixState]:
@@ -120,12 +129,12 @@ class _PrefixWalk:
                 break
         return states
 
-    def check_remaining_repeats(self, items: list[Any]) -> None:
+    def check_remaining_repeats(self, items: _Body) -> None:
         if self.require_reachable and _contains_repeat(items):
             raise TimeoutError("Pattern validation cannot resolve repeat-site prefixes")
 
     def atoms(
-        self, op: Any, av: Any, states: list[_RepeatPrefixState]
+        self, op: object, av: object, states: list[_RepeatPrefixState]
     ) -> list[_RepeatPrefixState]:
         intervals = _node_intervals(op, av, self.flags)
         return [
@@ -144,11 +153,11 @@ class _PrefixWalk:
 
     def repeat(
         self,
-        av: Any,
+        av: object,
         states: list[_RepeatPrefixState],
         history_observable: bool = False,
     ) -> list[_RepeatPrefixState]:
-        low, high, body = av
+        low, high, body = _repeat_parts(av)
         self.record_prefixes(high, states)
         if high > 1 and self.repeat_collector is not None:
             self.repeat_collector(body, self.flags, states)
@@ -177,7 +186,7 @@ class _PrefixWalk:
 
     def pending_repeats(
         self,
-        body: list[Any],
+        body: _Body,
         result: list[_RepeatPrefixState],
         frontier: list[_RepeatPrefixState],
         remaining: int,
@@ -197,11 +206,11 @@ class _PrefixWalk:
 
     def branch(
         self,
-        av: Any,
+        av: object,
         states: list[_RepeatPrefixState],
         history_observable: bool = False,
     ) -> list[_RepeatPrefixState]:
-        _unused, alternatives = av
+        alternatives = _branch_alternatives(av)
         result: list[_RepeatPrefixState] = []
         for alternative in alternatives:
             result = _unique_states(
@@ -211,11 +220,11 @@ class _PrefixWalk:
 
     def group(
         self,
-        av: Any,
+        av: object,
         states: list[_RepeatPrefixState],
         history_observable: bool = False,
     ) -> list[_RepeatPrefixState]:
-        group, add_flags, del_flags, body = av
+        group, add_flags, del_flags, body = _group_parts(av)
         child = _PrefixWalk(
             (self.flags | add_flags) & ~del_flags,
             self.prefixes,
@@ -233,9 +242,9 @@ class _PrefixWalk:
         ]
 
     def assertion(
-        self, op: Any, av: Any, states: list[_RepeatPrefixState]
+        self, op: object, av: object, states: list[_RepeatPrefixState]
     ) -> list[_RepeatPrefixState]:
-        direction, body = av
+        direction, body = _assertion_parts(av)
         witnesses = _assertion_witnesses(body, self.flags, self.deadline)
         if op is _regex_parser.ASSERT:
             return [
@@ -254,8 +263,9 @@ class _PrefixWalk:
         ]
 
     def backreference(
-        self, group: int, states: list[_RepeatPrefixState]
+        self, av: object, states: list[_RepeatPrefixState]
     ) -> list[_RepeatPrefixState]:
+        group = _group_number_of(av)
         result = []
         for state in states:
             captured = dict(state.captures).get(group)
@@ -268,8 +278,8 @@ class _PrefixWalk:
 
     def node(
         self,
-        op: Any,
-        av: Any,
+        op: object,
+        av: object,
         states: list[_RepeatPrefixState],
         history_observable: bool = False,
     ) -> list[_RepeatPrefixState]:
@@ -294,16 +304,16 @@ class _PrefixWalk:
         if op in {_regex_parser.ASSERT, _regex_parser.ASSERT_NOT}:
             return self.assertion(op, av, states)
         if op is getattr(_regex_parser, "ATOMIC_GROUP", None):
-            return self.walk(av, states, True)
+            return self.walk(_body_of(av), states, True)
         return states if op is _regex_parser.AT else []
 
     def conditional(
         self,
-        av: Any,
+        av: object,
         states: list[_RepeatPrefixState],
         history_observable: bool = False,
     ) -> list[_RepeatPrefixState]:
-        group, yes_branch, no_branch = av
+        group, yes_branch, no_branch = _conditional_parts(av)
         return [
             next_state
             for state in states

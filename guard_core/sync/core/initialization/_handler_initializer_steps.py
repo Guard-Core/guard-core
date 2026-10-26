@@ -144,7 +144,7 @@ class _HandlerInitializerStepsMixin(
         if self.config.cloud_ip_store is not None:
             cloud_handler_for(self.config).set_store(self._resolve_cloud_ip_store())
 
-        self._initialize_cloud_and_geo_redis()
+        self._initialize_cloud_and_geo_redis(self.redis_handler)
         ip_ban_manager.initialize_redis(self.redis_handler)
         reset_startup_whitelist_strikes(self.config, self.redis_handler, ip_ban_manager)
 

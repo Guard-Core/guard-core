@@ -1,5 +1,5 @@
 import threading
-from typing import TYPE_CHECKING, Any, TypeGuard
+from typing import TYPE_CHECKING, TypeGuard
 
 from guard_core._security_config_cloud_store_validators import (
     _CLOUD_IP_STORE_MEMBERS,
@@ -9,9 +9,12 @@ from guard_core.sync.protocols.cloud_ip_store_protocol import SyncCloudIpStorePr
 
 if TYPE_CHECKING:
     from guard_core.models import SyncSecurityConfig
+    from guard_core.sync.decorators.base import BaseSecurityDecorator
     from guard_core.sync.protocols.cloud_ip_store_protocol import (
         SyncCloudIpStoreFactory,
     )
+    from guard_core.sync.protocols.geo_ip_protocol import SyncGeoIPHandler
+    from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
 
 
 def _is_cloud_ip_store_factory(store: object) -> TypeGuard["SyncCloudIpStoreFactory"]:
@@ -26,9 +29,9 @@ def _is_cloud_ip_store(store: object) -> TypeGuard[SyncCloudIpStoreProtocol]:
 
 class CloudInitializationMixin:
     config: "SyncSecurityConfig"
-    redis_handler: Any = None
-    geo_ip_handler: Any = None
-    guard_decorator: Any = None
+    redis_handler: "SyncRedisHandlerProtocol | None" = None
+    geo_ip_handler: "SyncGeoIPHandler | None" = None
+    guard_decorator: "BaseSecurityDecorator | None" = None
     _lazy_init_task: "threading.Thread | None" = None
 
     def _run_lazy_init(self) -> None: ...
@@ -58,7 +61,9 @@ class CloudInitializationMixin:
         if self.geo_ip_handler is not None:
             self.geo_ip_handler.initialize()
 
-    def _initialize_cloud_and_geo_redis(self) -> None:
+    def _initialize_cloud_and_geo_redis(
+        self, redis_handler: "SyncRedisHandlerProtocol"
+    ) -> None:
         from guard_core.sync.handlers.cloud_handler import cloud_handler_for
 
         if self.config.lazy_init:
@@ -69,9 +74,9 @@ class CloudInitializationMixin:
             return
         if providers := self._cloud_providers_to_load():
             cloud_handler_for(self.config).initialize_redis(
-                self.redis_handler,
+                redis_handler,
                 providers,
                 ttl=self.config.cloud_ip_refresh_interval,
             )
         if self.geo_ip_handler is not None:
-            self.geo_ip_handler.initialize_redis(self.redis_handler)
+            self.geo_ip_handler.initialize_redis(redis_handler)

@@ -1,6 +1,6 @@
 import math
+from collections.abc import Mapping
 from datetime import datetime, timezone
-from typing import Any
 
 from guard_core.sync._utils.detection_scan import _redact_pattern_source
 from guard_core.sync._utils.pattern_source_redaction import _SensitiveNameSets
@@ -8,7 +8,7 @@ from guard_core.sync._utils.pattern_source_redaction import _SensitiveNameSets
 from .monitor_types import PatternStats, PerformanceMetric
 
 
-def detect_timeout_anomaly(metric: PerformanceMetric) -> dict[str, Any] | None:
+def detect_timeout_anomaly(metric: PerformanceMetric) -> dict[str, object] | None:
     if metric.timeout:
         return {
             "type": "timeout",
@@ -20,7 +20,7 @@ def detect_timeout_anomaly(metric: PerformanceMetric) -> dict[str, Any] | None:
 
 def detect_slow_execution_anomaly(
     metric: PerformanceMetric, slow_pattern_threshold: float
-) -> dict[str, Any] | None:
+) -> dict[str, object] | None:
     if not metric.timeout and metric.execution_time > slow_pattern_threshold:
         return {
             "type": "slow_execution",
@@ -37,7 +37,7 @@ def detect_statistical_anomaly(
     min_samples_for_anomaly: int,
     anomaly_threshold: float,
     avg_time: float | None = None,
-) -> dict[str, Any] | None:
+) -> dict[str, object] | None:
     if not stats or len(stats.recent_times) < min_samples_for_anomaly:
         return None
 
@@ -72,9 +72,9 @@ def detect_statistical_anomaly(
 
 
 def sanitize_anomaly_data(
-    anomaly: dict[str, Any], redaction_names: _SensitiveNameSets | None = None
-) -> dict[str, Any]:
-    safe_anomaly = anomaly.copy()
+    anomaly: Mapping[str, object], redaction_names: _SensitiveNameSets | None = None
+) -> dict[str, object]:
+    safe_anomaly = dict(anomaly)
     if "pattern" in safe_anomaly:
         pattern = _redact_pattern_source(str(safe_anomaly["pattern"]), redaction_names)
         safe_anomaly["pattern"] = pattern[:50] + "..." if len(pattern) > 50 else pattern
@@ -97,12 +97,12 @@ def _anomaly_event_type(anomaly_type: str) -> str:
 
 
 def build_anomaly_event_data(
-    anomaly: dict[str, Any],
+    anomaly: Mapping[str, object],
     correlation_id: str | None,
     redaction_names: _SensitiveNameSets | None = None,
-) -> dict[str, Any]:
-    event_type = _anomaly_event_type(anomaly["type"])
-    safe_anomaly = anomaly.copy()
+) -> dict[str, object]:
+    event_type = _anomaly_event_type(str(anomaly["type"]))
+    safe_anomaly = dict(anomaly)
     if "pattern" in safe_anomaly:
         safe_anomaly["pattern"] = _redact_pattern_source(
             str(safe_anomaly["pattern"]), redaction_names
@@ -123,9 +123,9 @@ def build_anomaly_event_data(
 
 def build_callback_error_event_data(
     error: Exception,
-    safe_anomaly: dict[str, Any],
+    safe_anomaly: Mapping[str, object],
     correlation_id: str | None,
-) -> dict[str, Any]:
+) -> dict[str, object]:
     from guard_core.sync.core.events.event_types import (
         EVENT_DETECTION_ENGINE_CALLBACK_ERROR,
     )

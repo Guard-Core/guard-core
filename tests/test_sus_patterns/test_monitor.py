@@ -298,6 +298,7 @@ async def test_statistical_anomaly_negative_threshold_keeps_lower_tail() -> None
 
     assert result is not None
     assert result["type"] == "statistical_anomaly"
+    assert isinstance(result["z_score"], float)
     assert result["z_score"] > -1.0
 
 

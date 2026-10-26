@@ -1,6 +1,6 @@
 import re
-from typing import Any
 
+from guard_core.detection_engine._redos_parse_nodes import _Body
 from guard_core.detection_engine._redos_parse_slots import _regex_parser
 from guard_core.detection_engine._redos_repeat_prefix import _PrefixWalk
 from guard_core.detection_engine._redos_repeat_prefix_state import (
@@ -11,9 +11,7 @@ _REPEAT_UNIT_PAIR_LIMIT = 4096
 _REPEAT_UNIT_TEXT_BUDGET = 1000000
 
 
-def _repeated_body_units(
-    body: list[Any], flags: int, deadline: float | None
-) -> list[str]:
+def _repeated_body_units(body: _Body, flags: int, deadline: float | None) -> list[str]:
     states = _PrefixWalk(flags, [], deadline, False).walk(
         body, [_RepeatPrefixState("")]
     )
@@ -31,7 +29,7 @@ def _repeat_group_units(
     pair_text_size = 0
 
     def collect(
-        body: list[Any], local_flags: int, states: list[_RepeatPrefixState]
+        body: _Body, local_flags: int, states: list[_RepeatPrefixState]
     ) -> None:
         nonlocal pair_text_size
         units = _repeated_body_units(body, local_flags, deadline)

@@ -1,5 +1,6 @@
 from typing import Any
 
+from guard_core.sync.detection_engine._redos_parse_nodes import _Body
 from guard_core.sync.detection_engine._redos_parse_slots import (
     _PAIRING_OPS,
     _regex_parser,
@@ -24,11 +25,11 @@ def _node_observes_history(op: Any, av: Any) -> bool:
     return True
 
 
-def _observes_history(items: list[Any]) -> bool:
+def _observes_history(items: _Body) -> bool:
     return any(_node_observes_history(op, av) for op, av in items)
 
 
-def _suffix_history(items: list[Any], enclosing: bool) -> list[bool]:
+def _suffix_history(items: _Body, enclosing: bool) -> list[bool]:
     observed = enclosing
     result = []
     for op, av in reversed(items):
@@ -38,7 +39,7 @@ def _suffix_history(items: list[Any], enclosing: bool) -> list[bool]:
 
 
 def _optional_states_are_equivalent(
-    body: list[Any], states: list[_RepeatPrefixState], history_observable: bool
+    body: _Body, states: list[_RepeatPrefixState], history_observable: bool
 ) -> bool:
     return (
         not history_observable
@@ -50,7 +51,7 @@ def _optional_states_are_equivalent(
     )
 
 
-def _contains_repeat(items: list[Any]) -> bool:
+def _contains_repeat(items: _Body) -> bool:
     return any(_node_contains_repeat(op, av) for op, av in items)
 
 

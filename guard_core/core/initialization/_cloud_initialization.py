@@ -1,5 +1,5 @@
 import asyncio
-from typing import TYPE_CHECKING, Any, TypeGuard
+from typing import TYPE_CHECKING, TypeGuard
 
 from guard_core._security_config_cloud_store_validators import (
     _CLOUD_IP_STORE_MEMBERS,
@@ -8,8 +8,11 @@ from guard_core._utils.capability import has_callables
 from guard_core.protocols.cloud_ip_store_protocol import CloudIpStoreProtocol
 
 if TYPE_CHECKING:
+    from guard_core.decorators.base import BaseSecurityDecorator
     from guard_core.models import SecurityConfig
     from guard_core.protocols.cloud_ip_store_protocol import CloudIpStoreFactory
+    from guard_core.protocols.geo_ip_protocol import GeoIPHandler
+    from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 
 
 def _is_cloud_ip_store_factory(store: object) -> TypeGuard["CloudIpStoreFactory"]:
@@ -24,9 +27,9 @@ def _is_cloud_ip_store(store: object) -> TypeGuard[CloudIpStoreProtocol]:
 
 class CloudInitializationMixin:
     config: "SecurityConfig"
-    redis_handler: Any = None
-    geo_ip_handler: Any = None
-    guard_decorator: Any = None
+    redis_handler: "RedisHandlerProtocol | None" = None
+    geo_ip_handler: "GeoIPHandler | None" = None
+    guard_decorator: "BaseSecurityDecorator | None" = None
     _lazy_init_task: "asyncio.Task[None] | None" = None
 
     async def _run_lazy_init(self) -> None: ...
@@ -56,7 +59,9 @@ class CloudInitializationMixin:
         if self.geo_ip_handler is not None:
             await self.geo_ip_handler.initialize()
 
-    async def _initialize_cloud_and_geo_redis(self) -> None:
+    async def _initialize_cloud_and_geo_redis(
+        self, redis_handler: "RedisHandlerProtocol"
+    ) -> None:
         from guard_core.handlers.cloud_handler import cloud_handler_for
 
         if self.config.lazy_init:
@@ -64,9 +69,9 @@ class CloudInitializationMixin:
             return
         if providers := self._cloud_providers_to_load():
             await cloud_handler_for(self.config).initialize_redis(
-                self.redis_handler,
+                redis_handler,
                 providers,
                 ttl=self.config.cloud_ip_refresh_interval,
             )
         if self.geo_ip_handler is not None:
-            await self.geo_ip_handler.initialize_redis(self.redis_handler)
+            await self.geo_ip_handler.initialize_redis(redis_handler)

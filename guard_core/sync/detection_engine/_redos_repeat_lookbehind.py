@@ -1,7 +1,7 @@
 from dataclasses import replace
-from typing import Any
 
 from guard_core.sync.detection_engine._redos_intervals import _IntervalSet
+from guard_core.sync.detection_engine._redos_parse_nodes import _Body
 from guard_core.sync.detection_engine._redos_parse_slots import (
     _PAIRING_OPS,
     _node_intervals,
@@ -21,7 +21,7 @@ def _check_mutation_budget(state: _RepeatPrefixState, count: int = 0) -> None:
         raise TimeoutError("Pattern validation lookbehind state budget exceeded")
 
 
-def _forbidden_final_atom(body: list[Any], flags: int) -> _IntervalSet | None:
+def _forbidden_final_atom(body: _Body, flags: int) -> _IntervalSet | None:
     if len(body) != 1 or body[0][0] not in _PAIRING_OPS:
         return None
     op, av = body[0]
@@ -73,7 +73,7 @@ def _lookbehind_alternatives(
 
 
 def _walk_negative_behind(
-    body: list[Any],
+    body: _Body,
     flags: int,
     witnesses: list[_RepeatPrefixState],
     states: list[_RepeatPrefixState],

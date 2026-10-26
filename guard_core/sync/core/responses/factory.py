@@ -7,7 +7,7 @@ from guard_core._security_headers_override import (
     PULLED_OVERRIDES,
     OverrideRecord,
 )
-from guard_core.exceptions import CallableShapeError
+from guard_core.exceptions import CallableShapeError, GuardCoreError
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.response_prefetch import (
     SHARED_PREFETCH,
@@ -22,6 +22,11 @@ from guard_core.sync.decorators.base import RouteConfig
 from guard_core.sync.handlers.behavior_handler import BehaviorRule, config_to_rule
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 from guard_core.sync.utils import extract_client_ip
+
+_MISSING_RESPONSE_FACTORY = (
+    "ResponseContext.response_factory is not set: pass the framework's "
+    "GuardResponseFactory to build error and redirect responses"
+)
 
 
 def _drop_other_spellings(headers: dict[str, str], name: str) -> None:
@@ -108,7 +113,10 @@ class ErrorResponseFactory:
         custom_message = self.context.config.custom_error_responses.get(
             status_code, default_message
         )
-        response: GuardResponse = self.context.response_factory.create_response(
+        response_factory = self.context.response_factory
+        if response_factory is None:
+            raise GuardCoreError(_MISSING_RESPONSE_FACTORY)
+        response: GuardResponse = response_factory.create_response(
             custom_message, status_code
         )
 
@@ -121,7 +129,10 @@ class ErrorResponseFactory:
     def create_https_redirect(self, request: SyncGuardRequest) -> GuardResponse:
         https_url = request.url_replace_scheme("https")
         status_code = 301 if request.method.upper() in ("GET", "HEAD") else 308
-        redirect_response = self.context.response_factory.create_redirect_response(
+        response_factory = self.context.response_factory
+        if response_factory is None:
+            raise GuardCoreError(_MISSING_RESPONSE_FACTORY)
+        redirect_response = response_factory.create_redirect_response(
             str(https_url), status_code
         )
 

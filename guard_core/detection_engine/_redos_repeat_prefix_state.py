@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
-from typing import Any
 
 from guard_core.detection_engine._redos_intervals import _IntervalSet
+from guard_core.detection_engine._redos_parse_nodes import _Body
 from guard_core.detection_engine._redos_parse_slots import _PAIRING_OPS, _node_intervals
 
 _REPEAT_PREFIX_BUDGET = 24000
@@ -121,7 +121,7 @@ def _positive_assertion(
 
 
 def _negative_assertion(
-    body: list[Any],
+    body: _Body,
     flags: int,
     witnesses: list[_RepeatPrefixState],
     state: _RepeatPrefixState,

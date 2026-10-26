@@ -59,7 +59,8 @@ async def clean_registry() -> Any:
 
 async def _restore(**stored: str) -> set[str]:
     sus_patterns_handler.configure(SecurityConfig())
-    await sus_patterns_handler.initialize_redis(_FakeRedis(**stored))
+    fake: Any = _FakeRedis(**stored)
+    await sus_patterns_handler.initialize_redis(fake)
     return set(sus_patterns_handler.custom_patterns)
 
 

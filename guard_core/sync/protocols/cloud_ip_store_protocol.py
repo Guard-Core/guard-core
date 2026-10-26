@@ -30,4 +30,6 @@ class SyncCloudIpStoreProtocol(Protocol):
         ...
 
 
-SyncCloudIpStoreFactory = Callable[[SyncRedisHandlerProtocol], SyncCloudIpStoreProtocol]
+SyncCloudIpStoreFactory = Callable[
+    [SyncRedisHandlerProtocol | None], SyncCloudIpStoreProtocol
+]

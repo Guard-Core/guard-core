@@ -307,20 +307,24 @@ async def test_anomaly_event_to_agent_redacts_secret_shaped_pattern() -> None:
 def test_build_anomaly_event_data_redacts_secret_shaped_pattern() -> None:
     anomaly = {"type": "timeout", "pattern": _SECRET_PATTERN, "content_length": 10}
     event_data = build_anomaly_event_data(anomaly, "corr-1")
-    assert "hunter2" not in str(event_data["metadata"]["pattern"])
-    assert event_data["metadata"]["pattern"] == "[REDACTED]"
+    metadata = event_data["metadata"]
+    assert isinstance(metadata, dict)
+    assert "hunter2" not in str(metadata["pattern"])
+    assert metadata["pattern"] == "[REDACTED]"
 
 
 def test_build_anomaly_event_data_without_pattern_key() -> None:
     anomaly = {"type": "timeout"}
     event_data = build_anomaly_event_data(anomaly, "corr-1")
-    assert "pattern" not in event_data["metadata"]
+    metadata = event_data["metadata"]
+    assert isinstance(metadata, dict)
+    assert "pattern" not in metadata
 
 
 def test_sanitize_anomaly_data_redacts_secret_shaped_pattern() -> None:
     anomaly = {"type": "timeout", "pattern": _SECRET_PATTERN}
     safe = sanitize_anomaly_data(anomaly)
-    assert "hunter2" not in safe["pattern"]
+    assert "hunter2" not in str(safe["pattern"])
     assert safe["pattern"] == "[REDACTED]"
 
 

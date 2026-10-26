@@ -154,22 +154,15 @@ select = [
 "guard_core/core/checks/_verifier.py" = ["ANN401"]  # open value
 "guard_core/core/checks/helpers.py" = ["ANN401"]  # framework object
 "guard_core/core/events/__init__.py" = ["ANN401"]  # open value
-"guard_core/core/initialization/_cloud_initialization.py" = ["ANN401"]  # handler slot
 "guard_core/core/initialization/_handler_initializer_steps.py" = ["ANN401"]  # handler slot
 "guard_core/core/initialization/handler_initializer.py" = ["ANN401"]  # handler slot
-"guard_core/core/responses/context.py" = ["ANN401"]  # framework object
 "guard_core/core/responses/modifier_view.py" = ["ANN401"]  # open value
 "guard_core/core/validation/__init__.py" = ["ANN401"]  # open value
 "guard_core/decorators/base.py" = ["ANN401"]  # kwargs pass-through
 "guard_core/decorators/route_config.py" = ["ANN401"]  # open value
 "guard_core/detection_engine/_redos_parse_slots.py" = ["ANN401"]  # regex engine internals
 "guard_core/detection_engine/_redos_prefix_history.py" = ["ANN401"]  # regex engine internals
-"guard_core/detection_engine/_redos_repeat_lookbehind.py" = ["ANN401"]  # framework object
-"guard_core/detection_engine/_redos_repeat_prefix.py" = ["ANN401"]  # framework object
-"guard_core/detection_engine/_redos_repeat_prefix_state.py" = ["ANN401"]  # framework object
-"guard_core/detection_engine/_redos_repeat_units.py" = ["ANN401"]  # framework object
 "guard_core/detection_engine/monitor.py" = ["ANN401"]  # handler slot
-"guard_core/detection_engine/monitor_anomalies.py" = ["ANN401"]  # handler slot
 "guard_core/handlers/__init__.py" = ["ANN401"]  # open value
 "guard_core/handlers/_dynamic_rule_attribution.py" = ["ANN401"]  # JSON payload
 "guard_core/handlers/_dynamic_rule_persistence.py" = ["ANN401"]  # handler slot
@@ -191,7 +184,6 @@ select = [
 "guard_core/handlers/_suspatterns_literals.py" = ["ANN401"]  # regex engine internals
 "guard_core/handlers/_suspatterns_pickle.py" = ["ANN401"]  # open value
 "guard_core/handlers/_suspatterns_regex.py" = ["ANN401"]  # regex engine internals
-"guard_core/handlers/_suspatterns_registry.py" = ["ANN401"]  # handler slot
 "guard_core/handlers/_suspatterns_views.py" = ["ANN401"]  # framework object
 "guard_core/handlers/ipban_handler.py" = ["ANN401"]  # handler slot
 "guard_core/handlers/ratelimit_handler.py" = ["ANN401"]  # handler slot
@@ -217,22 +209,15 @@ select = [
 "guard_core/sync/core/checks/_verifier.py" = ["ANN401"]  # open value
 "guard_core/sync/core/checks/helpers.py" = ["ANN401"]  # framework object
 "guard_core/sync/core/events/__init__.py" = ["ANN401"]  # open value
-"guard_core/sync/core/initialization/_cloud_initialization.py" = ["ANN401"]  # handler slot
 "guard_core/sync/core/initialization/_handler_initializer_steps.py" = ["ANN401"]  # handler slot
 "guard_core/sync/core/initialization/handler_initializer.py" = ["ANN401"]  # handler slot
-"guard_core/sync/core/responses/context.py" = ["ANN401"]  # framework object
 "guard_core/sync/core/responses/modifier_view.py" = ["ANN401"]  # open value
 "guard_core/sync/core/validation/__init__.py" = ["ANN401"]  # open value
 "guard_core/sync/decorators/base.py" = ["ANN401"]  # kwargs pass-through
 "guard_core/sync/decorators/route_config.py" = ["ANN401"]  # open value
 "guard_core/sync/detection_engine/_redos_parse_slots.py" = ["ANN401"]  # regex engine internals
 "guard_core/sync/detection_engine/_redos_prefix_history.py" = ["ANN401"]  # regex engine internals
-"guard_core/sync/detection_engine/_redos_repeat_lookbehind.py" = ["ANN401"]  # framework object
-"guard_core/sync/detection_engine/_redos_repeat_prefix.py" = ["ANN401"]  # framework object
-"guard_core/sync/detection_engine/_redos_repeat_prefix_state.py" = ["ANN401"]  # framework object
-"guard_core/sync/detection_engine/_redos_repeat_units.py" = ["ANN401"]  # framework object
 "guard_core/sync/detection_engine/monitor.py" = ["ANN401"]  # handler slot
-"guard_core/sync/detection_engine/monitor_anomalies.py" = ["ANN401"]  # handler slot
 "guard_core/sync/handlers/__init__.py" = ["ANN401"]  # open value
 "guard_core/sync/handlers/_dynamic_rule_attribution.py" = ["ANN401"]  # JSON payload
 "guard_core/sync/handlers/_dynamic_rule_persistence.py" = ["ANN401"]  # handler slot
@@ -255,7 +240,6 @@ select = [
 "guard_core/sync/handlers/_suspatterns_literals.py" = ["ANN401"]  # regex engine internals
 "guard_core/sync/handlers/_suspatterns_pickle.py" = ["ANN401"]  # open value
 "guard_core/sync/handlers/_suspatterns_regex.py" = ["ANN401"]  # regex engine internals
-"guard_core/sync/handlers/_suspatterns_registry.py" = ["ANN401"]  # handler slot
 "guard_core/sync/handlers/_suspatterns_views.py" = ["ANN401"]  # framework object
 "guard_core/sync/handlers/ipban_handler.py" = ["ANN401"]  # handler slot
 "guard_core/sync/handlers/ratelimit_handler.py" = ["ANN401"]  # handler slot
@@ -334,22 +318,15 @@ module = [
     "guard_core.core.checks._verifier",  # open value
     "guard_core.core.checks.helpers",  # framework object
     "guard_core.core.events",  # open value
-    "guard_core.core.initialization._cloud_initialization",  # handler slot
     "guard_core.core.initialization._handler_initializer_steps",  # handler slot
     "guard_core.core.initialization.handler_initializer",  # handler slot
-    "guard_core.core.responses.context",  # framework object
     "guard_core.core.responses.modifier_view",  # open value
     "guard_core.core.validation",  # open value
     "guard_core.decorators.base",  # kwargs pass-through
     "guard_core.decorators.route_config",  # open value
     "guard_core.detection_engine._redos_parse_slots",  # regex engine internals
     "guard_core.detection_engine._redos_prefix_history",  # regex engine internals
-    "guard_core.detection_engine._redos_repeat_lookbehind",  # framework object
-    "guard_core.detection_engine._redos_repeat_prefix",  # framework object
-    "guard_core.detection_engine._redos_repeat_prefix_state",  # framework object
-    "guard_core.detection_engine._redos_repeat_units",  # framework object
     "guard_core.detection_engine.monitor",  # handler slot
-    "guard_core.detection_engine.monitor_anomalies",  # handler slot
     "guard_core.handlers",  # open value
     "guard_core.handlers._dynamic_rule_attribution",  # JSON payload
     "guard_core.handlers._dynamic_rule_persistence",  # handler slot
@@ -371,7 +348,6 @@ module = [
     "guard_core.handlers._suspatterns_literals",  # regex engine internals
     "guard_core.handlers._suspatterns_pickle",  # open value
     "guard_core.handlers._suspatterns_regex",  # regex engine internals
-    "guard_core.handlers._suspatterns_registry",  # handler slot
     "guard_core.handlers._suspatterns_views",  # framework object
     "guard_core.handlers.ipban_handler",  # handler slot
     "guard_core.handlers.ratelimit_handler",  # handler slot
@@ -403,22 +379,15 @@ module = [
     "guard_core.sync.core.checks._verifier",  # open value
     "guard_core.sync.core.checks.helpers",  # framework object
     "guard_core.sync.core.events",  # open value
-    "guard_core.sync.core.initialization._cloud_initialization",  # handler slot
     "guard_core.sync.core.initialization._handler_initializer_steps",  # handler slot
     "guard_core.sync.core.initialization.handler_initializer",  # handler slot
-    "guard_core.sync.core.responses.context",  # framework object
     "guard_core.sync.core.responses.modifier_view",  # open value
     "guard_core.sync.core.validation",  # open value
     "guard_core.sync.decorators.base",  # kwargs pass-through
     "guard_core.sync.decorators.route_config",  # open value
     "guard_core.sync.detection_engine._redos_parse_slots",  # regex engine internals
     "guard_core.sync.detection_engine._redos_prefix_history",  # regex engine internals
-    "guard_core.sync.detection_engine._redos_repeat_lookbehind",  # framework object
-    "guard_core.sync.detection_engine._redos_repeat_prefix",  # framework object
-    "guard_core.sync.detection_engine._redos_repeat_prefix_state",  # framework object
-    "guard_core.sync.detection_engine._redos_repeat_units",  # framework object
     "guard_core.sync.detection_engine.monitor",  # handler slot
-    "guard_core.sync.detection_engine.monitor_anomalies",  # handler slot
     "guard_core.sync.handlers",  # open value
     "guard_core.sync.handlers._dynamic_rule_attribution",  # JSON payload
     "guard_core.sync.handlers._dynamic_rule_persistence",  # handler slot
@@ -441,7 +410,6 @@ module = [
     "guard_core.sync.handlers._suspatterns_literals",  # regex engine internals
     "guard_core.sync.handlers._suspatterns_pickle",  # open value
     "guard_core.sync.handlers._suspatterns_regex",  # regex engine internals
-    "guard_core.sync.handlers._suspatterns_registry",  # handler slot
     "guard_core.sync.handlers._suspatterns_views",  # framework object
     "guard_core.sync.handlers.ipban_handler",  # handler slot
     "guard_core.sync.handlers.ratelimit_handler",  # handler slot

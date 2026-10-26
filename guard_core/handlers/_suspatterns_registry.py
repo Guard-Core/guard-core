@@ -4,9 +4,9 @@ import json
 import logging
 import re
 import types
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterable
 from datetime import datetime, timezone
-from typing import Any, Concatenate, Generic, ParamSpec, TypeVar
+from typing import TYPE_CHECKING, Concatenate, Generic, ParamSpec, TypeVar
 
 from guard_core._utils.detection_scan import _redact_pattern_source
 from guard_core.detection_engine import PatternCompiler, PerformanceMonitor
@@ -15,6 +15,11 @@ from guard_core.handlers._suspatterns_sources import (
     _CTX_ALL,
     _DEFAULT_MAX_BODY_INSPECT_BYTES,
 )
+
+if TYPE_CHECKING:
+    from guard_core.models import SecurityConfig
+    from guard_core.protocols.agent_protocol import AgentHandlerProtocol
+    from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 
 logger = logging.getLogger("guard_core.handlers.suspatterns")
 
@@ -27,10 +32,15 @@ class _OnManagerOrDefault(Generic[_P, _R]):
     manager (``cls()``) when called on the class, as the classmethods it replaces
     did, so a per-app manager keeps its own patterns."""
 
-    def __init__(self, method: Callable[Concatenate[Any, _P], Awaitable[_R]]) -> None:
+    def __init__(
+        self,
+        method: Callable[Concatenate["_SusPatternsRegistryMixin", _P], Awaitable[_R]],
+    ) -> None:
         self._method = method
 
-    def __get__(self, manager: Any, owner: type) -> Callable[_P, Awaitable[_R]]:
+    def __get__(
+        self, manager: "_SusPatternsRegistryMixin | None", owner: type
+    ) -> Callable[_P, Awaitable[_R]]:
         return types.MethodType(self._method, owner() if manager is None else manager)
 
 
@@ -42,8 +52,8 @@ _LISTED_CUSTOM_KEY = ("patterns", "custom_list")
 
 
 def _stored_custom_pattern_writes(
-    patterns: Any,
-) -> list[tuple[str, str, Any, int | None]]:
+    patterns: Iterable[str],
+) -> list[tuple[str, str, str, int | None]]:
     ordered = sorted(patterns)
     return [
         (*_LEGACY_CUSTOM_KEY, ",".join(ordered), None),
@@ -51,7 +61,7 @@ def _stored_custom_pattern_writes(
     ]
 
 
-def _decode_listed_custom_patterns(stored: Any) -> list[str] | None:
+def _decode_listed_custom_patterns(stored: str | bytes | bytearray) -> list[str] | None:
     try:
         decoded = json.loads(stored)
     except (TypeError, ValueError):
@@ -65,7 +75,9 @@ def _fragments(joined: str) -> set[str]:
     return set(joined.split(",")) if joined else set()
 
 
-def _reconciled_custom_patterns(legacy: Any, listed: Any) -> list[str]:
+def _reconciled_custom_patterns(
+    legacy: str | None, listed: str | bytes | bytearray | None
+) -> list[str]:
     legacy_text = legacy or ""
     decoded = _decode_listed_custom_patterns(listed) if listed is not None else None
     if decoded is not None and _fragments(",".join(decoded)) == _fragments(legacy_text):
@@ -80,14 +92,14 @@ def _reconciled_custom_patterns(legacy: Any, listed: Any) -> list[str]:
 
 
 class _SusPatternsRegistryMixin(_SusPatternsLazyRowsMixin):
-    _instance: Any = None
-    _config: Any = None
+    _instance: "_SusPatternsRegistryMixin | None" = None
+    _config: "SecurityConfig | None" = None
     patterns: list[str]
     custom_patterns: set[str]
     compiled_patterns: list[tuple[re.Pattern, frozenset[str], str]]
     compiled_custom_patterns: set[tuple[re.Pattern, frozenset[str], str]]
-    redis_handler: Any = None
-    agent_handler: Any = None
+    redis_handler: "RedisHandlerProtocol | None" = None
+    agent_handler: "AgentHandlerProtocol | None" = None
     _compiler: PatternCompiler | None
     _performance_monitor: PerformanceMonitor | None
     _sensitive_headers_union: frozenset[str]
@@ -95,7 +107,7 @@ class _SusPatternsRegistryMixin(_SusPatternsLazyRowsMixin):
     _sensitive_body_fields_union: frozenset[str]
 
     @property
-    def _events_agent_handler(self) -> Any:
+    def _events_agent_handler(self) -> "AgentHandlerProtocol | None":
         if not getattr(self._scan_config(), "agent_enable_events", True):
             return None
         return self.agent_handler
@@ -108,8 +120,8 @@ class _SusPatternsRegistryMixin(_SusPatternsLazyRowsMixin):
         reason: str,
         pattern_matched: str | None = None,
         endpoint: str | None = None,
-        consumer_fields: Callable[[], dict[str, Any]] | None = None,
-        **kwargs: Any,
+        consumer_fields: Callable[[], dict[str, object]] | None = None,
+        **kwargs: object,
     ) -> None:
         agent_handler = self._events_agent_handler
         if not agent_handler or event_type in getattr(
@@ -122,9 +134,10 @@ class _SusPatternsRegistryMixin(_SusPatternsLazyRowsMixin):
 
             SecurityEvent = get_telemetry_model("SecurityEvent")
 
+            event_endpoint: object = endpoint
             if consumer_fields is not None:
                 built = consumer_fields()
-                endpoint = built.pop("endpoint", endpoint)
+                event_endpoint = built.pop("endpoint", endpoint)
                 kwargs.update(built)
 
             event = SecurityEvent(
@@ -134,7 +147,7 @@ class _SusPatternsRegistryMixin(_SusPatternsLazyRowsMixin):
                 action_taken=action_taken,
                 reason=reason,
                 pattern_matched=pattern_matched,
-                endpoint=endpoint,
+                endpoint=event_endpoint,
                 handler_name=_SUS_PATTERNS_HANDLER_NAME,
                 metadata=kwargs,
             )
@@ -142,7 +155,9 @@ class _SusPatternsRegistryMixin(_SusPatternsLazyRowsMixin):
         except Exception as e:
             logger.error(f"Failed to send pattern event to agent: {e}")
 
-    async def initialize_redis(self, redis_handler: Any) -> None:
+    async def initialize_redis(
+        self, redis_handler: "RedisHandlerProtocol | None"
+    ) -> None:
         self.redis_handler = redis_handler
         if not self.redis_handler:
             return
