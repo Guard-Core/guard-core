@@ -101,8 +101,11 @@ def test_mute_pydantic_instrumentation_survives_a_none_plugin_settings(
     with caplog.at_level(logging.WARNING, logger="guard_core"):
         guard_core._mute_pydantic_plugin_instrumentation()
 
-    assert "Could not opt guard-agent telemetry models" in caplog.text
-    assert _pydantic_plugin_mute._applied is False
+    assert "Could not opt guard-agent telemetry models" not in caplog.text
+    assert SecurityEvent.model_config.get("plugin_settings") == {
+        "logfire": {"record": "off"}
+    }
+    assert _pydantic_plugin_mute._applied is True
 
 
 def test_mute_pydantic_instrumentation_is_idempotent_after_first_success(
