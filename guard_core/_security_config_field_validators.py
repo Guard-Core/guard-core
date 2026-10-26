@@ -1,6 +1,6 @@
 import logging
 import warnings
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 from functools import partial
 from ipaddress import ip_address, ip_network
 from pathlib import Path
@@ -316,12 +316,13 @@ def _warn_empty_enabled_detection_categories() -> None:
 def _threat_ban_entry(key: Any, value: Any) -> ThreatBanConfig:
     if isinstance(value, ThreatBanConfig):
         return value
-    if not isinstance(value, Mapping) or not all(isinstance(k, str) for k in value):
+    try:
+        return ThreatBanConfig(**value)
+    except TypeError:
         raise ValueError(
             f"threat_ban_config[{key!r}] must be a ThreatBanConfig or a dict "
             f"with str keys, got {type(value).__name__}"
-        )
-    return ThreatBanConfig(**value)
+        ) from None
 
 
 def _validate_threat_ban_config_value(v: Any) -> MappingProxyType[str, Any]:

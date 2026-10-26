@@ -75,6 +75,20 @@ def test_threat_ban_config_wrong_type_is_validation_error_at_field(
     assert _loc_of_only_error(caught.value)[0] == "threat_ban_config"
 
 
+class _MappingLike:
+    def keys(self) -> list[str]:
+        return ["threshold", "duration"]
+
+    def __getitem__(self, key: str) -> int:
+        return {"threshold": 3, "duration": 60}[key]
+
+
+def test_threat_ban_config_accepts_a_mapping_like_entry() -> None:
+    config = SecurityConfig(threat_ban_config={"sqli": _MappingLike()})
+    assert config.threat_ban_config["sqli"].threshold == 3
+    assert config.threat_ban_config["sqli"].duration == 60
+
+
 @pytest.mark.parametrize("field", [*_NAME_SET_FIELDS, "threat_ban_config"])
 def test_wrong_type_assignment_is_value_error_not_type_error(field: str) -> None:
     config = SecurityConfig()
