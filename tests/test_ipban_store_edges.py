@@ -93,7 +93,7 @@ async def test_an_unreadable_or_unparsable_operator_ban_is_skipped() -> None:
     connection.mget = AsyncMock(return_value=["9999999999.0", "9999999999.0", None])
     manager.redis_handler = redis_with_connection(connection)
 
-    expiries = await manager._read_operator_expiries()
+    expiries = await manager._read_operator_expiries(manager.redis_handler)
 
     assert [str(network) for network in expiries] == ["198.51.100.0/24"]
 
@@ -120,7 +120,9 @@ async def test_a_failed_eviction_event_is_logged(
     manager.agent_handler.send_event = AsyncMock(side_effect=RuntimeError("down"))
 
     with caplog.at_level(logging.ERROR, logger="guard_core.handlers.ipban"):
-        await manager._send_ban_evicted_event("8.8.8.8", time.time() + 60, 1, 10)
+        await manager._send_ban_evicted_event(
+            manager.agent_handler, "8.8.8.8", time.time() + 60, 1, 10
+        )
 
     assert any("Failed to send ban evicted event" in m for m in caplog.messages)
 
@@ -165,7 +167,7 @@ async def test_a_carve_that_expired_between_scan_and_read_is_not_moved() -> None
     connection.pttl = AsyncMock(return_value=5000)
     manager = _carve_manager(connection)
 
-    assert await manager._rewrite_redis_carves() == 0
+    assert await manager._rewrite_redis_carves(manager.redis_handler) == 0
 
 
 async def test_a_carve_without_a_ttl_is_not_moved() -> None:
@@ -175,7 +177,7 @@ async def test_a_carve_without_a_ttl_is_not_moved() -> None:
     connection.pttl = AsyncMock(return_value=-1)
     manager = _carve_manager(connection)
 
-    assert await manager._rewrite_redis_carves() == 0
+    assert await manager._rewrite_redis_carves(manager.redis_handler) == 0
 
 
 async def test_a_carve_keeps_a_longer_ban_of_its_base_identity() -> None:
@@ -191,7 +193,7 @@ async def test_a_carve_keeps_a_longer_ban_of_its_base_identity() -> None:
     connection.pipeline = pipeline_of(pipe)
     manager = _carve_manager(connection)
 
-    assert await manager._rewrite_redis_carves() == 1
+    assert await manager._rewrite_redis_carves(manager.redis_handler) == 1
 
     pipe.set.assert_not_awaited()
     pipe.delete.assert_awaited_once_with(
@@ -209,7 +211,7 @@ async def test_a_carve_the_whitelist_still_produces_is_left_in_redis() -> None:
     manager = _carve_manager(connection)
     manager.config = SecurityConfig(enable_redis=False, whitelist=["2001:db8:0:1::5"])
 
-    assert await manager._rewrite_redis_carves() == 0
+    assert await manager._rewrite_redis_carves(manager.redis_handler) == 0
 
     connection.get.assert_not_awaited()
 

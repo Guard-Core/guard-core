@@ -4,13 +4,13 @@ import threading
 import time
 from collections import OrderedDict
 from collections.abc import Iterable, MutableMapping
-from typing import Any
 
 from guard_core._utils.sampling import observe_sampled_key
 from guard_core.handlers._ipban_cache import _BanStore, _Network
 from guard_core.handlers._ipban_events import IpBanEventMixin
 from guard_core.handlers._ipban_rule_exempt import rule_ban_target
 from guard_core.handlers._ipban_version import IpBanVersionMixin
+from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 
 REVOKE_GONE = 0
 REVOKE_DELETED = 1
@@ -48,7 +48,7 @@ class IpBanRuleRevokeMixin(IpBanVersionMixin, IpBanEventMixin):
 
     banned_ips: MutableMapping[str, float]
     banned_networks: list[tuple[_Network, float]]
-    redis_handler: Any = None
+    redis_handler: RedisHandlerProtocol | None = None
     logger: logging.Logger
     _rule_owned_expiries: dict[str, float]
     _rule_owner_answers: dict[str, tuple[bool, str | None, float]]
@@ -282,12 +282,18 @@ class IpBanRuleRevokeMixin(IpBanVersionMixin, IpBanEventMixin):
         if self.redis_handler:
             await self._bump_ban_version()
             self._forget_shared_state()
-        for ip, outcome in lifted if self.agent_handler else ():
+        agent_handler = self.agent_handler
+        if not agent_handler:
+            return
+        for ip, outcome in lifted:
             await self._send_unban_event(
-                ip, _REVOKE_REASON, await self._revoke_event_details(ip, outcome)
+                agent_handler,
+                ip,
+                _REVOKE_REASON,
+                await self._revoke_event_details(ip, outcome),
             )
 
-    async def _revoke_event_details(self, ip: str, outcome: int) -> dict[str, Any]:
+    async def _revoke_event_details(self, ip: str, outcome: int) -> dict[str, object]:
         if outcome != REVOKE_REWRITTEN:
             return {}
         namespace, key = rule_ban_target(ip)

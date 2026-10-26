@@ -1,10 +1,14 @@
 import ipaddress
-from typing import Any
+from typing import TYPE_CHECKING
 
 from guard_core.sync._utils.ip_extraction import _client_identity
 from guard_core.sync._utils.whitelist_match import most_specific_whitelist_entry
 from guard_core.sync.handlers._dynamic_rule_persistence import BAN_FLOORS_NAMESPACE
 from guard_core.sync.handlers._ipban_lookup import IpBanLookupMixin
+from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
+
+if TYPE_CHECKING:
+    from redis import Redis
 
 _SIX_TO_FOUR_GROUP_LENGTH = 48
 _SIX_TO_FOUR = ipaddress.ip_network("2002::/16")
@@ -12,7 +16,7 @@ _SCAN_COUNT = 2000
 
 
 def _plan_floor_move(
-    conn: Any, stem: str, key: str, target: str
+    conn: "Redis", stem: str, key: str, target: str
 ) -> tuple[str, str, str | None, int]:
     """The floor keys of a carved ban and of its base identity, and the floor to
     write at the base (None when the carve has none or the base keeps a later)."""
@@ -63,7 +67,7 @@ class IpBanCarveMixin(IpBanLookupMixin):
     def rewrite_carved_bans_without_whitelist(self) -> int:
         moved = self._rewrite_memory_carves()
         if self.redis_handler:
-            moved += self._rewrite_redis_carves()
+            moved += self._rewrite_redis_carves(self.redis_handler)
         if moved:
             self._bump_ban_version()
         return moved
@@ -80,8 +84,7 @@ class IpBanCarveMixin(IpBanLookupMixin):
             moved += 1
         return moved
 
-    def _rewrite_redis_carves(self) -> int:
-        redis: Any = self.redis_handler
+    def _rewrite_redis_carves(self, redis: SyncRedisHandlerProtocol) -> int:
         stem = f"{redis.config.redis_prefix}banned_identities:"
         moved = 0
         with redis.get_connection() as conn:
@@ -93,12 +96,19 @@ class IpBanCarveMixin(IpBanLookupMixin):
                 value, pttl = conn.get(key), conn.pttl(key)
                 if value is None or pttl <= 0:
                     continue
-                self._move_identity_key(conn, stem, key, target, value, pttl)
+                self._move_identity_key(redis, conn, stem, key, target, value, pttl)
                 moved += 1
         return moved
 
     def _move_identity_key(
-        self, conn: Any, stem: str, key: str, target: str, value: str, pttl: int
+        self,
+        redis: SyncRedisHandlerProtocol,
+        conn: "Redis",
+        stem: str,
+        key: str,
+        target: str,
+        value: str,
+        pttl: int,
     ) -> None:
         target_key = f"{stem}{target}"
         existing = conn.pttl(target_key)
@@ -111,6 +121,6 @@ class IpBanCarveMixin(IpBanLookupMixin):
             if floor is not None:
                 pipe.set(floor_target, floor, px=floor_pttl)
             pipe.delete(key, floor_key)
-            pipe.incr(self._version_redis_key())
+            pipe.incr(self._version_redis_key(redis))
             pipe.execute()
         self._purge_banned_ip(key[len(stem) :])

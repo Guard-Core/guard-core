@@ -12,8 +12,9 @@ from tests.test_sync.conftest import MockGuardResponse
 _IP = "203.0.113.77"
 
 
-class _Agent:
-    def __init__(self) -> None:
+class _Agent(MagicMock):
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
         self.events: list[Any] = []
 
     def send_event(self, event: Any) -> None:

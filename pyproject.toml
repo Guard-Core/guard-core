@@ -156,7 +156,6 @@ select = [
 "guard_core/core/behavioral/processor.py" = ["ANN401"]  # framework object
 "guard_core/core/checks/_rate_limit_ban_first.py" = ["ANN401"]  # handler slot
 "guard_core/core/checks/_rate_limit_plans.py" = ["ANN401"]  # handler slot
-"guard_core/core/checks/_shared_strikes.py" = ["ANN401"]  # framework object
 "guard_core/core/checks/_strike_forget.py" = ["ANN401"]  # JSON payload
 "guard_core/core/checks/_verifier.py" = ["ANN401"]  # open value
 "guard_core/core/checks/helpers.py" = ["ANN401"]  # framework object
@@ -185,21 +184,12 @@ select = [
 "guard_core/detection_engine/monitor.py" = ["ANN401"]  # handler slot
 "guard_core/detection_engine/monitor_anomalies.py" = ["ANN401"]  # handler slot
 "guard_core/handlers/__init__.py" = ["ANN401"]  # open value
-"guard_core/handlers/_behavior_throttle.py" = ["ANN401"]  # handler slot
 "guard_core/handlers/_dynamic_rule_attribution.py" = ["ANN401"]  # JSON payload
 "guard_core/handlers/_dynamic_rule_persistence.py" = ["ANN401"]  # handler slot
 "guard_core/handlers/_dynamic_rule_plan.py" = ["ANN401"]  # JSON payload
 "guard_core/handlers/_dynamic_rule_validation.py" = ["ANN401"]  # open value
-"guard_core/handlers/_ipban_bans.py" = ["ANN401"]  # handler slot
 "guard_core/handlers/_ipban_cache.py" = ["ANN401"]  # JSON payload
-"guard_core/handlers/_ipban_carve.py" = ["ANN401"]  # handler slot
-"guard_core/handlers/_ipban_events.py" = ["ANN401"]  # handler slot
 "guard_core/handlers/_ipban_lookup.py" = ["ANN401"]  # handler slot
-"guard_core/handlers/_ipban_migration.py" = ["ANN401"]  # handler slot
-"guard_core/handlers/_ipban_queries.py" = ["ANN401"]  # handler slot
-"guard_core/handlers/_ipban_recidive.py" = ["ANN401"]  # handler slot
-"guard_core/handlers/_ipban_rule_revoke.py" = ["ANN401"]  # handler slot
-"guard_core/handlers/_ipban_version.py" = ["ANN401"]  # handler slot
 "guard_core/handlers/_redis_ban_strike.py" = ["ANN401"]  # handler slot
 "guard_core/handlers/_redis_fast_pool.py" = ["ANN401"]  # JSON payload
 "guard_core/handlers/_redis_lean.py" = ["ANN401"]  # handler slot
@@ -216,7 +206,6 @@ select = [
 "guard_core/handlers/_suspatterns_regex.py" = ["ANN401"]  # regex engine internals
 "guard_core/handlers/_suspatterns_registry.py" = ["ANN401"]  # handler slot
 "guard_core/handlers/_suspatterns_views.py" = ["ANN401"]  # framework object
-"guard_core/handlers/behavior_handler.py" = ["ANN401"]  # handler slot
 "guard_core/handlers/ipban_handler.py" = ["ANN401"]  # handler slot
 "guard_core/handlers/ratelimit_handler.py" = ["ANN401"]  # handler slot
 "guard_core/handlers/redis_handler.py" = ["ANN401"]  # handler slot
@@ -242,7 +231,6 @@ select = [
 "guard_core/sync/core/behavioral/processor.py" = ["ANN401"]  # framework object
 "guard_core/sync/core/checks/_rate_limit_ban_first.py" = ["ANN401"]  # handler slot
 "guard_core/sync/core/checks/_rate_limit_plans.py" = ["ANN401"]  # handler slot
-"guard_core/sync/core/checks/_shared_strikes.py" = ["ANN401"]  # framework object
 "guard_core/sync/core/checks/_strike_forget.py" = ["ANN401"]  # JSON payload
 "guard_core/sync/core/checks/_verifier.py" = ["ANN401"]  # open value
 "guard_core/sync/core/checks/helpers.py" = ["ANN401"]  # framework object
@@ -271,21 +259,12 @@ select = [
 "guard_core/sync/detection_engine/monitor.py" = ["ANN401"]  # handler slot
 "guard_core/sync/detection_engine/monitor_anomalies.py" = ["ANN401"]  # handler slot
 "guard_core/sync/handlers/__init__.py" = ["ANN401"]  # open value
-"guard_core/sync/handlers/_behavior_throttle.py" = ["ANN401"]  # handler slot
 "guard_core/sync/handlers/_dynamic_rule_attribution.py" = ["ANN401"]  # JSON payload
 "guard_core/sync/handlers/_dynamic_rule_persistence.py" = ["ANN401"]  # handler slot
 "guard_core/sync/handlers/_dynamic_rule_plan.py" = ["ANN401"]  # JSON payload
 "guard_core/sync/handlers/_dynamic_rule_validation.py" = ["ANN401"]  # open value
-"guard_core/sync/handlers/_ipban_bans.py" = ["ANN401"]  # handler slot
 "guard_core/sync/handlers/_ipban_cache.py" = ["ANN401"]  # JSON payload
-"guard_core/sync/handlers/_ipban_carve.py" = ["ANN401"]  # handler slot
-"guard_core/sync/handlers/_ipban_events.py" = ["ANN401"]  # handler slot
 "guard_core/sync/handlers/_ipban_lookup.py" = ["ANN401"]  # handler slot
-"guard_core/sync/handlers/_ipban_migration.py" = ["ANN401"]  # handler slot
-"guard_core/sync/handlers/_ipban_queries.py" = ["ANN401"]  # handler slot
-"guard_core/sync/handlers/_ipban_recidive.py" = ["ANN401"]  # handler slot
-"guard_core/sync/handlers/_ipban_rule_revoke.py" = ["ANN401"]  # handler slot
-"guard_core/sync/handlers/_ipban_version.py" = ["ANN401"]  # handler slot
 "guard_core/sync/handlers/_ipinfo_download_cut.py" = ["ANN401"]  # open value
 "guard_core/sync/handlers/_redis_ban_strike.py" = ["ANN401"]  # handler slot
 "guard_core/sync/handlers/_redis_fast_pool.py" = ["ANN401"]  # kwargs pass-through
@@ -303,7 +282,6 @@ select = [
 "guard_core/sync/handlers/_suspatterns_regex.py" = ["ANN401"]  # regex engine internals
 "guard_core/sync/handlers/_suspatterns_registry.py" = ["ANN401"]  # handler slot
 "guard_core/sync/handlers/_suspatterns_views.py" = ["ANN401"]  # framework object
-"guard_core/sync/handlers/behavior_handler.py" = ["ANN401"]  # handler slot
 "guard_core/sync/handlers/ipban_handler.py" = ["ANN401"]  # handler slot
 "guard_core/sync/handlers/ratelimit_handler.py" = ["ANN401"]  # handler slot
 "guard_core/sync/handlers/redis_handler.py" = ["ANN401"]  # handler slot
@@ -383,7 +361,6 @@ module = [
     "guard_core.core.behavioral.processor",  # framework object
     "guard_core.core.checks._rate_limit_ban_first",  # handler slot
     "guard_core.core.checks._rate_limit_plans",  # handler slot
-    "guard_core.core.checks._shared_strikes",  # framework object
     "guard_core.core.checks._strike_forget",  # JSON payload
     "guard_core.core.checks._verifier",  # open value
     "guard_core.core.checks.helpers",  # framework object
@@ -412,21 +389,12 @@ module = [
     "guard_core.detection_engine.monitor",  # handler slot
     "guard_core.detection_engine.monitor_anomalies",  # handler slot
     "guard_core.handlers",  # open value
-    "guard_core.handlers._behavior_throttle",  # handler slot
     "guard_core.handlers._dynamic_rule_attribution",  # JSON payload
     "guard_core.handlers._dynamic_rule_persistence",  # handler slot
     "guard_core.handlers._dynamic_rule_plan",  # JSON payload
     "guard_core.handlers._dynamic_rule_validation",  # open value
-    "guard_core.handlers._ipban_bans",  # handler slot
     "guard_core.handlers._ipban_cache",  # JSON payload
-    "guard_core.handlers._ipban_carve",  # handler slot
-    "guard_core.handlers._ipban_events",  # handler slot
     "guard_core.handlers._ipban_lookup",  # handler slot
-    "guard_core.handlers._ipban_migration",  # handler slot
-    "guard_core.handlers._ipban_queries",  # handler slot
-    "guard_core.handlers._ipban_recidive",  # handler slot
-    "guard_core.handlers._ipban_rule_revoke",  # handler slot
-    "guard_core.handlers._ipban_version",  # handler slot
     "guard_core.handlers._redis_ban_strike",  # handler slot
     "guard_core.handlers._redis_fast_pool",  # JSON payload
     "guard_core.handlers._redis_lean",  # handler slot
@@ -443,7 +411,6 @@ module = [
     "guard_core.handlers._suspatterns_regex",  # regex engine internals
     "guard_core.handlers._suspatterns_registry",  # handler slot
     "guard_core.handlers._suspatterns_views",  # framework object
-    "guard_core.handlers.behavior_handler",  # handler slot
     "guard_core.handlers.ipban_handler",  # handler slot
     "guard_core.handlers.ratelimit_handler",  # handler slot
     "guard_core.handlers.redis_handler",  # handler slot
@@ -475,7 +442,6 @@ module = [
     "guard_core.sync.core.behavioral.processor",  # framework object
     "guard_core.sync.core.checks._rate_limit_ban_first",  # handler slot
     "guard_core.sync.core.checks._rate_limit_plans",  # handler slot
-    "guard_core.sync.core.checks._shared_strikes",  # framework object
     "guard_core.sync.core.checks._strike_forget",  # JSON payload
     "guard_core.sync.core.checks._verifier",  # open value
     "guard_core.sync.core.checks.helpers",  # framework object
@@ -504,21 +470,12 @@ module = [
     "guard_core.sync.detection_engine.monitor",  # handler slot
     "guard_core.sync.detection_engine.monitor_anomalies",  # handler slot
     "guard_core.sync.handlers",  # open value
-    "guard_core.sync.handlers._behavior_throttle",  # handler slot
     "guard_core.sync.handlers._dynamic_rule_attribution",  # JSON payload
     "guard_core.sync.handlers._dynamic_rule_persistence",  # handler slot
     "guard_core.sync.handlers._dynamic_rule_plan",  # JSON payload
     "guard_core.sync.handlers._dynamic_rule_validation",  # open value
-    "guard_core.sync.handlers._ipban_bans",  # handler slot
     "guard_core.sync.handlers._ipban_cache",  # JSON payload
-    "guard_core.sync.handlers._ipban_carve",  # handler slot
-    "guard_core.sync.handlers._ipban_events",  # handler slot
     "guard_core.sync.handlers._ipban_lookup",  # handler slot
-    "guard_core.sync.handlers._ipban_migration",  # handler slot
-    "guard_core.sync.handlers._ipban_queries",  # handler slot
-    "guard_core.sync.handlers._ipban_recidive",  # handler slot
-    "guard_core.sync.handlers._ipban_rule_revoke",  # handler slot
-    "guard_core.sync.handlers._ipban_version",  # handler slot
     "guard_core.sync.handlers._ipinfo_download_cut",  # open value
     "guard_core.sync.handlers._redis_ban_strike",  # handler slot
     "guard_core.sync.handlers._redis_fast_pool",  # kwargs pass-through
@@ -536,7 +493,6 @@ module = [
     "guard_core.sync.handlers._suspatterns_regex",  # regex engine internals
     "guard_core.sync.handlers._suspatterns_registry",  # handler slot
     "guard_core.sync.handlers._suspatterns_views",  # framework object
-    "guard_core.sync.handlers.behavior_handler",  # handler slot
     "guard_core.sync.handlers.ipban_handler",  # handler slot
     "guard_core.sync.handlers.ratelimit_handler",  # handler slot
     "guard_core.sync.handlers.redis_handler",  # handler slot

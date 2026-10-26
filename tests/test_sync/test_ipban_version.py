@@ -9,6 +9,7 @@ import pytest
 from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.ipban_handler import IPBanManager
 from guard_core.sync.handlers.redis_handler import RedisManager
+from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
 from tests.test_sync.engine_redis_commands import (
     engine_commands_sent,
     engine_redis_url,
@@ -155,10 +156,10 @@ def test_a_thousand_auto_bans_cause_no_index_reload_on_another_worker(
     reloads = 0
     original = reader._reload_operator_networks
 
-    def counting_reload() -> None:
+    def counting_reload(redis_handler: SyncRedisHandlerProtocol) -> None:
         nonlocal reloads
         reloads += 1
-        original()
+        original(redis_handler)
 
     with patch.object(reader, "_reload_operator_networks", counting_reload):
         for index in range(1000):

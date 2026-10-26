@@ -128,7 +128,7 @@ class IpBanLookupMixin(IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptionMix
         """The ban verdict of the values read for ``namespaces`` plus, last, the
         ban version, by whatever round trip read them."""
         if self._version_moved(values.pop(), now):
-            self._reload_operator_networks()
+            self._reload_operator_networks(self.redis_handler)
             networks = self._operator_networks
             if addr is not None and networks is not None and networks.covers(addr, now):
                 return True
@@ -143,7 +143,7 @@ class IpBanLookupMixin(IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptionMix
             else:
                 self.redis_handler.delete(namespace, key)
         if self.agent_handler:
-            self._report_evictions()
+            self._report_evictions(self.agent_handler)
         return banned
 
     def _local_lookup(
@@ -169,9 +169,10 @@ class IpBanLookupMixin(IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptionMix
         return configured or _DEFAULT_IPV6_PREFIX_LENGTH
 
     def _cached_positive_survives(self, now: float) -> bool:
-        if not self._version_recheck_due(now):
+        redis_handler = self.redis_handler
+        if not redis_handler or not self._version_recheck_due(now):
             return True
-        return self._positive_survives_recheck(now)
+        return self._positive_survives_recheck(redis_handler, now)
 
     def _operator_ban_holds(
         self, addr: ipaddress.IPv4Address | ipaddress.IPv6Address, now: float
@@ -301,7 +302,7 @@ class IpBanLookupMixin(IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptionMix
         self, addr: ipaddress.IPv4Address | ipaddress.IPv6Address, now: float
     ) -> bool:
         if self._operator_networks is None:
-            self._reload_operator_networks()
+            self._reload_operator_networks(self.redis_handler)
         networks = self._operator_networks
         return (
             networks is not None

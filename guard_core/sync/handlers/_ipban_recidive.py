@@ -1,7 +1,12 @@
 import logging
 import time
 from collections.abc import MutableMapping
-from typing import Any
+from typing import TYPE_CHECKING
+
+from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
+
+if TYPE_CHECKING:
+    from guard_core.models import SyncSecurityConfig
 
 _RECIDIVE_NAMESPACE = "recidive"
 
@@ -30,8 +35,8 @@ class IpBanRecidiveMixin:
 
     recidive_history: dict[str, tuple[int, float]]
     banned_ips: MutableMapping[str, float]
-    config: Any = None
-    redis_handler: Any = None
+    config: "SyncSecurityConfig"
+    redis_handler: SyncRedisHandlerProtocol | None = None
     logger: logging.Logger
 
     def _recidive_applies(self, ip: str, grouped: bool) -> bool:

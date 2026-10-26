@@ -135,6 +135,7 @@ async def test_the_carve_rewrite_moves_the_floor_with_the_ban(
             f"{prefix}ban_floors:banned_identities:{carved}", "9999999999.5", px=300_000
         )
         await ip_ban_manager._move_identity_key(
+            live_redis,
             conn,
             f"{prefix}banned_identities:",
             f"{prefix}banned_identities:{carved}",

@@ -5,7 +5,7 @@ import time
 import uuid
 from collections import OrderedDict, defaultdict
 from collections.abc import Callable
-from typing import Any, Literal
+from typing import Literal
 
 from cachetools import TTLCache
 
@@ -38,6 +38,8 @@ from guard_core.sync.handlers._behavior_throttle import (
     rule_hit_ttl,
     usage_hits_key,
 )
+from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol
+from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
 from guard_core.sync.utils import _log_at_level, _safe_read
 
 __all__ = [
@@ -71,7 +73,7 @@ class BehaviorRule:
         self.custom_action = custom_action
         self.ban_duration = ban_duration
         self.correlate_with_detection = correlate_with_detection
-        self._discriminator_fields: tuple[Any, ...] | None = None
+        self._discriminator_fields: tuple[object, ...] | None = None
         self._discriminator = ""
 
     def discriminator(self) -> str:
@@ -117,8 +119,8 @@ class BehaviorTracker(
         self.return_patterns: dict[str, dict[str, list[float]]] = defaultdict(
             lambda: defaultdict(list)
         )
-        self.redis_handler: Any | None = None
-        self.agent_handler: Any | None = None
+        self.redis_handler: SyncRedisHandlerProtocol | None = None
+        self.agent_handler: SyncAgentHandlerProtocol | None = None
         self._body_unavailable_log_cache: TTLCache[str, bool] = TTLCache(
             maxsize=1000, ttl=300
         )
@@ -127,10 +129,10 @@ class BehaviorTracker(
         self._throttle_script_sha: str | None = None
         self._init_eviction_reporting()
 
-    def initialize_redis(self, redis_handler: Any) -> None:
+    def initialize_redis(self, redis_handler: SyncRedisHandlerProtocol) -> None:
         self.redis_handler = redis_handler
 
-    def initialize_agent(self, agent_handler: Any) -> None:
+    def initialize_agent(self, agent_handler: SyncAgentHandlerProtocol) -> None:
         self.agent_handler = agent_handler
 
     def _rule_hit_index(self, ip: str) -> tuple[str, int]:

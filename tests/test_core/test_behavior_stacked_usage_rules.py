@@ -4,12 +4,14 @@ import pytest
 
 from guard_core.handlers import behavior_handler
 from guard_core.handlers.behavior_handler import BehaviorRule, BehaviorTracker
+from guard_core.handlers.redis_handler import RedisHandlerBase
 from guard_core.models import SecurityConfig
 from tests.conftest import MockGuardResponse
 
 
-class _HitListRedis:
+class _HitListRedis(RedisHandlerBase):
     def __init__(self) -> None:
+        super().__init__(SecurityConfig(enable_redis=False))
         self.lists: dict[str, list[float]] = {}
 
     async def record_sliding_window_hit(

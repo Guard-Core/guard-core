@@ -3,9 +3,9 @@ import math
 import threading
 import uuid
 from collections import OrderedDict, defaultdict
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, replace
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from guard_core import _tracking_caps
 from guard_core._redis_enablement import redis_is_configured
@@ -16,6 +16,7 @@ from guard_core._utils.lru_store import _lru_pop_or_create
 from guard_core.exceptions import GuardRedisError
 from guard_core.handlers._behavior_evictions import BehaviorEvictionMixin
 from guard_core.models import SecurityConfig
+from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 from guard_core.scripts.behavior_throttle_lua import BEHAVIOR_THROTTLE_SCRIPT
 
 if TYPE_CHECKING:
@@ -170,7 +171,7 @@ def _with_correlation(
 
 class BehaviorThrottleMixin(BehaviorEvictionMixin):
     config: SecurityConfig
-    redis_handler: Any
+    redis_handler: RedisHandlerProtocol | None
     usage_counts: dict[str, dict[str, list[float]]]
     return_patterns: dict[str, dict[str, list[float]]]
     _lock: threading.Lock
@@ -188,8 +189,11 @@ class BehaviorThrottleMixin(BehaviorEvictionMixin):
     ) -> list[ThrottleTrip]:
         client_ip = behavior_client_identity(self.config, client_ip)
         trips = None
-        if self.redis_handler and redis_is_configured(self.redis_handler.config):
-            trips = await self._redis_throttle(client_ip, checks, now, record_when_over)
+        redis_handler = self.redis_handler
+        if redis_handler and redis_is_configured(redis_handler.config):
+            trips = await self._redis_throttle(
+                redis_handler, client_ip, checks, now, record_when_over
+            )
         if trips is None:
             trips = self._memory_throttle(
                 client_ip, checks, now, record_when_over, process_categories
@@ -200,12 +204,13 @@ class BehaviorThrottleMixin(BehaviorEvictionMixin):
 
     def _throttle_script_input(
         self,
+        redis_handler: RedisHandlerProtocol,
         client_ip: str,
         checks: list[ThrottleCheck],
         now: float,
         record_when_over: bool,
-    ) -> tuple[list[str], list[Any]]:
-        prefix = self.redis_handler.config.redis_prefix
+    ) -> tuple[list[str], list[str | int]]:
+        prefix = redis_handler.config.redis_prefix
         keys = [
             f"{prefix}{USAGE_NAMESPACE}:{usage_hits_key(c.scope_id, client_ip, c.rule)}"
             if c.records
@@ -216,7 +221,7 @@ class BehaviorThrottleMixin(BehaviorEvictionMixin):
             f"{prefix}{TRIP_NAMESPACE}:{trip_marker_key(c.scope_id, client_ip, c.rule)}"
             for c in checks
         ]
-        args: list[Any] = [
+        args: list[str | int] = [
             repr(now),
             uuid.uuid4().hex,
             int(record_when_over),
@@ -232,7 +237,7 @@ class BehaviorThrottleMixin(BehaviorEvictionMixin):
         if any(c.correlated_refuse_at for c in checks):
             from guard_core.core.checks.helpers import SUSPICIOUS_COUNT_WINDOW_SECONDS
 
-            keys += self.redis_handler.detection_correlation_keys(client_ip)
+            keys += redis_handler.detection_correlation_keys(client_ip)
             args[6] = repr(now - SUSPICIOUS_COUNT_WINDOW_SECONDS)
         for check in checks:
             args += [
@@ -246,16 +251,17 @@ class BehaviorThrottleMixin(BehaviorEvictionMixin):
 
     async def _redis_throttle(
         self,
+        redis_handler: RedisHandlerProtocol,
         client_ip: str,
         checks: list[ThrottleCheck],
         now: float,
         record_when_over: bool,
     ) -> list[ThrottleTrip] | None:
         keys, args = self._throttle_script_input(
-            client_ip, checks, now, record_when_over
+            redis_handler, client_ip, checks, now, record_when_over
         )
         try:
-            raw = await self._eval_throttle_script(keys, args)
+            raw = await self._eval_throttle_script(redis_handler, keys, args)
         except Exception as error:
             if self.config.redis_fail_open:
                 _warn_throttle_fail_open()
@@ -279,23 +285,30 @@ class BehaviorThrottleMixin(BehaviorEvictionMixin):
             for i in range(0, raw_length - index_refused, 4)
         ]
 
-    async def _eval_throttle_script(self, keys: list[str], args: list[Any]) -> Any:
-        async with self.redis_handler.get_connection() as conn:
+    async def _eval_throttle_script(
+        self,
+        redis_handler: RedisHandlerProtocol,
+        keys: list[str],
+        args: list[str | int],
+    ) -> Sequence[str | bytes | int | float]:
+        async with redis_handler.get_connection() as conn:
             if self._throttle_script_sha is None:
                 self._throttle_script_sha = await conn.script_load(
                     BEHAVIOR_THROTTLE_SCRIPT
                 )
+            reply: Sequence[str | bytes | int | float]
             try:
-                return await conn.evalsha(
+                reply = await conn.evalsha(
                     self._throttle_script_sha, len(keys), *keys, *args
                 )
             except NoScriptError:
                 self._throttle_script_sha = await conn.script_load(
                     BEHAVIOR_THROTTLE_SCRIPT
                 )
-                return await conn.evalsha(
+                reply = await conn.evalsha(
                     self._throttle_script_sha, len(keys), *keys, *args
                 )
+            return reply
 
     def _memory_hits(
         self, client_ip: str, check: ThrottleCheck, cutoff: float

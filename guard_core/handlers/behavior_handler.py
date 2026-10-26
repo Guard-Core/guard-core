@@ -5,7 +5,7 @@ import time
 import uuid
 from collections import OrderedDict, defaultdict
 from collections.abc import Callable
-from typing import Any, Literal
+from typing import Literal
 
 from cachetools import TTLCache
 
@@ -35,6 +35,8 @@ from guard_core.handlers._behavior_throttle import (
     usage_hits_key,
 )
 from guard_core.models import BehaviorRuleConfig, SecurityConfig
+from guard_core.protocols.agent_protocol import AgentHandlerProtocol
+from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.utils import _log_at_level, _safe_read
 
@@ -69,7 +71,7 @@ class BehaviorRule:
         self.custom_action = custom_action
         self.ban_duration = ban_duration
         self.correlate_with_detection = correlate_with_detection
-        self._discriminator_fields: tuple[Any, ...] | None = None
+        self._discriminator_fields: tuple[object, ...] | None = None
         self._discriminator = ""
 
     def discriminator(self) -> str:
@@ -115,8 +117,8 @@ class BehaviorTracker(
         self.return_patterns: dict[str, dict[str, list[float]]] = defaultdict(
             lambda: defaultdict(list)
         )
-        self.redis_handler: Any | None = None
-        self.agent_handler: Any | None = None
+        self.redis_handler: RedisHandlerProtocol | None = None
+        self.agent_handler: AgentHandlerProtocol | None = None
         self._body_unavailable_log_cache: TTLCache[str, bool] = TTLCache(
             maxsize=1000, ttl=300
         )
@@ -125,10 +127,10 @@ class BehaviorTracker(
         self._throttle_script_sha: str | None = None
         self._init_eviction_reporting()
 
-    async def initialize_redis(self, redis_handler: Any) -> None:
+    async def initialize_redis(self, redis_handler: RedisHandlerProtocol) -> None:
         self.redis_handler = redis_handler
 
-    async def initialize_agent(self, agent_handler: Any) -> None:
+    async def initialize_agent(self, agent_handler: AgentHandlerProtocol) -> None:
         self.agent_handler = agent_handler
 
     def _rule_hit_index(self, ip: str) -> tuple[str, int]:

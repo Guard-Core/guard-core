@@ -23,7 +23,7 @@ from guard_core.handlers._behavior_throttle import (
     usage_hits_key,
 )
 from guard_core.handlers.behavior_handler import BehaviorRule, BehaviorTracker
-from guard_core.handlers.redis_handler import redis_handler
+from guard_core.handlers.redis_handler import RedisHandlerBase, redis_handler
 from guard_core.models import BehaviorRuleConfig, SecurityConfig
 from tests.conftest import MockGuardResponse, MockGuardResponseFactory
 from tests.engine_redis_commands import server_loses_the_script_of_the_next_evalsha
@@ -67,8 +67,9 @@ class _Middleware:
         return await self._factory.create_error_response(status_code, default_message)
 
 
-class _Agent:
-    def __init__(self) -> None:
+class _Agent(MagicMock):
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
         self.events: list[Any] = []
 
     async def send_event(self, event: Any) -> None:
@@ -376,11 +377,18 @@ async def test_redis_script_is_reloaded_after_a_script_flush(
         assert response is not None and response.status_code == 429
 
 
-class _BrokenRedis:
-    def __init__(self, config: SecurityConfig) -> None:
-        self.config = config
-
-    async def record_sliding_window_hit(self, *args: Any) -> int:
+class _BrokenRedis(RedisHandlerBase):
+    async def record_sliding_window_hit(
+        self,
+        namespace: str,
+        key: str,
+        timestamp: float,
+        window_start: float,
+        ttl: int,
+        *,
+        index: tuple[str, int] | None = None,
+        index_refused: list[bool] | None = None,
+    ) -> int:
         return 0
 
     @asynccontextmanager

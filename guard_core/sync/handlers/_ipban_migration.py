@@ -1,30 +1,38 @@
 import contextlib
 import logging
-from typing import Any
+from typing import TYPE_CHECKING
 
 from guard_core.sync.handlers._ipban_prefix_contract import (
     enforce_prefix_length_contract,
 )
+from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
 from guard_core.sync.utils import _canonicalize_ip
+
+if TYPE_CHECKING:
+    from redis import Redis
+
+    from guard_core.models import SyncSecurityConfig
 
 _BANNED_IPS_NAMESPACE = "banned_ips"
 
 
-def _close_if_unusable(obj: Any, required_attr: str) -> bool:
+def _close_if_unusable(obj: object, required_attr: str) -> bool:
     if hasattr(obj, required_attr):
         return True
-    with contextlib.suppress(AttributeError):
-        obj.close()
+    close = getattr(obj, "close", None)
+    if callable(close):
+        with contextlib.suppress(AttributeError):
+            close()
     return False
 
 
 class IpBanMigrationMixin:
     logger: logging.Logger
-    redis_handler: Any = None
-    config: Any = None
-    _instance: Any
+    redis_handler: SyncRedisHandlerProtocol | None = None
+    config: "SyncSecurityConfig"
+    _instance: object
 
-    def initialize_redis(self, redis_handler: Any) -> None:
+    def initialize_redis(self, redis_handler: SyncRedisHandlerProtocol | None) -> None:
         type(self)._instance = self
         self.redis_handler = redis_handler
         self._migrate_legacy_ban_keys()
@@ -51,7 +59,7 @@ class IpBanMigrationMixin:
         except Exception as e:
             self.logger.warning("Legacy ban-key migration skipped: %s", e)
 
-    def _migrate_one_ban_key(self, conn: Any, key: str, prefix: str) -> None:
+    def _migrate_one_ban_key(self, conn: "Redis", key: str, prefix: str) -> None:
         raw_ip = key[len(prefix) :]
         canonical_ip = _canonicalize_ip(raw_ip)
         if canonical_ip == raw_ip:

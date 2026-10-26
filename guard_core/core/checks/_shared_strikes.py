@@ -1,10 +1,12 @@
 import logging
 import time
 from collections.abc import Callable, Collection
-from typing import TYPE_CHECKING, Any, NamedTuple
+from typing import TYPE_CHECKING, NamedTuple
 
 from guard_core._redis_enablement import redis_is_configured
 from guard_core.core.checks._ban_flow import BanFlow
+from guard_core.protocols.redis_protocol import RedisHandlerProtocol
+from guard_core.protocols.request_protocol import GuardRequest
 
 if TYPE_CHECKING:
     from guard_core.protocols.middleware_protocol import GuardMiddlewareProtocol
@@ -88,7 +90,9 @@ class FusedStrike:
         return shared if matches else None
 
 
-def _shared_strikes_redis(middleware: "GuardMiddlewareProtocol") -> Any:
+def _shared_strikes_redis(
+    middleware: "GuardMiddlewareProtocol",
+) -> RedisHandlerProtocol | None:
     if not redis_is_configured(middleware.config):
         return None
     return getattr(middleware.rate_limit_handler, "redis_handler", None)
@@ -129,6 +133,8 @@ async def forget_shared_detection_strikes(
     middleware: "GuardMiddlewareProtocol", client_ip: str
 ) -> None:
     redis_handler = _shared_strikes_redis(middleware)
+    if redis_handler is None:
+        return
     try:
         await redis_handler.forget_detection_strikes(client_ip)
     except Exception as error:
@@ -141,7 +147,7 @@ async def forget_shared_detection_strikes(
 
 
 async def read_shared_detection_categories(
-    redis_handler: Any, client_ip: str, window_seconds: int
+    redis_handler: RedisHandlerProtocol, client_ip: str, window_seconds: int
 ) -> list[str] | None:
     try:
         categories: list[str] = await redis_handler.read_detection_categories(
@@ -158,7 +164,7 @@ async def read_shared_detection_categories(
 
 
 async def fused_or_recorded_shared_strikes(
-    request: Any,
+    request: GuardRequest,
     middleware: "GuardMiddlewareProtocol",
     client_ip: str,
     categories: str | Collection[str],

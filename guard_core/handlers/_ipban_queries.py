@@ -2,7 +2,7 @@ import asyncio
 import ipaddress
 import logging
 from collections.abc import Callable, Iterable, MutableMapping
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from guard_core._utils.app_scope import (
     SHARED_BY_APPS,
@@ -18,6 +18,8 @@ from guard_core.handlers._ipban_lookup import IpBanLookupMixin
 from guard_core.handlers._ipban_recidive import IpBanRecidiveMixin
 from guard_core.handlers._ipban_rule_exempt import IpBanRuleExemptionMixin
 from guard_core.handlers.redis_handler import scan_unlink
+from guard_core.protocols.agent_protocol import AgentHandlerProtocol
+from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 from guard_core.utils import _canonicalize_ip
 
 if TYPE_CHECKING:
@@ -63,7 +65,7 @@ class IpBanQueryMixin(
     banned_ips: MutableMapping[str, float]
     banned_networks: list[tuple[_Network, float]]
     _foreign_network_expiries: dict[str, float]
-    redis_handler: Any = None
+    redis_handler: RedisHandlerProtocol | None = None
     logger: logging.Logger
 
     async def _unban_cidr(self, cidr: str, reason: str) -> None:
@@ -80,10 +82,12 @@ class IpBanQueryMixin(
                 ("banned_networks", str(network)),
                 ("banned_identities", str(network)),
             ]
-            await self._write_with_version_bump(deletes=[*bans, *_floors_of(bans)])
+            await self._write_with_version_bump(
+                self.redis_handler, deletes=[*bans, *_floors_of(bans)]
+            )
         await self._forget_strikes(str(network))
         if self.agent_handler:
-            await self._send_unban_event(str(network), reason)
+            await self._send_unban_event(self.agent_handler, str(network), reason)
 
     async def unban_inside(self, entries: Iterable[str]) -> None:
         networks = [ipaddress.ip_network(entry, strict=False) for entry in entries]
@@ -92,11 +96,13 @@ class IpBanQueryMixin(
         coverage = NetworkCoverage(networks)
         removed = await self._unban_memory_inside(coverage)
         if self.redis_handler:
-            removed.extend(await self._unban_redis_inside(coverage))
+            removed.extend(await self._unban_redis_inside(self.redis_handler, coverage))
         members = list(dict.fromkeys(removed))
         await self._forget_strikes_of(members)
         if self.agent_handler:
-            await self._send_unban_events(members, "dynamic_rule_whitelist")
+            await self._send_unban_events(
+                self.agent_handler, members, "dynamic_rule_whitelist"
+            )
 
     async def _forget_strikes_of(self, members: list[str]) -> None:
         for start in range(0, len(members), _EVENT_BATCH):
@@ -144,7 +150,7 @@ class IpBanQueryMixin(
         if not self.redis_handler:
             return
         try:
-            await self._unlink_strikes_inside(coverage)
+            await self._unlink_strikes_inside(self.redis_handler, coverage)
         except Exception as e:
             if strict:
                 raise
@@ -157,9 +163,11 @@ class IpBanQueryMixin(
             if _network_member_covered(identity, coverage):
                 del self.recidive_history[identity]
 
-    async def _unlink_strikes_inside(self, coverage: NetworkCoverage) -> None:
-        prefix = self.redis_handler.config.redis_prefix
-        async with self.redis_handler.get_connection() as conn:
+    async def _unlink_strikes_inside(
+        self, redis_handler: RedisHandlerProtocol, coverage: NetworkCoverage
+    ) -> None:
+        prefix = redis_handler.config.redis_prefix
+        async with redis_handler.get_connection() as conn:
             for stem in (
                 f"{prefix}rate_limit:violations:",
                 f"{prefix}detection:strikes:",
@@ -178,20 +186,24 @@ class IpBanQueryMixin(
         if not self.redis_handler:
             return
         try:
-            await self._unlink_prefixed(_STRIKE_PATTERNS)
+            await self._unlink_prefixed(self.redis_handler, _STRIKE_PATTERNS)
         except Exception as e:
             self.logger.warning("Redis strikes could not be cleared: %s", e)
 
-    async def _unlink_prefixed(self, patterns: Iterable[str]) -> None:
-        prefix = self.redis_handler.config.redis_prefix
-        async with self.redis_handler.get_connection() as conn:
+    async def _unlink_prefixed(
+        self, redis_handler: RedisHandlerProtocol, patterns: Iterable[str]
+    ) -> None:
+        prefix = redis_handler.config.redis_prefix
+        async with redis_handler.get_connection() as conn:
             for pattern in patterns:
                 await scan_unlink(conn, f"{prefix}{pattern}")
 
-    async def _send_unban_events(self, members: list[str], reason: str) -> None:
+    async def _send_unban_events(
+        self, agent_handler: AgentHandlerProtocol, members: list[str], reason: str
+    ) -> None:
         for start in range(0, len(members), _EVENT_BATCH):
             for member in members[start : start + _EVENT_BATCH]:
-                await self._send_unban_event(member, reason)
+                await self._send_unban_event(agent_handler, member, reason)
             await asyncio.sleep(0)
 
     async def _unban_memory_inside(self, coverage: NetworkCoverage) -> list[str]:
@@ -215,11 +227,13 @@ class IpBanQueryMixin(
             await asyncio.sleep(0)
         return removed
 
-    async def _unban_redis_inside(self, coverage: NetworkCoverage) -> list[str]:
+    async def _unban_redis_inside(
+        self, redis_handler: RedisHandlerProtocol, coverage: NetworkCoverage
+    ) -> list[str]:
         removed: list[str] = []
-        prefix = self.redis_handler.config.redis_prefix
+        prefix = redis_handler.config.redis_prefix
         try:
-            async with self.redis_handler.get_connection() as conn:
+            async with redis_handler.get_connection() as conn:
                 for namespace in ("banned_ips", "banned_networks", "banned_identities"):
                     stem = f"{prefix}{namespace}:"
                     batch: list[str] = []
@@ -234,11 +248,13 @@ class IpBanQueryMixin(
                             )
                             removed.append(member)
                         if len(batch) >= _BATCH:
-                            await self._unlink_with_version_bump(conn, batch)
+                            await self._unlink_with_version_bump(
+                                redis_handler, conn, batch
+                            )
                             batch.clear()
                             await asyncio.sleep(0)
                     if batch:
-                        await self._unlink_with_version_bump(conn, batch)
+                        await self._unlink_with_version_bump(redis_handler, conn, batch)
         except Exception as e:
             self.logger.warning("Redis unban of whitelisted ranges failed: %s", e)
         return removed
@@ -270,14 +286,14 @@ class IpBanQueryMixin(
         deletes.extend(_floors_of(deletes))
 
         if self.redis_handler:
-            await self._write_with_version_bump(deletes=deletes)
+            await self._write_with_version_bump(self.redis_handler, deletes=deletes)
 
         await self._forget_strikes(ip)
         if identity is not None:
             await self._forget_strikes(identity)
 
         if self.agent_handler:
-            await self._send_unban_event(ip, reason)
+            await self._send_unban_event(self.agent_handler, ip, reason)
 
     async def _unban_ip_across_sharing_apps(self, ip: str, reason: str) -> None: ...
 
@@ -287,12 +303,13 @@ class IpBanQueryMixin(
         self._foreign_network_expiries.clear()
         if self.redis_handler:
             await self._unlink_prefixed(
+                self.redis_handler,
                 (
                     "banned_ips:*",
                     "banned_networks:*",
                     "banned_identities:*",
                     f"{BAN_FLOORS_NAMESPACE}:*",
-                )
+                ),
             )
         await self._bump_ban_version()
         self._forget_shared_state()

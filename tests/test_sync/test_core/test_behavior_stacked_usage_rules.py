@@ -5,11 +5,13 @@ import pytest
 from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers import behavior_handler
 from guard_core.sync.handlers.behavior_handler import BehaviorRule, BehaviorTracker
+from guard_core.sync.handlers.redis_handler import RedisHandlerBase
 from tests.test_sync.conftest import MockGuardResponse
 
 
-class _HitListRedis:
+class _HitListRedis(RedisHandlerBase):
     def __init__(self) -> None:
+        super().__init__(SyncSecurityConfig(enable_redis=False))
         self.lists: dict[str, list[float]] = {}
 
     def record_sliding_window_hit(

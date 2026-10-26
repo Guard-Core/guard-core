@@ -2,9 +2,13 @@ import ipaddress
 import logging
 import time
 from collections.abc import MutableMapping, Sequence
-from typing import Any
+from typing import TYPE_CHECKING
 
 from guard_core.sync.handlers._ipban_cache import _Network, _OperatorNetworks
+from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
+
+if TYPE_CHECKING:
+    from redis import Redis
 
 _VERSION_PAIR = ("ban_version", "counter")
 _SCAN_COUNT = 2000
@@ -25,7 +29,7 @@ class IpBanVersionMixin:
 
     banned_ips: MutableMapping[str, float]
     banned_networks: list[tuple[_Network, float]]
-    redis_handler: Any = None
+    redis_handler: SyncRedisHandlerProtocol | None = None
     logger: logging.Logger
     _ban_version_seen: str | None = None
     _ban_version_checked_at: float = 0.0
@@ -52,32 +56,36 @@ class IpBanVersionMixin:
 
     def _write_with_version_bump(
         self,
+        redis_handler: SyncRedisHandlerProtocol,
         *,
-        sets: Sequence[tuple[str, str, Any, int | None]] = (),
+        sets: Sequence[tuple[str, str, object, int | None]] = (),
         deletes: Sequence[tuple[str, str]] = (),
     ) -> None:
         """The ban writes and the version INCR in one MULTI/EXEC: a worker that
         sees the new version sees the writes, and a failure leaves neither."""
-        self.redis_handler.write_atomically(
+        redis_handler.write_atomically(
             sets=sets, deletes=deletes, increment=_VERSION_PAIR
         )
 
-    def _version_redis_key(self) -> str:
-        prefix = self.redis_handler.config.redis_prefix
+    def _version_redis_key(self, redis_handler: SyncRedisHandlerProtocol) -> str:
+        prefix = redis_handler.config.redis_prefix
         return f"{prefix}{_VERSION_PAIR[0]}:{_VERSION_PAIR[1]}"
 
-    def _unlink_with_version_bump(self, conn: Any, keys: list[str]) -> None:
+    def _unlink_with_version_bump(
+        self, redis_handler: SyncRedisHandlerProtocol, conn: "Redis", keys: list[str]
+    ) -> None:
         with conn.pipeline(transaction=True) as pipe:
             pipe.unlink(*keys)
-            pipe.incr(self._version_redis_key())
+            pipe.incr(self._version_redis_key(redis_handler))
             pipe.execute()
 
     def _forget_shared_state(self) -> None:
         self._operator_networks = None
         self._ban_version_seen = None
 
-    def _read_operator_expiries(self) -> dict[_Network, float]:
-        redis = self.redis_handler
+    def _read_operator_expiries(
+        self, redis: SyncRedisHandlerProtocol
+    ) -> dict[_Network, float]:
         stem = f"{redis.config.redis_prefix}banned_networks:"
         expiries: dict[_Network, float] = {}
         with redis.get_connection() as conn:
@@ -93,14 +101,18 @@ class IpBanVersionMixin:
                         continue
         return expiries
 
-    def _reload_operator_networks(self) -> None:
-        raw = self.redis_handler.get_key(*_VERSION_PAIR)
+    def _reload_operator_networks(
+        self, redis_handler: SyncRedisHandlerProtocol
+    ) -> None:
+        raw = redis_handler.get_key(*_VERSION_PAIR)
         version = "0" if raw is None else str(raw)
-        self._operator_networks = _OperatorNetworks(self._read_operator_expiries())
+        self._operator_networks = _OperatorNetworks(
+            self._read_operator_expiries(redis_handler)
+        )
         self._ban_version_seen = version
         self._ban_version_checked_at = time.time()
 
-    def _version_moved(self, raw: Any, now: float) -> bool:
+    def _version_moved(self, raw: object, now: float) -> bool:
         version = "0" if raw is None else str(raw)
         self._ban_version_checked_at = now
         if self._ban_version_seen is None:
@@ -111,24 +123,26 @@ class IpBanVersionMixin:
         self.banned_ips.clear()
         return True
 
-    def _adopt_version(self, raw: Any, now: float) -> bool:
+    def _adopt_version(
+        self, redis_handler: SyncRedisHandlerProtocol, raw: object, now: float
+    ) -> bool:
         if not self._version_moved(raw, now):
             return False
-        self._reload_operator_networks()
+        self._reload_operator_networks(redis_handler)
         return True
 
     def _version_recheck_due(self, now: float) -> bool:
-        return bool(self.redis_handler) and (
-            now - self._ban_version_checked_at >= self._VERSION_RECHECK_SECONDS
-        )
+        return now - self._ban_version_checked_at >= self._VERSION_RECHECK_SECONDS
 
-    def _positive_survives_recheck(self, now: float) -> bool:
+    def _positive_survives_recheck(
+        self, redis_handler: SyncRedisHandlerProtocol, now: float
+    ) -> bool:
         try:
-            raw = self.redis_handler.get_key(*_VERSION_PAIR)
+            raw = redis_handler.get_key(*_VERSION_PAIR)
         except Exception as error:
             self._ban_version_checked_at = now
             self.logger.warning(
                 "The ban version could not be read, keeping the cached ban: %s", error
             )
             return True
-        return not self._adopt_version(raw, now)
+        return not self._adopt_version(redis_handler, raw, now)

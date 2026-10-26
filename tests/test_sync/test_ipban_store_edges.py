@@ -93,7 +93,7 @@ def test_an_unreadable_or_unparsable_operator_ban_is_skipped() -> None:
     connection.mget = MagicMock(return_value=["9999999999.0", "9999999999.0", None])
     manager.redis_handler = redis_with_connection(connection)
 
-    expiries = manager._read_operator_expiries()
+    expiries = manager._read_operator_expiries(manager.redis_handler)
 
     assert [str(network) for network in expiries] == ["198.51.100.0/24"]
 
@@ -120,7 +120,9 @@ def test_a_failed_eviction_event_is_logged(
     manager.agent_handler.send_event = MagicMock(side_effect=RuntimeError("down"))
 
     with caplog.at_level(logging.ERROR, logger="guard_core.sync.handlers.ipban"):
-        manager._send_ban_evicted_event("8.8.8.8", time.time() + 60, 1, 10)
+        manager._send_ban_evicted_event(
+            manager.agent_handler, "8.8.8.8", time.time() + 60, 1, 10
+        )
 
     assert any("Failed to send ban evicted event" in m for m in caplog.messages)
 
@@ -165,7 +167,7 @@ def test_a_carve_that_expired_between_scan_and_read_is_not_moved() -> None:
     connection.pttl = MagicMock(return_value=5000)
     manager = _carve_manager(connection)
 
-    assert manager._rewrite_redis_carves() == 0
+    assert manager._rewrite_redis_carves(manager.redis_handler) == 0
 
 
 def test_a_carve_without_a_ttl_is_not_moved() -> None:
@@ -175,7 +177,7 @@ def test_a_carve_without_a_ttl_is_not_moved() -> None:
     connection.pttl = MagicMock(return_value=-1)
     manager = _carve_manager(connection)
 
-    assert manager._rewrite_redis_carves() == 0
+    assert manager._rewrite_redis_carves(manager.redis_handler) == 0
 
 
 def test_a_carve_keeps_a_longer_ban_of_its_base_identity() -> None:
@@ -191,7 +193,7 @@ def test_a_carve_keeps_a_longer_ban_of_its_base_identity() -> None:
     connection.pipeline = pipeline_of(pipe)
     manager = _carve_manager(connection)
 
-    assert manager._rewrite_redis_carves() == 1
+    assert manager._rewrite_redis_carves(manager.redis_handler) == 1
 
     pipe.set.assert_not_called()
     pipe.delete.assert_called_once_with(
@@ -211,7 +213,7 @@ def test_a_carve_the_whitelist_still_produces_is_left_in_redis() -> None:
         enable_redis=False, whitelist=["2001:db8:0:1::5"]
     )
 
-    assert manager._rewrite_redis_carves() == 0
+    assert manager._rewrite_redis_carves(manager.redis_handler) == 0
 
     connection.get.assert_not_called()
 

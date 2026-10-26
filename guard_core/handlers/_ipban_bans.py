@@ -2,7 +2,7 @@ import ipaddress
 import logging
 import time
 from collections.abc import Awaitable, Callable, MutableMapping
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from guard_core._utils.app_scope import (
     SHARED_BY_APPS,
@@ -21,6 +21,7 @@ from guard_core.handlers._ipban_rule_exempt import (
 )
 from guard_core.handlers._ipban_rule_revoke import IpBanRuleRevokeMixin
 from guard_core.handlers._ipban_version import _VERSION_PAIR, IpBanVersionMixin
+from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 from guard_core.utils import _canonicalize_ip
 
 if TYPE_CHECKING:
@@ -48,8 +49,8 @@ class IpBanOperationsMixin(
     evictions_count: int
     evicted_to_report: list[tuple[str, float, int]]
     MAX_LOCAL_BANS: int
-    config: Any = None
-    redis_handler: Any = None
+    config: "SecurityConfig"
+    redis_handler: RedisHandlerProtocol | None = None
     logger: logging.Logger
 
     def _assert_positive_duration(self, duration: int) -> None:
@@ -75,10 +76,14 @@ class IpBanOperationsMixin(
                 network, expiry, reason == DYNAMIC_RULE_BAN_REASON
             )
         else:
-            await self._store_cidr_ban_in_redis(network, duration, reason)
+            await self._store_cidr_ban_in_redis(
+                self.redis_handler, network, duration, reason
+            )
 
         if self.agent_handler:
-            await self._send_ban_event(str(network), duration, reason)
+            await self._send_ban_event(
+                self.agent_handler, str(network), duration, reason
+            )
 
     def _remember_network_ban(
         self, network: _Network, expiry: float, rule_owned: bool = False
@@ -91,11 +96,15 @@ class IpBanOperationsMixin(
         self.banned_networks.append((network, max([expiry, *held])))
 
     async def _store_cidr_ban_in_redis(
-        self, network: _Network, duration: int, reason: str = "operator"
+        self,
+        redis_handler: RedisHandlerProtocol,
+        network: _Network,
+        duration: int,
+        reason: str = "operator",
     ) -> None:
         expiry = time.time() + duration
         try:
-            await self.redis_handler.write_ban_extending_only(
+            await redis_handler.write_ban_extending_only(
                 "banned_networks",
                 str(network),
                 str(expiry),
@@ -144,15 +153,16 @@ class IpBanOperationsMixin(
         recidive_count: int | None = None,
     ) -> None:
         expiry = time.time() + duration
-        backed = bool(self.redis_handler)
+        redis_handler = self.redis_handler
+        backed = bool(redis_handler)
         rule_owned = reason == DYNAMIC_RULE_BAN_REASON
         if not backed:
             self._note_memory_ban_write(namespace, key, expiry, rule_owned)
         self._remember_ban(key, expiry, backed)
 
-        if backed:
+        if redis_handler:
             try:
-                kept = await self.redis_handler.write_ban_extending_only(
+                kept = await redis_handler.write_ban_extending_only(
                     namespace,
                     key,
                     str(expiry),
@@ -174,8 +184,10 @@ class IpBanOperationsMixin(
                 recidive_count,
             )
         if self.agent_handler:
-            await self._report_evictions()
-            await self._send_ban_event(key, duration, reason, recidive_count)
+            await self._report_evictions(self.agent_handler)
+            await self._send_ban_event(
+                self.agent_handler, key, duration, reason, recidive_count
+            )
 
     def _ban_target(self, ip: str, grouped: bool) -> tuple[str, str]:
         if grouped:
@@ -295,7 +307,9 @@ class IpBanOperationsMixin(
             return
         self._log_refused_ban(ip, refusal)
         if self.agent_handler:
-            await self._send_ban_refused_event(ip, duration, reason, refusal)
+            await self._send_ban_refused_event(
+                self.agent_handler, ip, duration, reason, refusal
+            )
 
     def _refuse_rule_exempt_target(self, ip: str) -> bool:
         target = self._target_network(ip)

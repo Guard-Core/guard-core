@@ -9,6 +9,7 @@ from cachetools import TTLCache
 
 from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers._ipban_cache import _BanStore
+from guard_core.sync.handlers._ipban_rule_revoke import REVOKE_DELETED
 from guard_core.sync.handlers.ipban_handler import IPBanManager
 
 LOGGER = "guard_core.sync.handlers.ipban"
@@ -100,7 +101,9 @@ def test_the_refusal_event_reason_and_metadata() -> None:
 def test_the_evicted_event_states_the_remaining_time_and_capacity() -> None:
     manager = _manager()
 
-    manager._send_ban_evicted_event("203.0.113.9", time.time() + 100, 4, 50)
+    manager._send_ban_evicted_event(
+        manager.agent_handler, "203.0.113.9", time.time() + 100, 4, 50
+    )
 
     event = _event(manager)
     assert event.event_type == "ip_ban_evicted"
@@ -119,7 +122,9 @@ def test_the_evicted_event_states_the_remaining_time_and_capacity() -> None:
 def test_the_evicted_event_never_reports_negative_remaining_time() -> None:
     manager = _manager()
 
-    manager._send_ban_evicted_event("203.0.113.9", time.time() - 500, 1, 5)
+    manager._send_ban_evicted_event(
+        manager.agent_handler, "203.0.113.9", time.time() - 500, 1, 5
+    )
 
     assert _event(manager).metadata["remaining_seconds"] == 0
 
@@ -130,7 +135,7 @@ def test_pending_evictions_are_reported_once_with_the_store_capacity() -> None:
     assert isinstance(manager.banned_ips, _BanStore)
     capacity = manager.banned_ips.maxsize
 
-    manager._report_evictions()
+    manager._report_evictions(manager.agent_handler)
 
     event = _event(manager)
     assert event.metadata["capacity"] == capacity
@@ -143,7 +148,7 @@ def test_the_capacity_falls_back_to_the_local_cap_for_a_plain_mapping() -> None:
     manager.banned_ips = {}
     manager.evicted_to_report = [("203.0.113.9", time.time() + 60, 1)]
 
-    manager._report_evictions()
+    manager._report_evictions(manager.agent_handler)
 
     assert _event(manager).metadata["capacity"] == manager.MAX_LOCAL_BANS
 
@@ -153,7 +158,7 @@ def test_the_capacity_is_the_store_maxsize_when_it_has_one() -> None:
     manager.banned_ips = TTLCache(maxsize=7, ttl=60)
     manager.evicted_to_report = [("203.0.113.9", time.time() + 60, 1)]
 
-    manager._report_evictions()
+    manager._report_evictions(manager.agent_handler)
 
     assert manager.MAX_LOCAL_BANS != 7
     assert _event(manager).metadata["capacity"] == 7
@@ -162,7 +167,9 @@ def test_the_capacity_is_the_store_maxsize_when_it_has_one() -> None:
 def test_an_unban_event_carries_the_action_and_the_details() -> None:
     manager = _manager()
 
-    manager._send_unban_event("203.0.113.9", "manual", {"by": "ops"})
+    manager._send_unban_event(
+        manager.agent_handler, "203.0.113.9", "manual", {"by": "ops"}
+    )
 
     event = _event(manager)
     assert event.event_type == "ip_unbanned"
@@ -176,7 +183,7 @@ def test_an_unban_event_carries_the_action_and_the_details() -> None:
 def test_an_unban_event_without_details_holds_only_the_action() -> None:
     manager = _manager()
 
-    manager._send_unban_event("203.0.113.9", "manual")
+    manager._send_unban_event(manager.agent_handler, "203.0.113.9", "manual")
 
     assert _event(manager).metadata == {"action": "unban"}
 
@@ -216,7 +223,7 @@ def test_an_agent_failure_is_logged_with_its_cause(
     manager.agent_handler.send_event.side_effect = RuntimeError("boom")
 
     with caplog.at_level(logging.ERROR, logger=LOGGER):
-        getattr(manager, method)(*arguments)
+        getattr(manager, method)(manager.agent_handler, *arguments)
 
     assert text in _messages(caplog)
 
@@ -730,3 +737,24 @@ def test_a_fresh_manager_has_no_config_agent_or_redis() -> None:
     assert manager.config is None
     assert manager.agent_handler is None
     assert manager.redis_handler is None
+
+
+def test_a_due_version_recheck_without_redis_keeps_the_cached_ban(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    manager = _manager()
+    manager._ban_version_checked_at = 0.0
+
+    with caplog.at_level(logging.WARNING, logger=LOGGER):
+        assert manager._cached_positive_survives(time.time()) is True
+
+    assert _messages(caplog) == []
+
+
+def test_lifted_rule_bans_without_an_agent_send_no_event() -> None:
+    manager = _manager()
+    manager.agent_handler = None
+
+    manager.settle_rule_revocations([("203.0.113.9", REVOKE_DELETED)])
+
+    assert manager.agent_handler is None

@@ -1,33 +1,37 @@
 import logging
 import time
-from collections.abc import MutableMapping
+from collections.abc import Mapping, MutableMapping
 from datetime import datetime, timezone
-from typing import Any
+
+from guard_core.protocols.agent_protocol import AgentHandlerProtocol
 
 _IP_BAN_HANDLER_NAME = "ip_ban"
 
 
 class IpBanEventMixin:
-    agent_handler: Any = None
+    agent_handler: AgentHandlerProtocol | None = None
     logger: logging.Logger
     banned_ips: MutableMapping[str, float]
     evicted_to_report: list[tuple[str, float, int]]
     MAX_LOCAL_BANS: int
 
-    async def _report_evictions(self) -> None:
+    async def _report_evictions(self, agent_handler: AgentHandlerProtocol) -> None:
         """Send one ip_ban_evicted event for every memory-only ban evicted since
         the last report. Called after every insert that can evict: a ban written
         by _store_ban and a Redis hit cached by the lookup."""
         pending, self.evicted_to_report = self.evicted_to_report, []
         capacity = getattr(self.banned_ips, "maxsize", self.MAX_LOCAL_BANS)
         for identity, expiry, evictions in pending:
-            await self._send_ban_evicted_event(identity, expiry, evictions, capacity)
+            await self._send_ban_evicted_event(
+                agent_handler, identity, expiry, evictions, capacity
+            )
 
-    async def initialize_agent(self, agent_handler: Any) -> None:
+    async def initialize_agent(self, agent_handler: AgentHandlerProtocol) -> None:
         self.agent_handler = agent_handler
 
     async def _send_ban_event(
         self,
+        agent_handler: AgentHandlerProtocol,
         ip: str,
         duration: int,
         reason: str,
@@ -53,12 +57,17 @@ class IpBanEventMixin:
                     else {"duration": duration, "recidive_count": recidive_count}
                 ),
             )
-            await self.agent_handler.send_event(event)
+            await agent_handler.send_event(event)
         except Exception as e:
             self.logger.error("Failed to send ban event to agent: %s", e)
 
     async def _send_ban_refused_event(
-        self, ip: str, duration: int, reason: str, refusal: str
+        self,
+        agent_handler: AgentHandlerProtocol,
+        ip: str,
+        duration: int,
+        reason: str,
+        refusal: str,
     ) -> None:
         from guard_core.core.events.event_types import EVENT_IP_BAN_REFUSED
 
@@ -80,12 +89,17 @@ class IpBanEventMixin:
                     "ban_reason": reason,
                 },
             )
-            await self.agent_handler.send_event(event)
+            await agent_handler.send_event(event)
         except Exception as e:
             self.logger.error("Failed to send ban refused event to agent: %s", e)
 
     async def _send_ban_evicted_event(
-        self, ip: str, expiry: float, evictions: int, capacity: int
+        self,
+        agent_handler: AgentHandlerProtocol,
+        ip: str,
+        expiry: float,
+        evictions: int,
+        capacity: int,
     ) -> None:
         from guard_core.core.events.event_types import EVENT_IP_BAN_EVICTED
 
@@ -110,12 +124,16 @@ class IpBanEventMixin:
                     "capacity": capacity,
                 },
             )
-            await self.agent_handler.send_event(event)
+            await agent_handler.send_event(event)
         except Exception as e:
             self.logger.error("Failed to send ban evicted event to agent: %s", e)
 
     async def _send_unban_event(
-        self, ip: str, reason: str, details: dict[str, Any] | None = None
+        self,
+        agent_handler: AgentHandlerProtocol,
+        ip: str,
+        reason: str,
+        details: Mapping[str, object] | None = None,
     ) -> None:
         from guard_core.core.events.event_types import EVENT_IP_UNBANNED
 
@@ -133,6 +151,6 @@ class IpBanEventMixin:
                 handler_name=_IP_BAN_HANDLER_NAME,
                 metadata={"action": "unban", **(details or {})},
             )
-            await self.agent_handler.send_event(event)
+            await agent_handler.send_event(event)
         except Exception as e:
             self.logger.error("Failed to send unban event to agent: %s", e)

@@ -1,11 +1,13 @@
 import logging
 import warnings
+from unittest.mock import MagicMock
 
 import pytest
 
 from guard_core.handlers.ipban_handler import ip_ban_manager
 from guard_core.handlers.redis_handler import redis_handler as redis_handler_factory
 from guard_core.models import SecurityConfig
+from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 
 LEGACY_MAPPED_FORM = "::ffff:203.0.113.5"
 CANONICAL_FORM = "203.0.113.5"
@@ -38,29 +40,23 @@ class _BadScanConnCM:
         return None
 
 
-class _BadScanRedisHandler:
-    class config:
-        redis_prefix = "test:bad-scan:"
-
-    def __init__(self) -> None:
-        self.conn = _BadScanConn()
-
-    def get_connection(self) -> _BadScanConnCM:
-        return _BadScanConnCM(self.conn)
+def _bad_scan_redis_handler() -> MagicMock:
+    handler = MagicMock()
+    handler.config.redis_prefix = "test:bad-scan:"
+    handler.conn = _BadScanConn()
+    handler.get_connection.return_value = _BadScanConnCM(handler.conn)
+    return handler
 
 
-class _BadConnectionRedisHandler:
-    class config:
-        redis_prefix = "test:bad-connection:"
-
-    def __init__(self) -> None:
-        self.connection_cm = _NotAnAsyncIterator()
-
-    def get_connection(self) -> _NotAnAsyncIterator:
-        return self.connection_cm
+def _bad_connection_redis_handler() -> MagicMock:
+    handler = MagicMock()
+    handler.config.redis_prefix = "test:bad-connection:"
+    handler.connection_cm = _NotAnAsyncIterator()
+    handler.get_connection.return_value = handler.connection_cm
+    return handler
 
 
-async def _seed_legacy_ban(handler: object, duration: int = 60) -> None:
+async def _seed_legacy_ban(handler: RedisHandlerProtocol, duration: int = 60) -> None:
     await ip_ban_manager.initialize_redis(handler)
     await ip_ban_manager._ban_exact_ip(LEGACY_MAPPED_FORM, duration, "test_legacy_ban")
     ip_ban_manager.banned_ips.clear()
@@ -254,7 +250,7 @@ async def test_migration_closes_and_skips_non_async_iterable_scan_result(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     caplog.set_level(logging.WARNING, logger="guard_core.handlers.ipban")
-    handler = _BadScanRedisHandler()
+    handler = _bad_scan_redis_handler()
     try:
         with warnings.catch_warnings():
             warnings.simplefilter("error")
@@ -272,7 +268,7 @@ async def test_migration_closes_and_skips_non_async_context_manager_connection(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     caplog.set_level(logging.WARNING, logger="guard_core.handlers.ipban")
-    handler = _BadConnectionRedisHandler()
+    handler = _bad_connection_redis_handler()
     try:
         with warnings.catch_warnings():
             warnings.simplefilter("error")
