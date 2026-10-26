@@ -120,7 +120,25 @@ def test_each_app_resolves_a_ban_manager_of_its_own_prefix(
     assert manager_b.redis_handler is app_b.redis
     assert app_a.ip_check().ip_ban_manager is manager_a
     assert app_b.ip_check().ip_ban_manager is manager_b
-    assert IPBanManager._instance is manager_b
+    assert IPBanManager._instance is ipban_handler.ip_ban_manager
+
+
+def test_a_second_apps_manager_never_becomes_the_class_singleton(
+    apps: tuple[_App, _App],
+) -> None:
+    app_a, app_b = apps
+    manager_b = ipban_handler.ip_ban_manager_for(app_b.config)
+    assert manager_b is not ipban_handler.ip_ban_manager
+    assert IPBanManager() is ipban_handler.ip_ban_manager
+    unbound = SyncSecurityConfig(
+        enable_redis=True,
+        redis_url=REDIS_URL,
+        redis_prefix="unbound-wp189:",
+        enable_ip_banning=True,
+    )
+    resolved = ipban_handler.ip_ban_manager_for(unbound, unbound=IPBanManager())
+    assert resolved is ipban_handler.ip_ban_manager
+    assert resolved is not manager_b
 
 
 def test_a_ban_through_app_a_lands_under_a_and_app_b_does_not_see_it(

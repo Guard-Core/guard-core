@@ -33,7 +33,6 @@ class IpBanMigrationMixin:
     _instance: object
 
     def initialize_redis(self, redis_handler: SyncRedisHandlerProtocol | None) -> None:
-        type(self)._instance = self
         self.redis_handler = redis_handler
         self._migrate_legacy_ban_keys()
         config = self.config
