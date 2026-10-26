@@ -1109,8 +1109,9 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
     ),
     "handlers/_security_headers_override_state.py:SecurityHeadersOverrideMixin."
     "_log_cors_override": (
-        "lines 127, 131 and 138: operator-configured CORS origins and flags of "
-        "a flagged configure() call and a fixed reason string; no request data"
+        "lines 130, 132, 136 and 147: operator-configured CORS origins and flags "
+        "of a flagged configure() call and a fixed reason string that names "
+        "override fields, never their values; no request data"
     ),
     "handlers/_security_headers_config.py:"
     "SecurityHeadersConfigMixin._compute_cors_config": (
@@ -1126,6 +1127,10 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
     "SecurityHeadersConfigMixin._compute_hsts_config": (
         "lines 62,65: HSTS config validation warnings at construction "
         "time or per-config header resolution, not a request"
+    ),
+    "handlers/_security_headers_cors.py:SecurityHeadersCorsMixin.get_cors_headers": (
+        "line 125: a fixed message when a CORS header value fails header-value "
+        "validation; it carries neither the value nor the request origin"
     ),
     "handlers/_security_headers_cors.py:"
     "SecurityHeadersCorsMixin._is_wildcard_with_credentials": (
