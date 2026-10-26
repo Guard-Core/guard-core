@@ -246,10 +246,22 @@ _FILE_INCLUSION_SCHEME_RE = (
 # comments, 33 MB per request for a 256 KB text body), and the pattern safety
 # validator accepts the rows (a body that excludes the star and repeats a star group
 # did not fit its budget). A comment ends at its first slash, so a slash inside a
-# comment body ends the comment early.
+# comment body ends the comment early, except in a keyword gap (below).
 _SQL_BOUNDED_COMMENT_RE = r"/\*/?[^/]{0,40}\*/"
 _BARE_UNION_SELECT_NOISE_RE = r"(?:[^\w/]|\d|/(?!\*)|" + _SQL_BOUNDED_COMMENT_RE + r")*"
-_SQL_KEYWORD_GAP_RE = r"(?:\s|" + _SQL_BOUNDED_COMMENT_RE + r")+"
+# A keyword gap also takes the line comment markers "#" and "--" (the processed view
+# turns the newline that ends a line comment into a space, so "UNION#\nSELECT" reads
+# "UNION# SELECT"), and a block comment whose body holds a slash and no star
+# ("/*a/b*/"). The two comment forms are disjoint (the second one is only tried when
+# a slash comes before the first star), so a run of comments has one way to match and
+# the row stays linear. The gap may not end in a marker, which keeps "#union #select"
+# clean: "#select" is a hashtag, not a keyword. The pattern safety validator rejects a
+# gap that holds the comment form with its optional leading slash next to the second
+# form, so the gap forms leave out a body that opens with "/" and holds a star.
+_SQL_SLASH_COMMENT_RE = r"/\*(?=[^*]{0,40}/)[^*]{0,40}\*/"
+_SQL_KEYWORD_GAP_RE = (
+    r"(?:[\s#-]+(?![\s#-])|/\*[^/]{0,40}\*/|" + _SQL_SLASH_COMMENT_RE + r")+(?<![#-])"
+)
 BARE_UNION_SELECT_ROW = (
     r"(?i)\A(?:/\*)?"
     + _BARE_UNION_SELECT_NOISE_RE

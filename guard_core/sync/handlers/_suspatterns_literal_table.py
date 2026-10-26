@@ -247,7 +247,7 @@ BUILTIN_REQUIRED_LITERALS: dict[str, tuple[str, ...]] = {
         "cut",
         "end",
     ),
-    "10e7dd1e9a5a1f66": ("select",),
+    "134c7eb205d61022": ("select",),
     "13e7adee552af051": ("ro0ab",),
     "169aaac3b4635f54": ("constructor",),
     "16e4217d76917201": (
@@ -602,7 +602,7 @@ BUILTIN_REQUIRED_LITERALS: dict[str, tuple[str, ...]] = {
     ),
     "c624fe41391c5e5c": (),
     "c67b7240ffc23082": ("outfile", "dumpfile"),
-    "c8d56d91d47b003f": ("select",),
+    "c7518b2b4ee590c5": ("select",),
     "c8f497c487a17614": (),
     "c9c7e4c58bd3ae17": (),
     "ccd27df4a9eb1069": (
