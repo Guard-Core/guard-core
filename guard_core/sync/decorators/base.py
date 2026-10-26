@@ -143,7 +143,9 @@ class BaseSecurityDecorator:
             # share this config. An id assigned to a DIFFERENT function (in
             # this or another instance) must not select its config.
             return route_id
-        route_id = base_id = f"{func.__module__}.{func.__qualname__}"
+        # a callable object has no __qualname__ of its own; its class names it
+        qualname = getattr(func, "__qualname__", None) or type(func).__qualname__
+        route_id = base_id = f"{func.__module__}.{qualname}"
         suffix = 1
         while route_id in self._route_configs:
             suffix += 1
