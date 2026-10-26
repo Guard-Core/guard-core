@@ -5,6 +5,7 @@ BUILTIN_REQUIRED_LITERALS: dict[str, tuple[str, ...]] = {
     "027bd5715894f096": (),
     "02bd9e45f0658a24": (),
     "030a2c6b7b661bf8": (),
+    "04ebb1aae25ee7d2": ("select",),
     "04ef0ba8a91ae6d7": ("style",),
     "07f25a396f2dc3e4": (
         "streamlit",
@@ -411,7 +412,6 @@ BUILTIN_REQUIRED_LITERALS: dict[str, tuple[str, ...]] = {
         "bases",
         "getattribute",
     ),
-    "796ca43188de4d28": ("select",),
     "797d3163f44abdd1": ("wp-content",),
     "7d4a3f27544263a3": (
         "where",

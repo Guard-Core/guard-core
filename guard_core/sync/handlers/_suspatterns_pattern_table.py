@@ -224,12 +224,35 @@ _FILE_INCLUSION_SCHEME_RE = (
     r"|[Oo][Gg][Gg])://[^\s]+)"
 )
 
-# A value that is only UNION SELECT (a leading slash, a trailing semicolon, hash, NUL
-# or comment is still only that); flag_bare_union_select=False drops it for the
-# request's app.
+# A value that is only UNION SELECT: the keywords with nothing but punctuation,
+# whitespace, zero-width characters, digits and comments around them (the shapes
+# v4.4.0 flagged, which matched the keywords anywhere), never a letter, so prose such
+# as "how to union select two tables" stays clean. Every character of the value can
+# be consumed by one alternative only: a slash that opens "/*" is only taken by the
+# comment, and a comment body stops at its first "*/", so every value has one way to
+# match and the row is linear (the earlier "/\*.{0,40}?\*/" body let a run of
+# comments split in exponentially many ways). A gap between the keywords is
+# whitespace or comments (the processed view drops a control character next to a
+# comment, which leaves the comment alone in the gap), and a trailing comment may be
+# left open. The pattern safety validator must accept the row
+# (tests/test_detection/test_bare_union_select_redos.py): a form with an optional
+# group around the second gap exceeded its repeat-unit budget.
+# flag_bare_union_select=False drops it for the request's app.
+_BARE_UNION_SELECT_COMMENT_RE = r"/\*(?:[^*]|\*(?!/)){0,40}\*/"
+_BARE_UNION_SELECT_NOISE_RE = (
+    r"(?:[^\w/]|\d|/(?!\*)|" + _BARE_UNION_SELECT_COMMENT_RE + r")*"
+)
+_BARE_UNION_SELECT_GAP_RE = r"(?:\s|" + _BARE_UNION_SELECT_COMMENT_RE + r")+"
 BARE_UNION_SELECT_ROW = (
-    r"(?i)\A[\s/\ufeff]*UNION\s+(?:ALL\s+)?SELECT"
-    r"(?:[\s;#\x00]|/\*.{0,40}?\*/)*\Z"
+    r"(?i)\A"
+    + _BARE_UNION_SELECT_NOISE_RE
+    + r"UNION"
+    + _BARE_UNION_SELECT_GAP_RE
+    + r"(?:ALL"
+    + _BARE_UNION_SELECT_GAP_RE
+    + r")?SELECT"
+    + _BARE_UNION_SELECT_NOISE_RE
+    + r"(?:/\*(?:[^*]|\*(?!/))*)?\Z"
 )
 
 _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
