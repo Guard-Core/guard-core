@@ -1,8 +1,8 @@
+import importlib
 import logging
 from datetime import datetime, timezone
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 
-import guard_agent
 import pytest
 
 from guard_core._pydantic_plugin_mute import get_telemetry_model
@@ -33,26 +33,29 @@ def _emergency_rules() -> DynamicRules:
     )
 
 
+def _live_guard_agent() -> ModuleType:
+    # other test modules swap sys.modules["guard_agent"]; patch the one
+    # get_telemetry_model will import, not the one bound at collection time
+    return importlib.import_module("guard_agent")
+
+
 def test_telemetry_model_that_is_not_a_class_raises(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(guard_agent, "SecurityEvent", "not a class")
+    monkeypatch.setattr(_live_guard_agent(), "SecurityEvent", "not a class")
     with pytest.raises(TypeError, match="guard_agent.SecurityEvent is not a class"):
         get_telemetry_model("SecurityEvent")
 
 
-def test_telemetry_model_that_is_not_a_pydantic_model_raises(
+def test_telemetry_model_that_is_a_plain_class_is_returned_as_is(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(guard_agent, "SecurityEvent", SimpleNamespace)
-    with pytest.raises(
-        TypeError, match="guard_agent.SecurityEvent is not a pydantic model"
-    ):
-        get_telemetry_model("SecurityEvent")
+    monkeypatch.setattr(_live_guard_agent(), "SecurityEvent", SimpleNamespace)
+    assert get_telemetry_model("SecurityEvent") is SimpleNamespace
 
 
 def test_telemetry_model_that_is_a_class_is_returned() -> None:
-    assert get_telemetry_model("SecurityEvent") is guard_agent.SecurityEvent
+    assert get_telemetry_model("SecurityEvent") is _live_guard_agent().SecurityEvent
 
 
 async def test_rebuild_error_without_a_config_reraises_the_error() -> None:
