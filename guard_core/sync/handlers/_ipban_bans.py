@@ -1,9 +1,15 @@
 import ipaddress
 import logging
 import time
-from collections.abc import MutableMapping
+from collections.abc import Callable, MutableMapping
 from typing import Any
 
+from guard_core.sync._utils.app_scope import (
+    SHARED_BY_APPS,
+    _current_app_scope,
+    app_scope_of,
+    in_app_scope,
+)
 from guard_core.sync._utils.ip_extraction import MALFORMED_FORWARDED_FOR_PREFIX
 from guard_core.sync._utils.whitelist_match import parsed_networks
 from guard_core.sync.handlers._ipban_cache import _BanStore, _Network
@@ -35,6 +41,7 @@ class IpBanOperationsMixin(
     banned_ips: MutableMapping[str, float]
     banned_networks: list[tuple[_Network, float]]
     refused_ban_reported_until: dict[str, float]
+    _ban_ip_across_sharing_apps: Callable[[str, int, str, bool], bool]
     evictions_count: int
     evicted_to_report: list[tuple[str, float, int]]
     MAX_LOCAL_BANS: int
@@ -313,7 +320,13 @@ class IpBanOperationsMixin(
         reason: str = "threshold_exceeded",
         *,
         grouped: bool = False,
+        config: Any = None,
     ) -> bool:
+        if config is not None:
+            with in_app_scope(app_scope_of(config)):
+                return self.ban_ip(ip, duration, reason, grouped=grouped)
+        if _current_app_scope.get() is None and self.__dict__.get(SHARED_BY_APPS):
+            return self._ban_ip_across_sharing_apps(ip, duration, reason, grouped)
         applied = self._apply_ban(ip, duration, reason, grouped, escalate=False)
         return applied is not None
 

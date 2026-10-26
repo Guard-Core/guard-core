@@ -59,8 +59,14 @@ def _warn_split_connection(first: Any, second: Any) -> None:
     )
 
 
-def mark_shared_by_apps(manager: Any) -> None:
-    manager.__dict__[SHARED_BY_APPS] = True
+def mark_shared_by_apps(manager: Any, *configs: Any) -> None:
+    """Record the configs of the apps that share this manager, held weakly."""
+    sharing = manager.__dict__.get(SHARED_BY_APPS)
+    if sharing is None:
+        sharing = weakref.WeakValueDictionary()
+        manager.__dict__[SHARED_BY_APPS] = sharing
+    for config in configs:
+        sharing[id(config)] = config
 
 
 def unmark_shared_by_apps(manager: Any) -> None:
@@ -142,7 +148,7 @@ class AppManagers(Generic[_M]):
         if share_redis_prefix(served, config):
             if self._shares_default and _connection_key_of(config) == self._served_key:
                 self._default_apps.register(config, default, self.kind)
-                mark_shared_by_apps(default)
+                mark_shared_by_apps(default, served, config)
                 self._shared_default = weakref.ref(default)
                 return default
             if self._warns and _connection_key_of(config) != self._served_key:

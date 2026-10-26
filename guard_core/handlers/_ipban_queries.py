@@ -4,6 +4,12 @@ import logging
 from collections.abc import Callable, Iterable, MutableMapping
 from typing import Any
 
+from guard_core._utils.app_scope import (
+    SHARED_BY_APPS,
+    _current_app_scope,
+    app_scope_of,
+    in_app_scope,
+)
 from guard_core.handlers._dynamic_rule_persistence import BAN_FLOORS_NAMESPACE
 from guard_core.handlers._ipban_cache import _Network
 from guard_core.handlers._ipban_coverage import NetworkCoverage
@@ -234,7 +240,16 @@ class IpBanQueryMixin(
             self.logger.warning("Redis unban of whitelisted ranges failed: %s", e)
         return removed
 
-    async def unban_ip(self, ip: str, *, reason: str = "manual_unban") -> None:
+    async def unban_ip(
+        self, ip: str, *, reason: str = "manual_unban", config: Any = None
+    ) -> None:
+        if config is not None:
+            with in_app_scope(app_scope_of(config)):
+                await self.unban_ip(ip, reason=reason)
+            return
+        if _current_app_scope.get() is None and self.__dict__.get(SHARED_BY_APPS):
+            await self._unban_ip_across_sharing_apps(ip, reason)
+            return
         if "/" in ip:
             await self._unban_cidr(ip, reason)
             return
@@ -256,6 +271,8 @@ class IpBanQueryMixin(
 
         if self.agent_handler:
             await self._send_unban_event(ip, reason)
+
+    async def _unban_ip_across_sharing_apps(self, ip: str, reason: str) -> None: ...
 
     async def reset(self) -> None:
         self.banned_ips.clear()

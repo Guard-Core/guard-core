@@ -4,6 +4,12 @@ import time
 from collections.abc import Callable, MutableMapping
 from typing import TYPE_CHECKING, Any, NamedTuple
 
+from guard_core.sync._utils.app_scope import (
+    SHARED_BY_APPS,
+    _current_app_scope,
+    app_scope_of,
+    in_app_scope,
+)
 from guard_core.sync._utils.ip_extraction import (
     MALFORMED_FORWARDED_FOR_PREFIX,
     _canonicalize_ip,
@@ -39,6 +45,7 @@ class IpBanLookupMixin(IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptionMix
     redis_handler: Any = None
     config: Any = None
     logger: logging.Logger
+    _is_ip_banned_across_sharing_apps: Callable[[str], bool]
 
     def _grouped_identity_of(self, ip: str, config: Any) -> str | None:
         if ":" not in ip:
@@ -214,10 +221,16 @@ class IpBanLookupMixin(IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptionMix
         ip: str,
         fused_strike: Callable[[], "FusedStrike | None"] | None = None,
         defer_read: Callable[[PendingKeysRead], bool] | None = None,
+        config: Any = None,
     ) -> bool:
         """The ban lookup. ``defer_read`` may take over the Redis ban keys read
         (return ``True``): the caller then holds the read and the answer here is
-        ``False`` until it resolves it."""
+        ``False`` until it resolves it. ``config`` runs the lookup as that app."""
+        if config is not None:
+            with in_app_scope(app_scope_of(config)):
+                return self._is_ip_banned_under(ip, config, fused_strike, defer_read)
+        if _current_app_scope.get() is None and self.__dict__.get(SHARED_BY_APPS):
+            return self._is_ip_banned_across_sharing_apps(ip)
         return self._is_ip_banned_under(ip, self.config, fused_strike, defer_read)
 
     def _is_ip_banned_under(

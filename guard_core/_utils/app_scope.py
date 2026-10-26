@@ -1,6 +1,6 @@
 from collections.abc import Iterator
 from contextlib import contextmanager
-from contextvars import ContextVar
+from contextvars import ContextVar, Token
 from typing import Any
 
 from guard_core._utils.scan_config_scope import _scan_config_scope
@@ -20,12 +20,13 @@ class AppScope:
     sets it around its own non-request work.
     """
 
-    __slots__ = ("agent_handler", "config", "redis_handler")
+    __slots__ = ("agent_handler", "config", "redis_handler", "rule_exempt_networks")
 
     def __init__(self, config: Any) -> None:
         self.config = config
         self.agent_handler: Any = None
         self.redis_handler: Any = None
+        self.rule_exempt_networks: tuple[Any, ...] = ()
 
     def __copy__(self) -> "AppScope":
         return self
@@ -48,6 +49,10 @@ class ScopedToApp:
     Redis handler, never another app's.
     """
 
+    def __init__(self, writes_to_scope: bool = False, default: Any = None) -> None:
+        self._writes_to_scope = writes_to_scope
+        self._default = default
+
     def __set_name__(self, owner: type, name: str) -> None:
         self._name = name
 
@@ -64,10 +69,14 @@ class ScopedToApp:
         stored = instance.__dict__
         if self._name != "config" and stored.get(SHARED_BY_APPS):
             return None
-        return stored.get(self._name)
+        return stored.get(self._name, self._default)
 
     def __set__(self, instance: Any, value: Any) -> None:
-        instance.__dict__[self._name] = value
+        scope = _current_app_scope.get() if self._writes_to_scope else None
+        if scope is not None:
+            setattr(scope, self._name, value)
+        else:
+            instance.__dict__[self._name] = value
 
 
 def app_scope_of(config: Any) -> AppScope:
@@ -82,6 +91,28 @@ def app_scope_of(config: Any) -> AppScope:
 def existing_app_scope_of(config: Any) -> AppScope | None:
     found: AppScope | None = config.__dict__.get(_RECORD_ATTRIBUTE)
     return found
+
+
+def hold_app_scope(config: Any) -> "Token[AppScope | None] | None":
+    """Make this app's scope the one in force until ``release_app_scope``.
+
+    The entry point an adapter calls where a request's checks start, so the scope
+    also covers the route handler. Returns the token to release with, or None when
+    the app has no scope (nothing is set, so an outer app's scope is never
+    replaced by None).
+    """
+    scope = existing_app_scope_of(config)
+    return None if scope is None else _current_app_scope.set(scope)
+
+
+def release_app_scope(token: "Token[AppScope | None] | None") -> None:
+    """Restore the scope that was in force before ``hold_app_scope``.
+
+    A sync adapter calls this from a hook that always runs (Flask
+    ``teardown_request``, a ``finally`` around Django's ``get_response``).
+    """
+    if token is not None:
+        _current_app_scope.reset(token)
 
 
 @contextmanager

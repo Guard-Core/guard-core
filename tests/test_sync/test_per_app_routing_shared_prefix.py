@@ -7,7 +7,13 @@ from unittest.mock import MagicMock, Mock
 import pytest
 
 from guard_core.models import DynamicRules, SyncSecurityConfig
-from guard_core.sync._utils.app_scope import _current_app_scope
+from guard_core.sync._utils.app_scope import (
+    _current_app_scope,
+    app_scope_of,
+    hold_app_scope,
+    in_app_scope,
+    release_app_scope,
+)
 from guard_core.sync._utils.scan_config_scope import (
     _scan_config_scope,
     scan_config_scope_of,
@@ -15,6 +21,7 @@ from guard_core.sync._utils.scan_config_scope import (
 from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.core.checks.pipeline import SecurityCheckPipeline
 from guard_core.sync.core.initialization.handler_initializer import HandlerInitializer
+from guard_core.sync.handlers import _ipban_sharing
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.sync.handlers.ipban_handler import ip_ban_manager_for
 from guard_core.sync.handlers.suspatterns_handler import sus_patterns_manager_for
@@ -122,9 +129,8 @@ def test_first_app_refuses_its_proxy_ban_though_the_second_bound_last() -> None:
 
     assert (_run_request(first))["refusal"] == "trusted_proxy"
     manager = ip_ban_manager_for(first.config)
-    with pytest.MonkeyPatch.context() as patch:
-        patch.setattr(manager, "_log_refused_ban", Mock())
-        assert manager.ban_ip(PROXY, 60) is True
+    assert manager.ban_ip(PROXY, 60) is False
+    assert manager.ban_ip(PROXY, 60, config=first.config) is False
 
 
 def test_second_app_without_proxies_is_not_refused() -> None:
@@ -287,3 +293,211 @@ def test_the_split_warning_fires_with_a_redis_url_and_enable_redis_left_default(
     warnings = [r for r in caplog.records if r.name.endswith("app_managers")]
     assert len(warnings) == 1
     assert "hunter2" not in warnings[0].getMessage()
+
+
+EXEMPT = "203.0.113.7"
+
+
+def _whitelist_rules(rule_id: str, whitelist: list[str], version: int = 1) -> Any:
+    now = datetime.now(timezone.utc)
+    return DynamicRules(
+        rule_id=rule_id,
+        version=version,
+        timestamp=now,
+        expires_at=now + timedelta(hours=1),
+        ip_whitelist=whitelist,
+    )
+
+
+def _refresh(app: _App, rules: Any) -> None:
+    object.__setattr__(app.config, "enable_dynamic_rules", True)
+    manager = DynamicRuleManager(app.config)
+    manager.agent_handler = Mock(get_dynamic_rules=MagicMock(return_value=rules))
+    manager.force_update()
+
+
+@pytest.mark.parametrize("a_first", [True, False])
+def test_a_rule_whitelist_exempts_only_the_app_whose_rules_name_it(
+    a_first: bool,
+) -> None:
+    first = _start(f"wp136-exempt{a_first}:", ONE, [])
+    second = _start(f"wp136-exempt{a_first}:", ONE, [])
+    ban = ip_ban_manager_for(first.config)
+    assert ban is ip_ban_manager_for(second.config)
+    mine, theirs = _whitelist_rules("a", [EXEMPT]), _whitelist_rules("b", [])
+    if a_first:
+        _refresh(first, mine)
+        _refresh(second, theirs)
+    else:
+        _refresh(second, theirs)
+        _refresh(first, mine)
+
+    with in_app_scope(app_scope_of(first.config)):
+        assert ban._refuse_rule_exempt_target(EXEMPT) is True
+        assert ban.rule_exempt_networks
+    with in_app_scope(app_scope_of(second.config)):
+        assert ban._refuse_rule_exempt_target(EXEMPT) is False
+        assert not ban.rule_exempt_networks
+
+
+def test_the_app_without_the_whitelist_still_denies_a_banned_address() -> None:
+    first = _start("wp136-denies:", ONE, [])
+    second = _start("wp136-denies:", ONE, [])
+    ban = ip_ban_manager_for(first.config)
+    _refresh(first, _whitelist_rules("a", [EXEMPT]))
+    _refresh(second, _whitelist_rules("b", []))
+    ban.banned_ips[EXEMPT] = 10**12
+
+    with in_app_scope(app_scope_of(second.config)):
+        assert ban.is_ip_banned(EXEMPT) is True
+    with in_app_scope(app_scope_of(first.config)):
+        assert ban.is_ip_banned(EXEMPT) is False
+        assert ban.ban_ip(EXEMPT, 60) is False
+
+
+def test_a_rule_revert_clears_only_its_own_apps_exempt_set() -> None:
+    first = _start("wp136-revert:", ONE, [])
+    second = _start("wp136-revert:", ONE, [])
+    ban = ip_ban_manager_for(first.config)
+    _refresh(first, _whitelist_rules("a", [EXEMPT]))
+    _refresh(second, _whitelist_rules("b", ["203.0.113.8"]))
+    second_rules = DynamicRuleManager(second.config)
+    with in_app_scope(app_scope_of(second.config)):
+        second_rules._revert_to_base_config()
+        assert not ban.rule_exempt_networks
+    with in_app_scope(app_scope_of(first.config)):
+        assert ban._refuse_rule_exempt_target(EXEMPT) is True
+
+
+V6 = "2001:db8:1:2::9"
+
+
+def _record_store_ban(manager: Any, seen: list[tuple[str, str, Any, Any]]) -> None:
+    def store_ban(namespace: str, key: str, *args: Any, **kwargs: Any) -> None:
+        seen.append((namespace, key, manager.redis_handler, manager.agent_handler))
+
+    object.__setattr__(manager, "_store_ban", store_ban)
+
+
+def _two_apps(prefix: str, **second_settings: Any) -> tuple[_App, _App, Any]:
+    first = _start(prefix, ONE, [PROXY])
+    second = _start(prefix, ONE, [])
+    return first, second, ip_ban_manager_for(first.config)
+
+
+def test_a_ban_with_config_runs_as_that_app_with_one_write_and_one_event() -> None:
+    first, second, ban = _two_apps("wp136-m2:")
+    writes: list[tuple[str, str, Any, Any]] = []
+    _record_store_ban(ban, writes)
+    assert ban.ban_ip(PROXY, 60, config=first.config) is False
+    assert writes == []
+    assert ban.ban_ip("198.51.100.20", 60, config=second.config) is True
+    assert writes == [("banned_ips", "198.51.100.20", second.redis, _telemetry(second))]
+
+
+def test_an_unban_with_config_removes_only_that_apps_identity() -> None:
+    first = _start("wp136-m2u:", ONE, [])
+    second = _start("wp136-m2u:", ONE, [])
+    object.__setattr__(first.config, "ipv6_prefix_length", 64)
+    object.__setattr__(second.config, "ipv6_prefix_length", 48)
+    ban = ip_ban_manager_for(first.config)
+    identity_a = ban._grouped_identity_of(V6, first.config)
+    identity_b = ban._grouped_identity_of(V6, second.config)
+    assert identity_a and identity_b and identity_a != identity_b
+    for key in (V6, identity_a, identity_b):
+        ban.banned_ips[key] = 10**12
+    object.__setattr__(ban, "_write_with_version_bump", MagicMock())
+    object.__setattr__(ban, "_forget_strikes", MagicMock())
+
+    ban.unban_ip(V6, config=second.config)
+
+    assert V6 not in ban.banned_ips and identity_b not in ban.banned_ips
+    assert identity_a in ban.banned_ips
+
+
+def test_an_unscoped_ban_on_a_shared_manager_is_refused_when_any_app_refuses(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(_ipban_sharing, "_warned_about_unscoped_calls", False)
+    _, _, ban = _two_apps("wp136-m3r:")
+    with caplog.at_level(logging.WARNING):
+        assert ban.ban_ip(PROXY, 60) is False
+        assert ban.ban_ip(PROXY, 60) is False
+    warnings = [
+        r.getMessage() for r in caplog.records if "no app in scope" in r.getMessage()
+    ]
+    assert len(warnings) == 1
+    assert "wp136-m3r:" in warnings[0] and "one.invalid:6379" in warnings[0]
+    assert "hunter2" not in warnings[0] and "config=" in warnings[0]
+
+
+def test_an_unscoped_ban_writes_every_distinct_identity_without_an_event() -> None:
+    first, second, ban = _two_apps("wp136-m3w:")
+    object.__setattr__(first.config, "ipv6_prefix_length", 64)
+    object.__setattr__(second.config, "ipv6_prefix_length", 48)
+    writes: list[tuple[str, str, Any, Any]] = []
+    _record_store_ban(ban, writes)
+
+    assert ban.ban_ip(V6, 60, grouped=True) is True
+
+    assert {(n, k) for n, k, _, _ in writes} == {
+        ("banned_identities", str(ban._grouped_identity_of(V6, first.config))),
+        ("banned_identities", str(ban._grouped_identity_of(V6, second.config))),
+    }
+    assert all(agent is None for *_, agent in writes)
+
+
+def test_an_unscoped_unban_removes_every_identity_and_a_lookup_checks_each() -> None:
+    first, second, ban = _two_apps("wp136-m3u:")
+    object.__setattr__(first.config, "ipv6_prefix_length", 64)
+    object.__setattr__(second.config, "ipv6_prefix_length", 48)
+    identity_a = ban._grouped_identity_of(V6, first.config)
+    identity_b = ban._grouped_identity_of(V6, second.config)
+    ban.banned_ips[identity_a] = 10**12
+    ban.banned_ips[identity_b] = 10**12
+    assert ban.is_ip_banned(V6) is True
+    object.__setattr__(ban, "_write_with_version_bump", MagicMock())
+    object.__setattr__(ban, "_forget_strikes", MagicMock())
+
+    ban.unban_ip(V6)
+
+    assert identity_a not in ban.banned_ips and identity_b not in ban.banned_ips
+
+
+def test_an_unscoped_ban_reaches_redis_through_a_live_sharing_app() -> None:
+    first, second, ban = _two_apps("wp136-m3l:")
+    first.redis._closed = True
+    writes: list[tuple[str, str, Any, Any]] = []
+    _record_store_ban(ban, writes)
+
+    assert ban.ban_ip("198.51.100.30", 60) is True
+
+    assert writes[0][2] is second.redis
+    second.redis._closed = True
+    writes.clear()
+    assert ban.ban_ip("198.51.100.31", 60) is True
+    assert writes[0][2] is None
+
+
+def test_a_single_app_manager_answers_its_own_handlers_unscoped() -> None:
+    only = _start("wp136-m3s:", ONE, [])
+    ban = ip_ban_manager_for(only.config)
+    writes: list[tuple[str, str, Any, Any]] = []
+    _record_store_ban(ban, writes)
+    assert ban.ban_ip("198.51.100.40", 60) is True
+    assert writes == [("banned_ips", "198.51.100.40", only.redis, _telemetry(only))]
+
+
+def test_a_nested_hold_restores_the_outer_scope_and_never_sets_none() -> None:
+    first = _start("wp136-hold:", ONE, [])
+    second = _start("wp136-hold:", ONE, [])
+    outer = hold_app_scope(first.config)
+    assert _current_app_scope.get() is app_scope_of(first.config)
+    inner = hold_app_scope(second.config)
+    assert _current_app_scope.get() is app_scope_of(second.config)
+    release_app_scope(inner)
+    assert _current_app_scope.get() is app_scope_of(first.config)
+    assert hold_app_scope(SyncSecurityConfig(enable_agent=False)) is None
+    assert _current_app_scope.get() is app_scope_of(first.config)
+    release_app_scope(outer)
+    assert _current_app_scope.get() is None

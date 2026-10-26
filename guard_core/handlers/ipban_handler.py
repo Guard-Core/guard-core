@@ -4,20 +4,18 @@ from typing import Any
 
 from guard_core._utils.app_managers import AppManagers
 from guard_core._utils.app_scope import ScopedToApp
-from guard_core.handlers._ipban_bans import _LOOPBACK_NETWORKS, IpBanOperationsMixin
+from guard_core.handlers._ipban_bans import _LOOPBACK_NETWORKS
 from guard_core.handlers._ipban_cache import (
     DEFAULT_MAX_LOCAL_BANS,
     _BanStore,
     _Network,
     _ObservableTTLCache,
 )
-from guard_core.handlers._ipban_carve import IpBanCarveMixin
 from guard_core.handlers._ipban_migration import (
     _BANNED_IPS_NAMESPACE,
-    IpBanMigrationMixin,
     _close_if_unusable,
 )
-from guard_core.handlers._ipban_queries import IpBanQueryMixin
+from guard_core.handlers._ipban_sharing import IpBanSharedAppsMixin
 from guard_core.utils import _canonicalize_ip
 
 __all__ = [
@@ -34,9 +32,7 @@ __all__ = [
 ]
 
 
-class IPBanManager(
-    IpBanMigrationMixin, IpBanOperationsMixin, IpBanQueryMixin, IpBanCarveMixin
-):
+class IPBanManager(IpBanSharedAppsMixin):
     LOCAL_CACHE_TTL_CAP_SECONDS = 3600
     MAX_LOCAL_BANS = DEFAULT_MAX_LOCAL_BANS
     _EVICTION_LOG_EVERY = 100
@@ -52,6 +48,7 @@ class IPBanManager(
     config = ScopedToApp()
     redis_handler = ScopedToApp()
     agent_handler = ScopedToApp()
+    rule_exempt_networks = ScopedToApp(writes_to_scope=True, default=())
 
     def __new__(cls: type["IPBanManager"]) -> "IPBanManager":
         if cls._instance is None:
