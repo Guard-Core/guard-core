@@ -17,12 +17,14 @@ from guard_core._utils.scan_config_scope import _scan_config_scope, scan_config_
 from guard_core.core.checks.base import SecurityCheck
 from guard_core.core.checks.pipeline import SecurityCheckPipeline
 from guard_core.core.initialization.handler_initializer import HandlerInitializer
-from guard_core.handlers import _ipban_sharing
+from guard_core.handlers import _ipban_sharing, ratelimit_handler
 from guard_core.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.handlers.ipban_handler import ip_ban_manager_for
+from guard_core.handlers.redis_handler import RedisManager
 from guard_core.handlers.suspatterns_handler import sus_patterns_manager_for
 from guard_core.models import DynamicRules, SecurityConfig
 from tests.conftest import MockGuardRequest
+from tests.protocol_only_redis import REDIS_URL
 
 ONE = "redis://user:hunter2@one.invalid:6379/0"
 TWO = "redis://user:hunter2@two.invalid:6379/0"
@@ -32,7 +34,7 @@ PROXY = "10.0.0.1"
 @dataclass
 class _App:
     config: SecurityConfig
-    redis: MagicMock
+    redis: Any
     agent: MagicMock
     initializer: HandlerInitializer
 
@@ -544,3 +546,98 @@ async def test_a_pipeline_whose_app_has_no_scope_leaves_the_held_scope_in_force(
         release_app_scope(token)
     assert seen == [app_scope_of(held.config)]
     assert _current_app_scope.get() is None
+
+
+async def _live_app(prefix: str, proxies: list[str]) -> _App:
+    config = SecurityConfig(
+        enable_redis=True,
+        redis_url=REDIS_URL,
+        redis_prefix=prefix,
+        trusted_proxies=proxies,
+        enable_agent=False,
+        enable_dynamic_rules=False,
+        enable_rate_limit_auto_ban=True,
+        enable_ip_banning=True,
+    )
+    redis = RedisManager(config)
+    initializer = HandlerInitializer(config, redis_handler=redis)
+    await initializer.initialize_redis_handlers()
+    return _App(config, redis, _agent(), initializer)
+
+
+async def _live_pair(prefix: str) -> tuple[_App, _App, Any]:
+    first = await _live_app(prefix, [PROXY])
+    second = await _live_app(prefix, [])
+    ban = ip_ban_manager_for(first.config)
+    assert ban is ip_ban_manager_for(second.config)
+    return first, second, ban
+
+
+def _forget_local_bans(ban: Any) -> None:
+    ban.banned_ips.clear()
+    ban.banned_networks.clear()
+
+
+async def test_a_redis_ban_on_a_trusted_proxy_is_not_enforced_for_its_app(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(_ipban_sharing, "_warned_unenforced_bans", set())
+    prefix = f"wp136-d178-{id(caplog)}:"
+    first, second, ban = await _live_pair(prefix)
+    try:
+        assert await ban.ban_ip(PROXY, 3600, config=second.config) is True
+        assert await ban.ban_ip("198.51.100.50", 3600, config=second.config) is True
+        _forget_local_bans(ban)
+
+        with caplog.at_level(logging.WARNING):
+            assert await ban.is_ip_banned(PROXY, config=first.config) is False
+            assert await ban.is_ip_banned(PROXY, config=first.config) is False
+        assert await ban.is_ip_banned(PROXY, config=second.config) is True
+        assert await ban.is_ip_banned("198.51.100.50", config=first.config) is True
+        assert await ban.is_ip_banned(PROXY) is True
+        warnings = [
+            r.getMessage() for r in caplog.records if "not enforced" in r.getMessage()
+        ]
+        assert len(warnings) == 1
+        assert PROXY in warnings[0] and prefix in warnings[0]
+    finally:
+        await ban.unban_ip(PROXY, config=second.config)
+        await ban.unban_ip("198.51.100.50", config=second.config)
+        await first.redis.close()
+        await second.redis.close()
+
+
+async def test_a_network_ban_covering_the_proxy_answers_like_an_address_ban() -> None:
+    first, second, ban = await _live_pair(f"wp136-d178n-{id(PROXY)}:")
+    try:
+        assert await ban.ban_ip("10.0.0.0/24", 3600, config=second.config) is True
+        _forget_local_bans(ban)
+
+        assert await ban.is_ip_banned(PROXY, config=first.config) is False
+        assert await ban.is_ip_banned(PROXY, config=second.config) is True
+        assert await ban.is_ip_banned("10.0.0.9", config=first.config) is True
+    finally:
+        await ban.unban_ip("10.0.0.0/24", config=second.config)
+        await first.redis.close()
+        await second.redis.close()
+
+
+async def test_the_rate_limit_feed_uses_the_callers_config_for_a_stored_ban(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first, second, ban = await _live_pair(f"wp136-d178r-{id(PROXY)}:")
+    counts: dict[str, Any] = {}
+    monkeypatch.setattr(ratelimit_handler, "_by_ip_autoban_counts", counts)
+    try:
+        assert await ban.ban_ip(PROXY, 3600, config=second.config) is True
+        _forget_local_bans(ban)
+
+        await ratelimit_handler._feed_rate_limit_autoban(PROXY, first.config)
+        assert counts
+        counts.clear()
+        await ratelimit_handler._feed_rate_limit_autoban(PROXY, second.config)
+        assert not counts
+    finally:
+        await ban.unban_ip(PROXY, config=second.config)
+        await first.redis.close()
+        await second.redis.close()

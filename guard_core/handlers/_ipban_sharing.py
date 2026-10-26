@@ -20,6 +20,14 @@ _UNSCOPED_WARNING = (
     "config=<the app's config> to run it as one app."
 )
 _warned_about_unscoped_calls = False
+_UNENFORCED_BAN_WARNING = (
+    "A stored ban on %s is not enforced for the app with the Redis prefix %r (%s): "
+    "the address is one of its trusted proxies or a loopback address, and a ban "
+    "there would block every user behind it. The ban stays in force for apps "
+    "that do not trust it."
+)
+_MAX_WARNED_UNENFORCED_BANS = 256
+_warned_unenforced_bans: set[str] = set()
 
 
 def _redacted_apps_of(scopes: list[AppScope]) -> str:
@@ -52,6 +60,27 @@ class IpBanSharedAppsMixin(
     app that happened to bind last."""
 
     logger: logging.Logger
+
+    def _ban_stands_for(self, ip: str, config: Any) -> bool:
+        """Whether a ban a lookup found is enforced for the app running under
+        ``config``: not when ``config`` would refuse to record it (its trusted
+        proxies and loopback), so this app's reads match its writes."""
+        if self._self_dos_refusal_reason(ip, config) is None:
+            return True
+        if (
+            ip not in _warned_unenforced_bans
+            and len(_warned_unenforced_bans) < _MAX_WARNED_UNENFORCED_BANS
+        ):
+            from guard_core.handlers.redis_handler import _redact_redis_url
+
+            _warned_unenforced_bans.add(ip)
+            self.logger.warning(
+                _UNENFORCED_BAN_WARNING,
+                ip,
+                config.redis_prefix,
+                _redact_redis_url(config.redis_url),
+            )
+        return False
 
     def _across_apps_scopes(self, method: str) -> list[AppScope]:
         global _warned_about_unscoped_calls

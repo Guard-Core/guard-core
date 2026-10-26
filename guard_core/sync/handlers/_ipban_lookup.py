@@ -46,6 +46,7 @@ class IpBanLookupMixin(IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptionMix
     config: Any = None
     logger: logging.Logger
     _is_ip_banned_across_sharing_apps: Callable[[str], bool]
+    _ban_stands_for: Callable[[str, Any], bool]
 
     def _grouped_identity_of(self, ip: str, config: Any) -> str | None:
         if ":" not in ip:
@@ -245,23 +246,30 @@ class IpBanLookupMixin(IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptionMix
         primitive) passes its own config without touching the manager's."""
         outcome = self._ban_outcome_before_keys(ip, config)
         if not isinstance(outcome, PendingKeysRead):
-            return outcome
+            return outcome and self._ban_stands_for(ip, config)
         if defer_read is not None and defer_read(outcome):
             return False
-        return self.finish_ban_check(outcome, fused_strike)
+        return self.finish_ban_check(outcome, fused_strike, config)
 
     def begin_ban_check(self, ip: str) -> bool | PendingKeysRead:
         """What the lookup decides without the Redis ban keys: ``True`` or
         ``False``, or the read of those keys, left for ``finish_ban_check``."""
-        return self._ban_outcome_before_keys(ip, self.config)
+        outcome = self._ban_outcome_before_keys(ip, self.config)
+        if outcome is True:
+            return self._ban_stands_for(ip, self.config)
+        return outcome
 
     def finish_ban_check(
         self,
         read: PendingKeysRead,
         fused_strike: Callable[[], "FusedStrike | None"] | None = None,
+        config: Any = None,
     ) -> bool:
-        return self._check_redis_keys(
+        banned = self._check_redis_keys(
             read.ip, read.identity, time.time(), read.addr, fused_strike
+        )
+        return banned and self._ban_stands_for(
+            read.ip, self.config if config is None else config
         )
 
     def _ban_outcome_before_keys(self, ip: str, config: Any) -> bool | PendingKeysRead:

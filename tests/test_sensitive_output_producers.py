@@ -359,6 +359,11 @@ COVERED_PRODUCERS: dict[str, frozenset[str]] = {
 }
 
 NON_REQUEST_PRODUCERS: dict[str, str] = {
+    "handlers/_ipban_sharing.py:IpBanSharedAppsMixin._ban_stands_for": (
+        "one WARNING per address per process: the stored-ban address, which is a "
+        "configured trusted proxy or loopback address, and the app's Redis prefix "
+        "and redacted URL; client_ip is outside the secret matrix"
+    ),
     "handlers/_ipban_sharing.py:IpBanSharedAppsMixin._across_apps_scopes": (
         "one WARNING per process naming the sharing apps by Redis prefix and "
         "redacted URL when a ban call has no app in scope and no config=; it "

@@ -236,11 +236,12 @@ class IpBanOperationsMixin(
         except ValueError:
             return None
 
-    def _trusted_proxy_networks(self) -> list[_Network]:
-        trusted_proxies = getattr(self.config, "trusted_proxies", None) or ()
+    def _trusted_proxy_networks(self, config: Any = None) -> list[_Network]:
+        owner = self.config if config is None else config
+        trusted_proxies = getattr(owner, "trusted_proxies", None) or ()
         return list(parsed_networks(tuple(trusted_proxies)))
 
-    def _self_dos_refusal_reason(self, ip: str) -> str | None:
+    def _self_dos_refusal_reason(self, ip: str, config: Any = None) -> str | None:
         target = self._target_network(ip)
         if target is None:
             return None
@@ -251,7 +252,7 @@ class IpBanOperationsMixin(
             return "loopback"
         if any(
             target.version == network.version and target.overlaps(network)
-            for network in self._trusted_proxy_networks()
+            for network in self._trusted_proxy_networks(config)
         ):
             return "trusted_proxy"
         return None
