@@ -198,10 +198,10 @@ async def test_a_pattern_that_really_runs_past_its_budget_is_still_a_timeout(
 
 
 @pytest.fixture
-def isolated_manager() -> Iterator[SusPatternsManager]:
-    SusPatternsManager._instance = None
+def isolated_manager(monkeypatch: pytest.MonkeyPatch) -> Iterator[SusPatternsManager]:
+    monkeypatch.setattr(SusPatternsManager, "_instance", None)
+    monkeypatch.setattr(SusPatternsManager, "_config", None)
     yield SusPatternsManager(_config())
-    SusPatternsManager._instance = None
 
 
 @pytest.mark.usefixtures("saturated_regex_pool")
