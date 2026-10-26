@@ -58,6 +58,8 @@ def warn_unexempted_probe_paths(
         logger.warning(
             "[EMERGENCY MODE] exclude_paths holds %s, which emergency mode now "
             "blocks for every client outside the emergency whitelist. List the "
-            "probe paths that must stay reachable in emergency_exempt_paths.",
+            "probe paths that must stay reachable in emergency_exempt_paths."
+            " With emergency_whitelist_only off, whitelist and exempt_ips"
+            " clients also get through.",
             ", ".join(repr(path) for path in paths),
         )
