@@ -72,7 +72,8 @@ async def test_send_headers_event_with_actual_exception(
     import sys
 
     mock_guard_agent = MagicMock()
-    mock_event_class = MagicMock()
+    # a stand-in model class: get_telemetry_model only hands out classes
+    mock_event_class = MagicMock(spec=type)
     mock_event_instance = MagicMock()
     mock_event_class.return_value = mock_event_instance
     mock_guard_agent.SecurityEvent = mock_event_class
@@ -235,7 +236,8 @@ async def test_send_csp_violation_event_with_actual_exception(
     import sys
 
     mock_guard_agent = MagicMock()
-    mock_event_class = MagicMock()
+    # a stand-in model class: get_telemetry_model only hands out classes
+    mock_event_class = MagicMock(spec=type)
     mock_event_instance = MagicMock()
     mock_event_class.return_value = mock_event_instance
     mock_guard_agent.SecurityEvent = mock_event_class
