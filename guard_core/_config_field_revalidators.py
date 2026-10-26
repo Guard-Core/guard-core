@@ -1,13 +1,10 @@
-from typing import Any
-
-
-def _validate_bool_field_value(v: Any, *, field_name: str) -> bool:
+def _validate_bool_field_value(v: object, *, field_name: str) -> bool:
     if not isinstance(v, bool):
         raise ValueError(f"{field_name} must be a bool, got {type(v).__name__}")
     return v
 
 
-def _validate_optional_callable_field_value(v: Any, *, field_name: str) -> Any:
+def _validate_optional_callable_field_value(v: object, *, field_name: str) -> object:
     if v is not None and not callable(v):
         raise ValueError(
             f"{field_name} must be callable or None, got {type(v).__name__}"
@@ -15,26 +12,26 @@ def _validate_optional_callable_field_value(v: Any, *, field_name: str) -> Any:
     return v
 
 
-def _validate_int_field_value(v: Any, *, field_name: str) -> int:
+def _validate_int_field_value(v: object, *, field_name: str) -> int:
     if isinstance(v, bool) or not isinstance(v, int):
         raise ValueError(f"{field_name} must be an int, got {type(v).__name__}")
     return v
 
 
-def _validate_positive_int_field_value(v: Any, *, field_name: str) -> int:
+def _validate_positive_int_field_value(v: object, *, field_name: str) -> int:
     value = _validate_int_field_value(v, field_name=field_name)
     if value < 1:
         raise ValueError(f"{field_name} must be >= 1, got {value}")
     return value
 
 
-def _validate_str_list_field_value(v: Any, *, field_name: str) -> list[str]:
+def _validate_str_list_field_value(v: object, *, field_name: str) -> list[str]:
     if not isinstance(v, list) or not all(isinstance(item, str) for item in v):
         raise ValueError(f"{field_name} must be a list of str")
     return v
 
 
-def _validate_endpoint_rate_limits_value(v: Any) -> dict[str, tuple[int, int]]:
+def _validate_endpoint_rate_limits_value(v: object) -> dict[str, tuple[int, int]]:
     if not isinstance(v, dict):
         raise ValueError(f"endpoint_rate_limits must be a dict, got {type(v).__name__}")
     for key, entry in v.items():

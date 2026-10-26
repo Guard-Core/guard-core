@@ -138,6 +138,7 @@ def _render_and_check(
         quoted_marker = _quote_value(marker, quoting)
         pair = f"{quoted_name}{ws_pre}{assign_char}{ws_post}{quoted_marker}"
         result = _redact_sensitive_json({"note": pair}, frozenset(), _SENSITIVE, 32)
+        assert isinstance(result, dict)
         return str(result["note"])
 
     pair = _make_pair(
@@ -215,6 +216,7 @@ def _assert_benign_twin_byte_identical(
         quoted_benign = _quote_value(benign_value, quoting)
         pair = f"{quoted_name}{ws_pre}{assign_char}{ws_post}{quoted_benign}"
         result = _redact_sensitive_json({"note": pair}, frozenset(), _SENSITIVE, 32)
+        assert isinstance(result, dict)
         assert result["note"] == pair
         return
 

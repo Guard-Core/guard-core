@@ -95,7 +95,9 @@ def _batched_reach_probe_timings(
     probe_sets: Iterable[tuple[str, ...]],
     budget: ReachProbeCpuBudget,
     flags: int,
-    time_probes: Callable[..., _ReachProbeTimingLike | None],
+    time_probes: Callable[
+        [str, list[str], ReachProbeCpuBudget, int], _ReachProbeTimingLike | None
+    ],
 ) -> Iterator[tuple[tuple[str, ...], list[list[float]] | None, float]]:
     batch: list[tuple[str, ...]] = []
     for probes in probe_sets:
@@ -113,7 +115,9 @@ def _measure_probe_batch(
     batch: list[tuple[str, ...]],
     budget: ReachProbeCpuBudget,
     flags: int,
-    time_probes: Callable[..., _ReachProbeTimingLike | None],
+    time_probes: Callable[
+        [str, list[str], ReachProbeCpuBudget, int], _ReachProbeTimingLike | None
+    ],
 ) -> Iterator[tuple[tuple[str, ...], list[list[float]] | None, float]]:
     flattened = [probe for probes in batch for probe in probes]
     timing = time_probes(pattern, flattened, budget, flags)

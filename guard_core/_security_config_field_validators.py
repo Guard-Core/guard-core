@@ -5,7 +5,7 @@ from functools import partial
 from ipaddress import ip_address, ip_network
 from pathlib import Path
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Annotated, Any, Literal, cast, get_args
+from typing import TYPE_CHECKING, Annotated, Any, Literal, get_args
 
 from pydantic import AfterValidator, BaseModel, Field, TypeAdapter
 
@@ -354,7 +354,7 @@ def _validate_excluded_detection_params_value(
     )
     if isinstance(result, dict):
         _check_excluded_params_categories(result, field_name)
-    return cast(set[str] | dict[str, set[str]], result)
+    return result
 
 
 def _check_excluded_params_categories(

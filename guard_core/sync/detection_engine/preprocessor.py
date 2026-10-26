@@ -1,6 +1,6 @@
 import re
 import unicodedata
-from typing import Any
+from typing import TYPE_CHECKING
 
 from guard_core.sync.detection_engine import (
     base64_decode,
@@ -14,6 +14,9 @@ from guard_core.sync.detection_engine.on_handler_indicator import (
     ON_HANDLER_PATTERN,
     OnHandlerIndicator,
 )
+
+if TYPE_CHECKING:
+    from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol
 
 _WHITESPACE_RUN_RE = re.compile(r"\s+")
 _NON_WHITESPACE_RE = re.compile(r"\S")
@@ -38,7 +41,7 @@ class ContentPreprocessor:
         self,
         max_content_length: int = 10000,
         preserve_attack_patterns: bool = True,
-        agent_handler: Any = None,
+        agent_handler: "SyncAgentHandlerProtocol | None" = None,
         correlation_id: str | None = None,
         max_full_scan_bytes: int | None = None,
     ):
@@ -80,7 +83,7 @@ class ContentPreprocessor:
             r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b",
         ]
 
-        self.compiled_indicators: list[Any] = [
+        self.compiled_indicators: list[re.Pattern[str] | OnHandlerIndicator] = [
             OnHandlerIndicator()
             if pattern == ON_HANDLER_PATTERN
             else re.compile(pattern, re.IGNORECASE)
@@ -103,7 +106,7 @@ class ContentPreprocessor:
         event_type: str,
         action_taken: str,
         reason: str,
-        **kwargs: Any,
+        **kwargs: object,
     ) -> None:
         if not self.agent_handler:
             return

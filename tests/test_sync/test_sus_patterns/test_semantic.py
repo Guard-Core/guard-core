@@ -6,6 +6,7 @@ import time
 from unittest.mock import MagicMock, patch
 
 from guard_core.sync.detection_engine.semantic import (
+    SemanticAnalysis,
     SemanticAnalyzer,
     looks_like_binary_content,
 )
@@ -378,12 +379,15 @@ def test_analyze_comprehensive() -> None:
 def test_get_threat_score() -> None:
     analyzer = SemanticAnalyzer()
 
-    analysis_results = {
+    analysis_results: SemanticAnalysis = {
         "attack_probabilities": {"xss": 0.8, "sql": 0.6},
         "is_obfuscated": True,
         "encoding_layers": 2,
         "code_injection_risk": 0.5,
-        "suspicious_patterns": [{"type": "tag_like"}, {"type": "function_call"}],
+        "suspicious_patterns": [
+            {"type": "tag_like", "pattern": "<a", "position": 0, "context": "<a"},
+            {"type": "function_call", "pattern": "f(", "position": 0, "context": "f("},
+        ],
     }
 
     score = analyzer.get_threat_score(analysis_results)
@@ -395,7 +399,7 @@ def test_get_threat_score() -> None:
 def test_get_threat_score_minimal() -> None:
     analyzer = SemanticAnalyzer()
 
-    analysis_results = {
+    analysis_results: SemanticAnalysis = {
         "attack_probabilities": {},
         "is_obfuscated": False,
         "encoding_layers": 0,

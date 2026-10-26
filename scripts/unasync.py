@@ -252,8 +252,9 @@ _SYNC_SAFE_READ_REPLACEMENT = (
 
 _ASYNC_AWAIT_REGEX_FUTURE_SRC = (
     "async def _await_regex_future(\n"
-    "    future: concurrent.futures.Future[Any], started: list[float], timeout: float\n"
-    ") -> Any:\n"
+    "    future: concurrent.futures.Future[_Result], "
+    "started: list[float], timeout: float\n"
+    ") -> _Result:\n"
     "    try:\n"
     "        return await asyncio.wait_for("
     "asyncio.wrap_future(future), timeout=timeout)\n"
@@ -272,8 +273,9 @@ _ASYNC_AWAIT_REGEX_FUTURE_SRC = (
 
 _SYNC_AWAIT_REGEX_FUTURE_REPLACEMENT = (
     "def _await_regex_future(\n"
-    "    future: concurrent.futures.Future[Any], started: list[float], timeout: float\n"
-    ") -> Any:\n"
+    "    future: concurrent.futures.Future[_Result], "
+    "started: list[float], timeout: float\n"
+    ") -> _Result:\n"
     "    return wait_for_regex_run(future, started, timeout)\n"
 )
 

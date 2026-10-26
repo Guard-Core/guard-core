@@ -1,6 +1,6 @@
 import json
 import re
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from guard_core.sync._utils.body_json_scan import (
     _json_object_with_every_pair,
@@ -64,7 +64,7 @@ def _decoded_string_literals(literals: list[str]) -> frozenset[str]:
         return frozenset(map(_decoded_string_literal, literals))
 
 
-def _parse_embedded_json(value: str, every_pair: bool = False) -> Any | None:
+def _parse_embedded_json(value: str, every_pair: bool = False) -> object | None:
     if _nests_deeper_than(value, _EMBEDDED_JSON_MAX_PARSE_DEPTH):
         return _TOO_DEEP_TO_PARSE
     try:
@@ -82,7 +82,7 @@ def _parse_embedded_json(value: str, every_pair: bool = False) -> Any | None:
 
 
 def _embedded_json_display(
-    data: Any,
+    data: object,
     sensitive_body_fields: frozenset[str],
     redact_all: bool,
     sensitive_params: frozenset[str] = frozenset(),
@@ -177,7 +177,7 @@ def _check_embedded_json(
 
 
 def _walk_parsed_embedded_json(
-    data: Any,
+    data: object,
     context: str,
     client_ip: str,
     correlation_id: str,

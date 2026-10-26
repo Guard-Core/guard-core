@@ -1,11 +1,13 @@
 import logging
 import threading
 from collections import OrderedDict
-from collections.abc import Awaitable, Callable
-from typing import Any
+from typing import TYPE_CHECKING, Protocol
 
 from guard_core._utils.sampling import observe_counted_key
 from guard_core.models import SecurityConfig
+
+if TYPE_CHECKING:
+    from guard_core.protocols.agent_protocol import AgentHandlerProtocol
 
 EVICTION_WARNING_WINDOW_SECONDS = 60
 _EVICTION_KINDS_TRACKED = 8
@@ -21,6 +23,17 @@ _CAP_FIELD_BY_KIND = {
 }
 
 
+class _BehaviorEventSender(Protocol):
+    async def __call__(
+        self,
+        event_type: str,
+        ip_address: str,
+        action_taken: str,
+        reason: str,
+        **kwargs: object,
+    ) -> None: ...
+
+
 class BehaviorEvictionMixin:
     """Tells the operator when a behavior tracking cap drops a live entry.
 
@@ -32,16 +45,16 @@ class BehaviorEvictionMixin:
 
     config: SecurityConfig
     _lock: threading.Lock
-    agent_handler: Any
+    agent_handler: "AgentHandlerProtocol | None"
     logger: logging.Logger
-    _send_behavior_event: Callable[..., Awaitable[None]]
+    _send_behavior_event: _BehaviorEventSender
 
     def _init_eviction_reporting(self) -> None:
         self._eviction_samples: OrderedDict[str, tuple[float, int]] = OrderedDict()
         self._eviction_samples_lock = threading.Lock()
         # (kind, value) of every entry a cap dropped, until the request that
         # caused it reports them: the value is truthy when the entry was live.
-        self._evicted_values: list[tuple[str, Any]] = []
+        self._evicted_values: list[tuple[str, object]] = []
 
     async def _report_evictions(self, client_ip: str) -> None:
         with self._lock:

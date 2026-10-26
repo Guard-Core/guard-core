@@ -17,6 +17,8 @@ from .monitor_anomalies import (
     sanitize_anomaly_data,
 )
 from .monitor_reporting import (
+    PatternReport,
+    PerformanceSummary,
     build_pattern_report,
     build_summary_dict,
     collect_problematic_patterns,
@@ -289,7 +291,7 @@ class PerformanceMonitor:
         for anomaly in anomalies:
             await self._notify_callbacks(anomaly, agent_handler, correlation_id)
 
-    def get_pattern_report(self, pattern: str) -> dict[str, Any] | None:
+    def get_pattern_report(self, pattern: str) -> PatternReport | None:
         MAX_PATTERN_LENGTH = 100
         if len(pattern) > MAX_PATTERN_LENGTH:
             pattern = pattern[:MAX_PATTERN_LENGTH] + "...[truncated]"
@@ -300,21 +302,21 @@ class PerformanceMonitor:
 
         return build_pattern_report(pattern, stats, self.redaction_names)
 
-    async def get_slow_patterns(self, limit: int = 10) -> list[dict[str, Any]]:
+    async def get_slow_patterns(self, limit: int = 10) -> list[PatternReport]:
         async with self._lock:
             pattern_stats_snapshot = dict(self.pattern_stats)
         return collect_slow_patterns(
             pattern_stats_snapshot, self.get_pattern_report, limit
         )
 
-    async def get_problematic_patterns(self) -> list[dict[str, Any]]:
+    async def get_problematic_patterns(self) -> list[PatternReport]:
         async with self._lock:
             pattern_stats_snapshot = dict(self.pattern_stats)
         return collect_problematic_patterns(
             pattern_stats_snapshot, self.get_pattern_report, self.slow_pattern_threshold
         )
 
-    def _get_empty_summary(self) -> dict[str, Any]:
+    def _get_empty_summary(self) -> PerformanceSummary:
         return empty_summary()
 
     def _extract_metric_components(
@@ -329,12 +331,12 @@ class PerformanceMonitor:
         recent_times: list[float],
         timeouts: int,
         matches: int,
-    ) -> dict[str, Any]:
+    ) -> PerformanceSummary:
         return build_summary_dict(
             total_metrics, total_patterns, recent_times, timeouts, matches
         )
 
-    async def get_summary_stats(self) -> dict[str, Any]:
+    async def get_summary_stats(self) -> PerformanceSummary:
         async with self._lock:
             if not self.recent_metrics:
                 return self._get_empty_summary()

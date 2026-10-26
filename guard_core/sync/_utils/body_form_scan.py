@@ -1,4 +1,5 @@
-from typing import TYPE_CHECKING, Any
+from email.message import Message
+from typing import TYPE_CHECKING, Protocol
 
 from guard_core.sync._utils.detection_scan import (
     _binary_island_min_run_length,
@@ -132,8 +133,16 @@ def _island_payload_entries(
     ]
 
 
+class _MultipartPart(Protocol):
+    def get_param(self, param: str, /, *, header: str) -> object: ...
+
+    def get_filename(self) -> str | None: ...
+
+    def items(self) -> list[tuple[str, str]]: ...
+
+
 def _part_payload_entries(
-    exclusion_key: str | None, label: str, filename: str | None, payload: Any
+    exclusion_key: str | None, label: str, filename: str | None, payload: object
 ) -> list[tuple[str | None, str, str]]:
     if not isinstance(payload, str):
         return []
@@ -144,7 +153,7 @@ def _part_payload_entries(
     return [(exclusion_key, label, payload)]
 
 
-def _multipart_part_entries(part: Any) -> list[tuple[str | None, str, str]]:
+def _multipart_part_entries(part: _MultipartPart) -> list[tuple[str | None, str, str]]:
     entries: list[tuple[str | None, str, str]] = []
     name = part.get_param("name", header="content-disposition")
     filename = part.get_filename()
@@ -181,7 +190,7 @@ class _HeaderThenBody:
         return self._header[start:] + self._body[: stop - header_length]
 
 
-def _multipart_leaf_parts(raw_body: str, content_type: str) -> list[Any] | None:
+def _multipart_leaf_parts(raw_body: str, content_type: str) -> list[Message] | None:
     from email.parser import Parser
     from email.policy import compat32
 

@@ -1,6 +1,6 @@
 from collections.abc import Callable, Iterable
 from statistics import mean
-from typing import Any
+from typing import TypedDict
 
 from guard_core.sync._utils.detection_scan import _redact_pattern_source
 from guard_core.sync._utils.pattern_source_redaction import _SensitiveNameSets
@@ -8,9 +8,39 @@ from guard_core.sync._utils.pattern_source_redaction import _SensitiveNameSets
 from .monitor_types import PatternStats, PerformanceMetric
 
 
+class _PatternReportFields(TypedDict):
+    pattern: str
+    pattern_hash: str
+    total_executions: int
+    total_matches: int
+    total_timeouts: int
+    match_rate: float
+    timeout_rate: float
+    avg_execution_time: float
+    max_execution_time: float
+    min_execution_time: float
+
+
+class PatternReport(_PatternReportFields, total=False):
+    issue: str
+
+
+class _EmptySummaryFields(TypedDict):
+    total_executions: int
+    avg_execution_time: float
+    timeout_rate: float
+    match_rate: float
+
+
+class PerformanceSummary(_EmptySummaryFields, total=False):
+    max_execution_time: float
+    min_execution_time: float
+    total_patterns: int
+
+
 def build_pattern_report(
     pattern: str, stats: PatternStats, redaction_names: _SensitiveNameSets | None = None
-) -> dict[str, Any]:
+) -> PatternReport:
     redacted_pattern = _redact_pattern_source(pattern, redaction_names)
     safe_pattern = (
         redacted_pattern[:50] + "..."
@@ -39,9 +69,9 @@ def build_pattern_report(
 
 def collect_slow_patterns(
     pattern_stats: dict[str, PatternStats],
-    report_fn: Callable[[str], dict[str, Any] | None],
+    report_fn: Callable[[str], PatternReport | None],
     limit: int,
-) -> list[dict[str, Any]]:
+) -> list[PatternReport]:
     patterns_with_times = [
         (stats.avg_execution_time, pattern)
         for pattern, stats in pattern_stats.items()
@@ -60,9 +90,9 @@ def collect_slow_patterns(
 
 def collect_problematic_patterns(
     pattern_stats: dict[str, PatternStats],
-    report_fn: Callable[[str], dict[str, Any] | None],
+    report_fn: Callable[[str], PatternReport | None],
     slow_pattern_threshold: float,
-) -> list[dict[str, Any]]:
+) -> list[PatternReport]:
     problematic = []
 
     for pattern, stats in pattern_stats.items():
@@ -86,7 +116,7 @@ def collect_problematic_patterns(
     return problematic
 
 
-def empty_summary() -> dict[str, Any]:
+def empty_summary() -> PerformanceSummary:
     return {
         "total_executions": 0,
         "avg_execution_time": 0.0,
@@ -110,7 +140,7 @@ def build_summary_dict(
     recent_times: list[float],
     timeouts: int,
     matches: int,
-) -> dict[str, Any]:
+) -> PerformanceSummary:
     return {
         "total_executions": total_metrics,
         "avg_execution_time": mean(recent_times) if recent_times else 0.0,

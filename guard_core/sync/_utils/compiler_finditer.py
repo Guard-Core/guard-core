@@ -1,6 +1,6 @@
 import re
 import time
-from typing import Any
+from typing import TYPE_CHECKING
 
 from guard_core.sync._utils._scan_outcomes import (
     SCAN_OUTCOME_QUEUE_WAIT,
@@ -13,9 +13,12 @@ from guard_core.sync._utils.detection_scan import (
     _timed_in_worker,
 )
 
+if TYPE_CHECKING:
+    from guard_core.sync.detection_engine.compiler import PatternCompiler
+
 
 def _worker_finditer(
-    compiler: Any, pattern: re.Pattern, content: str
+    compiler: "PatternCompiler", pattern: re.Pattern, content: str
 ) -> tuple[list[re.Match], str | None]:
     worker_cpu: list[float] = []
     outcome: list[str] = []
@@ -32,7 +35,7 @@ def _worker_finditer(
 
 
 def _compiler_finditer(
-    compiler: Any,
+    compiler: "PatternCompiler",
     pattern: re.Pattern,
     category: str,
     content: str,

@@ -3,7 +3,7 @@ import logging
 import re
 from collections import Counter
 from time import thread_time
-from typing import Any
+from typing import TypedDict
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +29,23 @@ def looks_like_binary_content(content: str) -> bool:
         + content.count("�")
     )
     return non_text_count / len(content) >= _BINARY_CONTENT_RATIO_THRESHOLD
+
+
+class SuspiciousPattern(TypedDict):
+    type: str
+    pattern: str
+    position: int
+    context: str
+
+
+class SemanticAnalysis(TypedDict, total=False):
+    attack_probabilities: dict[str, float]
+    entropy: float
+    encoding_layers: int
+    is_obfuscated: bool
+    suspicious_patterns: list[SuspiciousPattern]
+    code_injection_risk: float
+    token_count: int
 
 
 class SemanticAnalyzer:
@@ -248,8 +265,8 @@ class SemanticAnalyzer:
 
         return False
 
-    def extract_suspicious_patterns(self, content: str) -> list[dict[str, Any]]:
-        patterns = []
+    def extract_suspicious_patterns(self, content: str) -> list[SuspiciousPattern]:
+        patterns: list[SuspiciousPattern] = []
 
         for name, pattern in self.attack_structures.items():
             scan_content = (
@@ -334,7 +351,7 @@ class SemanticAnalyzer:
         risk_score += self._check_injection_keywords(content)
         return min(risk_score, 1.0)
 
-    def analyze(self, content: str) -> dict[str, Any]:
+    def analyze(self, content: str) -> SemanticAnalysis:
         tokens = self.extract_tokens(content)
         return {
             "attack_probabilities": self._attack_probabilities_for_tokens(
@@ -348,7 +365,7 @@ class SemanticAnalyzer:
             "token_count": len(tokens),
         }
 
-    def get_threat_score(self, analysis_results: dict[str, Any]) -> float:
+    def get_threat_score(self, analysis_results: SemanticAnalysis) -> float:
         score = 0.0
 
         attack_probs = analysis_results.get("attack_probabilities", {})

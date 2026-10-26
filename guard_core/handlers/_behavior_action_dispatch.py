@@ -1,7 +1,7 @@
 import logging
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from guard_core.handlers._behavior_throttle import behavior_client_identity
 from guard_core.models import SecurityConfig
@@ -9,6 +9,7 @@ from guard_core.utils import _log_at_level
 
 if TYPE_CHECKING:
     from guard_core.handlers.behavior_handler import BehaviorRule
+    from guard_core.protocols.agent_protocol import AgentHandlerProtocol
 
 
 _BEHAVIOR_HANDLER_NAME = "behavior"
@@ -17,7 +18,7 @@ _BEHAVIOR_HANDLER_NAME = "behavior"
 class BehaviorActionDispatchMixin:
     config: SecurityConfig
     logger: logging.Logger
-    agent_handler: Any
+    agent_handler: "AgentHandlerProtocol | None"
 
     def _observe_only_log_prefix(self) -> str:
         return "[PASSIVE MODE] " if self.config.passive_mode else ""
@@ -87,7 +88,7 @@ class BehaviorActionDispatchMixin:
     async def _run_custom_action(
         self,
         rule: "BehaviorRule",
-        custom_action: Callable[..., Awaitable[Any]],
+        custom_action: Callable[[str, str, str], Awaitable[object]],
         client_ip: str,
         endpoint_id: str,
         details: str,
@@ -138,7 +139,7 @@ class BehaviorActionDispatchMixin:
         details: str,
         *,
         observe_only: bool = False,
-        **event_metadata: Any,
+        **event_metadata: object,
     ) -> str:
         if self.config.passive_mode or observe_only:
             action_taken = "logged_only"
@@ -172,7 +173,7 @@ class BehaviorActionDispatchMixin:
         ip_address: str,
         action_taken: str,
         reason: str,
-        **kwargs: Any,
+        **kwargs: object,
     ) -> None:
         if not self.agent_handler:
             return

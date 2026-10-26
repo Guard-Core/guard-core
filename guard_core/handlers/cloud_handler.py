@@ -6,7 +6,7 @@ import time
 from collections import OrderedDict
 from collections.abc import Awaitable, Callable, Collection
 from datetime import datetime, timezone
-from typing import Any
+from typing import TYPE_CHECKING
 
 from guard_core._utils.app_managers import AppManagers
 from guard_core._utils.app_scope import ScopedAgentHandler, ScopedRedisHandler
@@ -94,11 +94,21 @@ __all__ = [
 logger = logging.getLogger("guard_core.handlers.cloud")
 
 
+if TYPE_CHECKING:
+    from guard_core.models import SecurityConfig
+
+
+_FetchedRanges = (
+    tuple[set[ipaddress.IPv4Network | ipaddress.IPv6Network], dict[str, str]]
+    | set[ipaddress.IPv4Network | ipaddress.IPv6Network]
+)
+
+
 async def _fetch_provider_ranges(
     provider: str,
 ) -> tuple[set[ipaddress.IPv4Network | ipaddress.IPv6Network], dict[str, str]]:
     require_downloader_installed("cloud", "Fetching cloud provider ranges")
-    fetchers = {
+    fetchers: dict[str, Callable[[], Awaitable[_FetchedRanges]]] = {
         "AWS": fetch_aws_ip_ranges,
         "GCP": fetch_gcp_ip_ranges,
         "Azure": fetch_azure_ip_ranges,
@@ -106,7 +116,7 @@ async def _fetch_provider_ranges(
         "Linode": fetch_linode_ip_ranges,
         "Vultr": fetch_vultr_ip_ranges,
     }
-    result: Any = await fetchers[provider]()
+    result = await fetchers[provider]()
     if isinstance(result, tuple):
         return result
     return result, {}
@@ -465,7 +475,7 @@ class CloudManager:
             self.logger.error(f"Invalid IP address: {ip}")
             return False
 
-    def get_status(self) -> dict[str, dict[str, Any]]:
+    def get_status(self) -> dict[str, dict[str, bool | datetime | int | None]]:
         return {
             provider: {
                 "ready": bool(self.ip_ranges.get(provider)),
@@ -495,7 +505,7 @@ class CloudManager:
         provider: str,
         network: str,
         action_taken: str = "request_blocked",
-        **attribution: Any,
+        **attribution: object,
     ) -> None:
         from guard_core.core.events.event_types import EVENT_CLOUD_BLOCKED
 
@@ -518,7 +528,7 @@ class CloudManager:
         ip_address: str,
         action_taken: str,
         reason: str,
-        **kwargs: Any,
+        **kwargs: object,
     ) -> None:
         if not self.agent_handler:
             return
@@ -547,7 +557,7 @@ cloud_handler = CloudManager()
 _APP_CLOUD_MANAGERS: AppManagers[CloudManager] = AppManagers("cloud")
 
 
-def cloud_handler_for(config: Any, bind: bool = False) -> CloudManager:
+def cloud_handler_for(config: "SecurityConfig", bind: bool = False) -> CloudManager:
     """The cloud manager of the app built from config.
 
     The module-level ``cloud_handler`` serves the first app and any app that

@@ -1,4 +1,4 @@
-from typing import Any
+from collections.abc import Mapping
 
 _HSTS_FLAGS = ("include_subdomains", "preload")
 
@@ -7,7 +7,7 @@ def _splits_a_directive(char: str) -> bool:
     return ord(char) < 32 or ord(char) == 127 or char in ";,"
 
 
-def _plain_directive_name(name: Any) -> bool:
+def _plain_directive_name(name: object) -> bool:
     return (
         isinstance(name, str)
         and bool(name)
@@ -15,17 +15,17 @@ def _plain_directive_name(name: Any) -> bool:
     )
 
 
-def _plain_directive_source(source: Any) -> bool:
+def _plain_directive_source(source: object) -> bool:
     return isinstance(source, str) and not any(
         _splits_a_directive(char) for char in source
     )
 
 
-def _plain_directive_sources(sources: Any) -> bool:
+def _plain_directive_sources(sources: object) -> bool:
     return isinstance(sources, list) and all(map(_plain_directive_source, sources))
 
 
-def validate_cached_csp(record: Any) -> dict[str, list[str]]:
+def validate_cached_csp(record: object) -> dict[str, list[str]]:
     if not isinstance(record, dict):
         raise ValueError("the record is not a JSON object")
     if not all(map(_plain_directive_name, record)):
@@ -41,15 +41,15 @@ def validate_cached_csp(record: Any) -> dict[str, list[str]]:
     return record
 
 
-def _non_negative_int(value: Any) -> bool:
+def _non_negative_int(value: object) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and value >= 0
 
 
-def _hsts_flags_are_booleans(record: dict[str, Any]) -> bool:
+def _hsts_flags_are_booleans(record: Mapping[str, object]) -> bool:
     return all(isinstance(record.get(flag, False), bool) for flag in _HSTS_FLAGS)
 
 
-def validate_cached_hsts(record: Any) -> dict[str, Any]:
+def validate_cached_hsts(record: object) -> dict[str, object]:
     if not isinstance(record, dict):
         raise ValueError("the record is not a JSON object")
     if not _non_negative_int(record.get("max_age")):

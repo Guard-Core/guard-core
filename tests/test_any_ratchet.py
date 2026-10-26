@@ -1,5 +1,7 @@
 import ast
 import re
+import subprocess
+import sys
 from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parent.parent
@@ -63,3 +65,42 @@ def test_every_unlisted_module_names_no_any() -> None:
         if _module_name(path) not in listed and _names_any(path)
     ]
     assert not regained, f"clean modules that regained Any: {regained}"
+
+
+_EXPLICIT_ANY_ERROR = re.compile(
+    r"^(guard_core/[^:]+\.py):\d+: error: .*\[explicit-any\]"
+)
+
+
+def test_every_listed_module_still_needs_its_override(tmp_path: Path) -> None:
+    # Runs mypy over guard_core with the override blocks removed, so the strict
+    # setting applies to every module: a listed module with no explicit-any error
+    # is clean already and has to leave the list.
+    strict_config = tmp_path / "mypy_strict.toml"
+    strict_config.write_text(_OVERRIDES.sub("", (_ROOT / "pyproject.toml").read_text()))
+    run = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "mypy",
+            "guard_core",
+            "--config-file",
+            str(strict_config),
+            "--cache-dir",
+            str(tmp_path / "cache"),
+        ],
+        cwd=_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    flagged = {
+        _module_name(_ROOT / match[1])
+        for line in run.stdout.splitlines()
+        if (match := _EXPLICIT_ANY_ERROR.match(line))
+    }
+    stale = sorted(set(_listed_modules()) - flagged)
+    assert not stale, (
+        "D-177 ratchet: these modules no longer need their override (mypy passes "
+        f"for them with disallow_any_explicit on); remove them from the list: {stale}"
+    )

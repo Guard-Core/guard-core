@@ -1,7 +1,7 @@
 import contextvars
 import re
-from collections.abc import Iterator
-from typing import Any, NamedTuple
+from collections.abc import Iterator, Mapping
+from typing import NamedTuple
 
 
 class SourcePathShape(NamedTuple):
@@ -85,7 +85,7 @@ class BenignShapePath(str):
     grants: frozenset[str]
 
 
-class BenignShapePaths(list[Any]):
+class BenignShapePaths(list[object]):
     """A list of path leaves the walk found in a benign shape."""
 
     __slots__ = ("grants",)
@@ -93,7 +93,7 @@ class BenignShapePaths(list[Any]):
 
 
 def _applicable_shapes(
-    entries: dict[Any, Any], container: str
+    entries: Mapping[object, object], container: str
 ) -> Iterator[SourcePathShape]:
     for shape in BENIGN_SOURCE_PATH_SHAPES:
         if shape.containers and container not in shape.containers:
@@ -103,7 +103,9 @@ def _applicable_shapes(
         yield shape
 
 
-def benign_shape_keys(entries: dict[Any, Any], container: str) -> frozenset[str]:
+def benign_shape_keys(
+    entries: Mapping[object, object], container: str
+) -> frozenset[str]:
     exempt: set[str] = set()
     for shape in _applicable_shapes(entries, container):
         exempt.update(key for key in shape.keys if key in entries)
@@ -111,7 +113,7 @@ def benign_shape_keys(entries: dict[Any, Any], container: str) -> frozenset[str]
 
 
 def benign_shape_grants(
-    entries: dict[Any, Any], container: str
+    entries: Mapping[object, object], container: str
 ) -> dict[str, frozenset[str]]:
     granted: dict[str, frozenset[str]] = {}
     for shape in _applicable_shapes(entries, container):
@@ -139,7 +141,7 @@ def mark_benign_shape_path(path: str, grants: frozenset[str]) -> BenignShapePath
     return marked
 
 
-def mark_benign_shape(value: Any, grants: frozenset[str]) -> Any:
+def mark_benign_shape(value: object, grants: frozenset[str]) -> object:
     if isinstance(value, str):
         return mark_benign_shape_path(value, grants)
     if isinstance(value, list):

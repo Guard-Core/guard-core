@@ -473,7 +473,9 @@ def _direct_reach_probe_timings(
     probe_sets: Iterable[tuple[str, ...]],
     budget: ReachProbeCpuBudget,
     flags: int,
-    time_probes: Callable[..., ReachProbeTiming | None],
+    time_probes: Callable[
+        [str, list[str], ReachProbeCpuBudget, int], ReachProbeTiming | None
+    ],
 ) -> Iterator[tuple[tuple[str, ...], list[list[float]] | None, float]]:
     for probes in probe_sets:
         timing = time_probes(pattern, list(probes), budget, flags)
@@ -528,7 +530,9 @@ def _retry_reach_probe_timing(
     probes: tuple[str, ...],
     budget: ReachProbeCpuBudget,
     flags: int,
-    time_probes: Callable[..., ReachProbeTiming | None],
+    time_probes: Callable[
+        [str, list[str], ReachProbeCpuBudget, int], ReachProbeTiming | None
+    ],
 ) -> ReachProbeTiming | None:
     validated = _valid_timing_rows(
         time_probes(pattern, list(probes), budget, flags), len(probes)

@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from collections.abc import Collection
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, ClassVar, Literal
 
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
@@ -54,7 +54,7 @@ class SecurityCheck(ABC):
         request: SyncGuardRequest,
         action_taken: str,
         reason: str,
-        **kwargs: Any,
+        **kwargs: object,
     ) -> None:
         self.middleware.event_bus.send_middleware_event(
             event_type=event_type,
@@ -80,7 +80,8 @@ class SecurityCheck(ABC):
         reason: str = "",
         passive_mode: bool = False,
         trigger_info: str = "",
-        level: Any = "WARNING",
+        level: Literal["INFO", "DEBUG", "WARNING", "ERROR", "CRITICAL"]
+        | None = "WARNING",
     ) -> None:
         from guard_core.sync.utils import log_activity
 

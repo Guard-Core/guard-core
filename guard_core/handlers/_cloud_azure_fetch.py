@@ -5,7 +5,7 @@ import logging
 import re
 import time
 from datetime import date, datetime, timezone
-from typing import Any
+from typing import TypedDict
 from urllib.parse import urlparse
 
 logger = logging.getLogger("guard_core.handlers.cloud")
@@ -26,9 +26,22 @@ _AZURE_SERVICE_TAGS_STALE_WARNING_DAYS = 90
 _AZURE_CLOUD_SERVICE_TAG_NAME = "AzureCloud"
 
 
+class _ServiceTagProperties(TypedDict, total=False):
+    addressPrefixes: list[str]
+
+
+class _ServiceTag(TypedDict, total=False):
+    name: str
+    properties: _ServiceTagProperties
+
+
+class _ServiceTagsDocument(TypedDict, total=False):
+    values: list[_ServiceTag]
+
+
 async def _download_azure_service_tags(
     download_url: str, deadline: float | None = None
-) -> Any:
+) -> _ServiceTagsDocument:
     import aiohttp
 
     if deadline is None:
@@ -59,7 +72,8 @@ async def _download_azure_service_tags(
                     f"(status {response.status}); refusing to follow redirects"
                 )
             response.raise_for_status()
-            return await response.json(content_type=None)
+            document: _ServiceTagsDocument = await response.json(content_type=None)
+            return document
 
 
 def _is_trusted_azure_download_url(url: str) -> bool:
@@ -148,7 +162,7 @@ def _extract_azure_download_url(decoded_html: str) -> str | None:
     )
 
 
-def _select_azure_cloud_prefixes(data: Any) -> list[str]:
+def _select_azure_cloud_prefixes(data: _ServiceTagsDocument) -> list[str]:
     for entry in data.get("values", []):
         if entry.get("name") == _AZURE_CLOUD_SERVICE_TAG_NAME:
             return list(entry.get("properties", {}).get("addressPrefixes", []))

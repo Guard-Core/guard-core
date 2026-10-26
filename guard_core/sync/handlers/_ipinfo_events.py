@@ -1,6 +1,5 @@
 import logging
 from datetime import datetime, timezone
-from typing import Any
 
 from guard_core.sync.core.events.event_types import EVENT_COUNTRY_BLOCKED
 from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol
@@ -20,7 +19,7 @@ class IpInfoEventsMixin:
         ip_address: str,
         action_taken: str,
         reason: str,
-        **kwargs: Any,
+        **kwargs: object,
     ) -> None:
         if not self.agent_handler:
             return

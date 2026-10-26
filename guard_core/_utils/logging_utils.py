@@ -1,7 +1,6 @@
 import contextvars
 import json
 import logging
-from typing import Any
 
 from guard_core._utils.pair_value_scan import _bounded_percent_decode
 from guard_core._utils.sensitive_names import name_is_sensitive
@@ -100,16 +99,19 @@ def _redact_json_string_leaf(
     )
 
 
+_JsonContainer = dict[object, object] | list[object]
+
+
 def _redact_json_child(
-    key: Any,
-    item: Any,
+    key: object,
+    item: object,
     source_is_dict: bool,
     depth: int,
     max_depth: int,
     leaf_sensitive: frozenset[str],
     sensitive_body_fields: frozenset[str],
-    stack: list[tuple[Any, Any, int]],
-) -> Any:
+    stack: list[tuple[_JsonContainer, _JsonContainer, int]],
+) -> object:
     if source_is_dict and name_is_sensitive(str(key), sensitive_body_fields):
         return "[REDACTED]"
     if isinstance(item, str):
@@ -122,28 +124,28 @@ def _redact_json_child(
     if child_depth >= max_depth:
         _json_depth_cap_hit.set(True)
         return "[REDACTED]"
-    child: Any = {} if isinstance(item, dict) else []
+    child: _JsonContainer = {} if isinstance(item, dict) else []
     stack.append((item, child, child_depth))
     return child
 
 
 def _redact_sensitive_json(
-    value: Any,
+    value: object,
     sensitive: frozenset[str],
     sensitive_body_fields: frozenset[str],
     max_depth: int,
-) -> Any:
+) -> object:
     if not isinstance(value, dict | list):
         return value
     if max_depth <= 1:
         return "[REDACTED]"
     leaf_sensitive = sensitive | sensitive_body_fields
-    root: Any = {} if isinstance(value, dict) else []
-    stack: list[tuple[Any, Any, int]] = [(value, root, 1)]
+    root: _JsonContainer = {} if isinstance(value, dict) else []
+    stack: list[tuple[_JsonContainer, _JsonContainer, int]] = [(value, root, 1)]
     while stack:
         source, target, depth = stack.pop()
         source_is_dict = isinstance(source, dict)
-        entries = source.items() if source_is_dict else enumerate(source)
+        entries = source.items() if isinstance(source, dict) else enumerate(source)
         for key, item in entries:
             redacted_item = _redact_json_child(
                 key,

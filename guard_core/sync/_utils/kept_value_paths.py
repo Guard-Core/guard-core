@@ -1,9 +1,9 @@
-from typing import Any
+from collections.abc import Mapping
 
 _NOTHING_TO_KEEP = object()
 
 
-def _keep_list_paths(items: list[Any], wanted: frozenset[str]) -> Any:
+def _keep_list_paths(items: list[object], wanted: frozenset[str]) -> object:
     kept_items = []
     for item in items:
         kept_item = _keep_only_values(item, wanted)
@@ -12,8 +12,10 @@ def _keep_list_paths(items: list[Any], wanted: frozenset[str]) -> Any:
     return kept_items or _NOTHING_TO_KEEP
 
 
-def _keep_dict_paths(entries: dict[Any, Any], wanted: frozenset[str]) -> Any:
-    kept: dict[Any, Any] = {}
+def _keep_dict_paths(
+    entries: Mapping[object, object], wanted: frozenset[str]
+) -> object:
+    kept: dict[object, object] = {}
     for key, item in entries.items():
         kept_item = _keep_only_values(item, wanted)
         if kept_item is not _NOTHING_TO_KEEP:
@@ -23,7 +25,7 @@ def _keep_dict_paths(entries: dict[Any, Any], wanted: frozenset[str]) -> Any:
     return kept or _NOTHING_TO_KEEP
 
 
-def _keep_only_values(data: Any, wanted: frozenset[str]) -> Any:
+def _keep_only_values(data: object, wanted: frozenset[str]) -> object:
     # A copy of the tree with only the paths to a leaf or a key whose text is in
     # `wanted`, so the walk keeps every key path its exclusions need. One frame per
     # level: the parse depth cap (512) keeps it under the interpreter's limit.

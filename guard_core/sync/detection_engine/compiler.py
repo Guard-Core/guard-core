@@ -4,7 +4,7 @@ import re
 import threading
 import time
 from collections.abc import Callable
-from typing import Any
+from typing import TypeVar
 
 from guard_core.exceptions import BodyReadFailedError
 from guard_core.sync._utils._scan_outcomes import (
@@ -58,15 +58,21 @@ def no_regex_worker_time(waited: float) -> BodyReadFailedError:
     )
 
 
+_Result = TypeVar("_Result")
+_MatchWorkWrapper = Callable[
+    [Callable[[], list[re.Match]]], Callable[[], list[re.Match]]
+]
+
+
 def submit_to_regex_executor(
-    work: Callable[[], Any],
+    work: Callable[[], _Result],
     executor: concurrent.futures.ThreadPoolExecutor | None = None,
     ran_for: list[float] | None = None,
     worker_cpu: list[float] | None = None,
-) -> tuple[concurrent.futures.Future[Any], list[float]]:
+) -> tuple[concurrent.futures.Future[_Result], list[float]]:
     started: list[float] = []
 
-    def run() -> Any:
+    def run() -> _Result:
         start = time.monotonic()
         started.append(start)
         cpu_start = time.thread_time()
@@ -82,7 +88,7 @@ def submit_to_regex_executor(
 
 
 def _run_budget_left(
-    future: concurrent.futures.Future[Any],
+    future: concurrent.futures.Future[_Result],
     started: list[float],
     timeout: float,
     expired: BaseException,
@@ -101,8 +107,8 @@ def _run_budget_left(
 
 
 def wait_for_regex_run(
-    future: concurrent.futures.Future[Any], started: list[float], timeout: float
-) -> Any:
+    future: concurrent.futures.Future[_Result], started: list[float], timeout: float
+) -> _Result:
     try:
         return future.result(timeout=timeout)
     except concurrent.futures.TimeoutError as exc:
@@ -111,8 +117,8 @@ def wait_for_regex_run(
 
 
 def _await_regex_future(
-    future: concurrent.futures.Future[Any], started: list[float], timeout: float
-) -> Any:
+    future: concurrent.futures.Future[_Result], started: list[float], timeout: float
+) -> _Result:
     return wait_for_regex_run(future, started, timeout)
 
 
@@ -273,7 +279,7 @@ class PatternCompiler:
         pattern: str | re.Pattern,
         timeout: float | None = None,
         inline_safe: bool = False,
-        worker_wrapper: Callable[[Callable[[], Any]], Callable[[], Any]] | None = None,
+        worker_wrapper: _MatchWorkWrapper | None = None,
         outcome: list[str] | None = None,
     ) -> Callable[[str], list[re.Match]]:
         compiled = (
@@ -328,7 +334,7 @@ class PatternCompiler:
         pattern: str | re.Pattern,
         timeout: float | None = None,
         inline_safe: bool = False,
-        worker_wrapper: Callable[[Callable[[], Any]], Callable[[], Any]] | None = None,
+        worker_wrapper: _MatchWorkWrapper | None = None,
         outcome: list[str] | None = None,
     ) -> Callable[[str], list[re.Match]]:
         compiled = (
