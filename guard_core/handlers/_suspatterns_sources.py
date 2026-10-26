@@ -183,7 +183,7 @@ def _root_path_pattern(required: str, trailing: str = "") -> str:
 
 _PATH_ONLY_SEGMENT_END_RE = r"(?![^/\\?\s])"
 _PATH_ONLY_TAIL_RE = re.compile(
-    rf"(?:{_PATH_ONLY_SEP_RE}{_PATH_ONLY_CHAR_RE}*)*(?:\?\S*)?\s*\Z"
+    rf"(?:{_PATH_ONLY_SEP_RE}[\w.\-~%/\\]*)?(?:\?\S*)?\s*\Z"
 )
 
 

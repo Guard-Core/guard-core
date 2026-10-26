@@ -53,6 +53,7 @@ from guard_core.sync.handlers._suspatterns_applicable import (
     _pattern_should_be_skipped as _pattern_should_be_skipped,
 )
 from guard_core.sync.handlers._suspatterns_enhanced import _SusPatternsEnhancedMixin
+from guard_core.sync.handlers._suspatterns_inline_matches import inline_scan_matches
 from guard_core.sync.handlers._suspatterns_lazy_rows import (
     COMPILED_BUILTIN_PATTERNS,
     _SourceRow,
@@ -457,9 +458,8 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
 
         timeout_occurred = False
 
-        scan_window_matcher = _PATTERN_SCAN_WINDOW_MATCHERS.get(pattern.pattern)
-        if scan_window_matcher is not None:
-            matches = scan_window_matcher(content, pattern)
+        matches = inline_scan_matches(pattern, content)
+        if matches is not None:
             threat = _first_accepted_regex_threat(
                 iter(matches),
                 pattern,
