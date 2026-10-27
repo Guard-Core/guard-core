@@ -44,6 +44,11 @@ class SecurityHeadersConfigMixin:
     def _current_override(self) -> OverrideRecord: ...
 
     @abstractmethod
+    def pulled_override_for(
+        self, config: SyncSecurityConfig
+    ) -> OverrideRecord | None: ...
+
+    @abstractmethod
     def cors_params_for(
         self, config: SyncSecurityConfig, current: OverrideRecord | None = None
     ) -> CorsParams: ...
@@ -290,7 +295,11 @@ class SecurityHeadersConfigMixin:
         if config is None:
             return self.cors_config
 
-        if override is not None and not override.keys and not PULLED_OVERRIDES:
+        if (
+            override is not None
+            and not override.keys
+            and not (PULLED_OVERRIDES and self.pulled_override_for(config) is not None)
+        ):
             # No override: the app's own CORS, without the merge.
             return self._compute_cors_config(
                 list(config.cors_allow_origins or ()) if config.enable_cors else None,

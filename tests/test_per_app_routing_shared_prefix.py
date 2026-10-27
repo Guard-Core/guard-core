@@ -13,6 +13,7 @@ from guard_core._utils.app_scope import (
     in_app_scope,
     release_app_scope,
 )
+from guard_core._utils.sampling import PerApp, WarnedKeys
 from guard_core._utils.scan_config_scope import _scan_config_scope, scan_config_scope_of
 from guard_core.core.checks.base import SecurityCheck
 from guard_core.core.checks.pipeline import SecurityCheckPipeline
@@ -581,7 +582,9 @@ def _forget_local_bans(ban: Any) -> None:
 async def test_a_redis_ban_on_a_trusted_proxy_is_not_enforced_for_its_app(
     caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(_ipban_sharing, "_warned_unenforced_bans", set())
+    monkeypatch.setattr(
+        _ipban_sharing, "_warned_unenforced_bans", PerApp("unenforced_bans", WarnedKeys)
+    )
     prefix = f"wp136-d178-{id(caplog)}:"
     first, second, ban = await _live_pair(prefix)
     try:

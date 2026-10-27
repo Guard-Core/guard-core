@@ -6,6 +6,7 @@ from typing import Any
 import pytest
 
 from guard_core import _staged_defaults
+from guard_core._utils.sampling import PerApp, WarnedKeys
 from guard_core.core.initialization.handler_initializer import HandlerInitializer
 from guard_core.models import SecurityConfig
 
@@ -33,7 +34,10 @@ def _signal_not_yet_logged(
     monkeypatch: pytest.MonkeyPatch,
 ) -> Generator[None, None, None]:
     monkeypatch.setattr(
-        _staged_defaults, "_changed_defaults_logged", set(), raising=False
+        _staged_defaults,
+        "_changed_defaults_logged",
+        PerApp("changed_defaults", WarnedKeys),
+        raising=False,
     )
     yield
 
@@ -122,14 +126,14 @@ def test_a_stated_exclude_all_paths_leaves_the_slash_entry_out(
     assert "exclude_all_paths=True" not in _signals(caplog)[0]
 
 
-def test_each_flip_is_logged_once_per_process(
+def test_each_flip_is_logged_once_per_app(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     first = _build(caplog)
     second = _build(caplog)
 
     assert len(first) == 1
-    assert second == first
+    assert second == first * 2
 
 
 def _logging(caplog: pytest.LogCaptureFixture) -> Any:

@@ -49,6 +49,10 @@ class RefusalReports(dict[str, float]):
     """The reasons one app last reported, with the time of each."""
 
 
+class WarnedKeys(set[str]):
+    """The warnings one app already logged, for log-once warnings."""
+
+
 class PerApp(Generic[_T]):
     """One sampling table per app, found by the app's config.
 

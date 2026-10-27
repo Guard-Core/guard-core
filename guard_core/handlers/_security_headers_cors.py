@@ -15,6 +15,9 @@ class SecurityHeadersCorsMixin:
     ) -> None: ...
 
     @abstractmethod
+    def pulled_override_for(self, config: SecurityConfig) -> OverrideRecord | None: ...
+
+    @abstractmethod
     def _validate_header_value(self, value: str) -> str: ...
 
     @abstractmethod
@@ -100,7 +103,9 @@ class SecurityHeadersCorsMixin:
     ) -> dict[str, str]:
         cors_config = self._resolve_cors_state(config, override)
         if config is not None and (
-            override is None or override.keys or PULLED_OVERRIDES
+            override is None
+            or override.keys
+            or (PULLED_OVERRIDES and self.pulled_override_for(config) is not None)
         ):
             await self.send_cors_override_event(config, override)
         if not cors_config:

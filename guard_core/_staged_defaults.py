@@ -6,6 +6,7 @@ from guard_core._redis_enablement import (
     redis_connection_field_set_explicitly,
     redis_is_configured,
 )
+from guard_core._utils.sampling import PerApp, WarnedKeys
 
 logger = logging.getLogger("guard_core.models")
 
@@ -75,7 +76,7 @@ SIGNAL_TRIGGER_FIELDS = frozenset(
     }
 )
 
-_changed_defaults_logged: set[str] = set()
+_changed_defaults_logged = PerApp("changed_defaults", WarnedKeys)
 
 
 def _redis_kept_on_entry(field: str) -> str:
@@ -118,14 +119,15 @@ def _changed_default_entries(config: StagedDefaultsConfig) -> list[tuple[str, st
 
 
 def signal_changed_defaults(config: StagedDefaultsConfig) -> None:
+    logged = _changed_defaults_logged.for_app(config)
     fresh = [
         (flip_id, entry)
         for flip_id, entry in _changed_default_entries(config)
-        if flip_id not in _changed_defaults_logged
+        if flip_id not in logged
     ]
     if not fresh:
         return
-    _changed_defaults_logged.update(flip_id for flip_id, _ in fresh)
+    logged.update(flip_id for flip_id, _ in fresh)
     logger.warning(
         "guard-core 5.0.0 changed defaults that this configuration leaves unset: "
         "%s. Each default is logged once per process.",

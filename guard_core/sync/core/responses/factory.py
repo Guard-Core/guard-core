@@ -252,7 +252,7 @@ class ErrorResponseFactory:
             manager._override_epoch,
             manager.redis_handler is None,
             redis_is_configured(config),
-            bool(PULLED_OVERRIDES),
+            bool(PULLED_OVERRIDES and manager.pulled_override_for(config) is not None),
         ) == (0.0, 0.0, PROCESS_OVERRIDE.reset_epoch, True, False, False)
         override = manager._override if quiet else manager.resolve_override()
         enabled = (

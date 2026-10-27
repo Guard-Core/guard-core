@@ -7,6 +7,7 @@ from guard_core._utils.app_scope import (
     existing_app_scope_of,
     in_app_scope,
 )
+from guard_core._utils.sampling import PerApp, WarnedKeys
 from guard_core.handlers._ipban_bans import IpBanOperationsMixin
 from guard_core.handlers._ipban_carve import IpBanCarveMixin
 from guard_core.handlers._ipban_migration import IpBanMigrationMixin
@@ -31,7 +32,7 @@ _UNENFORCED_BAN_WARNING = (
     "that do not trust it."
 )
 _MAX_WARNED_UNENFORCED_BANS = 256
-_warned_unenforced_bans: set[str] = set()
+_warned_unenforced_bans = PerApp("unenforced_bans", WarnedKeys)
 
 
 def _redacted_apps_of(scopes: list[AppScope]) -> str:
@@ -73,20 +74,18 @@ class IpBanSharedAppsMixin(
         proxies and loopback), so this app's reads match its writes."""
         if self._self_dos_refusal_reason(ip, config) is None:
             return True
-        if (
-            config is not None
-            and ip not in _warned_unenforced_bans
-            and len(_warned_unenforced_bans) < _MAX_WARNED_UNENFORCED_BANS
-        ):
-            from guard_core.handlers.redis_handler import _redact_redis_url
+        if config is not None:
+            warned = _warned_unenforced_bans.for_app(config)
+            if ip not in warned and len(warned) < _MAX_WARNED_UNENFORCED_BANS:
+                from guard_core.handlers.redis_handler import _redact_redis_url
 
-            _warned_unenforced_bans.add(ip)
-            self.logger.warning(
-                _UNENFORCED_BAN_WARNING,
-                ip,
-                config.redis_prefix,
-                _redact_redis_url(config.redis_url),
-            )
+                warned.add(ip)
+                self.logger.warning(
+                    _UNENFORCED_BAN_WARNING,
+                    ip,
+                    config.redis_prefix,
+                    _redact_redis_url(config.redis_url),
+                )
         return False
 
     def _across_apps_scopes(self, method: str) -> list[AppScope]:

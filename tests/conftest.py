@@ -23,6 +23,7 @@ from guard_core._utils import body_reader
 from guard_core._utils import detection_scan as _detection_scan_module
 from guard_core._utils import ip_extraction as _ip_extraction_module
 from guard_core._utils import rule_attribution as _rule_attribution_module
+from guard_core._utils.sampling import PerApp, WarnedKeys
 from guard_core.core.checks.implementations import (
     emergency_mode as _emergency_mode_module,
 )
@@ -63,11 +64,19 @@ from tests.engine_redis_commands import unwatch_all_engine_commands
 if TYPE_CHECKING:
     from tests.live_smoke.driver import ScenarioContext, Stack
 
+
+class _AlreadyLogged(PerApp[WarnedKeys]):
+    """Every changed default already logged, so a test config logs none."""
+
+    def for_app(self, config: object) -> WarnedKeys:
+        return WarnedKeys(_staged_defaults_module.FLIP_IDS)
+
+
 network_guard.install()
 _suspatterns_module._legacy_detection_warned = True
 _staged_defaults_module._default_prefix_warned = True
-_staged_defaults_module._changed_defaults_logged.update(
-    _staged_defaults_module.FLIP_IDS
+_staged_defaults_module._changed_defaults_logged = _AlreadyLogged(
+    "changed_defaults", WarnedKeys
 )
 
 IPINFO_TOKEN = os.getenv("IPINFO_TOKEN") or "test_token"
@@ -476,8 +485,8 @@ async def reset_state() -> AsyncGenerator[None, None]:
     sus_patterns_handler._detection_state = _LEGACY_DETECTION_STATE
     _suspatterns_module._legacy_detection_warned = True
     _staged_defaults_module._default_prefix_warned = True
-    _staged_defaults_module._changed_defaults_logged.update(
-        _staged_defaults_module.FLIP_IDS
+    _staged_defaults_module._changed_defaults_logged = _AlreadyLogged(
+        "changed_defaults", WarnedKeys
     )
 
     _reset_ip_ban_manager()

@@ -3,7 +3,11 @@ from unittest.mock import Mock
 
 import pytest
 
-from guard_core._security_headers_override import PULLED_OVERRIDES, OverrideRecord
+from guard_core._security_headers_override import (
+    PULLED_OVERRIDES,
+    OverrideRecord,
+    config_fingerprint,
+)
 from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.security_headers_handler import SecurityHeadersManager
 
@@ -605,11 +609,24 @@ def test_cors_goes_through_the_merge_while_overrides_are_pulled(
 ) -> None:
     merge = Mock(wraps=manager.cors_params_for)
     monkeypatch.setattr(manager, "cors_params_for", merge)
+    config = _cors_config()
+    monkeypatch.setitem(PULLED_OVERRIDES, config_fingerprint(config), NO_OVERRIDE)
+
+    manager._resolve_cors_state(config, NO_OVERRIDE)
+
+    merge.assert_called_once()
+
+
+def test_cors_skips_the_merge_while_only_another_app_has_a_pulled_override(
+    manager: SecurityHeadersManager, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    merge = Mock(wraps=manager.cors_params_for)
+    monkeypatch.setattr(manager, "cors_params_for", merge)
     monkeypatch.setitem(PULLED_OVERRIDES, "other", NO_OVERRIDE)
 
     manager._resolve_cors_state(_cors_config(), NO_OVERRIDE)
 
-    merge.assert_called_once()
+    merge.assert_not_called()
 
 
 def test_cors_goes_through_the_merge_when_no_override_record_is_given(

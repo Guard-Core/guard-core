@@ -97,6 +97,12 @@ class SecurityHeadersOverrideMixin(SecurityHeadersPersistenceCalls):
 
     _current_override = resolve_override
 
+    def pulled_override_for(self, config: SyncSecurityConfig) -> OverrideRecord | None:
+        """The record pulled from Redis for this app, never another app's."""
+        if self._reader_hash is None or self._reader_hash[0] != id(config):
+            self._reader_hash = (id(config), config_fingerprint(config))
+        return PULLED_OVERRIDES.get(self._reader_hash[1])
+
     def override_for_reader(
         self, config: SyncSecurityConfig, current: OverrideRecord | None = None
     ) -> OverrideRecord:
@@ -104,9 +110,7 @@ class SecurityHeadersOverrideMixin(SecurityHeadersPersistenceCalls):
             current = self.resolve_override()
         if not PULLED_OVERRIDES:
             return current
-        if self._reader_hash is None or self._reader_hash[0] != id(config):
-            self._reader_hash = (id(config), config_fingerprint(config))
-        pulled = PULLED_OVERRIDES.get(self._reader_hash[1])
+        pulled = self.pulled_override_for(config)
         if pulled is not None and pulled.ordered_at() > current.ordered_at():
             return pulled
         return current
