@@ -125,7 +125,7 @@ def test_revoking_the_rule_restores_static_exempt_ips_and_ban_eligibility() -> N
         expires_at=datetime.now(timezone.utc) + timedelta(seconds=30),
     )
     _poll(manager, rules)
-    assert manager.current_rules is not None
+    assert isinstance(manager.current_rules, DynamicRules)
     manager.current_rules.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
 
     manager._check_rule_expiry()

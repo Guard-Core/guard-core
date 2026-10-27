@@ -3,11 +3,74 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
-from guard_core.protocols.response_protocol import GuardResponse
+from guard_core.protocols.response_protocol import GuardResponse, GuardResponseFactory
 
 if TYPE_CHECKING:
+    from collections.abc import Callable, Mapping, Sequence
+
     from guard_core.models import SyncSecurityConfig
+    from guard_core.sync.decorators.base import RouteConfig
+    from guard_core.sync.handlers.ratelimit_handler import (
+        RateLimitBlock,
+        RateLimitTier,
+        RateLimitVerdict,
+    )
     from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol
+    from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
+    from guard_core.sync.protocols.request_protocol import SyncGuardRequest
+
+
+class SyncRouteDecoratorRegistryProtocol(Protocol):
+    """The route-decorator registry: the per-route configs and their revision."""
+
+    @property
+    def _route_configs(self) -> Mapping[str, RouteConfig]:
+        """Every decorated route's config, keyed by route id."""
+        ...
+
+    @property
+    def route_config_revision(self) -> int:
+        """Changes whenever a route config is added or edited."""
+        ...
+
+
+class SyncRateLimitHandlerProtocol(Protocol):
+    """The rate-limit handler the rate-limit check drives."""
+
+    @property
+    def redis_handler(self) -> SyncRedisHandlerProtocol | None:
+        """The shared Redis backend, or ``None`` when rate limits are in memory."""
+        ...
+
+    @property
+    def agent_handler(self) -> SyncAgentHandlerProtocol | None:
+        """The telemetry agent the handler reports blocks to, or ``None``."""
+        ...
+
+    def check_rate_limit_tiers(
+        self,
+        request: SyncGuardRequest,
+        client_ip: str,
+        create_error_response: Callable[[int, str], GuardResponse],
+        tiers: Sequence[RateLimitTier],
+        config: SyncSecurityConfig | None = None,
+        window_identity: str | None = None,
+        verdict: RateLimitVerdict | None = None,
+    ) -> RateLimitBlock | None:
+        """Count the request against the tiers; the block it hit, or ``None``."""
+        ...
+
+    def report_rate_limit_block(
+        self,
+        request: SyncGuardRequest,
+        client_ip: str,
+        block: RateLimitBlock,
+        tier: RateLimitTier,
+        config: SyncSecurityConfig | None = None,
+        attribution: dict[str, object] | None = None,
+    ) -> None:
+        """Report a rate-limit block to the agent."""
+        ...
 
 
 @runtime_checkable
@@ -19,12 +82,12 @@ class SyncGuardMiddlewareProtocol(Protocol):
     rate-limit/agent/geo-IP handlers) plus cross-request state.
     WHEN: passed to checks and decorators so they can build responses and reach
     shared services without importing the concrete middleware class.
-    HOW: the blocking mirror of ``GuardMiddlewareProtocol``. The attributes
-    ``config``, ``logger``, ``last_cloud_ip_refresh`` (epoch seconds of the
-    last cloud-IP refresh) and ``suspicious_request_counts`` (per-IP suspicion
-    tallies) are read directly; the handler properties may return ``None`` when
-    a feature is disabled, so callers must guard for it. ``guard_decorator`` is
-    the route-decorator registry the engine reads for per-route configs and their
+    HOW: implement on the host middleware. The attributes ``config``,
+    ``logger``, ``last_cloud_ip_refresh`` (epoch seconds of the last cloud-IP
+    refresh) and ``suspicious_request_counts`` (per-IP suspicion tallies) are
+    read directly; the handler properties may return ``None`` when a feature is
+    disabled, so callers must guard for it. ``guard_decorator`` is the
+    route-decorator registry the engine reads for per-route configs and their
     revision; ``None`` (or an absent attribute) means no route configs.
     """
 
@@ -34,7 +97,7 @@ class SyncGuardMiddlewareProtocol(Protocol):
     suspicious_request_counts: dict[str, dict[str, int]]
 
     @property
-    def guard_decorator(self) -> Any | None:
+    def guard_decorator(self) -> SyncRouteDecoratorRegistryProtocol | None:
         """The route-decorator registry, or ``None`` when no route is decorated.
 
         The engine reads it with a ``None`` default, so a middleware without the
@@ -58,7 +121,7 @@ class SyncGuardMiddlewareProtocol(Protocol):
         ...
 
     @property
-    def rate_limit_handler(self) -> Any:
+    def rate_limit_handler(self) -> SyncRateLimitHandlerProtocol | None:
         """The rate-limit handler, or ``None`` when rate limiting is disabled."""
         ...
 
@@ -73,7 +136,7 @@ class SyncGuardMiddlewareProtocol(Protocol):
         ...
 
     @property
-    def guard_response_factory(self) -> Any:
+    def guard_response_factory(self) -> GuardResponseFactory | None:
         """Factory producing ``GuardResponse`` objects for denied requests."""
         ...
 

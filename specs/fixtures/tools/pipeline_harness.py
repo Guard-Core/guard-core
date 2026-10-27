@@ -341,7 +341,7 @@ class _StubRouteResolver(RouteConfigResolver):
 class _HarnessDecorator:
     def __init__(self, config: SecurityConfig, routes: dict[str, RouteConfig]) -> None:
         self._route_configs: dict[str, RouteConfig] = dict(routes)
-        self.route_config_revision = RouteConfigRevision()
+        self.route_config_revision = 0
         self.behavior_tracker = BehaviorTracker(config)
 
     async def initialize_behavior_tracking(

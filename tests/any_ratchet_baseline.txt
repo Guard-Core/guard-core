@@ -1,6 +1,2 @@
-guard_core.protocols.agent_protocol
 guard_core.protocols.middleware_protocol
-guard_core.protocols.request_protocol
-guard_core.sync.protocols.agent_protocol
 guard_core.sync.protocols.middleware_protocol
-guard_core.sync.protocols.request_protocol

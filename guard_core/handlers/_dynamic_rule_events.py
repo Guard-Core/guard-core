@@ -1,18 +1,20 @@
 import logging
 from datetime import datetime, timezone
 
-from guard_core.models import DynamicRules
-from guard_core.protocols.agent_protocol import AgentHandlerProtocol
+from guard_core.protocols.agent_protocol import (
+    AgentHandlerProtocol,
+    DynamicRulesProtocol,
+)
 
 _DYNAMIC_RULES_HANDLER_NAME = "dynamic_rules"
 
 
 class DynamicRuleEventSenderMixin:
     agent_handler: AgentHandlerProtocol | None
-    current_rules: DynamicRules | None
+    current_rules: DynamicRulesProtocol | None
     logger: logging.Logger
 
-    async def _send_rule_received_event(self, rules: DynamicRules) -> None:
+    async def _send_rule_received_event(self, rules: DynamicRulesProtocol) -> None:
         from guard_core.core.events.event_types import EVENT_DYNAMIC_RULE_UPDATED
 
         if not self.agent_handler:
@@ -45,7 +47,7 @@ class DynamicRuleEventSenderMixin:
             self.logger.error(f"Failed to send rule updated event: {e}")
 
     async def _send_rule_applied_event(
-        self, rules: DynamicRules, skipped: list[str] | None = None
+        self, rules: DynamicRulesProtocol, skipped: list[str] | None = None
     ) -> None:
         from guard_core.core.events.event_types import EVENT_DYNAMIC_RULE_APPLIED
 
@@ -78,7 +80,7 @@ class DynamicRuleEventSenderMixin:
             self.logger.error(f"Failed to send rule applied event: {e}")
 
     async def _send_rule_rejected_event(
-        self, rules: DynamicRules, problems: list[str]
+        self, rules: DynamicRulesProtocol, problems: list[str]
     ) -> None:
         from guard_core.core.events.event_types import EVENT_DYNAMIC_RULE_UPDATED
 

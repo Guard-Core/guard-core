@@ -9,7 +9,7 @@ from guard_core._security_config_batch import apply_config_batch, prepare_config
 from guard_core._security_config_field_validators import (
     canonicalize_cloud_provider_selector,
 )
-from guard_core.models import DynamicRules, SyncSecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils.pattern_source_redaction import (
     _redact_pattern_source_of_app,
 )
@@ -20,6 +20,7 @@ from guard_core.sync.handlers._dynamic_rule_validation import (
 )
 from guard_core.sync.handlers._ipban_bans import _LOOPBACK_NETWORKS
 from guard_core.sync.handlers._ipban_cache import _Network
+from guard_core.sync.protocols.agent_protocol import DynamicRulesProtocol
 
 
 @dataclass
@@ -116,7 +117,7 @@ class DynamicRulePlanMixin:
     )
 
     def _build_plan(
-        self, rules: DynamicRules, base: dict[str, object]
+        self, rules: DynamicRulesProtocol, base: dict[str, object]
     ) -> DynamicRulePlan:
         problems = find_malformed_values(rules)
         if problems:
@@ -136,7 +137,9 @@ class DynamicRulePlanMixin:
     def _swap_config(self, plan: DynamicRulePlan) -> None:
         apply_config_batch(self.config, plan.prepared)
 
-    def _plan_countries(self, plan: DynamicRulePlan, rules: DynamicRules) -> None:
+    def _plan_countries(
+        self, plan: DynamicRulePlan, rules: DynamicRulesProtocol
+    ) -> None:
         blocked, allowed = rules.blocked_countries, rules.whitelist_countries
         if not (blocked or allowed):
             return
@@ -171,7 +174,9 @@ class DynamicRulePlanMixin:
         plan.set("whitelist_countries", frozenset(normalized))
         plan.note(f"Dynamic rule: Whitelisted countries {sorted(set(normalized))}")
 
-    def _plan_cloud_providers(self, plan: DynamicRulePlan, rules: DynamicRules) -> None:
+    def _plan_cloud_providers(
+        self, plan: DynamicRulePlan, rules: DynamicRulesProtocol
+    ) -> None:
         providers = rules.blocked_cloud_providers
         if not providers:
             return
@@ -189,7 +194,7 @@ class DynamicRulePlanMixin:
         plan.note(f"Dynamic rule: Blocked cloud providers {merged}")
 
     def _validate_user_agents(
-        self, plan: DynamicRulePlan, rules: DynamicRules
+        self, plan: DynamicRulePlan, rules: DynamicRulesProtocol
     ) -> list[str] | None:
         user_agents = rules.blocked_user_agents
         if not user_agents:
@@ -247,7 +252,9 @@ class DynamicRulePlanMixin:
         redacted = [_redact_pattern_source_of_app(p, self.config) for p in merged]
         plan.note(f"Dynamic rule: Blocked user agents {redacted}")
 
-    def _plan_exempt_ips(self, plan: DynamicRulePlan, rules: DynamicRules) -> None:
+    def _plan_exempt_ips(
+        self, plan: DynamicRulePlan, rules: DynamicRulesProtocol
+    ) -> None:
         exempt: list[str] = []
         for entry in rules.ip_whitelist:
             canonical, problem = _classify_exempt_entry(entry)
@@ -272,7 +279,9 @@ class DynamicRulePlanMixin:
             plan.set("exempt_ips", tuple(merged), validate=False)
             plan.note(f"Dynamic rule: Exempt IPs {plan.exempt_ips}")
 
-    def _plan_rate_limits(self, plan: DynamicRulePlan, rules: DynamicRules) -> None:
+    def _plan_rate_limits(
+        self, plan: DynamicRulePlan, rules: DynamicRulesProtocol
+    ) -> None:
         if not (rules.global_rate_limit or rules.endpoint_rate_limits):
             return
         if rules.global_rate_limit:
@@ -289,7 +298,9 @@ class DynamicRulePlanMixin:
                 f"{list(rules.endpoint_rate_limits.keys())}"
             )
 
-    def _plan_feature_toggles(self, plan: DynamicRulePlan, rules: DynamicRules) -> None:
+    def _plan_feature_toggles(
+        self, plan: DynamicRulePlan, rules: DynamicRulesProtocol
+    ) -> None:
         toggles: tuple[tuple[str, str, bool | int | None], ...] = (
             (
                 "enable_penetration_detection",
@@ -312,7 +323,9 @@ class DynamicRulePlanMixin:
             plan.set(name, value)
             plan.note(f"Dynamic rule: {label} {value}")
 
-    def _plan_emergency_mode(self, plan: DynamicRulePlan, rules: DynamicRules) -> None:
+    def _plan_emergency_mode(
+        self, plan: DynamicRulePlan, rules: DynamicRulesProtocol
+    ) -> None:
         if not rules.emergency_mode:
             return
         plan.set("emergency_mode", True)

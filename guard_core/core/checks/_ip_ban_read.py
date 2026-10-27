@@ -1,9 +1,9 @@
 from abc import abstractmethod
 from ipaddress import ip_address
-from typing import NamedTuple, Protocol
+from typing import NamedTuple
 
 from guard_core._utils.ip_extraction import UNKNOWN_CLIENT_IDENTITY, _parsed_ip_or_none
-from guard_core.core.checks._ban_flow import BanFlow
+from guard_core.core.checks._ban_flow import NO_BAN_FLOW, BanFlow
 from guard_core.core.checks._pending_ban import PendingBan
 from guard_core.core.checks._shared_strikes import FusedStrike, _shared_strikes_redis
 from guard_core.core.checks._strike_counts import _strike_identity
@@ -20,10 +20,6 @@ from guard_core.handlers.ipban_handler import IPBanManager
 from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.utils import _ip_in_list, allow_list_miss_category, check_ip_access
-
-
-class _BanFlowState(Protocol):
-    guard_ban_flow: BanFlow
 
 
 def _route_blacklist_matches(route_config: RouteConfig, client_ip: str) -> bool:
@@ -105,7 +101,7 @@ class IpBanReadMixin(SecurityCheck):
         )
 
     async def _static_denial_verdict(
-        self, state: _BanFlowState, client_ip: str, route_config: RouteConfig | None
+        self, state: object, client_ip: str, route_config: RouteConfig | None
     ) -> _ListVerdict:
         """What the IP lists decide for this client, in the order the check
         applies them (the route's lists, then the global ones), without a country
@@ -130,11 +126,14 @@ class IpBanReadMixin(SecurityCheck):
         )
         if result.allowed:
             return _ListVerdict(None, True)
-        state.guard_ban_flow.denied_access = (result, False, False)
+        flow = getattr(state, "guard_ban_flow", None)
+        if not isinstance(flow, BanFlow):
+            raise AttributeError(NO_BAN_FLOW)
+        flow.denied_access = (result, False, False)
         return _ListVerdict(result.denial_category, True)
 
     async def _route_list_denial(
-        self, state: _BanFlowState, client_ip: str, route_config: RouteConfig | None
+        self, state: object, client_ip: str, route_config: RouteConfig | None
     ) -> _ListVerdict | None:
         if not route_config or (
             await check_route_ip_access(client_ip, route_config, self.middleware)
@@ -147,7 +146,7 @@ class IpBanReadMixin(SecurityCheck):
         return _ListVerdict(category, True)
 
     def _fused_strike_for(
-        self, state: _BanFlowState, client_ip: str, category: str
+        self, state: object, client_ip: str, category: str
     ) -> FusedStrike:
         strike = FusedStrike(
             _strike_identity(self.config, client_ip),
@@ -155,7 +154,10 @@ class IpBanReadMixin(SecurityCheck):
             SUSPICIOUS_COUNT_WINDOW_SECONDS,
             _retained_strike_cap(self.config),
         )
-        state.guard_ban_flow.fused = strike
+        flow = getattr(state, "guard_ban_flow", None)
+        if not isinstance(flow, BanFlow):
+            raise AttributeError(NO_BAN_FLOW)
+        flow.fused = strike
         return strike
 
     def warn_ban_lookup_skipped(self, client_ip: str) -> None:
@@ -215,7 +217,7 @@ class IpBanReadMixin(SecurityCheck):
         return None
 
     async def _plan_ban_read(
-        self, state: _BanFlowState, client_ip: str, route_config: RouteConfig | None
+        self, state: object, client_ip: str, route_config: RouteConfig | None
     ) -> tuple[FusedStrike | None, bool]:
         """What to do with a ban read only Redis can decide: the strike that rides
         in it when the IP lists deny the client, and whether to leave it pending

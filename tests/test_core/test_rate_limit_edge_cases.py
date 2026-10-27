@@ -55,8 +55,11 @@ def _block(tier_index: int = 0, count: int = 6) -> RateLimitBlock:
 
 
 def _tiers_handler(rate_limit_check: RateLimitCheck) -> AsyncMock:
-    handler = rate_limit_check.middleware.rate_limit_handler.check_rate_limit_tiers
-    return cast(AsyncMock, handler)
+    limiter = rate_limit_check.middleware.rate_limit_handler
+    assert limiter is not None
+    handler = limiter.check_rate_limit_tiers
+    assert isinstance(handler, AsyncMock)
+    return handler
 
 
 async def test_check_passive_mode_never_returns_the_block(

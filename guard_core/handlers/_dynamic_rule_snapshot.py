@@ -25,7 +25,8 @@ from guard_core.handlers._dynamic_rule_purge import (
     purge_fingerprint,
 )
 from guard_core.handlers._redis_handler_support import as_stored_value
-from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.models import SecurityConfig
+from guard_core.protocols.agent_protocol import DynamicRulesProtocol
 from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 
 
@@ -33,15 +34,15 @@ class DynamicRuleSnapshotMixin(DynamicRulePurgeMixin):
     config: SecurityConfig
     redis_handler: RedisHandlerProtocol | None = None
     logger: logging.Logger
-    current_rules: DynamicRules | None
+    current_rules: DynamicRulesProtocol | None
     last_update: float
     _restored_ownership: tuple[list[str], list[str]] = ([], [])
     _owned_bans: list[str] | tuple[()] = ()
     _owned_patterns: list[str] | tuple[()] = ()
-    _reject_if_malformed: Callable[[DynamicRules], Awaitable[bool]]
+    _reject_if_malformed: Callable[[DynamicRulesProtocol], Awaitable[bool]]
     _current_fingerprint: str | None
-    _apply_rules: Callable[[DynamicRules], Awaitable[list[str]]]
-    _has_rule_expired: Callable[[DynamicRules], bool]
+    _apply_rules: Callable[[DynamicRulesProtocol], Awaitable[list[str]]]
+    _has_rule_expired: Callable[[DynamicRulesProtocol], bool]
 
     async def _hydrate_last_known_rules(self) -> None:
         try:
@@ -68,7 +69,7 @@ class DynamicRuleSnapshotMixin(DynamicRulePurgeMixin):
         except Exception as e:
             self.logger.error(f"Failed to hydrate last-known dynamic rules: {e}")
 
-    async def _load_last_known_rules(self) -> DynamicRules | None:
+    async def _load_last_known_rules(self) -> DynamicRulesProtocol | None:
         stores = (
             (await self._read_redis_payload(), await self._read_redis_full_payload()),
             (self._read_file_payload(), self._read_file_full_payload()),
@@ -139,7 +140,7 @@ class DynamicRuleSnapshotMixin(DynamicRulePurgeMixin):
 
     def _parse_last_known_rules(
         self, payload: str | bytes, full_payload: str | bytes | None = None
-    ) -> DynamicRules | None:
+    ) -> DynamicRulesProtocol | None:
         try:
             snapshot = self._reconcile_snapshot(payload, full_payload)
         except Exception as e:
@@ -152,7 +153,7 @@ class DynamicRuleSnapshotMixin(DynamicRulePurgeMixin):
 
     def _reconcile_snapshot(
         self, payload: str | bytes, full_payload: str | bytes | None
-    ) -> tuple[DynamicRules, tuple[list[str], list[str]]]:
+    ) -> tuple[DynamicRulesProtocol, tuple[list[str], list[str]]]:
         """The full snapshot when it agrees with the legacy one as data, else the
         legacy one (what a v4.4.0 worker last wrote or read) and one log line."""
         legacy = load_last_known_rules_snapshot(payload)
@@ -195,7 +196,7 @@ class DynamicRuleSnapshotMixin(DynamicRulePurgeMixin):
                     f"Failed to clear dynamic rules cache file {path}: {e}"
                 )
 
-    async def _persist_last_known_rules(self, rules: DynamicRules) -> None:
+    async def _persist_last_known_rules(self, rules: DynamicRulesProtocol) -> None:
         try:
             legacy = dump_legacy_last_known_rules_snapshot(rules)
             full = dump_last_known_rules_snapshot(

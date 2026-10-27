@@ -204,6 +204,7 @@ def test_a_failing_shared_violation_counter_falls_back_to_the_process_count() ->
         auto_ban_duration=300,
     )
     check, ban_calls = _make_check_with_recording_ban(config)
+    assert isinstance(check.middleware.rate_limit_handler, Mock)
     check.middleware.rate_limit_handler.redis_handler = Mock(
         record_sliding_window_hit=MagicMock(side_effect=ConnectionError("redis down"))
     )

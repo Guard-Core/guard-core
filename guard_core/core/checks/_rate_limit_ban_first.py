@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, TypedDict
 
 from guard_core._redis_enablement import redis_is_configured
 from guard_core._utils.ip_extraction import _client_identity
+from guard_core.core.checks._ban_flow import NO_BAN_FLOW, BanFlow
 from guard_core.core.checks._pending_ban import PendingBan
 from guard_core.core.checks._shared_strikes import FusedStrike
 from guard_core.handlers._redis_lean import ReplyValue, lean_evalsha, reply_counts
@@ -42,6 +43,7 @@ _STRIKE_SHA = hashlib.sha1(
 ).hexdigest()
 _VERSION_KEY = "ban_version:counter"
 NO_STATUS_REPLY = "the ban-first script replied with no status"
+NO_RATE_LIMIT_HANDLER = "the middleware has no rate_limit_handler to count the request"
 
 
 def can_read_ban_with_rate_limit(
@@ -201,7 +203,10 @@ async def finish_tiers(
     """The rate-limit check's verdict step: evaluate the tiers (or take the verdict
     a combined script reached), report the block, count the auto-ban strike and
     return the 429."""
-    block = await check.middleware.rate_limit_handler.check_rate_limit_tiers(
+    rate_limit_handler = check.middleware.rate_limit_handler
+    if rate_limit_handler is None:
+        raise AttributeError(NO_RATE_LIMIT_HANDLER)
+    block = await rate_limit_handler.check_rate_limit_tiers(
         request,
         client_ip,
         check.middleware.create_error_response,
@@ -246,11 +251,16 @@ class PendingRate:
     both resolve in one script at the first check that needs either."""
 
     def __init__(
-        self, check: "RateLimitCheck", client_ip: str, plans: Sequence["TierPlan"]
+        self,
+        check: "RateLimitCheck",
+        client_ip: str,
+        plans: Sequence["TierPlan"],
+        redis_handler: RedisManager,
     ) -> None:
         self.check = check
         self.client_ip = client_ip
         self.plans = plans
+        self.redis_handler = redis_handler
 
 
 def defer_rate_limit(
@@ -266,12 +276,16 @@ def defer_rate_limit(
         or not client_ip
         or not plans
         or check.config.passive_mode
-        or not can_read_ban_with_rate_limit(
-            pending, check.middleware.rate_limit_handler.redis_handler, check.config
+        or not isinstance(
+            redis_handler := getattr(
+                check.middleware.rate_limit_handler, "redis_handler", None
+            ),
+            RedisManager,
         )
+        or not can_read_ban_with_rate_limit(pending, redis_handler, check.config)
     ):
         return False
-    pending.rate = PendingRate(check, client_ip, plans)
+    pending.rate = PendingRate(check, client_ip, plans, redis_handler)
     return True
 
 
@@ -290,7 +304,7 @@ async def resolve_ban_and_rate(
     carve = check._strike_identity(request, rate.client_ip)
     banned, verdict = await ban_first_rate_limit(
         pending,
-        check.middleware.rate_limit_handler.redis_handler,
+        rate.redis_handler,
         rate.client_ip,
         [plan.tier for plan in rate.plans],
         config,
@@ -298,9 +312,15 @@ async def resolve_ban_and_rate(
         strike,
     )
     if banned:
-        request.state.guard_ban_flow.banned_by = pending.check
+        flow = getattr(request.state, "guard_ban_flow", None)
+        if not isinstance(flow, BanFlow):
+            raise AttributeError(NO_BAN_FLOW)
+        flow.banned_by = pending.check
         return await pending.check.banned_response(request, pending.client_ip)
     response = await finish_tiers(check, request, rate.client_ip, rate.plans, verdict)
     if response is not None:
-        request.state.guard_ban_flow.banned_by = check
+        flow = getattr(request.state, "guard_ban_flow", None)
+        if not isinstance(flow, BanFlow):
+            raise AttributeError(NO_BAN_FLOW)
+        flow.banned_by = check
     return response

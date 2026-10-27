@@ -7,6 +7,9 @@ if TYPE_CHECKING:
     from guard_core.core.checks.base import SecurityCheck
 
 
+NO_BAN_FLOW = "the request state holds no ban flow"
+
+
 class BanFlow:
     """What one request carries from the IP check to the checks after it: the ban
     read left pending, the strike a script already recorded, the check whose ban

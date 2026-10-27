@@ -3,13 +3,13 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from guard_core._dynamic_rules import DynamicRules
 from guard_core._security_config_field_validators import (
     canonicalize_cloud_provider_selector,
 )
 from guard_core._utils.access_control import _ip_in_list
 from guard_core.handlers._cloud_provider_registry import _parse_cloud_selectors
 from guard_core.handlers._ipban_rule_exempt import rule_ban_member
+from guard_core.protocols.agent_protocol import DynamicRulesProtocol
 
 if TYPE_CHECKING:
     from guard_core.handlers.ipban_handler import IPBanManager
@@ -19,7 +19,7 @@ MATCHED_RULE_TYPE_DYNAMIC = "dynamic"
 _MAX_BAN_STAMPS = 10_000
 
 _Selectors = tuple[frozenset[str], Mapping[str, frozenset[str]]]
-Stamp = dict[str, str | bool]
+Stamp = dict[str, object]
 
 
 def _items_of(base: Mapping[str, object], key: str) -> Iterable[str]:
@@ -207,7 +207,7 @@ class RuleAttribution:
 
 
 def build_rule_attribution(
-    rules: DynamicRules,
+    rules: DynamicRulesProtocol,
     config: "SecurityConfig",
     owned_bans: Sequence[str],
     owned_patterns: Sequence[str],

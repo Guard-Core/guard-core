@@ -20,11 +20,11 @@ from guard_core.handlers._dynamic_rule_plan import (
 )
 from guard_core.handlers._dynamic_rule_snapshot import DynamicRuleSnapshotMixin
 from guard_core.handlers.ipban_handler import ip_ban_manager_for
-from guard_core.models import (
-    DynamicRules,
-    SecurityConfig,
+from guard_core.models import SecurityConfig
+from guard_core.protocols.agent_protocol import (
+    AgentHandlerProtocol,
+    DynamicRulesProtocol,
 )
-from guard_core.protocols.agent_protocol import AgentHandlerProtocol
 from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 
 
@@ -51,7 +51,7 @@ class DynamicRuleManager(
     redis_handler: RedisHandlerProtocol | None = None
     logger: logging.Logger
     last_update: float = 0
-    current_rules: DynamicRules | None = None
+    current_rules: DynamicRulesProtocol | None = None
     update_task: asyncio.Task | None = None
     _lock: asyncio.Lock
     _stop_event: asyncio.Event
@@ -64,7 +64,7 @@ class DynamicRuleManager(
     _owned_bans: list[str]
     _owned_patterns: list[str]
     _restored_ownership: tuple[list[str], list[str]]
-    _reverted_rules: DynamicRules | None
+    _reverted_rules: DynamicRulesProtocol | None
     _attribution_cache: tuple[tuple[object, ...], RuleAttribution] | None = None
 
     def __new__(
@@ -120,7 +120,7 @@ class DynamicRuleManager(
     async def initialize_redis(self, redis_handler: RedisHandlerProtocol) -> None:
         self.redis_handler = redis_handler
 
-    def _refresh_attribution(self, rules: DynamicRules | None = None) -> None:
+    def _refresh_attribution(self, rules: DynamicRulesProtocol | None = None) -> None:
         """Build the attribution view of the applied set. Called wherever the
         rules, their owned bans or patterns or the base snapshot change, so a
         request never pays for it; the identity check keeps it from rebuilding
@@ -169,17 +169,19 @@ class DynamicRuleManager(
             return rules.rule_id, rules.version
         return None
 
-    def _event_matches_ip(self, event: object, rules: DynamicRules) -> bool:
+    def _event_matches_ip(self, event: object, rules: DynamicRulesProtocol) -> bool:
         ip = getattr(event, "ip_address", None)
         if not ip:
             return False
         return ip in (rules.ip_blacklist or []) or ip in (rules.ip_whitelist or [])
 
-    def _event_matches_country(self, event: object, rules: DynamicRules) -> bool:
+    def _event_matches_country(
+        self, event: object, rules: DynamicRulesProtocol
+    ) -> bool:
         country = getattr(event, "country", None)
         return bool(country and country in (rules.blocked_countries or []))
 
-    def _event_matches_type(self, event: object, rules: DynamicRules) -> bool:
+    def _event_matches_type(self, event: object, rules: DynamicRulesProtocol) -> bool:
         event_type = getattr(event, "event_type", None)
         if event_type == "rate_limited":
             return rules.global_rate_limit is not None or bool(
@@ -235,7 +237,7 @@ class DynamicRuleManager(
                 "restored base config"
             )
 
-    async def _revoke_active_rules(self, answer: DynamicRules) -> None:
+    async def _revoke_active_rules(self, answer: DynamicRulesProtocol) -> None:
         async with self._lock:
             rules = self.current_rules
             if rules is None:
@@ -248,7 +250,7 @@ class DynamicRuleManager(
                 f"version-0 answer {answer.rule_id}; restored base config"
             )
 
-    def _has_rule_expired(self, rules: DynamicRules) -> bool:
+    def _has_rule_expired(self, rules: DynamicRulesProtocol) -> bool:
         if rules.expires_at is None:
             return False
         return datetime.now(timezone.utc) > _coerce_naive_utc(rules.expires_at)
@@ -278,7 +280,7 @@ class DynamicRuleManager(
         except Exception:
             self.logger.exception("Checking the ban thresholds after a rule failed")
 
-    async def _apply_rules(self, rules: DynamicRules) -> list[str]:
+    async def _apply_rules(self, rules: DynamicRulesProtocol) -> list[str]:
         async with self._lock:
             base = self._active_base_snapshot
             if base is None:
@@ -304,7 +306,7 @@ class DynamicRuleManager(
             await self._persist_last_known_rules(rules)
             return [*plan.skipped, *effects.skipped]
 
-    async def get_current_rules(self) -> DynamicRules | None:
+    async def get_current_rules(self) -> DynamicRulesProtocol | None:
         return self.current_rules
 
     async def force_update(self) -> None:

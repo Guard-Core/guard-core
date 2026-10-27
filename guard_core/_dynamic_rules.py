@@ -4,6 +4,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from guard_core.protocols.agent_protocol import DynamicRulesProtocol
+
 
 class DynamicRules(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -115,7 +117,7 @@ class LastKnownRulesSnapshot(BaseModel):
 
 
 def dump_last_known_rules_snapshot(
-    rules: DynamicRules,
+    rules: DynamicRulesProtocol,
     owned_bans: Sequence[str] | None = None,
     owned_patterns: Sequence[str] | None = None,
 ) -> str:
@@ -124,7 +126,7 @@ def dump_last_known_rules_snapshot(
     )
 
 
-def dump_legacy_last_known_rules_snapshot(rules: DynamicRules) -> str:
+def dump_legacy_last_known_rules_snapshot(rules: DynamicRulesProtocol) -> str:
     """The snapshot exactly as a v4.4.0 worker parses it: no ``owned`` and no
     ``emergency_whitelist_only`` (v4.4.0 forbids extra fields)."""
     return _build_snapshot(rules, None, None).model_dump_json(
@@ -133,11 +135,11 @@ def dump_legacy_last_known_rules_snapshot(rules: DynamicRules) -> str:
 
 
 def _build_snapshot(
-    rules: DynamicRules,
+    rules: DynamicRulesProtocol,
     owned_bans: Sequence[str] | None,
     owned_patterns: Sequence[str] | None,
 ) -> LastKnownRulesSnapshot:
-    mirrored_fields = rules.model_dump(include=set(DynamicRules.model_fields))
+    mirrored_fields = {name: getattr(rules, name) for name in DynamicRules.model_fields}
     owned = None
     if owned_bans is not None or owned_patterns is not None:
         owned = LastKnownOwnership(

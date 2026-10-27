@@ -1,5 +1,21 @@
 from collections.abc import Iterable, Mapping
-from typing import Any, Protocol, overload, runtime_checkable
+from typing import Protocol, overload, runtime_checkable
+
+
+class RequestState(Protocol):
+    """The per-request attribute bag: any name can be set, none is declared.
+
+    WHAT: where the engine and user code leave values for later checks
+    (``client_ip``, ``route_config``, ``is_whitelisted``...).
+    WHEN: written by one check, read back by a later one with ``getattr`` and a
+    default, since a name is only there once something set it.
+    HOW: pass the framework's own bag (Starlette ``State``, Flask ``g``, a
+    ``SimpleNamespace``, or the Django request itself).
+    """
+
+    def __setattr__(self, name: str, value: object, /) -> None:
+        """Store ``value`` under ``name`` for the rest of the request."""
+        ...
 
 
 class GuardRequestHeaders(Protocol):
@@ -110,7 +126,7 @@ class GuardRequest(Protocol):
         ...
 
     @property
-    def state(self) -> Any:
+    def state(self) -> RequestState:
         """Per-request scratch object for sharing data across checks."""
         ...
 

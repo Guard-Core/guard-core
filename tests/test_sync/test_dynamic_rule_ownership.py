@@ -71,7 +71,7 @@ def test_expiry_revokes_the_bans_and_patterns_the_rule_created() -> None:
     assert _pattern_present(PATTERN)
     assert ip_ban_manager.is_ip_banned(RULE_IP)
 
-    assert manager.current_rules is not None
+    assert isinstance(manager.current_rules, DynamicRules)
     manager.current_rules.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
     manager._check_rule_expiry()
 

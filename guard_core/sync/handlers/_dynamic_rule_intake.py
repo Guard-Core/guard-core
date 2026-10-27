@@ -3,11 +3,14 @@ import time
 from collections.abc import Callable
 
 from guard_core._dynamic_rules import content_fingerprint
-from guard_core.models import DynamicRules, SyncSecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers._dynamic_rule_events import DynamicRuleEventSenderMixin
 from guard_core.sync.handlers._dynamic_rule_purge import DynamicRulePurgeMixin
 from guard_core.sync.handlers._dynamic_rule_validation import find_malformed_values
-from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol
+from guard_core.sync.protocols.agent_protocol import (
+    DynamicRulesProtocol,
+    SyncAgentHandlerProtocol,
+)
 
 
 class DynamicRuleIntakeMixin(DynamicRuleEventSenderMixin, DynamicRulePurgeMixin):
@@ -15,17 +18,17 @@ class DynamicRuleIntakeMixin(DynamicRuleEventSenderMixin, DynamicRulePurgeMixin)
     agent_handler: SyncAgentHandlerProtocol | None
     logger: logging.Logger
     last_update: float
-    current_rules: DynamicRules | None
+    current_rules: DynamicRulesProtocol | None
     _current_fingerprint: str | None
     _last_skipped_expired_rule: tuple[str, int] | None
     _last_ignored_platform_default: tuple[str, int] | None
     _last_rejected_rule: tuple[str, int, str] | None
-    _has_rule_expired: Callable[[DynamicRules], bool]
+    _has_rule_expired: Callable[[DynamicRulesProtocol], bool]
     _check_rule_expiry: Callable[[], None]
-    _revoke_active_rules: Callable[[DynamicRules], None]
-    _apply_rules: Callable[[DynamicRules], list[str]]
+    _revoke_active_rules: Callable[[DynamicRulesProtocol], None]
+    _apply_rules: Callable[[DynamicRulesProtocol], list[str]]
 
-    def _should_update_rules(self, rules: DynamicRules) -> bool:
+    def _should_update_rules(self, rules: DynamicRulesProtocol) -> bool:
         current = self.current_rules
         if not current:
             return True
@@ -37,10 +40,10 @@ class DynamicRuleIntakeMixin(DynamicRuleEventSenderMixin, DynamicRulePurgeMixin)
             current_fingerprint,
         )
 
-    def _is_no_op_answer(self, rules: DynamicRules) -> bool:
+    def _is_no_op_answer(self, rules: DynamicRulesProtocol) -> bool:
         return getattr(rules, "version", None) == 0
 
-    def _ignore_platform_default(self, rules: DynamicRules) -> bool:
+    def _ignore_platform_default(self, rules: DynamicRulesProtocol) -> bool:
         if getattr(rules, "is_platform_default", False) is not True:
             return False
 
@@ -53,7 +56,7 @@ class DynamicRuleIntakeMixin(DynamicRuleEventSenderMixin, DynamicRulePurgeMixin)
             )
         return True
 
-    def _reject_if_already_expired(self, rules: DynamicRules) -> bool:
+    def _reject_if_already_expired(self, rules: DynamicRulesProtocol) -> bool:
         if not self._has_rule_expired(rules):
             return False
 
@@ -66,7 +69,7 @@ class DynamicRuleIntakeMixin(DynamicRuleEventSenderMixin, DynamicRulePurgeMixin)
             )
         return True
 
-    def _reject_if_malformed(self, rules: DynamicRules) -> bool:
+    def _reject_if_malformed(self, rules: DynamicRulesProtocol) -> bool:
         problems = find_malformed_values(rules)
         if not problems:
             return False
@@ -90,7 +93,7 @@ class DynamicRuleIntakeMixin(DynamicRuleEventSenderMixin, DynamicRulePurgeMixin)
 
             marker = self._read_marker_and_revert_if_purged()
 
-            answer: DynamicRules | None = self.agent_handler.get_dynamic_rules()
+            answer: DynamicRulesProtocol | None = self.agent_handler.get_dynamic_rules()
             rules = self._rules_that_apply(answer, marker)
             if rules is None:
                 return

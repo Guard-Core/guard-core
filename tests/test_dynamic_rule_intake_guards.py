@@ -81,7 +81,7 @@ async def test_the_stored_fingerprint_decides_whether_a_poll_is_a_change() -> No
     sent = send_event.await_count
     unchanged_poll = rules.model_copy()
 
-    assert manager.current_rules is not None
+    assert isinstance(manager.current_rules, DynamicRules)
     manager.current_rules.expires_at = datetime.now(timezone.utc) + timedelta(hours=2)
     await _poll(manager, unchanged_poll)
 

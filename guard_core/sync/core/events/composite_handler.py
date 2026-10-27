@@ -6,8 +6,8 @@ from typing import TYPE_CHECKING, Protocol
 from guard_core.sync.core.events.event_types import EventFilter
 
 if TYPE_CHECKING:
-    from guard_core.models import DynamicRules
     from guard_core.sync.protocols.agent_protocol import (
+        DynamicRulesProtocol,
         JsonValue,
         SyncAgentHandlerProtocol,
     )
@@ -103,10 +103,10 @@ class CompositeAgentHandler:
             except Exception:
                 logger.exception("handler.flush_buffer failed")
 
-    def get_dynamic_rules(self) -> DynamicRules | None:
+    def get_dynamic_rules(self) -> DynamicRulesProtocol | None:
         for handler in self._handlers:
             try:
-                result: DynamicRules | None = handler.get_dynamic_rules()
+                result: DynamicRulesProtocol | None = handler.get_dynamic_rules()
                 if result is not None:
                     return result
             except Exception:

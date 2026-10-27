@@ -13,8 +13,11 @@ from guard_core.handlers._dynamic_rule_persistence import (
     parse_purge_target,
     resolve_redis_value,
 )
-from guard_core.models import DynamicRules, SecurityConfig
-from guard_core.protocols.agent_protocol import AgentHandlerProtocol
+from guard_core.models import SecurityConfig
+from guard_core.protocols.agent_protocol import (
+    AgentHandlerProtocol,
+    DynamicRulesProtocol,
+)
 from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 
 _NESTED_AUTO_BANS_NOTE = (
@@ -43,18 +46,18 @@ class DynamicRulePurgeMixin:
     redis_handler: RedisHandlerProtocol | None = None
     agent_handler: AgentHandlerProtocol | None = None
     logger: logging.Logger
-    current_rules: DynamicRules | None
+    current_rules: DynamicRulesProtocol | None
     _current_fingerprint: str | None
     _owned_bans: list[str] | tuple[()]
     _owned_patterns: list[str] | tuple[()]
-    _reverted_rules: DynamicRules | None = None
+    _reverted_rules: DynamicRulesProtocol | None = None
     _read_redis_payload: Callable[[], Awaitable[str | bytes | None]]
     _read_file_payload: Callable[[], str | None]
     _read_redis_full_payload: Callable[[], Awaitable[str | bytes | None]]
     _read_file_full_payload: Callable[[], str | None]
     _reconcile_snapshot: Callable[
         [str | bytes, str | bytes | None],
-        tuple[DynamicRules, tuple[list[str], list[str]]],
+        tuple[DynamicRulesProtocol, tuple[list[str], list[str]]],
     ]
     _clear_last_known_rules: Callable[[], Awaitable[None]]
     _revert_to_base_config: Callable[[], None]
@@ -125,7 +128,7 @@ class DynamicRulePurgeMixin:
         full_payload: str | bytes | None,
         rule_id: str,
         version: int,
-    ) -> tuple[DynamicRules, list[str]] | None:
+    ) -> tuple[DynamicRulesProtocol, list[str]] | None:
         if payload is None:
             return None
         try:
@@ -151,7 +154,7 @@ class DynamicRulePurgeMixin:
         self._refresh_attribution()
         return removed
 
-    async def _write_purge_marker(self, rules: DynamicRules) -> PurgeMarker:
+    async def _write_purge_marker(self, rules: DynamicRulesProtocol) -> PurgeMarker:
         marker = PurgeMarker(
             rules.rule_id,
             rules.version,
@@ -251,7 +254,9 @@ class DynamicRulePurgeMixin:
             "this worker restored its base config"
         )
 
-    async def _answer_is_fresh(self, rules: DynamicRules, marker: PurgeMarker) -> bool:
+    async def _answer_is_fresh(
+        self, rules: DynamicRulesProtocol, marker: PurgeMarker
+    ) -> bool:
         status = await self._agent_status_with_rules_check_time()
         if status is not None:
             checked: datetime | None = status.rules_last_checked
@@ -274,8 +279,8 @@ class DynamicRulePurgeMixin:
         return status if hasattr(status, "rules_last_checked") else None
 
     async def _rules_that_apply(
-        self, rules: DynamicRules | None, marker: PurgeMarker | None
-    ) -> DynamicRules | None:
+        self, rules: DynamicRulesProtocol | None, marker: PurgeMarker | None
+    ) -> DynamicRulesProtocol | None:
         """The answer when one exists and, after a purge, is not the purged set:
         that set applies again only once a fresh SaaS check, newer than the purge,
         returns it. Any fresh answer ends the marker."""

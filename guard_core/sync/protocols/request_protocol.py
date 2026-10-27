@@ -1,7 +1,7 @@
 from collections.abc import Mapping
-from typing import Any, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
-from guard_core.protocols.request_protocol import GuardRequestHeaders
+from guard_core.protocols.request_protocol import GuardRequestHeaders, RequestState
 
 
 @runtime_checkable
@@ -66,7 +66,7 @@ class SyncGuardRequest(Protocol):
         ...
 
     @property
-    def state(self) -> Any:
+    def state(self) -> RequestState:
         """Per-request scratch object for sharing data across checks."""
         ...
 

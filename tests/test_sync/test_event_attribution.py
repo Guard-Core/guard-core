@@ -506,7 +506,7 @@ def test_a_set_that_expired_after_it_was_applied_stops_attributing() -> None:
     )
     before = _run(config, _request(), geo)
     assert _attr(_one(before, "country_blocked")) == DYNAMIC_OVERLAP
-    assert manager.current_rules is not None
+    assert isinstance(manager.current_rules, DynamicRules)
     manager.current_rules.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
     manager._check_rule_expiry()
 
@@ -832,7 +832,7 @@ def test_the_view_is_built_when_the_set_changes_not_on_the_first_block() -> None
     assert rebuilt[1].rule_id == "rule-two"
     assert rebuilt[1].owned_ban_members == frozenset({f"banned_ips:{OTHER_IP}"})
 
-    assert manager.current_rules is not None
+    assert isinstance(manager.current_rules, DynamicRules)
     manager.current_rules.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
     manager._check_rule_expiry()
     assert manager._attribution_cache is None

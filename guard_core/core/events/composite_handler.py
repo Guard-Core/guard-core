@@ -6,8 +6,11 @@ from typing import TYPE_CHECKING, Protocol
 from guard_core.core.events.event_types import EventFilter
 
 if TYPE_CHECKING:
-    from guard_core.models import DynamicRules
-    from guard_core.protocols.agent_protocol import AgentHandlerProtocol, JsonValue
+    from guard_core.protocols.agent_protocol import (
+        AgentHandlerProtocol,
+        DynamicRulesProtocol,
+        JsonValue,
+    )
     from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 
 logger = logging.getLogger("guard_core")
@@ -100,10 +103,10 @@ class CompositeAgentHandler:
             except Exception:
                 logger.exception("handler.flush_buffer failed")
 
-    async def get_dynamic_rules(self) -> DynamicRules | None:
+    async def get_dynamic_rules(self) -> DynamicRulesProtocol | None:
         for handler in self._handlers:
             try:
-                result: DynamicRules | None = await handler.get_dynamic_rules()
+                result: DynamicRulesProtocol | None = await handler.get_dynamic_rules()
                 if result is not None:
                     return result
             except Exception:

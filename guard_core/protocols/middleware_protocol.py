@@ -3,11 +3,74 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
-from guard_core.protocols.response_protocol import GuardResponse
+from guard_core.protocols.response_protocol import GuardResponse, GuardResponseFactory
 
 if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable, Mapping, Sequence
+
+    from guard_core.decorators.base import RouteConfig
+    from guard_core.handlers.ratelimit_handler import (
+        RateLimitBlock,
+        RateLimitTier,
+        RateLimitVerdict,
+    )
     from guard_core.models import SecurityConfig
     from guard_core.protocols.agent_protocol import AgentHandlerProtocol
+    from guard_core.protocols.redis_protocol import RedisHandlerProtocol
+    from guard_core.protocols.request_protocol import GuardRequest
+
+
+class RouteDecoratorRegistryProtocol(Protocol):
+    """The route-decorator registry: the per-route configs and their revision."""
+
+    @property
+    def _route_configs(self) -> Mapping[str, RouteConfig]:
+        """Every decorated route's config, keyed by route id."""
+        ...
+
+    @property
+    def route_config_revision(self) -> int:
+        """Changes whenever a route config is added or edited."""
+        ...
+
+
+class RateLimitHandlerProtocol(Protocol):
+    """The rate-limit handler the rate-limit check drives."""
+
+    @property
+    def redis_handler(self) -> RedisHandlerProtocol | None:
+        """The shared Redis backend, or ``None`` when rate limits are in memory."""
+        ...
+
+    @property
+    def agent_handler(self) -> AgentHandlerProtocol | None:
+        """The telemetry agent the handler reports blocks to, or ``None``."""
+        ...
+
+    async def check_rate_limit_tiers(
+        self,
+        request: GuardRequest,
+        client_ip: str,
+        create_error_response: Callable[[int, str], Awaitable[GuardResponse]],
+        tiers: Sequence[RateLimitTier],
+        config: SecurityConfig | None = None,
+        window_identity: str | None = None,
+        verdict: RateLimitVerdict | None = None,
+    ) -> RateLimitBlock | None:
+        """Count the request against the tiers; the block it hit, or ``None``."""
+        ...
+
+    async def report_rate_limit_block(
+        self,
+        request: GuardRequest,
+        client_ip: str,
+        block: RateLimitBlock,
+        tier: RateLimitTier,
+        config: SecurityConfig | None = None,
+        attribution: dict[str, object] | None = None,
+    ) -> None:
+        """Report a rate-limit block to the agent."""
+        ...
 
 
 @runtime_checkable
@@ -34,7 +97,7 @@ class GuardMiddlewareProtocol(Protocol):
     suspicious_request_counts: dict[str, dict[str, int]]
 
     @property
-    def guard_decorator(self) -> Any | None:
+    def guard_decorator(self) -> RouteDecoratorRegistryProtocol | None:
         """The route-decorator registry, or ``None`` when no route is decorated.
 
         The engine reads it with a ``None`` default, so a middleware without the
@@ -58,7 +121,7 @@ class GuardMiddlewareProtocol(Protocol):
         ...
 
     @property
-    def rate_limit_handler(self) -> Any:
+    def rate_limit_handler(self) -> RateLimitHandlerProtocol | None:
         """The rate-limit handler, or ``None`` when rate limiting is disabled."""
         ...
 
@@ -73,7 +136,7 @@ class GuardMiddlewareProtocol(Protocol):
         ...
 
     @property
-    def guard_response_factory(self) -> Any:
+    def guard_response_factory(self) -> GuardResponseFactory | None:
         """Factory producing ``GuardResponse`` objects for denied requests."""
         ...
 

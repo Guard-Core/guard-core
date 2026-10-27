@@ -134,12 +134,8 @@ select = [
 "perf_gate/**" = ["ANN401"]  # tests and tools keep Any inside fakes (D-177)
 "scripts/**" = ["ANN401"]  # tests and tools keep Any inside fakes (D-177)
 "specs/**" = ["ANN401"]  # tests and tools keep Any inside fakes (D-177)
-"guard_core/protocols/agent_protocol.py" = ["ANN401"]  # protocol
 "guard_core/protocols/middleware_protocol.py" = ["ANN401"]  # protocol
-"guard_core/protocols/request_protocol.py" = ["ANN401"]  # protocol
-"guard_core/sync/protocols/agent_protocol.py" = ["ANN401"]  # protocol
 "guard_core/sync/protocols/middleware_protocol.py" = ["ANN401"]  # protocol
-"guard_core/sync/protocols/request_protocol.py" = ["ANN401"]  # protocol
 # D-177 ANN401 ratchet: end
 
 [tool.pytest.ini_options]
@@ -188,18 +184,14 @@ disallow_any_explicit = true
 # async tree: modules not clean yet, bucket keeps each here
 [[tool.mypy.overrides]]
 module = [
-    "guard_core.protocols.agent_protocol",  # protocol
     "guard_core.protocols.middleware_protocol",  # protocol
-    "guard_core.protocols.request_protocol",  # protocol
 ]
 disallow_any_explicit = false
 
 # sync tree: twins of the async list and hand-written sync templates
 [[tool.mypy.overrides]]
 module = [
-    "guard_core.sync.protocols.agent_protocol",  # protocol
     "guard_core.sync.protocols.middleware_protocol",  # protocol
-    "guard_core.sync.protocols.request_protocol",  # protocol
 ]
 disallow_any_explicit = false
 # D-177 Any ratchet: end

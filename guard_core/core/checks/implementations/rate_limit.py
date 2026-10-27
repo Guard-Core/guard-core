@@ -13,6 +13,7 @@ from guard_core._utils.rule_attribution import rate_limit_attribution
 from guard_core.core.checks._ban_flow import BanFlow
 from guard_core.core.checks._pending_ban import PendingBan, resolve_pending_ban
 from guard_core.core.checks._rate_limit_ban_first import (
+    NO_RATE_LIMIT_HANDLER,
     defer_rate_limit,
     finish_tiers,
 )
@@ -320,10 +321,9 @@ class RateLimitCheck(SecurityCheck):
         plan: TierPlan,
         block: RateLimitBlock,
     ) -> None:
-        try:
-            limiter_agent = self.middleware.rate_limit_handler.agent_handler
-        except AttributeError:
-            limiter_agent = None
+        limiter_agent = getattr(
+            self.middleware.rate_limit_handler, "agent_handler", None
+        )
         attribution = (
             rate_limit_attribution(plan.tier.kind, plan.tier.bucket)
             if agent_receives_events(self.middleware.event_bus, self.config)
@@ -336,7 +336,10 @@ class RateLimitCheck(SecurityCheck):
             )
         if self._decorator_sends_rate_limited(request, plan):
             return
-        await self.middleware.rate_limit_handler.report_rate_limit_block(
+        rate_limit_handler = self.middleware.rate_limit_handler
+        if rate_limit_handler is None:
+            raise AttributeError(NO_RATE_LIMIT_HANDLER)
+        await rate_limit_handler.report_rate_limit_block(
             request, client_ip, block, plan.tier, self.config, attribution
         )
 

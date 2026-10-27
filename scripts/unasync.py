@@ -489,6 +489,16 @@ SUBS: list[tuple[str, str]] = [
         "from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol",
     ),
     (
+        r"from guard_core\.protocols\.agent_protocol import "
+        r"\(\n(\s+)AgentHandlerProtocol,",
+        "from guard_core.sync.protocols.agent_protocol import (\n"
+        r"\1SyncAgentHandlerProtocol,",
+    ),
+    (
+        r"from guard_core\.protocols\.agent_protocol import DynamicRulesProtocol",
+        "from guard_core.sync.protocols.agent_protocol import DynamicRulesProtocol",
+    ),
+    (
         r"from guard_core\.protocols\.redis_protocol import RedisHandlerProtocol",
         "from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol",
     ),

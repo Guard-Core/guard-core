@@ -72,7 +72,7 @@ async def _restart(config: SecurityConfig, redis: RedisManager) -> DynamicRuleMa
 
 
 async def _expire(manager: DynamicRuleManager) -> None:
-    assert manager.current_rules is not None
+    assert isinstance(manager.current_rules, DynamicRules)
     manager.current_rules.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
     await manager._check_rule_expiry()
     ip_ban_manager.banned_ips.clear()

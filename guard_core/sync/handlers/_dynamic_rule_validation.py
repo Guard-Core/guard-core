@@ -1,10 +1,10 @@
 import ipaddress
 import re
 
-from guard_core._dynamic_rules import DynamicRules
 from guard_core._security_config_field_validators import (
     canonicalize_cloud_provider_selector,
 )
+from guard_core.sync.protocols.agent_protocol import DynamicRulesProtocol
 
 _COUNTRY_CODE = re.compile(r"[A-Za-z]{2}")
 
@@ -19,7 +19,7 @@ def _below_one(value: int | None) -> bool:
     return value is not None and value < 1
 
 
-def _rate_limit_problems(rules: DynamicRules) -> list[str]:
+def _rate_limit_problems(rules: DynamicRulesProtocol) -> list[str]:
     problems = [
         f"{name}: {value} (must be at least 1)"
         for name, value in (
@@ -37,7 +37,7 @@ def _rate_limit_problems(rules: DynamicRules) -> list[str]:
     return problems
 
 
-def _endpoint_key_problems(rules: DynamicRules) -> list[str]:
+def _endpoint_key_problems(rules: DynamicRulesProtocol) -> list[str]:
     from guard_core.sync.core.validation.path_matching import (
         _has_routing_anomaly_in_any_decoding,
     )
@@ -77,7 +77,7 @@ def _ip_problems(name: str, entries: list[str]) -> list[str]:
     return problems
 
 
-def find_malformed_values(rules: DynamicRules) -> list[str]:
+def find_malformed_values(rules: DynamicRulesProtocol) -> list[str]:
     return [
         *_ip_problems("ip_blacklist", rules.ip_blacklist),
         *_ip_problems("ip_whitelist", rules.ip_whitelist),

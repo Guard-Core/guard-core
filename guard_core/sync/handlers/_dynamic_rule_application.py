@@ -2,7 +2,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from guard_core._emergency_exemptions import warn_unexempted_probe_paths
-from guard_core.models import DynamicRules, SyncSecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils.pattern_source_redaction import (
     _redact_pattern_source_of_app,
 )
@@ -13,7 +13,10 @@ from guard_core.sync.handlers._ipban_rule_exempt import (
     rule_ban_target,
 )
 from guard_core.sync.handlers._ipban_rule_revoke import _LIFTED, REVOKE_REWRITTEN
-from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol
+from guard_core.sync.protocols.agent_protocol import (
+    DynamicRulesProtocol,
+    SyncAgentHandlerProtocol,
+)
 
 
 def _redact_pattern_list(patterns: list[str], config: SyncSecurityConfig) -> list[str]:
@@ -36,7 +39,7 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
 
     def _apply_side_effects(
         self,
-        rules: DynamicRules,
+        rules: DynamicRulesProtocol,
         effects: RuleSideEffects | None = None,
         exempt_ips: list[str] | None = None,
     ) -> None:
@@ -211,7 +214,7 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
             self._send_emergency_event(whitelist)
 
     def _revoke_stale_side_effects(
-        self, rules: DynamicRules, effects: RuleSideEffects
+        self, rules: DynamicRulesProtocol, effects: RuleSideEffects
     ) -> None:
         listed = [rule_ban_target(ip)[1] for ip in rules.ip_blacklist]
         previous = [rule_ban_target(ip)[1] for ip in self._owned_bans]
