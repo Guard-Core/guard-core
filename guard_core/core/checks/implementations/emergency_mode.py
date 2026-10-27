@@ -1,11 +1,9 @@
-import threading
-from collections import OrderedDict
 from collections.abc import Collection, Sequence
 from ipaddress import ip_address
 
 from guard_core._utils.agent_events import agent_receives_events
 from guard_core._utils.rule_attribution import emergency_attribution
-from guard_core._utils.sampling import observe_sampled_key
+from guard_core._utils.sampling import PerApp, SampledKeys, observe_sampled_key
 from guard_core.core.checks.base import SecurityCheck
 from guard_core.core.events.event_types import EVENT_EMERGENCY_MODE_BLOCK
 from guard_core.core.validation.path_matching import path_is_excluded
@@ -18,14 +16,14 @@ from guard_core.utils import _ip_in_list, extract_client_ip, log_activity
 EMERGENCY_RETRY_AFTER = 60
 _EMERGENCY_SAMPLE_WINDOW_SECONDS = 60
 _MAX_TRACKED_EMERGENCY_CLIENTS = 10_000
-_emergency_lock = threading.Lock()
-_emergency_samples: OrderedDict[str, float] = OrderedDict()
+_emergency_samples: PerApp[SampledKeys] = PerApp("emergency", SampledKeys)
 
 
-def _sample_emergency_line(kind: str, client_ip: str) -> bool:
+def _sample_emergency_line(config: object, kind: str, client_ip: str) -> bool:
+    samples = _emergency_samples.for_app(config)
     return observe_sampled_key(
-        _emergency_samples,
-        _emergency_lock,
+        samples.entries,
+        samples.lock,
         f"{kind}|{client_ip}",
         window=_EMERGENCY_SAMPLE_WINDOW_SECONDS,
         max_tracked=_MAX_TRACKED_EMERGENCY_CLIENTS,
@@ -87,7 +85,7 @@ class EmergencyModeCheck(SecurityCheck):
     async def _deny(
         self, request: GuardRequest, client_ip: str
     ) -> GuardResponse | None:
-        sampled = _sample_emergency_line("block", client_ip)
+        sampled = _sample_emergency_line(self.config, "block", client_ip)
         await log_activity(
             request,
             self.logger,
@@ -130,7 +128,7 @@ class EmergencyModeCheck(SecurityCheck):
         return response
 
     async def _log_allowed(self, request: GuardRequest, client_ip: str) -> None:
-        if not _sample_emergency_line("allow", client_ip):
+        if not _sample_emergency_line(self.config, "allow", client_ip):
             return
         await log_activity(
             request,

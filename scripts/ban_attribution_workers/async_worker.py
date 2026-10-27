@@ -52,7 +52,7 @@ async def main(url: str, prefix: str, duration: int) -> None:
             reply: dict[str, object] = {"owned": manager._owned_bans}
         else:
             banned = await ip_ban_manager.is_ip_banned(RULE_IP)
-            view = attribution._applied
+            view = attribution._view_of(config)
             stamp = await view.for_ban(RULE_IP, ip_ban_manager) if view else None
             reply = {"banned": banned, "stamp": stamp}
         print(json.dumps(reply), flush=True)

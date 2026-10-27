@@ -1,6 +1,4 @@
 import logging
-import threading
-from collections import OrderedDict
 from collections.abc import Sequence
 from functools import lru_cache
 from ipaddress import (
@@ -20,7 +18,7 @@ from guard_core.sync._utils.nat64 import (
     _unwrap_nat64,
     _warn_non_global_embedded_once_a_minute,
 )
-from guard_core.sync._utils.sampling import observe_counted_key
+from guard_core.sync._utils.sampling import CountedKeys, PerApp, observe_counted_key
 from guard_core.sync._utils.whitelist_match import is_listed
 from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
@@ -330,15 +328,10 @@ def _display_forwarded_chain(value: str) -> str:
 
 _UNTRUSTED_XFF_WINDOW_SECONDS = 60
 _MAX_TRACKED_UNTRUSTED_PEERS = 10_000
-_untrusted_peer_lock = threading.Lock()
+_untrusted_peers: PerApp[CountedKeys] = PerApp("untrusted_peers", CountedKeys)
 
 
-_untrusted_peers: OrderedDict[str, tuple[float, int]] = OrderedDict()
-_evicted_suppressed_lock = threading.Lock()
-_evicted_suppressed_total = 0
-
-
-def _observe_untrusted_forwarded_for(peer: str) -> tuple[bool, int]:
+def _observe_untrusted_forwarded_for(config: object, peer: str) -> tuple[bool, int]:
     """Count one X-Forwarded-For request from an untrusted peer.
 
     Returns ``(sampled, suppressed_count)``. ``sampled`` is true at most once per
@@ -349,28 +342,26 @@ def _observe_untrusted_forwarded_for(peer: str) -> tuple[bool, int]:
     value is never stored or compared: a rotating value is not a ban signal, only
     an X-Forwarded-For that claims a whitelisted or trusted-proxy address is. At
     most ``_MAX_TRACKED_UNTRUSTED_PEERS`` peers are tracked and the oldest is
-    evicted; its pending count is kept in ``_evicted_suppressed_total`` for the
-    next event sent.
+    evicted; its pending count is kept for the next event sent. The table is the
+    one of the app of ``config``: another app's sample of the same peer does not
+    suppress this app's.
     """
-    global _evicted_suppressed_total
+    peers = _untrusted_peers.for_app(config)
     sampled, suppressed, evicted_pending = observe_counted_key(
-        _untrusted_peers,
-        _untrusted_peer_lock,
+        peers.entries,
+        peers.lock,
         peer,
         window=_UNTRUSTED_XFF_WINDOW_SECONDS,
         max_tracked=_MAX_TRACKED_UNTRUSTED_PEERS,
     )
     if evicted_pending:
-        with _evicted_suppressed_lock:
-            _evicted_suppressed_total += evicted_pending
+        with peers.evicted_lock:
+            peers.evicted_pending += evicted_pending
     return sampled, suppressed
 
 
-def _take_evicted_suppressed_count() -> int:
-    global _evicted_suppressed_total
-    with _evicted_suppressed_lock:
-        taken, _evicted_suppressed_total = _evicted_suppressed_total, 0
-    return taken
+def _take_evicted_suppressed_count(config: object) -> int:
+    return _untrusted_peers.for_app(config).take_evicted_pending()
 
 
 def forwarded_for_addresses(forwarded_for: str) -> list[IPv4Address | IPv6Address]:
@@ -407,7 +398,7 @@ def _handle_untrusted_proxy(
         _warn_forwarded_header_preempted(connecting_ip, forwarded_for)
         peer_is_public = not _is_private_or_loopback(connecting_ip)
         sampled, suppressed_count = _observe_untrusted_forwarded_for(
-            canonical_connecting_ip
+            config, canonical_connecting_ip
         )
         if peer_is_public:
             request.state.untrusted_forwarded_for = forwarded_for
@@ -441,7 +432,9 @@ def _handle_untrusted_proxy(
                 request,
                 metadata={
                     "suppressed_count": suppressed_count,
-                    "suppressed_evicted_count": _take_evicted_suppressed_count(),
+                    "suppressed_evicted_count": _untrusted_peers.for_app(
+                        config
+                    ).take_evicted_pending(),
                 },
             )
     return canonical_connecting_ip
@@ -551,9 +544,10 @@ def _malformed_forwarded_for_identity(
     agent_handler: SyncAgentHandlerProtocol | None,
     config: ForwardedForConfig,
 ) -> str:
+    peers = _untrusted_peers.for_app(config)
     if observe_counted_key(
-        _untrusted_peers,
-        _untrusted_peer_lock,
+        peers.entries,
+        peers.lock,
         f"malformed:{peer}",
         window=_UNTRUSTED_XFF_WINDOW_SECONDS,
         max_tracked=_MAX_TRACKED_UNTRUSTED_PEERS,

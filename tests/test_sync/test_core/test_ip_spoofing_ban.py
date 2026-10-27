@@ -117,10 +117,11 @@ def test_spoofing_is_not_counted_in_passive_mode() -> None:
 def test_tracked_untrusted_peers_stay_bounded(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(ip_extraction, "_MAX_TRACKED_UNTRUSTED_PEERS", 3)
 
+    config = _config()
     for n in range(10):
-        ip_extraction._observe_untrusted_forwarded_for(f"93.184.216.{n}")
+        ip_extraction._observe_untrusted_forwarded_for(config, f"93.184.216.{n}")
 
-    assert list(ip_extraction._untrusted_peers) == [
+    assert list(ip_extraction._untrusted_peers.for_app(config).entries) == [
         "93.184.216.7",
         "93.184.216.8",
         "93.184.216.9",

@@ -1,16 +1,18 @@
 import ipaddress
 import logging
-import threading
 import time
-from collections import OrderedDict
 from collections.abc import Iterable, MutableMapping
+from typing import TYPE_CHECKING
 
-from guard_core.sync._utils.sampling import observe_sampled_key
+from guard_core.sync._utils.sampling import PerApp, SampledKeys, observe_sampled_key
 from guard_core.sync.handlers._ipban_cache import _BanStore, _Network
 from guard_core.sync.handlers._ipban_events import IpBanEventMixin
 from guard_core.sync.handlers._ipban_rule_exempt import rule_ban_target
 from guard_core.sync.handlers._ipban_version import IpBanVersionMixin
 from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
+
+if TYPE_CHECKING:
+    from guard_core.models import SyncSecurityConfig
 
 REVOKE_GONE = 0
 REVOKE_DELETED = 1
@@ -22,14 +24,16 @@ _RULE_NAMESPACES = ("banned_ips", "banned_networks")
 _OWNED_EXPIRY_TOLERANCE = 1e-6
 _MAX_OWNER_ANSWERS = 10_000
 _ATTRIBUTION_FAILURE_WINDOW_SECONDS = 60
-_attribution_failure_lock = threading.Lock()
-_attribution_failure_samples: OrderedDict[str, float] = OrderedDict()
+_attribution_failure_samples: PerApp[SampledKeys] = PerApp(
+    "attribution_failure", SampledKeys
+)
 
 
-def _sample_attribution_failure() -> bool:
+def _sample_attribution_failure(config: object) -> bool:
+    samples = _attribution_failure_samples.for_app(config)
     return observe_sampled_key(
-        _attribution_failure_samples,
-        _attribution_failure_lock,
+        samples.entries,
+        samples.lock,
         "redis",
         window=_ATTRIBUTION_FAILURE_WINDOW_SECONDS,
         max_tracked=1,
@@ -49,6 +53,7 @@ class IpBanRuleRevokeMixin(IpBanVersionMixin, IpBanEventMixin):
     banned_ips: MutableMapping[str, float]
     banned_networks: list[tuple[_Network, float]]
     redis_handler: SyncRedisHandlerProtocol | None = None
+    config: "SyncSecurityConfig | None" = None
     logger: logging.Logger
     _rule_owned_expiries: dict[str, float]
     _rule_owner_answers: dict[str, tuple[bool, str | None, float]]
@@ -113,7 +118,7 @@ class IpBanRuleRevokeMixin(IpBanVersionMixin, IpBanEventMixin):
             verdict = self._owns_live_ban(owned, live, now)
         except Exception as error:
             verdict = False
-            if _sample_attribution_failure():
+            if _sample_attribution_failure(self.config):
                 self.logger.warning("Ban attribution skipped, Redis failed: %s", error)
         if len(self._rule_owner_answers) >= _MAX_OWNER_ANSWERS:
             self._rule_owner_answers.clear()

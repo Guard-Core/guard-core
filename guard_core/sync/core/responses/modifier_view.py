@@ -11,6 +11,7 @@ from guard_core.protocols.response_protocol import (
     GuardResponseHeaders,
 )
 from guard_core.sync._utils.agent_events import send_agent_event
+from guard_core.sync._utils.sampling import PerApp, RefusalReports
 from guard_core.sync.core.events.event_types import EVENT_RESPONSE_BODY_UNAVAILABLE
 from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
@@ -24,7 +25,7 @@ _BODY_NOT_YET_AVAILABLE = "the first call of a modifier that is replayed with th
 _BODYLESS_STATUSES = frozenset({204, 304})
 _REFUSAL_REPORT_SECONDS = 60
 _REFUSAL_REPORT_MAX_REASONS = 64
-_reported_refusals: dict[str, float] = {}
+_reported_refusals: PerApp[RefusalReports] = PerApp("refusals", RefusalReports)
 
 
 def reads_response_body(
@@ -311,12 +312,13 @@ def report_body_refused(
     reason: str,
 ) -> None:
     now = time.monotonic()
-    last = _reported_refusals.get(reason)
+    reported = _reported_refusals.for_app(config)
+    last = reported.get(reason)
     if last is not None and now - last < _REFUSAL_REPORT_SECONDS:
         return
-    if len(_reported_refusals) >= _REFUSAL_REPORT_MAX_REASONS:
-        _reported_refusals.clear()
-    _reported_refusals[reason] = now
+    if len(reported) >= _REFUSAL_REPORT_MAX_REASONS:
+        reported.clear()
+    reported[reason] = now
     logger.warning(
         "custom_response_modifier read .body but it is unavailable: %s; "
         "header edits still apply",

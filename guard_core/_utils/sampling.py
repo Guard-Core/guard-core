@@ -1,6 +1,81 @@
 import threading
 import time
 from collections import OrderedDict
+from typing import Generic, Protocol, TypeVar
+
+from guard_core._utils.app_managers import held_for_app, hold_for_app
+
+
+class _Clearable(Protocol):
+    def clear(self) -> None: ...
+
+
+_T = TypeVar("_T", bound=_Clearable)
+
+
+class SampledKeys:
+    """The keys one app last sampled, for ``observe_sampled_key``."""
+
+    def __init__(self) -> None:
+        self.entries: OrderedDict[str, float] = OrderedDict()
+        self.lock = threading.Lock()
+
+    def clear(self) -> None:
+        self.entries.clear()
+
+
+class CountedKeys:
+    """The keys one app last sampled and what each suppressed since, for
+    ``observe_counted_key``, plus the pending counts of evicted keys."""
+
+    def __init__(self) -> None:
+        self.entries: OrderedDict[str, tuple[float, int]] = OrderedDict()
+        self.lock = threading.Lock()
+        self.evicted_pending = 0
+        self.evicted_lock = threading.Lock()
+
+    def clear(self) -> None:
+        self.entries.clear()
+        self.evicted_pending = 0
+
+    def take_evicted_pending(self) -> int:
+        with self.evicted_lock:
+            taken, self.evicted_pending = self.evicted_pending, 0
+        return taken
+
+
+class RefusalReports(dict[str, float]):
+    """The reasons one app last reported, with the time of each."""
+
+
+class PerApp(Generic[_T]):
+    """One sampling table per app, found by the app's config.
+
+    The config holds its table and a copy of the config shares it, so with N apps
+    the process holds at most N tables, each bounded by the caller's own cap. No
+    config, or one that cannot hold a table, uses a process-wide table of its own.
+    """
+
+    def __init__(self, kind: str, table_type: type[_T]) -> None:
+        self._kind = f"sampling:{kind}"
+        self._table_type = table_type
+        self._lock = threading.Lock()
+        self._unheld = table_type()
+
+    def clear(self) -> None:
+        """Forget the process-wide table. The table of an app goes with its config."""
+        self._unheld.clear()
+
+    def for_app(self, config: object) -> _T:
+        held = held_for_app(config, self._kind)
+        if isinstance(held, self._table_type):
+            return held
+        with self._lock:
+            held = held_for_app(config, self._kind)
+            if isinstance(held, self._table_type):
+                return held
+            fresh = self._table_type()
+            return fresh if hold_for_app(config, self._kind, fresh) else self._unheld
 
 
 def _evict_oldest_when_full(table: "OrderedDict[str, float]", max_tracked: int) -> None:

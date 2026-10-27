@@ -325,12 +325,14 @@ async def test_the_refusal_warning_and_event_are_sampled_per_reason(
 ) -> None:
     agent = MagicMock()
     agent.send_event = AsyncMock()
+    factory = _factory(_reading_modifier(_Calls()), agent)
     with caplog.at_level(logging.WARNING, logger="guard_core"):
         for _ in range(3):
-            await _run(
-                _reading_modifier(_Calls()),
-                _Streamed(b"x", headers={"Content-Type": "text/event-stream"}),
-                agent_handler=agent,
+            await factory.apply_modifier(
+                _as_response(
+                    _Streamed(b"x", headers={"Content-Type": "text/event-stream"})
+                ),
+                MockGuardRequest(method="GET"),
             )
     assert len([r for r in caplog.records if r.levelno == logging.WARNING]) == 1
     assert agent.send_event.await_count == 1

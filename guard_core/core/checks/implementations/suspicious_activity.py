@@ -1,5 +1,3 @@
-import threading
-from collections import OrderedDict
 from collections.abc import Collection
 from typing import TYPE_CHECKING
 
@@ -13,7 +11,7 @@ from guard_core._utils.route_gate import (
     path_params_without_a_literal_segment_before,
 )
 from guard_core._utils.rule_attribution import pattern_attribution
-from guard_core._utils.sampling import observe_sampled_key
+from guard_core._utils.sampling import PerApp, SampledKeys, observe_sampled_key
 from guard_core.core.checks._shared_strikes import StrikeReport
 from guard_core.core.checks.base import SecurityCheck
 from guard_core.core.checks.helpers import (
@@ -41,14 +39,18 @@ if TYPE_CHECKING:
 
 _DISABLED_DETECTION_EVENT_WINDOW_SECONDS = 60
 _MAX_TRACKED_DISABLED_DETECTION_CLIENTS = 10_000
-_disabled_detection_lock = threading.Lock()
-_disabled_detection_samples: OrderedDict[str, float] = OrderedDict()
+_disabled_detection_samples: PerApp[SampledKeys] = PerApp(
+    "disabled_detection", SampledKeys
+)
 
 
-def _sample_disabled_detection_event(client_ip: str, route_id: str) -> bool:
+def _sample_disabled_detection_event(
+    config: object, client_ip: str, route_id: str
+) -> bool:
+    samples = _disabled_detection_samples.for_app(config)
     return observe_sampled_key(
-        _disabled_detection_samples,
-        _disabled_detection_lock,
+        samples.entries,
+        samples.lock,
         f"{route_id}|{client_ip}",
         window=_DISABLED_DETECTION_EVENT_WINDOW_SECONDS,
         max_tracked=_MAX_TRACKED_DISABLED_DETECTION_CLIENTS,
@@ -331,7 +333,7 @@ class SuspiciousActivityCheck(SecurityCheck):
 
         if result.trigger_info == "disabled_by_decorator":
             route_id = str(getattr(request.state, "guard_route_id", ""))
-            if _sample_disabled_detection_event(client_ip, route_id):
+            if _sample_disabled_detection_event(self.config, client_ip, route_id):
                 await self.middleware.event_bus.send_middleware_event(
                     event_type=EVENT_DECORATOR_VIOLATION,
                     request=request,

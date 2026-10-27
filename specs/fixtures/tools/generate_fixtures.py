@@ -567,8 +567,9 @@ async def run_corpus(
     # evt_suspicious_request_untrusted_proxy. Every pass starts without it.
     from guard_core._utils import ip_extraction
 
-    with ip_extraction._untrusted_peer_lock:
-        ip_extraction._untrusted_peers.clear()
+    peers = ip_extraction._untrusted_peers.for_app(config)
+    with peers.lock:
+        peers.entries.clear()
     sus_patterns_handler.configure(config)
     manager = sus_patterns_handler
     results: dict[str, dict] = {}

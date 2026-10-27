@@ -88,7 +88,7 @@ def unmark_shared_by_apps(manager: object) -> None:
     manager.__dict__.pop(SHARED_BY_APPS, None)
 
 
-def hold_for_app(config: object, kind: str, manager: object) -> None:
+def hold_for_app(config: object, kind: str, manager: object) -> bool:
     """Keep a per-app manager alive as long as the config of its app.
 
     The registries below hold managers weakly. The manager references its
@@ -102,7 +102,17 @@ def hold_for_app(config: object, kind: str, manager: object) -> None:
             object.__setattr__(config, _HELD_ATTRIBUTE, held)
         held[kind] = manager
     except (AttributeError, TypeError):
-        return
+        return False
+    return True
+
+
+def held_for_app(config: object, kind: str) -> object | None:
+    """What ``hold_for_app`` kept under ``kind`` for this config, if anything."""
+    try:
+        held = config.__dict__.get(_HELD_ATTRIBUTE)
+    except AttributeError:
+        return None
+    return held.get(kind) if held is not None else None
 
 
 class AppManagers(Generic[_M]):

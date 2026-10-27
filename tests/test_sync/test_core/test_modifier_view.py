@@ -307,16 +307,12 @@ def test_view_gate_is_asked_once_and_attribute_writes_read_back() -> None:
 def test_report_body_refused_samples_per_reason_and_skips_events_without_agent(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    _reported_refusals.clear()
     logger = logging.getLogger("guard_core.test_modifier_view")
+    config = SyncSecurityConfig(enable_redis=False)
     request: Any = None
     with caplog.at_level(logging.WARNING, logger=logger.name):
-        report_body_refused(
-            logger, SyncSecurityConfig(enable_redis=False), None, request, "r1"
-        )
-        report_body_refused(
-            logger, SyncSecurityConfig(enable_redis=False), None, request, "r1"
-        )
+        report_body_refused(logger, config, None, request, "r1")
+        report_body_refused(logger, config, None, request, "r1")
         report_body_refused(
             logger,
             SyncSecurityConfig(enable_redis=False, agent_enable_events=False),
@@ -329,7 +325,6 @@ def test_report_body_refused_samples_per_reason_and_skips_events_without_agent(
         "header edits still apply"
     ) == 1
     assert len(caplog.records) == 2
-    _reported_refusals.clear()
 
 
 def test_commit_is_a_no_op_because_writes_go_through() -> None:
@@ -344,19 +339,18 @@ def test_commit_is_a_no_op_because_writes_go_through() -> None:
 def test_report_body_refused_reports_again_after_the_window_and_stays_bounded(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    _reported_refusals.clear()
     logger = logging.getLogger("guard_core.test_modifier_view_window")
     config = SyncSecurityConfig(enable_redis=False)
+    reported = _reported_refusals.for_app(config)
     request: Any = None
     with caplog.at_level(logging.WARNING, logger=logger.name):
         report_body_refused(logger, config, None, request, "again")
-        _reported_refusals["again"] -= 61
+        reported["again"] -= 61
         report_body_refused(logger, config, None, request, "again")
         for index in range(70):
             report_body_refused(logger, config, None, request, f"r{index}")
     assert len(caplog.records) == 72
-    assert len(_reported_refusals) <= 64
-    _reported_refusals.clear()
+    assert len(reported) <= 64
 
 
 def test_gate_refusal_method_asks_the_gate_once() -> None:

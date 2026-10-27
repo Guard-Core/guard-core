@@ -112,7 +112,7 @@ async def test_set_attribution_view_clears_the_view_of_the_default_manager() -> 
 
     rule_attribution.set_attribution_view(None)
 
-    assert manager._attribution_view is None
+    assert rule_attribution._view_of(app) is None
     assert rule_attribution.emergency_attribution(app) == {}
 
 
