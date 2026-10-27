@@ -123,9 +123,13 @@ def redis_fail_secure_blocks_when_redis_is_paused(ctx: ScenarioContext) -> None:
         response = ctx.client.get("/basic/ip", params={"q": "hello"})
         elapsed = time.monotonic() - start
 
-        assert response.status_code == 500, (
+        assert response.status_code == 503, (
             "fail_secure=True with redis_fail_open=False must block the request "
             f"when Redis is unreachable; got {response.status_code}"
+        )
+        assert response.headers.get("Retry-After") == "5", (
+            "a Redis outage under fail_secure answers 503 with Retry-After: 5 "
+            f"(D-188); got {response.headers.get('Retry-After')!r}"
         )
         assert elapsed < 8.0, (
             "redis_socket_timeout=1.0/redis_socket_connect_timeout=1.0 should "
