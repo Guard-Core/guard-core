@@ -327,6 +327,7 @@ AGENT_INTERVAL_CONFIG = {
     "dynamic_rule_interval": 60,
     "agent_flush_interval": 5,
     "excluded_detection_headers": EXCLUDED_HEADERS,
+    "smoke_workers": 1,
 }
 
 

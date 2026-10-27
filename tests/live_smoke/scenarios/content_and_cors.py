@@ -327,6 +327,7 @@ def cors_preflight_flagged_override_answers_app_built_without_cors(
         **_AGENT_STUB,
         "enable_cors": False,
         "smoke_cors_override": _REFUSED_CORS_OVERRIDE,
+        "smoke_workers": 1,
     },
 )
 def cors_preflight_refused_override_sends_refusal_event_once(
@@ -353,6 +354,7 @@ def cors_preflight_refused_override_sends_refusal_event_once(
         **_CORS_CONFIG,
         **_AGENT_STUB,
         "smoke_cors_override": _REFUSED_CORS_OVERRIDE,
+        "smoke_workers": 1,
     },
 )
 def cors_preflight_app_built_with_cors_keeps_answering_its_own(

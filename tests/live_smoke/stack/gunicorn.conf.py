@@ -6,21 +6,27 @@ from pathlib import Path
 bind = "0.0.0.0:8000"
 
 
-def _scenario_enables_redis() -> bool:
+def _scenario_config() -> dict[str, object]:
     path = os.environ.get("SMOKE_CONFIG_PATH", "")
     if not path or not Path(path).is_file():
-        return True
+        return {}
     text = Path(path).read_text(encoding="utf-8").strip()
-    return bool(json.loads(text).get("enable_redis", True)) if text else True
+    return json.loads(text) if text else {}
 
 
-# Two workers share the scenario's Redis. A scenario that turns Redis off keeps its
-# counters in process memory, which only one worker can hold, so it runs on one.
-workers = (
-    int(os.environ.get("WEB_CONCURRENCY", multiprocessing.cpu_count() * 2 + 1))
-    if _scenario_enables_redis()
-    else 1
-)
+def _worker_count(scenario_config: dict[str, object]) -> int:
+    # Two workers share the scenario's Redis. A scenario that turns Redis off keeps
+    # its counters in process memory, which only one worker can hold, and one that
+    # counts per-process events (an event sent once per process) asks for one with
+    # "smoke_workers".
+    if "smoke_workers" in scenario_config:
+        return int(str(scenario_config["smoke_workers"]))
+    if scenario_config.get("enable_redis", True) is False:
+        return 1
+    return int(os.environ.get("WEB_CONCURRENCY", multiprocessing.cpu_count() * 2 + 1))
+
+
+workers = _worker_count(_scenario_config())
 worker_class = "uvicorn.workers.UvicornWorker"
 timeout = 120
 keepalive = 5

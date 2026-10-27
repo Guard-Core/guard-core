@@ -60,6 +60,7 @@ def _smoke_apply_overrides() -> None:
 
     smoke_nonce = overrides.pop("smoke_nonce", smoke_nonce)
     Path("/tmp/smoke_nonce.txt").write_text(smoke_nonce, encoding="utf-8")
+    overrides.pop("smoke_workers", None)
     smoke_geoip_db = overrides.pop("smoke_geoip_db", None)
     smoke_cors_override = overrides.pop("smoke_cors_override", None)
     smoke_body_reading_modifier = overrides.pop("smoke_body_reading_modifier", False)
