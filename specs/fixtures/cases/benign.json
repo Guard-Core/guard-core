@@ -228,6 +228,96 @@
         "processed_length": 15,
         "detection_method": "enhanced"
       }
+    },
+    {
+      "id": "benign_upload_app_config",
+      "input": {
+        "content": "filename=\"app.config\"",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": false,
+        "threat_score": 0.0,
+        "threats": [],
+        "original_length": 21,
+        "processed_length": 21,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "benign_upload_nlog_config",
+      "input": {
+        "content": "filename=\"nlog.config\"",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": false,
+        "threat_score": 0.0,
+        "threats": [],
+        "original_length": 22,
+        "processed_length": 22,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "benign_upload_exe_config",
+      "input": {
+        "content": "filename=\"App.exe.config\"",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": false,
+        "threat_score": 0.0,
+        "threats": [],
+        "original_length": 25,
+        "processed_length": 25,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "benign_upload_appsettings_json",
+      "input": {
+        "content": "filename=\"appsettings.json\"",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": false,
+        "threat_score": 0.0,
+        "threats": [],
+        "original_length": 27,
+        "processed_length": 27,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "benign_upload_inc_then_image",
+      "input": {
+        "content": "filename=\"shell.inc.jpg\"",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": false,
+        "threat_score": 0.0,
+        "threats": [],
+        "original_length": 24,
+        "processed_length": 24,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "benign_upload_php_ini",
+      "input": {
+        "content": "filename=\"php.ini\"",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": false,
+        "threat_score": 0.0,
+        "threats": [],
+        "original_length": 18,
+        "processed_length": 18,
+        "detection_method": "enhanced"
+      }
     }
   ]
 }

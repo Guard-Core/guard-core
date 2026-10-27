@@ -192,7 +192,7 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "(?:\\A|[;,:\\n])\\s*filename\\s*=\\s*[\\\"'][^\\\"']*\\.(?:php\\d*|htaccess|htpasswd|config|phtml|shtml|asax|ascx|ashx|asmx|aspx|bash|jspx|phar|phps|asa|asp|bat|cer|cfc|cfm|cgi|cmd|com|exe|hta|inc|jsp|msi|pht|vbe|vbs|war|wsf|js|pl|py|rb|sh|ws)[\\\"']",
+            "pattern": "(?:\\A|[;,:\\n])\\s*filename\\s*=\\s*[\\\"'](?:[^\\\"']*\\.(?:php\\d*|htaccess|htpasswd|phtml|shtml|asax|ascx|ashx|asmx|aspx|bash|jspx|phar|phps|asa|asp|bat|cer|cfc|cfm|cgi|cmd|com|exe|hta|inc|jsp|msi|pht|vbe|vbs|war|wsf|js|pl|py|rb|sh|ws)|(?:[^\\\"']*[/\\\\])?(?:web\\.config|\\.user\\.ini))(?:[. ]*::\\$DATA)?[. ]*[\\\"']",
             "match": "; filename=\"shell.php\"",
             "position": 43,
             "category": "file_upload",

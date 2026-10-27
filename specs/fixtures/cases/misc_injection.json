@@ -790,7 +790,7 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "(?:\\A|[;,:\\n])\\s*filename\\s*=\\s*[\\\"'][^\\\"']*\\.(?:php\\d*|phtml|shtml|asax|ascx|ashx|asmx|aspx|bash|jspx|phar|phps|asa|asp|bat|cer|cfc|cfm|cgi|cmd|exe|hta|jsp|msi|pht|vbe|vbs|war|wsf|js|pl|py|rb|sh|ws)(?![A-Za-z0-9])(?:[^ \\\"'][^\\\"']*)?\\.(?:docx|jpeg|pptx|tiff|webm|webp|xlsx|avi|bmp|doc|gif|ico|jpg|mkv|mov|mp3|mp4|odt|pdf|png|ppt|svg|tif|wav|xls)[\\\"']",
+            "pattern": "(?:\\A|[;,:\\n])\\s*filename\\s*=\\s*[\\\"'][^\\\"']*\\.(?:php\\d*|phtml|shtml|asax|ascx|ashx|asmx|aspx|bash|jspx|phar|phps|asa|asp|bat|cer|cfc|cfm|cgi|cmd|exe|hta|jsp|msi|pht|vbe|vbs|war|wsf|js|pl|py|rb|sh|ws)(?![A-Za-z0-9])(?:[^ \\\"'][^\\\"']*)?\\.(?:docx|jpeg|pptx|tiff|webm|webp|xlsx|avi|bmp|doc|gif|ico|jpg|mkv|mov|mp3|mp4|odt|pdf|png|ppt|svg|tif|wav|xls)(?:[. ]*::\\$DATA)?[. ]*[\\\"']",
             "match": "filename=\"shell.php.jpg\"",
             "position": 0,
             "category": "file_upload",
@@ -814,7 +814,7 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "(?:\\A|[;,:\\n])\\s*filename\\s*=\\s*[\\\"'][^\\\"']*\\.(?:php\\d*|htaccess|htpasswd|config|phtml|shtml|asax|ascx|ashx|asmx|aspx|bash|jspx|phar|phps|asa|asp|bat|cer|cfc|cfm|cgi|cmd|com|exe|hta|inc|jsp|msi|pht|vbe|vbs|war|wsf|js|pl|py|rb|sh|ws)[\\\"']",
+            "pattern": "(?:\\A|[;,:\\n])\\s*filename\\s*=\\s*[\\\"'](?:[^\\\"']*\\.(?:php\\d*|htaccess|htpasswd|phtml|shtml|asax|ascx|ashx|asmx|aspx|bash|jspx|phar|phps|asa|asp|bat|cer|cfc|cfm|cgi|cmd|com|exe|hta|inc|jsp|msi|pht|vbe|vbs|war|wsf|js|pl|py|rb|sh|ws)|(?:[^\\\"']*[/\\\\])?(?:web\\.config|\\.user\\.ini))(?:[. ]*::\\$DATA)?[. ]*[\\\"']",
             "match": "filename=\"shell.phtml\"",
             "position": 0,
             "category": "file_upload",
@@ -838,7 +838,7 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "(?:\\A|[;,:\\n])\\s*filename\\s*=\\s*[\\\"'][^\\\"']*\\.(?:php\\d*|htaccess|htpasswd|config|phtml|shtml|asax|ascx|ashx|asmx|aspx|bash|jspx|phar|phps|asa|asp|bat|cer|cfc|cfm|cgi|cmd|com|exe|hta|inc|jsp|msi|pht|vbe|vbs|war|wsf|js|pl|py|rb|sh|ws)[\\\"']",
+            "pattern": "(?:\\A|[;,:\\n])\\s*filename\\s*=\\s*[\\\"'](?:[^\\\"']*\\.(?:php\\d*|htaccess|htpasswd|phtml|shtml|asax|ascx|ashx|asmx|aspx|bash|jspx|phar|phps|asa|asp|bat|cer|cfc|cfm|cgi|cmd|com|exe|hta|inc|jsp|msi|pht|vbe|vbs|war|wsf|js|pl|py|rb|sh|ws)|(?:[^\\\"']*[/\\\\])?(?:web\\.config|\\.user\\.ini))(?:[. ]*::\\$DATA)?[. ]*[\\\"']",
             "match": "filename=\".htaccess\"",
             "position": 0,
             "category": "file_upload",
@@ -847,6 +847,342 @@
         ],
         "original_length": 20,
         "processed_length": 20,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "file_upload_web_config",
+      "input": {
+        "content": "filename=\"web.config\"",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?:\\A|[;,:\\n])\\s*filename\\s*=\\s*[\\\"'](?:[^\\\"']*\\.(?:php\\d*|htaccess|htpasswd|phtml|shtml|asax|ascx|ashx|asmx|aspx|bash|jspx|phar|phps|asa|asp|bat|cer|cfc|cfm|cgi|cmd|com|exe|hta|inc|jsp|msi|pht|vbe|vbs|war|wsf|js|pl|py|rb|sh|ws)|(?:[^\\\"']*[/\\\\])?(?:web\\.config|\\.user\\.ini))(?:[. ]*::\\$DATA)?[. ]*[\\\"']",
+            "match": "filename=\"web.config\"",
+            "position": 0,
+            "category": "file_upload",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 21,
+        "processed_length": 21,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "file_upload_web_config_upper",
+      "input": {
+        "content": "filename=\"WEB.CONFIG\"",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?:\\A|[;,:\\n])\\s*filename\\s*=\\s*[\\\"'](?:[^\\\"']*\\.(?:php\\d*|htaccess|htpasswd|phtml|shtml|asax|ascx|ashx|asmx|aspx|bash|jspx|phar|phps|asa|asp|bat|cer|cfc|cfm|cgi|cmd|com|exe|hta|inc|jsp|msi|pht|vbe|vbs|war|wsf|js|pl|py|rb|sh|ws)|(?:[^\\\"']*[/\\\\])?(?:web\\.config|\\.user\\.ini))(?:[. ]*::\\$DATA)?[. ]*[\\\"']",
+            "match": "filename=\"WEB.CONFIG\"",
+            "position": 0,
+            "category": "file_upload",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 21,
+        "processed_length": 21,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "file_upload_web_config_trailing_dot",
+      "input": {
+        "content": "filename=\"web.config.\"",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?:\\A|[;,:\\n])\\s*filename\\s*=\\s*[\\\"'](?:[^\\\"']*\\.(?:php\\d*|htaccess|htpasswd|phtml|shtml|asax|ascx|ashx|asmx|aspx|bash|jspx|phar|phps|asa|asp|bat|cer|cfc|cfm|cgi|cmd|com|exe|hta|inc|jsp|msi|pht|vbe|vbs|war|wsf|js|pl|py|rb|sh|ws)|(?:[^\\\"']*[/\\\\])?(?:web\\.config|\\.user\\.ini))(?:[. ]*::\\$DATA)?[. ]*[\\\"']",
+            "match": "filename=\"web.config.\"",
+            "position": 0,
+            "category": "file_upload",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 22,
+        "processed_length": 22,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "file_upload_web_config_dots_and_spaces",
+      "input": {
+        "content": "filename=\"web.config. . \"",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?:\\A|[;,:\\n])\\s*filename\\s*=\\s*[\\\"'](?:[^\\\"']*\\.(?:php\\d*|htaccess|htpasswd|phtml|shtml|asax|ascx|ashx|asmx|aspx|bash|jspx|phar|phps|asa|asp|bat|cer|cfc|cfm|cgi|cmd|com|exe|hta|inc|jsp|msi|pht|vbe|vbs|war|wsf|js|pl|py|rb|sh|ws)|(?:[^\\\"']*[/\\\\])?(?:web\\.config|\\.user\\.ini))(?:[. ]*::\\$DATA)?[. ]*[\\\"']",
+            "match": "filename=\"web.config. . \"",
+            "position": 0,
+            "category": "file_upload",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 25,
+        "processed_length": 25,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "file_upload_web_config_ntfs_stream",
+      "input": {
+        "content": "filename=\"web.config::$DATA\"",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?:\\A|[;,:\\n])\\s*filename\\s*=\\s*[\\\"'](?:[^\\\"']*\\.(?:php\\d*|htaccess|htpasswd|phtml|shtml|asax|ascx|ashx|asmx|aspx|bash|jspx|phar|phps|asa|asp|bat|cer|cfc|cfm|cgi|cmd|com|exe|hta|inc|jsp|msi|pht|vbe|vbs|war|wsf|js|pl|py|rb|sh|ws)|(?:[^\\\"']*[/\\\\])?(?:web\\.config|\\.user\\.ini))(?:[. ]*::\\$DATA)?[. ]*[\\\"']",
+            "match": "filename=\"web.config::$DATA\"",
+            "position": 0,
+            "category": "file_upload",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 28,
+        "processed_length": 28,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "file_upload_web_config_quote_save",
+      "input": {
+        "content": "filename=\"web\"config\"",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?:\\A|[;,:\\n])\\s*filename\\s*=\\s*[\\\"'](?:[^\\\"']*\\.(?:php\\d*|htaccess|htpasswd|phtml|shtml|asax|ascx|ashx|asmx|aspx|bash|jspx|phar|phps|asa|asp|bat|cer|cfc|cfm|cgi|cmd|com|exe|hta|inc|jsp|msi|pht|vbe|vbs|war|wsf|js|pl|py|rb|sh|ws)|(?:[^\\\"']*[/\\\\])?(?:web\\.config|\\.user\\.ini))(?:[. ]*::\\$DATA)?[. ]*[\\\"']",
+            "match": "filename=\"web\"config\"",
+            "position": 0,
+            "category": "file_upload",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 21,
+        "processed_length": 21,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "file_upload_htaccess_trailing_dot",
+      "input": {
+        "content": "filename=\".htaccess.\"",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?:\\A|[;,:\\n])\\s*filename\\s*=\\s*[\\\"'](?:[^\\\"']*\\.(?:php\\d*|htaccess|htpasswd|phtml|shtml|asax|ascx|ashx|asmx|aspx|bash|jspx|phar|phps|asa|asp|bat|cer|cfc|cfm|cgi|cmd|com|exe|hta|inc|jsp|msi|pht|vbe|vbs|war|wsf|js|pl|py|rb|sh|ws)|(?:[^\\\"']*[/\\\\])?(?:web\\.config|\\.user\\.ini))(?:[. ]*::\\$DATA)?[. ]*[\\\"']",
+            "match": "filename=\".htaccess.\"",
+            "position": 0,
+            "category": "file_upload",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 21,
+        "processed_length": 21,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "file_upload_htpasswd",
+      "input": {
+        "content": "filename=\".htpasswd\"",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?:\\A|[;,:\\n])\\s*filename\\s*=\\s*[\\\"'](?:[^\\\"']*\\.(?:php\\d*|htaccess|htpasswd|phtml|shtml|asax|ascx|ashx|asmx|aspx|bash|jspx|phar|phps|asa|asp|bat|cer|cfc|cfm|cgi|cmd|com|exe|hta|inc|jsp|msi|pht|vbe|vbs|war|wsf|js|pl|py|rb|sh|ws)|(?:[^\\\"']*[/\\\\])?(?:web\\.config|\\.user\\.ini))(?:[. ]*::\\$DATA)?[. ]*[\\\"']",
+            "match": "filename=\".htpasswd\"",
+            "position": 0,
+            "category": "file_upload",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 20,
+        "processed_length": 20,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "file_upload_user_ini",
+      "input": {
+        "content": "filename=\".user.ini\"",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?:\\A|[;,:\\n])\\s*filename\\s*=\\s*[\\\"'](?:[^\\\"']*\\.(?:php\\d*|htaccess|htpasswd|phtml|shtml|asax|ascx|ashx|asmx|aspx|bash|jspx|phar|phps|asa|asp|bat|cer|cfc|cfm|cgi|cmd|com|exe|hta|inc|jsp|msi|pht|vbe|vbs|war|wsf|js|pl|py|rb|sh|ws)|(?:[^\\\"']*[/\\\\])?(?:web\\.config|\\.user\\.ini))(?:[. ]*::\\$DATA)?[. ]*[\\\"']",
+            "match": "filename=\".user.ini\"",
+            "position": 0,
+            "category": "file_upload",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 20,
+        "processed_length": 20,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "file_upload_user_ini_trailing_dot",
+      "input": {
+        "content": "filename=\".user.ini.\"",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?:\\A|[;,:\\n])\\s*filename\\s*=\\s*[\\\"'](?:[^\\\"']*\\.(?:php\\d*|htaccess|htpasswd|phtml|shtml|asax|ascx|ashx|asmx|aspx|bash|jspx|phar|phps|asa|asp|bat|cer|cfc|cfm|cgi|cmd|com|exe|hta|inc|jsp|msi|pht|vbe|vbs|war|wsf|js|pl|py|rb|sh|ws)|(?:[^\\\"']*[/\\\\])?(?:web\\.config|\\.user\\.ini))(?:[. ]*::\\$DATA)?[. ]*[\\\"']",
+            "match": "filename=\".user.ini.\"",
+            "position": 0,
+            "category": "file_upload",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 21,
+        "processed_length": 21,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "file_upload_inc_trailing_dot",
+      "input": {
+        "content": "filename=\"header.inc.\"",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?:\\A|[;,:\\n])\\s*filename\\s*=\\s*[\\\"'](?:[^\\\"']*\\.(?:php\\d*|htaccess|htpasswd|phtml|shtml|asax|ascx|ashx|asmx|aspx|bash|jspx|phar|phps|asa|asp|bat|cer|cfc|cfm|cgi|cmd|com|exe|hta|inc|jsp|msi|pht|vbe|vbs|war|wsf|js|pl|py|rb|sh|ws)|(?:[^\\\"']*[/\\\\])?(?:web\\.config|\\.user\\.ini))(?:[. ]*::\\$DATA)?[. ]*[\\\"']",
+            "match": "filename=\"header.inc.\"",
+            "position": 0,
+            "category": "file_upload",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 22,
+        "processed_length": 22,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "file_upload_aspx_ntfs_stream",
+      "input": {
+        "content": "filename=\"shell.aspx::$DATA\"",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?:\\A|[;,:\\n])\\s*filename\\s*=\\s*[\\\"'](?:[^\\\"']*\\.(?:php\\d*|htaccess|htpasswd|phtml|shtml|asax|ascx|ashx|asmx|aspx|bash|jspx|phar|phps|asa|asp|bat|cer|cfc|cfm|cgi|cmd|com|exe|hta|inc|jsp|msi|pht|vbe|vbs|war|wsf|js|pl|py|rb|sh|ws)|(?:[^\\\"']*[/\\\\])?(?:web\\.config|\\.user\\.ini))(?:[. ]*::\\$DATA)?[. ]*[\\\"']",
+            "match": "filename=\"shell.aspx::$DATA\"",
+            "position": 0,
+            "category": "file_upload",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 28,
+        "processed_length": 28,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "file_upload_php_ntfs_stream",
+      "input": {
+        "content": "filename=\"shell.php::$DATA\"",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?:\\A|[;,:\\n])\\s*filename\\s*=\\s*[\\\"'](?:[^\\\"']*\\.(?:php\\d*|htaccess|htpasswd|phtml|shtml|asax|ascx|ashx|asmx|aspx|bash|jspx|phar|phps|asa|asp|bat|cer|cfc|cfm|cgi|cmd|com|exe|hta|inc|jsp|msi|pht|vbe|vbs|war|wsf|js|pl|py|rb|sh|ws)|(?:[^\\\"']*[/\\\\])?(?:web\\.config|\\.user\\.ini))(?:[. ]*::\\$DATA)?[. ]*[\\\"']",
+            "match": "filename=\"shell.php::$DATA\"",
+            "position": 0,
+            "category": "file_upload",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 27,
+        "processed_length": 27,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "file_upload_aspx_dots_and_spaces",
+      "input": {
+        "content": "filename=\"shell.aspx. . \"",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?:\\A|[;,:\\n])\\s*filename\\s*=\\s*[\\\"'](?:[^\\\"']*\\.(?:php\\d*|htaccess|htpasswd|phtml|shtml|asax|ascx|ashx|asmx|aspx|bash|jspx|phar|phps|asa|asp|bat|cer|cfc|cfm|cgi|cmd|com|exe|hta|inc|jsp|msi|pht|vbe|vbs|war|wsf|js|pl|py|rb|sh|ws)|(?:[^\\\"']*[/\\\\])?(?:web\\.config|\\.user\\.ini))(?:[. ]*::\\$DATA)?[. ]*[\\\"']",
+            "match": "filename=\"shell.aspx. . \"",
+            "position": 0,
+            "category": "file_upload",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 25,
+        "processed_length": 25,
         "detection_method": "enhanced"
       }
     }
