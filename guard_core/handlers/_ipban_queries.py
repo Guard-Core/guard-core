@@ -43,6 +43,15 @@ def _network_member_covered(member: str, coverage: NetworkCoverage) -> bool:
         return False
 
 
+def _network_of_cidr_text(text: str) -> _Network | None:
+    if "/" not in text:
+        return None
+    try:
+        return ipaddress.ip_network(text, strict=False)
+    except ValueError:
+        return None
+
+
 def _member_covered(namespace: str, member: str, coverage: NetworkCoverage) -> bool:
     if namespace == "banned_ips":
         return coverage.covers_address(member)
@@ -69,8 +78,7 @@ class IpBanQueryMixin(
     redis_handler: RedisHandlerProtocol | None = None
     logger: logging.Logger
 
-    async def _unban_cidr(self, cidr: str, reason: str) -> None:
-        network = ipaddress.ip_network(cidr, strict=False)
+    async def _unban_cidr(self, network: _Network, reason: str) -> None:
         self.banned_networks = [
             (banned, expiry)
             for banned, expiry in self.banned_networks
@@ -276,8 +284,9 @@ class IpBanQueryMixin(
         if _current_app_scope.get() is None and self.__dict__.get(SHARED_BY_APPS):
             await self._unban_ip_across_sharing_apps(ip, reason)
             return
-        if "/" in ip:
-            await self._unban_cidr(ip, reason)
+        network = _network_of_cidr_text(ip)
+        if network is not None:
+            await self._unban_cidr(network, reason)
             return
         ip = _canonicalize_ip(ip, nat64_table_of(self.config))
         identity = self._grouped_identity_of(ip, self.config)
