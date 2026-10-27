@@ -2,15 +2,24 @@ import logging
 import threading
 import weakref
 from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Protocol
 
-_registered: "weakref.WeakSet[Any]" = weakref.WeakSet()
+if TYPE_CHECKING:
+    from guard_core.models import SecurityConfig
+
+
+class StrikeCountingMiddleware(Protocol):
+    config: "SecurityConfig"
+    suspicious_request_counts: dict[str, dict[str, int]]
+
+
+_registered: "weakref.WeakSet[StrikeCountingMiddleware]" = weakref.WeakSet()
 _registry_lock = threading.Lock()
 _logger = logging.getLogger("guard_core.core.checks.strike_forget")
 _unregistrable_warned = False
 
 
-def register_strike_middleware(middleware: Any) -> None:
+def register_strike_middleware(middleware: StrikeCountingMiddleware) -> None:
     global _unregistrable_warned
     with _registry_lock:
         try:
@@ -25,7 +34,7 @@ def register_strike_middleware(middleware: Any) -> None:
                 )
 
 
-def _registered_middlewares() -> list[Any]:
+def _registered_middlewares() -> list[StrikeCountingMiddleware]:
     with _registry_lock:
         return list(_registered)
 

@@ -1,12 +1,14 @@
 import logging
 import time
 from collections.abc import Callable, Iterable, Iterator, MutableMapping
-from typing import Any, Protocol, TypeGuard, TypeVar
+from enum import Enum
+from typing import Final, ParamSpec, Protocol, TypeGuard, TypeVar
 
 from guard_core._utils.agent_events import send_agent_event
 from guard_core.core.events.event_types import EVENT_RESPONSE_BODY_UNAVAILABLE
 from guard_core.exceptions import ResponseBodyUnavailableError
 from guard_core.models import SecurityConfig
+from guard_core.protocols.agent_protocol import AgentHandlerProtocol
 from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import (
     GuardResponse,
@@ -14,7 +16,8 @@ from guard_core.protocols.response_protocol import (
 )
 from guard_core.utils import extract_client_ip
 
-ModifierT = TypeVar("ModifierT", bound=Callable[..., Any])
+_ModifierArguments = ParamSpec("_ModifierArguments")
+_ModifierResult = TypeVar("_ModifierResult")
 
 READS_BODY_MARKER = "__guard_core_reads_response_body__"
 _BODY_NOT_YET_AVAILABLE = "the first call of a modifier that is replayed with the body"
@@ -24,7 +27,9 @@ _REFUSAL_REPORT_MAX_REASONS = 64
 _reported_refusals: dict[str, float] = {}
 
 
-def reads_response_body(modifier: ModifierT) -> ModifierT:
+def reads_response_body(
+    modifier: Callable[_ModifierArguments, _ModifierResult],
+) -> Callable[_ModifierArguments, _ModifierResult]:
     """Mark a ``custom_response_modifier`` that has side effects and reads ``.body``.
 
     A marked modifier is called once, with the bounded body already read, instead
@@ -34,7 +39,9 @@ def reads_response_body(modifier: ModifierT) -> ModifierT:
     return modifier
 
 
-def modifier_reads_response_body(modifier: Callable[..., Any]) -> bool:
+def modifier_reads_response_body(
+    modifier: Callable[_ModifierArguments, object],
+) -> bool:
     return getattr(modifier, READS_BODY_MARKER, False) is True
 
 
@@ -72,6 +79,14 @@ def _is_sized(headers: GuardResponseHeaders) -> TypeGuard[_SizedHeaders]:
     return callable(getattr(headers, "__len__", None))
 
 
+class _Absent(Enum):
+    ABSENT = 1
+
+
+_ABSENT: Final = _Absent.ABSENT
+_HeaderUndo = str | list[tuple[str, str]] | _Absent
+
+
 class RecordingHeaders(MutableMapping[str, str]):
     """The real headers, written through, with an undo log only a replay uses.
 
@@ -83,7 +98,7 @@ class RecordingHeaders(MutableMapping[str, str]):
 
     def __init__(self, real: GuardResponseHeaders) -> None:
         self._real = real
-        self._undo: list[tuple[str, Any]] = []
+        self._undo: list[tuple[str, _HeaderUndo]] = []
 
     def __getitem__(self, key: str) -> str:
         return self._real[key]
@@ -91,7 +106,7 @@ class RecordingHeaders(MutableMapping[str, str]):
     def __setitem__(self, key: str, value: str) -> None:
         real = self._real
         try:
-            previous: Any = real[key]
+            previous: _HeaderUndo = real[key]
         except KeyError:
             previous = _ABSENT
         self._undo += [(key, previous)]
@@ -107,7 +122,7 @@ class RecordingHeaders(MutableMapping[str, str]):
         self._undo += [("", list(real.items()))]
         real.append(key, value)
 
-    def __getattr__(self, name: str) -> Any:
+    def __getattr__(self, name: str) -> object:
         return getattr(self._real, name)
 
     def __iter__(self) -> Iterator[str]:
@@ -128,11 +143,11 @@ class RecordingHeaders(MutableMapping[str, str]):
     def undo(self) -> None:
         real = self._real
         for key, previous in reversed(self._undo):
-            if key == "":
-                _restore_items(real, previous)
-            elif previous is _ABSENT:
+            if previous is _ABSENT:
                 if key in real:
                     del real[key]
+            elif isinstance(previous, list):
+                _restore_items(real, previous)
             else:
                 real[key] = previous
         self._undo = []
@@ -146,9 +161,6 @@ def _restore_items(real: GuardResponseHeaders, items: list[tuple[str, str]]) -> 
         appendable.append(name, value)
 
 
-_ABSENT: Any = object()
-
-
 class ModifierResponseView:
     """The response a ``custom_response_modifier`` sees.
 
@@ -158,6 +170,7 @@ class ModifierResponseView:
     for it and raises ``ResponseBodyUnavailableError``.
     """
 
+    status_code: int
     headers: RecordingHeaders
     body: bytes | None
     body_requested: bool
@@ -191,7 +204,7 @@ class ModifierResponseView:
         refusal: str | None = state["_refusal"]
         return refusal
 
-    def __getattr__(self, name: str) -> Any:
+    def __getattr__(self, name: str) -> object:
         state = self.__dict__
         if name != "body":
             return getattr(state["_real"], name)
@@ -204,13 +217,13 @@ class ModifierResponseView:
             state["_gate_args"] = None
         raise ResponseBodyUnavailableError(state["_refusal"] or _BODY_NOT_YET_AVAILABLE)
 
-    def __setattr__(self, name: str, value: Any) -> None:
+    def __setattr__(self, name: str, value: object) -> None:
         state = self.__dict__
         real = state["_real"]
         state["_attribute_undo"].append((name, getattr(real, name, _ABSENT)))
         setattr(real, name, value)
         if name == "headers":
-            state["headers"] = RecordingHeaders(value)
+            state["headers"] = RecordingHeaders(real.headers)
 
     def commit(self) -> GuardResponse:
         """Nothing to apply: writes already went through."""
@@ -293,7 +306,7 @@ def body_gate_refusal(
 async def report_body_refused(
     logger: logging.Logger,
     config: SecurityConfig,
-    agent_handler: Any | None,
+    agent_handler: AgentHandlerProtocol | None,
     request: GuardRequest,
     reason: str,
 ) -> None:

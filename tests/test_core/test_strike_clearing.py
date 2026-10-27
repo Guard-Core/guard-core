@@ -416,6 +416,7 @@ async def test_a_config_that_cannot_be_compared_is_not_equal() -> None:
 
 def test_the_registry_forgets_a_middleware_when_it_goes() -> None:
     class Holder:
+        config = SecurityConfig(enable_redis=False)
         suspicious_request_counts: dict[str, dict[str, int]] = {}
 
     holder = Holder()
@@ -434,7 +435,9 @@ def test_a_middleware_that_cannot_be_weakly_referenced_warns_once(
     caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     class Slotted:
-        __slots__ = ("suspicious_request_counts",)
+        __slots__ = ("config", "suspicious_request_counts")
+        config: SecurityConfig
+        suspicious_request_counts: dict[str, dict[str, int]]
 
     monkeypatch.setattr(_strike_forget, "_unregistrable_warned", False)
 
@@ -450,6 +453,7 @@ def test_a_middleware_that_cannot_be_weakly_referenced_warns_once(
 def test_forgetting_a_category_drops_plain_dict_counts_too() -> None:
     class Holder:
         def __init__(self) -> None:
+            self.config = SecurityConfig(enable_redis=False)
             self.suspicious_request_counts: dict[str, dict[str, int]] = {
                 IP: {"rate_limit": 2, "xss": 1},
                 OTHER: {"rate_limit": 1},
@@ -515,7 +519,9 @@ def test_the_unregistrable_warning_has_the_exact_text(
     caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     class Slotted:
-        __slots__ = ("suspicious_request_counts",)
+        __slots__ = ("config", "suspicious_request_counts")
+        config: SecurityConfig
+        suspicious_request_counts: dict[str, dict[str, int]]
 
     monkeypatch.setattr(_strike_forget, "_unregistrable_warned", False)
 

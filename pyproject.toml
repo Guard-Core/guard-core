@@ -140,16 +140,7 @@ select = [
 "guard_core/_utils/app_managers.py" = ["ANN401"]  # handler slot
 "guard_core/_utils/detection_scan.py" = ["ANN401"]  # JSON payload
 "guard_core/_utils/rule_attribution.py" = ["ANN401"]  # JSON payload
-"guard_core/core/__init__.py" = ["ANN401"]  # open value
-"guard_core/core/behavioral/_throttle.py" = ["ANN401"]  # framework object
-"guard_core/core/behavioral/processor.py" = ["ANN401"]  # framework object
-"guard_core/core/checks/_rate_limit_ban_first.py" = ["ANN401"]  # handler slot
-"guard_core/core/checks/_strike_forget.py" = ["ANN401"]  # JSON payload
-"guard_core/core/checks/_verifier.py" = ["ANN401"]  # open value
-"guard_core/core/events/__init__.py" = ["ANN401"]  # open value
 "guard_core/core/initialization/_handler_initializer_steps.py" = ["ANN401"]  # handler slot
-"guard_core/core/responses/modifier_view.py" = ["ANN401"]  # open value
-"guard_core/core/validation/__init__.py" = ["ANN401"]  # open value
 "guard_core/handlers/__init__.py" = ["ANN401"]  # open value
 "guard_core/handlers/_dynamic_rule_persistence.py" = ["ANN401"]  # handler slot
 "guard_core/handlers/_dynamic_rule_plan.py" = ["ANN401"]  # JSON payload
@@ -170,16 +161,7 @@ select = [
 "guard_core/sync/_utils/app_managers.py" = ["ANN401"]  # handler slot
 "guard_core/sync/_utils/detection_scan.py" = ["ANN401"]  # JSON payload
 "guard_core/sync/_utils/rule_attribution.py" = ["ANN401"]  # JSON payload
-"guard_core/sync/core/__init__.py" = ["ANN401"]  # open value
-"guard_core/sync/core/behavioral/_throttle.py" = ["ANN401"]  # framework object
-"guard_core/sync/core/behavioral/processor.py" = ["ANN401"]  # framework object
-"guard_core/sync/core/checks/_rate_limit_ban_first.py" = ["ANN401"]  # handler slot
-"guard_core/sync/core/checks/_strike_forget.py" = ["ANN401"]  # JSON payload
-"guard_core/sync/core/checks/_verifier.py" = ["ANN401"]  # open value
-"guard_core/sync/core/events/__init__.py" = ["ANN401"]  # open value
 "guard_core/sync/core/initialization/_handler_initializer_steps.py" = ["ANN401"]  # handler slot
-"guard_core/sync/core/responses/modifier_view.py" = ["ANN401"]  # open value
-"guard_core/sync/core/validation/__init__.py" = ["ANN401"]  # open value
 "guard_core/sync/handlers/__init__.py" = ["ANN401"]  # open value
 "guard_core/sync/handlers/_dynamic_rule_persistence.py" = ["ANN401"]  # handler slot
 "guard_core/sync/handlers/_dynamic_rule_plan.py" = ["ANN401"]  # JSON payload
@@ -251,17 +233,8 @@ module = [
     "guard_core._utils.app_managers",  # handler slot
     "guard_core._utils.detection_scan",  # JSON payload
     "guard_core._utils.rule_attribution",  # JSON payload
-    "guard_core.core",  # open value
-    "guard_core.core.behavioral._throttle",  # framework object
-    "guard_core.core.behavioral.processor",  # framework object
-    "guard_core.core.checks._rate_limit_ban_first",  # handler slot
-    "guard_core.core.checks._strike_forget",  # JSON payload
-    "guard_core.core.checks._verifier",  # open value
-    "guard_core.core.events",  # open value
     "guard_core.core.initialization._handler_initializer_steps",  # handler slot
     "guard_core.core.initialization.handler_initializer",  # behavior_tracker slot, adapter tests read it as non-optional
-    "guard_core.core.responses.modifier_view",  # open value
-    "guard_core.core.validation",  # open value
     "guard_core.handlers",  # open value
     "guard_core.handlers._dynamic_rule_persistence",  # handler slot
     "guard_core.handlers._dynamic_rule_plan",  # JSON payload
@@ -288,17 +261,8 @@ module = [
     "guard_core.sync._utils.app_managers",  # handler slot
     "guard_core.sync._utils.detection_scan",  # JSON payload
     "guard_core.sync._utils.rule_attribution",  # JSON payload
-    "guard_core.sync.core",  # open value
-    "guard_core.sync.core.behavioral._throttle",  # framework object
-    "guard_core.sync.core.behavioral.processor",  # framework object
-    "guard_core.sync.core.checks._rate_limit_ban_first",  # handler slot
-    "guard_core.sync.core.checks._strike_forget",  # JSON payload
-    "guard_core.sync.core.checks._verifier",  # open value
-    "guard_core.sync.core.events",  # open value
     "guard_core.sync.core.initialization._handler_initializer_steps",  # handler slot
     "guard_core.sync.core.initialization.handler_initializer",  # behavior_tracker slot, adapter tests read it as non-optional
-    "guard_core.sync.core.responses.modifier_view",  # open value
-    "guard_core.sync.core.validation",  # open value
     "guard_core.sync.handlers",  # open value
     "guard_core.sync.handlers._dynamic_rule_persistence",  # handler slot
     "guard_core.sync.handlers._dynamic_rule_plan",  # JSON payload

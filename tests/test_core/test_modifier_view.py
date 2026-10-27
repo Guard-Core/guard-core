@@ -1,5 +1,6 @@
 import logging
 from typing import Any, cast
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -78,6 +79,20 @@ def test_undo_headers_missing_key_and_set_then_delete() -> None:
     del headers["Temp"]
     headers.undo()
     assert real == {}
+
+
+def test_undo_headers_an_empty_header_name_is_restored_like_any_other() -> None:
+    absent: dict[str, str] = {}
+    headers = RecordingHeaders(absent)
+    headers[""] = "set"
+    headers.undo()
+    assert absent == {}
+
+    present = {"": "kept"}
+    headers = RecordingHeaders(present)
+    headers[""] = "replaced"
+    headers.undo()
+    assert present == {"": "kept"}
 
 
 def test_undo_headers_undo_tolerates_a_header_removed_behind_its_back() -> None:
@@ -311,7 +326,7 @@ async def test_report_body_refused_samples_per_reason_and_skips_events_without_a
         await report_body_refused(
             logger,
             SecurityConfig(enable_redis=False, agent_enable_events=False),
-            object(),
+            MagicMock(),
             request,
             "r2",
         )

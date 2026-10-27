@@ -3,7 +3,7 @@ import logging
 import os
 import time
 from collections.abc import Sequence
-from typing import Any
+from typing import TYPE_CHECKING, TypedDict
 
 from guard_core._redis_enablement import redis_is_configured
 from guard_core._utils.ip_extraction import _client_identity
@@ -26,6 +26,12 @@ from guard_core.scripts.rate_lua import (
     BAN_FIRST_RATE_LIMIT_SCRIPT,
     BAN_RATE_STRIKE_SCRIPT,
 )
+
+if TYPE_CHECKING:
+    from redis.asyncio import Redis
+
+    from guard_core.core.checks._rate_limit_plans import TierPlan
+    from guard_core.core.checks.implementations.rate_limit import RateLimitCheck
 
 _logger = logging.getLogger("guard_core.handlers.ratelimit")
 _SHA = hashlib.sha1(
@@ -58,9 +64,11 @@ def _identity(
 
 
 async def _evalsha(
-    conn: Any, script: str, sha: str, keys: list[bytes], arguments: list[bytes]
-) -> list[Any]:
-    reply: list[Any] = await lean_evalsha(conn, script, sha, keys, arguments)
+    conn: "Redis", script: str, sha: str, keys: list[bytes], arguments: list[bytes]
+) -> list[str | bytes | float]:
+    reply: list[str | bytes | float] = await lean_evalsha(
+        conn, script, sha, keys, arguments
+    )
     return reply
 
 
@@ -161,7 +169,9 @@ async def ban_first_rate_limit(
         return False, None
     read = len(pairs) + 1
     status = int(reply[0])
-    values = [None] * len(pairs) + [seen] if status == 1 else reply[1 : read + 1]
+    values: list[str | bytes | float | None] = (
+        [*([None] * len(pairs)), seen] if status == 1 else [*reply[1 : read + 1]]
+    )
     banned = await manager.decide_from_ban_values(pairs, values, now)
     if status == 0:
         return banned, None
@@ -180,10 +190,10 @@ async def ban_first_rate_limit(
 
 
 async def finish_tiers(
-    check: Any,
+    check: "RateLimitCheck",
     request: GuardRequest,
     client_ip: str,
-    plans: Sequence[Any],
+    plans: Sequence["TierPlan"],
     verdict: RateLimitVerdict | None,
 ) -> GuardResponse | None:
     """The rate-limit check's verdict step: evaluate the tiers (or take the verdict
@@ -208,12 +218,20 @@ async def finish_tiers(
     return response
 
 
+class TierKwargs(TypedDict, total=False):
+    window_identity: str
+    verdict: RateLimitVerdict
+
+
 def tier_kwargs(
-    check: Any, request: GuardRequest, client_ip: str, verdict: RateLimitVerdict | None
-) -> dict[str, Any]:
+    check: "RateLimitCheck",
+    request: GuardRequest,
+    client_ip: str,
+    verdict: RateLimitVerdict | None,
+) -> TierKwargs:
     """The handler call's optional arguments: the carved window identity and the
     verdict a combined script already reached."""
-    kwargs: dict[str, Any] = {}
+    kwargs: TierKwargs = {}
     if check.config.whitelist_access_only:
         kwargs["window_identity"] = check._strike_identity(request, client_ip)
     if verdict:
@@ -225,14 +243,19 @@ class PendingRate:
     """The rate-limit count the rate-limit check left pending beside the ban read:
     both resolve in one script at the first check that needs either."""
 
-    def __init__(self, check: Any, client_ip: str, plans: Sequence[Any]) -> None:
+    def __init__(
+        self, check: "RateLimitCheck", client_ip: str, plans: Sequence["TierPlan"]
+    ) -> None:
         self.check = check
         self.client_ip = client_ip
         self.plans = plans
 
 
 def defer_rate_limit(
-    check: Any, pending: Any, client_ip: str | None, plans: Sequence[Any]
+    check: "RateLimitCheck",
+    pending: object,
+    client_ip: str | None,
+    plans: Sequence["TierPlan"],
 ) -> bool:
     """Leave the rate-limit count pending with the ban read when one script can
     settle both (Redis tiers, not passive mode)."""

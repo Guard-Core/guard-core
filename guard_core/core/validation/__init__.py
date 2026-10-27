@@ -1,6 +1,6 @@
 import importlib.util
 from importlib import import_module
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from guard_core.core.validation.context import ValidationContext
@@ -14,7 +14,7 @@ _MODULE_BY_NAME: dict[str, str] = {
 }
 
 
-def __getattr__(name: str) -> Any:
+def __getattr__(name: str) -> object:
     module_name = _MODULE_BY_NAME.get(name)
     if module_name is not None:
         value = getattr(import_module(module_name), name)

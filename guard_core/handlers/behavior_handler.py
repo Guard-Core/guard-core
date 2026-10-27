@@ -5,7 +5,7 @@ import time
 import uuid
 from collections import OrderedDict, defaultdict
 from collections.abc import Callable
-from typing import Literal
+from typing import Literal, TypedDict
 
 from cachetools import TTLCache
 
@@ -49,6 +49,11 @@ __all__ = [
 
 
 _RULE_ID_PREFIX = "guard-core:behavior-rule:"
+
+
+class MatchedRuleMetadata(TypedDict):
+    matched_rule_type: str
+    matched_rule_id: str
 
 
 class BehaviorRule:
@@ -95,7 +100,7 @@ class BehaviorRule:
             uuid.uuid5(uuid.NAMESPACE_URL, _RULE_ID_PREFIX + self.discriminator())
         )
 
-    def matched_rule_metadata(self) -> dict[str, str]:
+    def matched_rule_metadata(self) -> MatchedRuleMetadata:
         return {
             "matched_rule_type": "behavioral",
             "matched_rule_id": self.matched_rule_id(),

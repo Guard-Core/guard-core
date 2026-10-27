@@ -7,6 +7,7 @@ from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils.ip_extraction import _client_identity
 
 if TYPE_CHECKING:
+    from guard_core.sync.core.checks._strike_forget import StrikeCountingMiddleware
     from guard_core.sync.protocols.middleware_protocol import (
         SyncGuardMiddlewareProtocol,
     )
@@ -92,7 +93,7 @@ class _WindowedCategoryCounts(dict[str, int]):
 
 
 def _forget_suspicious_counts(
-    middleware: "SyncGuardMiddlewareProtocol", client_ip: str
+    middleware: "StrikeCountingMiddleware", client_ip: str
 ) -> None:
     strike_key = _strike_identity(middleware.config, client_ip)
     with _suspicious_counts_lock:

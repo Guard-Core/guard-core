@@ -1,6 +1,5 @@
 from collections.abc import Awaitable, Callable, Sequence
 from functools import partial
-from typing import Any
 
 from guard_core._utils.request_logging import redact_endpoint_for_display
 from guard_core.core.behavioral._throttle import (
@@ -15,7 +14,7 @@ from guard_core.core.behavioral.context import BehavioralContext
 from guard_core.core.events.event_types import EVENT_DECORATOR_VIOLATION
 from guard_core.decorators.base import RouteConfig
 from guard_core.handlers._behavior_throttle import ReturnCorrelation
-from guard_core.handlers.behavior_handler import BehaviorRule
+from guard_core.handlers.behavior_handler import BehaviorRule, BehaviorTracker
 from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse
 
@@ -36,7 +35,9 @@ class BehavioralProcessor(BehavioralThrottleMixin):
         self.context = context
         self._init_throttle_state()
 
-    def _behavior_tracker(self, request: GuardRequest, state: Any = None) -> Any | None:
+    def _behavior_tracker(
+        self, request: GuardRequest, state: object | None = None
+    ) -> BehaviorTracker | None:
         state = request.state if state is None else state
         if getattr(state, "guard_exclusion_scoped", False) is True:
             return None
@@ -54,7 +55,7 @@ class BehavioralProcessor(BehavioralThrottleMixin):
         request: GuardRequest,
         client_ip: str,
         route_config: RouteConfig | None = None,
-        middleware: Any = None,
+        middleware: object | None = None,
     ) -> GuardResponse | None:
         state = request.state
         marks = getattr(state, USAGE_MARKS_ATTR, None)
@@ -67,10 +68,10 @@ class BehavioralProcessor(BehavioralThrottleMixin):
     async def evaluate_usage_rules(
         self,
         request: GuardRequest,
-        state: Any,
+        state: object,
         client_ip: str,
         route_config: RouteConfig | None,
-        middleware: Any,
+        middleware: object | None,
         on_error: Callable[[Exception], Awaitable[GuardResponse | None]] | None = None,
     ) -> GuardResponse | None:
         # One coroutine for the whole evaluation: the pipeline step awaits it
@@ -128,7 +129,11 @@ class BehavioralProcessor(BehavioralThrottleMixin):
         )
 
     async def _evaluate_global_usage_rules(
-        self, tracker: Any, request: GuardRequest, client_ip: str, endpoint_id: str
+        self,
+        tracker: BehaviorTracker,
+        request: GuardRequest,
+        client_ip: str,
+        endpoint_id: str,
     ) -> frozenset[str]:
         seen: set[str] = set()
         rules = self._global_rules()
@@ -147,7 +152,7 @@ class BehavioralProcessor(BehavioralThrottleMixin):
 
     async def _evaluate_route_usage_rules(
         self,
-        behavior_tracker: Any,
+        behavior_tracker: BehaviorTracker,
         request: GuardRequest,
         client_ip: str,
         endpoint_id: str,
@@ -280,7 +285,7 @@ class BehavioralProcessor(BehavioralThrottleMixin):
 
     async def _evaluate_global_usage_rule(
         self,
-        tracker: Any,
+        tracker: BehaviorTracker,
         request: GuardRequest,
         client_ip: str,
         endpoint_id: str,
@@ -310,7 +315,7 @@ class BehavioralProcessor(BehavioralThrottleMixin):
 
     async def _evaluate_global_return_rule(
         self,
-        tracker: Any,
+        tracker: BehaviorTracker,
         request: GuardRequest,
         response: GuardResponse,
         client_ip: str,
@@ -340,7 +345,7 @@ class BehavioralProcessor(BehavioralThrottleMixin):
 
     async def _act_on_global_return_trip(
         self,
-        tracker: Any,
+        tracker: BehaviorTracker,
         request: GuardRequest,
         client_ip: str,
         endpoint_id: str,
@@ -383,9 +388,9 @@ class BehavioralProcessor(BehavioralThrottleMixin):
         reason: str,
         decorator_type: str,
         action_taken: str | None = None,
-        **overrides: Any,
+        **overrides: object,
     ) -> None:
-        fields: dict[str, Any] = {
+        fields: dict[str, object] = {
             "violation_type": rule.rule_type,
             "threshold": rule.threshold,
             "window": rule.window,
@@ -398,7 +403,7 @@ class BehavioralProcessor(BehavioralThrottleMixin):
             if action_taken is None:
                 await guard_decorator.send_decorator_violation_event(
                     request,
-                    violation_type=fields.pop("violation_type"),
+                    violation_type=str(fields.pop("violation_type")),
                     reason=reason,
                     **fields,
                 )
@@ -408,7 +413,7 @@ class BehavioralProcessor(BehavioralThrottleMixin):
                 request=request,
                 action_taken=action_taken,
                 reason=reason,
-                decorator_type=fields.pop("violation_type"),
+                decorator_type=str(fields.pop("violation_type")),
                 **fields,
             )
             return
@@ -421,7 +426,9 @@ class BehavioralProcessor(BehavioralThrottleMixin):
             **fields,
         )
 
-    def get_endpoint_id(self, request: GuardRequest, state: Any = None) -> str:
+    def get_endpoint_id(
+        self, request: GuardRequest, state: object | None = None
+    ) -> str:
         state = request.state if state is None else state
         route_id: str | None = getattr(state, "guard_route_id", None)
         if route_id:

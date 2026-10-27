@@ -1,3 +1,4 @@
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks._strike_counts import _WindowedCategoryCounts
 from guard_core.sync.core.checks._strike_forget import register_strike_middleware
 from guard_core.sync.handlers import ratelimit_handler
@@ -7,6 +8,7 @@ from guard_core.sync.handlers.ipban_handler import IPBanManager
 
 class _Middleware:
     def __init__(self, counts: dict[str, dict[str, int]]) -> None:
+        self.config = SyncSecurityConfig(enable_redis=False)
         self.suspicious_request_counts = counts
 
 

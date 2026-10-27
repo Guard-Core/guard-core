@@ -3,7 +3,6 @@ import threading
 import time
 from collections import OrderedDict
 from collections.abc import Callable, Sequence
-from typing import Any
 
 from guard_core._redis_enablement import redis_is_configured
 from guard_core.exceptions import GuardRedisError
@@ -19,8 +18,14 @@ from guard_core.sync.handlers._behavior_throttle import (
     behavior_client_identity,
     trip_marker_key,
 )
-from guard_core.sync.handlers.behavior_handler import BehaviorRule, config_to_rule
+from guard_core.sync.handlers.behavior_handler import (
+    BehaviorRule,
+    BehaviorTracker,
+    config_to_rule,
+)
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
+
+ErrorResponder = Callable[[int, str], GuardResponse]
 
 THROTTLE_EVENT_SAMPLE_SECONDS = 60
 MAX_SAMPLED_THROTTLE_KEYS = 10_000
@@ -34,7 +39,7 @@ _NEEDS_MIDDLEWARE_WARNING = (
 )
 
 
-def can_build_error_response(middleware: Any) -> bool:
+def can_build_error_response(middleware: object | None) -> bool:
     return callable(getattr(middleware, "create_error_response", None))
 
 
@@ -126,7 +131,17 @@ class BehavioralThrottleMixin:
     _throttle_sample_lock: threading.Lock
     _throttle_refusals: "OrderedDict[str, int]"
     _throttle_count_lock: threading.Lock
-    _report_decorator_violation: Callable[..., None]
+
+    def _report_decorator_violation(
+        self,
+        request: SyncGuardRequest,
+        rule: BehaviorRule,
+        endpoint_id: str,
+        reason: str,
+        decorator_type: str,
+        action_taken: str | None = None,
+        **overrides: object,
+    ) -> None: ...
 
     def _init_throttle_state(self) -> None:
         self._global_rules_source = None
@@ -153,7 +168,7 @@ class BehavioralThrottleMixin:
         return self._global_throttle_cache
 
     def _collect_correlated_categories(
-        self, client_ip: str, middleware: Any = None
+        self, client_ip: str, middleware: object | None = None
     ) -> list[str]:
         if self.context.middleware is not None:
             middleware = self.context.middleware
@@ -167,7 +182,9 @@ class BehavioralThrottleMixin:
         )
         return sorted(cat for cat, n in ip_counts.items() if n > 0)
 
-    def _shared_or_process_categories(self, tracker: Any, client_ip: str) -> list[str]:
+    def _shared_or_process_categories(
+        self, tracker: BehaviorTracker, client_ip: str
+    ) -> list[str]:
         from guard_core.sync.core.checks._shared_strikes import (
             read_shared_detection_categories,
         )
@@ -190,7 +207,7 @@ class BehavioralThrottleMixin:
         return self._collect_correlated_categories(client_ip)
 
     def _lookup_correlated_categories(
-        self, tracker: Any, client_ip: str
+        self, tracker: BehaviorTracker, client_ip: str
     ) -> Callable[[], list[str]]:
         cached: list[list[str]] = []
 
@@ -215,7 +232,9 @@ class BehavioralThrottleMixin:
         checks += [_global_check(rule) for rule in self._global_throttle_rules()]
         return checks
 
-    def _error_response_builder(self, middleware: Any) -> Any:
+    def _error_response_builder(
+        self, middleware: object | None
+    ) -> ErrorResponder | None:
         # The context's middleware wins; a call argument stands in for it under
         # adapters that never set it. The shared processor is never written.
         builder = (
@@ -223,32 +242,37 @@ class BehavioralThrottleMixin:
             if self.context.middleware is not None
             else middleware
         )
-        can_answer = callable(getattr(builder, "create_error_response", None))
-        return builder if can_answer else None
+        create_error_response: ErrorResponder | None = getattr(
+            builder, "create_error_response", None
+        )
+        return create_error_response if callable(create_error_response) else None
 
-    def _throttle_enforced(self, builder: Any, checks: Sequence[ThrottleCheck]) -> bool:
+    def _enforcing_builder(
+        self, builder: ErrorResponder | None, checks: Sequence[ThrottleCheck]
+    ) -> ErrorResponder | None:
         if self.context.config.passive_mode:
-            return False
+            return None
         if builder is not None:
-            return True
+            return builder
         warn_throttle_needs_middleware([check.rule for check in checks])
-        return False
+        return None
 
     def _enforce_throttle(
         self,
-        tracker: Any,
+        tracker: BehaviorTracker,
         request: SyncGuardRequest,
         client_ip: str,
         endpoint_id: str,
         route_throttles: Sequence[BehaviorRule],
         recorded_rule_ids: frozenset[str] = frozenset(),
-        middleware: Any = None,
+        middleware: object | None = None,
     ) -> GuardResponse | None:
         checks = self._throttle_checks(
             client_ip, endpoint_id, route_throttles, recorded_rule_ids
         )
         builder = self._error_response_builder(middleware)
-        enforced = self._throttle_enforced(builder, checks)
+        enforcing_builder = self._enforcing_builder(builder, checks)
+        enforced = enforcing_builder is not None
         try:
             trips: list[ThrottleTrip] = tracker.check_throttle(
                 client_ip,
@@ -269,16 +293,14 @@ class BehavioralThrottleMixin:
             )
         if self.context.config.on_block is not None:
             self._fire_throttle_block_hook(request, trips, enforced)
-        if not enforced:
+        if enforcing_builder is None:
             return None
-        response: GuardResponse = builder.create_error_response(
-            429, "Too many requests"
-        )
+        response: GuardResponse = enforcing_builder(429, "Too many requests")
         response.headers["Retry-After"] = str(max(t.retry_after for t in trips))
         return response
 
     def _throttle_check_failed(
-        self, error: GuardRedisError, builder: Any
+        self, error: GuardRedisError, builder: ErrorResponder | None
     ) -> GuardResponse | None:
         config = self.context.config
         safe_message = redact_header_value_for_display(
@@ -295,9 +317,7 @@ class BehavioralThrottleMixin:
         self.context.logger.warning(
             "Blocking request due to check error in fail-secure mode: behavior throttle"
         )
-        response: GuardResponse = builder.create_error_response(
-            500, "Security check failed"
-        )
+        response: GuardResponse = builder(500, "Security check failed")
         return response
 
     def _fire_throttle_block_hook(
@@ -339,7 +359,7 @@ class BehavioralThrottleMixin:
 
     def _report_throttle_trip(
         self,
-        tracker: Any,
+        tracker: BehaviorTracker,
         request: SyncGuardRequest,
         client_ip: str,
         endpoint_id: str,
@@ -362,7 +382,7 @@ class BehavioralThrottleMixin:
         is_global = check.scope_id == global_scope_id(rule)
         if rule.rule_type == "return_pattern":
             details = f"{limit} for '{rule.pattern}' in {rule.window}s"
-            extra: dict[str, Any] = {"pattern": rule.pattern}
+            extra: dict[str, object] = {"pattern": rule.pattern}
         else:
             details = f"{limit} calls in {rule.window}s"
             extra = {}

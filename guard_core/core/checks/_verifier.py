@@ -1,8 +1,8 @@
 import inspect
-from typing import Any
 
 
-async def resolve_verifier_result(value: Any) -> Any:
+async def resolve_verifier_result(value: object) -> object:
     if inspect.isawaitable(value):
-        return await value
+        resolved: object = await value
+        return resolved
     return value

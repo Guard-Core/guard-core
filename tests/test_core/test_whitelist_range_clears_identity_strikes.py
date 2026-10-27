@@ -3,10 +3,12 @@ from guard_core.core.checks._strike_forget import register_strike_middleware
 from guard_core.handlers import ratelimit_handler
 from guard_core.handlers._ipban_coverage import NetworkCoverage
 from guard_core.handlers.ipban_handler import IPBanManager
+from guard_core.models import SecurityConfig
 
 
 class _Middleware:
     def __init__(self, counts: dict[str, dict[str, int]]) -> None:
+        self.config = SecurityConfig(enable_redis=False)
         self.suspicious_request_counts = counts
 
 
