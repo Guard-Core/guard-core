@@ -22,6 +22,19 @@ from guard_core.sync._utils.lru_store import (
     _lru_pop_or_create,
 )
 from guard_core.sync._utils.request_logging import redact_endpoint_for_display
+from guard_core.sync.handlers import _by_ip_state
+from guard_core.sync.handlers._by_ip_state import (
+    by_ip_autoban_counts as _by_ip_autoban_counts,
+)
+from guard_core.sync.handlers._by_ip_state import (
+    by_ip_autoban_lock as _by_ip_autoban_lock,
+)
+from guard_core.sync.handlers._by_ip_state import (
+    by_ip_lock as _by_ip_lock,
+)
+from guard_core.sync.handlers._by_ip_state import (
+    by_ip_request_timestamps as _by_ip_request_timestamps,
+)
 from guard_core.sync.handlers.redis_handler import scan_unlink_through_new_client
 from guard_core.sync.protocols.agent_protocol import (
     SyncAgentHandlerProtocol as _Agent,
@@ -36,17 +49,13 @@ if TYPE_CHECKING:
     # the client get_connection() yields, typed for the Lua and pipeline helpers
     from redis import Redis
 
-    from guard_core.sync.core.checks.helpers import _WindowedCategoryCounts
 
 # The Lua script returns integers, a redis client without decode_responses returns
 # bytes, one with it returns str: all three reach int() below.
 _Reply = Sequence[str | bytes | int | float]
 _by_ip_logger = logging.getLogger("guard_core.sync.handlers.ratelimit")
 _RATE_LIMIT_HANDLER_NAME = "rate_limit"
-_by_ip_request_timestamps: defaultdict[str, deque[float]] = defaultdict(deque)
-_by_ip_lock = threading.Lock()
-_by_ip_autoban_counts: dict[str, "_WindowedCategoryCounts"] = {}
-_by_ip_autoban_lock = threading.Lock()
+
 _MAX_TRACKED_RATE_LIMIT_KEYS = 10_000
 _redis_fail_open_warned = False
 
@@ -267,25 +276,19 @@ def forget_shared_violations(redis_handler: _Redis, client_ip: str) -> None:
 
 
 def forget_by_ip_strikes(client_ip: str) -> None:
-    with _by_ip_autoban_lock:
-        _by_ip_autoban_counts.pop(client_ip, None)
+    _by_ip_state.forget_strikes_of(client_ip)
 
 
 def clear_by_ip_strikes() -> None:
-    with _by_ip_autoban_lock:
-        _by_ip_autoban_counts.clear()
+    _by_ip_state.clear_strikes()
 
 
 def clear_by_ip_request_windows() -> None:
-    with _by_ip_lock:
-        _by_ip_request_timestamps.clear()
+    _by_ip_state.clear_windows()
 
 
 def forget_by_ip_strikes_inside(covers: Callable[[str], bool]) -> None:
-    with _by_ip_autoban_lock:
-        for client_ip in tuple(_by_ip_autoban_counts):
-            if covers(client_ip):
-                del _by_ip_autoban_counts[client_ip]
+    _by_ip_state.forget_strikes_inside(covers)
 
 
 def _shared_primitive_counts(
@@ -350,16 +353,17 @@ def _feed_rate_limit_autoban(
 
     identity = _by_ip_window_identity(ip, config.ipv6_prefix_length)
     now = time.monotonic()
+    strikes = _by_ip_autoban_counts.for_app(config)
     with _by_ip_autoban_lock:
         ip_counts = _lru_pop_or_create(
-            _by_ip_autoban_counts,
+            strikes,
             identity,
             config.ban_counters_max_tracked_ips,
             _WindowedCategoryCounts,
         )
         ip_counts.expire_before(now - SUSPICIOUS_COUNT_WINDOW_SECONDS)
         ip_counts.record("rate_limit", now, _retained_strike_cap(config))
-        _by_ip_autoban_counts[identity] = ip_counts
+        strikes[identity] = ip_counts
 
     shared = _shared_primitive_counts(identity, config, redis_handler)
     result = _resolve_and_apply_threshold_ban(
@@ -371,7 +375,7 @@ def _feed_rate_limit_autoban(
         "rate_limit_exceeded",
     )
     if result is not None:
-        _by_ip_autoban_counts.pop(identity, None)
+        strikes.pop(identity, None)
         # a shared count only exists when a Redis handler produced it
         if shared is not None and redis_handler is not None:
             forget_shared_violations(redis_handler, identity)
@@ -541,7 +545,7 @@ def check_rate_limit_by_ip(
 
     if verdict is None:
         verdict = _in_memory_tier_verdict(
-            _by_ip_request_timestamps,
+            _by_ip_request_timestamps.for_app(config),
             window_identity,
             tiers,
             time.time(),
@@ -908,9 +912,9 @@ class RateLimitManager:
         parts = []
         if self.request_timestamps:
             parts.append("this config object's own request windows")
-        if _by_ip_request_timestamps:
+        if any(_by_ip_request_timestamps.tables()):
             parts.append("the by-IP primitive's request windows")
-        if _by_ip_autoban_counts or has_category_strikes("rate_limit"):
+        if any(_by_ip_autoban_counts.tables()) or has_category_strikes("rate_limit"):
             parts.append("the process-wide rate-limit strikes")
         return parts
 

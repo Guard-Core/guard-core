@@ -1,6 +1,7 @@
 import sys
 import threading
 
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers import ratelimit_handler as ratelimit_handler_module
 from guard_core.sync.handlers.ratelimit_handler import (
     RateLimitTier,
@@ -46,7 +47,9 @@ def test_by_ip_dedicated_store_evict_and_append_is_atomic_under_the_lock() -> No
     key = "203.0.113.14"
     tiers = [RateLimitTier("global", 1_000_000, 999)]
 
-    store = ratelimit_handler_module._by_ip_request_timestamps
+    store = ratelimit_handler_module._by_ip_request_timestamps.for_app(
+        SyncSecurityConfig()
+    )
     lock = ratelimit_handler_module._by_ip_lock
     store.pop(key, None)
     store[key].extend(0.0 for _ in range(stale_entries))

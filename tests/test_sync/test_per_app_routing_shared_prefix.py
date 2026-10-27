@@ -623,21 +623,18 @@ def test_a_network_ban_covering_the_proxy_answers_like_an_address_ban() -> None:
         second.redis.close()
 
 
-def test_the_rate_limit_feed_uses_the_callers_config_for_a_stored_ban(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_the_rate_limit_feed_uses_the_callers_config_for_a_stored_ban() -> None:
     first, second, ban = _live_pair(f"wp136-d178r-{id(PROXY)}:")
-    counts: dict[str, Any] = {}
-    monkeypatch.setattr(ratelimit_handler, "_by_ip_autoban_counts", counts)
+    first_counts = ratelimit_handler._by_ip_autoban_counts.for_app(first.config)
+    second_counts = ratelimit_handler._by_ip_autoban_counts.for_app(second.config)
     try:
         assert ban.ban_ip(PROXY, 3600, config=second.config) is True
         _forget_local_bans(ban)
 
         ratelimit_handler._feed_rate_limit_autoban(PROXY, first.config)
-        assert counts
-        counts.clear()
+        assert first_counts
         ratelimit_handler._feed_rate_limit_autoban(PROXY, second.config)
-        assert not counts
+        assert not second_counts
     finally:
         ban.unban_ip(PROXY, config=second.config)
         first.redis.close()

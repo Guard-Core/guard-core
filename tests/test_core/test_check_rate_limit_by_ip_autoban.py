@@ -133,7 +133,7 @@ async def test_passive_mode_suppresses_counting_and_ban() -> None:
         assert await check_rate_limit_by_ip(ip, config) is False
 
         assert ban_calls == []
-        assert ip not in _by_ip_autoban_counts
+        assert ip not in _by_ip_autoban_counts.for_app(config)
     finally:
         IPBanManager._instance = None
 
@@ -198,7 +198,7 @@ async def test_rejected_ip_input_records_no_autoban_count() -> None:
     except ValueError:
         pass
 
-    assert bad_ip not in _by_ip_autoban_counts
+    assert bad_ip not in _by_ip_autoban_counts.for_app(config)
 
 
 async def test_redis_backed_over_limit_feeds_autoban_counter(
@@ -276,13 +276,13 @@ async def test_already_banned_ip_makes_zero_additional_ban_calls() -> None:
 
         assert await check_rate_limit_by_ip(ip, config) is False
         assert ban_calls == [(ip, 1234, "rate_limit_exceeded")]
-        assert ip not in _by_ip_autoban_counts
+        assert ip not in _by_ip_autoban_counts.for_app(config)
 
         for _ in range(3):
             assert await check_rate_limit_by_ip(ip, config) is False
 
         assert ban_calls == [(ip, 1234, "rate_limit_exceeded")]
-        assert ip not in _by_ip_autoban_counts
+        assert ip not in _by_ip_autoban_counts.for_app(config)
     finally:
         IPBanManager._instance = None
 
@@ -345,8 +345,8 @@ async def test_dedicated_counter_isolated_from_middleware_suspicious_counts() ->
             "192.0.2.108": {"rate_limit": 1}
         }
         assert primitive_ip not in middleware.suspicious_request_counts
-        assert _by_ip_autoban_counts[primitive_ip] == {"rate_limit": 1}
-        assert "192.0.2.108" not in _by_ip_autoban_counts
+        assert _by_ip_autoban_counts.for_app(config)[primitive_ip] == {"rate_limit": 1}
+        assert "192.0.2.108" not in _by_ip_autoban_counts.for_app(config)
     finally:
         IPBanManager._instance = None
 
@@ -368,7 +368,7 @@ async def test_autoban_counter_evicts_the_oldest_ip_a_touched_ip_survives() -> N
             await check_rate_limit_by_ip(ip, config)
             await check_rate_limit_by_ip(ip, config)
 
-        assert set(_by_ip_autoban_counts) == {
+        assert set(_by_ip_autoban_counts.for_app(config)) == {
             "198.51.100.1",
             "198.51.100.2",
             "198.51.100.3",
@@ -379,10 +379,10 @@ async def test_autoban_counter_evicts_the_oldest_ip_a_touched_ip_survives() -> N
         await check_rate_limit_by_ip("198.51.100.4", config)
         await check_rate_limit_by_ip("198.51.100.4", config)
 
-        assert len(_by_ip_autoban_counts) == 3
-        assert "198.51.100.2" not in _by_ip_autoban_counts
-        assert "198.51.100.1" in _by_ip_autoban_counts
-        assert "198.51.100.4" in _by_ip_autoban_counts
+        assert len(_by_ip_autoban_counts.for_app(config)) == 3
+        assert "198.51.100.2" not in _by_ip_autoban_counts.for_app(config)
+        assert "198.51.100.1" in _by_ip_autoban_counts.for_app(config)
+        assert "198.51.100.4" in _by_ip_autoban_counts.for_app(config)
     finally:
         IPBanManager._instance = None
 
@@ -416,7 +416,7 @@ async def test_violations_older_than_the_window_do_not_count(
         assert ban_calls == []
     finally:
         IPBanManager._instance = None
-        _by_ip_autoban_counts.pop(ip, None)
+        _by_ip_autoban_counts.for_app(config).pop(ip, None)
 
 
 async def test_violations_inside_the_window_still_ban_and_clear_the_counter(
@@ -434,10 +434,10 @@ async def test_violations_inside_the_window_still_ban_and_clear_the_counter(
         assert await check_rate_limit_by_ip(ip, config) is False
 
         assert ban_calls == [(ip, 600, "rate_limit_exceeded")]
-        assert ip not in _by_ip_autoban_counts
+        assert ip not in _by_ip_autoban_counts.for_app(config)
     finally:
         IPBanManager._instance = None
-        _by_ip_autoban_counts.pop(ip, None)
+        _by_ip_autoban_counts.for_app(config).pop(ip, None)
 
 
 async def test_a_failing_shared_violation_counter_falls_back_to_the_process_count(

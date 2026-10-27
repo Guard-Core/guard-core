@@ -44,12 +44,9 @@ def test_a_whitelisted_range_clears_the_strikes_of_the_identities_inside_it() ->
     )
     register_strike_middleware(middleware)
     ratelimit_handler.clear_by_ip_strikes()
-    ratelimit_handler._by_ip_autoban_counts["2001:db8:0:1::/64"] = (
-        _WindowedCategoryCounts()
-    )
-    ratelimit_handler._by_ip_autoban_counts["2001:db9:0:1::/64"] = (
-        _WindowedCategoryCounts()
-    )
+    strikes = ratelimit_handler._by_ip_autoban_counts.for_app(SyncSecurityConfig())
+    strikes["2001:db8:0:1::/64"] = _WindowedCategoryCounts()
+    strikes["2001:db9:0:1::/64"] = _WindowedCategoryCounts()
 
     IPBanManager().forget_strikes_inside(["2001:db8::/32", "198.51.100.0/24"])
 
@@ -57,5 +54,5 @@ def test_a_whitelisted_range_clears_the_strikes_of_the_identities_inside_it() ->
         "2001:db9:0:1::/64",
         "203.0.113.10",
     ]
-    assert list(ratelimit_handler._by_ip_autoban_counts) == ["2001:db9:0:1::/64"]
+    assert list(strikes) == ["2001:db9:0:1::/64"]
     ratelimit_handler.clear_by_ip_strikes()

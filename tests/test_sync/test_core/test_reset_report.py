@@ -57,8 +57,10 @@ def _own_window(config: SyncSecurityConfig) -> object:
     return manager
 
 
-def _by_ip_window() -> None:
-    check_rate_limit_by_ip(IP, _config(rate_limit=5))
+def _by_ip_window() -> SyncSecurityConfig:
+    config = _config(rate_limit=5)
+    check_rate_limit_by_ip(IP, config)
+    return config
 
 
 def _strike() -> MagicMock:
@@ -102,7 +104,7 @@ def test_something_cleared_logs_the_same_prefix_and_lists_it(
     if prepare in ("own", "all"):
         keep.append(_own_window(config))
     if prepare in ("by_ip", "all"):
-        _by_ip_window()
+        keep.append(_by_ip_window())
     if prepare in ("strikes", "all"):
         keep.append(_strike())
 

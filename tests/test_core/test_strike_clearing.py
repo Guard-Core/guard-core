@@ -166,7 +166,7 @@ async def test_a_rate_limit_strike_does_not_survive_a_manual_unban(
     await ban_manager.unban_ip(IP)
 
     assert await _keys(redis, f"rate_limit:violations:{IP}") == []
-    assert IP not in ratelimit_handler._by_ip_autoban_counts
+    assert IP not in ratelimit_handler._by_ip_autoban_counts.for_app(config)
 
 
 async def test_unban_ip_clears_the_strikes_in_every_middleware(
@@ -199,7 +199,7 @@ async def test_the_ban_reset_clears_every_strike_of_both_families(
 
     assert first.middleware.suspicious_request_counts == {}
     assert second.middleware.suspicious_request_counts == {}
-    assert ratelimit_handler._by_ip_autoban_counts == {}
+    assert ratelimit_handler._by_ip_autoban_counts.for_app(redis.config) == {}
     assert await _keys(redis, "detection:*") == []
     assert await _keys(redis, "rate_limit:violations:*") == []
 
@@ -236,7 +236,7 @@ async def test_the_rate_limit_reset_keeps_the_detection_strikes(
     await rate_limit_handler(config).reset()
 
     assert dict(worker.middleware.suspicious_request_counts[IP]) == {"xss": 1}
-    assert ratelimit_handler._by_ip_autoban_counts == {}
+    assert ratelimit_handler._by_ip_autoban_counts.for_app(config) == {}
     assert await _keys(redis, "rate_limit:violations:*") == []
     assert await _keys(redis, f"detection:strikes:{IP}")
 

@@ -1,5 +1,6 @@
 import threading
 import time
+import weakref
 from collections import OrderedDict
 from typing import Generic, Protocol, TypeVar
 
@@ -61,10 +62,18 @@ class PerApp(Generic[_T]):
         self._table_type = table_type
         self._lock = threading.Lock()
         self._unheld = table_type()
+        self._tables: weakref.WeakValueDictionary[int, _T] = (
+            weakref.WeakValueDictionary()
+        )
 
     def clear(self) -> None:
         """Forget the process-wide table. The table of an app goes with its config."""
         self._unheld.clear()
+
+    def tables(self) -> list[_T]:
+        """Every table alive now: the process-wide one and each app's."""
+        with self._lock:
+            return [self._unheld, *self._tables.values()]
 
     def for_app(self, config: object) -> _T:
         held = held_for_app(config, self._kind)
@@ -75,7 +84,10 @@ class PerApp(Generic[_T]):
             if isinstance(held, self._table_type):
                 return held
             fresh = self._table_type()
-            return fresh if hold_for_app(config, self._kind, fresh) else self._unheld
+            if not hold_for_app(config, self._kind, fresh):
+                return self._unheld
+            self._tables[id(fresh)] = fresh
+            return fresh
 
 
 def _evict_oldest_when_full(table: "OrderedDict[str, float]", max_tracked: int) -> None:

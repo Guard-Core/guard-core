@@ -134,8 +134,8 @@ def _assert_only_outside_keeps_strikes(
 ) -> None:
     assert INSIDE not in middleware.suspicious_request_counts
     assert OUTSIDE in middleware.suspicious_request_counts
-    assert INSIDE not in ratelimit_handler._by_ip_autoban_counts
-    assert OUTSIDE in ratelimit_handler._by_ip_autoban_counts
+    assert INSIDE not in ratelimit_handler._by_ip_autoban_counts.for_app(redis.config)
+    assert OUTSIDE in ratelimit_handler._by_ip_autoban_counts.for_app(redis.config)
     assert _keys(redis, f"detection:strikes*{INSIDE}*") == []
     assert _keys(redis, f"rate_limit:violations:{INSIDE}") == []
     assert _keys(redis, f"detection:strikes:{OUTSIDE}")

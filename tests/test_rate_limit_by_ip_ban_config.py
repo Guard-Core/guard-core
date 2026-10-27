@@ -52,7 +52,7 @@ async def test_a_banned_neighbour_neither_counts_nor_re_bans_in_the_primitive() 
     ]
 
     assert False in results
-    assert ratelimit_handler._by_ip_autoban_counts == {}
+    assert ratelimit_handler._by_ip_autoban_counts.for_app(config) == {}
 
 
 async def test_a_whitelisted_host_inside_the_prefix_finds_its_own_carved_ban() -> None:
@@ -81,4 +81,6 @@ async def test_the_primitive_keys_its_window_and_ban_by_the_config_identity() ->
 
     assert results[0] is True
     assert False in results
-    assert list(ratelimit_handler._by_ip_request_timestamps) == [SLASH_56]
+    assert list(ratelimit_handler._by_ip_request_timestamps.for_app(config)) == [
+        SLASH_56
+    ]

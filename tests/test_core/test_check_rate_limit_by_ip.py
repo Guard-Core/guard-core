@@ -355,7 +355,9 @@ async def test_in_memory_key_never_contains_endpoint_path_text() -> None:
     await check_rate_limit_by_ip(ip, config, endpoint_path=secret_path)
 
     matching_keys = [
-        key for key in _by_ip_request_timestamps if key.startswith(f"{ip}:")
+        key
+        for key in _by_ip_request_timestamps.for_app(config)
+        if key.startswith(f"{ip}:")
     ]
     assert matching_keys, "expected an in-memory bucket for this ip"
     for key in matching_keys:
@@ -467,13 +469,17 @@ async def test_in_memory_store_evicts_the_oldest_key_at_capacity() -> None:
 
     for ip in ("10.0.0.1", "10.0.0.2", "10.0.0.3"):
         await check_rate_limit_by_ip(ip, config)
-    assert set(_by_ip_request_timestamps) == {"10.0.0.1", "10.0.0.2", "10.0.0.3"}
+    assert set(_by_ip_request_timestamps.for_app(config)) == {
+        "10.0.0.1",
+        "10.0.0.2",
+        "10.0.0.3",
+    }
 
     await check_rate_limit_by_ip("10.0.0.4", config)
 
-    assert len(_by_ip_request_timestamps) == 3
-    assert "10.0.0.1" not in _by_ip_request_timestamps
-    assert "10.0.0.4" in _by_ip_request_timestamps
+    assert len(_by_ip_request_timestamps.for_app(config)) == 3
+    assert "10.0.0.1" not in _by_ip_request_timestamps.for_app(config)
+    assert "10.0.0.4" in _by_ip_request_timestamps.for_app(config)
 
 
 async def test_in_memory_store_a_touched_key_survives_eviction() -> None:
@@ -491,6 +497,6 @@ async def test_in_memory_store_a_touched_key_survives_eviction() -> None:
     await check_rate_limit_by_ip("10.0.1.1", config)
     await check_rate_limit_by_ip("10.0.1.4", config)
 
-    assert "10.0.1.1" in _by_ip_request_timestamps
-    assert "10.0.1.2" not in _by_ip_request_timestamps
-    assert len(_by_ip_request_timestamps) == 3
+    assert "10.0.1.1" in _by_ip_request_timestamps.for_app(config)
+    assert "10.0.1.2" not in _by_ip_request_timestamps.for_app(config)
+    assert len(_by_ip_request_timestamps.for_app(config)) == 3

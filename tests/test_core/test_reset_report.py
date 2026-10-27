@@ -59,8 +59,10 @@ async def _own_window(config: SecurityConfig) -> object:
     return manager
 
 
-async def _by_ip_window() -> None:
-    await check_rate_limit_by_ip(IP, _config(rate_limit=5))
+async def _by_ip_window() -> SecurityConfig:
+    config = _config(rate_limit=5)
+    await check_rate_limit_by_ip(IP, config)
+    return config
 
 
 def _strike() -> MagicMock:
@@ -104,7 +106,7 @@ async def test_something_cleared_logs_the_same_prefix_and_lists_it(
     if prepare in ("own", "all"):
         keep.append(await _own_window(config))
     if prepare in ("by_ip", "all"):
-        await _by_ip_window()
+        keep.append(await _by_ip_window())
     if prepare in ("strikes", "all"):
         keep.append(_strike())
 
