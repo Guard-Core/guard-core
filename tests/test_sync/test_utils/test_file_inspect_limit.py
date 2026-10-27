@@ -108,7 +108,7 @@ def test_the_file_limit_has_the_bounds_of_the_body_limit(bound: int) -> None:
 
 
 def test_multipart_past_the_body_limit_is_scanned_under_a_raised_file_limit() -> None:
-    body = _multipart_with_attack_at(BODY_LIMIT)
+    body = _multipart_with_attack_at(BODY_LIMIT + 1024)
     assert len(body) > BODY_LIMIT + 1
 
     raised = detect_penetration_attempt(
@@ -124,7 +124,7 @@ def test_multipart_past_the_body_limit_is_scanned_under_a_raised_file_limit() ->
 
 
 def test_json_of_the_same_size_is_still_refused_under_fail_secure() -> None:
-    body = _json_with_attack_at(BODY_LIMIT)
+    body = _json_with_attack_at(BODY_LIMIT + 1024)
     config = _config(detection_max_file_inspect_bytes=RAISED_FILE_LIMIT)
 
     result = detect_penetration_attempt(_request(body, "application/json"), config)
