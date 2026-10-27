@@ -2,9 +2,9 @@ import re
 
 from guard_core.sync.detection_engine.scan_window import bounded_finditer
 
-_FILE_UPLOAD_SERVER_CONFIG_EXTENSIONS = frozenset(
-    {"htaccess", "htpasswd", "config", "inc"}
-)
+_FILE_UPLOAD_SERVER_CONFIG_EXTENSIONS = frozenset({"htaccess", "htpasswd", "inc"})
+_FILE_UPLOAD_SERVER_CONFIG_NAME_ALTERNATION = r"web\.config|\.user\.ini"
+_FILE_UPLOAD_WINDOWS_SAVE_SUFFIX_RE = r"(?:[. ]*::\$DATA)?[. ]*"
 _FILE_UPLOAD_DANGEROUS_EXTENSIONS = _FILE_UPLOAD_SERVER_CONFIG_EXTENSIONS | frozenset(
     {
         "phar",
@@ -108,7 +108,9 @@ _FILE_UPLOAD_DOUBLE_EXTENSION_RE = (
     + _FILE_UPLOAD_DOUBLE_EXT_ALTERNATION
     + r")(?![A-Za-z0-9])(?:[^ \"'][^\"']*)?\.(?:"
     + _FILE_UPLOAD_BENIGN_TERMINAL_ALTERNATION
-    + r")[\"']"
+    + r")"
+    + _FILE_UPLOAD_WINDOWS_SAVE_SUFFIX_RE
+    + r"[\"']"
 )
 _FILE_UPLOAD_TRUNCATION_RE = (
     _FILE_UPLOAD_FILENAME_EQUALS_RE
@@ -126,9 +128,13 @@ _FILE_UPLOAD_DECODED_TRUNCATION_RE = (
 )
 _FILE_UPLOAD_DANGEROUS_EXTENSION_RE = (
     _FILE_UPLOAD_FILENAME_EQUALS_RE
-    + r"[\"'][^\"']*\.(?:"
+    + r"[\"'](?:[^\"']*\.(?:"
     + _FILE_UPLOAD_DANGEROUS_EXT_ALTERNATION
-    + r")[\"']"
+    + r")|(?:[^\"']*[/\\])?(?:"
+    + _FILE_UPLOAD_SERVER_CONFIG_NAME_ALTERNATION
+    + r"))"
+    + _FILE_UPLOAD_WINDOWS_SAVE_SUFFIX_RE
+    + r"[\"']"
 )
 
 
@@ -147,8 +153,16 @@ _FILE_UPLOAD_BENIGN_TERMINAL_EXTENSION_RE = re.compile(
     r"\.(?:" + _FILE_UPLOAD_BENIGN_TERMINAL_ALTERNATION + r")\Z", re.IGNORECASE
 )
 _FILE_UPLOAD_DANGEROUS_TERMINAL_EXTENSION_RE = re.compile(
-    r"\.(?:" + _FILE_UPLOAD_DANGEROUS_EXT_ALTERNATION + r")\Z", re.IGNORECASE
+    r"(?:\.(?:"
+    + _FILE_UPLOAD_DANGEROUS_EXT_ALTERNATION
+    + r")|(?:\A|[/\\])(?:"
+    + _FILE_UPLOAD_SERVER_CONFIG_NAME_ALTERNATION
+    + r"))\Z",
+    re.IGNORECASE,
 )
+_FILE_UPLOAD_NTFS_STREAM_SUFFIX_RE = re.compile(r"::\$DATA\Z", re.IGNORECASE)
+_FILE_UPLOAD_NAME_TERMINATORS = " \t\r\n\x0b\x0c;,"
+_FILE_UPLOAD_NAME_MAX_LENGTH = 255
 _FILE_UPLOAD_TRUNCATION_MARKER_RE = re.compile(
     r"(?:%00|\\u0000|\\x00|\\0|\x00|;|\.\Z)", re.IGNORECASE
 )
@@ -224,15 +238,45 @@ def _file_upload_is_truncation(body: str, decoded: bool) -> bool:
     return False
 
 
+def _file_upload_windows_name(body: str) -> str:
+    name = _FILE_UPLOAD_NTFS_STREAM_SUFFIX_RE.sub(
+        "", body.replace('"', ".").rstrip(". ")
+    )
+    return name.rstrip(". ")
+
+
+def _file_upload_inner_quote_end(content: str, body_start: int, end: int) -> int | None:
+    close = end - 1
+    while content[close + 1 : close + 2] not in _FILE_UPLOAD_NAME_TERMINATORS:
+        quote = _FILE_UPLOAD_QUOTE_RE.search(content, close + 1)
+        if quote is None or quote.start() - body_start > _FILE_UPLOAD_NAME_MAX_LENGTH:
+            return None
+        close = quote.start()
+    return close + 1
+
+
 def _file_upload_kind_matches(body: str, source: str) -> bool:
-    if source == _FILE_UPLOAD_DANGEROUS_EXTENSION_RE:
-        return _FILE_UPLOAD_DANGEROUS_TERMINAL_EXTENSION_RE.search(body) is not None
-    if source == _FILE_UPLOAD_DOUBLE_EXTENSION_RE:
-        return _file_upload_is_double_extension(body)
-    if source == _FILE_UPLOAD_TRUNCATION_RE:
-        return _file_upload_is_truncation(body, decoded=False)
-    if source == _FILE_UPLOAD_DECODED_TRUNCATION_RE:
-        return _file_upload_is_truncation(body, decoded=True)
+    spellings = (
+        (body, _file_upload_windows_name(body))
+        if body[-1:] in (".", " ") or "::" in body or '"' in body
+        else (body,)
+    )
+    for spelling in spellings:
+        if source == _FILE_UPLOAD_DANGEROUS_EXTENSION_RE:
+            matched = (
+                _FILE_UPLOAD_DANGEROUS_TERMINAL_EXTENSION_RE.search(spelling)
+                is not None
+            )
+        elif source == _FILE_UPLOAD_DOUBLE_EXTENSION_RE:
+            matched = _file_upload_is_double_extension(spelling)
+        elif source == _FILE_UPLOAD_TRUNCATION_RE:
+            matched = _file_upload_is_truncation(spelling, decoded=False)
+        elif source == _FILE_UPLOAD_DECODED_TRUNCATION_RE:
+            matched = _file_upload_is_truncation(spelling, decoded=True)
+        else:
+            matched = False
+        if matched:
+            return True
     return False
 
 
@@ -244,10 +288,21 @@ def _file_upload_scan_matches(content: str, compiled: re.Pattern) -> list[re.Mat
         if candidate is None:
             continue
         start, body_start, end = candidate
-        if start < last_end or not _file_upload_kind_matches(
+        if start < last_end:
+            continue
+        if not _file_upload_kind_matches(
             content[body_start : end - 1], compiled.pattern
         ):
-            continue
+            inner_end = (
+                None
+                if content[end : end + 1] in _FILE_UPLOAD_NAME_TERMINATORS
+                else _file_upload_inner_quote_end(content, body_start, end)
+            )
+            if inner_end is None or not _file_upload_kind_matches(
+                content[body_start : inner_end - 1], compiled.pattern
+            ):
+                continue
+            end = inner_end
         match = _FILE_UPLOAD_VALIDATED_SPAN_RE.match(content, start, end)
         if match is None:
             raise RuntimeError("the validated file upload span did not match")

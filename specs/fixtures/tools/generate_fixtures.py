@@ -296,6 +296,28 @@ MISC_INJECTION_SUITE = [
     ("file_upload_double_ext", "request_body", 'filename="shell.php.jpg"'),
     ("file_upload_php_ext", "request_body", 'filename="shell.phtml"'),
     ("file_upload_htaccess", "request_body", 'filename=".htaccess"'),
+    ("file_upload_web_config", "request_body", 'filename="web.config"'),
+    ("file_upload_web_config_upper", "request_body", 'filename="WEB.CONFIG"'),
+    ("file_upload_web_config_trailing_dot", "request_body", 'filename="web.config."'),
+    (
+        "file_upload_web_config_dots_and_spaces",
+        "request_body",
+        'filename="web.config. . "',
+    ),
+    (
+        "file_upload_web_config_ntfs_stream",
+        "request_body",
+        'filename="web.config::$DATA"',
+    ),
+    ("file_upload_web_config_quote_save", "request_body", 'filename="web"config"'),
+    ("file_upload_htaccess_trailing_dot", "request_body", 'filename=".htaccess."'),
+    ("file_upload_htpasswd", "request_body", 'filename=".htpasswd"'),
+    ("file_upload_user_ini", "request_body", 'filename=".user.ini"'),
+    ("file_upload_user_ini_trailing_dot", "request_body", 'filename=".user.ini."'),
+    ("file_upload_inc_trailing_dot", "request_body", 'filename="header.inc."'),
+    ("file_upload_aspx_ntfs_stream", "request_body", 'filename="shell.aspx::$DATA"'),
+    ("file_upload_php_ntfs_stream", "request_body", 'filename="shell.php::$DATA"'),
+    ("file_upload_aspx_dots_and_spaces", "request_body", 'filename="shell.aspx. . "'),
 ]
 
 ENCODING_SUITE = [
@@ -376,6 +398,12 @@ BENIGN_SUITE = [
     ("benign_whitespace", "request_body", "   "),
     ("benign_search_apostrophe", "query_param", "it's a beautiful day"),
     ("benign_price_dollar", "request_body", "$49.99 plus tax"),
+    ("benign_upload_app_config", "request_body", 'filename="app.config"'),
+    ("benign_upload_nlog_config", "request_body", 'filename="nlog.config"'),
+    ("benign_upload_exe_config", "request_body", 'filename="App.exe.config"'),
+    ("benign_upload_appsettings_json", "request_body", 'filename="appsettings.json"'),
+    ("benign_upload_inc_then_image", "request_body", 'filename="shell.inc.jpg"'),
+    ("benign_upload_php_ini", "request_body", 'filename="php.ini"'),
 ]
 
 CONTEXT_MATRIX = [
