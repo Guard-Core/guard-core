@@ -9,7 +9,7 @@ from guard_core.core.checks.implementations.custom_validators import (
     CustomValidatorsCheck,
 )
 from guard_core.core.checks.implementations.ip_security import IpSecurityCheck
-from guard_core.decorators import SecurityDecorator
+from guard_core.decorators import SecurityDecorator, get_route_id
 from guard_core.decorators.base import RouteConfig
 from guard_core.handlers.ipban_handler import IPBanManager
 from guard_core.models import SecurityConfig, ThreatBanConfig
@@ -47,7 +47,7 @@ def _honeypot_route_config(config: SecurityConfig) -> RouteConfig:
     func.__module__ = "test_module"
     decorator = SecurityDecorator(config)
     decorated = decorator.honeypot_detection(["website"])(func)
-    route_config = decorator.get_route_config(decorated._guard_route_id)
+    route_config = decorator.get_route_config(get_route_id(decorated))
     assert route_config is not None
     return route_config
 

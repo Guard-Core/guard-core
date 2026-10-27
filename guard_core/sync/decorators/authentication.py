@@ -8,15 +8,22 @@ from guard_core.sync.decorators._route_arguments import (
 from guard_core.sync.decorators.base import (
     AuthVerifier,
     BaseSecurityMixin,
-    GuardedCallable,
+    GuardedParams,
+    GuardedReturn,
 )
 
 logger = logging.getLogger("guard_core.sync.decorators")
 
 
 class AuthenticationMixin(BaseSecurityMixin):
-    def require_https(self) -> Callable[[GuardedCallable], GuardedCallable]:
-        def decorator(func: GuardedCallable) -> GuardedCallable:
+    def require_https(
+        self,
+    ) -> Callable[
+        [Callable[GuardedParams, GuardedReturn]], Callable[GuardedParams, GuardedReturn]
+    ]:
+        def decorator(
+            func: Callable[GuardedParams, GuardedReturn],
+        ) -> Callable[GuardedParams, GuardedReturn]:
             route_config = self._ensure_route_config(func)
             route_config.require_https = True
             return self._apply_route_config(func)
@@ -27,8 +34,12 @@ class AuthenticationMixin(BaseSecurityMixin):
         self,
         type: str = "bearer",
         verifier: AuthVerifier | None = None,
-    ) -> Callable[[GuardedCallable], GuardedCallable]:
-        def decorator(func: GuardedCallable) -> GuardedCallable:
+    ) -> Callable[
+        [Callable[GuardedParams, GuardedReturn]], Callable[GuardedParams, GuardedReturn]
+    ]:
+        def decorator(
+            func: Callable[GuardedParams, GuardedReturn],
+        ) -> Callable[GuardedParams, GuardedReturn]:
             route_config = self._ensure_route_config(func)
             if route_config.authorization_header_required is not None:
                 raise ValueError(
@@ -53,8 +64,12 @@ class AuthenticationMixin(BaseSecurityMixin):
         self,
         header_name: str = "X-API-Key",
         verifier: AuthVerifier | None = None,
-    ) -> Callable[[GuardedCallable], GuardedCallable]:
-        def decorator(func: GuardedCallable) -> GuardedCallable:
+    ) -> Callable[
+        [Callable[GuardedParams, GuardedReturn]], Callable[GuardedParams, GuardedReturn]
+    ]:
+        def decorator(
+            func: Callable[GuardedParams, GuardedReturn],
+        ) -> Callable[GuardedParams, GuardedReturn]:
             route_config = self._ensure_route_config(func)
             if route_config.authorization_header_required is not None:
                 raise ValueError(
@@ -73,8 +88,12 @@ class AuthenticationMixin(BaseSecurityMixin):
     def require_authorization_header(
         self,
         scheme: str = "bearer",
-    ) -> Callable[[GuardedCallable], GuardedCallable]:
-        def decorator(func: GuardedCallable) -> GuardedCallable:
+    ) -> Callable[
+        [Callable[GuardedParams, GuardedReturn]], Callable[GuardedParams, GuardedReturn]
+    ]:
+        def decorator(
+            func: Callable[GuardedParams, GuardedReturn],
+        ) -> Callable[GuardedParams, GuardedReturn]:
             route_config = self._ensure_route_config(func)
             if route_config.auth_required is not None or route_config.api_key_required:
                 raise ValueError(
@@ -89,8 +108,12 @@ class AuthenticationMixin(BaseSecurityMixin):
 
     def require_headers(
         self, headers: dict[str, str]
-    ) -> Callable[[GuardedCallable], GuardedCallable]:
-        def decorator(func: GuardedCallable) -> GuardedCallable:
+    ) -> Callable[
+        [Callable[GuardedParams, GuardedReturn]], Callable[GuardedParams, GuardedReturn]
+    ]:
+        def decorator(
+            func: Callable[GuardedParams, GuardedReturn],
+        ) -> Callable[GuardedParams, GuardedReturn]:
             route_config = self._ensure_route_config(func)
             route_config.required_headers.update(headers)
             return self._apply_route_config(func)

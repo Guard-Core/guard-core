@@ -1,7 +1,11 @@
 import logging
 from collections.abc import Awaitable, Callable
 
-from guard_core.decorators.base import BaseSecurityMixin, GuardedCallable
+from guard_core.decorators.base import (
+    BaseSecurityMixin,
+    GuardedParams,
+    GuardedReturn,
+)
 from guard_core.models import SecurityConfig
 from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse
@@ -12,7 +16,9 @@ class ContentFilteringMixin(BaseSecurityMixin):
 
     def block_user_agents(
         self, patterns: list[str]
-    ) -> Callable[[GuardedCallable], GuardedCallable]:
+    ) -> Callable[
+        [Callable[GuardedParams, GuardedReturn]], Callable[GuardedParams, GuardedReturn]
+    ]:
         from guard_core._utils.pattern_source_redaction import _ConfigSensitiveNames
         from guard_core.detection_engine.compiler import PatternCompiler
 
@@ -31,7 +37,9 @@ class ContentFilteringMixin(BaseSecurityMixin):
                     f"{_redact_pattern_source(pattern, names)!r} ({reason})"
                 )
 
-        def decorator(func: GuardedCallable) -> GuardedCallable:
+        def decorator(
+            func: Callable[GuardedParams, GuardedReturn],
+        ) -> Callable[GuardedParams, GuardedReturn]:
             route_config = self._ensure_route_config(func)
             route_config.blocked_user_agents.extend(patterns)
             return self._apply_route_config(func)
@@ -40,8 +48,12 @@ class ContentFilteringMixin(BaseSecurityMixin):
 
     def content_type_filter(
         self, allowed_types: list[str]
-    ) -> Callable[[GuardedCallable], GuardedCallable]:
-        def decorator(func: GuardedCallable) -> GuardedCallable:
+    ) -> Callable[
+        [Callable[GuardedParams, GuardedReturn]], Callable[GuardedParams, GuardedReturn]
+    ]:
+        def decorator(
+            func: Callable[GuardedParams, GuardedReturn],
+        ) -> Callable[GuardedParams, GuardedReturn]:
             route_config = self._ensure_route_config(func)
             route_config.allowed_content_types = allowed_types
             return self._apply_route_config(func)
@@ -50,14 +62,18 @@ class ContentFilteringMixin(BaseSecurityMixin):
 
     def max_request_size(
         self, size_bytes: int
-    ) -> Callable[[GuardedCallable], GuardedCallable]:
+    ) -> Callable[
+        [Callable[GuardedParams, GuardedReturn]], Callable[GuardedParams, GuardedReturn]
+    ]:
         if size_bytes < 0:
             raise ValueError(
                 f"max_request_size must not be negative (got {size_bytes}); "
                 "use None for no limit"
             )
 
-        def decorator(func: GuardedCallable) -> GuardedCallable:
+        def decorator(
+            func: Callable[GuardedParams, GuardedReturn],
+        ) -> Callable[GuardedParams, GuardedReturn]:
             if size_bytes == 0:
                 logging.getLogger("guard_core.decorators").warning(
                     "max_request_size(0) on %s: 0 now refuses any request body; "
@@ -72,8 +88,12 @@ class ContentFilteringMixin(BaseSecurityMixin):
 
     def require_referrer(
         self, allowed_domains: list[str]
-    ) -> Callable[[GuardedCallable], GuardedCallable]:
-        def decorator(func: GuardedCallable) -> GuardedCallable:
+    ) -> Callable[
+        [Callable[GuardedParams, GuardedReturn]], Callable[GuardedParams, GuardedReturn]
+    ]:
+        def decorator(
+            func: Callable[GuardedParams, GuardedReturn],
+        ) -> Callable[GuardedParams, GuardedReturn]:
             route_config = self._ensure_route_config(func)
             route_config.require_referrer = allowed_domains
             return self._apply_route_config(func)
@@ -83,8 +103,12 @@ class ContentFilteringMixin(BaseSecurityMixin):
     def custom_validation(
         self,
         validator: Callable[[GuardRequest], Awaitable[GuardResponse | None]],
-    ) -> Callable[[GuardedCallable], GuardedCallable]:
-        def decorator(func: GuardedCallable) -> GuardedCallable:
+    ) -> Callable[
+        [Callable[GuardedParams, GuardedReturn]], Callable[GuardedParams, GuardedReturn]
+    ]:
+        def decorator(
+            func: Callable[GuardedParams, GuardedReturn],
+        ) -> Callable[GuardedParams, GuardedReturn]:
             route_config = self._ensure_route_config(func)
             route_config.custom_validators.append(validator)
             return self._apply_route_config(func)
@@ -100,8 +124,12 @@ class ContentFilteringMixin(BaseSecurityMixin):
         scan_body: bool | None = None,
         semantic_headers: set[str] | None = None,
         path_params: set[str] | dict[str, set[str]] | None = None,
-    ) -> Callable[[GuardedCallable], GuardedCallable]:
-        def decorator(func: GuardedCallable) -> GuardedCallable:
+    ) -> Callable[
+        [Callable[GuardedParams, GuardedReturn]], Callable[GuardedParams, GuardedReturn]
+    ]:
+        def decorator(
+            func: Callable[GuardedParams, GuardedReturn],
+        ) -> Callable[GuardedParams, GuardedReturn]:
             from guard_core._security_config_validators import (
                 _validate_excluded_detection_params_value,
             )

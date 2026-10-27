@@ -1,6 +1,5 @@
 import json
-from collections.abc import Callable
-from typing import Any, cast
+from typing import Any
 from urllib.parse import urlencode
 
 import pytest
@@ -32,10 +31,7 @@ def _route_config(body_fields: Any) -> RouteConfig:
     def target() -> None:
         pass
 
-    decorated = cast(
-        Callable[..., Any],
-        decorator.detection_exclusion(body_fields=body_fields)(target),
-    )
+    decorated = decorator.detection_exclusion(body_fields=body_fields)(target)
     route_config = decorator.get_route_config(decorator._get_route_id(decorated))
     assert route_config is not None
     return route_config

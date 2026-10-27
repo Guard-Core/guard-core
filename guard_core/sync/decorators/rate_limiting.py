@@ -1,13 +1,21 @@
 from collections.abc import Callable
 
-from guard_core.sync.decorators.base import BaseSecurityMixin, GuardedCallable
+from guard_core.sync.decorators.base import (
+    BaseSecurityMixin,
+    GuardedParams,
+    GuardedReturn,
+)
 
 
 class RateLimitingMixin(BaseSecurityMixin):
     def rate_limit(
         self, requests: int, window: int = 60
-    ) -> Callable[[GuardedCallable], GuardedCallable]:
-        def decorator(func: GuardedCallable) -> GuardedCallable:
+    ) -> Callable[
+        [Callable[GuardedParams, GuardedReturn]], Callable[GuardedParams, GuardedReturn]
+    ]:
+        def decorator(
+            func: Callable[GuardedParams, GuardedReturn],
+        ) -> Callable[GuardedParams, GuardedReturn]:
             if requests < 1 or window < 1:
                 self._report_misconfiguration(
                     f"@rate_limit(requests={requests}, window={window}): the "
@@ -22,8 +30,12 @@ class RateLimitingMixin(BaseSecurityMixin):
 
     def geo_rate_limit(
         self, limits: dict[str, tuple[int, int]]
-    ) -> Callable[[GuardedCallable], GuardedCallable]:
-        def decorator(func: GuardedCallable) -> GuardedCallable:
+    ) -> Callable[
+        [Callable[GuardedParams, GuardedReturn]], Callable[GuardedParams, GuardedReturn]
+    ]:
+        def decorator(
+            func: Callable[GuardedParams, GuardedReturn],
+        ) -> Callable[GuardedParams, GuardedReturn]:
             for country, (limit, window) in limits.items():
                 if limit < 1 or window < 1:
                     self._report_misconfiguration(

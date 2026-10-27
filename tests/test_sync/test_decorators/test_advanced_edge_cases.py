@@ -4,7 +4,7 @@ import pytest
 
 from guard_core.models import SyncSecurityConfig
 from guard_core.sync import utils
-from guard_core.sync.decorators import SecurityDecorator
+from guard_core.sync.decorators import SecurityDecorator, get_route_id
 from tests.test_sync.conftest import SyncMockGuardRequest
 
 
@@ -28,7 +28,7 @@ def test_honeypot_form_non_utf8_body_without_trap_value_not_blocked(
     honeypot_decorator = decorator.honeypot_detection(["trap_field"])
     decorated_func = honeypot_decorator(mock_func)
 
-    route_id = decorated_func._guard_route_id
+    route_id = get_route_id(decorated_func)
     route_config = decorator.get_route_config(route_id)
     assert route_config is not None
     validator = route_config.custom_validators[0]
@@ -58,7 +58,7 @@ def test_honeypot_form_non_utf8_body_with_trap_value_is_blocked(
     honeypot_decorator = decorator.honeypot_detection(["trap_field"])
     decorated_func = honeypot_decorator(mock_func)
 
-    route_id = decorated_func._guard_route_id
+    route_id = get_route_id(decorated_func)
     route_config = decorator.get_route_config(route_id)
     assert route_config is not None
     validator = route_config.custom_validators[0]
@@ -90,7 +90,7 @@ def test_honeypot_json_non_utf8_body_with_trap_value_is_blocked(
     honeypot_decorator = decorator.honeypot_detection(["trap_field"])
     decorated_func = honeypot_decorator(mock_func)
 
-    route_id = decorated_func._guard_route_id
+    route_id = get_route_id(decorated_func)
     route_config = decorator.get_route_config(route_id)
     assert route_config is not None
     validator = route_config.custom_validators[0]
@@ -122,7 +122,7 @@ def test_honeypot_json_non_object_body_not_blocked(
     honeypot_decorator = decorator.honeypot_detection(["trap_field"])
     decorated_func = honeypot_decorator(mock_func)
 
-    route_id = decorated_func._guard_route_id
+    route_id = get_route_id(decorated_func)
     route_config = decorator.get_route_config(route_id)
     assert route_config is not None
     validator = route_config.custom_validators[0]
@@ -153,7 +153,7 @@ def test_honeypot_json_deeply_nested_body_not_blocked(
     honeypot_decorator = decorator.honeypot_detection(["trap_field"])
     decorated_func = honeypot_decorator(mock_func)
 
-    route_id = decorated_func._guard_route_id
+    route_id = get_route_id(decorated_func)
     route_config = decorator.get_route_config(route_id)
     assert route_config is not None
     validator = route_config.custom_validators[0]
@@ -182,7 +182,7 @@ def test_honeypot_non_post_method(decorator: SecurityDecorator) -> None:
     honeypot_decorator = decorator.honeypot_detection(["trap_field"])
     decorated_func = honeypot_decorator(mock_func)
 
-    route_id = decorated_func._guard_route_id
+    route_id = get_route_id(decorated_func)
     route_config = decorator.get_route_config(route_id)
     assert route_config is not None
     validator = route_config.custom_validators[0]
@@ -202,7 +202,7 @@ def test_honeypot_unsupported_content_type(
     honeypot_decorator = decorator.honeypot_detection(["trap_field"])
     decorated_func = honeypot_decorator(mock_func)
 
-    route_id = decorated_func._guard_route_id
+    route_id = get_route_id(decorated_func)
     route_config = decorator.get_route_config(route_id)
     assert route_config is not None
     validator = route_config.custom_validators[0]
@@ -231,7 +231,7 @@ def test_honeypot_various_non_modifying_methods(
     honeypot_decorator = decorator.honeypot_detection(["trap_field"])
     decorated_func = honeypot_decorator(mock_func)
 
-    route_id = decorated_func._guard_route_id
+    route_id = get_route_id(decorated_func)
     route_config = decorator.get_route_config(route_id)
     assert route_config is not None
     validator = route_config.custom_validators[0]
@@ -254,7 +254,7 @@ def test_honeypot_modifying_methods_without_content_type(
     honeypot_decorator = decorator.honeypot_detection(["trap_field"])
     decorated_func = honeypot_decorator(mock_func)
 
-    route_id = decorated_func._guard_route_id
+    route_id = get_route_id(decorated_func)
     route_config = decorator.get_route_config(route_id)
     assert route_config is not None
     validator = route_config.custom_validators[0]
@@ -305,7 +305,7 @@ def test_honeypot_missing_content_length_without_bounded_reader_not_read(
     honeypot_decorator = decorator.honeypot_detection(["trap_field"])
     decorated_func = honeypot_decorator(mock_func)
 
-    route_id = decorated_func._guard_route_id
+    route_id = get_route_id(decorated_func)
     route_config = decorator.get_route_config(route_id)
     assert route_config is not None
     validator = route_config.custom_validators[0]
@@ -328,7 +328,7 @@ def test_honeypot_missing_content_length_with_bounded_reader_still_blocks(
     honeypot_decorator = decorator.honeypot_detection(["trap_field"])
     decorated_func = honeypot_decorator(mock_func)
 
-    route_id = decorated_func._guard_route_id
+    route_id = get_route_id(decorated_func)
     route_config = decorator.get_route_config(route_id)
     assert route_config is not None
     validator = route_config.custom_validators[0]
@@ -356,7 +356,7 @@ def test_honeypot_under_cap_body_still_read_and_blocked(
     honeypot_decorator = decorator.honeypot_detection(["trap_field"])
     decorated_func = honeypot_decorator(mock_func)
 
-    route_id = decorated_func._guard_route_id
+    route_id = get_route_id(decorated_func)
     route_config = decorator.get_route_config(route_id)
     assert route_config is not None
     validator = route_config.custom_validators[0]

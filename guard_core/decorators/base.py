@@ -1,7 +1,9 @@
 import logging
 from collections.abc import Callable
 from typing import (
+    ParamSpec,
     Protocol,
+    TypeAlias,
     TypeVar,
     runtime_checkable,
 )
@@ -34,6 +36,8 @@ __all__ = [
     "BaseSecurityMixin",
     "DecoratedFunction",
     "GuardedCallable",
+    "GuardedParams",
+    "GuardedReturn",
     "Principal",
     "RouteConfig",
     "RouteConfigRevision",
@@ -64,8 +68,9 @@ class _GeoCountryLookup(Protocol):
     def get_country(self, ip: str) -> str | None: ...
 
 
-# shortcut: unbound, a callable bound needs Any; use a ParamSpec protocol to call func
-GuardedCallable = TypeVar("GuardedCallable")
+GuardedParams = ParamSpec("GuardedParams")
+GuardedReturn = TypeVar("GuardedReturn")
+GuardedCallable: TypeAlias = Callable[GuardedParams, GuardedReturn]
 
 
 def get_route_id(func: object) -> str:
@@ -82,7 +87,9 @@ class BaseSecurityMixin:
     def _ensure_route_config(self, func: object) -> RouteConfig:
         raise NotImplementedError("This mixin must be used with BaseSecurityDecorator")
 
-    def _apply_route_config(self, func: GuardedCallable) -> GuardedCallable:
+    def _apply_route_config(
+        self, func: Callable[GuardedParams, GuardedReturn]
+    ) -> Callable[GuardedParams, GuardedReturn]:
         raise NotImplementedError("This mixin must be used with BaseSecurityDecorator")
 
 
@@ -167,7 +174,9 @@ class BaseSecurityDecorator:
         setattr(func, _ROUTE_ID_ATTR, route_id)
         return self._route_configs[route_id]
 
-    def _apply_route_config(self, func: GuardedCallable) -> GuardedCallable:
+    def _apply_route_config(
+        self, func: Callable[GuardedParams, GuardedReturn]
+    ) -> Callable[GuardedParams, GuardedReturn]:
         route_id = self._get_route_id(func)
         setattr(func, _ROUTE_ID_ATTR, route_id)
         return func
