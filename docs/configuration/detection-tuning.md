@@ -59,21 +59,32 @@ Maximum bytes read from the start of the request body and inspected during detec
 
 A body past the cap is never passed unscanned. The prefix is scanned (through the adapter's `BoundedBodyReader.read_body_prefix`, or, when the adapter has none, the body is left unread), and a clean prefix is answered with the body-read failure outcome: `400` under `fail_secure`, a `suspicious_request` event and no strike. With `fail_secure=False` the request passes on the prefix scan alone, with the event. A threat inside the prefix is reported as a threat. The cap is a memory bound: raise it to scan larger bodies in full, at the cost of holding more memory per inspected request.
 
-A route whose `max_request_size` is above this cap uses that value as its own inspect cap, so a route that accepts large bodies has them scanned in full while a sibling route without it is refused past the global cap. The route's `max_request_size` then also sets how much of a body one request holds in memory for scanning.
+A route whose `max_request_size` is above this cap uses that value as its own inspect cap, so a route that accepts large bodies has them scanned in full while a sibling route without it is refused past the global cap. The route's `max_request_size` then also sets how much of a body one request holds in memory for scanning. v4.4.0 used `max_request_size` only for the 413 gate, so this is a change for a route that sets it: measured, inspecting up to it costs about 0.7 to 0.85 CPU seconds per MB of text and, on the async tree, an event-loop stall of about 0.18 s per MB of clean body (0.37 s at 2 MB, 0.71 to 0.74 s at 4 MB).
 
 Distinct from `detection_max_content_length` (the regex scan window over already-decoded content) and `max_request_size` (the request-size gate that returns a 413).
 
-A request whose `Content-Type` is `multipart/form-data` uses `detection_max_file_inspect_bytes` instead of this cap.
+A request whose `Content-Type` is `multipart/form-data` (the media type before any `;`, case-insensitive) uses `detection_max_file_inspect_bytes` instead of this cap, so this field is not the memory bound for uploads. The full-body scan window and the pattern validation cap follow the larger of the two limits, so lowering only this field does not lower what a multipart request holds or scans.
 
 ### `detection_max_file_inspect_bytes`
 
-**Type**: `int` | **Default**: `262144` (default pending) | **Range**: 1024 - 10485760
+**Type**: `int` | **Default**: `1048576` (1 MiB) | **Range**: 1024 - 10485760
 
 The inspect limit for a request whose `Content-Type` is `multipart/form-data`, which is where file uploads arrive. Every other body keeps `detection_max_body_inspect_bytes`. A multipart body up to this limit is scanned in full.
 
 A multipart body past the limit is refused: the prefix is scanned, a threat inside it is reported as a threat, and a clean prefix is answered with the body-read failure outcome, `400` under `fail_secure`, a `suspicious_request` event and no strike. With `fail_secure=False` the request passes on the prefix scan alone, with the event. It is never a silent prefix pass.
 
-Raise it to accept larger uploads, at the cost of holding more memory per inspected upload and spending more CPU time pattern-matching it. A route whose `max_request_size` is above the applicable limit uses that value as its own inspect limit, for both kinds of body. For one upload route that takes files up to 5 MB, `@guard_deco.max_request_size(5 * 1024 * 1024)` scans the whole file there while every other route keeps the global limits; for every upload, `SecurityConfig(detection_max_file_inspect_bytes=5_000_000)`.
+Raise it to accept larger uploads, at the cost of holding more memory per inspected upload and spending more CPU time pattern-matching it. A route whose `max_request_size` is above the applicable limit uses that value as its own inspect limit, for both kinds of body. For one upload route that takes files up to 5 MB, `@guard_deco.max_request_size(5 * 1024 * 1024)` scans the whole file there while every other route keeps the global limits; for every upload, `SecurityConfig(detection_max_file_inspect_bytes=5_000_000)`. `max_request_size` was only the 413 gate in v4.4.0; above the applicable limit it now also sets how many bytes are inspected, at about 0.7 to 0.85 CPU seconds per MB of text and, on the async tree, an event-loop stall of about 0.18 s per MB of clean body (0.37 s at 2 MB, 0.71 to 0.74 s at 4 MB).
+
+A multipart upload past the default (1 MiB) on a route without a larger `max_request_size` is answered `400` under `fail_secure`, with a `suspicious_request` event and no strike. The warning in the log and the event detail name the field to raise (`detection_max_file_inspect_bytes` for multipart, `detection_max_body_inspect_bytes` for other bodies) and the per-route `max_request_size`.
+
+What the default costs, measured with 64 read slots busy on every request at once:
+
+- CPU: 0.66 to 0.85 CPU seconds per MB of text multipart and 0.10 to 0.18 per MB of binary multipart. v4.4.0's 0.0114 is not equal work: it scanned a smaller window.
+- Memory per request: about 7.5 to 13.8 MB per in-flight 1 MiB upload.
+- Memory at the peak: 386.6 to 908.5 MB at 1 MiB with 64 slots busy.
+- The async tree has no read-slot cap by default (`async_body_read_max_concurrent` is `None`), so its memory is the per-request figure times the uploads in flight.
+
+The full-body scan window and the pattern validation cap follow the larger of this limit and `detection_max_body_inspect_bytes`, so lowering only the body limit does not lower multipart. I make no claim that typical uploads fit within 1 MiB.
 
 Distinct from `max_request_size` (the request-size gate that returns a 413).
 

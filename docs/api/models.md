@@ -150,7 +150,7 @@ class SecurityConfig(BaseModel):
     detection_max_scan_seconds: float = Field(default=10.0, ge=0.1, le=60.0)
     detection_max_content_length: int = Field(default=10000, ge=1000, le=100000)
     detection_max_body_inspect_bytes: int = Field(default=262144, ge=1024, le=10485760)
-    detection_max_file_inspect_bytes: int = Field(default=262144, ge=1024, le=10485760)
+    detection_max_file_inspect_bytes: int = Field(default=1048576, ge=1024, le=10485760)
     detection_preserve_attack_patterns: bool = Field(default=True)
     detection_semantic_threshold: float = Field(default=0.7, ge=0.0, le=1.0)
     detection_anomaly_threshold: float = Field(default=3.0, ge=1.0, le=10.0)

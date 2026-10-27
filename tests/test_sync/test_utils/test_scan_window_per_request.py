@@ -14,6 +14,7 @@ MULTIPART = f"multipart/form-data; boundary={BOUNDARY}"
 LOWERED_BODY_LIMIT = 2048
 RAISED_FILE_LIMIT = 4096
 DEFAULT_LIMIT = 262144
+DEFAULT_FILE_LIMIT = 1048576
 
 
 class _BoundedRequest(SyncMockGuardRequest):
@@ -133,7 +134,7 @@ def test_a_route_raised_past_both_limits_keeps_the_validation_cap() -> None:
         _request(b'{"comment": "hello"}', "application/json", route), route
     )
 
-    assert windows == {DEFAULT_LIMIT}
+    assert windows == {DEFAULT_FILE_LIMIT}
 
 
 def test_a_route_raised_between_the_limits_gets_its_own_window() -> None:

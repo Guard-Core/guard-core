@@ -9,6 +9,7 @@ from guard_core._utils.body_content_scan import (
 )
 from guard_core._utils.body_reader import (
     _read_capped_body_or_raise,
+    inspect_limit_fix_hint,
     read_body_for_inspection,
     resolve_inspect_cap,
 )
@@ -311,7 +312,8 @@ async def _scan_body_surface(
     if detected:
         return _build_detection_hit(trigger, threats)
     if past_cap:
-        return _build_body_read_error(False, _BODY_PAST_CAP_DETAIL)
+        hint = inspect_limit_fix_hint(content_type)
+        return _build_body_read_error(False, f"{_BODY_PAST_CAP_DETAIL} ({hint})")
     return _build_detection_miss()
 
 

@@ -282,26 +282,39 @@ def _read_capped_body_prefix(
     )
 
 
-def _warn_body_inspect_bytes_cap_reached(max_bytes: int, client_ip: str) -> None:
+def inspect_limit_fix_hint(content_type: str | None) -> str:
+    field = (
+        "detection_max_file_inspect_bytes"
+        if _is_multipart(content_type)
+        else "detection_max_body_inspect_bytes"
+    )
+    return f"raise {field}, or max_request_size on the route"
+
+
+def _warn_body_inspect_bytes_cap_reached(
+    max_bytes: int, client_ip: str, content_type: str | None
+) -> None:
     logger.warning(
         "detection_max_body_inspect_bytes (%d) reached for client %s; only the "
         "first %d bytes of the request body are scanned and the request gets "
-        "the body-read failure outcome",
+        "the body-read failure outcome (%s)",
         max_bytes,
         client_ip,
         max_bytes,
+        inspect_limit_fix_hint(content_type),
     )
 
 
 def _warn_body_inspect_bytes_cap_reached_no_bounded_reader(
-    max_bytes: int, client_ip: str
+    max_bytes: int, client_ip: str, content_type: str | None
 ) -> None:
     logger.warning(
         "detection_max_body_inspect_bytes (%d) reached for client %s; the "
         "request body is not read because the adapter does not implement a "
-        "bounded reader (read_body_prefix)",
+        "bounded reader (read_body_prefix) (%s)",
         max_bytes,
         client_ip,
+        inspect_limit_fix_hint(content_type),
     )
 
 
@@ -315,14 +328,18 @@ def _read_oversized_declared_body(
     patterns: "SusPatternsManager | None" = None,
 ) -> bytes | None:
     kind = _body_reader_kind(request)
+    content_type = request.headers.get("content-type")
     if kind == _FULL_BODY:
-        _warn_body_inspect_bytes_cap_reached_no_bounded_reader(max_bytes, client_ip)
+        _warn_body_inspect_bytes_cap_reached_no_bounded_reader(
+            max_bytes, client_ip, content_type
+        )
         raise BodyReadFailedError(
             f"the body is past detection_max_body_inspect_bytes ({max_bytes}) "
-            "and the adapter has no bounded reader, so it cannot be scanned"
+            "and the adapter has no bounded reader, so it cannot be scanned "
+            f"({inspect_limit_fix_hint(content_type)})"
         )
 
-    _warn_body_inspect_bytes_cap_reached(max_bytes, client_ip)
+    _warn_body_inspect_bytes_cap_reached(max_bytes, client_ip, content_type)
     return _read_bounded_prefix(
         request, kind, max_bytes, timeout, max_concurrent, patterns=patterns
     )
@@ -346,7 +363,8 @@ def _read_declared_body(
 
 
 def _is_multipart(content_type: str | None) -> bool:
-    return "multipart/form-data" in (content_type or "").lower()
+    media_type = (content_type or "").split(";", 1)[0]
+    return media_type.strip().lower() == "multipart/form-data"
 
 
 def resolve_inspect_cap(
