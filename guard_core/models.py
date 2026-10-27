@@ -242,6 +242,11 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
         validated: list[str] = _FIELD_REVALIDATORS[str(info.field_name)](v)
         return validated
 
+    @field_validator("security_headers", mode="before")
+    def validate_security_headers(cls, v: object) -> dict[str, object] | None:
+        validated: dict[str, object] | None = _FIELD_REVALIDATORS["security_headers"](v)
+        return validated
+
     @field_validator("block_cloud_providers", mode="before")
     def validate_cloud_providers(cls, v: Any) -> frozenset[str] | None:
         return _validate_block_cloud_providers_value(v)

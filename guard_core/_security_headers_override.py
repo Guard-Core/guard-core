@@ -15,7 +15,10 @@ from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Protocol, TypeVar
 
-from guard_core._security_headers_defaults import SECURITY_HEADER_NAMES
+from guard_core._security_headers_defaults import (
+    SECURITY_HEADER_NAMES,
+    security_headers_are_off,
+)
 
 OVERRIDE_PULL_INTERVAL_SECONDS = 5.0
 MAX_CLOCK_SKEW_SECONDS = 86400.0
@@ -324,6 +327,43 @@ _HTTP_TOKEN_RE = re.compile(r"[!#$%&'*+.^_`|~0-9A-Za-z-]+")
 
 def is_http_token(value: str) -> bool:
     return _HTTP_TOKEN_RE.fullmatch(value) is not None
+
+
+_HEADER_VALUE_FORBIDDEN_RE = re.compile(r"[^\t\x20-\x7e\x80-\xff]")
+
+
+def checked_header_name(name: str) -> str:
+    if not is_http_token(name):
+        raise ValueError(f"Invalid header name: {name}")
+    return name
+
+
+def checked_header_value(value: str) -> str:
+    if "\r" in value or "\n" in value:
+        raise ValueError(f"Invalid header value contains newline: {value}")
+    if len(value) > 8192:
+        raise ValueError(f"Header value too long: {len(value)} bytes")
+    sanitized = "".join(char for char in value if ord(char) >= 32 or char == "\t")
+    if _HEADER_VALUE_FORBIDDEN_RE.search(sanitized):
+        raise ValueError(
+            "Invalid header value contains a character a response cannot carry"
+        )
+    return sanitized
+
+
+def checked_security_headers_config(raw: Mapping[str, object]) -> None:
+    if security_headers_are_off(raw):
+        return
+    for key in SECURITY_HEADER_NAMES:
+        value = raw.get(key)
+        if isinstance(value, str):
+            checked_header_value(value)
+    custom = raw.get("custom")
+    if isinstance(custom, Mapping):
+        for name, value in custom.items():
+            checked_header_name(name)
+            if isinstance(value, str):
+                checked_header_value(value)
 
 
 def is_valid_cors_origin(value: str) -> bool:

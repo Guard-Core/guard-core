@@ -1,5 +1,4 @@
 import logging
-import re
 from abc import abstractmethod
 from collections.abc import Mapping
 
@@ -18,6 +17,8 @@ from guard_core._security_headers_override import (
     OverrideRecord,
     _NotPassed,
     apply_override,
+    checked_header_name,
+    checked_header_value,
     override_from_call,
     passed_or,
     validate_cors_override,
@@ -50,25 +51,11 @@ class SecurityHeadersConfigMixin:
     @abstractmethod
     def _record_override_from_call(self, passed: dict[str, object]) -> None: ...
 
-    _HEADER_NAME_TOKEN_RE = re.compile(r"[!#$%&'*+.^_`|~0-9A-Za-z-]+")
-    _HEADER_VALUE_FORBIDDEN_RE = re.compile(r"[^\t\x20-\x7e\x80-\xff]")
-
     def _validate_header_name(self, name: str) -> str:
-        if not self._HEADER_NAME_TOKEN_RE.fullmatch(name):
-            raise ValueError(f"Invalid header name: {name}")
-        return name
+        return checked_header_name(name)
 
     def _validate_header_value(self, value: str) -> str:
-        if "\r" in value or "\n" in value:
-            raise ValueError(f"Invalid header value contains newline: {value}")
-        if len(value) > 8192:
-            raise ValueError(f"Header value too long: {len(value)} bytes")
-        sanitized = "".join(char for char in value if ord(char) >= 32 or char == "\t")
-        if self._HEADER_VALUE_FORBIDDEN_RE.search(sanitized):
-            raise ValueError(
-                "Invalid header value contains a character a response cannot carry"
-            )
-        return sanitized
+        return checked_header_value(value)
 
     def _compute_csp_config(self, csp: object) -> dict[str, list[str]] | None:
         if not csp:

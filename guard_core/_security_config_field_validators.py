@@ -40,7 +40,10 @@ from guard_core._security_config_typed_validators import (
     _STR_SET_OR_CATEGORY_MAP_ADAPTER,
     _validate_typed_collection_field_value,
 )
-from guard_core._security_headers_override import CORS_VALUE_CHECKS
+from guard_core._security_headers_override import (
+    CORS_VALUE_CHECKS,
+    checked_security_headers_config,
+)
 from guard_core.handlers.suspatterns_handler import ALL_DETECTION_CATEGORIES
 
 if TYPE_CHECKING:
@@ -426,6 +429,15 @@ def _validate_cors_values(
     return values
 
 
+def _validate_security_headers_value(v: object) -> dict[str, object] | None:
+    headers = _validate_typed_collection_field_value(
+        v, adapter=_OPTIONAL_STR_ANY_DICT_ADAPTER, field_name="security_headers"
+    )
+    if headers:
+        checked_security_headers_config(headers)
+    return headers
+
+
 _FIELD_REVALIDATORS: dict[str, Callable[[Any], Any]] = {
     "custom_request_check": partial(
         _validate_optional_callable_field_value, field_name="custom_request_check"
@@ -501,11 +513,7 @@ _FIELD_REVALIDATORS: dict[str, Callable[[Any], Any]] = {
         adapter=_INT_KEYED_STR_DICT_ADAPTER,
         field_name="custom_error_responses",
     ),
-    "security_headers": partial(
-        _validate_typed_collection_field_value,
-        adapter=_OPTIONAL_STR_ANY_DICT_ADAPTER,
-        field_name="security_headers",
-    ),
+    "security_headers": _validate_security_headers_value,
     "cors_allow_origins": partial(
         _validate_cors_values,
         override_key="cors_origins",
