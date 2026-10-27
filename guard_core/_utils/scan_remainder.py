@@ -74,7 +74,8 @@ class _SurfaceRemainder:
         self, piece: str, sensitive: bool = False, units: tuple[str, ...] = ()
     ) -> None:
         skips = _scan_skips.get()
-        assert skips is not None
+        if skips is None:
+            raise RuntimeError("a remainder piece was added outside a detection scan")
         key = (skips.categories, skips.semantic_excluded)
         self._groups.setdefault(key, []).append(
             _Skipped(piece, sensitive, units or (piece,))

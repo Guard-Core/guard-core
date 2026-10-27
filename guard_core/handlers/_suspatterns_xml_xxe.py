@@ -25,7 +25,8 @@ _XML_GT_RE = re.compile(r">")
 
 def _xml_validated_match(text: str, start: int, end: int) -> re.Match:
     match = _XML_XXE_VALIDATED_SPAN_RE.match(text, start, end)
-    assert match is not None
+    if match is None:
+        raise RuntimeError("the validated XML span did not match")
     return match
 
 

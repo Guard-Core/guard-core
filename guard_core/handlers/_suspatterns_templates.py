@@ -44,7 +44,8 @@ def _template_frame(
     source = re.escape(opening) + "[^" + re.escape(closing[0]) + "]*"
     source += re.escape(closing)
     match = _template_regex(source, flags).match(content, start, end)
-    assert match is not None
+    if match is None:
+        raise RuntimeError("the template frame did not match its own region")
     return match
 
 

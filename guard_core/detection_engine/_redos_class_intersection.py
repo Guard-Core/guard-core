@@ -136,7 +136,8 @@ def _advance_pairing_chain(
     if not overlap.is_empty():
         if slot.unbounded:
             member = overlap.first_member()
-            assert member is not None
+            if member is None:
+                raise RuntimeError("a non-empty interval set has no first member")
             _append_pairing_unit(units, left, slot, chr(member), tail, ctx)
         if not slot.allows_zero:
             shared = overlap

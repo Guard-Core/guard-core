@@ -249,7 +249,8 @@ def _file_upload_scan_matches(content: str, compiled: re.Pattern) -> list[re.Mat
         ):
             continue
         match = _FILE_UPLOAD_VALIDATED_SPAN_RE.match(content, start, end)
-        assert match is not None
+        if match is None:
+            raise RuntimeError("the validated file upload span did not match")
         matches.append(match)
         last_end = end
     return matches

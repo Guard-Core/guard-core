@@ -227,26 +227,34 @@ def test_different_connection_settings_get_different_clients() -> None:
         app_b.close()
 
 
-def test_ten_apps_on_one_redis_hold_the_connections_one_app_holds(
-    probe: Redis,
-) -> None:
-    def connected_after(apps: int) -> int:
-        before = int((probe.info("clients"))["connected_clients"])
+def test_ten_apps_on_one_redis_hold_the_connections_one_app_holds() -> None:
+    def own_connections(handlers: list[RedisManager]) -> int:
+        pools = {
+            id(handler._redis.connection_pool): handler._redis.connection_pool
+            for handler in handlers
+            if handler._redis is not None
+        }
+        return sum(
+            len(pool._available_connections) + len(pool._in_use_connections)
+            for pool in pools.values()
+        )
+
+    def held_by(apps: int) -> int:
         handlers = [RedisManager(_config(_prefix(f"n{i}"))) for i in range(apps)]
         try:
             for handler in handlers:
                 handler.initialize()
                 assert handler.set_key("ns", "k", "v")
-            return int((probe.info("clients"))["connected_clients"]) - before
+            return own_connections(handlers)
         finally:
             for handler in handlers:
                 handler.delete_pattern("*")
             for handler in handlers:
                 handler.close()
 
-    one = connected_after(1)
+    one = held_by(1)
     assert one >= 1
-    assert connected_after(10) == one
+    assert held_by(10) == one
 
 
 class _Scope:
