@@ -3,6 +3,7 @@ from collections.abc import Collection, Iterator, Mapping
 from typing import TYPE_CHECKING
 from urllib.parse import parse_qsl
 
+from guard_core.protocols.request_protocol import GuardRequestHeaders
 from guard_core.sync._utils.body_form_scan import (
     _multipart_part_entries,
     _multipart_text_parts,
@@ -441,7 +442,7 @@ def _scan_sensitive_header(
     return hit
 
 
-def _header_items_to_scan(headers: Mapping[str, str]) -> Iterator[tuple[str, str]]:
+def _header_items_to_scan(headers: GuardRequestHeaders) -> Iterator[tuple[str, str]]:
     for key, value in headers.items():
         if key.strip().lower() != "cookie":
             yield key, value

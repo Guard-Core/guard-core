@@ -1,8 +1,8 @@
-from collections.abc import Mapping
 from dataclasses import dataclass, field
 
 from guard_core._security_headers_override import CorsParams, cors_params_of
 from guard_core.models import SyncSecurityConfig
+from guard_core.protocols.request_protocol import GuardRequestHeaders
 from guard_core.sync.handlers.security_headers_handler import SecurityHeadersManager
 
 ALLOWED_PREFLIGHT_REQUEST_HEADER = "access-control-request-method"
@@ -15,13 +15,13 @@ class CorsPreflightResponse:
     body: str = ""
 
 
-def is_preflight(method: str, headers: Mapping[str, str]) -> bool:
+def is_preflight(method: str, headers: GuardRequestHeaders) -> bool:
     if method.upper() != "OPTIONS":
         return False
     return ALLOWED_PREFLIGHT_REQUEST_HEADER in {k.lower() for k in headers.keys()}
 
 
-def _lower_headers(headers: Mapping[str, str]) -> dict[str, str]:
+def _lower_headers(headers: GuardRequestHeaders) -> dict[str, str]:
     return {k.lower(): v for k, v in headers.items()}
 
 
@@ -136,7 +136,7 @@ class CorsHandler:
             failures.append("headers")
 
     def build_preflight_response(
-        self, request_headers: Mapping[str, str]
+        self, request_headers: GuardRequestHeaders
     ) -> CorsPreflightResponse:
         self._refresh()
         headers = _lower_headers(request_headers)
@@ -180,7 +180,7 @@ class CorsHandler:
         )
 
     def build_response_headers(
-        self, request_headers: Mapping[str, str], existing_vary: str | None = None
+        self, request_headers: GuardRequestHeaders, existing_vary: str | None = None
     ) -> dict[str, str]:
         self._refresh()
         if not self._enabled:

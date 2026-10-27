@@ -1,5 +1,52 @@
-from collections.abc import Mapping
-from typing import Any, Protocol, runtime_checkable
+from collections.abc import Iterable, Mapping
+from typing import Any, Protocol, overload, runtime_checkable
+
+
+class GuardRequestHeaders(Protocol):
+    """The header container of a request: exactly what the engine calls on it.
+
+    WHAT: the read-only members the engine uses on ``GuardRequest.headers``
+    and nothing more. Not a ``Mapping``: Werkzeug ``EnvironHeaders`` iterates
+    ``(name, value)`` pairs, so ``__iter__`` and ``__len__`` are not part of the
+    surface. ``keys()`` and ``items()`` are, because the engine reads them (the
+    CORS preflight check, the header scan, the log context), and
+    ``__getitem__`` is, because ``dict(headers)`` reads it after ``keys()``, and
+    ``__contains__`` is, because a custom check written against ``GuardRequest``
+    tests ``"X-Custom" in request.headers`` (the engine itself never does).
+    WHEN: every time a check reads ``Authorization``, ``Content-Length``,
+    ``X-Forwarded-For``, ``User-Agent``, ``Origin`` or any configured required
+    header, and when the header scan walks every header for an attack.
+    HOW: pass the framework's own header object (Werkzeug ``EnvironHeaders``,
+    Starlette ``Headers``, Django ``HttpHeaders``, Tornado ``HTTPHeaders``) or a
+    plain ``dict[str, str]``. Lookups use the container's own casing rules; only
+    a plain ``dict`` is case-sensitive.
+    """
+
+    def __getitem__(self, key: str, /) -> str:
+        """The value stored under ``key``; ``KeyError`` (or a subclass) when absent."""
+        ...
+
+    def __contains__(self, key: str, /) -> bool:
+        """Whether a header named ``key`` is set."""
+        ...
+
+    @overload
+    def get(self, key: str, /) -> str | None:
+        """The value stored under ``key``, or ``None`` when absent."""
+        ...
+
+    @overload
+    def get(self, key: str, default: str, /) -> str:
+        """The value stored under ``key``, or ``default`` when absent."""
+        ...
+
+    def keys(self) -> Iterable[str]:
+        """The header names; ``dict(headers)`` reads it."""
+        ...
+
+    def items(self) -> Iterable[tuple[str, str]]:
+        """The ``(name, value)`` pairs the header scan and the CORS check walk."""
+        ...
 
 
 @runtime_checkable
@@ -45,8 +92,12 @@ class GuardRequest(Protocol):
         ...
 
     @property
-    def headers(self) -> Mapping[str, str]:
-        """The request headers as a case-insensitive mapping."""
+    def headers(self) -> GuardRequestHeaders:
+        """The request headers as a case-insensitive mapping.
+
+        Typed as ``GuardRequestHeaders``: a framework container that is not a
+        ``Mapping`` (Werkzeug ``EnvironHeaders``) satisfies it too.
+        """
         ...
 
     @property

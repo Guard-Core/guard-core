@@ -1,6 +1,8 @@
 from collections.abc import Mapping
 from typing import Any, Protocol, runtime_checkable
 
+from guard_core.protocols.request_protocol import GuardRequestHeaders
+
 
 @runtime_checkable
 class SyncGuardRequest(Protocol):
@@ -46,8 +48,12 @@ class SyncGuardRequest(Protocol):
         ...
 
     @property
-    def headers(self) -> Mapping[str, str]:
-        """The request headers as a case-insensitive mapping."""
+    def headers(self) -> GuardRequestHeaders:
+        """The request headers as a case-insensitive mapping.
+
+        Typed as ``GuardRequestHeaders``: a framework container that is not a
+        ``Mapping`` (Werkzeug ``EnvironHeaders``) satisfies it too.
+        """
         ...
 
     @property

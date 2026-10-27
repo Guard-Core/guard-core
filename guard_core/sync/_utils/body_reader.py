@@ -1,7 +1,7 @@
 import logging
 import re
 import threading
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 from weakref import WeakKeyDictionary
@@ -11,6 +11,7 @@ from guard_core.exceptions import (
     BodyReadSlotsExhaustedError,
     BodyReadStalledError,
 )
+from guard_core.protocols.request_protocol import GuardRequestHeaders
 from guard_core.sync._utils.capability import (
     has_callable,
     serves_attributes_dynamically,
@@ -35,7 +36,7 @@ def parse_declared_length(value: str) -> int | None:
     return int(stripped) if _CONTENT_LENGTH_RE.fullmatch(stripped) else None
 
 
-def request_declares_body(headers: Mapping[str, str]) -> bool:
+def request_declares_body(headers: GuardRequestHeaders) -> bool:
     if headers.get("transfer-encoding"):
         return True
     content_length = headers.get("content-length")

@@ -76,6 +76,7 @@ SKIP_TESTS = {
     "test_callables_follow_the_type_typing.py",
     "test_security_config_generic_request.py",
     "test_decorated_signature_typing.py",
+    "test_request_headers_protocol_typing.py",
     "test_dynamic_rule_two_processes.py",
     "test_dynamic_rule_revoke_second_worker.py",
     "test_behavior_cap_constants.py",
@@ -466,7 +467,13 @@ SUBS: list[tuple[str, str]] = [
         "config.sync_body_read_max_concurrent",
     ),
     (
-        r"from guard_core\.protocols\.request_protocol import GuardRequest",
+        r"from guard_core\.protocols\.request_protocol import "
+        r"GuardRequest, GuardRequestHeaders",
+        "from guard_core.protocols.request_protocol import GuardRequestHeaders\n"
+        "from guard_core.sync.protocols.request_protocol import SyncGuardRequest",
+    ),
+    (
+        r"from guard_core\.protocols\.request_protocol import GuardRequest\b",
         "from guard_core.sync.protocols.request_protocol import SyncGuardRequest",
     ),
     (

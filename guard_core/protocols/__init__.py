@@ -5,6 +5,7 @@ from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 from guard_core.protocols.request_protocol import (
     BoundedBodyReader,
     GuardRequest,
+    GuardRequestHeaders,
     IdleBoundedBodyReader,
 )
 from guard_core.protocols.response_protocol import (
@@ -24,6 +25,7 @@ __all__ = [
     "GeoIPHandler",
     "GuardMiddlewareProtocol",
     "GuardRequest",
+    "GuardRequestHeaders",
     "GuardResponse",
     "GuardResponseFactory",
     "GuardResponseHeaders",

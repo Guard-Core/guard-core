@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import re
-from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 from weakref import WeakKeyDictionary
@@ -12,7 +12,7 @@ from guard_core.exceptions import (
     BodyReadSlotsExhaustedError,
     BodyReadStalledError,
 )
-from guard_core.protocols.request_protocol import GuardRequest
+from guard_core.protocols.request_protocol import GuardRequest, GuardRequestHeaders
 
 if TYPE_CHECKING:
     from guard_core.handlers.suspatterns_handler import SusPatternsManager
@@ -32,7 +32,7 @@ def parse_declared_length(value: str) -> int | None:
     return int(stripped) if _CONTENT_LENGTH_RE.fullmatch(stripped) else None
 
 
-def request_declares_body(headers: Mapping[str, str]) -> bool:
+def request_declares_body(headers: GuardRequestHeaders) -> bool:
     if headers.get("transfer-encoding"):
         return True
     content_length = headers.get("content-length")
