@@ -10,6 +10,7 @@ from guard_core._utils.app_scope import (
     app_scope_of,
     in_app_scope,
 )
+from guard_core._utils.nat64 import nat64_table_of
 from guard_core.handlers._dynamic_rule_persistence import BAN_FLOORS_NAMESPACE
 from guard_core.handlers._ipban_cache import _Network
 from guard_core.handlers._ipban_coverage import NetworkCoverage
@@ -132,7 +133,9 @@ class IpBanQueryMixin(
             self.logger.warning("Redis strikes of %s could not be cleared: %s", ip, e)
 
     async def forget_strikes_of_ip(self, ip: str, strict: bool = False) -> None:
-        await self._forget_strikes(_canonicalize_ip(ip), strict)
+        await self._forget_strikes(
+            _canonicalize_ip(ip, nat64_table_of(self.config)), strict
+        )
 
     async def forget_strikes_inside(
         self, entries: Iterable[str], strict: bool = False
@@ -276,7 +279,7 @@ class IpBanQueryMixin(
         if "/" in ip:
             await self._unban_cidr(ip, reason)
             return
-        ip = _canonicalize_ip(ip)
+        ip = _canonicalize_ip(ip, nat64_table_of(self.config))
         identity = self._grouped_identity_of(ip, self.config)
         self._purge_banned_ip(ip)
         deletes = [("banned_ips", ip)]

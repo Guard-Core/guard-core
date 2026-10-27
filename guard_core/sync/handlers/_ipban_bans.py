@@ -11,6 +11,7 @@ from guard_core.sync._utils.app_scope import (
     in_app_scope,
 )
 from guard_core.sync._utils.ip_extraction import MALFORMED_FORWARDED_FOR_PREFIX
+from guard_core.sync._utils.nat64 import nat64_table_of
 from guard_core.sync._utils.whitelist_match import parsed_networks
 from guard_core.sync.handlers._ipban_cache import _BanStore, _Network
 from guard_core.sync.handlers._ipban_events import IpBanEventMixin
@@ -202,7 +203,7 @@ class IpBanOperationsMixin(
         dynamic rule owns."""
         if not self.redis_handler:
             return
-        ip = _canonicalize_ip(ip)
+        ip = _canonicalize_ip(ip, nat64_table_of(self.config))
         if "/" in ip:
             namespace = "banned_networks"
             key = str(ipaddress.ip_network(ip, strict=False))
@@ -365,7 +366,7 @@ class IpBanOperationsMixin(
     def _apply_ban(
         self, ip: str, duration: int, reason: str, grouped: bool, escalate: bool
     ) -> int | None:
-        ip = _canonicalize_ip(ip)
+        ip = _canonicalize_ip(ip, nat64_table_of(self.config))
         self._assert_positive_duration(duration)
         if self._refuse_rule_exempt_target(ip):
             return None

@@ -7,6 +7,7 @@ from guard_core.sync._utils.app_scope import (
     existing_app_scope_of,
     in_app_scope,
 )
+from guard_core.sync._utils.nat64 import nat64_table_of
 from guard_core.sync._utils.sampling import PerApp, WarnedKeys
 from guard_core.sync.handlers._ipban_bans import IpBanOperationsMixin
 from guard_core.sync.handlers._ipban_carve import IpBanCarveMixin
@@ -106,7 +107,7 @@ class IpBanSharedAppsMixin(
         self, ip: str, duration: int, reason: str, grouped: bool
     ) -> bool:
         scopes = self._across_apps_scopes("ban_ip")
-        ip = _canonicalize_ip(ip)
+        ip = _canonicalize_ip(ip, nat64_table_of(self.config))
         for scope in scopes:
             with in_app_scope(scope):
                 if (
@@ -137,7 +138,9 @@ class IpBanSharedAppsMixin(
     def _unban_ip_across_sharing_apps(self, ip: str, reason: str) -> None:
         seen: set[str | None] = set()
         for scope in self._across_apps_scopes("unban_ip"):
-            identity = self._grouped_identity_of(_canonicalize_ip(ip), scope.config)
+            identity = self._grouped_identity_of(
+                _canonicalize_ip(ip, nat64_table_of(scope.config)), scope.config
+            )
             if identity in seen:
                 continue
             seen.add(identity)

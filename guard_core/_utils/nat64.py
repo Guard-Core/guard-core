@@ -1,10 +1,9 @@
 import logging
-import threading
-from collections import OrderedDict
 from collections.abc import Iterable
 from ipaddress import IPv4Address, IPv6Address, IPv6Network
 
-from guard_core._utils.sampling import observe_sampled_key
+from guard_core._utils.app_managers import _HELD_ATTRIBUTE, hold_for_app
+from guard_core._utils.sampling import SampledKeys, observe_sampled_key
 
 logger = logging.getLogger("guard_core")
 
@@ -18,24 +17,39 @@ _NAT64_IPV4_OCTET_BIT_POSITIONS = {
     96: (96, 104, 112, 120),
 }
 NAT64_PREFIX_LENGTHS = frozenset(_NAT64_IPV4_OCTET_BIT_POSITIONS)
-_nat64_prefixes: tuple[IPv6Network, ...] = ()
-_non_global_warnings: OrderedDict[str, float] = OrderedDict()
-_non_global_warning_lock = threading.Lock()
 _NON_GLOBAL_WARNING_WINDOW_SECONDS = 60
+_HELD_KIND = "nat64"
 
 
-def configure_nat64_prefixes(prefixes: Iterable[IPv6Network]) -> None:
-    global _nat64_prefixes
-    _nat64_prefixes = tuple(prefixes)
-    from guard_core._utils.ip_extraction import (
-        _canonical_ip_text_and_nat64_warning,
-        _client_identity,
-    )
-    from guard_core._utils.whitelist_match import clear_entry_indexes
+class Nat64Table:
+    """The network-specific NAT64 prefixes of one app and its once-a-minute warning.
 
-    _client_identity.cache_clear()
-    _canonical_ip_text_and_nat64_warning.cache_clear()
-    clear_entry_indexes()
+    An app's table is never edited: a new configuration holds a new table, so the
+    caches keyed on a table cannot serve a decoding of the old prefixes.
+    """
+
+    def __init__(self, prefixes: Iterable[IPv6Network] = ()) -> None:
+        self.prefixes = tuple(prefixes)
+        self.warned = SampledKeys()
+
+
+DEFAULT_NAT64_TABLE = Nat64Table()
+
+
+def configure_nat64_prefixes(
+    config: object, prefixes: Iterable[IPv6Network]
+) -> Nat64Table:
+    table = Nat64Table(prefixes)
+    hold_for_app(config, _HELD_KIND, table)
+    return table
+
+
+def nat64_table_of(config: object) -> Nat64Table:
+    try:
+        table: Nat64Table = config.__dict__[_HELD_ATTRIBUTE][_HELD_KIND]
+    except (AttributeError, KeyError):
+        return DEFAULT_NAT64_TABLE
+    return table
 
 
 def _decode_nat64_embedded_ipv4(addr: IPv6Address, prefix: IPv6Network) -> IPv4Address:
@@ -44,23 +58,27 @@ def _decode_nat64_embedded_ipv4(addr: IPv6Address, prefix: IPv6Network) -> IPv4A
     return IPv4Address(bytes((value >> (120 - bit)) & 0xFF for bit in positions))
 
 
-def _nat64_prefix_of(addr: IPv6Address) -> IPv6Network | None:
+def _nat64_prefix_of(addr: IPv6Address, table: Nat64Table) -> IPv6Network | None:
     if addr in _NAT64_WELL_KNOWN_PREFIX:
         return _NAT64_WELL_KNOWN_PREFIX
-    return next((prefix for prefix in _nat64_prefixes if addr in prefix), None)
+    return next((prefix for prefix in table.prefixes if addr in prefix), None)
 
 
-def _decoded_nat64_embedded_ipv4(addr: IPv6Address) -> IPv4Address | None:
-    prefix = _nat64_prefix_of(addr)
+def _decoded_nat64_embedded_ipv4(
+    addr: IPv6Address, table: Nat64Table = DEFAULT_NAT64_TABLE
+) -> IPv4Address | None:
+    prefix = _nat64_prefix_of(addr, table)
     if prefix is None:
         return None
     return _decode_nat64_embedded_ipv4(addr, prefix)
 
 
-def _warn_non_global_embedded_once_a_minute(embedded: IPv4Address) -> None:
+def _warn_non_global_embedded_once_a_minute(
+    embedded: IPv4Address, table: Nat64Table = DEFAULT_NAT64_TABLE
+) -> None:
     if observe_sampled_key(
-        _non_global_warnings,
-        _non_global_warning_lock,
+        table.warned.entries,
+        table.warned.lock,
         "nat64-non-global",
         window=_NON_GLOBAL_WARNING_WINDOW_SECONDS,
         max_tracked=1,
@@ -73,11 +91,13 @@ def _warn_non_global_embedded_once_a_minute(embedded: IPv4Address) -> None:
         )
 
 
-def _unwrap_nat64(addr: IPv6Address) -> IPv4Address | None:
-    embedded = _decoded_nat64_embedded_ipv4(addr)
+def _unwrap_nat64(
+    addr: IPv6Address, table: Nat64Table = DEFAULT_NAT64_TABLE
+) -> IPv4Address | None:
+    embedded = _decoded_nat64_embedded_ipv4(addr, table)
     if embedded is None:
         return None
     if embedded.is_global:
         return embedded
-    _warn_non_global_embedded_once_a_minute(embedded)
+    _warn_non_global_embedded_once_a_minute(embedded, table)
     return None

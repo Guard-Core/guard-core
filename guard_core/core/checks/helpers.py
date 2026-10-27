@@ -10,6 +10,7 @@ from guard_core._tracking_caps import (
     _MAX_TRACKED_SUSPICIOUS_IPS as _MAX_TRACKED_SUSPICIOUS_IPS,
 )
 from guard_core._utils.access_control import load_geo_database_for_route_rules
+from guard_core._utils.nat64 import DEFAULT_NAT64_TABLE, Nat64Table
 from guard_core.core.checks._shared_strikes import (
     SharedStrikes,
     StrikeReport,
@@ -296,16 +297,24 @@ def route_config_applies(
     return False
 
 
-def is_ip_in_blacklist(client_ip: str, ip_addr: object, blacklist: list[str]) -> bool:
-    return _ip_in_list(ip_addr, client_ip, blacklist)
+def is_ip_in_blacklist(
+    client_ip: str,
+    ip_addr: object,
+    blacklist: list[str],
+    nat64: Nat64Table = DEFAULT_NAT64_TABLE,
+) -> bool:
+    return _ip_in_list(ip_addr, client_ip, blacklist, nat64)
 
 
 def is_ip_in_whitelist(
-    client_ip: str, ip_addr: object, whitelist: list[str]
+    client_ip: str,
+    ip_addr: object,
+    whitelist: list[str],
+    nat64: Nat64Table = DEFAULT_NAT64_TABLE,
 ) -> bool | None:
     if not whitelist:
         return None
-    return _ip_in_list(ip_addr, client_ip, whitelist)
+    return _ip_in_list(ip_addr, client_ip, whitelist, nat64)
 
 
 def check_country_access(
@@ -335,17 +344,25 @@ def check_country_access(
 
 
 def _check_ip_blacklist(
-    client_ip: str, ip_addr: object, route_config: RouteConfig
+    client_ip: str,
+    ip_addr: object,
+    route_config: RouteConfig,
+    nat64: Nat64Table = DEFAULT_NAT64_TABLE,
 ) -> bool:
     if not route_config.ip_blacklist:
         return False
-    return is_ip_in_blacklist(client_ip, ip_addr, route_config.ip_blacklist)
+    return is_ip_in_blacklist(client_ip, ip_addr, route_config.ip_blacklist, nat64)
 
 
 def _check_ip_whitelist(
-    client_ip: str, ip_addr: object, route_config: RouteConfig
+    client_ip: str,
+    ip_addr: object,
+    route_config: RouteConfig,
+    nat64: Nat64Table = DEFAULT_NAT64_TABLE,
 ) -> bool | None:
-    return is_ip_in_whitelist(client_ip, ip_addr, route_config.ip_whitelist or [])
+    return is_ip_in_whitelist(
+        client_ip, ip_addr, route_config.ip_whitelist or [], nat64
+    )
 
 
 def _route_whitelist_configured(route_config: RouteConfig) -> bool:
@@ -356,6 +373,7 @@ async def check_route_ip_access(
     client_ip: str,
     route_config: RouteConfig,
     middleware: "GuardMiddlewareProtocol | GeoRuleMiddleware",
+    nat64: Nat64Table = DEFAULT_NAT64_TABLE,
 ) -> bool | None:
     if client_ip == UNKNOWN_CLIENT_IDENTITY:
         return False if _route_whitelist_configured(route_config) else None
@@ -365,8 +383,10 @@ async def check_route_ip_access(
 
         if route_config.blocked_countries or route_config.whitelist_countries:
             await load_geo_database_for_route_rules(middleware)
-        ip_result = _check_ip_whitelist(client_ip, ip_addr, route_config)
-        if ip_result is None and _check_ip_blacklist(client_ip, ip_addr, route_config):
+        ip_result = _check_ip_whitelist(client_ip, ip_addr, route_config, nat64)
+        if ip_result is None and _check_ip_blacklist(
+            client_ip, ip_addr, route_config, nat64
+        ):
             ip_result = False
 
         country_result = check_country_access(

@@ -4,6 +4,7 @@ from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
 from guard_core._utils.ip_extraction import _client_identity
+from guard_core._utils.nat64 import nat64_table_of
 from guard_core.models import SecurityConfig
 
 if TYPE_CHECKING:
@@ -16,7 +17,9 @@ _suspicious_counts_lock = threading.Lock()
 def _strike_identity(config: SecurityConfig, client_ip: str) -> str:
     if ":" not in client_ip:
         return client_ip
-    return _client_identity(client_ip, config.ipv6_prefix_length)
+    return _client_identity(
+        client_ip, config.ipv6_prefix_length, None, nat64_table_of(config)
+    )
 
 
 def _ip_strike_counts(

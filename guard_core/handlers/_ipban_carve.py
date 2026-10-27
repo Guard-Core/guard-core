@@ -2,6 +2,7 @@ import ipaddress
 from typing import TYPE_CHECKING
 
 from guard_core._utils.ip_extraction import _client_identity
+from guard_core._utils.nat64 import nat64_table_of
 from guard_core._utils.whitelist_match import most_specific_whitelist_entry
 from guard_core.handlers._dynamic_rule_persistence import BAN_FLOORS_NAMESPACE
 from guard_core.handlers._ipban_lookup import IpBanLookupMixin
@@ -53,16 +54,18 @@ class IpBanCarveMixin(IpBanLookupMixin):
         if network.version != 6 or network.prefixlen <= group_length:
             return None
         address = network.network_address
+        nat64 = nat64_table_of(self.config)
         entry = most_specific_whitelist_entry(
-            address, getattr(self.config, "whitelist", None) or ()
+            address, getattr(self.config, "whitelist", None) or (), nat64
         )
         text = str(address)
+        prefix_length = self._prefix_length(self.config)
         if (
             entry is not None
-            and _client_identity(text, self._prefix_length(self.config), entry) == key
+            and _client_identity(text, prefix_length, entry, nat64) == key
         ):
             return None
-        return _client_identity(text, self._prefix_length(self.config))
+        return _client_identity(text, prefix_length, None, nat64)
 
     async def rewrite_carved_bans_without_whitelist(self) -> int:
         moved = self._rewrite_memory_carves()

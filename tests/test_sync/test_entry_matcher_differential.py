@@ -18,7 +18,7 @@ from guard_core.sync._utils.ip_extraction import (
     _is_trusted_proxy,
     _peer_address_for_matching,
 )
-from guard_core.sync._utils.nat64 import configure_nat64_prefixes
+from guard_core.sync._utils.nat64 import DEFAULT_NAT64_TABLE, Nat64Table
 from guard_core.sync._utils.whitelist_match import (
     INITIAL_CACHE_SIZE,
     ContentCache,
@@ -75,31 +75,42 @@ CLIENTS = [
 POOL = EXACT + CIDRS + INVALID
 
 
-def old_ip_in_list(ip_addr: Any, ip: str, entries: Sequence[str] | None) -> bool:
+def old_ip_in_list(
+    ip_addr: Any,
+    ip: str,
+    entries: Sequence[str] | None,
+    nat64: Nat64Table = DEFAULT_NAT64_TABLE,
+) -> bool:
     if not entries:
         return False
-    canonical_ip = _canonicalize_ip(ip)
+    canonical_ip = _canonicalize_ip(ip, nat64)
     for entry in entries:
         if "/" in entry:
             if ip_addr in ip_network(entry, strict=False):
                 return True
-        elif canonical_ip == _canonicalize_ip(entry):
+        elif canonical_ip == _canonicalize_ip(entry, nat64):
             return True
     return False
 
 
-def old_proxy_matches(peer_address: Any, proxy: str) -> bool:
+def old_proxy_matches(peer_address: Any, proxy: str, nat64: Nat64Table) -> bool:
     if "/" in proxy:
         return bool(peer_address in ip_network(proxy, strict=False))
-    return bool(peer_address == _peer_address_for_matching(proxy))
+    return bool(peer_address == _peer_address_for_matching(proxy, nat64))
 
 
-def old_is_trusted_proxy(connecting_ip: str, trusted_proxies: Sequence[str]) -> bool:
-    peer_address = _peer_address_for_matching(connecting_ip)
+def old_is_trusted_proxy(
+    connecting_ip: str,
+    trusted_proxies: Sequence[str],
+    nat64: Nat64Table = DEFAULT_NAT64_TABLE,
+) -> bool:
+    peer_address = _peer_address_for_matching(connecting_ip, nat64)
     if peer_address is None:
         return False
     try:
-        return any(old_proxy_matches(peer_address, proxy) for proxy in trusted_proxies)
+        return any(
+            old_proxy_matches(peer_address, proxy, nat64) for proxy in trusted_proxies
+        )
     except ValueError:
         return False
 
@@ -150,21 +161,18 @@ def test_the_verdicts_hold_with_a_network_specific_nat64_prefix() -> None:
         next(prefix.hosts()).__class__(int(prefix.network_address) | 0x08080808 << 24)
     )
     pool = [translated, "8.8.8.8", "2001:db8:122:344::/64", "8.8.8.0/24", *INVALID[:2]]
-    try:
-        configure_nat64_prefixes([prefix])
-        for first in pool:
-            for second in pool:
-                for client in (translated, "8.8.8.8", "2001:db8:122:344::1"):
-                    entries = [first, second]
-                    addr = address_of(client)
-                    assert outcome(_ip_in_list, addr, client, entries) == outcome(
-                        old_ip_in_list, addr, client, entries
-                    )
-                    assert outcome(_is_trusted_proxy, client, entries) == outcome(
-                        old_is_trusted_proxy, client, entries
-                    )
-    finally:
-        configure_nat64_prefixes([])
+    table = Nat64Table([prefix])
+    for first in pool:
+        for second in pool:
+            for client in (translated, "8.8.8.8", "2001:db8:122:344::1"):
+                entries = [first, second]
+                addr = address_of(client)
+                assert outcome(_ip_in_list, addr, client, entries, table) == outcome(
+                    old_ip_in_list, addr, client, entries, table
+                )
+                assert outcome(_is_trusted_proxy, client, entries, table) == outcome(
+                    old_is_trusted_proxy, client, entries, table
+                )
 
 
 def test_a_list_is_indexed_once_and_a_changed_list_is_a_new_index() -> None:
@@ -214,14 +222,12 @@ def test_replaced_lists_leave_the_cache_without_growing_it() -> None:
     assert len(cache) <= INITIAL_CACHE_SIZE
 
 
-def test_the_cache_is_cleared_when_nat64_prefixes_change() -> None:
-    entry_index(("64:ff9b::808:808",), "proxy")
+def test_an_index_is_never_shared_between_two_nat64_tables() -> None:
+    entries = ("2001:db8:122:344:0:808:808:0",)
+    first = entry_index(entries, "list", Nat64Table())
+    second = entry_index(entries, "list", Nat64Table())
 
-    configure_nat64_prefixes([])
-
-    from guard_core.sync._utils import whitelist_match
-
-    assert len(whitelist_match._index_cache) == 0
+    assert first is not second
 
 
 def test_an_invalid_cidr_reached_before_a_match_still_raises() -> None:

@@ -9,6 +9,7 @@ from guard_core._utils.ip_extraction import (
     MALFORMED_FORWARDED_FOR_PREFIX,
     _client_identity,
 )
+from guard_core._utils.nat64 import nat64_table_of
 from guard_core._utils.rule_attribution import rate_limit_attribution
 from guard_core.core.checks._ban_flow import BanFlow
 from guard_core.core.checks._pending_ban import PendingBan, resolve_pending_ban
@@ -230,7 +231,12 @@ class RateLimitCheck(SecurityCheck):
             if self.config.whitelist_access_only
             else None
         )
-        return _client_identity(client_ip, self.config.ipv6_prefix_length, entry)
+        return _client_identity(
+            client_ip,
+            self.config.ipv6_prefix_length,
+            entry,
+            nat64_table_of(self.config),
+        )
 
     def _shared_redis(self) -> RedisHandlerProtocol | None:
         if not redis_is_configured(self.config):

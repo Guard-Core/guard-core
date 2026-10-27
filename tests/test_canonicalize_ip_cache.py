@@ -2,7 +2,7 @@ from typing import Any
 
 import pytest
 
-from guard_core._utils import ip_extraction, nat64
+from guard_core._utils import ip_extraction
 from guard_core._utils.ip_extraction import _canonicalize_ip
 
 
@@ -37,7 +37,7 @@ def _count_parses(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 def test_a_distinct_address_is_canonicalized_once(
     value: str, canonical: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    nat64.configure_nat64_prefixes(())
+    ip_extraction._canonical_ip_text_and_nat64_warning.cache_clear()
     parsed = _count_parses(monkeypatch)
 
     results = [_canonicalize_ip(value) for _ in range(3)]

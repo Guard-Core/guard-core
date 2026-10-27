@@ -2,6 +2,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from guard_core._emergency_exemptions import warn_unexempted_probe_paths
+from guard_core._utils.nat64 import nat64_table_of
 from guard_core._utils.pattern_source_redaction import _redact_pattern_source_of_app
 from guard_core.handlers._dynamic_rule_events import DynamicRuleEventSenderMixin
 from guard_core.handlers._dynamic_rule_plan import DynamicRulePlan
@@ -132,7 +133,7 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
 
         ip_ban_manager = ip_ban_manager_for(self.config)
 
-        canonical = rule_ban_target(ip)[1]
+        canonical = rule_ban_target(ip, nat64_table_of(self.config))[1]
         takes_ownership = (
             canonical not in self._owned_bans
             and not await ip_ban_manager.is_ip_banned(canonical)
@@ -210,8 +211,9 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
     async def _revoke_stale_side_effects(
         self, rules: DynamicRulesProtocol, effects: RuleSideEffects
     ) -> None:
-        listed = [rule_ban_target(ip)[1] for ip in rules.ip_blacklist]
-        previous = [rule_ban_target(ip)[1] for ip in self._owned_bans]
+        nat64 = nat64_table_of(self.config)
+        listed = [rule_ban_target(ip, nat64)[1] for ip in rules.ip_blacklist]
+        previous = [rule_ban_target(ip, nat64)[1] for ip in self._owned_bans]
         bans = self._owned_after(listed, previous, effects.created_bans)
         patterns = self._owned_after(
             rules.suspicious_patterns, self._owned_patterns, effects.created_patterns
@@ -229,7 +231,8 @@ class DynamicRuleApplicationMixin(DynamicRuleEventSenderMixin):
 
         ip_ban_manager = ip_ban_manager_for(self.config)
 
-        owned = [rule_ban_target(ip)[1] for ip in self._owned_bans]
+        nat64 = nat64_table_of(self.config)
+        owned = [rule_ban_target(ip, nat64)[1] for ip in self._owned_bans]
         try:
             owned.extend(await ip_ban_manager.owned_rule_ban_targets())
         except Exception as e:

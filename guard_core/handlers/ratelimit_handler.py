@@ -17,6 +17,7 @@ from guard_core._tracking_caps import (
 from guard_core._utils.identity_hash import _hash_identity_segment
 from guard_core._utils.ip_extraction import _client_identity
 from guard_core._utils.lru_store import DEFAULT_MAX_TRACKED_KEYS, _lru_pop_or_create
+from guard_core._utils.nat64 import Nat64Table, nat64_table_of
 from guard_core._utils.request_logging import redact_endpoint_for_display
 from guard_core.exceptions import GuardRedisError
 from guard_core.handlers import _by_ip_state
@@ -104,8 +105,8 @@ _VIOLATIONS_PATTERN = "rate_limit:violations:*"
 _KINDS_IN_KEY = frozenset({"endpoint", "route", "geo"})
 
 
-def _by_ip_window_identity(ip: str, prefix_length: int) -> str:
-    return _client_identity(ip, prefix_length) if ":" in ip else ip
+def _by_ip_window_identity(ip: str, prefix_length: int, nat64: Nat64Table) -> str:
+    return _client_identity(ip, prefix_length, None, nat64) if ":" in ip else ip
 
 
 def _tier_key(client_ip: str, tier: RateLimitTier) -> str:
@@ -329,7 +330,9 @@ async def _feed_rate_limit_autoban(
     if await ip_ban_manager.is_ip_banned(ip, config=config):
         return
 
-    identity = _by_ip_window_identity(ip, config.ipv6_prefix_length)
+    identity = _by_ip_window_identity(
+        ip, config.ipv6_prefix_length, nat64_table_of(config)
+    )
     now = time.monotonic()
     strikes = _by_ip_autoban_counts.for_app(config)
     ip_counts = _lru_pop_or_create(
@@ -499,15 +502,16 @@ async def check_rate_limit_by_ip(
     if not config.enable_rate_limiting:
         return True
 
-    ip = _canonicalize_ip(ip)
+    nat64 = nat64_table_of(config)
+    ip = _canonicalize_ip(ip, nat64)
     if config.exempt_ips and _ip_in_list(
-        ipaddress.ip_address(ip), ip, config.exempt_ips
+        ipaddress.ip_address(ip), ip, config.exempt_ips, nat64
     ):
         return True
 
     tier = RateLimitTier("", config.rate_limit, config.rate_limit_window, endpoint_path)
     tiers = [tier]
-    window_identity = _by_ip_window_identity(ip, config.ipv6_prefix_length)
+    window_identity = _by_ip_window_identity(ip, config.ipv6_prefix_length, nat64)
 
     verdict: RateLimitVerdict | None = None
     if redis_handler and redis_is_configured(config):
@@ -672,7 +676,9 @@ class RateLimitManager:
         window_identity: str | None = None,
     ) -> RateLimitVerdict:
         identity = window_identity or (
-            _client_identity(client_ip, config.ipv6_prefix_length)
+            _client_identity(
+                client_ip, config.ipv6_prefix_length, None, nat64_table_of(config)
+            )
             if ":" in client_ip
             else client_ip
         )

@@ -16,6 +16,7 @@ from guard_core.sync._utils.ip_extraction import (
     _client_identity,
     _parsed_ip_or_none,
 )
+from guard_core.sync._utils.nat64 import nat64_table_of
 from guard_core.sync._utils.whitelist_match import most_specific_whitelist_entry
 from guard_core.sync.handlers._ipban_cache import _Network
 from guard_core.sync.handlers._ipban_events import IpBanEventMixin
@@ -65,12 +66,15 @@ class IpBanLookupMixin(IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptionMix
         if ":" not in ip:
             return None
         prefix_length = self._prefix_length(config)
-        identity = _client_identity(ip, prefix_length)
+        nat64 = nat64_table_of(config)
+        identity = _client_identity(ip, prefix_length, None, nat64)
         whitelist = getattr(config, "whitelist", None)
         if identity == ip or not whitelist:
             return identity if identity != ip else None
-        entry = most_specific_whitelist_entry(ipaddress.ip_address(ip), whitelist)
-        return _client_identity(ip, prefix_length, entry) if entry else identity
+        entry = most_specific_whitelist_entry(
+            ipaddress.ip_address(ip), whitelist, nat64
+        )
+        return _client_identity(ip, prefix_length, entry, nat64) if entry else identity
 
     def _check_network_cache(
         self, addr: ipaddress.IPv4Address | ipaddress.IPv6Address, now: float
@@ -204,7 +208,7 @@ class IpBanLookupMixin(IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptionMix
         read from what this process holds, in the order the lookup tries it:
         the address, its grouped identity, a local network, then an operator
         network read back from Redis. ``None`` when nothing live covers it."""
-        ip = _canonicalize_ip(ip)
+        ip = _canonicalize_ip(ip, nat64_table_of(self.config))
         now = time.time()
         identity = self._grouped_identity_of(ip, self.config) if ":" in ip else None
         held = self._deciding_keyed_entry(ip, identity, now)
@@ -293,7 +297,9 @@ class IpBanLookupMixin(IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptionMix
     def _ban_outcome_before_keys(
         self, ip: str, config: "SyncSecurityConfig | None"
     ) -> bool | PendingKeysRead:
-        ip = _canonicalize_ip(ip)
+        ip = _canonicalize_ip(
+            ip, nat64_table_of(self.config if config is None else config)
+        )
         now = time.time()
         identity, verdict = self._local_lookup(ip, config, now)
         if verdict is False:

@@ -22,10 +22,10 @@ WELL_KNOWN_PUBLIC = "64:ff9b::808:808"
 
 @pytest.fixture(autouse=True)
 def _no_network_specific_prefixes() -> Generator[None, None, None]:
-    nat64._non_global_warnings.clear()
-    nat64.configure_nat64_prefixes(())
+    nat64.DEFAULT_NAT64_TABLE.warned.clear()
+    ip_extraction._canonical_ip_text_and_nat64_warning.cache_clear()
     yield
-    nat64.configure_nat64_prefixes(())
+    nat64.DEFAULT_NAT64_TABLE.warned.clear()
 
 
 def _encode(prefix: str, ipv4: str) -> str:
@@ -124,32 +124,33 @@ def test_a_changed_prefix_list_is_not_served_from_the_cache() -> None:
     address = _encode(prefix, PUBLIC_V4)
 
     assert _canonicalize_ip(address) == address
-    nat64.configure_nat64_prefixes((ipaddress.IPv6Network(prefix),))
+    decoding = nat64.Nat64Table((ipaddress.IPv6Network(prefix),))
 
-    assert _canonicalize_ip(address) == PUBLIC_V4
+    assert _canonicalize_ip(address, decoding) == PUBLIC_V4
+    assert _canonicalize_ip(address) == address
 
 
 @pytest.mark.parametrize(("prefix", "_"), RFC_6052_EXAMPLES)
 def test_a_configured_prefix_is_decoded_at_its_length(prefix: str, _: str) -> None:
-    nat64.configure_nat64_prefixes((ipaddress.IPv6Network(prefix),))
+    table = nat64.Nat64Table((ipaddress.IPv6Network(prefix),))
 
-    assert _canonicalize_ip(_encode(prefix, PUBLIC_V4)) == PUBLIC_V4
+    assert _canonicalize_ip(_encode(prefix, PUBLIC_V4), table) == PUBLIC_V4
 
 
 def test_a_configured_prefix_with_a_non_global_ipv4_stays_ipv6() -> None:
     prefix = "2001:db8:122:344::/64"
-    nat64.configure_nat64_prefixes((ipaddress.IPv6Network(prefix),))
+    table = nat64.Nat64Table((ipaddress.IPv6Network(prefix),))
 
     address = _encode(prefix, "10.0.0.5")
 
-    assert _canonicalize_ip(address) == address
+    assert _canonicalize_ip(address, table) == address
 
 
 def test_an_address_outside_every_prefix_is_untouched() -> None:
-    nat64.configure_nat64_prefixes((ipaddress.IPv6Network("2001:db8:122:344::/64"),))
+    table = nat64.Nat64Table((ipaddress.IPv6Network("2001:db8:122:344::/64"),))
 
-    assert _canonicalize_ip("2001:db8:1::1") == "2001:db8:1::1"
-    assert _canonicalize_ip("203.0.113.9") == "203.0.113.9"
+    assert _canonicalize_ip("2001:db8:1::1", table) == "2001:db8:1::1"
+    assert _canonicalize_ip("203.0.113.9", table) == "203.0.113.9"
 
 
 def test_the_identity_of_a_decoded_client_is_its_ipv4() -> None:
@@ -216,7 +217,12 @@ def test_an_invalid_prefix_only_logs_when_the_flag_is_off_and_is_ignored() -> No
 
     HandlerInitializer(config=config).initialize_redis_handlers()
 
-    assert _canonicalize_ip(_encode("2001:db8:122:344::/64", PUBLIC_V4)) == PUBLIC_V4
+    assert (
+        _canonicalize_ip(
+            _encode("2001:db8:122:344::/64", PUBLIC_V4), nat64.nat64_table_of(config)
+        )
+        == PUBLIC_V4
+    )
 
 
 def test_valid_prefixes_are_applied_at_startup() -> None:
@@ -225,4 +231,7 @@ def test_valid_prefixes_are_applied_at_startup() -> None:
 
     HandlerInitializer(config=config).initialize_redis_handlers()
 
-    assert _canonicalize_ip(_encode(prefix, PUBLIC_V4)) == PUBLIC_V4
+    assert (
+        _canonicalize_ip(_encode(prefix, PUBLIC_V4), nat64.nat64_table_of(config))
+        == PUBLIC_V4
+    )

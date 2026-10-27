@@ -14,9 +14,12 @@ from guard_core._utils.agent_events import send_agent_event
 from guard_core._utils.forwarded_config import ForwardedForConfig
 from guard_core._utils.logging_utils import _sanitize_for_log
 from guard_core._utils.nat64 import (
+    DEFAULT_NAT64_TABLE,
+    Nat64Table,
     _decoded_nat64_embedded_ipv4,
     _unwrap_nat64,
     _warn_non_global_embedded_once_a_minute,
+    nat64_table_of,
 )
 from guard_core._utils.sampling import CountedKeys, PerApp, observe_counted_key
 from guard_core._utils.whitelist_match import is_listed
@@ -37,7 +40,9 @@ _SIX_TO_FOUR_NETWORK = ip_network("2002::/16")
 _SIX_TO_FOUR_IDENTITY_PREFIX_LENGTH = 48
 
 
-def _peer_address_for_matching(value: str) -> IPv4Address | IPv6Address | None:
+def _peer_address_for_matching(
+    value: str, nat64: Nat64Table = DEFAULT_NAT64_TABLE
+) -> IPv4Address | IPv6Address | None:
     candidate = value.strip()
     if candidate.startswith("[") and candidate.endswith("]"):
         candidate = candidate[1:-1]
@@ -48,30 +53,38 @@ def _peer_address_for_matching(value: str) -> IPv4Address | IPv6Address | None:
     if isinstance(addr, IPv6Address) and addr.ipv4_mapped is not None:
         return addr.ipv4_mapped
     if isinstance(addr, IPv6Address):
-        return _unwrap_nat64(addr) or addr
+        return _unwrap_nat64(addr, nat64) or addr
     return addr
 
 
-def _is_trusted_proxy(connecting_ip: str, trusted_proxies: Sequence[str]) -> bool:
-    peer_address = _peer_address_for_matching(connecting_ip)
+def _is_trusted_proxy(
+    connecting_ip: str,
+    trusted_proxies: Sequence[str],
+    nat64: Nat64Table = DEFAULT_NAT64_TABLE,
+) -> bool:
+    peer_address = _peer_address_for_matching(connecting_ip, nat64)
     if peer_address is None:
         return False
     try:
-        return is_listed(peer_address, peer_address, trusted_proxies, "proxy")
+        return is_listed(peer_address, peer_address, trusted_proxies, "proxy", nat64)
     except ValueError:
         return False
 
 
-def _canonical_ip_address(addr: IPv4Address | IPv6Address) -> IPv4Address | IPv6Address:
+def _canonical_ip_address(
+    addr: IPv4Address | IPv6Address, nat64: Nat64Table = DEFAULT_NAT64_TABLE
+) -> IPv4Address | IPv6Address:
     if isinstance(addr, IPv6Address) and addr.scope_id is None:
         if addr.ipv4_mapped is not None:
             return addr.ipv4_mapped
-        return _unwrap_nat64(addr) or addr
+        return _unwrap_nat64(addr, nat64) or addr
     return addr
 
 
-def _canonical_ip_text(addr: IPv4Address | IPv6Address) -> str:
-    return str(_canonical_ip_address(addr))
+def _canonical_ip_text(
+    addr: IPv4Address | IPv6Address, nat64: Nat64Table = DEFAULT_NAT64_TABLE
+) -> str:
+    return str(_canonical_ip_address(addr, nat64))
 
 
 def _strip_ip_brackets(value: str) -> str:
@@ -105,7 +118,7 @@ _IDENTITY_CACHE_ENTRIES = 4096
 
 @lru_cache(maxsize=_IDENTITY_CACHE_ENTRIES)
 def _canonical_ip_text_and_nat64_warning(
-    value: str,
+    value: str, nat64: Nat64Table
 ) -> tuple[str, IPv4Address | None]:
     try:
         addr = ip_address(_strip_zone_id(_strip_ip_brackets(value)))
@@ -114,7 +127,7 @@ def _canonical_ip_text_and_nat64_warning(
     if isinstance(addr, IPv6Address):
         if addr.ipv4_mapped is not None:
             return str(addr.ipv4_mapped), None
-        embedded = _decoded_nat64_embedded_ipv4(addr)
+        embedded = _decoded_nat64_embedded_ipv4(addr, nat64)
         if embedded is not None and embedded.is_global:
             return str(embedded), None
         if embedded is not None:
@@ -130,10 +143,10 @@ def _parsed_ip_or_none(text: str) -> IPv4Address | IPv6Address | None:
         return None
 
 
-def _canonicalize_ip(value: str) -> str:
-    text, non_global_embedded = _canonical_ip_text_and_nat64_warning(value)
+def _canonicalize_ip(value: str, nat64: Nat64Table = DEFAULT_NAT64_TABLE) -> str:
+    text, non_global_embedded = _canonical_ip_text_and_nat64_warning(value, nat64)
     if non_global_embedded is not None:
-        _warn_non_global_embedded_once_a_minute(non_global_embedded)
+        _warn_non_global_embedded_once_a_minute(non_global_embedded, nat64)
     return text
 
 
@@ -165,13 +178,16 @@ def _network_text(addr: IPv6Address, prefix_length: int) -> str:
 
 @lru_cache(maxsize=_IDENTITY_CACHE_ENTRIES)
 def _client_identity(
-    address: str, prefix_length: int, whitelist_entry: str | None = None
+    address: str,
+    prefix_length: int,
+    whitelist_entry: str | None = None,
+    nat64: Nat64Table = DEFAULT_NAT64_TABLE,
 ) -> str:
     try:
         parsed = ip_address(_strip_zone_id(_strip_ip_brackets(address)))
     except ValueError:
         return address
-    addr = _canonical_ip_address(parsed)
+    addr = _canonical_ip_address(parsed, nat64)
     canonical = str(addr)
     if prefix_length == 128:
         return canonical
@@ -204,7 +220,9 @@ def _forwarded_header_candidate_addr(
         return None
 
 
-def _extract_from_forwarded_header(forwarded_for: str, proxy_depth: int) -> str | None:
+def _extract_from_forwarded_header(
+    forwarded_for: str, proxy_depth: int, nat64: Nat64Table = DEFAULT_NAT64_TABLE
+) -> str | None:
     if not forwarded_for:
         return None
 
@@ -219,7 +237,7 @@ def _extract_from_forwarded_header(forwarded_for: str, proxy_depth: int) -> str 
     if _forwarded_header_candidate_has_metachar(candidate):
         return None
 
-    return _canonical_ip_text(addr)
+    return _canonical_ip_text(addr, nat64)
 
 
 def _forwarded_header_ips(forwarded_for: str) -> list[str]:
@@ -227,13 +245,13 @@ def _forwarded_header_ips(forwarded_for: str) -> list[str]:
 
 
 def _forwarded_header_right_side_unlisted_count(
-    ips: list[str], proxy_depth: int, trusted_proxies: Sequence[str]
+    ips: list[str], proxy_depth: int, trusted_proxies: Sequence[str], nat64: Nat64Table
 ) -> int:
     right_side = ips[len(ips) - proxy_depth + 1 :]
     return sum(
         1
         for entry in right_side
-        if not _is_trusted_proxy(_canonicalize_ip(entry), trusted_proxies)
+        if not _is_trusted_proxy(_canonicalize_ip(entry, nat64), trusted_proxies, nat64)
     )
 
 
@@ -242,15 +260,15 @@ class _MalformedForwardedEntry(Exception):
 
 
 def _resolve_forwarded_chain_right_to_left(
-    ips: list[str], trusted_proxies: Sequence[str]
+    ips: list[str], trusted_proxies: Sequence[str], nat64: Nat64Table
 ) -> str | None:
     for entry in reversed(ips):
-        if _is_trusted_proxy(_canonicalize_ip(entry), trusted_proxies):
+        if _is_trusted_proxy(_canonicalize_ip(entry, nat64), trusted_proxies, nat64):
             continue
         addr = _forwarded_header_candidate_addr(entry)
         if addr is None or _forwarded_header_candidate_has_metachar(entry):
             raise _MalformedForwardedEntry
-        return _canonical_ip_text(addr)
+        return _canonical_ip_text(addr, nat64)
     return None
 
 
@@ -364,10 +382,14 @@ def _take_evicted_suppressed_count(config: object) -> int:
     return _untrusted_peers.for_app(config).take_evicted_pending()
 
 
-def forwarded_for_addresses(forwarded_for: str) -> list[IPv4Address | IPv6Address]:
+def forwarded_for_addresses(
+    forwarded_for: str, nat64: Nat64Table = DEFAULT_NAT64_TABLE
+) -> list[IPv4Address | IPv6Address]:
     addresses = []
     for entry in _bounded_forwarded_entries(forwarded_for)[0]:
-        address = _peer_address_for_matching(_strip_forwarded_entry_port(entry.strip()))
+        address = _peer_address_for_matching(
+            _strip_forwarded_entry_port(entry.strip()), nat64
+        )
         if address is not None:
             addresses.append(address)
     return addresses
@@ -502,6 +524,7 @@ def _resolve_client_ip_from_forwarded_chain(
     forwarded_for: str | None,
     proxy_depth: int,
     trusted_proxies: Sequence[str],
+    nat64: Nat64Table,
 ) -> str:
     try:
         if not forwarded_for:
@@ -516,19 +539,21 @@ def _resolve_client_ip_from_forwarded_chain(
 
         if trusted_proxies:
             unlisted_right_entries = _forwarded_header_right_side_unlisted_count(
-                ips, proxy_depth, trusted_proxies
+                ips, proxy_depth, trusted_proxies, nat64
             )
             if unlisted_right_entries:
                 _warn_forwarded_header_depth_overcounts_hops(
                     unlisted_right_entries, forwarded_for
                 )
-                resolved = _resolve_forwarded_chain_right_to_left(ips, trusted_proxies)
+                resolved = _resolve_forwarded_chain_right_to_left(
+                    ips, trusted_proxies, nat64
+                )
                 return resolved if resolved is not None else canonical_connecting_ip
 
-        client_ip = _extract_from_forwarded_header(forwarded_for, proxy_depth)
+        client_ip = _extract_from_forwarded_header(forwarded_for, proxy_depth, nat64)
         if not client_ip:
             raise _MalformedForwardedEntry
-        if _is_trusted_proxy(client_ip, trusted_proxies):
+        if _is_trusted_proxy(client_ip, trusted_proxies, nat64):
             _warn_forwarded_header_selected_entry_trusted_proxy(client_ip)
         return client_ip
     except (ValueError, IndexError) as e:
@@ -584,6 +609,7 @@ async def extract_client_ip(
     if cached_ip:
         return cached_ip
 
+    nat64 = nat64_table_of(config)
     if not request.client_host:
         if "unix" in config.trusted_proxies:
             forwarded_for = request.headers.get("X-Forwarded-For")
@@ -593,6 +619,7 @@ async def extract_client_ip(
                     forwarded_for,
                     config.trusted_proxy_depth,
                     config.trusted_proxies,
+                    nat64,
                 )
             except _MalformedForwardedEntry:
                 return await _malformed_forwarded_for_identity(
@@ -605,14 +632,14 @@ async def extract_client_ip(
         return UNKNOWN_CLIENT_IDENTITY
 
     connecting_ip = request.client_host
-    canonical_connecting_ip = _canonicalize_ip(connecting_ip)
+    canonical_connecting_ip = _canonicalize_ip(connecting_ip, nat64)
     forwarded_for = request.headers.get("X-Forwarded-For")
 
     if not config.trusted_proxies:
         _warn_forwarded_header_preempted(connecting_ip, forwarded_for)
         return canonical_connecting_ip
 
-    is_trusted = _is_trusted_proxy(connecting_ip, config.trusted_proxies)
+    is_trusted = _is_trusted_proxy(connecting_ip, config.trusted_proxies, nat64)
 
     if not is_trusted:
         return await _handle_untrusted_proxy(
@@ -630,6 +657,7 @@ async def extract_client_ip(
             forwarded_for,
             config.trusted_proxy_depth,
             config.trusted_proxies,
+            nat64,
         )
     except _MalformedForwardedEntry:
         return await _malformed_forwarded_for_identity(

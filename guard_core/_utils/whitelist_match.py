@@ -20,6 +20,8 @@ from collections.abc import Callable, Hashable, Sequence
 from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network, ip_network
 from typing import Generic, NamedTuple, TypeVar
 
+from guard_core._utils.nat64 import DEFAULT_NAT64_TABLE, Nat64Table
+
 Address = IPv4Address | IPv6Address
 Network = IPv4Network | IPv6Network
 _Buckets = tuple[tuple[int, dict[int, tuple[int, str]]], ...]
@@ -102,15 +104,15 @@ class EntryIndex(NamedTuple):
     invalid: tuple[int, str] | None
 
 
-def _exact_key(mode: str, entry: str) -> Hashable | None:
+def _exact_key(mode: str, entry: str, nat64: Nat64Table) -> Hashable | None:
     from guard_core._utils.ip_extraction import (
         _canonicalize_ip,
         _peer_address_for_matching,
     )
 
     if mode == "list":
-        return _canonicalize_ip(entry)
-    return _peer_address_for_matching(entry)
+        return _canonicalize_ip(entry, nat64)
+    return _peer_address_for_matching(entry, nat64)
 
 
 def _longest_first(
@@ -131,14 +133,14 @@ def _longest_first(
     return index
 
 
-def _build_entry_index(key: tuple[tuple[str, ...], str]) -> EntryIndex:
-    entries, mode = key
+def _build_entry_index(key: tuple[tuple[str, ...], str, Nat64Table]) -> EntryIndex:
+    entries, mode, nat64 = key
     by_length: dict[tuple[int, int], dict[int, tuple[int, str]]] = {}
     exact: dict[Hashable, int] = {}
     invalid: tuple[int, str] | None = None
     for position, entry in enumerate(entries):
         if mode != "network" and "/" not in entry:
-            exact_key = _exact_key(mode, entry)
+            exact_key = _exact_key(mode, entry, nat64)
             if exact_key is not None:
                 exact.setdefault(exact_key, position)
             continue
@@ -164,16 +166,18 @@ def _parse_networks(entries: tuple[str, ...]) -> tuple[Network, ...]:
     return tuple(networks)
 
 
-_index_cache: ContentCache[tuple[tuple[str, ...], str], EntryIndex] = ContentCache(
-    _build_entry_index
+_index_cache: ContentCache[tuple[tuple[str, ...], str, Nat64Table], EntryIndex] = (
+    ContentCache(_build_entry_index)
 )
 _network_cache: ContentCache[tuple[str, ...], tuple[Network, ...]] = ContentCache(
     _parse_networks
 )
 
 
-def entry_index(entries: tuple[str, ...], mode: str) -> EntryIndex:
-    return _index_cache.get((entries, mode))
+def entry_index(
+    entries: tuple[str, ...], mode: str, nat64: Nat64Table = DEFAULT_NAT64_TABLE
+) -> EntryIndex:
+    return _index_cache.get((entries, mode, nat64))
 
 
 def parsed_networks(entries: tuple[str, ...]) -> tuple[Network, ...]:
@@ -203,9 +207,13 @@ def _first_match(
 
 
 def is_listed(
-    address: Address, exact_lookup: Hashable, entries: Sequence[str], mode: str
+    address: Address,
+    exact_lookup: Hashable,
+    entries: Sequence[str],
+    mode: str,
+    nat64: Nat64Table = DEFAULT_NAT64_TABLE,
 ) -> bool:
-    index = entry_index(tuple(entries), mode)
+    index = entry_index(tuple(entries), mode, nat64)
     match = _first_match(index, address, exact_lookup)
     if index.invalid is not None and (match is None or match[0] > index.invalid[0]):
         raise ValueError(index.invalid[1])
@@ -213,11 +221,11 @@ def is_listed(
 
 
 def most_specific_whitelist_entry(
-    address: Address, entries: Sequence[str]
+    address: Address, entries: Sequence[str], nat64: Nat64Table = DEFAULT_NAT64_TABLE
 ) -> str | None:
     value = int(address)
     bits = address.max_prefixlen
-    for prefixlen, members in entry_index(tuple(entries), "network").buckets[
+    for prefixlen, members in entry_index(tuple(entries), "network", nat64).buckets[
         address.version
     ]:
         shift = bits - prefixlen

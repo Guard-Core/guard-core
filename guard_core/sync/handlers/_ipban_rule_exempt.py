@@ -1,13 +1,16 @@
 import ipaddress
 from collections.abc import Iterable
 
+from guard_core.sync._utils.nat64 import DEFAULT_NAT64_TABLE, Nat64Table
 from guard_core.sync.handlers._ipban_cache import _Network
 from guard_core.sync.utils import _canonicalize_ip
 
 DYNAMIC_RULE_BAN_REASON = "dynamic_rule"
 
 
-def rule_ban_target(ip: str) -> tuple[str, str]:
+def rule_ban_target(
+    ip: str, nat64: Nat64Table = DEFAULT_NAT64_TABLE
+) -> tuple[str, str]:
     """The Redis namespace and key a rule ban on ip is stored under: the
     canonical address, or the normalized network for a CIDR."""
     try:
@@ -15,12 +18,12 @@ def rule_ban_target(ip: str) -> tuple[str, str]:
             return "banned_networks", str(ipaddress.ip_network(ip, strict=False))
     except ValueError:
         pass
-    return "banned_ips", _canonicalize_ip(ip)
+    return "banned_ips", _canonicalize_ip(ip, nat64)
 
 
-def rule_ban_member(ip: str) -> str:
+def rule_ban_member(ip: str, nat64: Nat64Table = DEFAULT_NAT64_TABLE) -> str:
     """The member a rule ban on ip has in the owned set, minus the Redis prefix."""
-    namespace, key = rule_ban_target(ip)
+    namespace, key = rule_ban_target(ip, nat64)
     return f"{namespace}:{key}"
 
 

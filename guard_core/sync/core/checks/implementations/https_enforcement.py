@@ -4,6 +4,7 @@ from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.sync._utils.forwarded_proto import request_is_https
 from guard_core.sync._utils.ip_extraction import _is_trusted_proxy
+from guard_core.sync._utils.nat64 import nat64_table_of
 from guard_core.sync.core.checks.base import SecurityCheck
 from guard_core.sync.core.checks.helpers import route_config_applies
 from guard_core.sync.decorators.base import RouteConfig
@@ -31,7 +32,9 @@ class HttpsEnforcementCheck(SecurityCheck):
         return request_is_https(request, self.config)
 
     def _is_trusted_proxy(self, connecting_ip: str) -> bool:
-        return _is_trusted_proxy(connecting_ip, self.config.trusted_proxies)
+        return _is_trusted_proxy(
+            connecting_ip, self.config.trusted_proxies, nat64_table_of(self.config)
+        )
 
     def _create_https_redirect(self, request: SyncGuardRequest) -> GuardResponse:
         response_factory = self.middleware.response_factory

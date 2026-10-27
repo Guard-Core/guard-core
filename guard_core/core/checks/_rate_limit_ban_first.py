@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, TypedDict
 
 from guard_core._redis_enablement import redis_is_configured
 from guard_core._utils.ip_extraction import _client_identity
+from guard_core._utils.nat64 import nat64_table_of
 from guard_core.core.checks._ban_flow import NO_BAN_FLOW, BanFlow
 from guard_core.core.checks._pending_ban import PendingBan
 from guard_core.core.checks._shared_strikes import FusedStrike
@@ -60,7 +61,9 @@ def _identity(
     client_ip: str, config: SecurityConfig, window_identity: str | None
 ) -> str:
     return window_identity or (
-        _client_identity(client_ip, config.ipv6_prefix_length)
+        _client_identity(
+            client_ip, config.ipv6_prefix_length, None, nat64_table_of(config)
+        )
         if ":" in client_ip
         else client_ip
     )

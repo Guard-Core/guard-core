@@ -2,6 +2,7 @@ from collections.abc import Collection, Sequence
 from ipaddress import ip_address
 
 from guard_core._utils.agent_events import agent_receives_events
+from guard_core._utils.nat64 import nat64_table_of
 from guard_core._utils.rule_attribution import emergency_attribution
 from guard_core._utils.sampling import PerApp, SampledKeys, observe_sampled_key
 from guard_core.core.checks.base import SecurityCheck
@@ -70,7 +71,7 @@ class EmergencyModeCheck(SecurityCheck):
             client_ip_addr = None
 
         is_whitelisted = client_ip_addr is not None and any(
-            _ip_in_list(client_ip_addr, client_ip, entries)
+            _ip_in_list(client_ip_addr, client_ip, entries, nat64_table_of(self.config))
             for entries in self._admitted_lists()
         )
 

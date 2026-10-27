@@ -4,6 +4,7 @@ import time
 from collections.abc import Iterable, MutableMapping
 from typing import TYPE_CHECKING
 
+from guard_core.sync._utils.nat64 import nat64_table_of
 from guard_core.sync._utils.sampling import PerApp, SampledKeys, observe_sampled_key
 from guard_core.sync.handlers._ipban_cache import _BanStore, _Network
 from guard_core.sync.handlers._ipban_events import IpBanEventMixin
@@ -267,7 +268,7 @@ class IpBanRuleRevokeMixin(IpBanVersionMixin, IpBanEventMixin):
         """Lift the ban a rule wrote on ip (an address or a CIDR): 0 gone, 1
         deleted, 2 rewritten to the shorter ban it hid, 3 a longer ban replaced
         it and was left alone. Settle a batch with ``settle_rule_revocations``."""
-        namespace, key = rule_ban_target(ip)
+        namespace, key = rule_ban_target(ip, nat64_table_of(self.config))
         held = f"{namespace}:{key}" in self._rule_owned_expiries
         in_memory = self._revoke_in_memory(namespace, key) if held else REVOKE_GONE
         if not self.redis_handler:
@@ -301,7 +302,7 @@ class IpBanRuleRevokeMixin(IpBanVersionMixin, IpBanEventMixin):
     def _revoke_event_details(self, ip: str, outcome: int) -> dict[str, object]:
         if outcome != REVOKE_REWRITTEN:
             return {}
-        namespace, key = rule_ban_target(ip)
+        namespace, key = rule_ban_target(ip, nat64_table_of(self.config))
         if self.redis_handler:
             held = self.redis_handler.get_key(namespace, key)
             expiry = float(held) if held else 0.0

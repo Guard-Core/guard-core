@@ -12,6 +12,7 @@ from guard_core._utils.ip_extraction import (
     _canonicalize_ip,
 )
 from guard_core._utils.logging_utils import _log_at_level
+from guard_core._utils.nat64 import DEFAULT_NAT64_TABLE, Nat64Table, nat64_table_of
 from guard_core._utils.whitelist_match import is_listed
 from guard_core.protocols.request_protocol import GuardRequest
 
@@ -29,11 +30,13 @@ async def is_user_agent_allowed(user_agent: str, config: "SecurityConfig") -> bo
     return not blocked
 
 
-def _extract_ip_from_request(request: str | GuardRequest) -> str:
+def _extract_ip_from_request(
+    request: str | GuardRequest, nat64: Nat64Table = DEFAULT_NAT64_TABLE
+) -> str:
     if isinstance(request, str):
         return request
     return (
-        _canonicalize_ip(request.client_host)
+        _canonicalize_ip(request.client_host, nat64)
         if request.client_host
         else UNKNOWN_CLIENT_IDENTITY
     )
@@ -155,28 +158,35 @@ async def check_ip_country(
     config: "SecurityConfig",
     geo_ip_handler: "GeoIPHandlerOfThisTree",
 ) -> bool:
-    ip = _extract_ip_from_request(request)
+    ip = _extract_ip_from_request(request, nat64_table_of(config))
     is_blocked, _country = await _resolve_country_verdict(ip, config, geo_ip_handler)
     return is_blocked
 
 
-def _ip_in_list(ip_addr: object, ip: str, entries: Sequence[str] | None) -> bool:
+def _ip_in_list(
+    ip_addr: object,
+    ip: str,
+    entries: Sequence[str] | None,
+    nat64: Nat64Table = DEFAULT_NAT64_TABLE,
+) -> bool:
     if not entries:
         return False
     match ip_addr:
         case IPv4Address() | IPv6Address():
-            return is_listed(ip_addr, _canonicalize_ip(ip), entries, "list")
+            return is_listed(
+                ip_addr, _canonicalize_ip(ip, nat64), entries, "list", nat64
+            )
         case _:
             raise TypeError("ip_addr must be an IPv4Address or an IPv6Address")
 
 
 async def _check_blacklist(ip_addr: object, ip: str, config: "SecurityConfig") -> bool:
-    return not _ip_in_list(ip_addr, ip, config.blacklist)
+    return not _ip_in_list(ip_addr, ip, config.blacklist, nat64_table_of(config))
 
 
 async def _check_whitelist(ip_addr: object, ip: str, config: "SecurityConfig") -> bool:
     if config.whitelist:
-        return _ip_in_list(ip_addr, ip, config.whitelist)
+        return _ip_in_list(ip_addr, ip, config.whitelist, nat64_table_of(config))
     return True
 
 
@@ -375,7 +385,10 @@ async def _check_country_and_cloud_detail(
             country_result = _result_for_geo_failure(failure.kind, config)
         if country_result is not None:
             return country_result
-    if not (skip_clouds or _ip_in_list(ip_addr, ip, config.exempt_ips)):
+    if not (
+        skip_clouds
+        or _ip_in_list(ip_addr, ip, config.exempt_ips, nat64_table_of(config))
+    ):
         cloud_result = await _check_cloud_providers_detail(ip, config)
         if cloud_result is not None:
             return replace(cloud_result, geo_failure=geo_failure)
@@ -407,7 +420,9 @@ async def check_ip_access(
             )
             if list_result is not None:
                 return list_result
-            if not skip_whitelist and _ip_in_list(ip_addr, ip, config.whitelist):
+            if not skip_whitelist and _ip_in_list(
+                ip_addr, ip, config.whitelist, nat64_table_of(config)
+            ):
                 skip_countries = True
                 skip_clouds = True
 

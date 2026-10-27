@@ -3,6 +3,7 @@ from ipaddress import ip_address
 from typing import NamedTuple
 
 from guard_core._utils.ip_extraction import UNKNOWN_CLIENT_IDENTITY, _parsed_ip_or_none
+from guard_core._utils.nat64 import DEFAULT_NAT64_TABLE, Nat64Table, nat64_table_of
 from guard_core.core.checks._ban_flow import NO_BAN_FLOW, BanFlow
 from guard_core.core.checks._pending_ban import PendingBan
 from guard_core.core.checks._shared_strikes import FusedStrike, _shared_strikes_redis
@@ -22,17 +23,22 @@ from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.utils import _ip_in_list, allow_list_miss_category, check_ip_access
 
 
-def _route_blacklist_matches(route_config: RouteConfig, client_ip: str) -> bool:
+def _route_blacklist_matches(
+    route_config: RouteConfig, client_ip: str, nat64: Nat64Table = DEFAULT_NAT64_TABLE
+) -> bool:
     try:
         return _ip_in_list(
-            ip_address(client_ip), client_ip, route_config.ip_blacklist or []
+            ip_address(client_ip), client_ip, route_config.ip_blacklist or [], nat64
         )
     except ValueError:
         return False
 
 
 def _route_denial_category(
-    route_config: RouteConfig, decorator_type: str, client_ip: str
+    route_config: RouteConfig,
+    decorator_type: str,
+    client_ip: str,
+    nat64: Nat64Table = DEFAULT_NAT64_TABLE,
 ) -> str | None:
     if decorator_type == "block_countries":
         return "country"
@@ -40,7 +46,9 @@ def _route_denial_category(
         return allow_list_miss_category("country")
     if route_config.ip_whitelist:
         return allow_list_miss_category("ip_list")
-    return "ip_list" if _route_blacklist_matches(route_config, client_ip) else None
+    return (
+        "ip_list" if _route_blacklist_matches(route_config, client_ip, nat64) else None
+    )
 
 
 def _route_overrides_ip_lists(route_config: RouteConfig | None) -> bool:
@@ -136,13 +144,17 @@ class IpBanReadMixin(SecurityCheck):
         self, state: object, client_ip: str, route_config: RouteConfig | None
     ) -> _ListVerdict | None:
         if not route_config or (
-            await check_route_ip_access(client_ip, route_config, self.middleware)
+            await check_route_ip_access(
+                client_ip, route_config, self.middleware, nat64_table_of(self.config)
+            )
             is not False
         ):
             return None
         if getattr(state, "is_whitelisted", False):
             return _ListVerdict(None, False)
-        category = _route_denial_category(route_config, "access_control", client_ip)
+        category = _route_denial_category(
+            route_config, "access_control", client_ip, nat64_table_of(self.config)
+        )
         return _ListVerdict(category, True)
 
     def _fused_strike_for(

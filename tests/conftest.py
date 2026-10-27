@@ -66,10 +66,21 @@ if TYPE_CHECKING:
 
 
 class _AlreadyLogged(PerApp[WarnedKeys]):
-    """Every changed default already logged, so a test config logs none."""
+    """Every changed default already logged, so a test config logs none, until a
+    test calls ``clear()`` (as it would on the process-wide set of v4.4.0 trees)."""
+
+    def __init__(self, kind: str, table_type: type[WarnedKeys]) -> None:
+        super().__init__(kind, table_type)
+        self._silenced = True
+
+    def clear(self) -> None:
+        self._silenced = False
+        super().clear()
 
     def for_app(self, config: object) -> WarnedKeys:
-        return WarnedKeys(_staged_defaults_module.FLIP_IDS)
+        if self._silenced:
+            return WarnedKeys(_staged_defaults_module.FLIP_IDS)
+        return super().for_app(config)
 
 
 network_guard.install()

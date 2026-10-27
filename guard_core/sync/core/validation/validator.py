@@ -5,6 +5,7 @@ from cachetools import TTLCache
 
 from guard_core.sync._utils.forwarded_proto import request_is_https
 from guard_core.sync._utils.ip_extraction import _is_trusted_proxy
+from guard_core.sync._utils.nat64 import nat64_table_of
 from guard_core.sync._utils.request_logging import redact_endpoint_for_display
 from guard_core.sync._utils.time_window import time_window_allows
 from guard_core.sync.core.events.event_types import EVENT_PATH_EXCLUDED
@@ -30,7 +31,11 @@ class RequestValidator:
         return request_is_https(request, self.context.config)
 
     def is_trusted_proxy(self, connecting_ip: str) -> bool:
-        return _is_trusted_proxy(connecting_ip, self.context.config.trusted_proxies)
+        return _is_trusted_proxy(
+            connecting_ip,
+            self.context.config.trusted_proxies,
+            nat64_table_of(self.context.config),
+        )
 
     def check_time_window(self, time_restrictions: dict[str, str]) -> bool:
         return time_window_allows(time_restrictions, self.context.logger, datetime.now)

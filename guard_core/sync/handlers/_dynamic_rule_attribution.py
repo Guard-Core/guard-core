@@ -7,6 +7,7 @@ from guard_core._security_config_field_validators import (
     canonicalize_cloud_provider_selector,
 )
 from guard_core.sync._utils.access_control import _ip_in_list
+from guard_core.sync._utils.nat64 import nat64_table_of
 from guard_core.sync.handlers._cloud_provider_registry import _parse_cloud_selectors
 from guard_core.sync.handlers._ipban_rule_exempt import rule_ban_member
 from guard_core.sync.protocols.agent_protocol import DynamicRulesProtocol
@@ -59,8 +60,9 @@ def _limit_pair(value: Iterable[object]) -> tuple[object, ...]:
     return tuple(value)
 
 
-def _listed_ban_members(listed: Sequence[str]) -> frozenset[str]:
-    return frozenset(rule_ban_member(entry) for entry in listed)
+def _listed_ban_members(listed: Sequence[str], config: object) -> frozenset[str]:
+    nat64 = nat64_table_of(config)
+    return frozenset(rule_ban_member(entry, nat64) for entry in listed)
 
 
 @dataclass(frozen=True)
@@ -156,7 +158,11 @@ class RuleAttribution:
             address = ipaddress.ip_address(client_ip)
         except ValueError:
             return self._stamp(False)
-        return self._stamp(_ip_in_list(address, client_ip, self.config.blacklist))
+        return self._stamp(
+            _ip_in_list(
+                address, client_ip, self.config.blacklist, nat64_table_of(self.config)
+            )
+        )
 
     def for_country(self, country_rule: str | None, country: str | None) -> Stamp:
         if country_rule == "country_blacklist":
@@ -217,7 +223,7 @@ def build_rule_attribution(
     return RuleAttribution(
         rule_id=str(rules.rule_id),
         config=config,
-        listed_ban_members=_listed_ban_members(rules.ip_blacklist),
+        listed_ban_members=_listed_ban_members(rules.ip_blacklist, config),
         blocked_countries=frozenset(code.upper() for code in rules.blocked_countries),
         static_blocked_countries=frozenset(_items_of(base, "blocked_countries")),
         whitelist_countries_in_force=bool(rules.whitelist_countries),

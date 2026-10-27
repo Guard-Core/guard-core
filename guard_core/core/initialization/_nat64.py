@@ -38,4 +38,4 @@ def apply_nat64_prefixes(config: "SecurityConfig", logger: logging.Logger) -> No
             )
         else:
             valid.append(network)
-    configure_nat64_prefixes(valid)
+    configure_nat64_prefixes(config, valid)

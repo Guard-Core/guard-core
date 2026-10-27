@@ -2,6 +2,7 @@ import contextlib
 import logging
 from typing import TYPE_CHECKING
 
+from guard_core.sync._utils.nat64 import nat64_table_of
 from guard_core.sync.handlers._ipban_prefix_contract import (
     enforce_prefix_length_contract,
 )
@@ -61,7 +62,7 @@ class IpBanMigrationMixin:
 
     def _migrate_one_ban_key(self, conn: "Redis", key: str, prefix: str) -> None:
         raw_ip = key[len(prefix) :]
-        canonical_ip = _canonicalize_ip(raw_ip)
+        canonical_ip = _canonicalize_ip(raw_ip, nat64_table_of(self.config))
         if canonical_ip == raw_ip:
             return
 

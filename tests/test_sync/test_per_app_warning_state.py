@@ -11,7 +11,6 @@ from guard_core._security_headers_override import (
     config_fingerprint,
 )
 from guard_core.models import SyncSecurityConfig
-from guard_core.sync._utils.sampling import PerApp, WarnedKeys
 from guard_core.sync.handlers import _ipban_sharing
 from guard_core.sync.handlers.ipban_handler import IPBanManager
 from guard_core.sync.handlers.security_headers_handler import SecurityHeadersManager
@@ -21,15 +20,9 @@ NOT_ENFORCED = "is not enforced for the app"
 
 
 @pytest.fixture(autouse=True)
-def _nothing_logged_yet(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        _staged_defaults,
-        "_changed_defaults_logged",
-        PerApp("changed_defaults", WarnedKeys),
-    )
-    monkeypatch.setattr(
-        _ipban_sharing, "_warned_unenforced_bans", PerApp("unenforced_bans", WarnedKeys)
-    )
+def _nothing_logged_yet() -> None:
+    _staged_defaults._changed_defaults_logged.clear()
+    _ipban_sharing._warned_unenforced_bans.clear()
 
 
 def _logged_by(name: str) -> tuple[logging.Logger, io.StringIO]:

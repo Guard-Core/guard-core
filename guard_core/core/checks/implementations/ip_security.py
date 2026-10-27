@@ -7,6 +7,7 @@ from guard_core._utils.ip_extraction import (
     _is_trusted_proxy,
     forwarded_for_addresses,
 )
+from guard_core._utils.nat64 import nat64_table_of
 from guard_core._utils.rule_attribution import (
     ban_attribution,
     cached_ban_stamp,
@@ -91,7 +92,9 @@ def _resolve_is_exempt(
         client_ip_addr = ip_address(client_ip)
     except ValueError:
         return False
-    return _ip_in_list(client_ip_addr, client_ip, config.exempt_ips)
+    return _ip_in_list(
+        client_ip_addr, client_ip, config.exempt_ips, nat64_table_of(config)
+    )
 
 
 def _classify_route_ip_denial(
@@ -175,7 +178,7 @@ class IpSecurityCheck(IpBanReadMixin):
         self, request: GuardRequest, client_ip: str, route_config: RouteConfig
     ) -> GuardResponse | None:
         route_allowed = await check_route_ip_access(
-            client_ip, route_config, self.middleware
+            client_ip, route_config, self.middleware, nat64_table_of(self.config)
         )
 
         if route_allowed is None or route_allowed:
@@ -214,7 +217,7 @@ class IpSecurityCheck(IpBanReadMixin):
         )
 
         route_denial_category = _route_denial_category(
-            route_config, decorator_type, client_ip
+            route_config, decorator_type, client_ip, nat64_table_of(self.config)
         )
         await report_hostile_signal(
             self,
@@ -366,7 +369,9 @@ class IpSecurityCheck(IpBanReadMixin):
         if not (is_whitelisted and self.config.whitelist_access_only):
             return is_whitelisted
         request.state.whitelist_entry = most_specific_whitelist_entry(
-            ip_address(client_ip), self.config.whitelist or ()
+            ip_address(client_ip),
+            self.config.whitelist or (),
+            nat64_table_of(self.config),
         )
         return False
 
@@ -424,14 +429,15 @@ class IpSecurityCheck(IpBanReadMixin):
     def _forwarded_for_claims_privileged_address(
         self, forwarded_for: str, route_config: RouteConfig | None
     ) -> bool:
-        for address in forwarded_for_addresses(forwarded_for):
+        nat64 = nat64_table_of(self.config)
+        for address in forwarded_for_addresses(forwarded_for, nat64):
             text = str(address)
             if (
-                _is_trusted_proxy(text, self.config.trusted_proxies)
-                or _ip_in_list(address, text, self.config.whitelist)
+                _is_trusted_proxy(text, self.config.trusted_proxies, nat64)
+                or _ip_in_list(address, text, self.config.whitelist, nat64)
                 or (
                     route_config is not None
-                    and _ip_in_list(address, text, route_config.ip_whitelist)
+                    and _ip_in_list(address, text, route_config.ip_whitelist, nat64)
                 )
             ):
                 return True

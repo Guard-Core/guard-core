@@ -13,6 +13,7 @@ from guard_core._redis_exceptions import NoScriptError
 from guard_core._utils.identity_hash import _hash_identity_segment
 from guard_core._utils.ip_extraction import _client_identity
 from guard_core._utils.lru_store import _lru_pop_or_create
+from guard_core._utils.nat64 import nat64_table_of
 from guard_core.exceptions import GuardRedisError
 from guard_core.handlers._behavior_evictions import BehaviorEvictionMixin
 from guard_core.models import SecurityConfig
@@ -51,7 +52,9 @@ def behavior_client_identity(config: SecurityConfig, client_ip: str) -> str:
     for IPv4 and ``ipv6_prefix_length`` 128, the network's CIDR text otherwise."""
     if ":" not in client_ip:
         return client_ip
-    return _client_identity(client_ip, config.ipv6_prefix_length)
+    return _client_identity(
+        client_ip, config.ipv6_prefix_length, None, nat64_table_of(config)
+    )
 
 
 def _identity_suffix(scope_id: str, client_ip: str, rule: "BehaviorRule") -> str:

@@ -2,6 +2,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from guard_core.sync._utils.ip_extraction import _is_trusted_proxy
+from guard_core.sync._utils.nat64 import Nat64Table, nat64_table_of
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
 if TYPE_CHECKING:
@@ -10,10 +11,12 @@ if TYPE_CHECKING:
 _UNIX_PEER_NAME = "unix"
 
 
-def _peer_is_trusted(client_host: str | None, trusted_proxies: Sequence[str]) -> bool:
+def _peer_is_trusted(
+    client_host: str | None, trusted_proxies: Sequence[str], nat64: Nat64Table
+) -> bool:
     if not client_host:
         return _UNIX_PEER_NAME in trusted_proxies
-    return _is_trusted_proxy(client_host, trusted_proxies)
+    return _is_trusted_proxy(client_host, trusted_proxies, nat64)
 
 
 def forwarded_proto_is_https(header_value: str | None, proxy_depth: int) -> bool:
@@ -29,7 +32,9 @@ def request_is_https(request: SyncGuardRequest, config: "SyncSecurityConfig") ->
         return True
     if not (config.trust_x_forwarded_proto and config.trusted_proxies):
         return False
-    if not _peer_is_trusted(request.client_host, config.trusted_proxies):
+    if not _peer_is_trusted(
+        request.client_host, config.trusted_proxies, nat64_table_of(config)
+    ):
         return False
     return forwarded_proto_is_https(
         request.headers.get("X-Forwarded-Proto"), config.trusted_proxy_depth

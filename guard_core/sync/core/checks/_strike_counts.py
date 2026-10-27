@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils.ip_extraction import _client_identity
+from guard_core.sync._utils.nat64 import nat64_table_of
 
 if TYPE_CHECKING:
     from guard_core.sync.core.checks._strike_forget import StrikeCountingMiddleware
@@ -18,7 +19,9 @@ _suspicious_counts_lock = threading.Lock()
 def _strike_identity(config: SyncSecurityConfig, client_ip: str) -> str:
     if ":" not in client_ip:
         return client_ip
-    return _client_identity(client_ip, config.ipv6_prefix_length)
+    return _client_identity(
+        client_ip, config.ipv6_prefix_length, None, nat64_table_of(config)
+    )
 
 
 def _ip_strike_counts(

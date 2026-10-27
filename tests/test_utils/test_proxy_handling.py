@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from guard_core._utils import ip_extraction
+from guard_core._utils.nat64 import DEFAULT_NAT64_TABLE
 from guard_core.models import SecurityConfig
 from guard_core.utils import _extract_from_forwarded_header, extract_client_ip
 from tests.conftest import MockGuardRequest
@@ -536,7 +537,7 @@ async def test_correctly_declared_depth_resolves_with_no_overcount_warning(
 
 def test_overcounted_depth_check_is_a_noop_with_empty_trusted_proxies() -> None:
     resolved = ip_extraction._resolve_client_ip_from_forwarded_chain(
-        "10.0.0.1", "1.1.1.1, 2.2.2.2, 203.0.113.9", 2, []
+        "10.0.0.1", "1.1.1.1, 2.2.2.2, 203.0.113.9", 2, [], DEFAULT_NAT64_TABLE
     )
 
     assert resolved == "2.2.2.2"
@@ -646,7 +647,7 @@ async def test_overcounted_depth_walk_gives_the_malformed_identity_on_a_bad_entr
 
 def test_resolve_forwarded_chain_right_to_left_returns_none_when_all_trusted() -> None:
     resolved = ip_extraction._resolve_forwarded_chain_right_to_left(
-        ["10.0.0.1", "10.0.0.1"], ["10.0.0.1"]
+        ["10.0.0.1", "10.0.0.1"], ["10.0.0.1"], DEFAULT_NAT64_TABLE
     )
 
     assert resolved is None
