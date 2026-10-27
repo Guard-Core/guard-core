@@ -12,5 +12,5 @@ _ORDERED: list[Scenario] = sorted(SCENARIOS, key=lambda item: config_key(item.co
     "live_scenario", _ORDERED, ids=[item.name for item in _ORDERED]
 )
 def test_scenario(live_scenario: Scenario, scenario_context: ScenarioContext) -> None:
-    scenario_context.stack.restart_with(live_scenario.config)
+    scenario_context.stack.restart_with(live_scenario.config, force=True)
     live_scenario.func(scenario_context)

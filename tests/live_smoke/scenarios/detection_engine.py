@@ -122,15 +122,24 @@ def _lines_mentioning(ctx: ScenarioContext, mark: str, needle: str) -> list[str]
 )
 def detection_max_scan_values_caps_remaining_fields(ctx: ScenarioContext) -> None:
     mark = ctx.stack.logs.mark()
+    benign = _echo(ctx.client, {"field1": "hello", "field2": "world", "field3": "ok"})
+    assert benign.status_code == 200, (
+        "a benign request past the value budget was blocked: "
+        f"{benign.status_code}"
+    )
 
-    response = _echo(ctx.client, {"field1": "hello", "field2": _XSS})
-    assert response.status_code == 200, (
-        "detection_max_scan_values=2 still caught an attack past the value budget: "
-        f"{response.status_code}"
+    response = _echo(ctx.client, {"field1": "hello", "field2": "world", "field3": _XSS})
+    assert response.status_code == 400, (
+        "detection_max_scan_values=2: the values past the budget are scanned once "
+        "more as one block (D-80 Q3), so an attack in the third value must be "
+        f"flagged: {response.status_code}"
     )
 
     assert _lines_mentioning(ctx, mark, "detection_max_scan_values (2) reached"), (
         "no detection_max_scan_values warning was logged"
+    )
+    assert _lines_mentioning(ctx, mark, "scanned once more as one block"), (
+        "the warning does not say the remainder is scanned once more as one block"
     )
 
 
@@ -144,14 +153,24 @@ def detection_max_scan_chars_caps_remaining_values(ctx: ScenarioContext) -> None
         "the quick brown fox jumps over the lazy dog and runs away fast today " * 20
     )[:1100]
 
+    benign = _echo(ctx.client, {"filler": filler, "tail": "a harmless remainder"})
+    assert benign.status_code == 200, (
+        "a benign request past the char budget was blocked: "
+        f"{benign.status_code}"
+    )
+
     response = _echo(ctx.client, {"filler": filler, "attack": _XSS})
-    assert response.status_code == 200, (
-        "detection_max_scan_chars=1024 still caught an attack past the char budget: "
-        f"{response.status_code}"
+    assert response.status_code == 400, (
+        "detection_max_scan_chars=1024: the values past the budget are scanned "
+        "once more as one block (D-80 Q3), so an attack past the budget must be "
+        f"flagged: {response.status_code}"
     )
 
     assert _lines_mentioning(ctx, mark, "detection_max_scan_chars (1024) reached"), (
         "no detection_max_scan_chars warning was logged"
+    )
+    assert _lines_mentioning(ctx, mark, "scanned once more as one block"), (
+        "the warning does not say the remainder is scanned once more as one block"
     )
 
 
@@ -483,7 +502,7 @@ def detection_binary_min_run_length_lowered_restores_fragment_detection(
     )
 
 
-_VALIDATION_CACHE_PATH = "/tmp/guard-pattern-validation-cache.json"
+_VALIDATION_CACHE_PATH = "/var/lib/guard-cache/cache.json"
 
 _VALIDATION_CACHE_CONFIG = {
     **_BASE,

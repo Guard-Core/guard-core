@@ -44,6 +44,17 @@ def fetch(ref: str | None = None, local_repo: str | None = None) -> str:
     if local_repo:
         repo_path = Path(local_repo)
         copy_example_app(repo_path)
+        subprocess.run(
+            [
+                "uv",
+                "build",
+                "--wheel",
+                "--out-dir",
+                str(STACK_DIR / "wheels"),
+                str(repo_path),
+            ],
+            check=True,
+        )
         return subprocess.run(
             ["git", "describe", "--tags", "--abbrev=0"],
             cwd=repo_path,

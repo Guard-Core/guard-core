@@ -20,7 +20,7 @@ services:
       - "REDIS_URL=redis://redis:6379"
       - "REDIS_PREFIX=smoke:"
       - "IPINFO_TOKEN=test_token"
-      - "WEB_CONCURRENCY=1"
+      - "WEB_CONCURRENCY=2"
       - "SMOKE_CONFIG_PATH=/smoke/config-${LIVE_SMOKE_PROJECT:-guard-core-live-smoke}.json"
       - "SMOKE_ON_BLOCK_LOG=/tmp/smoke-on-block.jsonl"
       - "SMOKE_ON_ERROR_LOG=/smoke/on_error.jsonl"

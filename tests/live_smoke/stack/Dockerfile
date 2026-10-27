@@ -12,11 +12,13 @@ RUN uv venv .venv && \
     uv pip install --python .venv/bin/python fastapi-guard gunicorn uvicorn redis guard-agent httpx \
         opentelemetry-sdk opentelemetry-exporter-otlp-proto-http logfire && \
     if ls /wheels/*.whl >/dev/null 2>&1; then \
-        uv pip install --python .venv/bin/python --no-deps /wheels/*.whl; \
+        uv pip install --python .venv/bin/python --no-deps --reinstall /wheels/*.whl; \
     else \
         uv pip install --python .venv/bin/python "$GUARD_CORE_SPEC"; \
     fi && \
-    .venv/bin/python -c "import guard_core, importlib.metadata as m; print('guard-core', m.version('guard-core'), guard_core.__file__)"
+    .venv/bin/python -c "import guard_core, importlib.metadata as m; import guard; print('guard-core', m.version('guard-core'), guard_core.__file__, 'fastapi-guard', m.version('fastapi-guard'), guard.__file__)"
+
+RUN mkdir -m 700 /var/lib/guard-cache
 
 COPY app/ /app/app/
 COPY gunicorn.conf.py /app/
