@@ -345,6 +345,7 @@ async def test_full_pipeline_direct_send_respects_filter(
             "metadata": {},
         },
     )()
+    assert initializer.composite_handler is not None
     await initializer.composite_handler.send_event(event)
     await initializer.shutdown_agent_integrations()
 

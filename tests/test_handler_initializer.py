@@ -1,6 +1,36 @@
 from guard_core.core.initialization.handler_initializer import HandlerInitializer
 from guard_core.handlers.behavior_handler import BehaviorTracker
 from guard_core.models import SecurityConfig
+from guard_core.protocols.agent_protocol import JsonValue
+
+
+class _Agent:
+    async def start(self) -> None:
+        return None
+
+    async def stop(self) -> None:
+        return None
+
+    async def send_event(self, _: object) -> None:
+        return None
+
+    async def send_metric(self, _: object) -> None:
+        return None
+
+    async def initialize_redis(self, _: object) -> None:
+        return None
+
+    async def flush_buffer(self) -> None:
+        return None
+
+    async def get_dynamic_rules(self) -> None:
+        return None
+
+    async def health_check(self) -> bool:
+        return True
+
+    def get_stats(self) -> dict[str, JsonValue]:
+        return {}
 
 
 async def test_build_enricher_uses_decorator_tracker_when_present() -> None:
@@ -15,7 +45,7 @@ async def test_build_enricher_uses_decorator_tracker_when_present() -> None:
     init = HandlerInitializer(
         config=config,
         redis_handler=None,
-        agent_handler=object(),
+        agent_handler=_Agent(),
         geo_ip_handler=None,
         rate_limit_handler=None,
         guard_decorator=decorator,
@@ -35,7 +65,7 @@ async def test_build_enricher_builds_owned_tracker_when_decorator_missing() -> N
     init = HandlerInitializer(
         config=config,
         redis_handler=None,
-        agent_handler=object(),
+        agent_handler=_Agent(),
         geo_ip_handler=None,
         rate_limit_handler=None,
         guard_decorator=None,
@@ -56,7 +86,7 @@ async def test_build_enricher_builds_owned_tracker_when_decorator_has_none() -> 
     init = HandlerInitializer(
         config=config,
         redis_handler=None,
-        agent_handler=object(),
+        agent_handler=_Agent(),
         geo_ip_handler=None,
         rate_limit_handler=None,
         guard_decorator=decorator,
@@ -76,7 +106,7 @@ async def test_build_enricher_stores_owned_tracker_on_initializer() -> None:
     init = HandlerInitializer(
         config=config,
         redis_handler=None,
-        agent_handler=object(),
+        agent_handler=_Agent(),
         geo_ip_handler=None,
         rate_limit_handler=None,
         guard_decorator=None,

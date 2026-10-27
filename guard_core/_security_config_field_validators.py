@@ -1,11 +1,19 @@
 import logging
 import warnings
-from collections.abc import Callable
+from collections.abc import Callable, ItemsView, Iterable
 from functools import partial
 from ipaddress import ip_address, ip_network
 from pathlib import Path
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Annotated, Any, Literal, get_args
+from typing import (
+    TYPE_CHECKING,
+    Annotated,
+    Literal,
+    Protocol,
+    get_args,
+    overload,
+    runtime_checkable,
+)
 
 from pydantic import AfterValidator, BaseModel, Field, TypeAdapter
 
@@ -58,7 +66,7 @@ VALID_CLOUD_PROVIDERS: frozenset[str] = frozenset(get_args(CloudProvider))
 _CANONICAL_CLOUD_PROVIDERS = {name.lower(): name for name in VALID_CLOUD_PROVIDERS}
 
 
-def canonicalize_cloud_provider_selector(selector: Any) -> str | None:
+def canonicalize_cloud_provider_selector(selector: object) -> str | None:
     if not isinstance(selector, str):
         return None
     name, separator, region = selector.partition(":!")
@@ -73,7 +81,7 @@ _GLOBAL_BEHAVIOR_RULE_FIELDS = frozenset(
 )
 
 
-def _validate_exclude_paths_value(v: list[str]) -> list[str]:
+def _validate_exclude_paths_value(v: object) -> list[str]:
     from guard_core.core.validation.path_matching import normalize_url_path
 
     if not isinstance(v, list) or not all(isinstance(entry, str) for entry in v):
@@ -185,14 +193,29 @@ def _validate_return_pattern_body_scan(
     )
 
 
+def _behavior_rules_assigned(value: object) -> Iterable[BehaviorRuleConfig]:
+    if not isinstance(value, Iterable):
+        raise TypeError(f"'{type(value).__name__}' object is not iterable")
+    rules = tuple(value)
+    for rule in rules:
+        if not isinstance(rule, BehaviorRuleConfig):
+            raise TypeError(
+                "global_behavior_rules holds a "
+                f"{type(rule).__name__}, expected a BehaviorRuleConfig"
+            )
+    return rules
+
+
 def _validate_global_behavior_rule_assignment(
-    config: "SecurityConfig[RequestT]", name: str, value: Any
+    config: "SecurityConfig[RequestT]", name: str, value: object
 ) -> None:
     candidate_rules = (
-        value if name == "global_behavior_rules" else config.global_behavior_rules
+        _behavior_rules_assigned(value)
+        if name == "global_behavior_rules"
+        else config.global_behavior_rules
     )
     candidate_scan_flag = (
-        value
+        bool(value)
         if name == "behavior_scan_response_body"
         else config.behavior_scan_response_body
     )
@@ -211,17 +234,28 @@ def _revalidate_global_behavior_rules(config: "SecurityConfig[RequestT]") -> Non
         _validate_return_pattern_body_scan(rule.pattern, config)
 
 
+@overload
 def _validate_ip_or_cidr_list(
-    v: Any, *, invalid_message: str, allow_unix: bool = False
-) -> Any:
+    v: None, *, invalid_message: str, allow_unix: bool = False
+) -> None: ...
+
+
+@overload
+def _validate_ip_or_cidr_list(
+    v: object, *, invalid_message: str, allow_unix: bool = False
+) -> tuple[str, ...]: ...
+
+
+def _validate_ip_or_cidr_list(
+    v: object, *, invalid_message: str, allow_unix: bool = False
+) -> tuple[str, ...] | None:
     if v is None:
         return None
-    try:
-        entries = iter(v)
-    except TypeError:
+    if not isinstance(v, Iterable):
         raise ValueError(
             f"{invalid_message}: expected a list of strings, got {type(v).__name__}"
-        ) from None
+        )
+    entries = iter(v)
     validated: list[str] = []
     for entry in entries:
         if not isinstance(entry, str):
@@ -239,7 +273,7 @@ def _validate_ip_or_cidr_list(
     return tuple(validated)
 
 
-def _validate_emergency_whitelist_value(v: Any) -> list[str]:
+def _validate_emergency_whitelist_value(v: object) -> list[str]:
     entries = _validate_str_list_field_value(v, field_name="emergency_whitelist")
     validated = _validate_ip_or_cidr_list(
         entries, invalid_message="Invalid IP or CIDR range"
@@ -247,15 +281,15 @@ def _validate_emergency_whitelist_value(v: Any) -> list[str]:
     return list(validated)
 
 
-def _validate_whitelist_value(v: Any) -> Any:
+def _validate_whitelist_value(v: object) -> tuple[str, ...] | None:
     return _validate_ip_or_cidr_list(v, invalid_message="Invalid IP or CIDR range")
 
 
-def _validate_blacklist_value(v: Any) -> Any:
+def _validate_blacklist_value(v: object) -> tuple[str, ...] | None:
     return _validate_ip_or_cidr_list(v, invalid_message="Invalid IP or CIDR range")
 
 
-def _validate_trusted_proxies_value(v: Any) -> Any:
+def _validate_trusted_proxies_value(v: object) -> tuple[str, ...] | None:
     return _validate_ip_or_cidr_list(
         v, invalid_message="Invalid proxy IP or CIDR range", allow_unix=True
     )
@@ -317,27 +351,51 @@ def _warn_empty_enabled_detection_categories() -> None:
     )
 
 
-def _threat_ban_entry(key: Any, value: Any) -> ThreatBanConfig:
+@runtime_checkable
+class _KeysAndItems(Protocol):
+    """The mapping surface ``dict()`` and ``**`` read: ``keys()`` plus item access.
+
+    An entry or a whole ``threat_ban_config`` may be any object with this surface,
+    not only a ``Mapping`` subclass.
+    """
+
+    def keys(self) -> Iterable[str]: ...
+
+    def __getitem__(self, key: str, /) -> object: ...
+
+
+def _threat_ban_entry(key: object, value: object) -> ThreatBanConfig:
     if isinstance(value, ThreatBanConfig):
         return value
-    try:
-        return ThreatBanConfig(**value)
-    except TypeError:
-        raise ValueError(
-            f"threat_ban_config[{key!r}] must be a ThreatBanConfig or a dict "
-            f"with str keys, got {type(value).__name__}"
-        ) from None
+    if isinstance(value, _KeysAndItems):
+        try:
+            return ThreatBanConfig(**value)
+        except TypeError:
+            pass
+    raise ValueError(
+        f"threat_ban_config[{key!r}] must be a ThreatBanConfig or a dict "
+        f"with str keys, got {type(value).__name__}"
+    )
 
 
-def _validate_threat_ban_config_value(v: Any) -> MappingProxyType[str, Any]:
-    try:
-        items = dict(v).items()
-    except TypeError:
-        raise ValueError(
-            "threat_ban_config must be a dict of category to ThreatBanConfig, "
-            f"got {type(v).__name__}"
-        ) from None
-    mapping = {key: _threat_ban_entry(key, value) for key, value in items}
+def _threat_ban_items(v: object) -> ItemsView[object, object]:
+    if isinstance(v, Iterable | _KeysAndItems):
+        try:
+            return dict(v).items()
+        except TypeError:
+            pass
+    raise ValueError(
+        "threat_ban_config must be a dict of category to ThreatBanConfig, "
+        f"got {type(v).__name__}"
+    )
+
+
+def _validate_threat_ban_config_value(
+    v: object,
+) -> MappingProxyType[str, ThreatBanConfig]:
+    mapping = {
+        key: _threat_ban_entry(key, value) for key, value in _threat_ban_items(v)
+    }
     unknown = set(mapping.keys()) - THREAT_BAN_CONFIG_CATEGORIES
     if unknown:
         raise ValueError(
@@ -345,11 +403,13 @@ def _validate_threat_ban_config_value(v: Any) -> MappingProxyType[str, Any]:
             f"{sorted(unknown, key=str)}. "
             f"Valid: {sorted(THREAT_BAN_CONFIG_CATEGORIES)}"
         )
-    return MappingProxyType(mapping)
+    return MappingProxyType(
+        {key: entry for key, entry in mapping.items() if isinstance(key, str)}
+    )
 
 
 def _validate_excluded_detection_params_value(
-    v: Any, field_name: str = "excluded_detection_params"
+    v: object, field_name: str = "excluded_detection_params"
 ) -> set[str] | dict[str, set[str]]:
     result = _validate_typed_collection_field_value(
         v,
@@ -380,7 +440,7 @@ def _check_excluded_params_categories(
             )
 
 
-def _validate_block_cloud_providers_value(v: Any) -> frozenset[str] | None:
+def _validate_block_cloud_providers_value(v: object) -> frozenset[str] | None:
     if v is None:
         return None
     selectors = _frozenset_of_names(v, "block_cloud_providers")
@@ -397,7 +457,7 @@ def _validate_block_cloud_providers_value(v: Any) -> frozenset[str] | None:
     return result
 
 
-def _validate_dynamic_rules_cache_path_value(v: Any) -> Path | None:
+def _validate_dynamic_rules_cache_path_value(v: object) -> Path | None:
     if v is None:
         return None
     if not isinstance(v, str | Path):
@@ -418,6 +478,14 @@ _GLOBAL_BEHAVIOR_RULES_ADAPTER: TypeAdapter[tuple[BehaviorRuleConfig, ...]] = (
 )
 
 
+_CORS_OVERRIDE_KEYS = {
+    "cors_allow_origins": "cors_origins",
+    "cors_allow_methods": "cors_allow_methods",
+    "cors_allow_headers": "cors_allow_headers",
+    "cors_expose_headers": "cors_expose_headers",
+}
+
+
 def _validate_cors_values(
     v: object, *, override_key: str, field_name: str
 ) -> list[str]:
@@ -429,6 +497,12 @@ def _validate_cors_values(
     return values
 
 
+def _validate_cors_field_value(field_name: str, v: object) -> list[str]:
+    return _validate_cors_values(
+        v, override_key=_CORS_OVERRIDE_KEYS[field_name], field_name=field_name
+    )
+
+
 def _validate_security_headers_value(v: object) -> dict[str, object] | None:
     headers = _validate_typed_collection_field_value(
         v, adapter=_OPTIONAL_STR_ANY_DICT_ADAPTER, field_name="security_headers"
@@ -438,7 +512,7 @@ def _validate_security_headers_value(v: object) -> dict[str, object] | None:
     return headers
 
 
-_FIELD_REVALIDATORS: dict[str, Callable[[Any], Any]] = {
+_FIELD_REVALIDATORS: dict[str, Callable[[object], object]] = {
     "custom_request_check": partial(
         _validate_optional_callable_field_value, field_name="custom_request_check"
     ),
@@ -516,22 +590,22 @@ _FIELD_REVALIDATORS: dict[str, Callable[[Any], Any]] = {
     "security_headers": _validate_security_headers_value,
     "cors_allow_origins": partial(
         _validate_cors_values,
-        override_key="cors_origins",
+        override_key=_CORS_OVERRIDE_KEYS["cors_allow_origins"],
         field_name="cors_allow_origins",
     ),
     "cors_allow_methods": partial(
         _validate_cors_values,
-        override_key="cors_allow_methods",
+        override_key=_CORS_OVERRIDE_KEYS["cors_allow_methods"],
         field_name="cors_allow_methods",
     ),
     "cors_allow_headers": partial(
         _validate_cors_values,
-        override_key="cors_allow_headers",
+        override_key=_CORS_OVERRIDE_KEYS["cors_allow_headers"],
         field_name="cors_allow_headers",
     ),
     "cors_expose_headers": partial(
         _validate_cors_values,
-        override_key="cors_expose_headers",
+        override_key=_CORS_OVERRIDE_KEYS["cors_expose_headers"],
         field_name="cors_expose_headers",
     ),
     "nat64_prefixes": partial(

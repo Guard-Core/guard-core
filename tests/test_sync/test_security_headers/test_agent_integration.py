@@ -335,6 +335,27 @@ class _RecordingTransport:
     def send_event(self, event: Any) -> None:
         self.events.append(event)
 
+    def stop(self) -> None:
+        return None
+
+    def send_metric(self, _: Any) -> None:
+        return None
+
+    def initialize_redis(self, _: Any) -> None:
+        return None
+
+    def flush_buffer(self) -> None:
+        return None
+
+    def get_dynamic_rules(self) -> Any | None:
+        return None
+
+    def health_check(self) -> bool:
+        return True
+
+    def get_stats(self) -> dict[str, Any]:
+        return {}
+
 
 def test_csp_violation_reaches_transport_once_wired_through_handler_initializer(
     headers_manager: SecurityHeadersManager,

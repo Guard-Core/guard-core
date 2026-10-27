@@ -1,6 +1,36 @@
 from guard_core.models import SyncSecurityConfig
+from guard_core.protocols.agent_protocol import JsonValue
 from guard_core.sync.core.initialization.handler_initializer import HandlerInitializer
 from guard_core.sync.handlers.behavior_handler import BehaviorTracker
+
+
+class _Agent:
+    def start(self) -> None:
+        return None
+
+    def stop(self) -> None:
+        return None
+
+    def send_event(self, _: object) -> None:
+        return None
+
+    def send_metric(self, _: object) -> None:
+        return None
+
+    def initialize_redis(self, _: object) -> None:
+        return None
+
+    def flush_buffer(self) -> None:
+        return None
+
+    def get_dynamic_rules(self) -> None:
+        return None
+
+    def health_check(self) -> bool:
+        return True
+
+    def get_stats(self) -> dict[str, JsonValue]:
+        return {}
 
 
 def test_build_enricher_uses_decorator_tracker_when_present() -> None:
@@ -15,7 +45,7 @@ def test_build_enricher_uses_decorator_tracker_when_present() -> None:
     init = HandlerInitializer(
         config=config,
         redis_handler=None,
-        agent_handler=object(),
+        agent_handler=_Agent(),
         geo_ip_handler=None,
         rate_limit_handler=None,
         guard_decorator=decorator,
@@ -35,7 +65,7 @@ def test_build_enricher_builds_owned_tracker_when_decorator_missing() -> None:
     init = HandlerInitializer(
         config=config,
         redis_handler=None,
-        agent_handler=object(),
+        agent_handler=_Agent(),
         geo_ip_handler=None,
         rate_limit_handler=None,
         guard_decorator=None,
@@ -56,7 +86,7 @@ def test_build_enricher_builds_owned_tracker_when_decorator_has_none() -> None:
     init = HandlerInitializer(
         config=config,
         redis_handler=None,
-        agent_handler=object(),
+        agent_handler=_Agent(),
         geo_ip_handler=None,
         rate_limit_handler=None,
         guard_decorator=decorator,
@@ -76,7 +106,7 @@ def test_build_enricher_stores_owned_tracker_on_initializer() -> None:
     init = HandlerInitializer(
         config=config,
         redis_handler=None,
-        agent_handler=object(),
+        agent_handler=_Agent(),
         geo_ip_handler=None,
         rate_limit_handler=None,
         guard_decorator=None,

@@ -259,8 +259,16 @@ def test_resetting_the_config_of_a_guarded_app_does_not_warn(
     assert app.bound_to_app
 
 
+class _UnbindableLimiter:
+    def initialize_redis(self, redis_handler: object) -> None:
+        return None
+
+    def initialize_agent(self, agent_handler: object) -> None:
+        return None
+
+
 def test_the_initializer_ignores_a_limiter_that_cannot_be_bound() -> None:
-    HandlerInitializer(_config(), rate_limit_handler=object())
+    HandlerInitializer(_config(), rate_limit_handler=_UnbindableLimiter())
 
 
 def test_reset_still_clears_the_shared_redis_keys() -> None:

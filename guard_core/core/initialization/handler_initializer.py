@@ -1,8 +1,11 @@
 import asyncio
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Protocol
 
-from guard_core._geo_handler_for_tree import geo_ip_handler_for_tree
+from guard_core._geo_handler_for_tree import (
+    GeoIPHandlerOfEitherTree,
+    geo_ip_handler_for_tree,
+)
 from guard_core._utils.config_registry import REDIS_HANDLERS
 from guard_core.core.initialization._handler_initializer_steps import (
     _HandlerInitializerStepsMixin,
@@ -10,20 +13,34 @@ from guard_core.core.initialization._handler_initializer_steps import (
 from guard_core.handlers.behavior_handler import BehaviorTracker
 
 if TYPE_CHECKING:
+    from guard_core.core.events.composite_handler import CompositeAgentHandler
+    from guard_core.core.events.enricher import EventEnricher
+    from guard_core.core.events.event_types import EventFilter
     from guard_core.core.events.metrics import MetricsCollector
     from guard_core.core.events.middleware_events import SecurityEventBus
+    from guard_core.decorators.base import BaseSecurityDecorator
     from guard_core.models import SecurityConfig
+    from guard_core.protocols.agent_protocol import AgentHandlerProtocol
+    from guard_core.protocols.redis_protocol import RedisHandlerProtocol
+
+
+class _RateLimitSlot(Protocol):
+    async def initialize_redis(
+        self, redis_handler: "RedisHandlerProtocol | None"
+    ) -> None: ...
+
+    async def initialize_agent(self, agent_handler: "AgentHandlerProtocol") -> None: ...
 
 
 class HandlerInitializer(_HandlerInitializerStepsMixin):
     def __init__(
         self,
         config: "SecurityConfig",
-        redis_handler: Any = None,
-        agent_handler: Any = None,
-        geo_ip_handler: Any = None,
-        rate_limit_handler: Any = None,
-        guard_decorator: Any = None,
+        redis_handler: "RedisHandlerProtocol | None" = None,
+        agent_handler: "AgentHandlerProtocol | None" = None,
+        geo_ip_handler: "GeoIPHandlerOfEitherTree | None" = None,
+        rate_limit_handler: "_RateLimitSlot | None" = None,
+        guard_decorator: "BaseSecurityDecorator | None" = None,
         adapter: str | None = None,
     ):
         self.config = config
@@ -50,9 +67,9 @@ class HandlerInitializer(_HandlerInitializerStepsMixin):
         if callable(mark_bound):
             mark_bound()
         self.guard_decorator = guard_decorator
-        self.composite_handler: Any = None
-        self.event_filter: Any = None
-        self.enricher: Any = None
+        self.composite_handler: CompositeAgentHandler | None = None
+        self.event_filter: EventFilter | None = None
+        self.enricher: EventEnricher | None = None
         self.behavior_tracker: Any = (
             None if guard_decorator is not None else BehaviorTracker(config)
         )
@@ -60,10 +77,10 @@ class HandlerInitializer(_HandlerInitializerStepsMixin):
         self.logger = logging.getLogger("guard_core.core.initialization")
         self._require_tree_downloader(adapter)
 
-    def get_initialization_status(self) -> dict[str, Any]:
+    def get_initialization_status(self) -> dict[str, object]:
         from guard_core.handlers.cloud_handler import cloud_handler_for
 
-        geo_status: dict[str, Any] | None = None
+        geo_status: dict[str, object] | None = None
         if self.geo_ip_handler is not None:
             status_getter = getattr(self.geo_ip_handler, "get_status", None)
             if callable(status_getter):
@@ -80,12 +97,12 @@ class HandlerInitializer(_HandlerInitializerStepsMixin):
             "geo_ip": geo_status,
         }
 
-    def build_enricher(self) -> Any | None:
+    def build_enricher(self) -> "EventEnricher | None":
         if not self.config.enable_enrichment:
             return None
         from guard_core.core.events.enricher import EnrichmentContext, EventEnricher
 
-        dynamic_rule_handler: Any = None
+        dynamic_rule_handler: object | None = None
         if self.config.enable_dynamic_rules:
             from guard_core.handlers.dynamic_rule_handler import DynamicRuleManager
 
@@ -107,10 +124,10 @@ class HandlerInitializer(_HandlerInitializerStepsMixin):
         )
         return EventEnricher(context)
 
-    def build_composite_handler(self) -> Any:
+    def build_composite_handler(self) -> "CompositeAgentHandler":
         from guard_core.core.events.composite_handler import CompositeAgentHandler
 
-        handlers = []
+        handlers: list[AgentHandlerProtocol] = []
         if self.agent_handler:
             handlers.append(self.agent_handler)
         if self.config.enable_otel:
@@ -127,7 +144,7 @@ class HandlerInitializer(_HandlerInitializerStepsMixin):
             handlers, event_filter=event_filter, enricher=self.enricher
         )
 
-    def build_event_filter(self) -> Any:
+    def build_event_filter(self) -> "EventFilter":
         from guard_core.core.events.event_types import EventFilter
 
         return EventFilter(
@@ -135,7 +152,9 @@ class HandlerInitializer(_HandlerInitializerStepsMixin):
             muted_metric_types=frozenset(self.config.muted_metric_types),
         )
 
-    def build_event_bus(self, geo_ip_handler: Any = None) -> "SecurityEventBus":
+    def build_event_bus(
+        self, geo_ip_handler: "GeoIPHandlerOfEitherTree | None" = None
+    ) -> "SecurityEventBus":
         from guard_core.core.events.middleware_events import SecurityEventBus
 
         if self.composite_handler is None or self.event_filter is None:

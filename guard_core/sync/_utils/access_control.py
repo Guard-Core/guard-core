@@ -2,7 +2,7 @@ import logging
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from ipaddress import IPv4Address, IPv6Address, ip_address
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 from guard_core.sync._utils.detection_scan import _user_agent_matches_blocked_pattern
 from guard_core.sync._utils.ip_extraction import (
@@ -17,9 +17,6 @@ from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
 if TYPE_CHECKING:
     from guard_core.models import SyncSecurityConfig
-    from guard_core.sync.protocols.middleware_protocol import (
-        SyncGuardMiddlewareProtocol,
-    )
 
 logger = logging.getLogger("guard_core")
 
@@ -115,9 +112,12 @@ def _load_geo_database(geo_ip_handler: SyncGeoIPHandler) -> None:
     ensure_database_loaded()
 
 
-def load_geo_database_for_route_rules(
-    middleware: "SyncGuardMiddlewareProtocol",
-) -> None:
+class GeoRuleMiddleware(Protocol):
+    @property
+    def geo_ip_handler(self) -> SyncGeoIPHandler | None: ...
+
+
+def load_geo_database_for_route_rules(middleware: GeoRuleMiddleware) -> None:
     geo_ip_handler: SyncGeoIPHandler | None = middleware.geo_ip_handler
     if geo_ip_handler is not None and not geo_ip_handler.is_initialized:
         _load_geo_database(geo_ip_handler)

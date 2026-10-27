@@ -266,6 +266,7 @@ async def test_composite_stats_equal_the_agent_stats_after_initialization() -> N
 
     await initializer.initialize_agent_integrations()
 
+    assert initializer.composite_handler is not None
     assert initializer.composite_handler.get_stats() == agent_stats
 
 
@@ -277,6 +278,7 @@ async def test_composite_without_an_agent_has_empty_stats() -> None:
 
     await initializer.initialize_agent_integrations()
 
+    assert initializer.composite_handler is not None
     assert initializer.composite_handler.get_stats() == {}
 
 

@@ -27,6 +27,7 @@ from guard_core.core.initialization._whitelist_strikes import (
 from guard_core.exceptions import GuardRedisError
 
 if TYPE_CHECKING:
+    from guard_core.core.events.enricher import EventEnricher
     from guard_core.models import SecurityConfig
     from guard_core.protocols.agent_protocol import AgentHandlerProtocol
 
@@ -57,6 +58,7 @@ class _HandlerInitializerStepsMixin(
     composite_handler: Any = None
     event_filter: Any = None
     behavior_tracker: Any = None
+    enricher: "EventEnricher | None" = None
     _lazy_init_task: "asyncio.Task[None] | None" = None
     logger: logging.Logger
     _adapter: str | None = None

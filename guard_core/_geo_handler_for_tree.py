@@ -1,6 +1,6 @@
 import inspect
 from collections.abc import Iterable
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Protocol, TypeAlias
 
 from guard_core._config_capabilities import require_geo_extra
 
@@ -9,6 +9,8 @@ if TYPE_CHECKING:
     from guard_core.models import SecurityConfig
     from guard_core.protocols.geo_ip_protocol import GeoIPHandler
     from guard_core.sync.protocols.geo_ip_protocol import SyncGeoIPHandler
+
+GeoIPHandlerOfEitherTree: TypeAlias = "GeoIPHandler | SyncGeoIPHandler"
 
 _LIFECYCLE_MEMBERS = ("initialize", "initialize_redis", "initialize_agent", "refresh")
 

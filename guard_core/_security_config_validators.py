@@ -35,7 +35,9 @@ from guard_core._security_config_field_validators import (
     _revalidate_global_behavior_rules,
     _validate_blacklist_value,
     _validate_block_cloud_providers_value,
+    _validate_cors_field_value,
     _validate_dynamic_rules_cache_path_value,
+    _validate_emergency_whitelist_value,
     _validate_enabled_detection_categories_value,
     _validate_exclude_paths_value,
     _validate_excluded_detection_params_value,
@@ -46,6 +48,7 @@ from guard_core._security_config_field_validators import (
     _validate_muted_metric_types_value,
     _validate_return_pattern_body_scan,
     _validate_return_pattern_requires_scan,
+    _validate_security_headers_value,
     _validate_sensitive_name_set_value,
     _validate_threat_ban_config_value,
     _validate_trusted_proxies_value,
@@ -105,7 +108,9 @@ __all__ = [
     "_validate_blocked_user_agents_structure",
     "_validate_blocked_user_agents_value",
     "_validate_country_set_value",
+    "_validate_cors_field_value",
     "_validate_dynamic_rules_cache_path_value",
+    "_validate_emergency_whitelist_value",
     "_validate_enabled_detection_categories_value",
     "_validate_excluded_detection_params_value",
     "_validate_exclude_paths_value",
@@ -116,6 +121,7 @@ __all__ = [
     "_validate_muted_metric_types_value",
     "_validate_return_pattern_body_scan",
     "_validate_return_pattern_requires_scan",
+    "_validate_security_headers_value",
     "_validate_sensitive_name_set_value",
     "_validate_threat_ban_config_value",
     "_validate_trusted_proxies_value",
@@ -158,7 +164,9 @@ def _redact_blocked_user_agents_in_input(
     redact = redact_everything
     try:
         names = {
-            field: _FIELD_REVALIDATORS[field](data.get(field, field_defaults[field]))
+            field: _validate_sensitive_name_set_value(
+                data.get(field, field_defaults[field]), field
+            )
             for field in _SENSITIVE_NAME_FIELDS
         }
     except (TypeError, ValueError):
@@ -188,7 +196,7 @@ def _revalidate_field_value(
     from guard_core._utils.pattern_source_redaction import _ConfigSensitiveNames
 
     names = {
-        field: _FIELD_REVALIDATORS[field](pending[field])
+        field: _validate_sensitive_name_set_value(pending[field], field)
         for field in _SENSITIVE_NAME_FIELDS
         if pending is not None and field in pending
     }

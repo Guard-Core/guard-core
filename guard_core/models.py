@@ -5,7 +5,7 @@ from collections.abc import Mapping
 from copy import deepcopy
 from pathlib import Path
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 from pydantic import (
     ConfigDict,
@@ -43,8 +43,10 @@ from guard_core._security_config_validators import (
     _revalidate_field_value,
     _validate_block_cloud_providers_value,
     _validate_blocked_user_agents_structure,
+    _validate_cors_field_value,
     _validate_country_set_value,
     _validate_dynamic_rules_cache_path_value,
+    _validate_emergency_whitelist_value,
     _validate_enabled_detection_categories_value,
     _validate_exclude_paths_value,
     _validate_global_behavior_rule_assignment,
@@ -53,6 +55,7 @@ from guard_core._security_config_validators import (
     _validate_muted_event_types_value,
     _validate_muted_metric_types_value,
     _validate_return_pattern_body_scan,
+    _validate_security_headers_value,
     _validate_sensitive_name_set_value,
     _validate_threat_ban_config_value,
     _warn_country_allowlist_shadows_blocklist,
@@ -98,6 +101,8 @@ from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 if TYPE_CHECKING:
     from guard_agent import AgentConfig
 
+    from guard_core.handlers.suspatterns_handler import SusPatternsManager
+
 
 VALID_BYPASS_CHECKS: frozenset[str] = frozenset(
     {"all", "ip_ban", "ip", "clouds", "rate_limit", "penetration"}
@@ -110,8 +115,10 @@ _skip_revalidation: contextvars.ContextVar[bool] = contextvars.ContextVar(
 )
 
 
-class _NoPatternManager:
-    _config = None
+def _pickled_mapping(value: object, what: str) -> Mapping[str, object]:
+    if not isinstance(value, Mapping):
+        raise TypeError(f"the pickled state of a SecurityConfig lacks its {what}")
+    return value
 
 
 class SecurityConfig(_SecurityConfigFields[RequestT]):
@@ -120,7 +127,7 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
     _revision: int = PrivateAttr(default=0)
     # The app's pattern manager, parked on the instance by sus_patterns_manager_for
     # so the request path reads it as an attribute, without a registry lookup.
-    _guard_pattern_manager: ClassVar[Any] = _NoPatternManager()
+    _guard_pattern_manager: ClassVar["SusPatternsManager | None"] = None
 
     def _current_revision(self) -> int:
         private = self.__pydantic_private__
@@ -128,7 +135,7 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
         stored = self.__dict__.get("_revision", fallback)
         return stored if isinstance(stored, int) else 0
 
-    def __setattr__(self, name: str, value: Any) -> None:
+    def __setattr__(self, name: str, value: object) -> None:
         if name in _GEO_STATE_FIELDS:
             value = _apply_geo_ip_handler_assignment(self, name, value)
         if name in _FIELD_REVALIDATORS and not _skip_revalidation.get():
@@ -146,7 +153,7 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
         if should_warn:
             _warn_country_allowlist_shadows_blocklist(stacklevel=3)
 
-    def _set_prevalidated(self, name: str, value: Any) -> None:
+    def _set_prevalidated(self, name: str, value: object) -> None:
         token = _skip_revalidation.set(True)
         try:
             setattr(self, name, value)
@@ -157,7 +164,7 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
     def revision(self) -> int:
         return self._current_revision()
 
-    def __getstate__(self) -> dict[Any, Any]:
+    def __getstate__(self) -> dict[str, object]:
         # threat_ban_config is a read-only mappingproxy, which neither pickle nor
         # deepcopy can handle: it travels as a dict and is frozen again on load.
         state = super().__getstate__()
@@ -167,18 +174,21 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
         }
         return state
 
-    def __setstate__(self, state: dict[Any, Any]) -> None:
-        frozen = MappingProxyType(state["__dict__"]["threat_ban_config"])
-        state["__dict__"] = {**state["__dict__"], "threat_ban_config": frozen}
+    def __setstate__(self, state: dict[str, object]) -> None:
+        pickled_fields = _pickled_mapping(state["__dict__"], "fields")
+        frozen = MappingProxyType(
+            _pickled_mapping(pickled_fields["threat_ban_config"], "threat_ban_config")
+        )
+        state["__dict__"] = {**pickled_fields, "threat_ban_config": frozen}
         super().__setstate__(state)
 
-    def __deepcopy__(self, memo: dict[int, Any] | None = None) -> Self:
+    def __deepcopy__(self, memo: dict[int, object] | None = None) -> Self:
         clone = self.__class__.__new__(self.__class__)
         clone.__setstate__(deepcopy(self.__getstate__(), memo))
         return clone
 
     def model_copy(
-        self, *, update: Mapping[str, Any] | None = None, deep: bool = False
+        self, *, update: Mapping[str, object] | None = None, deep: bool = False
     ) -> Self:
         copied = super().model_copy(update=update, deep=deep)
         if update:
@@ -187,7 +197,7 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
 
     @model_validator(mode="before")
     @classmethod
-    def warn_unknown_fields(cls, data: Any) -> Any:
+    def warn_unknown_fields(cls, data: object) -> object:
         if not isinstance(data, dict):
             return data
 
@@ -207,16 +217,15 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
         return data
 
     @field_validator("whitelist", "blacklist", "exempt_ips", mode="before")
-    def validate_ip_lists(cls, v: Any) -> Any:
+    def validate_ip_lists(cls, v: object) -> tuple[str, ...] | None:
         return _validate_ip_or_cidr_list(v, invalid_message="Invalid IP or CIDR range")
 
     @field_validator("emergency_whitelist", mode="before")
-    def validate_emergency_whitelist(cls, v: Any) -> list[str]:
-        validated: list[str] = _FIELD_REVALIDATORS["emergency_whitelist"](v)
-        return validated
+    def validate_emergency_whitelist(cls, v: object) -> list[str]:
+        return _validate_emergency_whitelist_value(v)
 
     @field_validator("trusted_proxies", mode="before")
-    def validate_trusted_proxies(cls, v: Any) -> Any:
+    def validate_trusted_proxies(cls, v: object) -> tuple[str, ...] | None:
         return _validate_ip_or_cidr_list(
             v, invalid_message="Invalid proxy IP or CIDR range", allow_unix=True
         )
@@ -228,7 +237,7 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
         return v
 
     @field_validator("whitelist_countries", "blocked_countries", mode="before")
-    def coerce_country_set(cls, v: Any) -> frozenset[str]:
+    def coerce_country_set(cls, v: object) -> frozenset[str]:
         return _validate_country_set_value(v)
 
     @field_validator(
@@ -238,21 +247,21 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
         "cors_expose_headers",
         mode="before",
     )
-    def validate_cors_values(cls, v: object, info: ValidationInfo) -> list[str]:
-        validated: list[str] = _FIELD_REVALIDATORS[str(info.field_name)](v)
-        return validated
+    def validate_cors_values(
+        cls, v: object, info: "ValidationInfo[object]"
+    ) -> list[str]:
+        return _validate_cors_field_value(str(info.field_name), v)
 
     @field_validator("security_headers", mode="before")
     def validate_security_headers(cls, v: object) -> dict[str, object] | None:
-        validated: dict[str, object] | None = _FIELD_REVALIDATORS["security_headers"](v)
-        return validated
+        return _validate_security_headers_value(v)
 
     @field_validator("block_cloud_providers", mode="before")
-    def validate_cloud_providers(cls, v: Any) -> frozenset[str] | None:
+    def validate_cloud_providers(cls, v: object) -> frozenset[str] | None:
         return _validate_block_cloud_providers_value(v)
 
     @field_validator("blocked_user_agents", mode="before")
-    def validate_blocked_user_agents(cls, v: Any) -> list[str]:
+    def validate_blocked_user_agents(cls, v: object) -> list[str]:
         return _validate_blocked_user_agents_structure(v)
 
     @model_validator(mode="wrap")
@@ -374,35 +383,37 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
         return self
 
     @field_validator("muted_event_types", mode="before")
-    def validate_muted_event_types(cls, v: Any) -> frozenset[str]:
+    def validate_muted_event_types(cls, v: object) -> frozenset[str]:
         return _validate_muted_event_types_value(v)
 
     @field_validator("muted_metric_types", mode="before")
-    def validate_muted_metric_types(cls, v: Any) -> frozenset[str]:
+    def validate_muted_metric_types(cls, v: object) -> frozenset[str]:
         return _validate_muted_metric_types_value(v)
 
     @field_validator("enabled_detection_categories", mode="before")
-    def validate_enabled_detection_categories(cls, v: Any) -> frozenset[str]:
+    def validate_enabled_detection_categories(cls, v: object) -> frozenset[str]:
         return _validate_enabled_detection_categories_value(v)
 
     @field_validator("threat_ban_config", mode="before")
-    def validate_threat_ban_config(cls, v: Any) -> MappingProxyType[str, Any]:
+    def validate_threat_ban_config(
+        cls, v: object
+    ) -> MappingProxyType[str, ThreatBanConfig]:
         return _validate_threat_ban_config_value(v)
 
     @field_validator("muted_check_logs", mode="before")
-    def validate_muted_check_logs(cls, v: Any) -> frozenset[str]:
+    def validate_muted_check_logs(cls, v: object) -> frozenset[str]:
         return _validate_muted_check_logs_value(v)
 
     @field_validator("log_sensitive_headers", mode="before")
-    def validate_log_sensitive_headers(cls, v: Any) -> frozenset[str]:
+    def validate_log_sensitive_headers(cls, v: object) -> frozenset[str]:
         return _validate_sensitive_name_set_value(v, "log_sensitive_headers")
 
     @field_validator("log_sensitive_params", mode="before")
-    def validate_log_sensitive_params(cls, v: Any) -> frozenset[str]:
+    def validate_log_sensitive_params(cls, v: object) -> frozenset[str]:
         return _validate_sensitive_name_set_value(v, "log_sensitive_params")
 
     @field_validator("log_sensitive_body_fields", mode="before")
-    def validate_log_sensitive_body_fields(cls, v: Any) -> frozenset[str]:
+    def validate_log_sensitive_body_fields(cls, v: object) -> frozenset[str]:
         return _validate_sensitive_name_set_value(v, "log_sensitive_body_fields")
 
     @field_validator("exclude_paths")
@@ -410,7 +421,7 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
         return _validate_exclude_paths_value(v)
 
     @field_validator("dynamic_rules_cache_path", mode="before")
-    def validate_dynamic_rules_cache_path(cls, v: Any) -> Path | None:
+    def validate_dynamic_rules_cache_path(cls, v: object) -> Path | None:
         return _validate_dynamic_rules_cache_path_value(v)
 
     def to_agent_config(self) -> "AgentConfig | None":
@@ -426,7 +437,7 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
         try:
             from guard_agent import AgentConfig
 
-            kwargs: dict[str, Any] = {
+            kwargs: dict[str, object] = {
                 "api_key": self.agent_api_key,
                 "endpoint": self.agent_endpoint,
                 "project_id": self.agent_project_id,

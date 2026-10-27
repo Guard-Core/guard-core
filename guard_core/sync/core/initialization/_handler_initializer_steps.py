@@ -27,6 +27,7 @@ from guard_core.sync.core.initialization._whitelist_strikes import (
 
 if TYPE_CHECKING:
     from guard_core.models import SyncSecurityConfig
+    from guard_core.sync.core.events.enricher import EventEnricher
     from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol
 
 _INIT_FAILURE_SAMPLE_WINDOW_SECONDS = 60
@@ -56,6 +57,7 @@ class _HandlerInitializerStepsMixin(
     composite_handler: Any = None
     event_filter: Any = None
     behavior_tracker: Any = None
+    enricher: "EventEnricher | None" = None
     _lazy_init_task: "threading.Thread | None" = None
     logger: logging.Logger
     _adapter: str | None = None

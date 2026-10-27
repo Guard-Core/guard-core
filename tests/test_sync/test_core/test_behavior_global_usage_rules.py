@@ -171,6 +171,18 @@ class _RecordingAgent:
     def initialize_redis(self, _: Any) -> None:
         return None
 
+    def flush_buffer(self) -> None:
+        return None
+
+    def get_dynamic_rules(self) -> Any | None:
+        return None
+
+    def health_check(self) -> bool:
+        return True
+
+    def get_stats(self) -> dict[str, Any]:
+        return {}
+
 
 def test_global_rule_without_decorator_sends_behavioral_violation() -> None:
     config = SyncSecurityConfig(

@@ -4,6 +4,7 @@ import pytest
 
 from guard_core.core.events.enricher import EventEnricher
 from guard_core.core.initialization.handler_initializer import HandlerInitializer
+from guard_core.decorators.base import BaseSecurityDecorator
 from guard_core.models import SecurityConfig
 
 
@@ -25,6 +26,18 @@ class _FakeAgent:
 
     async def initialize_redis(self, _: Any) -> None:
         return None
+
+    async def flush_buffer(self) -> None:
+        return None
+
+    async def get_dynamic_rules(self) -> Any | None:
+        return None
+
+    async def health_check(self) -> bool:
+        return True
+
+    def get_stats(self) -> dict[str, Any]:
+        return {}
 
 
 @pytest.mark.asyncio
@@ -57,6 +70,7 @@ async def test_initialize_agent_integrations_wires_enricher_into_composite() -> 
 
     assert initializer.enricher is not None
     assert isinstance(initializer.enricher, EventEnricher)
+    assert initializer.composite_handler is not None
     assert initializer.composite_handler._enricher is initializer.enricher
 
 
@@ -70,6 +84,7 @@ async def test_initialize_agent_integrations_skips_enricher_when_flag_off() -> N
     await initializer.initialize_agent_integrations()
 
     assert initializer.enricher is None
+    assert initializer.composite_handler is not None
     assert initializer.composite_handler._enricher is None
 
 
@@ -89,13 +104,10 @@ async def test_build_enricher_resolves_dynamic_rule_handler_when_enabled() -> No
 
 @pytest.mark.asyncio
 async def test_build_enricher_resolves_behavior_tracker_from_decorator() -> None:
-    class _Decorator:
-        behavior_tracker = object()
-
-    decorator = _Decorator()
     config = SecurityConfig(
         enable_agent=True, agent_api_key="a" * 10, enable_enrichment=True
     )
+    decorator = BaseSecurityDecorator(config)
     initializer = HandlerInitializer(
         config=config, agent_handler=_FakeAgent(), guard_decorator=decorator
     )
@@ -112,7 +124,8 @@ async def test_shutdown_clears_enricher() -> None:
     initializer = HandlerInitializer(config=config, agent_handler=_FakeAgent())
 
     await initializer.initialize_agent_integrations()
-    assert initializer.enricher is not None
+    wired_enricher = initializer.enricher
+    assert wired_enricher is not None
 
     await initializer.shutdown_agent_integrations()
     assert initializer.enricher is None

@@ -349,6 +349,27 @@ class _RecordingTransport:
     async def send_event(self, event: Any) -> None:
         self.events.append(event)
 
+    async def stop(self) -> None:
+        return None
+
+    async def send_metric(self, _: Any) -> None:
+        return None
+
+    async def initialize_redis(self, _: Any) -> None:
+        return None
+
+    async def flush_buffer(self) -> None:
+        return None
+
+    async def get_dynamic_rules(self) -> Any | None:
+        return None
+
+    async def health_check(self) -> bool:
+        return True
+
+    def get_stats(self) -> dict[str, Any]:
+        return {}
+
 
 @pytest.mark.asyncio
 async def test_csp_violation_reaches_transport_once_wired_through_handler_initializer(

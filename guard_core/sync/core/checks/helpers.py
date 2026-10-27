@@ -3,7 +3,7 @@ import time as time  # the strike-window tests patch the clock through this modu
 import weakref
 from collections.abc import Callable, Collection, Mapping
 from ipaddress import ip_address
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
 from guard_core._tracking_caps import (
@@ -68,7 +68,10 @@ from guard_core.sync.utils import (
 )
 
 if TYPE_CHECKING:
+    from guard_core.sync._utils.access_control import GeoRuleMiddleware
     from guard_core.sync.core.checks.base import SecurityCheck
+    from guard_core.sync.handlers.ipban_handler import IPBanManager
+    from guard_core.sync.protocols.geo_ip_protocol import SyncGeoIPHandler
     from guard_core.sync.protocols.middleware_protocol import (
         SyncGuardMiddlewareProtocol,
     )
@@ -79,8 +82,8 @@ _MAX_RETAINED_EVENTS_PER_CATEGORY = 10_000
 _strike_cap_cache: dict[int, tuple[weakref.ref[SyncSecurityConfig], int, int]] = {}
 
 
-def _strike_cap_forgetter(key: int) -> Callable[[Any], None]:
-    def forget(_ref: Any) -> None:
+def _strike_cap_forgetter(key: int) -> Callable[[object], None]:
+    def forget(_ref: object) -> None:
         _strike_cap_cache.pop(key, None)
 
     return forget
@@ -137,7 +140,15 @@ def _increment_suspicious_counts(
         counts[strike_key] = ip_counts
 
 
-def get_guard_decorator(middleware: Any, request: SyncGuardRequest) -> Any:
+def get_guard_decorator(
+    middleware: "SyncGuardMiddlewareProtocol", request: SyncGuardRequest
+) -> BaseSecurityDecorator | None:
+    """Return the decorator that owns this route, or ``None``.
+
+    The route resolver's decorator wins; the one a framework left on the request
+    state is the fallback. Anything that is not a ``BaseSecurityDecorator`` is
+    ignored.
+    """
     resolver = getattr(middleware, "route_resolver", None)
     context = getattr(resolver, "context", None)
     guard_decorator = getattr(context, "guard_decorator", None)
@@ -153,14 +164,14 @@ def _decorator_action_taken(passive_mode: bool) -> str:
 
 
 def emit_access_denied_event(
-    middleware: Any,
+    middleware: "SyncGuardMiddlewareProtocol",
     request: SyncGuardRequest,
     *,
     event_type: str,
     reason: str,
     decorator_type: str,
     passive_mode: bool,
-    **metadata: Any,
+    **metadata: object,
 ) -> None:
     guard_decorator = get_guard_decorator(middleware, request)
     if guard_decorator is not None:
@@ -183,7 +194,7 @@ def emit_access_denied_event(
 
 
 def emit_authentication_failed_event(
-    middleware: Any,
+    middleware: "SyncGuardMiddlewareProtocol",
     request: SyncGuardRequest,
     *,
     event_type: str,
@@ -191,7 +202,7 @@ def emit_authentication_failed_event(
     auth_type: str,
     violation_type: str,
     passive_mode: bool,
-    **metadata: Any,
+    **metadata: object,
 ) -> None:
     guard_decorator = get_guard_decorator(middleware, request)
     if guard_decorator is not None:
@@ -217,7 +228,7 @@ def emit_authentication_failed_event(
 
 
 def emit_rate_limit_event(
-    middleware: Any,
+    middleware: "SyncGuardMiddlewareProtocol",
     request: SyncGuardRequest,
     *,
     event_type: str,
@@ -245,14 +256,14 @@ def emit_rate_limit_event(
 
 
 def emit_decorator_event(
-    middleware: Any,
+    middleware: "SyncGuardMiddlewareProtocol",
     request: SyncGuardRequest,
     *,
     event_type: str,
     action_taken: str,
     reason: str,
     decorator_type: str,
-    **metadata: Any,
+    **metadata: object,
 ) -> None:
     guard_decorator = get_guard_decorator(middleware, request)
     if guard_decorator is not None:
@@ -300,7 +311,7 @@ def is_ip_in_whitelist(
 
 
 def check_country_access(
-    client_ip: str, route_config: RouteConfig, geo_ip_handler: Any
+    client_ip: str, route_config: RouteConfig, geo_ip_handler: "SyncGeoIPHandler | None"
 ) -> bool | None:
     if not geo_ip_handler:
         return None
@@ -342,7 +353,9 @@ def _route_whitelist_configured(route_config: RouteConfig) -> bool:
 
 
 def check_route_ip_access(
-    client_ip: str, route_config: RouteConfig, middleware: Any
+    client_ip: str,
+    route_config: RouteConfig,
+    middleware: "SyncGuardMiddlewareProtocol | GeoRuleMiddleware",
 ) -> bool | None:
     if client_ip == UNKNOWN_CLIENT_IDENTITY:
         return False if _route_whitelist_configured(route_config) else None
@@ -460,7 +473,7 @@ def detect_penetration_patterns(
     request: SyncGuardRequest,
     route_config: RouteConfig | None,
     config: SyncSecurityConfig,
-    should_bypass_check_fn: Any,
+    should_bypass_check_fn: Callable[[str, RouteConfig | None], bool],
 ) -> DetectionResult:
     penetration_enabled, route_specific_detection = _get_effective_penetration_setting(
         config, route_config
@@ -477,7 +490,7 @@ def get_cached_detection_result(
     request: SyncGuardRequest,
     route_config: RouteConfig | None,
     config: SyncSecurityConfig,
-    should_bypass_check_fn: Any,
+    should_bypass_check_fn: Callable[[str, RouteConfig | None], bool],
 ) -> DetectionResult:
     cached = getattr(request.state, _DETECTION_RESULT_STATE_ATTR, None)
     if (
@@ -500,7 +513,7 @@ def get_cached_detection_result(
 def _try_threshold_ban(
     request: SyncGuardRequest,
     config: SyncSecurityConfig,
-    ip_ban_manager: Any,
+    ip_ban_manager: "IPBanManager",
     middleware: "SyncGuardMiddlewareProtocol",
     client_ip: str,
     trigger_info: str,
@@ -588,7 +601,7 @@ def _emit_ban_escalation_failed(
     )
 
 
-def _log_exception_safely(logger: logging.Logger, message: str, *args: Any) -> None:
+def _log_exception_safely(logger: logging.Logger, message: str, *args: object) -> None:
     try:
         logger.exception(message, *args)
     except Exception:
@@ -659,7 +672,7 @@ def count_hostile_signal_and_maybe_ban(
 def escalate_identity_violation(
     middleware: "SyncGuardMiddlewareProtocol",
     config: SyncSecurityConfig,
-    ip_ban_manager: Any,
+    ip_ban_manager: "IPBanManager",
     request: SyncGuardRequest,
     client_ip: str,
     logger: logging.Logger,

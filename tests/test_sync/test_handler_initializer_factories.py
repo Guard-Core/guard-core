@@ -135,6 +135,7 @@ def test_composite_routes_subsystem_events_through_filter() -> None:
     ):
         initializer.initialize_agent_integrations()
 
+    assert initializer.composite_handler is not None
     event = type("E", (), {"event_type": "access_denied"})()
     initializer.composite_handler.send_event(event)
     raw_agent.send_event.assert_not_called()
