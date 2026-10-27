@@ -63,7 +63,7 @@
     "threat_score": 0.0,
     "threats": [],
     "original_length": 1048576,
-    "processed_length": 262144,
+    "processed_length": 1048576,
     "detection_method": "enhanced"
    },
    "note": "over-cap: truncation must engage; cost must stay bounded"
@@ -157,11 +157,20 @@
     "context": "request_body"
    },
    "expected": {
-    "is_threat": false,
-    "threat_score": 0.0,
-    "threats": [],
+    "is_threat": true,
+    "threat_score": 1.0,
+    "threats": [
+     {
+      "type": "regex",
+      "pattern": "(?i)(?:OR|AND)\\s+(?:'[\\w\\d]*'='[\\w\\d]*'?|[@:$][A-Za-z_]\\w*\\s*=\\s*[@:$][A-Za-z_]\\w*)|\\b(?:OR|AND)(?:\\s|\\(|/\\*[^*]{0,40}\\*/)*(?:'\\w*'|\\\"\\w*\\\")(?:\\s|/\\*[^*]{0,40}\\*/)*(?:=|!=|<>|LIKE)(?:\\s|\\(|/\\*[^*]{0,40}\\*/)*(?:'\\w*'?|\\\"\\w*\\\"?)|['\\\")](?:\\s|/\\*[^*]{0,40}\\*/)*\\b(?:OR|AND)(?:\\s|/\\*[^*]{0,40}\\*/)+TRUE\\b(?:(?:\\s|/\\*[^*]{0,40}\\*/)*(?:--|/\\*(?![^*]+\\*/))|[^\\S\\n]*#[^\\S\\n]*(?:\\n|\\Z))",
+      "match": "OR '1'='1",
+      "position": 524291,
+      "category": "sqli",
+      "weight": 1.0
+     }
+    ],
     "original_length": 1048576,
-    "processed_length": 262144,
+    "processed_length": 1048575,
     "detection_method": "enhanced"
    },
    "note": "over-cap mid-body attack whose shape matches no attack-region indicator: the reference's indicator-driven preservation does not keep it and the verdict is benign; ports must replicate exactly"

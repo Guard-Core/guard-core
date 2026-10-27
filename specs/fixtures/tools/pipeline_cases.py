@@ -791,6 +791,45 @@ PIPELINE_SUITES["pipeline_request_body"] = [
         "drives": [_upload_drive(JSON_HEADERS, _json_upload(4000))],
     },
     {
+        "id": "json_naming_multipart_in_a_parameter_gets_the_body_limit",
+        "config": {
+            "detection_max_body_inspect_bytes": 1024,
+            "detection_max_file_inspect_bytes": 8192,
+        },
+        "drives": [
+            _upload_drive(
+                {"Content-Type": "application/json; x=multipart/form-data"},
+                _json_upload(4000),
+            )
+        ],
+    },
+    {
+        "id": "text_naming_multipart_in_a_parameter_gets_the_body_limit",
+        "config": {
+            "detection_max_body_inspect_bytes": 1024,
+            "detection_max_file_inspect_bytes": 8192,
+        },
+        "drives": [
+            _upload_drive(
+                {"Content-Type": "text/plain; multipart/form-data"},
+                _json_upload(4000),
+            )
+        ],
+    },
+    {
+        "id": "multipart_media_type_is_matched_case_insensitively",
+        "config": {
+            "detection_max_body_inspect_bytes": 1024,
+            "detection_max_file_inspect_bytes": 8192,
+        },
+        "drives": [
+            _upload_drive(
+                {"Content-Type": "Multipart/Form-Data; boundary=fx"},
+                _multipart_upload(4000),
+            )
+        ],
+    },
+    {
         "id": "multipart_past_file_limit_on_a_route_with_a_larger_max_request_size_passes",
         "config": {"detection_max_file_inspect_bytes": 1024},
         "routes": {"/upload": {"max_request_size": 8192}},
