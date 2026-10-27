@@ -13,6 +13,9 @@ if TYPE_CHECKING:
         _mute_pydantic_plugin_instrumentation as _mute_pydantic_plugin_instrumentation,
     )
     from guard_core.decorators import RouteConfig, SecurityDecorator
+    from guard_core.handlers._dynamic_rule_validation import (
+        endpoint_rate_limit_key_problems,
+    )
     from guard_core.handlers._security_headers_apply import (
         apply_security_headers_settings,
     )
@@ -64,6 +67,7 @@ __all__ = [
     "RedisManager",
     "security_headers_manager",
     "apply_security_headers_settings",
+    "endpoint_rate_limit_key_problems",
     "SecurityHeadersManager",
     "sus_patterns_handler",
     "BoundedBodyReader",
@@ -96,6 +100,7 @@ _MODULE_BY_NAME: dict[str, str] = {
     "RedisManager": "guard_core.handlers.redis_handler",
     "security_headers_manager": "guard_core.handlers.security_headers_handler",
     "apply_security_headers_settings": "guard_core.handlers._security_headers_apply",
+    "endpoint_rate_limit_key_problems": "guard_core.handlers._dynamic_rule_validation",
     "SecurityHeadersManager": "guard_core.handlers.security_headers_handler",
     "sus_patterns_handler": "guard_core.handlers.suspatterns_handler",
     "GeoIPHandler": "guard_core.protocols.geo_ip_protocol",

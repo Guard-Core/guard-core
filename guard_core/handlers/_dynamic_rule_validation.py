@@ -1,5 +1,6 @@
 import ipaddress
 import re
+from collections.abc import Mapping
 
 from guard_core._security_config_field_validators import (
     canonicalize_cloud_provider_selector,
@@ -37,7 +38,9 @@ def _rate_limit_problems(rules: DynamicRulesProtocol) -> list[str]:
     return problems
 
 
-def _endpoint_key_problems(rules: DynamicRulesProtocol) -> list[str]:
+def endpoint_rate_limit_key_problems(
+    endpoint_rate_limits: Mapping[str, tuple[int, int]],
+) -> list[str]:
     from guard_core.core.validation.path_matching import (
         _has_routing_anomaly_in_any_decoding,
     )
@@ -46,9 +49,13 @@ def _endpoint_key_problems(rules: DynamicRulesProtocol) -> list[str]:
         f"endpoint_rate_limits[{endpoint}]: {tuple(limit)} "
         "(a dot segment, an empty segment, a backslash or an encoded dot or "
         "separator, in any decoding round)"
-        for endpoint, limit in rules.endpoint_rate_limits.items()
+        for endpoint, limit in endpoint_rate_limits.items()
         if _has_routing_anomaly_in_any_decoding(endpoint)
     ]
+
+
+def _endpoint_key_problems(rules: DynamicRulesProtocol) -> list[str]:
+    return endpoint_rate_limit_key_problems(rules.endpoint_rate_limits)
 
 
 def _country_problems(name: str, codes: list[str]) -> list[str]:

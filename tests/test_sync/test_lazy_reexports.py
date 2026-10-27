@@ -405,3 +405,13 @@ def test_dedupe_local_mock_imports_does_not_strip_a_mid_line_occurrence() -> Non
     )
     result = unasync._dedupe_redundant_local_unittest_mock_imports(content)
     assert result == content
+
+
+def test_endpoint_rate_limit_key_problems_imports_from_both_packages() -> None:
+    from guard_core import endpoint_rate_limit_key_problems as async_form
+    from guard_core.sync import endpoint_rate_limit_key_problems as sync_form
+
+    assert async_form is not sync_form
+    assert async_form({"/a/../b": (5, 60)}) == sync_form({"/a/../b": (5, 60)})
+    assert "endpoint_rate_limit_key_problems" in guard_core.__all__
+    assert "endpoint_rate_limit_key_problems" in guard_core.sync.__all__

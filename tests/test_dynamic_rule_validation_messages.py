@@ -1,8 +1,11 @@
 from datetime import datetime, timezone
 from typing import Any
 
+import pytest
+
 from guard_core.handlers._dynamic_rule_validation import (
     MalformedDynamicRules,
+    endpoint_rate_limit_key_problems,
     find_malformed_values,
 )
 from guard_core.models import DynamicRules
@@ -83,3 +86,37 @@ def test_an_anomalous_endpoint_key_is_reported_with_its_key_and_reason() -> None
         "endpoint_rate_limits[/a%2fb]: (0, 60) (a dot segment, an empty segment, a "
         "backslash or an encoded dot or separator, in any decoding round)",
     ]
+
+
+def test_the_public_predicate_gives_the_lines_find_malformed_values_gives() -> None:
+    limits = {
+        "/a/../b": (5, 60),
+        "/ok": (5, 60),
+        "/a%2fb": (0, 60),
+        "/downloads/file..txt": (5, 60),
+    }
+    lines = endpoint_rate_limit_key_problems(limits)
+
+    assert lines == [
+        line
+        for line in find_malformed_values(_rules(endpoint_rate_limits=limits))
+        if "a dot segment" in line
+    ]
+    assert len(lines) == 2
+
+
+@pytest.mark.parametrize(
+    "key",
+    ["/%2e%2e/admin", "/%252e%252e/admin", "/a\\b", "/a//b"],
+)
+def test_the_public_predicate_refuses_every_anomalous_spelling(key: str) -> None:
+    lines = endpoint_rate_limit_key_problems({key: (5, 60)})
+
+    assert lines == [
+        f"endpoint_rate_limits[{key}]: (5, 60) (a dot segment, an empty segment, a "
+        "backslash or an encoded dot or separator, in any decoding round)"
+    ]
+
+
+def test_the_public_predicate_accepts_a_plain_key() -> None:
+    assert endpoint_rate_limit_key_problems({"/api/users": (5, 60)}) == []
