@@ -351,19 +351,45 @@ def checked_header_value(value: str) -> str:
     return sanitized
 
 
+def _check_named_header_settings(raw: Mapping[str, object]) -> None:
+    for key in SECURITY_HEADER_NAMES:
+        value = raw.get(key)
+        if value is None or (key == "permissions_policy" and not value):
+            continue
+        if not isinstance(value, str):
+            raise ValueError(f"the {key} setting must be a string")
+        checked_header_value(value)
+
+
+def _check_mapping_settings(raw: Mapping[str, object]) -> None:
+    csp = raw.get("csp")
+    if csp and not isinstance(csp, Mapping):
+        raise ValueError("the csp setting must map each directive to its sources")
+    hsts = raw.get("hsts")
+    if hsts and not isinstance(hsts, Mapping):
+        raise ValueError("the hsts setting must be a mapping of its options")
+
+
+def _check_custom_headers(custom: object) -> None:
+    if not custom:
+        return
+    if not isinstance(custom, Mapping):
+        raise ValueError("the custom setting must map header names to values")
+    for name, value in custom.items():
+        if not isinstance(name, str) or not isinstance(value, str):
+            raise ValueError(
+                f"Custom header names and values must be strings: {name!r}"
+            )
+        checked_header_name(name)
+        checked_header_value(value)
+
+
 def checked_security_headers_config(raw: Mapping[str, object]) -> None:
     if security_headers_are_off(raw):
         return
-    for key in SECURITY_HEADER_NAMES:
-        value = raw.get(key)
-        if isinstance(value, str):
-            checked_header_value(value)
-    custom = raw.get("custom")
-    if isinstance(custom, Mapping):
-        for name, value in custom.items():
-            checked_header_name(name)
-            if isinstance(value, str):
-                checked_header_value(value)
+    _check_named_header_settings(raw)
+    _check_mapping_settings(raw)
+    _check_custom_headers(raw.get("custom"))
 
 
 def is_valid_cors_origin(value: str) -> bool:

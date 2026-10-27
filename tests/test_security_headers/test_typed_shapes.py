@@ -3,6 +3,7 @@ import logging
 from unittest.mock import AsyncMock
 
 import pytest
+from pydantic import ValidationError
 
 from guard_core._security_headers_override import (
     CorsParams,
@@ -95,9 +96,14 @@ def test_a_security_headers_setting_of_the_wrong_shape_raises_a_type_error(
     setting: str, value: object, message: str
 ) -> None:
     manager = SecurityHeadersManager.isolated()
+    unvalidated = SecurityConfig.model_construct(
+        enable_redis=False, security_headers={"enabled": True, setting: value}
+    )
 
     with pytest.raises(TypeError, match=message):
-        manager.resolve_headers(_config(**{setting: value}))
+        manager.resolve_headers(unvalidated)
+    with pytest.raises(ValidationError, match=message):
+        _config(**{setting: value})
 
 
 def test_a_cors_override_with_values_of_the_wrong_type_keeps_the_apps_own() -> None:

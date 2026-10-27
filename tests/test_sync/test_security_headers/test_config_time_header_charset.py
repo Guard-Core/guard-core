@@ -99,3 +99,18 @@ def test_the_response_path_keeps_both_messages() -> None:
     with pytest.raises(ValueError, match="Invalid header name: X A"):
         manager._validate_header_name("X A")
     assert manager._validate_header_value("a\x00\x01\tb") == "a\tb"
+
+
+@pytest.mark.parametrize(
+    "custom", [{1: "x"}, {"X-A": 5}, {"X-A": None}, "X-A: 1", ["X-A"]]
+)
+def test_construction_refuses_a_custom_block_the_response_cannot_read(
+    custom: object,
+) -> None:
+    with pytest.raises(ValidationError):
+        SyncSecurityConfig(security_headers={"enabled": True, "custom": custom})
+
+
+def test_an_empty_custom_block_is_accepted() -> None:
+    headers = {"enabled": True, "custom": {}}
+    assert SyncSecurityConfig(security_headers=headers).security_headers == headers
