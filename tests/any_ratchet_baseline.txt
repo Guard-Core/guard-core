@@ -1,2 +1,0 @@
-guard_core.protocols.middleware_protocol
-guard_core.sync.protocols.middleware_protocol

@@ -278,7 +278,9 @@ class _EventsResponseFactory(_HarnessResponseFactory):
     """Harness factory plus the modifier passthrough the real middleware
     exposes (custom-request and bypass paths call apply_modifier)."""
 
-    async def apply_modifier(self, response: GuardResponse) -> GuardResponse:
+    async def apply_modifier(
+        self, response: GuardResponse, request: GuardRequest | None = None
+    ) -> GuardResponse:
         return response
 
 

@@ -96,7 +96,7 @@ def _resolve_is_exempt(
 
 def _classify_route_ip_denial(
     route_config: RouteConfig,
-    geo_ip_handler: "GeoIPHandlerOfThisTree",
+    geo_ip_handler: "GeoIPHandlerOfThisTree | None",
     client_ip: str,
     country_result: bool | None,
 ) -> tuple[str, str]:
@@ -106,9 +106,9 @@ def _classify_route_ip_denial(
         or route_config.ip_blacklist
     ):
         return "access_control", "ip_restriction"
-    if route_config.blocked_countries:
+    if route_config.blocked_countries and geo_ip_handler is not None:
         country = geo_ip_handler.get_country(client_ip)
-        if country is not None and country in route_config.blocked_countries:
+        if country in route_config.blocked_countries:
             return "block_countries", "country_restriction"
     return "allow_countries", "country_restriction"
 

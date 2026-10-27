@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from guard_core.core.checks.factory import build_default_pipeline
+from guard_core.decorators.route_config import RouteConfig
 from guard_core.handlers.cloud_handler import CloudManager
 from guard_core.handlers.cloud_ip_stores import RedisCloudIpStore
 from guard_core.handlers.ipban_handler import IPBanManager, ip_ban_manager
@@ -22,6 +23,7 @@ from guard_core.handlers.suspatterns_handler import (
     sus_patterns_handler,
 )
 from guard_core.models import SecurityConfig
+from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse
 
 PREFIX = "guard_core_interop:"
@@ -268,8 +270,53 @@ class _StubDecorator:
 
 
 class _StubEventBus:
-    async def send_middleware_event(self, **kwargs: Any) -> None:
+    @property
+    def agent_handler(self) -> None:
         return None
+
+    async def send_middleware_event(
+        self,
+        event_type: str,
+        request: GuardRequest,
+        action_taken: str,
+        reason: str,
+        **kwargs: object,
+    ) -> None:
+        return None
+
+    async def send_https_violation_event(
+        self, request: GuardRequest, route_config: RouteConfig | None
+    ) -> None:
+        return None
+
+    async def send_cloud_detection_events(
+        self,
+        request: GuardRequest,
+        client_ip: str,
+        cloud_providers_to_check: list[str],
+        route_config: RouteConfig | None,
+        cloud_handler: CloudManager,
+        passive_mode: bool,
+        cloud_details: tuple[str, str] | None = None,
+        attribution: dict[str, object] | None = None,
+    ) -> None:
+        return None
+
+
+class _StubResponseFactory:
+    """The exempt drive builds no response through the factory."""
+
+    @property
+    def security_headers_manager(self) -> None:
+        return None
+
+    async def create_https_redirect(self, request: GuardRequest) -> GuardResponse:
+        raise NotImplementedError
+
+    async def apply_modifier(
+        self, response: GuardResponse, request: GuardRequest | None = None
+    ) -> GuardResponse:
+        return response
 
 
 class _ExemptMiddleware:
@@ -296,8 +343,8 @@ class _ExemptMiddleware:
         self.guard_decorator = _StubDecorator()
 
     @property
-    def response_factory(self) -> None:
-        return None
+    def response_factory(self) -> _StubResponseFactory:
+        return _StubResponseFactory()
 
     @property
     def guard_response_factory(self) -> None:

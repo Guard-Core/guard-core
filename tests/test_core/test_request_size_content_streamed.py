@@ -294,7 +294,9 @@ async def test_failed_read_follows_fail_secure(
     assert response is not None
     assert response.status_code == status
     log.assert_awaited_once()
-    check.middleware.event_bus.send_middleware_event.assert_awaited_once()
+    send_event = check.middleware.event_bus.send_middleware_event
+    assert isinstance(send_event, AsyncMock)
+    send_event.assert_awaited_once()
 
 
 @pytest.mark.parametrize("error", [BodyReadStalledError(), BodyReadFailedError()])
@@ -314,7 +316,9 @@ async def test_failed_read_passes_with_log_and_event_when_fail_secure_is_off(
     ) as log:
         assert await check.check(request) is None
     log.assert_awaited_once()
-    check.middleware.event_bus.send_middleware_event.assert_awaited_once()
+    send_event = check.middleware.event_bus.send_middleware_event
+    assert isinstance(send_event, AsyncMock)
+    send_event.assert_awaited_once()
 
 
 _STALL_SECONDS = 0.4
@@ -353,4 +357,6 @@ async def test_a_stalled_read_costs_one_wait_for_size_and_content_type(
     assert elapsed < 1.5 * _STALL_SECONDS
     assert request.reads == 1
     log.assert_awaited_once()
-    check.middleware.event_bus.send_middleware_event.assert_awaited_once()
+    send_event = check.middleware.event_bus.send_middleware_event
+    assert isinstance(send_event, AsyncMock)
+    send_event.assert_awaited_once()

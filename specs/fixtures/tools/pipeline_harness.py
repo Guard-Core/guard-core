@@ -304,7 +304,7 @@ class _StubGeoHandler:
     async def refresh(self) -> None:
         return None
 
-    async def close(self) -> None:
+    def close(self) -> None:
         return None
 
 
@@ -404,6 +404,15 @@ class _HarnessResponseFactory:
     ) -> _StubResponse:
         body = content if isinstance(content, (bytes, str)) else str(content)
         return _StubResponse(status_code, body if isinstance(body, str) else "")
+
+    @property
+    def security_headers_manager(self) -> object:
+        return None
+
+    async def apply_modifier(
+        self, response: GuardResponse, request: GuardRequest | None = None
+    ) -> GuardResponse:
+        return response
 
     async def create_https_redirect(self, request: GuardRequest) -> _StubResponse:
         status_code = 301 if request.method.upper() in ("GET", "HEAD") else 308

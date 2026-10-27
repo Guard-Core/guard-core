@@ -9,6 +9,8 @@ from guard_core.sync.core.checks.helpers import route_config_applies
 from guard_core.sync.decorators.base import RouteConfig
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
+_NO_FACTORY = "'NoneType' object has no attribute '{}'"
+
 
 class HttpsEnforcementCheck(SecurityCheck):
     @property
@@ -32,9 +34,10 @@ class HttpsEnforcementCheck(SecurityCheck):
         return _is_trusted_proxy(connecting_ip, self.config.trusted_proxies)
 
     def _create_https_redirect(self, request: SyncGuardRequest) -> GuardResponse:
-        result: GuardResponse = self.middleware.response_factory.create_https_redirect(
-            request
-        )
+        response_factory = self.middleware.response_factory
+        if response_factory is None:
+            raise AttributeError(_NO_FACTORY.format("create_https_redirect"))
+        result: GuardResponse = response_factory.create_https_redirect(request)
         return result
 
     def check(self, request: SyncGuardRequest) -> GuardResponse | None:

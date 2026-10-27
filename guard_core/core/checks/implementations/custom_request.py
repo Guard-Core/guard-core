@@ -9,6 +9,8 @@ from guard_core.protocols.middleware_protocol import GuardMiddlewareProtocol
 from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse
 
+_NO_FACTORY = "'NoneType' object has no attribute '{}'"
+
 
 class CustomRequestCheck(SecurityCheck):
     def __init__(self, middleware: "GuardMiddlewareProtocol") -> None:
@@ -55,10 +57,11 @@ class CustomRequestCheck(SecurityCheck):
             )
 
             if not self.config.passive_mode:
-                modified: GuardResponse = (
-                    await self.middleware.response_factory.apply_modifier(
-                        custom_response
-                    )
+                response_factory = self.middleware.response_factory
+                if response_factory is None:
+                    raise AttributeError(_NO_FACTORY.format("apply_modifier"))
+                modified: GuardResponse = await response_factory.apply_modifier(
+                    custom_response
                 )
                 return modified
         return None

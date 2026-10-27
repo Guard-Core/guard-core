@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 from guard_core.protocols.response_protocol import GuardResponse, GuardResponseFactory
 
@@ -10,12 +10,14 @@ if TYPE_CHECKING:
 
     from guard_core.models import SyncSecurityConfig
     from guard_core.sync.decorators.base import RouteConfig
+    from guard_core.sync.handlers.cloud_handler import CloudManager
     from guard_core.sync.handlers.ratelimit_handler import (
         RateLimitBlock,
         RateLimitTier,
         RateLimitVerdict,
     )
     from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol
+    from guard_core.sync.protocols.geo_ip_protocol import SyncGeoIPHandler
     from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
     from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
@@ -73,6 +75,85 @@ class SyncRateLimitHandlerProtocol(Protocol):
         ...
 
 
+class SecurityEventBusProtocol(Protocol):
+    """The event bus surface the checks send security events through."""
+
+    @property
+    def agent_handler(self) -> SyncAgentHandlerProtocol | None:
+        """The telemetry agent the bus forwards events to, or ``None``."""
+        ...
+
+    def send_middleware_event(
+        self,
+        event_type: str,
+        request: SyncGuardRequest,
+        action_taken: str,
+        reason: str,
+        **kwargs: object,
+    ) -> None:
+        """Send one security event to the agent."""
+        ...
+
+    def send_https_violation_event(
+        self, request: SyncGuardRequest, route_config: RouteConfig | None
+    ) -> None:
+        """Send the event for a request that required HTTPS."""
+        ...
+
+    def send_cloud_detection_events(
+        self,
+        request: SyncGuardRequest,
+        client_ip: str,
+        cloud_providers_to_check: list[str],
+        route_config: RouteConfig | None,
+        cloud_handler: CloudManager,
+        passive_mode: bool,
+        cloud_details: tuple[str, str] | None = None,
+        attribution: dict[str, object] | None = None,
+    ) -> None:
+        """Send the events for a request from a blocked cloud provider."""
+        ...
+
+
+class RouteResolverProtocol(Protocol):
+    """The per-route configuration resolver the checks ask."""
+
+    def get_route_config(self, request: SyncGuardRequest) -> RouteConfig | None:
+        """The request's route config, or ``None`` when it has none."""
+        ...
+
+    def should_bypass_check(
+        self, check_name: str, route_config: RouteConfig | None
+    ) -> bool:
+        """True when the route bypasses the named check."""
+        ...
+
+    def get_cloud_providers_to_check(
+        self, route_config: RouteConfig | None
+    ) -> list[str] | None:
+        """The cloud providers to block for the route, or ``None``."""
+        ...
+
+
+class ResponseFactoryProtocol(Protocol):
+    """The engine response factory the checks read from the middleware."""
+
+    @property
+    def security_headers_manager(self) -> object:
+        """The security-headers manager; readers check its type."""
+        ...
+
+    def create_https_redirect(self, request: SyncGuardRequest) -> GuardResponse:
+        """Build the redirect to the HTTPS URL."""
+        ...
+
+    def apply_modifier(
+        self, response: GuardResponse, request: SyncGuardRequest | None = None
+    ) -> GuardResponse:
+        """Run the configured response modifier over the response."""
+        ...
+
+
 @runtime_checkable
 class SyncGuardMiddlewareProtocol(Protocol):
     """The middleware surface handlers and checks call back into.
@@ -106,18 +187,19 @@ class SyncGuardMiddlewareProtocol(Protocol):
         ...
 
     @property
-    def event_bus(self) -> Any:
+    def event_bus(self) -> SecurityEventBusProtocol:
         """The event bus that fans out security events to subscribers."""
         ...
 
     @property
-    def route_resolver(self) -> Any:
+    def route_resolver(self) -> RouteResolverProtocol:
         """Resolves the effective per-route security configuration."""
         ...
 
     @property
-    def response_factory(self) -> Any:
-        """Factory for the engine's outgoing responses."""
+    def response_factory(self) -> ResponseFactoryProtocol | None:
+        """Factory for the engine's outgoing responses, or ``None`` for a host
+        (the WebSocket detection middleware) that builds none."""
         ...
 
     @property
@@ -131,7 +213,7 @@ class SyncGuardMiddlewareProtocol(Protocol):
         ...
 
     @property
-    def geo_ip_handler(self) -> Any:
+    def geo_ip_handler(self) -> SyncGeoIPHandler | None:
         """The geo-IP handler, or ``None`` when geo features are disabled."""
         ...
 

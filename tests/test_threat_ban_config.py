@@ -376,7 +376,9 @@ async def test_disabled_by_decorator_emits_event(
 
     result = await check.check(request)
     assert result is None
-    check.middleware.event_bus.send_middleware_event.assert_called_once()
+    send_event = check.middleware.event_bus.send_middleware_event
+    assert isinstance(send_event, AsyncMock)
+    send_event.assert_called_once()
 
 
 async def test_check_skips_when_whitelisted(

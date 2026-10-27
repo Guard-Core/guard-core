@@ -74,6 +74,8 @@ async def test_cloud_block_log_names_provider_and_network(
         f"IP belongs to blocked cloud provider: AWS ({BLOCKED_NETWORK})"
     )
     events = cloud_check.middleware.event_bus.send_cloud_detection_events
+    assert isinstance(events, AsyncMock)
+    assert events.await_args is not None
     assert events.await_args.kwargs["cloud_details"] == ("AWS", BLOCKED_NETWORK)
 
 
@@ -90,7 +92,9 @@ async def test_global_cloud_block_sends_the_ip_blocked_event_with_provider(
     ):
         await cloud_check.check(request)
 
-    sent = cloud_check.middleware.event_bus.send_middleware_event.call_args_list
+    send_event = cloud_check.middleware.event_bus.send_middleware_event
+    assert isinstance(send_event, AsyncMock)
+    sent = send_event.call_args_list
     ip_blocked = [c.kwargs for c in sent if c.kwargs["event_type"] == "ip_blocked"]
     assert ip_blocked == [
         {
@@ -118,5 +122,7 @@ async def test_route_cloud_block_sends_no_ip_blocked_event(
     ):
         await cloud_check.check(_request(_route_blocking_aws()))
 
-    sent = cloud_check.middleware.event_bus.send_middleware_event.call_args_list
+    send_event = cloud_check.middleware.event_bus.send_middleware_event
+    assert isinstance(send_event, AsyncMock)
+    sent = send_event.call_args_list
     assert [call.kwargs["event_type"] for call in sent] == ["decorator_violation"]

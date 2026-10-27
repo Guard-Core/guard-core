@@ -10,6 +10,8 @@ from guard_core.protocols.middleware_protocol import GuardMiddlewareProtocol
 from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse
 
+_NO_FACTORY = "'NoneType' object has no attribute '{}'"
+
 
 class CorsPreflightCheck(SecurityCheck):
     """Answers a CORS preflight for an app built without CORS that a flagged
@@ -48,7 +50,10 @@ class CorsPreflightCheck(SecurityCheck):
         banned = await resolve_pending_ban(request)
         if banned is not None:
             return banned
-        manager = self.middleware.response_factory.security_headers_manager
+        response_factory = self.middleware.response_factory
+        if response_factory is None:
+            raise AttributeError(_NO_FACTORY.format("security_headers_manager"))
+        manager = response_factory.security_headers_manager
         if isinstance(manager, SecurityHeadersManager):
             await manager.send_cors_override_event(self.config)
         if self.config.enable_cors:

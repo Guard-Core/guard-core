@@ -9,6 +9,8 @@ from guard_core.sync.decorators.base import RouteConfig
 from guard_core.sync.protocols.middleware_protocol import SyncGuardMiddlewareProtocol
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
+_NO_FACTORY = "'NoneType' object has no attribute '{}'"
+
 
 class CustomRequestCheck(SecurityCheck):
     def __init__(self, middleware: "SyncGuardMiddlewareProtocol") -> None:
@@ -55,8 +57,11 @@ class CustomRequestCheck(SecurityCheck):
             )
 
             if not self.config.passive_mode:
-                modified: GuardResponse = (
-                    self.middleware.response_factory.apply_modifier(custom_response)
+                response_factory = self.middleware.response_factory
+                if response_factory is None:
+                    raise AttributeError(_NO_FACTORY.format("apply_modifier"))
+                modified: GuardResponse = response_factory.apply_modifier(
+                    custom_response
                 )
                 return modified
         return None
