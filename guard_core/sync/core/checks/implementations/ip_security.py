@@ -145,11 +145,11 @@ class IpSecurityCheck(IpBanReadMixin):
         except AttributeError:
             agent_handler = None
         if agent_handler and self.config.agent_enable_events:
-            held = cached_ban_stamp(client_ip, self.ip_ban_manager)
+            held = cached_ban_stamp(self.config, client_ip, self.ip_ban_manager)
             attribution = (
                 held
                 if held is not None
-                else ban_attribution(client_ip, self.ip_ban_manager)
+                else ban_attribution(self.config, client_ip, self.ip_ban_manager)
             )
         self.middleware.event_bus.send_middleware_event(
             event_type=EVENT_IP_BLOCKED,
@@ -399,7 +399,9 @@ class IpSecurityCheck(IpBanReadMixin):
         """Send country_blocked and return the rule attribution it carried (empty
         when no agent consumes events), for the ip_blocked event that follows."""
         attribution = (
-            country_attribution(access_result.country_rule, access_result.country)
+            country_attribution(
+                self.config, access_result.country_rule, access_result.country
+            )
             if agent_receives_events(self.middleware.event_bus, self.config)
             else {}
         )

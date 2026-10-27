@@ -180,7 +180,7 @@ class CloudProviderCheck(SecurityCheck):
             return {}
         provider, network = cloud_details
         region = self.cloud_handler.network_regions.get(provider, {}).get(network)
-        return cloud_provider_attribution(provider, region)
+        return cloud_provider_attribution(self.config, provider, region)
 
     async def _emit_global_cloud_ip_blocked_event(
         self,

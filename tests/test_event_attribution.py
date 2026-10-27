@@ -831,7 +831,7 @@ async def test_the_view_is_built_when_the_set_changes_not_on_the_first_block() -
     cached = manager._attribution_cache
     assert cached is not None
     assert cached[0][0] is manager.current_rules
-    assert attribution_view._applied is cached[1]
+    assert attribution_view._view_of(config) is cached[1]
 
     mock_agent(manager.agent_handler).get_dynamic_rules.return_value = _rules(
         rule_id="rule-two", version=2, ip_blacklist=[OTHER_IP]

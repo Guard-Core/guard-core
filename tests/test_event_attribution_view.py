@@ -236,10 +236,13 @@ async def test_the_kept_ban_stamps_are_dropped_when_the_cap_is_reached(
 async def test_a_user_agent_no_listed_pattern_matches_carries_nothing() -> None:
     from guard_core._utils.rule_attribution import user_agent_attribution
 
-    await _apply(_config(), _rules(blocked_user_agents=["wp23bot"]))
+    config = _config()
+    await _apply(config, _rules(blocked_user_agents=["wp23bot"]))
 
-    assert await user_agent_attribution("wp23bot/1.0", ["wp23bot"]) == DYNAMIC
-    assert await user_agent_attribution("Mozilla/5.0", ["wp23bot", "other"]) == {}
+    assert await user_agent_attribution(config, "wp23bot/1.0", ["wp23bot"]) == DYNAMIC
+    assert (
+        await user_agent_attribution(config, "Mozilla/5.0", ["wp23bot", "other"]) == {}
+    )
 
 
 async def test_a_bracketed_client_address_still_gets_the_rules_ban_stamp() -> None:

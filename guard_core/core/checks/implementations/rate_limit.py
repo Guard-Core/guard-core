@@ -325,7 +325,7 @@ class RateLimitCheck(SecurityCheck):
             self.middleware.rate_limit_handler, "agent_handler", None
         )
         attribution = (
-            rate_limit_attribution(plan.tier.kind, plan.tier.bucket)
+            rate_limit_attribution(self.config, plan.tier.kind, plan.tier.bucket)
             if agent_receives_events(self.middleware.event_bus, self.config)
             or limiter_agent
             else {}

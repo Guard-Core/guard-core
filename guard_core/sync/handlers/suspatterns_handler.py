@@ -1142,8 +1142,7 @@ class SusPatternsManager(_SusPatternsViewsMixin):
             consumer_fields=lambda: self._consumer_fields(matched_patterns),
         )
 
-    @staticmethod
-    def _consumer_fields(matched_patterns: list) -> dict[str, object]:
+    def _consumer_fields(self, matched_patterns: list) -> dict[str, object]:
         """The request endpoint and the dynamic-rule attribution of a detection
         event, built only when an agent consumes it."""
         from guard_core.sync._utils.detection_scan import _scanned_request_endpoint
@@ -1151,7 +1150,9 @@ class SusPatternsManager(_SusPatternsViewsMixin):
 
         return {
             "endpoint": _scanned_request_endpoint(),
-            **pattern_attribution(matched_patterns[0] if matched_patterns else None),
+            **pattern_attribution(
+                self._config, matched_patterns[0] if matched_patterns else None
+            ),
         }
 
     def detect_pattern_match(

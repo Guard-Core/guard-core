@@ -4,7 +4,6 @@ from datetime import datetime, timezone
 
 from guard_core._utils.app_managers import AppManagers
 from guard_core._utils.app_scope import app_scope_of, in_app_scope
-from guard_core._utils.rule_attribution import set_attribution_view
 from guard_core.handlers._dynamic_rule_application import (
     DynamicRuleApplicationMixin,
     RuleSideEffects,
@@ -66,6 +65,7 @@ class DynamicRuleManager(
     _restored_ownership: tuple[list[str], list[str]]
     _reverted_rules: DynamicRulesProtocol | None
     _attribution_cache: tuple[tuple[object, ...], RuleAttribution] | None = None
+    _attribution_view: RuleAttribution | None = None
 
     def __new__(
         cls: type["DynamicRuleManager"], config: SecurityConfig
@@ -128,7 +128,7 @@ class DynamicRuleManager(
         rules = rules if rules is not None else self.current_rules
         if rules is None:
             self._attribution_cache = None
-            set_attribution_view(None)
+            self._attribution_view = None
             return
         inputs = (
             rules,
@@ -145,7 +145,7 @@ class DynamicRuleManager(
                 and held[2] is inputs[2]
                 and held[3] is inputs[3]
             ):
-                set_attribution_view(cached[1])
+                self._attribution_view = cached[1]
                 return
         view = build_rule_attribution(
             rules,
@@ -155,7 +155,7 @@ class DynamicRuleManager(
             self._active_base_snapshot or {},
         )
         self._attribution_cache = (inputs, view)
-        set_attribution_view(view)
+        self._attribution_view = view
 
     def match_event(self, event: object) -> tuple[str, int] | None:
         rules = self.current_rules

@@ -143,6 +143,11 @@ class AppManagers(Generic[_M]):
     def uses_default(self, config: object) -> bool:
         return self._default_apps.lookup(config, self.kind) is not None
 
+    def resolve(self, config: object) -> _M | None:
+        """The manager serving the app of this config, ``None`` when none does."""
+        own = self.own(config)
+        return own if own is not None else self._default_apps.lookup(config, self.kind)
+
     def find(self, config: object, default: _M) -> _M:
         own = self.own(config)
         return own if own is not None else default

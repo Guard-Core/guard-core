@@ -112,7 +112,7 @@ class EmergencyModeCheck(SecurityCheck):
                 emergency_whitelist_count=len(self.config.emergency_whitelist),
                 emergency_active=True,
                 **(
-                    emergency_attribution()
+                    emergency_attribution(self.config)
                     if agent_receives_events(self.middleware.event_bus, self.config)
                     else {}
                 ),

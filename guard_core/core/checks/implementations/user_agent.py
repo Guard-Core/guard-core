@@ -70,7 +70,9 @@ class UserAgentCheck(SecurityCheck):
             self.middleware.event_bus, self.config
         ):
             return {}
-        return await user_agent_attribution(user_agent, self.config.blocked_user_agents)
+        return await user_agent_attribution(
+            self.config, user_agent, self.config.blocked_user_agents
+        )
 
     async def _deny(
         self,

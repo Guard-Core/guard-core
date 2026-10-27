@@ -138,7 +138,7 @@ class SuspiciousActivityCheck(SecurityCheck):
         id, the categories and, for a rule that decided, its attribution. Built
         only when an agent consumes events, which the callers check."""
         fields: dict[str, object] = {
-            **pattern_attribution(result.matched_pattern_source)
+            **pattern_attribution(self.config, result.matched_pattern_source)
         }
         if result.correlation_id is not None:
             fields["correlation_id"] = result.correlation_id
