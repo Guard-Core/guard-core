@@ -37,6 +37,7 @@ from guard_core.sync.core.events.event_types import (
     EVENT_IP_BLOCKED,
 )
 from guard_core.sync.decorators.base import RouteConfig
+from guard_core.sync.handlers._dynamic_rule_attribution import Stamp
 from guard_core.sync.protocols.geo_ip_protocol import SyncGeoIPHandler
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 from guard_core.sync.utils import (
@@ -138,7 +139,7 @@ class IpSecurityCheck(IpBanReadMixin):
             sensitive_body_fields=self.config.log_sensitive_body_fields,
         )
 
-        attribution: dict[str, object] = {}
+        attribution: Stamp = {}
         try:
             agent_handler = self.middleware.event_bus.agent_handler
         except AttributeError:
@@ -319,7 +320,7 @@ class IpSecurityCheck(IpBanReadMixin):
             sensitive_body_fields=self.config.log_sensitive_body_fields,
         )
 
-        attribution: dict[str, object] = {}
+        attribution: Stamp = {}
         if access_result.country_rule:
             attribution = self._send_country_blocked_event(
                 request, client_ip, access_result
@@ -394,7 +395,7 @@ class IpSecurityCheck(IpBanReadMixin):
 
     def _send_country_blocked_event(
         self, request: SyncGuardRequest, client_ip: str, access_result: IpAccessResult
-    ) -> dict[str, object]:
+    ) -> Stamp:
         """Send country_blocked and return the rule attribution it carried (empty
         when no agent consumes events), for the ip_blocked event that follows."""
         attribution = (

@@ -8,6 +8,7 @@ import pytest
 from pydantic import ValidationError
 
 from guard_core.models import SyncSecurityConfig
+from guard_core.protocols.agent_protocol import JsonValue
 from guard_core.sync._utils import detection_scan
 from guard_core.sync._utils.detection_scan import (
     _scan_time_budget_exhausted,
@@ -195,9 +196,9 @@ def test_trigger_names_the_budget_when_it_tips_the_request(
 
 
 def test_threats_message_appends_the_first_later_timeout() -> None:
-    regex = {"type": "regex", "pattern": "a"}
-    timeout = {"type": "pattern_timeout", "pattern": "slow"}
-    other = {"type": "pattern_timeout", "pattern": "later"}
+    regex: dict[str, JsonValue] = {"type": "regex", "pattern": "a"}
+    timeout: dict[str, JsonValue] = {"type": "pattern_timeout", "pattern": "slow"}
+    other: dict[str, JsonValue] = {"type": "pattern_timeout", "pattern": "later"}
 
     message = detection_scan._build_threats_message([regex, timeout, other])
 

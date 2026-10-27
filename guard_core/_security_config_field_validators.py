@@ -32,6 +32,7 @@ from guard_core._security_config_blocked_user_agents import (
 from guard_core._security_config_geo_validators import _validate_country_set_value
 from guard_core._security_config_name_set_validators import (
     _frozenset_of_names,
+    _ItemsByIndex,
     _validate_enabled_detection_categories_value,
     _validate_muted_check_logs_value,
     _validate_muted_event_types_value,
@@ -232,16 +233,6 @@ def _revalidate_global_behavior_rules(config: "SecurityConfig[RequestT]") -> Non
         if rule.rule_type != "return_pattern" or not rule.pattern:
             continue
         _validate_return_pattern_body_scan(rule.pattern, config)
-
-
-@runtime_checkable
-class _ItemsByIndex(Protocol):
-    """The sequence surface ``iter()`` falls back to: item access by index.
-
-    An IP list may be any object ``iter()`` accepts, not only an ``Iterable``.
-    """
-
-    def __getitem__(self, index: int, /) -> object: ...
 
 
 @overload

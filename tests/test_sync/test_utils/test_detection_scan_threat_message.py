@@ -27,6 +27,10 @@ from guard_core.sync._utils.detection_scan import _build_threat_message
             "Pattern exceeded scan time budget: 'evil'",
         ),
         (
+            {"type": "pattern_timeout", "pattern": 7},
+            "Pattern exceeded scan time budget: '7'",
+        ),
+        (
             {"type": "unknown"},
             "Threat detected",
         ),

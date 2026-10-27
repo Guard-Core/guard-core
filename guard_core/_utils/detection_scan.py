@@ -5,7 +5,7 @@ import time
 from collections.abc import Awaitable, Callable, Iterator, Mapping
 from contextlib import contextmanager
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, TypeVar
 
 from guard_core._utils.detection_config import (
     _DEFAULT_BINARY_MIN_RUN_LENGTH,
@@ -25,10 +25,14 @@ from guard_core.exceptions import BodyReadFailedError
 
 if TYPE_CHECKING:
     from guard_core.handlers.suspatterns_handler import SusPatternsManager
+    from guard_core.protocols.agent_protocol import JsonValue
+    from guard_core.protocols.request_protocol import GuardRequest
 
 logger = logging.getLogger("guard_core")
 
 _T = TypeVar("_T")
+
+_EventRequest = tuple["GuardRequest", frozenset[str], frozenset[str], frozenset[str]]
 
 _scanned_value_count: contextvars.ContextVar[int] = contextvars.ContextVar(
     "guard_core_detection_scanned_value_count", default=0
@@ -70,7 +74,7 @@ _scan_slice_start: contextvars.ContextVar[float | None] = contextvars.ContextVar
     "guard_core_detection_scan_slice_start", default=None
 )
 _scan_request_scope: contextvars.ContextVar[
-    tuple[frozenset[str], tuple[Any, ...] | None]
+    tuple[frozenset[str], _EventRequest | None]
 ] = contextvars.ContextVar(
     "guard_core_detection_scan_request_scope", default=(frozenset(), None)
 )
@@ -124,7 +128,7 @@ def _scan_value_budget(
     binary_min_run_length: int = _DEFAULT_BINARY_MIN_RUN_LENGTH,
     max_scan_seconds: float = _DEFAULT_MAX_SCAN_SECONDS,
     semantic_excluded_headers: frozenset[str] = frozenset(),
-    event_request: tuple[Any, ...] | None = None,
+    event_request: _EventRequest | None = None,
     body_field_category_skips: Mapping[str, frozenset[str]] | None = None,
     patterns: "SusPatternsManager | None" = None,
     config_scope: ScanConfigScope | None = None,
@@ -198,7 +202,7 @@ _SCAN_TIME_BUDGET_EXHAUSTED_PATTERN = "scan_time_budget_exhausted"
 _EVENT_LOOP_SLICE_SECONDS = 0.002
 
 
-def _scan_time_budget_exhausted_threat(weight: float) -> dict[str, Any]:
+def _scan_time_budget_exhausted_threat(weight: float) -> dict[str, "JsonValue"]:
     return {
         "type": "pattern_timeout",
         "pattern": _SCAN_TIME_BUDGET_EXHAUSTED_PATTERN,
@@ -255,10 +259,8 @@ async def _suspended(awaitable: Awaitable[_T]) -> _T:
         _restart_inline_cpu()
 
 
-def _timed_in_worker(
-    work: Callable[[], Any], cpu_sink: list[float]
-) -> Callable[[], Any]:
-    def run() -> Any:
+def _timed_in_worker(work: Callable[[], _T], cpu_sink: list[float]) -> Callable[[], _T]:
+    def run() -> _T:
         start = _thread_cpu_seconds()
         try:
             return work()
@@ -374,7 +376,9 @@ class _BudgetThatIsNeverSpent:
     __slots__ = ("_tokens",)
 
     def __init__(self) -> None:
-        self._tokens: tuple[Any, Any] | None = None
+        self._tokens: tuple[contextvars.Token[int], contextvars.Token[int]] | None = (
+            None
+        )
 
     def __enter__(self) -> None:
         if _scan_budget_spent():
@@ -439,9 +443,11 @@ def _warn_json_depth_cap_reached_once(client_ip: str) -> None:
     )
 
 
-def _build_threat_message(threat: dict[str, Any]) -> str:
+def _build_threat_message(threat: dict[str, "JsonValue"]) -> str:
     if threat["type"] == "regex":
-        return f"Value matched pattern '{_redact_pattern_source(threat['pattern'])}'"
+        return (
+            f"Value matched pattern '{_redact_pattern_source(str(threat['pattern']))}'"
+        )
     elif threat["type"] == "semantic":
         attack_type = threat.get("attack_type", "suspicious")
         score = threat.get("probability", threat.get("threat_score", 0))
@@ -449,12 +455,12 @@ def _build_threat_message(threat: dict[str, Any]) -> str:
     elif threat["type"] == "pattern_timeout":
         return (
             f"Pattern exceeded scan time budget: "
-            f"'{_redact_pattern_source(threat['pattern'])}'"
+            f"'{_redact_pattern_source(str(threat['pattern']))}'"
         )
     return "Threat detected"
 
 
-def _build_threats_message(threats: list[dict[str, Any]]) -> str:
+def _build_threats_message(threats: list[dict[str, "JsonValue"]]) -> str:
     message = _build_threat_message(threats[0])
     if threats[0]["type"] == "pattern_timeout":
         return message

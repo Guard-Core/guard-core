@@ -1,7 +1,7 @@
 import importlib.util
 from importlib import import_module
 from importlib.metadata import PackageNotFoundError, version
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 try:
     __version__ = version("guard-core")
@@ -9,6 +9,9 @@ except PackageNotFoundError:
     __version__ = "unknown"
 
 if TYPE_CHECKING:
+    from guard_core._pydantic_plugin_mute import (
+        _mute_pydantic_plugin_instrumentation as _mute_pydantic_plugin_instrumentation,
+    )
     from guard_core.decorators import RouteConfig, SecurityDecorator
     from guard_core.handlers.behavior_handler import BehaviorRule, BehaviorTracker
     from guard_core.handlers.cloud_handler import CloudManager, cloud_handler
@@ -104,7 +107,7 @@ _MODULE_BY_NAME: dict[str, str] = {
 }
 
 
-def __getattr__(name: str) -> Any:
+def __getattr__(name: str) -> object:
     module_name = _MODULE_BY_NAME.get(name)
     if module_name is not None:
         value = getattr(import_module(module_name), name)

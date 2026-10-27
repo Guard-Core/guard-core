@@ -40,6 +40,7 @@ from guard_core.sync.core.checks.helpers import (
 )
 from guard_core.sync.core.checks.route_prefixes import warn_unmatched_endpoint_keys
 from guard_core.sync.decorators.base import RouteConfig
+from guard_core.sync.handlers._dynamic_rule_attribution import Stamp
 from guard_core.sync.handlers.cors_handler import ALLOWED_PREFLIGHT_REQUEST_HEADER
 from guard_core.sync.handlers.ratelimit_handler import (
     RateLimitBlock,
@@ -140,7 +141,7 @@ class RateLimitCheck(SecurityCheck):
         request: SyncGuardRequest,
         event_type: str,
         event_kwargs: TierEventKwargs,
-        attribution: dict[str, object],
+        attribution: Stamp,
     ) -> None:
         decorator_type = event_kwargs.get("decorator_type")
         reason = str(event_kwargs.get("reason", ""))

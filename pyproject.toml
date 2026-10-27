@@ -134,12 +134,7 @@ select = [
 "perf_gate/**" = ["ANN401"]  # tests and tools keep Any inside fakes (D-177)
 "scripts/**" = ["ANN401"]  # tests and tools keep Any inside fakes (D-177)
 "specs/**" = ["ANN401"]  # tests and tools keep Any inside fakes (D-177)
-"guard_core/__init__.py" = ["ANN401"]  # open value
 "guard_core/_security_config_fields.py" = ["ANN401"]  # framework object
-"guard_core/_security_config_name_set_validators.py" = ["ANN401"]  # open value
-"guard_core/_utils/app_managers.py" = ["ANN401"]  # handler slot
-"guard_core/_utils/detection_scan.py" = ["ANN401"]  # JSON payload
-"guard_core/_utils/rule_attribution.py" = ["ANN401"]  # JSON payload
 "guard_core/core/initialization/_handler_initializer_steps.py" = ["ANN401"]  # handler slot
 "guard_core/handlers/_redis_ban_strike.py" = ["ANN401"]  # handler slot
 "guard_core/handlers/_redis_lean.py" = ["ANN401"]  # handler slot
@@ -152,9 +147,6 @@ select = [
 "guard_core/protocols/redis_protocol.py" = ["ANN401"]  # protocol
 "guard_core/protocols/request_protocol.py" = ["ANN401"]  # protocol
 "guard_core/sync/__init__.py" = ["ANN401"]  # open value
-"guard_core/sync/_utils/app_managers.py" = ["ANN401"]  # handler slot
-"guard_core/sync/_utils/detection_scan.py" = ["ANN401"]  # JSON payload
-"guard_core/sync/_utils/rule_attribution.py" = ["ANN401"]  # JSON payload
 "guard_core/sync/core/initialization/_handler_initializer_steps.py" = ["ANN401"]  # handler slot
 "guard_core/sync/handlers/_redis_ban_strike.py" = ["ANN401"]  # handler slot
 "guard_core/sync/handlers/_redis_lean.py" = ["ANN401"]  # handler slot
@@ -214,12 +206,7 @@ disallow_any_explicit = true
 # async tree: modules not clean yet, bucket keeps each here
 [[tool.mypy.overrides]]
 module = [
-    "guard_core",  # open value
     "guard_core._security_config_fields",  # framework object
-    "guard_core._security_config_name_set_validators",  # open value
-    "guard_core._utils.app_managers",  # handler slot
-    "guard_core._utils.detection_scan",  # JSON payload
-    "guard_core._utils.rule_attribution",  # JSON payload
     "guard_core.core.initialization._handler_initializer_steps",  # handler slot
     "guard_core.core.initialization.handler_initializer",  # behavior_tracker slot, adapter tests read it as non-optional
     "guard_core.handlers._redis_ban_strike",  # handler slot
@@ -239,9 +226,6 @@ disallow_any_explicit = false
 [[tool.mypy.overrides]]
 module = [
     "guard_core.sync",  # open value
-    "guard_core.sync._utils.app_managers",  # handler slot
-    "guard_core.sync._utils.detection_scan",  # JSON payload
-    "guard_core.sync._utils.rule_attribution",  # JSON payload
     "guard_core.sync.core.initialization._handler_initializer_steps",  # handler slot
     "guard_core.sync.core.initialization.handler_initializer",  # behavior_tracker slot, adapter tests read it as non-optional
     "guard_core.sync.handlers._redis_ban_strike",  # handler slot

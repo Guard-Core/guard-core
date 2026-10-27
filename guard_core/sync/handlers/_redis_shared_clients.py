@@ -12,7 +12,8 @@ from guard_core.sync._utils.config_registry import ConfigHandlerRegistry
 if TYPE_CHECKING:
     from redis import Redis
 
-    from guard_core.models import SyncSecurityConfig
+    from guard_core._security_config_fields import RequestT
+    from guard_core.models import SecurityConfig, SyncSecurityConfig
     from guard_core.sync.handlers.redis_handler import RedisManager
 
 DEFAULT_POOL_SIZE = 100
@@ -99,7 +100,7 @@ def pool_key(
 
 def pool_key_of_settings(
     url: str,
-    config: SyncSecurityConfig,
+    config: SecurityConfig[RequestT],
     connection_kwargs: dict[str, object],
     default_pool_size: int,
     scope: object,
@@ -211,7 +212,7 @@ def register_client(
     return published
 
 
-def connection_kwargs_of(cfg: SyncSecurityConfig) -> dict[str, object]:
+def connection_kwargs_of(cfg: SecurityConfig[RequestT]) -> dict[str, object]:
     """Connection tuning passed to ``Redis.from_url``.
 
     Without bounded timeouts a partitioned Redis blocks every request that
@@ -233,7 +234,7 @@ def connection_kwargs_of(cfg: SyncSecurityConfig) -> dict[str, object]:
     return kwargs
 
 
-def connection_key_of(config: SyncSecurityConfig) -> Hashable | None:
+def connection_key_of(config: SecurityConfig[RequestT]) -> Hashable | None:
     """The key ``RedisManager.initialize`` pools this config's client under, or
     None without a configured Redis; the running event loop is part of it."""
     url = configured_redis_url(config)

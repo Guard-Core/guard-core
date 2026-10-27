@@ -1,31 +1,39 @@
 import logging
 import weakref
 from collections.abc import Callable, Hashable
-from typing import TYPE_CHECKING, Any, Generic, TypeVar
+from typing import TYPE_CHECKING, Generic, Protocol, TypeVar
 
-from guard_core._redis_enablement import redis_is_configured
+from guard_core._redis_enablement import RedisFieldsConfig, redis_is_configured
 from guard_core.sync._utils.app_scope import SHARED_BY_APPS
 from guard_core.sync._utils.config_registry import ConfigHandlerRegistry
 
 if TYPE_CHECKING:
-    from guard_core.models import SyncSecurityConfig
+    from guard_core._security_config_fields import RequestT
+    from guard_core.models import SecurityConfig
 
 _HELD_ATTRIBUTE = "_guard_app_managers"
 
 _M = TypeVar("_M")
 
 
-class _Held(dict[str, Any]):
+class _PrefixedRedisConfig(RedisFieldsConfig, Protocol):
+    @property
+    def redis_prefix(self) -> str: ...
+
+
+class _Held(dict[str, object]):
     """The per-app managers a config keeps alive. A copy of the config shares it."""
 
     def __copy__(self) -> "_Held":
         return self
 
-    def __deepcopy__(self, memo: dict[int, Any]) -> "_Held":
+    def __deepcopy__(self, memo: dict[int, object]) -> "_Held":
         return self
 
 
-def redis_prefixes_differ(first: Any, second: Any) -> bool:
+def redis_prefixes_differ(
+    first: _PrefixedRedisConfig | None, second: _PrefixedRedisConfig
+) -> bool:
     return (
         first is not None
         and first is not second
@@ -35,7 +43,9 @@ def redis_prefixes_differ(first: Any, second: Any) -> bool:
     )
 
 
-def share_redis_prefix(first: Any, second: Any) -> bool:
+def share_redis_prefix(
+    first: _PrefixedRedisConfig, second: _PrefixedRedisConfig
+) -> bool:
     return (
         redis_is_configured(first)
         and redis_is_configured(second)
@@ -43,14 +53,14 @@ def share_redis_prefix(first: Any, second: Any) -> bool:
     )
 
 
-def _connection_key_of(config: "SyncSecurityConfig") -> Hashable | None:
+def _connection_key_of(config: "SecurityConfig[RequestT]") -> Hashable | None:
     from guard_core.sync.handlers._redis_shared_clients import connection_key_of
 
     return connection_key_of(config)
 
 
 def _warn_split_connection(
-    first: "SyncSecurityConfig", second: "SyncSecurityConfig"
+    first: _PrefixedRedisConfig, second: _PrefixedRedisConfig
 ) -> None:
     from guard_core.sync.handlers.redis_handler import _redact_redis_url
 
@@ -64,7 +74,7 @@ def _warn_split_connection(
     )
 
 
-def mark_shared_by_apps(manager: object, *configs: "SyncSecurityConfig") -> None:
+def mark_shared_by_apps(manager: object, *configs: object) -> None:
     """Record the configs of the apps that share this manager, held weakly."""
     sharing = manager.__dict__.get(SHARED_BY_APPS)
     if sharing is None:
@@ -78,7 +88,7 @@ def unmark_shared_by_apps(manager: object) -> None:
     manager.__dict__.pop(SHARED_BY_APPS, None)
 
 
-def hold_for_app(config: Any, kind: str, manager: Any) -> None:
+def hold_for_app(config: object, kind: str, manager: object) -> None:
     """Keep a per-app manager alive as long as the config of its app.
 
     The registries below hold managers weakly. The manager references its
@@ -118,33 +128,35 @@ class AppManagers(Generic[_M]):
         self._served_key: Hashable | None = None
         self._own: ConfigHandlerRegistry[_M] = ConfigHandlerRegistry()
         self._default_apps: ConfigHandlerRegistry[_M] = ConfigHandlerRegistry()
-        self._served: weakref.ref[Any] | None = None
+        self._served: weakref.ref[_PrefixedRedisConfig] | None = None
 
-    def _default_serves(self) -> Any | None:
+    def _default_serves(self) -> _PrefixedRedisConfig | None:
         served = self._served() if self._served is not None else None
         if served is None or self._default_apps.lookup(served, self.kind) is None:
             return None
         return served
 
-    def own(self, config: Any) -> _M | None:
+    def own(self, config: object) -> _M | None:
         found: _M | None = self._own.lookup(config, self.kind)
         return found
 
-    def uses_default(self, config: Any) -> bool:
+    def uses_default(self, config: object) -> bool:
         return self._default_apps.lookup(config, self.kind) is not None
 
-    def find(self, config: Any, default: _M) -> _M:
+    def find(self, config: object, default: _M) -> _M:
         own = self.own(config)
         return own if own is not None else default
 
-    def bind(self, config: Any, default: _M, fresh: Callable[[], _M]) -> _M:
+    def bind(
+        self, config: "SecurityConfig[RequestT]", default: _M, fresh: Callable[[], _M]
+    ) -> _M:
         own = self.own(config)
         if own is not None:
             return own
         served = self._default_serves()
         if served is None or served is config:
             self._default_apps.register(config, default, self.kind)
-            self._served = weakref.ref(config)
+            self._served = weakref.ref[_PrefixedRedisConfig](config)
             self._served_key = _connection_key_of(config)
             return default
         if self.uses_default(config):

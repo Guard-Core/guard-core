@@ -17,6 +17,7 @@ from guard_core.core.events.event_types import (
     EVENT_USER_AGENT_BLOCKED,
 )
 from guard_core.decorators.base import RouteConfig
+from guard_core.handlers._dynamic_rule_attribution import Stamp
 from guard_core.models import SecurityConfig
 from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse
@@ -64,9 +65,7 @@ class UserAgentCheck(SecurityCheck):
             return None
         return await self._deny(request, route_config, user_agent, empty_user_agent)
 
-    async def _rule_attribution(
-        self, user_agent: str, empty_user_agent: bool
-    ) -> dict[str, object]:
+    async def _rule_attribution(self, user_agent: str, empty_user_agent: bool) -> Stamp:
         if empty_user_agent or not agent_receives_events(
             self.middleware.event_bus, self.config
         ):

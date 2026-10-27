@@ -19,6 +19,7 @@ from guard_core.sync.core.events.event_types import (
     EVENT_USER_AGENT_BLOCKED,
 )
 from guard_core.sync.decorators.base import RouteConfig
+from guard_core.sync.handlers._dynamic_rule_attribution import Stamp
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 from guard_core.sync.utils import log_activity
 
@@ -64,9 +65,7 @@ class UserAgentCheck(SecurityCheck):
             return None
         return self._deny(request, route_config, user_agent, empty_user_agent)
 
-    def _rule_attribution(
-        self, user_agent: str, empty_user_agent: bool
-    ) -> dict[str, object]:
+    def _rule_attribution(self, user_agent: str, empty_user_agent: bool) -> Stamp:
         if empty_user_agent or not agent_receives_events(
             self.middleware.event_bus, self.config
         ):

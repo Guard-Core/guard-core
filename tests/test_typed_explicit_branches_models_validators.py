@@ -8,6 +8,7 @@ from guard_core._security_config_field_validators import (
     _validate_ip_or_cidr_list,
     _validate_threat_ban_config_value,
 )
+from guard_core._security_config_name_set_validators import _frozenset_of_names
 from guard_core.models import SecurityConfig
 
 
@@ -96,3 +97,15 @@ def test_a_config_still_survives_pickle_and_deepcopy() -> None:
         config.threat_ban_config
     )
     assert copy.deepcopy(config).threat_ban_config == config.threat_ban_config
+
+
+def test_an_object_iterable_only_through_getitem_is_still_a_name_set() -> None:
+    assert _frozenset_of_names(_IndexedOnly(), "muted_event_types") == frozenset(
+        {"10.0.0.1"}
+    )
+
+
+@pytest.mark.parametrize("value", [5, [["unhashable"]]])
+def test_a_name_set_that_frozenset_refused_keeps_its_message(value: object) -> None:
+    with pytest.raises(ValueError, match="must be a collection of hashable names"):
+        _frozenset_of_names(value, "muted_event_types")

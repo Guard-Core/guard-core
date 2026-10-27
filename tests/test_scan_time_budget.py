@@ -18,6 +18,7 @@ from guard_core.handlers.suspatterns_handler import (
     sus_patterns_handler,
 )
 from guard_core.models import SecurityConfig
+from guard_core.protocols.agent_protocol import JsonValue
 from guard_core.utils import detect_penetration_attempt
 from tests.conftest import MockGuardRequest
 
@@ -193,9 +194,9 @@ async def test_trigger_names_the_budget_when_it_tips_the_request(
 
 
 def test_threats_message_appends_the_first_later_timeout() -> None:
-    regex = {"type": "regex", "pattern": "a"}
-    timeout = {"type": "pattern_timeout", "pattern": "slow"}
-    other = {"type": "pattern_timeout", "pattern": "later"}
+    regex: dict[str, JsonValue] = {"type": "regex", "pattern": "a"}
+    timeout: dict[str, JsonValue] = {"type": "pattern_timeout", "pattern": "slow"}
+    other: dict[str, JsonValue] = {"type": "pattern_timeout", "pattern": "later"}
 
     message = detection_scan._build_threats_message([regex, timeout, other])
 

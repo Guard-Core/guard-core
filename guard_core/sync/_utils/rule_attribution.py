@@ -1,8 +1,11 @@
 import time
-from typing import Any
+from typing import TYPE_CHECKING
 
 from guard_core.sync._utils.detection_scan import _first_blocked_user_agent_pattern
-from guard_core.sync.handlers._dynamic_rule_attribution import RuleAttribution
+from guard_core.sync.handlers._dynamic_rule_attribution import RuleAttribution, Stamp
+
+if TYPE_CHECKING:
+    from guard_core.sync.handlers.ipban_handler import IPBanManager
 
 _applied: RuleAttribution | None = None
 
@@ -14,7 +17,7 @@ def set_attribution_view(view: RuleAttribution | None) -> None:
     _applied = view
 
 
-def cached_ban_stamp(client_ip: str, bans: Any) -> dict[str, Any] | None:
+def cached_ban_stamp(client_ip: str, bans: "IPBanManager") -> Stamp | None:
     """The stamp kept for a banned address, ``{}`` when no rule set is applied,
     ``None`` when it has to be worked out (``ban_attribution``)."""
     view = _applied
@@ -30,26 +33,22 @@ def cached_ban_stamp(client_ip: str, bans: Any) -> dict[str, Any] | None:
     return None
 
 
-def ban_attribution(client_ip: str, bans: Any) -> dict[str, Any]:
+def ban_attribution(client_ip: str, bans: "IPBanManager") -> Stamp:
     view = _applied
     return view.for_ban(client_ip, bans) if view else {}
 
 
-def country_attribution(
-    country_rule: str | None, country: str | None
-) -> dict[str, Any]:
+def country_attribution(country_rule: str | None, country: str | None) -> Stamp:
     view = _applied
     return view.for_country(country_rule, country) if view else {}
 
 
-def cloud_provider_attribution(
-    provider: str | None, region: str | None
-) -> dict[str, Any]:
+def cloud_provider_attribution(provider: str | None, region: str | None) -> Stamp:
     view = _applied
     return view.for_cloud_provider(provider, region) if view and provider else {}
 
 
-def user_agent_attribution(user_agent: str, patterns: list[str]) -> dict[str, Any]:
+def user_agent_attribution(user_agent: str, patterns: list[str]) -> Stamp:
     view = _applied
     if view is None:
         return {}
@@ -57,16 +56,16 @@ def user_agent_attribution(user_agent: str, patterns: list[str]) -> dict[str, An
     return view.for_user_agent_pattern(pattern)
 
 
-def rate_limit_attribution(kind: str, bucket: str) -> dict[str, Any]:
+def rate_limit_attribution(kind: str, bucket: str) -> Stamp:
     view = _applied
     return view.for_rate_limit_tier(kind, bucket) if view else {}
 
 
-def emergency_attribution() -> dict[str, Any]:
+def emergency_attribution() -> Stamp:
     view = _applied
     return view.for_emergency_mode() if view else {}
 
 
-def pattern_attribution(source: str | None) -> dict[str, Any]:
+def pattern_attribution(source: str | None) -> Stamp:
     view = _applied
     return view.for_pattern(source) if view else {}

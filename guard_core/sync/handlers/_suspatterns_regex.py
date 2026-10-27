@@ -691,8 +691,8 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
             )
             _warn_scan_time_cap_reached_once(ip_address)
             threats.append(budget_threat)
-            matched_patterns.append(budget_threat["pattern"])
-            timeouts.append(budget_threat["pattern"])
+            matched_patterns.append(_SCAN_TIME_BUDGET_EXHAUSTED_PATTERN)
+            timeouts.append(_SCAN_TIME_BUDGET_EXHAUSTED_PATTERN)
 
         try:
             for pattern, _contexts, category in rows_with_required_literal(

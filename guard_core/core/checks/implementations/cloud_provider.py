@@ -15,6 +15,7 @@ from guard_core.core.events.event_types import (
     EVENT_IP_BLOCKED,
 )
 from guard_core.decorators.base import RouteConfig
+from guard_core.handlers._dynamic_rule_attribution import Stamp
 from guard_core.models import SecurityConfig, cloud_blocking_enabled
 from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse
@@ -174,9 +175,7 @@ class CloudProviderCheck(SecurityCheck):
             blocked_providers=list(cloud_providers_to_check),
         )
 
-    def _cloud_attribution(
-        self, cloud_details: tuple[str, str] | None
-    ) -> dict[str, object]:
+    def _cloud_attribution(self, cloud_details: tuple[str, str] | None) -> Stamp:
         if cloud_details is None:
             return {}
         provider, network = cloud_details
@@ -188,7 +187,7 @@ class CloudProviderCheck(SecurityCheck):
         request: GuardRequest,
         client_ip: str,
         cloud_details: tuple[str, str] | None,
-        attribution: dict[str, object],
+        attribution: Stamp,
     ) -> None:
         reason = f"Blocked cloud provider IP: {client_ip}"
         provider_fields: dict[str, str] = {}
