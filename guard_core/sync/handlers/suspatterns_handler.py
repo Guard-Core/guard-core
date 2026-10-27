@@ -1151,7 +1151,8 @@ class SusPatternsManager(_SusPatternsViewsMixin):
         return {
             "endpoint": _scanned_request_endpoint(),
             **pattern_attribution(
-                self._config, matched_patterns[0] if matched_patterns else None
+                self._scan_config(),
+                matched_patterns[0] if matched_patterns else None,
             ),
         }
 

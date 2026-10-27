@@ -37,7 +37,9 @@ def _config(**overrides: Any) -> SecurityConfig:
     return SecurityConfig(**fields)
 
 
-async def _apply_user_agent_rule(config: SecurityConfig) -> DynamicRuleManager:
+async def _apply_user_agent_rule(
+    config: SecurityConfig, patterns: list[str] | None = None
+) -> DynamicRuleManager:
     manager = DynamicRuleManager(config)
     agent = MagicMock()
     agent.send_event = AsyncMock()
@@ -47,6 +49,7 @@ async def _apply_user_agent_rule(config: SecurityConfig) -> DynamicRuleManager:
             version=1,
             timestamp=datetime.now(timezone.utc),
             blocked_user_agents=["wp23bot"],
+            suspicious_patterns=patterns or [],
         )
     )
     manager.agent_handler = agent
@@ -129,3 +132,29 @@ async def test_set_attribution_view_sets_the_view_of_the_app_it_is_given() -> No
     assert rule_attribution._view_of(app) is view
     rule_attribution.set_attribution_view(view, other)
     assert rule_attribution._view_of(other) is None
+
+
+async def test_a_shared_pattern_manager_stamps_the_scanned_apps_rules() -> None:
+    from guard_core._utils.scan_config_scope import (
+        ScanConfigScope,
+        _scan_config_scope,
+    )
+    from guard_core.handlers.suspatterns_handler import SusPatternsManager
+
+    app_a = _config(enable_agent=True, agent_api_key="key", enable_dynamic_rules=True)
+    app_b = _config(enable_agent=True, agent_api_key="key", enable_dynamic_rules=True)
+    pattern = "wp254dyn[a-z]{3,6}"
+    await _apply_user_agent_rule(app_a, patterns=[pattern])
+    manager = SusPatternsManager._for_app(app_a)
+
+    own = manager._consumer_fields([pattern])
+    token = _scan_config_scope.set(
+        ScanConfigScope(manager, app_b, manager._detection_state)
+    )
+    try:
+        scanned_for_b = manager._consumer_fields([pattern])
+    finally:
+        _scan_config_scope.reset(token)
+
+    assert own["matched_rule_id"] == RULE_ID
+    assert "matched_rule_id" not in scanned_for_b
