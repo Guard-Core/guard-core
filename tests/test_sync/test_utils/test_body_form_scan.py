@@ -126,7 +126,10 @@ class _FakePart:
         name: str | None,
         filename: str | None,
         headers: list[tuple[str, str]] | None = None,
+        params: list[tuple[str, str]] | None = None,
+        has_disposition: bool = True,
     ) -> None:
+        self._params = (params or []) if has_disposition else None
         self._name = name
         self._filename = filename
         self._headers = headers or []
@@ -139,6 +142,10 @@ class _FakePart:
 
     def get_filename(self) -> str | None:
         return self._filename
+
+    def get_params(self, header: str) -> list[tuple[str, str]] | None:
+        assert header == "content-disposition"
+        return self._params
 
     def items(self) -> list[tuple[str, str]]:
         return self._headers
@@ -185,3 +192,29 @@ def test_multipart_part_entries_includes_every_part_header() -> None:
         ("upload", "upload", "Custom-Secret-Field: ' OR 1=1--"),
         ("upload", "upload", "payload-text-sample"),
     ]
+
+
+def test_multipart_part_entries_emit_every_filename_parameter_once() -> None:
+    part = _FakePart(
+        name="upload",
+        filename="ok.txt",
+        params=[
+            ("name", "upload"),
+            ("filename", "ok.txt"),
+            ("filename", "shell.php"),
+            ("filename", "shell.php"),
+        ],
+    )
+
+    entries = _multipart_part_entries(part)
+
+    assert [entry[2] for entry in entries[:2]] == [
+        'filename="ok.txt"',
+        'filename="shell.php"',
+    ]
+    assert len(entries) == 3
+
+
+def test_multipart_part_entries_tolerate_a_part_without_a_disposition() -> None:
+    part = _FakePart(name=None, filename=None, has_disposition=False)
+    assert _multipart_part_entries(part) == [(None, "file", "payload-text-sample")]

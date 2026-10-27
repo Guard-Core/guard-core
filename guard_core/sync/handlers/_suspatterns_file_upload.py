@@ -160,7 +160,9 @@ _FILE_UPLOAD_DANGEROUS_TERMINAL_EXTENSION_RE = re.compile(
     + r"))\Z",
     re.IGNORECASE,
 )
-_FILE_UPLOAD_NTFS_STREAM_SUFFIX_RE = re.compile(r"::\$DATA\Z", re.IGNORECASE)
+_FILE_UPLOAD_NTFS_STREAM_SUFFIX_RE = re.compile(
+    r"(?:::?\$DATA|::\$INDEX_ALLOCATION):?\Z", re.IGNORECASE
+)
 _FILE_UPLOAD_NAME_TERMINATORS = " \t\r\n\x0b\x0c;,"
 _FILE_UPLOAD_NAME_MAX_LENGTH = 255
 _FILE_UPLOAD_TRUNCATION_MARKER_RE = re.compile(
@@ -258,7 +260,7 @@ def _file_upload_inner_quote_end(content: str, body_start: int, end: int) -> int
 def _file_upload_kind_matches(body: str, source: str) -> bool:
     spellings = (
         (body, _file_upload_windows_name(body))
-        if body[-1:] in (".", " ") or "::" in body or '"' in body
+        if body[-1:] in (".", " ") or ":" in body or '"' in body
         else (body,)
     )
     for spelling in spellings:

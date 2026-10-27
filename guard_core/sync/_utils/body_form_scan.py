@@ -1,4 +1,5 @@
 from email.message import Message
+from email.utils import collapse_rfc2231_value
 from typing import TYPE_CHECKING, Protocol
 
 from guard_core.sync._utils.detection_scan import (
@@ -138,6 +139,8 @@ class _MultipartPart(Protocol):
 
     def get_filename(self) -> str | None: ...
 
+    def get_params(self, *, header: str) -> list[tuple[str, str]] | None: ...
+
     def items(self) -> list[tuple[str, str]]: ...
 
 
@@ -153,14 +156,27 @@ def _part_payload_entries(
     return [(exclusion_key, label, payload)]
 
 
+def _multipart_filenames(part: _MultipartPart) -> list[str]:
+    filenames = []
+    first = part.get_filename()
+    if first is not None:
+        filenames.append(first)
+    for key, value in part.get_params(header="content-disposition") or []:
+        if key.lower() == "filename":
+            decoded = collapse_rfc2231_value(value).strip()
+            if decoded not in filenames:
+                filenames.append(decoded)
+    return filenames
+
+
 def _multipart_part_entries(part: _MultipartPart) -> list[tuple[str | None, str, str]]:
     entries: list[tuple[str | None, str, str]] = []
     name = part.get_param("name", header="content-disposition")
     filename = part.get_filename()
     exclusion_key = str(name) if name is not None else None
     label = exclusion_key if exclusion_key is not None else "file"
-    if filename is not None:
-        sanitized_filename = filename.replace('"', "").replace("'", "")
+    for each_filename in _multipart_filenames(part):
+        sanitized_filename = each_filename.replace('"', "").replace("'", "")
         entries.append((exclusion_key, label, f'filename="{sanitized_filename}"'))
     for header_name, header_value in part.items():
         entries.append((exclusion_key, label, f"{header_name}: {header_value}"))
