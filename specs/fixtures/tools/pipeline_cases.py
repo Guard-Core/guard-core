@@ -748,7 +748,7 @@ def _json_upload(size: int) -> str:
     return '{"note": "' + "a" * size + '"}'
 
 
-def _upload_drive(headers: dict[str, str], body: str) -> dict[str, object]:
+def _upload_drive(headers: dict[str, str], body: str) -> PipelineStep:
     return {
         "client_ip": IP,
         "url_path": "/upload",
