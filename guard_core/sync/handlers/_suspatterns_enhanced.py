@@ -1,7 +1,11 @@
 import re
 from typing import TYPE_CHECKING, TypedDict
 
-from guard_core.sync._utils.scan_config_scope import configure_lock, scoped_state
+from guard_core.sync._utils.scan_config_scope import (
+    _request_scan_window,
+    configure_lock,
+    scoped_state,
+)
 from guard_core.sync.detection_engine import (
     ContentPreprocessor,
     PerformanceMonitor,
@@ -104,12 +108,15 @@ class _SusPatternsEnhancedMixin:
             )
             return content[:max_length], False, None
 
+        window = _request_scan_window.get()
         context_preprocessor = ContentPreprocessor(
             max_content_length=preprocessor.max_content_length,
             preserve_attack_patterns=preprocessor.preserve_attack_patterns,
             agent_handler=self._events_agent_handler,
             correlation_id=correlation_id,
-            max_full_scan_bytes=preprocessor._MAX_FULL_SCAN_BYTES,
+            max_full_scan_bytes=(
+                preprocessor._MAX_FULL_SCAN_BYTES if window is None else window
+            ),
         )
         decode_budget_exhausted = [False]
         processed, decoded = context_preprocessor.preprocess_with_decoded(

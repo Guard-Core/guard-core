@@ -21,7 +21,11 @@ from guard_core.sync._utils.pattern_source_redaction import (
     _redact_pattern_source,
     _redacting_patterns,
 )
-from guard_core.sync._utils.scan_config_scope import ScanConfigScope, _scan_config_scope
+from guard_core.sync._utils.scan_config_scope import (
+    ScanConfigScope,
+    _request_scan_window,
+    _scan_config_scope,
+)
 
 if TYPE_CHECKING:
     from guard_core.protocols.agent_protocol import JsonValue
@@ -134,6 +138,7 @@ def _scan_value_budget(
     body_field_category_skips: Mapping[str, frozenset[str]] | None = None,
     patterns: "SusPatternsManager | None" = None,
     config_scope: ScanConfigScope | None = None,
+    scan_window: int | None = None,
 ) -> Iterator[None]:
     count_token = _scanned_value_count.set(0)
     cap_token = _scan_value_cap.set(max_values)
@@ -153,6 +158,7 @@ def _scan_value_budget(
     body_field_token = _body_field_category_skips.set(body_field_category_skips or {})
     patterns_token = _redacting_patterns.set(patterns)
     config_scope_token = _scan_config_scope.set(config_scope)
+    scan_window_token = _request_scan_window.set(scan_window)
     try:
         yield
     finally:
@@ -174,6 +180,7 @@ def _scan_value_budget(
         _body_field_category_skips.reset(body_field_token)
         _redacting_patterns.reset(patterns_token)
         _scan_config_scope.reset(config_scope_token)
+        _request_scan_window.reset(scan_window_token)
 
 
 def _body_field_skipped_categories(name: str) -> frozenset[str] | None:

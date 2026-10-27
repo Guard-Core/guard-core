@@ -65,6 +65,7 @@ from guard_core.sync._utils.scan_config_scope import (
     scan_config_scope_of,
 )
 from guard_core.sync.detection_result import DetectionResult
+from guard_core.sync.handlers._suspatterns_sources import _scan_window_bytes
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
 if TYPE_CHECKING:
@@ -246,22 +247,18 @@ _BODY_PAST_CAP_DETAIL = (
 def _read_body_for_scan(
     request: SyncGuardRequest,
     config: "SyncSecurityConfig | None",
-    route_config: "RouteConfig | None",
+    inspect_cap: int | None,
     client_ip: str,
     *,
     patterns: "SusPatternsManager | None" = None,
 ) -> tuple[bytes | None, bool]:
-    if config is None:
+    if config is None or inspect_cap is None:
         return (
             _read_capped_body_or_raise(request, config, client_ip, patterns=patterns),
             False,
         )
     return read_body_for_inspection(
-        request,
-        config,
-        client_ip,
-        resolve_inspect_cap(config, route_config, request.headers.get("content-type")),
-        patterns=patterns,
+        request, config, client_ip, inspect_cap, patterns=patterns
     )
 
 
@@ -269,6 +266,7 @@ def _scan_body_surface(
     request: SyncGuardRequest,
     config: "SyncSecurityConfig | None",
     route_config: "RouteConfig | None",
+    inspect_cap: int | None,
     excluded_body_fields: set[str],
     enabled_categories: set[str] | None,
     client_ip: str,
@@ -284,7 +282,7 @@ def _scan_body_surface(
 
     try:
         body_bytes, past_cap = _read_body_for_scan(
-            request, config, route_config, client_ip, patterns=patterns
+            request, config, inspect_cap, client_ip, patterns=patterns
         )
     except BodyReadStalledError as error:
         return _build_body_read_error(True, error.detail)
@@ -377,6 +375,18 @@ def detect_penetration_attempt(
     binary_min_run = _resolve_binary_min_run_length(config)
     max_scan_seconds = _resolve_max_scan_seconds(config)
     semantic_excluded_headers = _resolve_semantic_excluded_headers(config, route_config)
+    inspect_cap = (
+        None
+        if config is None
+        else resolve_inspect_cap(
+            config, route_config, request.headers.get("content-type")
+        )
+    )
+    # The window is the request's inspect limit, never above the pattern validation cap
+    # (the larger of the two limits), which a route raised past both limits keeps.
+    scan_window = (
+        None if inspect_cap is None else min(inspect_cap, _scan_window_bytes(config))
+    )
 
     with (
         route_knowledge(
@@ -395,6 +405,7 @@ def detect_penetration_attempt(
             body_field_category_skips,
             patterns_manager,
             config_scope,
+            scan_window,
         ),
     ):
         try:
@@ -421,6 +432,7 @@ def detect_penetration_attempt(
                 request,
                 config,
                 route_config,
+                inspect_cap,
                 excluded_body_fields,
                 enabled_categories,
                 client_ip,

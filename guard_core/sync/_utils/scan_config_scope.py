@@ -23,6 +23,15 @@ _scan_config_scope: ContextVar[ScanConfigScope | None] = ContextVar(
 )
 
 
+# The preprocessor scan window of the request being scanned: the limit that applies to
+# that request (multipart: the file limit, any other body: the body limit), set by
+# _scan_value_budget. None outside a request scan, so the detection state's own window
+# (the larger of the two limits) applies.
+_request_scan_window: ContextVar[int | None] = ContextVar(
+    "guard_core_request_scan_window", default=None
+)
+
+
 # Held for the synchronous configure-and-capture step only, never across a scan:
 # with threads, another app's configure between this request's configure and the
 # read of the manager's detection state would hand it the other app's state.
