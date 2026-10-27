@@ -153,7 +153,6 @@ select = [
 "guard_core/core/initialization/handler_initializer.py" = ["ANN401"]  # handler slot
 "guard_core/core/responses/modifier_view.py" = ["ANN401"]  # open value
 "guard_core/core/validation/__init__.py" = ["ANN401"]  # open value
-"guard_core/decorators/base.py" = ["ANN401"]  # kwargs pass-through
 "guard_core/handlers/__init__.py" = ["ANN401"]  # open value
 "guard_core/handlers/_dynamic_rule_persistence.py" = ["ANN401"]  # handler slot
 "guard_core/handlers/_dynamic_rule_plan.py" = ["ANN401"]  # JSON payload
@@ -162,13 +161,10 @@ select = [
 "guard_core/handlers/_redis_ban_strike.py" = ["ANN401"]  # handler slot
 "guard_core/handlers/_redis_fast_pool.py" = ["ANN401"]  # JSON payload
 "guard_core/handlers/_redis_lean.py" = ["ANN401"]  # handler slot
-"guard_core/handlers/_redis_shared_clients.py" = ["ANN401"]  # framework object
 "guard_core/handlers/_suspatterns_lazy_rows.py" = ["ANN401"]  # JSON payload
 "guard_core/handlers/_suspatterns_literals.py" = ["ANN401"]  # regex engine internals
 "guard_core/handlers/_suspatterns_pickle.py" = ["ANN401"]  # open value
 "guard_core/handlers/_suspatterns_regex.py" = ["ANN401"]  # regex engine internals
-"guard_core/handlers/redis_handler.py" = ["ANN401"]  # handler slot
-"guard_core/handlers/suspatterns_handler.py" = ["ANN401"]  # regex engine internals
 "guard_core/models.py" = ["ANN401"]  # open value
 "guard_core/protocols/agent_protocol.py" = ["ANN401"]  # protocol
 "guard_core/protocols/middleware_protocol.py" = ["ANN401"]  # protocol
@@ -190,7 +186,6 @@ select = [
 "guard_core/sync/core/initialization/handler_initializer.py" = ["ANN401"]  # handler slot
 "guard_core/sync/core/responses/modifier_view.py" = ["ANN401"]  # open value
 "guard_core/sync/core/validation/__init__.py" = ["ANN401"]  # open value
-"guard_core/sync/decorators/base.py" = ["ANN401"]  # kwargs pass-through
 "guard_core/sync/handlers/__init__.py" = ["ANN401"]  # open value
 "guard_core/sync/handlers/_dynamic_rule_persistence.py" = ["ANN401"]  # handler slot
 "guard_core/sync/handlers/_dynamic_rule_plan.py" = ["ANN401"]  # JSON payload
@@ -200,13 +195,10 @@ select = [
 "guard_core/sync/handlers/_redis_ban_strike.py" = ["ANN401"]  # handler slot
 "guard_core/sync/handlers/_redis_fast_pool.py" = ["ANN401"]  # kwargs pass-through
 "guard_core/sync/handlers/_redis_lean.py" = ["ANN401"]  # handler slot
-"guard_core/sync/handlers/_redis_shared_clients.py" = ["ANN401"]  # framework object
 "guard_core/sync/handlers/_suspatterns_lazy_rows.py" = ["ANN401"]  # JSON payload
 "guard_core/sync/handlers/_suspatterns_literals.py" = ["ANN401"]  # regex engine internals
 "guard_core/sync/handlers/_suspatterns_pickle.py" = ["ANN401"]  # open value
 "guard_core/sync/handlers/_suspatterns_regex.py" = ["ANN401"]  # regex engine internals
-"guard_core/sync/handlers/redis_handler.py" = ["ANN401"]  # handler slot
-"guard_core/sync/handlers/suspatterns_handler.py" = ["ANN401"]  # regex engine internals
 "guard_core/sync/protocols/agent_protocol.py" = ["ANN401"]  # protocol
 "guard_core/sync/protocols/middleware_protocol.py" = ["ANN401"]  # protocol
 "guard_core/sync/protocols/redis_protocol.py" = ["ANN401"]  # protocol
@@ -278,7 +270,6 @@ module = [
     "guard_core.core.initialization.handler_initializer",  # handler slot
     "guard_core.core.responses.modifier_view",  # open value
     "guard_core.core.validation",  # open value
-    "guard_core.decorators.base",  # kwargs pass-through
     "guard_core.handlers",  # open value
     "guard_core.handlers._dynamic_rule_persistence",  # handler slot
     "guard_core.handlers._dynamic_rule_plan",  # JSON payload
@@ -287,13 +278,10 @@ module = [
     "guard_core.handlers._redis_ban_strike",  # handler slot
     "guard_core.handlers._redis_fast_pool",  # JSON payload
     "guard_core.handlers._redis_lean",  # handler slot
-    "guard_core.handlers._redis_shared_clients",  # framework object
     "guard_core.handlers._suspatterns_lazy_rows",  # JSON payload
     "guard_core.handlers._suspatterns_literals",  # regex engine internals
     "guard_core.handlers._suspatterns_pickle",  # open value
     "guard_core.handlers._suspatterns_regex",  # regex engine internals
-    "guard_core.handlers.redis_handler",  # handler slot
-    "guard_core.handlers.suspatterns_handler",  # regex engine internals
     "guard_core.models",  # open value
     "guard_core.protocols.agent_protocol",  # protocol
     "guard_core.protocols.middleware_protocol",  # protocol
@@ -321,7 +309,6 @@ module = [
     "guard_core.sync.core.initialization.handler_initializer",  # handler slot
     "guard_core.sync.core.responses.modifier_view",  # open value
     "guard_core.sync.core.validation",  # open value
-    "guard_core.sync.decorators.base",  # kwargs pass-through
     "guard_core.sync.handlers",  # open value
     "guard_core.sync.handlers._dynamic_rule_persistence",  # handler slot
     "guard_core.sync.handlers._dynamic_rule_plan",  # JSON payload
@@ -331,13 +318,10 @@ module = [
     "guard_core.sync.handlers._redis_ban_strike",  # handler slot
     "guard_core.sync.handlers._redis_fast_pool",  # kwargs pass-through
     "guard_core.sync.handlers._redis_lean",  # handler slot
-    "guard_core.sync.handlers._redis_shared_clients",  # framework object
     "guard_core.sync.handlers._suspatterns_lazy_rows",  # JSON payload
     "guard_core.sync.handlers._suspatterns_literals",  # regex engine internals
     "guard_core.sync.handlers._suspatterns_pickle",  # open value
     "guard_core.sync.handlers._suspatterns_regex",  # regex engine internals
-    "guard_core.sync.handlers.redis_handler",  # handler slot
-    "guard_core.sync.handlers.suspatterns_handler",  # regex engine internals
     "guard_core.sync.protocols.agent_protocol",  # protocol
     "guard_core.sync.protocols.middleware_protocol",  # protocol
     "guard_core.sync.protocols.redis_protocol",  # protocol

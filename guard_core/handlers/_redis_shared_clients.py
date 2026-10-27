@@ -3,13 +3,39 @@ from __future__ import annotations
 import threading
 import weakref
 from collections.abc import Hashable
-from typing import Any
+from typing import TYPE_CHECKING, Protocol
 
 from guard_core._redis_enablement import configured_redis_url
 from guard_core._redis_exceptions import RedisConnectionError, RedisTimeoutError
 from guard_core._utils.config_registry import ConfigHandlerRegistry
 
+if TYPE_CHECKING:
+    from redis.asyncio import Redis
+
+    from guard_core.handlers.redis_handler import RedisManager
+    from guard_core.models import SecurityConfig
+
 DEFAULT_POOL_SIZE = 100
+
+
+class RedisClientCloser(Protocol):
+    async def _safe_aclose(self, client: Redis) -> None: ...
+
+
+class RedisClientOwner(RedisClientCloser, Protocol):
+    def _connection_kwargs(
+        self, config: SecurityConfig | None = None
+    ) -> dict[str, object]: ...
+
+
+class RedisClientBuilder(Protocol):
+    def __call__(
+        self,
+        url: str,
+        max_connections: int,
+        pool_timeout: float,
+        **connection_kwargs: object,
+    ) -> Redis: ...
 
 
 def current_scope() -> object:
@@ -30,17 +56,17 @@ def current_scope_or_none() -> object | None:
 class _Entry:
     __slots__ = ("client", "owners", "scope")
 
-    def __init__(self, client: Any, scope: object, owner: object) -> None:
+    def __init__(self, client: Redis, scope: object, owner: object) -> None:
         self.client = client
         self.scope = weakref.ref(scope)
-        self.owners: weakref.WeakSet[Any] = weakref.WeakSet([owner])
+        self.owners: weakref.WeakSet[object] = weakref.WeakSet([owner])
 
 
 _entries: dict[Hashable, _Entry] = {}
 _entries_lock = threading.Lock()
 
 
-def _freeze(value: Any) -> Hashable:
+def _freeze(value: object) -> Hashable:
     if isinstance(value, dict):
         return tuple(
             sorted(((k, _freeze(v)) for k, v in value.items()), key=lambda kv: kv[0])
@@ -58,7 +84,7 @@ def pool_key(
     url: str,
     max_connections: int,
     pool_timeout: float,
-    connection_kwargs: dict[str, Any],
+    connection_kwargs: dict[str, object],
     scope: object,
 ) -> Hashable:
     """Every connection setting by value plus the running scope, never the prefix."""
@@ -73,8 +99,8 @@ def pool_key(
 
 def pool_key_of_settings(
     url: str,
-    config: Any,
-    connection_kwargs: dict[str, Any],
+    config: SecurityConfig,
+    connection_kwargs: dict[str, object],
     default_pool_size: int,
     scope: object,
 ) -> Hashable:
@@ -98,7 +124,7 @@ def _live_entry(key: Hashable, scope: object) -> _Entry | None:
     return entry
 
 
-def acquire(key: Hashable, scope: object, owner: object) -> Any | None:
+def acquire(key: Hashable, scope: object, owner: object) -> Redis | None:
     """The shared client for key with owner added, or None when none is live."""
     with _entries_lock:
         entry = _live_entry(key, scope)
@@ -108,7 +134,7 @@ def acquire(key: Hashable, scope: object, owner: object) -> Any | None:
         return entry.client
 
 
-def publish(key: Hashable, scope: object, client: Any, owner: object) -> Any:
+def publish(key: Hashable, scope: object, client: Redis, owner: object) -> Redis:
     """Make client the shared one for key; a client published first wins."""
     with _entries_lock:
         entry = _live_entry(key, scope)
@@ -119,7 +145,7 @@ def publish(key: Hashable, scope: object, client: Any, owner: object) -> Any:
         return entry.client
 
 
-def release(key: Hashable, client: Any, owner: object) -> bool:
+def release(key: Hashable, client: Redis, owner: object) -> bool:
     """Drop owner's reference; True when the caller must close the client."""
     with _entries_lock:
         entry = _entries.get(key)
@@ -132,25 +158,33 @@ def release(key: Hashable, client: Any, owner: object) -> bool:
         return True
 
 
-_MANAGERS: ConfigHandlerRegistry[object] = ConfigHandlerRegistry()
+_MANAGERS: ConfigHandlerRegistry[RedisManager] = ConfigHandlerRegistry()
 
 
-def _manager_kind(manager_class: type) -> str:
+def _manager_kind(manager_class: type[RedisManager]) -> str:
     return f"{manager_class.__module__}.{manager_class.__qualname__}"
 
 
-def existing_manager(config: Any, manager_class: type) -> Any | None:
+def existing_manager(
+    config: SecurityConfig, manager_class: type[RedisManager]
+) -> RedisManager | None:
     """The manager built for this config object, held weakly, or None."""
     return _MANAGERS.lookup(config, _manager_kind(manager_class))
 
 
-def register_manager(config: Any, manager: Any, manager_class: type) -> None:
+def register_manager(
+    config: SecurityConfig, manager: RedisManager, manager_class: type[RedisManager]
+) -> None:
     _MANAGERS.register(config, manager, _manager_kind(manager_class))
 
 
 def open_client(
-    owner: Any, url: str, config: Any, build: Any, default_pool_size: int
-) -> tuple[Any | None, Hashable, object, bool]:
+    owner: RedisClientOwner,
+    url: str,
+    config: SecurityConfig,
+    build: RedisClientBuilder,
+    default_pool_size: int,
+) -> tuple[Redis, Hashable, object, bool]:
     """The shared client for these settings, else a new one from build; the last
     item says whether it was shared."""
     connection_kwargs = owner._connection_kwargs(config)
@@ -168,14 +202,16 @@ def open_client(
     return client, key, scope, False
 
 
-async def register_client(owner: Any, client: Any, key: Hashable, scope: object) -> Any:
+async def register_client(
+    owner: RedisClientCloser, client: Redis, key: Hashable, scope: object
+) -> Redis:
     published = publish(key, scope, client, owner)
     if published is not client:
         await owner._safe_aclose(client)
     return published
 
 
-def connection_kwargs_of(cfg: Any) -> dict[str, Any]:
+def connection_kwargs_of(cfg: SecurityConfig) -> dict[str, object]:
     """Connection tuning passed to ``Redis.from_url``.
 
     Without bounded timeouts a partitioned Redis blocks every request that
@@ -183,7 +219,7 @@ def connection_kwargs_of(cfg: Any) -> dict[str, Any]:
     encoded in ``redis_url`` query params still wins (redis-py applies URL
     params last), so this only sets a floor.
     """
-    kwargs: dict[str, Any] = {
+    kwargs: dict[str, object] = {
         "socket_connect_timeout": cfg.redis_socket_connect_timeout,
         "socket_timeout": cfg.redis_socket_timeout,
         "health_check_interval": cfg.redis_health_check_interval,
@@ -197,7 +233,7 @@ def connection_kwargs_of(cfg: Any) -> dict[str, Any]:
     return kwargs
 
 
-def connection_key_of(config: Any) -> Hashable | None:
+def connection_key_of(config: SecurityConfig) -> Hashable | None:
     """The key ``RedisManager.initialize`` pools this config's client under, or
     None without a configured Redis; the running event loop is part of it."""
     url = configured_redis_url(config)

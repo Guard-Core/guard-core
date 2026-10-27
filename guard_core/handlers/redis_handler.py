@@ -7,8 +7,7 @@ import uuid
 from collections.abc import AsyncIterator, Callable, Hashable, Sequence
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, NoReturn
-from urllib.parse import urlsplit, urlunsplit
+from typing import TYPE_CHECKING, NoReturn
 
 from guard_core._redis_enablement import configured_redis_url, redis_is_configured
 from guard_core._redis_exceptions import (
@@ -20,6 +19,7 @@ from guard_core.core.events.event_types import (
     EVENT_REDIS_ERROR,
 )
 from guard_core.exceptions import GuardRedisError
+from guard_core.handlers import _redis_handler_support as redis_types
 from guard_core.handlers import _redis_shared_clients
 from guard_core.handlers._dynamic_rule_persistence import (
     BAN_FLOORS_NAMESPACE,
@@ -27,6 +27,12 @@ from guard_core.handlers._dynamic_rule_persistence import (
     OWNED_BANS_KEY,
 )
 from guard_core.handlers._redis_ban_strike import RedisBanStrikeMixin
+from guard_core.handlers._redis_handler_support import (
+    _redact_redis_url,
+)
+from guard_core.handlers._redis_handler_support import (
+    _unparseable_redis_url as _unparseable_redis_url,
+)
 from guard_core.handlers._redis_lean import lean_command, lean_evalsha
 from guard_core.models import SecurityConfig
 from guard_core.scripts.ban_write_lua import (
@@ -48,38 +54,13 @@ if TYPE_CHECKING:
     from redis.asyncio import Redis
 
 
-def _unparseable_redis_url(url: str, scheme: str = "") -> str:
-    scheme = scheme or url.partition("://")[0]
-    return f"{scheme}://<unparseable>" if scheme and "://" in url else "<unparseable>"
-
-
-def _redact_redis_url(url: str | None) -> str | None:
-    if url is None:
-        return None
-    try:
-        parts = urlsplit(url)
-    except ValueError:
-        return _unparseable_redis_url(url)
-    if not parts.netloc:
-        return url
-    try:
-        host = parts.hostname or ""
-        port = parts.port
-    except ValueError:
-        return _unparseable_redis_url(url, parts.scheme)
-    netloc = f"[{host}]" if ":" in host else host
-    if port is not None:
-        netloc = f"{netloc}:{port}"
-    return urlunsplit((parts.scheme, netloc, parts.path, parts.query, parts.fragment))
-
-
 _REDIS_HANDLER_NAME = "redis"
 _DEFAULT_POOL_SIZE = _redis_shared_clients.DEFAULT_POOL_SIZE
 _SCAN_BATCH = 500
 
 
 def _build_redis_client(
-    url: str, max_connections: int, pool_timeout: float, **connection_kwargs: Any
+    url: str, max_connections: int, pool_timeout: float, **connection_kwargs: object
 ) -> Redis:
     from redis.asyncio import Redis
 
@@ -131,7 +112,7 @@ class RedisManager(RedisBanStrikeMixin):
     _closed = False
     config: SecurityConfig
     logger: logging.Logger
-    agent_handler: Any = None
+    agent_handler: redis_types.EventSink | None = None
 
     def __new__(cls: type[RedisManager], config: SecurityConfig) -> RedisManager:
         manager = _redis_shared_clients.existing_manager(config, cls)
@@ -146,11 +127,11 @@ class RedisManager(RedisBanStrikeMixin):
         cls._instance = manager
         return manager
 
-    async def initialize_agent(self, agent_handler: Any) -> None:
+    async def initialize_agent(self, agent_handler: redis_types.EventSink) -> None:
         self.agent_handler = agent_handler
 
     async def _send_redis_event(
-        self, event_type: str, action_taken: str, reason: str, **kwargs: Any
+        self, event_type: str, action_taken: str, reason: str, **kwargs: object
     ) -> None:
         if not self.agent_handler:
             return
@@ -175,7 +156,7 @@ class RedisManager(RedisBanStrikeMixin):
 
     def _connection_kwargs(
         self, config: SecurityConfig | None = None
-    ) -> dict[str, Any]:
+    ) -> dict[str, object]:
         """Connection tuning passed to ``Redis.from_url``.
 
         Without bounded timeouts a partitioned Redis blocks every request that
@@ -328,7 +309,14 @@ class RedisManager(RedisBanStrikeMixin):
 
         raise GuardRedisError(503, "Redis operation failed") from error
 
-    async def safe_operation(self, func: Any, *args: Any, **kwargs: Any) -> Any:
+    async def safe_operation(
+        self,
+        func: redis_types.RedisOperation[
+            redis_types.OperationParams, redis_types.OperationResult
+        ],
+        *args: redis_types.OperationParams.args,
+        **kwargs: redis_types.OperationParams.kwargs,
+    ) -> redis_types.OperationResult | None:
         if not redis_is_configured(self.config):
             return None
 
@@ -338,17 +326,18 @@ class RedisManager(RedisBanStrikeMixin):
         except Exception as e:
             await self._raise_operation_failure(e, getattr(func, "__name__", "unknown"))
 
-    async def get_key(self, namespace: str, key: str) -> Any:
+    async def get_key(self, namespace: str, key: str) -> str | None:
         if not redis_is_configured(self.config):
             return None
 
-        async def _get(conn: Redis) -> Any:
+        async def _get(conn: Redis) -> str | None:
             full_key = f"{self.config.redis_prefix}{namespace}:{key}"
-            return await conn.get(full_key)
+            value: str | None = await conn.get(full_key)
+            return value
 
         return await self.safe_operation(_get)
 
-    async def get_many(self, pairs: Sequence[tuple[str, str]]) -> list[Any]:
+    async def get_many(self, pairs: Sequence[tuple[str, str]]) -> list[str | None]:
         if not redis_is_configured(self.config):
             return [None] * len(pairs)
 
@@ -366,7 +355,11 @@ class RedisManager(RedisBanStrikeMixin):
             await self._raise_operation_failure(e, "_get_many")
 
     async def set_key(
-        self, namespace: str, key: str, value: Any, ttl: int | None = None
+        self,
+        namespace: str,
+        key: str,
+        value: redis_types.RedisValue,
+        ttl: int | None = None,
     ) -> bool | None:
         if not redis_is_configured(self.config):
             return None
@@ -381,7 +374,11 @@ class RedisManager(RedisBanStrikeMixin):
         return False if result is None else bool(result)
 
     async def set_key_if_absent(
-        self, namespace: str, key: str, value: Any, ttl: int | None = None
+        self,
+        namespace: str,
+        key: str,
+        value: redis_types.RedisValue,
+        ttl: int | None = None,
     ) -> bool:
         if not redis_is_configured(self.config):
             return False
@@ -418,7 +415,7 @@ class RedisManager(RedisBanStrikeMixin):
     async def write_atomically(
         self,
         *,
-        sets: Sequence[tuple[str, str, Any, int | None]] = (),
+        sets: Sequence[tuple[str, str, redis_types.RedisValue, int | None]] = (),
         deletes: Sequence[tuple[str, str]] = (),
         increment: tuple[str, str] | None = None,
     ) -> None:
@@ -469,7 +466,7 @@ class RedisManager(RedisBanStrikeMixin):
             self._owned_bans_key(),
             self.ban_floor_key(namespace, key),
         ]
-        args: list[Any] = [
+        args: list[str | int] = [
             expiry,
             duration,
             "1" if advance_version else "0",
@@ -488,7 +485,10 @@ class RedisManager(RedisBanStrikeMixin):
                 )
             return float(answer[1])
 
-        return float(await self.safe_operation(_write))
+        expiry_held = await self.safe_operation(_write)
+        if expiry_held is None:
+            raise TypeError(redis_types.NO_OPERATION_RESULT)
+        return expiry_held
 
     def ban_floor_key(self, namespace: str, key: str) -> str:
         return f"{self.config.redis_prefix}{BAN_FLOORS_NAMESPACE}:{namespace}:{key}"
@@ -584,7 +584,12 @@ class RedisManager(RedisBanStrikeMixin):
 
         prefix = f"{self.config.redis_prefix}{namespace}:"
         keys = [f"{prefix}{key}"]
-        args: list[Any] = [repr(timestamp), uuid.uuid4().hex, repr(window_start), ttl]
+        args: list[str | int] = [
+            repr(timestamp),
+            uuid.uuid4().hex,
+            repr(window_start),
+            ttl,
+        ]
         if index is not None:
             index_key, max_members = index
             keys.append(f"{prefix}{index_key}")
@@ -647,7 +652,7 @@ class RedisManager(RedisBanStrikeMixin):
             self._rate_limit_violations_key(client_ip),
             *(f"{category_prefix}{name}" for name in categories),
         ]
-        args: list[Any] = [
+        args: list[str | int] = [
             repr(timestamp),
             uuid.uuid4().hex,
             repr(window_start),
@@ -666,6 +671,8 @@ class RedisManager(RedisBanStrikeMixin):
             return [int(count) for count in counts]
 
         result = await self.safe_operation(_record)
+        if result is None:
+            raise TypeError(redis_types.NO_OPERATION_RESULT)
         return result[0], result[1], dict(zip(categories, result[2:], strict=True))
 
     async def read_detection_categories(
@@ -691,7 +698,9 @@ class RedisManager(RedisBanStrikeMixin):
                 )
             return [str(name).removeprefix(category_prefix) for name in found]
 
-        categories: list[str] = await self.safe_operation(_read)
+        categories = await self.safe_operation(_read)
+        if categories is None:
+            raise TypeError(redis_types.NO_OPERATION_RESULT)
         return sorted(categories)
 
     async def forget_detection_strikes(self, client_ip: str) -> None:
@@ -816,7 +825,7 @@ class RedisHandlerBase(RedisManager):
 
     logger = logging.getLogger("guard_core.handlers.redis")
 
-    def __new__(cls, *args: Any, **kwargs: Any) -> RedisHandlerBase:
+    def __new__(cls, *args: object, **kwargs: object) -> RedisHandlerBase:
         return object.__new__(cls)
 
     def __init__(self, config: SecurityConfig) -> None:
@@ -855,7 +864,7 @@ async def scan_unlink_through_new_client(url: str, full_pattern: str) -> int:
         await client.aclose()
 
 
-def is_connected_redis_manager(handler: Any) -> bool:
+def is_connected_redis_manager(handler: object) -> bool:
     return isinstance(handler, RedisManager) and handler._redis is not None
 
 

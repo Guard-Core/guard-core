@@ -17,6 +17,10 @@ from guard_core.handlers.suspatterns_handler import (
 from guard_core.models import SecurityConfig
 
 
+def _handler_slots(manager: SusPatternsManager) -> tuple[object, object]:
+    return manager.redis_handler, manager.agent_handler
+
+
 @pytest.mark.asyncio
 async def test_add_pattern() -> None:
     pattern_to_add = r"new_pattern"
@@ -178,6 +182,7 @@ async def test_redis_pattern_persistence(security_config_redis: SecurityConfig) 
     await sus_patterns_handler.add_pattern(test_pattern, custom=True)
 
     cached_patterns = await redis_handler.get_key("patterns", "custom")
+    assert cached_patterns is not None
     assert test_pattern in cached_patterns.split(",")
 
     result = await sus_patterns_handler.remove_pattern(test_pattern, custom=True)
@@ -1193,8 +1198,7 @@ async def test_reset_drops_a_populated_redis_handler_reference() -> None:
 
     await SusPatternsManager.reset()
 
-    assert manager.redis_handler is None
-    assert manager.agent_handler is None
+    assert _handler_slots(manager) == (None, None)
     SusPatternsManager._instance = original
 
 
@@ -1231,7 +1235,7 @@ async def test_configure_with_unsupported_config_is_a_noop() -> None:
 async def test_initialize_agent_sets_agent_handler() -> None:
     SusPatternsManager._instance = None
     manager = SusPatternsManager()
-    agent = object()
+    agent = AsyncMock()
 
     await manager.initialize_agent(agent)
 

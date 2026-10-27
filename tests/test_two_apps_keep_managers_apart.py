@@ -139,6 +139,8 @@ async def test_custom_patterns_of_each_app_land_under_its_own_prefix(
 
     stored_a = await app_a.redis.get_key("patterns", "custom")
     stored_b = await app_b.redis.get_key("patterns", "custom")
+    assert stored_a is not None
+    assert stored_b is not None
     assert "customAonly" in stored_a
     assert "customBonly" not in stored_a
     assert "customBonly" in stored_b

@@ -18,6 +18,7 @@ from guard_core.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.handlers.ipban_handler import ip_ban_manager
 from guard_core.handlers.suspatterns_handler import sus_patterns_handler
 from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.protocols.agent_protocol import JsonValue
 from guard_core.utils import detect_penetration_attempt
 from tests.conftest import MockGuardRequest
 from tests.fake_agent import mock_agent
@@ -42,6 +43,30 @@ class _Agent:
 
     async def send_event(self, event: Any) -> None:
         self.events.append(event)
+
+    async def send_metric(self, metric: Any) -> None:
+        return None
+
+    async def initialize_redis(self, redis_handler: Any) -> None:
+        return None
+
+    async def start(self) -> None:
+        return None
+
+    async def stop(self) -> None:
+        return None
+
+    async def flush_buffer(self) -> None:
+        return None
+
+    async def get_dynamic_rules(self) -> Any | None:
+        return None
+
+    async def health_check(self) -> bool:
+        return True
+
+    def get_stats(self) -> dict[str, JsonValue]:
+        return {}
 
 
 @pytest.fixture(autouse=True)

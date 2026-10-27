@@ -597,7 +597,7 @@ def test_detect_encoding_layers_no_base64_run_skips_that_layer() -> None:
 
 def _wire_detect(manager: SusPatternsManager, content: str) -> tuple[bool, set[str]]:
     result = manager.detect(content, "203.0.113.7", context="unknown")
-    return result["is_threat"], {t["type"] for t in result["threats"]}
+    return result["is_threat"], {str(t["type"]) for t in result["threats"]}
 
 
 def test_tag_like_long_attribute_detected_at_2x_and_10x_old_cap(

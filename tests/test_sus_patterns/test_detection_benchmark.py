@@ -3110,7 +3110,7 @@ async def _malicious_case_detected_categories(
     )
     if not result["is_threat"]:
         return set()
-    return {threat.get("category") for threat in result["threats"]}
+    return {str(threat.get("category")) for threat in result["threats"]}
 
 
 async def _benign_case_flagged_categories(
@@ -3122,7 +3122,7 @@ async def _benign_case_flagged_categories(
     )
     if not result["is_threat"]:
         return set()
-    return {threat.get("category") for threat in result["threats"]}
+    return {str(threat.get("category")) for threat in result["threats"]}
 
 
 def _fraction(numerator: int, denominator: int) -> str:
@@ -3549,7 +3549,7 @@ async def test_var_assignment_prefixed_shell_dash_c_disclosed_false_positive_det
         f"{case_id} expected to be a disclosed false positive: "
         f"{_ENV_VAR_PREFIXED_SHELL_DASH_C_CI_CONFIG_KNOWN_FP_REASON}"
     )
-    hit_categories = {threat.get("category") for threat in result["threats"]}
+    hit_categories = {str(threat.get("category")) for threat in result["threats"]}
     assert "cmd_injection" in hit_categories, (
         f"{case_id} expected to fire cmd_injection specifically, got {hit_categories}"
     )
@@ -3577,7 +3577,7 @@ async def test_xss_event_handler_detected_when_absent_from_prior_allowlist(
         content=payload, ip_address="203.0.113.9", context="request_body"
     )
     assert result["is_threat"] is True
-    hit_categories = {threat.get("category") for threat in result["threats"]}
+    hit_categories = {str(threat.get("category")) for threat in result["threats"]}
     assert "xss" in hit_categories
 
 
@@ -3634,7 +3634,7 @@ async def test_sqli_tautology_detected_regardless_of_placeholder_or_literal(
         content=payload, ip_address="198.51.100.4", context="request_body"
     )
     assert result["is_threat"] is True
-    hit_categories = {threat.get("category") for threat in result["threats"]}
+    hit_categories = {str(threat.get("category")) for threat in result["threats"]}
     assert "sqli" in hit_categories
 
 
@@ -3806,7 +3806,7 @@ async def test_detection_recall_and_false_positive_hold_across_contexts() -> Non
                 context=context,
             )
             hit_categories = (
-                {threat.get("category") for threat in result["threats"]}
+                {str(threat.get("category")) for threat in result["threats"]}
                 if result["is_threat"]
                 else set()
             )
@@ -3840,7 +3840,9 @@ async def test_detection_recall_and_false_positive_hold_across_contexts() -> Non
             )
             if not result["is_threat"]:
                 continue
-            fired_categories = {threat.get("category") for threat in result["threats"]}
+            fired_categories = {
+                str(threat.get("category")) for threat in result["threats"]
+            }
             if not benign_case.known_false_positive_reason and not (
                 context != "request_body"
                 and any(

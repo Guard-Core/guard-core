@@ -4,6 +4,7 @@ from typing import Any
 
 import pytest
 
+from guard_core.handlers.redis_handler import RedisHandlerBase
 from guard_core.handlers.suspatterns_handler import (
     SusPatternsManager,
     sus_patterns_handler,
@@ -15,7 +16,7 @@ LEGACY = ("patterns", "custom")
 LISTED = ("patterns", "custom_list")
 
 
-class _FakeRedis:
+class _FakeRedis(RedisHandlerBase):
     def __init__(self, **stored: str) -> None:
         self.values: dict[tuple[str, str], Any] = {}
         if "legacy" in stored:
@@ -24,7 +25,9 @@ class _FakeRedis:
             self.values[LISTED] = stored["listed"]
         self.atomic_writes = 0
 
-    async def set_key(self, namespace: str, key: str, value: Any) -> None:
+    async def set_key(
+        self, namespace: str, key: str, value: Any, ttl: int | None = None
+    ) -> bool | None:
         raise AssertionError("the custom patterns are written in one MULTI")
 
     async def get_key(self, namespace: str, key: str) -> Any:

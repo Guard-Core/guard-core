@@ -13,6 +13,7 @@ from guard_core.handlers.suspatterns_handler import (
     _LDAP_NULL_BYTE_TAIL_RE,
     _QUOTE_SPLICE_CANDIDATE_COMPILED_RE,
     _QUOTE_SPLICE_CANDIDATE_RE,
+    DetectionResult,
     SusPatternsManager,
     _ldap_null_byte_attr_finditer,
     _quote_splice_finditer,
@@ -44,7 +45,7 @@ def manager() -> Generator[SusPatternsManager, None, None]:
     SusPatternsManager._config = original_config
 
 
-async def _manager_detect(body: str, manager: SusPatternsManager) -> dict:
+async def _manager_detect(body: str, manager: SusPatternsManager) -> DetectionResult:
     return await manager.detect(body, "203.0.113.9", context="request_body")
 
 

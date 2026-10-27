@@ -86,7 +86,9 @@ async def test_the_stored_bytes_equal_the_single_set_of_the_latin_1_text(
         control = f"{security_config_redis.redis_prefix}ipinfo:control"
         assert await conn.strlen(key) == await conn.strlen(control)
         assert await conn.get(key) == await conn.get(control)
-    assert (await handler.get_key("ipinfo", "database")).encode("latin-1") == body
+    database = await handler.get_key("ipinfo", "database")
+    assert database is not None
+    assert database.encode("latin-1") == body
     await handler.close()
 
 
@@ -165,7 +167,9 @@ async def test_two_writers_that_interleave_leave_one_complete_body(
     monkeypatch.setattr(Redis, "append", interleaving_append)
     await first._cache_database_in_redis()
 
-    stored = (await handler.get_key("ipinfo", "database")).encode("latin-1")
+    database = await handler.get_key("ipinfo", "database")
+    assert database is not None
+    stored = database.encode("latin-1")
     assert stored == body_first
     assert await _all_database_keys(handler, security_config_redis) == [
         _final_key(security_config_redis)

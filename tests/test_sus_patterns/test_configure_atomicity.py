@@ -2,7 +2,10 @@ import sys
 import threading
 import time
 
-from guard_core.handlers.suspatterns_handler import SusPatternsManager
+from guard_core.handlers.suspatterns_handler import (
+    DetectionResult,
+    SusPatternsManager,
+)
 
 _RACE_DURATION_SECONDS = 1.5
 _PAYLOAD = "A" * 1400 + " UNION SELECT 1"
@@ -60,7 +63,7 @@ async def test_configure_is_atomic_under_concurrent_detect() -> None:
 
     stop = threading.Event()
     errors: list[BaseException] = []
-    false_positives: list[dict] = []
+    false_positives: list[DetectionResult] = []
 
     def configure_loop() -> None:
         try:

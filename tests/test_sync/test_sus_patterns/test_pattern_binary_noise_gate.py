@@ -9,7 +9,10 @@ from guard_core.sync.handlers import _suspatterns_regex, _suspatterns_sources
 from guard_core.sync.handlers._suspatterns_pattern_table import (
     NOISE_PRONE_PATTERN_SOURCES,
 )
-from guard_core.sync.handlers.suspatterns_handler import SusPatternsManager
+from guard_core.sync.handlers.suspatterns_handler import (
+    DetectionResult,
+    SusPatternsManager,
+)
 
 _MULTIPART_FIELD_CONTEXT = "request_body:multipart_field"
 _NOISE_SEEDS = (1, 2, 3, 42, 1337)
@@ -50,7 +53,7 @@ def _zip_bytes(seed: int) -> bytes:
     return buffer.getvalue()
 
 
-def _detect(manager: SusPatternsManager, payload: str) -> dict:
+def _detect(manager: SusPatternsManager, payload: str) -> DetectionResult:
     return manager.detect(payload, "127.0.0.1", context=_MULTIPART_FIELD_CONTEXT)
 
 
@@ -199,7 +202,7 @@ def test_noise_prone_registry_is_truthful(
                 sus_patterns_manager_with_detection,
                 _decoded_noise(seed, decoding),
             )
-            matched_sources.update(t["pattern"] for t in result["threats"])
+            matched_sources.update(str(t["pattern"]) for t in result["threats"])
     # Sources whose shape requires a specific trigram/terminator run (e.g. the
     # SQLi comment terminator "'\n--") cannot be expected to occur in pure
     # random noise; their registry membership and suppression are covered by

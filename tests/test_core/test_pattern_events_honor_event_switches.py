@@ -7,6 +7,7 @@ from guard_core.core.initialization.handler_initializer import HandlerInitialize
 from guard_core.detection_engine.monitor import PerformanceMonitor
 from guard_core.handlers.suspatterns_handler import sus_patterns_handler
 from guard_core.models import SecurityConfig
+from guard_core.protocols.agent_protocol import JsonValue
 from guard_core.utils import detect_penetration_attempt
 from tests.conftest import MockGuardRequest
 
@@ -29,6 +30,18 @@ class _Agent:
 
     async def initialize_redis(self, _redis: Any) -> None:
         return None
+
+    async def flush_buffer(self) -> None:
+        return None
+
+    async def get_dynamic_rules(self) -> Any | None:
+        return None
+
+    async def health_check(self) -> bool:
+        return True
+
+    def get_stats(self) -> dict[str, JsonValue]:
+        return {}
 
 
 def _threat_request() -> MockGuardRequest:

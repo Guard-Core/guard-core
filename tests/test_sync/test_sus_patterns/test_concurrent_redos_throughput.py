@@ -2,12 +2,12 @@ import concurrent.futures
 import json
 import re
 import time
-from typing import Any
 
 import pytest
 
 from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.suspatterns_handler import (
+    DetectionResult,
     SusPatternsManager,
     sus_patterns_handler,
 )
@@ -82,10 +82,10 @@ def test_concurrent_custom_and_benign_no_false_negative_sync() -> None:
     custom_payload = f"{_CUSTOM_MARKER}99"
     benign_payload = _BENIGN_MATCHING_PAYLOAD
 
-    def _custom_detect() -> dict[str, Any]:
+    def _custom_detect() -> DetectionResult:
         return sus_patterns_handler.detect(custom_payload, "1.2.3.4", "request_body")
 
-    def _benign_detect() -> dict[str, Any]:
+    def _benign_detect() -> DetectionResult:
         return sus_patterns_handler.detect(benign_payload, "5.6.7.8", "request_body")
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:

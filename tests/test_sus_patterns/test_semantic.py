@@ -601,7 +601,7 @@ async def _wire_detect(
     manager: SusPatternsManager, content: str
 ) -> tuple[bool, set[str]]:
     result = await manager.detect(content, "203.0.113.7", context="unknown")
-    return result["is_threat"], {t["type"] for t in result["threats"]}
+    return result["is_threat"], {str(t["type"]) for t in result["threats"]}
 
 
 @pytest.mark.asyncio

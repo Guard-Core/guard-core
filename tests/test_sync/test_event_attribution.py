@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from guard_core.models import DynamicRules, SyncSecurityConfig
+from guard_core.protocols.agent_protocol import JsonValue
 from guard_core.sync._utils import rule_attribution as attribution_view
 from guard_core.sync.core.checks.factory import build_default_pipeline
 from guard_core.sync.core.checks.implementations import (
@@ -44,6 +45,30 @@ class _Agent:
 
     def send_event(self, event: Any) -> None:
         self.events.append(event)
+
+    def send_metric(self, metric: Any) -> None:
+        return None
+
+    def initialize_redis(self, redis_handler: Any) -> None:
+        return None
+
+    def start(self) -> None:
+        return None
+
+    def stop(self) -> None:
+        return None
+
+    def flush_buffer(self) -> None:
+        return None
+
+    def get_dynamic_rules(self) -> Any | None:
+        return None
+
+    def health_check(self) -> bool:
+        return True
+
+    def get_stats(self) -> dict[str, JsonValue]:
+        return {}
 
 
 @pytest.fixture(autouse=True)

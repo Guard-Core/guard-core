@@ -891,6 +891,7 @@ def test_cloud_ip_redis_caching(
         import json as _json
 
         cached_raw = redis_handler.get_key("cloud_ip_v2", "AWS")
+        assert cached_raw is not None
         assert _json.loads(cached_raw) == ["192.168.0.0/24"]
 
         mock_aws.return_value = {ipaddress.IPv4Network("192.168.1.0/24")}

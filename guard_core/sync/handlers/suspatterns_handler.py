@@ -15,9 +15,10 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import datetime as datetime
 from datetime import timezone as timezone
-from typing import Any
+from typing import TYPE_CHECKING, TypedDict
 from typing import NamedTuple as NamedTuple
 
+from guard_core.protocols.agent_protocol import JsonValue
 from guard_core.sync._utils.app_managers import AppManagers
 from guard_core.sync._utils.app_scope import ScopedAgentHandler, ScopedRedisHandler
 from guard_core.sync._utils.detection_scan import (
@@ -394,6 +395,11 @@ def _warn_if_legacy_detection(compiler: PatternCompiler | None) -> None:
     logger.warning(_LEGACY_DETECTION_WARNING)
 
 
+if TYPE_CHECKING:
+    from guard_core._security_config_fields import RequestT
+    from guard_core.models import SecurityConfig
+    from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol
+
 __all__ = [
     "ALL_DETECTION_CATEGORIES",
     "ALWAYS_SCAN_HEADER_PATTERNS",
@@ -714,7 +720,23 @@ SEMANTIC_ATTACK_TYPE_TO_CATEGORY: dict[str, str] = {
 }
 
 
-def _collect_threat_categories(threats: list[dict[str, Any]]) -> list[str]:
+_Threat = dict[str, JsonValue]
+
+
+class DetectionResult(TypedDict):
+    is_threat: bool
+    threat_score: float
+    threats: list[_Threat]
+    context: str
+    original_length: int
+    processed_length: int
+    execution_time: float
+    detection_method: str
+    timeouts: list[str]
+    correlation_id: str | None
+
+
+def _collect_threat_categories(threats: list[_Threat]) -> list[str]:
     from guard_core.sync._utils.detection_result_builders import _threat_category
 
     categories: list[str] = []
@@ -730,15 +752,15 @@ def _collect_threat_categories(threats: list[dict[str, Any]]) -> list[str]:
 
 
 def _drop_view_duplicate_threats(
-    seen_threats: list[dict[str, Any]],
-    new_threats: list[dict[str, Any]],
+    seen_threats: list[_Threat],
+    new_threats: list[_Threat],
     new_matched: list[str],
-) -> tuple[list[dict[str, Any]], list[str]]:
+) -> tuple[list[_Threat], list[str]]:
     # Threats and matched patterns are parallel lists (one append per match), so
     # a raw-view sighting of a pattern over text the processed views already
     # matched is the same evidence and must not inflate the threat score.
     seen = {(threat.get("pattern"), threat.get("match")) for threat in seen_threats}
-    kept_threats: list[dict[str, Any]] = []
+    kept_threats: list[_Threat] = []
     kept_matched: list[str] = []
     for threat, pattern in zip(new_threats, new_matched, strict=True):
         key = (threat.get("pattern"), threat.get("match"))
@@ -751,11 +773,11 @@ def _drop_view_duplicate_threats(
 
 
 def _merge_raw_view_results(
-    threats: list[dict[str, Any]],
+    threats: list[_Threat],
     matched_patterns: list[str],
     timeouts: list[str],
-    raw_results: tuple[list[dict[str, Any]], list[str], list[str]],
-) -> tuple[list[dict[str, Any]], list[str], list[str]]:
+    raw_results: tuple[list[_Threat], list[str], list[str]],
+) -> tuple[list[_Threat], list[str], list[str]]:
     # The raw view rescans rows that already ran on the processed views, so a
     # row matching both views on the same text must be reported once.
     raw_threats, raw_matched, raw_timeouts = raw_results
@@ -781,14 +803,13 @@ class SusPatternsManager(_SusPatternsViewsMixin):
 
     compiled_patterns: list[tuple[re.Pattern, frozenset[str], str]]
     compiled_custom_patterns: set[tuple[re.Pattern, frozenset[str], str]]
-    # Declared Any as before D-176 (tests assign fakes to these slots); at runtime
-    # each descriptor serves the slot from the app scope in force.
-    redis_handler: Any = ScopedRedisHandler()
-    agent_handler: Any = ScopedAgentHandler()
+    # Each descriptor serves the slot from the app scope in force.
+    redis_handler = ScopedRedisHandler()
+    agent_handler = ScopedAgentHandler()
     _detection_state: _DetectionState
 
     def __new__(
-        cls: type["SusPatternsManager"], config: Any = None
+        cls: type["SusPatternsManager"], config: object = None
     ) -> "SusPatternsManager":
         if cls._instance is None:
             cls._instance = cls._fresh()
@@ -810,7 +831,9 @@ class SusPatternsManager(_SusPatternsViewsMixin):
         return instance
 
     @classmethod
-    def _for_app(cls: type["SusPatternsManager"], config: Any) -> "SusPatternsManager":
+    def _for_app(
+        cls: type["SusPatternsManager"], config: object
+    ) -> "SusPatternsManager":
         instance = cls._fresh()
         instance.patterns = [definition[0] for definition in cls._pattern_definitions]
         instance._config = config
@@ -873,7 +896,7 @@ class SusPatternsManager(_SusPatternsViewsMixin):
             threat_score_threshold=value
         )
 
-    def initialize_agent(self, agent_handler: Any) -> None:
+    def initialize_agent(self, agent_handler: "SyncAgentHandlerProtocol") -> None:
         self.agent_handler = agent_handler
 
     def _semantic_threats_of_views(
@@ -905,7 +928,7 @@ class SusPatternsManager(_SusPatternsViewsMixin):
         enabled_categories: set[str] | None = None,
         *,
         content_preview: "str | LazyPreview | None" = None,
-    ) -> dict[str, Any]:
+    ) -> DetectionResult:
         """Scan ``content`` against every pattern.
 
         Raises ``BodyReadFailedError`` when a scan gets no regex worker within
@@ -1118,7 +1141,7 @@ class SusPatternsManager(_SusPatternsViewsMixin):
         )
 
     @staticmethod
-    def _consumer_fields(matched_patterns: list) -> dict[str, Any]:
+    def _consumer_fields(matched_patterns: list) -> dict[str, object]:
         """The request endpoint and the dynamic-rule attribution of a detection
         event, built only when an agent consumes it."""
         from guard_core.sync._utils.detection_scan import _scanned_request_endpoint
@@ -1148,7 +1171,7 @@ class SusPatternsManager(_SusPatternsViewsMixin):
             if result["threats"]:
                 threat = result["threats"][0]
                 if threat["type"] == "regex":
-                    return True, _redact_pattern_source(threat["pattern"], self)
+                    return True, _redact_pattern_source(str(threat["pattern"]), self)
                 elif threat["type"] == "semantic":
                     return True, f"semantic:{threat.get('attack_type', 'suspicious')}"
             return True, "unknown"
@@ -1161,7 +1184,9 @@ sus_patterns_handler = SusPatternsManager()
 _APP_PATTERN_MANAGERS: AppManagers[SusPatternsManager] = AppManagers("suspatterns")
 
 
-def sus_patterns_manager_for(config: Any, bind: bool = False) -> SusPatternsManager:
+def sus_patterns_manager_for(
+    config: "SecurityConfig[RequestT]", bind: bool = False
+) -> SusPatternsManager:
     """The pattern manager of the app built from config.
 
     The module-level ``sus_patterns_handler`` serves the first app and every app

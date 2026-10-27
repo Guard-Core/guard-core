@@ -77,6 +77,7 @@ async def test_two_workers_applying_the_same_set_both_record_their_bans(
     assert set(owned) == {f"banned_ips:{RULE_IP}", f"banned_ips:{OTHER_RULE_IP}"}
     assert await _ttl_seconds(live_redis, "banned_ips", RULE_IP) > 7190
     value = await live_redis.get_key("banned_ips", RULE_IP)
+    assert value is not None
     assert owned[f"banned_ips:{RULE_IP}"] == float(value)
 
 
@@ -117,9 +118,9 @@ async def test_a_rule_rewrite_over_its_own_ban_extends_it_and_keeps_one_entry(
     owned = await _owned(live_redis)
     assert list(owned) == [f"banned_ips:{RULE_IP}"]
     assert owned[f"banned_ips:{RULE_IP}"] > first
-    assert owned[f"banned_ips:{RULE_IP}"] == float(
-        await live_redis.get_key("banned_ips", RULE_IP)
-    )
+    held = await live_redis.get_key("banned_ips", RULE_IP)
+    assert held is not None
+    assert owned[f"banned_ips:{RULE_IP}"] == float(held)
 
 
 async def test_a_rule_banned_network_is_recorded_under_its_network_key(

@@ -356,7 +356,9 @@ async def test_two_workers_share_one_history_through_redis(
     second.config = config
     await second._ban_ip_escalating(HOST, 100, "t")
 
-    stored = float(await live_redis.get_key("banned_ips", HOST))
+    raw_expiry = await live_redis.get_key("banned_ips", HOST)
+    assert raw_expiry is not None
+    stored = float(raw_expiry)
     assert 190 < stored - time.time() <= 200
 
 
@@ -376,7 +378,9 @@ async def test_only_one_of_two_simultaneous_writers_wins_the_ban(
     manager.banned_ips.clear()
     await manager._ban_ip_escalating(HOST, 100, "t")
 
-    assert int(await live_redis.get_key("recidive", HOST)) == 1
+    raw_count = await live_redis.get_key("recidive", HOST)
+    assert raw_count is not None
+    assert int(raw_count) == 1
 
 
 async def test_unban_ip_forgets_the_history_in_redis(live_redis: RedisManager) -> None:
@@ -463,7 +467,9 @@ async def test_a_natural_expiry_inside_the_window_escalates_through_redis(
 
     await manager._ban_ip_escalating(HOST, 3600, "t")
 
-    stored = float(await live_redis.get_key("banned_ips", HOST))
+    raw_expiry = await live_redis.get_key("banned_ips", HOST)
+    assert raw_expiry is not None
+    stored = float(raw_expiry)
     assert 7100 < stored - time.time() <= 7200
 
 
@@ -543,7 +549,9 @@ async def test_an_active_ban_in_redis_is_replaced_and_not_counted(
 
     await manager._ban_ip_escalating(HOST, 100, "t")
 
-    stored = float(await live_redis.get_key("banned_ips", HOST))
+    raw_expiry = await live_redis.get_key("banned_ips", HOST)
+    assert raw_expiry is not None
+    stored = float(raw_expiry)
     assert 90 < stored - time.time() <= 100
     assert await live_redis.get_key("recidive", HOST) is None
 
@@ -564,5 +572,7 @@ async def test_an_unban_while_the_flag_is_off_still_forgets_the_history(
     manager.config = on
     await manager._ban_ip_escalating(HOST, 100, "t")
 
-    stored = float(await live_redis.get_key("banned_ips", HOST))
+    raw_expiry = await live_redis.get_key("banned_ips", HOST)
+    assert raw_expiry is not None
+    stored = float(raw_expiry)
     assert 90 < stored - time.time() <= 100

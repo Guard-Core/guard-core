@@ -21,7 +21,7 @@ def _detected_categories(content: str, context: str = "request_body") -> set[str
     result = _MANAGER.detect(content, "203.0.113.9", context)
     if not result["is_threat"]:
         return set()
-    return {threat.get("category") for threat in result["threats"]}
+    return {str(threat.get("category")) for threat in result["threats"]}
 
 
 @pytest.mark.parametrize(

@@ -4,6 +4,7 @@ from unittest.mock import patch
 import pytest
 
 from guard_core.models import SyncSecurityConfig
+from guard_core.protocols.agent_protocol import JsonValue
 from guard_core.sync.core.initialization.handler_initializer import HandlerInitializer
 from guard_core.sync.detection_engine.monitor import PerformanceMonitor
 from guard_core.sync.handlers.suspatterns_handler import sus_patterns_handler
@@ -29,6 +30,18 @@ class _Agent:
 
     def initialize_redis(self, _redis: Any) -> None:
         return None
+
+    def flush_buffer(self) -> None:
+        return None
+
+    def get_dynamic_rules(self) -> Any | None:
+        return None
+
+    def health_check(self) -> bool:
+        return True
+
+    def get_stats(self) -> dict[str, JsonValue]:
+        return {}
 
 
 def _threat_request() -> SyncMockGuardRequest:

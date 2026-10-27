@@ -21,6 +21,7 @@ from run_fixtures import STAGED_FIELDS, canonical_threats, normalize
 
 from guard_core import __version__ as engine_version
 from guard_core.handlers.suspatterns_handler import (
+    DetectionResult,
     SusPatternsManager,
     sus_patterns_handler,
 )
@@ -484,7 +485,7 @@ async def run_detect_suite(
 ) -> list[dict]:
     entries = []
     for case_id, context, content in cases:
-        verdict: dict = await manager.detect(content, FIXED_IP, context)
+        verdict: DetectionResult = await manager.detect(content, FIXED_IP, context)
         entries.append(
             {
                 "id": case_id,
@@ -510,7 +511,7 @@ async def run_binary_suite(manager: SusPatternsManager) -> list[dict]:
         case_id = item["id"]
         context = item["input"]["context"]
         content = item["input"]["content"]
-        verdict: dict = await manager.detect(content, FIXED_IP, context)
+        verdict: DetectionResult = await manager.detect(content, FIXED_IP, context)
         entries.append(
             {
                 "id": case_id,

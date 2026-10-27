@@ -1,7 +1,6 @@
 import logging
 from collections.abc import Callable
 from typing import (
-    Any,
     Protocol,
     TypeVar,
     runtime_checkable,
@@ -25,6 +24,8 @@ from guard_core.sync.decorators.route_config import (
     _TrackedSet,
 )
 from guard_core.sync.handlers._downloader import TREE_DOWNLOADER
+from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol
+from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
 __all__ = [
@@ -56,17 +57,18 @@ _ROUTE_ID_ATTR = "_guard_route_id"
 class DecoratedFunction(Protocol):
     _guard_route_id: str
 
-    def __call__(self, *args: Any, **kwargs: Any) -> Any: ...
+    def __call__(self, *args: object, **kwargs: object) -> object: ...
 
 
-class _AnyCallable(Protocol):
-    def __call__(self, *args: Any, **kwargs: Any) -> object: ...
+class _GeoCountryLookup(Protocol):
+    def get_country(self, ip: str) -> str | None: ...
 
 
-GuardedCallable = TypeVar("GuardedCallable", bound=_AnyCallable)
+# shortcut: unbound, a callable bound needs Any; use a ParamSpec protocol to call func
+GuardedCallable = TypeVar("GuardedCallable")
 
 
-def get_route_id(func: Callable[..., Any]) -> str:
+def get_route_id(func: object) -> str:
     route_id = getattr(func, "_guard_route_id", None)
     if not isinstance(route_id, str):
         raise AttributeError(f"{func!r} is not decorated by a guard route decorator")
@@ -77,7 +79,7 @@ class BaseSecurityMixin:
     _report_misconfiguration: Callable[[str], None]
     _require_geo_source: Callable[[str], None]
 
-    def _ensure_route_config(self, func: Callable[..., Any]) -> RouteConfig:
+    def _ensure_route_config(self, func: object) -> RouteConfig:
         raise NotImplementedError("This mixin must be used with BaseSecurityDecorator")
 
     def _apply_route_config(self, func: GuardedCallable) -> GuardedCallable:
@@ -97,8 +99,8 @@ class BaseSecurityDecorator:
         self._route_id_owner: dict[str, int] = {}
         self._route_config_revision = RouteConfigRevision()
         self.behavior_tracker = BehaviorTracker(config)
-        self.agent_handler: Any = None
-        self.geo_ip_handler: Any = None
+        self.agent_handler: SyncAgentHandlerProtocol | None = None
+        self.geo_ip_handler: _GeoCountryLookup | None = None
 
     def _report_misconfiguration(self, problem: str) -> None:
         report_misconfiguration(
@@ -127,10 +129,10 @@ class BaseSecurityDecorator:
     def get_route_config(self, route_id: str) -> RouteConfig | None:
         return self._route_configs.get(route_id)
 
-    def _get_route_id(self, func: Callable[..., Any]) -> str:
+    def _get_route_id(self, func: object) -> str:
         route_id = getattr(func, "_guard_route_id", None)
         owner_chain: list[int] = []
-        current: Any = func
+        current: object = func
         while current is not None and id(current) not in owner_chain:
             owner_chain.append(id(current))
             current = getattr(current, "__wrapped__", None)
@@ -152,7 +154,7 @@ class BaseSecurityDecorator:
             route_id = f"{base_id}#{suffix}"
         return route_id
 
-    def _ensure_route_config(self, func: Callable[..., Any]) -> RouteConfig:
+    def _ensure_route_config(self, func: object) -> RouteConfig:
         route_id = self._get_route_id(func)
         if route_id not in self._route_configs:
             config = RouteConfig(self._route_config_revision)
@@ -170,11 +172,17 @@ class BaseSecurityDecorator:
         setattr(func, _ROUTE_ID_ATTR, route_id)
         return func
 
-    def initialize_behavior_tracking(self, redis_handler: Any = None) -> None:
+    def initialize_behavior_tracking(
+        self, redis_handler: SyncRedisHandlerProtocol | None = None
+    ) -> None:
         if redis_handler:
             self.behavior_tracker.initialize_redis(redis_handler)
 
-    def initialize_agent(self, agent_handler: Any, geo_ip_handler: Any = None) -> None:
+    def initialize_agent(
+        self,
+        agent_handler: SyncAgentHandlerProtocol,
+        geo_ip_handler: _GeoCountryLookup | None = None,
+    ) -> None:
         self.agent_handler = agent_handler
         self.geo_ip_handler = geo_ip_handler
         self.behavior_tracker.initialize_agent(agent_handler)
@@ -186,7 +194,7 @@ class BaseSecurityDecorator:
         action_taken: str,
         reason: str,
         decorator_type: str,
-        **kwargs: Any,
+        **kwargs: object,
     ) -> None:
         if not self.agent_handler:
             return
@@ -213,7 +221,7 @@ class BaseSecurityDecorator:
         reason: str,
         decorator_type: str,
         action_taken: str = "blocked",
-        **metadata: Any,
+        **metadata: object,
     ) -> None:
         from guard_core.sync.core.events.event_types import EVENT_ACCESS_DENIED
 
@@ -232,7 +240,7 @@ class BaseSecurityDecorator:
         reason: str,
         auth_type: str,
         action_taken: str = "blocked",
-        **metadata: Any,
+        **metadata: object,
     ) -> None:
         from guard_core.sync.core.events.event_types import EVENT_AUTHENTICATION_FAILED
 
@@ -252,7 +260,7 @@ class BaseSecurityDecorator:
         limit: int,
         window: int,
         action_taken: str = "blocked",
-        **metadata: Any,
+        **metadata: object,
     ) -> None:
         from guard_core.sync.core.events.event_types import EVENT_RATE_LIMITED
 
@@ -272,7 +280,7 @@ class BaseSecurityDecorator:
         request: SyncGuardRequest,
         violation_type: str,
         reason: str,
-        **metadata: Any,
+        **metadata: object,
     ) -> None:
         from guard_core.sync.core.events.event_types import EVENT_DECORATOR_VIOLATION
 

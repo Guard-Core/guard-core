@@ -164,6 +164,7 @@ def test_redis_pattern_persistence(security_config_redis: SyncSecurityConfig) ->
     sus_patterns_handler.add_pattern(test_pattern, custom=True)
 
     cached_patterns = redis_handler.get_key("patterns", "custom")
+    assert cached_patterns is not None
     assert test_pattern in cached_patterns.split(",")
 
     result = sus_patterns_handler.remove_pattern(test_pattern, custom=True)
@@ -1153,7 +1154,7 @@ def test_configure_with_unsupported_config_is_a_noop() -> None:
 def test_initialize_agent_sets_agent_handler() -> None:
     SusPatternsManager._instance = None
     manager = SusPatternsManager()
-    agent = object()
+    agent = MagicMock()
 
     manager.initialize_agent(agent)
 

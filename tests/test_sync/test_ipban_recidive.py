@@ -354,7 +354,9 @@ def test_two_workers_share_one_history_through_redis(
     second.config = config
     second._ban_ip_escalating(HOST, 100, "t")
 
-    stored = float(live_redis.get_key("banned_ips", HOST))
+    raw_expiry = live_redis.get_key("banned_ips", HOST)
+    assert raw_expiry is not None
+    stored = float(raw_expiry)
     assert 190 < stored - time.time() <= 200
 
 
@@ -374,7 +376,9 @@ def test_only_one_of_two_simultaneous_writers_wins_the_ban(
     manager.banned_ips.clear()
     manager._ban_ip_escalating(HOST, 100, "t")
 
-    assert int(live_redis.get_key("recidive", HOST)) == 1
+    raw_count = live_redis.get_key("recidive", HOST)
+    assert raw_count is not None
+    assert int(raw_count) == 1
 
 
 def test_unban_ip_forgets_the_history_in_redis(live_redis: RedisManager) -> None:
@@ -461,7 +465,9 @@ def test_a_natural_expiry_inside_the_window_escalates_through_redis(
 
     manager._ban_ip_escalating(HOST, 3600, "t")
 
-    stored = float(live_redis.get_key("banned_ips", HOST))
+    raw_expiry = live_redis.get_key("banned_ips", HOST)
+    assert raw_expiry is not None
+    stored = float(raw_expiry)
     assert 7100 < stored - time.time() <= 7200
 
 
@@ -541,7 +547,9 @@ def test_an_active_ban_in_redis_is_replaced_and_not_counted(
 
     manager._ban_ip_escalating(HOST, 100, "t")
 
-    stored = float(live_redis.get_key("banned_ips", HOST))
+    raw_expiry = live_redis.get_key("banned_ips", HOST)
+    assert raw_expiry is not None
+    stored = float(raw_expiry)
     assert 90 < stored - time.time() <= 100
     assert live_redis.get_key("recidive", HOST) is None
 
@@ -564,5 +572,7 @@ def test_an_unban_while_the_flag_is_off_still_forgets_the_history(
     manager.config = on
     manager._ban_ip_escalating(HOST, 100, "t")
 
-    stored = float(live_redis.get_key("banned_ips", HOST))
+    raw_expiry = live_redis.get_key("banned_ips", HOST)
+    assert raw_expiry is not None
+    stored = float(raw_expiry)
     assert 90 < stored - time.time() <= 100

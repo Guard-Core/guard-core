@@ -2,12 +2,12 @@ import asyncio
 import json
 import re
 import time
-from typing import Any
 
 import pytest
 
 from guard_core import SecurityConfig
 from guard_core.handlers.suspatterns_handler import (
+    DetectionResult,
     SusPatternsManager,
     sus_patterns_handler,
 )
@@ -69,12 +69,12 @@ async def test_concurrent_custom_and_benign_no_false_negative_async() -> None:
     custom_payload = f"{_CUSTOM_MARKER}99"
     benign_payload = _BENIGN_MATCHING_PAYLOAD
 
-    async def _custom_detect() -> dict[str, Any]:
+    async def _custom_detect() -> DetectionResult:
         return await sus_patterns_handler.detect(
             custom_payload, "1.2.3.4", "request_body"
         )
 
-    async def _benign_detect() -> dict[str, Any]:
+    async def _benign_detect() -> DetectionResult:
         return await sus_patterns_handler.detect(
             benign_payload, "5.6.7.8", "request_body"
         )

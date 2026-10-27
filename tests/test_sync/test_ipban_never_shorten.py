@@ -163,5 +163,6 @@ def test_the_ban_value_stays_the_expiry_in_seconds_as_text(
 
     value = live_redis.get_key("banned_ips", HOST)
 
+    assert value is not None
     assert float(value) == pytest.approx(time.time() + 600, abs=5)
     assert value == str(float(value))

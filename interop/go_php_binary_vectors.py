@@ -56,6 +56,8 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
+from guard_core.handlers.suspatterns_handler import DetectionResult
+
 GUARD_CORE_ROOT = Path(__file__).resolve().parent.parent
 ECOSYSTEM_ROOT = GUARD_CORE_ROOT.parent.parent
 GO_ROOT = Path(
@@ -260,7 +262,9 @@ def _engine_payload(payload: str) -> tuple[str, bool]:
         ), False
 
 
-def _canonical_threats(verdict: dict[str, Any]) -> list[tuple[str, str]]:
+def _canonical_threats(
+    verdict: DetectionResult | dict[str, Any],
+) -> list[tuple[str, str]]:
     return sorted(
         (str(t.get("category", "")), str(t.get("pattern", "")))
         for t in verdict.get("threats", [])
@@ -268,7 +272,7 @@ def _canonical_threats(verdict: dict[str, Any]) -> list[tuple[str, str]]:
 
 
 def _compare(
-    py_verdict: dict[str, Any],
+    py_verdict: DetectionResult,
     engine_verdict: dict[str, Any],
     engine: str,
     payload_is_unmapped: bool,
@@ -369,7 +373,7 @@ def _run_php_probe(vectors: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return verdicts
 
 
-async def _py_verdicts() -> dict[str, dict[str, Any]]:
+async def _py_verdicts() -> dict[str, DetectionResult]:
     from guard_core.handlers.suspatterns_handler import SusPatternsManager
     from guard_core.models import SecurityConfig
 
@@ -387,7 +391,7 @@ async def _py_verdicts() -> dict[str, dict[str, Any]]:
     SusPatternsManager._config = None
     manager = SusPatternsManager(config)
 
-    verdicts: dict[str, dict[str, Any]] = {}
+    verdicts: dict[str, DetectionResult] = {}
     for label, payload, context in _vectors():
         verdicts[label] = await manager.detect(payload, "127.0.0.1", context=context)
     return verdicts

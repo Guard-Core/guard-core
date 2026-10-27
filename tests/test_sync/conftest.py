@@ -18,7 +18,7 @@ import pytest
 from guard_agent.models import AgentConfig, SecurityEvent, SecurityMetric
 from pytest import TempPathFactory
 
-from guard_core.models import SecurityConfig, SyncSecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils import body_reader
 from guard_core.sync._utils import detection_scan as _detection_scan_module
 from guard_core.sync._utils import ip_extraction as _ip_extraction_module
@@ -76,7 +76,7 @@ _DetectionSingletonSnapshot = tuple[Any, Any, Any, Any, Any, Any, Any]
 _detection_singleton_snapshots: dict[int, _DetectionSingletonSnapshot] = {}
 
 _SusPatternsSnapshot = tuple[
-    SusPatternsManager | None, SecurityConfig | None, list[str] | None, set[str]
+    SusPatternsManager | None, object, list[str] | None, set[str]
 ]
 _sus_patterns_snapshots: dict[int, _SusPatternsSnapshot] = {}
 

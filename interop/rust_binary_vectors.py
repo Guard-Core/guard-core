@@ -47,6 +47,8 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
+from guard_core.handlers.suspatterns_handler import DetectionResult
+
 GUARD_CORE_RS_SO = os.environ.get("GUARD_CORE_RS_SO")
 _MULTIPART_FIELD_CONTEXT = "request_body:multipart_field"
 _NOISE_SIZE = 262144
@@ -165,7 +167,7 @@ def _load_rust_binding() -> Any:
 
 
 def _compare(
-    py_verdict: dict, rust_verdict: dict, payload_is_unmapped: bool
+    py_verdict: DetectionResult, rust_verdict: dict, payload_is_unmapped: bool
 ) -> list[str]:
     diffs: list[str] = []
     if bool(py_verdict["is_threat"]) != bool(rust_verdict["is_threat"]):
@@ -222,7 +224,7 @@ def main() -> int:
     report: dict[str, Any] = {"vectors": [], "green": 0, "red": 0}
     started = time.monotonic()
 
-    async def _detect(payload: str) -> dict:
+    async def _detect(payload: str) -> DetectionResult:
         return await manager.detect(
             payload, "127.0.0.1", context=_MULTIPART_FIELD_CONTEXT
         )

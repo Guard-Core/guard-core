@@ -7,6 +7,7 @@ from guard_core.sync.handlers.suspatterns_handler import (
     _LDAP_WILDCARD_CHAIN_RE,
     DETECTION_RAW_VIEW_PATTERN_SOURCES,
     DETECTION_URL_DECODED_VIEW_PATTERN_SOURCES,
+    DetectionResult,
     SusPatternsManager,
     sus_patterns_handler,
 )
@@ -51,7 +52,7 @@ def _body_categories(body: str) -> list[str]:
     return list(result.threat_categories)
 
 
-def _manager_detect(body: str, manager: SusPatternsManager) -> dict:
+def _manager_detect(body: str, manager: SusPatternsManager) -> DetectionResult:
     return manager.detect(body, "203.0.113.9", context="request_body")
 
 

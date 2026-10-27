@@ -262,9 +262,9 @@ def _client_of(handler: RedisHandlerBase) -> object:
 
 
 def _events(handler: RedisHandlerBase) -> list[MagicMock]:
-    sent: list[MagicMock] = [
-        call.args[0] for call in handler.agent_handler.send_event.call_args_list
-    ]
+    agent = handler.agent_handler
+    assert isinstance(agent, MagicMock)
+    sent: list[MagicMock] = [call.args[0] for call in agent.send_event.call_args_list]
     return sent
 
 

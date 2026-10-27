@@ -5,7 +5,10 @@ from typing import Any
 import pytest
 
 from guard_core.models import SyncSecurityConfig
-from guard_core.sync.handlers.suspatterns_handler import SusPatternsManager
+from guard_core.sync.handlers.suspatterns_handler import (
+    DetectionResult,
+    SusPatternsManager,
+)
 from guard_core.sync.utils import detect_penetration_attempt
 from tests.test_sync.conftest import SyncMockGuardRequest
 
@@ -153,7 +156,7 @@ def test_json_embedded_scan_calls_detect_no_more_than_the_cap(
 
     def counting_detect(
         self: SusPatternsManager, *args: Any, **kwargs: Any
-    ) -> dict[str, Any]:
+    ) -> DetectionResult:
         nonlocal call_count
         if kwargs["context"].startswith("query_param"):
             call_count += 1

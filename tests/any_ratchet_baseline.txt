@@ -17,7 +17,6 @@ guard_core.core.initialization._handler_initializer_steps
 guard_core.core.initialization.handler_initializer
 guard_core.core.responses.modifier_view
 guard_core.core.validation
-guard_core.decorators.base
 guard_core.handlers
 guard_core.handlers._dynamic_rule_persistence
 guard_core.handlers._dynamic_rule_plan
@@ -26,13 +25,10 @@ guard_core.handlers._ipban_cache
 guard_core.handlers._redis_ban_strike
 guard_core.handlers._redis_fast_pool
 guard_core.handlers._redis_lean
-guard_core.handlers._redis_shared_clients
 guard_core.handlers._suspatterns_lazy_rows
 guard_core.handlers._suspatterns_literals
 guard_core.handlers._suspatterns_pickle
 guard_core.handlers._suspatterns_regex
-guard_core.handlers.redis_handler
-guard_core.handlers.suspatterns_handler
 guard_core.models
 guard_core.protocols.agent_protocol
 guard_core.protocols.middleware_protocol
@@ -54,7 +50,6 @@ guard_core.sync.core.initialization._handler_initializer_steps
 guard_core.sync.core.initialization.handler_initializer
 guard_core.sync.core.responses.modifier_view
 guard_core.sync.core.validation
-guard_core.sync.decorators.base
 guard_core.sync.handlers
 guard_core.sync.handlers._dynamic_rule_persistence
 guard_core.sync.handlers._dynamic_rule_plan
@@ -64,13 +59,10 @@ guard_core.sync.handlers._ipinfo_download_cut
 guard_core.sync.handlers._redis_ban_strike
 guard_core.sync.handlers._redis_fast_pool
 guard_core.sync.handlers._redis_lean
-guard_core.sync.handlers._redis_shared_clients
 guard_core.sync.handlers._suspatterns_lazy_rows
 guard_core.sync.handlers._suspatterns_literals
 guard_core.sync.handlers._suspatterns_pickle
 guard_core.sync.handlers._suspatterns_regex
-guard_core.sync.handlers.redis_handler
-guard_core.sync.handlers.suspatterns_handler
 guard_core.sync.protocols.agent_protocol
 guard_core.sync.protocols.middleware_protocol
 guard_core.sync.protocols.redis_protocol

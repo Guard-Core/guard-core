@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from guard_core.models import SyncSecurityConfig
+from guard_core.protocols.agent_protocol import JsonValue
 from guard_core.sync.handlers.suspatterns_handler import (
     _LDAP_NULL_BYTE_ATTR_COMPILED_RE,
     _LDAP_NULL_BYTE_ATTR_LEAD_CHAR_RE,
@@ -15,6 +16,7 @@ from guard_core.sync.handlers.suspatterns_handler import (
     _LDAP_NULL_BYTE_TAIL_RE,
     DETECTION_RAW_VIEW_PATTERN_SOURCES,
     DETECTION_URL_DECODED_VIEW_PATTERN_SOURCES,
+    DetectionResult,
     SusPatternsManager,
     _ldap_null_byte_attr_finditer,
     _ldap_null_byte_attr_name_start,
@@ -66,7 +68,7 @@ def _body_is_threat(body: str) -> bool:
     return bool(result.is_threat)
 
 
-def _manager_detect(body: str, manager: SusPatternsManager) -> dict:
+def _manager_detect(body: str, manager: SusPatternsManager) -> DetectionResult:
     return manager.detect(body, "203.0.113.9", context="request_body")
 
 
@@ -80,7 +82,7 @@ _LDAP_NULL_BYTE_PATTERNS = frozenset(
 )
 
 
-def _null_byte_threats(result: dict) -> list[dict]:
+def _null_byte_threats(result: DetectionResult) -> list[dict[str, JsonValue]]:
     return [
         threat
         for threat in result["threats"]

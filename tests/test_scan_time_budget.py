@@ -127,7 +127,9 @@ async def test_budget_threat_is_weighted_and_reported_as_timeout(
     ]
     assert budget_threats
     assert budget_threats[0]["type"] == "pattern_timeout"
-    assert budget_threats[0]["weight"] >= config.detection_threat_score_threshold
+    weight = budget_threats[0]["weight"]
+    assert isinstance(weight, (int, float))
+    assert weight >= config.detection_threat_score_threshold
     assert "scan_time_budget_exhausted" in result["timeouts"]
     assert result["is_threat"] is True
 
