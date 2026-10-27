@@ -48,7 +48,10 @@ def _build_enhanced_detection_state(
         preprocessor=ContentPreprocessor(
             max_content_length=config.detection_max_content_length,
             preserve_attack_patterns=config.detection_preserve_attack_patterns,
-            max_full_scan_bytes=config.detection_max_body_inspect_bytes,
+            max_full_scan_bytes=max(
+                config.detection_max_body_inspect_bytes,
+                config.detection_max_file_inspect_bytes,
+            ),
         ),
         semantic_analyzer=SemanticAnalyzer(),
         performance_monitor=PerformanceMonitor(

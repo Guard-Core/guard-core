@@ -8,6 +8,7 @@ if TYPE_CHECKING:
 _DEFAULT_MAX_SCAN_LENGTH = 10000
 _DEFAULT_COMPILER_TIMEOUT = 2.0
 _DEFAULT_MAX_BODY_INSPECT_BYTES = 262144
+_DEFAULT_MAX_FILE_INSPECT_BYTES = 262144
 
 
 def _regex_anomaly(regex_threats: Iterable[Mapping[str, float]]) -> float:

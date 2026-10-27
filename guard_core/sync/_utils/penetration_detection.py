@@ -260,7 +260,7 @@ def _read_body_for_scan(
         request,
         config,
         client_ip,
-        resolve_inspect_cap(config, route_config),
+        resolve_inspect_cap(config, route_config, request.headers.get("content-type")),
         patterns=patterns,
     )
 

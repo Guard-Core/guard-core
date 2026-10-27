@@ -342,10 +342,20 @@ async def _read_declared_body(
     )
 
 
+def _is_multipart(content_type: str | None) -> bool:
+    return "multipart/form-data" in (content_type or "").lower()
+
+
 def resolve_inspect_cap(
-    config: "SecurityConfig", route_config: "RouteConfig | None"
+    config: "SecurityConfig",
+    route_config: "RouteConfig | None",
+    content_type: str | None = None,
 ) -> int:
-    cap = config.detection_max_body_inspect_bytes
+    cap = (
+        config.detection_max_file_inspect_bytes
+        if _is_multipart(content_type)
+        else config.detection_max_body_inspect_bytes
+    )
     if route_config is None or route_config.max_request_size is None:
         return cap
     return max(cap, route_config.max_request_size)

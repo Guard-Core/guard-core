@@ -38,6 +38,7 @@ from guard_core._staged_defaults import (
 from guard_core.handlers._ipban_cache import DEFAULT_MAX_LOCAL_BANS
 from guard_core.handlers.suspatterns_handler import (
     _DEFAULT_MAX_BODY_INSPECT_BYTES,
+    _DEFAULT_MAX_FILE_INSPECT_BYTES,
     ALL_DETECTION_CATEGORIES,
 )
 from guard_core.protocols.cloud_ip_store_protocol import (
@@ -1295,6 +1296,26 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
             "additive view are bounded by it too, not by any separate constant. "
             "Distinct from detection_max_content_length (the semantic-analyzer "
             "budget) and max_request_size (the 413 size gate)."
+        ),
+        ge=1024,
+        le=10485760,
+    )
+
+    detection_max_file_inspect_bytes: int = Field(
+        default=_DEFAULT_MAX_FILE_INSPECT_BYTES,
+        description=(
+            "The inspect limit for a request whose Content-Type is "
+            "multipart/form-data, which is where file uploads arrive; every "
+            "other request body keeps detection_max_body_inspect_bytes. Default "
+            "pending. A multipart body up to this limit is scanned in full. A "
+            "body past it is never passed unscanned: it is refused with a 400 "
+            "when fail_secure is on, as an event and no strike, and with "
+            "fail_secure off it is logged and passes on the prefix scan alone, "
+            "exactly as for detection_max_body_inspect_bytes. Raise it to accept "
+            "larger uploads, at the cost of more memory held per inspected "
+            "upload and more CPU time spent pattern-matching it. A route whose "
+            "max_request_size is above this limit uses that value as its own "
+            "inspect limit. Distinct from max_request_size (the 413 size gate)."
         ),
         ge=1024,
         le=10485760,
