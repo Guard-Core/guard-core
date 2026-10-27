@@ -1,18 +1,32 @@
-from collections.abc import Callable
+from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Set as AbstractSet
 from typing import (
     TYPE_CHECKING,
-    Any,
+    Concatenate,
+    ParamSpec,
     SupportsIndex,
+    TypeVar,
+    overload,
 )
+
+from typing_extensions import Self
 
 from guard_core.sync.decorators._route_arguments import time_restriction_problems
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
 if TYPE_CHECKING:
+    from _typeshed import SupportsKeysAndGetItem, SupportsRichComparison
+
     from guard_core.sync.handlers.behavior_handler import BehaviorRule
 
-Principal = Any
-AuthVerifier = Callable[[SyncGuardRequest, str], Any]
+    _Updates = SupportsKeysAndGetItem[str, object] | Iterable[tuple[str, object]]
+    _Slice = slice[SupportsIndex | None, SupportsIndex | None, SupportsIndex | None]
+
+_Item = TypeVar("_Item")
+_Key = TypeVar("_Key")
+_Value = TypeVar("_Value")
+Principal = object
+AuthVerifier = Callable[[SyncGuardRequest, str], object]
 
 
 class RouteConfigRevision:
@@ -34,30 +48,30 @@ class _RevisionTrackedContainer:
 class _TrackedList(_RevisionTrackedContainer, list):
     def __init__(
         self,
-        iterable: Any = (),
+        iterable: Iterable[object] = (),
         *,
         revision: RouteConfigRevision | None = None,
     ) -> None:
         list.__init__(self, iterable)
         self._revision = revision
 
-    def append(self, item: Any) -> None:
+    def append(self, item: object) -> None:
         self._bump()
         list.append(self, item)
 
-    def extend(self, iterable: Any) -> None:
+    def extend(self, iterable: Iterable[object]) -> None:
         self._bump()
         list.extend(self, iterable)
 
-    def insert(self, index: SupportsIndex, item: Any) -> None:
+    def insert(self, index: SupportsIndex, item: object) -> None:
         self._bump()
         list.insert(self, index, item)
 
-    def remove(self, item: Any) -> None:
+    def remove(self, item: object) -> None:
         self._bump()
         list.remove(self, item)
 
-    def pop(self, index: SupportsIndex = -1) -> Any:
+    def pop(self, index: SupportsIndex = -1) -> object:
         self._bump()
         return list.pop(self, index)
 
@@ -65,34 +79,50 @@ class _TrackedList(_RevisionTrackedContainer, list):
         self._bump()
         list.clear(self)
 
-    def sort(self, *args: Any, **kwargs: Any) -> None:
+    def sort(
+        self,
+        *,
+        key: "Callable[[object], SupportsRichComparison] | None" = None,
+        reverse: bool = False,
+    ) -> None:
         self._bump()
-        list.sort(self, *args, **kwargs)
+        list.sort(self, key=key, reverse=reverse)
 
     def reverse(self) -> None:
         self._bump()
         list.reverse(self)
 
-    def __setitem__(self, key: Any, value: Any) -> None:
-        self._bump()
-        list.__setitem__(self, key, value)
+    @overload
+    def __setitem__(self, key: SupportsIndex, value: object, /) -> None: ...
 
-    def __delitem__(self, key: Any) -> None:
+    @overload
+    def __setitem__(self, key: "_Slice", value: Iterable[object], /) -> None: ...
+
+    def __setitem__(self, key: "SupportsIndex | _Slice", value: object, /) -> None:
+        self._bump()
+        if not isinstance(key, slice):
+            list.__setitem__(self, key, value)
+        elif isinstance(value, Iterable):
+            list.__setitem__(self, key, value)
+        else:
+            raise TypeError("must assign iterable to extended slice")
+
+    def __delitem__(self, key: "SupportsIndex | _Slice") -> None:
         self._bump()
         list.__delitem__(self, key)
 
-    def __add__(self, other: Any) -> Any:
+    def __add__(self, other: list[_Item]) -> list[object | _Item]:
         return list.__add__(self, other)
 
-    def __mul__(self, other: Any) -> Any:
+    def __mul__(self, other: SupportsIndex) -> list[object]:
         return list.__mul__(self, other)
 
-    def __iadd__(self, other: Any) -> Any:
+    def __iadd__(self, other: Iterable[object]) -> Self:
         self._bump()
         list.__iadd__(self, other)
         return self
 
-    def __imul__(self, other: Any) -> Any:
+    def __imul__(self, other: SupportsIndex) -> Self:
         self._bump()
         list.__imul__(self, other)
         return self
@@ -101,34 +131,39 @@ class _TrackedList(_RevisionTrackedContainer, list):
 class _TrackedDict(_RevisionTrackedContainer, dict):
     def __init__(
         self,
-        mapping: Any = (),
+        mapping: Mapping[str, object] | Iterable[tuple[str, object]] = (),
         *,
         revision: RouteConfigRevision | None = None,
     ) -> None:
         dict.__init__(self, mapping)
         self._revision = revision
 
-    def __setitem__(self, key: Any, value: Any) -> None:
+    def __setitem__(self, key: str, value: object) -> None:
         self._bump()
         dict.__setitem__(self, key, value)
 
-    def __delitem__(self, key: Any) -> None:
+    def __delitem__(self, key: str) -> None:
         self._bump()
         dict.__delitem__(self, key)
 
-    def update(self, *args: Any, **kwargs: Any) -> None:
+    def update(
+        self,
+        other: "_Updates" = (),
+        /,
+        **kwargs: object,
+    ) -> None:
         self._bump()
-        dict.update(self, *args, **kwargs)
+        dict.update(self, other, **kwargs)
 
-    def setdefault(self, key: Any, default: Any = None) -> Any:
+    def setdefault(self, key: str, default: object = None) -> object:
         self._bump()
         return dict.setdefault(self, key, default)
 
-    def pop(self, *args: Any) -> Any:
+    def pop(self, key: str, *default: object) -> object:
         self._bump()
-        return dict.pop(self, *args)
+        return dict.pop(self, key, *default)
 
-    def popitem(self) -> tuple[Any, Any]:
+    def popitem(self) -> tuple[str, object]:
         self._bump()
         return dict.popitem(self)
 
@@ -136,17 +171,31 @@ class _TrackedDict(_RevisionTrackedContainer, dict):
         self._bump()
         dict.clear(self)
 
-    def __or__(self, other: Any) -> Any:
+    def __or__(self, other: dict[_Key, _Value]) -> dict[str | _Key, object | _Value]:
         return dict.__or__(self, other)
 
-    def __ior__(self, other: Any) -> Any:
+    def __ior__(
+        self,
+        other: "SupportsKeysAndGetItem[_Key, _Value] | Iterable[tuple[_Key, _Value]]",
+        /,
+    ) -> Self:
         self._bump()
         dict.__ior__(self, other)
         return self
 
 
-def _refusing_an_invalid_window(method: Callable[..., Any]) -> Callable[..., Any]:
-    def mutate(self: "_TrackedTimeRestrictions", *args: Any, **kwargs: Any) -> Any:
+_Arguments = ParamSpec("_Arguments")
+_Result = TypeVar("_Result")
+
+
+def _refusing_an_invalid_window(
+    method: Callable[Concatenate["_TrackedTimeRestrictions", _Arguments], _Result],
+) -> Callable[Concatenate["_TrackedTimeRestrictions", _Arguments], _Result]:
+    def mutate(
+        self: "_TrackedTimeRestrictions",
+        *args: _Arguments.args,
+        **kwargs: _Arguments.kwargs,
+    ) -> _Result:
         before = dict(self)
         result = method(self, *args, **kwargs)
         problems = time_restriction_problems(self) if self else []
@@ -172,26 +221,26 @@ class _TrackedTimeRestrictions(_TrackedDict):
 class _TrackedSet(_RevisionTrackedContainer, set):
     def __init__(
         self,
-        iterable: Any = (),
+        iterable: Iterable[object] = (),
         *,
         revision: RouteConfigRevision | None = None,
     ) -> None:
         set.__init__(self, iterable)
         self._revision = revision
 
-    def add(self, item: Any) -> None:
+    def add(self, item: object) -> None:
         self._bump()
         set.add(self, item)
 
-    def discard(self, item: Any) -> None:
+    def discard(self, item: object) -> None:
         self._bump()
         set.discard(self, item)
 
-    def remove(self, item: Any) -> None:
+    def remove(self, item: object) -> None:
         self._bump()
         set.remove(self, item)
 
-    def pop(self) -> Any:
+    def pop(self) -> object:
         self._bump()
         return set.pop(self)
 
@@ -199,50 +248,50 @@ class _TrackedSet(_RevisionTrackedContainer, set):
         self._bump()
         set.clear(self)
 
-    def update(self, *others: Any) -> None:
+    def update(self, *others: Iterable[object]) -> None:
         self._bump()
         set.update(self, *others)
 
-    def intersection_update(self, *others: Any) -> None:
+    def intersection_update(self, *others: Iterable[object]) -> None:
         self._bump()
         set.intersection_update(self, *others)
 
-    def difference_update(self, *others: Any) -> None:
+    def difference_update(self, *others: Iterable[object]) -> None:
         self._bump()
         set.difference_update(self, *others)
 
-    def symmetric_difference_update(self, other: Any) -> None:
+    def symmetric_difference_update(self, other: Iterable[object]) -> None:
         self._bump()
         set.symmetric_difference_update(self, other)
 
-    def __or__(self, other: Any) -> Any:
+    def __or__(self, other: AbstractSet[_Item]) -> set[object | _Item]:
         return set.__or__(self, other)
 
-    def __and__(self, other: Any) -> Any:
+    def __and__(self, other: AbstractSet[object]) -> set[object]:
         return set.__and__(self, other)
 
-    def __sub__(self, other: Any) -> Any:
+    def __sub__(self, other: AbstractSet[object]) -> set[object]:
         return set.__sub__(self, other)
 
-    def __xor__(self, other: Any) -> Any:
+    def __xor__(self, other: AbstractSet[_Item]) -> set[object | _Item]:
         return set.__xor__(self, other)
 
-    def __ior__(self, other: Any) -> Any:
+    def __ior__(self, other: AbstractSet[object]) -> Self:
         self._bump()
         set.__ior__(self, other)
         return self
 
-    def __iand__(self, other: Any) -> Any:
+    def __iand__(self, other: AbstractSet[object]) -> Self:
         self._bump()
         set.__iand__(self, other)
         return self
 
-    def __isub__(self, other: Any) -> Any:
+    def __isub__(self, other: AbstractSet[object]) -> Self:
         self._bump()
         set.__isub__(self, other)
         return self
 
-    def __ixor__(self, other: Any) -> Any:
+    def __ixor__(self, other: AbstractSet[object]) -> Self:
         self._bump()
         set.__ixor__(self, other)
         return self
@@ -264,8 +313,8 @@ _REVISION_EXEMPT_ATTRS = frozenset({"_revision", "_initialized"})
 
 
 def _wrap_in_tracked_container(
-    name: str, value: Any, revision: RouteConfigRevision | None
-) -> Any:
+    name: str, value: object, revision: RouteConfigRevision | None
+) -> object:
     if name in _TRACKED_LIST_FIELDS and isinstance(value, list):
         return _TrackedList(value, revision=revision)
     if name == "time_restrictions" and isinstance(value, dict):
@@ -331,14 +380,14 @@ class RouteConfig:
         self.enable_suspicious_detection = global_setting
         object.__setattr__(self, "_inherits_suspicious_detection", True)
 
-    def __setattr__(self, name: str, value: Any) -> None:
+    def __setattr__(self, name: str, value: object) -> None:
         if name == "time_restrictions" and value:  # empty means no restriction
             problems = time_restriction_problems(value)
             if problems:
                 raise ValueError(" ".join(problems))
         self.store_attribute(name, value)
 
-    def store_attribute(self, name: str, value: Any) -> None:
+    def store_attribute(self, name: str, value: object) -> None:
         value = _wrap_in_tracked_container(name, value, self._revision)
         object.__setattr__(self, name, value)
         if name == "enable_suspicious_detection":

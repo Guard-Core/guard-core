@@ -1,7 +1,7 @@
 import ipaddress
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING
 
 from guard_core._dynamic_rules import DynamicRules
 from guard_core._security_config_field_validators import (
@@ -11,13 +11,32 @@ from guard_core.sync._utils.access_control import _ip_in_list
 from guard_core.sync.handlers._cloud_provider_registry import _parse_cloud_selectors
 from guard_core.sync.handlers._ipban_rule_exempt import rule_ban_member
 
+if TYPE_CHECKING:
+    from guard_core.models import SyncSecurityConfig
+    from guard_core.sync.handlers.ipban_handler import IPBanManager
+
 MATCHED_RULE_TYPE_DYNAMIC = "dynamic"
 _MAX_BAN_STAMPS = 10_000
 
 _Selectors = tuple[frozenset[str], Mapping[str, frozenset[str]]]
+Stamp = dict[str, str | bool]
 
 
-def _selectors(selectors: Iterable[Any]) -> _Selectors:
+def _items_of(base: Mapping[str, object], key: str) -> Iterable[str]:
+    value = base.get(key) or ()
+    if not isinstance(value, Iterable):
+        raise TypeError(f"the {key} of the static configuration must be iterable")
+    return value
+
+
+def _limits_of(base: Mapping[str, object], key: str) -> Mapping[str, Iterable[object]]:
+    value = base.get(key) or {}
+    if not isinstance(value, Mapping):
+        raise TypeError(f"the {key} of the static configuration must be a mapping")
+    return value
+
+
+def _selectors(selectors: Iterable[object]) -> _Selectors:
     canonical = {
         name
         for name in map(canonicalize_cloud_provider_selector, selectors)
@@ -36,7 +55,7 @@ def _selectors_block(selectors: _Selectors, provider: str, region: str | None) -
     return not (region is not None and region in carveouts.get(provider, ()))
 
 
-def _limit_pair(value: Any) -> tuple[Any, ...]:
+def _limit_pair(value: Iterable[object]) -> tuple[object, ...]:
     return tuple(value)
 
 
@@ -55,7 +74,7 @@ class RuleAttribution:
     """
 
     rule_id: str
-    config: Any
+    config: "SyncSecurityConfig"
     listed_ban_members: frozenset[str]
     blocked_countries: frozenset[str]
     static_blocked_countries: frozenset[str]
@@ -68,12 +87,12 @@ class RuleAttribution:
     patterns: frozenset[str]
     owned_patterns: frozenset[str]
     global_rate: tuple[int, int | None] | None
-    static_global_rate: tuple[Any, Any]
-    endpoint_limits: Mapping[str, tuple[Any, ...]]
-    static_endpoint_limits: Mapping[str, tuple[Any, ...]]
+    static_global_rate: tuple[object, object]
+    endpoint_limits: Mapping[str, tuple[object, ...]]
+    static_endpoint_limits: Mapping[str, tuple[object, ...]]
     emergency: bool
     static_emergency: bool
-    _ban_stamps: dict[str, tuple[dict[str, Any], str | None, float]] = field(
+    _ban_stamps: dict[str, tuple[Stamp, str | None, float]] = field(
         default_factory=dict, repr=False, compare=False
     )
 
@@ -101,8 +120,8 @@ class RuleAttribution:
         """The provider names the static configuration blocks, carve-outs aside."""
         return self.static_cloud_selectors[0]
 
-    def _stamp(self, overlaps_static: bool) -> dict[str, Any]:
-        stamp: dict[str, Any] = {
+    def _stamp(self, overlaps_static: bool) -> Stamp:
+        stamp: Stamp = {
             "matched_rule_type": MATCHED_RULE_TYPE_DYNAMIC,
             "matched_rule_id": self.rule_id,
         }
@@ -110,7 +129,7 @@ class RuleAttribution:
             stamp["matched_rule_overlaps_static"] = True
         return stamp
 
-    def for_ban(self, client_ip: str, bans: Any) -> dict[str, Any]:
+    def for_ban(self, client_ip: str, bans: "IPBanManager") -> Stamp:
         """The stamp of a ban hit, kept per address while the ban version this
         worker sees is unchanged and the ban lookup's own recheck interval has
         not passed, so a repeat hit from one banned address is one dict read.
@@ -127,7 +146,7 @@ class RuleAttribution:
         self._ban_stamps[client_ip] = (stamp, version, at)
         return stamp
 
-    def _ban_stamp(self, client_ip: str, bans: Any) -> dict[str, Any]:
+    def _ban_stamp(self, client_ip: str, bans: "IPBanManager") -> Stamp:
         entry = bans.deciding_ban_entry(client_ip)
         if entry is None or entry[0] not in self.listed_ban_members:
             return {}
@@ -139,9 +158,7 @@ class RuleAttribution:
             return self._stamp(False)
         return self._stamp(_ip_in_list(address, client_ip, self.config.blacklist))
 
-    def for_country(
-        self, country_rule: str | None, country: str | None
-    ) -> dict[str, Any]:
+    def for_country(self, country_rule: str | None, country: str | None) -> Stamp:
         if country_rule == "country_blacklist":
             if country not in self.blocked_countries:
                 return {}
@@ -153,19 +170,19 @@ class RuleAttribution:
             )
         return {}
 
-    def for_cloud_provider(self, provider: str, region: str | None) -> dict[str, Any]:
+    def for_cloud_provider(self, provider: str, region: str | None) -> Stamp:
         if not _selectors_block(self.cloud_selectors, provider, region):
             return {}
         return self._stamp(
             _selectors_block(self.static_cloud_selectors, provider, region)
         )
 
-    def for_user_agent_pattern(self, pattern: str | None) -> dict[str, Any]:
+    def for_user_agent_pattern(self, pattern: str | None) -> Stamp:
         if pattern is None or pattern not in self.user_agents:
             return {}
         return self._stamp(pattern in self.static_user_agents)
 
-    def for_rate_limit_tier(self, kind: str, bucket: str) -> dict[str, Any]:
+    def for_rate_limit_tier(self, kind: str, bucket: str) -> Stamp:
         if kind == "global" and self.global_rate is not None:
             limit, window = self.global_rate
             static_limit, static_window = self.static_global_rate
@@ -178,12 +195,12 @@ class RuleAttribution:
             )
         return {}
 
-    def for_emergency_mode(self) -> dict[str, Any]:
+    def for_emergency_mode(self) -> Stamp:
         if not self.emergency:
             return {}
         return self._stamp(self.static_emergency)
 
-    def for_pattern(self, source: str | None) -> dict[str, Any]:
+    def for_pattern(self, source: str | None) -> Stamp:
         if source is None or source not in self.patterns:
             return {}
         return self._stamp(source not in self.owned_patterns)
@@ -191,24 +208,24 @@ class RuleAttribution:
 
 def build_rule_attribution(
     rules: DynamicRules,
-    config: Any,
+    config: "SyncSecurityConfig",
     owned_bans: Sequence[str],
     owned_patterns: Sequence[str],
-    base: Mapping[str, Any],
+    base: Mapping[str, object],
 ) -> RuleAttribution:
-    static_endpoint_limits = base.get("endpoint_rate_limits") or {}
+    static_endpoint_limits = _limits_of(base, "endpoint_rate_limits")
     return RuleAttribution(
         rule_id=str(rules.rule_id),
         config=config,
         listed_ban_members=_listed_ban_members(rules.ip_blacklist),
         blocked_countries=frozenset(code.upper() for code in rules.blocked_countries),
-        static_blocked_countries=frozenset(base.get("blocked_countries") or ()),
+        static_blocked_countries=frozenset(_items_of(base, "blocked_countries")),
         whitelist_countries_in_force=bool(rules.whitelist_countries),
-        static_whitelist_countries=frozenset(base.get("whitelist_countries") or ()),
+        static_whitelist_countries=frozenset(_items_of(base, "whitelist_countries")),
         cloud_selectors=_selectors(rules.blocked_cloud_providers),
-        static_cloud_selectors=_selectors(base.get("block_cloud_providers") or ()),
+        static_cloud_selectors=_selectors(_items_of(base, "block_cloud_providers")),
         user_agents=frozenset(rules.blocked_user_agents),
-        static_user_agents=frozenset(base.get("blocked_user_agents") or ()),
+        static_user_agents=frozenset(_items_of(base, "blocked_user_agents")),
         patterns=frozenset(rules.suspicious_patterns),
         owned_patterns=frozenset(owned_patterns),
         global_rate=(

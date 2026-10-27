@@ -93,7 +93,7 @@ class BenignShapePaths(list[object]):
 
 
 def _applicable_shapes(
-    entries: Mapping[object, object], container: str
+    entries: Mapping[str, object], container: str
 ) -> Iterator[SourcePathShape]:
     for shape in BENIGN_SOURCE_PATH_SHAPES:
         if shape.containers and container not in shape.containers:
@@ -103,9 +103,7 @@ def _applicable_shapes(
         yield shape
 
 
-def benign_shape_keys(
-    entries: Mapping[object, object], container: str
-) -> frozenset[str]:
+def benign_shape_keys(entries: Mapping[str, object], container: str) -> frozenset[str]:
     exempt: set[str] = set()
     for shape in _applicable_shapes(entries, container):
         exempt.update(key for key in shape.keys if key in entries)
@@ -113,7 +111,7 @@ def benign_shape_keys(
 
 
 def benign_shape_grants(
-    entries: Mapping[object, object], container: str
+    entries: Mapping[str, object], container: str
 ) -> dict[str, frozenset[str]]:
     granted: dict[str, frozenset[str]] = {}
     for shape in _applicable_shapes(entries, container):

@@ -1023,7 +1023,9 @@ def test_statistical_anomaly_detects_slower_than_average_execution() -> None:
 
     assert result is not None
     assert result["type"] == "statistical_anomaly"
-    assert result["z_score"] > 2.0
+    z_score = result["z_score"]
+    assert isinstance(z_score, float)
+    assert z_score > 2.0
 
 
 @pytest.mark.asyncio

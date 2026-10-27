@@ -3,8 +3,9 @@ import math
 import threading
 import time
 from collections import deque
+from collections.abc import Callable
 from datetime import datetime, timezone
-from typing import Any
+from typing import TYPE_CHECKING
 
 from guard_core.sync._utils.pattern_source_redaction import _SensitiveNameSets
 
@@ -27,6 +28,11 @@ from .monitor_reporting import (
     extract_metric_components,
 )
 from .monitor_types import DEFAULT_RECENT_TIMES_WINDOW, PatternStats, PerformanceMetric
+
+if TYPE_CHECKING:
+    from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol
+
+AnomalyCallback = Callable[[dict[str, object]], object]
 
 _DEFAULT_RECENT_TIMES_WINDOW = DEFAULT_RECENT_TIMES_WINDOW
 
@@ -69,7 +75,7 @@ class PerformanceMonitor:
 
         self.pattern_stats: dict[str, PatternStats] = {}
         self.recent_metrics: deque[PerformanceMetric] = deque(maxlen=self.history_size)
-        self.anomaly_callbacks: list[Any] = []
+        self.anomaly_callbacks: list[AnomalyCallback] = []
         self._lock = threading.Lock()
 
     def _track_metric(
@@ -79,7 +85,7 @@ class PerformanceMonitor:
         content_length: int,
         matched: bool,
         timeout: bool,
-    ) -> tuple[PerformanceMetric, dict[str, Any] | None]:
+    ) -> tuple[PerformanceMetric, dict[str, object] | None]:
         MAX_PATTERN_LENGTH = 100
         if len(pattern) > MAX_PATTERN_LENGTH:
             pattern = pattern[:MAX_PATTERN_LENGTH] + "...[truncated]"
@@ -128,7 +134,7 @@ class PerformanceMonitor:
         )
 
     def _anomaly_check_needed(
-        self, metric: PerformanceMetric, statistical_anomaly: dict[str, Any] | None
+        self, metric: PerformanceMetric, statistical_anomaly: dict[str, object] | None
     ) -> bool:
         return bool(
             metric.timeout
@@ -143,7 +149,7 @@ class PerformanceMonitor:
         content_length: int,
         matched: bool,
         timeout: bool = False,
-        agent_handler: Any = None,
+        agent_handler: "SyncAgentHandlerProtocol | None" = None,
         correlation_id: str | None = None,
     ) -> None:
         with self._lock:
@@ -159,7 +165,7 @@ class PerformanceMonitor:
     def record_metrics(
         self,
         rows: list[tuple[str, float, int, bool, bool]],
-        agent_handler: Any = None,
+        agent_handler: "SyncAgentHandlerProtocol | None" = None,
         correlation_id: str | None = None,
     ) -> None:
         with self._lock:
@@ -173,17 +179,17 @@ class PerformanceMonitor:
 
     def _detect_timeout_anomaly(
         self, metric: PerformanceMetric
-    ) -> dict[str, Any] | None:
+    ) -> dict[str, object] | None:
         return detect_timeout_anomaly(metric)
 
     def _detect_slow_execution_anomaly(
         self, metric: PerformanceMetric
-    ) -> dict[str, Any] | None:
+    ) -> dict[str, object] | None:
         return detect_slow_execution_anomaly(metric, self.slow_pattern_threshold)
 
     def _detect_statistical_anomaly(
         self, metric: PerformanceMetric, avg_time: float | None = None
-    ) -> dict[str, Any] | None:
+    ) -> dict[str, object] | None:
         stats = self.pattern_stats.get(metric.pattern)
         return detect_statistical_anomaly(
             metric,
@@ -195,8 +201,8 @@ class PerformanceMonitor:
 
     def _send_anomaly_event(
         self,
-        anomaly: dict[str, Any],
-        agent_handler: Any,
+        anomaly: dict[str, object],
+        agent_handler: "SyncAgentHandlerProtocol",
         correlation_id: str | None,
     ) -> None:
         event_data = build_anomaly_event_data(
@@ -208,14 +214,14 @@ class PerformanceMonitor:
         except Exception as e:
             logger.error("Failed to send anomaly event to agent: %s", e)
 
-    def _sanitize_anomaly_data(self, anomaly: dict[str, Any]) -> dict[str, Any]:
+    def _sanitize_anomaly_data(self, anomaly: dict[str, object]) -> dict[str, object]:
         return sanitize_anomaly_data(anomaly, self.redaction_names)
 
     def _send_callback_error_event(
         self,
         error: Exception,
-        safe_anomaly: dict[str, Any],
-        agent_handler: Any,
+        safe_anomaly: dict[str, object],
+        agent_handler: "SyncAgentHandlerProtocol",
         correlation_id: str | None,
     ) -> None:
         event_data = build_callback_error_event_data(
@@ -229,8 +235,8 @@ class PerformanceMonitor:
 
     def _notify_callbacks(
         self,
-        anomaly: dict[str, Any],
-        agent_handler: Any,
+        anomaly: dict[str, object],
+        agent_handler: "SyncAgentHandlerProtocol | None",
         correlation_id: str | None,
     ) -> None:
         if not self.anomaly_callbacks:
@@ -264,11 +270,11 @@ class PerformanceMonitor:
     def _check_anomalies(
         self,
         metric: PerformanceMetric,
-        statistical_anomaly: dict[str, Any] | None,
-        agent_handler: Any = None,
+        statistical_anomaly: dict[str, object] | None,
+        agent_handler: "SyncAgentHandlerProtocol | None" = None,
         correlation_id: str | None = None,
     ) -> None:
-        anomalies: list[dict[str, Any]] = []
+        anomalies: list[dict[str, object]] = []
 
         timeout_anomaly = self._detect_timeout_anomaly(metric)
         if timeout_anomaly:
@@ -352,7 +358,7 @@ class PerformanceMonitor:
             matches,
         )
 
-    def register_anomaly_callback(self, callback: Any) -> None:
+    def register_anomaly_callback(self, callback: AnomalyCallback) -> None:
         self.anomaly_callbacks.append(callback)
 
     def clear_stats(self) -> None:

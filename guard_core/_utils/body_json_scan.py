@@ -1,7 +1,7 @@
 import json
 import re
 import sys
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Literal
 
 from guard_core._utils.detection_config import _categories_without
 from guard_core._utils.detection_scan import (
@@ -38,6 +38,11 @@ from guard_core.handlers._suspatterns_sources import _EMBEDDED_JSON_LEAF_CONTEXT
 if TYPE_CHECKING:
     from guard_core.handlers.suspatterns_handler import SusPatternsManager
 
+_EntryFrame = tuple[Literal["entry"], object, object, int, bool]
+_ValueFrame = tuple[Literal["value"], object, str, int, bool]
+_Frame = _EntryFrame | _ValueFrame
+_CleanSignature = tuple[object, ...]
+
 
 class _RepeatedKey(str):
     """A key an object repeated: equal to no other key, so the dict keeps it.
@@ -55,11 +60,11 @@ class _RepeatedKey(str):
         return id(self)
 
 
-def _json_object_with_every_pair(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+def _json_object_with_every_pair(pairs: list[tuple[str, object]]) -> dict[str, object]:
     merged = dict(pairs)
     if len(merged) == len(pairs):
         return merged
-    every_pair: dict[str, Any] = {}
+    every_pair: dict[str, object] = {}
     for key, value in pairs:
         every_pair[_RepeatedKey(key) if key in every_pair else key] = value
     return every_pair
@@ -88,7 +93,7 @@ def _mongo_operator_key_hit(key_str: str) -> tuple[bool, str, list[dict]]:
 
 
 async def _scan_json_dict_entry_key(
-    key: Any,
+    key: object,
     excluded_body_fields: set[str],
     enabled_categories: set[str] | None,
     client_ip: str,
@@ -122,7 +127,7 @@ async def _scan_json_dict_entry_key(
 
 
 async def _scan_capped_json_subtree(
-    value: Any,
+    value: object,
     key_label: str,
     enabled_categories: set[str] | None,
     client_ip: str,
@@ -160,11 +165,11 @@ async def _scan_capped_json_subtree(
 
 
 def _push_dict_entries(
-    current: dict[Any, Any],
+    current: dict[str, object],
     label: str,
     depth: int,
     redact: bool,
-    stack: list[tuple[str, Any, Any, int, bool]],
+    stack: list[_Frame],
 ) -> None:
     in_shape = (
         frozenset()
@@ -185,11 +190,11 @@ def _push_dict_entries(
 
 
 def _push_list_items(
-    current: list[Any],
+    current: list[object],
     label: str,
     depth: int,
     redact: bool,
-    stack: list[tuple[str, Any, Any, int, bool]],
+    stack: list[_Frame],
 ) -> None:
     in_shape = current.grants if type(current) is BenignShapePaths else None
     for item in reversed(current):
@@ -207,12 +212,12 @@ def _push_list_items(
 
 
 async def _scan_json_container_frame(
-    current: Any,
+    current: dict[str, object] | list[object],
     label: str,
     depth: int,
     redact: bool,
     max_depth: int,
-    stack: list[tuple[str, Any, Any, int, bool]],
+    stack: list[_Frame],
     enabled_categories: set[str] | None,
     client_ip: str,
     correlation_id: str,
@@ -252,11 +257,11 @@ async def _scan_json_container_frame(
 
 
 async def _scan_json_entry_frame(
-    key: Any,
-    item: Any,
+    key: object,
+    item: object,
     depth: int,
     redact: bool,
-    stack: list[tuple[str, Any, Any, int, bool]],
+    stack: list[_Frame],
     excluded_body_fields: set[str],
     enabled_categories: set[str] | None,
     client_ip: str,
@@ -316,7 +321,7 @@ async def _scan_json_entry_frame(
     return None
 
 
-def _walk_limits(context: str) -> tuple[int, set[tuple[Any, ...]] | None]:
+def _walk_limits(context: str) -> tuple[int, set[_CleanSignature] | None]:
     # An embedded value is bounded by the parser depth check before it is walked, so
     # its walk has no depth cap of its own and remembers what it scanned clean.
     if context.endswith(_EMBEDDED_JSON_LEAF_CONTEXT_SUFFIX):
@@ -325,50 +330,46 @@ def _walk_limits(context: str) -> tuple[int, set[tuple[Any, ...]] | None]:
 
 
 def _clean_signature(
-    clean: set[tuple[Any, ...]] | None,
-    kind: str,
-    first: Any,
-    second: Any,
+    clean: set[_CleanSignature] | None,
+    frame: _Frame,
     excluded_body_fields: set[str],
-) -> tuple[tuple[Any, ...] | None, bool]:
+) -> tuple[_CleanSignature | None, bool]:
     # A key or a leaf an embedded walk already scanned clean gives the same verdict
     # again, so a nested value repeating one key per level is scanned once.
     if clean is None:
         return None, False
-    signature = _signature_of_frame(kind, first, second, excluded_body_fields)
+    signature = _signature_of_frame(frame, excluded_body_fields)
     return signature, signature in clean
 
 
 def _signature_of_frame(
-    kind: str, first: Any, second: Any, excluded_body_fields: set[str]
-) -> tuple[Any, ...] | None:
-    if kind == "entry":
-        key_text = str(first)
+    frame: _Frame, excluded_body_fields: set[str]
+) -> _CleanSignature | None:
+    if frame[0] == "entry":
+        key_text = str(frame[1])
         return None if key_text.lower() in excluded_body_fields else ("key", key_text)
+    first = frame[1]
     if isinstance(first, dict | list):
         return None
     return (
         "leaf",
         str(first),
-        second,
+        frame[2],
         first.grants if type(first) is BenignShapePath else None,
     )
 
 
-def _json_skipped_text(kind: str, first: Any) -> str:
-    if kind != "entry" and isinstance(first, dict | list):
+def _json_skipped_text(frame: _Frame) -> str:
+    first = frame[1]
+    if frame[0] != "entry" and isinstance(first, dict | list):
         return json.dumps(first, separators=(",", ":"), ensure_ascii=False)
     return str(first)
 
 
 async def _scan_json_frame(
-    kind: str,
-    first: Any,
-    second: Any,
-    depth: int,
-    redact: bool,
+    frame: _Frame,
     max_depth: int,
-    stack: list[tuple[str, Any, Any, int, bool]],
+    stack: list[_Frame],
     excluded_body_fields: set[str],
     enabled_categories: set[str] | None,
     client_ip: str,
@@ -385,10 +386,11 @@ async def _scan_json_frame(
 ) -> tuple[bool, str, list[dict]] | None:
     from guard_core._utils.body_content_scan import _scan_body_field
 
-    if kind == "entry":
+    if frame[0] == "entry":
+        _, key, item, depth, redact = frame
         return await _scan_json_entry_frame(
-            first,
-            second,
+            key,
+            item,
             depth,
             redact,
             stack,
@@ -404,10 +406,11 @@ async def _scan_json_frame(
             sensitive_params,
             patterns=patterns,
         )
+    _, first, label, depth, redact = frame
     if isinstance(first, dict | list):
         return await _scan_json_container_frame(
             first,
-            second,
+            label,
             depth,
             redact,
             max_depth,
@@ -433,7 +436,7 @@ async def _scan_json_frame(
     try:
         scalar_hit = await _scan_body_field(
             str(first),
-            second,
+            label,
             enabled_categories,
             client_ip,
             correlation_id,
@@ -451,7 +454,7 @@ async def _scan_json_frame(
 
 
 async def _scan_json_value(
-    value: Any,
+    value: object,
     key_label: str,
     excluded_body_fields: set[str],
     enabled_categories: set[str] | None,
@@ -467,25 +470,17 @@ async def _scan_json_value(
     patterns: "SusPatternsManager | None" = None,
 ) -> tuple[bool, str, list[dict]]:
     max_depth, clean = _walk_limits(context)
-    stack: list[tuple[str, Any, Any, int, bool]] = [
-        ("value", value, key_label, 1, False)
-    ]
+    stack: list[_Frame] = [("value", value, key_label, 1, False)]
     remainder = _SurfaceRemainder()
     skips = _skip_counter()
     while stack:
-        kind, first, second, depth, redact = stack.pop()
-        signature, known_clean = _clean_signature(
-            clean, kind, first, second, excluded_body_fields
-        )
-        if known_clean and kind == "value":
+        frame = stack.pop()
+        signature, known_clean = _clean_signature(clean, frame, excluded_body_fields)
+        if known_clean and frame[0] == "value":
             continue
         skipped_before = skips.count
         hit = await _scan_json_frame(
-            kind,
-            first,
-            second,
-            depth,
-            redact,
+            frame,
             max_depth,
             stack,
             excluded_body_fields,
@@ -504,7 +499,7 @@ async def _scan_json_value(
         if hit is not None:
             return hit
         if skips.count != skipped_before:
-            remainder.add(_json_skipped_text(kind, first), kind != "entry" and redact)
+            remainder.add(_json_skipped_text(frame), frame[0] != "entry" and frame[4])
         elif clean is not None and signature is not None:
             clean.add(signature)
     if not remainder:

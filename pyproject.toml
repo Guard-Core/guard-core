@@ -139,7 +139,6 @@ select = [
 "guard_core/_security_config_fields.py" = ["ANN401"]  # framework object
 "guard_core/_security_config_name_set_validators.py" = ["ANN401"]  # open value
 "guard_core/_utils/app_managers.py" = ["ANN401"]  # handler slot
-"guard_core/_utils/body_json_scan.py" = ["ANN401"]  # JSON payload
 "guard_core/_utils/detection_scan.py" = ["ANN401"]  # JSON payload
 "guard_core/_utils/rule_attribution.py" = ["ANN401"]  # JSON payload
 "guard_core/core/__init__.py" = ["ANN401"]  # open value
@@ -155,10 +154,7 @@ select = [
 "guard_core/core/responses/modifier_view.py" = ["ANN401"]  # open value
 "guard_core/core/validation/__init__.py" = ["ANN401"]  # open value
 "guard_core/decorators/base.py" = ["ANN401"]  # kwargs pass-through
-"guard_core/decorators/route_config.py" = ["ANN401"]  # open value
-"guard_core/detection_engine/monitor.py" = ["ANN401"]  # handler slot
 "guard_core/handlers/__init__.py" = ["ANN401"]  # open value
-"guard_core/handlers/_dynamic_rule_attribution.py" = ["ANN401"]  # JSON payload
 "guard_core/handlers/_dynamic_rule_persistence.py" = ["ANN401"]  # handler slot
 "guard_core/handlers/_dynamic_rule_plan.py" = ["ANN401"]  # JSON payload
 "guard_core/handlers/_dynamic_rule_validation.py" = ["ANN401"]  # open value
@@ -180,7 +176,6 @@ select = [
 "guard_core/protocols/request_protocol.py" = ["ANN401"]  # protocol
 "guard_core/sync/__init__.py" = ["ANN401"]  # open value
 "guard_core/sync/_utils/app_managers.py" = ["ANN401"]  # handler slot
-"guard_core/sync/_utils/body_json_scan.py" = ["ANN401"]  # JSON payload
 "guard_core/sync/_utils/detection_scan.py" = ["ANN401"]  # JSON payload
 "guard_core/sync/_utils/rule_attribution.py" = ["ANN401"]  # JSON payload
 "guard_core/sync/core/__init__.py" = ["ANN401"]  # open value
@@ -196,10 +191,7 @@ select = [
 "guard_core/sync/core/responses/modifier_view.py" = ["ANN401"]  # open value
 "guard_core/sync/core/validation/__init__.py" = ["ANN401"]  # open value
 "guard_core/sync/decorators/base.py" = ["ANN401"]  # kwargs pass-through
-"guard_core/sync/decorators/route_config.py" = ["ANN401"]  # open value
-"guard_core/sync/detection_engine/monitor.py" = ["ANN401"]  # handler slot
 "guard_core/sync/handlers/__init__.py" = ["ANN401"]  # open value
-"guard_core/sync/handlers/_dynamic_rule_attribution.py" = ["ANN401"]  # JSON payload
 "guard_core/sync/handlers/_dynamic_rule_persistence.py" = ["ANN401"]  # handler slot
 "guard_core/sync/handlers/_dynamic_rule_plan.py" = ["ANN401"]  # JSON payload
 "guard_core/sync/handlers/_dynamic_rule_validation.py" = ["ANN401"]  # open value
@@ -272,7 +264,6 @@ module = [
     "guard_core._security_config_fields",  # framework object
     "guard_core._security_config_name_set_validators",  # open value
     "guard_core._utils.app_managers",  # handler slot
-    "guard_core._utils.body_json_scan",  # JSON payload
     "guard_core._utils.detection_scan",  # JSON payload
     "guard_core._utils.rule_attribution",  # JSON payload
     "guard_core.core",  # open value
@@ -288,10 +279,7 @@ module = [
     "guard_core.core.responses.modifier_view",  # open value
     "guard_core.core.validation",  # open value
     "guard_core.decorators.base",  # kwargs pass-through
-    "guard_core.decorators.route_config",  # open value
-    "guard_core.detection_engine.monitor",  # handler slot
     "guard_core.handlers",  # open value
-    "guard_core.handlers._dynamic_rule_attribution",  # JSON payload
     "guard_core.handlers._dynamic_rule_persistence",  # handler slot
     "guard_core.handlers._dynamic_rule_plan",  # JSON payload
     "guard_core.handlers._dynamic_rule_validation",  # open value
@@ -319,7 +307,6 @@ disallow_any_explicit = false
 module = [
     "guard_core.sync",  # open value
     "guard_core.sync._utils.app_managers",  # handler slot
-    "guard_core.sync._utils.body_json_scan",  # JSON payload
     "guard_core.sync._utils.detection_scan",  # JSON payload
     "guard_core.sync._utils.rule_attribution",  # JSON payload
     "guard_core.sync.core",  # open value
@@ -335,10 +322,7 @@ module = [
     "guard_core.sync.core.responses.modifier_view",  # open value
     "guard_core.sync.core.validation",  # open value
     "guard_core.sync.decorators.base",  # kwargs pass-through
-    "guard_core.sync.decorators.route_config",  # open value
-    "guard_core.sync.detection_engine.monitor",  # handler slot
     "guard_core.sync.handlers",  # open value
-    "guard_core.sync.handlers._dynamic_rule_attribution",  # JSON payload
     "guard_core.sync.handlers._dynamic_rule_persistence",  # handler slot
     "guard_core.sync.handlers._dynamic_rule_plan",  # JSON payload
     "guard_core.sync.handlers._dynamic_rule_validation",  # open value
