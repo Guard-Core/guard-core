@@ -2,6 +2,8 @@ import binascii
 import re
 from typing import TYPE_CHECKING
 
+from guard_core.sync.detection_engine import truncation
+
 if TYPE_CHECKING:
     from guard_core.sync.detection_engine.preprocessor import ContentPreprocessor
 
@@ -49,6 +51,28 @@ def build_short_base64_additive_view(
 
     content = preprocessor.normalize_unicode(content)
     content = preprocessor.truncate_safely(content)
+
+    decoded_fragments: list[str] = []
+    attempts = 0
+    for match in SHORT_BASE64_TOKEN_RE.finditer(content):
+        if attempts >= MAX_SHORT_BASE64_CANDIDATES:
+            break
+        attempts += 1
+        decoded = _decoded_fragment(match.group(0))
+        if decoded is not None:
+            decoded_fragments.append(decoded)
+
+    return "\n".join(decoded_fragments)
+
+
+def build_short_base64_additive_view_yielding(
+    preprocessor: "ContentPreprocessor", content: str
+) -> str:
+    if not content:
+        return ""
+
+    content = preprocessor.normalize_unicode(content)
+    content = truncation.truncate_safely_yielding(preprocessor, content)
 
     decoded_fragments: list[str] = []
     attempts = 0

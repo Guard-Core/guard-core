@@ -231,6 +231,11 @@ def _record_scan_time(elapsed: float) -> None:
     _scan_time_spent.set(_scan_time_spent.get() + elapsed)
 
 
+def _charge_extraction_cpu(elapsed: float) -> None:
+    if _scan_cpu_mark.get() is None:
+        _record_scan_time(elapsed)
+
+
 def _open_cpu_pass() -> contextvars.Token[float | None]:
     return _scan_cpu_mark.set(
         None if _scan_time_cap.get() is None else _thread_cpu_seconds()

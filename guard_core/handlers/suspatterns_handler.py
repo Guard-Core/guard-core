@@ -964,7 +964,7 @@ class SusPatternsManager(_SusPatternsViewsMixin):
             regex_threats, matched_patterns, timeouts, raw_view_results
         )
 
-        dropped_view = self._comment_dropped_view(
+        dropped_view = await self._comment_dropped_view(
             precomputed_decoded, processed_content, state
         )
         dropped_view_results = await self._check_comment_dropped_view_patterns(

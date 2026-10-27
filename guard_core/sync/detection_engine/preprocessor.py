@@ -9,6 +9,7 @@ from guard_core.sync.detection_engine import (
 )
 from guard_core.sync.detection_engine.base64_view import (
     build_short_base64_additive_view,
+    build_short_base64_additive_view_yielding,
 )
 from guard_core.sync.detection_engine.on_handler_indicator import (
     ON_HANDLER_PATTERN,
@@ -282,11 +283,14 @@ class ContentPreprocessor:
         max_decode_iterations = 16
         iterations = 0
         gunzip_attempts_left = [self._MAX_GUNZIP_ATTEMPTS_PER_PASS]
+        sliced = len(content) > truncation.EXTRACTION_WINDOW_CHARS
 
         while iterations < max_decode_iterations:
             original = content
 
             content = self._decode_overlong_utf8_percent_runs(content)
+            if sliced:
+                truncation.yield_once_slice_elapsed()
 
             try:
                 decoded = encoding_decoders.percent_decode(content, errors="ignore")
@@ -316,12 +320,21 @@ class ContentPreprocessor:
                     error_type="html_decode",
                 )
 
+            if sliced:
+                truncation.yield_once_slice_elapsed()
+
             content = self._decode_percent_u_escapes(content)
             content = self._decode_hex_escapes(content)
             content = self._decode_ldap_hex_escapes(content)
             content = self._decode_unicode_escapes(content)
+            if sliced:
+                truncation.yield_once_slice_elapsed()
             content = self.normalize_unicode(content)
+            if sliced:
+                truncation.yield_once_slice_elapsed()
             content = self._decode_base64_candidates(content, gunzip_attempts_left)
+            if sliced:
+                truncation.yield_once_slice_elapsed()
 
             if content == original:
                 break
@@ -354,6 +367,16 @@ class ContentPreprocessor:
         view = self.truncate_safely(view)
         return None if view == processed else view
 
+    def preprocess_comment_dropped_view_yielding(
+        self, decoded: str, processed: str
+    ) -> str | None:
+        dropped = self.drop_sql_comments(decoded)
+        if dropped is None:
+            return None
+        view = self.remove_excessive_whitespace(self.remove_null_bytes(dropped))
+        view = truncation.truncate_safely_yielding(self, view)
+        return None if view == processed else view
+
     def preprocess(
         self, content: str, decode_budget_exhausted: list[bool] | None = None
     ) -> str:
@@ -368,11 +391,18 @@ class ContentPreprocessor:
         if not content:
             return "", ""
 
+        sliced = len(content) > truncation.EXTRACTION_WINDOW_CHARS
         decoded = self.normalize_unicode(content)
+        if sliced:
+            truncation.yield_once_slice_elapsed()
         decoded = self.decode_common_encodings(decoded, decode_budget_exhausted)
+        if sliced:
+            truncation.yield_once_slice_elapsed()
         processed = self.remove_null_bytes(decoded)
         processed = self.remove_excessive_whitespace(processed)
-        processed = self.truncate_safely(processed)
+        if sliced:
+            truncation.yield_once_slice_elapsed()
+        processed = truncation.truncate_safely_yielding(self, processed)
 
         return processed, decoded
 
@@ -383,6 +413,13 @@ class ContentPreprocessor:
         content = self.normalize_unicode(content)
         return self.truncate_safely(content)
 
+    def preprocess_signal_preserving_yielding(self, content: str) -> str:
+        if not content:
+            return ""
+
+        content = self.normalize_unicode(content)
+        return truncation.truncate_safely_yielding(self, content)
+
     def preprocess_url_decoded_newline_preserving(
         self, content: str, decode_budget_exhausted: list[bool] | None = None
     ) -> str:
@@ -391,10 +428,13 @@ class ContentPreprocessor:
 
         content = self.normalize_unicode(content)
         content = self.decode_common_encodings(content, decode_budget_exhausted)
-        return self.truncate_safely(content)
+        return truncation.truncate_safely_yielding(self, content)
 
     def preprocess_short_base64_additive_view(self, content: str) -> str:
         return build_short_base64_additive_view(self, content)
+
+    def preprocess_short_base64_additive_view_yielding(self, content: str) -> str:
+        return build_short_base64_additive_view_yielding(self, content)
 
     def preprocess_batch(self, contents: list[str]) -> list[str]:
         return [self.preprocess(content) for content in contents]

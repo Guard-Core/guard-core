@@ -1,6 +1,6 @@
 import time
 
-from guard_core.sync.detection_engine import ContentPreprocessor
+from guard_core.sync.detection_engine import ContentPreprocessor, truncation
 from guard_core.sync.detection_engine.encoding_decoders import (
     decode_overlong_utf8_percent_runs,
     decode_percent_u_escapes,
@@ -52,7 +52,7 @@ class _SusPatternsViewsMixin(_SusPatternsRegexMixin):
         if not preprocessor:
             return [], [], []
 
-        raw_view_content = preprocessor.preprocess_signal_preserving(content)
+        raw_view_content = preprocessor.preprocess_signal_preserving_yielding(content)
         return self._check_regex_patterns(
             raw_view_content,
             ip_address,
@@ -84,7 +84,9 @@ class _SusPatternsViewsMixin(_SusPatternsRegexMixin):
         pattern_start = time.monotonic()
         preprocessor = state.preprocessor
         if preprocessor:
-            raw_view_content = preprocessor.preprocess_signal_preserving(content)
+            raw_view_content = preprocessor.preprocess_signal_preserving_yielding(
+                content
+            )
             decoded_view_content = processed_content
         else:
             max_length = getattr(
@@ -134,7 +136,9 @@ class _SusPatternsViewsMixin(_SusPatternsRegexMixin):
             return [], [], [], False
 
         if precomputed_decoded is not None:
-            url_decoded_view_content = preprocessor.truncate_safely(precomputed_decoded)
+            url_decoded_view_content = truncation.truncate_safely_yielding(
+                preprocessor, precomputed_decoded
+            )
             decode_budget_exhausted_flag = precomputed_decode_budget_exhausted
         else:
             decode_budget_exhausted: list[bool] = [False]
@@ -165,7 +169,7 @@ class _SusPatternsViewsMixin(_SusPatternsRegexMixin):
         preprocessor = state.preprocessor
         if not preprocessor or precomputed_decoded is None:
             return None
-        return preprocessor.preprocess_comment_dropped_view(
+        return preprocessor.preprocess_comment_dropped_view_yielding(
             precomputed_decoded, processed_content
         )
 
@@ -206,8 +210,8 @@ class _SusPatternsViewsMixin(_SusPatternsRegexMixin):
         if not preprocessor:
             return [], [], []
 
-        additive_view_content = preprocessor.preprocess_short_base64_additive_view(
-            content
+        additive_view_content = (
+            preprocessor.preprocess_short_base64_additive_view_yielding(content)
         )
         if not additive_view_content:
             return [], [], []

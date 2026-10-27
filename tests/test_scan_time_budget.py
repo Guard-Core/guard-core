@@ -297,3 +297,77 @@ async def test_no_cpu_clock_reads_outside_a_request_scope() -> None:
         await manager.detect("hello world", "127.0.0.1", "query_param:q")
 
     assert calls["clock"] == 0
+
+
+def test_attack_region_extraction_charges_its_cpu_to_the_budget(
+    fake_regex_clock: _FakeClock,
+) -> None:
+    from guard_core.detection_engine.preprocessor import ContentPreprocessor
+    from guard_core.detection_engine.truncation import _collect_regions
+
+    preprocessor = ContentPreprocessor()
+    with _scan_value_budget(512, max_scan_seconds=100.0):
+        before = detection_scan._scan_time_remaining()
+        _collect_regions(preprocessor, "quiet text " * 50, 10)
+        after = detection_scan._scan_time_remaining()
+
+    assert before is not None
+    assert after is not None
+    assert after < before
+
+
+class _RaisedRouteBodyRequest(MockGuardRequest):
+    async def read_body_prefix(self, max_bytes: int) -> bytes:
+        return self._body[:max_bytes]
+
+
+async def test_clean_route_raised_json_ends_in_the_budget_outcome() -> None:
+    import json
+    import time
+
+    from guard_core.decorators.base import RouteConfig
+    from guard_core.detection_engine import truncation
+
+    words = "quarterly onboarding metrics for the regional sales team include revenue "
+    size = 20_000_000
+    data = json.dumps({"k": (words * (size // len(words) + 1))[:size]}).encode()
+    route = RouteConfig()
+    route.max_request_size = 2 * size
+    request = _RaisedRouteBodyRequest(
+        method="POST",
+        body_content=data,
+        headers={
+            "content-type": "application/json",
+            "content-length": str(len(data)),
+        },
+    )
+    cap = 1.0
+    charged = [0.0]
+    longest_pass = [0.0]
+    real_record = detection_scan._record_scan_time
+    real_find = truncation._append_regions
+
+    def recording(elapsed: float) -> None:
+        charged[0] += elapsed
+        real_record(elapsed)
+
+    def timed_find(*args: Any, **kwargs: Any) -> Any:
+        started = time.thread_time()
+        try:
+            return real_find(*args, **kwargs)
+        finally:
+            longest_pass[0] = max(longest_pass[0], time.thread_time() - started)
+
+    with (
+        patch.object(detection_scan, "_record_scan_time", recording),
+        patch.object(_suspatterns_regex, "_record_scan_time", recording),
+        patch.object(truncation, "_append_regions", timed_find),
+        patch.object(detection_scan.LazyPreview, "resolve", lambda self: None),
+    ):
+        result = await detect_penetration_attempt(
+            request, SecurityConfig(detection_max_scan_seconds=cap), route
+        )
+
+    assert result.is_threat is True
+    assert "Pattern exceeded scan time budget" in result.trigger_info
+    assert charged[0] <= cap + longest_pass[0]

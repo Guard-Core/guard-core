@@ -34,8 +34,12 @@ class OnHandlerIndicator:
     pattern = ON_HANDLER_PATTERN
     flags = re.compile(ON_HANDLER_PATTERN, re.IGNORECASE).flags
 
-    def finditer(self, text: str) -> Iterator[_Span]:
-        for run in _WORD_RUN_RE.finditer(text):
+    def finditer(
+        self, text: str, start: int = 0, stop: int | None = None
+    ) -> Iterator[_Span]:
+        for run in _WORD_RUN_RE.finditer(
+            text, start, len(text) if stop is None else stop
+        ):
             run_end = run.end()
             if text[run_end : run_end + 1] != "=":
                 continue
