@@ -1,5 +1,6 @@
 from collections.abc import Mapping
 
+from guard_core._security_headers_defaults import _DEFAULT_SECURITY_HEADERS_CONFIG
 from guard_core.handlers.security_headers_handler import SecurityHeadersManager
 from guard_core.models import SecurityConfig
 
@@ -9,6 +10,15 @@ def _text_setting(settings: Mapping[str, object], key: str, default: str) -> str
     if value is None or isinstance(value, str):
         return value
     raise TypeError(f"the {key} setting must be a string")
+
+
+def _default_text(key: str) -> str:
+    # a partial block merges over the defaults (decision 5.12), so a key it leaves
+    # out takes the default's value (X-XSS-Protection "0", decision 5.18)
+    value = _DEFAULT_SECURITY_HEADERS_CONFIG[key]
+    if isinstance(value, str):
+        return value
+    raise TypeError(f"the default {key} setting must be a string")
 
 
 def _csp_setting(value: object) -> dict[str, list[str]] | None:
@@ -59,7 +69,9 @@ def apply_security_headers_settings(
         hsts_preload=bool(hsts.get("preload", False)),
         frame_options=_text_setting(settings, "frame_options", "SAMEORIGIN"),
         content_type_options=_text_setting(settings, "content_type_options", "nosniff"),
-        xss_protection=_text_setting(settings, "xss_protection", "1; mode=block"),
+        xss_protection=_text_setting(
+            settings, "xss_protection", _default_text("xss_protection")
+        ),
         referrer_policy=_text_setting(
             settings, "referrer_policy", "strict-origin-when-cross-origin"
         ),

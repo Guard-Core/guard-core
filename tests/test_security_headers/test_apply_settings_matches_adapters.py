@@ -8,6 +8,11 @@ from guard_core.handlers._security_headers_apply import (
 from guard_core.handlers.security_headers_handler import SecurityHeadersManager
 from guard_core.models import SecurityConfig
 
+# The one intended difference from the adapters' reader: a block that leaves
+# xss_protection out takes the default "0" (decisions 5.12 and 5.18), where the
+# adapters fell back to "1; mode=block".
+XSS_DEFAULT = "0"
+
 
 def adapter_copy(manager: SecurityHeadersManager, config: SecurityConfig) -> None:
     # The settings reader every adapter carried (fastapi-guard middleware.py).
@@ -31,7 +36,7 @@ def adapter_copy(manager: SecurityHeadersManager, config: SecurityConfig) -> Non
         hsts_preload=hsts_config.get("preload", False),
         frame_options=headers_config.get("frame_options", "SAMEORIGIN"),
         content_type_options=headers_config.get("content_type_options", "nosniff"),
-        xss_protection=headers_config.get("xss_protection", "1; mode=block"),
+        xss_protection=headers_config.get("xss_protection", XSS_DEFAULT),
         referrer_policy=headers_config.get(
             "referrer_policy", "strict-origin-when-cross-origin"
         ),
@@ -138,3 +143,16 @@ def test_a_setting_of_the_wrong_shape_assigned_around_validation_is_refused(
 
     with pytest.raises(TypeError, match=message):
         apply_security_headers_settings(SecurityHeadersManager(), config)
+
+
+async def test_a_partial_block_sends_the_default_x_xss_protection() -> None:
+    config = SecurityConfig(
+        enable_redis=False, security_headers={"enabled": True, "frame_options": "DENY"}
+    )
+    manager = SecurityHeadersManager()
+
+    apply_security_headers_settings(manager, config)
+    headers = await manager.get_headers("/x")
+
+    assert headers["X-XSS-Protection"] == "0"
+    assert headers["X-Frame-Options"] == "DENY"
