@@ -5,6 +5,7 @@ from guard_core._security_config_cloud_store_validators import (
     _CLOUD_IP_STORE_MEMBERS,
 )
 from guard_core.sync._utils.capability import has_callables
+from guard_core.sync._utils.geo_member_call import settle_geo_member_call
 from guard_core.sync.protocols.cloud_ip_store_protocol import SyncCloudIpStoreProtocol
 
 if TYPE_CHECKING:
@@ -59,7 +60,7 @@ class CloudInitializationMixin:
         if providers := self._cloud_providers_to_load():
             cloud_handler_for(self.config).refresh(providers)
         if self.geo_ip_handler is not None:
-            self.geo_ip_handler.initialize()
+            settle_geo_member_call(self.geo_ip_handler, "initialize")
 
     def _initialize_cloud_and_geo_redis(
         self, redis_handler: "SyncRedisHandlerProtocol"
@@ -79,4 +80,6 @@ class CloudInitializationMixin:
                 ttl=self.config.cloud_ip_refresh_interval,
             )
         if self.geo_ip_handler is not None:
-            self.geo_ip_handler.initialize_redis(redis_handler)
+            settle_geo_member_call(
+                self.geo_ip_handler, "initialize_redis", redis_handler
+            )

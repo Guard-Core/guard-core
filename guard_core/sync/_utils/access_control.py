@@ -5,6 +5,7 @@ from ipaddress import IPv4Address, IPv6Address, ip_address
 from typing import TYPE_CHECKING, Protocol
 
 from guard_core.sync._utils.detection_scan import _user_agent_matches_blocked_pattern
+from guard_core.sync._utils.geo_member_call import settle_geo_member_call
 from guard_core.sync._utils.ip_extraction import (
     MALFORMED_FORWARDED_FOR_PREFIX,
     UNKNOWN_CLIENT_IDENTITY,
@@ -12,11 +13,11 @@ from guard_core.sync._utils.ip_extraction import (
 )
 from guard_core.sync._utils.logging_utils import _log_at_level
 from guard_core.sync._utils.whitelist_match import is_listed
-from guard_core.sync.protocols.geo_ip_protocol import SyncGeoIPHandler
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
 if TYPE_CHECKING:
     from guard_core.models import SyncSecurityConfig
+    from guard_core.sync.protocols.geo_ip_protocol import SyncGeoIPHandler
 
 logger = logging.getLogger("guard_core")
 
@@ -104,17 +105,17 @@ def _evaluate_country_access(
     return False, "not_affected"
 
 
-def _load_geo_database(geo_ip_handler: SyncGeoIPHandler) -> None:
+def _load_geo_database(geo_ip_handler: "SyncGeoIPHandler") -> None:
     ensure_database_loaded = getattr(geo_ip_handler, "ensure_database_loaded", None)
     if ensure_database_loaded is None:
-        geo_ip_handler.initialize()
+        settle_geo_member_call(geo_ip_handler, "initialize")
         return
-    ensure_database_loaded()
+    settle_geo_member_call(geo_ip_handler, "ensure_database_loaded")
 
 
 class GeoRuleMiddleware(Protocol):
     @property
-    def geo_ip_handler(self) -> SyncGeoIPHandler | None: ...
+    def geo_ip_handler(self) -> "SyncGeoIPHandler | None": ...
 
 
 def load_geo_database_for_route_rules(middleware: GeoRuleMiddleware) -> None:
@@ -124,7 +125,7 @@ def load_geo_database_for_route_rules(middleware: GeoRuleMiddleware) -> None:
 
 
 def _resolve_country_verdict(
-    ip: str, config: "SyncSecurityConfig", geo_ip_handler: SyncGeoIPHandler
+    ip: str, config: "SyncSecurityConfig", geo_ip_handler: "SyncGeoIPHandler"
 ) -> tuple[bool, str | None]:
     if not _has_country_rules(config):
         _log_country_check_result(ip, None, "no_rules", config)
@@ -152,7 +153,7 @@ def _resolve_country_verdict(
 def check_ip_country(
     request: str | SyncGuardRequest,
     config: "SyncSecurityConfig",
-    geo_ip_handler: SyncGeoIPHandler,
+    geo_ip_handler: "SyncGeoIPHandler",
 ) -> bool:
     ip = _extract_ip_from_request(request)
     is_blocked, _country = _resolve_country_verdict(ip, config, geo_ip_handler)
@@ -180,7 +181,7 @@ def _check_whitelist(ip_addr: object, ip: str, config: "SyncSecurityConfig") -> 
 
 
 def _check_blocked_countries(
-    ip: str, config: "SyncSecurityConfig", geo_ip_handler: SyncGeoIPHandler | None
+    ip: str, config: "SyncSecurityConfig", geo_ip_handler: "SyncGeoIPHandler | None"
 ) -> bool:
     if (config.blocked_countries or config.whitelist_countries) and geo_ip_handler:
         country_blocked = check_ip_country(ip, config, geo_ip_handler)
@@ -233,7 +234,7 @@ def _result_for_geo_failure(
 
 
 def _check_blocked_countries_detail(
-    ip: str, config: "SyncSecurityConfig", geo_ip_handler: SyncGeoIPHandler | None
+    ip: str, config: "SyncSecurityConfig", geo_ip_handler: "SyncGeoIPHandler | None"
 ) -> IpAccessResult | None:
     if (
         not (config.blocked_countries or config.whitelist_countries)
@@ -359,7 +360,7 @@ def _check_country_and_cloud_detail(
     ip_addr: object,
     ip: str,
     config: "SyncSecurityConfig",
-    geo_ip_handler: SyncGeoIPHandler | None,
+    geo_ip_handler: "SyncGeoIPHandler | None",
     skip_countries: bool,
     skip_clouds: bool,
 ) -> IpAccessResult | None:
@@ -382,7 +383,7 @@ def _check_country_and_cloud_detail(
 def check_ip_access(
     ip: str,
     config: "SyncSecurityConfig",
-    geo_ip_handler: SyncGeoIPHandler | None = None,
+    geo_ip_handler: "SyncGeoIPHandler | None" = None,
     *,
     skip_ip_lists: bool = False,
     skip_countries: bool = False,
@@ -421,7 +422,7 @@ def check_ip_access(
 def is_ip_allowed(
     ip: str,
     config: "SyncSecurityConfig",
-    geo_ip_handler: SyncGeoIPHandler | None = None,
+    geo_ip_handler: "SyncGeoIPHandler | None" = None,
     *,
     skip_ip_lists: bool = False,
     skip_countries: bool = False,

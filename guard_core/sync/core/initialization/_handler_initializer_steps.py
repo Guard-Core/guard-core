@@ -8,6 +8,7 @@ from guard_core._redis_enablement import redis_is_configured, resolve_enable_red
 from guard_core._staged_defaults import signal_changed_defaults
 from guard_core.exceptions import GuardRedisError
 from guard_core.sync._utils.app_scope import app_scope_of, in_app_scope
+from guard_core.sync._utils.geo_member_call import settle_geo_member_call
 from guard_core.sync._utils.sampling import observe_sampled_key
 from guard_core.sync.core.initialization._cloud_initialization import (
     CloudInitializationMixin,
@@ -132,7 +133,9 @@ class _HandlerInitializerStepsMixin(
 
         if self.geo_ip_handler is not None:
             try:
-                self.geo_ip_handler.initialize_redis(redis_handler)
+                settle_geo_member_call(
+                    self.geo_ip_handler, "initialize_redis", redis_handler
+                )
             except Exception as e:
                 self.logger.warning(
                     "Lazy geo-IP initialization failed: %s", e, exc_info=True
@@ -271,7 +274,7 @@ class _HandlerInitializerStepsMixin(
             cloud_handler_for(self.config).initialize_agent(telemetry)
 
         if self.geo_ip_handler and hasattr(self.geo_ip_handler, "initialize_agent"):
-            self.geo_ip_handler.initialize_agent(telemetry)
+            settle_geo_member_call(self.geo_ip_handler, "initialize_agent", telemetry)
 
     def initialize_dynamic_rule_manager(self) -> None:
         if not self.config.enable_dynamic_rules:

@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from guard_core.sync.protocols.geo_ip_protocol import SyncGeoIPHandler
 
 GeoIPHandlerOfEitherTree: TypeAlias = "GeoIPHandler | SyncGeoIPHandler"
+GeoIPHandlerOfThisTree: TypeAlias = "GeoIPHandler | SyncGeoIPHandler"
 
 _LIFECYCLE_MEMBERS = ("initialize", "initialize_redis", "initialize_agent", "refresh")
 
@@ -90,25 +91,13 @@ def _is_synchronous_handler(
     return not _awaited_lifecycle_members(handler)
 
 
-def _is_geo_handler_the_awaiting_tree_keeps(
-    handler: object,
-) -> TypeGuard["GeoIPHandler"]:
-    # a plain function may still return an awaitable (a decorated coroutine), so
-    # the awaiting tree keeps every object with the members, as it always did
-    from guard_core._security_config_geo_validators import (
-        _has_every_geo_ip_handler_member,
-    )
-
-    return _has_every_geo_ip_handler_member(handler)
-
-
 @overload
 def geo_ip_handler_for_tree(
     config: "SecurityConfig[RequestT]",
     handler: "GeoIPHandler | SyncGeoIPHandler | None",
     *,
     tree_awaits: Literal[True],
-) -> "GeoIPHandler | None": ...
+) -> "GeoIPHandlerOfEitherTree | None": ...
 
 
 @overload
@@ -129,12 +118,7 @@ def geo_ip_handler_for_tree(
     if handler is None:
         return None
     if tree_awaits:
-        if _is_geo_handler_the_awaiting_tree_keeps(handler):
-            return handler
-        raise TypeError(
-            "geo_ip_handler must be an instance of GeoIPHandler, "
-            f"got {type(handler).__name__}"
-        )
+        return handler
     if _is_built_from_the_token(config, handler):
         return _sync_ipinfo_manager(config, config.ipinfo_token or "")
     if _is_synchronous_handler(handler):

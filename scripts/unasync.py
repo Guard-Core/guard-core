@@ -47,6 +47,7 @@ SKIP_TESTS = {
     "test_field_validator_user_agent_cap.py",
     "test_geo_awaited_load_concurrency.py",
     "test_geo_handler_for_tree.py",
+    "test_geo_sync_handler_in_async_engine.py",
     "test_modifier_body_replay.py",
     "test_modifier_body_pins.py",
     "test_scan_event_loop_yield.py",
@@ -138,6 +139,7 @@ HAND_MAINTAINED = {
     / "test_file_upload_decoded_truncation_body_scan.py",
     TEST_SYNC_DIR / "test_utils" / "test_bounded_thread_body_read.py",
     SYNC_DIR / "core" / "checks" / "_verifier.py",
+    SYNC_DIR / "_utils" / "geo_member_call.py",
     SYNC_DIR / "core" / "callable_slot.py",
     TEST_SYNC_DIR / "test_core" / "test_custom_callables_follow_the_type.py",
     SYNC_DIR / "core" / "responses" / "modifier_body.py",
@@ -490,6 +492,11 @@ SUBS: list[tuple[str, str]] = [
         r"from guard_core\.protocols\.redis_protocol import RedisHandlerProtocol",
         "from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol",
     ),
+    (
+        r"from guard_core\._geo_handler_for_tree import GeoIPHandlerOfThisTree",
+        "from guard_core.sync.protocols.geo_ip_protocol import SyncGeoIPHandler",
+    ),
+    (r"(?<!\w)GeoIPHandlerOfThisTree\b", "SyncGeoIPHandler"),
     (
         r"from guard_core\.protocols\.geo_ip_protocol import GeoIPHandler",
         "from guard_core.sync.protocols.geo_ip_protocol import SyncGeoIPHandler",

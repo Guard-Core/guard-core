@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Protocol
 from guard_core._redis_enablement import redis_is_configured, resolve_enable_redis
 from guard_core._staged_defaults import signal_changed_defaults
 from guard_core._utils.app_scope import app_scope_of, in_app_scope
+from guard_core._utils.geo_member_call import settle_geo_member_call
 from guard_core._utils.sampling import observe_sampled_key
 from guard_core.core.initialization._cloud_initialization import (
     CloudInitializationMixin,
@@ -28,6 +29,7 @@ from guard_core.core.initialization._whitelist_strikes import (
 from guard_core.exceptions import GuardRedisError
 
 if TYPE_CHECKING:
+    from guard_core._geo_handler_for_tree import GeoIPHandlerOfThisTree
     from guard_core.core.events.composite_handler import CompositeAgentHandler
     from guard_core.core.events.enricher import EventEnricher
     from guard_core.core.events.event_types import EventFilter
@@ -35,7 +37,6 @@ if TYPE_CHECKING:
     from guard_core.handlers.behavior_handler import BehaviorTracker
     from guard_core.models import SecurityConfig
     from guard_core.protocols.agent_protocol import AgentHandlerProtocol
-    from guard_core.protocols.geo_ip_protocol import GeoIPHandler
     from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 
 _INIT_FAILURE_SAMPLE_WINDOW_SECONDS = 60
@@ -67,7 +68,7 @@ class _HandlerInitializerStepsMixin(
     config: "SecurityConfig"
     redis_handler: "RedisHandlerProtocol | None" = None
     agent_handler: "AgentHandlerProtocol | None" = None
-    geo_ip_handler: "GeoIPHandler | None" = None
+    geo_ip_handler: "GeoIPHandlerOfThisTree | None" = None
     rate_limit_handler: "_RateLimitSlot | None" = None
     guard_decorator: "BaseSecurityDecorator | None" = None
     composite_handler: "CompositeAgentHandler | None" = None
@@ -133,7 +134,9 @@ class _HandlerInitializerStepsMixin(
 
         if self.geo_ip_handler is not None:
             try:
-                await self.geo_ip_handler.initialize_redis(redis_handler)
+                await settle_geo_member_call(
+                    self.geo_ip_handler, "initialize_redis", redis_handler
+                )
             except Exception as e:
                 self.logger.warning(
                     "Lazy geo-IP initialization failed: %s", e, exc_info=True
@@ -268,7 +271,9 @@ class _HandlerInitializerStepsMixin(
             await cloud_handler_for(self.config).initialize_agent(telemetry)
 
         if self.geo_ip_handler and hasattr(self.geo_ip_handler, "initialize_agent"):
-            await self.geo_ip_handler.initialize_agent(telemetry)
+            await settle_geo_member_call(
+                self.geo_ip_handler, "initialize_agent", telemetry
+            )
 
     async def initialize_dynamic_rule_manager(self) -> None:
         if not self.config.enable_dynamic_rules:

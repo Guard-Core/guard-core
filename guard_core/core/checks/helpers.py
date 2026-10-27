@@ -68,10 +68,10 @@ from guard_core.utils import (
 )
 
 if TYPE_CHECKING:
+    from guard_core._geo_handler_for_tree import GeoIPHandlerOfThisTree
     from guard_core._utils.access_control import GeoRuleMiddleware
     from guard_core.core.checks.base import SecurityCheck
     from guard_core.handlers.ipban_handler import IPBanManager
-    from guard_core.protocols.geo_ip_protocol import GeoIPHandler
     from guard_core.protocols.middleware_protocol import GuardMiddlewareProtocol
 
 SUSPICIOUS_COUNT_WINDOW_SECONDS = 3600
@@ -309,7 +309,9 @@ def is_ip_in_whitelist(
 
 
 def check_country_access(
-    client_ip: str, route_config: RouteConfig, geo_ip_handler: "GeoIPHandler | None"
+    client_ip: str,
+    route_config: RouteConfig,
+    geo_ip_handler: "GeoIPHandlerOfThisTree | None",
 ) -> bool | None:
     if not geo_ip_handler:
         return None

@@ -170,13 +170,15 @@ def test_async_engine_keeps_a_plain_sync_handler_as_it_always_did() -> None:
     assert geo_ip_handler_for_tree(config, handler, tree_awaits=True) is handler
 
 
-def test_async_engine_refuses_an_object_that_is_not_a_geo_handler() -> None:
+def test_async_engine_keeps_an_object_without_the_members_as_it_always_did() -> None:
     without_members = MagicMock(spec=[])
 
-    with pytest.raises(TypeError, match="must be an instance of GeoIPHandler"):
+    assert (
         geo_ip_handler_for_tree(
             SecurityConfig(enable_redis=False), without_members, tree_awaits=True
         )
+        is without_members
+    )
 
 
 def test_async_engine_keeps_a_user_supplied_async_handler() -> None:

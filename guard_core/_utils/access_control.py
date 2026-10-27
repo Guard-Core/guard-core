@@ -5,6 +5,7 @@ from ipaddress import IPv4Address, IPv6Address, ip_address
 from typing import TYPE_CHECKING, Protocol
 
 from guard_core._utils.detection_scan import _user_agent_matches_blocked_pattern
+from guard_core._utils.geo_member_call import settle_geo_member_call
 from guard_core._utils.ip_extraction import (
     MALFORMED_FORWARDED_FOR_PREFIX,
     UNKNOWN_CLIENT_IDENTITY,
@@ -12,10 +13,10 @@ from guard_core._utils.ip_extraction import (
 )
 from guard_core._utils.logging_utils import _log_at_level
 from guard_core._utils.whitelist_match import is_listed
-from guard_core.protocols.geo_ip_protocol import GeoIPHandler
 from guard_core.protocols.request_protocol import GuardRequest
 
 if TYPE_CHECKING:
+    from guard_core._geo_handler_for_tree import GeoIPHandlerOfThisTree
     from guard_core.models import SecurityConfig
 
 logger = logging.getLogger("guard_core")
@@ -104,27 +105,27 @@ def _evaluate_country_access(
     return False, "not_affected"
 
 
-async def _load_geo_database(geo_ip_handler: GeoIPHandler) -> None:
+async def _load_geo_database(geo_ip_handler: "GeoIPHandlerOfThisTree") -> None:
     ensure_database_loaded = getattr(geo_ip_handler, "ensure_database_loaded", None)
     if ensure_database_loaded is None:
-        await geo_ip_handler.initialize()
+        await settle_geo_member_call(geo_ip_handler, "initialize")
         return
-    await ensure_database_loaded()
+    await settle_geo_member_call(geo_ip_handler, "ensure_database_loaded")
 
 
 class GeoRuleMiddleware(Protocol):
     @property
-    def geo_ip_handler(self) -> GeoIPHandler | None: ...
+    def geo_ip_handler(self) -> "GeoIPHandlerOfThisTree | None": ...
 
 
 async def load_geo_database_for_route_rules(middleware: GeoRuleMiddleware) -> None:
-    geo_ip_handler: GeoIPHandler | None = middleware.geo_ip_handler
+    geo_ip_handler: GeoIPHandlerOfThisTree | None = middleware.geo_ip_handler
     if geo_ip_handler is not None and not geo_ip_handler.is_initialized:
         await _load_geo_database(geo_ip_handler)
 
 
 async def _resolve_country_verdict(
-    ip: str, config: "SecurityConfig", geo_ip_handler: GeoIPHandler
+    ip: str, config: "SecurityConfig", geo_ip_handler: "GeoIPHandlerOfThisTree"
 ) -> tuple[bool, str | None]:
     if not _has_country_rules(config):
         _log_country_check_result(ip, None, "no_rules", config)
@@ -152,7 +153,7 @@ async def _resolve_country_verdict(
 async def check_ip_country(
     request: str | GuardRequest,
     config: "SecurityConfig",
-    geo_ip_handler: GeoIPHandler,
+    geo_ip_handler: "GeoIPHandlerOfThisTree",
 ) -> bool:
     ip = _extract_ip_from_request(request)
     is_blocked, _country = await _resolve_country_verdict(ip, config, geo_ip_handler)
@@ -180,7 +181,7 @@ async def _check_whitelist(ip_addr: object, ip: str, config: "SecurityConfig") -
 
 
 async def _check_blocked_countries(
-    ip: str, config: "SecurityConfig", geo_ip_handler: GeoIPHandler | None
+    ip: str, config: "SecurityConfig", geo_ip_handler: "GeoIPHandlerOfThisTree | None"
 ) -> bool:
     if (config.blocked_countries or config.whitelist_countries) and geo_ip_handler:
         country_blocked = await check_ip_country(ip, config, geo_ip_handler)
@@ -233,7 +234,7 @@ def _result_for_geo_failure(
 
 
 async def _check_blocked_countries_detail(
-    ip: str, config: "SecurityConfig", geo_ip_handler: GeoIPHandler | None
+    ip: str, config: "SecurityConfig", geo_ip_handler: "GeoIPHandlerOfThisTree | None"
 ) -> IpAccessResult | None:
     if (
         not (config.blocked_countries or config.whitelist_countries)
@@ -359,7 +360,7 @@ async def _check_country_and_cloud_detail(
     ip_addr: object,
     ip: str,
     config: "SecurityConfig",
-    geo_ip_handler: GeoIPHandler | None,
+    geo_ip_handler: "GeoIPHandlerOfThisTree | None",
     skip_countries: bool,
     skip_clouds: bool,
 ) -> IpAccessResult | None:
@@ -384,7 +385,7 @@ async def _check_country_and_cloud_detail(
 async def check_ip_access(
     ip: str,
     config: "SecurityConfig",
-    geo_ip_handler: GeoIPHandler | None = None,
+    geo_ip_handler: "GeoIPHandlerOfThisTree | None" = None,
     *,
     skip_ip_lists: bool = False,
     skip_countries: bool = False,
@@ -425,7 +426,7 @@ async def check_ip_access(
 async def is_ip_allowed(
     ip: str,
     config: "SecurityConfig",
-    geo_ip_handler: GeoIPHandler | None = None,
+    geo_ip_handler: "GeoIPHandlerOfThisTree | None" = None,
     *,
     skip_ip_lists: bool = False,
     skip_countries: bool = False,

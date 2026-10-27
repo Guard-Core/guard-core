@@ -38,7 +38,6 @@ from guard_core.sync.core.events.event_types import (
 )
 from guard_core.sync.decorators.base import RouteConfig
 from guard_core.sync.handlers._dynamic_rule_attribution import Stamp
-from guard_core.sync.protocols.geo_ip_protocol import SyncGeoIPHandler
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 from guard_core.sync.utils import (
     IpAccessResult,
@@ -49,6 +48,7 @@ from guard_core.sync.utils import (
 
 if TYPE_CHECKING:
     from guard_core.models import SyncSecurityConfig
+    from guard_core.sync.protocols.geo_ip_protocol import SyncGeoIPHandler
 
 
 def _is_private_peer_without_forwarded_for(
@@ -65,7 +65,7 @@ def _is_private_peer_without_forwarded_for(
 def _route_country_whitelist_matched(
     client_ip: str,
     route_config: RouteConfig | None,
-    geo_ip_handler: SyncGeoIPHandler | None,
+    geo_ip_handler: "SyncGeoIPHandler | None",
 ) -> bool:
     if not route_config:
         return False
@@ -96,7 +96,7 @@ def _resolve_is_exempt(
 
 def _classify_route_ip_denial(
     route_config: RouteConfig,
-    geo_ip_handler: SyncGeoIPHandler,
+    geo_ip_handler: "SyncGeoIPHandler",
     client_ip: str,
     country_result: bool | None,
 ) -> tuple[str, str]:

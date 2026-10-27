@@ -311,7 +311,9 @@ def is_ip_in_whitelist(
 
 
 def check_country_access(
-    client_ip: str, route_config: RouteConfig, geo_ip_handler: "SyncGeoIPHandler | None"
+    client_ip: str,
+    route_config: RouteConfig,
+    geo_ip_handler: "SyncGeoIPHandler | None",
 ) -> bool | None:
     if not geo_ip_handler:
         return None

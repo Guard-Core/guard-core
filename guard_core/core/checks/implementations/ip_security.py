@@ -37,7 +37,6 @@ from guard_core.core.events.event_types import (
 )
 from guard_core.decorators.base import RouteConfig
 from guard_core.handlers._dynamic_rule_attribution import Stamp
-from guard_core.protocols.geo_ip_protocol import GeoIPHandler
 from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.utils import (
@@ -48,6 +47,7 @@ from guard_core.utils import (
 )
 
 if TYPE_CHECKING:
+    from guard_core._geo_handler_for_tree import GeoIPHandlerOfThisTree
     from guard_core.models import SecurityConfig
 
 
@@ -65,7 +65,7 @@ def _is_private_peer_without_forwarded_for(
 def _route_country_whitelist_matched(
     client_ip: str,
     route_config: RouteConfig | None,
-    geo_ip_handler: GeoIPHandler | None,
+    geo_ip_handler: "GeoIPHandlerOfThisTree | None",
 ) -> bool:
     if not route_config:
         return False
@@ -96,7 +96,7 @@ def _resolve_is_exempt(
 
 def _classify_route_ip_denial(
     route_config: RouteConfig,
-    geo_ip_handler: GeoIPHandler,
+    geo_ip_handler: "GeoIPHandlerOfThisTree",
     client_ip: str,
     country_result: bool | None,
 ) -> tuple[str, str]:
