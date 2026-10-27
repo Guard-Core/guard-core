@@ -2,7 +2,6 @@ import socket
 import ssl
 import threading
 import time
-from typing import Any
 
 from requests.adapters import HTTPAdapter
 from urllib3.connection import HTTPConnection
@@ -31,8 +30,8 @@ class DownloadCut:
     def time_left(self) -> float:
         return max(self._deadline - time.monotonic(), 0.0)
 
-    def record(self, sock: Any) -> None:
-        os_socket = sock
+    def record(self, sock: object) -> None:
+        os_socket: object = sock
         for _ in range(_WRAPPER_LEVELS):
             if isinstance(os_socket, socket.socket):
                 break
@@ -100,11 +99,14 @@ class _RecordingConnection(HTTPConnection):
     _close_pending = False
 
     @property
-    def sock(self) -> Any:
-        return self.__dict__.get("_recorded_sock")
+    def sock(self) -> socket.socket | ssl.SSLSocket | None:
+        recorded: socket.socket | ssl.SSLSocket | None = self.__dict__.get(
+            "_recorded_sock"
+        )
+        return recorded
 
     @sock.setter
-    def sock(self, value: Any) -> None:
+    def sock(self, value: socket.socket | ssl.SSLSocket | None) -> None:
         if value is not None:
             self._cut.record(value)
         self.__dict__["_recorded_sock"] = value
@@ -161,11 +163,17 @@ class RecordingAdapter(HTTPAdapter):
         self._cut = cut
         super().__init__()
 
-    def init_poolmanager(self, *args: Any, **kwargs: Any) -> None:
-        super().init_poolmanager(*args, **kwargs)
+    def init_poolmanager(
+        self,
+        connections: int,
+        maxsize: int,
+        block: bool = False,
+        **pool_kwargs: object,
+    ) -> None:
+        super().init_poolmanager(connections, maxsize, block, **pool_kwargs)
         self._record_through(self.poolmanager)
 
-    def proxy_manager_for(self, proxy: str, **proxy_kwargs: Any) -> PoolManager:
+    def proxy_manager_for(self, proxy: str, **proxy_kwargs: object) -> PoolManager:
         manager: PoolManager = super().proxy_manager_for(proxy, **proxy_kwargs)
         self._record_through(manager)
         return manager

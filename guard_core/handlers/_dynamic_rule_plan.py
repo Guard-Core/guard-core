@@ -2,10 +2,9 @@ import asyncio
 import functools
 import ipaddress
 import logging
-from collections.abc import Iterable
+from collections.abc import Collection, Iterable
 from copy import deepcopy
 from dataclasses import dataclass, field
-from typing import Any
 
 from guard_core._security_config_batch import apply_config_batch, prepare_config_batch
 from guard_core._security_config_field_validators import (
@@ -18,18 +17,19 @@ from guard_core.handlers._dynamic_rule_validation import (
     find_malformed_values,
 )
 from guard_core.handlers._ipban_bans import _LOOPBACK_NETWORKS
+from guard_core.handlers._ipban_cache import _Network
 from guard_core.models import DynamicRules, SecurityConfig
 
 
 @dataclass
 class DynamicRulePlan:
-    state: dict[str, Any]
+    state: dict[str, object]
     skipped: list[str] = field(default_factory=list)
     messages: list[tuple[int, str]] = field(default_factory=list)
     emergency_whitelist: list[str] | None = None
     exempt_ips: list[str] = field(default_factory=list)
     validated: set[str] = field(default_factory=set)
-    prepared: dict[str, Any] = field(default_factory=dict)
+    prepared: dict[str, object] = field(default_factory=dict)
 
     def set(self, name: str, value: object, *, validate: bool = True) -> None:
         self.state[name] = value
@@ -65,16 +65,29 @@ def _classify_exempt_entry(entry: str) -> tuple[str | None, str | None]:
     return str(network), None
 
 
-def _covered_by(entry: str, networks: list[Any]) -> bool:
+def _covered_by(entry: str, networks: list[_Network]) -> bool:
     target = ipaddress.ip_network(entry, strict=False)
+    if isinstance(target, ipaddress.IPv4Network):
+        return any(
+            isinstance(network, ipaddress.IPv4Network) and target.subnet_of(network)
+            for network in networks
+        )
     return any(
-        target.version == network.version and target.subnet_of(network)
+        isinstance(network, ipaddress.IPv6Network) and target.subnet_of(network)
         for network in networks
     )
 
 
-def _merge_unique(static: Iterable[str] | None, dynamic: Iterable[str]) -> list[str]:
-    return list(dict.fromkeys([*(static or ()), *dynamic]))
+def _stored_entries(value: object) -> Collection[str]:
+    if value is None:
+        return ()
+    if not isinstance(value, Collection):
+        raise TypeError(f"stored rule entries must be a collection, got {value!r}")
+    return value
+
+
+def _merge_unique(static: object, dynamic: Iterable[str]) -> list[str]:
+    return list(dict.fromkeys([*_stored_entries(static), *dynamic]))
 
 
 class DynamicRulePlanMixin:
@@ -167,7 +180,9 @@ class DynamicRulePlanMixin:
             if name is not None
         ]
         merged = frozenset(
-            merge_cloud_selectors(plan.state.get("block_cloud_providers"), valid)
+            merge_cloud_selectors(
+                _stored_entries(plan.state.get("block_cloud_providers")), valid
+            )
         )
         plan.set("block_cloud_providers", merged)
         plan.note(f"Dynamic rule: Blocked cloud providers {merged}")
@@ -272,7 +287,7 @@ class DynamicRulePlanMixin:
             )
 
     def _plan_feature_toggles(self, plan: DynamicRulePlan, rules: DynamicRules) -> None:
-        toggles: tuple[tuple[str, str, Any], ...] = (
+        toggles: tuple[tuple[str, str, bool | int | None], ...] = (
             (
                 "enable_penetration_detection",
                 "Penetration detection",

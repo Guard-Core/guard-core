@@ -1,5 +1,6 @@
 import inspect
-from typing import Any
+from collections.abc import Awaitable
+from typing import NoReturn, TypeVar, overload
 
 DYNAMIC_RULES_REDIS_NAMESPACE = "dynamic_rules"
 LAST_KNOWN_RULES_KEY = "last_known"
@@ -10,7 +11,18 @@ PURGED_MARKER_KEY = "purged"
 BAN_FLOORS_NAMESPACE = "ban_floors"
 
 
-def resolve_redis_value(value: Any) -> Any:
+_Value = TypeVar("_Value")
+
+
+@overload
+def resolve_redis_value(value: Awaitable[object]) -> NoReturn: ...
+
+
+@overload
+def resolve_redis_value(value: _Value) -> _Value: ...
+
+
+def resolve_redis_value(value: object) -> object:
     if inspect.isawaitable(value):
         closer = getattr(value, "close", None)
         if closer is not None:

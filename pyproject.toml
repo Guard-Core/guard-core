@@ -141,13 +141,7 @@ select = [
 "guard_core/_utils/detection_scan.py" = ["ANN401"]  # JSON payload
 "guard_core/_utils/rule_attribution.py" = ["ANN401"]  # JSON payload
 "guard_core/core/initialization/_handler_initializer_steps.py" = ["ANN401"]  # handler slot
-"guard_core/handlers/__init__.py" = ["ANN401"]  # open value
-"guard_core/handlers/_dynamic_rule_persistence.py" = ["ANN401"]  # handler slot
-"guard_core/handlers/_dynamic_rule_plan.py" = ["ANN401"]  # JSON payload
-"guard_core/handlers/_dynamic_rule_validation.py" = ["ANN401"]  # open value
-"guard_core/handlers/_ipban_cache.py" = ["ANN401"]  # JSON payload
 "guard_core/handlers/_redis_ban_strike.py" = ["ANN401"]  # handler slot
-"guard_core/handlers/_redis_fast_pool.py" = ["ANN401"]  # JSON payload
 "guard_core/handlers/_redis_lean.py" = ["ANN401"]  # handler slot
 "guard_core/handlers/_suspatterns_lazy_rows.py" = ["ANN401"]  # JSON payload
 "guard_core/handlers/_suspatterns_literals.py" = ["ANN401"]  # regex engine internals
@@ -162,14 +156,7 @@ select = [
 "guard_core/sync/_utils/detection_scan.py" = ["ANN401"]  # JSON payload
 "guard_core/sync/_utils/rule_attribution.py" = ["ANN401"]  # JSON payload
 "guard_core/sync/core/initialization/_handler_initializer_steps.py" = ["ANN401"]  # handler slot
-"guard_core/sync/handlers/__init__.py" = ["ANN401"]  # open value
-"guard_core/sync/handlers/_dynamic_rule_persistence.py" = ["ANN401"]  # handler slot
-"guard_core/sync/handlers/_dynamic_rule_plan.py" = ["ANN401"]  # JSON payload
-"guard_core/sync/handlers/_dynamic_rule_validation.py" = ["ANN401"]  # open value
-"guard_core/sync/handlers/_ipban_cache.py" = ["ANN401"]  # JSON payload
-"guard_core/sync/handlers/_ipinfo_download_cut.py" = ["ANN401"]  # open value
 "guard_core/sync/handlers/_redis_ban_strike.py" = ["ANN401"]  # handler slot
-"guard_core/sync/handlers/_redis_fast_pool.py" = ["ANN401"]  # kwargs pass-through
 "guard_core/sync/handlers/_redis_lean.py" = ["ANN401"]  # handler slot
 "guard_core/sync/handlers/_suspatterns_lazy_rows.py" = ["ANN401"]  # JSON payload
 "guard_core/sync/handlers/_suspatterns_literals.py" = ["ANN401"]  # regex engine internals
@@ -235,13 +222,7 @@ module = [
     "guard_core._utils.rule_attribution",  # JSON payload
     "guard_core.core.initialization._handler_initializer_steps",  # handler slot
     "guard_core.core.initialization.handler_initializer",  # behavior_tracker slot, adapter tests read it as non-optional
-    "guard_core.handlers",  # open value
-    "guard_core.handlers._dynamic_rule_persistence",  # handler slot
-    "guard_core.handlers._dynamic_rule_plan",  # JSON payload
-    "guard_core.handlers._dynamic_rule_validation",  # open value
-    "guard_core.handlers._ipban_cache",  # JSON payload
     "guard_core.handlers._redis_ban_strike",  # handler slot
-    "guard_core.handlers._redis_fast_pool",  # JSON payload
     "guard_core.handlers._redis_lean",  # handler slot
     "guard_core.handlers._suspatterns_lazy_rows",  # JSON payload
     "guard_core.handlers._suspatterns_literals",  # regex engine internals
@@ -263,14 +244,7 @@ module = [
     "guard_core.sync._utils.rule_attribution",  # JSON payload
     "guard_core.sync.core.initialization._handler_initializer_steps",  # handler slot
     "guard_core.sync.core.initialization.handler_initializer",  # behavior_tracker slot, adapter tests read it as non-optional
-    "guard_core.sync.handlers",  # open value
-    "guard_core.sync.handlers._dynamic_rule_persistence",  # handler slot
-    "guard_core.sync.handlers._dynamic_rule_plan",  # JSON payload
-    "guard_core.sync.handlers._dynamic_rule_validation",  # open value
-    "guard_core.sync.handlers._ipban_cache",  # JSON payload
-    "guard_core.sync.handlers._ipinfo_download_cut",  # open value
     "guard_core.sync.handlers._redis_ban_strike",  # handler slot
-    "guard_core.sync.handlers._redis_fast_pool",  # kwargs pass-through
     "guard_core.sync.handlers._redis_lean",  # handler slot
     "guard_core.sync.handlers._suspatterns_lazy_rows",  # JSON payload
     "guard_core.sync.handlers._suspatterns_literals",  # regex engine internals

@@ -1,7 +1,8 @@
 import importlib
 import threading
 import time
-from typing import Any
+from collections.abc import Callable
+from typing import Protocol
 
 from redis import ConnectionPool
 from redis.connection import Connection
@@ -11,7 +12,14 @@ _EXHAUSTED_MESSAGE = "Too many connections"
 _TIMEOUT_MESSAGE = "No connection available."
 
 
-def _load_wait_recorder() -> tuple[Any, Any] | None:
+class _RecordWait(Protocol):
+    def __call__(self, *, pool_name: str, duration_seconds: float) -> None: ...
+
+
+_WaitRecorder = tuple[_RecordWait, Callable[[ConnectionPool], str]]
+
+
+def _load_wait_recorder() -> _WaitRecorder | None:
     """redis-py records pool wait samples from 7.3.0 on; older releases have no
     recorder and the pool then waits without reporting it."""
     try:
@@ -45,8 +53,15 @@ class FastPathConnectionPool(ConnectionPool):
     zero waiter count: the parent's lock may be held by a thread the child lacks.
     """
 
-    def __init__(self, *args: Any, timeout: float, **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
+    def __init__(
+        self,
+        connection_class: type[Connection] = Connection,
+        max_connections: int | None = None,
+        *,
+        timeout: float,
+        **connection_kwargs: object,
+    ) -> None:
+        super().__init__(connection_class, max_connections, **connection_kwargs)
         self._wait_timeout = timeout
 
     def reset(self) -> None:
@@ -60,7 +75,7 @@ class FastPathConnectionPool(ConnectionPool):
             or self._created_connections < self.max_connections
         )
 
-    def get_connection(self, *_args: Any, **_kwargs: Any) -> Connection:
+    def get_connection(self, *_args: object, **_kwargs: object) -> Connection:
         try:
             return super().get_connection()
         except RedisConnectionError as error:

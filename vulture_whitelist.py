@@ -111,3 +111,4 @@ intrusion_attempt
 # the names as unused variables in the test stubs.
 _rtl = src
 _rtl = dst
+duration_seconds

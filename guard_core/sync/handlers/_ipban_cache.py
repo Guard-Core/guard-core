@@ -2,7 +2,7 @@ import heapq
 import ipaddress
 import time
 from collections.abc import Callable, Iterator, MutableMapping
-from typing import Any
+from typing import TypeVar, overload
 
 from cachetools import TTLCache
 
@@ -10,8 +10,10 @@ _Network = ipaddress.IPv4Network | ipaddress.IPv6Network
 
 DEFAULT_MAX_LOCAL_BANS = 100_000
 
+_Default = TypeVar("_Default")
 
-class _ObservableTTLCache(TTLCache):
+
+class _ObservableTTLCache(TTLCache[str, float]):
     def __init__(
         self,
         maxsize: int,
@@ -21,7 +23,7 @@ class _ObservableTTLCache(TTLCache):
         super().__init__(maxsize=maxsize, ttl=ttl)
         self._on_evict = on_evict
 
-    def popitem(self) -> tuple[Any, Any]:
+    def popitem(self) -> tuple[str, float]:
         item = super().popitem()
         self._on_evict()
         return item
@@ -67,7 +69,15 @@ class _BanStore(MutableMapping[str, float]):
     def __getitem__(self, key: str) -> float:
         return self._expiries[key]
 
-    def get(self, key: str, default: Any = None) -> Any:
+    @overload
+    def get(self, key: str, default: None = None) -> float | None: ...
+
+    @overload
+    def get(self, key: str, default: float | _Default) -> float | _Default: ...
+
+    def get(
+        self, key: str, default: float | _Default | None = None
+    ) -> float | _Default | None:
         return self._expiries.get(key, default)
 
     def __len__(self) -> int:

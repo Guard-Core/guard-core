@@ -1,17 +1,40 @@
 import asyncio
 import importlib
 import time
-from typing import Any
+from collections.abc import Callable
+from types import ModuleType
+from typing import Protocol
 
 from redis.asyncio import ConnectionPool
-from redis.asyncio.connection import AbstractConnection
+from redis.asyncio.connection import AbstractConnection, Connection
 from redis.exceptions import ConnectionError as RedisConnectionError
 
 _EXHAUSTED_MESSAGE = "Too many connections"
 _TIMEOUT_MESSAGE = "No connection available."
 
 
-def _load_wait_recorder() -> tuple[Any, Any] | None:
+class _ConnectionStates(Protocol):
+    IDLE: object
+    USED: object
+
+
+class _RecordWait(Protocol):
+    async def __call__(self, *, pool_name: str, duration_seconds: float) -> None: ...
+
+
+class _RecordCount(Protocol):
+    async def __call__(
+        self, *, pool_name: str, connection_state: object, counter: int
+    ) -> None: ...
+
+
+_PoolName = Callable[[ConnectionPool], str]
+_WaitRecorder = tuple[_RecordWait, _PoolName]
+_CountRecorder = tuple[_RecordCount, _ConnectionStates, _PoolName, ModuleType]
+_ReleaseEvents = tuple[type, type]
+
+
+def _load_wait_recorder() -> _WaitRecorder | None:
     """redis-py records pool wait samples from 7.3.0 on; older releases have no
     recorder and the pool then waits without reporting it."""
     try:
@@ -25,7 +48,7 @@ def _load_wait_recorder() -> tuple[Any, Any] | None:
 _WAIT_RECORDER = _load_wait_recorder()
 
 
-def _load_count_recorder() -> tuple[Any, Any, Any, Any] | None:
+def _load_count_recorder() -> _CountRecorder | None:
     """redis-py records connection counts from 7.4.0 on, and only while its OTel
     observability is on. Returns the recorder, the two states, the pool-name
     function and the module that holds the observability singleton, which the
@@ -47,7 +70,7 @@ def _load_count_recorder() -> tuple[Any, Any, Any, Any] | None:
 _COUNT_RECORDER = _load_count_recorder()
 
 
-def _load_release_events() -> tuple[Any, Any] | None:
+def _load_release_events() -> _ReleaseEvents | None:
     """The event the plain release dispatches and the one listener redis-py
     always registers for it (re-authentication, which acts only on a connection
     holding a re-authentication token). ``None`` for a redis-py without them."""
@@ -90,15 +113,22 @@ class FastPathConnectionPool(ConnectionPool):
     wait sample, only a wait does.
     """
 
-    def __init__(self, *args: Any, timeout: float, **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
+    def __init__(
+        self,
+        connection_class: type[AbstractConnection] = Connection,
+        max_connections: int | None = None,
+        *,
+        timeout: float,
+        **connection_kwargs: object,
+    ) -> None:
+        super().__init__(connection_class, max_connections, **connection_kwargs)
         self._wait_timeout = timeout
         self._condition = asyncio.Condition()
         self._waiters = 0
         self._connections_with_nothing_unread: set[AbstractConnection] = set()
-        self._release_listeners: dict[Any, Any] = {}
+        self._release_listeners: dict[object, object] = {}
         self._release_event = _RELEASE_EVENTS[0] if _RELEASE_EVENTS else None
-        self._silent_release_listeners: Any = None
+        self._silent_release_listeners: object | None = None
 
     def _has_free_connection(self) -> bool:
         return bool(
@@ -106,7 +136,9 @@ class FastPathConnectionPool(ConnectionPool):
             or len(self._in_use_connections) < self.max_connections
         )
 
-    async def get_connection(self, *_args: Any, **_kwargs: Any) -> AbstractConnection:
+    async def get_connection(
+        self, *_args: object, **_kwargs: object
+    ) -> AbstractConnection:
         try:
             connection = await super().get_connection()
         except RedisConnectionError as error:
@@ -143,7 +175,7 @@ class FastPathConnectionPool(ConnectionPool):
         return connection
 
     async def _record_counts(
-        self, recorder: tuple[Any, Any, Any, Any], leaving: Any, entering: Any
+        self, recorder: _CountRecorder, leaving: object, entering: object
     ) -> None:
         """The two connection-count samples the plain pool records for one state
         transition (checkout: IDLE to USED, return: USED to IDLE), through the
@@ -153,7 +185,9 @@ class FastPathConnectionPool(ConnectionPool):
         await record(pool_name=pool_name, connection_state=leaving, counter=-1)
         await record(pool_name=pool_name, connection_state=entering, counter=1)
 
-    def _only_the_default_listener(self, connection: AbstractConnection) -> Any:
+    def _only_the_default_listener(
+        self, connection: AbstractConnection
+    ) -> object | None:
         """The list of listeners of the release event while it holds nothing but
         redis-py's own re-authentication listener, else ``None``. Registering or
         unregistering a listener replaces the list in the dispatcher's mapping,
