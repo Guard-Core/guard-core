@@ -1,4 +1,6 @@
-from collections.abc import Generator
+import functools
+import inspect
+from collections.abc import Callable, Coroutine, Generator
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -136,24 +138,45 @@ def test_sync_engine_keeps_the_sync_ipinfo_manager_documented_for_sync_adapters(
     assert geo_ip_handler_for_tree(config, handler, tree_awaits=False) is handler
 
 
-def test_async_engine_refuses_a_user_supplied_sync_handler() -> None:
+def _awaitable_returning(
+    method: Callable[["_DecoratedAsyncHandler"], Coroutine[object, object, None]],
+) -> Callable[["_DecoratedAsyncHandler"], Coroutine[object, object, None]]:
+    @functools.wraps(method)
+    def wrapper(self: "_DecoratedAsyncHandler") -> Coroutine[object, object, None]:
+        return method(self)
+
+    return wrapper
+
+
+class _DecoratedAsyncHandler(_AsyncHandler):
+    @_awaitable_returning
+    async def initialize(self) -> None:
+        return None
+
+
+def test_async_engine_keeps_a_handler_whose_methods_return_awaitables() -> None:
+    handler = _DecoratedAsyncHandler()
+    assert not inspect.iscoroutinefunction(handler.initialize)
+    config = SecurityConfig(enable_redis=False, geo_ip_handler=handler)
+
+    assert geo_ip_handler_for_tree(config, handler, tree_awaits=True) is handler
+    assert HandlerInitializer(config, geo_ip_handler=handler).geo_ip_handler is handler
+
+
+def test_async_engine_keeps_a_plain_sync_handler_as_it_always_did() -> None:
     handler = _SyncHandler()
     config = SecurityConfig(enable_redis=False, geo_ip_handler=handler)
 
-    with pytest.raises(ValueError, match="is synchronous") as raised:
-        geo_ip_handler_for_tree(config, handler, tree_awaits=True)
-
-    assert "initialize, initialize_redis, initialize_agent, refresh" in str(
-        raised.value
-    )
-    assert "guard_core.handlers.ipinfo_handler.IPInfoManager" in str(raised.value)
+    assert geo_ip_handler_for_tree(config, handler, tree_awaits=True) is handler
 
 
-def test_async_initializer_refuses_a_user_supplied_sync_handler() -> None:
-    config = SecurityConfig(enable_redis=False, geo_ip_handler=_SyncHandler())
+def test_async_engine_refuses_an_object_that_is_not_a_geo_handler() -> None:
+    without_members = MagicMock(spec=[])
 
-    with pytest.raises(ValueError, match="is synchronous"):
-        HandlerInitializer(config, geo_ip_handler=config.geo_ip_handler)
+    with pytest.raises(TypeError, match="must be an instance of GeoIPHandler"):
+        geo_ip_handler_for_tree(
+            SecurityConfig(enable_redis=False), without_members, tree_awaits=True
+        )
 
 
 def test_async_engine_keeps_a_user_supplied_async_handler() -> None:

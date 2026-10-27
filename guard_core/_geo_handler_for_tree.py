@@ -84,24 +84,22 @@ def _awaited_lifecycle_members(handler: object) -> list[str]:
     ]
 
 
-def _synchronous_lifecycle_members(handler: object) -> list[str]:
-    return [
-        name
-        for name, member in _lifecycle_members_of(handler)
-        if inspect.isroutine(member) and not inspect.iscoroutinefunction(member)
-    ]
-
-
 def _is_synchronous_handler(
     handler: "GeoIPHandler | SyncGeoIPHandler",
 ) -> TypeGuard["SyncGeoIPHandler"]:
     return not _awaited_lifecycle_members(handler)
 
 
-def _is_awaited_handler(
-    handler: "GeoIPHandler | SyncGeoIPHandler",
+def _is_geo_handler_the_awaiting_tree_keeps(
+    handler: object,
 ) -> TypeGuard["GeoIPHandler"]:
-    return not _synchronous_lifecycle_members(handler)
+    # a plain function may still return an awaitable (a decorated coroutine), so
+    # the awaiting tree keeps every object with the members, as it always did
+    from guard_core._security_config_geo_validators import (
+        _has_every_geo_ip_handler_member,
+    )
+
+    return _has_every_geo_ip_handler_member(handler)
 
 
 @overload
@@ -131,15 +129,11 @@ def geo_ip_handler_for_tree(
     if handler is None:
         return None
     if tree_awaits:
-        if _is_awaited_handler(handler):
+        if _is_geo_handler_the_awaiting_tree_keeps(handler):
             return handler
-        raise ValueError(
-            f"geo_ip_handler {type(handler).__name__} is synchronous "
-            f"({', '.join(_synchronous_lifecycle_members(handler))} "
-            "are not coroutine functions) but this engine awaits them. "
-            "Use the asynchronous handler: "
-            "guard_core.handlers.ipinfo_handler.IPInfoManager, or set "
-            "ipinfo_token and leave geo_ip_handler unset."
+        raise TypeError(
+            "geo_ip_handler must be an instance of GeoIPHandler, "
+            f"got {type(handler).__name__}"
         )
     if _is_built_from_the_token(config, handler):
         return _sync_ipinfo_manager(config, config.ipinfo_token or "")
