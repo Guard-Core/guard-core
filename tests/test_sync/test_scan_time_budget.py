@@ -325,10 +325,8 @@ class _RaisedRouteBodyRequest(SyncMockGuardRequest):
 
 def test_clean_route_raised_json_ends_in_the_budget_outcome() -> None:
     import json
-    import time
 
     from guard_core.sync.decorators.base import RouteConfig
-    from guard_core.sync.detection_engine import truncation
 
     words = "quarterly onboarding metrics for the regional sales team include revenue "
     size = 20_000_000
@@ -347,23 +345,15 @@ def test_clean_route_raised_json_ends_in_the_budget_outcome() -> None:
     charged = [0.0]
     longest_pass = [0.0]
     real_record = detection_scan._record_scan_time
-    real_find = truncation._append_regions
 
     def recording(elapsed: float) -> None:
         charged[0] += elapsed
+        longest_pass[0] = max(longest_pass[0], elapsed)
         real_record(elapsed)
-
-    def timed_find(*args: Any, **kwargs: Any) -> Any:
-        started = time.thread_time()
-        try:
-            return real_find(*args, **kwargs)
-        finally:
-            longest_pass[0] = max(longest_pass[0], time.thread_time() - started)
 
     with (
         patch.object(detection_scan, "_record_scan_time", recording),
         patch.object(_suspatterns_regex, "_record_scan_time", recording),
-        patch.object(truncation, "_append_regions", timed_find),
         patch.object(detection_scan.LazyPreview, "resolve", lambda self: None),
     ):
         result = detect_penetration_attempt(

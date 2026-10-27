@@ -6,6 +6,7 @@ from guard_core.sync.detection_engine import (
     base64_decode,
     encoding_decoders,
     truncation,
+    whitespace_collapse,
 )
 from guard_core.sync.detection_engine.base64_view import (
     build_short_base64_additive_view,
@@ -21,6 +22,7 @@ from guard_core.sync.handlers._suspatterns_sources import (
 
 if TYPE_CHECKING:
     from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol
+
 
 _WHITESPACE_RUN_RE = re.compile(r"\s+")
 _NON_WHITESPACE_RE = re.compile(r"\S")
@@ -288,7 +290,11 @@ class ContentPreprocessor:
         while iterations < max_decode_iterations:
             original = content
 
-            content = self._decode_overlong_utf8_percent_runs(content)
+            content = (
+                encoding_decoders.decode_overlong_utf8_percent_runs_yielding(content)
+                if sliced
+                else self._decode_overlong_utf8_percent_runs(content)
+            )
             if sliced:
                 truncation.yield_once_slice_elapsed()
 
@@ -332,7 +338,13 @@ class ContentPreprocessor:
             content = self.normalize_unicode(content)
             if sliced:
                 truncation.yield_once_slice_elapsed()
-            content = self._decode_base64_candidates(content, gunzip_attempts_left)
+            content = (
+                base64_decode.decode_base64_candidates_yielding(
+                    content, gunzip_attempts_left, self._MAX_FULL_SCAN_BYTES
+                )
+                if sliced
+                else self._decode_base64_candidates(content, gunzip_attempts_left)
+            )
             if sliced:
                 truncation.yield_once_slice_elapsed()
 
@@ -373,7 +385,12 @@ class ContentPreprocessor:
         dropped = self.drop_sql_comments(decoded)
         if dropped is None:
             return None
-        view = self.remove_excessive_whitespace(self.remove_null_bytes(dropped))
+        view = self.remove_null_bytes(dropped)
+        view = (
+            (whitespace_collapse.collapse_yielding(view, _COLLAPSE_WINDOW)).strip()
+            if len(view) > truncation.EXTRACTION_WINDOW_CHARS
+            else self.remove_excessive_whitespace(view)
+        )
         view = truncation.truncate_safely_yielding(self, view)
         return None if view == processed else view
 
@@ -399,7 +416,11 @@ class ContentPreprocessor:
         if sliced:
             truncation.yield_once_slice_elapsed()
         processed = self.remove_null_bytes(decoded)
-        processed = self.remove_excessive_whitespace(processed)
+        processed = (
+            (whitespace_collapse.collapse_yielding(processed, _COLLAPSE_WINDOW)).strip()
+            if sliced
+            else self.remove_excessive_whitespace(processed)
+        )
         if sliced:
             truncation.yield_once_slice_elapsed()
         processed = truncation.truncate_safely_yielding(self, processed)

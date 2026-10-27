@@ -51,6 +51,7 @@ SKIP_TESTS = {
     "test_modifier_body_replay.py",
     "test_modifier_body_pins.py",
     "test_scan_event_loop_yield.py",
+    "test_scan_event_loop_segments.py",
     "test_async_body_read_slots.py",
     "test_dynamic_rule_user_agent_offloop.py",
     "test_dynamic_rule_atomic_swap.py",

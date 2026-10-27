@@ -43,7 +43,11 @@ from guard_core._utils.embedded_json_scan import (
     _scan_escaped_literals_through_exclusions,
     _scan_string_literals,
 )
-from guard_core._utils.request_logging import redact_blob_for_display
+from guard_core._utils.request_logging import (
+    PREVIEW_REDACTION_WINDOW_CHARS,
+    redact_blob_for_display,
+    redact_blob_preview_for_display,
+)
 from guard_core._utils.scan_remainder import (
     _scan_surface_remainder,
     _SurfaceRemainder,
@@ -91,10 +95,11 @@ def _non_sensitive_display(
     sensitive_body_fields: frozenset[str],
     sensitive_headers: frozenset[str] = frozenset(),
 ) -> tuple[str | None, bool | None]:
-    redacted = redact_blob_for_display(
+    shown = value[:PREVIEW_REDACTION_WINDOW_CHARS]
+    redacted = redact_blob_preview_for_display(
         value, sensitive_params, sensitive_body_fields, sensitive_headers
     )
-    if redacted == value:
+    if redacted == shown:
         return None, None
     return redacted, False
 
@@ -290,7 +295,7 @@ async def _scan_query_params(
         client_ip,
         correlation_id,
         log_level,
-        lambda piece: redact_blob_for_display(
+        lambda piece: redact_blob_preview_for_display(
             piece, sensitive_params, sensitive_body_fields, sensitive_headers
         ),
         patterns=patterns,
@@ -319,7 +324,7 @@ async def _scan_excluded_header_component(
             return True, f"Header name '{key}': {trigger}", threats
         detected, trigger, threats = _check_always_scan_header(value)
         if detected:
-            display = redact_blob_for_display(
+            display = redact_blob_preview_for_display(
                 value, sensitive_params, sensitive_body_fields, sensitive_headers
             )
             _log_detected_component(display, f"header '{key}'", client_ip, log_level)
@@ -569,7 +574,7 @@ async def _scan_headers(
         client_ip,
         correlation_id,
         log_level,
-        lambda piece: redact_blob_for_display(
+        lambda piece: redact_blob_preview_for_display(
             piece, sensitive_params, sensitive_body_fields, sensitive_headers
         ),
         patterns=patterns,
@@ -689,7 +694,7 @@ async def _scan_blob_body(
         "[REDACTED]"
         if force_redacted
         else LazyPreview(
-            lambda: redact_blob_for_display(
+            lambda: redact_blob_preview_for_display(
                 raw_body, sensitive_params, sensitive_body_fields
             )
         )

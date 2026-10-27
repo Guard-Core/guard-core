@@ -320,6 +320,39 @@ def redact_blob_for_display(
     return _redact_pairs_in_text(xml_redacted, sensitive, body_fields, max_depth)
 
 
+PREVIEW_REDACTION_WINDOW_CHARS = 4096
+_XML_UNCLOSED_TAIL_RE = re.compile(r"<([A-Za-z_][\w.:-]*)>[^<]*\Z")
+
+
+def _redact_xml_element_cut_by_the_window(text: str, sensitive: frozenset[str]) -> str:
+    match = _XML_UNCLOSED_TAIL_RE.search(text)
+    if match is None or not name_is_sensitive(match.group(1), sensitive):
+        return text
+    return f"{text[: match.start()]}<{match.group(1)}>[REDACTED]"
+
+
+def redact_blob_preview_for_display(
+    text: str,
+    sensitive_params: frozenset[str] | None,
+    sensitive_body_fields: frozenset[str] | None,
+    sensitive_headers: frozenset[str] | None = None,
+) -> str:
+    redacted = redact_blob_for_display(
+        text[:PREVIEW_REDACTION_WINDOW_CHARS],
+        sensitive_params,
+        sensitive_body_fields,
+        sensitive_headers,
+    )
+    if len(text) <= PREVIEW_REDACTION_WINDOW_CHARS:
+        return redacted
+    sensitive = _merged_sensitive_names(
+        sensitive_params,
+        _merge_sensitive_log_body_fields(sensitive_body_fields),
+        sensitive_headers,
+    )
+    return _redact_xml_element_cut_by_the_window(redacted, sensitive)
+
+
 def redact_header_value_for_display(
     value: str,
     sensitive_params: frozenset[str] | None,

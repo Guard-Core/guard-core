@@ -1,9 +1,14 @@
 import re
+from collections.abc import Iterator
+
+from guard_core.sync.detection_engine import truncation
 
 HEX_ESCAPE_RE = re.compile(r"\\x([0-9a-fA-F]{2})")
 UNICODE_ESCAPE_RE = re.compile(r"\\u([0-9a-fA-F]{4})")
 PERCENT_U_ESCAPE_RE = re.compile(r"%u([0-9a-fA-F]{4})", re.IGNORECASE)
 PERCENT_BYTE_RUN_RE = re.compile(r"(?:%[0-9a-fA-F]{2})+")
+_NON_PERCENT_RUN_CHAR_RE = re.compile(r"[^%0-9A-Fa-f]")
+PERCENT_RUN_WINDOW_CHARS = 32768
 _ASCII_RUN_SPLIT_RE = re.compile("([\x00-\x7f]+)")
 _PERCENT_BYTE_TABLE = {
     (high + low).encode(): bytes.fromhex(high + low)
@@ -115,7 +120,19 @@ def lenient_overlong_utf8_decode(raw: bytes) -> str:
     return "".join(chars)
 
 
+def percent_run_windows(content: str) -> Iterator[tuple[int, int]]:
+    start = 0
+    while start < len(content):
+        cut = _NON_PERCENT_RUN_CHAR_RE.search(content, start + PERCENT_RUN_WINDOW_CHARS)
+        end = cut.start() if cut else len(content)
+        yield start, end
+        start = end
+
+
 def decode_overlong_utf8_percent_runs(content: str) -> str:
+    if "%" not in content:
+        return content
+
     def _replace(match: re.Match[str]) -> str:
         run = match.group()
         raw = bytes(int(run[i + 1 : i + 3], 16) for i in range(0, len(run), 3))
@@ -126,3 +143,13 @@ def decode_overlong_utf8_percent_runs(content: str) -> str:
         return run
 
     return PERCENT_BYTE_RUN_RE.sub(_replace, content)
+
+
+def decode_overlong_utf8_percent_runs_yielding(content: str) -> str:
+    if "%" not in content or len(content) <= truncation.EXTRACTION_WINDOW_CHARS:
+        return decode_overlong_utf8_percent_runs(content)
+    decoded: list[str] = []
+    for start, end in percent_run_windows(content):
+        decoded.append(decode_overlong_utf8_percent_runs(content[start:end]))
+        truncation.yield_once_slice_elapsed()
+    return "".join(decoded)

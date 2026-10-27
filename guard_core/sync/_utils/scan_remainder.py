@@ -103,9 +103,9 @@ def _wire_pair(name: str, value: str) -> str:
 def _body_remainder_display(
     sensitive_params: frozenset[str], sensitive_body_fields: frozenset[str]
 ) -> Callable[[str], str | None]:
-    from guard_core.sync._utils.request_logging import redact_blob_for_display
+    from guard_core.sync._utils.request_logging import redact_blob_preview_for_display
 
-    return lambda piece: redact_blob_for_display(
+    return lambda piece: redact_blob_preview_for_display(
         piece, sensitive_params, sensitive_body_fields
     )
 
