@@ -4,7 +4,7 @@ import re
 import time
 from collections.abc import Callable, Iterator
 from functools import partial
-from typing import Any
+from typing import TYPE_CHECKING
 
 from guard_core._utils._scan_outcomes import (
     SCAN_OUTCOME_QUEUE_WAIT,
@@ -56,6 +56,7 @@ from guard_core.handlers._suspatterns_enhanced import _SusPatternsEnhancedMixin
 from guard_core.handlers._suspatterns_inline_matches import _INLINE_FINDERS
 from guard_core.handlers._suspatterns_lazy_rows import (
     COMPILED_BUILTIN_PATTERNS,
+    PatternSource,
     _SourceRow,
 )
 from guard_core.handlers._suspatterns_ldap_ipv4 import (
@@ -162,6 +163,9 @@ from guard_core.handlers._suspatterns_xml_xxe import (
     _xml_xxe_public_external_dtd_finditer,
 )
 
+if TYPE_CHECKING:
+    from guard_core.protocols.agent_protocol import JsonValue
+
 logger = logging.getLogger("guard_core.handlers.suspatterns")
 
 
@@ -185,7 +189,7 @@ def _resolve_pattern_weight(pattern: str, category: str) -> float:
 _DECODE_BUDGET_EXHAUSTED_PATTERN = "decode_budget_exhausted"
 
 
-def _decode_budget_exhausted_threat() -> dict[str, Any]:
+def _decode_budget_exhausted_threat() -> dict[str, "JsonValue"]:
     return {
         "type": "regex",
         "pattern": _DECODE_BUDGET_EXHAUSTED_PATTERN,
@@ -321,7 +325,7 @@ def _build_regex_threat(
     pattern_start: float,
     context: str = "unknown",
     binary_prefix: BinaryPrefix | None = None,
-) -> dict[str, Any] | None:
+) -> dict[str, "JsonValue"] | None:
     if not _candidate_passes_the_route_gates(pattern, match, context):
         return None
     if probe_lies_inside_a_declared_path_param(
@@ -354,13 +358,13 @@ def _validator_context(context: str, normalized: str) -> str:
 
 
 def _threat_after_timeout(
-    threat: dict[str, Any] | None,
+    threat: dict[str, "JsonValue"] | None,
     timeout_occurred: bool,
-    pattern: re.Pattern,
+    pattern: PatternSource,
     category: str,
     pattern_start: float,
     timeouts: list[str],
-) -> dict[str, Any] | None:
+) -> dict[str, "JsonValue"] | None:
     if not timeout_occurred:
         return threat
     timeouts.append(pattern.pattern)
@@ -368,8 +372,8 @@ def _threat_after_timeout(
 
 
 def _build_timeout_threat(
-    pattern: re.Pattern, category: str, pattern_start: float
-) -> dict[str, Any]:
+    pattern: PatternSource, category: str, pattern_start: float
+) -> dict[str, "JsonValue"]:
     return {
         "type": "pattern_timeout",
         "pattern": pattern.pattern,
@@ -388,7 +392,7 @@ def _first_accepted_regex_threat(
     pattern_start: float,
     context: str = "unknown",
     binary_prefix: BinaryPrefix | None = None,
-) -> dict[str, Any] | None:
+) -> dict[str, "JsonValue"] | None:
     for match in matches:
         threat = _build_regex_threat(
             pattern, match, category, pattern_start, context, binary_prefix
@@ -427,7 +431,7 @@ _LITERAL_EXCLUDED_SOURCES = (
 class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixin):
     async def _check_regex_pattern(
         self,
-        pattern: re.Pattern | _SourceRow,
+        pattern: PatternSource,
         content: str,
         ip_address: str,
         pattern_start: float,

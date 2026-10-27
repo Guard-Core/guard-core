@@ -7,6 +7,7 @@ from guard_core.protocols.response_protocol import GuardResponse
 
 if TYPE_CHECKING:
     from guard_core.models import SyncSecurityConfig
+    from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol
 
 
 @runtime_checkable
@@ -62,7 +63,7 @@ class SyncGuardMiddlewareProtocol(Protocol):
         ...
 
     @property
-    def agent_handler(self) -> Any:
+    def agent_handler(self) -> SyncAgentHandlerProtocol | None:
         """The telemetry agent handler, or ``None`` when no agent is configured."""
         ...
 

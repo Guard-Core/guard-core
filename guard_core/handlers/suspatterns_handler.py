@@ -1003,7 +1003,7 @@ class SusPatternsManager(_SusPatternsViewsMixin):
         if decode_budget_exhausted or url_decoded_budget_exhausted:
             exhaustion_threat = _decode_budget_exhausted_threat()
             regex_threats = regex_threats + [exhaustion_threat]
-            matched_patterns = matched_patterns + [exhaustion_threat["pattern"]]
+            matched_patterns = matched_patterns + [_DECODE_BUDGET_EXHAUSTED_PATTERN]
 
         (
             short_base64_threats,

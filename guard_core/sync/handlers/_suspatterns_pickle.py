@@ -3,7 +3,7 @@ import pickle
 import re
 import sys
 from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, ClassVar, NoReturn
 
 from guard_core.sync.handlers._suspatterns_sources import (
     _PICKLE_OPCODE_WORK_BUDGET_BYTES,
@@ -18,21 +18,28 @@ class _PickleOpcodePrefixShortRead(Exception):
     pass
 
 
-class _PickleOpcodePrefixUnpickler(pickle._Unpickler):
-    stack: list[Any]
-    metastack: list[Any]
-    append: Callable[[Any], None]
+if TYPE_CHECKING:
+    _UnpicklerBase = pickle.Unpickler
+else:
+    _UnpicklerBase = pickle._Unpickler
+
+
+class _PickleOpcodePrefixUnpickler(_UnpicklerBase):
+    dispatch: ClassVar[dict[int, Callable[["_PickleOpcodePrefixUnpickler"], object]]]
+    stack: list[object]
+    metastack: list[object]
+    append: Callable[[object], None]
     read: Callable[[int], bytes]
     readline: Callable[[], bytes]
     readinto: Callable[[bytearray], int]
 
-    def find_class(self, module: str, name: str) -> Any:
+    def find_class(self, module: str, name: str) -> NoReturn:
         raise _PickleOpcodePrefixResolutionBlocked(module, name)
 
-    def get_extension(self, code: int) -> Any:
+    def get_extension(self, code: int) -> NoReturn:
         raise _PickleOpcodePrefixResolutionBlocked(code)
 
-    def persistent_load(self, pid: Any) -> Any:
+    def persistent_load(self, pid: object) -> NoReturn:
         raise _PickleOpcodePrefixResolutionBlocked(pid)
 
 
@@ -81,7 +88,7 @@ def _pickle_prefix_walk_from_start(
             if key[0] == pickle.FRAME[0]:
                 _pickle_prefix_load_frame(unpickler)
                 continue
-            handler: Any = unpickler.dispatch.get(key[0])
+            handler = unpickler.dispatch.get(key[0])
             if handler is None:
                 return False
             handler(unpickler)
@@ -149,7 +156,7 @@ def _pickle_suffix_walk_reaches_reduce_or_build(
             if key[0] == pickle.FRAME[0]:
                 _pickle_prefix_load_frame(unpickler)
                 continue
-            handler: Any = unpickler.dispatch.get(key[0])
+            handler = unpickler.dispatch.get(key[0])
             if handler is None:
                 return False
             handler(unpickler)

@@ -1,17 +1,6 @@
-guard_core.handlers._suspatterns_lazy_rows
-guard_core.handlers._suspatterns_literals
-guard_core.handlers._suspatterns_pickle
-guard_core.handlers._suspatterns_regex
 guard_core.protocols.agent_protocol
 guard_core.protocols.middleware_protocol
-guard_core.protocols.redis_protocol
 guard_core.protocols.request_protocol
-guard_core.sync
-guard_core.sync.handlers._suspatterns_lazy_rows
-guard_core.sync.handlers._suspatterns_literals
-guard_core.sync.handlers._suspatterns_pickle
-guard_core.sync.handlers._suspatterns_regex
 guard_core.sync.protocols.agent_protocol
 guard_core.sync.protocols.middleware_protocol
-guard_core.sync.protocols.redis_protocol
 guard_core.sync.protocols.request_protocol

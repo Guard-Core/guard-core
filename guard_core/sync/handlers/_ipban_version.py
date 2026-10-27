@@ -10,6 +10,8 @@ from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
 if TYPE_CHECKING:
     from redis import Redis
 
+    from guard_core.sync.handlers._redis_handler_support import RedisValue
+
 _VERSION_PAIR = ("ban_version", "counter")
 _SCAN_COUNT = 2000
 _MGET_BATCH = 1000
@@ -58,7 +60,7 @@ class IpBanVersionMixin:
         self,
         redis_handler: SyncRedisHandlerProtocol,
         *,
-        sets: Sequence[tuple[str, str, object, int | None]] = (),
+        sets: Sequence[tuple[str, str, "RedisValue", int | None]] = (),
         deletes: Sequence[tuple[str, str]] = (),
     ) -> None:
         """The ban writes and the version INCR in one MULTI/EXEC: a worker that

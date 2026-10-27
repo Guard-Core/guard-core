@@ -1,5 +1,6 @@
-import re
+from collections.abc import Sequence
 
+from guard_core.sync.handlers._suspatterns_lazy_rows import PatternRow, PatternSource
 from guard_core.sync.handlers._suspatterns_pattern_table import (
     DETECTION_NUL_TAIL_RAW_VIEW_PATTERN_SOURCES,
     DETECTION_RECON_RAW_VIEW_PATTERN_SOURCES,
@@ -17,7 +18,7 @@ def _excluded_from_raw_only(
 
 
 def _pattern_excluded_from_view(
-    pattern: re.Pattern,
+    pattern: PatternSource,
     raw_view_only: bool | None,
     url_decoded_view_only: bool | None = None,
     nul_tail_rows: bool = False,
@@ -53,7 +54,7 @@ def _category_disabled(category: str, enabled_categories: set[str] | None) -> bo
 
 
 def _pattern_should_be_skipped(
-    pattern: re.Pattern,
+    pattern: PatternSource,
     contexts: frozenset[str],
     category: str,
     *,
@@ -77,8 +78,8 @@ _APPLICABLE_PATTERN_CACHE_MAX_ENTRIES = 256
 _applicable_pattern_cache: dict[
     tuple[object, ...],
     tuple[
-        list[tuple[re.Pattern, frozenset[str], str]],
-        list[tuple[re.Pattern, frozenset[str], str]],
+        list[PatternRow],
+        list[PatternRow],
         bool,
     ],
 ] = {}
@@ -103,8 +104,8 @@ def _applicable_cache_key(
 
 
 def _tail_was_skipped(
-    all_patterns: list[tuple[re.Pattern, frozenset[str], str]],
-    applicable: list[tuple[re.Pattern, frozenset[str], str]],
+    all_patterns: Sequence[PatternRow],
+    applicable: Sequence[PatternRow],
 ) -> bool:
     return bool(all_patterns) and (
         not applicable or applicable[-1] is not all_patterns[-1]
@@ -112,7 +113,7 @@ def _tail_was_skipped(
 
 
 def _applicable_patterns(
-    all_patterns: list[tuple[re.Pattern, frozenset[str], str]],
+    all_patterns: Sequence[PatternRow],
     *,
     raw_view_only: bool | None,
     url_decoded_view_only: bool | None,
@@ -120,7 +121,7 @@ def _applicable_patterns(
     normalized_context: str,
     enabled_categories: set[str] | None,
     nul_tail_rows: bool = False,
-) -> tuple[list[tuple[re.Pattern, frozenset[str], str]], bool]:
+) -> tuple[list[PatternRow], bool]:
     key = _applicable_cache_key(
         raw_view_only,
         url_decoded_view_only,

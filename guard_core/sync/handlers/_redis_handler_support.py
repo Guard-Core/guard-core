@@ -19,6 +19,12 @@ RedisOperation: TypeAlias = Callable[
 NO_OPERATION_RESULT = "the Redis operation returned no result"
 
 
+def as_stored_value(value: str | None) -> str | bytes | None:
+    """A ``get_key`` reply as the backend stored it: a client that does not
+    decode replies hands back bytes although the protocol declares text."""
+    return value
+
+
 class EventSink(Protocol):
     def send_event(self, event: object) -> None: ...
 

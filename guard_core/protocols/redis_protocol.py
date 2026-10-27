@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 from typing_extensions import AsyncContextManager
 
 if TYPE_CHECKING:
+    from redis.asyncio import Redis
+
+    from guard_core.handlers._redis_handler_support import RedisValue
     from guard_core.models import SecurityConfig
+    from guard_core.protocols.agent_protocol import AgentHandlerProtocol
 
 
 @runtime_checkable
@@ -30,11 +34,11 @@ class RedisHandlerProtocol(Protocol):
 
     config: SecurityConfig
 
-    async def get_key(self, namespace: str, key: str) -> Any:
+    async def get_key(self, namespace: str, key: str) -> str | None:
         """Return the value stored at ``namespace:key``, or ``None`` if absent."""
         ...
 
-    async def get_many(self, pairs: Sequence[tuple[str, str]]) -> list[Any]:
+    async def get_many(self, pairs: Sequence[tuple[str, str]]) -> list[str | None]:
         """Return the values of every ``(namespace, key)`` pair in one round trip.
 
         The list matches ``pairs`` in order, with ``None`` for each absent key.
@@ -42,7 +46,7 @@ class RedisHandlerProtocol(Protocol):
         ...
 
     async def set_key(
-        self, namespace: str, key: str, value: Any, ttl: int | None = None
+        self, namespace: str, key: str, value: RedisValue, ttl: int | None = None
     ) -> bool | None:
         """Store ``value`` at ``namespace:key``, expiring after ``ttl`` seconds.
 
@@ -52,7 +56,7 @@ class RedisHandlerProtocol(Protocol):
         ...
 
     async def set_key_if_absent(
-        self, namespace: str, key: str, value: Any, ttl: int | None = None
+        self, namespace: str, key: str, value: RedisValue, ttl: int | None = None
     ) -> bool:
         """Store ``value`` at ``namespace:key`` only when absent (a lock claim).
 
@@ -73,7 +77,7 @@ class RedisHandlerProtocol(Protocol):
     async def write_atomically(
         self,
         *,
-        sets: Sequence[tuple[str, str, Any, int | None]] = (),
+        sets: Sequence[tuple[str, str, RedisValue, int | None]] = (),
         deletes: Sequence[tuple[str, str]] = (),
         increment: tuple[str, str] | None = None,
     ) -> None:
@@ -220,10 +224,10 @@ class RedisHandlerProtocol(Protocol):
         """Open the connection/pool. Called once at startup before any access."""
         ...
 
-    async def initialize_agent(self, agent_handler: Any) -> None:
+    async def initialize_agent(self, agent_handler: AgentHandlerProtocol) -> None:
         """Receive the telemetry agent handler so Redis events can be reported."""
         ...
 
-    def get_connection(self) -> AsyncContextManager[Any]:
+    def get_connection(self) -> AsyncContextManager[Redis]:
         """Yield a redis-py-compatible asyncio client for one operation."""
         ...

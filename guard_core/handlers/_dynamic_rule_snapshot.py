@@ -24,6 +24,7 @@ from guard_core.handlers._dynamic_rule_purge import (
     DynamicRulePurgeMixin,
     purge_fingerprint,
 )
+from guard_core.handlers._redis_handler_support import as_stored_value
 from guard_core.models import DynamicRules, SecurityConfig
 from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 
@@ -104,8 +105,10 @@ class DynamicRuleSnapshotMixin(DynamicRulePurgeMixin):
         if not self.redis_handler:
             return None
         try:
-            raw = await resolve_redis_value(
-                self.redis_handler.get_key(DYNAMIC_RULES_REDIS_NAMESPACE, key)
+            raw = as_stored_value(
+                await resolve_redis_value(
+                    self.redis_handler.get_key(DYNAMIC_RULES_REDIS_NAMESPACE, key)
+                )
             )
         except Exception as e:
             self.logger.error(

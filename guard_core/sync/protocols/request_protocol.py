@@ -71,7 +71,7 @@ class SyncGuardRequest(Protocol):
         ...
 
     @property
-    def scope(self) -> dict[str, Any]:
+    def scope(self) -> dict[str, object]:
         """The raw ASGI scope for adapters needing lower-level access."""
         ...
 

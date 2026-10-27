@@ -108,9 +108,9 @@ class IpBanLookupMixin(IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptionMix
             return False
         strike = fused_strike() if fused_strike is not None else None
         if strike is None:
-            values: list[str | bytes | float | None] = redis_handler.get_many(
-                [*namespaces, _VERSION_PAIR]
-            )
+            values: list[str | bytes | float | None] = [
+                *redis_handler.get_many([*namespaces, _VERSION_PAIR])
+            ]
         else:
             fused_read = getattr(redis_handler, _FUSED_BAN_READ)
             values, recorded = fused_read(

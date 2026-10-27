@@ -5,6 +5,7 @@ from guard_core.sync._utils.detection_scan import (
     _whole_value_path_rows_skipped,
     _whole_value_rows_only,
 )
+from guard_core.sync.handlers._suspatterns_lazy_rows import PatternRow
 
 _ANCHOR_RE = re.compile(r"\\A|\\Z|(?<![\[\\])\^|(?<!\\)\$(?![{)\]])")
 
@@ -26,9 +27,9 @@ def row_needs_the_whole_value(source: str, context_sensitive: frozenset[str]) ->
 
 
 def rows_for_a_whole_value_pass(
-    rows: list[tuple[re.Pattern, frozenset[str], str]],
+    rows: list[PatternRow],
     context_sensitive: frozenset[str],
-) -> list[tuple[re.Pattern, frozenset[str], str]]:
+) -> list[PatternRow]:
     if _whole_value_path_rows_skipped.get():
         return [row for row in rows if not row_is_a_whole_value_path(row[0].pattern)]
     if not _whole_value_rows_only.get():

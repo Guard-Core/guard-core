@@ -24,11 +24,11 @@ class SyncAgentHandlerProtocol(Protocol):
         """Attach the shared Redis backend used for cross-worker buffering."""
         ...
 
-    def send_event(self, event: Any) -> None:
+    def send_event(self, event: object) -> None:
         """Enqueue a security event for delivery. Must not block or raise."""
         ...
 
-    def send_metric(self, metric: Any) -> None:
+    def send_metric(self, metric: object) -> None:
         """Enqueue a metric for delivery. Must not block or raise."""
         ...
 

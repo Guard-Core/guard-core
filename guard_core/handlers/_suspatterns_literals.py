@@ -2,11 +2,12 @@ import hashlib
 import importlib
 import re
 import sys
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from contextvars import ContextVar
-from typing import Any
+from typing import Protocol, runtime_checkable
 
+from guard_core.handlers._suspatterns_lazy_rows import PatternRow
 from guard_core.handlers._suspatterns_literal_table import BUILTIN_REQUIRED_LITERALS
 
 _PARSER = importlib.import_module(
@@ -26,7 +27,32 @@ def _usable(run: str) -> bool:
     return len(run) >= _MIN_LITERAL_LENGTH and run.isascii() and run.isprintable()
 
 
-def _requirements(items: Any) -> list[tuple[str, ...]]:
+@runtime_checkable
+class _ParsedNodes(Protocol):
+    def __getitem__(self, index: int, /) -> tuple[object, object]: ...
+
+    def __len__(self) -> int: ...
+
+
+def _nodes(value: object) -> _ParsedNodes:
+    if not isinstance(value, _ParsedNodes):
+        raise TypeError(value)
+    return value
+
+
+def _tuple_item(argument: object, index: int) -> object:
+    if not isinstance(argument, tuple):
+        raise TypeError(argument)
+    return argument[index]
+
+
+def _branch_list(value: object) -> list[object]:
+    if not isinstance(value, list):
+        raise TypeError(value)
+    return value
+
+
+def _requirements(items: _ParsedNodes) -> list[tuple[str, ...]]:
     found: list[tuple[str, ...]] = []
     current: list[int] = []
 
@@ -36,26 +62,31 @@ def _requirements(items: Any) -> list[tuple[str, ...]]:
         if _usable(run):
             found.append((run.lower(),))
 
-    for op, argument in items:
+    for index in range(len(items)):
+        op, argument = items[index]
         name = str(op)
         if name == "LITERAL":
+            if not isinstance(argument, int):
+                raise TypeError(argument)
             current.append(argument)
             continue
         close_run()
         if name == "SUBPATTERN":
-            found.extend(_requirements(argument[3]))
-        elif name in ("MAX_REPEAT", "MIN_REPEAT") and argument[0] >= 1:
-            found.extend(_requirements(argument[2]))
+            found.extend(_requirements(_nodes(_tuple_item(argument, 3))))
+        elif name in ("MAX_REPEAT", "MIN_REPEAT"):
+            minimum = _tuple_item(argument, 0)
+            if isinstance(minimum, int) and minimum >= 1:
+                found.extend(_requirements(_nodes(_tuple_item(argument, 2))))
         elif name == "BRANCH":
-            found.extend(_branch_requirement(argument[1]))
+            found.extend(_branch_requirement(_branch_list(_tuple_item(argument, 1))))
     close_run()
     return found
 
 
-def _branch_requirement(branches: Any) -> list[tuple[str, ...]]:
+def _branch_requirement(branches: list[object]) -> list[tuple[str, ...]]:
     alternatives: list[str] = []
     for branch in branches:
-        best = _best_requirement(_requirements(branch))
+        best = _best_requirement(_requirements(_nodes(branch)))
         if best is None:
             return []
         alternatives.extend(best)
@@ -118,10 +149,10 @@ def _presence_of(folded_content: str) -> _Presence:
 
 
 def _rows_by_substring(
-    rows: list[tuple[re.Pattern, frozenset[str], str]],
+    rows: Sequence[PatternRow],
     folded_content: str,
     excluded_sources: frozenset[str],
-) -> Iterator[tuple[re.Pattern, frozenset[str], str]]:
+) -> Iterator[PatternRow]:
     for row in rows:
         source = row[0].pattern
         literals = () if source in excluded_sources else required_literals(source)
@@ -130,10 +161,10 @@ def _rows_by_substring(
 
 
 def _rows_by_presence(
-    rows: list[tuple[re.Pattern, frozenset[str], str]],
+    rows: Sequence[PatternRow],
     folded_content: str,
     excluded_sources: frozenset[str],
-) -> Iterator[tuple[re.Pattern, frozenset[str], str]]:
+) -> Iterator[PatternRow]:
     chars, present = _presence_of(folded_content)
     for row in rows:
         source = row[0].pattern
@@ -153,10 +184,10 @@ def _rows_by_presence(
 
 
 def rows_with_required_literal(
-    rows: list[tuple[re.Pattern, frozenset[str], str]],
+    rows: Sequence[PatternRow],
     folded_content: str,
     excluded_sources: frozenset[str],
-) -> Iterator[tuple[re.Pattern, frozenset[str], str]]:
+) -> Iterator[PatternRow]:
     if len(folded_content) < _LARGE_CONTENT_CHARS:
         return _rows_by_substring(rows, folded_content, excluded_sources)
     return _rows_by_presence(rows, folded_content, excluded_sources)

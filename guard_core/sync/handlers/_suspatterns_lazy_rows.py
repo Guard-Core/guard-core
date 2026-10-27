@@ -1,6 +1,6 @@
 import re
 from functools import cached_property
-from typing import TYPE_CHECKING, Any, NamedTuple
+from typing import TYPE_CHECKING, NamedTuple, TypeVar
 
 from guard_core.sync._utils.scan_config_scope import scoped_config
 from guard_core.sync.handlers._suspatterns_pattern_table import BARE_UNION_SELECT_ROW
@@ -33,6 +33,11 @@ class _SourceRow(NamedTuple):
     pattern: str
 
 
+PatternSource = re.Pattern | _SourceRow
+PatternRow = tuple[PatternSource, frozenset[str], str]
+_RowT = TypeVar("_RowT", bound=PatternRow)
+
+
 class _SusPatternsLazyRowsMixin:
     _pattern_definitions: list[tuple[str, frozenset[str], str]]
     compiled_custom_patterns: set[tuple[re.Pattern, frozenset[str], str]]
@@ -56,18 +61,18 @@ class _SusPatternsLazyRowsMixin:
             for source, contexts, category in self._pattern_definitions
         ]
 
-    def _rows_to_scan(self) -> list[tuple[Any, frozenset[str], str]]:
-        builtin_rows = (
-            self.compiled_patterns
-            if "compiled_patterns" in self.__dict__
-            else self._source_rows
-        )
+    def _rows_to_scan(self) -> list[PatternRow]:
+        if "compiled_patterns" in self.__dict__:
+            return [
+                *self._without_disabled_rows(self.compiled_patterns),
+                *self.compiled_custom_patterns,
+            ]
         return [
-            *self._without_disabled_rows(builtin_rows),
+            *self._without_disabled_rows(self._source_rows),
             *self.compiled_custom_patterns,
         ]
 
-    def _without_disabled_rows(self, rows: list[Any]) -> list[Any]:
+    def _without_disabled_rows(self, rows: list[_RowT]) -> list[_RowT]:
         request_config = scoped_config(self, None)
         disabled = (
             self._disabled_row_sources

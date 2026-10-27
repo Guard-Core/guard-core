@@ -13,6 +13,7 @@ from guard_core.sync.handlers._ipinfo_redis_pieces import (
     read_pieces_into_file,
     store_file_in_pieces,
 )
+from guard_core.sync.handlers._redis_handler_support import as_stored_value
 from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
 
 if TYPE_CHECKING:
@@ -181,7 +182,7 @@ class IpInfoRedisCopyMixin:
 
     def _adopt_whole_redis_copy(self, redis_handler: SyncRedisHandlerProtocol) -> bool:
         try:
-            cached_db = redis_handler.get_key("ipinfo", "database")
+            cached_db = as_stored_value(redis_handler.get_key("ipinfo", "database"))
         except Exception as e:
             self.logger.warning("Cached GeoIP database unavailable: %s", e)
             return False
