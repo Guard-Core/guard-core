@@ -60,7 +60,14 @@ def test_the_header_value_length_limit_is_8192(
 def test_control_characters_are_stripped_but_tab_and_space_stay(
     manager: SecurityHeadersManager,
 ) -> None:
-    assert manager._validate_header_value("a\tb c\x00d\x1fe\x7ff") == "a\tb cde\x7ff"
+    assert manager._validate_header_value("a\tb c\x00d\x1fef") == "a\tb cdef"
+
+
+def test_a_delete_character_is_refused_because_a_response_cannot_carry_it(
+    manager: SecurityHeadersManager,
+) -> None:
+    with pytest.raises(ValueError, match="a character a response cannot carry"):
+        manager._validate_header_value("a\x7fb")
 
 
 def test_an_empty_csp_is_no_csp(manager: SecurityHeadersManager) -> None:
