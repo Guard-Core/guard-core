@@ -8,7 +8,10 @@ from guard_core.core.events.event_types import EVENT_RESPONSE_BODY_UNAVAILABLE
 from guard_core.exceptions import ResponseBodyUnavailableError
 from guard_core.models import SecurityConfig
 from guard_core.protocols.request_protocol import GuardRequest
-from guard_core.protocols.response_protocol import GuardResponse
+from guard_core.protocols.response_protocol import (
+    GuardResponse,
+    GuardResponseHeaders,
+)
 from guard_core.utils import extract_client_ip
 
 ModifierT = TypeVar("ModifierT", bound=Callable[..., Any])
@@ -41,16 +44,32 @@ class _AppendableHeaders(Protocol):
     def append(self, key: str, value: str) -> None: ...
 
 
-def _is_appendable(headers: MutableMapping[str, str]) -> TypeGuard[_AppendableHeaders]:
+class _IterableHeaders(Protocol):
+    def __iter__(self) -> Iterator[str]: ...
+
+
+class _SizedHeaders(Protocol):
+    def __len__(self) -> int: ...
+
+
+def _is_appendable(headers: GuardResponseHeaders) -> TypeGuard[_AppendableHeaders]:
     return callable(getattr(headers, "append", None))
 
 
-def _require_appendable(headers: MutableMapping[str, str]) -> _AppendableHeaders:
+def _require_appendable(headers: GuardResponseHeaders) -> _AppendableHeaders:
     if not _is_appendable(headers):
         raise AttributeError(
             f"{type(headers).__name__!r} object has no attribute 'append'"
         )
     return headers
+
+
+def _is_iterable(headers: GuardResponseHeaders) -> TypeGuard[_IterableHeaders]:
+    return callable(getattr(headers, "__iter__", None))
+
+
+def _is_sized(headers: GuardResponseHeaders) -> TypeGuard[_SizedHeaders]:
+    return callable(getattr(headers, "__len__", None))
 
 
 class RecordingHeaders(MutableMapping[str, str]):
@@ -62,7 +81,7 @@ class RecordingHeaders(MutableMapping[str, str]):
     ``MutableHeaders``) notes a full snapshot; any other attribute is forwarded.
     """
 
-    def __init__(self, real: MutableMapping[str, str]) -> None:
+    def __init__(self, real: GuardResponseHeaders) -> None:
         self._real = real
         self._undo: list[tuple[str, Any]] = []
 
@@ -92,10 +111,16 @@ class RecordingHeaders(MutableMapping[str, str]):
         return getattr(self._real, name)
 
     def __iter__(self) -> Iterator[str]:
-        return iter(self._real)
+        real = self._real
+        if not _is_iterable(real):
+            raise TypeError(f"{type(real).__name__!r} object is not iterable")
+        return iter(real)
 
     def __len__(self) -> int:
-        return len(self._real)
+        real = self._real
+        if not _is_sized(real):
+            raise TypeError(f"object of type {type(real).__name__!r} has no len()")
+        return len(real)
 
     def commit(self) -> None:
         """Nothing to apply: writes already went through."""
@@ -113,9 +138,7 @@ class RecordingHeaders(MutableMapping[str, str]):
         self._undo = []
 
 
-def _restore_items(
-    real: MutableMapping[str, str], items: list[tuple[str, str]]
-) -> None:
+def _restore_items(real: GuardResponseHeaders, items: list[tuple[str, str]]) -> None:
     appendable = _require_appendable(real)
     for key in {name for name, _ in list(appendable.items())}:
         del real[key]
@@ -204,9 +227,7 @@ class ModifierResponseView:
         state["_attribute_undo"] = []
 
 
-def _header_value(
-    headers: MutableMapping[str, str], name: str, cased: str
-) -> str | None:
+def _header_value(headers: GuardResponseHeaders, name: str, cased: str) -> str | None:
     value = headers.get(name)
     if value is None:
         value = headers.get(cased)
@@ -227,7 +248,7 @@ def declared_content_length(response: GuardResponse) -> int | None:
 
 
 def _plain_dict_gate_headers(
-    headers: MutableMapping[str, str], content_type: str | None, declared: str | None
+    headers: GuardResponseHeaders, content_type: str | None, declared: str | None
 ) -> tuple[str | None, str | None]:
     """Casing fallback for a plain ``dict`` of headers (every adapter's mapping is
     case-insensitive and never gets here)."""

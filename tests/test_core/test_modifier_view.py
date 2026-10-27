@@ -398,3 +398,36 @@ def test_a_view_that_records_no_writes_hands_out_the_real_headers() -> None:
     assert view.headers is real.headers
     view.headers["B"] = "2"
     assert real.headers == {"A": "1", "B": "2"}
+
+
+class _HeadersWithoutIteration:
+    def __getitem__(self, key: str) -> str:
+        return key
+
+    def __setitem__(self, key: str, value: str) -> None:
+        pass
+
+    def __delitem__(self, key: str) -> None:
+        pass
+
+    def __contains__(self, key: str) -> bool:
+        return True
+
+    def get(self, key: str) -> str | None:
+        return None
+
+    def keys(self) -> list[str]:
+        return []
+
+    def items(self) -> list[tuple[str, str]]:
+        return []
+
+
+def test_recording_headers_over_a_container_without_iteration_raise_type_error() -> (
+    None
+):
+    headers = RecordingHeaders(_HeadersWithoutIteration())
+    with pytest.raises(TypeError, match="'_HeadersWithoutIteration' object is not"):
+        iter(headers)
+    with pytest.raises(TypeError, match="'_HeadersWithoutIteration' has no len"):
+        len(headers)

@@ -1,5 +1,5 @@
 import logging
-from collections.abc import Callable, MutableMapping
+from collections.abc import Callable
 
 from guard_core._redis_enablement import redis_is_configured
 from guard_core._security_headers_override import (
@@ -8,7 +8,10 @@ from guard_core._security_headers_override import (
     OverrideRecord,
 )
 from guard_core.exceptions import CallableShapeError, GuardCoreError
-from guard_core.protocols.response_protocol import GuardResponse
+from guard_core.protocols.response_protocol import (
+    GuardResponse,
+    GuardResponseHeaders,
+)
 from guard_core.sync._utils.response_prefetch import (
     SHARED_PREFETCH,
     ResponseBodyPrefetch,
@@ -39,7 +42,7 @@ _LOWERED: dict[str, str] = {}
 
 
 def _merge_into_foreign_headers(
-    headers: MutableMapping[str, str],
+    headers: GuardResponseHeaders,
     security_headers: dict[str, str],
     forced: frozenset[str],
 ) -> None:
@@ -57,7 +60,7 @@ def _merge_into_foreign_headers(
 
 
 def _merge_security_headers(
-    headers: MutableMapping[str, str],
+    headers: GuardResponseHeaders,
     security_headers: dict[str, str],
     forced: frozenset[str],
 ) -> None:
@@ -77,7 +80,7 @@ def _merge_security_headers(
 
 
 def _merge_planned_security_headers(
-    headers: MutableMapping[str, str],
+    headers: GuardResponseHeaders,
     security_headers: dict[str, str],
     plan: tuple[tuple[str, str, bool], ...],
 ) -> None:

@@ -1,5 +1,5 @@
 import logging
-from collections.abc import Awaitable, Callable, MutableMapping
+from collections.abc import Awaitable, Callable
 
 from guard_core._redis_enablement import redis_is_configured
 from guard_core._security_headers_override import (
@@ -15,7 +15,10 @@ from guard_core.decorators.base import RouteConfig
 from guard_core.exceptions import CallableShapeError, GuardCoreError
 from guard_core.handlers.behavior_handler import BehaviorRule, config_to_rule
 from guard_core.protocols.request_protocol import GuardRequest
-from guard_core.protocols.response_protocol import GuardResponse
+from guard_core.protocols.response_protocol import (
+    GuardResponse,
+    GuardResponseHeaders,
+)
 from guard_core.utils import extract_client_ip
 
 _MISSING_RESPONSE_FACTORY = (
@@ -34,7 +37,7 @@ _LOWERED: dict[str, str] = {}
 
 
 def _merge_into_foreign_headers(
-    headers: MutableMapping[str, str],
+    headers: GuardResponseHeaders,
     security_headers: dict[str, str],
     forced: frozenset[str],
 ) -> None:
@@ -52,7 +55,7 @@ def _merge_into_foreign_headers(
 
 
 def _merge_security_headers(
-    headers: MutableMapping[str, str],
+    headers: GuardResponseHeaders,
     security_headers: dict[str, str],
     forced: frozenset[str],
 ) -> None:
@@ -72,7 +75,7 @@ def _merge_security_headers(
 
 
 def _merge_planned_security_headers(
-    headers: MutableMapping[str, str],
+    headers: GuardResponseHeaders,
     security_headers: dict[str, str],
     plan: tuple[tuple[str, str, bool], ...],
 ) -> None:

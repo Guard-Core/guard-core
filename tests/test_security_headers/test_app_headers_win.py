@@ -54,7 +54,7 @@ def _factory(**security_headers: object) -> ErrorResponseFactory:
 
 
 def _names(response: GuardResponse) -> list[str]:
-    return [name.lower() for name in response.headers]
+    return [name.lower() for name in response.headers.keys()]
 
 
 async def test_app_frame_options_survives_the_default() -> None:
@@ -178,7 +178,9 @@ async def test_a_case_insensitive_header_store_keeps_the_apps_header() -> None:
     result = await factory.apply_security_headers(response, "/x")
 
     assert result.headers["x-frame-options"] == "DENY"
-    assert len(result.headers) == len(set(name.lower() for name in result.headers))
+    assert len(list(result.headers.keys())) == len(
+        {name.lower() for name in result.headers.keys()}
+    )
     assert result.headers["X-Content-Type-Options"] == "nosniff"
 
 
@@ -191,4 +193,6 @@ async def test_a_case_insensitive_header_store_takes_the_operator_value() -> Non
     result = await factory.apply_security_headers(response, "/x")
 
     assert result.headers["X-Frame-Options"] == "DENY"
-    assert len(result.headers) == len(set(name.lower() for name in result.headers))
+    assert len(list(result.headers.keys())) == len(
+        {name.lower() for name in result.headers.keys()}
+    )

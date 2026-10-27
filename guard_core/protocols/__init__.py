@@ -11,6 +11,7 @@ from guard_core.protocols.response_protocol import (
     BoundedResponseBodyReader,
     GuardResponse,
     GuardResponseFactory,
+    GuardResponseHeaders,
     MaterializedBodyResponse,
 )
 from guard_core.protocols.route_identity import RouteIdentity
@@ -25,6 +26,7 @@ __all__ = [
     "GuardRequest",
     "GuardResponse",
     "GuardResponseFactory",
+    "GuardResponseHeaders",
     "IdleBoundedBodyReader",
     "MaterializedBodyResponse",
     "RedisHandlerProtocol",

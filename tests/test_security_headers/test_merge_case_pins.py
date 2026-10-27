@@ -9,6 +9,7 @@ from guard_core.core.responses.factory import (
     _merge_security_headers,
 )
 from guard_core.models import SecurityConfig
+from guard_core.protocols.response_protocol import GuardResponseHeaders
 from tests.conftest import MockGuardResponse, MockGuardResponseFactory
 
 
@@ -47,8 +48,8 @@ def _factory(**security_headers: object) -> ErrorResponseFactory:
     return ErrorResponseFactory(context)
 
 
-def _spellings(headers: MutableMapping[str, str], lowered: str) -> list[str]:
-    return [name for name in headers if name.lower() == lowered]
+def _spellings(headers: GuardResponseHeaders, lowered: str) -> list[str]:
+    return [name for name in headers.keys() if name.lower() == lowered]
 
 
 async def test_default_loses_to_a_response_header_in_another_case() -> None:
@@ -98,7 +99,9 @@ async def test_case_insensitive_foreign_store_keeps_app_value_and_adds_defaults(
     assert result.headers["x-frame-options"] == "DENY"
     assert result.headers["X-Custom"] == "guard"
     assert result.headers["X-Content-Type-Options"] == "nosniff"
-    assert len(result.headers) == len(set(name.lower() for name in result.headers))
+    assert len(list(result.headers.keys())) == len(
+        {name.lower() for name in result.headers.keys()}
+    )
 
 
 def test_unplanned_merge_keeps_a_present_unforced_header() -> None:

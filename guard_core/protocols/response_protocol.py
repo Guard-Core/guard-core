@@ -1,5 +1,55 @@
-from collections.abc import MutableMapping
+from collections.abc import Iterable
 from typing import Protocol, runtime_checkable
+
+
+class GuardResponseHeaders(Protocol):
+    """The header container of a response: exactly what the engine calls on it.
+
+    WHAT: the members the engine reads and writes on ``GuardResponse.headers``
+    and nothing more. Not a ``MutableMapping``: Werkzeug ``Headers`` iterates
+    ``(name, value)`` pairs and a Django response iterates its body, so
+    ``__iter__`` and ``__len__`` are not part of the surface; ``keys()`` and
+    ``items()`` are, because the engine reads them (header casing, undo of a
+    modifier's writes) and the adapters copy the headers back out with them.
+    WHEN: every time the engine attaches ``Retry-After``, ``Allow``,
+    ``WWW-Authenticate``, CORS or security headers to a response, and when it
+    reads ``content-type`` and ``content-length`` to decide whether a body may
+    be offered to a ``custom_response_modifier``.
+    HOW: pass the framework's own header object (Werkzeug ``Headers``, Django
+    ``ResponseHeaders``, Starlette ``MutableHeaders``, Tornado ``HTTPHeaders``)
+    or a plain ``dict[str, str]``. Lookups use the container's own casing rules;
+    only a plain ``dict`` is case-sensitive and the engine adds a casing
+    fallback for it. ``append(name, value)`` (Starlette ``MutableHeaders``) is an
+    optional extra the engine uses when present.
+    """
+
+    def __getitem__(self, key: str, /) -> str:
+        """The value stored under ``key``; ``KeyError`` (or a subclass) when absent."""
+        ...
+
+    def __setitem__(self, key: str, value: str, /) -> None:
+        """Set ``key`` to ``value``, replacing any value it held."""
+        ...
+
+    def __delitem__(self, key: str, /) -> None:
+        """Remove ``key``; ``KeyError`` (or a subclass) when absent."""
+        ...
+
+    def __contains__(self, key: str, /) -> bool:
+        """Whether a header named ``key`` is set."""
+        ...
+
+    def get(self, key: str, /) -> str | None:
+        """The value stored under ``key``, or ``None`` when absent."""
+        ...
+
+    def keys(self) -> Iterable[str]:
+        """The header names; ``dict(headers)`` and ``{**headers}`` read it."""
+        ...
+
+    def items(self) -> Iterable[tuple[str, str]]:
+        """The ``(name, value)`` pairs, as the adapter copies them back out."""
+        ...
 
 
 @runtime_checkable
@@ -20,7 +70,7 @@ class GuardResponse(Protocol):
         ...
 
     @property
-    def headers(self) -> MutableMapping[str, str]:
+    def headers(self) -> GuardResponseHeaders:
         """The response headers; mutable so the engine can add/override them."""
         ...
 

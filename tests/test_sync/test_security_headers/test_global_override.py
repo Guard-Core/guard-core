@@ -3072,7 +3072,7 @@ def test_a_forced_header_with_its_exact_name_is_replaced_without_a_drop() -> Non
     result = app.apply_security_headers(response, "/x")
 
     assert result.headers["X-Frame-Options"] == "DENY"
-    assert list(result.headers).count("X-Frame-Options") == 1
+    assert list(result.headers.keys()).count("X-Frame-Options") == 1
 
 
 def test_a_refusal_event_is_not_sent_while_the_override_is_empty() -> None:
