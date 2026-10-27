@@ -233,6 +233,8 @@ async def test_init_with_full_enhanced_config() -> None:
     config.detection_compiler_timeout = 3.0
     config.detection_max_tracked_patterns = 500
     config.detection_max_content_length = 20000
+    config.detection_max_body_inspect_bytes = 262144
+    config.detection_max_file_inspect_bytes = 262144
     config.detection_preserve_attack_patterns = True
     config.detection_anomaly_threshold = 2.5
     config.detection_slow_pattern_threshold = 0.2

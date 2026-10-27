@@ -9,6 +9,7 @@ from guard_core.detection_engine import (
     SemanticAnalyzer,
 )
 from guard_core.detection_engine._validation_cache import PatternValidationCache
+from guard_core.handlers._suspatterns_sources import _scan_window_bytes
 
 if TYPE_CHECKING:
     from guard_core.models import SecurityConfig
@@ -48,10 +49,7 @@ def _build_enhanced_detection_state(
         preprocessor=ContentPreprocessor(
             max_content_length=config.detection_max_content_length,
             preserve_attack_patterns=config.detection_preserve_attack_patterns,
-            max_full_scan_bytes=max(
-                config.detection_max_body_inspect_bytes,
-                config.detection_max_file_inspect_bytes,
-            ),
+            max_full_scan_bytes=_scan_window_bytes(config),
         ),
         semantic_analyzer=SemanticAnalyzer(),
         performance_monitor=PerformanceMonitor(

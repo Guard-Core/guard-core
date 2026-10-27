@@ -19,6 +19,7 @@ class _RaceConfig:
         self.detection_max_tracked_patterns = 500
         self.detection_max_content_length = max_length
         self.detection_max_body_inspect_bytes = inspect_bytes
+        self.detection_max_file_inspect_bytes = inspect_bytes
         self.detection_preserve_attack_patterns = preserve
         self.detection_anomaly_threshold = 3.0
         self.detection_slow_pattern_threshold = 0.1

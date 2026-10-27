@@ -12,7 +12,7 @@ from guard_core.sync.detection_engine import PatternCompiler, PerformanceMonitor
 from guard_core.sync.handlers._suspatterns_lazy_rows import _SusPatternsLazyRowsMixin
 from guard_core.sync.handlers._suspatterns_sources import (
     _CTX_ALL,
-    _DEFAULT_MAX_BODY_INSPECT_BYTES,
+    _scan_window_bytes,
 )
 
 if TYPE_CHECKING:
@@ -179,11 +179,7 @@ class _SusPatternsRegistryMixin(_SusPatternsLazyRowsMixin):
     def add_pattern(self, pattern: str, custom: bool = False) -> bool:
 
         compiler = self._compiler or PatternCompiler(redaction_names=self)
-        max_content_length = getattr(
-            self._scan_config(),
-            "detection_max_body_inspect_bytes",
-            _DEFAULT_MAX_BODY_INSPECT_BYTES,
-        )
+        max_content_length = _scan_window_bytes(self._scan_config())
         validate_with_cap = functools.partial(
             compiler.validate_pattern_safety, max_content_length=max_content_length
         )

@@ -11,6 +11,17 @@ _DEFAULT_MAX_BODY_INSPECT_BYTES = 262144
 _DEFAULT_MAX_FILE_INSPECT_BYTES = 262144
 
 
+def _scan_window_bytes(config: "SecurityConfig | None") -> int:
+    return max(
+        getattr(
+            config, "detection_max_body_inspect_bytes", _DEFAULT_MAX_BODY_INSPECT_BYTES
+        ),
+        getattr(
+            config, "detection_max_file_inspect_bytes", _DEFAULT_MAX_FILE_INSPECT_BYTES
+        ),
+    )
+
+
 def _regex_anomaly(regex_threats: Iterable[Mapping[str, float]]) -> float:
     return float(sum(t.get("weight", 1.0) for t in regex_threats))
 

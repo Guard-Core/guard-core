@@ -305,6 +305,7 @@ def body_cap_manager(request: pytest.FixtureRequest) -> Iterator[SusPatternsMana
     manager = SusPatternsManager(
         SyncSecurityConfig(
             detection_max_body_inspect_bytes=_MIN_BODY_INSPECT_BYTES,
+            detection_max_file_inspect_bytes=_MIN_BODY_INSPECT_BYTES,
             detection_preserve_attack_patterns=request.param,
         )
     )
@@ -359,3 +360,30 @@ def test_batch_compile_forwards_the_callers_cap_to_the_validator(
     PatternCompiler().batch_compile(["abc", "def"], max_content_length=12000)
 
     assert recorder.caps == [12000, 12000]
+
+
+def test_add_pattern_cap_follows_a_raised_file_inspect_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    saved_instance = SusPatternsManager._instance
+    saved_config = SusPatternsManager._config
+    SusPatternsManager._instance = None
+    raised = _MIN_BODY_INSPECT_BYTES * 8
+    manager = SusPatternsManager(
+        SyncSecurityConfig(
+            detection_max_body_inspect_bytes=_MIN_BODY_INSPECT_BYTES,
+            detection_max_file_inspect_bytes=raised,
+        )
+    )
+    recorder = _CapRecorder(monkeypatch)
+
+    try:
+        manager.add_pattern(r"abc", custom=True)
+        window = manager._preprocessor
+    finally:
+        SusPatternsManager._instance = saved_instance
+        SusPatternsManager._config = saved_config
+
+    assert recorder.caps == [raised]
+    assert window is not None
+    assert window._MAX_FULL_SCAN_BYTES == raised
