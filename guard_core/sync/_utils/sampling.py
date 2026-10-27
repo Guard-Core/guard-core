@@ -4,7 +4,11 @@ import weakref
 from collections import OrderedDict
 from typing import Generic, Protocol, TypeVar
 
-from guard_core.sync._utils.app_managers import held_for_app, hold_for_app
+from guard_core.sync._utils.app_managers import (
+    _HELD_ATTRIBUTE,
+    held_for_app,
+    hold_for_app,
+)
 
 
 class _Clearable(Protocol):
@@ -76,7 +80,10 @@ class PerApp(Generic[_T]):
             return [self._unheld, *self._tables.values()]
 
     def for_app(self, config: object) -> _T:
-        held = held_for_app(config, self._kind)
+        try:
+            held = config.__dict__[_HELD_ATTRIBUTE][self._kind]
+        except (AttributeError, KeyError):
+            held = None
         if isinstance(held, self._table_type):
             return held
         with self._lock:

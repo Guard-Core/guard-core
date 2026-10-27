@@ -524,7 +524,9 @@ def check_rate_limit_by_ip(
         return True
 
     ip = _canonicalize_ip(ip)
-    if _ip_in_list(ipaddress.ip_address(ip), ip, config.exempt_ips):
+    if config.exempt_ips and _ip_in_list(
+        ipaddress.ip_address(ip), ip, config.exempt_ips
+    ):
         return True
 
     tier = RateLimitTier("", config.rate_limit, config.rate_limit_window, endpoint_path)
@@ -532,7 +534,7 @@ def check_rate_limit_by_ip(
     window_identity = _by_ip_window_identity(ip, config.ipv6_prefix_length)
 
     verdict: RateLimitVerdict | None = None
-    if redis_is_configured(config) and redis_handler:
+    if redis_handler and redis_is_configured(config):
         verdict, _ = _redis_tier_verdict(
             redis_handler,
             _by_ip_logger,
