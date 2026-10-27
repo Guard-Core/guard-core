@@ -34,11 +34,16 @@ class _KeysAndItems:
         return {"threshold": 3, "duration": 60}
 
 
-def test_an_object_iterable_only_through_getitem_is_refused_as_an_ip_list() -> None:
-    with pytest.raises(
-        ValueError, match="expected a list of strings, got _IndexedOnly"
-    ):
-        _validate_ip_or_cidr_list(_IndexedOnly(), invalid_message="Invalid IP")
+def test_an_object_iterable_only_through_getitem_is_still_an_ip_list() -> None:
+    assert _validate_ip_or_cidr_list(_IndexedOnly(), invalid_message="Invalid IP") == (
+        "10.0.0.1",
+        "10.0.0.1",
+    )
+
+
+def test_an_object_iter_refuses_is_refused_as_an_ip_list() -> None:
+    with pytest.raises(ValueError, match="expected a list of strings, got int"):
+        _validate_ip_or_cidr_list(5, invalid_message="Invalid IP")
 
 
 def test_a_non_mapping_threat_ban_entry_keeps_its_message() -> None:

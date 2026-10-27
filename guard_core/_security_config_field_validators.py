@@ -1,6 +1,6 @@
 import logging
 import warnings
-from collections.abc import Callable, ItemsView, Iterable
+from collections.abc import Callable, ItemsView, Iterable, Iterator
 from functools import partial
 from ipaddress import ip_address, ip_network
 from pathlib import Path
@@ -234,6 +234,16 @@ def _revalidate_global_behavior_rules(config: "SecurityConfig[RequestT]") -> Non
         _validate_return_pattern_body_scan(rule.pattern, config)
 
 
+@runtime_checkable
+class _ItemsByIndex(Protocol):
+    """The sequence surface ``iter()`` falls back to: item access by index.
+
+    An IP list may be any object ``iter()`` accepts, not only an ``Iterable``.
+    """
+
+    def __getitem__(self, index: int, /) -> object: ...
+
+
 @overload
 def _validate_ip_or_cidr_list(
     v: None, *, invalid_message: str, allow_unix: bool = False
@@ -251,11 +261,15 @@ def _validate_ip_or_cidr_list(
 ) -> tuple[str, ...] | None:
     if v is None:
         return None
-    if not isinstance(v, Iterable):
+    entries: Iterator[object]
+    if isinstance(v, Iterable):
+        entries = iter(v)
+    elif isinstance(v, _ItemsByIndex):
+        entries = iter(v)
+    else:
         raise ValueError(
             f"{invalid_message}: expected a list of strings, got {type(v).__name__}"
         )
-    entries = iter(v)
     validated: list[str] = []
     for entry in entries:
         if not isinstance(entry, str):
