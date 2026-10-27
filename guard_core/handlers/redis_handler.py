@@ -33,7 +33,7 @@ from guard_core.handlers._redis_handler_support import (
 from guard_core.handlers._redis_handler_support import (
     _unparseable_redis_url as _unparseable_redis_url,
 )
-from guard_core.handlers._redis_lean import lean_command, lean_evalsha
+from guard_core.handlers._redis_lean import lean_command, lean_evalsha, reply_counts
 from guard_core.models import SecurityConfig
 from guard_core.scripts.ban_write_lua import (
     EXTEND_ONLY_BAN_WRITE_SCRIPT,
@@ -668,7 +668,7 @@ class RedisManager(RedisBanStrikeMixin):
                 keys,
                 args,
             )
-            return [int(count) for count in counts]
+            return reply_counts(counts)
 
         result = await self.safe_operation(_record)
         if result is None:

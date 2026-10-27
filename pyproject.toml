@@ -135,8 +135,6 @@ select = [
 "scripts/**" = ["ANN401"]  # tests and tools keep Any inside fakes (D-177)
 "specs/**" = ["ANN401"]  # tests and tools keep Any inside fakes (D-177)
 "guard_core/_security_config_fields.py" = ["ANN401"]  # framework object
-"guard_core/handlers/_redis_ban_strike.py" = ["ANN401"]  # handler slot
-"guard_core/handlers/_redis_lean.py" = ["ANN401"]  # handler slot
 "guard_core/handlers/_suspatterns_lazy_rows.py" = ["ANN401"]  # JSON payload
 "guard_core/handlers/_suspatterns_literals.py" = ["ANN401"]  # regex engine internals
 "guard_core/handlers/_suspatterns_pickle.py" = ["ANN401"]  # open value
@@ -146,8 +144,6 @@ select = [
 "guard_core/protocols/redis_protocol.py" = ["ANN401"]  # protocol
 "guard_core/protocols/request_protocol.py" = ["ANN401"]  # protocol
 "guard_core/sync/__init__.py" = ["ANN401"]  # open value
-"guard_core/sync/handlers/_redis_ban_strike.py" = ["ANN401"]  # handler slot
-"guard_core/sync/handlers/_redis_lean.py" = ["ANN401"]  # handler slot
 "guard_core/sync/handlers/_suspatterns_lazy_rows.py" = ["ANN401"]  # JSON payload
 "guard_core/sync/handlers/_suspatterns_literals.py" = ["ANN401"]  # regex engine internals
 "guard_core/sync/handlers/_suspatterns_pickle.py" = ["ANN401"]  # open value
@@ -205,8 +201,6 @@ disallow_any_explicit = true
 [[tool.mypy.overrides]]
 module = [
     "guard_core._security_config_fields",  # framework object
-    "guard_core.handlers._redis_ban_strike",  # handler slot
-    "guard_core.handlers._redis_lean",  # handler slot
     "guard_core.handlers._suspatterns_lazy_rows",  # JSON payload
     "guard_core.handlers._suspatterns_literals",  # regex engine internals
     "guard_core.handlers._suspatterns_pickle",  # open value
@@ -222,8 +216,6 @@ disallow_any_explicit = false
 [[tool.mypy.overrides]]
 module = [
     "guard_core.sync",  # open value
-    "guard_core.sync.handlers._redis_ban_strike",  # handler slot
-    "guard_core.sync.handlers._redis_lean",  # handler slot
     "guard_core.sync.handlers._suspatterns_lazy_rows",  # JSON payload
     "guard_core.sync.handlers._suspatterns_literals",  # regex engine internals
     "guard_core.sync.handlers._suspatterns_pickle",  # open value

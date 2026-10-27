@@ -48,7 +48,11 @@ from guard_core.sync.handlers._redis_handler_support import (
 from guard_core.sync.handlers._redis_handler_support import (
     _unparseable_redis_url as _unparseable_redis_url,
 )
-from guard_core.sync.handlers._redis_lean import lean_command, lean_evalsha
+from guard_core.sync.handlers._redis_lean import (
+    lean_command,
+    lean_evalsha,
+    reply_counts,
+)
 
 if TYPE_CHECKING:
     from redis import Redis
@@ -664,7 +668,7 @@ class RedisManager(RedisBanStrikeMixin):
                 keys,
                 args,
             )
-            return [int(count) for count in counts]
+            return reply_counts(counts)
 
         result = self.safe_operation(_record)
         if result is None:

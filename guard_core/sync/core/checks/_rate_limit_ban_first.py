@@ -15,7 +15,7 @@ from guard_core.scripts.rate_lua import (
 from guard_core.sync._utils.ip_extraction import _client_identity
 from guard_core.sync.core.checks._pending_ban import PendingBan
 from guard_core.sync.core.checks._shared_strikes import FusedStrike
-from guard_core.sync.handlers._redis_lean import lean_evalsha
+from guard_core.sync.handlers._redis_lean import ReplyValue, lean_evalsha, reply_counts
 from guard_core.sync.handlers.ratelimit_handler import (
     RateLimitTier,
     RateLimitVerdict,
@@ -41,6 +41,7 @@ _STRIKE_SHA = hashlib.sha1(
     BAN_RATE_STRIKE_SCRIPT.encode(), usedforsecurity=False
 ).hexdigest()
 _VERSION_KEY = "ban_version:counter"
+NO_STATUS_REPLY = "the ban-first script replied with no status"
 
 
 def can_read_ban_with_rate_limit(
@@ -65,9 +66,8 @@ def _identity(
 
 def _evalsha(
     conn: "Redis", script: str, sha: str, keys: list[bytes], arguments: list[bytes]
-) -> list[str | bytes | float]:
-    reply: list[str | bytes | float] = lean_evalsha(conn, script, sha, keys, arguments)
-    return reply
+) -> list[ReplyValue]:
+    return lean_evalsha(conn, script, sha, keys, arguments)
 
 
 def _strike_keys_and_meta(
@@ -166,7 +166,10 @@ def ban_first_rate_limit(
         pending.check.warn_ban_lookup_skipped(pending.client_ip)
         return False, None
     read = len(pairs) + 1
-    status = int(reply[0])
+    first = reply[0]
+    if first is None:
+        raise TypeError(NO_STATUS_REPLY)
+    status = int(first)
     values: list[str | bytes | float | None] = (
         [*([None] * len(pairs)), seen] if status == 1 else [*reply[1 : read + 1]]
     )
@@ -174,14 +177,15 @@ def ban_first_rate_limit(
     if status == 0:
         return banned, None
     offset = 1 if status == 1 else 1 + read
-    verdict = _verdict_from_script_result(reply[offset : offset + 3])
+    verdict = _verdict_from_script_result(reply_counts(reply[offset : offset + 3]))
     counts = reply[offset + 3 :]
     if strike is not None and counts:
+        numbers = reply_counts(counts)
         strike.record(
             (
-                int(counts[0]),
-                int(counts[1]),
-                dict(zip(strike.categories, map(int, counts[2:]), strict=True)),
+                numbers[0],
+                numbers[1],
+                dict(zip(strike.categories, numbers[2:], strict=True)),
             )
         )
     return banned, verdict

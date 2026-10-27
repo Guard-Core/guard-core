@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import hashlib
 import os
-from collections.abc import Callable, Sequence
-from typing import TYPE_CHECKING, Any
+from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 from guard_core.scripts.detection_strikes_lua import (
     BAN_CHECK_AND_RECORD_STRIKE_SCRIPT,
 )
-from guard_core.sync.handlers._redis_lean import lean_evalsha
+from guard_core.sync.handlers import _redis_handler_support as redis_types
+from guard_core.sync.handlers._redis_lean import ReplyValue, lean_evalsha, reply_counts
 
 if TYPE_CHECKING:
     from redis import Redis
@@ -31,8 +32,13 @@ class RedisBanStrikeMixin:
         def _rate_limit_violations_key(self, client_ip: str) -> str: ...
 
         def safe_operation(
-            self, func: Callable[..., Any], *args: Any, **kwargs: Any
-        ) -> Any: ...
+            self,
+            func: redis_types.RedisOperation[
+                redis_types.OperationParams, redis_types.OperationResult
+            ],
+            *args: redis_types.OperationParams.args,
+            **kwargs: redis_types.OperationParams.kwargs,
+        ) -> redis_types.OperationResult | None: ...
 
     def get_bans_and_record_strike(
         self,
@@ -46,7 +52,7 @@ class RedisBanStrikeMixin:
         window_start: float,
         ttl: int,
         cap: int,
-    ) -> tuple[list[Any], tuple[int, int, dict[str, int]] | None]:
+    ) -> tuple[list[ReplyValue], tuple[int, int, dict[str, int]] | None]:
         """Read the ban keys and the ban version (what ``get_many`` reads for
         ``pairs`` plus ``version_pair``) and, in the same round trip, record one
         detection strike (what ``record_detection_strikes`` records) when none
@@ -72,8 +78,8 @@ class RedisBanStrikeMixin:
         packed_keys = [key.encode() for key in keys]
         packed_arguments = [arguments.encode()]
 
-        def _get_many(conn: Redis) -> list[Any]:
-            reply: list[Any] = lean_evalsha(
+        def _get_many(conn: Redis) -> list[ReplyValue]:
+            reply = lean_evalsha(
                 conn,
                 BAN_CHECK_AND_RECORD_STRIKE_SCRIPT,
                 _BAN_CHECK_AND_RECORD_STRIKE_SHA,
@@ -83,22 +89,22 @@ class RedisBanStrikeMixin:
             return reply
 
         reply = self.safe_operation(_get_many)
+        if reply is None:
+            raise TypeError(redis_types.NO_OPERATION_RESULT)
         read = len(pairs) + 1
         status = reply[0]
         if status == 0:
             return reply[1 : read + 1], None
         if status == 1:
-            values: list[Any] = [None] * len(pairs)
+            values: list[ReplyValue] = [None] * len(pairs)
             values.append(seen_version)
             counts = reply[1:]
         else:
             values = reply[1 : read + 1]
             counts = reply[read + 1 :]
+        numbers = reply_counts(counts)
         return values, (
-            int(counts[0]),
-            int(counts[1]),
-            {
-                name: int(count)
-                for name, count in zip(categories, counts[2:], strict=True)
-            },
+            numbers[0],
+            numbers[1],
+            dict(zip(categories, numbers[2:], strict=True)),
         )
