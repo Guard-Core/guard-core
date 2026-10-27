@@ -344,7 +344,7 @@ async def _attack(pipeline: Any, route_id: str) -> Any:
     return await pipeline.execute(request)
 
 
-async def test_stopped_redis_on_the_defaults_answers_500_and_records_no_strike() -> (
+async def test_stopped_redis_on_the_defaults_answers_503_and_records_no_strike() -> (
     None
 ):
     pipeline, middleware, route_id = await _stopped_redis_pipeline()
@@ -352,7 +352,8 @@ async def test_stopped_redis_on_the_defaults_answers_500_and_records_no_strike()
     response = await _attack(pipeline, route_id)
 
     assert response is not None
-    assert response.status_code == 500
+    assert response.status_code == 503
+    assert response.headers["Retry-After"] == "5"
     assert middleware.suspicious_request_counts == {}
 
 
