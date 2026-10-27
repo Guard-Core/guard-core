@@ -124,8 +124,7 @@ def detection_max_scan_values_caps_remaining_fields(ctx: ScenarioContext) -> Non
     mark = ctx.stack.logs.mark()
     benign = _echo(ctx.client, {"field1": "hello", "field2": "world", "field3": "ok"})
     assert benign.status_code == 200, (
-        "a benign request past the value budget was blocked: "
-        f"{benign.status_code}"
+        f"a benign request past the value budget was blocked: {benign.status_code}"
     )
 
     response = _echo(ctx.client, {"field1": "hello", "field2": "world", "field3": _XSS})
@@ -155,8 +154,7 @@ def detection_max_scan_chars_caps_remaining_values(ctx: ScenarioContext) -> None
 
     benign = _echo(ctx.client, {"filler": filler, "tail": "a harmless remainder"})
     assert benign.status_code == 200, (
-        "a benign request past the char budget was blocked: "
-        f"{benign.status_code}"
+        f"a benign request past the char budget was blocked: {benign.status_code}"
     )
 
     response = _echo(ctx.client, {"filler": filler, "attack": _XSS})

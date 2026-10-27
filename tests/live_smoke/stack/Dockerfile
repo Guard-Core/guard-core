@@ -9,7 +9,7 @@ WORKDIR /app
 COPY wheels/ /wheels/
 
 RUN uv venv .venv && \
-    uv pip install --python .venv/bin/python fastapi-guard gunicorn uvicorn redis guard-agent httpx \
+    uv pip install --python .venv/bin/python fastapi-guard gunicorn uvicorn websockets redis guard-agent httpx \
         opentelemetry-sdk opentelemetry-exporter-otlp-proto-http logfire && \
     if ls /wheels/*.whl >/dev/null 2>&1; then \
         uv pip install --python .venv/bin/python --no-deps --reinstall /wheels/*.whl; \

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import os
 import re
@@ -213,6 +214,58 @@ def send_slow_body(
         sock.close()
 
     return _parse_http_response(b"".join(chunks))
+
+
+def websocket_exchange(
+    path: str,
+    headers: dict[str, str] | None = None,
+    text: str = "hello",
+    *,
+    socket_timeout: float = 10.0,
+) -> tuple[int, str | None]:
+    """Open a websocket through nginx; return (HTTP status, echoed text or None).
+
+    A refused handshake answers a plain HTTP status (403); an accepted one answers
+    101 and the example's ``/ws`` echoes one text frame. Stdlib only, so the driver
+    needs no websocket client.
+    """
+    key = base64.b64encode(os.urandom(16)).decode()
+    request_headers = {
+        "Host": "localhost",
+        "Upgrade": "websocket",
+        "Connection": "Upgrade",
+        "Sec-WebSocket-Key": key,
+        "Sec-WebSocket-Version": "13",
+        **(headers or {}),
+    }
+    lines = "\r\n".join(f"{name}: {value}" for name, value in request_headers.items())
+    sock = socket.create_connection(("localhost", NGINX_PORT), timeout=socket_timeout)
+    try:
+        sock.sendall(f"GET {path} HTTP/1.1\r\n{lines}\r\n\r\n".encode("latin-1"))
+        raw = b""
+        while b"\r\n\r\n" not in raw:
+            chunk = sock.recv(4096)
+            if not chunk:
+                break
+            raw += chunk
+        status, _, leftover = _parse_http_response(raw)
+        if status != 101:
+            return status, None
+        payload = text.encode()
+        mask = os.urandom(4)
+        masked = bytes(byte ^ mask[index % 4] for index, byte in enumerate(payload))
+        sock.sendall(bytes([0x81, 0x80 | len(payload)]) + mask + masked)
+        frame = leftover
+        while len(frame) < 2 or len(frame) < 2 + (frame[1] & 0x7F):
+            chunk = sock.recv(4096)
+            if not chunk:
+                break
+            frame += chunk
+        if len(frame) < 2 or frame[0] & 0x0F != 0x1:
+            return status, None
+        return status, frame[2 : 2 + (frame[1] & 0x7F)].decode()
+    finally:
+        sock.close()
 
 
 class Stack:

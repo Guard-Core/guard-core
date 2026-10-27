@@ -16,10 +16,39 @@ def _decorator_method_names() -> set[str]:
 
 def _required_names() -> set[str]:
     return (
-        set(SecurityConfig.model_fields)
+        set(REQUIRED_SURFACES)
+        | set(SecurityConfig.model_fields)
         | _decorator_method_names()
         | set(CHECK_NAME_VALUES)
     )
+
+
+REQUIRED_SURFACES = frozenset(
+    {
+        "surface:websocket_guard",
+        "surface:pure_asgi_middleware",
+        "surface:status_route",
+        "surface:lifespan_edges",
+        "surface:middleware_introspection",
+        "surface:static_files_bypass",
+        "surface:http_methods",
+        "surface:streaming_response",
+        "surface:building_block_ip_access",
+        "surface:cidr_rules",
+        "surface:admin_routes",
+        "surface:manual_unban",
+        "surface:building_block_behavior",
+        "surface:building_block_rate_limit_manager",
+        "surface:building_block_security_headers_manager",
+        "surface:building_block_bounded_readers",
+        "surface:building_block_endpoint_key_problems",
+        "surface:custom_pattern_api",
+        "surface:detection_family_matrix",
+        "surface:default_security_headers",
+        "surface:two_workers_share_the_rate_limit",
+        "surface:two_workers_share_the_ban",
+    }
+)
 
 
 def test_every_field_method_and_check_name_has_a_live_scenario() -> None:

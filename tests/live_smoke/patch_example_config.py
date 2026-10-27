@@ -189,10 +189,10 @@ async def smoke_startup_hook() -> None:
 
 _ROUTES_INIT_MARKER = "smoke_extra_router"
 
-_MAIN_PY_IMPORT_ANCHOR = "from app.security import guard, security_config\n"
+_MAIN_PY_IMPORT_ANCHOR = "from app.models import ErrorResponse, RootResponse\n"
 _MAIN_PY_IMPORT_INSERT = (
+    "from app.models import ErrorResponse, RootResponse\n"
     "from app.routes.smoke_extra import smoke_startup_hook\n"
-    "from app.security import guard, security_config\n"
 )
 _MAIN_PY_INCLUDE_ANCHOR = "app.include_router(test_router)\n"
 _MAIN_PY_INCLUDE_INSERT = (
