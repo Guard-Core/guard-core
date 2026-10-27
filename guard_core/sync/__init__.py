@@ -5,6 +5,9 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from guard_core.models import SecurityConfig
     from guard_core.sync.decorators import RouteConfig, SecurityDecorator
+    from guard_core.sync.handlers._security_headers_apply import (
+        apply_security_headers_settings,
+    )
     from guard_core.sync.handlers.behavior_handler import BehaviorRule, BehaviorTracker
     from guard_core.sync.handlers.cloud_handler import CloudManager, cloud_handler
     from guard_core.sync.handlers.ipban_handler import IPBanManager, ip_ban_manager
@@ -54,6 +57,7 @@ __all__ = [
     "RedisHandlerBase",
     "RedisManager",
     "security_headers_manager",
+    "apply_security_headers_settings",
     "SecurityHeadersManager",
     "sus_patterns_handler",
     "SyncBoundedBodyReader",
@@ -83,6 +87,9 @@ _MODULE_BY_NAME: dict[str, str] = {
     "RedisHandlerBase": "guard_core.sync.handlers.redis_handler",
     "RedisManager": "guard_core.sync.handlers.redis_handler",
     "security_headers_manager": "guard_core.sync.handlers.security_headers_handler",
+    "apply_security_headers_settings": (
+        "guard_core.sync.handlers._security_headers_apply"
+    ),
     "SecurityHeadersManager": "guard_core.sync.handlers.security_headers_handler",
     "sus_patterns_handler": "guard_core.sync.handlers.suspatterns_handler",
     "SyncGeoIPHandler": "guard_core.sync.protocols.geo_ip_protocol",

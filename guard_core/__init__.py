@@ -13,6 +13,9 @@ if TYPE_CHECKING:
         _mute_pydantic_plugin_instrumentation as _mute_pydantic_plugin_instrumentation,
     )
     from guard_core.decorators import RouteConfig, SecurityDecorator
+    from guard_core.handlers._security_headers_apply import (
+        apply_security_headers_settings,
+    )
     from guard_core.handlers.behavior_handler import BehaviorRule, BehaviorTracker
     from guard_core.handlers.cloud_handler import CloudManager, cloud_handler
     from guard_core.handlers.ipban_handler import IPBanManager, ip_ban_manager
@@ -60,6 +63,7 @@ __all__ = [
     "RedisHandlerBase",
     "RedisManager",
     "security_headers_manager",
+    "apply_security_headers_settings",
     "SecurityHeadersManager",
     "sus_patterns_handler",
     "BoundedBodyReader",
@@ -91,6 +95,7 @@ _MODULE_BY_NAME: dict[str, str] = {
     "RedisHandlerBase": "guard_core.handlers.redis_handler",
     "RedisManager": "guard_core.handlers.redis_handler",
     "security_headers_manager": "guard_core.handlers.security_headers_handler",
+    "apply_security_headers_settings": "guard_core.handlers._security_headers_apply",
     "SecurityHeadersManager": "guard_core.handlers.security_headers_handler",
     "sus_patterns_handler": "guard_core.handlers.suspatterns_handler",
     "GeoIPHandler": "guard_core.protocols.geo_ip_protocol",

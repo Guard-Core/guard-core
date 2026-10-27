@@ -1,4 +1,3 @@
-guard_core._security_config_fields
 guard_core.handlers._suspatterns_lazy_rows
 guard_core.handlers._suspatterns_literals
 guard_core.handlers._suspatterns_pickle

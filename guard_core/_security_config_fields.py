@@ -2,7 +2,7 @@ from collections.abc import Awaitable, Callable
 from functools import partial
 from pathlib import Path
 from types import MappingProxyType
-from typing import Annotated, Any, Generic, Literal
+from typing import Annotated, Generic, Literal
 
 from pydantic import (
     BaseModel,
@@ -581,7 +581,7 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
         default=False, description="Whether to enforce HTTPS connections"
     )
 
-    security_headers: dict[str, Any] | None = Field(
+    security_headers: dict[str, object] | None = Field(
         default_factory=default_security_headers_config,
         description="Security headers configuration",
     )

@@ -43,7 +43,9 @@ def test_a_changed_config_gets_a_new_key_and_the_old_one_comes_back() -> None:
     manager = SecurityHeadersManager()
     config = _config()
     assert config.security_headers is not None
-    sources = config.security_headers["csp"]["default-src"]
+    csp = config.security_headers["csp"]
+    assert isinstance(csp, dict)
+    sources = csp["default-src"]
     first = manager._generate_cache_key(None, config)
 
     sources.append("https://cdn.example.com")
