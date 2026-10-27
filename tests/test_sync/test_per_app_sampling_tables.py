@@ -1,5 +1,4 @@
 import logging
-from typing import Any
 from unittest.mock import MagicMock, Mock
 
 import pytest
@@ -17,14 +16,24 @@ from tests.test_sync.conftest import MockGuardResponse, SyncMockGuardRequest
 from tests.test_sync.test_core.conftest import build_route_pipeline, send_request
 
 
-def _config(**overrides: Any) -> SyncSecurityConfig:
-    fields: dict[str, Any] = {
-        "enable_redis": False,
-        "enable_rate_limiting": False,
-        "lazy_init": False,
-    }
-    fields.update(overrides)
-    return SyncSecurityConfig(**fields)
+def _config(
+    *,
+    trusted_proxies: list[str] | None = None,
+    enable_penetration_detection: bool = False,
+    enable_ip_banning: bool = True,
+    emergency_mode: bool = False,
+    emergency_whitelist: list[str] | None = None,
+) -> SyncSecurityConfig:
+    return SyncSecurityConfig(
+        enable_redis=False,
+        enable_rate_limiting=False,
+        lazy_init=False,
+        trusted_proxies=trusted_proxies or [],
+        enable_penetration_detection=enable_penetration_detection,
+        enable_ip_banning=enable_ip_banning,
+        emergency_mode=emergency_mode,
+        emergency_whitelist=emergency_whitelist or [],
+    )
 
 
 def _xff_events(config: SyncSecurityConfig) -> int:

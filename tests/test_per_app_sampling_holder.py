@@ -1,12 +1,11 @@
 import copy
-from typing import Any
 
 from guard_core._utils.sampling import CountedKeys, PerApp, SampledKeys
 from guard_core.models import SecurityConfig
 
 
-def _config(**overrides: Any) -> SecurityConfig:
-    return SecurityConfig(enable_redis=False, **overrides)
+def _config() -> SecurityConfig:
+    return SecurityConfig(enable_redis=False)
 
 
 def test_a_copy_of_a_config_is_the_same_app_and_shares_its_table() -> None:

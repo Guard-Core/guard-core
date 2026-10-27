@@ -1,6 +1,5 @@
 from collections.abc import Iterator
 from datetime import datetime, timezone
-from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -25,16 +24,23 @@ def reset_singleton() -> Iterator[None]:
     DynamicRuleManager._instance = None
 
 
-def _config(**overrides: Any) -> SyncSecurityConfig:
-    fields: dict[str, Any] = {
-        "enable_redis": False,
-        "enable_penetration_detection": False,
-        "enable_rate_limiting": False,
-        "lazy_init": False,
-        "enable_dynamic_rules": False,
-    }
-    fields.update(overrides)
-    return SyncSecurityConfig(**fields)
+def _config(
+    *,
+    enable_agent: bool = False,
+    agent_api_key: str | None = None,
+    enable_dynamic_rules: bool = False,
+    blocked_user_agents: list[str] | None = None,
+) -> SyncSecurityConfig:
+    return SyncSecurityConfig(
+        enable_redis=False,
+        enable_penetration_detection=False,
+        enable_rate_limiting=False,
+        lazy_init=False,
+        enable_agent=enable_agent,
+        agent_api_key=agent_api_key,
+        enable_dynamic_rules=enable_dynamic_rules,
+        blocked_user_agents=blocked_user_agents or [],
+    )
 
 
 def _apply_user_agent_rule(
@@ -58,7 +64,7 @@ def _apply_user_agent_rule(
     return manager
 
 
-def _user_agent_event_attribution(config: SyncSecurityConfig) -> dict[str, Any]:
+def _user_agent_event_attribution(config: SyncSecurityConfig) -> dict[str, object]:
     middleware = build_middleware(config, SecurityDecorator(config), None)
     request = SyncMockGuardRequest(
         path="/x", client_host="198.51.100.5", headers={"User-Agent": "wp23bot"}

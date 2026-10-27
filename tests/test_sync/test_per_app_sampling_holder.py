@@ -1,12 +1,11 @@
 import copy
-from typing import Any
 
 from guard_core.models import SyncSecurityConfig
 from guard_core.sync._utils.sampling import CountedKeys, PerApp, SampledKeys
 
 
-def _config(**overrides: Any) -> SyncSecurityConfig:
-    return SyncSecurityConfig(enable_redis=False, **overrides)
+def _config() -> SyncSecurityConfig:
+    return SyncSecurityConfig(enable_redis=False)
 
 
 def test_a_copy_of_a_config_is_the_same_app_and_shares_its_table() -> None:
