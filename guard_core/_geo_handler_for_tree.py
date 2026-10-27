@@ -1,6 +1,6 @@
 import inspect
 from collections.abc import Iterable
-from typing import TYPE_CHECKING, Protocol, TypeAlias
+from typing import TYPE_CHECKING, Literal, Protocol, TypeAlias, TypeGuard, overload
 
 from guard_core._config_capabilities import require_geo_extra
 
@@ -68,30 +68,91 @@ def build_geo_ip_handler_from_token(
     )
 
 
+def _lifecycle_members_of(handler: object) -> list[tuple[str, object]]:
+    return [
+        (name, member)
+        for name in _LIFECYCLE_MEMBERS
+        if (member := getattr(handler, name, None)) is not None
+    ]
+
+
+def _awaited_lifecycle_members(handler: object) -> list[str]:
+    return [
+        name
+        for name, member in _lifecycle_members_of(handler)
+        if inspect.iscoroutinefunction(member)
+    ]
+
+
+def _synchronous_lifecycle_members(handler: object) -> list[str]:
+    return [
+        name
+        for name, member in _lifecycle_members_of(handler)
+        if inspect.isroutine(member) and not inspect.iscoroutinefunction(member)
+    ]
+
+
+def _is_synchronous_handler(
+    handler: "GeoIPHandler | SyncGeoIPHandler",
+) -> TypeGuard["SyncGeoIPHandler"]:
+    return not _awaited_lifecycle_members(handler)
+
+
+def _is_awaited_handler(
+    handler: "GeoIPHandler | SyncGeoIPHandler",
+) -> TypeGuard["GeoIPHandler"]:
+    return not _synchronous_lifecycle_members(handler)
+
+
+@overload
+def geo_ip_handler_for_tree(
+    config: "SecurityConfig[RequestT]",
+    handler: "GeoIPHandler | SyncGeoIPHandler | None",
+    *,
+    tree_awaits: Literal[True],
+) -> "GeoIPHandler | None": ...
+
+
+@overload
+def geo_ip_handler_for_tree(
+    config: "SecurityConfig[RequestT]",
+    handler: "GeoIPHandler | SyncGeoIPHandler | None",
+    *,
+    tree_awaits: Literal[False],
+) -> "SyncGeoIPHandler | None": ...
+
+
 def geo_ip_handler_for_tree(
     config: "SecurityConfig[RequestT]",
     handler: "GeoIPHandler | SyncGeoIPHandler | None",
     *,
     tree_awaits: bool,
 ) -> "GeoIPHandler | SyncGeoIPHandler | None":
-    if handler is None or tree_awaits:
-        return handler
-    if _is_built_from_the_token(config, handler):
-        return _sync_ipinfo_manager(config, config.ipinfo_token or "")
-    awaited = [
-        name
-        for name in _LIFECYCLE_MEMBERS
-        if inspect.iscoroutinefunction(getattr(handler, name, None))
-    ]
-    if awaited:
+    if handler is None:
+        return None
+    if tree_awaits:
+        if _is_awaited_handler(handler):
+            return handler
         raise ValueError(
-            f"geo_ip_handler {type(handler).__name__} is async ({', '.join(awaited)} "
-            "must be awaited) but this engine is synchronous and never awaits. "
-            "Use the synchronous handler: "
-            "guard_core.sync.handlers.ipinfo_handler.IPInfoManager, or set "
+            f"geo_ip_handler {type(handler).__name__} is synchronous "
+            f"({', '.join(_synchronous_lifecycle_members(handler))} "
+            "are not coroutine functions) but this engine awaits them. "
+            "Use the asynchronous handler: "
+            "guard_core.handlers.ipinfo_handler.IPInfoManager, or set "
             "ipinfo_token and leave geo_ip_handler unset."
         )
-    return handler
+    if _is_built_from_the_token(config, handler):
+        return _sync_ipinfo_manager(config, config.ipinfo_token or "")
+    if _is_synchronous_handler(handler):
+        return handler
+    raise ValueError(
+        f"geo_ip_handler {type(handler).__name__} is async "
+        f"({', '.join(_awaited_lifecycle_members(handler))} "
+        "must be awaited) but this engine is synchronous and never awaits. "
+        "Use the synchronous handler: "
+        "guard_core.sync.handlers.ipinfo_handler.IPInfoManager, or set "
+        "ipinfo_token and leave geo_ip_handler unset."
+    )
 
 
 def routes_need_geo_ip_handler(route_configs: Iterable[GeoRuleRoute]) -> bool:

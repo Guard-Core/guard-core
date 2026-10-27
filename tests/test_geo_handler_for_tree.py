@@ -1,6 +1,7 @@
 from collections.abc import Generator
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 from pydantic import ValidationError
@@ -133,6 +134,44 @@ def test_sync_engine_keeps_the_sync_ipinfo_manager_documented_for_sync_adapters(
     config = SecurityConfig(enable_redis=False, geo_ip_handler=handler)
 
     assert geo_ip_handler_for_tree(config, handler, tree_awaits=False) is handler
+
+
+def test_async_engine_refuses_a_user_supplied_sync_handler() -> None:
+    handler = _SyncHandler()
+    config = SecurityConfig(enable_redis=False, geo_ip_handler=handler)
+
+    with pytest.raises(ValueError, match="is synchronous") as raised:
+        geo_ip_handler_for_tree(config, handler, tree_awaits=True)
+
+    assert "initialize, initialize_redis, initialize_agent, refresh" in str(
+        raised.value
+    )
+    assert "guard_core.handlers.ipinfo_handler.IPInfoManager" in str(raised.value)
+
+
+def test_async_initializer_refuses_a_user_supplied_sync_handler() -> None:
+    config = SecurityConfig(enable_redis=False, geo_ip_handler=_SyncHandler())
+
+    with pytest.raises(ValueError, match="is synchronous"):
+        HandlerInitializer(config, geo_ip_handler=config.geo_ip_handler)
+
+
+def test_async_engine_keeps_a_user_supplied_async_handler() -> None:
+    handler = _AsyncHandler()
+    config = SecurityConfig(enable_redis=False, geo_ip_handler=handler)
+
+    assert geo_ip_handler_for_tree(config, handler, tree_awaits=True) is handler
+
+
+def test_async_engine_keeps_a_mock_handler_it_cannot_tell_from_an_async_one() -> None:
+    handler = MagicMock()
+
+    assert (
+        geo_ip_handler_for_tree(
+            SecurityConfig(enable_redis=False), handler, tree_awaits=True
+        )
+        is handler
+    )
 
 
 def test_no_handler_stays_no_handler() -> None:

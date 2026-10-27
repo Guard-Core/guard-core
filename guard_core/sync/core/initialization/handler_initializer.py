@@ -1,6 +1,6 @@
 import logging
 import threading
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING
 
 from guard_core._geo_handler_for_tree import (
     GeoIPHandlerOfEitherTree,
@@ -9,6 +9,7 @@ from guard_core._geo_handler_for_tree import (
 from guard_core.sync._utils.config_registry import REDIS_HANDLERS
 from guard_core.sync.core.initialization._handler_initializer_steps import (
     _HandlerInitializerStepsMixin,
+    _RateLimitSlot,
 )
 from guard_core.sync.handlers.behavior_handler import BehaviorTracker
 
@@ -22,14 +23,6 @@ if TYPE_CHECKING:
     from guard_core.sync.decorators.base import BaseSecurityDecorator
     from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol
     from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
-
-
-class _RateLimitSlot(Protocol):
-    def initialize_redis(
-        self, redis_handler: "SyncRedisHandlerProtocol | None"
-    ) -> None: ...
-
-    def initialize_agent(self, agent_handler: "SyncAgentHandlerProtocol") -> None: ...
 
 
 class HandlerInitializer(_HandlerInitializerStepsMixin):
@@ -57,10 +50,10 @@ class HandlerInitializer(_HandlerInitializerStepsMixin):
         cloud_handler_for(config, bind=True)
         sus_patterns_manager_for(config, bind=True)
         self.agent_handler = agent_handler
-        from guard_core.sync.handlers._downloader import TREE_DOWNLOADER
+        from guard_core.sync.handlers._downloader import TREE_AWAITS
 
         self.geo_ip_handler = geo_ip_handler_for_tree(
-            config, geo_ip_handler, tree_awaits=TREE_DOWNLOADER == "aiohttp"
+            config, geo_ip_handler, tree_awaits=TREE_AWAITS
         )
         self._geo_handler_is_ours = self.geo_ip_handler is not geo_ip_handler
         self._adapter = adapter
@@ -72,7 +65,7 @@ class HandlerInitializer(_HandlerInitializerStepsMixin):
         self.composite_handler: CompositeAgentHandler | None = None
         self.event_filter: EventFilter | None = None
         self.enricher: EventEnricher | None = None
-        self.behavior_tracker: Any = (
+        self.behavior_tracker = (
             None if guard_decorator is not None else BehaviorTracker(config)
         )
         self._lazy_init_task: threading.Thread | None = None

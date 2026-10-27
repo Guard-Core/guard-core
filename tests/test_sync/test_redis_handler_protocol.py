@@ -217,7 +217,7 @@ def test_the_initializer_runs_on_a_protocol_only_handler(
     IPBanManager._instance = None
     initializer = HandlerInitializer(handler.config, redis_handler=handler)
     initializer.initialize_redis_handlers()
-    initializer.redis_handler.initialize_agent(MagicMock())
+    handler.initialize_agent(MagicMock())
     assert {"initialize", "initialize_agent", "set_key_if_absent"} <= handler.used
 
 

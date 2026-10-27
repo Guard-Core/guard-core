@@ -561,6 +561,7 @@ SUBS: list[tuple[str, str]] = [
     ),
     (r"import aiohttp", "import requests"),
     (r'TREE_DOWNLOADER = "aiohttp"', 'TREE_DOWNLOADER = "requests"'),
+    (r"TREE_AWAITS: Final = True", "TREE_AWAITS: Final = False"),
     (r"aiohttp\.ClientSession\(\)", "requests.Session()"),
     (r"aiohttp\.ClientSession", "requests.Session"),
     (r"aiohttp\.ClientTimeout\(total=(\w+)\)", r"\1"),

@@ -1,6 +1,4 @@
 guard_core._security_config_fields
-guard_core.core.initialization._handler_initializer_steps
-guard_core.core.initialization.handler_initializer
 guard_core.handlers._redis_ban_strike
 guard_core.handlers._redis_lean
 guard_core.handlers._suspatterns_lazy_rows
@@ -12,8 +10,6 @@ guard_core.protocols.middleware_protocol
 guard_core.protocols.redis_protocol
 guard_core.protocols.request_protocol
 guard_core.sync
-guard_core.sync.core.initialization._handler_initializer_steps
-guard_core.sync.core.initialization.handler_initializer
 guard_core.sync.handlers._redis_ban_strike
 guard_core.sync.handlers._redis_lean
 guard_core.sync.handlers._suspatterns_lazy_rows

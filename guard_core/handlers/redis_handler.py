@@ -7,7 +7,7 @@ import uuid
 from collections.abc import AsyncIterator, Callable, Hashable, Sequence
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, NoReturn
+from typing import TYPE_CHECKING, NoReturn, TypeGuard
 
 from guard_core._redis_enablement import configured_redis_url, redis_is_configured
 from guard_core._redis_exceptions import (
@@ -864,7 +864,7 @@ async def scan_unlink_through_new_client(url: str, full_pattern: str) -> int:
         await client.aclose()
 
 
-def is_connected_redis_manager(handler: object) -> bool:
+def is_connected_redis_manager(handler: object) -> TypeGuard[RedisManager]:
     return isinstance(handler, RedisManager) and handler._redis is not None
 
 

@@ -1,7 +1,10 @@
+from typing import Final
+
 from guard_core._config_capabilities import _extra_installed, install_hint
 from guard_core.exceptions import DownloaderNotInstalledError
 
 TREE_DOWNLOADER = "requests"
+TREE_AWAITS: Final = False
 
 
 def require_downloader_installed(

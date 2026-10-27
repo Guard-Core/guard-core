@@ -1,8 +1,9 @@
 import asyncio
 import logging
 import threading
+from abc import abstractmethod
 from collections import OrderedDict
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Protocol
 
 from guard_core._redis_enablement import redis_is_configured, resolve_enable_redis
 from guard_core._staged_defaults import signal_changed_defaults
@@ -27,9 +28,15 @@ from guard_core.core.initialization._whitelist_strikes import (
 from guard_core.exceptions import GuardRedisError
 
 if TYPE_CHECKING:
+    from guard_core.core.events.composite_handler import CompositeAgentHandler
     from guard_core.core.events.enricher import EventEnricher
+    from guard_core.core.events.event_types import EventFilter
+    from guard_core.decorators.base import BaseSecurityDecorator
+    from guard_core.handlers.behavior_handler import BehaviorTracker
     from guard_core.models import SecurityConfig
     from guard_core.protocols.agent_protocol import AgentHandlerProtocol
+    from guard_core.protocols.geo_ip_protocol import GeoIPHandler
+    from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 
 _INIT_FAILURE_SAMPLE_WINDOW_SECONDS = 60
 _init_failure_lock = threading.Lock()
@@ -46,18 +53,26 @@ def _sample_init_failure_line() -> bool:
     )
 
 
+class _RateLimitSlot(Protocol):
+    async def initialize_redis(
+        self, redis_handler: "RedisHandlerProtocol | None"
+    ) -> None: ...
+
+    async def initialize_agent(self, agent_handler: "AgentHandlerProtocol") -> None: ...
+
+
 class _HandlerInitializerStepsMixin(
     RouteMisconfigurationReportsMixin, CloudInitializationMixin
 ):
     config: "SecurityConfig"
-    redis_handler: Any = None
-    agent_handler: Any = None
-    geo_ip_handler: Any = None
-    rate_limit_handler: Any = None
-    guard_decorator: Any = None
-    composite_handler: Any = None
-    event_filter: Any = None
-    behavior_tracker: Any = None
+    redis_handler: "RedisHandlerProtocol | None" = None
+    agent_handler: "AgentHandlerProtocol | None" = None
+    geo_ip_handler: "GeoIPHandler | None" = None
+    rate_limit_handler: "_RateLimitSlot | None" = None
+    guard_decorator: "BaseSecurityDecorator | None" = None
+    composite_handler: "CompositeAgentHandler | None" = None
+    event_filter: "EventFilter | None" = None
+    behavior_tracker: "BehaviorTracker | None" = None
     enricher: "EventEnricher | None" = None
     _lazy_init_task: "asyncio.Task[None] | None" = None
     logger: logging.Logger
@@ -85,9 +100,16 @@ class _HandlerInitializerStepsMixin(
                 "geo", "The built-in GeoIP database download", adapter
             )
 
-    def build_composite_handler(self) -> Any: ...
+    @abstractmethod
+    def build_composite_handler(self) -> "CompositeAgentHandler": ...
 
-    def build_event_filter(self) -> Any: ...
+    @abstractmethod
+    def build_event_filter(self) -> "EventFilter": ...
+
+    def _require_redis_handler(self) -> "RedisHandlerProtocol":
+        if self.redis_handler is None:
+            raise RuntimeError("This step needs a redis_handler and none is set")
+        return self.redis_handler
 
     async def _run_lazy_init(self) -> None:
         with in_app_scope(app_scope_of(self.config)):
@@ -96,10 +118,11 @@ class _HandlerInitializerStepsMixin(
     async def _run_lazy_init_in_scope(self) -> None:
         from guard_core.handlers.cloud_handler import cloud_handler_for
 
+        redis_handler = self._require_redis_handler()
         if providers := self._cloud_providers_to_load():
             try:
                 await cloud_handler_for(self.config).initialize_redis(
-                    self.redis_handler,
+                    redis_handler,
                     providers,
                     ttl=self.config.cloud_ip_refresh_interval,
                 )
@@ -110,7 +133,7 @@ class _HandlerInitializerStepsMixin(
 
         if self.geo_ip_handler is not None:
             try:
-                await self.geo_ip_handler.initialize_redis(self.redis_handler)
+                await self.geo_ip_handler.initialize_redis(redis_handler)
             except Exception as e:
                 self.logger.warning(
                     "Lazy geo-IP initialization failed: %s", e, exc_info=True
@@ -138,8 +161,9 @@ class _HandlerInitializerStepsMixin(
         )
 
     async def _connect_redis(self) -> bool:
+        redis_handler = self._require_redis_handler()
         try:
-            await self.redis_handler.initialize()
+            await redis_handler.initialize()
         except GuardRedisError as e:
             if _sample_init_failure_line():
                 self.logger.error(
@@ -155,26 +179,27 @@ class _HandlerInitializerStepsMixin(
         from guard_core.handlers.ipban_handler import ip_ban_manager_for
         from guard_core.handlers.suspatterns_handler import sus_patterns_manager_for
 
-        app_scope_of(self.config).redis_handler = self.redis_handler
+        redis_handler = self._require_redis_handler()
+        app_scope_of(self.config).redis_handler = redis_handler
         ip_ban_manager = ip_ban_manager_for(self.config, bind=True)
         if self.config.cloud_ip_store is not None:
             cloud_handler_for(self.config).set_store(self._resolve_cloud_ip_store())
 
-        await self._initialize_cloud_and_geo_redis(self.redis_handler)
-        await ip_ban_manager.initialize_redis(self.redis_handler)
+        await self._initialize_cloud_and_geo_redis(redis_handler)
+        await ip_ban_manager.initialize_redis(redis_handler)
         await reset_startup_whitelist_strikes(
-            self.config, self.redis_handler, ip_ban_manager
+            self.config, redis_handler, ip_ban_manager
         )
 
         if self.rate_limit_handler is not None:
-            await self.rate_limit_handler.initialize_redis(self.redis_handler)
-        await sus_patterns_manager_for(self.config).initialize_redis(self.redis_handler)
-        await attach_security_headers_manager_to_redis(self.redis_handler, self.config)
+            await self.rate_limit_handler.initialize_redis(redis_handler)
+        await sus_patterns_manager_for(self.config).initialize_redis(redis_handler)
+        await attach_security_headers_manager_to_redis(redis_handler, self.config)
 
         if self.guard_decorator is not None:
-            await self.guard_decorator.initialize_behavior_tracking(self.redis_handler)
+            await self.guard_decorator.initialize_behavior_tracking(redis_handler)
         if self.behavior_tracker is not None:
-            await self.behavior_tracker.initialize_redis(self.redis_handler)
+            await self.behavior_tracker.initialize_redis(redis_handler)
 
     async def initialize_redis_handlers(self) -> None:
         scope = app_scope_of(self.config)
@@ -298,11 +323,15 @@ class _HandlerInitializerStepsMixin(
         await self.initialize_dynamic_rule_manager()
 
     async def _initialize_behavior_telemetry(self) -> None:
-        if self.guard_decorator and hasattr(self.guard_decorator, "initialize_agent"):
-            telemetry = self.composite_handler or self.agent_handler
+        telemetry = self.composite_handler or self.agent_handler
+        if (
+            telemetry is not None
+            and self.guard_decorator
+            and hasattr(self.guard_decorator, "initialize_agent")
+        ):
             await self.guard_decorator.initialize_agent(telemetry)
 
-        if self.behavior_tracker is not None:
+        if self.behavior_tracker is not None and self.composite_handler is not None:
             await self.behavior_tracker.initialize_agent(self.composite_handler)
 
     async def shutdown_agent_integrations(self) -> None:
