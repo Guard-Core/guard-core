@@ -732,7 +732,70 @@ PIPELINE_SUITES["pipeline_response_modifier"] = [
 
 BODY = "x" * 16
 
+MULTIPART_HEADERS = {"Content-Type": "multipart/form-data; boundary=fx"}
+JSON_HEADERS = {"Content-Type": "application/json"}
+
+
+def _multipart_upload(size: int) -> str:
+    return (
+        '--fx\r\nContent-Disposition: form-data; name="note"\r\n\r\n'
+        + "a" * size
+        + "\r\n--fx--\r\n"
+    )
+
+
+def _json_upload(size: int) -> str:
+    return '{"note": "' + "a" * size + '"}'
+
+
+def _upload_drive(headers: dict[str, str], body: str) -> dict[str, object]:
+    return {
+        "client_ip": IP,
+        "url_path": "/upload",
+        "method": "POST",
+        "headers": headers,
+        "body": body,
+    }
+
+
 PIPELINE_SUITES["pipeline_request_body"] = [
+    {
+        "id": "multipart_past_file_limit_is_refused",
+        "config": {"detection_max_file_inspect_bytes": 1024},
+        "drives": [_upload_drive(MULTIPART_HEADERS, _multipart_upload(4000))],
+    },
+    {
+        "id": "multipart_within_file_limit_passes",
+        "config": {"detection_max_file_inspect_bytes": 1024},
+        "drives": [_upload_drive(MULTIPART_HEADERS, _multipart_upload(500))],
+    },
+    {
+        "id": "multipart_past_body_limit_passes_under_a_raised_file_limit",
+        "config": {
+            "detection_max_body_inspect_bytes": 1024,
+            "detection_max_file_inspect_bytes": 8192,
+        },
+        "drives": [_upload_drive(MULTIPART_HEADERS, _multipart_upload(4000))],
+    },
+    {
+        "id": "json_past_the_file_limit_is_not_held_to_it",
+        "config": {"detection_max_file_inspect_bytes": 1024},
+        "drives": [_upload_drive(JSON_HEADERS, _json_upload(4000))],
+    },
+    {
+        "id": "json_past_body_limit_is_refused",
+        "config": {
+            "detection_max_body_inspect_bytes": 1024,
+            "detection_max_file_inspect_bytes": 8192,
+        },
+        "drives": [_upload_drive(JSON_HEADERS, _json_upload(4000))],
+    },
+    {
+        "id": "multipart_past_file_limit_on_a_route_with_a_larger_max_request_size_passes",
+        "config": {"detection_max_file_inspect_bytes": 1024},
+        "routes": {"/upload": {"max_request_size": 8192}},
+        "drives": [_upload_drive(MULTIPART_HEADERS, _multipart_upload(4000))],
+    },
     {
         "id": "chunked_body_over_limit_is_oversize",
         "config": {},

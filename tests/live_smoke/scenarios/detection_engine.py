@@ -206,6 +206,39 @@ def detection_max_body_inspect_bytes_limits_body_read(ctx: ScenarioContext) -> N
     ), "no detection_max_body_inspect_bytes warning was logged"
 
 
+@scenario(
+    covers={"detection_max_file_inspect_bytes"},
+    config={**_BASE, "detection_max_file_inspect_bytes": 1024},
+)
+def detection_max_file_inspect_bytes_limits_multipart_read(
+    ctx: ScenarioContext,
+) -> None:
+    padding = (_STRADDLE_FILLER * 60)[:4000]
+    within = ctx.client.post(
+        "/test/sql-injection?query=hello",
+        files={"file": ("note.txt", padding[:500], "text/plain")},
+    )
+    assert within.status_code == 200, (
+        "a clean multipart upload within detection_max_file_inspect_bytes was "
+        f"refused: {within.status_code}"
+    )
+
+    past = ctx.client.post(
+        "/test/sql-injection?query=hello",
+        files={"file": ("note.txt", padding, "text/plain")},
+    )
+    assert past.status_code == 400, (
+        "a clean multipart upload past detection_max_file_inspect_bytes was "
+        f"passed on a prefix scan: {past.status_code}"
+    )
+
+    json_body = _echo(ctx.client, {"note": padding})
+    assert json_body.status_code == 200, (
+        "a JSON body of the same size was held to detection_max_file_inspect_bytes "
+        f"instead of detection_max_body_inspect_bytes: {json_body.status_code}"
+    )
+
+
 _SEMANTIC_FILLER = (
     "the quick brown fox jumps over the lazy dog and runs away fast today "
     "while birds sing softly in the morning breeze near the old wooden bridge "

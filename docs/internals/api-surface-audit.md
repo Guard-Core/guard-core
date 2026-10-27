@@ -66,6 +66,7 @@ Ordered by domain, then by field name.
 | `detection_compiler_timeout` | `float` | `2.0` | detection | Keep · Group? |
 | `detection_max_content_length` | `int` | `10000` | detection | Keep · Group? |
 | `detection_max_body_inspect_bytes` | `int` | `262144` | detection | Keep · Group? |
+| `detection_max_file_inspect_bytes` | `int` | `262144` | detection | Keep · Group? |
 | `detection_preserve_attack_patterns` | `bool` | `True` | detection | Keep · Group? |
 | `detection_semantic_threshold` | `float` | `0.7` | detection | Keep · Group? |
 | `detection_anomaly_threshold` | `float` | `3.0` | detection | Keep · Group? |

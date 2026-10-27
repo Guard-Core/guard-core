@@ -63,6 +63,20 @@ A route whose `max_request_size` is above this cap uses that value as its own in
 
 Distinct from `detection_max_content_length` (the regex scan window over already-decoded content) and `max_request_size` (the request-size gate that returns a 413).
 
+A request whose `Content-Type` is `multipart/form-data` uses `detection_max_file_inspect_bytes` instead of this cap.
+
+### `detection_max_file_inspect_bytes`
+
+**Type**: `int` | **Default**: `262144` (default pending) | **Range**: 1024 - 10485760
+
+The inspect limit for a request whose `Content-Type` is `multipart/form-data`, which is where file uploads arrive. Every other body keeps `detection_max_body_inspect_bytes`. A multipart body up to this limit is scanned in full.
+
+A multipart body past the limit is refused: the prefix is scanned, a threat inside it is reported as a threat, and a clean prefix is answered with the body-read failure outcome, `400` under `fail_secure`, a `suspicious_request` event and no strike. With `fail_secure=False` the request passes on the prefix scan alone, with the event. It is never a silent prefix pass.
+
+Raise it to accept larger uploads, at the cost of holding more memory per inspected upload and spending more CPU time pattern-matching it. A route whose `max_request_size` is above the applicable limit uses that value as its own inspect limit, for both kinds of body. For one upload route that takes files up to 5 MB, `@guard_deco.max_request_size(5 * 1024 * 1024)` scans the whole file there while every other route keeps the global limits; for every upload, `SecurityConfig(detection_max_file_inspect_bytes=5_000_000)`.
+
+Distinct from `max_request_size` (the request-size gate that returns a 413).
+
 ### `body_read_timeout`
 
 **Type**: `float` | **Default**: `3.0` | **Range**: 0.0 (exclusive) - 30.0

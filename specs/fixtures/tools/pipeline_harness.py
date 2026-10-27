@@ -113,6 +113,8 @@ CONFIG_KEYS = (
     "enable_rate_limit_auto_ban",
     "auto_ban_threshold",
     "excluded_detection_params",
+    "detection_max_body_inspect_bytes",
+    "detection_max_file_inspect_bytes",
 )
 
 ROUTE_KEYS = (
