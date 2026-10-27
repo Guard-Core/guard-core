@@ -130,7 +130,7 @@ def signal_changed_defaults(config: StagedDefaultsConfig) -> None:
     logged.update(flip_id for flip_id, _ in fresh)
     logger.warning(
         "guard-core 5.0.0 changed defaults that this configuration leaves unset: "
-        "%s. Each default is logged once per process.",
+        "%s. Each default is logged once per configuration.",
         "; ".join(entry for _, entry in fresh),
     )
 
