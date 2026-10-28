@@ -352,10 +352,14 @@ _INLINE_BUDGET = 0.1
 _CATASTROPHIC_INLINE_CONTENT = "a" * 25 + "!"
 
 
-def _mark_scan_cpu() -> None:
-    scan_module._scan_cpu_mark.set(time.thread_time())
+@pytest.fixture
+def scan_cpu_marked() -> Iterator[None]:
+    token = scan_module._scan_cpu_mark.set(time.thread_time())
+    yield
+    scan_module._scan_cpu_mark.reset(token)
 
 
+@pytest.mark.usefixtures("scan_cpu_marked")
 async def test_an_inline_pattern_that_only_waited_for_the_gil_stays_clean() -> None:
     compiler = compiler_module.PatternCompiler(default_timeout=_INLINE_BUDGET)
     holding = threading.Event()
@@ -365,7 +369,6 @@ async def test_an_inline_pattern_that_only_waited_for_the_gil_stays_clean() -> N
         re.match(r"(a+)+$", _CATASTROPHIC_INLINE_CONTENT)
 
     holder = threading.Thread(target=hold_the_gil)
-    _mark_scan_cpu()
     pattern_start = time.monotonic()
     holder.start()
     holding.wait(10)
@@ -380,11 +383,11 @@ async def test_an_inline_pattern_that_only_waited_for_the_gil_stays_clean() -> N
     assert outcome is None
 
 
+@pytest.mark.usefixtures("scan_cpu_marked")
 async def test_an_inline_pattern_that_used_its_cpu_past_the_budget_is_a_timeout() -> (
     None
 ):
     compiler = compiler_module.PatternCompiler(default_timeout=_INLINE_BUDGET)
-    _mark_scan_cpu()
 
     _, outcome = await _compiler_finditer(
         compiler,
