@@ -355,7 +355,10 @@ from guard_core.handlers._suspatterns_state import (
     _build_enhanced_detection_state,
     _DetectionState,
 )
-from guard_core.handlers._suspatterns_views import _SusPatternsViewsMixin
+from guard_core.handlers._suspatterns_views import (
+    _LOST_BYTE_MARKERS,
+    _SusPatternsViewsMixin,
+)
 from guard_core.handlers._suspatterns_xml_xxe import (
     _XML_XXE_CLASS3_BOUNDARY_RE,
     _XML_XXE_CLASS12_BOUNDARY_RE,
@@ -385,20 +388,6 @@ _LEGACY_DETECTION_WARNING = (
 )
 
 _legacy_detection_warned = False
-
-
-def _has_lost_overlong_byte(text: str) -> bool:
-    # lost-byte gate: U+FFFD, or a surrogate-escaped overlong lead byte
-    # (the engine surrogate-escapes body bytes), tested with `in` alone
-    return (
-        "\ufffd" in text
-        or "\udcc0" in text
-        or "\udcc1" in text
-        or "\udce0" in text
-        or "\udcf0" in text
-        or "\udcf8" in text
-        or "\udcfc" in text
-    )
 
 
 def _warn_if_legacy_detection(compiler: PatternCompiler | None) -> None:
@@ -999,7 +988,8 @@ class SusPatternsManager(_SusPatternsViewsMixin):
                 _PATH_TRAVERSAL_DECODED_SHAPE_RE.pattern
             ]
 
-        if _has_lost_overlong_byte(processed_content):
+        # lost-byte gate: U+FFFD or a surrogate-escaped overlong lead byte
+        if any(map(processed_content.__contains__, _LOST_BYTE_MARKERS)):
             lost_byte_view_results = (
                 await self._check_lost_overlong_bytes_view_patterns(
                     processed_content,

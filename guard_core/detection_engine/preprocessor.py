@@ -324,9 +324,7 @@ class ContentPreprocessor:
             content = self._decode_overlong_utf8_percent_runs(content)
 
         try:
-            decoded = encoding_decoders.percent_decode(content, errors="ignore")
-            if decoded != content:
-                content = decoded
+            content = encoding_decoders.percent_decode(content, errors="ignore")
         except Exception as e:
             await self._report_decode_failure(
                 "Failed to URL decode content", e, "url_decode"
@@ -335,9 +333,7 @@ class ContentPreprocessor:
         try:
             import html
 
-            decoded = html.unescape(content)
-            if decoded != content:
-                content = decoded
+            content = html.unescape(content)
         except Exception as e:
             await self._report_decode_failure(
                 "Failed to HTML decode content", e, "html_decode"
@@ -355,7 +351,6 @@ class ContentPreprocessor:
         content = self.normalize_unicode(content)
         if sliced:
             await truncation.yield_once_slice_elapsed()
-        if sliced:
             content = await base64_decode.decode_base64_candidates_yielding(
                 content, gunzip_attempts_left, self._MAX_FULL_SCAN_BYTES
             )
