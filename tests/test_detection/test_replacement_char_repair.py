@@ -61,3 +61,22 @@ async def test_lost_byte_view_is_skipped_without_a_preprocessor() -> None:
         _LEGACY_DETECTION_STATE,
     )
     assert skipped == ([], [], [])
+
+
+def test_pickle_suffix_resolves_a_lost_byte_and_stays_bounded() -> None:
+    reach = pickle_rows._pickle_global_suffix_reaches_reduce_or_build
+    assert reach("X\x06\x00\x00\x00/tmp/x" + FFFD + "R.")
+    assert reach("\x8c\x06/tmp/x" + FFFD + "R.")
+    assert reach(FFFD * 2 + "R")
+    assert not reach("hello " + FFFD + " world")
+    assert not reach(FFFD * (pickle_rows._PICKLE_REPLACEMENT_MAX_CHARS + 1) + "R")
+    assert not reach("中" + FFFD + "R")
+
+
+def test_pickle_suffix_gives_up_after_its_walk_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(pickle_rows, "_PICKLE_REPLACEMENT_WALK_BUDGET", 0)
+    assert not pickle_rows._pickle_global_suffix_reaches_reduce_or_build(
+        "\x8c\x06/tmp/x" + FFFD + "R."
+    )

@@ -102,7 +102,15 @@ class _SusPatternsViewsMixin(_SusPatternsRegexMixin):
             )
             decoded_view_content = _legacy_decode_path_traversal_view(raw_view_content)
 
-        if "\ufffd" in decoded_view_content:
+        if (
+            "\ufffd" in decoded_view_content
+            or "\udcc0" in decoded_view_content
+            or "\udcc1" in decoded_view_content
+            or "\udce0" in decoded_view_content
+            or "\udcf0" in decoded_view_content
+            or "\udcf8" in decoded_view_content
+            or "\udcfc" in decoded_view_content
+        ):
             decoded_view_content = repair_lost_overlong_bytes(decoded_view_content)
         decoded_matches = list(
             _PATH_TRAVERSAL_DECODED_SHAPE_RE.finditer(decoded_view_content)

@@ -983,7 +983,17 @@ class SusPatternsManager(_SusPatternsViewsMixin):
                 _PATH_TRAVERSAL_DECODED_SHAPE_RE.pattern
             ]
 
-        if "\ufffd" in processed_content:
+        # lost-byte gate: U+FFFD, or a surrogate-escaped overlong lead byte
+        # (the engine surrogate-escapes body bytes), tested call-free
+        if (
+            "\ufffd" in processed_content
+            or "\udcc0" in processed_content
+            or "\udcc1" in processed_content
+            or "\udce0" in processed_content
+            or "\udcf0" in processed_content
+            or "\udcf8" in processed_content
+            or "\udcfc" in processed_content
+        ):
             lost_byte_view_results = self._check_lost_overlong_bytes_view_patterns(
                 processed_content,
                 ip_address,
