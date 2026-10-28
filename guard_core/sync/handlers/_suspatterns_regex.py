@@ -198,7 +198,7 @@ def _first_accepted_regex_threat(
         ):
             return threat
         slice_start = _yield_once_slice_elapsed(slice_start, request_scoped)
-        if _scan_budget_spent(time_cap):
+        if time_cap is not None and _scan_time_budget_exhausted():
             raise ScanBudgetSpent
     return None
 
