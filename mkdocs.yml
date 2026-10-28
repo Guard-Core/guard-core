@@ -84,6 +84,7 @@ nav:
     - Utilities: api/utilities.md
   - Migration:
     - v1.x to v2.0: migration/v1-to-v2.md
+    - v4.x to v5.0: migration/v4-to-v5.md
   - Release Notes: release-notes.md
 
 markdown_extensions:

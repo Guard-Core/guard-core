@@ -117,3 +117,4 @@ Documentation
 ### Upgrading
 
 - [Migrating from v1.x to v2.0](migration/v1-to-v2.md) -- breaking changes shipped in 2.0.0 and the migration steps
+- [Migrating from v4.x to v5.0](migration/v4-to-v5.md) -- the flipped defaults, the configurations that now refuse to start, the extras and the changed responses in 5.0.0
