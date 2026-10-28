@@ -2,6 +2,7 @@ import re
 from functools import cached_property
 from typing import TYPE_CHECKING, NamedTuple, TypeVar
 
+from guard_core.sync._utils.detection_scan import _built_once_uncharged
 from guard_core.sync._utils.scan_config_scope import scoped_config
 from guard_core.sync.handlers._suspatterns_pattern_table import BARE_UNION_SELECT_ROW
 
@@ -13,7 +14,9 @@ _BUILTIN_PATTERN_COMPILE_FLAGS = re.IGNORECASE
 
 class _CompiledBuiltinPatterns(dict[str, re.Pattern]):
     def __missing__(self, source: str) -> re.Pattern:
-        compiled = re.compile(source, _BUILTIN_PATTERN_COMPILE_FLAGS)
+        compiled = _built_once_uncharged(
+            lambda: re.compile(source, _BUILTIN_PATTERN_COMPILE_FLAGS)
+        )
         self[source] = compiled
         return compiled
 

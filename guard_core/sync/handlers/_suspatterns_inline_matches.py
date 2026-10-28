@@ -1,6 +1,7 @@
 import re
 from collections.abc import Callable, Iterable
 
+from guard_core.sync._utils.detection_scan import _built_once_uncharged
 from guard_core.sync.handlers._suspatterns_lazy_rows import COMPILED_BUILTIN_PATTERNS
 from guard_core.sync.handlers._suspatterns_linear_path import linear_path_finder
 from guard_core.sync.handlers._suspatterns_scan_windows import (
@@ -65,7 +66,7 @@ class _InlineFinders(dict[str, _InlineFinder | None]):
         builtin = COMPILED_BUILTIN_PATTERNS.get(source)
         if builtin is None:
             return None
-        finder = linear_path_finder(builtin)
+        finder = _built_once_uncharged(lambda: linear_path_finder(builtin))
         entry = None if finder is None else _InlineFinder(builtin.flags, None, finder)
         self[source] = entry
         return entry

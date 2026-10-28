@@ -265,6 +265,15 @@ def _restart_inline_cpu() -> None:
         _scan_cpu_mark.set(_thread_cpu_seconds())
 
 
+def _built_once_uncharged(build: Callable[[], _T]) -> _T:
+    # A lazily built, process-wide cache entry is warm-up, not scan work.
+    _charge_inline_cpu()
+    try:
+        return build()
+    finally:
+        _restart_inline_cpu()
+
+
 def _suspended(awaitable: _T) -> _T:
     _charge_inline_cpu()
     try:

@@ -1,5 +1,6 @@
-import asyncio
+import re
 import threading
+import time
 from collections.abc import AsyncGenerator, Iterator
 from typing import Any
 from unittest.mock import patch
@@ -12,7 +13,11 @@ from guard_core._utils.detection_scan import (
     _scan_time_budget_exhausted,
     _scan_value_budget,
 )
-from guard_core.handlers import _suspatterns_regex
+from guard_core.handlers import (
+    _suspatterns_inline_matches,
+    _suspatterns_lazy_rows,
+    _suspatterns_regex,
+)
 from guard_core.handlers.suspatterns_handler import (
     SusPatternsManager,
     sus_patterns_handler,
@@ -217,7 +222,7 @@ async def test_wall_slow_but_cpu_cheap_scan_does_not_exhaust_the_budget() -> Non
     real = manager._check_regex_pattern
 
     async def slow_wall(*args: Any, **kwargs: Any) -> Any:
-        await asyncio.sleep(0.01)
+        time.sleep(0.01)
         return await real(*args, **kwargs)
 
     with (
@@ -226,6 +231,44 @@ async def test_wall_slow_but_cpu_cheap_scan_does_not_exhaust_the_budget() -> Non
     ):
         result = await manager.detect("hello world", "127.0.0.1", "query_param:q")
 
+    assert all(t["pattern"] != "scan_time_budget_exhausted" for t in result["threats"])
+    assert result["is_threat"] is False
+
+
+async def test_first_scan_lazy_pattern_builds_are_not_charged_to_the_budget() -> None:
+    manager = SusPatternsManager()
+    manager.configure(SecurityConfig())
+    builtin_sources = {row[0] for row in manager._pattern_definitions}
+    clock = _FakeClock(step=0.0)
+    real_compile = re.compile
+    real_linear_finder = _suspatterns_inline_matches.linear_path_finder
+
+    def costly_compile(source: Any, flags: int = 0) -> Any:
+        if source in builtin_sources:
+            clock.now += 1000.0
+        return real_compile(source, flags)
+
+    def costly_linear_finder(pattern: re.Pattern) -> Any:
+        clock.now += 1000.0
+        return real_linear_finder(pattern)
+
+    with (
+        patch.object(detection_scan, "_thread_cpu_seconds", clock.cpu_seconds),
+        patch.object(re, "compile", costly_compile),
+        patch.object(
+            _suspatterns_inline_matches, "linear_path_finder", costly_linear_finder
+        ),
+        patch.object(
+            _suspatterns_regex,
+            "_INLINE_FINDERS",
+            _suspatterns_inline_matches._InlineFinders(),
+        ),
+        patch.dict(_suspatterns_lazy_rows.COMPILED_BUILTIN_PATTERNS, clear=True),
+        _scan_value_budget(512, max_scan_seconds=0.1),
+    ):
+        result = await manager.detect("hello world", "127.0.0.1", "query_param:q")
+
+    assert clock.now >= 1000.0
     assert all(t["pattern"] != "scan_time_budget_exhausted" for t in result["threats"])
     assert result["is_threat"] is False
 
@@ -275,6 +318,11 @@ async def test_inline_cpu_is_accounted_per_pass_not_per_pattern() -> None:
         ),
         _scan_value_budget(512, max_scan_seconds=1000.0),
     ):
+        # Steady state only: the one-time lazy compile of each built-in row reads
+        # the clock twice (to exclude its CPU from the budget), so scan once to
+        # warm every row, then count the second scan.
+        await manager.detect("hello world", "127.0.0.1", "query_param:q")
+        calls["clock"] = calls["patterns"] = 0
         await manager.detect("hello world", "127.0.0.1", "query_param:q")
 
     assert calls["patterns"] > 50
