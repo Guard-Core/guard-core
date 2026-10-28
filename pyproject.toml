@@ -25,6 +25,7 @@ dependencies = [
     "cachetools",
     "pydantic",
     "pydantic-core",
+    "tzdata",
     "typing-extensions",
     "urllib3>=2.7.0",
 ]
@@ -315,6 +316,7 @@ virtualenv = "2026-10-23T00:00:00Z"
 extend_exclude = ['vulture_whitelist\.py', 'docs', 'conftest\.py', '\.claude', 'interop']
 known_first_party = ["guard_core", "run_fixtures"]
 per_rule_ignores = { "DEP002" = [
+    "tzdata",
     "bandit",
     "deptry",
     "guard-agent",
