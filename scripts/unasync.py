@@ -27,6 +27,7 @@ SKIP_SRC = {
     "_geo_source.py",
     "_security_config_cloud_store_validators.py",
     "_security_config_exempt_purge_validators.py",
+    "_security_config_blocked_user_agents.py",
     "_config_capabilities.py",
     "_config_field_revalidators.py",
     "_security_config_fields.py",
