@@ -385,7 +385,7 @@ def _build_timeout_threat(
     }
 
 
-def _first_accepted_regex_threat(
+async def _first_accepted_regex_threat(
     matches: Iterator[re.Match],
     pattern: re.Pattern,
     category: str,
@@ -393,12 +393,13 @@ def _first_accepted_regex_threat(
     context: str = "unknown",
     binary_prefix: BinaryPrefix | None = None,
 ) -> dict[str, "JsonValue"] | None:
+    slice_start, request_scoped = _pass_slice_start()
     for match in matches:
-        threat = _build_regex_threat(
+        if threat := _build_regex_threat(
             pattern, match, category, pattern_start, context, binary_prefix
-        )
-        if threat:
+        ):
             return threat
+        slice_start = await _yield_once_slice_elapsed(slice_start, request_scoped)
     return None
 
 
@@ -461,7 +462,7 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
 
         inline = _INLINE_FINDERS[pattern.pattern]
         if inline is not None and (found := inline(content, pattern)) is not None:
-            threat = _first_accepted_regex_threat(
+            threat = await _first_accepted_regex_threat(
                 iter(found),
                 pattern,
                 category,
@@ -486,7 +487,7 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
                     f"{_redact_pattern_source(pattern.pattern, self)[:50]}..."
                 )
 
-            threat = _first_accepted_regex_threat(
+            threat = await _first_accepted_regex_threat(
                 iter(matches),
                 pattern,
                 category,
@@ -552,7 +553,7 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
             )
             return None, False
 
-        threat = _first_accepted_regex_threat(
+        threat = await _first_accepted_regex_threat(
             iter(matches), pattern, category, pattern_start, context, binary_prefix
         )
         return threat, False

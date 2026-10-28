@@ -393,12 +393,13 @@ def _first_accepted_regex_threat(
     context: str = "unknown",
     binary_prefix: BinaryPrefix | None = None,
 ) -> dict[str, "JsonValue"] | None:
+    slice_start, request_scoped = _pass_slice_start()
     for match in matches:
-        threat = _build_regex_threat(
+        if threat := _build_regex_threat(
             pattern, match, category, pattern_start, context, binary_prefix
-        )
-        if threat:
+        ):
             return threat
+        slice_start = _yield_once_slice_elapsed(slice_start, request_scoped)
     return None
 
 

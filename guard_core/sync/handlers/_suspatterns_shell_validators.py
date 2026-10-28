@@ -87,14 +87,31 @@ def _backtick_token_is_implausible_sql_identifier(token: str) -> bool:
     return bool(_IMPLAUSIBLE_SQL_IDENTIFIER_CHARS_RE.search(token))
 
 
+_STRONG_SQL_KEYWORD_LONGEST_SINGLE_WORD = 6
+_STRONG_SQL_KEYWORD_TWO_WORD_FIRST_LENGTH = 5
+_STRONG_SQL_KEYWORD_SECOND_WORD_RE = re.compile(r"(?i)BY\Z")
+_LINE_BREAK_CHARS = "\r\n"
+
+
+def _strong_sql_keyword_search_floor(content: str, start: int) -> int:
+    floor = start - _STRONG_SQL_KEYWORD_LONGEST_SINGLE_WORD
+    if _STRONG_SQL_KEYWORD_SECOND_WORD_RE.search(content, start - 2, start):
+        gap_start = start - 2
+        while (
+            gap_start > 0
+            and content[gap_start - 1].isspace()
+            and content[gap_start - 1] not in _LINE_BREAK_CHARS
+        ):
+            gap_start -= 1
+        floor = min(floor, gap_start - _STRONG_SQL_KEYWORD_TWO_WORD_FIRST_LENGTH)
+    return max(floor, 0)
+
+
 def _strong_sql_keyword_glued_to_pair(content: str, start: int, end: int) -> bool:
-    window_start = _backtick_window_start(content, start)
-    window_end = _backtick_window_end(content, end)
-    prefix = content[window_start:start]
-    suffix = content[end:window_end]
-    if _STRONG_SQL_KEYWORD_GLUED_PREFIX_RE.search(prefix):
+    floor = _strong_sql_keyword_search_floor(content, start)
+    if _STRONG_SQL_KEYWORD_GLUED_PREFIX_RE.search(content, floor, start):
         return True
-    return bool(_STRONG_SQL_KEYWORD_GLUED_SUFFIX_RE.match(suffix))
+    return bool(_STRONG_SQL_KEYWORD_GLUED_SUFFIX_RE.match(content, end))
 
 
 def _glued_backtick_pair_is_injection(match: re.Match, context: str) -> bool:
@@ -211,6 +228,7 @@ def _quote_splice_token_is_dangerous_command(match: re.Match) -> bool:
 
 
 _GLOB_WILDCARD_COMMAND_BOUNDARY_PREFIX_RE = re.compile(r"(?:;|\|\||\||&&|\$\(|`)\s*\Z")
+_GLOB_WILDCARD_COMMAND_BOUNDARY_ENDINGS = (";", "|", "`", "&&", "$(")
 _GLOB_WILDCARD_VALUE_START_CONTEXTS = frozenset({"request_body"})
 _GLOB_WILDCARD_LETTER_RE = re.compile(r"[A-Za-z]")
 _GLOB_WILDCARD_COMMAND_SUFFIX_CHARS = " \t\r\n;|&"
@@ -242,9 +260,12 @@ def _glob_wildcard_token_is_dangerous_command(
     suffix = match.string[match.end() : match.end() + 1]
     if suffix and suffix not in _GLOB_WILDCARD_COMMAND_SUFFIX_CHARS:
         return False
-    prefix = match.string[: match.start()]
-    if _GLOB_WILDCARD_COMMAND_BOUNDARY_PREFIX_RE.search(prefix):
+    content = match.string
+    value_start = match.start()
+    while value_start > 0 and content[value_start - 1].isspace():
+        value_start -= 1
+    if content.endswith(_GLOB_WILDCARD_COMMAND_BOUNDARY_ENDINGS, 0, value_start):
         return True
     if context in _GLOB_WILDCARD_VALUE_START_CONTEXTS:
-        return not prefix.strip()
+        return value_start == 0
     return False
