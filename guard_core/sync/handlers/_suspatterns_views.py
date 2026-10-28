@@ -21,6 +21,16 @@ from guard_core.sync.handlers._suspatterns_state import _DetectionState
 _LEGACY_PATH_TRAVERSAL_DECODE_MAX_ITERATIONS = 8
 _LEGACY_PATH_TRAVERSAL_PREPROCESSOR = ContentPreprocessor()
 _NUL_TEXT_MARKERS = ("%00", "\\u0000", "\\x00")
+# U+FFFD, or an overlong lead byte the engine surrogate-escaped from a raw body
+_LOST_BYTE_MARKERS = (
+    "\ufffd",
+    "\udcc0",
+    "\udcc1",
+    "\udce0",
+    "\udcf0",
+    "\udcf8",
+    "\udcfc",
+)
 _DELETED_CONTROL_CHARS = frozenset(
     chr(code) for code in range(32) if code not in (9, 10, 13)
 )
@@ -100,15 +110,7 @@ class _SusPatternsViewsMixin(_SusPatternsRegexMixin):
             )
             decoded_view_content = _legacy_decode_path_traversal_view(raw_view_content)
 
-        if (
-            "\ufffd" in decoded_view_content
-            or "\udcc0" in decoded_view_content
-            or "\udcc1" in decoded_view_content
-            or "\udce0" in decoded_view_content
-            or "\udcf0" in decoded_view_content
-            or "\udcf8" in decoded_view_content
-            or "\udcfc" in decoded_view_content
-        ):
+        if any(map(decoded_view_content.__contains__, _LOST_BYTE_MARKERS)):
             decoded_view_content = repair_lost_overlong_bytes(decoded_view_content)
         decoded_matches = list(
             _PATH_TRAVERSAL_DECODED_SHAPE_RE.finditer(decoded_view_content)
