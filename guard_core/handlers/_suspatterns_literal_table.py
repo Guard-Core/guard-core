@@ -357,6 +357,7 @@ BUILTIN_REQUIRED_LITERALS: dict[str, tuple[str, ...]] = {
     "59c7670bb38c209a": (),
     "5a6a936faac1e525": ("<!doctype",),
     "5b955e7f120976a5": ("autodiscover",),
+    "5dab3f931f33e423": (),
     "5f9b79cb1407b36d": ("system",),
     "6381eaac9f10afb2": ("http/", "location:", "set-cookie:"),
     "6577259d55f0746a": (),

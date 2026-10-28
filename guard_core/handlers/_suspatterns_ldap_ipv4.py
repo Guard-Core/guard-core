@@ -18,8 +18,14 @@ _LOG4SHELL_JNDI_LOOKUP_RE = (
     r"|::-j\}ndi)"
 )
 
+_LOG4J_LOOKUP_FORMS_RE = (
+    r"(?i)\$\{(?:(?:jndi|env|sys|ctx|java|bundle|main|date|base64|lower|upper"
+    r"|marker|sd|map|k8s|docker|spring|web|log4j):"
+    r"|[a-z0-9_.-]{0,16}\$\{[a-z0-9]{0,12}:)"
+)
+
 ALWAYS_SCAN_HEADER_PATTERNS: frozenset[re.Pattern] = frozenset(
-    {re.compile(_LOG4SHELL_JNDI_LOOKUP_RE)}
+    {re.compile(_LOG4SHELL_JNDI_LOOKUP_RE), re.compile(_LOG4J_LOOKUP_FORMS_RE)}
 )
 
 

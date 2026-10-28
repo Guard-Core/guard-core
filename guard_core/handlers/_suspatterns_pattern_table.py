@@ -6,6 +6,7 @@ from guard_core.handlers._suspatterns_credential_files import (
 )
 from guard_core.handlers._suspatterns_ldap_ipv4 import (
     _LEGACY_IPV4_HOST_RE,
+    _LOG4J_LOOKUP_FORMS_RE,
     _LOG4SHELL_JNDI_LOOKUP_RE,
 )
 from guard_core.handlers._suspatterns_matchers import (
@@ -448,6 +449,11 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
     ),
     (
         _LOG4SHELL_JNDI_LOOKUP_RE,
+        _CTX_LOG4SHELL,
+        "cmd_injection",
+    ),
+    (
+        _LOG4J_LOOKUP_FORMS_RE,
         _CTX_LOG4SHELL,
         "cmd_injection",
     ),

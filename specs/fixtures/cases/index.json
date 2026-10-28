@@ -1,8 +1,8 @@
 {
  "spec_version": "4.1.0",
  "engine_version": "4.4.0",
- "engine_commit": "108a7535f71cdab0eb974c2df6ed15b9725f0fa0",
- "generated_at": "2026-10-28T03:37:49.885375+00:00",
+ "engine_commit": "1cad5b59e25578173eee7b9e91ab437225a71738",
+ "generated_at": "2026-10-28T16:33:27.530370+00:00",
  "fixed_ip": "203.0.113.7",
  "config_knobs": {
   "detection_compiler_timeout": 2.0,
@@ -88,7 +88,7 @@
    ]
   },
   "misc_injection": {
-   "case_count": 43,
+   "case_count": 47,
    "kind": "detect",
    "consumers": [
     "python",
@@ -357,42 +357,42 @@
   "k": 5,
   "floor_ms": 250,
   "timing_runs": 5,
-  "generated_at": "2026-10-28T03:38:13+00:00",
+  "generated_at": "2026-10-28T16:33:49+00:00",
   "budgets": {
    "cost_prose_8kib": {
-    "reference_ms": 11.9,
+    "reference_ms": 11.0,
     "expected_is_threat": false
    },
    "cost_prose_64kib": {
-    "reference_ms": 64.3,
+    "reference_ms": 58.5,
     "expected_is_threat": false
    },
    "cost_prose_256kib": {
-    "reference_ms": 240.0,
+    "reference_ms": 219.5,
     "expected_is_threat": false
    },
    "cost_prose_1mib": {
-    "reference_ms": 879.7,
+    "reference_ms": 821.7,
     "expected_is_threat": false
    },
    "cost_encoded_64kib": {
-    "reference_ms": 67.7,
+    "reference_ms": 62.7,
     "expected_is_threat": false
    },
    "cost_binnoise_64kib": {
-    "reference_ms": 61.4,
+    "reference_ms": 56.9,
     "expected_is_threat": false
    },
    "cost_threat_8kib": {
-    "reference_ms": 11.9,
+    "reference_ms": 9.9,
     "expected_is_threat": true
    },
    "cost_threat_tail_256kib": {
-    "reference_ms": 275.6,
+    "reference_ms": 260.0,
     "expected_is_threat": true
    },
    "cost_threat_mid_1mib": {
-    "reference_ms": 983.0,
+    "reference_ms": 916.4,
     "expected_is_threat": true
    }
   }
