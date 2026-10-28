@@ -156,11 +156,7 @@ def _part_payload_entries(
     return [(exclusion_key, label, payload)]
 
 
-def _multipart_filenames(part: _MultipartPart) -> list[str]:
-    filenames = []
-    first = part.get_filename()
-    if first is not None:
-        filenames.append(first)
+def _further_filenames(part: _MultipartPart, filenames: list[str]) -> list[str]:
     for key, value in part.get_params(header="content-disposition") or []:
         if key.lower() == "filename":
             decoded = collapse_rfc2231_value(value).strip()
@@ -175,11 +171,19 @@ def _multipart_part_entries(part: _MultipartPart) -> list[tuple[str | None, str,
     filename = part.get_filename()
     exclusion_key = str(name) if name is not None else None
     label = exclusion_key if exclusion_key is not None else "file"
-    for each_filename in _multipart_filenames(part):
+    filenames = [] if filename is None else [filename]
+    header_entries = []
+    for header_name, header_value in part.items():
+        header_entries.append((exclusion_key, label, f"{header_name}: {header_value}"))
+        lowered = header_value.lower()
+        if header_name.lower() == "content-disposition" and (
+            "filename*" in lowered or lowered.count("filename") > 1
+        ):
+            filenames = _further_filenames(part, filenames)
+    for each_filename in filenames:
         sanitized_filename = each_filename.replace('"', "").replace("'", "")
         entries.append((exclusion_key, label, f'filename="{sanitized_filename}"'))
-    for header_name, header_value in part.items():
-        entries.append((exclusion_key, label, f"{header_name}: {header_value}"))
+    entries.extend(header_entries)
     entries.extend(
         _part_payload_entries(
             exclusion_key, label, filename, getattr(part, "_payload", None)

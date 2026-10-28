@@ -198,6 +198,12 @@ def test_multipart_part_entries_emit_every_filename_parameter_once() -> None:
     part = _FakePart(
         name="upload",
         filename="ok.txt",
+        headers=[
+            (
+                "Content-Disposition",
+                'form-data; name="upload"; filename="ok.txt"; filename="shell.php"',
+            )
+        ],
         params=[
             ("name", "upload"),
             ("filename", "ok.txt"),
@@ -212,7 +218,24 @@ def test_multipart_part_entries_emit_every_filename_parameter_once() -> None:
         'filename="ok.txt"',
         'filename="shell.php"',
     ]
-    assert len(entries) == 3
+    assert len(entries) == 4
+
+
+def test_multipart_part_entries_skip_parameter_parsing_for_one_plain_filename() -> None:
+    part = _FakePart(
+        name="upload",
+        filename="ok.txt",
+        headers=[
+            ("Content-Disposition", 'form-data; name="upload"; filename="ok.txt"')
+        ],
+        params=[("filename", "never-read.php")],
+    )
+
+    entries = _multipart_part_entries(part)
+
+    assert [entry[2] for entry in entries if entry[2].startswith("filename=")] == [
+        'filename="ok.txt"'
+    ]
 
 
 def test_multipart_part_entries_tolerate_a_part_without_a_disposition() -> None:
