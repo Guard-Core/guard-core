@@ -22,7 +22,11 @@ def no_system_zone_database() -> Iterator[None]:
 
 
 def test_tzdata_is_a_runtime_dependency() -> None:
-    pyproject = Path(__file__).resolve().parent.parent / "pyproject.toml"
+    pyproject = next(
+        path / "pyproject.toml"
+        for path in Path(__file__).resolve().parents
+        if (path / "pyproject.toml").is_file()
+    )
     runtime = re.search(
         r"^dependencies = \[(.*?)\]", pyproject.read_text(), re.M | re.S
     )
