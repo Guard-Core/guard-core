@@ -1,3 +1,4 @@
+import quopri
 from email.message import Message
 from email.utils import collapse_rfc2231_value
 from typing import TYPE_CHECKING, Protocol
@@ -156,6 +157,22 @@ def _part_payload_entries(
     return [(exclusion_key, label, payload)]
 
 
+def _quoted_printable_payload_entries(
+    part: _MultipartPart, exclusion_key: str | None, label: str, payload: object
+) -> list[tuple[str | None, str, str]]:
+    declared = any(
+        name.lower() == "content-transfer-encoding"
+        and value.strip().lower() == "quoted-printable"
+        for name, value in part.items()
+    )
+    if not declared or not isinstance(payload, str):
+        return []
+    decoded = quopri.decodestring(
+        payload.encode("utf-8", errors="surrogateescape")
+    ).decode("utf-8", errors="surrogateescape")
+    return [] if decoded == payload else [(exclusion_key, label, decoded)]
+
+
 def _further_filenames(part: _MultipartPart, filenames: list[str]) -> list[str]:
     for key, value in part.get_params(header="content-disposition") or []:
         if key.lower() == "filename":
@@ -184,10 +201,10 @@ def _multipart_part_entries(part: _MultipartPart) -> list[tuple[str | None, str,
         sanitized_filename = each_filename.replace('"', "").replace("'", "")
         entries.append((exclusion_key, label, f'filename="{sanitized_filename}"'))
     entries.extend(header_entries)
+    payload = getattr(part, "_payload", None)
+    entries.extend(_part_payload_entries(exclusion_key, label, filename, payload))
     entries.extend(
-        _part_payload_entries(
-            exclusion_key, label, filename, getattr(part, "_payload", None)
-        )
+        _quoted_printable_payload_entries(part, exclusion_key, label, payload)
     )
     return entries
 

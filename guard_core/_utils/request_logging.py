@@ -21,6 +21,7 @@ from guard_core._utils.pair_value_scan import _QUOTE_CHARS
 from guard_core._utils.sensitive_names import (
     has_sensitive_name_token,
     name_is_sensitive,
+    value_is_email_or_secret_token,
 )
 from guard_core.protocols.request_protocol import GuardRequest
 
@@ -109,8 +110,12 @@ def _redact_path_segment(
     max_depth: int,
 ) -> str:
     proper, sep, rest = segment.partition(";")
-    redacted_proper = _redact_json_or_pairs_segment(
-        proper, sensitive, sensitive_body_fields, max_depth
+    redacted_proper = (
+        "[REDACTED]"
+        if value_is_email_or_secret_token(unquote(proper))
+        else _redact_json_or_pairs_segment(
+            proper, sensitive, sensitive_body_fields, max_depth
+        )
     )
     if not sep:
         return redacted_proper

@@ -64,9 +64,16 @@ from guard_core._utils.scan_config_scope import (
     configure_lock,
     scan_config_scope_of,
 )
+from guard_core.detection_engine.compressed_payloads import (
+    bounded_inflate,
+    looks_like_gzip,
+)
 from guard_core.detection_result import DetectionResult
 from guard_core.exceptions import BodyReadFailedError, BodyReadStalledError
-from guard_core.handlers._suspatterns_sources import _scan_window_bytes
+from guard_core.handlers._suspatterns_sources import (
+    _DEFAULT_MAX_BODY_INSPECT_BYTES,
+    _scan_window_bytes,
+)
 from guard_core.protocols.request_protocol import GuardRequest
 
 if TYPE_CHECKING:
@@ -245,6 +252,23 @@ _BODY_PAST_CAP_DETAIL = (
 )
 
 
+_BODY_DECOMPRESSED_PAST_CAP_DETAIL = (
+    "the compressed body inflates past the inspect cap or the decompression ratio "
+    "bound, so only its first inflated bytes were scanned"
+)
+
+
+def _inflate_gzip_body(
+    body_bytes: bytes, inspect_cap: int | None
+) -> tuple[bytes, bool]:
+    if not looks_like_gzip(body_bytes):
+        return body_bytes, False
+    inflated = bounded_inflate(
+        body_bytes, inspect_cap or _DEFAULT_MAX_BODY_INSPECT_BYTES
+    )
+    return (body_bytes, False) if inflated is None else inflated
+
+
 async def _read_body_for_scan(
     request: GuardRequest,
     config: "SecurityConfig | None",
@@ -294,6 +318,7 @@ async def _scan_body_surface(
     if body_bytes is None:
         return _build_detection_miss()
 
+    body_bytes, decompression_cut = _inflate_gzip_body(body_bytes, inspect_cap)
     raw_body = body_bytes.decode("utf-8", errors="surrogateescape")
 
     content_type = request.headers.get("content-type") or ""
@@ -311,6 +336,8 @@ async def _scan_body_surface(
     )
     if detected:
         return _build_detection_hit(trigger, threats)
+    if decompression_cut:
+        return _build_body_read_error(False, _BODY_DECOMPRESSED_PAST_CAP_DETAIL)
     if past_cap:
         hint = inspect_limit_fix_hint(content_type)
         return _build_body_read_error(False, f"{_BODY_PAST_CAP_DETAIL} ({hint})")

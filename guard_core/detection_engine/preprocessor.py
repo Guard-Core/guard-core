@@ -282,6 +282,7 @@ class ContentPreprocessor:
         iterations = 0
         gunzip_attempts_left = [self._MAX_GUNZIP_ATTEMPTS_PER_PASS]
         sliced = len(content) > truncation.EXTRACTION_WINDOW_CHARS
+        base64_decode.decompression_cut.set(False)
 
         while iterations < max_decode_iterations:
             original = content
@@ -295,6 +296,7 @@ class ContentPreprocessor:
             if decode_budget_exhausted is not None:
                 decode_budget_exhausted[0] = True
 
+        base64_decode.flag_decompression_cut(decode_budget_exhausted)
         return content
 
     async def _report_decode_failure(
@@ -331,9 +333,7 @@ class ContentPreprocessor:
             )
 
         try:
-            import html
-
-            content = html.unescape(content)
+            content = encoding_decoders.html_unescape(content)
         except Exception as e:
             await self._report_decode_failure(
                 "Failed to HTML decode content", e, "html_decode"
@@ -344,6 +344,7 @@ class ContentPreprocessor:
 
         content = self._decode_percent_u_escapes(content)
         content = self._decode_hex_escapes(content)
+        content = encoding_decoders.decode_octal_hex_text_and_utf7(content)
         content = self._decode_ldap_hex_escapes(content)
         content = self._decode_unicode_escapes(content)
         if sliced:

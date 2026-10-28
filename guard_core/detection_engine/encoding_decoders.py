@@ -6,6 +6,13 @@ from guard_core.detection_engine import truncation
 HEX_ESCAPE_RE = re.compile(r"\\x([0-9a-fA-F]{2})")
 UNICODE_ESCAPE_RE = re.compile(r"\\u([0-9a-fA-F]{4})")
 PERCENT_U_ESCAPE_RE = re.compile(r"%u([0-9a-fA-F]{4})", re.IGNORECASE)
+HTML_HEX_ENTITY_WITHOUT_SEMICOLON_RE = re.compile(
+    r"&#[xX]([0-9a-fA-F]{2})(?![0-9a-fA-F]*;)"
+)
+OCTAL_ESCAPE_RE = re.compile(r"\\([0-3][0-7]{2})")
+HEX_TEXT_RUN_RE = re.compile(r"(?<![0-9A-Za-z])((?:[0-9a-fA-F]{2}){6,})(?![0-9A-Za-z])")
+UTF7_SHIFTED_RUN_RE = re.compile(r"\+[A-Za-z0-9+/]{3,}-")
+_PRINTABLE_ASCII_BYTES = bytes([9, 10, 13, *range(0x20, 0x7F)])
 PERCENT_BYTE_RUN_RE = re.compile(r"(?:%[0-9a-fA-F]{2})+")
 _NON_PERCENT_RUN_CHAR_RE = re.compile(r"[^%0-9A-Fa-f]")
 PERCENT_RUN_WINDOW_CHARS = 32768
@@ -84,6 +91,77 @@ def decode_percent_u_escapes(content: str) -> str:
             return match.group(0)
 
     return PERCENT_U_ESCAPE_RE.sub(_replace, content)
+
+
+def _printable_ascii_chr(code: int) -> str | None:
+    char = chr(code)
+    return char if char.isprintable() or char in "\t\n\r" else None
+
+
+def decode_html_hex_entities_without_semicolon(content: str) -> str:
+    """Read ``&#x3ealert`` as ``>alert``: html.unescape takes every following hex
+    digit into the entity (``&#x3ea``), so the two-digit form is read separately.
+    A run ended by ``;`` keeps its longer meaning."""
+    if "&#" not in content:
+        return content
+
+    def _replace(match: re.Match[str]) -> str:
+        decoded = _printable_ascii_chr(int(match.group(1), 16))
+        return match.group(0) if decoded is None or ord(decoded) > 0x7F else decoded
+
+    return HTML_HEX_ENTITY_WITHOUT_SEMICOLON_RE.sub(_replace, content)
+
+
+def decode_octal_escapes(content: str) -> str:
+    if "\\" not in content:
+        return content
+
+    def _replace(match: re.Match[str]) -> str:
+        decoded = _printable_ascii_chr(int(match.group(1), 8))
+        return match.group(0) if decoded is None or ord(decoded) > 0x7F else decoded
+
+    return OCTAL_ESCAPE_RE.sub(_replace, content)
+
+
+def decode_hex_text_runs(content: str) -> str:
+    """Decode a run of hex digit pairs when, and only when, it spells printable
+    ASCII text, so hashes, ids and binary-looking values are left as they are. A
+    ``0x`` literal is not a run (SQL ``LOAD_FILE(0x...)`` keeps its literal)."""
+
+    def _replace(match: re.Match[str]) -> str:
+        raw = bytes.fromhex(match.group(1))
+        return (
+            match.group(0)
+            if raw.translate(None, _PRINTABLE_ASCII_BYTES)
+            else raw.decode("ascii")
+        )
+
+    return HEX_TEXT_RUN_RE.sub(_replace, content)
+
+
+def decode_utf7_shifted_runs(content: str) -> str:
+    """Decode each ``+<base64>-`` run of UTF-7 when it spells printable text."""
+    if "+" not in content:
+        return content
+
+    def _replace(match: re.Match[str]) -> str:
+        try:
+            decoded = match.group(0).encode("ascii").decode("utf-7")
+        except UnicodeDecodeError:
+            return match.group(0)
+        return decoded if decoded and decoded.isprintable() else match.group(0)
+
+    return UTF7_SHIFTED_RUN_RE.sub(_replace, content)
+
+
+def html_unescape(content: str) -> str:
+    import html
+
+    return html.unescape(decode_html_hex_entities_without_semicolon(content))
+
+
+def decode_octal_hex_text_and_utf7(content: str) -> str:
+    return decode_utf7_shifted_runs(decode_hex_text_runs(decode_octal_escapes(content)))
 
 
 def _decode_overlong_sequence_at(raw: bytes, index: int) -> tuple[str, int] | None:

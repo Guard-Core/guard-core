@@ -2,9 +2,14 @@ import base64
 import binascii
 import re
 from collections.abc import Iterator
+from contextvars import ContextVar
 from functools import partial
 
-from guard_core.sync.detection_engine import base64_alphabet, truncation
+from guard_core.sync.detection_engine import (
+    base64_alphabet,
+    compressed_payloads,
+    truncation,
+)
 
 MIN_RUN_LENGTH = 12
 DATA_ALPHABET = "A-Za-z0-9+/_\\-"
@@ -49,6 +54,16 @@ MAX_GUNZIP_ATTEMPTS_PER_PASS = 8
 PRINTABLE_RATIO_THRESHOLD = 0.5
 FALLBACK_PRINTABLE_RATIO_THRESHOLD = 0.95
 MAX_REPLACEMENT_CHAR_RATIO = 0.2
+
+
+decompression_cut: ContextVar[bool] = ContextVar(
+    "guard_core_decompression_cut", default=False
+)
+
+
+def flag_decompression_cut(decode_budget_exhausted: list[bool] | None) -> None:
+    if decode_budget_exhausted is not None and decompression_cut.get():
+        decode_budget_exhausted[0] = True
 
 
 def is_hex_literal(token: str) -> bool:
@@ -113,11 +128,16 @@ def _decode_cleaned(
         raw = base64.b64decode(cleaned + "=" * padding, validate=True)
     except (ValueError, binascii.Error):
         return None
-    if raw[:2] == GZIP_MAGIC and gunzip_attempts_left[0] > 0:
+    if (
+        compressed_payloads.looks_like_gzip(raw)
+        or compressed_payloads.looks_like_zlib(raw)
+    ) and gunzip_attempts_left[0] > 0:
         gunzip_attempts_left[0] -= 1
-        gunzipped = bounded_gunzip(raw, max_gunzip_output_bytes)
-        if gunzipped is not None:
-            raw = gunzipped
+        inflated = compressed_payloads.bounded_inflate(raw, max_gunzip_output_bytes)
+        if inflated is not None:
+            raw = inflated[0]
+            if inflated[1]:
+                decompression_cut.set(True)
     try:
         decoded = raw.decode("utf-8")
     except UnicodeDecodeError:
