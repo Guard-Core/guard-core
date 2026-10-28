@@ -61,9 +61,17 @@ decompression_cut: ContextVar[bool] = ContextVar(
 )
 
 
+scan_saw_decompression_cut: ContextVar[bool] = ContextVar(
+    "guard_core_scan_saw_decompression_cut", default=False
+)
+
+
 def flag_decompression_cut(decode_budget_exhausted: list[bool] | None) -> None:
+    """A value whose unpacked content the cap cut is no pattern threat (the
+    ``decode_budget_exhausted`` list is left alone); the scan reports it with the
+    outcome a plain body past the cap takes."""
     if decode_budget_exhausted is not None and decompression_cut.get():
-        decode_budget_exhausted[0] = True
+        scan_saw_decompression_cut.set(True)
 
 
 def is_hex_literal(token: str) -> bool:

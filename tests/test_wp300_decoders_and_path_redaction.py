@@ -38,8 +38,13 @@ def _query_request(value: str) -> MockGuardRequest:
     return MockGuardRequest(path="/search", query_params={"q": value})
 
 
+class _BoundedReaderRequest(MockGuardRequest):
+    async def read_body_prefix(self, max_bytes: int) -> bytes:
+        return self._body[:max_bytes]
+
+
 def _body_request(body: bytes, content_type: str, **headers: str) -> MockGuardRequest:
-    return MockGuardRequest(
+    return _BoundedReaderRequest(
         method="POST",
         body_content=body,
         headers={
@@ -174,8 +179,11 @@ async def test_raw_gzip_request_body_is_decompressed_and_flagged() -> None:
     assert result.is_threat is True
 
 
-async def test_gzip_bomb_body_ends_bounded_and_is_not_a_clean_pass() -> None:
-    body = gzip.compress(b"A" * 50_000_000)
+async def test_gzip_bomb_body_ends_bounded_with_the_verdict_of_its_plain_content() -> (
+    None
+):
+    plain = b"A" * 50_000_000
+    body = gzip.compress(plain)
     assert len(body) < 100_000
 
     started = time.monotonic()
@@ -184,11 +192,15 @@ async def test_gzip_bomb_body_ends_bounded_and_is_not_a_clean_pass() -> None:
     )
 
     assert time.monotonic() - started < 5
+    plain_result = await detect_penetration_attempt(
+        _body_request(plain[:300_000], "text/plain"), SecurityConfig()
+    )
+    assert _verdict(result) == _verdict(plain_result)
     assert result.body_read_error == "failed"
-    assert "inflates past" in result.body_read_detail
+    assert "unpacked content" in result.body_read_detail
 
 
-async def test_zlib_bomb_in_base64_ends_bounded_and_is_not_a_clean_pass() -> None:
+async def test_zlib_bomb_in_base64_ends_bounded_and_a_cut_alone_is_no_threat() -> None:
     packed = zlib.compress(b"A" * 50_000_000)
     assert len(packed) < 100_000
     value = base64.b64encode(packed).decode()
@@ -197,7 +209,168 @@ async def test_zlib_bomb_in_base64_ends_bounded_and_is_not_a_clean_pass() -> Non
     result = await detect_penetration_attempt(_query_request(value), SecurityConfig())
 
     assert time.monotonic() - started < 5
+    assert result.is_threat is False
+
+
+def _verdict(result: Any) -> tuple[bool, str | None]:
+    return result.is_threat, result.body_read_error
+
+
+def _json_lines(count: int) -> bytes:
+    return "".join(
+        json.dumps({"ts": 1700000000 + i, "level": "info", "msg": "request served"})
+        + "\n"
+        for i in range(count)
+    ).encode()
+
+
+@pytest.mark.parametrize(
+    "content_type", ["application/octet-stream", "application/gzip"]
+)
+async def test_benign_gzip_log_archive_keeps_the_verdict_of_its_plain_content(
+    content_type: str,
+) -> None:
+    plain = _json_lines(60000)
+    body = gzip.compress(plain)
+    assert len(plain) > 1_000_000
+
+    result = await detect_penetration_attempt(_body_request(body, content_type))
+    plain_result = await detect_penetration_attempt(_body_request(plain, content_type))
+
+    assert _verdict(result) == (False, None)
+    assert _verdict(result) == _verdict(plain_result)
+
+
+async def test_zeros_gzip_body_and_a_gzip_under_the_cap_pass_like_plain() -> None:
+    zeros = b"\0" * 3_000_000
+    under = _json_lines(2000)
+    assert len(under) < 200_000
+    for plain in (zeros, under):
+        result = await detect_penetration_attempt(
+            _body_request(gzip.compress(plain), "application/octet-stream")
+        )
+        assert _verdict(result) == (False, None)
+
+
+_PAD = b"x" * 400_000
+_DIFFERENTIAL_BODIES = {
+    "benign_small": b'{"a": "hello"}',
+    "attack_small": _SCRIPT.encode(),
+    "benign_past_cap": _json_lines(20000),
+    "attack_in_prefix_past_cap": _SCRIPT.encode() + _PAD,
+    "attack_after_cap": _PAD + _SCRIPT.encode(),
+    "zeros_past_cap": b"\0" * 3_000_000,
+}
+
+
+# Without a config a plain body is read whole and a gzip one inflates to the default
+# cap, so a body whose attack starts past the cap is only compared with a config.
+@pytest.mark.parametrize(
+    ("name", "with_config"),
+    [
+        (name, with_config)
+        for name in sorted(_DIFFERENTIAL_BODIES)
+        for with_config in (False, True)
+        if with_config or name != "attack_after_cap"
+    ],
+)
+async def test_verdict_of_a_gzip_body_equals_the_verdict_of_the_plain_body(
+    name: str, with_config: bool
+) -> None:
+    plain = _DIFFERENTIAL_BODIES[name]
+    config = SecurityConfig() if with_config else None
+    gz_result = await detect_penetration_attempt(
+        _body_request(gzip.compress(plain), "text/plain"), config
+    )
+    plain_result = await detect_penetration_attempt(
+        _body_request(plain, "text/plain"), config
+    )
+
+    assert _verdict(gz_result) == _verdict(plain_result), name
+
+
+async def test_attack_inside_the_inflated_prefix_of_a_big_gzip_is_flagged() -> None:
+    result = await detect_penetration_attempt(
+        _body_request(gzip.compress(_SCRIPT.encode() + _PAD * 10), "text/plain")
+    )
+
     assert result.is_threat is True
+
+
+_SQLI = "' UNION SELECT username,password FROM users--"
+_WORDS = "quarterly onboarding metrics for the regional sales team include revenue "
+
+
+def _padding(size: int) -> str:
+    return (_WORDS * (size // len(_WORDS) + 1))[:size]
+
+
+_VALUE_CONTENTS = {
+    "benign_small": "just some ordinary words in a value",
+    "attack_small": _SQLI,
+    "benign_past_cap": _padding(600_000),
+    "attack_at_end_past_cap": _padding(600_000) + _SQLI,
+    "attack_at_start_past_cap": _SQLI + _padding(600_000),
+    "attack_at_end_under_cap": _padding(100_000) + _SQLI,
+}
+
+
+@pytest.mark.parametrize("fail_secure", [True, False])
+@pytest.mark.parametrize("pack", [gzip.compress, zlib.compress])
+@pytest.mark.parametrize("name", sorted(_VALUE_CONTENTS))
+async def test_b64_compressed_value_verdict_equals_the_plain_value_verdict(
+    name: str, pack: Any, fail_secure: bool
+) -> None:
+    content = _VALUE_CONTENTS[name]
+    config = SecurityConfig(fail_secure=fail_secure)
+    packed_value = base64.b64encode(pack(content.encode())).decode()
+
+    packed = await detect_penetration_attempt(
+        _body_request(json.dumps({"blob": packed_value}).encode(), "application/json"),
+        config,
+    )
+    plain = await detect_penetration_attempt(
+        _body_request(json.dumps({"blob": content}).encode(), "application/json"),
+        config,
+    )
+
+    assert _verdict(packed) == _verdict(plain), name
+
+
+@pytest.mark.parametrize("fail_secure", [True, False])
+@pytest.mark.parametrize("name", sorted(_VALUE_CONTENTS))
+async def test_verdict_of_a_gzip_json_body_equals_the_verdict_of_its_plain_body(
+    name: str, fail_secure: bool
+) -> None:
+    plain_body = json.dumps({"blob": _VALUE_CONTENTS[name]}).encode()
+    config = SecurityConfig(fail_secure=fail_secure)
+
+    packed = await detect_penetration_attempt(
+        _body_request(gzip.compress(plain_body), "application/json"), config
+    )
+    plain = await detect_penetration_attempt(
+        _body_request(plain_body, "application/json"), config
+    )
+
+    assert _verdict(packed) == _verdict(plain), name
+
+
+async def test_a_cut_value_and_a_cut_body_name_the_unpacked_content() -> None:
+    value = base64.b64encode(gzip.compress(_padding(600_000).encode())).decode()
+    by_value = await detect_penetration_attempt(
+        _body_request(json.dumps({"blob": value}).encode(), "application/json"),
+        SecurityConfig(),
+    )
+    by_body = await detect_penetration_attempt(
+        _body_request(gzip.compress(b"\0" * 300_000), "application/json"),
+        SecurityConfig(),
+    )
+
+    assert "unpacked content" in by_value.body_read_detail
+    assert "bomb" not in by_value.body_read_detail
+    assert "unpacked content" in by_body.body_read_detail
+    assert "likely decompression bomb" in by_body.body_read_detail
+    assert "detection_max_body_inspect_bytes" in by_body.body_read_detail
 
 
 @pytest.mark.parametrize(
@@ -248,12 +421,17 @@ def test_bounded_inflate_only_takes_gzip_and_zlib_streams() -> None:
     assert bounded_inflate(b"\x1f\x8b" + b"\x00" * 30, 1000) is None
     assert bounded_inflate(zlib.compress(b"abc"), 1000) == (b"abc", False)
     assert bounded_inflate(gzip.compress(b"abc"), 1000) == (b"abc", False)
-    inflated, cut = bounded_inflate(zlib.compress(b"A" * 1_000_000), 1_000_000) or (
-        b"",
-        False,
+    assert bounded_inflate(zlib.compress(b"A" * 1_000_000), 1000) == (b"A" * 1000, True)
+
+
+def test_the_bomb_wording_follows_the_ratio_and_the_allowance_only() -> None:
+    from guard_core.detection_engine.compressed_payloads import (
+        is_likely_decompression_bomb,
     )
-    assert cut is True
-    assert len(inflated) <= 100 * len(zlib.compress(b"A" * 1_000_000))
+
+    assert is_likely_decompression_bomb(1000, 3_000_000) is True
+    assert is_likely_decompression_bomb(1000, 50_000) is False
+    assert is_likely_decompression_bomb(10, 1000) is False
 
 
 def test_quoted_printable_entries_need_a_text_payload_that_changes() -> None:

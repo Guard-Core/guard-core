@@ -65,8 +65,10 @@ from guard_core.sync._utils.scan_config_scope import (
     configure_lock,
     scan_config_scope_of,
 )
+from guard_core.sync.detection_engine.base64_decode import scan_saw_decompression_cut
 from guard_core.sync.detection_engine.compressed_payloads import (
     bounded_inflate,
+    is_likely_decompression_bomb,
     looks_like_gzip,
 )
 from guard_core.sync.detection_result import DetectionResult
@@ -253,9 +255,30 @@ _BODY_PAST_CAP_DETAIL = (
 
 
 _BODY_DECOMPRESSED_PAST_CAP_DETAIL = (
-    "the compressed body inflates past the inspect cap or the decompression ratio "
-    "bound, so only its first inflated bytes were scanned"
+    "the unpacked content of a compressed body or value is past the inspect cap "
+    "(its wire size can be under it), so only its first unpacked bytes were scanned"
 )
+
+
+def _unpacked_past_cap_detail(content_type: str, likely_bomb: bool) -> str:
+    bomb = ", a likely decompression bomb" if likely_bomb else ""
+    hint = inspect_limit_fix_hint(content_type)
+    return f"{_BODY_DECOMPRESSED_PAST_CAP_DETAIL}{bomb} ({hint})"
+
+
+def _with_value_cut_outcome(
+    result: DetectionResult,
+    config: "SyncSecurityConfig | None",
+    content_type: str,
+) -> DetectionResult:
+    if (
+        config is None
+        or result.is_threat
+        or result.body_read_error is not None
+        or not scan_saw_decompression_cut.get()
+    ):
+        return result
+    return _build_body_read_error(False, _unpacked_past_cap_detail(content_type, False))
 
 
 def _inflate_gzip_body(
@@ -316,6 +339,7 @@ def _scan_body_surface(
     if body_bytes is None:
         return _build_detection_miss()
 
+    wire_size = len(body_bytes)
     body_bytes, decompression_cut = _inflate_gzip_body(body_bytes, inspect_cap)
     raw_body = body_bytes.decode("utf-8", errors="surrogateescape")
 
@@ -334,8 +358,14 @@ def _scan_body_surface(
     )
     if detected:
         return _build_detection_hit(trigger, threats)
-    if decompression_cut:
-        return _build_body_read_error(False, _BODY_DECOMPRESSED_PAST_CAP_DETAIL)
+    if decompression_cut and inspect_cap is not None:
+        return _build_body_read_error(
+            False,
+            _unpacked_past_cap_detail(
+                content_type,
+                is_likely_decompression_bomb(wire_size, len(body_bytes)),
+            ),
+        )
     if past_cap:
         hint = inspect_limit_fix_hint(content_type)
         return _build_body_read_error(False, f"{_BODY_PAST_CAP_DETAIL} ({hint})")
@@ -417,6 +447,7 @@ def detect_penetration_attempt(
         None if inspect_cap is None else min(inspect_cap, _scan_window_bytes(config))
     )
 
+    scan_saw_decompression_cut.set(False)
     with (
         route_knowledge(
             route_state_template(request.state),
@@ -470,6 +501,9 @@ def detect_penetration_attempt(
                 sensitive_body_fields,
                 sensitive_params,
                 patterns=patterns_manager,
+            )
+            body_result = _with_value_cut_outcome(
+                body_result, config, request.headers.get("content-type") or ""
             )
             body_result.correlation_id = correlation_id
             return body_result
