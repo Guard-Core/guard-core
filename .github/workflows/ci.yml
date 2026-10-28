@@ -258,12 +258,13 @@ jobs:
           PYTHON_VERSION=${{ matrix.python-version }} docker compose run --rm -v "$PWD/coverage-docker:/cov" -e COVERAGE_FILE=/cov/coverage-docker-py${{ matrix.python-version }}.data -e GUARD_TESTS_MAX_TEST_SECONDS=180 guard-core pytest -q -p no:cacheprovider -W error --ignore=tests/live_smoke --cov=guard_core --cov-branch
 
       # The udp-stub cases bind 127.0.0.1:53 and need the libc resolver pointed there, which a compose
-      # network never does (it always resolves through 127.0.0.11), so they run on their own with
-      # --dns 127.0.0.1 in the image the compose build made. A skipped case fails the step.
+      # network never does (it always resolves through 127.0.0.11), so they run on their own on the
+      # default bridge with --dns 127.0.0.1, in the image the compose build made. The suite's Redis is the
+      # one compose published on host port 6379, reached through host-gateway. A skipped case fails the step.
       - name: Run the silent-resolver geo download cases in Docker
         shell: bash
         run: |
-          docker run --rm --dns 127.0.0.1 -e GIT_OPTIONAL_LOCKS=0 -e IPINFO_TOKEN=test_token guard-core-py${{ matrix.python-version }} pytest -q -p no:cacheprovider -W error --no-cov -rs tests/test_sync/test_geo_download_setup.py | tee geo-download.out
+          docker run --rm --dns 127.0.0.1 --add-host host.docker.internal:host-gateway -e REDIS_URL=redis://host.docker.internal:6379 -e GIT_OPTIONAL_LOCKS=0 -e IPINFO_TOKEN=test_token guard-core-py${{ matrix.python-version }} pytest -q -p no:cacheprovider -W error --no-cov -rs tests/test_sync/test_geo_download_setup.py | tee geo-download.out
           ! grep -q '^SKIPPED' geo-download.out
 
       - name: Upload the container coverage data
