@@ -56,9 +56,10 @@ def every_slice_yields() -> Iterator[list[int]]:
         yield yields
 
 
+@pytest.mark.usefixtures("small_windows")
 @pytest.mark.parametrize("seed", range(8))
 async def test_yielding_collection_finds_the_same_regions_as_the_plain_one(
-    seed: int, small_windows: None
+    seed: int,
 ) -> None:
     preprocessor = ContentPreprocessor(max_content_length=10_000)
     content = _text(seed, 12)
@@ -70,9 +71,10 @@ async def test_yielding_collection_finds_the_same_regions_as_the_plain_one(
     assert plain[0]
 
 
+@pytest.mark.usefixtures("small_windows")
 @pytest.mark.parametrize("seed", range(8))
 async def test_yielding_truncation_returns_the_plain_truncation(
-    seed: int, small_windows: None
+    seed: int,
 ) -> None:
     preprocessor = ContentPreprocessor(
         max_content_length=10_000, max_full_scan_bytes=2048
@@ -95,9 +97,8 @@ async def test_yielding_truncation_defers_short_or_unpreserved_content() -> None
     assert await truncate_safely_yielding(unpreserved, long_text) == long_text[:2048]
 
 
-async def test_yielding_truncation_reuses_and_fills_the_request_memo(
-    small_windows: None,
-) -> None:
+@pytest.mark.usefixtures("small_windows")
+async def test_yielding_truncation_reuses_and_fills_the_request_memo() -> None:
     preprocessor = ContentPreprocessor(
         max_content_length=10_000, max_full_scan_bytes=2048
     )
@@ -176,9 +177,8 @@ async def test_yielding_collection_charges_its_cpu_to_the_budget() -> None:
     assert after < before
 
 
-async def test_yielding_collection_stops_at_the_region_limit(
-    small_windows: None,
-) -> None:
+@pytest.mark.usefixtures("small_windows")
+async def test_yielding_collection_stops_at_the_region_limit() -> None:
     preprocessor = ContentPreprocessor(max_content_length=300)
     content = "onclick=1 " * 400
 

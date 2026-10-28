@@ -38,9 +38,10 @@ def _random_binary(rng: random.Random, size: int) -> bytes:
     return bytes(rng.getrandbits(8) for _ in range(size))
 
 
+@pytest.mark.usefixtures("small_windows")
 @pytest.mark.parametrize("seed", range(10))
 def test_yielding_whitespace_collapse_matches_the_plain_collapse(
-    seed: int, small_windows: None
+    seed: int,
 ) -> None:
     rng = random.Random(seed)
     text = "".join(
@@ -54,9 +55,10 @@ def test_yielding_whitespace_collapse_matches_the_plain_collapse(
     assert collapse_whitespace_runs(text) == re.sub(r"\s+", " ", text)
 
 
+@pytest.mark.usefixtures("small_windows")
 @pytest.mark.parametrize("seed", range(10))
 def test_yielding_overlong_percent_decode_matches_the_plain_decode(
-    seed: int, small_windows: None
+    seed: int,
 ) -> None:
     rng = random.Random(seed)
     text = "".join(
@@ -91,10 +93,11 @@ def _base64_token_cases(rng: random.Random) -> list[str]:
     ]
 
 
+@pytest.mark.usefixtures("small_windows")
 @pytest.mark.parametrize("seed", range(6))
 @pytest.mark.parametrize("gunzip_attempts", [0, 8])
 def test_yielding_base64_decode_matches_the_plain_decode(
-    seed: int, gunzip_attempts: int, small_windows: None
+    seed: int, gunzip_attempts: int
 ) -> None:
     for content in _base64_token_cases(random.Random(seed)):
         plain_attempts = [gunzip_attempts]
