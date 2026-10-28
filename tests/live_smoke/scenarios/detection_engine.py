@@ -211,11 +211,33 @@ def detection_max_body_inspect_bytes_limits_body_read(ctx: ScenarioContext) -> N
         f"straddle-overlap window, was missed: {near.status_code}"
     )
 
+    # D-135 item 1: a body past the cap takes the body-read failure outcome, 400
+    # under fail_secure (the default), whatever its unscanned tail holds.
+    far_boundary = (_STRADDLE_FILLER * 60)[:2000] + _XSS
+    far = _echo(ctx.client, {"note": far_boundary})
+    assert far.status_code == 400, (
+        "a body well past detection_max_body_inspect_bytes plus the "
+        f"straddle-overlap window passed under fail_secure: {far.status_code}"
+    )
+
+    assert _lines_mentioning(
+        ctx, mark, "detection_max_body_inspect_bytes (1024) reached"
+    ), "no detection_max_body_inspect_bytes warning was logged"
+
+
+@scenario(
+    covers={"detection_max_body_inspect_bytes", "fail_secure"},
+    config={**_BASE, "detection_max_body_inspect_bytes": 1024, "fail_secure": False},
+)
+def detection_max_body_inspect_bytes_passes_on_the_prefix_when_fail_open(
+    ctx: ScenarioContext,
+) -> None:
+    mark = ctx.stack.logs.mark()
     far_boundary = (_STRADDLE_FILLER * 60)[:2000] + _XSS
     far = _echo(ctx.client, {"note": far_boundary})
     assert far.status_code == 200, (
-        "an attack well past detection_max_body_inspect_bytes plus the "
-        f"straddle-overlap window was still detected: {far.status_code}"
+        "with fail_secure=False a body past detection_max_body_inspect_bytes "
+        f"whose scanned prefix is clean did not pass: {far.status_code}"
     )
 
     assert _lines_mentioning(
