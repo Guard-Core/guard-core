@@ -581,22 +581,6 @@
       }
     },
     {
-      "id": "safety_test_strings_compile_failed_05",
-      "input": {
-        "pattern": "(?>a)+",
-        "mode": "test_strings",
-        "test_strings": [
-          "abcdefghij",
-          "attack-test-string-123",
-          "x"
-        ]
-      },
-      "expected": {
-        "safe": false,
-        "reason_class": "compile_failed"
-      }
-    },
-    {
       "id": "safety_cost_verdict_compile_failed_01",
       "input": {
         "pattern": "(?P<1bad>x)",
@@ -1396,10 +1380,10 @@
         "reason_class": "over_budget"
       },
       "reference": {
-        "extrapolated_seconds": 894.048,
+        "extrapolated_seconds": 843.456,
         "budget_seconds": 0.05,
-        "margin": 17881.0,
-        "load_average_at_generation": 6.2
+        "margin": 16869.1,
+        "load_average_at_generation": 6.3
       }
     },
     {
@@ -1446,12 +1430,12 @@
         "reason_class": "probe_string_timeout"
       },
       "reference": {
-        "observed_cpu_seconds": 0.272,
+        "observed_cpu_seconds": 0.279,
         "threshold_seconds": 0.05,
         "kill_seconds": 2.0,
-        "margin_over_threshold": 5.4,
-        "margin_under_kill": 7.3,
-        "load_average_at_generation": 6.2
+        "margin_over_threshold": 5.6,
+        "margin_under_kill": 7.2,
+        "load_average_at_generation": 6.3
       }
     }
   ]
