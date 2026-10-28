@@ -2,6 +2,7 @@ import concurrent.futures
 import logging
 import re
 import time
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -444,19 +445,21 @@ async def test_pattern_timeout_with_compiler(
         mock_matcher = MagicMock(return_value=None)
         mock_create.return_value = mock_matcher
 
-        with patch("time.monotonic", mock_time):
-            with patch("guard_core.handlers._suspatterns_regex.logger") as mock_logger:
-                result = await manager.detect(evil_content, "127.0.0.1", "test_timeout")
+        fake_time = SimpleNamespace(monotonic=mock_time)
+        with (
+            patch("guard_core.handlers._suspatterns_regex.time", fake_time),
+            patch("guard_core._utils.compiler_finditer.time", fake_time),
+            patch("guard_core.handlers._suspatterns_regex.logger") as mock_logger,
+        ):
+            result = await manager.detect(evil_content, "127.0.0.1", "test_timeout")
 
-                warning_calls = [
-                    call[0][0] for call in mock_logger.warning.call_args_list
-                ]
-                timeout_warnings = [
-                    msg for msg in warning_calls if "Pattern timeout:" in msg
-                ]
-                assert len(timeout_warnings) > 0
+            warning_calls = [call[0][0] for call in mock_logger.warning.call_args_list]
+            timeout_warnings = [
+                msg for msg in warning_calls if "Pattern timeout:" in msg
+            ]
+            assert len(timeout_warnings) > 0
 
-                assert len(result["timeouts"]) > 0
+            assert len(result["timeouts"]) > 0
 
     await manager.remove_pattern(custom_pattern, custom=True)
 
