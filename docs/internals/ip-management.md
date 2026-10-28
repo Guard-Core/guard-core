@@ -49,7 +49,7 @@ Stores `(ip, expiry_timestamp)` in both local cache and Redis. Also fires a ban 
 
 **`unban_ip(ip)`**
 
-Removes the IP from both local cache and Redis and clears that identity's auto-ban strikes (both families: the in-process counts of every guarded middleware, the rate-limit violation counter and the detection strike counters in Redis), so strikes from before the unban cannot ban it again. A CIDR argument lifts a network ban and clears no strikes. `unban_inside(entries)` clears the strikes of exactly the addresses it removed.
+Removes the IP from both local cache and Redis and clears that identity's auto-ban strikes (both families: the in-process counts of every guarded middleware, the rate-limit violation counter and the detection strike counters in Redis), so strikes from before the unban cannot ban it again. A CIDR argument lifts a network ban and clears no strikes. A value with a `/` that `ipaddress.ip_network` rejects (`/`, `web/xml`, `1.2.3.4/33`) is not a network: it takes the exact-address path and raises nothing (`_network_of_cidr_text`, `guard_core/handlers/_ipban_queries.py:46`). `unban_inside(entries)` clears the strikes of exactly the addresses it removed.
 
 **`forget_strikes_inside(entries)`**
 
