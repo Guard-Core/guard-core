@@ -18,6 +18,7 @@ from guard_core.sync._utils.ip_extraction import (
     extract_client_ip,
     forwarded_for_addresses,
 )
+from guard_core.sync._utils.nat64 import Nat64Table
 from guard_core.sync.core.checks.implementations.ip_security import IpSecurityCheck
 from guard_core.sync.decorators.base import RouteConfig
 from guard_core.sync.utils import _ip_in_list
@@ -95,9 +96,9 @@ def test_a_long_header_parses_at_most_the_bound(monkeypatch: Any) -> None:
     calls: list[str] = []
     original = ip_extraction._peer_address_for_matching
 
-    def counting(value: str) -> Any:
+    def counting(value: str, nat64: Nat64Table) -> Any:
         calls.append(value)
-        return original(value)
+        return original(value, nat64)
 
     monkeypatch.setattr(ip_extraction, "_peer_address_for_matching", counting)
 
