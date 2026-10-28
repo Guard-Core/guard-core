@@ -9,6 +9,7 @@ _BINARY_ARTIFACT_RE = re.compile(
 )
 _BINARY_DENSITY_RADIUS = 64
 _BINARY_DENSITY_LIMIT = 4
+_TEXT_NEIGHBOURHOOD_RADIUS = 8
 
 
 class BinaryPrefix:
@@ -43,7 +44,23 @@ def span_is_binary_dense(binary_prefix: BinaryPrefix, start: int, end: int) -> b
     )
 
 
+def span_has_text_neighbourhood(
+    binary_prefix: BinaryPrefix, start: int, end: int
+) -> bool:
+    high = min(end + _TEXT_NEIGHBOURHOOD_RADIUS, binary_prefix.length)
+    low = max(start - _TEXT_NEIGHBOURHOOD_RADIUS, 0)
+    return binary_prefix.count_before(high) == binary_prefix.count_before(low)
+
+
 def match_is_binary_dense(binary_prefix: BinaryPrefix | None, match: re.Match) -> bool:
     if binary_prefix is None:
         return False
     return span_is_binary_dense(binary_prefix, match.start(), match.end())
+
+
+def match_has_text_neighbourhood(
+    binary_prefix: BinaryPrefix | None, match: re.Match
+) -> bool:
+    if binary_prefix is None:
+        return False
+    return span_has_text_neighbourhood(binary_prefix, match.start(), match.end())

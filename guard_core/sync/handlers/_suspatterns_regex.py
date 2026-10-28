@@ -28,9 +28,11 @@ from guard_core.sync._utils.detection_scan import (
     _timed_in_worker,
     _warn_scan_time_cap_reached_once,
 )
+from guard_core.sync._utils.logging_utils import _sanitize_for_reporting
 from guard_core.sync.detection_engine.binary_prefix import (
     BinaryPrefix,
     build_binary_prefix,
+    match_has_text_neighbourhood,
     match_is_binary_dense,
 )
 from guard_core.sync.detection_engine.compiler import (
@@ -109,12 +111,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger("guard_core.sync.handlers.suspatterns")
 
 
-def _sanitize_for_reporting(value: str) -> str:
-    return value.encode("utf-8", errors="surrogateescape").decode(
-        "utf-8", errors="backslashreplace"
-    )
-
-
 def _build_regex_threat(
     pattern: re.Pattern,
     match: re.Match,
@@ -129,8 +125,12 @@ def _build_regex_threat(
         pattern, match, context, category, _candidate_passes_the_route_gates
     ):
         return None
-    if pattern.pattern in NOISE_PRONE_PATTERN_SOURCES and match_is_binary_dense(
-        binary_prefix, match
+    # A match inside dense binary is noise unless its own neighbourhood is text:
+    # binary padding around a command must not hide the command.
+    if (
+        pattern.pattern in NOISE_PRONE_PATTERN_SOURCES
+        and match_is_binary_dense(binary_prefix, match)
+        and not match_has_text_neighbourhood(binary_prefix, match)
     ):
         return None
     return {

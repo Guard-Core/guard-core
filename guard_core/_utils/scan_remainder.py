@@ -9,6 +9,7 @@ from guard_core._utils.detection_scan import (
     _check_request_component,
     _fresh_value_budget,
     _scan_skips,
+    _scan_time_budget_exhausted,
     _semantic_excluded_headers,
     _whole_value_rows_only,
     logger,
@@ -128,7 +129,6 @@ def _remainder_preview(
     return LazyPreview(build)
 
 
-_UNIT_PASS_MAX_SCANS = 256
 _UNIT_NEEDS_DECODING_RE = re.compile(r"[%&\\\x80-\U0010ffff]")
 
 
@@ -173,16 +173,14 @@ async def _scan_whole_value_rows_per_unit(
     patterns: "SusPatternsManager | None" = None,
 ) -> tuple[bool, str, list[dict]]:
     rows = await _whole_value_rows(patterns=patterns)
-    scans_left = _UNIT_PASS_MAX_SCANS
     for _piece, sensitive, units in skipped:
         for unit in units:
             if len(unit) > _UNIT_PASS_MAX_CHARS or not _unit_needs_its_own_scan(
                 unit, rows
             ):
                 continue
-            if scans_left == 0:
-                return False, "", []
-            scans_left -= 1
+            if _scan_time_budget_exhausted():
+                raise _time_budget_ended_error(component_name)
             with _fresh_value_budget(), _unit_scan_mode(unit):
                 detected, trigger, threats = await _check_request_component(
                     unit,
@@ -198,6 +196,7 @@ async def _scan_whole_value_rows_per_unit(
                     else (preview_of(unit) or unit),
                     patterns=patterns,
                 )
+            _raise_if_only_the_time_budget_ended(threats, detected, component_name)
             if detected:
                 return True, f"{component_name}: {trigger}", threats
     return False, "", []
@@ -242,11 +241,7 @@ async def _scan_surface_remainder(
                     content_preview=_remainder_preview(skipped, separator, preview_of),
                     patterns=patterns,
                 )
-            if detected and _only_the_time_budget_ended(threats):
-                raise BodyReadFailedError(
-                    f"the scan time budget ended before the {component_name.lower()} "
-                    "were scanned"
-                )
+            _raise_if_only_the_time_budget_ended(threats, detected, component_name)
             unit_hit = await _scan_whole_value_rows_per_unit(
                 skipped,
                 context,
@@ -265,6 +260,19 @@ async def _scan_surface_remainder(
                     [*threats, *unit_hit[2]],
                 )
         return False, "", []
+
+
+def _time_budget_ended_error(component_name: str) -> BodyReadFailedError:
+    return BodyReadFailedError(
+        f"the scan time budget ended before the {component_name.lower()} were scanned"
+    )
+
+
+def _raise_if_only_the_time_budget_ended(
+    threats: list[dict], detected: bool, component_name: str
+) -> None:
+    if detected and _only_the_time_budget_ended(threats):
+        raise _time_budget_ended_error(component_name)
 
 
 def _only_the_time_budget_ended(threats: list[dict]) -> bool:
