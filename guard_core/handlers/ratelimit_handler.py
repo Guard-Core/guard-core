@@ -421,6 +421,19 @@ async def _send_by_ip_event(
         _by_ip_logger.error(f"Failed to send rate limit event to agent: {e}")
 
 
+async def _handle_by_ip_block(
+    ip: str,
+    config: SecurityConfig,
+    request_count: int,
+    tier: RateLimitTier,
+    redis_handler: _Redis | None,
+    agent_handler: _Agent | None,
+) -> None:
+    agent = agent_handler or getattr(redis_handler, "agent_handler", None)
+    await _report_by_ip_block(ip, config, request_count, tier, agent)
+    await _feed_rate_limit_autoban(ip, config, redis_handler)
+
+
 async def check_rate_limit_by_ip(
     ip: str,
     config: SecurityConfig,
@@ -537,9 +550,9 @@ async def check_rate_limit_by_ip(
     allowed = verdict.tier_index is None
 
     if not allowed:
-        agent = agent_handler or getattr(redis_handler, "agent_handler", None)
-        await _report_by_ip_block(ip, config, verdict.request_count, tier, agent)
-        await _feed_rate_limit_autoban(ip, config, redis_handler)
+        await _handle_by_ip_block(
+            ip, config, verdict.request_count, tier, redis_handler, agent_handler
+        )
 
     return allowed
 

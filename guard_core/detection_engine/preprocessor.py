@@ -278,8 +278,6 @@ class ContentPreprocessor:
     async def decode_common_encodings(
         self, content: str, decode_budget_exhausted: list[bool] | None = None
     ) -> str:
-        from guard_core.core.events.event_types import EVENT_DECODING_ERROR
-
         max_decode_iterations = 16
         iterations = 0
         gunzip_attempts_left = [self._MAX_GUNZIP_ATTEMPTS_PER_PASS]
@@ -287,66 +285,7 @@ class ContentPreprocessor:
 
         while iterations < max_decode_iterations:
             original = content
-
-            content = (
-                await encoding_decoders.decode_overlong_utf8_percent_runs_yielding(
-                    content
-                )
-                if sliced
-                else self._decode_overlong_utf8_percent_runs(content)
-            )
-            if sliced:
-                await truncation.yield_once_slice_elapsed()
-
-            try:
-                decoded = encoding_decoders.percent_decode(content, errors="ignore")
-                if decoded != content:
-                    content = decoded
-            except Exception as e:
-                await self._send_preprocessor_event(
-                    event_type=EVENT_DECODING_ERROR,
-                    action_taken="decode_failed",
-                    reason="Failed to URL decode content",
-                    error=str(e),
-                    error_type="url_decode",
-                )
-
-            try:
-                import html
-
-                decoded = html.unescape(content)
-                if decoded != content:
-                    content = decoded
-            except Exception as e:
-                await self._send_preprocessor_event(
-                    event_type=EVENT_DECODING_ERROR,
-                    action_taken="decode_failed",
-                    reason="Failed to HTML decode content",
-                    error=str(e),
-                    error_type="html_decode",
-                )
-
-            if sliced:
-                await truncation.yield_once_slice_elapsed()
-
-            content = self._decode_percent_u_escapes(content)
-            content = self._decode_hex_escapes(content)
-            content = self._decode_ldap_hex_escapes(content)
-            content = self._decode_unicode_escapes(content)
-            if sliced:
-                await truncation.yield_once_slice_elapsed()
-            content = self.normalize_unicode(content)
-            if sliced:
-                await truncation.yield_once_slice_elapsed()
-            content = (
-                await base64_decode.decode_base64_candidates_yielding(
-                    content, gunzip_attempts_left, self._MAX_FULL_SCAN_BYTES
-                )
-                if sliced
-                else self._decode_base64_candidates(content, gunzip_attempts_left)
-            )
-            if sliced:
-                await truncation.yield_once_slice_elapsed()
+            content = await self._decode_one_pass(content, sliced, gunzip_attempts_left)
 
             if content == original:
                 break
@@ -356,6 +295,73 @@ class ContentPreprocessor:
             if decode_budget_exhausted is not None:
                 decode_budget_exhausted[0] = True
 
+        return content
+
+    async def _report_decode_failure(
+        self, reason: str, error: Exception, error_type: str
+    ) -> None:
+        from guard_core.core.events.event_types import EVENT_DECODING_ERROR
+
+        await self._send_preprocessor_event(
+            event_type=EVENT_DECODING_ERROR,
+            action_taken="decode_failed",
+            reason=reason,
+            error=str(error),
+            error_type=error_type,
+        )
+
+    async def _decode_one_pass(
+        self, content: str, sliced: bool, gunzip_attempts_left: list[int]
+    ) -> str:
+        if sliced:
+            content = (
+                await encoding_decoders.decode_overlong_utf8_percent_runs_yielding(
+                    content
+                )
+            )
+            await truncation.yield_once_slice_elapsed()
+        else:
+            content = self._decode_overlong_utf8_percent_runs(content)
+
+        try:
+            decoded = encoding_decoders.percent_decode(content, errors="ignore")
+            if decoded != content:
+                content = decoded
+        except Exception as e:
+            await self._report_decode_failure(
+                "Failed to URL decode content", e, "url_decode"
+            )
+
+        try:
+            import html
+
+            decoded = html.unescape(content)
+            if decoded != content:
+                content = decoded
+        except Exception as e:
+            await self._report_decode_failure(
+                "Failed to HTML decode content", e, "html_decode"
+            )
+
+        if sliced:
+            await truncation.yield_once_slice_elapsed()
+
+        content = self._decode_percent_u_escapes(content)
+        content = self._decode_hex_escapes(content)
+        content = self._decode_ldap_hex_escapes(content)
+        content = self._decode_unicode_escapes(content)
+        if sliced:
+            await truncation.yield_once_slice_elapsed()
+        content = self.normalize_unicode(content)
+        if sliced:
+            await truncation.yield_once_slice_elapsed()
+        if sliced:
+            content = await base64_decode.decode_base64_candidates_yielding(
+                content, gunzip_attempts_left, self._MAX_FULL_SCAN_BYTES
+            )
+            await truncation.yield_once_slice_elapsed()
+        else:
+            content = self._decode_base64_candidates(content, gunzip_attempts_left)
         return content
 
     def drop_sql_comments(self, content: str) -> str | None:

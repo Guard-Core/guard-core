@@ -317,6 +317,15 @@ class IpBanLookupMixin(IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptionMix
             return True
         if not self.redis_handler:
             return False
+        return await self._outcome_before_ban_keys_read(ip, identity, addr, now)
+
+    async def _outcome_before_ban_keys_read(
+        self,
+        ip: str,
+        identity: str | None,
+        addr: ipaddress.IPv4Address | ipaddress.IPv6Address,
+        now: float,
+    ) -> bool | PendingKeysRead:
         operator_networks = self._operator_networks
         if (
             operator_networks is None or operator_networks.has_networks

@@ -387,6 +387,20 @@ _LEGACY_DETECTION_WARNING = (
 _legacy_detection_warned = False
 
 
+def _has_lost_overlong_byte(text: str) -> bool:
+    # lost-byte gate: U+FFFD, or a surrogate-escaped overlong lead byte
+    # (the engine surrogate-escapes body bytes), tested with `in` alone
+    return (
+        "\ufffd" in text
+        or "\udcc0" in text
+        or "\udcc1" in text
+        or "\udce0" in text
+        or "\udcf0" in text
+        or "\udcf8" in text
+        or "\udcfc" in text
+    )
+
+
 def _warn_if_legacy_detection(compiler: PatternCompiler | None) -> None:
     global _legacy_detection_warned
     if compiler is not None or _legacy_detection_warned:
@@ -909,7 +923,9 @@ class SusPatternsManager(_SusPatternsViewsMixin):
         original_content: str,
         state: _DetectionState,
     ) -> list[dict]:
-        if _context_header_is_semantic_excluded(context):
+        if _whole_value_rows_only.get() or _context_header_is_semantic_excluded(
+            context
+        ):
             return []
         semantic_threats, semantic_score = await self._check_semantic_threats(
             processed_content, state=state, raw_content=original_content
@@ -983,17 +999,7 @@ class SusPatternsManager(_SusPatternsViewsMixin):
                 _PATH_TRAVERSAL_DECODED_SHAPE_RE.pattern
             ]
 
-        # lost-byte gate: U+FFFD, or a surrogate-escaped overlong lead byte
-        # (the engine surrogate-escapes body bytes), tested call-free
-        if (
-            "\ufffd" in processed_content
-            or "\udcc0" in processed_content
-            or "\udcc1" in processed_content
-            or "\udce0" in processed_content
-            or "\udcf0" in processed_content
-            or "\udcf8" in processed_content
-            or "\udcfc" in processed_content
-        ):
+        if _has_lost_overlong_byte(processed_content):
             lost_byte_view_results = (
                 await self._check_lost_overlong_bytes_view_patterns(
                     processed_content,
@@ -1043,12 +1049,8 @@ class SusPatternsManager(_SusPatternsViewsMixin):
         matched_patterns = matched_patterns + short_base64_matched
         timeouts = timeouts + short_base64_timeouts
 
-        semantic_threats = (
-            []
-            if _whole_value_rows_only.get()
-            else await self._semantic_threats_of_views(
-                context, processed_content, dropped_view, original_content, state
-            )
+        semantic_threats = await self._semantic_threats_of_views(
+            context, processed_content, dropped_view, original_content, state
         )
 
         threats = regex_threats + semantic_threats

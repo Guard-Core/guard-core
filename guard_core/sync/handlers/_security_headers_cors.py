@@ -1,7 +1,7 @@
 import logging
 from abc import abstractmethod
 
-from guard_core._security_headers_override import PULLED_OVERRIDES, OverrideRecord
+from guard_core._security_headers_override import OverrideRecord
 from guard_core.models import SyncSecurityConfig
 
 
@@ -21,6 +21,11 @@ class SecurityHeadersCorsMixin:
 
     @abstractmethod
     def _validate_header_value(self, value: str) -> str: ...
+
+    @abstractmethod
+    def _override_applies(
+        self, config: SyncSecurityConfig, override: OverrideRecord | None
+    ) -> bool: ...
 
     @abstractmethod
     def _resolve_cors_state(
@@ -104,11 +109,7 @@ class SecurityHeadersCorsMixin:
         override: OverrideRecord | None = None,
     ) -> dict[str, str]:
         cors_config = self._resolve_cors_state(config, override)
-        if config is not None and (
-            override is None
-            or override.keys
-            or (PULLED_OVERRIDES and self.pulled_override_for(config) is not None)
-        ):
+        if config is not None and self._override_applies(config, override):
             self.send_cors_override_event(config, override)
         if not cors_config:
             return {}

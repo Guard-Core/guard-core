@@ -289,17 +289,22 @@ class SecurityHeadersConfigMixin:
             headers[header_name] = self._validate_header_value(value)
         return headers
 
+    def _override_applies(
+        self, config: SyncSecurityConfig, override: OverrideRecord | None
+    ) -> bool:
+        return bool(
+            override is None
+            or override.keys
+            or (PULLED_OVERRIDES and self.pulled_override_for(config) is not None)
+        )
+
     def _resolve_cors_state(
         self, config: SyncSecurityConfig | None, override: OverrideRecord | None = None
     ) -> dict[str, object] | None:
         if config is None:
             return self.cors_config
 
-        if (
-            override is not None
-            and not override.keys
-            and not (PULLED_OVERRIDES and self.pulled_override_for(config) is not None)
-        ):
+        if not self._override_applies(config, override):
             # No override: the app's own CORS, without the merge.
             return self._compute_cors_config(
                 list(config.cors_allow_origins or ()) if config.enable_cors else None,
