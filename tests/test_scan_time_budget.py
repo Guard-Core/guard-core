@@ -1,6 +1,6 @@
+import asyncio
 import re
 import threading
-import time
 from collections.abc import AsyncGenerator, Iterator
 from typing import Any
 from unittest.mock import patch
@@ -222,7 +222,7 @@ async def test_wall_slow_but_cpu_cheap_scan_does_not_exhaust_the_budget() -> Non
     real = manager._check_regex_pattern
 
     async def slow_wall(*args: Any, **kwargs: Any) -> Any:
-        time.sleep(0.01)
+        await asyncio.sleep(0.01)
         return await real(*args, **kwargs)
 
     with (
