@@ -23,6 +23,7 @@ import time
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
+from fixture_types import SafetyCase
 from guard_core import __version__ as engine_version
 from guard_core.detection_engine.compiler import PatternCompiler
 
@@ -206,8 +207,39 @@ RETIRED_CASES: list[dict] = [
             "now runs at cap 262144 (D-83 item 1: 100x or more)"
         ),
         "replaced_by": "safety_cost_verdict_over_budget_02",
-    }
+    },
+    {
+        "id": "safety_test_strings_compile_failed_05",
+        "input": "(?>a)+; test_strings",
+        "reason": (
+            "compiles on Python 3.11 and later (atomic groups), so its class "
+            "depends on the interpreter (D-95 item 1); no replacement"
+        ),
+    },
 ]
+
+# The retired inputs the pool never asks the oracle again, so the pool is the same
+# on every Python: (pattern, mode), the input of the RETIRED_CASES entry above.
+RETIRED_POOL_INPUTS = {("(?>a)+", "test_strings")}
+
+# Classes decided before any timing: the dangerous construct screen, the compile
+# check and the structural prefilters run first, so any host and Python reproduce
+# them and the CI matrix replays them without the redos_timing mark (D-95 item 2).
+# cost_verdict leaves the structural classes out: its probe can decide them late.
+DETERMINISTIC_POOL_CLASSES: dict[str, frozenset[str]] = {
+    "test_strings": frozenset(
+        {
+            "dangerous_construct",
+            "compile_failed",
+            "structural_nested_unbounded",
+            "structural_adjacent_broad",
+            "structural_unreachable_terminator",
+            "structural_literal_absorb",
+            "structural_ambiguous_tail",
+        }
+    ),
+    "cost_verdict": frozenset({"dangerous_construct", "compile_failed"}),
+}
 
 
 FAILING_CLASSES = ("other", "probe_subprocess_failure")
@@ -361,6 +393,41 @@ def _fixed_cases_from(results: dict) -> list[dict]:
     return out
 
 
+def decided_before_timing(cases: list[SafetyCase]) -> list[SafetyCase]:
+    return [
+        case
+        for case in cases
+        if case.get("reference", {}).get("decided_before_timing", False)
+        or (
+            "reference" not in case
+            and case["expected"]["reason_class"]
+            in DETERMINISTIC_POOL_CLASSES[case["input"]["mode"]]
+        )
+    ]
+
+
+def previous_suite_inputs() -> dict[str, tuple[str, str]]:
+    if not SUITE_PATH.exists():
+        return {}
+    return {
+        case["id"]: (case["input"]["mode"], case["input"]["pattern"])
+        for case in json.loads(SUITE_PATH.read_text(encoding="utf-8"))["cases"]
+    }
+
+
+def _pool_id_prefix(mode: str, cls: str) -> str:
+    return (
+        "safety_" + re.sub(r"[^a-z0-9]+", "_", f"{mode}_{cls}".lower()).strip("_") + "_"
+    )
+
+
+def _highest_number(ids: list[str], prefix: str) -> int:
+    return max(
+        (int(i[len(prefix) :]) for i in ids if re.fullmatch(prefix + r"\d+", i)),
+        default=0,
+    )
+
+
 def build_suite() -> tuple[dict, dict[str, int], dict[str, int]]:
     jobs: list[Job] = []
     seen: set[str] = set()
@@ -368,14 +435,16 @@ def build_suite() -> tuple[dict, dict[str, int], dict[str, int]]:
         if pattern not in seen:
             seen.add(pattern)
         for mode in ("test_strings", "cost_verdict"):
-            jobs.append(_normal_job(pattern, mode))
-            jobs.append(_normal_job(pattern, mode))
+            if (pattern, mode) not in RETIRED_POOL_INPUTS:
+                jobs.append(_normal_job(pattern, mode))
+                jobs.append(_normal_job(pattern, mode))
     for s in harvest():
         if s in seen:
             continue
         seen.add(s)
-        jobs.append(_normal_job(s, "test_strings"))
-        jobs.append(_normal_job(s, "test_strings"))
+        if (s, "test_strings") not in RETIRED_POOL_INPUTS:
+            jobs.append(_normal_job(s, "test_strings"))
+            jobs.append(_normal_job(s, "test_strings"))
     for fixed in FIXED_CASES:
         jobs.append(_fixed_job(fixed))
         jobs.append(_fixed_job(fixed))
@@ -390,6 +459,11 @@ def build_suite() -> tuple[dict, dict[str, int], dict[str, int]]:
     per_class: dict[str, int] = {}
     drops: dict[str, int] = {}
     MAX_PER_CLASS = 8
+    # D-95 item 1: an input of the previous suite keeps its ID and a new input takes
+    # the number after the highest one used or retired in its class.
+    previous = previous_suite_inputs()
+    previous_id_of = {inp: cid for cid, inp in previous.items()}
+    retired_ids = [entry["id"] for entry in RETIRED_CASES]
 
     for (pattern, mode), runs in sorted(results.items()):
         if mode == "fixed":
@@ -424,14 +498,22 @@ def build_suite() -> tuple[dict, dict[str, int], dict[str, int]]:
             drops[f"{mode}:fixed_class"] = drops.get(f"{mode}:fixed_class", 0) + 1
             continue
         key = f"{mode}:{cls}"
-        limit = MAX_PER_CLASS * (2 if cls == "safe" else 1)
+        prefix = _pool_id_prefix(mode, cls)
+        # A retired ID of the class still counts against its cap, so the selection
+        # is the same with or without the retired input.
+        limit = MAX_PER_CLASS * (2 if cls == "safe" else 1) - sum(
+            i.startswith(prefix) for i in retired_ids
+        )
         if per_class.get(key, 0) >= limit:
             drops[f"{key}:full"] = drops.get(f"{key}:full", 0) + 1
             continue
         per_class[key] = per_class.get(key, 0) + 1
-        slug = re.sub(r"[^a-z0-9]+", "_", f"{mode}_{cls}".lower()).strip("_")
+        case_id = previous_id_of.get((mode, pattern), "")
+        if not case_id.startswith(prefix):
+            used = [*previous, *retired_ids, *(c["id"] for c in cases)]
+            case_id = f"{prefix}{_highest_number(used, prefix) + 1:02d}"
         case: dict = {
-            "id": f"safety_{slug}_{per_class[key]:02d}",
+            "id": case_id,
             "input": {"pattern": pattern, "mode": mode},
         }
         if mode == "test_strings":
@@ -483,6 +565,15 @@ def main() -> None:
         raise SystemExit(check_committed())
     suite, per_class, drops = build_suite()
     cases = suite["cases"]
+    gone = (
+        previous_suite_inputs().keys()
+        - {case["id"] for case in cases}
+        - {entry["id"] for entry in RETIRED_CASES}
+    )
+    if gone:
+        raise SystemExit(
+            f"IDs of the previous suite left without being retired: {sorted(gone)}"
+        )
     out = SUITE_PATH
     out.write_text(json.dumps(suite, indent=2, ensure_ascii=False) + "\n")
 

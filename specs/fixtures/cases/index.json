@@ -275,7 +275,7 @@
    ]
   },
   "safety_gates": {
-   "case_count": 97,
+   "case_count": 96,
    "kind": "pattern_safety",
    "consumers": [
     "python",
@@ -309,6 +309,11 @@
      "input": "(\\d|\\w)*; cost_verdict cap 10000",
      "reason": "extrapolated cost only 25x the budget at cap 10000; the pinned input now runs at cap 262144 (D-83 item 1: 100x or more)",
      "replaced_by": "safety_cost_verdict_over_budget_02"
+    },
+    {
+     "id": "safety_test_strings_compile_failed_05",
+     "input": "(?>a)+; test_strings",
+     "reason": "compiles on Python 3.11 and later (atomic groups), so its class depends on the interpreter (D-95 item 1); no replacement"
     }
    ]
   }

@@ -90,7 +90,8 @@ def test_the_index_publishes_the_unpinned_classes_and_the_retired_ids() -> None:
     ids = {case["id"] for case in suite_cases("safety_gates")}
     for retired in RETIRED_CASES:
         assert retired["id"] not in ids
-        assert retired["replaced_by"] in ids
+        if "replaced_by" in retired:
+            assert retired["replaced_by"] in ids
 
 
 def test_the_fixed_timing_cases_are_in_the_corpus_with_their_margins() -> None:
