@@ -1,6 +1,10 @@
 import time
 
 from guard_core.sync.detection_engine import ContentPreprocessor, truncation
+from guard_core.sync.detection_engine.binary_prefix import (
+    build_binary_prefix,
+    span_is_binary_dense,
+)
 from guard_core.sync.detection_engine.encoding_decoders import (
     decode_overlong_utf8_percent_runs,
     decode_percent_u_escapes,
@@ -112,9 +116,18 @@ class _SusPatternsViewsMixin(_SusPatternsRegexMixin):
 
         if any(map(decoded_view_content.__contains__, _LOST_BYTE_MARKERS)):
             decoded_view_content = repair_lost_overlong_bytes(decoded_view_content)
-        decoded_matches = list(
-            _PATH_TRAVERSAL_DECODED_SHAPE_RE.finditer(decoded_view_content)
-        )
+            binary_prefix = build_binary_prefix(decoded_view_content)
+            decoded_matches = [
+                match
+                for match in _PATH_TRAVERSAL_DECODED_SHAPE_RE.finditer(
+                    decoded_view_content
+                )
+                if not span_is_binary_dense(binary_prefix, match.start(), match.end())
+            ]
+        else:
+            decoded_matches = list(
+                _PATH_TRAVERSAL_DECODED_SHAPE_RE.finditer(decoded_view_content)
+            )
         raw_count = len(_PATH_TRAVERSAL_DECODED_SHAPE_RE.findall(raw_view_content))
         if len(decoded_matches) <= raw_count:
             return None

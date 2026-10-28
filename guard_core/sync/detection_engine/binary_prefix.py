@@ -34,12 +34,16 @@ def build_binary_prefix(content: str) -> BinaryPrefix:
     return BinaryPrefix(len(content), positions)
 
 
-def match_is_binary_dense(binary_prefix: BinaryPrefix | None, match: re.Match) -> bool:
-    if binary_prefix is None:
-        return False
-    high = min(match.end() + _BINARY_DENSITY_RADIUS, binary_prefix.length)
-    low = max(match.start() - _BINARY_DENSITY_RADIUS, 0)
+def span_is_binary_dense(binary_prefix: BinaryPrefix, start: int, end: int) -> bool:
+    high = min(end + _BINARY_DENSITY_RADIUS, binary_prefix.length)
+    low = max(start - _BINARY_DENSITY_RADIUS, 0)
     return (
         binary_prefix.count_before(high) - binary_prefix.count_before(low)
         >= _BINARY_DENSITY_LIMIT
     )
+
+
+def match_is_binary_dense(binary_prefix: BinaryPrefix | None, match: re.Match) -> bool:
+    if binary_prefix is None:
+        return False
+    return span_is_binary_dense(binary_prefix, match.start(), match.end())
