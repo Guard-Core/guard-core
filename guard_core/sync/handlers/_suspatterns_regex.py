@@ -3,12 +3,12 @@ import logging
 import re
 import time
 from collections.abc import Callable, Iterator
-from functools import partial
 from typing import TYPE_CHECKING
 
 from guard_core.sync._utils._scan_outcomes import (
     SCAN_OUTCOME_QUEUE_WAIT,
     SCAN_OUTCOME_RUN_TIMEOUT,
+    ScanBudgetSpent,
 )
 from guard_core.sync._utils.compiler_finditer import _compiler_finditer
 from guard_core.sync._utils.detection_scan import (
@@ -52,6 +52,13 @@ from guard_core.sync.handlers._suspatterns_applicable import (
 from guard_core.sync.handlers._suspatterns_applicable import (
     _pattern_should_be_skipped as _pattern_should_be_skipped,
 )
+from guard_core.sync.handlers._suspatterns_candidate_gates import (
+    _CANDIDATE_REJECTION_VALIDATORS as _CANDIDATE_REJECTION_VALIDATORS,
+)
+from guard_core.sync.handlers._suspatterns_candidate_gates import (
+    _CONTEXT_SENSITIVE_ROW_SOURCES,
+    _candidate_passes_the_route_gates,
+)
 from guard_core.sync.handlers._suspatterns_enhanced import _SusPatternsEnhancedMixin
 from guard_core.sync.handlers._suspatterns_inline_matches import _INLINE_FINDERS
 from guard_core.sync.handlers._suspatterns_lazy_rows import (
@@ -59,108 +66,41 @@ from guard_core.sync.handlers._suspatterns_lazy_rows import (
     PatternSource,
     _SourceRow,
 )
-from guard_core.sync.handlers._suspatterns_ldap_ipv4 import (
-    _LEGACY_IPV4_HOST_RE,
-    _ldap_paren_conjunction_is_injection,
-    _ldap_wildcard_chain_is_injection,
-    _legacy_ipv4_match_is_blocked,
-)
 from guard_core.sync.handlers._suspatterns_literals import (
     fold_for_literals,
     rows_with_required_literal,
 )
-from guard_core.sync.handlers._suspatterns_matchers import (
-    _CMD_INJECTION_NEWLINE_SHELL_DASH_C_COMPILED_RE,
-    _DESERIALIZATION_PICKLE_GLOBAL_GENERIC_COMPILED_RE,
-    _brace_expansion_is_dangerous_command,
-    _cmd_injection_shell_dash_c_finditer,
-    _ldap_null_byte_attr_finditer,
-    _pickle_global_generic_finditer,
-    _quote_splice_finditer,
-)
 from guard_core.sync.handlers._suspatterns_named_floor import (
-    NAMED_FLOOR_TOKEN_PATTERNS,
-    absolute_path_is_a_probe,
-    named_floor_row_is_not_the_apps_own_route,
-    named_probe_row_is_not_the_apps_own_route,
     probe_lies_inside_a_declared_path_param,
-    recon_path_is_a_probe,
-    source_path_is_a_probe,
-)
-from guard_core.sync.handlers._suspatterns_path_code_execution import (
-    absolute_path_value_is_probe,
-    path_code_execution_is_injection,
-    path_separator_command_is_injection,
-)
-from guard_core.sync.handlers._suspatterns_path_row_clearing import (
-    path_row_match_is_cleared,
 )
 from guard_core.sync.handlers._suspatterns_pattern_table import (
-    _ABSOLUTE_PATH_VALUE_RE,
-    _CMD_PATH_CODE_EXECUTION_RE,
-    _CMD_PATH_SEPARATOR_COMMAND_RE,
-    BACKTICK_WHOLE_VALUE_RE,
     NOISE_PRONE_PATTERN_SOURCES,
 )
-from guard_core.sync.handlers._suspatterns_pickle import (
-    _pickle_global_candidate_is_injection,
-)
-from guard_core.sync.handlers._suspatterns_probe_chains import (
-    PROBE_CHAIN_ROW,
-    chain_row_tail_is_query_or_space,
-)
 from guard_core.sync.handlers._suspatterns_registry import _SusPatternsRegistryMixin
-from guard_core.sync.handlers._suspatterns_scan_windows import _SCAN_WINDOW_PATTERNS
-from guard_core.sync.handlers._suspatterns_shell_sources import (
-    _BRACE_EXPANSION_COMMAND_RE,
-    _GLOB_WILDCARD_ATOM_RE,
-    _GLUED_BACKTICK_CANDIDATE_RE,
-    _GLUED_DOLLAR_SUBSTITUTION_CANDIDATE_RE,
-    _PATTERN_SCAN_WINDOW_MATCHERS,
-    _QUOTE_SPLICE_CANDIDATE_COMPILED_RE,
-    _QUOTE_SPLICE_CANDIDATE_RE,
-)
-from guard_core.sync.handlers._suspatterns_shell_validators import (
-    _dollar_substitution_pair_is_injection,
-    _glob_wildcard_token_is_dangerous_command,
-    _glued_backtick_pair_is_injection,
-    _quote_splice_token_is_dangerous_command,
-    _whole_value_backtick_pairs_are_injection,
-)
 from guard_core.sync.handlers._suspatterns_sources import (
-    _CMD_INJECTION_NEWLINE_SHELL_DASH_C_RE,
     _DEFAULT_COMPILER_TIMEOUT,
-    _DESERIALIZATION_PICKLE_GLOBAL_GENERIC_RE,
     _EMBEDDED_JSON_LEAF_CONTEXT_SUFFIX,
-    _LDAP_NULL_BYTE_ATTR_COMPILED_RE,
-    _LDAP_NULL_BYTE_ATTR_RE,
-    _LDAP_NULL_BYTE_DECODED_ATTR_COMPILED_RE,
-    _LDAP_NULL_BYTE_DECODED_ATTR_RE,
-    _LDAP_NULL_BYTE_DECODED_TAIL_RE,
-    _LDAP_NULL_BYTE_TAIL_RE,
-    _LDAP_PAREN_BREAKOUT_RE,
-    _LDAP_PAREN_CONJUNCTION_RE,
-    _LDAP_WILDCARD_CHAIN_RE,
-    _LDAP_WILDCARD_EQUALS_RE,
-    _MAP_FILE_PATH_RE,
-    _RECON_EXTENSION_PATH_RE,
-    _SELECT_FROM_RE,
-    _SELECT_STAR_RE,
-    _SENSITIVE_SOURCE_EXTENSION_PATH_RE,
-    _SYSTEM_LOG_PATH_RE,
-    _VERSION_ROOT_PATH_RE,
-    _WHERE_CLAUSE_RE,
-    _XML_XXE_PUBLIC_EXTERNAL_DTD_RE,
-    ALL_DETECTION_CATEGORIES,
-    path_only_extension_tail_is_valid,
 )
 from guard_core.sync.handlers._suspatterns_state import _DetectionState
+from guard_core.sync.handlers._suspatterns_weights import (
+    _DECODE_BUDGET_EXHAUSTED_PATTERN as _DECODE_BUDGET_EXHAUSTED_PATTERN,
+)
+from guard_core.sync.handlers._suspatterns_weights import (
+    DETECTION_CATEGORY_WEIGHTS as DETECTION_CATEGORY_WEIGHTS,
+)
+from guard_core.sync.handlers._suspatterns_weights import (
+    DETECTION_PATTERN_WEIGHT_OVERRIDES as DETECTION_PATTERN_WEIGHT_OVERRIDES,
+)
+from guard_core.sync.handlers._suspatterns_weights import (
+    _decode_budget_exhausted_threat as _decode_budget_exhausted_threat,
+)
+from guard_core.sync.handlers._suspatterns_weights import _resolve_pattern_weight
 from guard_core.sync.handlers._suspatterns_whole_value_rows import (
     rows_for_a_whole_value_pass,
 )
-from guard_core.sync.handlers._suspatterns_xml_xxe import (
-    _XML_XXE_PUBLIC_EXTERNAL_DTD_COMPILED_RE,
-    _xml_xxe_public_external_dtd_finditer,
+from guard_core.sync.handlers._suspatterns_windowed_finders import (
+    _LITERAL_EXCLUDED_SOURCES,
+    _WINDOWED_PATTERN_FINDERS,
 )
 
 if TYPE_CHECKING:
@@ -169,153 +109,10 @@ if TYPE_CHECKING:
 logger = logging.getLogger("guard_core.sync.handlers.suspatterns")
 
 
-DETECTION_CATEGORY_WEIGHTS: dict[str, float] = {
-    category: 1.0 for category in ALL_DETECTION_CATEGORIES
-}
-
-DETECTION_PATTERN_WEIGHT_OVERRIDES: dict[str, float] = {
-    _SELECT_FROM_RE: 0.5,
-    _SELECT_STAR_RE: 0.5,
-    _WHERE_CLAUSE_RE: 0.5,
-}
-
-
-def _resolve_pattern_weight(pattern: str, category: str) -> float:
-    if pattern in DETECTION_PATTERN_WEIGHT_OVERRIDES:
-        return DETECTION_PATTERN_WEIGHT_OVERRIDES[pattern]
-    return DETECTION_CATEGORY_WEIGHTS.get(category, 1.0)
-
-
-_DECODE_BUDGET_EXHAUSTED_PATTERN = "decode_budget_exhausted"
-
-
-def _decode_budget_exhausted_threat() -> dict[str, "JsonValue"]:
-    return {
-        "type": "regex",
-        "pattern": _DECODE_BUDGET_EXHAUSTED_PATTERN,
-        "match": _DECODE_BUDGET_EXHAUSTED_PATTERN,
-        "position": 0,
-        "execution_time": 0.0,
-        "category": "custom",
-        "weight": _resolve_pattern_weight(_DECODE_BUDGET_EXHAUSTED_PATTERN, "custom"),
-    }
-
-
-_CANDIDATE_REJECTION_VALIDATORS: tuple[
-    tuple[str, Callable[[re.Match, str], bool]], ...
-] = (
-    *(
-        (source, partial(named_floor_row_is_not_the_apps_own_route, source))
-        for source in NAMED_FLOOR_TOKEN_PATTERNS
-    ),
-    (_LEGACY_IPV4_HOST_RE, lambda m, _c: _legacy_ipv4_match_is_blocked(m)),
-    (_LDAP_WILDCARD_CHAIN_RE, lambda m, _c: _ldap_wildcard_chain_is_injection(m)),
-    (_LDAP_WILDCARD_EQUALS_RE, lambda m, _c: _ldap_wildcard_chain_is_injection(m)),
-    (_LDAP_PAREN_BREAKOUT_RE, lambda m, _c: _ldap_wildcard_chain_is_injection(m)),
-    (
-        _LDAP_PAREN_CONJUNCTION_RE,
-        lambda m, _c: _ldap_paren_conjunction_is_injection(m),
-    ),
-    (_GLUED_BACKTICK_CANDIDATE_RE, _glued_backtick_pair_is_injection),
-    (BACKTICK_WHOLE_VALUE_RE, _whole_value_backtick_pairs_are_injection),
-    (_CMD_PATH_CODE_EXECUTION_RE, path_code_execution_is_injection),
-    (_CMD_PATH_SEPARATOR_COMMAND_RE, path_separator_command_is_injection),
-    (
-        _ABSOLUTE_PATH_VALUE_RE,
-        lambda m, context: (
-            absolute_path_value_is_probe(m, context)
-            and absolute_path_is_a_probe(context)
-        ),
-    ),
-    (
-        _SENSITIVE_SOURCE_EXTENSION_PATH_RE,
-        lambda m, context: (
-            path_only_extension_tail_is_valid(m) and source_path_is_a_probe(m, context)
-        ),
-    ),
-    (_MAP_FILE_PATH_RE, source_path_is_a_probe),
-    (
-        _RECON_EXTENSION_PATH_RE,
-        lambda m, context: (
-            path_only_extension_tail_is_valid(m) and recon_path_is_a_probe(m, context)
-        ),
-    ),
-    (
-        _VERSION_ROOT_PATH_RE,
-        lambda _m, context: named_probe_row_is_not_the_apps_own_route(
-            "version", context
-        ),
-    ),
-    (
-        _SYSTEM_LOG_PATH_RE,
-        lambda _m, context: named_probe_row_is_not_the_apps_own_route(
-            "system/log", context
-        ),
-    ),
-    (PROBE_CHAIN_ROW, lambda m, _c: chain_row_tail_is_query_or_space(m)),
-    (_GLUED_DOLLAR_SUBSTITUTION_CANDIDATE_RE, _dollar_substitution_pair_is_injection),
-    (
-        _BRACE_EXPANSION_COMMAND_RE,
-        lambda m, _c: _brace_expansion_is_dangerous_command(m),
-    ),
-    (
-        _QUOTE_SPLICE_CANDIDATE_RE,
-        lambda m, _c: _quote_splice_token_is_dangerous_command(m),
-    ),
-    (
-        _GLOB_WILDCARD_ATOM_RE,
-        _glob_wildcard_token_is_dangerous_command,
-    ),
-    (_DESERIALIZATION_PICKLE_GLOBAL_GENERIC_RE, _pickle_global_candidate_is_injection),
-)
-
-
-_CONTEXT_SENSITIVE_ROW_SOURCES = frozenset(
-    source for source, _validator in _CANDIDATE_REJECTION_VALIDATORS
-)
-
-
-_WINDOWED_PATTERN_FINDERS: dict[str, Callable[[str], Iterator[re.Match]]] = {
-    _CMD_INJECTION_NEWLINE_SHELL_DASH_C_RE: lambda text: (
-        _cmd_injection_shell_dash_c_finditer(
-            text, _CMD_INJECTION_NEWLINE_SHELL_DASH_C_COMPILED_RE
-        )
-    ),
-    _LDAP_NULL_BYTE_ATTR_RE: lambda text: _ldap_null_byte_attr_finditer(
-        text, _LDAP_NULL_BYTE_ATTR_COMPILED_RE, _LDAP_NULL_BYTE_TAIL_RE
-    ),
-    _LDAP_NULL_BYTE_DECODED_ATTR_RE: lambda text: _ldap_null_byte_attr_finditer(
-        text,
-        _LDAP_NULL_BYTE_DECODED_ATTR_COMPILED_RE,
-        _LDAP_NULL_BYTE_DECODED_TAIL_RE,
-    ),
-    _QUOTE_SPLICE_CANDIDATE_RE: lambda text: _quote_splice_finditer(
-        text, _QUOTE_SPLICE_CANDIDATE_COMPILED_RE
-    ),
-    _DESERIALIZATION_PICKLE_GLOBAL_GENERIC_RE: lambda text: (
-        _pickle_global_generic_finditer(
-            text, _DESERIALIZATION_PICKLE_GLOBAL_GENERIC_COMPILED_RE
-        )
-    ),
-    _XML_XXE_PUBLIC_EXTERNAL_DTD_RE: lambda text: _xml_xxe_public_external_dtd_finditer(
-        text, _XML_XXE_PUBLIC_EXTERNAL_DTD_COMPILED_RE
-    ),
-}
-
-
 def _sanitize_for_reporting(value: str) -> str:
     return value.encode("utf-8", errors="surrogateescape").decode(
         "utf-8", errors="backslashreplace"
     )
-
-
-def _candidate_passes_the_route_gates(
-    pattern: re.Pattern, match: re.Match, context: str
-) -> bool:
-    for candidate, is_valid_threat in _CANDIDATE_REJECTION_VALIDATORS:
-        if pattern.pattern == candidate and not is_valid_threat(match, context):
-            return False
-    return not path_row_match_is_cleared(pattern, match, context)
 
 
 def _build_regex_threat(
@@ -347,8 +144,8 @@ def _build_regex_threat(
     }
 
 
-def _scan_budget_spent(time_cap: float | None) -> bool:
-    return time_cap is not None and _scan_time_budget_exhausted()
+def _scan_budget_spent(time_cap: float | None, rows_pending: bool = True) -> bool:
+    return rows_pending and time_cap is not None and _scan_time_budget_exhausted()
 
 
 def _validator_context(context: str, normalized: str) -> str:
@@ -394,12 +191,15 @@ def _first_accepted_regex_threat(
     binary_prefix: BinaryPrefix | None = None,
 ) -> dict[str, "JsonValue"] | None:
     slice_start, request_scoped = _pass_slice_start()
+    time_cap = _scan_time_cap.get()
     for match in matches:
         if threat := _build_regex_threat(
             pattern, match, category, pattern_start, context, binary_prefix
         ):
             return threat
         slice_start = _yield_once_slice_elapsed(slice_start, request_scoped)
+        if _scan_budget_spent(time_cap):
+            raise ScanBudgetSpent
     return None
 
 
@@ -422,11 +222,19 @@ def _yield_once_slice_elapsed(slice_start: float, request_scoped: bool) -> float
     return slice_start
 
 
-_LITERAL_EXCLUDED_SOURCES = (
-    frozenset(_WINDOWED_PATTERN_FINDERS)
-    | frozenset(_PATTERN_SCAN_WINDOW_MATCHERS)
-    | frozenset(_SCAN_WINDOW_PATTERNS)
-)
+def _record_budget_exhaustion(
+    ip_address: str,
+    threats: list[dict],
+    matched_patterns: list[str],
+    timeouts: list[str],
+) -> None:
+    budget_threat = _scan_time_budget_exhausted_threat(
+        _resolve_pattern_weight(_SCAN_TIME_BUDGET_EXHAUSTED_PATTERN, "custom")
+    )
+    _warn_scan_time_cap_reached_once(ip_address)
+    threats.append(budget_threat)
+    matched_patterns.append(_SCAN_TIME_BUDGET_EXHAUSTED_PATTERN)
+    timeouts.append(_SCAN_TIME_BUDGET_EXHAUSTED_PATTERN)
 
 
 class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixin):
@@ -659,9 +467,9 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
         nul_tail_rows: bool = False,
     ) -> tuple[list[dict], list[str], list[str]]:
         state = self._resolve_state(state)
-        threats = []
-        matched_patterns = []
-        timeouts = []
+        threats: list[dict] = []
+        matched_patterns: list[str] = []
+        timeouts: list[str] = []
 
         all_patterns = self._rows_to_scan()
         normalized = self._normalize_context(context)
@@ -690,15 +498,6 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
         metric_rows: list[tuple[str, float, int, bool, bool]] = []
         content_length = len(content)
 
-        def _record_budget_exhaustion() -> None:
-            budget_threat = _scan_time_budget_exhausted_threat(
-                _resolve_pattern_weight(_SCAN_TIME_BUDGET_EXHAUSTED_PATTERN, "custom")
-            )
-            _warn_scan_time_cap_reached_once(ip_address)
-            threats.append(budget_threat)
-            matched_patterns.append(_SCAN_TIME_BUDGET_EXHAUSTED_PATTERN)
-            timeouts.append(_SCAN_TIME_BUDGET_EXHAUSTED_PATTERN)
-
         try:
             for pattern, _contexts, category in rows_with_required_literal(
                 applicable_patterns,
@@ -706,22 +505,30 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
                 _LITERAL_EXCLUDED_SOURCES,
             ):
                 if _scan_budget_spent(time_cap):
-                    _record_budget_exhaustion()
+                    _record_budget_exhaustion(
+                        ip_address, threats, matched_patterns, timeouts
+                    )
                     break
 
                 pattern_start = time.monotonic()
 
                 scan_content = content
-                threat, timeout_occurred = self._check_regex_pattern(
-                    pattern,
-                    scan_content,
-                    ip_address,
-                    pattern_start,
-                    category,
-                    state=state,
-                    context=validator_context,
-                    binary_prefix=binary_prefix,
-                )
+                try:
+                    threat, timeout_occurred = self._check_regex_pattern(
+                        pattern,
+                        scan_content,
+                        ip_address,
+                        pattern_start,
+                        category,
+                        state=state,
+                        context=validator_context,
+                        binary_prefix=binary_prefix,
+                    )
+                except ScanBudgetSpent:
+                    _record_budget_exhaustion(
+                        ip_address, threats, matched_patterns, timeouts
+                    )
+                    break
 
                 slice_start = _yield_once_slice_elapsed(slice_start, request_scoped)
 
@@ -744,8 +551,10 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
                         )
                     )
             else:
-                if skipped_tail and _scan_budget_spent(time_cap):
-                    _record_budget_exhaustion()
+                if _scan_budget_spent(time_cap, skipped_tail):
+                    _record_budget_exhaustion(
+                        ip_address, threats, matched_patterns, timeouts
+                    )
 
         finally:
             _close_cpu_pass(mark_token)

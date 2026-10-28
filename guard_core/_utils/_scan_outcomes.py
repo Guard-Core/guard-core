@@ -1,2 +1,6 @@
 SCAN_OUTCOME_QUEUE_WAIT = "queue_wait"
 SCAN_OUTCOME_RUN_TIMEOUT = "run_timeout"
+
+
+class ScanBudgetSpent(Exception):
+    pass

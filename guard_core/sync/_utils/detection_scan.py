@@ -8,6 +8,7 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, TypeVar
 
 from guard_core.exceptions import BodyReadFailedError
+from guard_core.sync._utils._scan_outcomes import ScanBudgetSpent
 from guard_core.sync._utils.detection_config import (
     _DEFAULT_BINARY_MIN_RUN_LENGTH,
     _DEFAULT_MAX_JSON_DEPTH,
@@ -569,6 +570,8 @@ def _fallback_pattern_check(
                     context=normalized_context,
                     binary_prefix=binary_prefix,
                 )
+            except ScanBudgetSpent:
+                return True, "Scan time budget exhausted (fallback)"
             except RecursionError:
                 logger.warning(
                     "Fallback pattern search hit the regex engine's recursion "
