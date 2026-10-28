@@ -191,8 +191,9 @@ def test_enricher_threat_score_map_covers_every_event_type() -> None:
     assert set(_THREAT_SCORE_MAP.keys()) == EVENT_TYPE_VALUES
 
 
-# The first guard-agent release after 3.2.4 knows ip_ban_refused (guard-agent 9c2722c).
-_GUARD_AGENT_ALIGNED_KNOWN_EVENT_TYPES_VERSION = (3, 2, 5)
+# The first guard-agent release that knows every guard-core event type is 4.0.0 (the
+# next agent release, DECISIONS D-168; landing-6b a0dd351 holds the vocabulary).
+_GUARD_AGENT_ALIGNED_KNOWN_EVENT_TYPES_VERSION = (4, 0, 0)
 
 
 def _guard_agent_version_tuple(raw: str) -> tuple[int, int, int]:
