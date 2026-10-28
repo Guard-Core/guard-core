@@ -153,3 +153,39 @@ async def decode_overlong_utf8_percent_runs_yielding(content: str) -> str:
         decoded.append(decode_overlong_utf8_percent_runs(content[start:end]))
         await truncation.yield_once_slice_elapsed()
     return "".join(decoded)
+
+
+_LOST_BYTE = "[\ufffd\udc80-\udcff]"
+_AT_SEGMENT_START = r"(?<![^/\\])"
+_LOST_BYTE_RE = re.compile(_LOST_BYTE)
+_LOST_BYTE_PAIR_RE = re.compile(f"{_LOST_BYTE}{{2}}")
+_LOST_DOT_RUN_RE = re.compile(
+    rf"{_AT_SEGMENT_START}(?:\.|{_LOST_BYTE}{{2}}){{2}}(?=[\\/])"
+)
+_LOST_SEPARATOR_BEFORE_SEPARATOR_RE = re.compile(
+    rf"({_AT_SEGMENT_START}\.\.){_LOST_BYTE}{{1,2}}(?=[\\/])"
+)
+_LOST_SEPARATOR_RE = re.compile(
+    rf"({_AT_SEGMENT_START}\.\.){_LOST_BYTE}{{2}}(?=[\w.-])"
+)
+_LOST_BYTE_REPAIR_PASSES = 4
+
+
+def repair_lost_overlong_bytes(content: str) -> str:
+    """Read a traversal whose overlong bytes the framework decoded to U+FFFD
+    (or left as surrogate escapes) the way the percent decoder reads the same
+    bytes: the two dots of a ``..`` segment may each be a lost pair, a lost byte
+    after a segment's ``..`` is its separator. Only a ``..`` that opens a
+    segment is repaired, so a lost byte elsewhere in a text is left alone."""
+    if not _LOST_BYTE_RE.search(content):
+        return content
+    for _ in range(_LOST_BYTE_REPAIR_PASSES):
+        repaired = _LOST_DOT_RUN_RE.sub(
+            lambda match: _LOST_BYTE_PAIR_RE.sub(".", match.group()), content
+        )
+        repaired = _LOST_SEPARATOR_BEFORE_SEPARATOR_RE.sub(r"\1", repaired)
+        repaired = _LOST_SEPARATOR_RE.sub(r"\1/", repaired)
+        if repaired == content:
+            break
+        content = repaired
+    return content

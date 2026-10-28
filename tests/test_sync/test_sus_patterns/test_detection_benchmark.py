@@ -429,6 +429,11 @@ MALICIOUS_CORPUS: list[MaliciousCase] = [
         "path_traversal_overlong_utf8_dot", "path_traversal", "%c0%ae%c0%ae/etc/passwd"
     ),
     MaliciousCase(
+        "path_traversal_overlong_utf8_dot_as_decoded_by_the_framework",
+        "path_traversal",
+        "\ufffd\ufffd\ufffd\ufffd/etc/passwd",
+    ),
+    MaliciousCase(
         "path_traversal_double_url_encoded_slash",
         "path_traversal",
         "%25c0%25ae/etc/passwd",
@@ -442,6 +447,11 @@ MALICIOUS_CORPUS: list[MaliciousCase] = [
         "path_traversal_single_segment_overlong_utf8_slash",
         "path_traversal",
         "..%c0%afconfig.yaml",
+    ),
+    MaliciousCase(
+        "path_traversal_single_segment_overlong_utf8_slash_as_decoded_by_the_framework",
+        "path_traversal",
+        "..\ufffd\ufffdconfig.yaml",
     ),
     MaliciousCase(
         "path_traversal_single_segment_iis_unicode_slash",
@@ -467,6 +477,11 @@ MALICIOUS_CORPUS: list[MaliciousCase] = [
         "path_traversal_single_segment_overlong_lead_byte_literal_slash",
         "path_traversal",
         "..%c0%2fconfig.yaml",
+    ),
+    MaliciousCase(
+        "path_traversal_single_segment_overlong_lead_byte_literal_slash_as_decoded_by_the_framework",
+        "path_traversal",
+        "..\ufffd/config.yaml",
     ),
     MaliciousCase(
         "path_traversal_single_segment_per_digit_double_encoded_slash",
@@ -1475,6 +1490,11 @@ MALICIOUS_CORPUS: list[MaliciousCase] = [
         _payload_as_ingested_from_the_wire(b"\x80\x04cshutil\nrmtree\n(S'/tmp/x'\ntR."),
     ),
     MaliciousCase(
+        "deserialization_pickle_global_opcode_proto_header_prefixed_as_decoded_by_the_framework",
+        "deserialization",
+        "\ufffd\x04cshutil\nrmtree\n(S'/tmp/x'\ntR.",
+    ),
+    MaliciousCase(
         "deserialization_pickle_global_opcode_binint1_prefixed",
         "deserialization",
         _payload_as_ingested_from_the_wire(b"K\x00cshutil\nrmtree\n(S'/tmp/x'\ntR."),
@@ -1483,6 +1503,11 @@ MALICIOUS_CORPUS: list[MaliciousCase] = [
         "deserialization_pickle_global_opcode_newtrue_prefixed",
         "deserialization",
         _payload_as_ingested_from_the_wire(b"\x88cshutil\nrmtree\n(S'/tmp/x'\ntR."),
+    ),
+    MaliciousCase(
+        "deserialization_pickle_global_opcode_newtrue_prefixed_as_decoded_by_the_framework",
+        "deserialization",
+        "\ufffdcshutil\nrmtree\n(S'/tmp/x'\ntR.",
     ),
     MaliciousCase(
         "deserialization_ruby_marshal_array_top_level_b64",

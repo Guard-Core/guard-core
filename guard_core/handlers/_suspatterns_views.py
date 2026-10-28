@@ -5,6 +5,7 @@ from guard_core.detection_engine.encoding_decoders import (
     decode_overlong_utf8_percent_runs,
     decode_percent_u_escapes,
     percent_decode,
+    repair_lost_overlong_bytes,
 )
 from guard_core.handlers._suspatterns_regex import (
     _resolve_pattern_weight,
@@ -101,6 +102,8 @@ class _SusPatternsViewsMixin(_SusPatternsRegexMixin):
             )
             decoded_view_content = _legacy_decode_path_traversal_view(raw_view_content)
 
+        if "\ufffd" in decoded_view_content:
+            decoded_view_content = repair_lost_overlong_bytes(decoded_view_content)
         decoded_matches = list(
             _PATH_TRAVERSAL_DECODED_SHAPE_RE.finditer(decoded_view_content)
         )
@@ -120,6 +123,30 @@ class _SusPatternsViewsMixin(_SusPatternsRegexMixin):
                 _PATH_TRAVERSAL_DECODED_SHAPE_RE.pattern, "path_traversal"
             ),
         }
+
+    async def _check_lost_overlong_bytes_view_patterns(
+        self,
+        processed_content: str,
+        ip_address: str,
+        context: str,
+        correlation_id: str | None,
+        enabled_categories: set[str] | None,
+        state: _DetectionState,
+    ) -> tuple[list[dict], list[str], list[str]]:
+        if not state.preprocessor:
+            return [], [], []
+        repaired_view = repair_lost_overlong_bytes(processed_content)
+        if repaired_view == processed_content:
+            return [], [], []
+        return await self._check_regex_patterns(
+            repaired_view,
+            ip_address,
+            correlation_id,
+            context,
+            enabled_categories,
+            state=state,
+            raw_view_only=False,
+        )
 
     async def _check_url_decoded_view_patterns(
         self,

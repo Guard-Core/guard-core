@@ -983,6 +983,19 @@ class SusPatternsManager(_SusPatternsViewsMixin):
                 _PATH_TRAVERSAL_DECODED_SHAPE_RE.pattern
             ]
 
+        if "\ufffd" in processed_content:
+            lost_byte_view_results = self._check_lost_overlong_bytes_view_patterns(
+                processed_content,
+                ip_address,
+                context,
+                correlation_id,
+                enabled_categories,
+                state,
+            )
+            regex_threats, matched_patterns, timeouts = _merge_raw_view_results(
+                regex_threats, matched_patterns, timeouts, lost_byte_view_results
+            )
+
         (
             url_decoded_threats,
             url_decoded_matched,

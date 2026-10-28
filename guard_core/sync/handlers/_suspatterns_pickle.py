@@ -122,6 +122,57 @@ def _pickle_opcode_scan_window(text: str, budget: int) -> tuple[bytes | None, bo
     return _pickle_prefix_window_from_chars(scan_slice), is_complete
 
 
+_PICKLE_REPLACEMENT_CHAR = "\ufffd"
+_PICKLE_REPLACEMENT_BYTE_CANDIDATES = (*range(0x80, 0x96), 0xFF)
+_PICKLE_REPLACEMENT_MAX_CHARS = 8
+_PICKLE_REPLACEMENT_WALK_BUDGET = 256
+
+
+def _pickle_replacement_pieces(prefix: str) -> list[bytes] | None:
+    scan_slice = prefix[:_PICKLE_OPCODE_WORK_BUDGET_BYTES]
+    if scan_slice.count(_PICKLE_REPLACEMENT_CHAR) > _PICKLE_REPLACEMENT_MAX_CHARS:
+        return None
+    pieces: list[bytes] = []
+    for chars in scan_slice.split(_PICKLE_REPLACEMENT_CHAR):
+        piece = _pickle_prefix_window_from_chars(chars)
+        if piece is None:
+            return None
+        pieces.append(piece)
+    return pieces
+
+
+def _pickle_prefix_with_replacement_chars_is_opcode_stream(prefix: str) -> bool:
+    """A U+FFFD is a high byte the framework could not decode, so it stands for
+    any of the high bytes a pickle opcode stream can hold (a protocol or frame
+    opcode, or a filler for a data byte). The prefix counts as a stream when
+    some choice of those bytes walks as one, the same test a surrogate-escaped
+    high byte gets with the byte it carries."""
+    pieces = _pickle_replacement_pieces(prefix)
+    if pieces is None:
+        return False
+    is_complete = len(prefix) <= _PICKLE_OPCODE_WORK_BUDGET_BYTES
+    walks = 0
+
+    def resolve(window: bytes, next_piece: int) -> bool:
+        nonlocal walks
+        is_last = next_piece == len(pieces) - 1
+        for byte in _PICKLE_REPLACEMENT_BYTE_CANDIDATES:
+            walks += 1
+            if walks > _PICKLE_REPLACEMENT_WALK_BUDGET:
+                return False
+            extended = window + bytes([byte]) + pieces[next_piece]
+            if (
+                _pickle_prefix_walk_from_start(extended, is_last and is_complete)
+                is False
+            ):
+                continue
+            if is_last or resolve(extended, next_piece + 1):
+                return True
+        return False
+
+    return resolve(pieces[0], 1)
+
+
 def _pickle_global_prefix_is_opcode_stream(prefix: str) -> bool:
     if not prefix or prefix[-1] == "\n":
         return True
@@ -129,7 +180,7 @@ def _pickle_global_prefix_is_opcode_stream(prefix: str) -> bool:
         prefix, _PICKLE_OPCODE_WORK_BUDGET_BYTES
     )
     if window is None:
-        return False
+        return _pickle_prefix_with_replacement_chars_is_opcode_stream(prefix)
     return _pickle_prefix_walk_from_start(window, is_complete) is not False
 
 
