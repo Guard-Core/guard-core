@@ -11,6 +11,8 @@ expected_version="$5"
 redis_prefix="${6:-}"
 consumer_ref="${7:-}"
 
+gate_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+expected_dir="$gate_dir/../ecosystem-gate/expected"
 clone_dir="consumer"
 base_output="pytest-output-base.txt"
 candidate_output="pytest-output-candidate.txt"
@@ -80,11 +82,17 @@ echo "::endgroup::"
 # The consumer's .python-version says 3.11, so the job's interpreter is passed to uv explicitly.
 python_version="${UV_PYTHON:?UV_PYTHON must name the interpreter this job tests}"
 echo "::group::uv sync --python $python_version $sync_extra"
-if [ ! -f uv.lock ]; then
+unlocked_resolution=0
+if [ -f uv.lock ]; then
+  uv sync --locked --python "$python_version" "${sync_args[@]}"
+elif [ "$consumer_ref" = "latest-release" ]; then
+  echo "::notice::$repo@$ref predates its committed uv.lock; resolving it as a user installing the release does (uv sync, 7-day cooldown)"
+  uv sync --exclude-newer "7 days" --python "$python_version" "${sync_args[@]}"
+  unlocked_resolution=1
+else
   echo "::error::$repo@$ref has no committed uv.lock, so uv sync --locked cannot run" >&2
   exit 1
 fi
-uv sync --locked --python "$python_version" "${sync_args[@]}"
 .venv/bin/python -V
 actual_python="$(.venv/bin/python -c "import sys; print('%d.%d' % sys.version_info[:2])")"
 if [ "$actual_python" != "$python_version" ]; then
@@ -93,9 +101,28 @@ if [ "$actual_python" != "$python_version" ]; then
 fi
 echo "::endgroup::"
 
-run_env=(IPINFO_TOKEN="${IPINFO_TOKEN:-test_token}" REDIS_URL="${REDIS_URL:-redis://localhost:6379}")
+# COLUMNS keeps pytest from truncating the failure message in the short summary, which the expected-failures judging reads.
+run_env=(IPINFO_TOKEN="${IPINFO_TOKEN:-test_token}" REDIS_URL="${REDIS_URL:-redis://localhost:6379}" COLUMNS=1000)
 if [ -n "$redis_prefix" ]; then
   run_env+=(REDIS_PREFIX="$redis_prefix")
+fi
+
+if [ "$consumer_ref" = "latest-release" ]; then
+  echo "::group::D-216 cap proof for $repo@$ref"
+  consumer_dist="$(basename "$repo")"
+  .venv/bin/python -c "import importlib.metadata as m, sys; print('\n'.join(m.requires(sys.argv[1]) or []))" "$consumer_dist" > "$PWD/tag-requires.txt"
+  set +e
+  uv run --no-project --python "$python_version" --with packaging python "$gate_dir/ecosystem_gate_cap_proof.py" \
+    "$consumer_dist" "${ref#v}" "$expected_version" "$wheel_dir" "$python_version" "$PWD/tag-requires.txt"
+  cap_status=$?
+  set -e
+  echo "::endgroup::"
+  if [ "$cap_status" -eq 3 ]; then
+    echo "::notice::${repo}@${ref} caps guard-core below $expected_version and the cap is proven, so its suite is not run against the PR wheel"
+    exit 0
+  elif [ "$cap_status" -ne 0 ]; then
+    exit 1
+  fi
 fi
 
 echo "::group::Run $repo's test suite (base: guard-core as resolved from PyPI)"
@@ -155,15 +182,37 @@ both_count="$(wc -l < "$work_dir/both.txt" | tr -d ' ')"
 
 job_status=0
 
+# D-216: the latest-release leg judges the candidate run against the committed expected-failures list for this consumer@tag.
+judge_expected=0
+if [ "$consumer_ref" = "latest-release" ]; then
+  judge_expected=1
+fi
+
 if [ "$candidate_only_count" -gt 0 ]; then
   ids_joined="$(paste -sd ',' "$work_dir/candidate_only.txt")"
-  echo "::error::${repo}@${ref}: ${candidate_only_count} test(s) fail only with the PR wheel (regression): ${ids_joined}"
-  job_status=1
+  if [ "$judge_expected" -eq 1 ]; then
+    echo "::notice::${repo}@${ref}: ${candidate_only_count} test(s) fail only with the PR wheel, judged against the expected-failures list: ${ids_joined}"
+  else
+    echo "::error::${repo}@${ref}: ${candidate_only_count} test(s) fail only with the PR wheel (regression): ${ids_joined}"
+    job_status=1
+  fi
+fi
+
+if [ "$judge_expected" -eq 1 ]; then
+  if ! python3 "$gate_dir/ecosystem_gate_judge.py" "$candidate_output" "$expected_dir/$(basename "$repo")@${ref}.json"; then
+    job_status=1
+  fi
 fi
 
 if [ "$both_count" -gt 0 ]; then
   ids_joined="$(paste -sd ',' "$work_dir/both.txt")"
-  echo "::warning::baseline broken on ${repo}@${ref}: ${both_count} tests fail without the PR wheel: ${ids_joined}"
+  if [ "$unlocked_resolution" -eq 1 ]; then
+    # An unlocked resolution that breaks the base suite tests nothing about the release: fail rather than pass over it.
+    echo "::error::baseline broken on ${repo}@${ref} under the unlocked resolution: ${both_count} tests fail without the PR wheel: ${ids_joined}"
+    job_status=1
+  else
+    echo "::warning::baseline broken on ${repo}@${ref}: ${both_count} tests fail without the PR wheel: ${ids_joined}"
+  fi
 fi
 
 if [ "$base_only_count" -gt 0 ]; then
@@ -172,7 +221,10 @@ if [ "$base_only_count" -gt 0 ]; then
 fi
 
 if [ "$candidate_status" -ne 0 ] && [ "$candidate_status" -ne 1 ]; then
-  if [ "$candidate_status" -eq "$base_status" ]; then
+  if [ "$candidate_status" -eq "$base_status" ] && [ "$unlocked_resolution" -eq 1 ]; then
+    echo "::error::${repo}@${ref}: both runs exited abnormally with status $candidate_status under the unlocked resolution"
+    job_status=1
+  elif [ "$candidate_status" -eq "$base_status" ]; then
     echo "::warning::${repo}@${ref}: both runs exited abnormally with status $candidate_status (baseline already broken at collection)"
   else
     echo "::error::${repo}@${ref}: candidate pytest run exited abnormally (status $candidate_status) while base exited $base_status, treating as a job failure"
@@ -188,7 +240,7 @@ printf '%-68s %6s\n' "Failing on base and candidate (baseline already broken)" "
 printf '%-68s %6s\n' "Base-only failures (fixed by the PR wheel)" "$base_only_count"
 echo "::endgroup::"
 
-if [ "$job_status" -eq 0 ] && { [ "$both_count" -gt 0 ] || [ "$candidate_status" -ne 0 ]; }; then
+if [ "$job_status" -eq 0 ] && [ "$judge_expected" -eq 0 ] && { [ "$both_count" -gt 0 ] || [ "$candidate_status" -ne 0 ]; }; then
   echo "::warning::JOB PASSED OVER PRE-EXISTING ${repo}@${ref} FAILURES: ${both_count} test(s) fail identically with and without the PR wheel, so this PR introduces no regression there; the breakage belongs to ${repo}@${ref} itself. Inspect the pytest-output-base / pytest-output-candidate artifacts for the failing tests."
 fi
 
