@@ -147,6 +147,26 @@ jobs:
         run: |
           uv run --no-project python -c "import os, sys; assert '%d.%d' % sys.version_info[:2] == os.environ['EXPECTED_PYTHON'], sys.version; print(sys.version)"
 
+      # D-207 TEMPORARY 5.0.0 PINS, begin. Release-day step 3b (the gate reset PR) deletes this step and restores
+      # "${{ github.event.inputs.consumer_ref }}" as the last argument below.
+      - name: Pin the 5.0.0 consumer branch (D-207, temporary)
+        id: pin
+        env:
+          DISPATCH_REF: ${{ github.event.inputs.consumer_ref }}
+        run: |
+          ref="$DISPATCH_REF"
+          if [ -z "$ref" ]; then
+            case "${{ matrix.name }}" in
+              fastapi-guard|flaskapi-guard|djapi-guard|tornadoapi-guard) ref=landing-5.0.0-adapters ;;
+              # TODO LEDGER 6.329: guard-agent's 5.0.0 branch is not named in RELEASE-DAY; landing-6b is the one the consumer suites ran on.
+              guard-agent) ref=landing-6b ;;
+              guard-core-mcp) ref=landing-6 ;;
+              *) echo "::error::no 5.0.0 pin for ${{ matrix.name }}"; exit 1 ;;
+            esac
+          fi
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+      # D-207 TEMPORARY 5.0.0 PINS, end.
+
       - name: Test ${{ matrix.name }} against the PR wheel
         run: |
           .github/scripts/ecosystem_gate.sh \
@@ -156,7 +176,7 @@ jobs:
             "$PWD/dist" \
             "${{ needs.build-wheel.outputs.version }}" \
             "${{ matrix.redis_prefix }}" \
-            "${{ github.event.inputs.consumer_ref }}"
+            "${{ steps.pin.outputs.ref }}"
 
       - name: Upload pytest output
         if: always()
