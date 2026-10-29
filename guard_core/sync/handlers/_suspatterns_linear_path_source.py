@@ -1,7 +1,7 @@
 import re
 from collections.abc import Iterator
 
-from guard_core.sync.handlers._suspatterns_literals import _PARSER
+from guard_core.sync.handlers._suspatterns_literals import _PARSER, source_digest
 
 SEGMENT_STEP_RE = re.compile(r"[\w.\-~%]+[/\\]")
 PATH_SEPARATORS = "/\\"
@@ -112,6 +112,8 @@ def _has_top_level_alternation(source: str) -> bool:
 
 
 def row_pieces(source: str) -> tuple[list[str], list[str | None]] | None:
+    if _PLAIN_CHAIN not in source and _GUARDED_CHAIN_OPEN not in source:
+        return None
     if _has_top_level_alternation(source):
         return None
     pieces, guards = split_on_chains(source)
@@ -160,3 +162,7 @@ def mandatory_characters(piece: str, flags: int) -> tuple[frozenset[str], ...]:
         if str(operation) == "ASSERT"
     ]
     return (*groups, *(chars for chars in lookahead_sets if chars is not None))
+
+
+def mandatory_key(piece: str, flags: int) -> str:
+    return source_digest(f"{flags}:{piece}")

@@ -17,6 +17,7 @@ _PARSER = importlib.import_module(
 )
 
 _MIN_LITERAL_LENGTH = 3
+_MIN_PUNCTUATED_LITERAL_LENGTH = 2
 _FOLD = {0x130: "i", 0x131: "i", 0x17F: "s", 0x212A: "k"}
 _required_literals: dict[str, tuple[str, ...]] = {}
 
@@ -26,7 +27,10 @@ def fold_for_literals(text: str) -> str:
 
 
 def _usable(run: str) -> bool:
-    return len(run) >= _MIN_LITERAL_LENGTH and run.isascii() and run.isprintable()
+    long_enough = len(run) >= _MIN_LITERAL_LENGTH or (
+        len(run) == _MIN_PUNCTUATED_LITERAL_LENGTH and not run.isalnum()
+    )
+    return long_enough and run.isascii() and run.isprintable()
 
 
 @runtime_checkable

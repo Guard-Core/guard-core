@@ -62,11 +62,12 @@ from guard_core.sync.handlers._suspatterns_candidate_gates import (
     _candidate_passes_the_route_gates,
 )
 from guard_core.sync.handlers._suspatterns_enhanced import _SusPatternsEnhancedMixin
-from guard_core.sync.handlers._suspatterns_inline_matches import _INLINE_FINDERS
+from guard_core.sync.handlers._suspatterns_inline_matches import (
+    _INLINE_FINDERS,
+    compiled_unless_known_clean,
+)
 from guard_core.sync.handlers._suspatterns_lazy_rows import (
-    COMPILED_BUILTIN_PATTERNS,
     PatternSource,
-    _SourceRow,
 )
 from guard_core.sync.handlers._suspatterns_literals import (
     fold_for_literals,
@@ -251,9 +252,10 @@ class _SusPatternsRegexMixin(_SusPatternsRegistryMixin, _SusPatternsEnhancedMixi
         binary_prefix: BinaryPrefix | None = None,
     ) -> tuple[dict | None, bool]:
         state = self._resolve_state(state)
-        match pattern:
-            case _SourceRow(pattern=source):
-                pattern = COMPILED_BUILTIN_PATTERNS[source]
+        compiled = compiled_unless_known_clean(pattern, content)
+        if compiled is None:
+            return None, False
+        pattern = compiled
         windowed_finder = _WINDOWED_PATTERN_FINDERS.get(pattern.pattern)
         if windowed_finder is not None:
             return self._check_windowed_pattern(

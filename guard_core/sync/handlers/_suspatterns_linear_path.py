@@ -1,8 +1,11 @@
 import re
 from array import array
 from collections.abc import Callable, Iterator
-from functools import lru_cache
+from functools import cached_property, lru_cache
 
+from guard_core.sync.handlers._suspatterns_linear_mandatory_table import (
+    BUILTIN_MANDATORY_CHARACTERS,
+)
 from guard_core.sync.handlers._suspatterns_linear_path_source import (
     FLAT_CHAIN_CLASS,
     OPTIONAL_SEPARATOR,
@@ -11,6 +14,7 @@ from guard_core.sync.handlers._suspatterns_linear_path_source import (
     SEPARATOR,
     flattened,
     mandatory_characters,
+    mandatory_key,
     row_pieces,
     without_unbalanced_parentheses,
 )
@@ -31,16 +35,30 @@ class _LinearPathRow:
         self._separator_optional = without_unbalanced_parentheses(pieces[0]).endswith(
             "?"
         )
-        self._guards = [
-            None if guard is None else re.compile(f"(?:{guard})", flags)
-            for guard in guards
+        self._guard_sources = guards
+        self._built = lru_cache(maxsize=_MAX_BUILT_PATTERNS)(self._build)
+
+    @cached_property
+    def _guards(self) -> list[re.Pattern | None]:
+        return [
+            None if guard is None else re.compile(f"(?:{guard})", self._flags)
+            for guard in self._guard_sources
         ]
-        self._tests = [
-            re.compile(without_unbalanced_parentheses(piece), flags)
+
+    @cached_property
+    def _tests(self) -> list[re.Pattern]:
+        return [
+            re.compile(without_unbalanced_parentheses(piece), self._flags)
             for piece in self._raw_pieces[1:]
         ]
-        self._mandatory = mandatory_characters(self._raw_pieces[-1], flags)
-        self._built = lru_cache(maxsize=_MAX_BUILT_PATTERNS)(self._build)
+
+    @cached_property
+    def _mandatory(self) -> tuple[frozenset[str], ...]:
+        piece = self._raw_pieces[-1]
+        tabled = BUILTIN_MANDATORY_CHARACTERS.get(mandatory_key(piece, self._flags))
+        if tabled is None:
+            return mandatory_characters(piece, self._flags)
+        return tuple(map(frozenset, tabled))
 
     def _build(self, leading: int, counts: tuple[int, ...]) -> re.Pattern:
         needle = OPTIONAL_SEPARATOR if self._separator_optional else SEPARATOR
@@ -73,7 +91,7 @@ class _LinearPathRow:
             memo = memos[chain] = array("i", [_UNSET]) * (len(text) + 2)
         path, best = self._walk(text, chain, start, memo)
         tail_test = self._tests[chain].match
-        final_chain = chain + 1 == len(self._guards)
+        final_chain = chain + 1 == len(self._guard_sources)
         for position in reversed(path):
             if best == _NO_END and (tail := tail_test(text, position)) is not None:
                 if final_chain or (
@@ -87,7 +105,7 @@ class _LinearPathRow:
     def _solve(self, text: str, start: int) -> list[int] | None:
         if not all(any(map(text.__contains__, cases)) for cases in self._mandatory):
             return None
-        memos: list[array | None] = [None] * len(self._guards)
+        memos: list[array | None] = [None] * len(self._guard_sources)
         counts: list[int] = []
         position = start
         for chain in range(len(self._guards)):
