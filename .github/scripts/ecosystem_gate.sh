@@ -196,7 +196,7 @@ if [ "$candidate_only_count" -gt 0 ]; then
 fi
 
 if [ "$judge_expected" -eq 1 ]; then
-  if ! python3 "$gate_dir/ecosystem_gate_judge.py" "$candidate_output" "$expected_dir/$(basename "$repo")@${ref}.json"; then
+  if ! python3 "$gate_dir/ecosystem_gate_judge.py" "$candidate_output" "$expected_dir/$(basename "$repo")@${ref}.json" "$python_version"; then
     job_status=1
   fi
 fi
