@@ -22,8 +22,11 @@ _STEP = SEGMENT_STEP_RE.match
 
 
 class _LinearPathRow:
-    def __init__(self, flags: int, pieces: list[str], guards: list[str | None]) -> None:
+    def __init__(
+        self, flags: int, pieces: list[str], guards: list[str | None], source: str
+    ) -> None:
         self._flags = flags
+        self._source = source
         self._raw_pieces = [flattened(piece) for piece in pieces]
         self._separator_optional = without_unbalanced_parentheses(pieces[0]).endswith(
             "?"
@@ -108,13 +111,15 @@ class _LinearPathRow:
                 match = self._built(start, tuple(counts)).match(text)
                 if match is not None:
                     yield match
+                else:
+                    yield from re.compile(self._source, self._flags).finditer(text)
                 return
 
 
 @lru_cache(maxsize=512)
 def _row_for(source: str, flags: int) -> _LinearPathRow | None:
     split = row_pieces(source)
-    return None if split is None else _LinearPathRow(flags, *split)
+    return None if split is None else _LinearPathRow(flags, *split, source)
 
 
 @lru_cache(maxsize=512)

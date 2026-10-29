@@ -102,7 +102,18 @@ def _is_separator_terminated_literal(piece: str) -> bool:
     )
 
 
+def _has_top_level_alternation(source: str) -> bool:
+    depth = 0
+    for _, char in _outside_classes(source):
+        depth += (char == "(") - (char == ")")
+        if char == "|" and depth == 0:
+            return True
+    return False
+
+
 def row_pieces(source: str) -> tuple[list[str], list[str | None]] | None:
+    if _has_top_level_alternation(source):
+        return None
     pieces, guards = split_on_chains(source)
     if not guards:
         return None
