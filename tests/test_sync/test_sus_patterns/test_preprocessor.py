@@ -1,4 +1,5 @@
 from unittest.mock import MagicMock, patch
+from urllib.parse import quote
 
 import pytest
 
@@ -327,6 +328,21 @@ def test_decode_common_encodings_max_iterations() -> None:
     result = preprocessor.decode_common_encodings(content)
 
     assert "%3C" not in result or result.count("%3C") > 0
+
+
+def test_sixteen_decode_passes_stop_the_loop_without_a_budget_flag() -> None:
+    preprocessor = ContentPreprocessor()
+    content = "<script>"
+    for _ in range(18):
+        content = quote(content)
+
+    flagged = [False]
+    flagged_result = preprocessor.decode_common_encodings(content, flagged)
+    unflagged_result = preprocessor.decode_common_encodings(content)
+
+    assert flagged == [True]
+    assert unflagged_result == flagged_result
+    assert unflagged_result.startswith("%253Cscript")
 
 
 def test_preprocess_empty_content() -> None:
