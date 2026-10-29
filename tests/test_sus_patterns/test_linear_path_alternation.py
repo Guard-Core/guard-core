@@ -75,7 +75,8 @@ def test_every_builtin_row_splits_as_it_did_before_the_alternation_refusal() -> 
 
 
 def test_a_row_whose_built_pattern_misses_yields_what_the_regex_yields() -> None:
-    pieces, guards = ["\\A[/\\\\]?", "a|b"], [None]
+    pieces = ["\\A[/\\\\]?", "a|b"]
+    guards: list[str | None] = [None]
     row = _LinearPathRow(0, pieces, guards, _ALTERNATION)
 
     for text in ("x/b", "b", "/x/a", "x/y/b b"):
