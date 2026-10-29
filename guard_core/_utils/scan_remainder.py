@@ -1,6 +1,7 @@
 import re
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+from functools import cache
 from typing import TYPE_CHECKING, NamedTuple
 
 from guard_core._utils.detection_scan import (
@@ -129,7 +130,16 @@ def _remainder_preview(
     return LazyPreview(build)
 
 
-_UNIT_NEEDS_DECODING_RE = re.compile(r"[%&\\\x80-\U0010ffff]")
+@cache
+def _unit_needs_decoding_re() -> re.Pattern[str]:
+    return re.compile(r"[%&\\\x80-\U0010ffff]")
+
+
+def __getattr__(name: str) -> re.Pattern[str]:
+    # Compiled on first use, not at import.
+    if name == "_UNIT_NEEDS_DECODING_RE":
+        return _unit_needs_decoding_re()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 async def _whole_value_rows(
@@ -154,7 +164,7 @@ async def _whole_value_rows(
 
 def _unit_needs_its_own_scan(unit: str, rows: list[re.Pattern]) -> bool:
     return (
-        _UNIT_NEEDS_DECODING_RE.search(unit) is not None
+        _unit_needs_decoding_re().search(unit) is not None
         or _WHOLE_BASE64_RE.fullmatch(unit) is not None
         or any(row.search(unit) for row in rows)
     )

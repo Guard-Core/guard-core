@@ -67,8 +67,12 @@ from guard_core.sync.handlers._suspatterns_inline_matches import (
     compiled_unless_known_clean,
 )
 from guard_core.sync.handlers._suspatterns_lazy_rows import (
+    COMPILED_BUILTIN_PATTERNS as COMPILED_BUILTIN_PATTERNS,
+)
+from guard_core.sync.handlers._suspatterns_lazy_rows import (
     PatternSource,
 )
+from guard_core.sync.handlers._suspatterns_lazy_rows import _SourceRow as _SourceRow
 from guard_core.sync.handlers._suspatterns_literals import (
     fold_for_literals,
     rows_with_required_literal,
