@@ -158,7 +158,7 @@ jobs:
           if [ -z "$ref" ]; then
             case "${{ matrix.name }}" in
               fastapi-guard|flaskapi-guard|djapi-guard|tornadoapi-guard) ref=landing-5.0.0-adapters ;;
-              # TODO LEDGER 6.329: guard-agent's 5.0.0 branch is not named in RELEASE-DAY; landing-6b is the one the consumer suites ran on.
+              # guard-agent's 5.0.0 branch is landing-6b (maintainer-confirmed; the consumer suites ran on it).
               guard-agent) ref=landing-6b ;;
               guard-core-mcp) ref=landing-6 ;;
               *) echo "::error::no 5.0.0 pin for ${{ matrix.name }}"; exit 1 ;;

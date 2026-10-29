@@ -117,10 +117,7 @@ if [ "$consumer_ref" = "latest-release" ]; then
   cap_status=$?
   set -e
   echo "::endgroup::"
-  if [ "$cap_status" -eq 3 ]; then
-    echo "::notice::${repo}@${ref} caps guard-core below $expected_version and the cap is proven, so its suite is not run against the PR wheel"
-    exit 0
-  elif [ "$cap_status" -ne 0 ]; then
+  if [ "$cap_status" -ne 0 ]; then
     exit 1
   fi
 fi

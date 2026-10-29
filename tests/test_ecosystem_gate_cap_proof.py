@@ -140,7 +140,7 @@ def test_main_reports_the_proven_cap_with_its_own_exit_code(
         lambda *args: real(*args, fake_pypi(versions), fake_resolver({"2.0.1"}, [])),
     )
     argv = ["p", "tornadoapi-guard", "2.0.1", "5.0.0", "/wheels", "3.10", str(requires)]
-    assert proof.main(argv) == proof.CAPPED_AND_PROVEN
+    assert proof.main(argv) == 0
     assert (
         "::notice::tornadoapi-guard==2.0.1 cap on guard-core proven"
         in capsys.readouterr().out

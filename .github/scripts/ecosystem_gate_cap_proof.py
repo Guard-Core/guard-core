@@ -16,7 +16,6 @@ ENGINE = "guard-core"
 PYPI_VERSION_JSON = "https://pypi.org/pypi/{dist}/{version}/json"
 PYPI_PROJECT_JSON = "https://pypi.org/pypi/{dist}/json"
 MAX_HISTORY_LOOKUPS = 40
-CAPPED_AND_PROVEN = 3
 
 FetchJson = Callable[[str], dict[str, object]]
 Compile = Callable[[Sequence[str], str, Sequence[str]], tuple[int, str]]
@@ -162,9 +161,7 @@ def main(argv: list[str]) -> int:
     if outcome == "capped" and not errors:
         print(f"::notice::{dist}=={tag_version} cap on {ENGINE} proven unsatisfiable")
     print(f"cap-proof: {outcome}")
-    if errors:
-        return 1
-    return CAPPED_AND_PROVEN if outcome == "capped" else 0
+    return 1 if errors else 0
 
 
 if __name__ == "__main__":
