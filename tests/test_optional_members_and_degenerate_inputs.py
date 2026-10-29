@@ -141,6 +141,7 @@ async def test_an_unban_through_two_apps_of_one_identity_unbans_it_once(
     second = await _app_on_the_shared_redis("wp303-same-identity:")
     ban = ip_ban_manager_for(first)
     identity = ban._grouped_identity_of(V6, first)
+    assert identity is not None
     assert identity == ban._grouped_identity_of(V6, second)
     ban.banned_ips[identity] = 10**12
     forgotten = AsyncMock()
