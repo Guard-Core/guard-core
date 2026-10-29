@@ -695,6 +695,55 @@ def test_log_activity_passive_mode_fires_on_block_hook(
     assert calls[0]["passive_mode"] is True
 
 
+def test_log_activity_with_its_logger_off_still_fires_the_passive_hook() -> None:
+    calls: list[dict[str, Any]] = []
+
+    def hook(request: SyncGuardRequest, payload: dict[str, Any]) -> None:
+        calls.append(payload)
+
+    logger = logging.getLogger(f"{__name__}.passive_hook_logger_off")
+    logger.setLevel(logging.CRITICAL)
+    request = SyncMockGuardRequest(
+        path="/", method="POST", headers={"user-agent": "t"}, client_host="127.0.0.1"
+    )
+
+    log_activity(
+        request,
+        logger,
+        log_type="suspicious",
+        reason="blacklisted",
+        passive_mode=True,
+        trigger_info="IPMatch",
+        check_name="suspicious_activity",
+        on_block=hook,
+    )
+
+    assert [call["check_name"] for call in calls] == ["suspicious_activity"]
+
+
+def test_log_activity_with_its_logger_off_still_stashes_the_block_reason() -> None:
+    logger = logging.getLogger(f"{__name__}.stash_logger_off")
+    logger.setLevel(logging.CRITICAL)
+    request = SyncMockGuardRequest(
+        path="/", method="POST", headers={"user-agent": "t"}, client_host="127.0.0.1"
+    )
+
+    log_activity(
+        request,
+        logger,
+        log_type="suspicious",
+        reason="blacklisted",
+        passive_mode=False,
+        trigger_info="IPMatch",
+        check_name="suspicious_activity",
+    )
+
+    assert request.state._guard_block_stash == {
+        "reason": "blacklisted",
+        "trigger_info": "IPMatch",
+    }
+
+
 def test_log_level(caplog: pytest.LogCaptureFixture) -> None:
     from typing import Literal
 

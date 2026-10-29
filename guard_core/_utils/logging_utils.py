@@ -177,6 +177,20 @@ def _redact_sensitive_json(
     return root
 
 
+_LEVEL_NUMBERS: dict[str, int] = {
+    "INFO": logging.INFO,
+    "DEBUG": logging.DEBUG,
+    "WARNING": logging.WARNING,
+    "ERROR": logging.ERROR,
+    "CRITICAL": logging.CRITICAL,
+}
+
+
+def _logs_at_level(logger: logging.Logger, level: str) -> bool:
+    number = _LEVEL_NUMBERS.get(level)
+    return number is not None and logger.isEnabledFor(number)
+
+
 def _log_at_level(logger: logging.Logger, level: str, msg: str) -> None:
     msg = _sanitize_for_reporting(msg)
     if level == "INFO":

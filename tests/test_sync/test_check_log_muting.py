@@ -5,6 +5,7 @@ import pytest
 
 from guard_core.models import SyncSecurityConfig
 from guard_core.protocols.response_protocol import GuardResponse
+from guard_core.sync._utils.logging_utils import _logs_at_level
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 from guard_core.sync.utils import log_activity
 
@@ -119,3 +120,24 @@ def test_security_check_log_if_allowed_emits_when_not_muted(
         )
     records = [r for r in caplog.records if r.name == middleware.logger.name]
     assert records
+
+
+def test_log_activity_builds_no_message_when_its_level_is_off(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    logger = logging.getLogger("guard_core.test.level_off")
+    logger.setLevel(logging.CRITICAL)
+    redactions: list[object] = []
+    monkeypatch.setattr(
+        "guard_core.sync._utils.request_logging._extract_request_context",
+        lambda *args: redactions.append(args),
+    )
+    log_activity(_make_request(), logger, log_type="request", level="WARNING")
+    assert redactions == []
+
+
+def test_an_unknown_level_name_is_never_enabled() -> None:
+    logger = logging.getLogger("guard_core.test.level_unknown")
+    logger.setLevel(logging.DEBUG)
+    assert not _logs_at_level(logger, "NOTICE")
+    assert _logs_at_level(logger, "ERROR")

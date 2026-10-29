@@ -190,7 +190,9 @@ class SecurityCheckPipeline:
         blocker = flow.banned_by if isinstance(flow, BanFlow) else None
         if not isinstance(blocker, SecurityCheck):
             blocker = check
-        if blocker.check_name not in self.muted_check_logs:
+        if blocker.check_name not in self.muted_check_logs and self.logger.isEnabledFor(
+            logging.DEBUG
+        ):
             self.logger.debug(
                 f"Request blocked by {blocker.check_name}",
                 extra=self._log_extra(blocker, request),
