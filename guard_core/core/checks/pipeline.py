@@ -197,7 +197,8 @@ class SecurityCheckPipeline:
                 f"Request blocked by {blocker.check_name}",
                 extra=self._log_extra(blocker, request),
             )
-        await self._fire_block_hook(blocker, request, response)
+        if blocker.config.on_block is not None:
+            await self._fire_block_hook(blocker, request, response)
         return response
 
     async def _resolve_pending_ban(self, request: GuardRequest) -> GuardResponse | None:

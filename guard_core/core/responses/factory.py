@@ -74,15 +74,27 @@ def _merge_security_headers(
         present.add(lowered)
 
 
+def _merge_planned_into_foreign_headers(
+    headers: GuardResponseHeaders,
+    security_headers: dict[str, str],
+    plan: tuple[tuple[str, str, bool], ...],
+) -> None:
+    keys = getattr(headers, "keys", None)
+    present = {key.lower() for key in keys()} if keys is not None else None
+    for name, lowered, is_forced in plan:
+        if is_forced or (
+            name not in headers if present is None else lowered not in present
+        ):
+            headers[name] = security_headers[name]
+
+
 def _merge_planned_security_headers(
     headers: GuardResponseHeaders,
     security_headers: dict[str, str],
     plan: tuple[tuple[str, str, bool], ...],
 ) -> None:
     if not isinstance(headers, dict):
-        for name, _, is_forced in plan:
-            if is_forced or name not in headers:
-                headers[name] = security_headers[name]
+        _merge_planned_into_foreign_headers(headers, security_headers, plan)
         return
     present = set(map(str.lower, headers))
     for name, lowered, is_forced in plan:

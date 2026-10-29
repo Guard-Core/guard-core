@@ -51,6 +51,8 @@ def _sanitize_for_reporting(value: str) -> str:
     surrogate, which JSON ``\\ud800`` produces and ``surrogateescape`` cannot
     encode, shows as ``\\uXXXX`` instead of raising.
     """
+    if value.isascii():
+        return value
     value = _LONE_SURROGATE_OUTSIDE_ESCAPED_BYTES_RE.sub(
         lambda lone: f"\\u{ord(lone.group()):04x}", value
     )

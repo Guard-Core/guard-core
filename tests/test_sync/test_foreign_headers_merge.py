@@ -1,7 +1,10 @@
 from collections.abc import MutableMapping
 from typing import Any, cast
 
-from guard_core.sync.core.responses.factory import _merge_security_headers
+from guard_core.sync.core.responses.factory import (
+    _merge_planned_security_headers,
+    _merge_security_headers,
+)
 
 
 class TupleIterHeaders(MutableMapping[str, str]):
@@ -80,6 +83,40 @@ def test_container_with_only_item_access_and_membership() -> None:
         cast(MutableMapping[str, str], headers),
         security,
         frozenset({"x-frame-options"}),
+    )
+    assert headers["content-type"] == "text/html"
+    assert headers["x-frame-options"] == "DENY"
+    assert headers["x-content-type-options"] == "nosniff"
+
+
+_PLAN = (
+    ("X-Content-Type-Options", "x-content-type-options", False),
+    ("Content-Type", "content-type", False),
+    ("X-Frame-Options", "x-frame-options", True),
+)
+_PLANNED_SECURITY = {
+    "X-Content-Type-Options": "nosniff",
+    "Content-Type": "ignored",
+    "X-Frame-Options": "DENY",
+}
+
+
+def test_planned_merge_into_a_tuple_iterating_container_reads_keys_once() -> None:
+    headers = TupleIterHeaders(
+        [("content-type", "text/html"), ("x-frame-options", "ALLOW")]
+    )
+    _merge_planned_security_headers(headers, _PLANNED_SECURITY, _PLAN)
+    assert headers["content-type"] == "text/html"
+    assert headers["x-frame-options"] == "DENY"
+    assert headers["x-content-type-options"] == "nosniff"
+
+
+def test_planned_merge_into_a_container_with_only_membership() -> None:
+    headers = ContainsOnlyHeaders(
+        {"content-type": "text/html", "x-frame-options": "ALLOW"}
+    )
+    _merge_planned_security_headers(
+        cast(MutableMapping[str, str], headers), _PLANNED_SECURITY, _PLAN
     )
     assert headers["content-type"] == "text/html"
     assert headers["x-frame-options"] == "DENY"
