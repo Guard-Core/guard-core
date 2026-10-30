@@ -82,7 +82,8 @@ def is_hex_literal(token: str) -> bool:
 def printable_ratio(text: str) -> float:
     if not text:
         return 0.0
-    return printable_count(text) / len(text)
+    printable = len(text) if text.isprintable() else printable_count(text)
+    return printable / len(text)
 
 
 def replacement_char_ratio(text: str) -> float:
