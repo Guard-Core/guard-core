@@ -1,0 +1,14 @@
+[
+  {
+    "test": "tests/test_engine_parity.py::test_route_bypass_reaches_real_view_and_skips_response_pass",
+    "exception": "AssertionError",
+    "message": "assert 'X-Content-Type-Options' not in <tornado.httputil.HTTPHeaders object",
+    "reason": "upgrade guide v4-to-v5, Responses that changed: '`bypass([\"all\"])` route | no security headers ... | security headers applied, bypass applies in passive mode'"
+  },
+  {
+    "test": "tests/test_middleware_unit.py::test_check_time_window_helper",
+    "exception": "AssertionError",
+    "message": "assert False is True",
+    "reason": "upgrade guide v4-to-v5, Responses that changed: 'Time-window evaluation error | allowed | denied like a request outside the window (403 Access not allowed at this time)'"
+  }
+]
