@@ -1,3 +1,4 @@
+import ast
 import os
 import subprocess
 import sys
@@ -13,7 +14,7 @@ REPO_ROOT = Path(guard_core.__file__).resolve().parent.parent
 # is forked after a pause and scans the same texts. Run in a fresh interpreter so the
 # test process, with its own threads and loop, is never forked.
 _SCRIPT = """
-import asyncio, inspect, os, sys, time, warnings, logging
+import ast, asyncio, inspect, os, sys, time, warnings, logging
 warnings.simplefilter("ignore"); logging.disable(logging.CRITICAL)
 tree = sys.argv[1]
 if tree == "sync":
@@ -68,7 +69,7 @@ if pid == 0:
     os.write(writer, repr((child, time.monotonic() - started)).encode())
     os._exit(0)
 os.close(writer)
-child, seconds = eval(os.read(reader, 65536).decode())
+child, seconds = ast.literal_eval(os.read(reader, 65536).decode())
 os.waitpid(pid, 0)
 print(repr((parent, child, seconds, compiler._shared_executor is not None)))
 """
@@ -86,7 +87,10 @@ def _fork_run(tree: str) -> tuple[list[tuple], list[tuple], float, bool]:
         timeout=180,
         check=True,
     )
-    return eval(result.stdout.strip().splitlines()[-1])
+    answer: tuple[list[tuple], list[tuple], float, bool] = ast.literal_eval(
+        result.stdout.strip().splitlines()[-1]
+    )
+    return answer
 
 
 @pytest.mark.skipif(not hasattr(os, "fork"), reason="needs os.fork")
