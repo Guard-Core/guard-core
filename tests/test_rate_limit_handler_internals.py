@@ -77,15 +77,18 @@ class _Pipeline:
     def expire(self, *args: Any, **kwargs: Any) -> None:
         self.calls.append(("expire", args, kwargs))
 
+    def zrem(self, *args: Any, **kwargs: Any) -> None:
+        self.calls.append(("zrem", args, kwargs))
+
     async def execute(self) -> list[Any]:
         return self.results
 
 
 class _PipelineConnection:
-    def __init__(self, inspect_results: list[Any]) -> None:
-        self.inspect = _Pipeline(inspect_results)
-        self.record = _Pipeline([])
-        self.pipelines = [self.inspect, self.record]
+    def __init__(self, transaction_results: list[Any]) -> None:
+        self.transaction = _Pipeline(transaction_results)
+        self.withdraw = _Pipeline([])
+        self.pipelines = [self.transaction, self.withdraw]
 
     async def time(self) -> tuple[int, int]:
         return (1000, 500_000)
@@ -189,38 +192,44 @@ async def test_a_noscript_reply_reloads_the_script_and_logs_it() -> None:
     logger.info.assert_called_once_with("Rate limit Lua script reloaded after NOSCRIPT")
 
 
-async def test_the_fallback_pipeline_reads_every_tier_and_records_with_a_ttl() -> None:
-    conn = _PipelineConnection([0, 1, [], 0, 0, []])
+async def test_the_fallback_records_then_counts_every_tier_in_one_transaction() -> None:
+    conn = _PipelineConnection([0, 1, True, 1, [], 0, 1, True, 1, []])
     tiers = [RateLimitTier("global", 5, 60), RateLimitTier("route", 5, 30, "r")]
 
     verdict = await _pipeline_tiers_verdict(conn, ["k1", "k2"], tiers)
 
     assert verdict == (None, 0, 0)
     now = 1000.5
-    assert conn.inspect.calls == [
+    calls = conn.transaction.calls
+    member = next(iter(calls[1][1][1]))
+    assert member.startswith(f"{now}:")
+    assert calls == [
         ("zremrangebyscore", ("k1", 0, now - 60), {}),
+        ("zadd", ("k1", {member: now}), {}),
+        ("expire", ("k1", 120), {}),
         ("zcard", ("k1",), {}),
         ("zrange", ("k1", 0, 0), {"withscores": True}),
         ("zremrangebyscore", ("k2", 0, now - 30), {}),
+        ("zadd", ("k2", {member: now}), {}),
+        ("expire", ("k2", 60), {}),
         ("zcard", ("k2",), {}),
         ("zrange", ("k2", 0, 0), {"withscores": True}),
     ]
-    assert conn.record.calls == [
-        ("zadd", ("k1", {str(now): now}), {}),
-        ("expire", ("k1", 120), {}),
-        ("zadd", ("k2", {str(now): now}), {}),
-        ("expire", ("k2", 60), {}),
-    ]
+    assert conn.withdraw.calls == []
 
 
-async def test_the_fallback_pipeline_blocks_on_the_second_tier() -> None:
-    conn = _PipelineConnection([0, 1, [], 0, 3, [("m", 990.5)]])
+async def test_the_fallback_blocks_on_the_second_tier_and_withdraws_its_hit() -> None:
+    conn = _PipelineConnection([0, 1, True, 1, [], 0, 1, True, 4, [("m", 990.5)]])
     tiers = [RateLimitTier("global", 5, 60), RateLimitTier("route", 3, 30, "r")]
 
     verdict = await _pipeline_tiers_verdict(conn, ["k1", "k2"], tiers)
 
     assert verdict == (1, 4, 20)
-    assert conn.record.calls == []
+    member = next(iter(conn.transaction.calls[1][1][1]))
+    assert conn.withdraw.calls == [
+        ("zrem", ("k1", member), {}),
+        ("zrem", ("k2", member), {}),
+    ]
 
 
 def test_a_hit_exactly_one_window_old_has_left_the_window() -> None:

@@ -3,6 +3,7 @@ import logging
 import math
 import threading
 import time
+import uuid
 import weakref
 from collections import defaultdict, deque
 from collections.abc import Awaitable, Callable, Sequence
@@ -153,29 +154,34 @@ async def _evalsha_tiers(
         return await conn.evalsha(script_sha, len(keys), *keys, *arguments), script_sha
 
 
+_PIPELINE_COMMANDS_PER_TIER = 5
+
+
 async def _pipeline_tiers_verdict(
     conn: "Redis", keys: list[str], tiers: Sequence[RateLimitTier]
 ) -> RateLimitVerdict:
     seconds, microseconds = await conn.time()
     now = int(seconds) + int(microseconds) / 1_000_000
-    inspect = conn.pipeline()
+    member = f"{now}:{uuid.uuid4().hex}"
+    transaction = conn.pipeline()
     for key, tier in zip(keys, tiers, strict=True):
-        inspect.zremrangebyscore(key, 0, now - tier.window)
-        inspect.zcard(key)
-        inspect.zrange(key, 0, 0, withscores=True)
-    results = await inspect.execute()
+        transaction.zremrangebyscore(key, 0, now - tier.window)
+        transaction.zadd(key, {member: now})
+        transaction.expire(key, tier.window * 2)
+        transaction.zcard(key)
+        transaction.zrange(key, 0, 0, withscores=True)
+    results = await transaction.execute()
     for index, tier in enumerate(tiers):
-        count = int(results[index * 3 + 1])
-        if count >= tier.limit:
-            oldest = results[index * 3 + 2]
+        count = int(results[index * _PIPELINE_COMMANDS_PER_TIER + 3])
+        if count > tier.limit:
+            oldest = results[index * _PIPELINE_COMMANDS_PER_TIER + 4]
             oldest_hit = float(oldest[0][1]) if oldest else None
             retry_after = _retry_after_seconds(oldest_hit, tier.window, now)
-            return RateLimitVerdict(index, count + 1, retry_after)
-    record = conn.pipeline()
-    for key, tier in zip(keys, tiers, strict=True):
-        record.zadd(key, {str(now): now})
-        record.expire(key, tier.window * 2)
-    await record.execute()
+            withdraw = conn.pipeline()
+            for key in keys:
+                withdraw.zrem(key, member)
+            await withdraw.execute()
+            return RateLimitVerdict(index, count, retry_after)
     return _ALLOWED
 
 

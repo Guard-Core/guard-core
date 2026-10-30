@@ -227,7 +227,7 @@ def test_ratelimit_redis_count_without_script() -> None:
     mock_pipeline.zcard = MagicMock()
     mock_pipeline.zrange = MagicMock()
     mock_pipeline.expire = MagicMock()
-    mock_pipeline.execute = MagicMock(side_effect=[[0, 3, []], [1, True]])
+    mock_pipeline.execute = MagicMock(side_effect=[[0, 1, True, 1, []]])
 
     mock_conn = MagicMock()
     mock_conn.time = MagicMock(return_value=(1000, 500000))
@@ -245,16 +245,17 @@ def test_ratelimit_redis_count_without_script() -> None:
 
     verdict = _global_verdict(mgr)
     assert verdict == RateLimitVerdict(None)
-    mock_pipeline.zadd.assert_called_once_with(
-        "test:rate_limit:rate:1.2.3.4", {"1000.5": 1000.5}
-    )
+    mock_pipeline.zadd.assert_called_once()
+    key, members = mock_pipeline.zadd.call_args.args
+    assert key == "test:rate_limit:rate:1.2.3.4"
+    assert list(members.values()) == [1000.5]
+    assert next(iter(members)).startswith("1000.5:")
+    mock_pipeline.zrem.assert_not_called()
 
 
 def _fallback_redis(zrange_result: list[Any]) -> tuple[MagicMock, MagicMock]:
     mock_pipeline = MagicMock()
-    mock_pipeline.execute = MagicMock(
-        side_effect=[[0, 2, zrange_result], [1, True, 1, True]]
-    )
+    mock_pipeline.execute = MagicMock(side_effect=[[0, 1, True, 3, zrange_result], [1]])
     mock_conn = MagicMock()
     mock_conn.time = MagicMock(return_value=(1000, 0))
     mock_conn.pipeline = MagicMock(return_value=mock_pipeline)
@@ -279,7 +280,8 @@ def test_ratelimit_fallback_blocks_with_the_oldest_hits_remaining_time() -> None
     verdict = mgr._tier_verdict("1.2.3.4", [RateLimitTier("global", 2, 60)], config)
 
     assert verdict == RateLimitVerdict(0, 3, 50)
-    assert pipeline.execute.call_count == 1
+    assert pipeline.execute.call_count == 2
+    pipeline.zrem.assert_called_once()
 
 
 def test_ratelimit_fallback_blocks_with_the_full_window_when_it_is_empty() -> None:
