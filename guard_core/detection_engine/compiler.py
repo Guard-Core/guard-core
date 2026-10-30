@@ -1,6 +1,8 @@
 import asyncio
 import concurrent.futures
+import contextlib
 import logging
+import os
 import re
 import threading
 import time
@@ -46,6 +48,22 @@ def shared_regex_executor() -> concurrent.futures.ThreadPoolExecutor:
                     thread_name_prefix="guard-regex",
                 )
     return _shared_executor
+
+
+def _forget_the_parents_workers() -> None:
+    # A forked child has none of the parent's worker threads. Keeping the parent's
+    # pool would queue its first scan behind workers that do not exist (the scan
+    # waits out its bound and the request fails), and a lock another parent thread
+    # held at fork time would stay held for good.
+    global _shared_executor, _executor_lock, _consecutive_timeouts, _timeout_lock
+    _shared_executor = None
+    _executor_lock = threading.Lock()
+    _consecutive_timeouts = 0
+    _timeout_lock = threading.Lock()
+
+
+with contextlib.suppress(AttributeError):
+    os.register_at_fork(after_in_child=_forget_the_parents_workers)
 
 
 class RegexQueueWaitExpired(Exception):

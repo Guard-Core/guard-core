@@ -44,6 +44,7 @@ SKIP_SRC = {
 }
 
 SKIP_TESTS = {
+    "test_fork_safety.py",
     "mock_download.py",
     "test_field_validator_user_agent_cap.py",
     "test_geo_awaited_load_concurrency.py",
