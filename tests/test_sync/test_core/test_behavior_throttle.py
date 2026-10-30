@@ -9,6 +9,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from guard_core.exceptions import GuardRedisError
 from guard_core.models import BehaviorRuleConfig, SyncSecurityConfig
 from guard_core.sync._utils import sampling
 from guard_core.sync.core.behavioral import _throttle
@@ -433,6 +434,26 @@ def test_redis_failure_fails_secure_like_the_pipeline(
         "Error in behavior throttle (GuardRedisError)" in r.message
         for r in caplog.records
     )
+
+
+def test_redis_failure_never_blocks_when_redis_fails_open(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _Clock(monkeypatch)
+    config = _config(
+        enable_redis=True, redis_fail_open=True, fail_secure=True, passive_mode=False
+    )
+    tracker = _broken_redis_tracker(config)
+
+    def raising(*_args: object, **_kwargs: object) -> list[object]:
+        raise GuardRedisError(503, "Redis down")
+
+    monkeypatch.setattr(tracker, "check_throttle", raising)
+    processor, _, _ = _processor(config, tracker)
+
+    response = processor.process_usage_rules(_request(), _IP, _route(_throttle_rule(1)))
+
+    assert response is None
 
 
 def test_redis_failure_never_blocks_in_passive_mode(

@@ -314,7 +314,9 @@ class BehavioralThrottleMixin:
         self.context.logger.error(
             f"Error in behavior throttle ({type(error).__name__}): {safe_message}"
         )
-        if config.passive_mode or not config.fail_secure or builder is None:
+        if config.redis_fail_open or config.passive_mode:
+            return None
+        if not config.fail_secure or builder is None:
             return None
         from guard_core.core.checks.pipeline import REDIS_OUTAGE_RETRY_AFTER
 

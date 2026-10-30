@@ -26,9 +26,11 @@ def fetch_aws_ip_ranges() -> tuple[
         regions: dict[str, str] = {}
         rejected: list[str] = []
         for ip_range in data["prefixes"]:
-            if ip_range["service"] != "AMAZON":
+            if ip_range.get("service") != "AMAZON":
                 continue
-            network = parse_prefix_or_note(ip_range["ip_prefix"], "AWS", rejected)
+            network = parse_prefix_or_note(
+                str(ip_range.get("ip_prefix")), "AWS", rejected
+            )
             if network is None:
                 continue
             networks.add(network)

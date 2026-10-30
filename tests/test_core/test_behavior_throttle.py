@@ -16,6 +16,7 @@ from guard_core.core.behavioral.processor import BehavioralProcessor
 from guard_core.core.responses.context import ResponseContext
 from guard_core.core.responses.factory import ErrorResponseFactory
 from guard_core.decorators.base import RouteConfig
+from guard_core.exceptions import GuardRedisError
 from guard_core.handlers import _behavior_throttle, behavior_handler
 from guard_core.handlers._behavior_throttle import (
     ThrottleCheck,
@@ -435,6 +436,28 @@ async def test_redis_failure_fails_secure_like_the_pipeline(
         "Error in behavior throttle (GuardRedisError)" in r.message
         for r in caplog.records
     )
+
+
+async def test_redis_failure_never_blocks_when_redis_fails_open(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _Clock(monkeypatch)
+    config = _config(
+        enable_redis=True, redis_fail_open=True, fail_secure=True, passive_mode=False
+    )
+    tracker = _broken_redis_tracker(config)
+
+    async def raising(*_args: object, **_kwargs: object) -> list[object]:
+        raise GuardRedisError(503, "Redis down")
+
+    monkeypatch.setattr(tracker, "check_throttle", raising)
+    processor, _, _ = _processor(config, tracker)
+
+    response = await processor.process_usage_rules(
+        _request(), _IP, _route(_throttle_rule(1))
+    )
+
+    assert response is None
 
 
 async def test_redis_failure_never_blocks_in_passive_mode(

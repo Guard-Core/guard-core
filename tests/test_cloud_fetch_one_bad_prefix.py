@@ -49,6 +49,8 @@ async def test_aws_keeps_the_valid_prefixes_and_logs_the_bad_one(
                 {"service": "AMAZON", "ip_prefix": "3.5.140.0/22", "region": "x"},
                 {"service": "AMAZON", "ip_prefix": "3.5.140.7/22", "region": "x"},
                 {"service": "AMAZON", "ip_prefix": "not-a-prefix", "region": "x"},
+                {"service": "AMAZON", "region": "x"},
+                {"ip_prefix": "3.6.0.0/16"},
             ]
         },
     )
@@ -58,7 +60,7 @@ async def test_aws_keeps_the_valid_prefixes_and_logs_the_bad_one(
 
     assert {str(network) for network in networks} == {"3.5.140.0/22"}
     assert regions == {"3.5.140.0/22": "x"}
-    assert "skipped 2 invalid prefix" in caplog.text
+    assert "skipped 3 invalid prefix" in caplog.text
 
 
 async def test_gcp_keeps_the_valid_prefixes(monkeypatch: pytest.MonkeyPatch) -> None:
