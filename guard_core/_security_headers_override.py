@@ -67,6 +67,50 @@ def approximate_now() -> float:
     return _WALL_ANCHOR + (time.monotonic() - _MONOTONIC_ANCHOR)
 
 
+_OVERRIDE_STRING_KEYS = tuple(
+    key for key in SECURITY_HEADER_NAMES if key not in ("hsts", "csp", "custom")
+)
+
+
+def _hsts_values_readable(hsts: Mapping[str, object]) -> bool:
+    max_age = hsts.get("max_age")
+    age_ok = max_age is None or (
+        isinstance(max_age, int) and not isinstance(max_age, bool)
+    )
+    return age_ok and all(
+        isinstance(hsts.get(flag, False), bool)
+        for flag in ("include_subdomains", "preload")
+    )
+
+
+def _require_resolvable_override_keys(keys: Mapping[str, object]) -> None:
+    """A record read from Redis is not trusted: a value the headers builder cannot
+    read would raise on every response build, so the record is refused instead."""
+    csp = keys.get("csp")
+    if csp is not None and not (
+        isinstance(csp, dict) and all(_is_string_list(v) for v in csp.values())
+    ):
+        raise ValueError(
+            "the csp override must map each directive to a list of sources"
+        )
+    for name in ("hsts", "custom"):
+        value = keys.get(name)
+        if value is not None and not isinstance(value, dict):
+            raise ValueError(f"the {name} override must be an object")
+    hsts = keys.get("hsts")
+    if isinstance(hsts, dict) and not _hsts_values_readable(hsts):
+        raise ValueError("the hsts override holds a value of the wrong type")
+    custom = keys.get("custom")
+    if isinstance(custom, dict) and not all(
+        isinstance(v, str) for v in custom.values()
+    ):
+        raise ValueError("the custom override must map header names to strings")
+    for name in _OVERRIDE_STRING_KEYS:
+        value = keys.get(name)
+        if value is not None and not isinstance(value, str):
+            raise ValueError(f"the {name} override must be a string")
+
+
 @dataclass(frozen=True)
 class OverrideRecord:
     set_at: float
@@ -90,6 +134,7 @@ class OverrideRecord:
         keys = data["keys"]
         if not isinstance(keys, dict):
             raise ValueError("override keys must be an object")
+        _require_resolvable_override_keys(keys)
         return cls(float(data["set_at"]), keys)
 
 
