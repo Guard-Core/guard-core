@@ -18,6 +18,10 @@ _MIN_LITERAL_LENGTH = 3
 _MIN_PUNCTUATED_LITERAL_LENGTH = 2
 # A single character is a usable literal only if prose and URLs rarely carry it.
 _COMMON_SINGLE_CHARACTERS = frozenset(".,:-_ /'\"?!()")
+# Letters that ordinary prose seldom carries; one of them can be a required literal.
+_MAX_CLASS_CHARACTERS = 8
+_RARE_LETTERS = frozenset("jqxzvkwy")
+_LETTERS_COMMON_FIRST = "etaoinshrdlcumwfgypbvkjxqz"
 _FOLD = {0x130: "i", 0x131: "i", 0x17F: "s", 0x212A: "k"}
 _required_literals: dict[str, tuple[str, ...]] = {}
 
@@ -27,13 +31,26 @@ def fold_for_literals(text: str) -> str:
 
 
 def _usable(run: str) -> bool:
-    if not (run.isascii() and run.isprintable()):
+    if not (
+        run.isascii() and all(char.isprintable() or char in "\n\t\r" for char in run)
+    ):
         return False
     if len(run) >= _MIN_LITERAL_LENGTH:
         return True
     if len(run) == _MIN_PUNCTUATED_LITERAL_LENGTH:
         return not run.isalnum()
-    return len(run) == 1 and run not in _COMMON_SINGLE_CHARACTERS and not run.isalnum()
+    return len(run) == 1 and (
+        run in _RARE_LETTERS
+        or (run not in _COMMON_SINGLE_CHARACTERS and not run.isalnum())
+    )
+
+
+def _char_rarity(char: str) -> int:
+    return (
+        _LETTERS_COMMON_FIRST.find(char)
+        if char.isalpha()
+        else len(_LETTERS_COMMON_FIRST)
+    )
 
 
 @runtime_checkable
@@ -61,6 +78,36 @@ def _branch_list(value: object) -> list[object]:
     return value
 
 
+def _class_alternatives(argument: object) -> tuple[str, ...] | None:
+    if not isinstance(argument, list) or len(argument) > _MAX_CLASS_CHARACTERS:
+        return None
+    chars: list[str] = []
+    for item in argument:
+        operation, value = item
+        if str(operation) != "LITERAL" or not isinstance(value, int):
+            return None
+        chars.append(chr(value).lower())
+    return tuple(dict.fromkeys(chars)) if all(map(_usable, chars)) else None
+
+
+def _node_requirements(name: str, argument: object) -> list[tuple[str, ...]]:
+    if name == "SUBPATTERN":
+        return _requirements(_nodes(_tuple_item(argument, 3)))
+    if name in ("MAX_REPEAT", "MIN_REPEAT"):
+        minimum = _tuple_item(argument, 0)
+        if isinstance(minimum, int) and minimum >= 1:
+            return _requirements(_nodes(_tuple_item(argument, 2)))
+        return []
+    if name == "BRANCH":
+        return _branch_requirement(_branch_list(_tuple_item(argument, 1)))
+    if name == "IN":
+        alternatives = _class_alternatives(argument)
+        return [] if alternatives is None else [alternatives]
+    if name == "ASSERT":
+        return _requirements(_nodes(_tuple_item(argument, 1)))
+    return []
+
+
 def _requirements(items: _ParsedNodes) -> list[tuple[str, ...]]:
     found: list[tuple[str, ...]] = []
     current: list[int] = []
@@ -80,14 +127,7 @@ def _requirements(items: _ParsedNodes) -> list[tuple[str, ...]]:
             current.append(argument)
             continue
         close_run()
-        if name == "SUBPATTERN":
-            found.extend(_requirements(_nodes(_tuple_item(argument, 3))))
-        elif name in ("MAX_REPEAT", "MIN_REPEAT"):
-            minimum = _tuple_item(argument, 0)
-            if isinstance(minimum, int) and minimum >= 1:
-                found.extend(_requirements(_nodes(_tuple_item(argument, 2))))
-        elif name == "BRANCH":
-            found.extend(_branch_requirement(_branch_list(_tuple_item(argument, 1))))
+        found.extend(_node_requirements(name, argument))
     close_run()
     return found
 
@@ -107,7 +147,14 @@ def _best_requirement(
 ) -> tuple[str, ...] | None:
     if not candidates:
         return None
-    return max(candidates, key=lambda alts: (min(map(len, alts)), -len(alts)))
+    return max(
+        candidates,
+        key=lambda alts: (
+            min(map(len, alts)),
+            -len(alts),
+            min(_char_rarity(alt[0]) for alt in alts),
+        ),
+    )
 
 
 def source_digest(source: str) -> str:

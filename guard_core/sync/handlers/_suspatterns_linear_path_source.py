@@ -12,6 +12,8 @@ _PLAIN_CHAIN = r"(?:[\w.\-~%]+[/\\])*"
 _GUARDED_CHAIN_OPEN = "(?:(?!"
 _GUARDED_CHAIN_BODY = r"[\w.\-~%]+[/\\])*"
 _LEADING_SEPARATORS = (r"\A[/\\]?", r"\A[/\\]")
+_STRUCTURE_RE = re.compile(r"\\.|[\[\]()|]", re.DOTALL)
+_STRUCTURE_CHARACTERS = "()|"
 _GROUP_OPENER_RE = re.compile(r"\(\?P<\w+>|\(\?:|\(")
 _LITERAL_PIECE_RE = re.compile(r"(?:[A-Za-z0-9_\-|?():]|\\[./\\]|\[/\\\\\])+\Z")
 _FLAT_EQUIVALENTS = (
@@ -23,20 +25,16 @@ _FLAT_EQUIVALENTS = (
 
 
 def _outside_classes(source: str, start: int = 0) -> Iterator[tuple[int, str]]:
-    i = start
+    """Every ``(``, ``)`` and ``|`` that is neither escaped nor inside a class."""
     in_class = False
-    while i < len(source):
-        char = source[i]
-        if char == "\\":
-            i += 2
-            continue
+    for token in _STRUCTURE_RE.finditer(source, start):
+        char = token.group()
         if in_class:
             in_class = char != "]"
         elif char == "[":
             in_class = True
-        else:
-            yield i, char
-        i += 1
+        elif char in _STRUCTURE_CHARACTERS:
+            yield token.start(), char
 
 
 def _group_end(source: str, open_at: int) -> int | None:

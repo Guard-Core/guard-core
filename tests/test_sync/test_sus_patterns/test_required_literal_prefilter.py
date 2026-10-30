@@ -73,7 +73,7 @@ def test_the_rows_with_a_requirement_are_most_of_the_table() -> None:
         (r"(?i)UNION\s+SELECT", ("select",)),
         (r"x{2,}longword", ("longword",)),
         (r"(?:longword)+tail", ("longword",)),
-        (r"(?=lookahead)real", ("real",)),
+        (r"(?=lookahead)real", ("lookahead",)),
         (r"[a-z]+", ()),
         (r"héllowörld", ()),
         (r"(unclosed", ()),

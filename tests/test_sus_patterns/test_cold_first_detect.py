@@ -1,4 +1,5 @@
 import os
+import random
 import re
 import subprocess
 import sys
@@ -22,13 +23,23 @@ from guard_core.handlers._suspatterns_linear_mandatory_table import (
 )
 from guard_core.handlers._suspatterns_linear_path import _LinearPathRow, _row_for
 from guard_core.handlers._suspatterns_linear_path_source import (
+    _outside_classes,
     mandatory_characters,
     mandatory_key,
     row_pieces,
 )
-from guard_core.handlers._suspatterns_literals import parse_required_literals
+from guard_core.handlers._suspatterns_literals import (
+    fold_for_literals,
+    parse_required_literals,
+    required_literals,
+)
 from guard_core.handlers._suspatterns_pattern_table import _PATTERN_DEFINITIONS
 from guard_core.handlers.suspatterns_handler import SusPatternsManager
+from tests.test_sus_patterns.test_linear_path_rows import (
+    _SEEDS,
+    _fixture_strings,
+    _row_strings,
+)
 
 REPO_ROOT = Path(guard_core.__file__).resolve().parent.parent
 _TEXTS = [
@@ -213,3 +224,66 @@ def test_a_single_rare_character_is_a_required_literal_a_common_one_is_not() -> 
     assert parse_required_literals(r"\d,\d") == ()
     assert parse_required_literals(r"\d7\d") == ()
     assert parse_required_literals(r"\d?\d") == ()
+
+
+def _reference_outside_classes(source: str) -> list[tuple[int, str]]:
+    found = []
+    i = 0
+    in_class = False
+    while i < len(source):
+        char = source[i]
+        if char == "\\":
+            i += 2
+            continue
+        if in_class:
+            in_class = char != "]"
+        elif char == "[":
+            in_class = True
+        elif char in "()|":
+            found.append((i, char))
+        i += 1
+    return found
+
+
+def test_the_structure_scan_finds_what_the_character_loop_found() -> None:
+    generator = random.Random(3)
+    sources = [source for source, _contexts, _category in _PATTERN_DEFINITIONS]
+    alphabet = ["(", ")", "|", "[", "]", "\\", "a", "(?:", "[^", "\\)", " "]
+    for _ in range(3000):
+        sources.append("".join(generator.choices(alphabet, k=generator.randint(0, 14))))
+    for source in sources:
+        assert list(_outside_classes(source)) == _reference_outside_classes(source)
+    assert list(_outside_classes("(a)|(b)", 3)) == [(3, "|"), (4, "("), (6, ")")]
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        (r"(?=abcd)e", ("abcd",)),
+        (r"(?!abcd)e", ()),
+        (r"[;|&]\s*e", (";", "|", "&")),
+        (r"[^;|&]\s*e", ()),
+        (r"[ab]e", ()),
+        (r"[;|&#$%^*+]e", ()),
+        (r"\d\n\d", ("\n",)),
+        (r"a\d+j\d", ("j",)),
+        (r"a\d+j\d+q", ("q",)),
+        (r"\d,\d", ()),
+    ],
+)
+def test_the_required_literal_of_a_class_a_lookahead_and_a_rare_letter(
+    source: str, expected: tuple[str, ...]
+) -> None:
+    assert parse_required_literals(source) == expected
+
+
+def test_every_row_with_a_requirement_keeps_it_on_the_fixtures_and_the_seeds() -> None:
+    texts = set(_fixture_strings()) | set(_SEEDS)
+    for source, _contexts, _category in _PATTERN_DEFINITIONS:
+        pattern = re.compile(source, re.IGNORECASE)
+        literals = required_literals(source)
+        generated = _row_strings(source, random.Random(1))
+        for text in texts | set(generated):
+            if literals and pattern.search(text):
+                folded = fold_for_literals(text)
+                assert any(literal in folded for literal in literals), (source, text)
