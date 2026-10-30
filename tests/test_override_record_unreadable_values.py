@@ -68,3 +68,31 @@ async def test_a_non_mapping_csp_pulled_from_redis_is_ignored_with_one_warning(
 
     assert "Ignoring an unreadable security headers override" in caplog.text
     assert manager.resolve_headers(config)["Content-Security-Policy"] == "a b"
+
+
+@pytest.mark.parametrize(
+    "keys",
+    [
+        {"enable_cors": "false"},
+        {"enable_cors": 1},
+        {"cors_max_age": -5},
+        {"cors_max_age": "600"},
+        {"cors_origins": "https://a.example"},
+        {"cors_allow_methods": [1]},
+        {"cors_allow_credentials": "yes"},
+    ],
+)
+def test_a_cors_override_the_builder_cannot_read_is_refused(keys: object) -> None:
+    with pytest.raises(ValueError):
+        OverrideRecord.from_json(_raw(keys))
+
+
+def test_a_readable_cors_override_is_kept() -> None:
+    keys = {
+        "enable_cors": True,
+        "cors_origins": ["https://a.example"],
+        "cors_max_age": 600,
+        "cors_allow_credentials": False,
+    }
+
+    assert OverrideRecord.from_json(_raw(keys)).keys == keys

@@ -135,6 +135,7 @@ class OverrideRecord:
         if not isinstance(keys, dict):
             raise ValueError("override keys must be an object")
         _require_resolvable_override_keys(keys)
+        validate_cors_override(keys)
         return cls(float(data["set_at"]), keys)
 
 
