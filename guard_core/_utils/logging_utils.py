@@ -194,7 +194,8 @@ def _logs_at_level(logger: logging.Logger, level: str) -> bool:
 
 
 def _log_at_level(logger: logging.Logger, level: str, msg: str) -> None:
-    msg = _sanitize_for_reporting(msg)
+    # a CR or LF inside a client-supplied value must not start a forged log line
+    msg = _sanitize_for_reporting(msg).replace("\r", "\\r").replace("\n", "\\n")
     if level == "INFO":
         logger.info(msg)
     elif level == "DEBUG":
