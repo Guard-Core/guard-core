@@ -104,8 +104,21 @@ class RecordingHeaders(MutableMapping[str, str]):
     def __getitem__(self, key: str) -> str:
         return self._real[key]
 
+    def _note_every_value(self) -> bool:
+        """Headers that can hold several values of one name (Starlette's
+        ``MutableHeaders``) are undone from a full snapshot: ``real[key]`` is one
+        value of N."""
+        real = self._real
+        if not _is_appendable(real):
+            return False
+        self._undo += [("", list(real.items()))]
+        return True
+
     def __setitem__(self, key: str, value: str) -> None:
         real = self._real
+        if self._note_every_value():
+            real[key] = value
+            return
         try:
             previous: _HeaderUndo = real[key]
         except KeyError:
@@ -115,7 +128,8 @@ class RecordingHeaders(MutableMapping[str, str]):
 
     def __delitem__(self, key: str) -> None:
         real = self._real
-        self._undo += [(key, real[key])]
+        if not self._note_every_value():
+            self._undo += [(key, real[key])]
         del real[key]
 
     def append(self, key: str, value: str) -> None:
