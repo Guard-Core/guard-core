@@ -1,6 +1,7 @@
 import contextvars
 import difflib
 import logging
+import threading as _threading
 from collections.abc import Mapping
 from copy import deepcopy
 from pathlib import Path
@@ -96,12 +97,12 @@ from guard_core.protocols.cloud_ip_store_protocol import (
 from guard_core.protocols.geo_ip_protocol import GeoIPHandler as GeoIPHandler
 from guard_core.protocols.request_protocol import GuardRequest as GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse as GuardResponse
-from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
 if TYPE_CHECKING:
     from guard_agent import AgentConfig
 
     from guard_core.handlers.suspatterns_handler import SusPatternsManager
+    from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
 
 VALID_BYPASS_CHECKS: frozenset[str] = frozenset(
@@ -475,7 +476,86 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
             ) from e
 
 
-# Parametrized here, at import time, so pydantic registers the class in this module:
-# a pickled SecurityConfig[SyncGuardRequest] then loads in an interpreter that has only
-# imported guard_core (a spawn-started process unpickles its arguments).
-SyncSecurityConfig = SecurityConfig[SyncGuardRequest]
+if TYPE_CHECKING:
+    SyncSecurityConfig = SecurityConfig[SyncGuardRequest]
+
+_LAZY_NAMES = (
+    "SyncSecurityConfig",
+    "SecurityConfig[SyncGuardRequest]",
+    "SyncGuardRequest",
+)
+_build_lock = _threading.Lock()
+
+
+def __getattr__(name: str) -> object:
+    # Resolved on first use and registered in this module, as pydantic does for a
+    # module-level parametrization: a pickled SecurityConfig[SyncGuardRequest] still
+    # loads in an interpreter that has only imported guard_core (a spawn-started
+    # process unpickles its arguments). The import runs outside the lock and the
+    # build inside it, only while the name is still missing: pydantic's generic
+    # cache is not thread-safe, so two threads would build two classes.
+    if name not in _LAZY_NAMES:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    from guard_core.sync.protocols.request_protocol import SyncGuardRequest
+
+    with _build_lock:
+        if name not in globals():
+            parametrized = SecurityConfig[SyncGuardRequest]
+            globals().update(
+                {
+                    "SyncSecurityConfig": parametrized,
+                    "SecurityConfig[SyncGuardRequest]": parametrized,
+                    "SyncGuardRequest": SyncGuardRequest,
+                }
+            )
+    return globals()[name]
+
+
+def __dir__() -> list[str]:
+    return sorted({*globals(), *_LAZY_NAMES})
+
+
+# What a star import exported at 7025a112 (every public global, imported ones
+# included) except the unusable name 'SecurityConfig[SyncGuardRequest]', which ruff
+# F822 refuses in __all__; getattr still resolves it.
+__all__ = [
+    "ALL_DETECTION_CATEGORIES",
+    "AgentPackageNotInstalledError",
+    "BehaviorRuleConfig",
+    "ClassVar",
+    "CloudIpStoreFactory",
+    "CloudIpStoreProtocol",
+    "CloudProvider",
+    "ConfigDict",
+    "DynamicRules",
+    "GeoIPHandler",
+    "GuardRequest",
+    "GuardResponse",
+    "Mapping",
+    "MappingProxyType",
+    "ModelWrapValidatorHandler",
+    "Path",
+    "PrivateAttr",
+    "RequestT",
+    "SecurityConfig",
+    "Self",
+    "SyncGuardRequest",
+    "SyncSecurityConfig",
+    "TYPE_CHECKING",
+    "ThreatBanConfig",
+    "VALID_BYPASS_CHECKS",
+    "VALID_CLOUD_PROVIDERS",
+    "ValidationInfo",
+    "cloud_blocking_enabled",
+    "contextvars",
+    "deepcopy",
+    "difflib",
+    "field_validator",
+    "logger",
+    "logging",
+    "model_validator",
+    "report_config_misconfigurations",
+    "return_pattern_requires_response_body",
+    "signal_changed_defaults",
+    "warn_redis_prefix_left_default",
+]

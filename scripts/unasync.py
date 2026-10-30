@@ -44,6 +44,7 @@ SKIP_SRC = {
 }
 
 SKIP_TESTS = {
+    "test_models_lazy_sync_config.py",
     "test_import_surface_preserved.py",
     "mock_download.py",
     "test_field_validator_user_agent_cap.py",
