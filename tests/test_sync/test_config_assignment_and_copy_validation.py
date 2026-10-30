@@ -98,3 +98,20 @@ def test_valid_assignments_and_copies_are_unchanged() -> None:
         56,
         9,
     )
+
+
+@pytest.mark.parametrize(
+    "fields",
+    [
+        {"rate_limit": 0},
+        {"rate_limit_window": 0},
+        {"endpoint_rate_limits": {"/x": (0, 5)}},
+    ],
+)
+def test_a_rate_limit_below_one_is_refused_only_while_the_limiter_is_on(
+    fields: dict[str, object],
+) -> None:
+    with pytest.raises(ValidationError):
+        SyncSecurityConfig(**{"enable_rate_limiting": True, **fields})
+
+    assert SyncSecurityConfig(**{"enable_rate_limiting": False, **fields})

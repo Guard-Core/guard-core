@@ -29,6 +29,8 @@ def report_misconfiguration(
 
 
 def _non_positive_rate_limit_problems(config: "SecurityConfig[RequestT]") -> list[str]:
+    if not config.enable_rate_limiting:
+        return []
     problems = []
     if config.rate_limit < 1:
         problems.append(
