@@ -204,3 +204,10 @@ def test_a_two_character_run_with_punctuation_is_a_required_literal() -> None:
     assert parse_required_literals(r"\$\{[^}]+\}") == ("${",)
     assert parse_required_literals(r"(?i)O:\d+:") == ("o:",)
     assert parse_required_literals(r"ab\d+cd") == ()
+
+
+def test_a_single_rare_character_is_a_required_literal_a_common_one_is_not() -> None:
+    assert parse_required_literals(r"\d;\d") == (";",)
+    assert parse_required_literals(r"\d,\d") == ()
+    assert parse_required_literals(r"\d7\d") == ()
+    assert parse_required_literals(r"\d?\d") == ()

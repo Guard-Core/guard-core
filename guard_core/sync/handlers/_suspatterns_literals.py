@@ -18,6 +18,8 @@ _PARSER = importlib.import_module(
 
 _MIN_LITERAL_LENGTH = 3
 _MIN_PUNCTUATED_LITERAL_LENGTH = 2
+# A single character is a usable literal only if prose and URLs rarely carry it.
+_COMMON_SINGLE_CHARACTERS = frozenset(".,:-_ /'\"?!()")
 _FOLD = {0x130: "i", 0x131: "i", 0x17F: "s", 0x212A: "k"}
 _required_literals: dict[str, tuple[str, ...]] = {}
 
@@ -27,10 +29,13 @@ def fold_for_literals(text: str) -> str:
 
 
 def _usable(run: str) -> bool:
-    long_enough = len(run) >= _MIN_LITERAL_LENGTH or (
-        len(run) == _MIN_PUNCTUATED_LITERAL_LENGTH and not run.isalnum()
-    )
-    return long_enough and run.isascii() and run.isprintable()
+    if not (run.isascii() and run.isprintable()):
+        return False
+    if len(run) >= _MIN_LITERAL_LENGTH:
+        return True
+    if len(run) == _MIN_PUNCTUATED_LITERAL_LENGTH:
+        return not run.isalnum()
+    return len(run) == 1 and run not in _COMMON_SINGLE_CHARACTERS and not run.isalnum()
 
 
 @runtime_checkable

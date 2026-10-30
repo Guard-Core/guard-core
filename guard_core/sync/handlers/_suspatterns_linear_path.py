@@ -18,8 +18,13 @@ from guard_core.sync.handlers._suspatterns_linear_path_source import (
     row_pieces,
     without_unbalanced_parentheses,
 )
+from guard_core.sync.handlers._suspatterns_tail_buckets import (
+    BucketedTail,
+    split_alternation,
+)
 
 _MAX_BUILT_PATTERNS = 128
+_BUCKET_MIN_CHARS = 2000
 _UNSET = -2
 _NO_END = -1
 _STEP = SEGMENT_STEP_RE.match
@@ -46,11 +51,15 @@ class _LinearPathRow:
         ]
 
     @cached_property
-    def _tests(self) -> list[re.Pattern]:
-        return [
-            re.compile(without_unbalanced_parentheses(piece), self._flags)
-            for piece in self._raw_pieces[1:]
-        ]
+    def _tests(self) -> list[re.Pattern | BucketedTail]:
+        return [self._tail_test(piece) for piece in self._raw_pieces[1:]]
+
+    def _tail_test(self, piece: str) -> re.Pattern | BucketedTail:
+        source = without_unbalanced_parentheses(piece)
+        parts = split_alternation(source) if len(source) > _BUCKET_MIN_CHARS else None
+        if parts is None:
+            return re.compile(source, self._flags)
+        return BucketedTail(parts, self._flags)
 
     @cached_property
     def _mandatory(self) -> tuple[frozenset[str], ...]:
