@@ -53,6 +53,11 @@ class AccessControlMixin(BaseSecurityMixin):
         def decorator(
             func: Callable[GuardedParams, GuardedReturn],
         ) -> Callable[GuardedParams, GuardedReturn]:
+            if not countries:
+                self._report_misconfiguration(
+                    "@block_countries received an empty country list: an empty "
+                    "list blocks nothing on this route."
+                )
             if countries:
                 self._require_geo_source("@block_countries")
             route_config = self._ensure_route_config(func)
@@ -109,6 +114,12 @@ class AccessControlMixin(BaseSecurityMixin):
                     if canonicalize_cloud_provider_selector(p) is None
                 )
             )
+            if providers is not None and not providers:
+                self._report_misconfiguration(
+                    "@block_clouds received an empty provider list: an empty "
+                    "list blocks nothing on this route (call @block_clouds() to "
+                    "block every provider)."
+                )
             if unknown:
                 self._report_misconfiguration(
                     f"@block_clouds: ignored unknown cloud providers {unknown}. "

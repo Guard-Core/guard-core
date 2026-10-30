@@ -94,7 +94,6 @@ def test_empty_whitelist_still_applies_no_restriction_when_only_warned() -> None
         lambda d: d.require_ip(blacklist=[]),
         lambda d: d.require_ip(whitelist=["203.0.113.7"]),
         lambda d: d.allow_countries(["US"]),
-        lambda d: d.block_countries([]),
     ],
 )
 def test_a_non_empty_or_unrelated_argument_never_warns(
