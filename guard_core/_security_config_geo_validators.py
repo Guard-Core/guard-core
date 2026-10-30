@@ -1,3 +1,4 @@
+import re
 import warnings
 from collections.abc import Iterable
 from pathlib import Path
@@ -56,17 +57,29 @@ def _warn_country_allowlist_shadows_blocklist(*, stacklevel: int) -> None:
     )
 
 
+_COUNTRY_CODE = re.compile(r"[A-Za-z]{2}")
+
+
+def _two_letter_country_codes(items: Iterable[object]) -> frozenset[str]:
+    codes = []
+    for item in items:
+        if not isinstance(item, str) or not _COUNTRY_CODE.fullmatch(item):
+            raise ValueError(f"{item!r} is not a two-letter country code")
+        codes.append(item.upper())
+    return frozenset(codes)
+
+
 def _normalized_country_value(value: object) -> frozenset[str]:
     if not isinstance(value, Iterable):
         raise TypeError("a country value must be an iterable of country codes")
-    return frozenset(str(item).upper() for item in value)
+    return _two_letter_country_codes(value)
 
 
 def _validate_country_set_value(v: object) -> frozenset[str]:
     if v is None:
         return frozenset()
     if isinstance(v, list | tuple | set | frozenset):
-        return frozenset(str(item).upper() for item in v)
+        return _two_letter_country_codes(v)
     raise ValueError("Country list must be list/tuple/set/frozenset of country codes")
 
 
