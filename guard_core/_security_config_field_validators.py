@@ -694,3 +694,18 @@ _FIELD_REVALIDATORS: dict[str, Callable[[object], object]] = {
         field_name="excluded_detection_body_fields",
     ),
 }
+
+
+def require_agent_config(config: "SecurityConfig[RequestT]") -> None:
+    if config.enable_agent and not config.agent_api_key:
+        raise ValueError("agent_api_key is required when enable_agent is True")
+
+    if config.enable_dynamic_rules and not config.enable_agent:
+        raise ValueError("enable_agent must be True when enable_dynamic_rules is True")
+
+    if config.enable_enrichment and not config.enable_agent:
+        raise ValueError(
+            "enable_enrichment requires enable_agent=True; enrichment is "
+            "the guard-agent-gated tier. Either enable guard-agent or set "
+            "enable_enrichment=False."
+        )

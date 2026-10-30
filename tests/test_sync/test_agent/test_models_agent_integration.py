@@ -44,11 +44,7 @@ def test_to_agent_config_returns_none_when_disabled() -> None:
 
 
 def test_to_agent_config_returns_none_when_no_api_key() -> None:
-    config = SyncSecurityConfig(
-        enable_agent=False,
-    )
-    config.enable_agent = True
-    config.agent_api_key = None
+    config = SyncSecurityConfig.model_construct(enable_agent=True, agent_api_key=None)
 
     result = config.to_agent_config()
     assert result is None

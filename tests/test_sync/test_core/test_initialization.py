@@ -13,6 +13,7 @@ from guard_core.sync.core.initialization.handler_initializer import HandlerIniti
 def security_config() -> SyncSecurityConfig:
     config = SyncSecurityConfig(lazy_init=False)
     config.enable_redis = True
+    config.agent_api_key = "test-api-key"
     config.enable_agent = True
     config.enable_dynamic_rules = False
     config.block_cloud_providers = frozenset()

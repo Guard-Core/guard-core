@@ -24,6 +24,13 @@ from guard_core._config_capabilities import (
 )
 from guard_core._dynamic_rules import DynamicRules as DynamicRules
 from guard_core._misconfiguration import report_config_misconfigurations
+from guard_core._security_config_assignment_checks import (
+    changed_copy_fields,
+    misconfigurations_now,
+    require_cross_field_rules,
+    require_field_constraints,
+)
+from guard_core._security_config_field_validators import require_agent_config
 from guard_core._security_config_fields import RequestT, _SecurityConfigFields
 from guard_core._security_config_validators import (
     _FIELD_REVALIDATORS,
@@ -121,6 +128,28 @@ def _pickled_mapping(value: object, what: str) -> Mapping[str, object]:
     return value
 
 
+def _snapshot_field(
+    config: "SecurityConfig[RequestT]", name: str
+) -> tuple[bool, object, set[str]]:
+    return (
+        name in config.__dict__,
+        config.__dict__.get(name),
+        set(config.__pydantic_fields_set__),
+    )
+
+
+def _restore_field(
+    config: "SecurityConfig[RequestT]", name: str, kept: tuple[bool, object, set[str]]
+) -> None:
+    had, value, fields_set = kept
+    if had:
+        config.__dict__[name] = value
+    else:
+        config.__dict__.pop(name, None)
+    config.__pydantic_fields_set__.clear()
+    config.__pydantic_fields_set__.update(fields_set)
+
+
 class SecurityConfig(_SecurityConfigFields[RequestT]):
     model_config = ConfigDict(arbitrary_types_allowed=True, hide_input_in_errors=True)
 
@@ -145,9 +174,22 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
 
         should_warn = _country_shadow_should_warn(self, name, value)
 
+        checked = name in type(self).model_fields and not _skip_revalidation.get()
+        if checked:
+            value = require_field_constraints(self, name, value)
+            problems_before = misconfigurations_now(self)
+            kept = _snapshot_field(self, name)
         _assign_checking_optional_extras(
             self, name, lambda: super(SecurityConfig, self).__setattr__(name, value)
         )
+        if checked:
+            try:
+                require_cross_field_rules(
+                    self, frozenset({name}), problems_before, stacklevel=3
+                )
+            except ValueError:
+                _restore_field(self, name, kept)
+                raise
         if name != "_revision":
             object.__setattr__(self, "_revision", self._current_revision() + 1)
         if should_warn:
@@ -193,6 +235,10 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
         copied = super().model_copy(update=update, deep=deep)
         if update:
             _revalidate_copied_config(copied, update)
+            changed_copy_fields(copied, update)
+            require_cross_field_rules(
+                copied, frozenset(update), misconfigurations_now(self), stacklevel=3
+            )
         return copied
 
     @model_validator(mode="before")
@@ -312,21 +358,7 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
 
     @model_validator(mode="after")
     def validate_agent_config(self) -> Self:
-        if self.enable_agent and not self.agent_api_key:
-            raise ValueError("agent_api_key is required when enable_agent is True")
-
-        if self.enable_dynamic_rules and not self.enable_agent:
-            raise ValueError(
-                "enable_agent must be True when enable_dynamic_rules is True"
-            )
-
-        if self.enable_enrichment and not self.enable_agent:
-            raise ValueError(
-                "enable_enrichment requires enable_agent=True; enrichment is "
-                "the guard-agent-gated tier. Either enable guard-agent or set "
-                "enable_enrichment=False."
-            )
-
+        require_agent_config(self)
         return self
 
     @model_validator(mode="after")

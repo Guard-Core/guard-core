@@ -55,7 +55,10 @@ def _neutral_config(**overrides: object) -> SyncSecurityConfig:
 
 def _always_limited_config() -> SyncSecurityConfig:
     config = _neutral_config(
-        enable_rate_limiting=True, rate_limit=1, rate_limit_window=60
+        enable_rate_limiting=True,
+        rate_limit=1,
+        rate_limit_window=60,
+        fail_on_misconfiguration=False,
     )
     config.rate_limit = 0
     return config
