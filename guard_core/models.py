@@ -30,7 +30,10 @@ from guard_core._security_config_assignment_checks import (
     require_cross_field_rules,
     require_field_constraints,
 )
-from guard_core._security_config_field_validators import require_agent_config
+from guard_core._security_config_field_validators import (
+    require_agent_config,
+    warn_agent_endpoint_in_clear,
+)
 from guard_core._security_config_fields import RequestT, _SecurityConfigFields
 from guard_core._security_config_validators import (
     _FIELD_REVALIDATORS,
@@ -359,6 +362,11 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
     @model_validator(mode="after")
     def validate_agent_config(self) -> Self:
         require_agent_config(self)
+        return self
+
+    @model_validator(mode="after")
+    def warn_agent_endpoint_in_clear_text(self) -> Self:
+        warn_agent_endpoint_in_clear(self)
         return self
 
     @model_validator(mode="after")

@@ -709,3 +709,25 @@ def require_agent_config(config: "SecurityConfig[RequestT]") -> None:
             "the guard-agent-gated tier. Either enable guard-agent or set "
             "enable_enrichment=False."
         )
+
+
+_LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
+
+
+def warn_agent_endpoint_in_clear(config: "SecurityConfig[RequestT]") -> None:
+    """The API key and the payload signature travel to ``agent_endpoint``: over
+    plain ``http://`` to a host that is not this machine, they travel in clear."""
+    from urllib.parse import urlsplit
+
+    if not config.enable_agent:
+        return
+    try:
+        parts = urlsplit(config.agent_endpoint)
+        host = parts.hostname or ""
+    except ValueError:
+        return
+    if parts.scheme == "http" and host not in _LOOPBACK_HOSTS:
+        logger.warning(
+            "agent_endpoint uses http:// to a host that is not this machine, so the "
+            "agent API key and the payload signature travel unencrypted; use https://"
+        )

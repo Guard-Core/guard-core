@@ -212,7 +212,8 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
         default_factory=tuple,
         description=(
             "Blocked IP addresses or CIDR ranges. Enforced ahead of country and "
-            "cloud-provider checks, but overridden by an explicit whitelist match."
+            "cloud-provider checks. An explicit whitelist match does not lift it: a "
+            "blacklisted entry is denied under any allow-list."
         ),
     )
 
