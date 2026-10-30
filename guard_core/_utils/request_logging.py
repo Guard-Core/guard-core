@@ -11,6 +11,7 @@ from guard_core._utils.ip_extraction import UNKNOWN_CLIENT_IDENTITY, _canonicali
 from guard_core._utils.logging_utils import (
     _json_depth_cap_hit,
     _log_at_level,
+    _logs_at_level,
     _redact_sensitive_json,
 )
 from guard_core._utils.pair_redaction import (
@@ -63,16 +64,20 @@ def _resolve_json_depth_cap() -> int:
     return _json_depth_cap_value()
 
 
+# json.loads skips exactly these; only an object or an array is ever redacted.
+_JSON_WHITESPACE = " \t\n\r"
+
+
 def _json_redact_text(
     text: str,
     sensitive: frozenset[str],
     sensitive_body_fields: frozenset[str],
     max_depth: int,
 ) -> str | None:
+    if not text.lstrip(_JSON_WHITESPACE).startswith(("{", "[")):
+        return None
     try:
         parsed = json.loads(text)
-        if not isinstance(parsed, dict | list):
-            return None
         _json_depth_cap_hit.set(False)
         redacted = _redact_sensitive_json(
             parsed, sensitive, sensitive_body_fields, max_depth
@@ -523,6 +528,8 @@ async def log_activity(
         and muted_check_logs is not None
         and check_name in muted_check_logs
     ):
+        return
+    if not _logs_at_level(logger, level):
         return
 
     context = _extract_request_context(

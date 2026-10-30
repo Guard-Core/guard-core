@@ -51,6 +51,8 @@ def _sanitize_for_reporting(value: str) -> str:
     surrogate, which JSON ``\\ud800`` produces and ``surrogateescape`` cannot
     encode, shows as ``\\uXXXX`` instead of raising.
     """
+    if value.isascii():
+        return value
     value = _LONE_SURROGATE_OUTSIDE_ESCAPED_BYTES_RE.sub(
         lambda lone: f"\\u{ord(lone.group()):04x}", value
     )
@@ -175,6 +177,20 @@ def _redact_sensitive_json(
             else:
                 target.append(redacted_item)
     return root
+
+
+_LEVEL_NUMBERS: dict[str, int] = {
+    "INFO": logging.INFO,
+    "DEBUG": logging.DEBUG,
+    "WARNING": logging.WARNING,
+    "ERROR": logging.ERROR,
+    "CRITICAL": logging.CRITICAL,
+}
+
+
+def _logs_at_level(logger: logging.Logger, level: str) -> bool:
+    number = _LEVEL_NUMBERS.get(level)
+    return number is not None and logger.isEnabledFor(number)
 
 
 def _log_at_level(logger: logging.Logger, level: str, msg: str) -> None:
