@@ -109,6 +109,7 @@ def test_a_lock_that_cannot_be_released_is_logged(
 ) -> None:
     manager.redis_handler = _redis(
         set_key_if_absent=MagicMock(return_value=True),
+        get_key=MagicMock(side_effect=lambda *_: manager._download_lock_token),
         delete=MagicMock(side_effect=RuntimeError("down")),
     )
 

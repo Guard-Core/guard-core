@@ -26,6 +26,7 @@ class IpInfoRedisCopyMixin:
     _bound_redis_refs: tuple[Callable[[], RedisHandlerProtocol | None], ...] = ()
     logger: logging.Logger
     _DOWNLOAD_LOCK_SECONDS: int
+    _download_lock_token: str = ""
     _download_total_timeout: float
     _max_age: int
 
@@ -216,11 +217,15 @@ class IpInfoRedisCopyMixin:
             self.logger.warning("Cached GeoIP database could not be dropped: %s", e)
 
     async def _claim_download_lock(self) -> bool:
+        self._download_lock_token = uuid.uuid4().hex
         claimed: list[RedisHandlerProtocol] = []
         for redis in self._copy_handlers():
             try:
                 won = await redis.set_key_if_absent(
-                    "ipinfo", "download_lock", "1", self._DOWNLOAD_LOCK_SECONDS
+                    "ipinfo",
+                    "download_lock",
+                    self._download_lock_token,
+                    self._DOWNLOAD_LOCK_SECONDS,
                 )
             except Exception as e:
                 self.logger.warning(
@@ -238,6 +243,10 @@ class IpInfoRedisCopyMixin:
     ) -> None:
         for redis in handlers:
             try:
-                await redis.delete("ipinfo", "download_lock")
+                # only the lock this worker took: an expired one may be another's
+                if await redis.get_key("ipinfo", "download_lock") == (
+                    self._download_lock_token
+                ):
+                    await redis.delete("ipinfo", "download_lock")
             except Exception as e:
                 self.logger.warning("GeoIP download lock not released: %s", e)

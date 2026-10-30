@@ -109,6 +109,7 @@ async def test_a_lock_that_cannot_be_released_is_logged(
 ) -> None:
     manager.redis_handler = _redis(
         set_key_if_absent=AsyncMock(return_value=True),
+        get_key=AsyncMock(side_effect=lambda *_: manager._download_lock_token),
         delete=AsyncMock(side_effect=RuntimeError("down")),
     )
 

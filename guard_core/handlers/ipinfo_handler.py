@@ -66,7 +66,10 @@ class IPInfoManager(
     _background_task: asyncio.Task[None] | None = None
     _refresh_due: bool = False
     _staleness_timer: threading.Timer | None = None
-    _DOWNLOAD_LOCK_SECONDS = 60
+    # longer than _download_total_timeout, so the lock outlives the slowest download
+    _DOWNLOAD_LOCK_SECONDS = 360
+    _UNAVAILABLE_WARNING_INTERVAL_SECONDS = 60.0
+    _last_unavailable_warning_at: float | None = None
 
     def __new__(
         cls: type[IPInfoManager],
@@ -270,16 +273,24 @@ class IPInfoManager(
         return age > self._max_age
 
     def _warn_reader_unavailable(self, ip: str) -> None:
+        # one line a minute, without the client address: every lookup while the
+        # database is down would otherwise log one line per request, with the IP
+        now = time.monotonic()
+        last = self._last_unavailable_warning_at
+        if last is not None and now - last < self._UNAVAILABLE_WARNING_INTERVAL_SECONDS:
+            return
+        self._last_unavailable_warning_at = now
         if self._initialization_attempted:
             self.logger.warning(
                 "Geo-IP reader unavailable after a failed initialization "
                 "attempt; returning None for %s. Check the IPInfo token and "
                 "network reachability, then call refresh() to retry.",
-                ip,
+                "the requesting client",
             )
         else:
             self.logger.warning(
-                "Geo-IP reader uninitialized; returning None for %s", ip
+                "Geo-IP reader uninitialized; returning None for %s",
+                "the requesting client",
             )
 
     def get_country(self, ip: str) -> str | None:

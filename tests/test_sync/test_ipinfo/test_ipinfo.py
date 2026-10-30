@@ -349,7 +349,7 @@ def test_initialize_redis_cache_read_failure_falls_through_to_download(
     ):
         db.initialize()
 
-    db.redis_handler.get_key.assert_called_once_with("ipinfo", "database")
+    db.redis_handler.get_key.assert_any_call("ipinfo", "database")
     assert db.reader is mock_reader
     assert db.redis_handler is not None
     assert "Cached GeoIP database unavailable" in caplog.text
@@ -579,6 +579,22 @@ def test_file_operations(tmp_path: Path) -> None:
             assert reader is not None
 
 
+def test_an_unavailable_reader_warns_once_a_minute_without_the_client_address(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    IPInfoManager._instance = None
+    db = IPInfoManager(token="test", db_path=tmp_path / "test.mmdb")
+    db.reader = None
+
+    with caplog.at_level("WARNING", logger="guard_core.sync.handlers.ipinfo"):
+        for index in range(50):
+            assert db.get_country(f"198.51.100.{index}") is None
+
+    assert len(caplog.records) == 1
+    assert "198.51.100" not in caplog.text
+    IPInfoManager._instance = None
+
+
 def test_get_country_without_init_returns_none_and_warns(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -598,7 +614,7 @@ def test_get_country_without_init_returns_none_and_warns(
     ]
     assert len(warnings) == 1
     assert "Geo-IP reader uninitialized" in warnings[0].getMessage()
-    assert "1.1.1.1" in warnings[0].getMessage()
+    assert "1.1.1.1" not in warnings[0].getMessage()
     IPInfoManager._instance = None
 
 
@@ -1127,7 +1143,7 @@ def test_get_country_warns_permanent_failure_after_failed_init_attempt(
 
     assert result is None
     assert "failed initialization attempt" in caplog.text
-    assert "1.1.1.1" in caplog.text
+    assert "1.1.1.1" not in caplog.text
     IPInfoManager._instance = None
 
 

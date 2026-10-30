@@ -218,3 +218,36 @@ async def test_the_first_start_without_a_database_says_what_country_rules_do(
     message = " ".join(record.message for record in caplog.records)
     assert "whitelist_countries denies" in message
     assert "blocked_countries allows" in message
+
+
+async def test_the_download_lock_outlives_the_longest_download(tmp_path: Path) -> None:
+    ttls: list[int] = []
+
+    class _Recording(_SharedRedis):
+        async def set_key_if_absent(
+            self, namespace: str, key: str, value: Any, ttl: int
+        ) -> bool:
+            ttls.append(ttl)
+            return await super().set_key_if_absent(namespace, key, value, ttl)
+
+    manager = IPInfoManager(token="tok", db_path=tmp_path / "db.mmdb")
+    manager.redis_handler = cast(RedisHandlerProtocol, _Recording())
+
+    assert await manager._claim_download_lock() is True
+
+    assert ttls == [IPInfoManager._DOWNLOAD_LOCK_SECONDS]
+    assert IPInfoManager._DOWNLOAD_LOCK_SECONDS > IPInfoManager._download_total_timeout
+
+
+async def test_a_worker_never_deletes_a_download_lock_another_worker_holds(
+    tmp_path: Path,
+) -> None:
+    redis = _SharedRedis()
+    manager = IPInfoManager(token="tok", db_path=tmp_path / "db.mmdb")
+    manager.redis_handler = cast(RedisHandlerProtocol, redis)
+    assert await manager._claim_download_lock() is True
+    redis.values[("ipinfo", "download_lock")] = "another-workers-token"
+
+    await manager._release_download_lock(manager._copy_handlers())
+
+    assert redis.values[("ipinfo", "download_lock")] == "another-workers-token"

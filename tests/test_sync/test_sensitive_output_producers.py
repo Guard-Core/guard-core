@@ -1336,6 +1336,10 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
     "handlers/_ipinfo_redis_copy.py:IpInfoRedisCopyMixin._cache_database_in_redis": (
         "line 80: failure to cache the GeoIP database in Redis, infra only"
     ),
+    "_security_config_field_validators.py:warn_agent_endpoint_in_clear": (
+        "line 730: static text about the configured agent_endpoint scheme, "
+        "configuration only, no request data"
+    ),
     "handlers/_ipinfo_redis_copy.py:IpInfoRedisCopyMixin._release_download_lock": (
         "line 136: GeoIP download lock not released, infra only"
     ),

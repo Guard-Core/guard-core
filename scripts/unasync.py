@@ -749,6 +749,7 @@ TEST_SUBS: list[tuple[str, str]] = [
     (r"\.assert_awaited\(\)", ".assert_called()"),
     (r"\.assert_not_awaited\(\)", ".assert_not_called()"),
     (r"\.assert_awaited_with\(", ".assert_called_with("),
+    (r"\.assert_any_await\(", ".assert_any_call("),
     (r"\.await_count\b", ".call_count"),
     (r"\.await_args\b", ".call_args"),
     (r"AsyncGenerator", "Generator"),
