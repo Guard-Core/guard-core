@@ -354,6 +354,16 @@ def _feed_rate_limit_autoban(
     )
 
     ip_ban_manager = ip_ban_manager_for(config, unbound=IPBanManager())
+    if (
+        redis_handler is not None
+        and redis_is_configured(config)
+        and ip_ban_manager.redis_handler is None
+    ):
+        # no guarded app holds this config: the ban goes to the caller's Redis
+        # through a manager of its own, so other workers and processes see it
+        ip_ban_manager = IPBanManager._fresh()
+        ip_ban_manager.config = config
+        ip_ban_manager.initialize_redis(redis_handler)
     if ip_ban_manager.is_ip_banned(ip, config=config):
         return
 

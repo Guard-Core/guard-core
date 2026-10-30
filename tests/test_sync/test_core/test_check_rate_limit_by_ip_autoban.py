@@ -34,6 +34,7 @@ def _install_recording_ban_manager(
     ban_calls: BanCalls = []
 
     def fake_ban(
+        _self: IPBanManager,
         ip: str,
         duration: int,
         reason: str = "threshold_exceeded",
@@ -43,7 +44,7 @@ def _install_recording_ban_manager(
         ban_calls.append((ip, duration, reason))
         return duration
 
-    patch.object(manager, "_ban_ip_escalating", fake_ban).start()
+    patch.object(IPBanManager, "_ban_ip_escalating", fake_ban).start()
     return manager, ban_calls
 
 

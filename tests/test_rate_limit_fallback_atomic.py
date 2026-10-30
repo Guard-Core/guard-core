@@ -74,3 +74,32 @@ async def test_manager_pipeline_fallback_burst_never_exceeds_the_limit(
     results = await asyncio.gather(*[one() for _ in range(40)])
 
     assert sum(result is None for result in results) == LIMIT
+
+
+async def test_by_ip_auto_ban_reaches_the_callers_redis_without_a_guarded_app() -> None:
+    prefix = f"wp320:{uuid.uuid4().hex[:8]}:"
+    config = SecurityConfig(
+        enable_redis=True,
+        redis_url=REDIS_URL,
+        redis_prefix=prefix,
+        enable_rate_limiting=True,
+        rate_limit=2,
+        rate_limit_window=60,
+        enable_ip_banning=True,
+        enable_rate_limit_auto_ban=True,
+        auto_ban_threshold=3,
+        auto_ban_duration=600,
+    )
+    redis = RedisManager(config)
+    await redis.initialize()
+    try:
+        ip = "198.51.100.77"
+        for _ in range(12):
+            await check_rate_limit_by_ip(ip, config, redis)
+
+        assert await redis.keys("banned_ips:*") == [f"{prefix}banned_ips:{ip}"]
+    finally:
+        async with redis.get_connection() as conn:
+            async for key in conn.scan_iter(match=f"{prefix}*"):
+                await conn.unlink(key)
+        await redis.close()
