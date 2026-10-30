@@ -418,7 +418,7 @@ async def test_redis_failure_fails_open_to_memory_with_one_warning(
     assert len(warnings) == 1
 
 
-async def test_redis_failure_fails_secure_with_500(
+async def test_redis_failure_fails_secure_like_the_pipeline(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     _Clock(monkeypatch)
@@ -429,11 +429,28 @@ async def test_redis_failure_fails_secure_with_500(
             _request(), _IP, _route(_throttle_rule(1))
         )
     assert response is not None
-    assert (response.status_code, response.body) == (500, b"Security check failed")
+    assert (response.status_code, response.body) == (503, b"Security check failed")
+    assert response.headers["Retry-After"] == "5"
     assert any(
         "Error in behavior throttle (GuardRedisError)" in r.message
         for r in caplog.records
     )
+
+
+async def test_redis_failure_never_blocks_in_passive_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _Clock(monkeypatch)
+    config = _config(
+        enable_redis=True, redis_fail_open=False, fail_secure=True, passive_mode=True
+    )
+    processor, _, _ = _processor(config, _broken_redis_tracker(config))
+
+    response = await processor.process_usage_rules(
+        _request(), _IP, _route(_throttle_rule(1))
+    )
+
+    assert response is None
 
 
 async def test_redis_failure_admits_when_not_fail_secure(

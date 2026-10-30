@@ -314,12 +314,17 @@ class BehavioralThrottleMixin:
         self.context.logger.error(
             f"Error in behavior throttle ({type(error).__name__}): {safe_message}"
         )
-        if not config.fail_secure or builder is None:
+        if config.passive_mode or not config.fail_secure or builder is None:
             return None
+        from guard_core.core.checks.pipeline import REDIS_OUTAGE_RETRY_AFTER
+
         self.context.logger.warning(
             "Blocking request due to check error in fail-secure mode: behavior throttle"
         )
-        response: GuardResponse = await builder(500, "Security check failed")
+        response: GuardResponse = await builder(
+            error.status_code, "Security check failed"
+        )
+        response.headers["Retry-After"] = str(REDIS_OUTAGE_RETRY_AFTER)
         return response
 
     async def _fire_throttle_block_hook(
