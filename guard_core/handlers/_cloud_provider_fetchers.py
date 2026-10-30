@@ -1,6 +1,11 @@
 import ipaddress
 import logging
 
+from guard_core.handlers._cloud_prefix_parse import (
+    log_rejected_prefixes,
+    parse_prefix_or_note,
+)
+
 logger = logging.getLogger("guard_core.handlers.cloud")
 
 
@@ -19,14 +24,18 @@ async def fetch_aws_ip_ranges() -> tuple[
             data = await response.json(content_type=None)
         networks: set[ipaddress.IPv4Network | ipaddress.IPv6Network] = set()
         regions: dict[str, str] = {}
+        rejected: list[str] = []
         for ip_range in data["prefixes"]:
             if ip_range["service"] != "AMAZON":
                 continue
-            network = ipaddress.ip_network(ip_range["ip_prefix"])
+            network = parse_prefix_or_note(ip_range["ip_prefix"], "AWS", rejected)
+            if network is None:
+                continue
             networks.add(network)
             region = ip_range.get("region")
             if region:
                 regions[str(network)] = region
+        log_rejected_prefixes("AWS", rejected)
         return networks, regions
     except Exception as e:
         logger.error(f"Failed to fetch AWS IP ranges: {str(e)}")
@@ -48,15 +57,19 @@ async def fetch_gcp_ip_ranges() -> tuple[
             data = await response.json(content_type=None)
         networks: set[ipaddress.IPv4Network | ipaddress.IPv6Network] = set()
         regions: dict[str, str] = {}
+        rejected: list[str] = []
         for ip_range in data["prefixes"]:
             prefix = ip_range.get("ipv4Prefix") or ip_range.get("ipv6Prefix")
             if not prefix:
                 continue
-            network = ipaddress.ip_network(prefix)
+            network = parse_prefix_or_note(prefix, "GCP", rejected)
+            if network is None:
+                continue
             networks.add(network)
             scope = ip_range.get("scope")
             if scope:
                 regions[str(network)] = scope
+        log_rejected_prefixes("GCP", rejected)
         return networks, regions
     except Exception as e:
         logger.error(f"Failed to fetch GCP IP ranges: {str(e)}")

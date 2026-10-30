@@ -899,6 +899,10 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
     "handlers/_cloud_azure_fetch.py:fetch_azure_ip_ranges": (
         "line 197: provider IP-range fetch failure - infra only"
     ),
+    "handlers/_cloud_prefix_parse.py:log_rejected_prefixes": (
+        "line 20: the count and the first invalid prefix of a cloud provider's "
+        "published ranges, provider data only, no request data"
+    ),
     "handlers/_cloud_provider_fetchers.py:fetch_aws_ip_ranges": (
         "line 32: provider IP-range fetch failure - infra only"
     ),

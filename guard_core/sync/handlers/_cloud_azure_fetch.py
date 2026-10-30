@@ -7,6 +7,11 @@ from datetime import date, datetime, timezone
 from typing import TypedDict
 from urllib.parse import urlparse
 
+from guard_core.sync.handlers._cloud_prefix_parse import (
+    log_rejected_prefixes,
+    parse_prefix_or_note,
+)
+
 logger = logging.getLogger("guard_core.sync.handlers.cloud")
 
 _AZURE_DOWNLOAD_MAX_ATTEMPTS = 3
@@ -204,10 +209,15 @@ def fetch_azure_ip_ranges() -> set[ipaddress.IPv4Network | ipaddress.IPv6Network
 
         data = _download_azure_service_tags(download_url, deadline)
 
-        return {
-            ipaddress.ip_network(ip_range)
+        rejected: list[str] = []
+        networks = {
+            network
             for ip_range in _select_azure_cloud_prefixes(data)
+            if (network := parse_prefix_or_note(ip_range, "Azure", rejected))
+            is not None
         }
+        log_rejected_prefixes("Azure", rejected)
+        return networks
     except Exception as e:
         logger.error(f"Failed to fetch Azure IP ranges: {str(e)}")
         return set()
