@@ -278,7 +278,10 @@ class RedisManager(RedisBanStrikeMixin):
                 )
                 raise GuardRedisError(503, "Redis connection closed")
 
-            if not self._redis or self._client_loop is not running_loop_or_none():
+            if not self._redis or (
+                self._client_loop is not None
+                and self._client_loop is not running_loop_or_none()
+            ):
                 await self.initialize()
 
             if self._redis is None:
