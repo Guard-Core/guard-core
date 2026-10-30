@@ -130,6 +130,7 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
 
     redis_url: str | None = Field(
         default="redis://localhost:6379",
+        repr=False,
         description="Redis URL for distributed state management",
     )
 
@@ -933,6 +934,7 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
 
     ipinfo_token: str | None = Field(
         default=None,
+        repr=False,
         description="IPInfo API token used to fetch IP geolocation data from "
         "the IPInfo API.",
     )
@@ -957,7 +959,7 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
     )
 
     agent_api_key: str | None = Field(
-        default=None, description="API key for Guard Agent SaaS platform"
+        default=None, repr=False, description="API key for Guard Agent SaaS platform"
     )
 
     agent_strict: bool = Field(
@@ -1033,6 +1035,7 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
 
     agent_project_encryption_key: str | None = Field(
         default=None,
+        repr=False,
         description=(
             "Per-project AES-256-GCM key used to encrypt the telemetry payload "
             "between the agent and the SaaS. When set, the agent posts to "
@@ -1129,6 +1132,7 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
 
     agent_payload_signing_secret: str | None = Field(
         default=None,
+        repr=False,
         description="HMAC-SHA256 secret used to sign the X-Payload-Signature header.",
     )
 
