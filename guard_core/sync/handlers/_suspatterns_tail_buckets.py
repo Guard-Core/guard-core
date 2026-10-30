@@ -76,15 +76,20 @@ def _folded(char: str) -> str:
     return char.translate(_FOLD).lower()
 
 
+def _leading_literal(branch: str) -> tuple[str, str] | None:
+    if branch[:1] == "\\" and len(branch) > 1 and not branch[1].isalnum():
+        return branch[1], branch[2:3]
+    if branch and branch[0] not in _NON_LITERAL_START:
+        return branch[0], branch[1:2]
+    return None
+
+
 def _branch_key(branch: str) -> str | None:
     """The folded character every match of this branch starts with, else None."""
-    escaped = branch[:1] == "\\" and len(branch) > 1 and not branch[1].isalnum()
-    first = branch[1] if escaped else branch[:1]
-    after = branch[2:3] if escaped else branch[1:2]
-    if not first or (not escaped and first in _NON_LITERAL_START):
+    leading = _leading_literal(branch)
+    if leading is None or leading[1] in _OPTIONAL_QUANTIFIERS:
         return None
-    if after in _OPTIONAL_QUANTIFIERS:
-        return None
+    first = leading[0]
     if first.isascii() or first.lower() == first.upper():
         return _folded(first)
     return None

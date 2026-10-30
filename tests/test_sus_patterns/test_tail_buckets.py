@@ -1,4 +1,3 @@
-import importlib
 import random
 import re
 from typing import Any
@@ -10,6 +9,7 @@ from guard_core.handlers._suspatterns_linear_path import _row_for
 from guard_core.handlers._suspatterns_linear_path_source import (
     without_unbalanced_parentheses,
 )
+from guard_core.handlers._suspatterns_literals import _PARSER
 from guard_core.handlers._suspatterns_pattern_table import _PATTERN_DEFINITIONS
 from guard_core.handlers._suspatterns_tail_buckets import (
     BucketedTail,
@@ -18,7 +18,6 @@ from guard_core.handlers._suspatterns_tail_buckets import (
     split_alternation,
 )
 
-_PARSER = importlib.import_module("re._parser")
 _LONG_TAIL = 2000
 
 
