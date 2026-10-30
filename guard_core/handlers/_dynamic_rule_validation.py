@@ -38,6 +38,17 @@ def _rate_limit_problems(rules: DynamicRulesProtocol) -> list[str]:
     return problems
 
 
+def _ban_duration_problems(rules: DynamicRulesProtocol) -> list[str]:
+    return [
+        f"{name}: {value} (must be at least 1)"
+        for name, value in (
+            ("ip_ban_duration", rules.ip_ban_duration),
+            ("auto_ban_duration", rules.auto_ban_duration),
+        )
+        if _below_one(value)
+    ]
+
+
 def endpoint_rate_limit_key_problems(
     endpoint_rate_limits: Mapping[str, tuple[int, int]],
 ) -> list[str]:
@@ -90,6 +101,7 @@ def find_malformed_values(rules: DynamicRulesProtocol) -> list[str]:
         *_ip_problems("ip_whitelist", rules.ip_whitelist),
         *_ip_problems("emergency_whitelist", rules.emergency_whitelist),
         *_rate_limit_problems(rules),
+        *_ban_duration_problems(rules),
         *_endpoint_key_problems(rules),
         *_country_problems("blocked_countries", rules.blocked_countries),
         *_country_problems("whitelist_countries", rules.whitelist_countries),

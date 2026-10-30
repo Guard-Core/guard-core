@@ -120,3 +120,16 @@ def test_the_public_predicate_refuses_every_anomalous_spelling(key: str) -> None
 
 def test_the_public_predicate_accepts_a_plain_key() -> None:
     assert endpoint_rate_limit_key_problems({"/api/users": (5, 60)}) == []
+
+
+@pytest.mark.parametrize("duration", [0, -5])
+def test_a_non_positive_ip_ban_duration_is_a_malformed_value(duration: int) -> None:
+    rules = _rules(ip_blacklist=["203.0.113.9"], ip_ban_duration=duration)
+
+    assert find_malformed_values(rules) == [
+        f"ip_ban_duration: {duration} (must be at least 1)"
+    ]
+
+
+def test_a_positive_ip_ban_duration_is_accepted() -> None:
+    assert find_malformed_values(_rules(ip_ban_duration=1)) == []
