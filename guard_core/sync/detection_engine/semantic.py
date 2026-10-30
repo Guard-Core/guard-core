@@ -5,6 +5,8 @@ from collections import Counter
 from time import thread_time
 from typing import TypedDict
 
+from guard_core.sync.detection_engine.printable_count import printable_count
+
 logger = logging.getLogger(__name__)
 
 _BINARY_CONTENT_RATIO_THRESHOLD = 0.2
@@ -16,11 +18,7 @@ AST_PARSE_CPU_BUDGET_SECONDS = 0.1
 def looks_like_binary_content(content: str) -> bool:
     if not content:
         return False
-    non_printable = (
-        0
-        if content.isprintable()
-        else len(content) - sum(map(str.isprintable, content))
-    )
+    non_printable = len(content) - printable_count(content)
     non_text_count = (
         non_printable
         - content.count("\t")

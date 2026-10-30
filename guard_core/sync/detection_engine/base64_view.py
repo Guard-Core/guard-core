@@ -3,6 +3,7 @@ import re
 from typing import TYPE_CHECKING
 
 from guard_core.sync.detection_engine import truncation
+from guard_core.sync.detection_engine.printable_count import printable_count
 
 if TYPE_CHECKING:
     from guard_core.sync.detection_engine.preprocessor import ContentPreprocessor
@@ -19,10 +20,7 @@ PRINTABLE_RATIO_THRESHOLD = 0.95
 def _printable_ratio(text: str) -> float:
     if not text:
         return 0.0
-    printable_count = (
-        len(text) if text.isprintable() else sum(map(str.isprintable, text))
-    )
-    return printable_count / len(text)
+    return printable_count(text) / len(text)
 
 
 _PADDING_BY_REMAINDER = {0: "", 2: "==", 3: "="}

@@ -10,6 +10,7 @@ from guard_core.sync.detection_engine import (
     compressed_payloads,
     truncation,
 )
+from guard_core.sync.detection_engine.printable_count import printable_count
 
 MIN_RUN_LENGTH = 12
 DATA_ALPHABET = "A-Za-z0-9+/_\\-"
@@ -81,10 +82,7 @@ def is_hex_literal(token: str) -> bool:
 def printable_ratio(text: str) -> float:
     if not text:
         return 0.0
-    printable_count = (
-        len(text) if text.isprintable() else sum(map(str.isprintable, text))
-    )
-    return printable_count / len(text)
+    return printable_count(text) / len(text)
 
 
 def replacement_char_ratio(text: str) -> float:
