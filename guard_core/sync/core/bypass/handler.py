@@ -19,13 +19,17 @@ UNRESOLVABLE_CLIENT_ADDRESS_CHECK_NAME = "client_address_unresolved"
 _no_client_address_warned = False
 
 
-def _warn_no_client_address(logger: Logger, *, rejected: bool) -> None:
+def _warn_no_client_address(
+    logger: Logger, *, rejected: bool, passive: bool = False
+) -> None:
     global _no_client_address_warned
     if _no_client_address_warned:
         return
     _no_client_address_warned = True
     outcome = (
-        "the request is rejected with 403 (fail_secure=True)"
+        'the request is admitted and logged with identity "unknown" (passive_mode=True)'
+        if passive
+        else "the request is rejected with 403 (fail_secure=True)"
         if rejected
         else (
             'the pipeline runs with identity "unknown" (fail_secure=False) and '
@@ -57,10 +61,26 @@ class BypassHandler:
             client_ip = extract_client_ip(request, self.context.config)
             request.state.client_ip = client_ip
             if client_ip == UNKNOWN_CLIENT_IDENTITY:
+                config = self.context.config
                 _warn_no_client_address(
-                    self.context.logger, rejected=self.context.config.fail_secure
+                    self.context.logger,
+                    rejected=config.fail_secure,
+                    passive=config.passive_mode and config.fail_secure,
                 )
-                if self.context.config.fail_secure:
+                if config.fail_secure and config.passive_mode:
+                    fire_block_hook(
+                        config.on_block,
+                        request,
+                        UNRESOLVABLE_CLIENT_ADDRESS_CHECK_NAME,
+                        "Client address could not be determined",
+                        "",
+                        True,
+                        None,
+                        config.log_sensitive_params,
+                        config.log_sensitive_body_fields,
+                        config.log_sensitive_headers,
+                    )
+                elif config.fail_secure:
                     response = self.context.response_factory.create_error_response(
                         403, "Client address could not be determined"
                     )

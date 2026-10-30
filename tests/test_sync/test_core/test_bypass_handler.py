@@ -131,6 +131,39 @@ def test_handle_passthrough_no_client_fail_secure_rejects(
     )
 
 
+def test_handle_passthrough_no_client_passive_admits_and_fires_the_hook(
+    bypass_handler: BypassHandler,
+    mock_request: Mock,
+    call_next: Callable[[Mock], Mock],
+    mock_response_factory: Mock,
+    mock_config: Mock,
+) -> None:
+    mock_config.passive_mode = True
+    payloads: list[dict[str, object]] = []
+    mock_config.on_block = lambda _request, payload: payloads.append(payload)
+    mock_request.client_host = None
+
+    response = bypass_handler.handle_passthrough(
+        mock_request,
+        cast(Callable[[SyncGuardRequest], GuardResponse], call_next),
+    )
+
+    assert response is None
+    assert mock_request.state.client_ip == "unknown"
+    mock_response_factory.create_error_response.assert_not_called()
+    assert len(payloads) == 1
+    assert payloads[0]["passive_mode"] is True
+    assert payloads[0]["check_name"] == "client_address_unresolved"
+
+
+def test_the_no_client_address_warning_says_a_passive_request_is_admitted() -> None:
+    logger = Mock()
+
+    bypass_handler_module._warn_no_client_address(logger, rejected=True, passive=True)
+
+    assert "admitted and logged" in logger.warning.call_args.args[1]
+
+
 def test_handle_passthrough_no_client_fail_open_runs_pipeline_as_unknown(
     bypass_handler: BypassHandler,
     mock_request: Mock,
