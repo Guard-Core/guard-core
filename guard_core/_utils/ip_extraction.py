@@ -419,8 +419,13 @@ async def _handle_untrusted_proxy(
     if forwarded_for:
         _warn_forwarded_header_preempted(connecting_ip, forwarded_for)
         peer_is_public = not _is_private_or_loopback(connecting_ip)
+        # one sample per identity, not per address: a client rotating inside its
+        # IPv6 /64 is one peer
         sampled, suppressed_count = _observe_untrusted_forwarded_for(
-            config, canonical_connecting_ip
+            config,
+            _client_identity(
+                canonical_connecting_ip, getattr(config, "ipv6_prefix_length", 64)
+            ),
         )
         if peer_is_public:
             request.state.untrusted_forwarded_for = forwarded_for
