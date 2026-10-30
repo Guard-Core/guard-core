@@ -34,7 +34,13 @@ def _parse_content_length(value: str) -> int | None:
 
 def parse_declared_length(value: str) -> int | None:
     stripped = value.strip()
-    return int(stripped) if _CONTENT_LENGTH_RE.fullmatch(stripped) else None
+    if not _CONTENT_LENGTH_RE.fullmatch(stripped):
+        return None
+    try:
+        return int(stripped)
+    except ValueError:
+        # past Python's integer-string digit limit (4300 digits): not a usable length
+        return None
 
 
 def request_declares_body(headers: GuardRequestHeaders) -> bool:
