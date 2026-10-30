@@ -2,7 +2,7 @@ import asyncio
 import functools
 import ipaddress
 import logging
-from collections.abc import Collection, Iterable
+from collections.abc import Collection, Iterable, Mapping
 from copy import deepcopy
 from dataclasses import dataclass, field
 
@@ -102,6 +102,10 @@ def _stored_entries(value: object) -> Collection[str]:
     if not isinstance(value, Collection):
         raise TypeError(f"stored rule entries must be a collection, got {value!r}")
     return value
+
+
+def _stored_limits(value: object) -> dict[str, tuple[int, int]]:
+    return dict(value) if isinstance(value, Mapping) else {}
 
 
 def _merge_unique(static: object, dynamic: Iterable[str]) -> list[str]:
@@ -305,7 +309,16 @@ class DynamicRulePlanMixin:
             message = f"Global rate limit {rules.global_rate_limit}"
             plan.note(f"Dynamic rule: {message} per {rules.global_rate_window}s")
         if rules.endpoint_rate_limits:
-            plan.set("endpoint_rate_limits", rules.endpoint_rate_limits.copy())
+            # D-219: per endpoint, on the static snapshot of this apply (the plan
+            # starts from it): the rule wins on the endpoints it names and a static
+            # limit on any other endpoint keeps applying
+            plan.set(
+                "endpoint_rate_limits",
+                {
+                    **_stored_limits(plan.state.get("endpoint_rate_limits")),
+                    **rules.endpoint_rate_limits,
+                },
+            )
             plan.note(
                 f"Dynamic rule: Applied endpoint-specific rate limits for "
                 f"{len(rules.endpoint_rate_limits)} endpoints: "

@@ -61,6 +61,7 @@ SKIP_TESTS = {
     "test_redis_prefix_isolation.py",
     "test_rate_limit_fallback_atomic.py",
     "test_cloud_fetch_one_bad_prefix.py",
+    "test_enable_dynamic_rules_description.py",
     "ecosystem_gate_scripts.py",
     "test_ecosystem_gate_cap_proof.py",
     "test_ecosystem_gate_judge.py",

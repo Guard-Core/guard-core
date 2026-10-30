@@ -207,3 +207,42 @@ async def test_suspicious_patterns_are_not_duplicated_across_versions() -> None:
         assert sus_patterns_handler.patterns.count(pattern) == 1
     finally:
         await sus_patterns_handler.remove_pattern(pattern)
+
+
+@pytest.mark.asyncio
+async def test_endpoint_limits_merge_per_endpoint_with_the_static_map() -> None:
+    config = SecurityConfig(endpoint_rate_limits={"/static": (5, 60), "/both": (7, 60)})
+    manager = DynamicRuleManager(config)
+
+    await _apply(
+        manager,
+        _rules(1, endpoint_rate_limits={"/both": (2, 30), "/rule": (9, 60)}),
+    )
+
+    assert config.endpoint_rate_limits == {
+        "/static": (5, 60),
+        "/both": (2, 30),
+        "/rule": (9, 60),
+    }
+
+
+@pytest.mark.asyncio
+async def test_an_old_rules_endpoint_keys_never_pile_up_in_the_effective_map() -> None:
+    config = SecurityConfig(endpoint_rate_limits={"/static": (5, 60)})
+    manager = DynamicRuleManager(config)
+
+    await _apply(manager, _rules(1, endpoint_rate_limits={"/a": (1, 60)}))
+    await _apply(manager, _rules(2, endpoint_rate_limits={"/b": (2, 60)}))
+
+    assert config.endpoint_rate_limits == {"/static": (5, 60), "/b": (2, 60)}
+
+
+@pytest.mark.asyncio
+async def test_expiry_restores_the_static_endpoint_map() -> None:
+    config = SecurityConfig(endpoint_rate_limits={"/static": (5, 60)})
+    manager = DynamicRuleManager(config)
+    await _apply(manager, _rules(1, endpoint_rate_limits={"/rule": (9, 60)}))
+
+    manager._restore_config(manager._active_base_snapshot or {})
+
+    assert config.endpoint_rate_limits == {"/static": (5, 60)}

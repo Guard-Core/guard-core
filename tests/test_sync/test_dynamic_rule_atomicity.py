@@ -97,7 +97,7 @@ def test_rollback_restores_all_snapshot_fields() -> None:
         rate_limit=100,
         enable_ip_banning=True,
         geo_ip_handler=MagicMock(spec=SyncGeoIPHandler),
-        blocked_countries=frozenset({"OLD"}),
+        blocked_countries=frozenset({"OL"}),
     )
     manager = DynamicRuleManager(config)
 
@@ -115,7 +115,7 @@ def test_rollback_restores_all_snapshot_fields() -> None:
         with pytest.raises(RuntimeError):
             manager._apply_rules(rules)
 
-    assert config.blocked_countries == frozenset({"OLD"})
+    assert config.blocked_countries == frozenset({"OL"})
     assert config.rate_limit == 100
     assert config.enable_ip_banning is True
 
@@ -321,7 +321,7 @@ def test_rollback_restores_fields_on_smuggled_invalid_auto_ban_threshold() -> No
         rate_limit=100,
         enable_ip_banning=True,
         geo_ip_handler=MagicMock(spec=SyncGeoIPHandler),
-        blocked_countries=frozenset({"OLD_COUNTRY"}),
+        blocked_countries=frozenset({"OC"}),
         auto_ban_threshold=5,
     )
     manager = DynamicRuleManager(config)
@@ -337,7 +337,7 @@ def test_rollback_restores_fields_on_smuggled_invalid_auto_ban_threshold() -> No
     with pytest.raises(ValueError, match="auto_ban_threshold must be >= 1"):
         manager._apply_rules(rules)
 
-    assert config.blocked_countries == frozenset({"OLD_COUNTRY"})
+    assert config.blocked_countries == frozenset({"OC"})
     assert config.rate_limit == 100
     assert config.enable_ip_banning is True
     assert config.auto_ban_threshold == 5
@@ -345,8 +345,8 @@ def test_rollback_restores_fields_on_smuggled_invalid_auto_ban_threshold() -> No
 
 def _full_snapshot_base_kwargs() -> dict[str, object]:
     return {
-        "blocked_countries": frozenset({"BASE_BLOCK"}),
-        "whitelist_countries": frozenset({"BASE_WHITE"}),
+        "blocked_countries": frozenset({"BB"}),
+        "whitelist_countries": frozenset({"BW"}),
         "rate_limit": 100,
         "rate_limit_window": 60,
         "endpoint_rate_limits": {"/base": (5, 60)},
