@@ -304,7 +304,10 @@ class IpBanLookupMixin(IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptionMix
         identity, verdict = self._local_lookup(ip, config, now)
         if verdict is False:
             return False
-        if verdict is True and self._cached_positive_survives(now):
+        if verdict is True and (
+            self._cached_positive_survives(now)
+            or self._local_lookup(ip, config, now)[1] is True
+        ):
             return True
 
         addr = _parsed_ip_or_none(ip)

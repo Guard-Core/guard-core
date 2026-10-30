@@ -107,6 +107,21 @@ class _BanStore(MutableMapping[str, float]):
         self._memory_only.clear()
         self._foreign_memory.clear()
 
+    def clear_shared(self) -> None:
+        """Drop every ban Redis also holds, so a version reload brings back the
+        current ones. A memory-only or foreign-memory ban has no Redis copy to
+        reload, so it stays."""
+        kept = {
+            key: expiry
+            for key, expiry in self._expiries.items()
+            if key in self._memory_only or key in self._foreign_memory
+        }
+        self._expiries.clear()
+        self._expiries.update(kept)
+        self._heap = [(expiry, key) for key, expiry in kept.items()]
+        heapq.heapify(self._heap)
+        self._memory_only.intersection_update(kept)
+
     def resize(self, maxsize: int) -> None:
         self.maxsize = maxsize
         while len(self._expiries) > maxsize:

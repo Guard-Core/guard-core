@@ -4,7 +4,7 @@ import time
 from collections.abc import MutableMapping, Sequence
 from typing import TYPE_CHECKING
 
-from guard_core.handlers._ipban_cache import _Network, _OperatorNetworks
+from guard_core.handlers._ipban_cache import _BanStore, _Network, _OperatorNetworks
 from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 
 if TYPE_CHECKING:
@@ -124,7 +124,10 @@ class IpBanVersionMixin:
             return False
         if version == self._ban_version_seen:
             return False
-        self.banned_ips.clear()
+        if isinstance(self.banned_ips, _BanStore):
+            self.banned_ips.clear_shared()
+        else:
+            self.banned_ips.clear()
         return True
 
     async def _adopt_version(
