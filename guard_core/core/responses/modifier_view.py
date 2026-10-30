@@ -254,9 +254,14 @@ def _header_value(headers: GuardResponseHeaders, name: str, cased: str) -> str |
     return None
 
 
+def _is_ascii_digits(value: str) -> bool:
+    # str.isdigit() is also true for superscripts and other digits int() rejects
+    return value.isascii() and value.isdigit()
+
+
 def declared_content_length(response: GuardResponse) -> int | None:
     declared = _header_value(response.headers, "content-length", "Content-Length")
-    if declared is None or not declared.strip().isdigit():
+    if declared is None or not _is_ascii_digits(declared.strip()):
         return None
     return int(declared)
 
@@ -297,7 +302,7 @@ def body_gate_refusal(
         return "text/event-stream has no end"
     if declared is None:
         return "the response declares no Content-Length"
-    if not declared.isdigit():
+    if not _is_ascii_digits(declared):
         return "the response declares no Content-Length"
     if int(declared) > max_bytes:
         return f"the declared Content-Length {declared} is over {max_bytes} bytes"

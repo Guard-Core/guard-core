@@ -59,7 +59,7 @@ def _decode_legacy_ipv4_part(part: str) -> int | None:
     if part.startswith("0") and len(part) > 1:
         digits = part[1:]
         return int(digits, 8) if all(ch in "01234567" for ch in digits) else None
-    return int(part, 10) if part.isdigit() else None
+    return int(part, 10) if part.isascii() and part.isdigit() else None
 
 
 _MIN_BARE_DECIMAL_LEGACY_IPV4 = 1 << 24
