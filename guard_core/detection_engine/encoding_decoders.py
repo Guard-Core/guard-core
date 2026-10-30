@@ -11,7 +11,7 @@ HTML_HEX_ENTITY_WITHOUT_SEMICOLON_RE = re.compile(
 )
 OCTAL_ESCAPE_RE = re.compile(r"\\([0-3][0-7]{2})")
 HEX_TEXT_RUN_RE = re.compile(r"(?<![0-9A-Za-z])((?:[0-9a-fA-F]{2}){6,})(?![0-9A-Za-z])")
-UTF7_SHIFTED_RUN_RE = re.compile(r"\+[A-Za-z0-9+/]{3,}-")
+_UTF7_BASE64_RUN_RE = re.compile(r"[A-Za-z0-9+/]+")
 _PRINTABLE_ASCII_BYTES = bytes([9, 10, 13, *range(0x20, 0x7F)])
 PERCENT_BYTE_RUN_RE = re.compile(r"(?:%[0-9a-fA-F]{2})+")
 _NON_PERCENT_RUN_CHAR_RE = re.compile(r"[^%0-9A-Fa-f]")
@@ -139,19 +139,34 @@ def decode_hex_text_runs(content: str) -> str:
     return HEX_TEXT_RUN_RE.sub(_replace, content)
 
 
+def _decode_utf7_shifted_run(run: str) -> str:
+    try:
+        decoded = run.encode("ascii").decode("utf-7")
+    except UnicodeDecodeError:
+        return run
+    return decoded if decoded and decoded.isprintable() else run
+
+
 def decode_utf7_shifted_runs(content: str) -> str:
-    """Decode each ``+<base64>-`` run of UTF-7 when it spells printable text."""
+    """Decode each ``+<base64>-`` run of UTF-7 when it spells printable text.
+
+    A run starts at the first ``+`` of a maximal base64 run that has three or more
+    characters after it and is closed by ``-``. One pass over the maximal runs, so
+    a long run of ``+`` costs linear time (a regex retried from every ``+``)."""
     if "+" not in content:
         return content
-
-    def _replace(match: re.Match[str]) -> str:
-        try:
-            decoded = match.group(0).encode("ascii").decode("utf-7")
-        except UnicodeDecodeError:
-            return match.group(0)
-        return decoded if decoded and decoded.isprintable() else match.group(0)
-
-    return UTF7_SHIFTED_RUN_RE.sub(_replace, content)
+    pieces: list[str] = []
+    position = 0
+    for base64_run in _UTF7_BASE64_RUN_RE.finditer(content):
+        start, end = base64_run.span()
+        shift = content.find("+", start, end)
+        if shift == -1 or end - shift <= 3 or content[end : end + 1] != "-":
+            continue
+        pieces.append(content[position:shift])
+        pieces.append(_decode_utf7_shifted_run(content[shift : end + 1]))
+        position = end + 1
+    pieces.append(content[position:])
+    return "".join(pieces)
 
 
 def html_unescape(content: str) -> str:
