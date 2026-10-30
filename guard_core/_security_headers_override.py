@@ -406,13 +406,43 @@ def _check_named_header_settings(raw: Mapping[str, object]) -> None:
         checked_header_value(value)
 
 
+_CSP_DIRECTIVE_RE = re.compile(r"[A-Za-z0-9-]+")
+_CSP_SOURCE_FORBIDDEN_RE = re.compile(r"[;\x00-\x1f\x7f]")
+
+
+def require_clean_csp_directive(directive: object, sources: object) -> None:
+    """A directive name or a source that carries ``;`` or a control character
+    would add a directive or a header line of its own to the built policy."""
+    if not isinstance(directive, str) or not _CSP_DIRECTIVE_RE.fullmatch(directive):
+        raise ValueError(f"CSP directive name {directive!r} is not a token")
+    if not isinstance(sources, list | tuple) or not all(
+        isinstance(source, str) and not _CSP_SOURCE_FORBIDDEN_RE.search(source)
+        for source in sources
+    ):
+        raise ValueError(
+            f"the CSP sources of '{directive}' must be strings without ';' or "
+            "control characters"
+        )
+
+
+def require_valid_hsts_max_age(max_age: object) -> None:
+    if not isinstance(max_age, int) or isinstance(max_age, bool) or max_age < 0:
+        raise ValueError("the hsts max_age must be a non-negative integer")
+
+
 def _check_mapping_settings(raw: Mapping[str, object]) -> None:
     csp = raw.get("csp")
-    if csp and not isinstance(csp, Mapping):
-        raise ValueError("the csp setting must map each directive to its sources")
+    if csp:
+        if not isinstance(csp, Mapping):
+            raise ValueError("the csp setting must map each directive to its sources")
+        for directive, sources in csp.items():
+            require_clean_csp_directive(directive, sources)
     hsts = raw.get("hsts")
-    if hsts and not isinstance(hsts, Mapping):
-        raise ValueError("the hsts setting must be a mapping of its options")
+    if hsts:
+        if not isinstance(hsts, Mapping):
+            raise ValueError("the hsts setting must be a mapping of its options")
+        if hsts.get("max_age") is not None:
+            require_valid_hsts_max_age(hsts["max_age"])
 
 
 def _check_custom_headers(custom: object) -> None:

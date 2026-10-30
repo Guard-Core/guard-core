@@ -21,6 +21,8 @@ from guard_core._security_headers_override import (
     checked_header_value,
     override_from_call,
     passed_or,
+    require_clean_csp_directive,
+    require_valid_hsts_max_age,
     validate_cors_override,
 )
 from guard_core.models import SyncSecurityConfig
@@ -69,6 +71,7 @@ class SecurityHeadersConfigMixin:
             raise TypeError("the csp setting must map each directive to its sources")
 
         for directive, sources in csp.items():
+            require_clean_csp_directive(directive, sources)
             if "'unsafe-inline'" in sources or "'unsafe-eval'" in sources:
                 self.logger.warning(
                     f"CSP directive '{directive}' contains unsafe sources"
@@ -86,6 +89,7 @@ class SecurityHeadersConfigMixin:
     ) -> dict[str, object] | None:
         if hsts_max_age is None:
             return None
+        require_valid_hsts_max_age(hsts_max_age)
 
         if hsts_preload:
             if hsts_max_age < 31536000:
