@@ -13,6 +13,15 @@ from guard_core.models import SecurityConfig, _validate_return_pattern_body_scan
 class BehavioralMixin(BaseSecurityMixin):
     config: SecurityConfig
 
+    def _report_non_positive_behavior_rule(
+        self, name: str, threshold: float, window: float
+    ) -> None:
+        if threshold < 1 or window < 1:
+            self._report_misconfiguration(
+                f"@{name}(threshold={threshold}, window={window}): the threshold "
+                "and the window must both be at least 1."
+            )
+
     def usage_monitor(
         self,
         max_calls: int,
@@ -24,6 +33,7 @@ class BehavioralMixin(BaseSecurityMixin):
         def decorator(
             func: Callable[GuardedParams, GuardedReturn],
         ) -> Callable[GuardedParams, GuardedReturn]:
+            self._report_non_positive_behavior_rule("usage_monitor", max_calls, window)
             route_config = self._ensure_route_config(func)
 
             rule = BehaviorRule(
@@ -48,6 +58,9 @@ class BehavioralMixin(BaseSecurityMixin):
         def decorator(
             func: Callable[GuardedParams, GuardedReturn],
         ) -> Callable[GuardedParams, GuardedReturn]:
+            self._report_non_positive_behavior_rule(
+                "return_monitor", max_occurrences, window
+            )
             route_config = self._ensure_route_config(func)
 
             rule = BehaviorRule(
@@ -74,6 +87,10 @@ class BehavioralMixin(BaseSecurityMixin):
         def decorator(
             func: Callable[GuardedParams, GuardedReturn],
         ) -> Callable[GuardedParams, GuardedReturn]:
+            for rule in rules:
+                self._report_non_positive_behavior_rule(
+                    "behavior_analysis", rule.threshold, rule.window
+                )
             route_config = self._ensure_route_config(func)
             route_config.behavior_rules.extend(rules)
             return self._apply_route_config(func)
