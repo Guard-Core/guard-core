@@ -1,9 +1,12 @@
 import asyncio
 import logging
 from datetime import datetime, timezone
+from ipaddress import ip_address
 
 from guard_core._utils.app_managers import AppManagers
 from guard_core._utils.app_scope import app_scope_of, in_app_scope
+from guard_core._utils.nat64 import nat64_table_of
+from guard_core._utils.whitelist_match import is_listed
 from guard_core.handlers._dynamic_rule_application import (
     DynamicRuleApplicationMixin,
     RuleSideEffects,
@@ -173,13 +176,22 @@ class DynamicRuleManager(
         ip = getattr(event, "ip_address", None)
         if not ip:
             return False
-        return ip in (rules.ip_blacklist or []) or ip in (rules.ip_whitelist or [])
+        entries = [*(rules.ip_blacklist or []), *(rules.ip_whitelist or [])]
+        try:
+            return is_listed(
+                ip_address(ip), ip, tuple(entries), "list", nat64_table_of(self.config)
+            )
+        except ValueError:
+            return ip in entries
 
     def _event_matches_country(
         self, event: object, rules: DynamicRulesProtocol
     ) -> bool:
         country = getattr(event, "country", None)
-        return bool(country and country in (rules.blocked_countries or []))
+        if not country:
+            return False
+        blocked = {str(code).upper() for code in rules.blocked_countries or []}
+        return str(country).upper() in blocked
 
     def _event_matches_type(self, event: object, rules: DynamicRulesProtocol) -> bool:
         event_type = getattr(event, "event_type", None)
