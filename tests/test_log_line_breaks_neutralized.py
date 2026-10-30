@@ -37,3 +37,9 @@ def test_a_message_without_line_breaks_is_unchanged(
         _log_at_level(logging.getLogger("guard_core"), "INFO", "plain message")
 
     assert caplog.records[0].getMessage() == "plain message"
+
+
+def test_a_json_looking_value_that_is_not_json_is_left_as_it_is() -> None:
+    from guard_core._utils.request_logging import _json_redact_text
+
+    assert _json_redact_text("{not json", frozenset(), frozenset(), 8) is None

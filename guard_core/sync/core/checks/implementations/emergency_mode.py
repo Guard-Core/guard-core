@@ -170,9 +170,6 @@ class EmergencyModeCheck(SecurityCheck):
     ) -> bool:
         return config.emergency_mode or config.enable_dynamic_rules
 
-    def _admitted_lists(self) -> tuple[Sequence[str] | None, ...]:
-        return _admitted_lists(self.config)
-
     def check(self, request: SyncGuardRequest) -> GuardResponse | None:
         if not self.config.emergency_mode:
             return None
