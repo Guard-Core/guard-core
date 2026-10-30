@@ -63,4 +63,18 @@ def match_has_text_neighbourhood(
 ) -> bool:
     if binary_prefix is None:
         return False
-    return span_has_text_neighbourhood(binary_prefix, match.start(), match.end())
+    # measured around the match without the white space it swallowed. The scan text
+    # has its white space runs collapsed, so a command padded with 8 spaces or
+    # newlines sits one character from the binary; white space on both sides of it
+    # is the padding, and binary noise does not delimit a literal command that way.
+    text = match.group()
+    leading = len(text) - len(text.lstrip())
+    trailing = len(text) - len(text.rstrip())
+    start, end = (
+        match.start() + leading,
+        max(match.start() + leading, match.end() - trailing),
+    )
+    string = match.string
+    if start > 0 and string[start - 1].isspace() and string[end : end + 1].isspace():
+        return True
+    return span_has_text_neighbourhood(binary_prefix, start, end)
