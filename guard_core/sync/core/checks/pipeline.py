@@ -269,7 +269,7 @@ class SecurityCheckPipeline:
             for check in self._applicable_checks(state):
                 try:
                     if pending_open and not check.defers_ban_read:
-                        banned = self._resolve_pending_ban(request)
+                        banned = self._resolve_pending_ban_or_handle_error(request)
                         if banned is not None:
                             return banned
                         pending_open = False
@@ -289,6 +289,14 @@ class SecurityCheckPipeline:
             return self._finish(request)
         finally:
             _current_app_scope.reset(token)
+
+    def _resolve_pending_ban_or_handle_error(
+        self, request: SyncGuardRequest
+    ) -> GuardResponse | None:
+        try:
+            return self._resolve_pending_ban(request)
+        except Exception as e:
+            return self._handle_check_error(self.checks[0], request, e)
 
     def _finish(self, request: SyncGuardRequest) -> GuardResponse | None:
         try:
