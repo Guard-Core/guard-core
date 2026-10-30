@@ -90,8 +90,10 @@ class LogfireHandler:
             return
         metric_type = getattr(metric, "metric_type", "unknown")
         value = getattr(metric, "value", 0)
-        endpoint = getattr(metric, "endpoint", "")
         tags = getattr(metric, "tags", {}) or {}
+        # the path lives in tags["endpoint"] (the model's own field is None); the tag
+        # wins here as it does in the OTEL handler
+        endpoint = tags.get("endpoint", getattr(metric, "endpoint", ""))
         safe_tags = {k: v for k, v in tags.items() if k not in ("value", "endpoint")}
         logfire.info(
             f"guard.metric.{metric_type}",

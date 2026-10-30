@@ -57,6 +57,31 @@ async def test_send_metric_uses_logfire_info_with_tags() -> None:
     assert kwargs["status"] == "200"
 
 
+async def test_send_metric_takes_the_endpoint_from_the_tag_when_the_field_is_none() -> (
+    None
+):
+    module = _fresh_logfire_handler_module()
+    fake_logfire = MagicMock()
+    metric = SimpleNamespace(
+        metric_type="request_count",
+        value=1.0,
+        endpoint=None,
+        tags={"endpoint": "/api/items", "method": "GET"},
+    )
+    with (
+        patch.object(module, "_logfire_available", True),
+        patch.object(module, "logfire", fake_logfire),
+    ):
+        handler = module.LogfireHandler(
+            config=SimpleNamespace(logfire_service_name="svc")
+        )
+        await handler.send_metric(metric)
+
+    _, kwargs = fake_logfire.info.call_args
+    assert kwargs["endpoint"] == "/api/items"
+    assert kwargs["method"] == "GET"
+
+
 async def test_send_metric_handles_missing_tags() -> None:
     module = _fresh_logfire_handler_module()
     fake_logfire = MagicMock()
