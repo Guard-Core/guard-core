@@ -211,6 +211,7 @@ Detection is wider in some places and narrower in others. Read this section if y
 - A repeated JSON key no longer hides an attack in its earlier copy, and a body past the scan budgets is scanned as one block per surface instead of being skipped.
 - Field names containing `pass`, `pwd`, `token`, `secret`, `session`, `sid`, `auth`, `key` or `otp` (split on delimiters and camelCase) are redacted in hit logs and event previews.
 - A scan that only waited for a regex worker is no longer refused as an attack: under `fail_secure=True` the request answers 400 with a `suspicious_request` event and no strike.
+- The default `X-XSS-Protection` is `0`, it was `1; mode=block`. To keep the 4.x header, set `security_headers={"enabled": True, "xss_protection": "1; mode=block"}`.
 - A partial `security_headers` block that leaves out `xss_protection` now sends `X-XSS-Protection: 0`, like the defaults (the 4.x adapters' readers fell back to `1; mode=block`). A block that sets it keeps its value.
 
 ___
