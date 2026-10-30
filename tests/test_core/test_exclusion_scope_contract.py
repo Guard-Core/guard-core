@@ -126,7 +126,12 @@ async def test_non_banned_ip_on_excluded_path_passes_through() -> None:
 
 
 async def test_rate_limit_is_skipped_on_excluded_path() -> None:
-    config = _config(enable_rate_limiting=True, rate_limit=1, rate_limit_window=60)
+    config = _config(
+        enable_rate_limiting=True,
+        rate_limit=1,
+        rate_limit_window=60,
+        fail_on_misconfiguration=False,
+    )
     config.rate_limit = 0
     middleware = _build_middleware(config)
     pipeline = build_default_pipeline(middleware)

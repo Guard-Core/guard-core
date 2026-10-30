@@ -34,14 +34,11 @@ def _constraint_probe(
     info = config_class.model_fields[name]
     if not info.metadata and info.annotation is not bool:
         return None
-    try:
-        return create_model(
-            f"_{name}_constraint",
-            __config__=ConfigDict(arbitrary_types_allowed=True),
-            value=(info.annotation or object, info),
-        )
-    except Exception:
-        return None
+    return create_model(
+        f"_{name}_constraint",
+        __config__=ConfigDict(arbitrary_types_allowed=True),
+        value=(info.annotation or object, info),
+    )
 
 
 def require_field_constraints(
@@ -51,8 +48,6 @@ def require_field_constraints(
     ``min_length`` and the like) would have refused at construction. A ``bool``
     field returns the value as construction would read it (``"no"`` is ``False``),
     every other field returns the value as given."""
-    if name not in type(config).model_fields:
-        return value
     probe = _constraint_probe(type(config), name)
     if probe is None:
         return value

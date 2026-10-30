@@ -23,6 +23,7 @@ from guard_core._utils.whitelist_match import (
     ContentCache,
     clear_entry_indexes,
     entry_index,
+    unwrap_ipv4_mapped_network,
 )
 from guard_core.models import SecurityConfig
 from guard_core.utils import _ip_in_list
@@ -84,9 +85,12 @@ def old_ip_in_list(
     if not entries:
         return False
     canonical_ip = _canonicalize_ip(ip, nat64)
+    if getattr(ip_addr, "ipv4_mapped", None) is not None:
+        # a mapped client address is read as the IPv4 address it carries (6.348)
+        ip_addr = ip_addr.ipv4_mapped
     for entry in entries:
         if "/" in entry:
-            if ip_addr in ip_network(entry, strict=False):
+            if ip_addr in unwrap_ipv4_mapped_network(ip_network(entry, strict=False)):
                 return True
         elif canonical_ip == _canonicalize_ip(entry, nat64):
             return True
@@ -95,7 +99,9 @@ def old_ip_in_list(
 
 def old_proxy_matches(peer_address: Any, proxy: str, nat64: Nat64Table) -> bool:
     if "/" in proxy:
-        return bool(peer_address in ip_network(proxy, strict=False))
+        return bool(
+            peer_address in unwrap_ipv4_mapped_network(ip_network(proxy, strict=False))
+        )
     return bool(peer_address == _peer_address_for_matching(proxy, nat64))
 
 

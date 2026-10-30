@@ -45,3 +45,15 @@ def test_a_disabled_agent_does_not_warn(caplog: pytest.LogCaptureFixture) -> Non
         SyncSecurityConfig(agent_endpoint="http://api.example.com")
 
     assert "travel unencrypted" not in caplog.text
+
+
+def test_an_unparseable_endpoint_does_not_raise_from_the_warning() -> None:
+    from guard_core._security_config_field_validators import (
+        warn_agent_endpoint_in_clear,
+    )
+
+    config = SyncSecurityConfig.model_construct(
+        enable_agent=True, agent_endpoint="http://[::1"
+    )
+
+    warn_agent_endpoint_in_clear(config)

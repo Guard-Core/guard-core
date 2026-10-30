@@ -225,7 +225,9 @@ class TestCountryRuleDeclaration:
 
 
 def test_empty_country_rules_declare_no_geo_requirement() -> None:
-    strict = SecurityDecorator(SyncSecurityConfig(enable_redis=False))
+    strict = SecurityDecorator(
+        SyncSecurityConfig(enable_redis=False, fail_on_misconfiguration=False)
+    )
 
     strict.block_countries([])(lambda: None)
     strict.geo_rate_limit({})(lambda: None)

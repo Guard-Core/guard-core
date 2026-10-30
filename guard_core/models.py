@@ -133,22 +133,15 @@ def _pickled_mapping(value: object, what: str) -> Mapping[str, object]:
 
 def _snapshot_field(
     config: "SecurityConfig[RequestT]", name: str
-) -> tuple[bool, object, set[str]]:
-    return (
-        name in config.__dict__,
-        config.__dict__.get(name),
-        set(config.__pydantic_fields_set__),
-    )
+) -> tuple[object, set[str]]:
+    return config.__dict__[name], set(config.__pydantic_fields_set__)
 
 
 def _restore_field(
-    config: "SecurityConfig[RequestT]", name: str, kept: tuple[bool, object, set[str]]
+    config: "SecurityConfig[RequestT]", name: str, kept: tuple[object, set[str]]
 ) -> None:
-    had, value, fields_set = kept
-    if had:
-        config.__dict__[name] = value
-    else:
-        config.__dict__.pop(name, None)
+    value, fields_set = kept
+    config.__dict__[name] = value
     config.__pydantic_fields_set__.clear()
     config.__pydantic_fields_set__.update(fields_set)
 

@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from guard_core.models import SyncSecurityConfig
+from guard_core.models import SecurityConfig, SyncSecurityConfig
 
 
 def _assign(name: str, value: object) -> None:
@@ -115,3 +115,27 @@ def test_a_rate_limit_below_one_is_refused_only_while_the_limiter_is_on(
         SyncSecurityConfig(**{"enable_rate_limiting": True, **fields})
 
     assert SyncSecurityConfig(**{"enable_rate_limiting": False, **fields})
+
+
+def test_every_model_field_has_a_constraint_probe() -> None:
+    from guard_core._security_config_assignment_checks import _constraint_probe
+
+    for name in SecurityConfig.model_fields:
+        _constraint_probe(SecurityConfig, name)
+
+
+def test_a_misconfiguration_that_was_already_there_is_not_reported_again(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    config = SyncSecurityConfig(fail_on_misconfiguration=False, exclude_paths=["/a/*"])
+    caplog.clear()
+
+    config.rate_limit_window = 30
+
+    assert "exclude_paths" not in caplog.text
+
+
+def test_model_copy_with_an_unknown_key_is_left_to_pydantic() -> None:
+    copied = SyncSecurityConfig().model_copy(update={"not_a_field": 1})
+
+    assert copied.rate_limit == SyncSecurityConfig().rate_limit

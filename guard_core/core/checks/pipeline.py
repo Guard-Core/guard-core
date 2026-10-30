@@ -53,7 +53,9 @@ class SecurityCheckPipeline:
         self._watched_container_fields = watched_container_fields or ()
         self._route_config_revision = route_config_revision
         self._rebuild_lock = threading.Lock()
-        self._check_edits: list[tuple[str, int, SecurityCheck | str]] = []
+        self._check_edits: list[
+            Callable[[list[SecurityCheck]], list[SecurityCheck]]
+        ] = []
         self._app_scope: AppScope | None = None
         self._built_revision = config.revision if config is not None else None
         self._built_signature = (
@@ -104,13 +106,8 @@ class SecurityCheckPipeline:
     def _replay_check_edits(self, checks: list[SecurityCheck]) -> list[SecurityCheck]:
         """The checks a caller added, inserted or removed by hand stay in force across
         a rebuild: replay each edit, in order, on the freshly built list."""
-        for action, index, subject in tuple(self._check_edits):
-            if action == "remove":
-                checks = [c for c in checks if c.check_name != subject]
-            elif isinstance(subject, SecurityCheck) and action == "append":
-                checks.append(subject)
-            elif isinstance(subject, SecurityCheck):
-                checks.insert(index, subject)
+        for edit in tuple(self._check_edits):
+            checks = edit(checks)
         return checks
 
     def _log_extra(self, check: SecurityCheck, request: GuardRequest) -> dict:
@@ -329,17 +326,21 @@ class SecurityCheckPipeline:
         return any(check.needs_route_identity for check in self.checks)
 
     def add_check(self, check: SecurityCheck) -> None:
-        self._check_edits.append(("append", 0, check))
+        self._check_edits.append(lambda checks: [*checks, check])
         self.checks.append(check)
 
     def insert_check(self, index: int, check: SecurityCheck) -> None:
-        self._check_edits.append(("insert", index, check))
+        self._check_edits.append(
+            lambda checks: [*checks[:index], check, *checks[index:]]
+        )
         self.checks.insert(index, check)
 
     def remove_check(self, check_name: str) -> bool:
         for i, check in enumerate(self.checks):
             if check.check_name == check_name:
-                self._check_edits.append(("remove", i, check_name))
+                self._check_edits.append(
+                    lambda checks: [c for c in checks if c.check_name != check_name]
+                )
                 self.checks.pop(i)
                 return True
         return False

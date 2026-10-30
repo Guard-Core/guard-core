@@ -199,12 +199,17 @@ async def test_the_by_ip_primitive_counts_in_the_same_shared_counter(
     bans: list[tuple[str, int, str]] = []
 
     async def record_ban(
-        ip: str, duration: int, reason: str = "", *, grouped: bool = False
+        _self: IPBanManager,
+        ip: str,
+        duration: int,
+        reason: str = "",
+        *,
+        grouped: bool = False,
     ) -> int | None:
         bans.append((ip, duration, reason))
         return duration
 
-    monkeypatch.setattr(IPBanManager(), "_ban_ip_escalating", record_ban)
+    monkeypatch.setattr(IPBanManager, "_ban_ip_escalating", record_ban)
     key = f"{config.redis_prefix}rate_limit:violations:{IP}"
 
     async def stored() -> int:

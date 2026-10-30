@@ -55,10 +55,8 @@ def enforce_emergency_mode(
     create_error_response: _CreateErrorResponse,
 ) -> GuardResponse | None:
     """The lockdown verdict of one request: a 503 for a client the whitelists do
-    not admit. The pipeline check and the ``@bypass(["all"])`` path share it."""
-    if not config.emergency_mode:
-        return None
-
+    not admit. The pipeline check and the ``@bypass(["all"])`` path share it, each
+    only when ``emergency_mode`` is on."""
     client_ip = getattr(request.state, "client_ip", None)
     if not client_ip:
         client_ip = extract_client_ip(request, config, event_bus.agent_handler)

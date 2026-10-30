@@ -822,6 +822,14 @@
         "threats": [
           {
             "type": "regex",
+            "pattern": "\\$\\((?:[^()\\\\\\n]|\\\\.)*\\)|\\$\\{(?:[^{}\\\\\\n]|\\\\.)*\\}",
+            "match": "${7 * 7}",
+            "position": 0,
+            "category": "cmd_injection",
+            "weight": 1.0
+          },
+          {
+            "type": "regex",
             "pattern": "\\$\\{[^}]*(?:@[\\w.]+@|\\b\\w+\\s*\\(|\\d+\\s*[*/%+\\-]\\s*\\d+)[^}]*\\}",
             "match": "${7 * 7}",
             "position": 0,

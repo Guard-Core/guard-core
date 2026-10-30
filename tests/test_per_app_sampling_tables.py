@@ -144,6 +144,7 @@ async def test_each_app_logs_its_redis_failure_during_initialization(
     def failing_app() -> SecurityConfig:
         config = SecurityConfig(lazy_init=False)
         config.enable_redis = True
+        config.agent_api_key = "test-api-key"
         config.enable_agent = True
         config.enable_dynamic_rules = False
         config.block_cloud_providers = frozenset()

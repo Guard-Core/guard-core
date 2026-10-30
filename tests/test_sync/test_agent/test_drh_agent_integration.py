@@ -159,7 +159,7 @@ def test_rule_update_loop_normal_operation(
 ) -> None:
     DynamicRuleManager._instance = None
 
-    config.dynamic_rule_interval = 1
+    object.__setattr__(config, "dynamic_rule_interval", 1)
     manager = DynamicRuleManager(config)
 
     update_count = 0
@@ -189,7 +189,7 @@ def test_rule_update_loop_handles_exceptions(
 ) -> None:
     DynamicRuleManager._instance = None
 
-    config.dynamic_rule_interval = 1
+    object.__setattr__(config, "dynamic_rule_interval", 1)
 
     manager = DynamicRuleManager(config)
 
