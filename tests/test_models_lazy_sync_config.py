@@ -166,3 +166,13 @@ def test_a_spawned_child_unpickles_a_sync_config_instance() -> None:
 def test_an_unknown_attribute_still_raises() -> None:
     with pytest.raises(AttributeError):
         getattr(models, "no such name")
+
+
+def test_the_lazy_hook_answers_again_without_building_twice_and_dir_lists_it() -> None:
+    first = models.__getattr__("SyncSecurityConfig")
+    assert models.__getattr__("SyncSecurityConfig") is first
+    assert models.__getattr__("SecurityConfig[SyncGuardRequest]") is first
+    assert models.__getattr__("SyncGuardRequest") is SyncGuardRequest
+    assert {"SyncSecurityConfig", "SyncGuardRequest"} <= set(models.__dir__())
+    with pytest.raises(AttributeError):
+        models.__getattr__(_UNUSABLE_NAME + " ")
