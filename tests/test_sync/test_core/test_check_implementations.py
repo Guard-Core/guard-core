@@ -812,6 +812,33 @@ def test_custom_validators_passive_mode() -> None:
     assert result is None
 
 
+def test_custom_validators_truthy_non_response_blocks_with_403() -> None:
+    mw = _make_middleware()
+    mw.create_error_response = MagicMock(
+        return_value=MockGuardResponse("Custom validation failed", 403)
+    )
+    check = CustomValidatorsCheck(mw)
+    rc = RouteConfig()
+    rc.custom_validators = [MagicMock(return_value={"error": "blocked"})]
+    req = _make_request_with_route_config(rc)
+    with patch(f"{_IMPL}.custom_validators.log_activity"):
+        result = check.check(req)
+    assert result is not None
+    assert result.status_code == 403
+    mw.create_error_response.assert_called_once_with(403, "Custom validation failed")
+
+
+def test_custom_validators_truthy_non_response_passive_mode_allows() -> None:
+    mw = _make_middleware(passive_mode=True)
+    check = CustomValidatorsCheck(mw)
+    rc = RouteConfig()
+    rc.custom_validators = [MagicMock(return_value=True)]
+    req = _make_request_with_route_config(rc)
+    with patch(f"{_IMPL}.custom_validators.log_activity"):
+        result = check.check(req)
+    assert result is None
+
+
 def test_time_window_check_name() -> None:
     mw = _make_middleware()
     check = TimeWindowCheck(mw)

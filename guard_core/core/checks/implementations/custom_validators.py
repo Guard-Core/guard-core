@@ -94,8 +94,9 @@ class CustomValidatorsCheck(SecurityCheck):
                     if honeypot_response is not None:
                         return honeypot_response
                     continue
-                if not self.config.passive_mode and isinstance(
-                    validation_response, GuardResponse
-                ):
+                if self.config.passive_mode:
+                    continue
+                if isinstance(validation_response, GuardResponse):
                     return validation_response
+                return await self.create_error_response(403, "Custom validation failed")
         return None

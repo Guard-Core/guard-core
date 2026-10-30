@@ -805,6 +805,33 @@ async def test_custom_validators_passive_mode() -> None:
     assert result is None
 
 
+async def test_custom_validators_truthy_non_response_blocks_with_403() -> None:
+    mw = _make_middleware()
+    mw.create_error_response = AsyncMock(
+        return_value=MockGuardResponse("Custom validation failed", 403)
+    )
+    check = CustomValidatorsCheck(mw)
+    rc = RouteConfig()
+    rc.custom_validators = [AsyncMock(return_value={"error": "blocked"})]
+    req = _make_request_with_route_config(rc)
+    with patch(f"{_IMPL}.custom_validators.log_activity", new_callable=AsyncMock):
+        result = await check.check(req)
+    assert result is not None
+    assert result.status_code == 403
+    mw.create_error_response.assert_awaited_once_with(403, "Custom validation failed")
+
+
+async def test_custom_validators_truthy_non_response_passive_mode_allows() -> None:
+    mw = _make_middleware(passive_mode=True)
+    check = CustomValidatorsCheck(mw)
+    rc = RouteConfig()
+    rc.custom_validators = [AsyncMock(return_value=True)]
+    req = _make_request_with_route_config(rc)
+    with patch(f"{_IMPL}.custom_validators.log_activity", new_callable=AsyncMock):
+        result = await check.check(req)
+    assert result is None
+
+
 async def test_time_window_check_name() -> None:
     mw = _make_middleware()
     check = TimeWindowCheck(mw)
