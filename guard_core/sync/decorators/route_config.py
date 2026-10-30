@@ -56,28 +56,40 @@ class _TrackedList(_RevisionTrackedContainer, list):
         self._revision = revision
 
     def append(self, item: object) -> None:
-        self._bump()
-        list.append(self, item)
+        try:
+            list.append(self, item)
+        finally:
+            self._bump()
 
     def extend(self, iterable: Iterable[object]) -> None:
-        self._bump()
-        list.extend(self, iterable)
+        try:
+            list.extend(self, iterable)
+        finally:
+            self._bump()
 
     def insert(self, index: SupportsIndex, item: object) -> None:
-        self._bump()
-        list.insert(self, index, item)
+        try:
+            list.insert(self, index, item)
+        finally:
+            self._bump()
 
     def remove(self, item: object) -> None:
-        self._bump()
-        list.remove(self, item)
+        try:
+            list.remove(self, item)
+        finally:
+            self._bump()
 
     def pop(self, index: SupportsIndex = -1) -> object:
-        self._bump()
-        return list.pop(self, index)
+        try:
+            return list.pop(self, index)
+        finally:
+            self._bump()
 
     def clear(self) -> None:
-        self._bump()
-        list.clear(self)
+        try:
+            list.clear(self)
+        finally:
+            self._bump()
 
     def sort(
         self,
@@ -85,12 +97,16 @@ class _TrackedList(_RevisionTrackedContainer, list):
         key: "Callable[[object], SupportsRichComparison] | None" = None,
         reverse: bool = False,
     ) -> None:
-        self._bump()
-        list.sort(self, key=key, reverse=reverse)
+        try:
+            list.sort(self, key=key, reverse=reverse)
+        finally:
+            self._bump()
 
     def reverse(self) -> None:
-        self._bump()
-        list.reverse(self)
+        try:
+            list.reverse(self)
+        finally:
+            self._bump()
 
     @overload
     def __setitem__(self, key: SupportsIndex, value: object, /) -> None: ...
@@ -99,17 +115,21 @@ class _TrackedList(_RevisionTrackedContainer, list):
     def __setitem__(self, key: "_Slice", value: Iterable[object], /) -> None: ...
 
     def __setitem__(self, key: "SupportsIndex | _Slice", value: object, /) -> None:
-        self._bump()
-        if not isinstance(key, slice):
-            list.__setitem__(self, key, value)
-        elif isinstance(value, Iterable):
-            list.__setitem__(self, key, value)
-        else:
-            raise TypeError("must assign iterable to extended slice")
+        try:
+            if not isinstance(key, slice):
+                list.__setitem__(self, key, value)
+            elif isinstance(value, Iterable):
+                list.__setitem__(self, key, value)
+            else:
+                raise TypeError("must assign iterable to extended slice")
+        finally:
+            self._bump()
 
     def __delitem__(self, key: "SupportsIndex | _Slice") -> None:
-        self._bump()
-        list.__delitem__(self, key)
+        try:
+            list.__delitem__(self, key)
+        finally:
+            self._bump()
 
     def __add__(self, other: list[_Item]) -> list[object | _Item]:
         return list.__add__(self, other)
@@ -118,14 +138,18 @@ class _TrackedList(_RevisionTrackedContainer, list):
         return list.__mul__(self, other)
 
     def __iadd__(self, other: Iterable[object]) -> Self:
-        self._bump()
-        list.__iadd__(self, other)
-        return self
+        try:
+            list.__iadd__(self, other)
+            return self
+        finally:
+            self._bump()
 
     def __imul__(self, other: SupportsIndex) -> Self:
-        self._bump()
-        list.__imul__(self, other)
-        return self
+        try:
+            list.__imul__(self, other)
+            return self
+        finally:
+            self._bump()
 
 
 class _TrackedDict(_RevisionTrackedContainer, dict):
@@ -139,12 +163,16 @@ class _TrackedDict(_RevisionTrackedContainer, dict):
         self._revision = revision
 
     def __setitem__(self, key: str, value: object) -> None:
-        self._bump()
-        dict.__setitem__(self, key, value)
+        try:
+            dict.__setitem__(self, key, value)
+        finally:
+            self._bump()
 
     def __delitem__(self, key: str) -> None:
-        self._bump()
-        dict.__delitem__(self, key)
+        try:
+            dict.__delitem__(self, key)
+        finally:
+            self._bump()
 
     def update(
         self,
@@ -152,24 +180,34 @@ class _TrackedDict(_RevisionTrackedContainer, dict):
         /,
         **kwargs: object,
     ) -> None:
-        self._bump()
-        dict.update(self, other, **kwargs)
+        try:
+            dict.update(self, other, **kwargs)
+        finally:
+            self._bump()
 
     def setdefault(self, key: str, default: object = None) -> object:
-        self._bump()
-        return dict.setdefault(self, key, default)
+        try:
+            return dict.setdefault(self, key, default)
+        finally:
+            self._bump()
 
     def pop(self, key: str, *default: object) -> object:
-        self._bump()
-        return dict.pop(self, key, *default)
+        try:
+            return dict.pop(self, key, *default)
+        finally:
+            self._bump()
 
     def popitem(self) -> tuple[str, object]:
-        self._bump()
-        return dict.popitem(self)
+        try:
+            return dict.popitem(self)
+        finally:
+            self._bump()
 
     def clear(self) -> None:
-        self._bump()
-        dict.clear(self)
+        try:
+            dict.clear(self)
+        finally:
+            self._bump()
 
     def __or__(self, other: dict[_Key, _Value]) -> dict[str | _Key, object | _Value]:
         return dict.__or__(self, other)
@@ -179,9 +217,11 @@ class _TrackedDict(_RevisionTrackedContainer, dict):
         other: "SupportsKeysAndGetItem[_Key, _Value] | Iterable[tuple[_Key, _Value]]",
         /,
     ) -> Self:
-        self._bump()
-        dict.__ior__(self, other)
-        return self
+        try:
+            dict.__ior__(self, other)
+            return self
+        finally:
+            self._bump()
 
 
 _Arguments = ParamSpec("_Arguments")
@@ -229,40 +269,58 @@ class _TrackedSet(_RevisionTrackedContainer, set):
         self._revision = revision
 
     def add(self, item: object) -> None:
-        self._bump()
-        set.add(self, item)
+        try:
+            set.add(self, item)
+        finally:
+            self._bump()
 
     def discard(self, item: object) -> None:
-        self._bump()
-        set.discard(self, item)
+        try:
+            set.discard(self, item)
+        finally:
+            self._bump()
 
     def remove(self, item: object) -> None:
-        self._bump()
-        set.remove(self, item)
+        try:
+            set.remove(self, item)
+        finally:
+            self._bump()
 
     def pop(self) -> object:
-        self._bump()
-        return set.pop(self)
+        try:
+            return set.pop(self)
+        finally:
+            self._bump()
 
     def clear(self) -> None:
-        self._bump()
-        set.clear(self)
+        try:
+            set.clear(self)
+        finally:
+            self._bump()
 
     def update(self, *others: Iterable[object]) -> None:
-        self._bump()
-        set.update(self, *others)
+        try:
+            set.update(self, *others)
+        finally:
+            self._bump()
 
     def intersection_update(self, *others: Iterable[object]) -> None:
-        self._bump()
-        set.intersection_update(self, *others)
+        try:
+            set.intersection_update(self, *others)
+        finally:
+            self._bump()
 
     def difference_update(self, *others: Iterable[object]) -> None:
-        self._bump()
-        set.difference_update(self, *others)
+        try:
+            set.difference_update(self, *others)
+        finally:
+            self._bump()
 
     def symmetric_difference_update(self, other: Iterable[object]) -> None:
-        self._bump()
-        set.symmetric_difference_update(self, other)
+        try:
+            set.symmetric_difference_update(self, other)
+        finally:
+            self._bump()
 
     def __or__(self, other: AbstractSet[_Item]) -> set[object | _Item]:
         return set.__or__(self, other)
@@ -277,24 +335,32 @@ class _TrackedSet(_RevisionTrackedContainer, set):
         return set.__xor__(self, other)
 
     def __ior__(self, other: AbstractSet[object]) -> Self:
-        self._bump()
-        set.__ior__(self, other)
-        return self
+        try:
+            set.__ior__(self, other)
+            return self
+        finally:
+            self._bump()
 
     def __iand__(self, other: AbstractSet[object]) -> Self:
-        self._bump()
-        set.__iand__(self, other)
-        return self
+        try:
+            set.__iand__(self, other)
+            return self
+        finally:
+            self._bump()
 
     def __isub__(self, other: AbstractSet[object]) -> Self:
-        self._bump()
-        set.__isub__(self, other)
-        return self
+        try:
+            set.__isub__(self, other)
+            return self
+        finally:
+            self._bump()
 
     def __ixor__(self, other: AbstractSet[object]) -> Self:
-        self._bump()
-        set.__ixor__(self, other)
-        return self
+        try:
+            set.__ixor__(self, other)
+            return self
+        finally:
+            self._bump()
 
 
 _TRACKED_LIST_FIELDS = frozenset(
