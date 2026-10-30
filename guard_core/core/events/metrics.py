@@ -2,6 +2,7 @@ import logging
 from datetime import datetime, timezone
 
 from guard_core._utils.request_logging import redact_endpoint_for_display
+from guard_core._utils.route_gate import ROUTE_TEMPLATE_STATE_ATTR
 from guard_core.core.events.event_types import (
     METRIC_ERROR_RATE,
     METRIC_REQUEST_COUNT,
@@ -11,6 +12,9 @@ from guard_core.core.events.event_types import (
 from guard_core.models import SecurityConfig
 from guard_core.protocols.agent_protocol import AgentHandlerProtocol
 from guard_core.protocols.request_protocol import GuardRequest
+
+MAX_UNMATCHED_METRIC_ENDPOINTS = 1000
+OTHER_METRIC_ENDPOINT = "other"
 
 
 class MetricsCollector:
@@ -24,6 +28,27 @@ class MetricsCollector:
         self.config = config
         self.event_filter = event_filter or EventFilter()
         self.logger = logging.getLogger(__name__)
+        self._unmatched_endpoints: set[str] = set()
+
+    def _metric_endpoint(self, request: GuardRequest) -> str:
+        """The route template when the request matched a route (bounded by the
+        routes), else the redacted path, which a scanner controls: past
+        ``MAX_UNMATCHED_METRIC_ENDPOINTS`` distinct ones the rest share one series."""
+        template = getattr(request.state, ROUTE_TEMPLATE_STATE_ATTR, None)
+        if isinstance(template, str):
+            return template
+        endpoint = redact_endpoint_for_display(
+            str(request.url_path),
+            self.config.log_sensitive_params,
+            self.config.log_sensitive_body_fields,
+            self.config.log_sensitive_headers,
+        )
+        if endpoint in self._unmatched_endpoints:
+            return endpoint
+        if len(self._unmatched_endpoints) >= MAX_UNMATCHED_METRIC_ENDPOINTS:
+            return OTHER_METRIC_ENDPOINT
+        self._unmatched_endpoints.add(endpoint)
+        return endpoint
 
     async def send_metric(
         self, metric_type: str, value: float, tags: dict[str, str] | None = None
@@ -52,12 +77,7 @@ class MetricsCollector:
         if not self.agent_handler or not self.config.agent_enable_metrics:
             return
 
-        endpoint = redact_endpoint_for_display(
-            str(request.url_path),
-            self.config.log_sensitive_params,
-            self.config.log_sensitive_body_fields,
-            self.config.log_sensitive_headers,
-        )
+        endpoint = self._metric_endpoint(request)
         method = request.method
 
         await self.send_metric(
