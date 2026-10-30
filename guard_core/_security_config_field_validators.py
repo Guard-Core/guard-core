@@ -53,6 +53,7 @@ from guard_core._security_headers_override import (
     CORS_VALUE_CHECKS,
     checked_security_headers_config,
 )
+from guard_core._utils.whitelist_match import unwrap_ipv4_mapped_network
 from guard_core.handlers.suspatterns_handler import ALL_DETECTION_CATEGORIES
 
 if TYPE_CHECKING:
@@ -270,7 +271,9 @@ def _validate_ip_or_cidr_list(
             continue
         try:
             if "/" in entry:
-                validated.append(str(ip_network(entry, strict=False)))
+                validated.append(
+                    str(unwrap_ipv4_mapped_network(ip_network(entry, strict=False)))
+                )
             else:
                 validated.append(str(ip_address(entry)))
         except ValueError:

@@ -11,6 +11,7 @@ from guard_core._security_config_field_validators import (
     canonicalize_cloud_provider_selector,
 )
 from guard_core._utils.pattern_source_redaction import _redact_pattern_source_of_app
+from guard_core._utils.whitelist_match import unwrap_ipv4_mapped_network
 from guard_core.handlers._cloud_provider_registry import merge_cloud_selectors
 from guard_core.handlers._dynamic_rule_validation import (
     MalformedDynamicRules,
@@ -54,10 +55,26 @@ def _redact_rejected_patterns(
     ]
 
 
+_NAT64_WELL_KNOWN_NETWORK = ipaddress.IPv6Network("64:ff9b::/96")
+
+
+def _embedded_ipv4_network(network: _Network) -> _Network:
+    """The IPv4 network a mapped or well-known NAT64 IPv6 network stands for."""
+    network = unwrap_ipv4_mapped_network(network)
+    if isinstance(network, ipaddress.IPv6Network) and network.subnet_of(
+        _NAT64_WELL_KNOWN_NETWORK
+    ):
+        return ipaddress.IPv4Network(
+            (int(network.network_address) & 0xFFFFFFFF, network.prefixlen - 96)
+        )
+    return network
+
+
 def _classify_exempt_entry(entry: str) -> tuple[str | None, str | None]:
-    network = ipaddress.ip_network(entry, strict=False)
+    network = unwrap_ipv4_mapped_network(ipaddress.ip_network(entry, strict=False))
+    embedded = _embedded_ipv4_network(network)
     if any(
-        network.version == loopback.version and network.overlaps(loopback)
+        embedded.version == loopback.version and embedded.overlaps(loopback)
         for loopback in _LOOPBACK_NETWORKS
     ):
         return None, "loopback"

@@ -29,6 +29,19 @@ _Buckets = tuple[tuple[int, dict[int, tuple[int, str]]], ...]
 _Key = TypeVar("_Key", bound=Hashable)
 _Value = TypeVar("_Value")
 INITIAL_CACHE_SIZE = 8
+_IPV4_MAPPED_NETWORK = IPv6Network("::ffff:0:0/96")
+_MAPPED_PREFIX = 0xFFFF
+
+
+def unwrap_ipv4_mapped_network(network: Network) -> Network:
+    """``::ffff:a.b.c.d/N`` (N >= 96) is the IPv4 network ``a.b.c.d/(N-96)``: a
+    client reaching the engine as IPv4 never matches the IPv6 spelling, so an
+    entry written that way would sit in a list and never apply."""
+    if isinstance(network, IPv6Network) and network.subnet_of(_IPV4_MAPPED_NETWORK):
+        return IPv4Network(
+            (int(network.network_address) & 0xFFFFFFFF, network.prefixlen - 96)
+        )
+    return network
 
 
 class _Slot(Generic[_Value]):
@@ -145,7 +158,7 @@ def _build_entry_index(key: tuple[tuple[str, ...], str, Nat64Table]) -> EntryInd
                 exact.setdefault(exact_key, position)
             continue
         try:
-            network = ip_network(entry, strict=False)
+            network = unwrap_ipv4_mapped_network(ip_network(entry, strict=False))
         except ValueError as error:
             if mode == "network":
                 raise
@@ -160,7 +173,7 @@ def _parse_networks(entries: tuple[str, ...]) -> tuple[Network, ...]:
     networks = []
     for entry in entries:
         try:
-            networks.append(ip_network(entry, strict=False))
+            networks.append(unwrap_ipv4_mapped_network(ip_network(entry, strict=False)))
         except ValueError:
             continue
     return tuple(networks)
@@ -198,7 +211,10 @@ def _first_match(
         best = (position, "")
     value = int(address)
     bits = address.max_prefixlen
-    for prefixlen, members in index.buckets[address.version]:
+    version = address.version
+    if bits == 128 and value >> 32 == _MAPPED_PREFIX:
+        value, bits, version = value & 0xFFFFFFFF, 32, 4
+    for prefixlen, members in index.buckets[version]:
         shift = bits - prefixlen
         found = members.get(value >> shift << shift)
         if found is not None and (best is None or found[0] < best[0]):
