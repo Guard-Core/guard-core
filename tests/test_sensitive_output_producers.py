@@ -223,11 +223,12 @@ COVERED_PRODUCERS: dict[str, frozenset[str]] = {
     ),
     "core/checks/implementations/custom_validators.py:"
     "CustomValidatorsCheck.check": frozenset({"custom_validator_echo"}),
-    "core/checks/implementations/emergency_mode.py:EmergencyModeCheck._deny": (
+    "core/checks/implementations/emergency_mode.py:_deny": (
         frozenset({"emergency_mode_denied"})
     ),
-    "core/checks/implementations/emergency_mode.py:"
-    "EmergencyModeCheck._log_allowed": frozenset({"emergency_mode_whitelisted"}),
+    "core/checks/implementations/emergency_mode.py:_log_allowed": frozenset(
+        {"emergency_mode_whitelisted"}
+    ),
     "core/checks/implementations/ip_security.py:IpSecurityCheck.banned_response": (
         frozenset({"banned_ip"})
     ),
@@ -547,6 +548,13 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "time_restrictions is the operator/decorator-configured dict, not "
         "request data; the exception concerns malformed config values "
         "(shared by TimeWindowCheck and RequestValidator.check_time_window)"
+    ),
+    "core/bypass/handler.py:BypassHandler._enforce_emergency_mode": (
+        "the fire_block_hook call passes the static check name 'emergency_mode' "
+        "and the reason and trigger_info stashed by the emergency check's own "
+        "log_activity call (a covered producer, redacted there); the payload's "
+        "path is redacted in build_block_payload - no request-derived text of "
+        "its own"
     ),
     "core/bypass/handler.py:BypassHandler.handle_passthrough": (
         "lines 26-31 warning is static text with only a fixed outcome "

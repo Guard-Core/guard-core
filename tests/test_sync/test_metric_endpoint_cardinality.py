@@ -42,11 +42,15 @@ def test_collect_request_metrics_tags_every_metric_with_the_bounded_endpoint(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     collector = _collector()
-    sent = MagicMock()
-    monkeypatch.setattr(collector, "send_metric", sent)
-    request = SyncMockGuardRequest(path="/health")
+    endpoints: list[str] = []
 
-    collector.collect_request_metrics(request, 0.01, 200)
+    def record(
+        metric_type: str, value: float, tags: dict[str, str] | None = None
+    ) -> None:
+        endpoints.append((tags or {})["endpoint"])
 
-    tags = [call.args[2]["endpoint"] for call in sent.await_args_list]
-    assert tags == ["/health", "/health"]
+    monkeypatch.setattr(collector, "send_metric", record)
+
+    collector.collect_request_metrics(SyncMockGuardRequest(path="/health"), 0.01, 200)
+
+    assert endpoints == ["/health", "/health"]

@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -41,11 +41,15 @@ async def test_collect_request_metrics_tags_every_metric_with_the_bounded_endpoi
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     collector = _collector()
-    sent = AsyncMock()
-    monkeypatch.setattr(collector, "send_metric", sent)
-    request = MockGuardRequest(path="/health")
+    endpoints: list[str] = []
 
-    await collector.collect_request_metrics(request, 0.01, 200)
+    async def record(
+        metric_type: str, value: float, tags: dict[str, str] | None = None
+    ) -> None:
+        endpoints.append((tags or {})["endpoint"])
 
-    tags = [call.args[2]["endpoint"] for call in sent.await_args_list]
-    assert tags == ["/health", "/health"]
+    monkeypatch.setattr(collector, "send_metric", record)
+
+    await collector.collect_request_metrics(MockGuardRequest(path="/health"), 0.01, 200)
+
+    assert endpoints == ["/health", "/health"]
