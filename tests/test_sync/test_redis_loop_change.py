@@ -4,14 +4,14 @@ from collections.abc import Iterator
 import pytest
 
 from guard_core._redis_client_loop import running_loop_or_none
-from guard_core.models import SecurityConfig
+from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.redis_handler import RedisManager
 from tests.conftest import REDIS_URL
 
 
 @pytest.fixture
 def manager() -> Iterator[RedisManager]:
-    config = SecurityConfig(
+    config = SyncSecurityConfig(
         enable_redis=True, redis_url=REDIS_URL, redis_prefix="wp313syncloop:"
     )
     yield RedisManager(config)
