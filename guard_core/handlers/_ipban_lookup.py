@@ -180,7 +180,7 @@ class IpBanLookupMixin(IpBanVersionMixin, IpBanEventMixin, IpBanRuleExemptionMix
                 continue
             if now > expiry:
                 self._purge_banned_ip(key)
-                return identity, None if self.redis_handler else False
+                continue
             return identity, True
         return identity, None
 
