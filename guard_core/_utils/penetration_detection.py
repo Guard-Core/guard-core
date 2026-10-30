@@ -68,7 +68,6 @@ from guard_core.detection_engine.base64_decode import scan_saw_decompression_cut
 from guard_core.detection_engine.compressed_payloads import (
     bounded_inflate,
     is_likely_decompression_bomb,
-    looks_like_gzip,
 )
 from guard_core.detection_result import DetectionResult
 from guard_core.exceptions import BodyReadFailedError, BodyReadStalledError
@@ -284,7 +283,10 @@ def _with_value_cut_outcome(
 def _inflate_gzip_body(
     body_bytes: bytes, inspect_cap: int | None
 ) -> tuple[bytes, bool]:
-    if not looks_like_gzip(body_bytes):
+    # a gzip stream starts 0x1f 0x8b, a zlib stream 0x78 (bounded_inflate checks the
+    # rest); every other body is returned without a call
+    first = body_bytes[:1]
+    if first != b"\x1f" and first != b"x":
         return body_bytes, False
     inflated = bounded_inflate(
         body_bytes, inspect_cap or _DEFAULT_MAX_BODY_INSPECT_BYTES

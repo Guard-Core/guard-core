@@ -458,3 +458,30 @@ def test_quoted_printable_entries_need_a_text_payload_that_changes() -> None:
     assert _quoted_printable_payload_entries(qp, "a", "a", "plain") == []
     assert _quoted_printable_payload_entries(qp, "a", "a", "=3Cb") == [("a", "a", "<b")]
     assert _quoted_printable_payload_entries(_Part("base64"), "a", "a", "=3Cb") == []
+
+
+@pytest.mark.parametrize(
+    "content_type", ["application/octet-stream", "application/zlib", "text/plain"]
+)
+async def test_raw_zlib_request_body_is_inflated_and_flagged(
+    content_type: str,
+) -> None:
+    body = zlib.compress(_SCRIPT.encode())
+
+    result = await detect_penetration_attempt(
+        _body_request(body, content_type),
+        SecurityConfig(enable_redis=False),
+    )
+
+    assert result.is_threat is True
+
+
+async def test_a_text_body_that_starts_with_x_is_not_taken_for_zlib() -> None:
+    body = b"xyz=1&note=hello"
+
+    result = await detect_penetration_attempt(
+        _body_request(body, "application/x-www-form-urlencoded"),
+        SecurityConfig(enable_redis=False),
+    )
+
+    assert result.is_threat is False
