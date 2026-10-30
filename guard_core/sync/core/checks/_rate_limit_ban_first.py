@@ -114,7 +114,10 @@ def _script_input(
     keys = [
         *(f"{prefix}{namespace}:{key}" for namespace, key in pairs),
         f"{prefix}{_VERSION_KEY}",
-        *(f"{prefix}rate_limit:rate:{_tier_key(identity, tier)}" for tier in tiers),
+        *(
+            f"{prefix}rate_limit:rate:{_tier_key(identity, tier.kind, tier.bucket)}"
+            for tier in tiers
+        ),
     ]
     meta = [str(len(pairs)), "" if seen is None else seen, repr(now)]
     if strike is None:

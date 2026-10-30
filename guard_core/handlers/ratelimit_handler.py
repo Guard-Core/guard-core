@@ -114,11 +114,11 @@ def _by_ip_window_identity(ip: str, prefix_length: int, nat64: Nat64Table) -> st
     return _client_identity(ip, prefix_length, None, nat64) if ":" in ip else ip
 
 
-def _tier_key(client_ip: str, tier: RateLimitTier) -> str:
-    if tier.kind in _KINDS_IN_KEY:
-        return f"{client_ip}:{tier.kind}:{_hash_identity_segment(tier.bucket)}"
-    if tier.bucket:
-        return f"{client_ip}:{_hash_identity_segment(tier.bucket)}"
+def _tier_key(client_ip: str, kind: str, bucket: str) -> str:
+    if kind in _KINDS_IN_KEY:
+        return f"{client_ip}:{kind}:{_hash_identity_segment(bucket)}"
+    if bucket:
+        return f"{client_ip}:{_hash_identity_segment(bucket)}"
     return client_ip
 
 
@@ -169,7 +169,7 @@ async def _redis_tier_verdict(
     redis_fail_open: bool = False,
 ) -> tuple[RateLimitVerdict | None, str | None]:
     prefix = f"{redis_handler.config.redis_prefix}rate_limit:rate:"
-    keys = [f"{prefix}{_tier_key(client_ip, tier)}" for tier in tiers]
+    keys = [f"{prefix}{_tier_key(client_ip, tier.kind, tier.bucket)}" for tier in tiers]
 
     try:
         async with redis_handler.get_connection() as conn:
@@ -192,6 +192,29 @@ async def _redis_tier_verdict(
     return None, rate_limit_script_sha
 
 
+def _sliding_window(
+    request_timestamps: defaultdict[str, deque[float]],
+    key: str,
+    window: int,
+    current_time: float,
+    max_tracked_keys: int,
+) -> deque[float]:
+    timestamps = _lru_pop_or_create(request_timestamps, key, max_tracked_keys, deque)
+    window_start = current_time - window
+    while timestamps and timestamps[0] <= window_start:
+        timestamps.popleft()
+    request_timestamps[key] = timestamps
+    return timestamps
+
+
+def _blocked_verdict(
+    tier_index: int, timestamps: deque[float], window: int, current_time: float
+) -> RateLimitVerdict:
+    oldest = timestamps[0] if timestamps else None
+    retry_after = _retry_after_seconds(oldest, window, current_time)
+    return RateLimitVerdict(tier_index, len(timestamps) + 1, retry_after)
+
+
 def _in_memory_tier_verdict(
     request_timestamps: defaultdict[str, deque[float]],
     client_ip: str,
@@ -201,18 +224,12 @@ def _in_memory_tier_verdict(
 ) -> RateLimitVerdict:
     windows = []
     for index, tier in enumerate(tiers):
-        key = _tier_key(client_ip, tier)
-        timestamps = _lru_pop_or_create(
-            request_timestamps, key, max_tracked_keys, deque
+        key = _tier_key(client_ip, tier.kind, tier.bucket)
+        timestamps = _sliding_window(
+            request_timestamps, key, tier.window, current_time, max_tracked_keys
         )
-        window_start = current_time - tier.window
-        while timestamps and timestamps[0] <= window_start:
-            timestamps.popleft()
-        request_timestamps[key] = timestamps
         if len(timestamps) >= tier.limit:
-            oldest = timestamps[0] if timestamps else None
-            retry_after = _retry_after_seconds(oldest, tier.window, current_time)
-            return RateLimitVerdict(index, len(timestamps) + 1, retry_after)
+            return _blocked_verdict(index, timestamps, tier.window, current_time)
         windows.append(timestamps)
     for timestamps in windows:
         timestamps.append(current_time)
@@ -693,7 +710,7 @@ class RateLimitManager:
             if ":" in client_ip
             else client_ip
         )
-        if redis_is_configured(config) and self.redis_handler:
+        if self.redis_handler and redis_is_configured(config):
             verdict, self.rate_limit_script_sha = await _redis_tier_verdict(
                 self.redis_handler,
                 self.logger,
@@ -777,16 +794,45 @@ class RateLimitManager:
         if not display_config.enable_rate_limiting:
             return None
 
-        tier = RateLimitTier(
-            "endpoint" if endpoint_path else "global",
-            rate_limit if rate_limit is not None else display_config.rate_limit,
+        limit = rate_limit if rate_limit is not None else display_config.rate_limit
+        window = (
             rate_limit_window
             if rate_limit_window is not None
-            else display_config.rate_limit_window,
-            endpoint_path,
+            else display_config.rate_limit_window
         )
+        kind = "endpoint" if endpoint_path else "global"
+        verdict = None
+        if not self.redis_handler:
+            # in-memory only: an allowed request builds no tier and no verdict
+            identity = (
+                _by_ip_window_identity(
+                    client_ip,
+                    display_config.ipv6_prefix_length,
+                    nat64_table_of(display_config),
+                )
+                if ":" in client_ip
+                else client_ip
+            )
+            now = time.time()
+            timestamps = _sliding_window(
+                self.request_timestamps,
+                _tier_key(identity, kind, endpoint_path),
+                window,
+                now,
+                display_config.rate_limit_max_tracked_keys,
+            )
+            if len(timestamps) < limit:
+                timestamps.append(now)
+                return None
+            verdict = _blocked_verdict(0, timestamps, window, now)
+        tier = RateLimitTier(kind, limit, window, endpoint_path)
         block = await self.check_rate_limit_tiers(
-            request, client_ip, create_error_response, [tier], display_config
+            request,
+            client_ip,
+            create_error_response,
+            [tier],
+            display_config,
+            verdict=verdict,
         )
         if block is None:
             return None
