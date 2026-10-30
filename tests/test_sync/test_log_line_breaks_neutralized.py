@@ -43,3 +43,18 @@ def test_a_json_looking_value_that_is_not_json_is_left_as_it_is() -> None:
     from guard_core.sync._utils.request_logging import _json_redact_text
 
     assert _json_redact_text("{not json", frozenset(), frozenset(), 8) is None
+
+
+def test_a_json_value_too_deep_to_parse_is_redacted_whole(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import json
+
+    from guard_core.sync._utils.request_logging import _json_redact_text
+
+    def too_deep(_text: str) -> object:
+        raise RecursionError
+
+    monkeypatch.setattr(json, "loads", too_deep)
+
+    assert _json_redact_text("[[[[", frozenset(), frozenset(), 8) == "[REDACTED]"
