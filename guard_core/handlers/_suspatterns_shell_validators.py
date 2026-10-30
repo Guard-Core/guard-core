@@ -200,6 +200,9 @@ def _dollar_substitution_pair_backtick_quoted(
     return prefix_quoted or suffix_quoted
 
 
+_SHELL_BRACE_ARITHMETIC_RE = re.compile(r"\s*\d+(?:\s*[*/%+\-]\s*\d+)+\s*")
+
+
 def _dollar_substitution_pair_is_injection(match: re.Match, context: str) -> bool:
     content = match.string
     start, end = match.start(), match.end()
@@ -207,6 +210,10 @@ def _dollar_substitution_pair_is_injection(match: re.Match, context: str) -> boo
         return False
     delimiter = content[start + 1]
     token = content[start + 2 : end - 1]
+    if delimiter == "{" and _SHELL_BRACE_ARITHMETIC_RE.fullmatch(token):
+        # ${7*7}: the expression probe 4.4.0 reported as cmd_injection as well as
+        # template, so a deployment that enables only cmd_injection still stops it
+        return True
     if _dollar_substitution_token_is_implausible(token, delimiter):
         return True
     if _strong_sql_keyword_glued_to_pair(content, start, end):
