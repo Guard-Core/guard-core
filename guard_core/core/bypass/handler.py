@@ -4,6 +4,10 @@ from logging import Logger
 from guard_core._utils.block_events import fire_block_hook
 from guard_core._utils.request_logging import redact_endpoint_for_display
 from guard_core.core.bypass.context import BypassContext
+from guard_core.core.checks.implementations.emergency_mode import (
+    EMERGENCY_CHECK_NAME,
+    enforce_emergency_mode,
+)
 from guard_core.core.events.event_types import EVENT_SECURITY_BYPASS
 from guard_core.decorators.base import RouteConfig
 from guard_core.protocols.request_protocol import GuardRequest
@@ -78,6 +82,35 @@ class BypassHandler:
 
         return None
 
+    async def _enforce_emergency_mode(
+        self, request: GuardRequest
+    ) -> GuardResponse | None:
+        """A lockdown holds on every route: ``@bypass(["all"])`` skips the pipeline,
+        so the verdict the pipeline's emergency check would give is taken here."""
+        context = self.context
+        response = await enforce_emergency_mode(
+            request,
+            context.config,
+            context.logger,
+            context.event_bus,
+            context.response_factory.create_error_response,
+        )
+        if response is not None:
+            stash = getattr(request.state, "_guard_block_stash", None) or {}
+            await fire_block_hook(
+                context.config.on_block,
+                request,
+                EMERGENCY_CHECK_NAME,
+                stash.get("reason", ""),
+                stash.get("trigger_info", ""),
+                False,
+                response.status_code,
+                context.config.log_sensitive_params,
+                context.config.log_sensitive_body_fields,
+                context.config.log_sensitive_headers,
+            )
+        return response
+
     async def handle_security_bypass(
         self,
         request: GuardRequest,
@@ -88,6 +121,11 @@ class BypassHandler:
             "all", route_config
         ):
             return None
+
+        if self.context.config.emergency_mode:
+            locked_down = await self._enforce_emergency_mode(request)
+            if locked_down is not None:
+                return locked_down
 
         await self.context.event_bus.send_middleware_event(
             event_type=EVENT_SECURITY_BYPASS,

@@ -493,6 +493,12 @@ SUBS: list[tuple[str, str]] = [
         "SyncGuardMiddlewareProtocol",
     ),
     (
+        r"from guard_core\.protocols\.middleware_protocol import "
+        r"SecurityEventBusProtocol",
+        "from guard_core.sync.protocols.middleware_protocol import "
+        "SecurityEventBusProtocol",
+    ),
+    (
         r"from guard_core\.protocols\.agent_protocol import AgentHandlerProtocol",
         "from guard_core.sync.protocols.agent_protocol import SyncAgentHandlerProtocol",
     ),

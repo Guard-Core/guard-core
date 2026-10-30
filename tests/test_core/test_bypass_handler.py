@@ -54,6 +54,7 @@ def mock_event_bus() -> Mock:
 def mock_config() -> Mock:
     config = Mock()
     config.passive_mode = False
+    config.emergency_mode = False
     config.fail_secure = True
     config.trusted_proxies = ()
     config.trusted_proxy_depth = 1

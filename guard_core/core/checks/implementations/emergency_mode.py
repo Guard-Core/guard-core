@@ -1,5 +1,7 @@
-from collections.abc import Collection, Sequence
+import logging
+from collections.abc import Awaitable, Collection, Sequence
 from ipaddress import ip_address
+from typing import Protocol
 
 from guard_core._utils.agent_events import agent_receives_events
 from guard_core._utils.nat64 import nat64_table_of
@@ -10,6 +12,7 @@ from guard_core.core.events.event_types import EVENT_EMERGENCY_MODE_BLOCK
 from guard_core.core.validation.path_matching import path_is_excluded
 from guard_core.decorators.base import RouteConfig
 from guard_core.models import SecurityConfig
+from guard_core.protocols.middleware_protocol import SecurityEventBusProtocol
 from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse
 from guard_core.utils import _ip_in_list, extract_client_ip, log_activity
@@ -31,12 +34,137 @@ def _sample_emergency_line(config: object, kind: str, client_ip: str) -> bool:
     )
 
 
+EMERGENCY_CHECK_NAME = "emergency_mode"
+
+
+class _CreateErrorResponse(Protocol):
+    def __call__(
+        self, status_code: int, default_message: str
+    ) -> Awaitable[GuardResponse]: ...
+
+
+def _admitted_lists(config: SecurityConfig) -> tuple[Sequence[str] | None, ...]:
+    if config.emergency_whitelist_only:
+        return (config.emergency_whitelist,)
+    return (config.emergency_whitelist, config.whitelist, config.exempt_ips)
+
+
+async def enforce_emergency_mode(
+    request: GuardRequest,
+    config: SecurityConfig,
+    logger: logging.Logger,
+    event_bus: SecurityEventBusProtocol,
+    create_error_response: _CreateErrorResponse,
+) -> GuardResponse | None:
+    """The lockdown verdict of one request: a 503 for a client the whitelists do
+    not admit. The pipeline check and the ``@bypass(["all"])`` path share it."""
+    if not config.emergency_mode:
+        return None
+
+    client_ip = getattr(request.state, "client_ip", None)
+    if not client_ip:
+        client_ip = await extract_client_ip(request, config, event_bus.agent_handler)
+
+    try:
+        client_ip_addr = ip_address(client_ip)
+    except ValueError:
+        client_ip_addr = None
+
+    is_whitelisted = client_ip_addr is not None and any(
+        _ip_in_list(client_ip_addr, client_ip, entries, nat64_table_of(config))
+        for entries in _admitted_lists(config)
+    )
+
+    if not is_whitelisted:
+        exempt_paths = config.emergency_exempt_paths
+        if exempt_paths and path_is_excluded(request.url_path, exempt_paths):
+            return None
+        return await _deny(
+            request, config, logger, event_bus, create_error_response, client_ip
+        )
+    await _log_allowed(request, config, logger, client_ip)
+    return None
+
+
+async def _deny(
+    request: GuardRequest,
+    config: SecurityConfig,
+    logger: logging.Logger,
+    event_bus: SecurityEventBusProtocol,
+    create_error_response: _CreateErrorResponse,
+    client_ip: str,
+) -> GuardResponse | None:
+    sampled = _sample_emergency_line(config, "block", client_ip)
+    await log_activity(
+        request,
+        logger,
+        log_type="suspicious",
+        reason=f"[EMERGENCY MODE] Access denied for IP {client_ip}",
+        level=config.log_suspicious_level if sampled else None,
+        passive_mode=config.passive_mode,
+        check_name=EMERGENCY_CHECK_NAME,
+        muted_check_logs=config.muted_check_logs,
+        on_block=config.on_block,
+        sensitive_headers=config.log_sensitive_headers,
+        sensitive_params=config.log_sensitive_params,
+        sensitive_body_fields=config.log_sensitive_body_fields,
+    )
+
+    if sampled:
+        await event_bus.send_middleware_event(
+            event_type=EVENT_EMERGENCY_MODE_BLOCK,
+            request=request,
+            action_taken="request_blocked"
+            if not config.passive_mode
+            else "logged_only",
+            reason=f"[EMERGENCY MODE] IP {client_ip} not in whitelist",
+            emergency_whitelist_count=len(config.emergency_whitelist),
+            emergency_active=True,
+            **(
+                emergency_attribution(config)
+                if agent_receives_events(event_bus, config)
+                else {}
+            ),
+        )
+
+    if config.passive_mode:
+        return None
+    response: GuardResponse = await create_error_response(
+        status_code=503,
+        default_message="Service temporarily unavailable",
+    )
+    response.headers["Retry-After"] = str(EMERGENCY_RETRY_AFTER)
+    return response
+
+
+async def _log_allowed(
+    request: GuardRequest,
+    config: SecurityConfig,
+    logger: logging.Logger,
+    client_ip: str,
+) -> None:
+    if not _sample_emergency_line(config, "allow", client_ip):
+        return
+    await log_activity(
+        request,
+        logger,
+        log_type="info",
+        reason=f"[EMERGENCY MODE] Allowed access for whitelisted IP {client_ip}",
+        level="INFO",
+        check_name=EMERGENCY_CHECK_NAME,
+        muted_check_logs=config.muted_check_logs,
+        sensitive_headers=config.log_sensitive_headers,
+        sensitive_params=config.log_sensitive_params,
+        sensitive_body_fields=config.log_sensitive_body_fields,
+    )
+
+
 class EmergencyModeCheck(SecurityCheck):
     enforced_on_excluded_paths = True
 
     @property
     def check_name(self) -> str:
-        return "emergency_mode"
+        return EMERGENCY_CHECK_NAME
 
     @classmethod
     def applies_to(
@@ -47,99 +175,15 @@ class EmergencyModeCheck(SecurityCheck):
         return config.emergency_mode or config.enable_dynamic_rules
 
     def _admitted_lists(self) -> tuple[Sequence[str] | None, ...]:
-        if self.config.emergency_whitelist_only:
-            return (self.config.emergency_whitelist,)
-        return (
-            self.config.emergency_whitelist,
-            self.config.whitelist,
-            self.config.exempt_ips,
-        )
+        return _admitted_lists(self.config)
 
     async def check(self, request: GuardRequest) -> GuardResponse | None:
         if not self.config.emergency_mode:
             return None
-
-        client_ip = getattr(request.state, "client_ip", None)
-        if not client_ip:
-            client_ip = await extract_client_ip(
-                request, self.config, self.middleware.agent_handler
-            )
-
-        try:
-            client_ip_addr = ip_address(client_ip)
-        except ValueError:
-            client_ip_addr = None
-
-        is_whitelisted = client_ip_addr is not None and any(
-            _ip_in_list(client_ip_addr, client_ip, entries, nat64_table_of(self.config))
-            for entries in self._admitted_lists()
-        )
-
-        if not is_whitelisted:
-            exempt_paths = self.config.emergency_exempt_paths
-            if exempt_paths and path_is_excluded(request.url_path, exempt_paths):
-                return None
-            return await self._deny(request, client_ip)
-        await self._log_allowed(request, client_ip)
-        return None
-
-    async def _deny(
-        self, request: GuardRequest, client_ip: str
-    ) -> GuardResponse | None:
-        sampled = _sample_emergency_line(self.config, "block", client_ip)
-        await log_activity(
+        return await enforce_emergency_mode(
             request,
+            self.config,
             self.logger,
-            log_type="suspicious",
-            reason=f"[EMERGENCY MODE] Access denied for IP {client_ip}",
-            level=self.config.log_suspicious_level if sampled else None,
-            passive_mode=self.config.passive_mode,
-            check_name=self.check_name,
-            muted_check_logs=self.config.muted_check_logs,
-            on_block=self.config.on_block,
-            sensitive_headers=self.config.log_sensitive_headers,
-            sensitive_params=self.config.log_sensitive_params,
-            sensitive_body_fields=self.config.log_sensitive_body_fields,
-        )
-
-        if sampled:
-            await self.middleware.event_bus.send_middleware_event(
-                event_type=EVENT_EMERGENCY_MODE_BLOCK,
-                request=request,
-                action_taken="request_blocked"
-                if not self.config.passive_mode
-                else "logged_only",
-                reason=f"[EMERGENCY MODE] IP {client_ip} not in whitelist",
-                emergency_whitelist_count=len(self.config.emergency_whitelist),
-                emergency_active=True,
-                **(
-                    emergency_attribution(self.config)
-                    if agent_receives_events(self.middleware.event_bus, self.config)
-                    else {}
-                ),
-            )
-
-        if self.config.passive_mode:
-            return None
-        response: GuardResponse = await self.middleware.create_error_response(
-            status_code=503,
-            default_message="Service temporarily unavailable",
-        )
-        response.headers["Retry-After"] = str(EMERGENCY_RETRY_AFTER)
-        return response
-
-    async def _log_allowed(self, request: GuardRequest, client_ip: str) -> None:
-        if not _sample_emergency_line(self.config, "allow", client_ip):
-            return
-        await log_activity(
-            request,
-            self.logger,
-            log_type="info",
-            reason=f"[EMERGENCY MODE] Allowed access for whitelisted IP {client_ip}",
-            level="INFO",
-            check_name=self.check_name,
-            muted_check_logs=self.config.muted_check_logs,
-            sensitive_headers=self.config.log_sensitive_headers,
-            sensitive_params=self.config.log_sensitive_params,
-            sensitive_body_fields=self.config.log_sensitive_body_fields,
+            self.middleware.event_bus,
+            self.middleware.create_error_response,
         )
