@@ -26,6 +26,9 @@ class Entry(_RequiredEntry, total=False):
     python: list[str]
     # "error" for a setup or teardown ERROR row; absent means the FAILED row.
     outcome: str
+    # True when the failure text must equal ``message``; absent means it must start
+    # with it (a message is never matched anywhere inside a longer one).
+    exact: bool
 
 
 class Failure(NamedTuple):
@@ -109,7 +112,11 @@ def _signature_matches(entry: Entry, failure: Failure) -> bool:
     exception_ok = exception == entry["exception"] or exception.endswith(
         "." + entry["exception"]
     )
-    return exception_ok and entry["message"] in failure.message
+    if entry.get("exact", False):
+        message_ok = failure.message == entry["message"]
+    else:
+        message_ok = failure.message.startswith(entry["message"])
+    return exception_ok and message_ok
 
 
 def judge(

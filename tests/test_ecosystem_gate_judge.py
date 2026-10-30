@@ -34,10 +34,10 @@ def entry(
 
 def all_listed() -> list[dict[str, object]]:
     return [
-        entry("tests/test_a.py::test_one", "AttributeError", "lstrip"),
-        entry("tests/test_a.py::test_two[a b]", "AssertionError", "1 == 2"),
+        entry("tests/test_a.py::test_one", "AttributeError", "'coroutine' has no"),
+        entry("tests/test_a.py::test_two[a b]", "AssertionError", "assert 1 == 2"),
         entry("tests/test_b.py::test_three", "", "", outcome="error"),
-        entry("tests/test_d.py::test_plain_assert", "AssertionError", "1 == 2"),
+        entry("tests/test_d.py::test_plain_assert", "AssertionError", "assert 1 == 2"),
         entry("tests/test_d.py::test_bare_exception", "KeyError", ""),
     ]
 
@@ -76,10 +76,10 @@ def test_every_failure_listed_with_its_signature_is_accepted_with_its_reason() -
         entry(
             "tests/test_a.py::test_one",
             "AttributeError",
-            "no attribute 'lstrip'",
+            "'coroutine' has no attribute 'lstrip'",
             "D-9",
         ),
-        entry("tests/test_a.py::test_two[a b]", "AssertionError", "1 == 2"),
+        entry("tests/test_a.py::test_two[a b]", "AssertionError", "assert 1 == 2"),
         entry("tests/test_b.py::test_three", "", "", outcome="error"),
         entry("tests/test_d.py::test_plain_assert", "AssertionError", "assert 1 == 2"),
         entry("tests/test_d.py::test_bare_exception", "KeyError", ""),
@@ -100,16 +100,47 @@ def test_an_unlisted_failure_is_an_error() -> None:
 def test_a_listed_test_failing_with_another_signature_is_an_error() -> None:
     failures = judge.parse_failures(PYTEST_OUTPUT)
     expected = [
-        entry("tests/test_a.py::test_one", "TypeError", "no attribute 'lstrip'"),
+        entry("tests/test_a.py::test_one", "TypeError", "'coroutine' has no attribute"),
         entry("tests/test_a.py::test_two[a b]", "AssertionError", "something else"),
         entry("tests/test_b.py::test_three", "", "", outcome="error"),
-        entry("tests/test_d.py::test_plain_assert", "AssertionError", "1 == 2"),
+        entry("tests/test_d.py::test_plain_assert", "AssertionError", "assert 1 == 2"),
         entry("tests/test_d.py::test_bare_exception", "KeyError", ""),
     ]
     errors, notices = judge.judge(failures, expected, "3.10")
     assert len(errors) == 2
     assert all("another signature" in error for error in errors)
     assert len(notices) == 3
+
+
+def test_a_listed_message_matches_only_the_start_of_the_failure_text() -> None:
+    failures = judge.parse_failures(PYTEST_OUTPUT)
+    expected = all_listed()
+    expected[0] = entry("tests/test_a.py::test_one", "AttributeError", "lstrip")
+
+    errors, _ = judge.judge(failures, expected, "3.10")
+
+    assert len(errors) == 1
+    assert "another signature" in errors[0]
+
+
+def test_an_exact_entry_does_not_accept_a_longer_failure_text() -> None:
+    failures = judge.parse_failures(PYTEST_OUTPUT)
+    expected = all_listed()
+    expected[1] = entry(
+        "tests/test_a.py::test_two[a b]", "AssertionError", "assert 1", exact=True
+    )
+    expected[3] = entry(
+        "tests/test_d.py::test_plain_assert",
+        "AssertionError",
+        "assert 1 == 2",
+        exact=True,
+    )
+
+    errors, notices = judge.judge(failures, expected, "3.10")
+
+    assert len(errors) == 1
+    assert "test_two[a b] fails with another signature" in errors[0]
+    assert len(notices) == 4
 
 
 def test_a_qualified_exception_name_matches_its_short_listed_name() -> None:

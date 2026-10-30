@@ -9,6 +9,7 @@
     "test": "tests/test_middleware_unit.py::test_check_time_window_helper",
     "exception": "AssertionError",
     "message": "assert False is True",
-    "reason": "upgrade guide v4-to-v5, Responses that changed: 'Time-window evaluation error | allowed | denied like a request outside the window (403 Access not allowed at this time)'"
+    "reason": "upgrade guide v4-to-v5, Responses that changed: 'Time-window evaluation error | allowed | denied like a request outside the window (403 Access not allowed at this time)'",
+    "exact": true
   }
 ]
