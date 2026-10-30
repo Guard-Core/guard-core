@@ -483,3 +483,17 @@ def test_a_text_body_that_starts_with_x_is_not_taken_for_zlib() -> None:
     )
 
     assert result.is_threat is False
+
+
+@pytest.mark.parametrize("compress", [zlib.compress, gzip.compress])
+def test_a_payload_appended_after_a_compressed_stream_is_still_scanned(
+    compress: Any,
+) -> None:
+    body = compress(b"harmless text") + b"\x00" + _SCRIPT.encode() + b"\x00"
+
+    result = detect_penetration_attempt(
+        _body_request(body, "application/octet-stream"),
+        SyncSecurityConfig(enable_redis=False),
+    )
+
+    assert result.is_threat is True

@@ -32,7 +32,10 @@ def bounded_inflate(raw: bytes, max_output_bytes: int) -> tuple[bytes, bool] | N
         inflated = decompressor.decompress(raw, max_output_bytes)
     except zlib.error:
         return None
-    return inflated, len(inflated) >= max_output_bytes and not decompressor.eof
+    cut = len(inflated) >= max_output_bytes and not decompressor.eof
+    # bytes after the end of the stream are part of the body: a payload appended
+    # to a compressed stream must still reach the scan
+    return inflated + decompressor.unused_data, cut
 
 
 def is_likely_decompression_bomb(compressed_size: int, unpacked_size: int) -> bool:
