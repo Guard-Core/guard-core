@@ -177,26 +177,34 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
 
         should_warn = _country_shadow_should_warn(self, name, value)
 
-        checked = name in type(self).model_fields and not _skip_revalidation.get()
-        if checked:
-            value = require_field_constraints(self, name, value)
-            problems_before = misconfigurations_now(self)
-            kept = _snapshot_field(self, name)
-        _assign_checking_optional_extras(
-            self, name, lambda: super(SecurityConfig, self).__setattr__(name, value)
-        )
-        if checked:
-            try:
-                require_cross_field_rules(
-                    self, frozenset({name}), problems_before, stacklevel=3
-                )
-            except ValueError:
-                _restore_field(self, name, kept)
-                raise
+        self._assign_held_to_construction_rules(name, value)
         if name != "_revision":
             object.__setattr__(self, "_revision", self._current_revision() + 1)
         if should_warn:
             _warn_country_allowlist_shadows_blocklist(stacklevel=3)
+
+    def _assign_held_to_construction_rules(self, name: str, value: object) -> None:
+        def assign(assigned: object) -> None:
+            _assign_checking_optional_extras(
+                self,
+                name,
+                lambda: super(SecurityConfig, self).__setattr__(name, assigned),
+            )
+
+        if name not in type(self).model_fields or _skip_revalidation.get():
+            assign(value)
+            return
+        value = require_field_constraints(self, name, value)
+        problems_before = misconfigurations_now(self)
+        kept = _snapshot_field(self, name)
+        assign(value)
+        try:
+            require_cross_field_rules(
+                self, frozenset({name}), problems_before, stacklevel=4
+            )
+        except ValueError:
+            _restore_field(self, name, kept)
+            raise
 
     def _set_prevalidated(self, name: str, value: object) -> None:
         token = _skip_revalidation.set(True)

@@ -1,9 +1,7 @@
 import ipaddress
 import logging
-import math
 import threading
 import time
-import uuid
 import weakref
 from collections import defaultdict, deque
 from collections.abc import Callable, Sequence
@@ -36,6 +34,12 @@ from guard_core.sync.handlers._by_ip_state import (
 from guard_core.sync.handlers._by_ip_state import (
     by_ip_request_timestamps as _by_ip_request_timestamps,
 )
+from guard_core.sync.handlers._ratelimit_pipeline_fallback import (
+    _retry_after_seconds as _retry_after_seconds,
+)
+from guard_core.sync.handlers._ratelimit_pipeline_fallback import (
+    pipeline_blocked_tier,
+)
 from guard_core.sync.handlers.redis_handler import scan_unlink_through_new_client
 from guard_core.sync.protocols.agent_protocol import (
     SyncAgentHandlerProtocol as _Agent,
@@ -49,6 +53,8 @@ from guard_core.sync.utils import _canonicalize_ip, _ip_in_list, log_activity
 if TYPE_CHECKING:
     # the client get_connection() yields, typed for the Lua and pipeline helpers
     from redis import Redis
+
+    from guard_core.sync.handlers.ipban_handler import IPBanManager
 
 
 # The Lua script returns integers, a redis client without decode_responses returns
@@ -130,12 +136,6 @@ def _tier_key(client_ip: str, tier: RateLimitTier) -> str:
     return client_ip
 
 
-def _retry_after_seconds(oldest: float | None, window: int, now: float) -> int:
-    if oldest is None:
-        return window
-    return max(1, math.ceil(oldest + window - now))
-
-
 def _script_arguments(tiers: Sequence[RateLimitTier]) -> list[int]:
     return [value for tier in tiers for value in (tier.limit, tier.window)]
 
@@ -166,35 +166,11 @@ def _evalsha_tiers(
         return conn.evalsha(script_sha, len(keys), *keys, *arguments), script_sha
 
 
-_PIPELINE_COMMANDS_PER_TIER = 5
-
-
 def _pipeline_tiers_verdict(
     conn: "Redis", keys: list[str], tiers: Sequence[RateLimitTier]
 ) -> RateLimitVerdict:
-    seconds, microseconds = conn.time()
-    now = int(seconds) + int(microseconds) / 1_000_000
-    member = f"{now}:{uuid.uuid4().hex}"
-    transaction = conn.pipeline()
-    for key, tier in zip(keys, tiers, strict=True):
-        transaction.zremrangebyscore(key, 0, now - tier.window)
-        transaction.zadd(key, {member: now})
-        transaction.expire(key, tier.window * 2)
-        transaction.zcard(key)
-        transaction.zrange(key, 0, 0, withscores=True)
-    results = transaction.execute()
-    for index, tier in enumerate(tiers):
-        count = int(results[index * _PIPELINE_COMMANDS_PER_TIER + 3])
-        if count > tier.limit:
-            oldest = results[index * _PIPELINE_COMMANDS_PER_TIER + 4]
-            oldest_hit = float(oldest[0][1]) if oldest else None
-            retry_after = _retry_after_seconds(oldest_hit, tier.window, now)
-            withdraw = conn.pipeline()
-            for key in keys:
-                withdraw.zrem(key, member)
-            withdraw.execute()
-            return RateLimitVerdict(index, count, retry_after)
-    return _ALLOWED
+    blocked = pipeline_blocked_tier(conn, keys, tiers)
+    return _ALLOWED if blocked is None else RateLimitVerdict(*blocked)
 
 
 def _redis_tier_verdict(
@@ -313,6 +289,28 @@ def _shared_primitive_counts(
         return None
 
 
+def _by_ip_ban_manager(
+    config: SyncSecurityConfig, redis_handler: _Redis | None
+) -> "IPBanManager":
+    from guard_core.sync.handlers.ipban_handler import (
+        IPBanManager,
+        ip_ban_manager_for,
+    )
+
+    manager = ip_ban_manager_for(config, unbound=IPBanManager())
+    if (
+        redis_handler is not None
+        and redis_is_configured(config)
+        and manager.redis_handler is None
+    ):
+        # no guarded app holds this config: the ban goes to the caller's Redis
+        # through a manager of its own, so other workers and processes see it
+        manager = IPBanManager._fresh()
+        manager.config = config
+        manager.initialize_redis(redis_handler)
+    return manager
+
+
 def _feed_rate_limit_autoban(
     ip: str,
     config: SyncSecurityConfig,
@@ -348,22 +346,8 @@ def _feed_rate_limit_autoban(
         _retained_strike_cap,
         _WindowedCategoryCounts,
     )
-    from guard_core.sync.handlers.ipban_handler import (
-        IPBanManager,
-        ip_ban_manager_for,
-    )
 
-    ip_ban_manager = ip_ban_manager_for(config, unbound=IPBanManager())
-    if (
-        redis_handler is not None
-        and redis_is_configured(config)
-        and ip_ban_manager.redis_handler is None
-    ):
-        # no guarded app holds this config: the ban goes to the caller's Redis
-        # through a manager of its own, so other workers and processes see it
-        ip_ban_manager = IPBanManager._fresh()
-        ip_ban_manager.config = config
-        ip_ban_manager.initialize_redis(redis_handler)
+    ip_ban_manager = _by_ip_ban_manager(config, redis_handler)
     if ip_ban_manager.is_ip_banned(ip, config=config):
         return
 

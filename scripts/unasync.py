@@ -38,6 +38,7 @@ SKIP_SRC = {
     "_redis_exceptions.py",
     "_security_headers_defaults.py",
     "_security_headers_override.py",
+    "_security_headers_value_checks.py",
     "_emergency_exemptions.py",
     "_callable_shape.py",
     "_security_headers_record_validation.py",

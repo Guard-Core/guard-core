@@ -88,6 +88,35 @@ class AccessControlMixin(BaseSecurityMixin):
 
         return decorator
 
+    def _checked_cloud_providers(self, providers: list[str] | None) -> set[str] | None:
+        canonical = (
+            None
+            if providers is None
+            else {
+                c for p in providers if (c := canonicalize_cloud_provider_selector(p))
+            }
+        )
+        unknown = (
+            []
+            if providers is None
+            else sorted(
+                p for p in providers if canonicalize_cloud_provider_selector(p) is None
+            )
+        )
+        if providers is not None and not providers:
+            self._report_misconfiguration(
+                "@block_clouds received an empty provider list: an empty "
+                "list blocks nothing on this route (call @block_clouds() to "
+                "block every provider)."
+            )
+        if unknown:
+            self._report_misconfiguration(
+                f"@block_clouds: ignored unknown cloud providers {unknown}. "
+                f"Valid providers: {sorted(VALID_CLOUD_PROVIDERS)} (matched "
+                "case-insensitively)."
+            )
+        return canonical
+
     def block_clouds(
         self, providers: list[str] | None = None
     ) -> Callable[
@@ -96,36 +125,7 @@ class AccessControlMixin(BaseSecurityMixin):
         def decorator(
             func: Callable[GuardedParams, GuardedReturn],
         ) -> Callable[GuardedParams, GuardedReturn]:
-            canonical = (
-                None
-                if providers is None
-                else {
-                    c
-                    for p in providers
-                    if (c := canonicalize_cloud_provider_selector(p))
-                }
-            )
-            unknown = (
-                []
-                if providers is None
-                else sorted(
-                    p
-                    for p in providers
-                    if canonicalize_cloud_provider_selector(p) is None
-                )
-            )
-            if providers is not None and not providers:
-                self._report_misconfiguration(
-                    "@block_clouds received an empty provider list: an empty "
-                    "list blocks nothing on this route (call @block_clouds() to "
-                    "block every provider)."
-                )
-            if unknown:
-                self._report_misconfiguration(
-                    f"@block_clouds: ignored unknown cloud providers {unknown}. "
-                    f"Valid providers: {sorted(VALID_CLOUD_PROVIDERS)} (matched "
-                    "case-insensitively)."
-                )
+            canonical = self._checked_cloud_providers(providers)
             route_config = self._ensure_route_config(func)
             route_config.block_cloud_providers = (
                 set(VALID_CLOUD_PROVIDERS) if canonical is None else canonical
