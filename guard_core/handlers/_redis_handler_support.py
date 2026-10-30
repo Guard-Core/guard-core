@@ -34,6 +34,20 @@ def _unparseable_redis_url(url: str, scheme: str = "") -> str:
     return f"{scheme}://<unparseable>" if scheme and "://" in url else "<unparseable>"
 
 
+_CREDENTIAL_QUERY_KEYS = frozenset({"password", "username"})
+
+
+def _without_credential_params(query: str) -> str:
+    """redis-py reads ``?password=`` and ``?username=`` like userinfo, so they go
+    with it; every other parameter stays as written."""
+    kept = [
+        part
+        for part in query.split("&")
+        if part.partition("=")[0].lower() not in _CREDENTIAL_QUERY_KEYS
+    ]
+    return "&".join(kept)
+
+
 def _redact_redis_url(url: str | None) -> str | None:
     if url is None:
         return None
@@ -51,4 +65,12 @@ def _redact_redis_url(url: str | None) -> str | None:
     netloc = f"[{host}]" if ":" in host else host
     if port is not None:
         netloc = f"{netloc}:{port}"
-    return urlunsplit((parts.scheme, netloc, parts.path, parts.query, parts.fragment))
+    return urlunsplit(
+        (
+            parts.scheme,
+            netloc,
+            parts.path,
+            _without_credential_params(parts.query),
+            parts.fragment,
+        )
+    )
