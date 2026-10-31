@@ -2,6 +2,10 @@ import re
 from functools import cached_property
 from typing import TYPE_CHECKING, NamedTuple, TypeVar
 
+from guard_core._builtin_import_table import (
+    BUILTIN_PATTERN_COMPILE_FLAGS,
+    IMPORT_COMPILED_TABLE,
+)
 from guard_core.sync._utils.detection_scan import _built_once_uncharged
 from guard_core.sync._utils.scan_config_scope import scoped_config
 from guard_core.sync.handlers._suspatterns_pattern_table import BARE_UNION_SELECT_ROW
@@ -9,7 +13,7 @@ from guard_core.sync.handlers._suspatterns_pattern_table import BARE_UNION_SELEC
 if TYPE_CHECKING:
     from guard_core.models import SyncSecurityConfig
 
-_BUILTIN_PATTERN_COMPILE_FLAGS = re.IGNORECASE
+_BUILTIN_PATTERN_COMPILE_FLAGS = BUILTIN_PATTERN_COMPILE_FLAGS
 
 
 class _CompiledBuiltinPatterns(dict[str, re.Pattern]):
@@ -21,7 +25,7 @@ class _CompiledBuiltinPatterns(dict[str, re.Pattern]):
         return compiled
 
 
-COMPILED_BUILTIN_PATTERNS = _CompiledBuiltinPatterns()
+COMPILED_BUILTIN_PATTERNS = _CompiledBuiltinPatterns(IMPORT_COMPILED_TABLE)
 
 
 def disabled_row_sources_of(config: object) -> frozenset[str]:

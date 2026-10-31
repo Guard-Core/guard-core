@@ -67,6 +67,13 @@ repos:
         language: system
         types: [python]
         pass_filenames: false
+      - id: check-import-rows
+        name: check-import-rows
+        entry: uv run --no-sync python scripts/generate_import_rows.py --check
+        require_serial: true
+        language: system
+        types: [python]
+        pass_filenames: false
       - id: no-bytecode
         name: no-bytecode
         entry: bytecode files must not be committed (they are gitignored; remove with git rm --cached)

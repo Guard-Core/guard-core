@@ -41,9 +41,12 @@ SKIP_SRC = {
     "_emergency_exemptions.py",
     "_callable_shape.py",
     "_security_headers_record_validation.py",
+    "_builtin_import_rows.py",
+    "_builtin_import_table.py",
 }
 
 SKIP_TESTS = {
+    "test_import_rows.py",
     "test_models_lazy_sync_config.py",
     "test_import_surface_preserved.py",
     "mock_download.py",

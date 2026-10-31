@@ -13,6 +13,16 @@ check-sync:
 	@uv run --no-sync python scripts/unasync.py --check
 
 
+.PHONY: import-rows
+import-rows:
+	@uv run --no-sync python scripts/generate_import_rows.py
+
+
+.PHONY: check-import-rows
+check-import-rows:
+	@uv run --no-sync python scripts/generate_import_rows.py --check
+
+
 .PHONY: install
 install:
 	@uv sync
