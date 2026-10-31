@@ -1,4 +1,3 @@
-import re
 
 from guard_core.handlers._suspatterns_credential_files import (
     CREDENTIAL_FILE_ROWS,
@@ -19,9 +18,9 @@ from guard_core.handlers._suspatterns_matchers import (
     _SQLI_LOAD_FILE_RE,
 )
 from guard_core.handlers._suspatterns_named_floor import (
-    CMS_TOKEN_PATTERN,
+    CMS_TOKEN_SOURCE,
     NAMED_FLOOR_ROWS,
-    NAMED_FLOOR_TOKEN_PATTERNS,
+    NAMED_FLOOR_TOKEN_SOURCES,
     SUPERSEDING_ROWS,
     V440_INICIO_ROW,
     V440_MANAGEMENT_ROW,
@@ -1049,7 +1048,7 @@ for _source, _contexts, _category in _PATTERN_DEFINITIONS:
         "wp-(?:admin|login|includes|config)|administrator|xmlrpc" in _source
         or "wp-content(?!" in _source
     ):
-        NAMED_FLOOR_TOKEN_PATTERNS.setdefault(_source, CMS_TOKEN_PATTERN)
+        NAMED_FLOOR_TOKEN_SOURCES.setdefault(_source, CMS_TOKEN_SOURCE)
 
 # A narrow root row that reports the same path unconditionally supersedes the
 # gated v4.4.0 row for it, so the path is reported once.
@@ -1060,7 +1059,7 @@ _NARROW_ROW_MARKERS: dict[str, tuple[str, ...]] = {
 }
 for _floor, _markers in _NARROW_ROW_MARKERS.items():
     SUPERSEDING_ROWS[_floor] = tuple(
-        re.compile(_source, re.IGNORECASE)
+        _source
         for _source, _contexts, _category in _PATTERN_DEFINITIONS
         if _category == "recon"
         and _source != _floor
@@ -1080,7 +1079,7 @@ ROUTE_GATED_PATH_SOURCES: frozenset[str] = frozenset(
         _MAP_FILE_PATH_RE,
         _VERSION_ROOT_PATH_RE,
         _SYSTEM_LOG_PATH_RE,
-        *NAMED_FLOOR_TOKEN_PATTERNS,
+        *NAMED_FLOOR_TOKEN_SOURCES,
     }
 )
 
@@ -1100,8 +1099,8 @@ NAMED_FILE_PATH_SOURCES: frozenset[str] = frozenset(
 # lists (wp-admin/index.php), so a plain relative name clears them with path info.
 NAMED_DIRECTORY_PATH_SOURCES: frozenset[str] = frozenset(
     source
-    for source, token_pattern in NAMED_FLOOR_TOKEN_PATTERNS.items()
-    if token_pattern is CMS_TOKEN_PATTERN and source in NAMED_FILE_PATH_SOURCES
+    for source, token_source in NAMED_FLOOR_TOKEN_SOURCES.items()
+    if token_source == CMS_TOKEN_SOURCE and source in NAMED_FILE_PATH_SOURCES
 )
 
 # Recon rows additionally scanned against the signal-preserving raw view. The

@@ -5,6 +5,7 @@ from collections.abc import Iterator
 from contextvars import ContextVar
 from functools import partial
 
+from guard_core._lazy_patterns import LazyPatterns, module_attribute_lookup
 from guard_core.detection_engine import (
     base64_alphabet,
     compressed_payloads,
@@ -40,10 +41,21 @@ SUB_FLOOR_RUN_RE = re.compile(
     rf"[{DATA_ALPHABET}]{{1,{MIN_RUN_LENGTH - 1}}}"
     rf"(?![{DATA_ALPHABET}])"
 )
-WHITESPACE_RE = re.compile(rf"[{re.escape(base64_alphabet.SEPARATOR_CHARS)}]+")
 SEPARATOR_DELETION = dict.fromkeys(map(ord, base64_alphabet.SEPARATOR_CHARS))
-NON_DATA_RE = re.compile(rf"[^{DATA_ALPHABET}]")
-NON_RUN_CHAR_RE = re.compile(rf"[^{DATA_ALPHABET}=]")
+_PATTERNS = LazyPatterns(
+    {
+        "WHITESPACE_RE": (rf"[{re.escape(base64_alphabet.SEPARATOR_CHARS)}]+", 0),
+        "NON_DATA_RE": (rf"[^{DATA_ALPHABET}]", 0),
+        "NON_RUN_CHAR_RE": (rf"[^{DATA_ALPHABET}=]", 0),
+    }
+)
+_lookup = module_attribute_lookup(_PATTERNS)
+
+
+def __getattr__(name: str) -> re.Pattern[str]:
+    return _lookup(name)
+
+
 FRAGMENT_SCAN_WINDOW = 32768
 HEX_LITERAL_RE = re.compile(r"0[xX][0-9a-fA-F]+")
 
@@ -107,7 +119,7 @@ def _windows_cut_at(
 def join_sub_floor_runs(token: str) -> str:
     return "".join(
         "".join(SUB_FLOOR_RUN_RE.findall(token, start, end))
-        for start, end in _windows_cut_at(token, NON_DATA_RE)
+        for start, end in _windows_cut_at(token, _PATTERNS["NON_DATA_RE"])
     )
 
 
@@ -262,7 +274,7 @@ async def _decode_runs_yielding(
     replace_run = partial(_replace_run, gunzip_attempts_left, max_gunzip_output_bytes)
     parts: list[str | tuple[int, int]] = []
     changed = False
-    for start, end in _windows_cut_at(token, NON_RUN_CHAR_RE):
+    for start, end in _windows_cut_at(token, _PATTERNS["NON_RUN_CHAR_RE"]):
         window = token[start:end]
         decoded = RUN_RE.sub(replace_run, window)
         changed = changed or decoded != window
@@ -277,7 +289,7 @@ async def _decode_runs_yielding(
 
 async def _join_sub_floor_runs_yielding(token: str) -> str:
     joined: list[str] = []
-    for start, end in _windows_cut_at(token, NON_DATA_RE):
+    for start, end in _windows_cut_at(token, _PATTERNS["NON_DATA_RE"]):
         joined.append("".join(SUB_FLOOR_RUN_RE.findall(token, start, end)))
         await truncation.yield_once_slice_elapsed()
     return "".join(joined)

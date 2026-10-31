@@ -2,6 +2,7 @@ import re
 from collections.abc import Callable
 from functools import lru_cache
 
+from guard_core._lazy_patterns import CompiledOnDemand
 from guard_core.sync._utils.route_gate import (
     is_scanning_declared_path_param_values,
     isolate_declared_path_params,
@@ -22,12 +23,12 @@ from guard_core.sync.handlers._suspatterns_sources import (
     _PATH_ONLY_CHAR_RE,
     _PATH_ONLY_SEP_RE,
     _PATH_ONLY_SUFFIX_RE,
-    _PLAIN_SOURCE_OR_MAP_PATH_END_RE,
     NUL_TAIL_MARKER,
     _nested_path_pattern,
     _path_only_pattern,
     _source_extension_path_is_probe,
 )
+from guard_core.sync.handlers._suspatterns_sources import _PATTERNS as _SOURCES_PATTERNS
 
 _CMS = r"(?:wp-(?:admin|login|content|includes|config)|administrator|xmlrpc)\.?(?:php)?"
 _CMS_TOKENS = r"wp-(?:admin|login|content|includes|config)|administrator|xmlrpc"
@@ -56,18 +57,20 @@ V440_LANGUAGE_ROW = _path_only_pattern(r"(?:language|languages)")
 V440_README_ROW = _path_only_pattern(_README, r"(?:\.[\w.\-~%]*)?")
 V440_INICIO_ROW = _path_only_pattern(r"inicio\.html?")
 
-CMS_TOKEN_PATTERN = re.compile(_CMS_TOKENS, re.IGNORECASE)
+CMS_TOKEN_SOURCE = _CMS_TOKENS
 
-NAMED_FLOOR_TOKEN_PATTERNS: dict[str, re.Pattern[str]] = {
-    V440_CMS_ROW: CMS_TOKEN_PATTERN,
-    V440_MANAGEMENT_ROW: re.compile(_MANAGEMENT_TOKENS, re.IGNORECASE),
-    V440_SYSTEM_VERSION_ROOT_ROW: re.compile(r"system|version", re.IGNORECASE),
-    V440_LANGUAGE_ROW: re.compile(r"language|languages", re.IGNORECASE),
-    V440_README_ROW: re.compile(_README_TOKENS, re.IGNORECASE),
-    V440_INICIO_ROW: re.compile(r"inicio\.html?", re.IGNORECASE),
+NAMED_FLOOR_TOKEN_SOURCES: dict[str, str] = {
+    V440_CMS_ROW: CMS_TOKEN_SOURCE,
+    V440_MANAGEMENT_ROW: _MANAGEMENT_TOKENS,
+    V440_SYSTEM_VERSION_ROOT_ROW: r"system|version",
+    V440_LANGUAGE_ROW: r"language|languages",
+    V440_README_ROW: _README_TOKENS,
+    V440_INICIO_ROW: r"inicio\.html?",
 }
 
-SUPERSEDING_ROWS: dict[str, tuple[re.Pattern[str], ...]] = {}
+_COMPILED_ROWS = CompiledOnDemand(re.IGNORECASE)
+
+SUPERSEDING_ROWS: dict[str, tuple[str, ...]] = {}
 
 NAMED_FLOOR_ROWS: tuple[tuple[str, frozenset[str], str], ...] = (
     (V440_CMS_ROW, _CTX_CMS_PROBING, "cms_probing"),
@@ -111,7 +114,7 @@ def source_path_is_a_probe(match: re.Match, context: str) -> bool:
         return "/" in match.group() or "\\" in match.group()
     return not (
         source_path_leaf_in_benign_shape()
-        and _PLAIN_SOURCE_OR_MAP_PATH_END_RE.search(match.group())
+        and _SOURCES_PATTERNS["_PLAIN_SOURCE_OR_MAP_PATH_END_RE"].search(match.group())
     )
 
 
@@ -159,14 +162,17 @@ def _declared_tokens(source: str, match: re.Match) -> set[str]:
     path = match.group().split("?", 1)[0]
     return {
         found.lower().replace("\\", "/")
-        for found in NAMED_FLOOR_TOKEN_PATTERNS[source].findall(path)
+        for found in _COMPILED_ROWS[NAMED_FLOOR_TOKEN_SOURCES[source]].findall(path)
     }
 
 
 def named_floor_row_is_not_the_apps_own_route(
     source: str, match: re.Match, context: str
 ) -> bool:
-    if any(row.search(match.group()) for row in SUPERSEDING_ROWS.get(source, ())):
+    if any(
+        _COMPILED_ROWS[row].search(match.group())
+        for row in SUPERSEDING_ROWS.get(source, ())
+    ):
         return False
     if not is_the_request_url_path(context):
         return True

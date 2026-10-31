@@ -3,6 +3,8 @@ import re
 from collections.abc import Iterator, Mapping
 from typing import NamedTuple
 
+from guard_core._lazy_patterns import LazyPatterns, module_attribute_lookup
+
 
 class SourcePathShape(NamedTuple):
     """A JSON shape whose values are file paths a webhook lists, not a probe.
@@ -124,16 +126,27 @@ def benign_shape_grants(
 # Relative, with no "." or ".." segment, no encoding, no separator or suffix trick:
 # the shape of a file name a push lists, which a traversal, an absolute path or a
 # trick suffix such as ";.jpg" or "%00" is not. An editor backup ends in one "~".
-_PLAIN_RELATIVE_FILE_PATH_RE = re.compile(
-    r"(?:(?!\.\.?/)[\w.\-]+/)*(?!\.\.?\s*\Z)[\w.\-]+~?\s*\Z"
+_PATTERNS = LazyPatterns(
+    {
+        "_PLAIN_RELATIVE_FILE_PATH_RE": (
+            r"(?:(?!\.\.?/)[\w.\-]+/)*(?!\.\.?\s*\Z)[\w.\-]+~?\s*\Z",
+            0,
+        ),
+    }
 )
+_lookup = module_attribute_lookup(_PATTERNS)
+
+
+def __getattr__(name: str) -> re.Pattern[str]:
+    return _lookup(name)
 
 
 def mark_benign_shape_path(path: str, grants: frozenset[str]) -> BenignShapePath:
     marked = BenignShapePath(path)
     marked.grants = (
         grants
-        if NAMED_FILES not in grants or _PLAIN_RELATIVE_FILE_PATH_RE.match(path)
+        if NAMED_FILES not in grants
+        or _PATTERNS["_PLAIN_RELATIVE_FILE_PATH_RE"].match(path)
         else grants - {NAMED_FILES}
     )
     return marked

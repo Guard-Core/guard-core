@@ -15,6 +15,7 @@ from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Protocol, TypeVar
 
+from guard_core._lazy_patterns import LazyPatterns, module_attribute_lookup
 from guard_core._security_headers_defaults import (
     SECURITY_HEADER_NAMES,
     security_headers_are_off,
@@ -306,30 +307,34 @@ def validate_cors_override(keys: Mapping[str, object]) -> None:
             raise ValueError(f"{name} must be {expected}")
 
 
-_ORIGIN_TOKEN_RE = re.compile(
-    r"(?:\*|null|[A-Za-z][A-Za-z0-9+.-]*://[^\s/?#@\\\x00-\x1f\x7f]+/?)"
-)
-
-
-_CONTROL_CHARACTER_RE = re.compile(r"[\x00-\x1f\x7f]")
-
-
 def has_control_character(value: str) -> bool:
-    return _CONTROL_CHARACTER_RE.search(value) is not None
+    return _PATTERNS["_CONTROL_CHARACTER_RE"].search(value) is not None
 
 
 def is_clean_cors_value(value: str) -> bool:
     return not has_control_character(value)
 
 
-_HTTP_TOKEN_RE = re.compile(r"[!#$%&'*+.^_`|~0-9A-Za-z-]+")
-
-
 def is_http_token(value: str) -> bool:
-    return _HTTP_TOKEN_RE.fullmatch(value) is not None
+    return _PATTERNS["_HTTP_TOKEN_RE"].fullmatch(value) is not None
 
 
-_HEADER_VALUE_FORBIDDEN_RE = re.compile(r"[^\t\x20-\x7e\x80-\xff]")
+_PATTERNS = LazyPatterns(
+    {
+        "_ORIGIN_TOKEN_RE": (
+            r"(?:\*|null|[A-Za-z][A-Za-z0-9+.-]*://[^\s/?#@\\\x00-\x1f\x7f]+/?)",
+            0,
+        ),
+        "_CONTROL_CHARACTER_RE": (r"[\x00-\x1f\x7f]", 0),
+        "_HTTP_TOKEN_RE": (r"[!#$%&'*+.^_`|~0-9A-Za-z-]+", 0),
+        "_HEADER_VALUE_FORBIDDEN_RE": (r"[^\t\x20-\x7e\x80-\xff]", 0),
+    }
+)
+_lookup = module_attribute_lookup(_PATTERNS)
+
+
+def __getattr__(name: str) -> re.Pattern[str]:
+    return _lookup(name)
 
 
 def checked_header_name(name: str) -> str:
@@ -344,7 +349,7 @@ def checked_header_value(value: str) -> str:
     if len(value) > 8192:
         raise ValueError(f"Header value too long: {len(value)} bytes")
     sanitized = "".join(char for char in value if ord(char) >= 32 or char == "\t")
-    if _HEADER_VALUE_FORBIDDEN_RE.search(sanitized):
+    if _PATTERNS["_HEADER_VALUE_FORBIDDEN_RE"].search(sanitized):
         raise ValueError(
             "Invalid header value contains a character a response cannot carry"
         )
@@ -393,7 +398,7 @@ def checked_security_headers_config(raw: Mapping[str, object]) -> None:
 
 
 def is_valid_cors_origin(value: str) -> bool:
-    return _ORIGIN_TOKEN_RE.fullmatch(value) is not None
+    return _PATTERNS["_ORIGIN_TOKEN_RE"].fullmatch(value) is not None
 
 
 CORS_VALUE_CHECKS: dict[str, Callable[[str], bool]] = {

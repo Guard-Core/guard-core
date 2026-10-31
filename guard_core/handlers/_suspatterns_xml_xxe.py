@@ -2,29 +2,42 @@ import bisect
 import re
 from collections.abc import Iterator
 
+from guard_core._lazy_patterns import LazyPatterns, module_attribute_lookup
 from guard_core.handlers._suspatterns_sources import (
     _XML_XXE_PUBLIC_EXTERNAL_DTD_RE,
 )
 
-_XML_XXE_PUBLIC_EXTERNAL_DTD_COMPILED_RE = re.compile(
-    _XML_XXE_PUBLIC_EXTERNAL_DTD_RE, re.IGNORECASE
-)
 _XML_XXE_DOCTYPE_RE = re.compile(r"<!DOCTYPE", re.IGNORECASE)
 _XML_XXE_PUBLIC_RE = re.compile(r"PUBLIC", re.IGNORECASE)
 _XML_XXE_QUOTE_CHARS = frozenset("\"'")
-_XML_XXE_SCHEME_RE = re.compile(r"https?://", re.IGNORECASE)
-_XML_XXE_W3_ORG_RE = re.compile(r"(?:www\.)?w3\.org/", re.IGNORECASE)
 _XML_XXE_CLASS12_BOUNDARY_RE = re.compile(r"[>\[]")
-_XML_XXE_CLASS3_BOUNDARY_RE = re.compile(r"[\"'>]")
-_XML_XXE_VALIDATED_SPAN_RE = re.compile(r".*", re.DOTALL)
 _XML_SYSTEM_PREFIX_RE = re.compile(r"<!(?:ENTITY|DOCTYPE)", re.IGNORECASE)
-_XML_SYSTEM_KEYWORD_RE = re.compile(r"SYSTEM", re.IGNORECASE)
+_PATTERNS = LazyPatterns(
+    {
+        "_XML_XXE_PUBLIC_EXTERNAL_DTD_COMPILED_RE": (
+            _XML_XXE_PUBLIC_EXTERNAL_DTD_RE,
+            re.IGNORECASE,
+        ),
+        "_XML_XXE_SCHEME_RE": (r"https?://", re.IGNORECASE),
+        "_XML_XXE_W3_ORG_RE": (r"(?:www\.)?w3\.org/", re.IGNORECASE),
+        "_XML_XXE_CLASS3_BOUNDARY_RE": (r"[\"'>]", 0),
+        "_XML_XXE_VALIDATED_SPAN_RE": (r".*", re.DOTALL),
+        "_XML_SYSTEM_KEYWORD_RE": (r"SYSTEM", re.IGNORECASE),
+    }
+)
+_lookup = module_attribute_lookup(_PATTERNS)
+
+
+def __getattr__(name: str) -> re.Pattern[str]:
+    return _lookup(name)
+
+
 _XML_ENTITY_PREFIX_RE = re.compile(r"<!ENTITY", re.IGNORECASE)
 _XML_GT_RE = re.compile(r">")
 
 
 def _xml_validated_match(text: str, start: int, end: int) -> re.Match:
-    match = _XML_XXE_VALIDATED_SPAN_RE.match(text, start, end)
+    match = _PATTERNS["_XML_XXE_VALIDATED_SPAN_RE"].match(text, start, end)
     if match is None:
         raise RuntimeError("the validated XML span did not match")
     return match
@@ -40,7 +53,7 @@ def _xml_system_finditer(text: str) -> Iterator[re.Match]:
         if end is None:
             return
         last_end = end + 1
-        if _XML_SYSTEM_KEYWORD_RE.search(text, prefix.end() + 1, end - 1):
+        if _PATTERNS["_XML_SYSTEM_KEYWORD_RE"].search(text, prefix.end() + 1, end - 1):
             yield _xml_validated_match(text, prefix.start(), last_end)
 
 
@@ -77,11 +90,11 @@ def _xml_xxe_scheme_completion_end(
 ) -> int | None:
     if scheme_start == 0 or text[scheme_start - 1] not in _XML_XXE_QUOTE_CHARS:
         return None
-    scheme_match = _XML_XXE_SCHEME_RE.match(text, scheme_start)
+    scheme_match = _PATTERNS["_XML_XXE_SCHEME_RE"].match(text, scheme_start)
     if scheme_match is None:
         return None
     scheme_end = scheme_match.end()
-    if _XML_XXE_W3_ORG_RE.match(text, scheme_end) is not None:
+    if _PATTERNS["_XML_XXE_W3_ORG_RE"].match(text, scheme_end) is not None:
         return None
     return _xml_xxe_quoted_url_end(
         text, scheme_end, class12_boundaries, class3_boundaries
@@ -112,7 +125,7 @@ def _xml_xxe_valid_quote_completions(
 ) -> tuple[list[int], dict[int, int]]:
     quote_positions: list[int] = []
     quote_to_final_gt: dict[int, int] = {}
-    for scheme_match in _XML_XXE_SCHEME_RE.finditer(text):
+    for scheme_match in _PATTERNS["_XML_XXE_SCHEME_RE"].finditer(text):
         final_gt = _xml_xxe_scheme_completion_end(
             text, scheme_match.start(), class12_boundaries, class3_boundaries
         )
@@ -165,7 +178,9 @@ def _xml_xxe_precompute(text: str) -> _XmlXxePrecomputed | None:
     class12_boundaries = [
         m.start() for m in _XML_XXE_CLASS12_BOUNDARY_RE.finditer(text)
     ]
-    class3_boundaries = [m.start() for m in _XML_XXE_CLASS3_BOUNDARY_RE.finditer(text)]
+    class3_boundaries = [
+        m.start() for m in _PATTERNS["_XML_XXE_CLASS3_BOUNDARY_RE"].finditer(text)
+    ]
     quote_positions, quote_to_final_gt = _xml_xxe_valid_quote_completions(
         text, class12_boundaries, class3_boundaries
     )

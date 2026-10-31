@@ -2,15 +2,11 @@ import ipaddress
 import re
 
 from guard_core.handlers._suspatterns_sources import (
-    _LDAP_BREAKOUT_ATTACK_TOKEN_RE,
     _LDAP_BREAKOUT_BACKWARD_BOUNDARY_CHARS,
     _LDAP_BREAKOUT_FORWARD_BOUNDARY_CHARS,
     _LDAP_BREAKOUT_LOCAL_SCAN_CHARS,
-    _LDAP_BREAKOUT_WILDCARD_CLAUSE_END_RE,
-    _LDAP_FILTER_EXPRESSION_STRUCTURE_RE,
-    _LDAP_PAREN_CONJUNCTION_FOLLOWUP_ATTR_RE,
-    _LDAP_PAREN_CONJUNCTION_FOLLOWUP_SYMBOL_RE,
 )
+from guard_core.handlers._suspatterns_sources import _PATTERNS as _SOURCES_PATTERNS
 
 _LOG4SHELL_JNDI_LOOKUP_RE = (
     r"(?i)\$\{(?:jndi:(?:ldap|rmi|dns)://"
@@ -142,7 +138,7 @@ def _ldap_filter_expression_forward_extent(
     position = start
     depth = 0
     while True:
-        boundary = _LDAP_FILTER_EXPRESSION_STRUCTURE_RE.search(
+        boundary = _SOURCES_PATTERNS["_LDAP_FILTER_EXPRESSION_STRUCTURE_RE"].search(
             text, position, scan_limit
         )
         if boundary is None:
@@ -180,13 +176,15 @@ def _ldap_wildcard_chain_is_injection(match: re.Match) -> bool:
     wildcard_adjacent = match.group().startswith("*")
     depth_proves_breakout = depth <= 0 and (wildcard_adjacent or not depth_unresolved)
     depth_or_wildcard_clause = depth_proves_breakout or bool(
-        _LDAP_BREAKOUT_WILDCARD_CLAUSE_END_RE.search(backward_window)
+        _SOURCES_PATTERNS["_LDAP_BREAKOUT_WILDCARD_CLAUSE_END_RE"].search(
+            backward_window
+        )
     )
     if not depth_or_wildcard_clause:
         return False
     return bool(
-        _LDAP_BREAKOUT_ATTACK_TOKEN_RE.search(backward_window)
-        or _LDAP_BREAKOUT_ATTACK_TOKEN_RE.search(forward_window)
+        _SOURCES_PATTERNS["_LDAP_BREAKOUT_ATTACK_TOKEN_RE"].search(backward_window)
+        or _SOURCES_PATTERNS["_LDAP_BREAKOUT_ATTACK_TOKEN_RE"].search(forward_window)
     )
 
 
@@ -195,6 +193,8 @@ def _ldap_paren_conjunction_is_injection(match: re.Match) -> bool:
     scan_limit = _ldap_next_candidate_scan_limit(match, match.end())
     tail_end = _ldap_filter_expression_forward_extent(text, match.end(), scan_limit)
     tail = text[match.end() : tail_end]
-    if _LDAP_PAREN_CONJUNCTION_FOLLOWUP_SYMBOL_RE.match(tail):
+    if _SOURCES_PATTERNS["_LDAP_PAREN_CONJUNCTION_FOLLOWUP_SYMBOL_RE"].match(tail):
         return True
-    return "=" in tail and bool(_LDAP_PAREN_CONJUNCTION_FOLLOWUP_ATTR_RE.match(tail))
+    return "=" in tail and bool(
+        _SOURCES_PATTERNS["_LDAP_PAREN_CONJUNCTION_FOLLOWUP_ATTR_RE"].match(tail)
+    )

@@ -3,6 +3,7 @@ import json
 import logging
 import re
 
+from guard_core._lazy_patterns import LazyPatterns, module_attribute_lookup
 from guard_core._utils.pair_value_scan import _bounded_percent_decode
 from guard_core._utils.sensitive_names import name_is_sensitive
 
@@ -41,7 +42,16 @@ def _sanitize_for_log(value: str) -> str:
     return "".join(out)
 
 
-_LONE_SURROGATE_OUTSIDE_ESCAPED_BYTES_RE = re.compile("[\ud800-\udc7f\udd00-\udfff]")
+_PATTERNS = LazyPatterns(
+    {
+        "_LONE_SURROGATE_OUTSIDE_ESCAPED_BYTES_RE": ("[\ud800-\udc7f\udd00-\udfff]", 0),
+    }
+)
+_lookup = module_attribute_lookup(_PATTERNS)
+
+
+def __getattr__(name: str) -> re.Pattern[str]:
+    return _lookup(name)
 
 
 def _sanitize_for_reporting(value: str) -> str:
@@ -51,7 +61,7 @@ def _sanitize_for_reporting(value: str) -> str:
     surrogate, which JSON ``\\ud800`` produces and ``surrogateescape`` cannot
     encode, shows as ``\\uXXXX`` instead of raising.
     """
-    value = _LONE_SURROGATE_OUTSIDE_ESCAPED_BYTES_RE.sub(
+    value = _PATTERNS["_LONE_SURROGATE_OUTSIDE_ESCAPED_BYTES_RE"].sub(
         lambda lone: f"\\u{ord(lone.group()):04x}", value
     )
     return value.encode("utf-8", errors="surrogateescape").decode(

@@ -2,14 +2,15 @@ import re
 from collections.abc import Callable
 from urllib.parse import unquote, unquote_plus
 
+from guard_core._lazy_patterns import LazyPatterns, module_attribute_lookup
 from guard_core.sync._utils.pair_hidden_assign import _handle_no_literal_assign
 from guard_core.sync._utils.pair_value_scan import (
     _JSON_LIKELY_CHARS,
-    _PERCENT_ESCAPE_RE,
     _QUOTE_CHARS,
     _redact_sensitive_pair_value,
     _try_redact_json_span,
 )
+from guard_core.sync._utils.pair_value_scan import _PATTERNS as _PAIR_VALUE_PATTERNS
 from guard_core.sync._utils.sensitive_names import name_is_sensitive
 
 _MAX_DECODE_ROUNDS = 3
@@ -39,16 +40,25 @@ _PAIR_HEAD_RE = re.compile(
     rf"(?P<name>\"{_NAME_CORE}\"|'{_NAME_CORE}'|{_NAME_CORE})"
     r"(?P<assign>[^\S\r\n]*[=:][=:]*(?:[^\S\r\n]+[=:]*)*)?"
 )
-_NON_NAME_RUN_RE = re.compile(r"[^A-Za-z0-9_.\-%+'\"]+")
 
 
 def _advance_past_non_name(text: str, pos: int) -> int:
-    non_name_match = _NON_NAME_RUN_RE.match(text, pos)
+    non_name_match = _PATTERNS["_NON_NAME_RUN_RE"].match(text, pos)
     return non_name_match.end() if non_name_match is not None else pos + 1
 
 
 _PLUS_SENTINEL = ""
-_NAME_BOUNDARY_RE = re.compile(rf"[^A-Za-z0-9_.\-%{_PLUS_SENTINEL}]")
+_PATTERNS = LazyPatterns(
+    {
+        "_NON_NAME_RUN_RE": (r"[^A-Za-z0-9_.\-%+'\"]+", 0),
+        "_NAME_BOUNDARY_RE": (rf"[^A-Za-z0-9_.\-%{_PLUS_SENTINEL}]", 0),
+    }
+)
+_lookup = module_attribute_lookup(_PATTERNS)
+
+
+def __getattr__(name: str) -> re.Pattern[str]:
+    return _lookup(name)
 
 
 def _finish_name_segment(segment: str) -> str:
@@ -58,7 +68,7 @@ def _finish_name_segment(segment: str) -> str:
 def _decode_pair_name_slow(bare_name: str, sensitive: frozenset[str]) -> str:
     protected = bare_name.replace("+", _PLUS_SENTINEL)
     decoded = _bounded_percent_decode(protected, unquote).strip()
-    boundaries = list(_NAME_BOUNDARY_RE.finditer(decoded))
+    boundaries = list(_PATTERNS["_NAME_BOUNDARY_RE"].finditer(decoded))
     if not boundaries:
         return _finish_name_segment(decoded)
     starts = [0] + [boundary.end() for boundary in boundaries]
@@ -95,7 +105,8 @@ def _resolve_pair_result(
     max_depth: int,
 ) -> tuple[str, int] | None:
     if name_is_sensitive(decoded_name, sensitive) or (
-        "%" in decoded_name and _PERCENT_ESCAPE_RE.search(decoded_name) is not None
+        "%" in decoded_name
+        and _PAIR_VALUE_PATTERNS["_PERCENT_ESCAPE_RE"].search(decoded_name) is not None
     ):
         return _redact_sensitive_pair_value(text, value_start)
     if text[value_start : value_start + 1] in _JSON_LIKELY_CHARS:

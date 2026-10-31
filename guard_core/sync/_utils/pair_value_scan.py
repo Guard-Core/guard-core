@@ -3,6 +3,8 @@ import re
 from collections.abc import Callable
 from urllib.parse import quote_plus, unquote_plus
 
+from guard_core._lazy_patterns import LazyPatterns, module_attribute_lookup
+
 _MAX_DECODE_ROUNDS = 3
 _JSON_START_CHARS = frozenset("{[")
 
@@ -27,17 +29,33 @@ _EXTENDED_NAME_RUN_SOURCE = (
     rf"(?={_NAME_CHAR_CLASS}|{_PERCENT_ESCAPE_SOURCE})"
     rf"{_NAME_CHAR_CLASS}*(?:{_PERCENT_ESCAPE_SOURCE}{_NAME_CHAR_CLASS}*)*"
 )
-_EXTENDED_NAME_RUN_RE = re.compile(_EXTENDED_NAME_RUN_SOURCE)
-_ASSIGN_RE = re.compile(r"[^\S\r\n]*[=:][^\S\r\n]*")
+_ASSIGN_SOURCE = r"[^\S\r\n]*[=:][^\S\r\n]*"
+_PAIR_START_SOURCE = _EXTENDED_NAME_RUN_SOURCE + _ASSIGN_SOURCE
+_PATTERNS = LazyPatterns(
+    {
+        "_EXTENDED_NAME_RUN_RE": (_EXTENDED_NAME_RUN_SOURCE, 0),
+        "_ASSIGN_RE": (_ASSIGN_SOURCE, 0),
+        "_PERCENT_ESCAPE_RE": (_PERCENT_ESCAPE_SOURCE, 0),
+        "_PAIR_START_RE": (_PAIR_START_SOURCE, 0),
+        "_SOFT_GAP_THEN_PAIR_RE": (r"([^\S\r\n]*)(" + _PAIR_START_SOURCE + ")?", 0),
+        "_SECRET_STOP_RE": (r"[&;\r\n<>'\"\s,?|/\[\]{}()]", 0),
+    }
+)
+_lookup = module_attribute_lookup(_PATTERNS)
+
+
+def __getattr__(name: str) -> re.Pattern[str]:
+    return _lookup(name)
+
+
 _HARD_SEP_CHARS = frozenset("&;,?|/[]{}()\r\n<>")
 _QUOTE_CHARS = frozenset("'\"")
 _HARD_WS_CHARS = frozenset("\r\n")
-_PERCENT_ESCAPE_RE = re.compile(r"%[0-9A-Fa-f]{2}")
 _REDACTED_MARKER = "[REDACTED]"
 
 
 def _has_undecoded_percent_escape(text: str) -> bool:
-    return "%" in text and _PERCENT_ESCAPE_RE.search(text) is not None
+    return "%" in text and _PATTERNS["_PERCENT_ESCAPE_RE"].search(text) is not None
 
 
 def _is_soft_ws(ch: str) -> bool:
@@ -45,10 +63,10 @@ def _is_soft_ws(ch: str) -> bool:
 
 
 def _pair_starts_at(text: str, pos: int) -> bool:
-    name_match = _EXTENDED_NAME_RUN_RE.match(text, pos)
+    name_match = _PATTERNS["_EXTENDED_NAME_RUN_RE"].match(text, pos)
     if name_match is None:
         return False
-    return _ASSIGN_RE.match(text, name_match.end()) is not None
+    return _PATTERNS["_ASSIGN_RE"].match(text, name_match.end()) is not None
 
 
 def _skip_soft_whitespace(text: str, pos: int) -> int:
@@ -85,13 +103,10 @@ def _unquoted_value_extent(
 _PAIR_END_CHARS = frozenset("&;\r\n<>")
 _PAIR_OPENER_CHARS = _HARD_SEP_CHARS - _PAIR_END_CHARS
 _PAIR_VALUE_NON_START_CHARS = _HARD_SEP_CHARS | {" ", "="}
-_PAIR_START_RE = re.compile(_EXTENDED_NAME_RUN_RE.pattern + _ASSIGN_RE.pattern)
-_SOFT_GAP_THEN_PAIR_RE = re.compile(r"([^\S\r\n]*)(" + _PAIR_START_RE.pattern + ")?")
-_SECRET_STOP_RE = re.compile(r"[&;\r\n<>'\"\s,?|/\[\]{}()]")
 
 
 def _pair_with_value_starts_at(text: str, pos: int) -> bool:
-    pair_match = _PAIR_START_RE.match(text, pos)
+    pair_match = _PATTERNS["_PAIR_START_RE"].match(text, pos)
     if pair_match is None:
         return False
     value_pos = pair_match.end()
@@ -101,7 +116,7 @@ def _pair_with_value_starts_at(text: str, pos: int) -> bool:
 def _secret_value_extent(text: str, start: int) -> int:
     i = start
     while True:
-        stop = _SECRET_STOP_RE.search(text, i)
+        stop = _PATTERNS["_SECRET_STOP_RE"].search(text, i)
         if stop is None:
             return len(text)
         i = stop.start()
@@ -113,7 +128,7 @@ def _secret_value_extent(text: str, start: int) -> int:
                 return i
             i += 1
             continue
-        gap = next(_SOFT_GAP_THEN_PAIR_RE.finditer(text, i))
+        gap = next(_PATTERNS["_SOFT_GAP_THEN_PAIR_RE"].finditer(text, i))
         if gap.group(2) is not None:
             return i
         i = gap.end(1)

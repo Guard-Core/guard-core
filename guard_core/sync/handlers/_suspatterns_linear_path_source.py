@@ -1,6 +1,7 @@
 import re
 from collections.abc import Iterator
 
+from guard_core._lazy_patterns import LazyPatterns, module_attribute_lookup
 from guard_core.sync.handlers._suspatterns_literals import _PARSER, source_digest
 
 SEGMENT_STEP_RE = re.compile(r"[\w.\-~%]+[/\\]")
@@ -15,7 +16,18 @@ _LEADING_SEPARATORS = (r"\A[/\\]?", r"\A[/\\]")
 _STRUCTURE_RE = re.compile(r"\\.|[\[\]()|]", re.DOTALL)
 _STRUCTURE_CHARACTERS = "()|"
 _GROUP_OPENER_RE = re.compile(r"\(\?P<\w+>|\(\?:|\(")
-_LITERAL_PIECE_RE = re.compile(r"(?:[A-Za-z0-9_\-|?():]|\\[./\\]|\[/\\\\\])+\Z")
+_PATTERNS = LazyPatterns(
+    {
+        "_LITERAL_PIECE_RE": (r"(?:[A-Za-z0-9_\-|?():]|\\[./\\]|\[/\\\\\])+\Z", 0),
+    }
+)
+_lookup = module_attribute_lookup(_PATTERNS)
+
+
+def __getattr__(name: str) -> re.Pattern[str]:
+    return _lookup(name)
+
+
 _FLAT_EQUIVALENTS = (
     (r"(?:(?![/\\?])\S)*", r"[^\s/\\?]*"),
     (r"(?:(?!\n).)*", r".*"),
@@ -94,7 +106,7 @@ def split_on_chains(source: str) -> tuple[list[str], list[str | None]]:
 
 def _is_separator_terminated_literal(piece: str) -> bool:
     return (
-        _LITERAL_PIECE_RE.match(piece) is not None
+        _PATTERNS["_LITERAL_PIECE_RE"].match(piece) is not None
         and piece.endswith(SEPARATOR)
         and piece.count(SEPARATOR) == 1
     )

@@ -42,11 +42,13 @@ SKIP_SRC = {
     "_callable_shape.py",
     "_security_headers_record_validation.py",
     "_builtin_import_rows.py",
+    "_lazy_patterns.py",
     "_builtin_import_table.py",
 }
 
 SKIP_TESTS = {
     "test_import_rows.py",
+    "test_lazy_patterns.py",
     "test_models_lazy_sync_config.py",
     "test_import_surface_preserved.py",
     "mock_download.py",

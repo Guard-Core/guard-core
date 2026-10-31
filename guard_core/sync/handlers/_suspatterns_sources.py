@@ -2,6 +2,8 @@ import re
 from collections.abc import Iterable, Mapping
 from typing import TYPE_CHECKING, TypeGuard
 
+from guard_core._lazy_patterns import LazyPatterns, module_attribute_lookup
+
 if TYPE_CHECKING:
     from guard_core.models import SyncSecurityConfig
 
@@ -198,9 +200,6 @@ def _root_path_pattern(required: str, trailing: str = "") -> str:
 
 
 _PATH_ONLY_SEGMENT_END_RE = r"(?![^/\\?\s])"
-_PATH_ONLY_TAIL_RE = re.compile(
-    rf"(?:{_PATH_ONLY_SEP_RE}[\w.\-~%/\\]*)?(?:\?\S*)?\s*\Z"
-)
 
 
 def _path_only_extension_pattern(required: str) -> str:
@@ -214,7 +213,10 @@ def _path_only_extension_pattern(required: str) -> str:
 
 
 def path_only_extension_tail_is_valid(match: re.Match[str]) -> bool:
-    return _PATH_ONLY_TAIL_RE.fullmatch(match.string, match.end("head")) is not None
+    return (
+        _PATTERNS["_PATH_ONLY_TAIL_RE"].fullmatch(match.string, match.end("head"))
+        is not None
+    )
 
 
 # Expansion over v4.4.0 (D-75 step 4): alternate server-side extensions, and the
@@ -242,9 +244,6 @@ _SENSITIVE_SOURCE_BARE_EXTENSIONS = (
 )
 _SENSITIVE_SOURCE_EXTENSIONS = (
     _SENSITIVE_SOURCE_BARE_EXTENSIONS + _EXTENSION_TRICK_SUFFIX
-)
-_PLAIN_SOURCE_OR_MAP_PATH_END_RE = re.compile(
-    rf"(?:{_SENSITIVE_SOURCE_BARE_EXTENSIONS}|\.map)\s*\Z"
 )
 _RECON_EXTENSIONS = (
     r"\.(?:asp|aspx|j(?:s[pa]|html)|shtml|c(?:fm|gi|er)|do|lua|inc|woa|nsf|esp"
@@ -311,9 +310,6 @@ _LDAP_WILDCARD_CHAIN_RE = rf"\*\)[|&]?\(+\s*{_LDAP_ATTR_EXTENSIBLE_MATCH_RE}"
 _LDAP_BREAKOUT_BACKWARD_BOUNDARY_CHARS = frozenset("\"'\n&")
 _LDAP_BREAKOUT_FORWARD_BOUNDARY_CHARS = frozenset("\"'\n")
 _LDAP_BREAKOUT_LOCAL_SCAN_CHARS = 40
-_LDAP_BREAKOUT_WILDCARD_CLAUSE_END_RE = re.compile(r"=[^()]+\*\s*\Z")
-_LDAP_BREAKOUT_ATTACK_TOKEN_RE = re.compile(r"\*|\(\s*[&|!]|\x00|\(\s*\(|~=|>=|<=")
-_LDAP_FILTER_EXPRESSION_STRUCTURE_RE = re.compile(r"[()\"'\n]")
 
 _PROTO_POLLUTION_PROTOTYPE_ASSIGN_RE = r"Object\.prototype\.[A-Za-z_$][\w$]*\s*=(?!=)"
 _PROTO_POLLUTION_SET_PROTOTYPE_OF_RE = r"\b(?:Object|Reflect)\.setPrototypeOf\s*\("
@@ -354,10 +350,6 @@ _JS_DYNAMIC_EVAL_TIMER_STRING_ARG_RE = r"\b(?:setTimeout|setInterval)\s*\(\s*[\"
 
 
 _LDAP_PAREN_CONJUNCTION_RE = r"\(\s*[&|]\s*"
-_LDAP_PAREN_CONJUNCTION_FOLLOWUP_SYMBOL_RE = re.compile(r"\A\s*(?:[!(]|\*)")
-_LDAP_PAREN_CONJUNCTION_FOLLOWUP_ATTR_RE = re.compile(
-    rf"\A\s*{_LDAP_ATTR_EXTENSIBLE_MATCH_RE}"
-)
 
 _LDAP_WILDCARD_EQUALS_RE = (
     rf"\*\s*\)+\s*(?:[|&!]\s*)?\(+\s*(?:[&|!]|{_LDAP_ATTR_EXTENSIBLE_MATCH_RE})"
@@ -381,15 +373,43 @@ _LDAP_NULL_BYTE_BARE_RE = r"\*\)\)+(?:%00|\\u0000|\\x00|\\0|\x00)"
 _LDAP_NULL_BYTE_DECODED_ATTR_RE = r"[a-zA-Z][\w-]*\s*=[\d\w\s]*\*\)+\x00"
 _LDAP_NULL_BYTE_DECODED_BARE_RE = r"\*\)\)+\x00"
 
-_LDAP_NULL_BYTE_ATTR_COMPILED_RE = re.compile(_LDAP_NULL_BYTE_ATTR_RE, re.IGNORECASE)
-_LDAP_NULL_BYTE_DECODED_ATTR_COMPILED_RE = re.compile(
-    _LDAP_NULL_BYTE_DECODED_ATTR_RE, re.IGNORECASE
+_PATTERNS = LazyPatterns(
+    {
+        "_PATH_ONLY_TAIL_RE": (
+            rf"(?:{_PATH_ONLY_SEP_RE}[\w.\-~%/\\]*)?(?:\?\S*)?\s*\Z",
+            0,
+        ),
+        "_PLAIN_SOURCE_OR_MAP_PATH_END_RE": (
+            rf"(?:{_SENSITIVE_SOURCE_BARE_EXTENSIONS}|\.map)\s*\Z",
+            0,
+        ),
+        "_LDAP_BREAKOUT_WILDCARD_CLAUSE_END_RE": (r"=[^()]+\*\s*\Z", 0),
+        "_LDAP_BREAKOUT_ATTACK_TOKEN_RE": (r"\*|\(\s*[&|!]|\x00|\(\s*\(|~=|>=|<=", 0),
+        "_LDAP_FILTER_EXPRESSION_STRUCTURE_RE": (r"[()\"'\n]", 0),
+        "_LDAP_PAREN_CONJUNCTION_FOLLOWUP_SYMBOL_RE": (r"\A\s*(?:[!(]|\*)", 0),
+        "_LDAP_PAREN_CONJUNCTION_FOLLOWUP_ATTR_RE": (
+            rf"\A\s*{_LDAP_ATTR_EXTENSIBLE_MATCH_RE}",
+            0,
+        ),
+        "_LDAP_NULL_BYTE_ATTR_COMPILED_RE": (_LDAP_NULL_BYTE_ATTR_RE, re.IGNORECASE),
+        "_LDAP_NULL_BYTE_DECODED_ATTR_COMPILED_RE": (
+            _LDAP_NULL_BYTE_DECODED_ATTR_RE,
+            re.IGNORECASE,
+        ),
+        "_LDAP_NULL_BYTE_TAIL_RE": (r"\*\)+(?:%00|\\u0000|\\x00|\\0|\x00)", 0),
+        "_LDAP_NULL_BYTE_DECODED_TAIL_RE": (r"\*\)+\x00", 0),
+        "_LDAP_NULL_BYTE_VALUE_CHAR_RE": (r"[\d\w\s]", 0),
+        "_LDAP_NULL_BYTE_ATTR_CONTINUATION_CHAR_RE": (r"[\w-]", 0),
+        "_LDAP_NULL_BYTE_ATTR_LEAD_CHAR_RE": (r"[a-zA-Z]", 0),
+    }
 )
-_LDAP_NULL_BYTE_TAIL_RE = re.compile(r"\*\)+(?:%00|\\u0000|\\x00|\\0|\x00)")
-_LDAP_NULL_BYTE_DECODED_TAIL_RE = re.compile(r"\*\)+\x00")
-_LDAP_NULL_BYTE_VALUE_CHAR_RE = re.compile(r"[\d\w\s]")
-_LDAP_NULL_BYTE_ATTR_CONTINUATION_CHAR_RE = re.compile(r"[\w-]")
-_LDAP_NULL_BYTE_ATTR_LEAD_CHAR_RE = re.compile(r"[a-zA-Z]")
+_lookup = module_attribute_lookup(_PATTERNS)
+
+
+def __getattr__(name: str) -> re.Pattern[str]:
+    return _lookup(name)
+
+
 _HTTP_SPLIT_CRLF_RE = r"[\r\n][^\S\r\n]*(?:HTTP\/[0-9.]+|Location:|Set-Cookie:)"
 _SQLI_ORDER_BY_TERMINATOR_RE = (
     r"(?i)\bORDER\s+BY\s+\d+\s*(?:--|#|;|\)|,|/\*|\Z)"

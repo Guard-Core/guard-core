@@ -1,11 +1,24 @@
 import re
 
+from guard_core._lazy_patterns import LazyPatterns, module_attribute_lookup
+
 _SEP = r"[/\\]"
 _CHAR = r"[\w.\-~%]"
 _SEGMENTS = rf"(?:{_CHAR}+{_SEP})*"
 _PATH_CHAR = r"[\w.\-~%/\\]"
 _CHAIN_END = rf"(?!{_CHAR})"
-_PATH_THEN_OPTIONAL_QUERY_THEN_SPACE = re.compile(rf"{_PATH_CHAR}*(?:\?\S*)?\s*\Z")
+_PATTERNS = LazyPatterns(
+    {
+        "_PATH_THEN_OPTIONAL_QUERY_THEN_SPACE": (rf"{_PATH_CHAR}*(?:\?\S*)?\s*\Z", 0),
+    }
+)
+_lookup = module_attribute_lookup(_PATTERNS)
+
+
+def __getattr__(name: str) -> re.Pattern[str]:
+    return _lookup(name)
+
+
 _SCRIPT_EXTENSIONS = r"(?:asp|aspx|php|jsp|pl|cgi|sh)"
 
 _FCKEDITOR_PREFIX = rf"fckeditor{_SEP}editor{_SEP}filemanager{_SEP}"
@@ -88,4 +101,7 @@ PROBE_CHAIN_ROW = (
 
 
 def chain_row_tail_is_query_or_space(match: re.Match[str]) -> bool:
-    return _PATH_THEN_OPTIONAL_QUERY_THEN_SPACE.fullmatch(match.string) is not None
+    return (
+        _PATTERNS["_PATH_THEN_OPTIONAL_QUERY_THEN_SPACE"].fullmatch(match.string)
+        is not None
+    )
