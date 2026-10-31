@@ -12,11 +12,7 @@ _PATTERNS = LazyPatterns(
         "_PATH_THEN_OPTIONAL_QUERY_THEN_SPACE": (rf"{_PATH_CHAR}*(?:\?\S*)?\s*\Z", 0),
     }
 )
-_lookup = module_attribute_lookup(_PATTERNS)
-
-
-def __getattr__(name: str) -> re.Pattern[str]:
-    return _lookup(name)
+__getattr__ = module_attribute_lookup(_PATTERNS)
 
 
 _SCRIPT_EXTENSIONS = r"(?:asp|aspx|php|jsp|pl|cgi|sh)"

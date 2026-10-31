@@ -1,5 +1,14 @@
+import functools
 import re
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
+from typing import Protocol
+
+
+class _Table(Protocol):
+    @property
+    def _definitions(self) -> Iterable[str]: ...
+
+    def __getitem__(self, name: str) -> "re.Pattern[str]": ...
 
 
 class LazyPatterns(dict[str, "re.Pattern[str]"]):
@@ -49,16 +58,34 @@ class LazyPatternMap(Mapping[str, "re.Pattern[str]"]):
         return len(self._sources)
 
 
-def module_attribute_lookup(
-    *tables: LazyPatterns,
-) -> Callable[[str], "re.Pattern[str]"]:
-    """The lookup behind a module ``__getattr__``, so ``from module import NAME``
-    keeps working for a pattern that compiles on first use."""
+class _LazyName:
+    """The class-level attribute of one lazily compiled name: it compiles on its
+    first read and keeps the result on the instance, so later reads are plain
+    dict hits."""
 
-    def lookup(name: str) -> "re.Pattern[str]":
-        for table in tables:
-            if name in table._definitions:
-                return table[name]
-        raise AttributeError(name)
+    __slots__ = ("_name", "_table")
 
-    return lookup
+    def __init__(self, table: _Table, name: str) -> None:
+        self._table = table
+        self._name = name
+
+    def __get__(self, instance: object, owner: type | None = None) -> "re.Pattern[str]":
+        compiled = self._table[self._name]
+        if instance is not None:
+            instance.__dict__[self._name] = compiled
+        return compiled
+
+
+def module_attribute_lookup(*tables: _Table) -> Callable[[str], "re.Pattern[str]"]:
+    """The ``__getattr__`` of a module whose patterns compile on first use, so
+    ``from module import NAME`` keeps working.
+
+    It is built from ``getattr`` on a namespace object, so it runs in C: a name it
+    does not know (the ``__path__`` probe of every ``from module import x`` that
+    runs inside a function) raises AttributeError without a Python frame.
+    """
+    names: dict[str, _LazyName] = {}
+    for table in tables:
+        for name in table._definitions:
+            names.setdefault(name, _LazyName(table, name))
+    return functools.partial(getattr, type("LazyPatternNames", (), names)())

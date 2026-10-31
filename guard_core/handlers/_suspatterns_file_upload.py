@@ -180,11 +180,7 @@ _PATTERNS = LazyPatterns(
         "_FILE_UPLOAD_VALIDATED_SPAN_RE": (r".*", re.DOTALL),
     }
 )
-_lookup = module_attribute_lookup(_PATTERNS)
-
-
-def __getattr__(name: str) -> re.Pattern[str]:
-    return _lookup(name)
+__getattr__ = module_attribute_lookup(_PATTERNS)
 
 
 def _file_upload_match_start(content: str, filename_start: int) -> int | None:

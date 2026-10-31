@@ -25,11 +25,7 @@ _PATTERNS = LazyPatterns(
         "_XML_SYSTEM_KEYWORD_RE": (r"SYSTEM", re.IGNORECASE),
     }
 )
-_lookup = module_attribute_lookup(_PATTERNS)
-
-
-def __getattr__(name: str) -> re.Pattern[str]:
-    return _lookup(name)
+__getattr__ = module_attribute_lookup(_PATTERNS)
 
 
 _XML_ENTITY_PREFIX_RE = re.compile(r"<!ENTITY", re.IGNORECASE)

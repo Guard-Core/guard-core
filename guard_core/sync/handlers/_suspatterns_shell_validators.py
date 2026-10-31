@@ -244,11 +244,7 @@ _PATTERNS = LazyPatterns(
         ),
     }
 )
-_lookup = module_attribute_lookup(_PATTERNS, _SHELL_SOURCES_PATTERNS)
-
-
-def __getattr__(name: str) -> re.Pattern[str]:
-    return _lookup(name)
+__getattr__ = module_attribute_lookup(_PATTERNS, _SHELL_SOURCES_PATTERNS)
 
 
 _GLOB_WILDCARD_COMMAND_BOUNDARY_ENDINGS = (";", "|", "`", "&&", "$(")

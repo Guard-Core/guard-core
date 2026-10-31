@@ -1212,14 +1212,10 @@ def scanning_with(manager: SusPatternsManager) -> Iterator[None]:
         _active_sus_patterns.reset(token)
 
 
-_lookup = module_attribute_lookup(
+__getattr__ = module_attribute_lookup(
     _MATCHERS_PATTERNS,
     _SHELL_SOURCES_PATTERNS,
     _SHELL_VALIDATORS_PATTERNS,
     _SOURCES_PATTERNS,
     _XML_XXE_PATTERNS,
 )
-
-
-def __getattr__(name: str) -> re.Pattern[str]:
-    return _lookup(name)

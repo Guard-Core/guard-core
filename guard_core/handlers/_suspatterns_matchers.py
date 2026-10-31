@@ -306,11 +306,9 @@ _PATTERNS = LazyPatterns(
         "_PICKLE_GLOBAL_IDENT_START_RE": (r"[A-Za-z_]", re.IGNORECASE),
     }
 )
-_lookup = module_attribute_lookup(_PATTERNS, _FILE_UPLOAD_PATTERNS, _SOURCES_PATTERNS)
-
-
-def __getattr__(name: str) -> re.Pattern[str]:
-    return _lookup(name)
+__getattr__ = module_attribute_lookup(
+    _PATTERNS, _FILE_UPLOAD_PATTERNS, _SOURCES_PATTERNS
+)
 
 
 _PICKLE_GLOBAL_IDENT_MAX_LEN = 101

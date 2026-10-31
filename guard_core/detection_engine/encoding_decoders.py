@@ -245,11 +245,7 @@ _PATTERNS = LazyPatterns(
         "_LOST_BYTE_PAIR_RE": (f"{_LOST_BYTE}{{2}}", 0),
     }
 )
-_lookup = module_attribute_lookup(_PATTERNS)
-
-
-def __getattr__(name: str) -> re.Pattern[str]:
-    return _lookup(name)
+__getattr__ = module_attribute_lookup(_PATTERNS)
 
 
 _LOST_DOT_RUN_RE = re.compile(

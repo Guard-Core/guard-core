@@ -223,11 +223,7 @@ _PATTERNS = LazyPatterns(
         "_REGEX_GROUP_RE": (r"\(\?P<\w+>[^)]*\)", 0),
     }
 )
-_lookup = module_attribute_lookup(_PATTERNS)
-
-
-def __getattr__(name: str) -> re.Pattern[str]:
-    return _lookup(name)
+__getattr__ = module_attribute_lookup(_PATTERNS)
 
 
 def path_params_without_a_literal_segment_before(

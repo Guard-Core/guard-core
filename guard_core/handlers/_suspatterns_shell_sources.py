@@ -227,8 +227,4 @@ _PATTERNS = LazyPatterns(
         "_SHELL_CHAIN_OPERATOR_RE": (r";|\|\||\||&&", 0),
     }
 )
-_lookup = module_attribute_lookup(_PATTERNS)
-
-
-def __getattr__(name: str) -> re.Pattern[str]:
-    return _lookup(name)
+__getattr__ = module_attribute_lookup(_PATTERNS)

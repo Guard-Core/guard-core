@@ -1,7 +1,6 @@
 import contextvars
 import json
 import logging
-import re
 
 from guard_core._lazy_patterns import LazyPatterns, module_attribute_lookup
 from guard_core._utils.pair_value_scan import _bounded_percent_decode
@@ -47,11 +46,7 @@ _PATTERNS = LazyPatterns(
         "_LONE_SURROGATE_OUTSIDE_ESCAPED_BYTES_RE": ("[\ud800-\udc7f\udd00-\udfff]", 0),
     }
 )
-_lookup = module_attribute_lookup(_PATTERNS)
-
-
-def __getattr__(name: str) -> re.Pattern[str]:
-    return _lookup(name)
+__getattr__ = module_attribute_lookup(_PATTERNS)
 
 
 def _sanitize_for_reporting(value: str) -> str:

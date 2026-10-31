@@ -201,8 +201,4 @@ def _ldap_paren_conjunction_is_injection(match: re.Match) -> bool:
     )
 
 
-_lookup = module_attribute_lookup(_SOURCES_PATTERNS)
-
-
-def __getattr__(name: str) -> re.Pattern[str]:
-    return _lookup(name)
+__getattr__ = module_attribute_lookup(_SOURCES_PATTERNS)

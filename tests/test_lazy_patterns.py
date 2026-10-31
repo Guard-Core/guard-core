@@ -3,6 +3,8 @@ import pkgutil
 import re
 import subprocess
 import sys
+from collections.abc import Callable
+from types import FrameType
 
 import pytest
 
@@ -227,3 +229,42 @@ def test_a_module_that_imported_a_pattern_still_answers_to_its_name(
     holder = importlib.import_module(f"{tree}.{module}")
 
     assert isinstance(getattr(holder, name), re.Pattern)
+
+
+def _python_frames_while(action: Callable[[], None]) -> list[str]:
+    frames: list[str] = []
+
+    def profiler(frame: FrameType, event: str, arg: object) -> None:
+        if event == "call" and frame.f_code is not action.__code__:
+            frames.append(f"{frame.f_code.co_filename}:{frame.f_code.co_name}")
+
+    sys.setprofile(profiler)
+    try:
+        action()
+    finally:
+        sys.setprofile(None)
+    return frames
+
+
+def test_a_probe_for_an_unknown_name_runs_no_python_code() -> None:
+    lookup = module_attribute_lookup(LazyPatterns({"a": ("a", 0)}))
+
+    def probe() -> None:
+        try:
+            lookup("__path__")
+        except AttributeError:
+            pass
+
+    assert _python_frames_while(probe) == []
+
+
+def test_a_module_probe_for_its_path_runs_no_lookup_code() -> None:
+    module = importlib.import_module("guard_core.handlers.suspatterns_handler")
+
+    def probe() -> None:
+        try:
+            module.__getattr__("__path__")
+        except AttributeError:
+            pass
+
+    assert [f for f in _python_frames_while(probe) if "_lazy_patterns" in f] == []

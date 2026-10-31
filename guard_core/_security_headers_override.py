@@ -9,7 +9,6 @@ mirror share one copy.
 
 import hashlib
 import json
-import re
 import time
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
@@ -330,11 +329,7 @@ _PATTERNS = LazyPatterns(
         "_HEADER_VALUE_FORBIDDEN_RE": (r"[^\t\x20-\x7e\x80-\xff]", 0),
     }
 )
-_lookup = module_attribute_lookup(_PATTERNS)
-
-
-def __getattr__(name: str) -> re.Pattern[str]:
-    return _lookup(name)
+__getattr__ = module_attribute_lookup(_PATTERNS)
 
 
 def checked_header_name(name: str) -> str:

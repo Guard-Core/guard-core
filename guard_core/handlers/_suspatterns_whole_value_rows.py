@@ -1,4 +1,3 @@
-import re
 from functools import lru_cache
 
 from guard_core._lazy_patterns import LazyPatterns, module_attribute_lookup
@@ -13,11 +12,7 @@ _PATTERNS = LazyPatterns(
         "_ANCHOR_RE": (r"\\A|\\Z|(?<![\[\\])\^|(?<!\\)\$(?![{)\]])", 0),
     }
 )
-_lookup = module_attribute_lookup(_PATTERNS)
-
-
-def __getattr__(name: str) -> re.Pattern[str]:
-    return _lookup(name)
+__getattr__ = module_attribute_lookup(_PATTERNS)
 
 
 @lru_cache(maxsize=4096)

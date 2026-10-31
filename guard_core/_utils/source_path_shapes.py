@@ -1,5 +1,4 @@
 import contextvars
-import re
 from collections.abc import Iterator, Mapping
 from typing import NamedTuple
 
@@ -134,11 +133,7 @@ _PATTERNS = LazyPatterns(
         ),
     }
 )
-_lookup = module_attribute_lookup(_PATTERNS)
-
-
-def __getattr__(name: str) -> re.Pattern[str]:
-    return _lookup(name)
+__getattr__ = module_attribute_lookup(_PATTERNS)
 
 
 def mark_benign_shape_path(path: str, grants: frozenset[str]) -> BenignShapePath:

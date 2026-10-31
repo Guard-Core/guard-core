@@ -49,11 +49,7 @@ _PATTERNS = LazyPatterns(
         "NON_RUN_CHAR_RE": (rf"[^{DATA_ALPHABET}=]", 0),
     }
 )
-_lookup = module_attribute_lookup(_PATTERNS)
-
-
-def __getattr__(name: str) -> re.Pattern[str]:
-    return _lookup(name)
+__getattr__ = module_attribute_lookup(_PATTERNS)
 
 
 FRAGMENT_SCAN_WINDOW = 32768

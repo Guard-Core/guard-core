@@ -70,10 +70,6 @@ _LITERAL_EXCLUDED_SOURCES = (
 )
 
 
-_lookup = module_attribute_lookup(
+__getattr__ = module_attribute_lookup(
     _MATCHERS_PATTERNS, _SHELL_SOURCES_PATTERNS, _SOURCES_PATTERNS, _XML_XXE_PATTERNS
 )
-
-
-def __getattr__(name: str) -> re.Pattern[str]:
-    return _lookup(name)

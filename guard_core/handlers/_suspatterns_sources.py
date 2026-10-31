@@ -386,11 +386,7 @@ _PATTERNS = LazyPatterns(
         "_LDAP_NULL_BYTE_ATTR_LEAD_CHAR_RE": (r"[a-zA-Z]", 0),
     }
 )
-_lookup = module_attribute_lookup(_PATTERNS)
-
-
-def __getattr__(name: str) -> re.Pattern[str]:
-    return _lookup(name)
+__getattr__ = module_attribute_lookup(_PATTERNS)
 
 
 _HTTP_SPLIT_CRLF_RE = r"[\r\n][^\S\r\n]*(?:HTTP\/[0-9.]+|Location:|Set-Cookie:)"

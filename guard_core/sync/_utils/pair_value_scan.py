@@ -1,5 +1,4 @@
 import json
-import re
 from collections.abc import Callable
 from urllib.parse import quote_plus, unquote_plus
 
@@ -41,11 +40,7 @@ _PATTERNS = LazyPatterns(
         "_SECRET_STOP_RE": (r"[&;\r\n<>'\"\s,?|/\[\]{}()]", 0),
     }
 )
-_lookup = module_attribute_lookup(_PATTERNS)
-
-
-def __getattr__(name: str) -> re.Pattern[str]:
-    return _lookup(name)
+__getattr__ = module_attribute_lookup(_PATTERNS)
 
 
 _HARD_SEP_CHARS = frozenset("&;,?|/[]{}()\r\n<>")
