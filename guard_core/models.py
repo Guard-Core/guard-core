@@ -202,10 +202,14 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
         if not isinstance(data, dict):
             return data
 
-        known = set(cls.model_fields)
-        known.update(field.alias for field in cls.model_fields.values() if field.alias)
+        fields = cls.model_fields
+        not_a_field_name = {key for key in data if key not in fields}
+        if not not_a_field_name:
+            return data
+        known = set(fields)
+        known.update(field.alias for field in fields.values() if field.alias)
 
-        unknown = set(data) - known
+        unknown = not_a_field_name - known
         for key in sorted(unknown):
             match = difflib.get_close_matches(str(key), known, n=1)
             hint = f" Did you mean '{match[0]}'?" if match else ""
