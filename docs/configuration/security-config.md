@@ -276,8 +276,12 @@ geo_status = ip_info_manager.get_status()
 Combined cloud + geo-IP payload, for a warmup probe or health endpoint, read it through your adapter rather than reconstructing `HandlerInitializer` yourself (fastapi-guard):
 
 ```python
+from fastapi import FastAPI
+from guard import SecurityMiddleware
 from guard.status import add_status_route
 
+app = FastAPI()
+app.add_middleware(SecurityMiddleware, config=config)
 add_status_route(app, path="/_guard/status")  # GET /_guard/status -> combined payload
 # or, in-process: security_middleware.get_initialization_status()
 # {

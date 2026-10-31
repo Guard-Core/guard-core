@@ -63,14 +63,28 @@ config = SecurityConfig(
     redis_url="redis://localhost:6379",
 )
 security_config = config
+
+
+class _Application:
+    # Any framework app: every route or hook decorator returns the function
+
+    def __getattr__(self, name):
+        def factory(*args, **kwargs):
+            def decorator(function):
+                return function
+
+            return decorator
+
+        return factory
+
+
+app = _Application()
 guard_deco = SecurityDecorator(config)
 redis_handler = RedisManager(config)
 sus_patterns_handler.configure(config)
 
 
 async def _teardown():
-    for _manager in (ip_ban_manager, security_headers_manager, cloud_handler):
-        _manager.redis_handler = None
     for _manager in (ip_ban_manager, security_headers_manager, cloud_handler):
         _manager.redis_handler = None
     await ip_ban_manager.reset()

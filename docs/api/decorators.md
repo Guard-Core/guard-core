@@ -228,6 +228,9 @@ config = SecurityConfig(
     enable_rate_limiting=True,
     rate_limit=100,
     rate_limit_window=3600,
+    # geo source for allow_countries; response body scanning for return_monitor
+    ipinfo_token="your_ipinfo_token_here",
+    behavior_scan_response_body=True,
 )
 
 guard_deco = SecurityDecorator(config)

@@ -89,16 +89,17 @@ Thread-safe compilation with LRU eviction. Cache key is `f"{pattern}:{flags}"`.
 
 Synchronous compilation without caching. Used internally by validators and safe matchers.
 
-**`validate_pattern_safety(pattern, test_strings) -> tuple[bool, str]`**
+**`validate_pattern_safety(pattern, test_strings=None, max_content_length=None, flags=...) -> tuple[bool, str]`**
 
 Validates a pattern against ReDoS vulnerability:
 
-1. Checks for known dangerous constructs: `(.*)+`, `(.+)+`, nested quantifiers.
-2. Runs the pattern against test strings (default: varying lengths of `'a'`, `'x'+'y'`, `'<'+'>'`) on a dedicated single-worker `validation_regex_executor()`, isolated from the shared `shared_regex_executor()` scan pool used for live request matching, so a busy scan pool can no longer starve or falsely fail a validation probe.
-3. Elapsed time is measured *inside* the submitted callable, i.e. execution time only, not time spent queued behind other probes. The outer `future.result(timeout=1.0)` call bounds total wait to 1.0s, but the pattern is flagged unsafe as soon as a probe's own execution exceeds the stricter 50ms threshold.
-4. Any timeout (queue-bound or per-probe), exception, or a probe over 50ms rejects the pattern, validation is fail-closed.
+1. Rejects known dangerous constructs: `(.*)+`, `(.+)+`, nested quantifiers.
+2. Compiles the pattern with `compile_pattern_sync()`; a pattern that does not compile is rejected.
+3. With `test_strings`, applies the structural check (a broad scan such as `.*` whose terminator cannot be reached by repeating its own prefix is rejected) and times the pattern against those strings in a child Python process; a probe over 50ms rejects it.
+4. Without `test_strings`, builds adversarial inputs that reach the pattern, times them and extrapolates the CPU time at `max_content_length` (default cap 262144 characters). A pattern whose extrapolated cost exceeds the 0.05s budget is rejected. The verdict is cached on disk when `detection_pattern_validation_cache_path` is set.
+5. A timeout, an exception or an over-budget probe rejects the pattern, validation is fail-closed.
 
-`SusPatternsManager.add_pattern` (the async API used by Redis custom-pattern restore and dynamic-rule pattern pushes) runs this validation via `asyncio.to_thread`, so up to ~1s of ReDoS probing never blocks the event loop. The sync API's `add_pattern` calls `validate_pattern_safety` directly on the calling thread.
+`SusPatternsManager.add_pattern` (the async API used by Redis custom-pattern restore and dynamic-rule pattern pushes) runs this validation via `asyncio.to_thread` with `max_content_length` set to the configured scan window, so the probing never blocks the event loop. The sync API's `add_pattern` calls `validate_pattern_safety` directly on the calling thread.
 
 **`create_safe_matcher(pattern, timeout) -> Callable[[str], Match | None]`**
 
