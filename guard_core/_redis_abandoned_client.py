@@ -5,9 +5,10 @@ from typing import TYPE_CHECKING
 from guard_core._redis_client_loop import EventLoop
 
 if TYPE_CHECKING:
+    from redis import Redis as SyncRedis
     from redis.asyncio import Redis
 
-__all__ = ["abandon_client"]
+__all__ = ["abandon_client", "close_sync_client"]
 
 
 def _drop_connection_sockets(client: Redis) -> None:
@@ -39,3 +40,8 @@ def abandon_client(client: Redis, client_loop: EventLoop) -> None:
         else:
             return
     _drop_connection_sockets(client)
+
+
+def close_sync_client(client: SyncRedis, _client_loop: EventLoop) -> None:
+    """The sync tree's ``abandon_client``: its sockets belong to no loop."""
+    client.close()

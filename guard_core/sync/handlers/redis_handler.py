@@ -9,7 +9,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, NoReturn, TypeGuard
 
-from guard_core._redis_abandoned_client import abandon_client
+from guard_core._redis_abandoned_client import close_sync_client
 from guard_core._redis_client_loop import EventLoop, running_loop_or_none
 from guard_core._redis_enablement import configured_redis_url, redis_is_configured
 from guard_core._redis_exceptions import (
@@ -195,7 +195,7 @@ class RedisManager(RedisBanStrikeMixin):
         if old_loop in (None, running_loop_or_none()):
             self._safe_aclose(old_redis)
         else:
-            abandon_client(old_redis, old_loop)
+            close_sync_client(old_redis, old_loop)
 
     def _mark_most_recently_initialized(self) -> None:
         if self._registered:

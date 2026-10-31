@@ -663,6 +663,7 @@ SUBS: list[tuple[str, str]] = [
     (r"__aexit__", "__exit__"),
     (r"__aiter__", "__iter__"),
     (r"\.aclose\b", ".close"),
+    (r"\babandon_client\b", "close_sync_client"),
     (r'"guard_core\.handlers\.', '"guard_core.sync.handlers.'),
     (r'"guard_core\.core\.', '"guard_core.sync.core.'),
     (r'"guard_core\._utils\.', '"guard_core.sync._utils.'),
