@@ -204,3 +204,33 @@ def test_the_redis_flip_keeps_one_id_for_its_two_texts(
     assert "enable_redis is now off" in first
     assert config.enable_redis is True
     assert len(_signals(caplog)) == 1
+
+
+def test_the_prebuilt_entries_of_a_default_config_are_what_the_builder_lists() -> None:
+    config = SecurityConfig()
+
+    assert list(_staged_defaults._DEFAULT_ENTRIES) == (
+        _staged_defaults._changed_default_entries(config)
+    )
+    assert _staged_defaults._DEFAULT_ENTRY_IDS == tuple(
+        flip_id for flip_id, _ in _staged_defaults._DEFAULT_ENTRIES
+    )
+    assert _staged_defaults._DEFAULT_ENTRY_TEXT == "; ".join(
+        entry for _, entry in _staged_defaults._DEFAULT_ENTRIES
+    )
+
+
+def test_a_default_config_logs_the_same_notice_whether_or_not_the_table_is_empty(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    [from_the_prebuilt_entries] = _build(caplog)
+    config = SecurityConfig()
+    logged = _staged_defaults._changed_defaults_logged.for_app(config)
+    logged.clear()
+    logged.add("unrelated")
+    caplog.clear()
+
+    with _logging(caplog):
+        _staged_defaults.signal_changed_defaults(config)
+
+    assert _signals(caplog) == [from_the_prebuilt_entries]

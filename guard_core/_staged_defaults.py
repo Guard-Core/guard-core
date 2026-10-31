@@ -2,6 +2,7 @@ import logging
 from typing import Protocol
 
 from guard_core._redis_enablement import (
+    REDIS_CONNECTION_FIELDS,
     RedisFieldsConfig,
     redis_connection_field_set_explicitly,
 )
@@ -112,19 +113,56 @@ def _changed_default_entries(config: StagedDefaultsConfig) -> list[tuple[str, st
     return entries
 
 
+# The entries of a configuration that states none of these fields and keeps rate
+# limiting on, no whitelist and no "/" in exclude_paths: the four flips below, in
+# the order _changed_default_entries lists them. Built once so the first
+# SecurityConfig() of a process does not rebuild what every default config says.
+_UNSTATED_ENTRY_FIELDS = frozenset(
+    {
+        "ban_on_hostile_signals",
+        "fail_on_misconfiguration",
+        "rate_limit",
+        "enable_redis",
+        *REDIS_CONNECTION_FIELDS,
+    }
+)
+_DEFAULT_ENTRIES = (
+    ("ban_on_hostile_signals", _BAN_ON_HOSTILE_SIGNALS_ENTRY),
+    ("fail_on_misconfiguration", _FAIL_ON_MISCONFIGURATION_ENTRY),
+    ("rate_limit", _RATE_LIMIT_ENTRY),
+    ("enable_redis", _REDIS_OFF_ENTRY),
+)
+_DEFAULT_ENTRY_IDS = tuple(flip_id for flip_id, _ in _DEFAULT_ENTRIES)
+_DEFAULT_ENTRY_TEXT = "; ".join(entry for _, entry in _DEFAULT_ENTRIES)
+
+
+def _states_only_defaults(config: StagedDefaultsConfig) -> bool:
+    return (
+        config.model_fields_set.isdisjoint(_UNSTATED_ENTRY_FIELDS)
+        and config.enable_rate_limiting
+        and not config.whitelist
+        and "/" not in config.exclude_paths
+    )
+
+
 def signal_changed_defaults(config: StagedDefaultsConfig) -> None:
     logged = _changed_defaults_logged.for_app(config)
-    fresh = _changed_default_entries(config)
-    if logged:
-        fresh = [pair for pair in fresh if pair[0] not in logged]
-    if not fresh:
-        return
-    texts = dict(fresh)
-    logged.update(texts)
+    if not logged and _states_only_defaults(config):
+        logged.update(_DEFAULT_ENTRY_IDS)
+        text = _DEFAULT_ENTRY_TEXT
+    else:
+        fresh = _changed_default_entries(config)
+        if logged:
+            fresh = [pair for pair in fresh if pair[0] not in logged]
+        if not fresh:
+            return
+        texts = dict(fresh)
+        logged.update(texts)
+        text = "; ".join(texts.values())
     logger.warning(
         "guard-core 5.0.0 changed defaults that this configuration leaves unset: "
         "%s. Each default is logged once per configuration.",
-        "; ".join(texts.values()),
+        text,
     )
 
 
