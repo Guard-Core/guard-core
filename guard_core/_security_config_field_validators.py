@@ -26,6 +26,7 @@ from guard_core._config_field_revalidators import (
     _validate_positive_int_field_value,
     _validate_str_list_field_value,
 )
+from guard_core._detection_constants import ALL_DETECTION_CATEGORIES
 from guard_core._security_config_blocked_user_agents import (
     _validate_blocked_user_agents_value,
 )
@@ -53,7 +54,6 @@ from guard_core._security_headers_override import (
     CORS_VALUE_CHECKS,
     checked_security_headers_config,
 )
-from guard_core.handlers.suspatterns_handler import ALL_DETECTION_CATEGORIES
 
 if TYPE_CHECKING:
     from guard_core._security_config_fields import RequestT

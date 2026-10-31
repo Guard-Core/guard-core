@@ -2,6 +2,15 @@ import re
 from collections.abc import Iterable, Mapping
 from typing import TYPE_CHECKING, TypeGuard
 
+from guard_core._detection_constants import (
+    _DEFAULT_MAX_BODY_INSPECT_BYTES as _DEFAULT_MAX_BODY_INSPECT_BYTES,
+)
+from guard_core._detection_constants import (
+    _DEFAULT_MAX_FILE_INSPECT_BYTES as _DEFAULT_MAX_FILE_INSPECT_BYTES,
+)
+from guard_core._detection_constants import (
+    ALL_DETECTION_CATEGORIES as ALL_DETECTION_CATEGORIES,
+)
 from guard_core._lazy_patterns import LazyPatterns, module_attribute_lookup
 
 if TYPE_CHECKING:
@@ -9,8 +18,6 @@ if TYPE_CHECKING:
 
 _DEFAULT_MAX_SCAN_LENGTH = 10000
 _DEFAULT_COMPILER_TIMEOUT = 2.0
-_DEFAULT_MAX_BODY_INSPECT_BYTES = 262144
-_DEFAULT_MAX_FILE_INSPECT_BYTES = 1048576
 
 
 def _scan_window_bytes(config: "SyncSecurityConfig | None") -> int:
@@ -103,30 +110,6 @@ _CTX_DESERIALIZATION = frozenset(
 )
 _CTX_ALL = frozenset({"query_param", "header", "url_path", "request_body", "unknown"})
 
-
-ALL_DETECTION_CATEGORIES: frozenset[str] = frozenset(
-    {
-        "xss",
-        "sqli",
-        "dir_traversal",
-        "path_traversal",
-        "cmd_injection",
-        "file_inclusion",
-        "ldap",
-        "xml",
-        "ssrf",
-        "nosql",
-        "file_upload",
-        "template",
-        "http_split",
-        "sensitive_file",
-        "cms_probing",
-        "recon",
-        "proto_pollution",
-        "code_injection",
-        "deserialization",
-    }
-)
 
 CATEGORY_CONTEXT_MAP: dict[str, frozenset[str]] = {
     "xss": _CTX_XSS,

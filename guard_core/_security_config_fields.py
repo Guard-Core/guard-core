@@ -15,6 +15,11 @@ from pydantic import (
 from typing_extensions import Self, TypeVar
 
 from guard_core import _tracking_caps
+from guard_core._detection_constants import (
+    _DEFAULT_MAX_BODY_INSPECT_BYTES,
+    _DEFAULT_MAX_FILE_INSPECT_BYTES,
+    ALL_DETECTION_CATEGORIES,
+)
 from guard_core._redis_enablement import REDIS_CONNECTION_FIELDS, resolve_enable_redis
 from guard_core._security_config_cloud_store_validators import (
     _validate_cloud_ip_store_value,
@@ -34,11 +39,6 @@ from guard_core._staged_defaults import (
     DEFAULT_REDIS_PREFIX,
     SIGNAL_TRIGGER_FIELDS,
     signal_changed_defaults,
-)
-from guard_core.handlers.suspatterns_handler import (
-    _DEFAULT_MAX_BODY_INSPECT_BYTES,
-    _DEFAULT_MAX_FILE_INSPECT_BYTES,
-    ALL_DETECTION_CATEGORIES,
 )
 from guard_core.protocols.cloud_ip_store_protocol import (
     CloudIpStoreFactory,

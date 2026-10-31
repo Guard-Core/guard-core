@@ -43,6 +43,7 @@ SKIP_SRC = {
     "_security_headers_record_validation.py",
     "_builtin_import_rows.py",
     "_lazy_patterns.py",
+    "_detection_constants.py",
     "_builtin_import_table.py",
 }
 

@@ -23,6 +23,9 @@ from guard_core._config_capabilities import _extra_installed as _extra_installed
 from guard_core._config_capabilities import (
     cloud_blocking_enabled as cloud_blocking_enabled,
 )
+from guard_core._detection_constants import (
+    ALL_DETECTION_CATEGORIES as ALL_DETECTION_CATEGORIES,
+)
 from guard_core._dynamic_rules import DynamicRules as DynamicRules
 from guard_core._misconfiguration import report_config_misconfigurations
 from guard_core._security_config_fields import RequestT, _SecurityConfigFields
@@ -85,9 +88,6 @@ from guard_core._staged_defaults import (
 )
 from guard_core._utils.pattern_source_redaction import _ConfigSensitiveNames
 from guard_core.exceptions import AgentPackageNotInstalledError
-from guard_core.handlers.suspatterns_handler import (
-    ALL_DETECTION_CATEGORIES as ALL_DETECTION_CATEGORIES,
-)
 from guard_core.protocols.cloud_ip_store_protocol import (
     CloudIpStoreFactory as CloudIpStoreFactory,
 )
