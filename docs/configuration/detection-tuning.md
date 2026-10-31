@@ -204,11 +204,13 @@ A body field that carries another benign shape is the route's to declare, with `
 
 ```python
 @security.detection_exclusion(body_fields={"changed_file"})
-async def every_category_skipped(): ...
+async def every_category_skipped():
+    return {"status": "ok"}
 
 
 @security.detection_exclusion(body_fields={"changed_file": {"sensitive_file"}})
-async def only_sensitive_file_skipped(): ...
+async def only_sensitive_file_skipped():
+    return {"status": "ok"}
 ```
 
 `SecurityConfig.excluded_detection_body_fields` takes the same two forms for every route, and a route's own value replaces the global one (it is not merged with it):

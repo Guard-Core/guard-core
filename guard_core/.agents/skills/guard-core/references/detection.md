@@ -105,7 +105,7 @@ This validation subprocess mechanism is unrelated to, and isolated from, the liv
 ## Adding patterns
 
 ```python
-ok = await SusPatternsManager.add_pattern(r"<script.*?>", custom=True)
+ok = await SusPatternsManager.add_pattern(r"<script\s+src=[^>]*>", custom=True)
 ```
 
 Custom patterns are ReDoS-validated, compiled with `re.IGNORECASE | re.MULTILINE`, and (when Redis is enabled) persisted under the `patterns` key. `remove_pattern(pattern, custom=False)` removes them. Do not add unvetted patterns as built-in; custom patterns get the timeout safety path.

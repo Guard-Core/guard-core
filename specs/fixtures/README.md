@@ -1,7 +1,7 @@
 # Fixture Corpus
 
 Executable conformance data. The expected values in this corpus were generated
-by running the reference engine (guard-core, enhanced/4.x detection path) —
+by running the reference engine (guard-core, enhanced/4.x detection path) -
 never hand-written. `conformance.md` defines the authorship and drift rules.
 
 ## Layout

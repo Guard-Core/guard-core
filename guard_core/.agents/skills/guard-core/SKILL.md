@@ -72,7 +72,7 @@ config = SecurityConfig(
 
 Field defaults are the source of truth. For an authoritative list of every field, type, default, and description, introspect the installed model rather than recalling from memory:
 
-```python
+```bash
 python -c "from guard_core.models import SecurityConfig; \
 import json; print(json.dumps({f: (SecurityConfig.model_fields[f].default, SecurityConfig.model_fields[f].description) for f in SecurityConfig.model_fields}, indent=2, default=str))"
 ```
@@ -107,7 +107,7 @@ See [the adapters reference](references/adapters.md) for a complete wrapper exam
 
 ## Security Pipeline
 
-`SecurityCheckPipeline` runs, per request, whichever checks the effective configuration can actually trigger, in the fixed catalogue order below. `build_default_pipeline` filters the 17-check catalogue through each check's `applies_to(config, route_configs)` classmethod before instantiating anything; the base `SecurityCheck.applies_to` returns `True`, so a check that does not override it always runs, and elimination is strictly an optimization, never a security decision. The catalogue and its order are unchanged; only the subset a given deployment builds varies.
+`SecurityCheckPipeline` runs, per request, whichever checks the effective configuration can actually trigger, in the fixed catalogue order below. `build_default_pipeline` filters the 18-check catalogue through each check's `applies_to(config, route_configs)` classmethod before instantiating anything; the base `SecurityCheck.applies_to` returns `True`, so a check that does not override it always runs, and elimination is strictly an optimization, never a security decision. The catalogue and its order are unchanged; only the subset a given deployment builds varies.
 
 1. route_config
 2. emergency_mode
@@ -127,7 +127,7 @@ See [the adapters reference](references/adapters.md) for a complete wrapper exam
 16. suspicious_activity
 17. custom_request
 
-A default `SecurityConfig()` with no route decorators registered builds only `route_config`, `ip_security`, `rate_limit`, and `suspicious_activity`; a configuration that enables every feature builds all 17. `enable_dynamic_rules=True` keeps `emergency_mode`, `cloud_ip_refresh`, `cloud_provider`, `user_agent`, `rate_limit`, and `suspicious_activity` regardless of every other flag, because `DynamicRuleManager` can mutate the flags those checks key off at runtime. `ip_security` never overrides `applies_to`, so it always builds: it fronts a ban lookup whose store is writable from behavior-rule bans and from other processes sharing the same Redis, so no configuration can prove it unreachable. When the registered route configuration cannot be enumerated (`route_configs is None`), every route-driven check is kept rather than dropped, so an adapter that cannot expose `guard_decorator` loses the build-time optimization but never loses the protection. The first check returning a non-`None` `GuardResponse` short-circuits and blocks; order matters, since earlier checks set up state later checks depend on. A check returning `None` means pass. On a check exception, `fail_secure` decides block-with-500 vs continue. See [the pipeline reference](references/pipeline.md).
+A default `SecurityConfig()` with no route decorators registered builds only `route_config`, `ip_security`, `cors_preflight`, `rate_limit`, and `suspicious_activity`; a configuration that enables every feature builds all 18. `enable_dynamic_rules=True` keeps `emergency_mode`, `cloud_ip_refresh`, `cloud_provider`, `user_agent`, `rate_limit`, and `suspicious_activity` regardless of every other flag, because `DynamicRuleManager` can mutate the flags those checks key off at runtime. `ip_security` never overrides `applies_to`, so it always builds: it fronts a ban lookup whose store is writable from behavior-rule bans and from other processes sharing the same Redis, so no configuration can prove it unreachable. When the registered route configuration cannot be enumerated (`route_configs is None`), every route-driven check is kept rather than dropped, so an adapter that cannot expose `guard_decorator` loses the build-time optimization but never loses the protection. The first check returning a non-`None` `GuardResponse` short-circuits and blocks; order matters, since earlier checks set up state later checks depend on. A check returning `None` means pass. On a check exception, `fail_secure` decides block-with-500 vs continue. See [the pipeline reference](references/pipeline.md).
 
 ## Detection Engine
 

@@ -341,8 +341,9 @@ class DynamicRules(BaseModel):
     emergency_mode: bool = Field(default=False)
     emergency_whitelist: list[str] = Field(default_factory=list)
     emergency_whitelist_only: bool = Field(default=True)
-    emergency_exempt_paths: list[str] = Field(default_factory=list)
 ```
+
+`emergency_exempt_paths` is a `SecurityConfig` field only, a dynamic rule cannot set it.
 
 | Field                         | Type            | Default | Description                                                                 |
 |-------------------------------|------------------|---------|-------------------------------------------------------------------------------|

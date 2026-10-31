@@ -1,7 +1,7 @@
 ---
 
 title: Security Pipeline - Guard Core
-description: Deep dive into the SecurityCheckPipeline chain of responsibility, the applies_to build-time elimination mechanism, all 17 security checks in catalogue order, the SecurityCheck base class, and extending the pipeline
+description: Deep dive into the SecurityCheckPipeline chain of responsibility, the applies_to build-time elimination mechanism, all 18 security checks in catalogue order, the SecurityCheck base class, and extending the pipeline
 keywords: guard-core, security pipeline, chain of responsibility, security checks, SecurityCheck, SecurityCheckPipeline
 ---
 
@@ -209,7 +209,7 @@ Build-Time Elimination
 
 **Location**: `guard_core/core/checks/factory.py`
 
-`build_default_pipeline` filters the 17-check catalogue (`DEFAULT_CHECK_CLASSES`) through each check class's `applies_to(config, route_configs)` classmethod before instantiating anything, so a deployment only builds and runs the checks its configuration can actually trigger:
+`build_default_pipeline` filters the 18-check catalogue (`DEFAULT_CHECK_CLASSES`) through each check class's `applies_to(config, route_configs)` classmethod before instantiating anything, so a deployment only builds and runs the checks its configuration can actually trigger:
 
 ```python
 def _build_checks(
@@ -291,6 +291,7 @@ An adapter that cannot enumerate its routes at pipeline-build time therefore los
 | `ip_security` | Always (no override, see above) | keep |
 | `cloud_provider` | `config.block_cloud_providers` is set, any route sets `block_cloud_providers`, or `enable_dynamic_rules` | drop |
 | `user_agent` | `config.blocked_user_agents` is non-empty, any route sets `blocked_user_agents`, or `enable_dynamic_rules` | drop |
+| `cors_preflight` | Always (`applies_to` returns `True`) | keep |
 | `rate_limit` | `config.enable_rate_limiting`, `config.endpoint_rate_limits` is set, any route sets `rate_limit`/`geo_rate_limits`, or `enable_dynamic_rules` | keep (`enable_rate_limiting` defaults to `True`) |
 | `required_headers` | Any route sets `required_headers` | drop |
 | `authentication` | Any route sets `auth_required` | drop |
@@ -300,11 +301,11 @@ An adapter that cannot enumerate its routes at pipeline-build time therefore los
 | `suspicious_activity` | `config.enable_penetration_detection`, any route sets `enable_suspicious_detection`, or `enable_dynamic_rules` | keep (`enable_penetration_detection` defaults to `True`) |
 | `custom_request` | `config.custom_request_check is not None` | drop |
 
-"Any route sets X" is `False` when `route_configs` is a known-empty tuple and always `True` when `route_configs is None` (unknown, see above). A default `SecurityConfig()` with no route decorators builds exactly four checks: `route_config`, `ip_security`, `rate_limit`, `suspicious_activity`. Configuring every feature and providing a fully-populated route decorator builds all 17, in the order shown below.
+"Any route sets X" is `False` when `route_configs` is a known-empty tuple and always `True` when `route_configs is None` (unknown, see above). A default `SecurityConfig()` with no route decorators builds exactly five checks: `route_config`, `ip_security`, `cors_preflight`, `rate_limit`, `suspicious_activity`. Configuring every feature and providing a fully-populated route decorator builds all 18, in the order shown below.
 
 ___
 
-All 17 Checks in Execution Order
+All 18 Checks in Execution Order
 ---------------------------------
 
 The checks are listed here in the fixed order the catalogue defines. This order matters -- earlier checks set up state that later checks depend on. The identity checks (`required_headers`, `authentication`, `referrer`, `custom_validators`, `time_window`) run after `ip_security`, `cloud_provider`, `user_agent` and `rate_limit`, so a banned, blocked or rate-limited client is answered before any verifier or validator runs. A given deployment's pipeline is a subset of this list, filtered by `applies_to` as described above, but the checks that do build always run in this relative order.
@@ -395,7 +396,18 @@ This check runs first because all subsequent checks depend on `request.state.cli
 | **Purpose** | Filters requests by user agent string against route-level and global blocklists |
 | **Blocks?** | Returns 403 (forbidden) |
 
-### 10. RateLimitCheck
+### 10. CorsPreflightCheck
+
+| | |
+|---|---|
+| **check_name** | `cors_preflight` |
+| **Module** | `guard_core.core.checks.implementations.cors_preflight` |
+| **Purpose** | Answers a CORS preflight (`OPTIONS`) for an app built without CORS that `security_headers_manager.configure(..., enable_cors=True, override_apps=True)` turned CORS on for, and sends the refusal event of a refused CORS override on every preflight. An app built with CORS on answers its preflights in its adapter |
+| **Blocks?** | Answers the preflight with the CORS headers, or returns the ban response of a banned client |
+
+It runs after the ban, IP, cloud and user agent checks and before rate limiting, so no later check (authentication, API key, required headers) refuses the preflight. It is never eliminated: `applies_to` always returns `True`.
+
+### 11. RateLimitCheck
 
 | | |
 |---|---|
@@ -407,7 +419,7 @@ This check runs first because all subsequent checks depend on `request.state.cli
 !!! note "Rate limit evaluation order"
     The rate limit check evaluates in this priority: endpoint rate limits (from dynamic rules) > route rate limits (from decorators) > geo rate limits (from decorators) > global rate limit (from config). The first limit that is exceeded blocks the request.
 
-### 11. RequiredHeadersCheck
+### 12. RequiredHeadersCheck
 
 | | |
 |---|---|
@@ -416,7 +428,7 @@ This check runs first because all subsequent checks depend on `request.state.cli
 | **Purpose** | Validates that required headers are present with expected values (from route config) |
 | **Blocks?** | Returns 400 (bad request) |
 
-### 12. AuthenticationCheck
+### 13. AuthenticationCheck
 
 | | |
 |---|---|
@@ -425,7 +437,7 @@ This check runs first because all subsequent checks depend on `request.state.cli
 | **Purpose** | Validates authentication headers (Bearer, Basic, custom) based on route config |
 | **Blocks?** | Returns 401 (unauthorized) |
 
-### 13. ReferrerCheck
+### 14. ReferrerCheck
 
 | | |
 |---|---|
@@ -434,7 +446,7 @@ This check runs first because all subsequent checks depend on `request.state.cli
 | **Purpose** | Validates the `Referer` header against route-level allowed domains |
 | **Blocks?** | Returns 403 (forbidden) |
 
-### 14. CustomValidatorsCheck
+### 15. CustomValidatorsCheck
 
 | | |
 |---|---|
@@ -443,7 +455,7 @@ This check runs first because all subsequent checks depend on `request.state.cli
 | **Purpose** | Executes route-level custom validator callables |
 | **Blocks?** | Returns whatever the custom validator returns |
 
-### 15. TimeWindowCheck
+### 16. TimeWindowCheck
 
 | | |
 |---|---|
@@ -452,7 +464,7 @@ This check runs first because all subsequent checks depend on `request.state.cli
 | **Purpose** | Enforces time-of-day access restrictions from route config |
 | **Blocks?** | Returns 403 (forbidden) |
 
-### 16. SuspiciousActivityCheck
+### 17. SuspiciousActivityCheck
 
 | | |
 |---|---|
@@ -461,7 +473,7 @@ This check runs first because all subsequent checks depend on `request.state.cli
 | **Purpose** | Runs penetration attempt detection against the request URL, headers, query params, and body. Tracks suspicious request counts for auto-ban |
 | **Blocks?** | Returns 403 (forbidden) |
 
-### 17. CustomRequestCheck
+### 18. CustomRequestCheck
 
 | | |
 |---|---|
@@ -478,8 +490,12 @@ Fail-Open vs Fail-Secure
 By default, the pipeline is **fail-secure**: if a security check raises an unhandled exception, the pipeline logs the error and blocks the request with an HTTP 500 response so check bugs surface instead of silently passing requests through.
 
 ```python
-except Exception as e:
-    self.logger.error(...)
+async def _handle_check_error(self, check, request, error):
+    # a GuardRedisError with redis_fail_open=True fails open; every other error is logged
+    ...
+
+    if check.config.passive_mode:
+        return None
 
     if check.config.fail_secure:
         return await check.create_error_response(
@@ -487,12 +503,12 @@ except Exception as e:
             default_message="Security check failed",
         )
 
-    continue
+    return None
 ```
 
 `fail_secure` is a standard field on the `SecurityConfig` model (`fail_secure: bool = Field(default=True)`). When `True` (the default), any check exception results in a 500 response, blocking the request. Setting `fail_secure = False` opts into fail-open behavior: the pipeline logs the error and falls through to the next check.
 
-A `GuardRedisError` (a Redis outage at request time) answers with the error'"'"'s own 503 status and a `Retry-After: 5` header instead of the 500, so a load balancer or client retries instead of treating the app as broken. Excluded paths still run the ban lookup, so a probe on one sees the 503 during an outage under `fail_secure`; `redis_fail_open=True` is the switch that admits it. Passive mode and `fail_secure=False` admit the request.
+A `GuardRedisError` (a Redis outage at request time) answers with the error's own 503 status and a `Retry-After: 5` header instead of the 500, so a load balancer or client retries instead of treating the app as broken. Excluded paths still run the ban lookup, so a probe on one sees the 503 during an outage under `fail_secure`; `redis_fail_open=True` is the switch that admits it. Passive mode and `fail_secure=False` admit the request.
 
 !!! tip "Choosing a failure mode"
     Keep fail-secure (the default) in production so check bugs surface as 500s rather than letting unchecked requests through. Set `fail_secure = False` to opt into fail-open behavior, intended only for staging diagnostics where availability is preferred over blocking on a check error.
@@ -509,13 +525,16 @@ Passive Mode
 When `SecurityConfig.passive_mode = True`, checks still evaluate fully and log violations, but they return `None` instead of a blocking `GuardResponse`. This is implemented at the individual check level:
 
 ```python
-if not self.config.passive_mode:
-    return await self.middleware.create_error_response(
-        status_code=403,
-        default_message="Forbidden",
-    )
+async def check(self, request):
+    ...  # the check's own condition decides that the request is refused
 
-return None
+    if not self.config.passive_mode:
+        return await self.middleware.create_error_response(
+            status_code=403,
+            default_message="Forbidden",
+        )
+
+    return None
 ```
 
 Each check is responsible for honoring passive mode. The base class provides `is_passive_mode()` as a convenience method.

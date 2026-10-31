@@ -89,13 +89,13 @@ class SemanticAnalyzer:
         that evade regex patterns.
         """
 
-    def analyze(self, content: str) -> dict[str, Any]:
+    def analyze(self, content: str) -> SemanticAnalysis:
         """
         Perform semantic analysis. Returns a dict with attack_probabilities
         and other analysis metadata.
         """
 
-    def get_threat_score(self, analysis: dict[str, Any]) -> float:
+    def get_threat_score(self, analysis_results: SemanticAnalysis) -> float:
         """
         Calculate an overall threat score from analysis results.
         """

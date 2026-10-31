@@ -40,7 +40,7 @@ Guard Core is the framework-agnostic security engine that powers the Guard ecosy
 ### Engine Internals
 - **Security Checks**: SecurityCheck base class, SecurityCheckPipeline, helper functions
   - Docs: https://guard-core.github.io/guard-core/latest/internals/checks/
-- **Check Implementations**: All 17 checks with blocking conditions, configuration, and applies_to elimination predicates
+- **Check Implementations**: All 18 checks with blocking conditions, configuration, and applies_to elimination predicates
   - Docs: https://guard-core.github.io/guard-core/latest/internals/check-implementations/
 - **IP Management**: IPBanManager, allow/block logic, CIDR support, client IP extraction
   - Docs: https://guard-core.github.io/guard-core/latest/internals/ip-management/

@@ -83,6 +83,7 @@ SKIP_TESTS = {
     "test_suspatterns_handler_module_surface.py",
     "test_gc_per_test_opt_in.py",
     "test_maintainability_rank.py",
+    "test_markdown_python_blocks.py",
     "test_any_ratchet.py",
     "test_config_docs_parity.py",
     "test_release_notes_parity.py",
