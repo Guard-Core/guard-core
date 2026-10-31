@@ -11,6 +11,7 @@ from guard_core.detection_engine._redos_ignorecase_fold import expand_ignorecase
 from guard_core.detection_engine._redos_intervals import (
     _IntervalSet,
     cached_category_intervals,
+    cached_escape_intervals,
 )
 from guard_core.detection_engine._redos_parse_nodes import (
     _assertion_parts,
@@ -182,8 +183,11 @@ def _cached_class_node_predicate(
 
 
 def _category_intervals(category: object, flags: int) -> _IntervalSet:
-    predicate = _category_predicate(category, flags)
-    return cached_category_intervals((category, flags & re.ASCII), predicate)
+    escape = _CATEGORY_ESCAPES.get(category)
+    if escape is None:
+        predicate = _category_predicate(category, flags)
+        return cached_category_intervals((category, flags & re.ASCII), predicate)
+    return cached_escape_intervals(escape[:2].lower(), flags, escape[1].isupper())
 
 
 def _apply_ignorecase(intervals: _IntervalSet, flags: int) -> _IntervalSet:

@@ -7,6 +7,7 @@ import sys
 import time
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
+from typing import TypeVar
 
 from guard_core.sync._utils.pattern_source_redaction import _SensitiveNameSets
 from guard_core.sync.detection_engine._redos_cpu_budget import ReachProbeCpuBudget
@@ -45,6 +46,8 @@ from guard_core.sync.detection_engine._redos_work_counter import (
 )
 
 logger = logging.getLogger("guard_core.sync.detection_engine.compiler")
+
+_T = TypeVar("_T")
 
 _DEFAULT_PATTERN_FLAGS = re.IGNORECASE | re.MULTILINE
 
@@ -141,6 +144,9 @@ _PATTERN_SAFETY_DEFAULT_CAP = 262144
 # stride sample keeps every family and site represented while bounding the
 # timed work; the cap only engages when the enumeration explodes.
 _MAX_TIMED_PROBE_SETS = 512
+# Probe sets built while looking for the unique ones stay in memory up to this many
+# characters; later ones are built again when they are timed.
+_KEPT_PROBE_SET_CHARACTERS = 1_000_000
 # Sample times are normalized by a host load factor, and so is the budget:
 # measuring a genuinely quadratic pattern costs seconds of CPU per probe set, and
 # a slower core needs proportionally more CPU seconds for the same work. The
@@ -465,22 +471,28 @@ def _reach_probe_sizes_for_strategy(
     return _REACH_VERDICT_PROBE_SIZES
 
 
-def _unique_probe_sets(
+def _unique_probe_set_positions(
     builders: list[Callable[[int], str]], probe_sizes: tuple[int, ...]
-) -> Iterator[tuple[str, ...]]:
+) -> tuple[list[int], dict[int, tuple[str, ...]]]:
     seen: set[bytes] = set()
-    for builder in builders:
+    positions: list[int] = []
+    kept: dict[int, tuple[str, ...]] = {}
+    kept_characters = 0
+    for position, builder in enumerate(builders):
         probes = tuple(builder(size) for size in probe_sizes)
         digest = _probe_set_digest(probes)
         if digest in seen:
             continue
         seen.add(digest)
-        yield probes
+        positions.append(position)
+        characters = sum(map(len, probes))
+        if kept_characters + characters <= _KEPT_PROBE_SET_CHARACTERS:
+            kept[position] = probes
+            kept_characters += characters
+    return positions, kept
 
 
-def _stride_sampled_probe_sets(
-    probe_sets: list[tuple[str, ...]], cap: int
-) -> list[tuple[str, ...]]:
+def _stride_sampled_probe_sets(probe_sets: list[_T], cap: int) -> list[_T]:
     total = len(probe_sets)
     if total <= cap:
         return probe_sets
@@ -529,8 +541,16 @@ def _timed_probe_results(
     probe_sizes = _reach_probe_sizes_for_strategy(
         structural_violation, bounded_repeat_risk, cap
     )
-    probe_sets = _stride_sampled_probe_sets(
-        list(_unique_probe_sets(builders, probe_sizes)), _MAX_TIMED_PROBE_SETS
+    unique_positions, kept_probe_sets = _unique_probe_set_positions(
+        builders, probe_sizes
+    )
+    sampled_positions = _stride_sampled_probe_sets(
+        unique_positions, _MAX_TIMED_PROBE_SETS
+    )
+    probe_sets = (
+        kept_probe_sets.get(position)
+        or tuple(builders[position](size) for size in probe_sizes)
+        for position in sampled_positions
     )
     if (
         structural_violation is None
@@ -539,14 +559,14 @@ def _timed_probe_results(
     ):
         return _batched_reach_probe_timings(
             pattern,
-            iter(probe_sets),
+            probe_sets,
             budget,
             flags,
             time_probes,
         )
     return _direct_reach_probe_timings(
         pattern,
-        iter(probe_sets),
+        probe_sets,
         budget,
         flags,
         time_probes,
