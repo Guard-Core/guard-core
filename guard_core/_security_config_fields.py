@@ -35,7 +35,6 @@ from guard_core._staged_defaults import (
     SIGNAL_TRIGGER_FIELDS,
     signal_changed_defaults,
 )
-from guard_core.handlers._ipban_cache import DEFAULT_MAX_LOCAL_BANS
 from guard_core.handlers.suspatterns_handler import (
     _DEFAULT_MAX_BODY_INSPECT_BYTES,
     _DEFAULT_MAX_FILE_INSPECT_BYTES,
@@ -736,7 +735,7 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
     )
 
     banned_ips_max_entries: int = Field(
-        default=DEFAULT_MAX_LOCAL_BANS,
+        default=_tracking_caps.DEFAULT_MAX_LOCAL_BANS,
         ge=1,
         description=(
             "Cap on the bans one process keeps in memory (addresses and grouped "

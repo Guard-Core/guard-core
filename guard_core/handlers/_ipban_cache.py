@@ -6,9 +6,12 @@ from typing import TypeVar, overload
 
 from cachetools import TTLCache
 
+from guard_core._tracking_caps import (
+    DEFAULT_MAX_LOCAL_BANS as DEFAULT_MAX_LOCAL_BANS,
+)
+
 _Network = ipaddress.IPv4Network | ipaddress.IPv6Network
 
-DEFAULT_MAX_LOCAL_BANS = 100_000
 
 _Default = TypeVar("_Default")
 
