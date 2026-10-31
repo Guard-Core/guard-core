@@ -96,26 +96,21 @@ def _redis_entry(config: StagedDefaultsConfig) -> str | None:
 
 def _changed_default_entries(config: StagedDefaultsConfig) -> list[tuple[str, str]]:
     stated = config.model_fields_set
+    entries: list[tuple[str, str]] = []
+    if "ban_on_hostile_signals" not in stated:
+        entries.append(("ban_on_hostile_signals", _BAN_ON_HOSTILE_SIGNALS_ENTRY))
+    if "fail_on_misconfiguration" not in stated:
+        entries.append(("fail_on_misconfiguration", _FAIL_ON_MISCONFIGURATION_ENTRY))
+    if config.enable_rate_limiting and "rate_limit" not in stated:
+        entries.append(("rate_limit", _RATE_LIMIT_ENTRY))
+    if config.whitelist and "whitelist_access_only" not in stated:
+        entries.append(("whitelist_access_only", _WHITELIST_ACCESS_ONLY_ENTRY))
+    if "/" in config.exclude_paths and "exclude_all_paths" not in stated:
+        entries.append(("slash_exclusion", _SLASH_EXCLUSION_ENTRY))
     redis_entry = _redis_entry(config)
-    candidates = (
-        ("ban_on_hostile_signals" not in stated, _BAN_ON_HOSTILE_SIGNALS_ENTRY),
-        ("fail_on_misconfiguration" not in stated, _FAIL_ON_MISCONFIGURATION_ENTRY),
-        (config.enable_rate_limiting and "rate_limit" not in stated, _RATE_LIMIT_ENTRY),
-        (
-            bool(config.whitelist) and "whitelist_access_only" not in stated,
-            _WHITELIST_ACCESS_ONLY_ENTRY,
-        ),
-        (
-            "/" in config.exclude_paths and "exclude_all_paths" not in stated,
-            _SLASH_EXCLUSION_ENTRY,
-        ),
-        (redis_entry is not None, redis_entry),
-    )
-    return [
-        (flip_id, entry)
-        for flip_id, (applies, entry) in zip(FLIP_IDS, candidates, strict=True)
-        if applies and entry is not None
-    ]
+    if redis_entry is not None:
+        entries.append(("enable_redis", redis_entry))
+    return entries
 
 
 def signal_changed_defaults(config: StagedDefaultsConfig) -> None:

@@ -26,10 +26,8 @@ REDIS_CONNECTION_FIELDS = (
 
 
 def redis_connection_field_set_explicitly(config: RedisFieldsConfig) -> str | None:
-    return next(
-        (name for name in REDIS_CONNECTION_FIELDS if name in config.model_fields_set),
-        None,
-    )
+    stated = config.model_fields_set
+    return next((name for name in REDIS_CONNECTION_FIELDS if name in stated), None)
 
 
 def resolve_enable_redis(config: RedisFieldsConfig) -> None:

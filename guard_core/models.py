@@ -279,9 +279,12 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
                 },
             )
         )
-        _reject_redos_unsafe_blocked_user_agents_at_field(
-            cls.__name__, config.blocked_user_agents, _ConfigSensitiveNames(config)
-        )
+        if config.blocked_user_agents:
+            _reject_redos_unsafe_blocked_user_agents_at_field(
+                cls.__name__,
+                config.blocked_user_agents,
+                _ConfigSensitiveNames(config),
+            )
         return config
 
     @model_validator(mode="after")
