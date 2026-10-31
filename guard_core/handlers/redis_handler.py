@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, NoReturn, TypeGuard
 
+from guard_core._redis_client_loop import EventLoop, running_loop_or_none
 from guard_core._redis_enablement import configured_redis_url, redis_is_configured
 from guard_core._redis_exceptions import (
     NoScriptError,
@@ -107,6 +108,7 @@ class RedisManager(RedisBanStrikeMixin):
     _instance = None
     _redis: Redis | None = None
     _pool_key: Hashable | None = None
+    _client_loop: EventLoop | None = None
     _registered = False
     _connection_lock = asyncio.Lock()
     _closed = False
@@ -177,9 +179,13 @@ class RedisManager(RedisBanStrikeMixin):
     async def _discard_client(self) -> None:
         old_redis, self._redis = self._redis, None
         key, self._pool_key = self._pool_key, None
+        old_loop, self._client_loop = self._client_loop, None
         if old_redis is None:
             return
-        if key is None or _redis_shared_clients.release(key, old_redis, self):
+        released = key is None or _redis_shared_clients.release(key, old_redis, self)
+        # A client built under another loop is closed by that loop, or is dead with
+        # it: closing it from here fails or would cut a loop still using it.
+        if released and old_loop in (None, running_loop_or_none()):
             await self._safe_aclose(old_redis)
 
     def _mark_most_recently_initialized(self) -> None:
@@ -217,6 +223,7 @@ class RedisManager(RedisBanStrikeMixin):
                         shared = True
                     self._redis = new_redis
                     self._pool_key = key
+                    self._client_loop = running_loop_or_none()
                     self._mark_most_recently_initialized()
                     self.logger.info("Redis connection established")
 
@@ -271,7 +278,10 @@ class RedisManager(RedisBanStrikeMixin):
                 )
                 raise GuardRedisError(503, "Redis connection closed")
 
-            if not self._redis:
+            if not self._redis or (
+                self._client_loop is not None
+                and self._client_loop is not running_loop_or_none()
+            ):
                 await self.initialize()
 
             if self._redis is None:
