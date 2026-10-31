@@ -16,10 +16,14 @@ from guard_core.handlers._suspatterns_linear_path_source import (
     mandatory_characters,
     mandatory_key,
     row_pieces,
+    without_spans,
     without_unbalanced_parentheses,
 )
+from guard_core.handlers._suspatterns_literals import source_digest
 from guard_core.handlers._suspatterns_tail_buckets import (
+    AlternationParts,
     BucketedTail,
+    alternation_from_layout,
     split_alternation,
 )
 
@@ -28,6 +32,22 @@ _BUCKET_MIN_CHARS = 2000
 _UNSET = -2
 _NO_END = -1
 _STEP = SEGMENT_STEP_RE.match
+
+
+def tail_source_and_parts(piece: str) -> tuple[str, AlternationParts | None]:
+    """The tail test source of a piece and its alternation split when it is long
+    enough to bucket. A builtin piece is looked up in the generated table (its split
+    is fixed by its text), so the first scan that reaches it scans nothing."""
+    from guard_core.handlers._suspatterns_linear_split_table import BUILTIN_TAIL_SPLITS
+
+    digest = source_digest(piece)
+    if digest in BUILTIN_TAIL_SPLITS:
+        removed, layout = BUILTIN_TAIL_SPLITS[digest]
+        source = without_spans(piece, removed)
+        return source, alternation_from_layout(source, layout)
+    source = without_unbalanced_parentheses(piece)
+    parts = split_alternation(source) if len(source) > _BUCKET_MIN_CHARS else None
+    return source, parts
 
 
 class _LinearPathRow:
@@ -55,8 +75,7 @@ class _LinearPathRow:
         return [self._tail_test(piece) for piece in self._raw_pieces[1:]]
 
     def _tail_test(self, piece: str) -> re.Pattern | BucketedTail:
-        source = without_unbalanced_parentheses(piece)
-        parts = split_alternation(source) if len(source) > _BUCKET_MIN_CHARS else None
+        source, parts = tail_source_and_parts(piece)
         if parts is None:
             return re.compile(source, self._flags)
         return BucketedTail(parts, self._flags)

@@ -72,6 +72,36 @@ def split_alternation(piece: str) -> AlternationParts | None:
     return AlternationParts(piece[: lookahead.end()], branches, piece[group_end:])
 
 
+AlternationLayout = tuple[int, int, tuple[int, ...], int]
+
+
+def alternation_from_layout(source: str, layout: AlternationLayout) -> AlternationParts:
+    """The parts of ``split_alternation(source)`` from where they lie in ``source``:
+    the prefix length, where the branches start, each branch's length (a ``|``
+    follows every branch but the last) and where the suffix starts."""
+    prefix_end, branches_start, lengths, suffix_start = layout
+    branches = []
+    position = branches_start
+    for length in lengths:
+        branches.append(source[position : position + length])
+        position += length + 1
+    return AlternationParts(source[:prefix_end], tuple(branches), source[suffix_start:])
+
+
+def alternation_layout(source: str, parts: AlternationParts) -> AlternationLayout:
+    """Where the parts of ``split_alternation(source)`` lie, so that
+    ``alternation_from_layout`` rebuilds them without scanning ``source``."""
+    prefix_end = len(parts.prefix)
+    suffix_start = len(source) - len(parts.suffix)
+    lengths = tuple(map(len, parts.branches))
+    for wrapping in range(len(source)):
+        branches_start = prefix_end + 3 + 3 * wrapping
+        layout = (prefix_end, branches_start, lengths, suffix_start)
+        if alternation_from_layout(source, layout) == parts:
+            return layout
+    raise ValueError("the branches do not lie inside the source")
+
+
 def _folded(char: str) -> str:
     return char.translate(_FOLD).lower()
 
