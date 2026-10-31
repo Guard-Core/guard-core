@@ -37,9 +37,11 @@ def _redact_invalid_blocked_user_agents_input(
 def _reject_redos_unsafe_blocked_user_agents(
     patterns: list[str], redaction_names: _SensitiveNameSets | None = None
 ) -> None:
-    from guard_core._utils.detection_scan import _redact_pattern_source
+    from guard_core._utils.detection_scan import (
+        _MAX_USER_AGENT_MATCH_LENGTH,
+        _redact_pattern_source,
+    )
     from guard_core.detection_engine.compiler import PatternCompiler
-    from guard_core.utils import _MAX_USER_AGENT_MATCH_LENGTH
 
     compiler = PatternCompiler(redaction_names=redaction_names)
     for pattern in patterns:
@@ -56,6 +58,8 @@ def _reject_redos_unsafe_blocked_user_agents(
 def _reject_redos_unsafe_blocked_user_agents_at_field(
     title: str, patterns: list[str], redaction_names: _SensitiveNameSets | None
 ) -> None:
+    if not patterns:
+        return
     from guard_core._utils.detection_scan import _redact_pattern_source
 
     try:
