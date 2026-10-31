@@ -173,6 +173,7 @@ exclude = [
     "\\.unasync_check_tmp_",
     "tests/live_smoke/stack/app",
     "tests/typing_fixtures/expect_error",
+    "perf_gate/multipart_cells.py",
 ]
 
 # D-177 Any ratchet: begin (generated list; WP143 ratchet, shrink it, never grow it; tests/test_any_ratchet.py holds the line)

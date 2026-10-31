@@ -100,7 +100,7 @@ Configuring a feature whose extra is not installed raises a `SecurityConfig` val
 
 ### Import Cost
 
-`import guard_core` no longer pulls `aiohttp`, `maxminddb`, `redis`, `guard_agent`, or `cryptography` into `sys.modules`; every one of those loads lazily on first use of the feature that needs it. A cold `import guard_core` costs roughly 2ms (measured via `python -X importtime`, Python 3.10.19).
+`import guard_core` no longer pulls `aiohttp`, `maxminddb`, `redis`, `guard_agent`, or `cryptography` into `sys.modules`; every one of those loads lazily on first use of the feature that needs it. A cold `import guard_core` costs about 25 ms and `import guard_core.models`, which loads the engine, about 0.3 s (cumulative column of `python -X importtime -c "import guard_core"`, median of 25 fresh interpreters: 24.6 ms and 297 ms on Python 3.10.22, 24.6 ms and 283 ms on Python 3.11.18).
 
 ___
 

@@ -111,6 +111,7 @@ SKIP_TESTS = {
     "test_conformance_safety_before_timing_replay.py",
     "test_fixture_generator_determinism.py",
     "test_perf_gate_rules.py",
+    "test_perf_detection_components.py",
 }
 
 SKIP_DIRS = {"__pycache__", "sync"}

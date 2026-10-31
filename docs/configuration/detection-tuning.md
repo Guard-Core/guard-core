@@ -77,12 +77,23 @@ Raise it to accept larger uploads, at the cost of holding more memory per inspec
 
 A multipart upload past the default (1 MiB) on a route without a larger `max_request_size` is answered `400` under `fail_secure`, with a `suspicious_request` event and no strike. The warning in the log and the event detail name the field to raise (`detection_max_file_inspect_bytes` for multipart, `detection_max_body_inspect_bytes` for other bodies) and the per-route `max_request_size`.
 
-What the default costs, measured with 64 read slots busy on every request at once:
+What the default costs on guard-core 5.0.0 (Python 3.11, arm64), with 1 MiB uploads and 64 read slots busy on every request at once, per adapter and per body. The CPU and the RSS come from 64 requests in flight and the heap from one request alone (`tracemalloc`). The adapters are fastapi-guard, flaskapi-guard and djapi-guard:
 
-- CPU: 0.66 to 0.85 CPU seconds per MB of text multipart and 0.10 to 0.18 per MB of binary multipart. v4.4.0's 0.0114 is not equal work: it scanned a smaller window.
-- Memory per request: about 7.5 to 13.8 MB per in-flight 1 MiB upload.
-- Memory at the peak: 386.6 to 908.5 MB at 1 MiB with 64 slots busy.
-- The async tree has no read-slot cap by default (`async_body_read_max_concurrent` is `None`), so its memory is the per-request figure times the uploads in flight.
+| Reader | Body (1 MiB) | CPU seconds per MB | Heap of one request | Peak RSS, 64 in flight | Answered 200 of 64 |
+|--------|--------------|--------------------|---------------------|------------------------|--------------------|
+| fastapi | text | 0.73 | 7.5 MB | 703 MB | 64 |
+| flask | text | 0.79 | 8.4 MB | 770 MB | 63 |
+| django | text | 0.80 | 9.5 MB | 870 MB | 62 |
+| fastapi | percent-encoded text | 0.73 | 50.5 MB | 2,954 MB | 64 |
+| flask | percent-encoded text | 0.75 | 51.5 MB | 3,040 MB | 60 |
+| django | percent-encoded text | 0.80 | 52.6 MB | 3,165 MB | 62 |
+| fastapi | binary | 0.11 | 11.9 MB | 384 MB | 64 |
+| flask | binary | 0.12 | 12.8 MB | 612 MB | 64 |
+| django | binary | 0.12 | 13.8 MB | 745 MB | 64 |
+
+The requests not answered `200` were answered `400`, and which ones depends on timing. v4.4.0 scanned a smaller window of a multipart body, so its CPU per MB is not comparable. Reproduce one cell from a checkout of the adapter with `PYTHONPATH=<adapter checkout>:<guard-core checkout> python -m perf_gate.multipart_cells cell <reader> <mp-flat|mp-escaped|mp-binary> 1048576 64`, and the heap of one request with `cell <reader> <shape> 1048576 1 --tm`, from a checkout of guard-core 5.0.0.
+
+The async tree has no read-slot cap by default (`async_body_read_max_concurrent` is `None`), so its memory is the per-request figure times the uploads in flight.
 
 The full-body scan window and the pattern validation cap follow the larger of this limit and `detection_max_body_inspect_bytes`, so lowering only the body limit does not lower multipart. I make no claim that typical uploads fit within 1 MiB.
 
