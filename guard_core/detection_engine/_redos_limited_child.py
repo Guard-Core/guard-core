@@ -88,17 +88,23 @@ def run_limited_child(
     stall window falls back to the CPU limit, the old wall-clock behavior there.
     """
     stall_seconds = STALL_WALL_SECONDS if hasattr(signal, "setitimer") else cpu_limit
-    with tempfile.TemporaryFile() as heartbeats:
+    # The payload goes in through a file, never a pipe: on Python 3.10 to 3.13 a
+    # communicate() retry after a timeout does not resume writing the input, so a
+    # child that starts late would wait forever for the rest of a payload larger than
+    # the pipe buffer and be killed as stalled.
+    with tempfile.TemporaryFile() as heartbeats, tempfile.TemporaryFile() as stdin:
+        stdin.write(payload.encode())
+        stdin.seek(0)
         process = subprocess.Popen(
             [sys.executable, "-S", "-I", "-c", script],
-            stdin=subprocess.PIPE,
+            stdin=stdin,
             stdout=subprocess.PIPE,
             stderr=heartbeats,
             text=True,
         )
         output = communicate_until_stalled(
             process,
-            payload,
+            "",
             lambda: os.fstat(heartbeats.fileno()).st_size,
             stall_seconds,
         )
