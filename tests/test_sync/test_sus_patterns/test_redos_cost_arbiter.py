@@ -3,6 +3,7 @@ import json
 import logging
 import re
 import signal
+import sys
 import time
 from collections.abc import Callable
 from typing import Any
@@ -82,6 +83,7 @@ from guard_core.sync.detection_engine._redos_stray_chooser import (
     _build_stray_context,
     _stray_for_pair,
 )
+from guard_core.sync.detection_engine._redos_work_counter import WORK_UNIT_SECONDS
 from guard_core.sync.detection_engine.compiler import PatternCompiler
 from guard_core.sync.handlers._suspatterns_sources import _SQLI_COMMENT_TERMINATOR_RE
 
@@ -2274,14 +2276,39 @@ def measured_time_child(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
-def test_probe_child_counts_one_deterministic_sample_per_probe() -> None:
+_FIXED_WORK_COUNTER_SOURCE = (
+    "def build_work_counter():\n    return lambda compiled, probe: len(probe)\n"
+)
+
+
+def test_probe_child_reports_the_counted_work_as_one_sample_per_probe(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "guard_core.sync.detection_engine._redos_cost_arbiter."
+        "_REACH_PROBE_TIMING_CHILD_SCRIPT",
+        _reach_probe_timing_child_script(_FIXED_WORK_COUNTER_SOURCE),
+    )
+    probes = ["abcabc", "abcabcabcabc"]
+    timing = _time_reach_probes_subprocess("abc", probes, _ample_budget())
+    assert timing is not None
+    assert timing.samples_by_size == [
+        [len(probe) * WORK_UNIT_SECONDS] for probe in probes
+    ]
+    assert timing.load_factor == 1.0
+
+
+def test_probe_child_answers_with_its_own_counter_or_with_cpu_time() -> None:
     probes = [_repeat_probe_to_length("foo", size) for size in _REACH_PROBE_SIZES[-2:]]
     first = _time_reach_probes_subprocess(r"(?:foo|bar)+$", probes, _ample_budget())
     second = _time_reach_probes_subprocess(r"(?:foo|bar)+$", probes, _ample_budget())
     assert first is not None and second is not None
-    assert first.samples_by_size == second.samples_by_size
-    assert [len(row) for row in first.samples_by_size] == [1, 1]
-    assert first.load_factor == 1.0
+    if sys.platform == "darwin":
+        assert first.load_factor == second.load_factor == 1.0
+        for one, other in zip(
+            first.samples_by_size, second.samples_by_size, strict=True
+        ):
+            assert one[0] == pytest.approx(other[0], rel=0.02)
 
 
 @pytest.mark.usefixtures("measured_time_child")

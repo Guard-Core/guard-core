@@ -4,6 +4,8 @@ import pytest
 
 from guard_core.sync.detection_engine.compiler import PatternCompiler
 
+pytestmark = pytest.mark.redos_timing
+
 _CDATA_PATTERN = r"<!\[CDATA\[.*?\]\]>"
 _V440_SAFE_CAP = 10000
 _LOWEST_MIRROR_CAP = 13000 if sys.version_info < (3, 11) else 12000

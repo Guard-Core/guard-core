@@ -1,48 +1,56 @@
-# The verdict of the reach-probe is a count of regex work, never a duration: CPython's
-# matcher polls for signals once per 4096 opcode dispatches, so a signal that re-arms
-# itself at every poll leaves one byte on the wakeup descriptor per 4096 dispatches.
-# The count depends only on the pattern, the probe and the interpreter build, so no
-# scheduler, core type or host load can move it. A child without ctypes, sockets or
-# the CPython hook gets None and the caller falls back to measured CPU time.
-WORK_UNIT_SECONDS = 3.4e-5
+# The verdict of the reach-probe is a count of retired instructions where the host can
+# read one without privileges, never a duration: the same regex work retires the same
+# instructions on a performance core and on an efficiency core (which takes about 2.4
+# times longer), beside busy loops or alone. macOS reports the counter of the calling
+# process through proc_pid_rusage. A child that cannot read it (any other platform, no
+# ctypes) gets None and the caller falls back to measured CPU time.
+WORK_UNIT_SECONDS = 5.1e-11
 
 WORK_COUNTER_SOURCE = """\
 def build_work_counter():
     try:
-        import ctypes, signal, socket
-        reader, writer = socket.socketpair()
-        reader.setblocking(False)
-        writer.setblocking(False)
-        writer.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1 << 20)
-        rearm = ctypes.PYFUNCTYPE(None, ctypes.py_object, ctypes.py_object)(
-            ('PyErr_SetInterrupt', ctypes.pythonapi))
-        start = ctypes.pythonapi.PyErr_SetInterrupt
-        signal.set_wakeup_fd(writer.fileno(), warn_on_full_buffer=False)
+        import ctypes, ctypes.util, os, sys
+        if sys.platform != 'darwin':
+            return None
+        names = (
+            'ri_user_time ri_system_time ri_pkg_idle_wkups ri_interrupt_wkups '
+            'ri_pageins ri_wired_size ri_resident_size ri_phys_footprint '
+            'ri_proc_start_abstime ri_proc_exit_abstime ri_child_user_time '
+            'ri_child_system_time ri_child_pkg_idle_wkups ri_child_interrupt_wkups '
+            'ri_child_pageins ri_child_elapsed_abstime ri_diskio_bytesread '
+            'ri_diskio_byteswritten ri_cpu_time_qos_default '
+            'ri_cpu_time_qos_maintenance ri_cpu_time_qos_background '
+            'ri_cpu_time_qos_utility ri_cpu_time_qos_legacy '
+            'ri_cpu_time_qos_user_initiated ri_cpu_time_qos_user_interactive '
+            'ri_billed_system_time ri_serviced_system_time ri_logical_writes '
+            'ri_lifetime_max_phys_footprint ri_instructions ri_cycles '
+            'ri_billed_energy ri_serviced_energy ri_interval_max_phys_footprint '
+            'ri_runnable_time').split()
+
+        class Usage(ctypes.Structure):
+            _fields_ = [('ri_uuid', ctypes.c_uint8 * 16)] + [
+                (name, ctypes.c_uint64) for name in names]
+
+        library = ctypes.CDLL(ctypes.util.find_library('proc'))
+        usage = Usage()
+        pid = os.getpid()
+
+        def retired():
+            if library.proc_pid_rusage(pid, 4, ctypes.byref(usage)) != 0:
+                raise OSError('proc_pid_rusage failed')
+            return usage.ri_instructions
+
+        if retired() <= 0:
+            return None
     except Exception:
         return None
 
-    def idle(signum, frame):
-        return None
-
-    def drain():
-        total = 0
-        while True:
-            try:
-                chunk = reader.recv(1 << 20)
-            except BlockingIOError:
-                return total
-            total += chunk.count(b'\\x02')
-
-    def polls(compiled, probe):
-        writer.fileno()
-        drain()
-        signal.signal(signal.SIGINT, rearm)
-        start()
+    def instructions(compiled, probe):
+        before = retired()
         compiled.search(probe)
-        signal.signal(signal.SIGINT, idle)
-        return drain()
+        return retired() - before
 
     empty = re.compile('a')
-    baseline = min(polls(empty, 'b') for _ in range(3))
-    return lambda compiled, probe: max(polls(compiled, probe) - baseline, 0)
+    baseline = min(instructions(empty, 'b') for _ in range(3))
+    return lambda compiled, probe: max(instructions(compiled, probe) - baseline, 0)
 """

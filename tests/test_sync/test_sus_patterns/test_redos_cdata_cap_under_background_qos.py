@@ -10,8 +10,8 @@ pytestmark = pytest.mark.redos_timing
 _CDATA_PATTERN = r"<!\[CDATA\[.*?\]\]>"
 _SAFE_CAP = 1000
 _UNSAFE_CAP = 16000
-# The lowest mirror caps, 4 to 17 percent over the work budget: 3.10 counts 1602
-# polls at 13000 and 3.14 counts 1953 at 12000 (3.11 and later share 3.14's counts).
+# The lowest mirror caps, 3 to 7 percent over the cost budget: 3.10 at 13000, 3.14 at
+# 12000 (3.11 and later share 3.14's regex engine and its instruction counts).
 _LOWEST_MIRROR_CAP = 13000 if sys.version_info < (3, 11) else 12000
 _NEAR_BUDGET_CAPS = sorted({_LOWEST_MIRROR_CAP, 13000})
 _REPEATS = 12
