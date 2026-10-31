@@ -59,6 +59,17 @@ def test_a_name_that_is_not_a_lazy_pattern_is_still_an_attribute_error(
         getattr(module, missing)
 
 
+@pytest.mark.parametrize("module_name", LAZY_MODULES)
+def test_every_name_a_module_exports_still_resolves(module_name: str) -> None:
+    module = importlib.import_module(module_name)
+
+    unresolved = [
+        name for name in getattr(module, "__all__", []) if not hasattr(module, name)
+    ]
+
+    assert unresolved == []
+
+
 def test_a_table_compiles_a_name_once_and_only_when_asked() -> None:
     table = LazyPatterns({"digits": (r"\d+", 0), "word": (r"\w+", re.IGNORECASE)})
 
