@@ -1,4 +1,3 @@
-
 from guard_core.handlers._suspatterns_credential_files import (
     CREDENTIAL_FILE_ROWS,
     CREDENTIAL_FILES_WITH_DIRECTORY_ROW,
