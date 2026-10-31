@@ -8,7 +8,7 @@ from guard_core.protocols.agent_protocol import DynamicRulesProtocol
 
 
 class DynamicRules(BaseModel):
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, defer_build=True)
 
     rule_id: str = Field(description="Unique rule ID")
     version: int = Field(description="Rule version number")
@@ -98,18 +98,18 @@ _LEGACY_EXCLUDED_RULE_FIELDS = {"emergency_whitelist_only"}
 
 
 class LastKnownDynamicRules(DynamicRules):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", defer_build=True)
 
 
 class LastKnownOwnership(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", defer_build=True)
 
     bans: list[str] = Field(default_factory=list)
     patterns: list[str] = Field(default_factory=list)
 
 
 class LastKnownRulesSnapshot(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", defer_build=True)
 
     schema_version: int
     rules: LastKnownDynamicRules
