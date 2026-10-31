@@ -4,7 +4,11 @@ from typing import Any
 
 import pytest
 
+from guard_core._security_config_fields import DEFAULT_EXCLUDE_PATHS
 from guard_core.core.initialization.handler_initializer import HandlerInitializer
+from guard_core.core.validation.path_matching import (
+    _has_routing_anomaly_in_any_decoding,
+)
 from guard_core.decorators import SecurityDecorator
 from guard_core.models import SecurityConfig
 
@@ -244,3 +248,12 @@ async def test_startup_report_text_and_location_for_an_unreachable_ban_threshold
     assert [
         (r.name, r.getMessage()) for r in caplog.records if problem in r.getMessage()
     ] == [("guard_core.core.initialization", f"{problem} {FALSE_NOTE}")]
+
+
+def test_no_default_exclude_path_has_a_routing_anomaly() -> None:
+    """The misconfiguration check skips the defaults, so none may be flagged."""
+    assert [
+        entry
+        for entry in DEFAULT_EXCLUDE_PATHS
+        if _has_routing_anomaly_in_any_decoding(entry)
+    ] == []

@@ -2,6 +2,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from guard_core._emergency_exemptions import warn_unexempted_probe_paths
+from guard_core._security_config_fields import DEFAULT_EXCLUDE_PATHS
 from guard_core._security_headers_defaults import unknown_security_headers_keys
 from guard_core.core.validation.path_matching import (
     _has_routing_anomaly_in_any_decoding,
@@ -78,7 +79,8 @@ def _anomalous_path_problems(config: "SecurityConfig[RequestT]") -> list[str]:
         *(
             f"exclude_paths entry {entry!r} {spelling}"
             for entry in config.exclude_paths
-            if _has_routing_anomaly_in_any_decoding(entry)
+            if entry not in DEFAULT_EXCLUDE_PATHS
+            and _has_routing_anomaly_in_any_decoding(entry)
         ),
         *(
             f"endpoint_rate_limits key {key!r} {spelling}"

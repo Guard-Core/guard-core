@@ -152,7 +152,7 @@ class _InputSensitiveNames:
 
 
 def _redact_blocked_user_agents_in_input(
-    data: object, field_defaults: Mapping[str, object]
+    data: object, field_defaults: Callable[[], Mapping[str, object]]
 ) -> object:
     if not isinstance(data, Mapping) or "blocked_user_agents" not in data:
         return data
@@ -162,10 +162,11 @@ def _redact_blocked_user_agents_in_input(
         return "[REDACTED]"
 
     redact = redact_everything
+    defaults = field_defaults()
     try:
         names = {
             field: _validate_sensitive_name_set_value(
-                data.get(field, field_defaults[field]), field
+                data.get(field, defaults[field]), field
             )
             for field in _SENSITIVE_NAME_FIELDS
         }

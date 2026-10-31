@@ -273,7 +273,7 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
         config = handler(
             _redact_blocked_user_agents_in_input(
                 data,
-                {
+                lambda: {
                     f: cls.model_fields[f].get_default(call_default_factory=True)
                     for f in _SENSITIVE_NAME_FIELDS
                 },
