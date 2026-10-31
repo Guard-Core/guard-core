@@ -60,6 +60,26 @@ _ATTRIBUTION_VIEW = (
     "handler.DynamicRuleManager._instance\n"
 )
 
+_PIPELINE_IMPORT = (
+    "import sys\n"
+    "from guard_core.{tree}core.checks.pipeline import SecurityCheckPipeline\n"
+    "from guard_core.{tree}core.checks import SecurityCheck\n"
+    "leaked = [\n"
+    "    name for name in sys.modules\n"
+    "    if '.checks.implementations.' in name or name.endswith('.checks.factory')\n"
+    "]\n"
+    "print(','.join(leaked))\n"
+)
+
+_CHECKS_BY_NAME = (
+    "from guard_core.{tree}core.checks import DEFAULT_CHECK_CLASSES, IpSecurityCheck\n"
+    "from guard_core.{tree}core.checks.implementations import RateLimitCheck\n"
+    "from guard_core.{tree}core.checks import factory\n"
+    "assert IpSecurityCheck in DEFAULT_CHECK_CLASSES\n"
+    "assert RateLimitCheck in DEFAULT_CHECK_CLASSES\n"
+    "assert factory.DEFAULT_CHECK_CLASSES is DEFAULT_CHECK_CLASSES\n"
+)
+
 
 def _run_python(source: str) -> str:
     env = dict(os.environ)
@@ -85,3 +105,13 @@ def test_the_rule_attribution_reads_the_registry_the_rule_manager_fills(
     tree: str,
 ) -> None:
     assert _run_python(_ATTRIBUTION_VIEW.format(tree=tree)) == ""
+
+
+@pytest.mark.parametrize("tree", ["", "sync."])
+def test_importing_the_pipeline_loads_no_check_implementation(tree: str) -> None:
+    assert _run_python(_PIPELINE_IMPORT.format(tree=tree)) == ""
+
+
+@pytest.mark.parametrize("tree", ["", "sync."])
+def test_the_check_names_resolve_from_their_packages(tree: str) -> None:
+    assert _run_python(_CHECKS_BY_NAME.format(tree=tree)) == ""
