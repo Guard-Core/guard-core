@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, ClassVar
 
 from guard_core._utils.agent_events import agent_receives_events
 from guard_core._utils.rule_attribution import cloud_provider_attribution
+from guard_core._utils.rule_attribution_shared import Stamp
 from guard_core.core.checks._pending_ban import resolve_pending_ban
 from guard_core.core.checks.base import SecurityCheck
 from guard_core.core.checks.helpers import (
@@ -15,7 +16,6 @@ from guard_core.core.events.event_types import (
     EVENT_IP_BLOCKED,
 )
 from guard_core.decorators.base import RouteConfig
-from guard_core.handlers._dynamic_rule_attribution import Stamp
 from guard_core.models import SecurityConfig, cloud_blocking_enabled
 from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse

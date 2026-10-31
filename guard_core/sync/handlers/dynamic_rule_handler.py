@@ -3,8 +3,8 @@ import threading
 from datetime import datetime, timezone
 
 from guard_core.models import SyncSecurityConfig
-from guard_core.sync._utils.app_managers import AppManagers
 from guard_core.sync._utils.app_scope import app_scope_of, in_app_scope
+from guard_core.sync._utils.rule_attribution_shared import _APP_RULE_MANAGERS
 from guard_core.sync.handlers._dynamic_rule_application import (
     DynamicRuleApplicationMixin,
     RuleSideEffects,
@@ -31,11 +31,6 @@ def _coerce_naive_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=timezone.utc)
     return value
-
-
-_APP_RULE_MANAGERS: AppManagers["DynamicRuleManager"] = AppManagers(
-    "dynamic_rules", shares_default_between_apps=False
-)
 
 
 class DynamicRuleManager(

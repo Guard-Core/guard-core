@@ -8,6 +8,7 @@ from guard_core._security_config_field_validators import (
 )
 from guard_core.sync._utils.access_control import _ip_in_list
 from guard_core.sync._utils.nat64 import nat64_table_of
+from guard_core.sync._utils.rule_attribution_shared import Stamp
 from guard_core.sync.handlers._cloud_provider_registry import _parse_cloud_selectors
 from guard_core.sync.handlers._ipban_rule_exempt import rule_ban_member
 from guard_core.sync.protocols.agent_protocol import DynamicRulesProtocol
@@ -20,7 +21,6 @@ MATCHED_RULE_TYPE_DYNAMIC = "dynamic"
 _MAX_BAN_STAMPS = 10_000
 
 _Selectors = tuple[frozenset[str], Mapping[str, frozenset[str]]]
-Stamp = dict[str, object]
 
 
 def _items_of(base: Mapping[str, object], key: str) -> Iterable[str]:

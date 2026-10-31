@@ -13,6 +13,7 @@ from guard_core.sync._utils.ip_extraction import (
 )
 from guard_core.sync._utils.nat64 import nat64_table_of
 from guard_core.sync._utils.rule_attribution import rate_limit_attribution
+from guard_core.sync._utils.rule_attribution_shared import Stamp
 from guard_core.sync.core.checks._ban_flow import BanFlow
 from guard_core.sync.core.checks._pending_ban import PendingBan, resolve_pending_ban
 from guard_core.sync.core.checks._rate_limit_ban_first import (
@@ -42,7 +43,6 @@ from guard_core.sync.core.checks.helpers import (
 )
 from guard_core.sync.core.checks.route_prefixes import warn_unmatched_endpoint_keys
 from guard_core.sync.decorators.base import RouteConfig
-from guard_core.sync.handlers._dynamic_rule_attribution import Stamp
 from guard_core.sync.handlers.cors_handler import ALLOWED_PREFLIGHT_REQUEST_HEADER
 from guard_core.sync.handlers.ratelimit_handler import (
     RateLimitBlock,

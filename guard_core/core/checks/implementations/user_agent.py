@@ -4,6 +4,7 @@ from typing import ClassVar
 from guard_core._utils.agent_events import agent_receives_events
 from guard_core._utils.request_logging import redact_header_value_for_display
 from guard_core._utils.rule_attribution import user_agent_attribution
+from guard_core._utils.rule_attribution_shared import Stamp
 from guard_core.core.checks._pending_ban import resolve_pending_ban
 from guard_core.core.checks.base import SecurityCheck
 from guard_core.core.checks.helpers import (
@@ -17,7 +18,6 @@ from guard_core.core.events.event_types import (
     EVENT_USER_AGENT_BLOCKED,
 )
 from guard_core.decorators.base import RouteConfig
-from guard_core.handlers._dynamic_rule_attribution import Stamp
 from guard_core.models import SecurityConfig
 from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse
