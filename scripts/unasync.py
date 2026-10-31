@@ -33,6 +33,7 @@ SKIP_SRC = {
     "_config_capabilities.py",
     "_config_field_revalidators.py",
     "_security_config_fields.py",
+    "_security_config_json.py",
     "_dynamic_rules.py",
     "_staged_defaults.py",
     "_tracking_caps.py",

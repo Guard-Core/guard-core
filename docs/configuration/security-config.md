@@ -566,3 +566,22 @@ Validators
 
 !!! warning "Unknown provider names raise"
     `validate_cloud_providers` rejects a `block_cloud_providers` entry whose provider name (the part before an optional `:!region` suffix) is not `"AWS"`, `"GCP"`, or `"Azure"`. `{"AWS", "InvalidProvider"}` raises `ValueError` naming `InvalidProvider` instead of silently blocking only `"AWS"`.
+
+___
+
+JSON Serialization and Schema
+-----------------------------
+
+`SecurityConfig` dumps to JSON and describes itself with a JSON schema, for a default config and for one with every field set:
+
+```python
+import json
+
+from guard_core.models import SecurityConfig
+
+config = SecurityConfig()
+dumped = json.loads(config.model_dump_json(indent=2))
+schema = SecurityConfig.model_json_schema()
+```
+
+`threat_ban_config` is dumped as a mapping of category to its `threshold` and `duration`. The fields that hold an object (`geo_ip_handler`, `cloud_ip_store`, `custom_request_check`, `custom_response_modifier`, `auth_verifier`, `on_error` and `on_block`) are dumped as the dotted module and qualified name of that object, or `null` when unset, so a secret held by a handler never reaches the JSON, and their schema is a string or `null`. `model_dump()` still returns the live objects, and a dump with one of those seven set cannot be validated back with `model_validate_json`, because a name is not a callable or a handler.
