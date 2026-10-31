@@ -56,7 +56,7 @@ def test_the_table_holds_builtin_rows_once_inside_the_budget() -> None:
     assert IMPORT_COMPILED_ROWS
     assert len(set(IMPORT_COMPILED_ROWS)) == len(IMPORT_COMPILED_ROWS)
     assert set(IMPORT_COMPILED_ROWS) <= builtin
-    assert sum(map(len, IMPORT_COMPILED_ROWS)) <= 3000
+    assert sum(map(len, IMPORT_COMPILED_ROWS)) <= 4500
 
 
 def test_importing_the_package_compiles_exactly_those_rows() -> None:

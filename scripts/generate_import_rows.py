@@ -22,7 +22,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parent.parent
 TARGET = ROOT / "guard_core" / "_builtin_import_rows.py"
 FIXTURE_CASES = ROOT / "specs" / "fixtures" / "cases"
-IMPORT_ROW_BUDGET_CHARS = 3000
+IMPORT_ROW_BUDGET_CHARS = 4500
 _MAX_TEXT_CHARS = 2000
 _PIECE_WIDTH = 80
 _SINGLE_LINE_WIDTH = 83

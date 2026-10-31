@@ -74,7 +74,50 @@ IMPORT_COMPILED_ROWS: tuple[str, ...] = (
         "mkv|mov|mp3|mp4|odt|pdf|png|ppt|svg|tif|wav|xls)(?:[. ]*::\\$DATA)?[. ]*[\\\"'"
         "]"
     ),
+    (
+        "(?:\\A|[;,:\\n])\\s*filename\\s*=\\s*[\\\"'][^\\\"']*\\.(?:php\\d*|phtml|shtml"
+        "|asax|ascx|ashx|asmx|aspx|bash|jspx|phar|phps|asa|asp|bat|cer|cfc|cfm|cgi|cmd|"
+        "exe|hta|jsp|msi|pht|vbe|vbs|war|wsf|js|pl|py|rb|sh|ws)(?![A-Za-z0-9])(?:(?:%00"
+        "|\\\\u0000|\\\\x00|\\\\0|\\x00|;)[^\\\"']*|\\.)[\\\"']"
+    ),
+    (
+        "(?:\\A|[;,:\\n])\\s*filename\\s*=\\s*[\\\"'][^\\\"']*\\.(?:php\\d*|phtml|shtml"
+        "|asax|ascx|ashx|asmx|aspx|bash|jspx|phar|phps|asa|asp|bat|cer|cfc|cfm|cgi|cmd|"
+        "exe|hta|jsp|msi|pht|vbe|vbs|war|wsf|js|pl|py|rb|sh|ws)(?![A-Za-z0-9])(?:(?:\\x"
+        "00|;)[^\\\"']*|\\.)[\\\"']"
+    ),
+    (
+        "\\A[\\w.\\-]{0,100}\\.(?:php\\d*|phtml|shtml|asax|ascx|ashx|asmx|aspx|bash|jsp"
+        "x|phar|phps|asa|asp|bat|cer|cfc|cfm|cgi|cmd|exe|hta|jsp|msi|pht|vbe|vbs|war|ws"
+        "f|js|pl|py|rb|sh|ws)(?:\\.(?:docx|jpeg|pptx|tiff|webm|webp|xlsx|avi|bmp|doc|gi"
+        "f|ico|jpg|mkv|mov|mp3|mp4|odt|pdf|png|ppt|svg|tif|wav|xls)|;[^/\\\\]{0,60}|\\."
+        "|\\s+)\\Z"
+    ),
     "\\{\\{\\s*[^\\}]+(?:system|exec|popen|eval|require|include)\\s*\\}\\}",
+    "\\{\\%\\s*[^\\%]+(?:system|exec|popen|eval|require|include)\\s*\\%\\}",
+    (
+        "(?i)<%[=#]?[^%]*(?:system|exec|eval|`|Runtime|IO\\.|File\\.|Dir\\.|\\d+\\s*[-+"
+        "*/]\\s*\\d+)[^%]*%>"
+    ),
+    "\\$\\{[^}]*(?:@[\\w.]+@|\\b\\w+\\s*\\(|\\d+\\s*[*/%+\\-]\\s*\\d+)[^}]*\\}",
+    (
+        "\\{\\{(?![^\\}]*\\d{4}-\\d{1,2}-\\d{1,2}(?!\\d))(?=[^\\}]*(?:@[\\w.]+@|\\b\\w+"
+        "\\(\\s*\\)|['\\\"]?\\d+['\\\"]?\\s*[*/%+\\-]\\s*['\\\"]?\\d+['\\\"]?))[^\\}]*"
+        "\\}\\}"
+    ),
+    (
+        "#\\{(?![^\\}]*\\d{4}-\\d{1,2}-\\d{1,2}(?!\\d))(?=[^\\}]*(?:@[\\w.]+@|\\b\\w+\\"
+        "s*\\(|['\\\"]?\\d+['\\\"]?\\s*[*/%+\\-]\\s*['\\\"]?\\d+['\\\"]?))[^\\}]*\\}"
+    ),
     "(?<![A-Za-z0-9+/])(?-i:gA[SW]V)",
+    (
+        "(c[A-Za-z_][A-Za-z0-9_]{0,100}(?:\\.[A-Za-z_][A-Za-z0-9_]{0,100}){0,20}\\n[A-Z"
+        "a-z_][A-Za-z0-9_]{0,100}\\n)[^ \\t]{0,100}?[Rb]"
+    ),
+    (
+        "'\\s*(?:[\\);]+\\s*)?(?:--|/\\*(?![^*]+\\*/))|'[\\);]*#(?:\\n|\\Z)|'[\\);]*[^"
+        "\\S\\n]+#[^\\S\\n]*\\Z"
+    ),
     "\\(\\s*[&|]\\s*",
+    "\\*\\)\\)+\\x00",
 )
