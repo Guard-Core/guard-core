@@ -10,6 +10,9 @@ from dataclasses import dataclass
 
 from guard_core._utils.pattern_source_redaction import _SensitiveNameSets
 from guard_core.detection_engine._redos_cpu_budget import ReachProbeCpuBudget
+from guard_core.detection_engine._redos_engine_normalizer import (
+    ENGINE_NORMALIZER_SOURCE,
+)
 from guard_core.detection_engine._redos_limited_child import (
     CPU_LIMIT_PRELUDE,
     HEARTBEAT_CPU_SECONDS,
@@ -49,7 +52,7 @@ _PATTERN_SAFETY_PROBE_PER_STRING_THRESHOLD_SECONDS = 0.05
 _PATTERN_SAFETY_PROBE_CHILD_SCRIPT = (
     "import json, re, sys, time\n"
     "pattern, test_strings, threshold, flags, cpu_limit, heartbeat = json.loads(\n"
-    "    sys.stdin.read())\n" + CPU_LIMIT_PRELUDE + "arm()\n"
+    "    sys.stdin.read())\n" + CPU_LIMIT_PRELUDE + ENGINE_NORMALIZER_SOURCE + "arm()\n"
     "try:\n"
     "    compiled = re.compile(pattern, flags)\n"
     "except Exception as exc:\n"
@@ -165,7 +168,11 @@ def _reach_probe_timing_child_script(counter_source: str) -> str:
     return (
         "import json, re, sys, time\n"
         "pattern, probes, samples, cpu_limit, flags, trigger, heartbeat = json.loads(\n"
-        "    sys.stdin.read())\n" + CPU_LIMIT_PRELUDE + counter_source + "arm()\n"
+        "    sys.stdin.read())\n"
+        + CPU_LIMIT_PRELUDE
+        + ENGINE_NORMALIZER_SOURCE
+        + counter_source
+        + "arm()\n"
         "try:\n"
         "    compiled = re.compile(pattern, flags)\n"
         "except Exception as exc:\n"
