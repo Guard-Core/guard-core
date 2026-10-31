@@ -1,6 +1,7 @@
 import re
 from collections.abc import Callable, Iterator
 
+from guard_core._lazy_patterns import module_attribute_lookup
 from guard_core.sync.handlers._suspatterns_matchers import (
     _PATTERNS as _MATCHERS_PATTERNS,
 )
@@ -67,3 +68,12 @@ _LITERAL_EXCLUDED_SOURCES = (
     | frozenset(_PATTERN_SCAN_WINDOW_MATCHERS)
     | frozenset(_SCAN_WINDOW_PATTERNS)
 )
+
+
+_lookup = module_attribute_lookup(
+    _MATCHERS_PATTERNS, _SHELL_SOURCES_PATTERNS, _SOURCES_PATTERNS, _XML_XXE_PATTERNS
+)
+
+
+def __getattr__(name: str) -> re.Pattern[str]:
+    return _lookup(name)

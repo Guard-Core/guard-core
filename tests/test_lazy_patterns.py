@@ -154,3 +154,76 @@ def test_the_named_floor_keeps_its_token_pattern_names(tree: str) -> None:
     missing = "_no_such_name"
     with pytest.raises(AttributeError):
         getattr(floor, missing)
+
+
+_NAMES_AN_IMPORTING_MODULE_STILL_ANSWERS = (
+    [
+        ("handlers._suspatterns_shell_validators", name)
+        for name in (
+            "_BACKTICK_WINDOW_DELIMITER_RE",
+            "_GLUED_BACKTICK_ASCII_WORD_RE",
+            "_IMPLAUSIBLE_DOLLAR_PAREN_TOKEN_CHARS_RE",
+            "_IMPLAUSIBLE_SQL_IDENTIFIER_CHARS_RE",
+            "_SHELL_BRACE_SLICE_RE",
+            "_SHELL_CHAIN_OPERATOR_RE",
+            "_SHELL_KNOWN_COMMAND_RE",
+            "_SHELL_PLAIN_IDENTIFIER_RE",
+            "_SHELL_SELECTOR_STRING_RE",
+            "_STRONG_SQL_KEYWORD_GLUED_PREFIX_RE",
+            "_STRONG_SQL_KEYWORD_GLUED_SUFFIX_RE",
+        )
+    ]
+    + [
+        ("handlers._suspatterns_ldap_ipv4", name)
+        for name in (
+            "_LDAP_BREAKOUT_ATTACK_TOKEN_RE",
+            "_LDAP_BREAKOUT_WILDCARD_CLAUSE_END_RE",
+            "_LDAP_FILTER_EXPRESSION_STRUCTURE_RE",
+            "_LDAP_PAREN_CONJUNCTION_FOLLOWUP_ATTR_RE",
+            "_LDAP_PAREN_CONJUNCTION_FOLLOWUP_SYMBOL_RE",
+        )
+    ]
+    + [
+        ("handlers._suspatterns_windowed_finders", name)
+        for name in (
+            "_CMD_INJECTION_NEWLINE_SHELL_DASH_C_COMPILED_RE",
+            "_DESERIALIZATION_PICKLE_GLOBAL_GENERIC_COMPILED_RE",
+            "_QUOTE_SPLICE_CANDIDATE_COMPILED_RE",
+            "_LDAP_NULL_BYTE_ATTR_COMPILED_RE",
+            "_LDAP_NULL_BYTE_DECODED_ATTR_COMPILED_RE",
+            "_LDAP_NULL_BYTE_DECODED_TAIL_RE",
+            "_LDAP_NULL_BYTE_TAIL_RE",
+            "_XML_XXE_PUBLIC_EXTERNAL_DTD_COMPILED_RE",
+        )
+    ]
+    + [
+        ("handlers._suspatterns_matchers", name)
+        for name in (
+            "_FILE_UPLOAD_BENIGN_TERMINAL_EXTENSION_RE",
+            "_FILE_UPLOAD_DANGEROUS_EXTENSION_MARKER_RE",
+            "_FILE_UPLOAD_DANGEROUS_TERMINAL_EXTENSION_RE",
+            "_FILE_UPLOAD_DECODED_TRUNCATION_MARKER_RE",
+            "_FILE_UPLOAD_DOUBLE_EXT_PREFIX_RE",
+            "_FILE_UPLOAD_QUOTE_RE",
+            "_FILE_UPLOAD_TRUNCATION_MARKER_RE",
+            "_FILE_UPLOAD_VALIDATED_SPAN_RE",
+            "_LDAP_NULL_BYTE_ATTR_CONTINUATION_CHAR_RE",
+            "_LDAP_NULL_BYTE_ATTR_LEAD_CHAR_RE",
+            "_LDAP_NULL_BYTE_VALUE_CHAR_RE",
+        )
+    ]
+    + [
+        ("handlers._suspatterns_named_floor", "_PLAIN_SOURCE_OR_MAP_PATH_END_RE"),
+        ("_utils.pair_redaction", "_PERCENT_ESCAPE_RE"),
+    ]
+)
+
+
+@pytest.mark.parametrize("tree", ["guard_core", "guard_core.sync"])
+@pytest.mark.parametrize(("module", "name"), _NAMES_AN_IMPORTING_MODULE_STILL_ANSWERS)
+def test_a_module_that_imported_a_pattern_still_answers_to_its_name(
+    tree: str, module: str, name: str
+) -> None:
+    holder = importlib.import_module(f"{tree}.{module}")
+
+    assert isinstance(getattr(holder, name), re.Pattern)

@@ -54,7 +54,7 @@ _PATTERNS = LazyPatterns(
         "_NAME_BOUNDARY_RE": (rf"[^A-Za-z0-9_.\-%{_PLUS_SENTINEL}]", 0),
     }
 )
-_lookup = module_attribute_lookup(_PATTERNS)
+_lookup = module_attribute_lookup(_PATTERNS, _PAIR_VALUE_PATTERNS)
 
 
 def __getattr__(name: str) -> re.Pattern[str]:

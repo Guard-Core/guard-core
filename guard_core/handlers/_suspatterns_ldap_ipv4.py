@@ -1,6 +1,7 @@
 import ipaddress
 import re
 
+from guard_core._lazy_patterns import module_attribute_lookup
 from guard_core.handlers._suspatterns_sources import (
     _LDAP_BREAKOUT_BACKWARD_BOUNDARY_CHARS,
     _LDAP_BREAKOUT_FORWARD_BOUNDARY_CHARS,
@@ -198,3 +199,10 @@ def _ldap_paren_conjunction_is_injection(match: re.Match) -> bool:
     return "=" in tail and bool(
         _SOURCES_PATTERNS["_LDAP_PAREN_CONJUNCTION_FOLLOWUP_ATTR_RE"].match(tail)
     )
+
+
+_lookup = module_attribute_lookup(_SOURCES_PATTERNS)
+
+
+def __getattr__(name: str) -> re.Pattern[str]:
+    return _lookup(name)

@@ -2,7 +2,11 @@ import re
 from collections.abc import Callable
 from functools import lru_cache
 
-from guard_core._lazy_patterns import CompiledOnDemand, LazyPatternMap
+from guard_core._lazy_patterns import (
+    CompiledOnDemand,
+    LazyPatternMap,
+    module_attribute_lookup,
+)
 from guard_core._utils.route_gate import (
     is_scanning_declared_path_param_values,
     isolate_declared_path_params,
@@ -73,10 +77,13 @@ _COMPILED_ROWS = CompiledOnDemand(re.IGNORECASE)
 NAMED_FLOOR_TOKEN_PATTERNS = LazyPatternMap(NAMED_FLOOR_TOKEN_SOURCES, _COMPILED_ROWS)
 
 
+_lookup = module_attribute_lookup(_SOURCES_PATTERNS)
+
+
 def __getattr__(name: str) -> re.Pattern[str]:
     if name == "CMS_TOKEN_PATTERN":
         return _COMPILED_ROWS[CMS_TOKEN_SOURCE]
-    raise AttributeError(name)
+    return _lookup(name)
 
 
 SUPERSEDING_ROWS: dict[str, tuple[str, ...]] = {}

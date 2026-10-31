@@ -244,7 +244,7 @@ _PATTERNS = LazyPatterns(
         ),
     }
 )
-_lookup = module_attribute_lookup(_PATTERNS)
+_lookup = module_attribute_lookup(_PATTERNS, _SHELL_SOURCES_PATTERNS)
 
 
 def __getattr__(name: str) -> re.Pattern[str]:
