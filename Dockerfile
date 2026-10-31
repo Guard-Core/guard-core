@@ -34,6 +34,7 @@ COPY specs/ /app/specs/
 COPY docs/ /app/docs/
 COPY CHANGELOG.md /app/CHANGELOG.md
 COPY perf_gate/ /app/perf_gate/
+COPY .github/scripts/ /app/.github/scripts/
 
 RUN uv pip install --python .venv/bin/python --no-deps -e /app
 
