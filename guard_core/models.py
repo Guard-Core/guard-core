@@ -274,27 +274,28 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
     def validate_blocked_user_agents(cls, v: object) -> list[str]:
         return _validate_blocked_user_agents_structure(v)
 
-    @model_validator(mode="wrap")
+    @model_validator(mode="before")
     @classmethod
-    def reject_redos_unsafe_blocked_user_agents(
-        cls, data: object, handler: ModelWrapValidatorHandler[Self]
-    ) -> Self:
-        if type(data) is not dict or "blocked_user_agents" in data:
-            data = _redact_blocked_user_agents_in_input(
-                data,
-                lambda: {
-                    f: cls.model_fields[f].get_default(call_default_factory=True)
-                    for f in _SENSITIVE_NAME_FIELDS
-                },
-            )
-        config = handler(data)
-        if config.blocked_user_agents:
+    def redact_blocked_user_agents_in_input(cls, data: object) -> object:
+        if type(data) is dict and "blocked_user_agents" not in data:
+            return data
+        return _redact_blocked_user_agents_in_input(
+            data,
+            lambda: {
+                f: cls.model_fields[f].get_default(call_default_factory=True)
+                for f in _SENSITIVE_NAME_FIELDS
+            },
+        )
+
+    @model_validator(mode="after")
+    def reject_redos_unsafe_blocked_user_agents(self) -> Self:
+        if self.blocked_user_agents:
             _reject_redos_unsafe_blocked_user_agents_at_field(
-                cls.__name__,
-                config.blocked_user_agents,
-                _ConfigSensitiveNames(config),
+                type(self).__name__,
+                self.blocked_user_agents,
+                _ConfigSensitiveNames(self),
             )
-        return config
+        return self
 
     @model_validator(mode="after")
     def validate_optional_extras_installed(self) -> Self:
@@ -390,7 +391,9 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
 
     @model_validator(mode="after")
     def report_misconfigurations(self) -> Self:
-        if self.emergency_mode or not self.model_fields_set.isdisjoint(_CHECKED_FIELDS):
+        if self.emergency_mode or not self.__pydantic_fields_set__.isdisjoint(
+            _CHECKED_FIELDS
+        ):
             report_config_misconfigurations(self, stacklevel=4)
         return self
 

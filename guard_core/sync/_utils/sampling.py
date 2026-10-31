@@ -95,7 +95,7 @@ class PerApp(Generic[_T]):
         except AttributeError:
             tables = None
         held = tables.get(self._kind) if tables else None
-        if isinstance(held, self._table_type):
+        if held is not None and isinstance(held, self._table_type):
             return held
         with self._lock:
             held = held_for_app(config, self._kind)
