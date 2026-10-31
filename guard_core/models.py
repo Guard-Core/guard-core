@@ -27,7 +27,12 @@ from guard_core._detection_constants import (
     ALL_DETECTION_CATEGORIES as ALL_DETECTION_CATEGORIES,
 )
 from guard_core._dynamic_rules import DynamicRules as DynamicRules
-from guard_core._misconfiguration import report_config_misconfigurations
+from guard_core._misconfiguration import (
+    CHECKED_FIELDS as _CHECKED_FIELDS,
+)
+from guard_core._misconfiguration import (
+    report_config_misconfigurations,
+)
 from guard_core._security_config_fields import RequestT, _SecurityConfigFields
 from guard_core._security_config_validators import (
     _FIELD_REVALIDATORS,
@@ -199,7 +204,7 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
     @model_validator(mode="before")
     @classmethod
     def warn_unknown_fields(cls, data: object) -> object:
-        if not isinstance(data, dict):
+        if not isinstance(data, dict) or not data:
             return data
 
         fields = cls.model_fields
@@ -274,15 +279,15 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
     def reject_redos_unsafe_blocked_user_agents(
         cls, data: object, handler: ModelWrapValidatorHandler[Self]
     ) -> Self:
-        config = handler(
-            _redact_blocked_user_agents_in_input(
+        if type(data) is not dict or "blocked_user_agents" in data:
+            data = _redact_blocked_user_agents_in_input(
                 data,
                 lambda: {
                     f: cls.model_fields[f].get_default(call_default_factory=True)
                     for f in _SENSITIVE_NAME_FIELDS
                 },
             )
-        )
+        config = handler(data)
         if config.blocked_user_agents:
             _reject_redos_unsafe_blocked_user_agents_at_field(
                 cls.__name__,
@@ -298,6 +303,10 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
 
     @model_validator(mode="after")
     def validate_geo_ip_handler_exists(self) -> Self:
+        if self.geo_ip_handler is not None or not (
+            self.blocked_countries or self.whitelist_countries
+        ):
+            return self
         resolved = _resolve_geo_ip_handler(
             blocked_countries=self.blocked_countries,
             whitelist_countries=self.whitelist_countries,
@@ -339,7 +348,8 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
 
     @model_validator(mode="after")
     def validate_recidive_cap(self) -> Self:
-        _require_recidive_cap_covers_auto_ban(self)
+        if self.enable_recidive:
+            _require_recidive_cap_covers_auto_ban(self)
         return self
 
     @model_validator(mode="after")
@@ -352,19 +362,24 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
 
     @model_validator(mode="after")
     def warn_trusted_proxies_prefix_zero(self) -> Self:
-        if any(_is_prefix_zero_network_entry(entry) for entry in self.trusted_proxies):
+        if self.trusted_proxies and any(
+            _is_prefix_zero_network_entry(entry) for entry in self.trusted_proxies
+        ):
             _warn_trusted_proxies_prefix_zero()
         return self
 
     @model_validator(mode="after")
     def warn_whitelist_prefix_zero(self) -> Self:
-        if any(_is_prefix_zero_network_entry(entry) for entry in self.whitelist or ()):
+        if self.whitelist and any(
+            _is_prefix_zero_network_entry(entry) for entry in self.whitelist
+        ):
             _warn_whitelist_prefix_zero()
         return self
 
     @model_validator(mode="after")
     def warn_exempt_ips_prefix_zero(self) -> Self:
-        _warn_exempt_ips_prefix_zero(self.exempt_ips)
+        if self.exempt_ips:
+            _warn_exempt_ips_prefix_zero(self.exempt_ips)
         return self
 
     @model_validator(mode="after")
@@ -375,13 +390,15 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
 
     @model_validator(mode="after")
     def report_misconfigurations(self) -> Self:
-        report_config_misconfigurations(self, stacklevel=4)
+        if self.emergency_mode or not self.model_fields_set.isdisjoint(_CHECKED_FIELDS):
+            report_config_misconfigurations(self, stacklevel=4)
         return self
 
     @model_validator(mode="after")
     def warn_changed_defaults(self) -> Self:
         signal_changed_defaults(self)
-        warn_redis_prefix_left_default(self)
+        if self.enable_redis and self.redis_url:
+            warn_redis_prefix_left_default(self)
         return self
 
     @model_validator(mode="after")

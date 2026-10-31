@@ -13,7 +13,6 @@ from guard_core._config_capabilities import (
 )
 from guard_core._redis_enablement import (
     REDIS_CONNECTION_FIELDS,
-    redis_is_configured,
     resolve_enable_redis,
 )
 from guard_core._security_config_blocked_user_agents import (
@@ -307,10 +306,10 @@ def _assign_checking_optional_extras(
 
 
 def _require_optional_extras(config: "SecurityConfig[RequestT]") -> None:
-    if redis_is_configured(config):
+    if config.enable_redis and config.redis_url:
         require_redis_extra()
 
-    if cloud_blocking_enabled(config):
+    if config.block_cloud_providers or config.enable_dynamic_rules:
         require_cloud_extra()
 
     has_country_rules = bool(config.blocked_countries or config.whitelist_countries)
