@@ -52,28 +52,44 @@ _DEFAULT_PATTERN_FLAGS = re.IGNORECASE | re.MULTILINE
 _PATTERN_SAFETY_PROBE_TIMEOUT_SECONDS = 2.0
 _PATTERN_SAFETY_PROBE_PER_STRING_THRESHOLD_SECONDS = 0.05
 
-_PATTERN_SAFETY_PROBE_CHILD_SCRIPT = (
-    "import json, re, sys, time\n"
-    "pattern, test_strings, threshold, flags, cpu_limit, heartbeat = json.loads(\n"
-    "    sys.stdin.read())\n" + CPU_LIMIT_PRELUDE + ENGINE_NORMALIZER_SOURCE + "arm()\n"
-    "try:\n"
-    "    compiled = re.compile(pattern, flags)\n"
-    "except Exception as exc:\n"
-    "    disarm()\n"
-    "    print(json.dumps({'safe': False, "
-    "'reason': f'Pattern validation failed: {exc}'}))\n"
-    "    raise SystemExit(0)\n"
-    "for test_str in test_strings:\n"
-    "    start = time.process_time()\n"
-    "    compiled.search(test_str)\n"
-    "    elapsed = time.process_time() - start\n"
-    "    if elapsed > threshold:\n"
-    "        reason = f'Pattern timed out on test string of length {len(test_str)}'\n"
-    "        disarm()\n"
-    "        print(json.dumps({'safe': False, 'reason': reason}))\n"
-    "        raise SystemExit(0)\n"
-    "disarm()\n"
-    "print(json.dumps({'safe': True, 'reason': 'Pattern appears safe'}))\n"
+
+def _pattern_safety_probe_child_script(counter_source: str) -> str:
+    return (
+        "import json, re, sys, time\n"
+        "pattern, test_strings, threshold, flags, cpu_limit, heartbeat = json.loads(\n"
+        "    sys.stdin.read())\n"
+        + CPU_LIMIT_PRELUDE
+        + ENGINE_NORMALIZER_SOURCE
+        + counter_source
+        + "arm()\n"
+        "try:\n"
+        "    compiled = re.compile(pattern, flags)\n"
+        "except Exception as exc:\n"
+        "    disarm()\n"
+        "    print(json.dumps({'safe': False, "
+        "'reason': f'Pattern validation failed: {exc}'}))\n"
+        "    raise SystemExit(0)\n"
+        "counter = build_work_counter()\n"
+        "for test_str in test_strings:\n"
+        "    if counter is not None:\n"
+        f"        elapsed = counter(compiled, test_str) * {WORK_UNIT_SECONDS!r}\n"
+        "    else:\n"
+        "        start = time.process_time()\n"
+        "        compiled.search(test_str)\n"
+        "        elapsed = time.process_time() - start\n"
+        "    if elapsed > threshold:\n"
+        "        reason = "
+        "f'Pattern timed out on test string of length {len(test_str)}'\n"
+        "        disarm()\n"
+        "        print(json.dumps({'safe': False, 'reason': reason}))\n"
+        "        raise SystemExit(0)\n"
+        "disarm()\n"
+        "print(json.dumps({'safe': True, 'reason': 'Pattern appears safe'}))\n"
+    )
+
+
+_PATTERN_SAFETY_PROBE_CHILD_SCRIPT = _pattern_safety_probe_child_script(
+    WORK_COUNTER_SOURCE
 )
 
 
