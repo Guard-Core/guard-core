@@ -27,17 +27,18 @@ REDIS_CONNECTION_FIELDS = (
 
 def redis_connection_field_set_explicitly(config: RedisFieldsConfig) -> str | None:
     stated = config.model_fields_set
+    if stated.isdisjoint(REDIS_CONNECTION_FIELDS):
+        return None
     return next((name for name in REDIS_CONNECTION_FIELDS if name in stated), None)
 
 
 def resolve_enable_redis(config: RedisFieldsConfig) -> None:
-    if "enable_redis" in config.model_fields_set:
+    stated = config.model_fields_set
+    if "enable_redis" in stated:
         return
     # Written to __dict__ so enable_redis never joins model_fields_set: the
     # flag stays "unset" and resolves again when a connection field changes.
-    config.__dict__["enable_redis"] = (
-        redis_connection_field_set_explicitly(config) is not None
-    )
+    config.__dict__["enable_redis"] = not stated.isdisjoint(REDIS_CONNECTION_FIELDS)
 
 
 def configured_redis_url(config: RedisFieldsConfig) -> str | None:

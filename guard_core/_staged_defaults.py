@@ -4,7 +4,6 @@ from typing import Protocol
 from guard_core._redis_enablement import (
     RedisFieldsConfig,
     redis_connection_field_set_explicitly,
-    redis_is_configured,
 )
 from guard_core._utils.sampling import PerApp, WarnedKeys
 
@@ -87,8 +86,8 @@ def _redis_kept_on_entry(field: str) -> str:
     )
 
 
-def _redis_entry(config: StagedDefaultsConfig) -> str | None:
-    if "enable_redis" in config.model_fields_set:
+def _redis_entry(config: StagedDefaultsConfig, stated: set[str]) -> str | None:
+    if "enable_redis" in stated:
         return None
     field = redis_connection_field_set_explicitly(config)
     return _REDIS_OFF_ENTRY if field is None else _redis_kept_on_entry(field)
@@ -107,7 +106,7 @@ def _changed_default_entries(config: StagedDefaultsConfig) -> list[tuple[str, st
         entries.append(("whitelist_access_only", _WHITELIST_ACCESS_ONLY_ENTRY))
     if "/" in config.exclude_paths and "exclude_all_paths" not in stated:
         entries.append(("slash_exclusion", _SLASH_EXCLUSION_ENTRY))
-    redis_entry = _redis_entry(config)
+    redis_entry = _redis_entry(config, stated)
     if redis_entry is not None:
         entries.append(("enable_redis", redis_entry))
     return entries
@@ -115,18 +114,17 @@ def _changed_default_entries(config: StagedDefaultsConfig) -> list[tuple[str, st
 
 def signal_changed_defaults(config: StagedDefaultsConfig) -> None:
     logged = _changed_defaults_logged.for_app(config)
-    fresh = [
-        (flip_id, entry)
-        for flip_id, entry in _changed_default_entries(config)
-        if flip_id not in logged
-    ]
+    fresh = _changed_default_entries(config)
+    if logged:
+        fresh = [pair for pair in fresh if pair[0] not in logged]
     if not fresh:
         return
-    logged.update(flip_id for flip_id, _ in fresh)
+    texts = dict(fresh)
+    logged.update(texts)
     logger.warning(
         "guard-core 5.0.0 changed defaults that this configuration leaves unset: "
         "%s. Each default is logged once per configuration.",
-        "; ".join(entry for _, entry in fresh),
+        "; ".join(texts.values()),
     )
 
 
@@ -144,5 +142,9 @@ def _warn_default_redis_prefix() -> None:
 
 
 def warn_redis_prefix_left_default(config: StagedDefaultsConfig) -> None:
-    if redis_is_configured(config) and config.redis_prefix == DEFAULT_REDIS_PREFIX:
+    if (
+        config.enable_redis
+        and config.redis_url
+        and config.redis_prefix == DEFAULT_REDIS_PREFIX
+    ):
         _warn_default_redis_prefix()
