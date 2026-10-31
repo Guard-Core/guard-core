@@ -13,6 +13,7 @@ from guard_core._lazy_patterns import (
     CompiledOnDemand,
     LazyPatternMap,
     LazyPatterns,
+    _LazyName,
     module_attribute_lookup,
 )
 
@@ -268,3 +269,16 @@ def test_a_module_probe_for_its_path_runs_no_lookup_code() -> None:
             pass
 
     assert [f for f in _python_frames_while(probe) if "_lazy_patterns" in f] == []
+
+
+_HOLDER_TABLE = LazyPatterns({"digits": (r"\d+", 0)})
+
+
+class _Holder:
+    digits = _LazyName(_HOLDER_TABLE, "digits")
+
+
+def test_a_lazy_name_read_from_the_class_compiles_and_caches_on_no_instance() -> None:
+    assert _Holder.digits is _HOLDER_TABLE["digits"]
+    assert "digits" not in vars(_Holder())
+    assert _Holder().digits is _HOLDER_TABLE["digits"]
