@@ -100,7 +100,24 @@ def _unknown_security_headers_key_problems(
     ]
 
 
+# Every field a check below reads. A config that states none of them holds only
+# defaults, which are valid by construction, so it is not checked at all.
+CHECKED_FIELDS = frozenset(
+    {
+        "security_headers",
+        "exclude_paths",
+        "endpoint_rate_limits",
+        "rate_limit",
+        "rate_limit_window",
+        "detection_threat_score_threshold",
+        "detection_semantic_threshold",
+    }
+)
+
+
 def config_misconfigurations(config: "SecurityConfig[RequestT]") -> list[str]:
+    if config.model_fields_set.isdisjoint(CHECKED_FIELDS):
+        return []
     return [
         *_unknown_security_headers_key_problems(config),
         *_glob_exclude_path_problems(config),

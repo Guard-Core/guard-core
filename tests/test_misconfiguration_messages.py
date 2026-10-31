@@ -1,9 +1,12 @@
+import inspect
+import re
 import warnings
 from collections.abc import Callable
 from typing import Any
 
 import pytest
 
+from guard_core import _misconfiguration
 from guard_core._security_config_fields import DEFAULT_EXCLUDE_PATHS
 from guard_core.core.initialization.handler_initializer import HandlerInitializer
 from guard_core.core.validation.path_matching import (
@@ -257,3 +260,21 @@ def test_no_default_exclude_path_has_a_routing_anomaly() -> None:
         for entry in DEFAULT_EXCLUDE_PATHS
         if _has_routing_anomaly_in_any_decoding(entry)
     ] == []
+
+
+def test_the_checked_fields_name_every_field_a_check_reads() -> None:
+    source = inspect.getsource(_misconfiguration)
+    read = set(re.findall(r"config\.([a-z_]+)", source))
+    read |= set(re.findall(r'"(detection_[a-z_]+_threshold)"', source))
+    read -= {"fail_on_misconfiguration", "model_fields_set", "emergency_mode"}
+    read -= {"emergency_exempt_paths"}
+
+    assert read <= _misconfiguration.CHECKED_FIELDS
+    assert _misconfiguration.CHECKED_FIELDS <= set(SecurityConfig.model_fields)
+
+
+def test_a_config_that_states_no_checked_field_has_no_problem_to_report() -> None:
+    assert _misconfiguration.config_misconfigurations(SecurityConfig()) == []
+    assert _misconfiguration.config_misconfigurations(
+        SecurityConfig(rate_limit=0, fail_on_misconfiguration=False)
+    ) == ["rate_limit is 0: a limit below 1 blocks every request."]
