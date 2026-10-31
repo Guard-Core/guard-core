@@ -34,6 +34,10 @@ from guard_core.detection_engine._redos_repeat_alphabet import (
 from guard_core.detection_engine._redos_structural_prefilters import (
     _first_structural_safety_violation,
 )
+from guard_core.detection_engine._redos_work_counter import (
+    WORK_COUNTER_SOURCE,
+    WORK_UNIT_SECONDS,
+)
 
 logger = logging.getLogger("guard_core.detection_engine.compiler")
 
@@ -156,40 +160,55 @@ _REFERENCE_LOAD_CHILD_SCRIPT = (
     "print(json.dumps({'reference': min(reference_times)}))\n"
 )
 
-_REACH_PROBE_TIMING_CHILD_SCRIPT = (
-    "import json, re, sys, time\n"
-    "pattern, probes, samples, cpu_limit, flags, trigger, heartbeat = json.loads(\n"
-    "    sys.stdin.read())\n" + CPU_LIMIT_PRELUDE + "arm()\n" + "try:\n"
-    "    compiled = re.compile(pattern, flags)\n"
-    "except Exception as exc:\n"
-    "    disarm()\n"
-    "    print(json.dumps({'error': str(exc)}))\n"
-    "    raise SystemExit(0)\n"
-    f"reference_compiled = re.compile({_REFERENCE_SCAN_PATTERN!r})\n"
-    f"reference_probe = '/' + '0' * {_REFERENCE_SCAN_PROBE_LENGTH}\n"
-    "reference_times = []\n"
-    "for _ in range(samples):\n"
-    "    start = time.process_time()\n"
-    "    reference_compiled.search(reference_probe)\n"
-    "    reference_times.append(time.process_time() - start)\n"
-    "results = []\n"
-    "for probe in probes:\n"
-    "    start = time.process_time()\n"
-    "    compiled.search(probe)\n"
-    "    probe_times = [time.process_time() - start]\n"
-    "    if probe_times[0] >= trigger:\n"
-    "        for _ in range(samples - 1):\n"
-    "            start = time.process_time()\n"
-    "            compiled.search(probe)\n"
-    "            probe_times.append(time.process_time() - start)\n"
-    f"            if probe_times[-1] > {_REACH_PROBE_LARGE_SAMPLE_SECONDS}:\n"
-    "                break\n"
-    "    probe_times.sort()\n"
-    "    results.append(probe_times)\n"
-    "disarm()\n"
-    "print(json.dumps({'results': results, 'reference': min(reference_times), "
-    "'cpu': time.process_time()}))\n"
-)
+
+def _reach_probe_timing_child_script(counter_source: str) -> str:
+    return (
+        "import json, re, sys, time\n"
+        "pattern, probes, samples, cpu_limit, flags, trigger, heartbeat = json.loads(\n"
+        "    sys.stdin.read())\n" + CPU_LIMIT_PRELUDE + counter_source + "arm()\n"
+        "try:\n"
+        "    compiled = re.compile(pattern, flags)\n"
+        "except Exception as exc:\n"
+        "    disarm()\n"
+        "    print(json.dumps({'error': str(exc)}))\n"
+        "    raise SystemExit(0)\n"
+        "counter = build_work_counter()\n"
+        "if counter is not None:\n"
+        f"    results = [[counter(compiled, probe) * {WORK_UNIT_SECONDS!r}] "
+        "for probe in probes]\n"
+        "    disarm()\n"
+        "    print(json.dumps({'results': results, "
+        f"'reference': {_REFERENCE_SCAN_SECONDS!r}, "
+        "'cpu': time.process_time()}))\n"
+        "    raise SystemExit(0)\n"
+        f"reference_compiled = re.compile({_REFERENCE_SCAN_PATTERN!r})\n"
+        f"reference_probe = '/' + '0' * {_REFERENCE_SCAN_PROBE_LENGTH}\n"
+        "reference_times = []\n"
+        "for _ in range(samples):\n"
+        "    start = time.process_time()\n"
+        "    reference_compiled.search(reference_probe)\n"
+        "    reference_times.append(time.process_time() - start)\n"
+        "results = []\n"
+        "for probe in probes:\n"
+        "    start = time.process_time()\n"
+        "    compiled.search(probe)\n"
+        "    probe_times = [time.process_time() - start]\n"
+        "    if probe_times[0] >= trigger:\n"
+        "        for _ in range(samples - 1):\n"
+        "            start = time.process_time()\n"
+        "            compiled.search(probe)\n"
+        "            probe_times.append(time.process_time() - start)\n"
+        f"            if probe_times[-1] > {_REACH_PROBE_LARGE_SAMPLE_SECONDS}:\n"
+        "                break\n"
+        "    probe_times.sort()\n"
+        "    results.append(probe_times)\n"
+        "disarm()\n"
+        "print(json.dumps({'results': results, 'reference': min(reference_times), "
+        "'cpu': time.process_time()}))\n"
+    )
+
+
+_REACH_PROBE_TIMING_CHILD_SCRIPT = _reach_probe_timing_child_script(WORK_COUNTER_SOURCE)
 
 
 @dataclass(frozen=True, slots=True)

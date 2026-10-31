@@ -10,6 +10,10 @@ pytestmark = pytest.mark.redos_timing
 _CDATA_PATTERN = r"<!\[CDATA\[.*?\]\]>"
 _SAFE_CAP = 1000
 _UNSAFE_CAP = 16000
+# The lowest mirror caps, 4 to 17 percent over the work budget: 3.10 counts 1602
+# polls at 13000 and 3.14 counts 1953 at 12000 (3.11 and later share 3.14's counts).
+_LOWEST_MIRROR_CAP = 13000 if sys.version_info < (3, 11) else 12000
+_NEAR_BUDGET_CAPS = sorted({_LOWEST_MIRROR_CAP, 13000})
 _REPEATS = 12
 _BUSY_LOOPS = 4
 _BUSY_LOOP_SOURCE = (
@@ -75,3 +79,11 @@ def test_the_cdata_pattern_is_refused_with_margin_on_every_core_beside_busy_loop
     None
 ):
     assert _verdicts_in_fresh_processes(_UNSAFE_CAP) == ["UNSAFE"] * _REPEATS
+
+
+@pytest.mark.usefixtures("busy_loops")
+@pytest.mark.parametrize("cap", _NEAR_BUDGET_CAPS)
+def test_the_cdata_pattern_just_over_the_work_budget_is_refused_beside_busy_loops(
+    cap: int,
+) -> None:
+    assert _verdicts_in_fresh_processes(cap) == ["UNSAFE"] * _REPEATS
