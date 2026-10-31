@@ -9,6 +9,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, NoReturn, TypeGuard
 
+from guard_core._redis_abandoned_client import abandon_client
 from guard_core._redis_client_loop import EventLoop, running_loop_or_none
 from guard_core._redis_enablement import configured_redis_url, redis_is_configured
 from guard_core._redis_exceptions import (
@@ -187,10 +188,14 @@ class RedisManager(RedisBanStrikeMixin):
         if old_redis is None:
             return
         released = key is None or _redis_shared_clients.release(key, old_redis, self)
-        # A client built under another loop is closed by that loop, or is dead with
-        # it: closing it from here fails or would cut a loop still using it.
-        if released and old_loop in (None, running_loop_or_none()):
+        if not released:
+            return
+        # A client built under another loop cannot be awaited from here: its sockets
+        # are dropped on that loop, or from here once that loop is stopped or closed.
+        if old_loop in (None, running_loop_or_none()):
             self._safe_aclose(old_redis)
+        else:
+            abandon_client(old_redis, old_loop)
 
     def _mark_most_recently_initialized(self) -> None:
         if self._registered:

@@ -13,6 +13,7 @@ TEST_SYNC_DIR = ROOT / "tests" / "test_sync"
 CHECK_TMP_PREFIX = ".unasync_check_tmp_"
 
 SKIP_SRC = {
+    "_redis_abandoned_client.py",
     "_redis_client_loop.py",
     "models.py",
     "_misconfiguration.py",
@@ -47,6 +48,7 @@ SKIP_SRC = {
 }
 
 SKIP_TESTS = {
+    "test_redis_abandoned_client.py",
     "test_redis_loop_change.py",
     "test_fork_safety.py",
     "mock_download.py",
