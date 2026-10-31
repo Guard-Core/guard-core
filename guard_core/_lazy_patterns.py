@@ -1,5 +1,5 @@
 import re
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterator, Mapping
 
 
 class LazyPatterns(dict[str, "re.Pattern[str]"]):
@@ -30,6 +30,23 @@ class CompiledOnDemand(dict[str, "re.Pattern[str]"]):
     def __missing__(self, source: str) -> "re.Pattern[str]":
         compiled = self[source] = re.compile(source, self._flags)
         return compiled
+
+
+class LazyPatternMap(Mapping[str, "re.Pattern[str]"]):
+    """A mapping from a key to the pattern of its source, compiled on first read."""
+
+    def __init__(self, sources: Mapping[str, str], compiled: CompiledOnDemand) -> None:
+        self._sources = sources
+        self._compiled = compiled
+
+    def __getitem__(self, key: str) -> "re.Pattern[str]":
+        return self._compiled[self._sources[key]]
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._sources)
+
+    def __len__(self) -> int:
+        return len(self._sources)
 
 
 def module_attribute_lookup(

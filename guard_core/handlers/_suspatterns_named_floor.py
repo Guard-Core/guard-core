@@ -2,7 +2,7 @@ import re
 from collections.abc import Callable
 from functools import lru_cache
 
-from guard_core._lazy_patterns import CompiledOnDemand
+from guard_core._lazy_patterns import CompiledOnDemand, LazyPatternMap
 from guard_core._utils.route_gate import (
     is_scanning_declared_path_param_values,
     isolate_declared_path_params,
@@ -69,6 +69,15 @@ NAMED_FLOOR_TOKEN_SOURCES: dict[str, str] = {
 }
 
 _COMPILED_ROWS = CompiledOnDemand(re.IGNORECASE)
+
+NAMED_FLOOR_TOKEN_PATTERNS = LazyPatternMap(NAMED_FLOOR_TOKEN_SOURCES, _COMPILED_ROWS)
+
+
+def __getattr__(name: str) -> re.Pattern[str]:
+    if name == "CMS_TOKEN_PATTERN":
+        return _COMPILED_ROWS[CMS_TOKEN_SOURCE]
+    raise AttributeError(name)
+
 
 SUPERSEDING_ROWS: dict[str, tuple[str, ...]] = {}
 
@@ -162,7 +171,7 @@ def _declared_tokens(source: str, match: re.Match) -> set[str]:
     path = match.group().split("?", 1)[0]
     return {
         found.lower().replace("\\", "/")
-        for found in _COMPILED_ROWS[NAMED_FLOOR_TOKEN_SOURCES[source]].findall(path)
+        for found in NAMED_FLOOR_TOKEN_PATTERNS[source].findall(path)
     }
 
 

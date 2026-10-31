@@ -9,6 +9,7 @@ import pytest
 import guard_core
 from guard_core._lazy_patterns import (
     CompiledOnDemand,
+    LazyPatternMap,
     LazyPatterns,
     module_attribute_lookup,
 )
@@ -125,3 +126,31 @@ def test_importing_the_engine_leaves_most_lazy_patterns_uncompiled() -> None:
     total, compiled = map(int, result.stdout.split())
     assert total > 100, result.stdout + result.stderr
     assert compiled <= total // 10, result.stdout + result.stderr
+
+
+def test_a_pattern_map_compiles_its_values_on_read_and_lists_every_key() -> None:
+    compiled = CompiledOnDemand(re.IGNORECASE)
+    sources = {"one": "a+", "two": "b+"}
+    patterns = LazyPatternMap(sources, compiled)
+
+    assert len(compiled) == 0
+    assert list(patterns) == ["one", "two"]
+    assert len(patterns) == 2
+    assert patterns["one"] is compiled["a+"]
+    assert len(compiled) == 1
+    sources["three"] = "c+"
+    assert patterns["three"].search("CC")
+
+
+@pytest.mark.parametrize("tree", ["guard_core", "guard_core.sync"])
+def test_the_named_floor_keeps_its_token_pattern_names(tree: str) -> None:
+    floor = importlib.import_module(f"{tree}.handlers._suspatterns_named_floor")
+
+    cms = floor.CMS_TOKEN_PATTERN
+
+    assert isinstance(cms, re.Pattern)
+    assert cms is floor.NAMED_FLOOR_TOKEN_PATTERNS[floor.V440_CMS_ROW]
+    assert set(floor.NAMED_FLOOR_TOKEN_PATTERNS) == set(floor.NAMED_FLOOR_TOKEN_SOURCES)
+    missing = "_no_such_name"
+    with pytest.raises(AttributeError):
+        getattr(floor, missing)
