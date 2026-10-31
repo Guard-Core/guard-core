@@ -9,7 +9,7 @@ WORK_UNIT_SECONDS = 5.1e-11
 WORK_COUNTER_SOURCE = """\
 def build_work_counter():
     try:
-        import ctypes, ctypes.util, os, sys
+        import ctypes, os, sys
         if sys.platform != 'darwin':
             return None
         names = (
@@ -31,7 +31,7 @@ def build_work_counter():
             _fields_ = [('ri_uuid', ctypes.c_uint8 * 16)] + [
                 (name, ctypes.c_uint64) for name in names]
 
-        library = ctypes.CDLL(ctypes.util.find_library('proc'))
+        library = ctypes.CDLL('libproc.dylib')
         usage = Usage()
         pid = os.getpid()
 
