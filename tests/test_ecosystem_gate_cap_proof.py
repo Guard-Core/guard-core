@@ -31,7 +31,7 @@ def fake_resolver(
     capped_versions: set[str], calls: list[Sequence[str]], failure: str = NO_SOLUTION
 ) -> Callable[[Sequence[str], str, Sequence[str]], tuple[int, str]]:
     def resolve(
-        requirements: Sequence[str], python_version: str, find_links: Sequence[str]
+        requirements: Sequence[str], _python_version: str, _find_links: Sequence[str]
     ) -> tuple[int, str]:
         calls.append(requirements)
         dist_pin = requirements[0].split("==")[1]
