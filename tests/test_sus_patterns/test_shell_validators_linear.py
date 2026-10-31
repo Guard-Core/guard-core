@@ -7,6 +7,7 @@ from unittest.mock import patch
 import pytest
 
 from guard_core.handlers import _suspatterns_regex as regex_module
+from guard_core.handlers import _suspatterns_shell_sources as shell_sources
 from guard_core.handlers import _suspatterns_shell_validators as validators
 from guard_core.handlers._suspatterns_shell_sources import (
     _GLOB_WILDCARD_ATOM_RE,
@@ -54,24 +55,25 @@ class _ExaminedCounter:
 
 
 def _examined_by_dollar_validator(units: int) -> int:
-    prefix = _ExaminedCounter(validators._STRONG_SQL_KEYWORD_GLUED_PREFIX_RE)
-    suffix = _ExaminedCounter(validators._STRONG_SQL_KEYWORD_GLUED_SUFFIX_RE)
-    delimiter = _ExaminedCounter(validators._BACKTICK_WINDOW_DELIMITER_RE)
-    with (
-        patch.object(validators, "_STRONG_SQL_KEYWORD_GLUED_PREFIX_RE", prefix),
-        patch.object(validators, "_STRONG_SQL_KEYWORD_GLUED_SUFFIX_RE", suffix),
-        patch.object(validators, "_BACKTICK_WINDOW_DELIMITER_RE", delimiter),
-    ):
+    table = shell_sources._PATTERNS
+    prefix = _ExaminedCounter(table["_STRONG_SQL_KEYWORD_GLUED_PREFIX_RE"])
+    suffix = _ExaminedCounter(table["_STRONG_SQL_KEYWORD_GLUED_SUFFIX_RE"])
+    delimiter = _ExaminedCounter(table["_BACKTICK_WINDOW_DELIMITER_RE"])
+    counters = {
+        "_STRONG_SQL_KEYWORD_GLUED_PREFIX_RE": prefix,
+        "_STRONG_SQL_KEYWORD_GLUED_SUFFIX_RE": suffix,
+        "_BACKTICK_WINDOW_DELIMITER_RE": delimiter,
+    }
+    with patch.dict(table, counters):
         for match in _DOLLAR_ROW.finditer("$(a) " * units):
             validators._dollar_substitution_pair_is_injection(match, "unknown")
     return prefix.examined + suffix.examined + delimiter.examined
 
 
 def _examined_by_glob_validator(units: int) -> int:
-    boundary = _ExaminedCounter(validators._GLOB_WILDCARD_COMMAND_BOUNDARY_PREFIX_RE)
-    with patch.object(
-        validators, "_GLOB_WILDCARD_COMMAND_BOUNDARY_PREFIX_RE", boundary
-    ):
+    name = "_GLOB_WILDCARD_COMMAND_BOUNDARY_PREFIX_RE"
+    boundary = _ExaminedCounter(validators._PATTERNS[name])
+    with patch.dict(validators._PATTERNS, {name: boundary}):
         for match in _glob_wildcard_scan_matches("<?php " * units, _GLOB_ROW):
             validators._glob_wildcard_token_is_dangerous_command(match, "unknown")
     return boundary.examined
@@ -81,6 +83,7 @@ def test_dollar_substitution_validator_examines_a_bounded_window_per_match() -> 
     one = _examined_by_dollar_validator(_UNITS)
     two = _examined_by_dollar_validator(2 * _UNITS)
 
+    assert one > 0
     assert two <= 2.5 * one
 
 

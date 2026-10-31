@@ -37,8 +37,10 @@ def test_pairing_chain_names_an_overlap_without_a_member(
 def test_file_upload_span_names_a_validated_span_that_did_not_match(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        _suspatterns_file_upload, "_FILE_UPLOAD_VALIDATED_SPAN_RE", _NEVER_MATCHES
+    monkeypatch.setitem(
+        _suspatterns_file_upload._PATTERNS,
+        "_FILE_UPLOAD_VALIDATED_SPAN_RE",
+        _NEVER_MATCHES,
     )
     with pytest.raises(RuntimeError, match="validated file upload span"):
         _suspatterns_file_upload._file_upload_scan_matches(
@@ -60,8 +62,8 @@ def test_template_frame_names_a_region_that_did_not_match(
 def test_xml_span_names_a_validated_span_that_did_not_match(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        _suspatterns_xml_xxe, "_XML_XXE_VALIDATED_SPAN_RE", _NEVER_MATCHES
+    monkeypatch.setitem(
+        _suspatterns_xml_xxe._PATTERNS, "_XML_XXE_VALIDATED_SPAN_RE", _NEVER_MATCHES
     )
     with pytest.raises(RuntimeError, match="validated XML span"):
         _suspatterns_xml_xxe._xml_validated_match("<a/>", 0, 4)
