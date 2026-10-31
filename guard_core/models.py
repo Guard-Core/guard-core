@@ -308,7 +308,7 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
             self.blocked_countries or self.whitelist_countries
         ):
             return self
-        resolved = _resolve_geo_ip_handler(
+        self.geo_ip_handler = _resolve_geo_ip_handler(
             blocked_countries=self.blocked_countries,
             whitelist_countries=self.whitelist_countries,
             geo_ip_handler=self.geo_ip_handler,
@@ -317,9 +317,6 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
             ipinfo_download_url=self.ipinfo_download_url,
             geo_ip_db_max_age=self.geo_ip_db_max_age,
         )
-        if resolved is not self.geo_ip_handler:
-            self.geo_ip_handler = resolved
-
         return self
 
     @model_validator(mode="after")
