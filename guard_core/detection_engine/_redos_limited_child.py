@@ -42,6 +42,13 @@ HEARTBEAT_CPU_SECONDS = 0.25
 # 0.25 CPU seconds, so this window holds down to a 1% share of one core.
 STALL_WALL_SECONDS = 30.0
 STALL_POLL_SECONDS = 0.5
+# A child with no heartbeat at the end of the stall window is only stalled if it is
+# neither runnable nor finished: one that waits in the run queue of a starved host has
+# done no wrong and is judged by the work it eventually does (its CPU limit still kills
+# a runaway), and one that exited since the last poll has a result to collect.
+RUNNING_STATES = ("R", "Z")
+STATE_SAMPLES = 3
+STATE_SAMPLE_SPACING_SECONDS = 0.05
 
 
 class ChildResult(NamedTuple):
@@ -53,6 +60,38 @@ class ChildResult(NamedTuple):
 def killed_by_cpu_limit(result: ChildResult) -> bool:
     cpu_signal = getattr(signal, "SIGPROF", None)
     return cpu_signal is not None and result.returncode == -cpu_signal
+
+
+def _process_state(pid: int) -> str | None:
+    try:
+        with open(f"/proc/{pid}/stat", "rb") as handle:
+            return handle.read().rsplit(b") ", 1)[1][:1].decode()
+    except (OSError, IndexError):
+        pass
+    try:
+        listing = subprocess.run(
+            ["ps", "-o", "stat=", "-p", str(pid)],
+            capture_output=True,
+            text=True,
+            timeout=STALL_POLL_SECONDS,
+        ).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return listing[:1] or None
+
+
+def child_is_running_or_finished(pid: int) -> bool:
+    """True when the child waits for a CPU slice (R) or has exited (Z) in any sample.
+
+    A child blocked on input or stopped never reads R or Z, and an unreadable state
+    reads as neither, so the stall rule stays what it was there.
+    """
+    for attempt in range(STATE_SAMPLES):
+        if attempt:
+            time.sleep(STATE_SAMPLE_SPACING_SECONDS)
+        if _process_state(pid) in RUNNING_STATES:
+            return True
+    return False
 
 
 def communicate_until_stalled(
@@ -74,6 +113,9 @@ def communicate_until_stalled(
         if marks != last_marks:
             last_marks, last_progress = marks, now
         elif now - last_progress > stall_seconds:
+            if child_is_running_or_finished(process.pid):
+                last_progress = time.monotonic()
+                continue
             process.kill()
             process.communicate()
             return None
