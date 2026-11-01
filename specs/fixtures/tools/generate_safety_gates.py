@@ -125,11 +125,15 @@ TEST_STRINGS = ["abcdefghij", "attack-test-string-123", "x"]
 # speed (LEDGER 6.75). The over_budget margin is the extrapolated cost over the
 # safety budget (cap 262144 is detection_max_body_inspect_bytes); the string
 # timeout margin is the observed CPU over the per-string threshold and under the
-# probe's CPU kill, which bounds both sides at about 6.3x (2.0 / 0.05 = 40).
+# probe's CPU kill. The two Pythons cost the case below 0.12 to 0.14 s (3.14) and 0.30 s
+# (3.10) of CPU whatever the load, a 2.4x spread that no single string can fit between a
+# 5x margin over the threshold and a 5x margin under the kill, so a host that reads CPU
+# time (no instruction counter) needs 2x over the threshold and 5x under the kill; the
+# load only ever adds CPU time, which moves the reading away from the threshold.
 SAFETY_BUDGET_SECONDS = 0.05
 PROBE_THRESHOLD_SECONDS = 0.05
 PROBE_KILL_SECONDS = 2.0
-STRING_TIMEOUT_MARGIN = 5.0
+STRING_TIMEOUT_MARGIN = 2.0
 # Where the host counts retired instructions (macOS) the probe's verdict and this check
 # both read the count, which moves by about 1 percent between runs and does not depend on
 # load, so the check needs no clock margin; the margin only has to cover the unit's

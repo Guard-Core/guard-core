@@ -35,3 +35,10 @@ def test_the_counted_margin_covers_the_measured_cost_on_python_3_14() -> None:
     over_on_python_3_14 = 0.158 / generate_safety_gates.PROBE_THRESHOLD_SECONDS
     assert over_on_python_3_14 >= generate_safety_gates.STRING_TIMEOUT_COUNTED_MARGIN
     assert generate_safety_gates.STRING_TIMEOUT_COUNTED_MARGIN > 1.0
+
+
+def test_the_clock_margin_covers_the_cpu_time_of_the_case_on_both_pythons() -> None:
+    for cpu_seconds in (0.122, 0.142, 0.295, 0.302):
+        over = cpu_seconds / generate_safety_gates.PROBE_THRESHOLD_SECONDS
+        under = generate_safety_gates.PROBE_KILL_SECONDS / cpu_seconds
+        assert min(over, under) >= generate_safety_gates.STRING_TIMEOUT_MARGIN
