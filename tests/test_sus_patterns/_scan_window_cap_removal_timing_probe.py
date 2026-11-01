@@ -1,7 +1,7 @@
 import json
 import statistics
-import time
 from collections.abc import Callable
+from functools import partial
 
 from guard_core.handlers.suspatterns_handler import (
     _LDAP_NULL_BYTE_ATTR_COMPILED_RE,
@@ -12,6 +12,7 @@ from guard_core.handlers.suspatterns_handler import (
     _ldap_null_byte_attr_finditer,
     _quote_splice_finditer,
 )
+from tests.host_load_factor import timed_normalized
 
 _SIZES = (32768, 65536, 131072, 262144)
 _RUNS_PER_SIZE = 5
@@ -57,9 +58,7 @@ _CASES: dict[str, tuple] = {
 def _cpu_time_runs(run: Callable[[str], object], text: str, runs: int) -> list[float]:
     samples = []
     for _ in range(runs):
-        start = time.process_time()
-        run(text)
-        samples.append(time.process_time() - start)
+        samples.append(timed_normalized(partial(run, text))[1])
     return samples
 
 

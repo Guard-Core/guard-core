@@ -13,7 +13,6 @@ from guard_core.handlers import _suspatterns_matchers as matchers
 from guard_core.handlers._suspatterns_sources import _SSTI_HASH_BRACE_SHAPE_RE
 from guard_core.handlers._suspatterns_state import _LEGACY_DETECTION_STATE
 from guard_core.handlers.suspatterns_handler import SusPatternsManager
-from tests.host_load_factor import run_with_host_load_factor
 
 _Scanner = Callable[[str, re.Pattern], list[re.Match]]
 _CASES = [
@@ -273,13 +272,11 @@ async def test_template_registry_precedes_regex_fallback_without_a_scan_cap(
 @pytest.mark.parametrize("label", [row[0] for row in _CASES])
 def test_template_closed_and_open_frames_have_bounded_cpu_growth(label: str) -> None:
     module = __name__.rsplit(".", 1)[0] + "._template_matcher_security_probe"
-    result, load_factor = run_with_host_load_factor(
-        lambda: subprocess.run(
-            [sys.executable, "-m", module, label],
-            capture_output=True,
-            text=True,
-            timeout=45,
-        )
+    result = subprocess.run(
+        [sys.executable, "-m", module, label],
+        capture_output=True,
+        text=True,
+        timeout=45,
     )
     assert result.returncode == 0, (result.stdout, result.stderr)
     timings: dict[str, list[float]] = json.loads(result.stdout)
@@ -295,7 +292,7 @@ def test_template_closed_and_open_frames_have_bounded_cpu_growth(label: str) -> 
     }
     for shape, times in timings.items():
         assert len(times) == 4
-        assert 0 < times[-1] / load_factor < 0.1, (label, shape, times)
+        assert 0 < times[-1] < 0.1, (label, shape, times)
         consecutive = 0
         for earlier, later in zip(times, times[1:], strict=False):
             consecutive = consecutive + 1 if later > 3.5 * max(earlier, 0.001) else 0

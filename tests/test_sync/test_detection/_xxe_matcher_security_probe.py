@@ -1,6 +1,7 @@
 import json
 import statistics
-import time
+from collections.abc import Callable, Iterable
+from functools import partial
 
 from guard_core.sync.handlers._suspatterns_xml_xxe import (
     _XML_XXE_PUBLIC_EXTERNAL_DTD_COMPILED_RE,
@@ -8,6 +9,13 @@ from guard_core.sync.handlers._suspatterns_xml_xxe import (
     _xml_system_finditer,
     _xml_xxe_public_external_dtd_finditer,
 )
+from tests.host_load_factor import timed_normalized
+
+
+def _listed(
+    finder: Callable[..., Iterable[object]], *arguments: object
+) -> list[object]:
+    return list(finder(*arguments))
 
 
 def measure() -> dict[str, list[float]]:
@@ -28,9 +36,12 @@ def measure() -> dict[str, list[float]]:
         for shape, text in shapes.items():
             samples = []
             for _ in range(5):
-                start = time.process_time()
-                matches = list(_xml_xxe_public_external_dtd_finditer(text, compiled))
-                samples.append(time.process_time() - start)
+                matches, elapsed = timed_normalized(
+                    partial(
+                        _listed, _xml_xxe_public_external_dtd_finditer, text, compiled
+                    )
+                )
+                samples.append(elapsed)
                 assert matches, shape
             result.setdefault(shape, []).append(statistics.median(samples))
         for label, finder, tail in [
@@ -40,9 +51,8 @@ def measure() -> dict[str, list[float]]:
             text = "<!DOCTYPE" * (size // 9) + tail
             samples = []
             for _ in range(5):
-                start = time.process_time()
-                matches = list(finder(text))
-                samples.append(time.process_time() - start)
+                matches, elapsed = timed_normalized(partial(_listed, finder, text))
+                samples.append(elapsed)
                 assert not matches, label
             result.setdefault(label, []).append(statistics.median(samples))
     return result

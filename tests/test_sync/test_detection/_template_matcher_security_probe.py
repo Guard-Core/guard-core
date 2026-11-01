@@ -2,12 +2,12 @@ import json
 import re
 import statistics
 import sys
-import time
 from collections.abc import Callable
 from functools import partial
 
 from guard_core.sync.handlers import _suspatterns_matchers as matchers
 from guard_core.sync.handlers._suspatterns_sources import _SSTI_HASH_BRACE_SHAPE_RE
+from tests.host_load_factor import timed_normalized
 
 _CASES = {
     "curly_keyword": ("CURLY_KEYWORD", "{{", "}}", "xsystem"),
@@ -36,9 +36,7 @@ def _payloads(opening: str, closing: str, attack: str, size: int) -> dict[str, s
 def _cpu_median(call: Callable[[], object]) -> float:
     samples = []
     for _ in range(5):
-        start = time.process_time()
-        call()
-        samples.append(time.process_time() - start)
+        samples.append(timed_normalized(call)[1])
     return statistics.median(samples)
 
 
