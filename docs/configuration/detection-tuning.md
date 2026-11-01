@@ -89,7 +89,7 @@ What the default costs on guard-core 5.0.0 (Python 3.11, arm64), with 1 MiB uplo
 | django | percent-encoded text | 0.76 | 10.5 MB (150.1 MB) | 728 to 872 MB (6,956 MB) | 64 |
 | fastapi | binary | 0.11 | 11.9 MB (20.6 MB) | 396 to 396 MB (466 MB) | 64 |
 | flask | binary | 0.11 | 12.8 MB (2.4 MB) | 406 to 466 MB (76 MB) | 64 |
-| django | binary | 0.12 | 13.8 MB (21.7 MB) | 759 to 766 MB (557 MB) | 64 |
+| django | binary | 0.11 | 10.0 MB (21.7 MB) | 281 to 284 MB (544 to 573 MB) | 64 |
 
 Every upload of every cell was answered `200`, in two runs of each cell. The peak RSS of 64 requests in flight moves between runs (the two runs of one cell are given), and the heap of one request is the same in both. v4.4.0 held 131 to 150 MB of heap per request and 5.3 to 7.0 GB of RSS for a text body on the async reader and on Django, which is where the engine now stays at 7.5 to 10.5 MB and below 1 GB. The Flask figures of v4.4.0 are not a floor: its Flask path scanned much less of a multipart body, so they measure much less work. Reproduce one cell from a checkout of the adapter with `PYTHONPATH=<adapter checkout>:<guard-core checkout> python -m perf_gate.multipart_cells cell <reader> <mp-flat|mp-escaped|mp-binary> 1048576 64`, and the heap of one request with `cell <reader> <shape> 1048576 1 --tm`, from a checkout of guard-core 5.0.0.
 

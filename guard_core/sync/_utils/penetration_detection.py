@@ -344,11 +344,10 @@ def _scan_body_surface(
 
     wire_size = len(body_bytes)
     body_bytes, decompression_cut = _inflate_gzip_body(body_bytes, inspect_cap)
-    raw_body = body_bytes.decode("utf-8", errors="surrogateescape")
 
     content_type = request.headers.get("content-type") or ""
     detected, trigger, threats = _scan_request_body(
-        raw_body,
+        body_bytes,
         content_type,
         excluded_body_fields,
         enabled_categories,

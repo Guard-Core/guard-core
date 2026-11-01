@@ -1,3 +1,7 @@
+import codecs
+import contextlib
+import os
+import queue
 import quopri
 from email.message import Message
 from email.utils import collapse_rfc2231_value
@@ -209,25 +213,45 @@ def _multipart_part_entries(part: _MultipartPart) -> list[tuple[str | None, str,
     return entries
 
 
+_DECODE_CHUNK_BYTES = 8192
+
+
 class _HeaderThenBody:
-    def __init__(self, header: str, body: str) -> None:
-        self._header = header
-        self._body = body
-        self._position = 0
+    def __init__(self, header: str, body: str | bytes) -> None:
+        self._buffered = header
+        self._body = body if isinstance(body, str) else memoryview(body)
+        self._offset = 0
 
     def read(self, size: int = -1, /) -> str:
-        header_length = len(self._header)
-        start = self._position
-        stop = start + size if size >= 0 else header_length + len(self._body)
-        self._position = stop
-        if start >= header_length:
-            return self._body[start - header_length : stop - header_length]
-        if stop <= header_length:
-            return self._header[start:stop]
-        return self._header[start:] + self._body[: stop - header_length]
+        body = self._body
+        end = len(body)
+        while self._offset < end and (size < 0 or len(self._buffered) < size):
+            stop = self._offset + _DECODE_CHUNK_BYTES
+            if isinstance(body, str):
+                self._buffered += body[self._offset : stop]
+                self._offset = stop
+            else:
+                text, used = codecs.utf_8_decode(
+                    body[self._offset : stop], "surrogateescape", stop >= end
+                )
+                self._buffered += text
+                self._offset += used
+        if size < 0:
+            taken, self._buffered = self._buffered, ""
+        else:
+            taken, self._buffered = self._buffered[:size], self._buffered[size:]
+        return taken
 
 
-def _multipart_leaf_parts(raw_body: str, content_type: str) -> list[Message] | None:
+def _body_text(raw_body: str | bytes) -> str:
+    if isinstance(raw_body, str):
+        return raw_body
+    return raw_body.decode("utf-8", errors="surrogateescape")
+
+
+def _multipart_leaf_parts(
+    raw_body: str | bytes, content_type: str
+) -> list[Message] | None:
     from email.parser import Parser
     from email.policy import compat32
 
@@ -238,16 +262,48 @@ def _multipart_leaf_parts(raw_body: str, content_type: str) -> list[Message] | N
     return [part for part in message.walk() if not part.is_multipart()]
 
 
+_MULTIPART_PARSE_SLOTS = 4
+
+
+def _fresh_parse_slots() -> "queue.SimpleQueue[None]":
+    slots: queue.SimpleQueue[None] = queue.SimpleQueue()
+    for _ in range(_MULTIPART_PARSE_SLOTS):
+        slots.put(None)
+    return slots
+
+
+_parse_slots = _fresh_parse_slots()
+
+
+def _forget_the_parents_parse_slots() -> None:
+    # A slot a parent thread held at fork time would stay taken in the child, whose
+    # threads are gone, and shrink the number of parses the child may run at once.
+    global _parse_slots
+    _parse_slots = _fresh_parse_slots()
+
+
+with contextlib.suppress(AttributeError):
+    os.register_at_fork(after_in_child=_forget_the_parents_parse_slots)
+
+
 def _multipart_text_parts(
-    raw_body: str, content_type: str
+    raw_body: str | bytes, content_type: str
 ) -> list[tuple[str | None, str, str]] | None:
-    leaves = _multipart_leaf_parts(raw_body, content_type)
-    if leaves is None:
-        return None
-    parts: list[tuple[str | None, str, str]] = []
-    for part in leaves:
-        parts.extend(_multipart_part_entries(part))
-    return parts
+    # The same four at a time that v4.4.0's shared regex pool put on concurrent scans:
+    # a parse and the payload it builds is several times the body, so 64 uploads
+    # parsing at once held 64 payloads, a slot-limited few hold only theirs.
+    slots = _parse_slots
+    slots.get()
+    try:
+        leaves = _multipart_leaf_parts(raw_body, content_type)
+        if leaves is None:
+            return None
+        parts: list[tuple[str | None, str, str]] = []
+        for part in leaves:
+            parts.extend(_multipart_part_entries(part))
+        return parts
+    finally:
+        slots.put(None)
 
 
 def _multipart_field_values(
@@ -317,7 +373,7 @@ async def _scan_multipart_part(
 
 
 async def _scan_multipart_body(
-    raw_body: str,
+    raw_body: str | bytes,
     content_type: str,
     excluded_body_fields: set[str],
     enabled_categories: set[str] | None,
@@ -334,7 +390,7 @@ async def _scan_multipart_body(
     parts = _multipart_text_parts(raw_body, content_type)
     if parts is None:
         return await _scan_blob_body(
-            raw_body,
+            _body_text(raw_body),
             enabled_categories,
             client_ip,
             correlation_id,
