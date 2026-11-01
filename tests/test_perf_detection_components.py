@@ -58,3 +58,25 @@ def test_multipart_cells_build_a_body_of_the_requested_size_for_every_shape() ->
             f"multipart/form-data; boundary={multipart_cells.BOUNDARY}"
         )
         assert body.endswith(f"--{multipart_cells.BOUNDARY}--\r\n".encode())
+
+
+def test_multipart_cells_leave_out_the_settings_an_older_engine_lacks() -> None:
+    from perf_gate import multipart_cells
+
+    older = multipart_cells._config_kwargs(1048576, {"enable_redis", "rate_limit"})
+    newer = multipart_cells._config_kwargs(
+        1048576, {"enable_redis", "rate_limit", "async_body_read_max_concurrent"}
+    )
+    assert set(older) == {"enable_redis", "rate_limit"}
+    assert newer["async_body_read_max_concurrent"] == multipart_cells.SLOTS
+
+
+def test_multipart_cells_count_every_refusal_by_its_reason() -> None:
+    from perf_gate import multipart_cells
+
+    multipart_cells._REFUSAL_REASONS.clear()
+    assert multipart_cells._note_refusal(200, "ok") == 200
+    assert multipart_cells._note_refusal(400, " Bad request \n") == 400
+    assert multipart_cells._note_refusal(400, "Bad request") == 400
+    assert multipart_cells._REFUSAL_REASONS == {"400 Bad request": 2}
+    multipart_cells._REFUSAL_REASONS.clear()

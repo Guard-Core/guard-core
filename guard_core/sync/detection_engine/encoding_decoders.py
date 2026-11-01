@@ -10,10 +10,13 @@ HTML_HEX_ENTITY_WITHOUT_SEMICOLON_RE = re.compile(
     r"&#[xX]([0-9a-fA-F]{2})(?![0-9a-fA-F]*;)"
 )
 OCTAL_ESCAPE_RE = re.compile(r"\\([0-3][0-7]{2})")
-HEX_TEXT_RUN_RE = re.compile(r"(?<![0-9A-Za-z])((?:[0-9a-fA-F]{2}){6,})(?![0-9A-Za-z])")
+HEX_TEXT_RUN_RE = re.compile(r"(?<![0-9A-Za-z])([0-9a-fA-F]{12,})(?![0-9A-Za-z])")
 _UTF7_BASE64_RUN_RE = re.compile(r"[A-Za-z0-9+/]+")
 _PRINTABLE_ASCII_BYTES = bytes([9, 10, 13, *range(0x20, 0x7F)])
-PERCENT_BYTE_RUN_RE = re.compile(r"(?:%[0-9a-fA-F]{2})+")
+PERCENT_RUN_CHUNK_TOKENS = 1024
+PERCENT_BYTE_RUN_CHUNK_RE = re.compile(
+    rf"(?:%[0-9a-fA-F]{{2}}){{1,{PERCENT_RUN_CHUNK_TOKENS}}}"
+)
 _NON_PERCENT_RUN_CHAR_RE = re.compile(r"[^%0-9A-Fa-f]")
 PERCENT_RUN_WINDOW_CHARS = 32768
 _ASCII_RUN_SPLIT_RE = re.compile("([\x00-\x7f]+)")
@@ -129,11 +132,12 @@ def decode_hex_text_runs(content: str) -> str:
     ``0x`` literal is not a run (SQL ``LOAD_FILE(0x...)`` keeps its literal)."""
 
     def _replace(match: re.Match[str]) -> str:
-        raw = bytes.fromhex(match.group(1))
+        run = match.group(1)
+        if len(run) % 2:
+            return run
+        raw = bytes.fromhex(run)
         return (
-            match.group(0)
-            if raw.translate(None, _PRINTABLE_ASCII_BYTES)
-            else raw.decode("ascii")
+            run if raw.translate(None, _PRINTABLE_ASCII_BYTES) else raw.decode("ascii")
         )
 
     return HEX_TEXT_RUN_RE.sub(_replace, content)
@@ -222,20 +226,43 @@ def percent_run_windows(content: str) -> Iterator[tuple[int, int]]:
         start = end
 
 
+def _decode_overlong_percent_run(run: str) -> str:
+    raw = bytes.fromhex(run.replace("%", ""))
+    try:
+        raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return lenient_overlong_utf8_decode(raw)
+    return run
+
+
+def _percent_byte_runs(content: str) -> Iterator[tuple[int, int]]:
+    """Yield the span of each maximal ``%XX`` run. The pattern takes at most
+    ``PERCENT_RUN_CHUNK_TOKENS`` bytes per match (the regex engine keeps a stack
+    frame per repeated group, so one unbounded match over a megabyte run holds
+    about 50 MB) and adjacent matches are joined here."""
+    run_start = run_end = -1
+    for match in PERCENT_BYTE_RUN_CHUNK_RE.finditer(content):
+        start, end = match.span()
+        if start != run_end:
+            if run_end != -1:
+                yield run_start, run_end
+            run_start = start
+        run_end = end
+    if run_end != -1:
+        yield run_start, run_end
+
+
 def decode_overlong_utf8_percent_runs(content: str) -> str:
     if "%" not in content:
         return content
-
-    def _replace(match: re.Match[str]) -> str:
-        run = match.group()
-        raw = bytes(int(run[i + 1 : i + 3], 16) for i in range(0, len(run), 3))
-        try:
-            raw.decode("utf-8")
-        except UnicodeDecodeError:
-            return lenient_overlong_utf8_decode(raw)
-        return run
-
-    return PERCENT_BYTE_RUN_RE.sub(_replace, content)
+    pieces: list[str] = []
+    position = 0
+    for start, end in _percent_byte_runs(content):
+        pieces.append(content[position:start])
+        pieces.append(_decode_overlong_percent_run(content[start:end]))
+        position = end
+    pieces.append(content[position:])
+    return "".join(pieces)
 
 
 def decode_overlong_utf8_percent_runs_yielding(content: str) -> str:
@@ -253,7 +280,8 @@ _AT_SEGMENT_START = r"(?<![^/\\])"
 _LOST_BYTE_RE = re.compile(_LOST_BYTE)
 _LOST_BYTE_PAIR_RE = re.compile(f"{_LOST_BYTE}{{2}}")
 _LOST_DOT_RUN_RE = re.compile(
-    rf"{_AT_SEGMENT_START}(?:\.|{_LOST_BYTE}{{2}}){{2}}(?=[\\/])"
+    rf"{_AT_SEGMENT_START}"
+    rf"(?:\.{_LOST_BYTE}{{2}}|{_LOST_BYTE}{{2}}\.|{_LOST_BYTE}{{4}})(?=[\\/])"
 )
 _LOST_SEPARATOR_BEFORE_SEPARATOR_RE = re.compile(
     rf"({_AT_SEGMENT_START}\.\.){_LOST_BYTE}{{1,2}}(?=[\\/])"
@@ -273,9 +301,7 @@ def repair_lost_overlong_bytes(content: str) -> str:
     if not _LOST_BYTE_RE.search(content):
         return content
     for _ in range(_LOST_BYTE_REPAIR_PASSES):
-        repaired = _LOST_DOT_RUN_RE.sub(
-            lambda match: _LOST_BYTE_PAIR_RE.sub(".", match.group()), content
-        )
+        repaired = _LOST_DOT_RUN_RE.sub("..", content)
         repaired = _LOST_SEPARATOR_BEFORE_SEPARATOR_RE.sub(r"\1", repaired)
         repaired = _LOST_SEPARATOR_RE.sub(r"\1/", repaired)
         if repaired == content:

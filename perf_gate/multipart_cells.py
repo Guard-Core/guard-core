@@ -7,7 +7,8 @@ Run it from a checkout of the adapter (fastapi-guard, flaskapi-guard or
 djapi-guard) with PYTHONPATH set to that checkout and to a guard-core tree, in
 the adapter's own environment (it imports the framework). One cell is one
 reader, one multipart body shape and one size, posted by `inflight` requests at
-once. `detection_max_file_inspect_bytes` is the body size, so the whole body is
+once. `detection_max_file_inspect_bytes` (and, for a release that has no such
+field, `detection_max_body_inspect_bytes`) is the body size, so the whole body is
 scanned, and the body read slots are 64.
 
   without --tm: the peak RSS of the process, CPU seconds per MB and the wall
@@ -30,11 +31,12 @@ import time
 import tracemalloc
 import types
 import warnings
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from urllib.parse import quote_from_bytes
 
 SLOTS = 64
-BOUNDARY = "guardcoreboundary"
+_REFUSAL_REASONS: dict[str, int] = {}
+BOUNDARY = "wp251boundary"
 _WORDS = (
     b"quarterly onboarding metrics for the regional sales team include revenue "
     b"churn retention pipeline coverage forecast accuracy and headcount plans "
@@ -44,6 +46,13 @@ _WORDS = (
 def _rss_bytes() -> int:
     peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     return peak if sys.platform == "darwin" else peak * 1024
+
+
+def _note_refusal(status: int, text: str) -> int:
+    if status != 200:
+        key = f"{status} {text.strip()[:80]}"
+        _REFUSAL_REASONS[key] = _REFUSAL_REASONS.get(key, 0) + 1
+    return status
 
 
 def _threaded(call: Callable[[], int], slots: int) -> tuple[list[int], float, float]:
@@ -82,11 +91,14 @@ def build_multipart(shape: str, size: int) -> tuple[bytes, str]:
     return head + blob + tail, f"multipart/form-data; boundary={BOUNDARY}"
 
 
-def _config_kwargs(size: int) -> dict[str, object]:
-    return {
+def _config_kwargs(size: int, accepted: Collection[str]) -> dict[str, object]:
+    """The cell's settings, without the ones the engine under test does not have
+    (v4.4.0 has no body read slots, so it measures with its own limits)."""
+    wanted: dict[str, object] = {
         "enable_redis": False,
         "enable_penetration_detection": True,
         "detection_max_file_inspect_bytes": min(max(size, 1024), 10485760),
+        "detection_max_body_inspect_bytes": min(max(size, 1024), 10485760),
         "async_body_read_max_concurrent": SLOTS,
         "sync_body_read_max_concurrent": SLOTS,
         "body_read_timeout": 30.0,
@@ -94,6 +106,7 @@ def _config_kwargs(size: int) -> dict[str, object]:
         "auto_ban_threshold": 10**6,
         "trusted_proxies": ("127.0.0.1",),
     }
+    return {key: value for key, value in wanted.items() if key in accepted}
 
 
 class _Tm:
@@ -137,6 +150,7 @@ def _report(
         "body_len": body_len,
         "inflight": inflight,
         "statuses": counts,
+        "refusal_reasons": dict(_REFUSAL_REASONS),
         "cpu_s": round(cpu, 3),
         "cpu_s_per_mb": round(cpu / megabytes, 4),
         "wall_s": round(wall, 3),
@@ -161,7 +175,8 @@ def cell_fastapi(shape: str, size: int, inflight: int, tm: _Tm) -> dict[str, obj
         return {"n": len(await request.body())}
 
     app.add_middleware(
-        SecurityMiddleware, config=SecurityConfig(**_config_kwargs(size))
+        SecurityMiddleware,
+        config=SecurityConfig(**_config_kwargs(size, SecurityConfig.model_fields)),
     )
     body, content_type = build_multipart(shape, size)
     headers = {"content-type": content_type, "X-Forwarded-For": "203.0.113.9"}
@@ -182,7 +197,9 @@ def cell_fastapi(shape: str, size: int, inflight: int, tm: _Tm) -> dict[str, obj
                 )
             )
             cpu, wall = time.process_time() - cpu0, time.perf_counter() - wall0
-        statuses = [response.status_code for response in responses]
+        statuses = [
+            _note_refusal(response.status_code, response.text) for response in responses
+        ]
         return _report(
             "fastapi",
             shape,
@@ -211,16 +228,17 @@ def cell_flask(shape: str, size: int, inflight: int, tm: _Tm) -> dict[str, objec
     def up() -> dict[str, int]:
         return {"n": len(request.get_data())}
 
-    FlaskAPIGuard(app, config=SecurityConfig(**_config_kwargs(size)))
+    FlaskAPIGuard(
+        app, config=SecurityConfig(**_config_kwargs(size, SecurityConfig.model_fields))
+    )
     body, content_type = build_multipart(shape, size)
     headers = {"Content-Type": content_type, "X-Forwarded-For": "203.0.113.9"}
     app.test_client().post("/up", data=b"warm", headers=headers)
     rss_before = _rss_bytes()
 
     def call() -> int:
-        return int(
-            app.test_client().post("/up", data=body, headers=headers).status_code
-        )
+        response = app.test_client().post("/up", data=body, headers=headers)
+        return _note_refusal(int(response.status_code), response.get_data(as_text=True))
 
     tm.start()
     statuses, cpu, wall = _threaded(call, inflight)
@@ -242,7 +260,9 @@ def cell_django(shape: str, size: int, inflight: int, tm: _Tm) -> dict[str, obje
         ALLOWED_HOSTS=["*"],
         ROOT_URLCONF="multipart_cells_urls",
         MIDDLEWARE=["djangoapi_guard.middleware.DjangoAPIGuard"],
-        GUARD_SECURITY_CONFIG=SecurityConfig(**_config_kwargs(size)),
+        GUARD_SECURITY_CONFIG=SecurityConfig(
+            **_config_kwargs(size, SecurityConfig.model_fields)
+        ),
         USE_TZ=True,
         DATA_UPLOAD_MAX_MEMORY_SIZE=None,
     )
@@ -261,10 +281,11 @@ def cell_django(shape: str, size: int, inflight: int, tm: _Tm) -> dict[str, obje
     rss_before = _rss_bytes()
 
     def call() -> int:
-        return (
-            Client()
-            .post("/up", data=body, content_type=content_type, headers=headers)
-            .status_code
+        response = Client().post(
+            "/up", data=body, content_type=content_type, headers=headers
+        )
+        return _note_refusal(
+            response.status_code, response.content.decode(errors="replace")
         )
 
     tm.start()

@@ -77,21 +77,21 @@ Raise it to accept larger uploads, at the cost of holding more memory per inspec
 
 A multipart upload past the default (1 MiB) on a route without a larger `max_request_size` is answered `400` under `fail_secure`, with a `suspicious_request` event and no strike. The warning in the log and the event detail name the field to raise (`detection_max_file_inspect_bytes` for multipart, `detection_max_body_inspect_bytes` for other bodies) and the per-route `max_request_size`.
 
-What the default costs on guard-core 5.0.0 (Python 3.11, arm64), with 1 MiB uploads and 64 read slots busy on every request at once, per adapter and per body. The CPU and the RSS come from 64 requests in flight and the heap from one request alone (`tracemalloc`). The adapters are fastapi-guard, flaskapi-guard and djapi-guard:
+What the default costs on guard-core 5.0.0 (Python 3.11, arm64), with 1 MiB uploads and 64 read slots busy on every request at once, per adapter and per body. The CPU and the RSS come from 64 requests in flight and the heap from one request alone (`tracemalloc`). The adapters are fastapi-guard, flaskapi-guard and djapi-guard. The figures in brackets are v4.4.0 with the adapters of its release and the same bytes scanned (v4.4.0 has no file limit, so its body limit is raised to 1 MiB), measured by `perf_gate/multipart_cells.py` on the same host:
 
-| Reader | Body (1 MiB) | CPU seconds per MB | Heap of one request | Peak RSS, 64 in flight | Answered 200 of 64 |
-|--------|--------------|--------------------|---------------------|------------------------|--------------------|
-| fastapi | text | 0.73 | 7.5 MB | 703 MB | 64 |
-| flask | text | 0.79 | 8.4 MB | 770 MB | 63 |
-| django | text | 0.80 | 9.5 MB | 870 MB | 62 |
-| fastapi | percent-encoded text | 0.73 | 50.5 MB | 2,954 MB | 64 |
-| flask | percent-encoded text | 0.75 | 51.5 MB | 3,040 MB | 60 |
-| django | percent-encoded text | 0.80 | 52.6 MB | 3,165 MB | 62 |
-| fastapi | binary | 0.11 | 11.9 MB | 384 MB | 64 |
-| flask | binary | 0.12 | 12.8 MB | 612 MB | 64 |
-| django | binary | 0.12 | 13.8 MB | 745 MB | 64 |
+| Reader | Body (1 MiB) | CPU seconds per MB | Heap of one request (v4.4.0) | Peak RSS, 64 in flight, two runs (v4.4.0) | Answered 200 of 64 |
+|--------|--------------|--------------------|------------------------------|-------------------------------------------|--------------------|
+| fastapi | text | 0.72 | 7.5 MB (131.3 MB) | 494 to 721 MB (5,905 MB) | 64 |
+| flask | text | 0.75 | 8.4 MB (2.4 MB) | 484 to 508 MB (80 MB) | 64 |
+| django | text | 0.80 | 9.5 MB (132.3 MB) | 619 to 864 MB (5,346 MB) | 64 |
+| fastapi | percent-encoded text | 0.67 | 8.5 MB (149.0 MB) | 518 to 717 MB (6,763 MB) | 64 |
+| flask | percent-encoded text | 0.69 | 9.4 MB (2.4 MB) | 482 to 524 MB (81 MB) | 64 |
+| django | percent-encoded text | 0.76 | 10.5 MB (150.1 MB) | 728 to 872 MB (6,956 MB) | 64 |
+| fastapi | binary | 0.11 | 11.9 MB (20.6 MB) | 396 to 396 MB (466 MB) | 64 |
+| flask | binary | 0.11 | 12.8 MB (2.4 MB) | 406 to 466 MB (76 MB) | 64 |
+| django | binary | 0.12 | 13.8 MB (21.7 MB) | 759 to 766 MB (557 MB) | 64 |
 
-The requests not answered `200` were answered `400`, and which ones depends on timing. v4.4.0 scanned a smaller window of a multipart body, so its CPU per MB is not comparable. Reproduce one cell from a checkout of the adapter with `PYTHONPATH=<adapter checkout>:<guard-core checkout> python -m perf_gate.multipart_cells cell <reader> <mp-flat|mp-escaped|mp-binary> 1048576 64`, and the heap of one request with `cell <reader> <shape> 1048576 1 --tm`, from a checkout of guard-core 5.0.0.
+Every upload of every cell was answered `200`, in two runs of each cell. The peak RSS of 64 requests in flight moves between runs (the two runs of one cell are given), and the heap of one request is the same in both. v4.4.0 held 131 to 150 MB of heap per request and 5.3 to 7.0 GB of RSS for a text body on the async reader and on Django, which is where the engine now stays at 7.5 to 10.5 MB and below 1 GB. The Flask figures of v4.4.0 are not a floor: its Flask path scanned much less of a multipart body, so they measure much less work. Reproduce one cell from a checkout of the adapter with `PYTHONPATH=<adapter checkout>:<guard-core checkout> python -m perf_gate.multipart_cells cell <reader> <mp-flat|mp-escaped|mp-binary> 1048576 64`, and the heap of one request with `cell <reader> <shape> 1048576 1 --tm`, from a checkout of guard-core 5.0.0.
 
 The async tree has no read-slot cap by default (`async_body_read_max_concurrent` is `None`), so its memory is the per-request figure times the uploads in flight.
 

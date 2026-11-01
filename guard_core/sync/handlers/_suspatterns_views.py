@@ -1,3 +1,4 @@
+import re
 import time
 
 from guard_core.sync.detection_engine import ContentPreprocessor, truncation
@@ -19,6 +20,7 @@ from guard_core.sync.handlers._suspatterns_regex import (
 from guard_core.sync.handlers._suspatterns_sources import (
     _DEFAULT_MAX_SCAN_LENGTH,
     _PATH_TRAVERSAL_DECODED_SHAPE_RE,
+    _count_path_traversal_shapes,
 )
 from guard_core.sync.handlers._suspatterns_state import _DetectionState
 
@@ -51,6 +53,31 @@ def _legacy_decode_path_traversal_view(normalized_content: str) -> str:
         if decoded == previous:
             break
     return _LEGACY_PATH_TRAVERSAL_PREPROCESSOR.remove_null_bytes(decoded)
+
+
+def _traversal_shape_beyond_raw(
+    raw_view: str, decoded_view: str
+) -> re.Match[str] | None:
+    """The first ``..`` and separator of the decoded view when it holds more of
+    them than the raw view, or ``None``. A shape in a binary-dense span of a view
+    that had lost bytes does not count. No list of matches is built."""
+    raw_count = _count_path_traversal_shapes(raw_view)
+    if not any(map(decoded_view.__contains__, _LOST_BYTE_MARKERS)):
+        if _count_path_traversal_shapes(decoded_view) > raw_count:
+            return _PATH_TRAVERSAL_DECODED_SHAPE_RE.search(decoded_view)
+        return None
+    repaired = repair_lost_overlong_bytes(decoded_view)
+    binary_prefix = build_binary_prefix(repaired)
+    first_match = None
+    counted = 0
+    for found in _PATH_TRAVERSAL_DECODED_SHAPE_RE.finditer(repaired):
+        if span_is_binary_dense(binary_prefix, found.start(), found.end()):
+            continue
+        first_match = first_match or found
+        counted += 1
+        if counted > raw_count:
+            return first_match
+    return None
 
 
 class _SusPatternsViewsMixin(_SusPatternsRegexMixin):
@@ -114,25 +141,10 @@ class _SusPatternsViewsMixin(_SusPatternsRegexMixin):
             )
             decoded_view_content = _legacy_decode_path_traversal_view(raw_view_content)
 
-        if any(map(decoded_view_content.__contains__, _LOST_BYTE_MARKERS)):
-            decoded_view_content = repair_lost_overlong_bytes(decoded_view_content)
-            binary_prefix = build_binary_prefix(decoded_view_content)
-            decoded_matches = [
-                match
-                for match in _PATH_TRAVERSAL_DECODED_SHAPE_RE.finditer(
-                    decoded_view_content
-                )
-                if not span_is_binary_dense(binary_prefix, match.start(), match.end())
-            ]
-        else:
-            decoded_matches = list(
-                _PATH_TRAVERSAL_DECODED_SHAPE_RE.finditer(decoded_view_content)
-            )
-        raw_count = len(_PATH_TRAVERSAL_DECODED_SHAPE_RE.findall(raw_view_content))
-        if len(decoded_matches) <= raw_count:
+        match = _traversal_shape_beyond_raw(raw_view_content, decoded_view_content)
+        if match is None:
             return None
 
-        match = decoded_matches[0]
         return {
             "type": "regex",
             "pattern": _PATH_TRAVERSAL_DECODED_SHAPE_RE.pattern,
