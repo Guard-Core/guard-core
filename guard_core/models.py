@@ -28,7 +28,7 @@ from guard_core._detection_constants import (
 )
 from guard_core._dynamic_rules import DynamicRules as DynamicRules
 from guard_core._misconfiguration import (
-    CHECKED_FIELDS as _CHECKED_FIELDS,
+    CHECKED_FIELDS_BESIDES_RATE_LIMIT as _CHECKED_FIELDS_BESIDES_RATE_LIMIT,
 )
 from guard_core._misconfiguration import (
     report_config_misconfigurations,
@@ -88,6 +88,7 @@ from guard_core._security_config_validators import (
     return_pattern_requires_response_body as return_pattern_requires_response_body,
 )
 from guard_core._staged_defaults import (
+    _ALWAYS_LISTED_FIELDS,
     signal_changed_defaults,
     warn_redis_prefix_left_default,
 )
@@ -208,9 +209,9 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
             return data
 
         fields = cls.model_fields
-        not_a_field_name = {key for key in data if key not in fields}
-        if not not_a_field_name:
+        if data.keys() <= fields.keys():
             return data
+        not_a_field_name = {key for key in data if key not in fields}
         known = set(fields)
         known.update(field.alias for field in fields.values() if field.alias)
 
@@ -289,7 +290,7 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
 
     @model_validator(mode="after")
     def reject_redos_unsafe_blocked_user_agents(self) -> Self:
-        if self.blocked_user_agents:
+        if self.__dict__["blocked_user_agents"]:
             _reject_redos_unsafe_blocked_user_agents_at_field(
                 type(self).__name__,
                 self.blocked_user_agents,
@@ -346,7 +347,7 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
 
     @model_validator(mode="after")
     def validate_recidive_cap(self) -> Self:
-        if self.enable_recidive:
+        if self.__dict__["enable_recidive"]:
             _require_recidive_cap_covers_auto_ban(self)
         return self
 
@@ -382,22 +383,32 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
 
     @model_validator(mode="after")
     def warn_exclude_all_paths(self) -> Self:
-        if self.exclude_all_paths:
+        if self.__dict__["exclude_all_paths"]:
             _warn_exclude_all_paths(stacklevel=4)
         return self
 
     @model_validator(mode="after")
     def report_misconfigurations(self) -> Self:
-        if self.emergency_mode or not self.__pydantic_fields_set__.isdisjoint(
-            _CHECKED_FIELDS
+        stated = self.__pydantic_fields_set__
+        values = self.__dict__
+        if (
+            values["emergency_mode"]
+            or not stated.isdisjoint(_CHECKED_FIELDS_BESIDES_RATE_LIMIT)
+            or ("rate_limit" in stated and values["rate_limit"] < 1)
         ):
             report_config_misconfigurations(self, stacklevel=4)
         return self
 
     @model_validator(mode="after")
     def warn_changed_defaults(self) -> Self:
-        signal_changed_defaults(self)
-        if self.enable_redis and self.redis_url:
+        values = self.__dict__
+        if not (
+            self.__pydantic_fields_set__ >= _ALWAYS_LISTED_FIELDS
+            and not values["whitelist"]
+            and "/" not in values["exclude_paths"]
+        ):
+            signal_changed_defaults(self)
+        if values["enable_redis"] and values["redis_url"]:
             warn_redis_prefix_left_default(self)
         return self
 
@@ -499,6 +510,18 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
                 "Install it with: pip install guard-agent"
             ) from e
 
+
+def _start_private_state(self: SecurityConfig[RequestT], context: object, /) -> None:
+    """pydantic's initializer of the private attributes, for the one this class
+    declares: it reads the attribute's default through five Python calls, which
+    cost more on the first construction of a process than the validators do. A
+    subclass with private attributes of its own gets pydantic's initializer first
+    (its metaclass wraps this one), so the state is already there and is kept."""
+    if self.__pydantic_private__ is None:
+        object.__setattr__(self, "__pydantic_private__", {"_revision": 0})
+
+
+type.__setattr__(SecurityConfig, "model_post_init", _start_private_state)
 
 if TYPE_CHECKING:
     SyncSecurityConfig = SecurityConfig[SyncGuardRequest]

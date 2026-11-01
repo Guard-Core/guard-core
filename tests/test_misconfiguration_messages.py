@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from guard_core import _misconfiguration
+from guard_core import _misconfiguration, models
 from guard_core._emergency_exemptions import warn_unexempted_probe_paths
 from guard_core._security_config_fields import DEFAULT_EXCLUDE_PATHS
 from guard_core.core.initialization.handler_initializer import HandlerInitializer
@@ -348,3 +348,54 @@ def test_the_probe_path_warning_is_given_in_emergency_mode_only(
 
     assert [r.name for r in caplog.records] == ["probe_paths"]
     assert "[EMERGENCY MODE]" in caplog.records[0].getMessage()
+
+
+def _count_reports(monkeypatch: pytest.MonkeyPatch) -> list[SecurityConfig[Any]]:
+    reported: list[SecurityConfig[Any]] = []
+    real = models.report_config_misconfigurations
+
+    def spy(config: SecurityConfig[Any], *, stacklevel: int) -> None:
+        reported.append(config)
+        real(config, stacklevel=stacklevel)
+
+    monkeypatch.setattr(models, "report_config_misconfigurations", spy)
+    return reported
+
+
+def test_a_valid_rate_limit_alone_does_not_start_the_report(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    reported = _count_reports(monkeypatch)
+
+    SecurityConfig(rate_limit=120, enable_redis=False)
+
+    assert reported == []
+
+
+@pytest.mark.parametrize(
+    "stated",
+    [
+        {"rate_limit": 0, "fail_on_misconfiguration": False},
+        {"emergency_mode": True},
+        {"security_headers": {"enabled": True}},
+        {"exclude_paths": ["/health"]},
+        {"endpoint_rate_limits": {"/x": (5, 60)}},
+        {"rate_limit_window": 60},
+        {"detection_threat_score_threshold": 0.5},
+        {"detection_semantic_threshold": 0.5},
+    ],
+)
+def test_every_other_stated_checked_field_still_starts_the_report(
+    monkeypatch: pytest.MonkeyPatch, stated: dict[str, Any]
+) -> None:
+    reported = _count_reports(monkeypatch)
+
+    SecurityConfig(enable_redis=False, **stated)
+
+    assert len(reported) == 1
+
+
+def test_the_fields_checked_beside_rate_limit_are_the_checked_fields_but_it() -> None:
+    assert _misconfiguration.CHECKED_FIELDS_BESIDES_RATE_LIMIT == (
+        _misconfiguration.CHECKED_FIELDS - {"rate_limit"}
+    )

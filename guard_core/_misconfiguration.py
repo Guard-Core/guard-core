@@ -114,6 +114,10 @@ CHECKED_FIELDS = frozenset(
     }
 )
 
+# What can need a report once rate_limit alone is stated: a valid rate_limit is
+# the one stated field that is checked without a report.
+CHECKED_FIELDS_BESIDES_RATE_LIMIT = CHECKED_FIELDS - {"rate_limit"}
+
 # The same fields by check: a check whose fields are all unset sees only
 # defaults, so it does not run.
 _HEADER_FIELDS = frozenset({"security_headers"})
