@@ -19,9 +19,11 @@ Case schema (kind "pipeline"):
       "config": {<SecurityConfig overrides, JSON-safe subset>},
       "geo_countries": {"<ip>": "<ISO code>", ...}   # stub geo handler table
       "routes": [ {"path": "/api/x", <RouteConfig overrides>}, ... ],
+      "custom_patterns": ["<regex>", ...]            # added as custom rows
       "drives": [
         {"client_ip": "...", "method": "GET", "url_path": "/api",
-         "headers": {...}, "body": "...", "stage": "pipeline"}
+         "headers": {...}, "body": "...", "stage": "pipeline",
+         "saturate_regex_pool": false}      # true: every regex worker is busy
       ],
       "expected": [ <observation>, ... ]   # one per drive, same order
     }
@@ -40,8 +42,12 @@ rules).
 
 from __future__ import annotations
 
+import concurrent.futures
+import contextlib
 import logging
-from collections.abc import Awaitable, Callable, Mapping
+import re
+import threading
+from collections.abc import Awaitable, Callable, Iterator, Mapping
 from typing import TypeVar, overload
 
 from fixture_types import (
@@ -115,6 +121,8 @@ CONFIG_KEYS = (
     "excluded_detection_params",
     "detection_max_body_inspect_bytes",
     "detection_max_file_inspect_bytes",
+    "fail_secure",
+    "detection_compiler_timeout",
 )
 
 ROUTE_KEYS = (
@@ -629,6 +637,33 @@ def reset_check_samplers() -> None:
     suspicious_activity._disabled_detection_samples.clear()
 
 
+@contextlib.contextmanager
+def saturated_regex_pool() -> Iterator[None]:
+    """Hold every worker of the shared regex pool busy, so a custom row only queues."""
+    from guard_core.detection_engine import compiler as compiler_module
+
+    workers = compiler_module._SHARED_EXECUTOR_MAX_WORKERS
+    pool = concurrent.futures.ThreadPoolExecutor(max_workers=workers)
+    original = compiler_module._shared_executor
+    replace_member(compiler_module, "_shared_executor", pool)
+    release = threading.Event()
+    all_running = threading.Barrier(workers + 1)
+
+    def hold() -> None:
+        all_running.wait(10)
+        release.wait(30)
+
+    for _ in range(workers):
+        pool.submit(hold)
+    all_running.wait(10)
+    try:
+        yield
+    finally:
+        release.set()
+        pool.shutdown(wait=True)
+        replace_member(compiler_module, "_shared_executor", original)
+
+
 async def run_case(case: PipelineCaseInput) -> list[JsonObject]:
     """Drive the case; returns the observed records (one per drive)."""
     await reset_global_state()
@@ -645,6 +680,23 @@ async def run_case(case: PipelineCaseInput) -> list[JsonObject]:
     # Clear the manager's window state so every case starts from a clean slate.
     await harness.rate_limit_handler.reset()
     observed: list[JsonObject] = []
+    custom_patterns = case.get("custom_patterns", [])
+    custom_rows: list[tuple[re.Pattern[str], frozenset[str], str]] = []
+    if custom_patterns:
+        from guard_core.handlers.suspatterns_handler import (
+            _CTX_ALL,
+            sus_patterns_manager_for,
+        )
+
+        case_patterns = sus_patterns_manager_for(harness.config, bind=True)
+        case_patterns.configure(harness.config)
+        # Installed as compiled rows, not through add_pattern: its safety probe times
+        # the pattern, and a loaded host can refuse a harmless row (D-84 item 2).
+        custom_rows = [
+            (re.compile(source, re.IGNORECASE | re.MULTILINE), _CTX_ALL, "custom")
+            for source in custom_patterns
+        ]
+        case_patterns.compiled_custom_patterns.update(custom_rows)
     for drive in case["drives"]:
         request = _PipelineRequest(drive)
         record: JsonObject = {}
@@ -652,7 +704,12 @@ async def run_case(case: PipelineCaseInput) -> list[JsonObject]:
         harness.on_block.payloads.clear()
         stage = drive.get("stage", "pipeline")
         if stage == "pipeline":
-            response = await harness.pipeline.execute(request)
+            with (
+                saturated_regex_pool()
+                if drive.get("saturate_regex_pool")
+                else contextlib.nullcontext()
+            ):
+                response = await harness.pipeline.execute(request)
         elif stage == "process_response":
             response = _HARNESS_RESPONSE_FACTORY.create_response(
                 drive.get("response_body", "ok"),
@@ -710,4 +767,6 @@ async def run_case(case: PipelineCaseInput) -> list[JsonObject]:
                 dict(payload) for payload in harness.on_block.payloads
             ]
         observed.append(record)
+    if custom_rows:
+        case_patterns.compiled_custom_patterns.difference_update(custom_rows)
     return observed

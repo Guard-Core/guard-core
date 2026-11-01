@@ -93,7 +93,7 @@ def _check(
     middleware.event_bus.send_middleware_event = AsyncMock()
     middleware.create_error_response = AsyncMock(
         side_effect=lambda status_code, default_message: MagicMock(
-            status_code=status_code
+            status_code=status_code, headers={}
         )
     )
     middleware.route_resolver.should_bypass_check = lambda *_: False
@@ -115,12 +115,13 @@ async def test_a_harmless_value_that_only_queued_is_an_incomplete_scan(
     result = await detect_penetration_attempt(_request("hello"), custom_rows)
 
     assert result.is_threat is False
-    assert result.body_read_error == "failed"
+    assert result.body_read_error == "queue_wait"
+    assert result.queue_wait_surface == "query"
     assert "no regex worker took the scan" in result.body_read_detail
 
 
 @pytest.mark.usefixtures("saturated_regex_pool")
-async def test_a_queue_wait_answers_400_with_an_event_and_no_strike(
+async def test_a_queue_wait_answers_503_with_retry_after_an_event_and_no_strike(
     custom_rows: SecurityConfig,
 ) -> None:
     check, middleware = _check()
@@ -128,7 +129,8 @@ async def test_a_queue_wait_answers_400_with_an_event_and_no_strike(
     response = await check.check(_request("hello"))
 
     assert response is not None
-    assert response.status_code == 400
+    assert response.status_code == 503
+    assert response.headers["Retry-After"] == "1"
     event = middleware.event_bus.send_middleware_event.call_args.kwargs
     assert event["event_type"] == EVENT_SUSPICIOUS_REQUEST
     assert event["action_taken"] == "request_blocked"
@@ -149,8 +151,8 @@ async def test_queue_waits_never_ban_a_client_on_the_default_threshold(
         statuses.append(None if response is None else response.status_code)
 
     held = compiler_module._SHARED_EXECUTOR_MAX_WORKERS
-    assert statuses[:held] == [400] * held
-    assert set(statuses) <= {400, None}
+    assert statuses[:held] == [503] * held
+    assert set(statuses) <= {503, None}
     assert middleware.ip_ban_manager.ban_ip.await_count == 0
     assert middleware.suspicious_request_counts == {}
 
@@ -229,18 +231,19 @@ async def test_the_legacy_path_ends_a_scan_that_only_queued(
 
 
 @pytest.mark.usefixtures("saturated_regex_pool")
-async def test_the_windowed_path_ends_a_scan_that_only_queued(
+async def test_the_windowed_path_never_queues_for_a_worker(
     isolated_manager: SusPatternsManager,
 ) -> None:
-    with pytest.raises(BodyReadFailedError, match="no regex worker took the scan"):
-        await isolated_manager._check_windowed_pattern(
-            re.compile("evil"),
-            lambda content: iter(()),
-            "so evil",
-            time.monotonic(),
-            "custom",
-            "unknown",
-        )
+    threat, timed_out = await isolated_manager._check_windowed_pattern(
+        re.compile("evil"),
+        lambda content: iter(()),
+        "so evil",
+        time.monotonic(),
+        "custom",
+        "unknown",
+    )
+
+    assert (threat, timed_out) == (None, False)
 
 
 @pytest.mark.usefixtures("saturated_regex_pool")
@@ -254,7 +257,10 @@ def test_the_finditer_matcher_reports_a_queue_wait_and_no_matches() -> None:
 
 
 def _wait_without_bound(
-    future: concurrent.futures.Future[Any], started: object, timeout: float
+    future: concurrent.futures.Future[Any],
+    started: object,
+    timeout: float,
+    backstop: float | None = None,
 ) -> Any:
     return future.result()
 
@@ -457,7 +463,7 @@ async def test_a_pool_held_by_stuck_workers_is_replaced_and_scans_in_full(
     for _ in range(compiler_module._SHARED_EXECUTOR_MAX_WORKERS):
         response = await check.check(_request("hello"))
         assert response is not None
-        assert response.status_code == 400
+        assert response.status_code == 503
     replacement = compiler_module._shared_executor
 
     try:
@@ -473,3 +479,122 @@ async def test_a_pool_held_by_stuck_workers_is_replaced_and_scans_in_full(
         replacement.shutdown(wait=True)
 
     assert after_replacement == free_pool > 0
+
+
+def _request_with(
+    *,
+    path: str = "/api",
+    headers: dict[str, str] | None = None,
+    query: dict[str, str] | None = None,
+    body: bytes = b"",
+) -> MockGuardRequest:
+    request = MockGuardRequest(
+        path=path,
+        method="POST" if body else "GET",
+        headers=headers or {},
+        query_params=query or {},
+        body_content=body,
+    )
+    request.state.client_ip = CLIENT
+    request.state.route_config = None
+    return request
+
+
+@pytest.mark.usefixtures("saturated_regex_pool")
+@pytest.mark.parametrize(
+    ("context", "surface"),
+    [
+        ("url_path", "url path"),
+        ("query_param:q", "query"),
+        ("header:x-note", "header"),
+        ("request_body", "body field"),
+        ("request_body:form_field", "body field"),
+    ],
+)
+async def test_a_queue_wait_names_the_surface_that_was_being_scanned(
+    custom_rows: SecurityConfig, context: str, surface: str
+) -> None:
+    with pytest.raises(compiler_module.RegexQueueWaitError) as caught:
+        await scan_module._check_value_enhanced("hello", context, CLIENT, "cid")
+
+    assert caught.value.surface == surface
+
+
+@pytest.mark.usefixtures("saturated_regex_pool")
+async def test_a_queue_wait_on_the_path_is_reported_with_its_surface(
+    custom_rows: SecurityConfig,
+) -> None:
+    result = await detect_penetration_attempt(
+        _request_with(path="/hello-there"), custom_rows
+    )
+
+    assert result.body_read_error == "queue_wait"
+    assert result.queue_wait_surface == "url path"
+
+
+@pytest.mark.usefixtures("saturated_regex_pool")
+async def test_a_queue_wait_logs_its_own_line_and_event_naming_the_surface(
+    custom_rows: SecurityConfig, caplog: pytest.LogCaptureFixture
+) -> None:
+    check, middleware = _check()
+
+    with caplog.at_level(logging.WARNING, logger="test_regex_queue_wait"):
+        await check.check(_request("hello"))
+
+    assert (
+        f"Request scan waited for a regex worker for IP: {CLIENT} (surface: query)"
+        in caplog.text
+    )
+    assert "Request body read" not in caplog.text
+    event = middleware.event_bus.send_middleware_event.call_args.kwargs
+    assert event["reason"].startswith(
+        "Request scan queue wait (query): no regex worker"
+    )
+
+
+@pytest.mark.usefixtures("saturated_regex_pool")
+async def test_a_queue_wait_in_passive_mode_passes_with_an_event(
+    custom_rows: SecurityConfig,
+) -> None:
+    check, middleware = _check(_config(passive_mode=True))
+
+    response = await check.check(_request("hello"))
+
+    assert response is None
+    event = middleware.event_bus.send_middleware_event.call_args.kwargs
+    assert event["action_taken"] == "logged_only"
+    assert middleware.suspicious_request_counts == {}
+
+
+async def test_a_real_body_read_failure_keeps_its_400_line_and_event(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    from guard_core._utils.detection_result_builders import _build_body_read_error
+    from guard_core.core.checks.implementations.suspicious_activity import (
+        body_read_outcome,
+    )
+
+    check, middleware = _check()
+    result = _build_body_read_error(False, "the connection dropped")
+
+    with caplog.at_level(logging.WARNING, logger="test_regex_queue_wait"):
+        response = await body_read_outcome(check, _request("hello"), CLIENT, result)
+
+    assert response is not None
+    assert response.status_code == 400
+    assert "Reason: Request body read failed for IP: 203.0.113.9" in caplog.text
+    event = middleware.event_bus.send_middleware_event.call_args.kwargs
+    assert event["reason"] == "Request body read failed: the connection dropped"
+    assert event["action_taken"] == "request_blocked"
+    middleware.create_error_response.assert_awaited_once_with(
+        status_code=400, default_message="Request body could not be read"
+    )
+
+
+def test_a_queue_wait_error_is_a_body_read_failure_with_the_wait_and_no_surface() -> (
+    None
+):
+    error = compiler_module.no_regex_worker_time(2.0)
+
+    assert isinstance(error, BodyReadFailedError)
+    assert (error.waited, error.surface) == (2.0, None)

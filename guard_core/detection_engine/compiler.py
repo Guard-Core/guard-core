@@ -13,6 +13,8 @@ from guard_core._utils._scan_outcomes import (
     SCAN_OUTCOME_QUEUE_WAIT,
     SCAN_OUTCOME_RUN_TIMEOUT,
 )
+from guard_core._utils.detection_config import _DEFAULT_MAX_SCAN_SECONDS
+from guard_core._utils.detection_scan import _scan_time_cap
 from guard_core._utils.pattern_source_redaction import _SensitiveNameSets
 from guard_core.detection_engine import _validation_cache
 from guard_core.detection_engine._redos_cost_arbiter import (
@@ -26,7 +28,7 @@ from guard_core.detection_engine._redos_structural_prefilters import (
     _first_structural_safety_violation,
 )
 from guard_core.detection_engine.cache_stats import CacheStats, build_cache_stats
-from guard_core.exceptions import BodyReadFailedError
+from guard_core.exceptions import RegexQueueWaitError
 
 logger = logging.getLogger("guard_core.detection_engine.compiler")
 
@@ -71,10 +73,11 @@ class RegexQueueWaitExpired(Exception):
     """No worker took the scan within its bound: the pattern never ran."""
 
 
-def no_regex_worker_time(waited: float) -> BodyReadFailedError:
-    return BodyReadFailedError(
+def no_regex_worker_time(waited: float) -> RegexQueueWaitError:
+    return RegexQueueWaitError(
         f"no regex worker took the scan within {waited} s, so the request was not "
-        "fully scanned"
+        "fully scanned",
+        waited,
     )
 
 
@@ -107,37 +110,55 @@ def submit_to_regex_executor(
     return (executor or shared_regex_executor()).submit(run), started
 
 
+def wall_backstop(timeout: float) -> float:
+    """The wall time a started scan may take before it is cut: the request's scan
+    cap (``detection_max_scan_seconds``), never less than the CPU bound. A started
+    scan is judged by the CPU it used (a worker starved of the GIL by busy request
+    threads is slow, not expensive); the wall time only stops a scan that never
+    ends."""
+    cap = _scan_time_cap.get()
+    return max(timeout, _DEFAULT_MAX_SCAN_SECONDS if cap is None else cap)
+
+
 def _run_budget_left(
     future: concurrent.futures.Future[_Result],
     started: list[float],
     timeout: float,
     expired: BaseException,
+    backstop: float | None = None,
 ) -> float:
     """The run budget a scan has left once its first wait of ``timeout`` ended.
 
     A future that finished with an error of its own, or a worker that started, is
-    judged by its own run; a worker that never started gets
-    RegexQueueWaitExpired.
+    judged by its own run (up to ``backstop`` of wall time when one is given); a
+    worker that never started gets RegexQueueWaitExpired.
     """
     if not started and (future.cancelled() or future.cancel()):
         raise RegexQueueWaitExpired() from expired
     if future.done():
         raise expired
-    return max(timeout - (time.monotonic() - (started or [time.monotonic()])[0]), 0.0)
+    allowed = timeout if backstop is None else backstop
+    return max(allowed - (time.monotonic() - (started or [time.monotonic()])[0]), 0.0)
 
 
 def wait_for_regex_run(
-    future: concurrent.futures.Future[_Result], started: list[float], timeout: float
+    future: concurrent.futures.Future[_Result],
+    started: list[float],
+    timeout: float,
+    backstop: float | None = None,
 ) -> _Result:
     try:
         return future.result(timeout=timeout)
     except concurrent.futures.TimeoutError as exc:
-        left = _run_budget_left(future, started, timeout, exc)
+        left = _run_budget_left(future, started, timeout, exc, backstop)
     return future.result(timeout=left)
 
 
 async def _await_regex_future(
-    future: concurrent.futures.Future[_Result], started: list[float], timeout: float
+    future: concurrent.futures.Future[_Result],
+    started: list[float],
+    timeout: float,
+    backstop: float | None = None,
 ) -> _Result:
     try:
         return await asyncio.wait_for(asyncio.wrap_future(future), timeout=timeout)
@@ -146,7 +167,7 @@ async def _await_regex_future(
         # asyncio.TimeoutError, so read a finished future for its own outcome.
         if future.done() and not future.cancelled():
             return future.result()
-        left = _run_budget_left(future, started, timeout, exc)
+        left = _run_budget_left(future, started, timeout, exc, backstop)
     try:
         return await asyncio.wait_for(asyncio.wrap_future(future), timeout=left)
     except asyncio.TimeoutError as exc:
@@ -382,7 +403,7 @@ class PatternCompiler:
             )
             try:
                 result: list[re.Match] = wait_for_regex_run(
-                    future, started, match_timeout
+                    future, started, match_timeout, wall_backstop(match_timeout)
                 )
                 report_scan_success()
                 ran_past_budget = sum(worker_cpu) >= 0.9 * match_timeout

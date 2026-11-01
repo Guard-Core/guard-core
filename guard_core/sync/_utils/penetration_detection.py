@@ -38,6 +38,7 @@ from guard_core.sync._utils.detection_result_builders import (
     _build_body_read_error,
     _build_detection_hit,
     _build_detection_miss,
+    _build_read_error_of,
 )
 from guard_core.sync._utils.detection_scan import (
     LazyPreview,
@@ -337,7 +338,7 @@ def _scan_body_surface(
     except BodyReadStalledError as error:
         return _build_body_read_error(True, error.detail)
     except BodyReadFailedError as error:
-        return _build_body_read_error(False, error.detail)
+        return _build_read_error_of(error)
     if body_bytes is None:
         return _build_detection_miss()
 
@@ -510,6 +511,6 @@ def detect_penetration_attempt(
             body_result.correlation_id = correlation_id
             return body_result
         except BodyReadFailedError as error:
-            read_error = _build_body_read_error(False, error.detail)
+            read_error = _build_read_error_of(error)
             read_error.correlation_id = correlation_id
             return read_error

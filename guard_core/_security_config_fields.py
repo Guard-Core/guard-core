@@ -1230,12 +1230,15 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
         default=2.0,
         description=(
             "Time (seconds) one pattern may use, judged by the CPU the pattern itself "
-            "used (a custom pattern by its worker's CPU, a built-in pattern by the "
-            "scan's own CPU), so waiting for the GIL or a free worker is not counted. "
-            "The hard wait for a started worker stays wall time. Waiting for a free "
-            "worker is bounded by the same value and ends the scan as incomplete "
-            "(400 with an event and no strike under fail_secure, a pass with the "
-            "event otherwise); a pool held by stuck workers is still replaced."
+            "used (a custom pattern by its worker's CPU when the worker finishes, a "
+            "built-in pattern by the scan's own CPU), so waiting for the GIL or a free "
+            "worker is not counted. The six windowed built-in rows run on the request "
+            "thread, and a started custom scan is cut only at "
+            "detection_max_scan_seconds of wall time. Waiting for a free worker is "
+            "bounded by the same value and ends the scan as incomplete (503 with a "
+            "Retry-After of this many seconds, an event and no strike under "
+            "fail_secure, a pass with the event otherwise); a pool held by stuck "
+            "workers is still replaced."
         ),
         ge=0.1,
         le=10.0,

@@ -26,6 +26,7 @@ from guard_core._utils.scan_config_scope import (
     _request_scan_window,
     _scan_config_scope,
 )
+from guard_core._utils.scan_surface import note_scan_surface
 from guard_core._utils.user_agent_compiler import user_agent_compiler
 from guard_core.exceptions import BodyReadFailedError
 
@@ -726,7 +727,8 @@ async def _check_value_enhanced(
 
         return True, "Threat detected", threats, None
 
-    except (RecursionError, BodyReadFailedError):
+    except (RecursionError, BodyReadFailedError) as error:
+        note_scan_surface(error, context)
         raise
     except Exception as e:
         logger.error(f"Enhanced detection failed: {e}, falling back to basic check")

@@ -421,6 +421,15 @@ NON_REQUEST_PRODUCERS: dict[str, str] = {
         "other producer in this module, with no header, parameter, URL or "
         "body value interpolated"
     ),
+    "core/checks/implementations/suspicious_activity.py:_queue_wait_outcome": (
+        "logs 'Request scan waited for a regex worker for IP: <client identity> "
+        "(surface: url path|query|header|body field)' and sends the matching "
+        "event; the surface is one of four fixed names and the detail is the "
+        "engine's own fixed text with the wait in seconds, through log_activity "
+        "and send_middleware_event, which apply the same redaction as every "
+        "other producer in this module, with no header, parameter, URL or body "
+        "value interpolated"
+    ),
     "core/initialization/_ban_threshold_report.py:"
     "log_unreachable_ban_thresholds_after_rule_change": (
         "advisory naming the configured rate limit, window and ban thresholds "

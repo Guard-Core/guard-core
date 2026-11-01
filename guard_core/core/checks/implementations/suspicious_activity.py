@@ -1,3 +1,4 @@
+import math
 from collections.abc import Collection
 from typing import TYPE_CHECKING
 
@@ -27,7 +28,11 @@ from guard_core.core.events.event_types import (
     EVENT_SUSPICIOUS_REQUEST,
 )
 from guard_core.decorators.base import RouteConfig
-from guard_core.detection_result import BODY_READ_STALLED, DetectionResult
+from guard_core.detection_result import (
+    BODY_READ_QUEUE_WAIT,
+    BODY_READ_STALLED,
+    DetectionResult,
+)
 from guard_core.models import SecurityConfig
 from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse
@@ -64,9 +69,11 @@ async def body_read_outcome(
     result: DetectionResult,
 ) -> GuardResponse | None:
     config = check.config
+    blocks = config.fail_secure and not config.passive_mode
+    if result.body_read_error == BODY_READ_QUEUE_WAIT:
+        return await _queue_wait_outcome(check, request, client_ip, result, blocks)
     stalled = result.body_read_error == BODY_READ_STALLED
     outcome = "stalled" if stalled else "failed"
-    blocks = config.fail_secure and not config.passive_mode
     await log_activity(
         request,
         check.logger,
@@ -93,6 +100,51 @@ async def body_read_outcome(
     if not blocks:
         return None
     return await _refusal(check, stalled)
+
+
+async def _queue_wait_outcome(
+    check: SecurityCheck,
+    request: GuardRequest,
+    client_ip: str,
+    result: DetectionResult,
+    blocks: bool,
+) -> GuardResponse | None:
+    """A scan that waited for a regex worker past ``detection_compiler_timeout``
+    and never ran: the server was busy, so the answer is 503 with ``Retry-After``,
+    with no strike (the client did nothing wrong)."""
+    config = check.config
+    surface = result.queue_wait_surface or "request"
+    reason = f"Request scan waited for a regex worker for IP: {client_ip}"
+    await log_activity(
+        request,
+        check.logger,
+        log_type="suspicious",
+        reason=f"{reason} (surface: {surface})",
+        passive_mode=config.passive_mode,
+        trigger_info=result.body_read_detail,
+        level=config.log_suspicious_level,
+        check_name=check.check_name,
+        muted_check_logs=config.muted_check_logs,
+        on_block=config.on_block,
+        sensitive_headers=config.log_sensitive_headers,
+        sensitive_params=config.log_sensitive_params,
+        sensitive_body_fields=config.log_sensitive_body_fields,
+    )
+    await check.middleware.event_bus.send_middleware_event(
+        event_type=EVENT_SUSPICIOUS_REQUEST,
+        request=request,
+        action_taken="request_blocked" if blocks else "logged_only",
+        reason=f"Request scan queue wait ({surface}): {result.body_read_detail}",
+        passive_mode=config.passive_mode,
+        trigger_info=result.body_read_detail,
+    )
+    if not blocks:
+        return None
+    response = await check.middleware.create_error_response(
+        status_code=503, default_message="Service temporarily unavailable"
+    )
+    response.headers["Retry-After"] = str(math.ceil(config.detection_compiler_timeout))
+    return response
 
 
 async def _refusal(check: SecurityCheck, stalled: bool) -> GuardResponse:
