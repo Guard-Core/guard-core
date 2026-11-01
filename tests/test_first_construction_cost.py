@@ -158,3 +158,18 @@ def test_leaving_one_changed_default_unstated_signals(
     SecurityConfig(**stated)
 
     assert len(signalled) == 1
+
+
+def test_a_trigger_assignment_on_a_fully_stated_config_signals_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = SecurityConfig(**STATED_EVERY_CHANGED_DEFAULT)
+
+    def refuse(_config: object) -> object:
+        raise AssertionError("the dedupe table was looked up")
+
+    monkeypatch.setattr(_staged_defaults._changed_defaults_logged, "for_app", refuse)
+
+    config.rate_limit = 5
+
+    assert config.rate_limit == 5
