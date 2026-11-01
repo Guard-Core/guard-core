@@ -1,4 +1,5 @@
 import inspect
+import logging
 import re
 import warnings
 from collections.abc import Callable
@@ -7,6 +8,7 @@ from typing import Any
 import pytest
 
 from guard_core import _misconfiguration
+from guard_core._emergency_exemptions import warn_unexempted_probe_paths
 from guard_core._security_config_fields import DEFAULT_EXCLUDE_PATHS
 from guard_core.core.initialization.handler_initializer import HandlerInitializer
 from guard_core.core.validation.path_matching import (
@@ -329,3 +331,20 @@ def test_the_fields_of_each_check_make_up_the_checked_fields() -> None:
         | _misconfiguration._RATE_LIMIT_FIELDS
         | _misconfiguration._THRESHOLD_FIELDS
     )
+
+
+def test_the_probe_path_warning_is_given_in_emergency_mode_only(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    quiet = SecurityConfig(exclude_paths=["/health"])
+    loud = SecurityConfig(exclude_paths=["/health"], emergency_mode=True)
+    logger = logging.getLogger("probe_paths")
+    caplog.clear()
+
+    with caplog.at_level("WARNING", logger="probe_paths"):
+        warn_unexempted_probe_paths(quiet, logger)
+        assert caplog.records == []
+        warn_unexempted_probe_paths(loud, logger)
+
+    assert [r.name for r in caplog.records] == ["probe_paths"]
+    assert "[EMERGENCY MODE]" in caplog.records[0].getMessage()
