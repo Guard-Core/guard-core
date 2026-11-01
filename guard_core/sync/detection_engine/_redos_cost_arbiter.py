@@ -157,12 +157,15 @@ _REACH_PROBE_LARGE_SAMPLE_SECONDS = 0.2
 # multiple of the budget: the count does not move with the load, and dispatch-bound
 # work reads about one to two times its count on a loaded host. Work the count cannot
 # see (a scan inside one opcode) reads far above it, and then the CPU time decides.
-# The budget multiple is 1.5, not 2: the worst load-normalized best sample of any safe
-# row (the v440 CDATA row at cap 10000) reads 0.98 of the budget on Python 3.10 and
-# 0.97 on 3.14 in an idle, a 4-loop and a 24-loop cell (WP361, python:3.x-slim), so 1.5
-# keeps half again of margin, and a row the count undercounts reads refused from 1.5 up.
+# The budget multiple is 1.05: the worst load-normalized best sample of any safe row
+# (the v440 CDATA row at cap 10000) reads 0.98 of the budget on Python 3.10 in a
+# 24-loop cell and 0.97 on 3.14 idle (WP361, WP362, python:3.x-slim), so 1.05 keeps a
+# margin of 7 percent over it, and a row the count undercounts reads refused from 1.05
+# up. Rows between 1.0 and 1.05 of the budget by CPU time stay accepted while the
+# count reads under it: no CPU reading that is load-normalized by a reference scan is
+# finer than that margin without a counter that sees inside one opcode.
 _POLL_DECIDES_WITHIN_CPU_RATIO = 3.0
-_POLL_DECIDES_WITHIN_BUDGET_RATIO = 1.5
+_POLL_DECIDES_WITHIN_BUDGET_RATIO = 1.05
 # The verdict forces the growth ratio to 1.0 while the 16000-char minimum
 # sample stays under the noise floor, so one sample decides such probes and
 # they cannot read over budget; at or above the trigger the full sample
