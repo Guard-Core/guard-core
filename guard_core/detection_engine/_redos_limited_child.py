@@ -153,12 +153,11 @@ def _payload_file(files: contextlib.ExitStack, encoded: bytes) -> "IO[bytes]":
     return handle
 
 
-def _payload_pipe(files: contextlib.ExitStack, encoded: bytes) -> int:
+def _payload_pipe(files: contextlib.ExitStack, encoded: bytes) -> "IO[bytes]":
     read_fd, write_fd = os.pipe()
-    files.callback(os.close, read_fd)
     with os.fdopen(write_fd, "wb") as writer:
         writer.write(encoded)
-    return read_fd
+    return files.enter_context(os.fdopen(read_fd, "rb"))
 
 
 def run_limited_child(
