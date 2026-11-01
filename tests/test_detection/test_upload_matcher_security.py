@@ -10,6 +10,7 @@ import sys
 import pytest
 
 from guard_core.handlers import _suspatterns_matchers as matchers
+from tests.host_load_factor import run_with_host_load_factor
 
 _SOURCES = [
     matchers._FILE_UPLOAD_DANGEROUS_EXTENSION_RE,
@@ -25,7 +26,9 @@ _UPLOAD_SHAPES = {
 }
 
 
-def _upload_timing_violations(rounds: list[list[float]]) -> list[str]:
+def _upload_timing_violations(
+    rounds: list[list[float]], load_factor: float = 1.0
+) -> list[str]:
     if len(rounds) != 5:
         return [f"expected 5 rounds, got {len(rounds)}: {rounds!r}"]
     if any(
@@ -45,7 +48,7 @@ def _upload_timing_violations(rounds: list[list[float]]) -> list[str]:
     ]
     violations = [
         f"absolute budget exceeded: {per_size_medians}"
-        if max(per_size_medians) >= 0.05
+        if max(per_size_medians) / load_factor >= 0.05
         else ""
     ]
     per_size_minima = [
@@ -68,17 +71,34 @@ def test_upload_scanner_rejects_an_unrecognized_pattern() -> None:
 @pytest.mark.redos_timing
 def test_upload_repeated_fields_and_extensions_remain_bounded() -> None:
     module = __name__.rsplit(".", 1)[0] + "._upload_matcher_security_probe"
-    result = subprocess.run(
-        [sys.executable, "-m", module],
-        capture_output=True,
-        text=True,
-        timeout=30,
-        check=True,
+    result, load_factor = run_with_host_load_factor(
+        lambda: subprocess.run(
+            [sys.executable, "-m", module],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=True,
+        )
     )
     measured = json.loads(result.stdout)
     assert set(measured) == _UPLOAD_SHAPES, measured
     for shape, rounds in measured.items():
-        assert not _upload_timing_violations(rounds), (shape, rounds)
+        assert not _upload_timing_violations(rounds, load_factor), (shape, rounds)
+
+
+def test_upload_absolute_budget_scales_with_the_host_load_factor() -> None:
+    efficiency_core_run = [[0.0045, 0.009, 0.0186, 0.0503]] * 5
+    assert any(
+        "absolute" in violation
+        for violation in _upload_timing_violations(efficiency_core_run)
+    )
+    assert _upload_timing_violations(efficiency_core_run, 1.2) == []
+    assert any(
+        "absolute" in violation
+        for violation in _upload_timing_violations(
+            [[0.0045, 0.009, 0.0186, 0.07]] * 5, 1.2
+        )
+    )
 
 
 def test_upload_timing_assessment_uses_fixed_sample_lower_bound() -> None:

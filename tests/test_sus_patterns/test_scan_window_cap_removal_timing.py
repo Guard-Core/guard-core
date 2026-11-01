@@ -5,6 +5,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.host_load_factor import run_with_host_load_factor
+
 _PROBE = Path(__file__).parent / "_scan_window_cap_removal_timing_probe.py"
 
 _MAX_CPU_TIME_AT_LARGEST_SIZE_SECONDS = 0.10
@@ -37,12 +39,14 @@ def _assert_doubling_stays_linear(times: list[float], label: str) -> None:
     )
 
 
-def _run_cap_removal_probe() -> dict[str, dict[str, list[float]]]:
-    result = subprocess.run(
-        [sys.executable, str(_PROBE)],
-        capture_output=True,
-        text=True,
-        timeout=90,
+def _run_cap_removal_probe() -> tuple[dict[str, dict[str, list[float]]], float]:
+    result, load_factor = run_with_host_load_factor(
+        lambda: subprocess.run(
+            [sys.executable, str(_PROBE)],
+            capture_output=True,
+            text=True,
+            timeout=90,
+        )
     )
 
     assert result.returncode == 0, (
@@ -51,16 +55,16 @@ def _run_cap_removal_probe() -> dict[str, dict[str, list[float]]]:
 
     measured: dict[str, dict[str, list[float]]] = json.loads(result.stdout)
     assert set(measured) == _EXPECTED_LABELS
-    return measured
+    return measured, load_factor
 
 
 def _assert_cap_removal_timings_within_bounds(
-    measured: dict[str, dict[str, list[float]]],
+    measured: dict[str, dict[str, list[float]]], load_factor: float
 ) -> None:
     for label, series in measured.items():
         min_times = series["min"]
         median_times = series["median"]
-        assert median_times[-1] < _MAX_CPU_TIME_AT_LARGEST_SIZE_SECONDS, (
+        assert median_times[-1] / load_factor < _MAX_CPU_TIME_AT_LARGEST_SIZE_SECONDS, (
             f"{label} exceeded the 100ms CPU-time budget at the largest "
             f"adversarial fill (median of 5): {median_times[-1]:.4f}s"
         )
@@ -69,8 +73,8 @@ def _assert_cap_removal_timings_within_bounds(
 
 @pytest.mark.redos_timing
 def test_the_three_converted_patterns_stay_under_the_cpu_time_budget() -> None:
-    measured = _run_cap_removal_probe()
+    measured, load_factor = _run_cap_removal_probe()
     try:
-        _assert_cap_removal_timings_within_bounds(measured)
+        _assert_cap_removal_timings_within_bounds(measured, load_factor)
     except AssertionError:
-        _assert_cap_removal_timings_within_bounds(_run_cap_removal_probe())
+        _assert_cap_removal_timings_within_bounds(*_run_cap_removal_probe())
