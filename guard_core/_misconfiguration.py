@@ -114,17 +114,32 @@ CHECKED_FIELDS = frozenset(
     }
 )
 
+# The same fields by check: a check whose fields are all unset sees only
+# defaults, so it does not run.
+_HEADER_FIELDS = frozenset({"security_headers"})
+_PATH_FIELDS = frozenset({"exclude_paths", "endpoint_rate_limits"})
+_RATE_LIMIT_FIELDS = frozenset(
+    {"rate_limit", "rate_limit_window", "endpoint_rate_limits"}
+)
+_THRESHOLD_FIELDS = frozenset(
+    {"detection_threat_score_threshold", "detection_semantic_threshold"}
+)
+
 
 def config_misconfigurations(config: "SecurityConfig[RequestT]") -> list[str]:
-    if config.model_fields_set.isdisjoint(CHECKED_FIELDS):
-        return []
-    return [
-        *_unknown_security_headers_key_problems(config),
-        *_glob_exclude_path_problems(config),
-        *_anomalous_path_problems(config),
-        *_non_positive_rate_limit_problems(config),
-        *_zero_detection_threshold_problems(config),
-    ]
+    stated = config.__pydantic_fields_set__
+    problems: list[str] = []
+    if not stated.isdisjoint(_HEADER_FIELDS):
+        problems += _unknown_security_headers_key_problems(config)
+    if "exclude_paths" in stated:
+        problems += _glob_exclude_path_problems(config)
+    if not stated.isdisjoint(_PATH_FIELDS):
+        problems += _anomalous_path_problems(config)
+    if not stated.isdisjoint(_RATE_LIMIT_FIELDS):
+        problems += _non_positive_rate_limit_problems(config)
+    if not stated.isdisjoint(_THRESHOLD_FIELDS):
+        problems += _zero_detection_threshold_problems(config)
+    return problems
 
 
 def report_config_misconfigurations(
@@ -134,4 +149,5 @@ def report_config_misconfigurations(
         report_misconfiguration(
             config, problem, logger=config_logger, stacklevel=stacklevel + 1
         )
-    warn_unexempted_probe_paths(config, config_logger)
+    if config.emergency_mode:
+        warn_unexempted_probe_paths(config, config_logger)

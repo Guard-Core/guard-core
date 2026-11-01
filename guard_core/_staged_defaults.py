@@ -12,6 +12,8 @@ logger = logging.getLogger("guard_core.models")
 
 
 class StagedDefaultsConfig(RedisFieldsConfig, Protocol):
+    __pydantic_fields_set__: set[str]
+
     @property
     def enable_rate_limiting(self) -> bool: ...
 
@@ -95,7 +97,7 @@ def _redis_entry(config: StagedDefaultsConfig, stated: set[str]) -> str | None:
 
 
 def _changed_default_entries(config: StagedDefaultsConfig) -> list[tuple[str, str]]:
-    stated = config.model_fields_set
+    stated = config.__pydantic_fields_set__
     entries: list[tuple[str, str]] = []
     if "ban_on_hostile_signals" not in stated:
         entries.append(("ban_on_hostile_signals", _BAN_ON_HOSTILE_SIGNALS_ENTRY))
@@ -132,31 +134,52 @@ _DEFAULT_ENTRIES = (
     ("rate_limit", _RATE_LIMIT_ENTRY),
     ("enable_redis", _REDIS_OFF_ENTRY),
 )
+# A configuration that states all of these lists nothing for them, and lists
+# nothing for the whitelist or the "/" entry when it has neither.
+_ALWAYS_LISTED_FIELDS = frozenset(
+    {"ban_on_hostile_signals", "fail_on_misconfiguration", "rate_limit", "enable_redis"}
+)
 _DEFAULT_ENTRY_IDS = tuple(flip_id for flip_id, _ in _DEFAULT_ENTRIES)
 _DEFAULT_ENTRY_TEXT = "; ".join(entry for _, entry in _DEFAULT_ENTRIES)
 
 
 def _states_only_defaults(config: StagedDefaultsConfig) -> bool:
     return (
-        config.model_fields_set.isdisjoint(_UNSTATED_ENTRY_FIELDS)
+        config.__pydantic_fields_set__.isdisjoint(_UNSTATED_ENTRY_FIELDS)
         and config.enable_rate_limiting
         and not config.whitelist
         and "/" not in config.exclude_paths
     )
 
 
+def _states_every_changed_default(config: StagedDefaultsConfig) -> bool:
+    return (
+        config.__pydantic_fields_set__ >= _ALWAYS_LISTED_FIELDS
+        and not config.whitelist
+        and "/" not in config.exclude_paths
+    )
+
+
 def signal_changed_defaults(config: StagedDefaultsConfig) -> None:
+    if _states_every_changed_default(config):
+        return
+    entries = (
+        _DEFAULT_ENTRIES
+        if _states_only_defaults(config)
+        else _changed_default_entries(config)
+    )
+    if not entries:
+        return
     logged = _changed_defaults_logged.for_app(config)
-    if not logged and _states_only_defaults(config):
+    if logged:
+        entries = [pair for pair in entries if pair[0] not in logged]
+        if not entries:
+            return
+    if entries is _DEFAULT_ENTRIES:
         logged.update(_DEFAULT_ENTRY_IDS)
         text = _DEFAULT_ENTRY_TEXT
     else:
-        fresh = _changed_default_entries(config)
-        if logged:
-            fresh = [pair for pair in fresh if pair[0] not in logged]
-        if not fresh:
-            return
-        texts = dict(fresh)
+        texts = dict(entries)
         logged.update(texts)
         text = "; ".join(texts.values())
     logger.warning(

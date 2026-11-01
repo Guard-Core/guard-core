@@ -268,7 +268,8 @@ def test_the_checked_fields_name_every_field_a_check_reads() -> None:
     source = inspect.getsource(_misconfiguration)
     read = set(re.findall(r"config\.([a-z_]+)", source))
     read |= set(re.findall(r'"(detection_[a-z_]+_threshold)"', source))
-    read -= {"fail_on_misconfiguration", "model_fields_set", "emergency_mode"}
+    read -= {"fail_on_misconfiguration", "emergency_mode"}
+    read -= {"model_fields_set", "__pydantic_fields_set__"}
     read -= {"emergency_exempt_paths"}
 
     assert read <= _misconfiguration.CHECKED_FIELDS
@@ -280,3 +281,53 @@ def test_a_config_that_states_no_checked_field_has_no_problem_to_report() -> Non
     assert _misconfiguration.config_misconfigurations(
         SyncSecurityConfig(rate_limit=0, fail_on_misconfiguration=False)
     ) == ["rate_limit is 0: a limit below 1 blocks every request."]
+
+
+def test_a_check_whose_fields_are_all_unset_does_not_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for name in (
+        "_unknown_security_headers_key_problems",
+        "_glob_exclude_path_problems",
+        "_anomalous_path_problems",
+        "_zero_detection_threshold_problems",
+    ):
+
+        def refuse(_config: object) -> list[str]:
+            raise AssertionError("a check ran on defaults only")
+
+        monkeypatch.setattr(_misconfiguration, name, refuse)
+
+    config = SyncSecurityConfig(rate_limit=0, fail_on_misconfiguration=False)
+
+    assert _misconfiguration.config_misconfigurations(config) == [
+        "rate_limit is 0: a limit below 1 blocks every request."
+    ]
+
+
+def test_every_stated_surface_still_reports_its_problem() -> None:
+    config = SyncSecurityConfig(
+        security_headers={"enabled": True, "no_such_key": 1},
+        exclude_paths=["/a/*"],
+        endpoint_rate_limits={"/x": (0, 0)},
+        detection_threat_score_threshold=0.0,
+        fail_on_misconfiguration=False,
+    )
+
+    problems = _misconfiguration.config_misconfigurations(config)
+
+    assert [re.split(r"[ \[]", problem)[0] for problem in problems] == [
+        "security_headers",
+        "exclude_paths",
+        "endpoint_rate_limits",
+        "detection_threat_score_threshold",
+    ]
+
+
+def test_the_fields_of_each_check_make_up_the_checked_fields() -> None:
+    assert _misconfiguration.CHECKED_FIELDS == (
+        _misconfiguration._HEADER_FIELDS
+        | _misconfiguration._PATH_FIELDS
+        | _misconfiguration._RATE_LIMIT_FIELDS
+        | _misconfiguration._THRESHOLD_FIELDS
+    )

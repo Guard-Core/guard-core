@@ -74,7 +74,7 @@ def _module_cap(name: str) -> Callable[[], int]:
     """Default read from the cap constant of the light module when the config is
     built (the handlers import the config and pull in redis, so they cannot be
     imported here)."""
-    return lambda: int(getattr(_tracking_caps, name))
+    return partial(getattr, _tracking_caps, name)
 
 
 class _SecurityConfigFields(BaseModel, Generic[RequestT]):

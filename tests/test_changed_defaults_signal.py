@@ -234,3 +234,48 @@ def test_a_default_config_logs_the_same_notice_whether_or_not_the_table_is_empty
         _staged_defaults.signal_changed_defaults(config)
 
     assert _signals(caplog) == [from_the_prebuilt_entries]
+
+
+def test_a_config_that_states_every_changed_default_leaves_the_dedupe_table_alone(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    def refuse(_config: object) -> object:
+        raise AssertionError("the dedupe table was looked up")
+
+    monkeypatch.setattr(_staged_defaults._changed_defaults_logged, "for_app", refuse)
+
+    with _logging(caplog):
+        SecurityConfig(
+            ban_on_hostile_signals=True,
+            fail_on_misconfiguration=True,
+            rate_limit=120,
+            enable_redis=False,
+        )
+
+    assert _signals(caplog) == []
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        {},
+        {"whitelist": ["10.0.0.1"]},
+        {"whitelist": ["10.0.0.1"], "whitelist_access_only": True},
+        {"exclude_paths": ["/"]},
+        {"exclude_paths": ["/"], "exclude_all_paths": False},
+        {"enable_rate_limiting": False},
+    ],
+)
+def test_the_stated_fast_path_agrees_with_the_entry_builder(
+    extra: dict[str, Any],
+) -> None:
+    config = SecurityConfig(
+        ban_on_hostile_signals=True,
+        fail_on_misconfiguration=False,
+        rate_limit=120,
+        enable_redis=False,
+        **extra,
+    )
+
+    if _staged_defaults._states_every_changed_default(config):
+        assert _staged_defaults._changed_default_entries(config) == []
