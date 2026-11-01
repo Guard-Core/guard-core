@@ -135,8 +135,8 @@ _BUDGET = arbiter._REACH_PROBE_BUDGET_SECONDS
     ("polls", "cpu_seconds", "expected"),
     [
         (1000, 0.012, 1000 * POLL_UNIT_SECONDS),
-        (800, 0.013, 800 * POLL_UNIT_SECONDS),
-        (800, 0.0135, 0.0135 / arbiter._LOAD_FACTOR_FLOOR),
+        (800, 0.012, 800 * POLL_UNIT_SECONDS),
+        (800, 0.013, 0.013 / arbiter._LOAD_FACTOR_FLOOR),
         (800, 0.0185, 0.0185 / arbiter._LOAD_FACTOR_FLOOR),
         (800, 0.02, 0.02 / arbiter._LOAD_FACTOR_FLOOR),
         (0, 0.012, 0.012 / arbiter._LOAD_FACTOR_FLOOR),
