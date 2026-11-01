@@ -533,6 +533,12 @@ class SusPatternsManager:
         """
 
     @classmethod
+    async def get_cache_stats(cls) -> dict[str, CacheStats]:
+        """
+        Return hits, misses, evictions, size, max size and hit rate per detection cache.
+        """
+
+    @classmethod
     async def get_component_status(cls) -> dict[str, bool]:
         """
         Return which detection engine components are active.

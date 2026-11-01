@@ -3,6 +3,7 @@ from array import array
 from collections.abc import Callable, Iterator
 from functools import lru_cache
 
+from guard_core.detection_engine.cache_stats import CacheStats, build_cache_stats
 from guard_core.handlers._suspatterns_linear_path_source import (
     FLAT_CHAIN_CLASS,
     OPTIONAL_SEPARATOR,
@@ -136,3 +137,14 @@ def linear_path_finder(
         return row.find
     flat = _flat_equivalent_for(pattern.pattern, pattern.flags)
     return None if flat is None else flat.finditer
+
+
+def linear_path_cache_stats() -> CacheStats:
+    rows, flat = _row_for.cache_info(), _flat_equivalent_for.cache_info()
+    return build_cache_stats(
+        rows.hits + flat.hits,
+        rows.misses + flat.misses,
+        0,
+        rows.currsize + flat.currsize,
+        (rows.maxsize or 0) + (flat.maxsize or 0),
+    )

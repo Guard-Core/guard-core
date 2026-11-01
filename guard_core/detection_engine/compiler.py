@@ -25,6 +25,7 @@ from guard_core.detection_engine._redos_structural_prefilters import (
     _dangerous_construct_violation,
     _first_structural_safety_violation,
 )
+from guard_core.detection_engine.cache_stats import CacheStats, build_cache_stats
 from guard_core.exceptions import BodyReadFailedError
 
 logger = logging.getLogger("guard_core.detection_engine.compiler")
@@ -201,36 +202,79 @@ class PatternCompiler:
         self.max_cache_size = min(max_cache_size, 5000)
         self._compiled_cache: dict[str, re.Pattern] = {}
         self._cache_order: list[str] = []
+        self._compiled_sets: dict[
+            tuple[str, ...], tuple[tuple[str, re.Pattern], ...]
+        ] = {}
+        self._cache_hits = 0
+        self._cache_misses = 0
+        self._cache_evictions = 0
         self._lock = asyncio.Lock()
+        self._cache_guard = threading.Lock()
         self._validation_cache = validation_cache
+
+    def _recall_compiled(self, cache_key: str, *, promote: bool) -> re.Pattern | None:
+        with self._cache_guard:
+            compiled = self._compiled_cache.get(cache_key)
+            if compiled is not None:
+                self._cache_hits += 1
+                if promote:
+                    self._cache_order.remove(cache_key)
+                    self._cache_order.append(cache_key)
+            return compiled
+
+    def _remember_compiled(self, cache_key: str, compiled: re.Pattern) -> re.Pattern:
+        with self._cache_guard:
+            known = self._compiled_cache.get(cache_key)
+            if known is not None:
+                self._cache_hits += 1
+                return known
+            self._cache_misses += 1
+            if len(self._compiled_cache) >= self.max_cache_size:
+                oldest_key = self._cache_order.pop(0)
+                del self._compiled_cache[oldest_key]
+                self._cache_evictions += 1
+            self._compiled_cache[cache_key] = compiled
+            self._cache_order.append(cache_key)
+            return compiled
 
     async def compile_pattern(
         self, pattern: str, flags: int = re.IGNORECASE | re.MULTILINE
     ) -> re.Pattern:
         cache_key = f"{pattern}:{flags}"
-
-        if cache_key in self._compiled_cache:
-            async with self._lock:
-                if cache_key in self._compiled_cache:
-                    self._cache_order.remove(cache_key)
-                    self._cache_order.append(cache_key)
-                    return self._compiled_cache[cache_key]
-
+        cached = self._recall_compiled(cache_key, promote=True)
+        if cached is not None:
+            return cached
         async with self._lock:
-            if cache_key not in self._compiled_cache:
-                if len(self._compiled_cache) >= self.max_cache_size:
-                    oldest_key = self._cache_order.pop(0)
-                    del self._compiled_cache[oldest_key]
-
-                self._compiled_cache[cache_key] = re.compile(pattern, flags)
-                self._cache_order.append(cache_key)
-
-            return self._compiled_cache[cache_key]
+            return self._remember_compiled(cache_key, re.compile(pattern, flags))
 
     def compile_pattern_sync(
         self, pattern: str, flags: int = re.IGNORECASE | re.MULTILINE
     ) -> re.Pattern:
-        return re.compile(pattern, flags)
+        cache_key = f"{pattern}:{flags}"
+        cached = self._recall_compiled(cache_key, promote=False)
+        if cached is not None:
+            return cached
+        return self._remember_compiled(cache_key, re.compile(pattern, flags))
+
+    def compile_pattern_set_sync(
+        self, patterns: list[str]
+    ) -> tuple[tuple[str, re.Pattern], ...]:
+        """Compile a list of patterns that is looked up on every request (the
+        blocked user agents) with one lookup. A repeat counts one hit per pattern."""
+        key = tuple(patterns)
+        with self._cache_guard:
+            known = self._compiled_sets.get(key)
+            if known is not None:
+                self._cache_hits += len(known)
+                return known
+        compiled = tuple(
+            (pattern, self.compile_pattern_sync(pattern)) for pattern in key
+        )
+        with self._cache_guard:
+            if len(self._compiled_sets) >= self.max_cache_size:
+                del self._compiled_sets[next(iter(self._compiled_sets))]
+            self._compiled_sets[key] = compiled
+        return compiled
 
     def validate_pattern_safety(
         self,
@@ -413,7 +457,23 @@ class PatternCompiler:
                 continue
         return compiled_patterns
 
+    def get_cache_stats(self) -> CacheStats:
+        return build_cache_stats(
+            self._cache_hits,
+            self._cache_misses,
+            self._cache_evictions,
+            len(self._compiled_cache),
+            self.max_cache_size,
+        )
+
+    def get_validation_cache_stats(self) -> CacheStats | None:
+        if self._validation_cache is None:
+            return None
+        return self._validation_cache.get_cache_stats()
+
     async def clear_cache(self) -> None:
         async with self._lock:
-            self._compiled_cache.clear()
-            self._cache_order.clear()
+            with self._cache_guard:
+                self._compiled_cache.clear()
+                self._cache_order.clear()
+                self._compiled_sets.clear()

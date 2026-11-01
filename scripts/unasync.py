@@ -112,6 +112,7 @@ SKIP_TESTS = {
     "test_fixture_generator_determinism.py",
     "test_perf_gate_rules.py",
     "test_perf_detection_components.py",
+    "test_compiler_cache_loop_and_threads.py",
 }
 
 SKIP_DIRS = {"__pycache__", "sync"}

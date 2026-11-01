@@ -318,7 +318,16 @@ stats = await sus_patterns_handler.get_performance_stats()
 # {
 #     "summary": {"total_executions": 15432, "avg_execution_time": 0.003, ...},
 #     "slow_patterns": [...],
-#     "problematic_patterns": [...]
+#     "problematic_patterns": [...],
+#     "caches": {"compiled_patterns": {...}, "linear_path_patterns": {...}}
+# }
+
+caches = await sus_patterns_handler.get_cache_stats()
+# {
+#     "compiled_patterns": {"hits": 0, "misses": 0, "evictions": 0, "size": 0,
+#                           "max_size": 1000, "hit_rate": None},
+#     "linear_path_patterns": {...},
+#     "pattern_validation": {...},   # only with detection_pattern_validation_cache_path
 # }
 
 status = await sus_patterns_handler.get_component_status()
@@ -326,6 +335,12 @@ status = await sus_patterns_handler.get_component_status()
 ```
 
 Use these diagnostics to identify patterns that need optimization or replacement.
+
+`get_cache_stats()` reports the hits, misses, evictions, size, maximum size and hit rate (`hits / (hits + misses)`, `None` before the first lookup) of every cache the detection engine keeps, with counters that start at the first use and survive `clear_cache()`:
+
+- `compiled_patterns` is the `PatternCompiler` cache of compiled regular expressions, bounded by `detection_max_tracked_patterns`. The blocked user-agent patterns (`blocked_user_agents`) and `add_pattern` compile through this cache, so a blocked user-agent pattern is compiled once per pattern set and its hit rate rises with traffic; the built-in rows are compiled when the pattern set is built and are not looked up again. Adding or removing a pattern clears the cache, and the counters survive the clear.
+- `linear_path_patterns` is the cache of the linear-time path programs (the rows that walk a path prefix), filled when a path row is first used.
+- `pattern_validation` is the disk-backed verdict cache of `detection_pattern_validation_cache_path`, present only when that path is set. Measured with 20 custom patterns added at two boots on one cache file (`PYTHONPATH=. python -m perf_gate.cache_hit_rate` from a guard-core checkout): the hit rate is 0.0 at the first boot (20 misses) and 1.0 at the second (20 hits), so a hit rate near 1.0 on a restart shows the cache is doing its job. The same run reports 20 misses and 20 hits for `compiled_patterns` (hit rate 0.5): each add compiles once for the safety check and reuses that compile for storage.
 
 Binary uploads and the artifact density gate
 --------------------------------------------

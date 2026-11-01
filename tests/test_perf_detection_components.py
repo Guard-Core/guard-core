@@ -60,6 +60,20 @@ def test_multipart_cells_build_a_body_of_the_requested_size_for_every_shape() ->
         assert body.endswith(f"--{multipart_cells.BOUNDARY}--\r\n".encode())
 
 
+async def test_the_second_boot_on_one_validation_file_hits_every_pattern() -> None:
+    from perf_gate.cache_hit_rate import two_boots
+
+    first, second = await two_boots(5)
+
+    first_validation = first["pattern_validation"]
+    second_validation = second["pattern_validation"]
+    assert isinstance(first_validation, dict)
+    assert isinstance(second_validation, dict)
+    assert (first_validation["hits"], first_validation["misses"]) == (0, 5)
+    assert (second_validation["hits"], second_validation["misses"]) == (5, 0)
+    assert second_validation["hit_rate"] == 1.0
+
+
 def test_multipart_cells_leave_out_the_settings_an_older_engine_lacks() -> None:
     from perf_gate import multipart_cells
 

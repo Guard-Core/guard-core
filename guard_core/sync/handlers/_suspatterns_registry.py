@@ -191,7 +191,7 @@ class _SusPatternsRegistryMixin(_SusPatternsLazyRowsMixin):
             )
             return False
 
-        compiled_pattern = re.compile(pattern, re.IGNORECASE | re.MULTILINE)
+        compiled_pattern = compiler.compile_pattern(pattern)
         compiled_tuple = (compiled_pattern, _CTX_ALL, "custom")
         if custom:
             self.compiled_custom_patterns.add(compiled_tuple)
