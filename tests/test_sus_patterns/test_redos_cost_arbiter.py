@@ -1669,14 +1669,8 @@ def test_time_reach_probes_subprocess_clips_cpu_limit_to_remaining_budget() -> N
     captured: dict[str, float] = {}
 
     def _fake_popen(*args: object, **kwargs: Any) -> MagicMock:
-        process = MagicMock()
-
-        def _communicate(payload: str, timeout: float) -> None:
-            captured["cpu_limit"] = json.loads(payload)[3]
-            raise OSError("stop before actually spawning")
-
-        process.communicate = _communicate
-        return process
+        captured["cpu_limit"] = json.loads(kwargs["stdin"].read())[3]
+        raise OSError("stop before actually spawning")
 
     with patch(
         "guard_core.detection_engine._redos_cost_arbiter.subprocess.Popen",
