@@ -337,6 +337,14 @@ def _remaining_budget(deadline: float) -> float:
     return deadline - time.thread_time()
 
 
+def _scaled_child_limit(default_limit: float, budget: ReachProbeCpuBudget) -> float:
+    # The budget is scaled by the host load factor because a slower core (an
+    # efficiency core takes about 2.4 times longer for the same work) needs
+    # proportionally more CPU seconds; one child's CPU limit is the same kind of CPU
+    # seconds, so it follows the factor and never goes below the idle-host default.
+    return default_limit * max(budget.load_factor, 1.0)
+
+
 def _clipped_timeout(default_timeout: float, remaining_seconds: float) -> float:
     return min(default_timeout, remaining_seconds)
 
@@ -378,7 +386,8 @@ def _time_reach_probes_subprocess(
     flags: int = _DEFAULT_PATTERN_FLAGS,
 ) -> ReachProbeTiming | None:
     cpu_limit = _clipped_timeout(
-        _REACH_PROBE_COMBINED_TIMEOUT_SECONDS, budget.remaining_seconds
+        _scaled_child_limit(_REACH_PROBE_COMBINED_TIMEOUT_SECONDS, budget),
+        budget.remaining_seconds,
     )
     if cpu_limit <= 0:
         return None
@@ -392,7 +401,8 @@ def _time_single_reach_probe_subprocess(
     flags: int = _DEFAULT_PATTERN_FLAGS,
 ) -> ReachProbeTiming | None:
     cpu_limit = _clipped_timeout(
-        _REACH_PROBE_CHILD_TIMEOUT_SECONDS, budget.remaining_seconds
+        _scaled_child_limit(_REACH_PROBE_CHILD_TIMEOUT_SECONDS, budget),
+        budget.remaining_seconds,
     )
     if cpu_limit <= 0:
         return None
@@ -710,10 +720,11 @@ def _reach_probe_cost_verdict(
     flags: int = _DEFAULT_PATTERN_FLAGS,
     redaction_names: _SensitiveNameSets | None = None,
 ) -> tuple[bool, str]:
-    scaled_seconds = _scaled_probe_deadline_seconds(_measure_host_load_factor())
+    host_load_factor = _measure_host_load_factor()
+    scaled_seconds = _scaled_probe_deadline_seconds(host_load_factor)
     deadline = time.thread_time() + scaled_seconds
     wall_backstop = time.monotonic() + _REACH_PROBE_DEADLINE_SCALE_CEILING_SECONDS
-    budget = ReachProbeCpuBudget(scaled_seconds)
+    budget = ReachProbeCpuBudget(scaled_seconds, host_load_factor)
     cap = max_content_length if max_content_length else _PATTERN_SAFETY_DEFAULT_CAP
     structural_violation = _first_structural_safety_violation(pattern)
     bounded_repeat_risk = _has_large_bounded_repeat(pattern, flags)
