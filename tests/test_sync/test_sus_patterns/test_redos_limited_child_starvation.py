@@ -4,6 +4,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import IO
 
 import pytest
 
@@ -156,3 +157,105 @@ def test_a_proc_entry_without_a_state_falls_back_to_ps(
         lambda *a, **k: subprocess.CompletedProcess(a, 0, stdout="S+\n", stderr=""),
     )
     assert limited_child._process_state(123) == "S"
+
+
+_READ_PAYLOAD_LENGTH = "import sys; print(len(sys.stdin.read()))"
+
+
+def _files_opened_by_one_call(
+    monkeypatch: pytest.MonkeyPatch, payload: str, script: str
+) -> tuple[int, "limited_child.ChildResult | None"]:
+    limited_child.run_limited_child("pass", "", 30.0)
+    opened: list[IO[bytes]] = []
+    real = limited_child.tempfile.TemporaryFile
+
+    def counting() -> IO[bytes]:
+        handle: IO[bytes] = real()
+        opened.append(handle)
+        return handle
+
+    monkeypatch.setattr(limited_child.tempfile, "TemporaryFile", counting)
+    result = limited_child.run_limited_child(script, payload, 30.0)
+    return len(opened), result
+
+
+@pytest.mark.parametrize("size", [0, 1, 512, 4096])
+def test_a_payload_that_fits_the_pipe_buffer_reaches_the_child_without_a_file(
+    monkeypatch: pytest.MonkeyPatch, size: int
+) -> None:
+    opened, result = _files_opened_by_one_call(
+        monkeypatch, "x" * size, _READ_PAYLOAD_LENGTH
+    )
+    assert result is not None
+    assert result.stdout.strip() == str(size)
+    assert opened == 0
+
+
+@pytest.mark.parametrize("size", [4097, 1 << 20])
+def test_a_larger_payload_still_reaches_the_child_through_a_file(
+    monkeypatch: pytest.MonkeyPatch, size: int
+) -> None:
+    opened, result = _files_opened_by_one_call(
+        monkeypatch, "x" * size, _READ_PAYLOAD_LENGTH
+    )
+    assert result is not None
+    assert result.stdout.strip() == str(size)
+    assert opened == 1
+
+
+def test_a_multibyte_payload_is_measured_in_bytes_for_the_pipe_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    count = 4096 // 2 + 1
+    opened, result = _files_opened_by_one_call(
+        monkeypatch, "\u00e9" * count, _READ_PAYLOAD_LENGTH
+    )
+    assert result is not None
+    assert result.stdout.strip() == str(count)
+    assert opened == 1
+
+
+def test_a_child_that_never_reads_its_payload_is_collected_without_an_error() -> None:
+    result = limited_child.run_limited_child("pass", "x" * 4096, 30.0)
+    assert result is not None
+    assert result.returncode == 0
+
+
+def test_a_child_reads_only_its_own_stderr_though_the_heartbeat_file_is_reused() -> (
+    None
+):
+    noisy = limited_child.run_limited_child(
+        "import sys; sys.stderr.write('first child')", "", 30.0
+    )
+    quiet = limited_child.run_limited_child("pass", "", 30.0)
+    noisy_again = limited_child.run_limited_child(
+        "import sys; sys.stderr.write('third')", "", 30.0
+    )
+    assert noisy is not None
+    assert quiet is not None
+    assert noisy_again is not None
+    assert (noisy.stderr, quiet.stderr, noisy_again.stderr) == (
+        "first child",
+        "",
+        "third",
+    )
+
+
+def test_each_thread_keeps_its_own_heartbeat_file() -> None:
+    import threading
+
+    files: list[IO[bytes]] = []
+    done = threading.Barrier(2)
+
+    def take() -> None:
+        files.append(limited_child._heartbeat_file())
+        done.wait(timeout=30)
+
+    workers = [threading.Thread(target=take) for _ in range(2)]
+    for worker in workers:
+        worker.start()
+    for worker in workers:
+        worker.join(timeout=30)
+    assert len(files) == 2
+    assert files[0] is not files[1]
+    assert all(handle.closed for handle in files)

@@ -1,11 +1,13 @@
+import contextlib
 import os
 import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from collections.abc import Callable
-from typing import NamedTuple
+from typing import IO, NamedTuple
 
 # A child limits itself by CPU time, never by the wall clock: an ITIMER_PROF timer
 # (SIGPROF, default action) at its CPU limit kills it, and a loaded host that leaves
@@ -47,6 +49,7 @@ STALL_POLL_SECONDS = 0.5
 # done no wrong and is judged by the work it eventually does (its CPU limit still kills
 # a runaway), and one that exited since the last poll has a result to collect.
 RUNNING_STATES = ("R", "Z")
+PIPE_PAYLOAD_LIMIT_BYTES = 4096
 STATE_SAMPLES = 3
 STATE_SAMPLE_SPACING_SECONDS = 0.05
 
@@ -121,6 +124,43 @@ def communicate_until_stalled(
             return None
 
 
+class _ThreadHeartbeatFile:
+    def __init__(self) -> None:
+        self.handle: IO[bytes] = tempfile.TemporaryFile()
+
+    def __del__(self) -> None:
+        self.handle.close()
+
+
+_thread_state = threading.local()
+
+
+def _heartbeat_file() -> "IO[bytes]":
+    # One anonymous file per thread, emptied before each child: creating and
+    # unlinking a fresh one costs more parent CPU than the spawn's own pipes.
+    owner: _ThreadHeartbeatFile | None = getattr(_thread_state, "heartbeats", None)
+    if owner is None:
+        owner = _thread_state.heartbeats = _ThreadHeartbeatFile()
+    owner.handle.seek(0)
+    owner.handle.truncate()
+    return owner.handle
+
+
+def _payload_file(files: contextlib.ExitStack, encoded: bytes) -> "IO[bytes]":
+    handle = files.enter_context(tempfile.TemporaryFile())
+    handle.write(encoded)
+    handle.seek(0)
+    return handle
+
+
+def _payload_pipe(files: contextlib.ExitStack, encoded: bytes) -> int:
+    read_fd, write_fd = os.pipe()
+    files.callback(os.close, read_fd)
+    with os.fdopen(write_fd, "wb") as writer:
+        writer.write(encoded)
+    return read_fd
+
+
 def run_limited_child(
     script: str, payload: str, cpu_limit: float
 ) -> ChildResult | None:
@@ -130,13 +170,19 @@ def run_limited_child(
     stall window falls back to the CPU limit, the old wall-clock behavior there.
     """
     stall_seconds = STALL_WALL_SECONDS if hasattr(signal, "setitimer") else cpu_limit
-    # The payload goes in through a file, never a pipe: on Python 3.10 to 3.13 a
-    # communicate() retry after a timeout does not resume writing the input, so a
-    # child that starts late would wait forever for the rest of a payload larger than
-    # the pipe buffer and be killed as stalled.
-    with tempfile.TemporaryFile() as heartbeats, tempfile.TemporaryFile() as stdin:
-        stdin.write(payload.encode())
-        stdin.seek(0)
+    # A payload that fits the smallest pipe buffer (4096 bytes on Windows) is written
+    # in full before the first wait, so it needs no file. A larger one goes in through
+    # a file, never a pipe: on Python 3.10 to 3.13 a communicate() retry after a
+    # timeout does not resume writing the input, so a child that starts late would
+    # wait forever for the rest of a payload larger than the pipe buffer and be
+    # killed as stalled.
+    encoded = payload.encode()
+    by_pipe = len(encoded) <= PIPE_PAYLOAD_LIMIT_BYTES
+    with contextlib.ExitStack() as files:
+        heartbeats = _heartbeat_file()
+        stdin = (
+            _payload_pipe(files, encoded) if by_pipe else _payload_file(files, encoded)
+        )
         process = subprocess.Popen(
             [sys.executable, "-S", "-I", "-c", script],
             stdin=stdin,
