@@ -1,4 +1,5 @@
-from collections.abc import Mapping
+import functools
+from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING
 
 from guard_core._utils.body_content_scan import (
@@ -281,6 +282,16 @@ def _with_value_cut_outcome(
     return _build_body_read_error(False, _unpacked_past_cap_detail(content_type, False))
 
 
+# A multipart body goes to the scan as bytes: its scan decodes while it parses, so
+# the decoded body never sits next to the parsed parts. Every other body is
+# decoded here. The two forms are C callables, so the choice adds no Python call
+# to a request.
+_BODY_FOR_SCAN: dict[bool, Callable[[bytes], str | bytes]] = {
+    False: functools.partial(bytes.decode, encoding="utf-8", errors="surrogateescape"),
+    True: bytes,
+}
+
+
 def _inflate_gzip_body(
     body_bytes: bytes, inspect_cap: int | None
 ) -> tuple[bytes, bool]:
@@ -348,15 +359,9 @@ async def _scan_body_surface(
     body_bytes, decompression_cut = _inflate_gzip_body(body_bytes, inspect_cap)
 
     content_type = request.headers.get("content-type") or ""
-    lowered_type = content_type.lower()
-    scanned_body: str | bytes = body_bytes
-    if (
-        "multipart/form-data" not in lowered_type
-        or "application/x-www-form-urlencoded" in lowered_type
-    ):
-        scanned_body = body_bytes.decode("utf-8", errors="surrogateescape")
-    # a multipart body goes on as bytes: its scan decodes while it parses, so the
-    # decoded body never sits next to the parsed parts
+    scanned_body = _BODY_FOR_SCAN["multipart/form-data" in content_type.lower()](
+        body_bytes
+    )
     detected, trigger, threats = await _scan_request_body(
         scanned_body,
         content_type,
