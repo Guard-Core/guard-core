@@ -8,7 +8,7 @@ import pytest
 from guard_core._utils import body_content_scan
 from guard_core.handlers.suspatterns_handler import sus_patterns_handler
 from guard_core.models import SecurityConfig
-from guard_core.utils import detect_penetration_attempt
+from guard_core.utils import _scan_request_body, detect_penetration_attempt
 from tests.conftest import MockGuardRequest
 
 _ONE_MIB = 1048576
@@ -98,3 +98,42 @@ async def test_a_megabyte_binary_upload_peaks_within_a_few_megabytes() -> None:
 
     assert not result.is_threat
     assert peak < _PEAK_BUDGET_BYTES
+
+
+def _without_timings(
+    result: tuple[bool, str, list[dict]],
+) -> tuple[bool, str, list[dict]]:
+    detected, trigger, threats = result
+    return (
+        detected,
+        trigger,
+        [
+            {k: v for k, v in threat.items() if k != "execution_time"}
+            for threat in threats
+        ],
+    )
+
+
+@pytest.mark.parametrize(
+    ("content_type", "body"),
+    [
+        ("application/json", b'{"q": "<script>alert(1)</script>", "n": "caf\xc3\xa9"}'),
+        ("application/x-www-form-urlencoded", b"q=%3Cscript%3Ealert(1)%3C%2Fscript%3E"),
+        ("text/plain", b"plain \xff\xfe <script>alert(1)</script>"),
+        ("application/json", b'{"clean": "caf\xc3\xa9"}'),
+    ],
+)
+async def test_a_body_given_as_bytes_scans_like_its_decoded_string(
+    content_type: str, body: bytes
+) -> None:
+    decoded = body.decode("utf-8", errors="surrogateescape")
+
+    async def _scan(raw: str | bytes) -> tuple[bool, str, list[dict]]:
+        return await _scan_request_body(
+            raw, content_type, set(), None, "203.0.113.9", "case", None
+        )
+
+    from_bytes = await _scan(body)
+    from_text = await _scan(decoded)
+
+    assert _without_timings(from_bytes) == _without_timings(from_text)

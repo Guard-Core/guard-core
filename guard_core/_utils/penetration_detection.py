@@ -348,8 +348,17 @@ async def _scan_body_surface(
     body_bytes, decompression_cut = _inflate_gzip_body(body_bytes, inspect_cap)
 
     content_type = request.headers.get("content-type") or ""
+    lowered_type = content_type.lower()
+    scanned_body: str | bytes = body_bytes
+    if (
+        "multipart/form-data" not in lowered_type
+        or "application/x-www-form-urlencoded" in lowered_type
+    ):
+        scanned_body = body_bytes.decode("utf-8", errors="surrogateescape")
+    # a multipart body goes on as bytes: its scan decodes while it parses, so the
+    # decoded body never sits next to the parsed parts
     detected, trigger, threats = await _scan_request_body(
-        body_bytes,
+        scanned_body,
         content_type,
         excluded_body_fields,
         enabled_categories,
