@@ -54,3 +54,66 @@ def build_work_counter():
     baseline = min(instructions(empty, 'b') for _ in range(3))
     return lambda compiled, probe: max(instructions(compiled, probe) - baseline, 0)
 """
+
+# A host with no instruction counter (Linux, where perf_event_open is refused by the
+# default container profile and by perf_event_paranoid, and every other Unix) still has
+# one exact measure of dispatch-bound regex work: CPython's matcher polls for signals
+# once per few thousand opcode dispatches, so a signal that re-arms itself at every poll
+# leaves one byte on a wakeup descriptor per poll. The count depends only on the
+# pattern, the probe and the interpreter build. It cannot see work done inside one
+# opcode (a long scan), so the arbiter keeps the measured CPU time beside it and lets
+# the time decide where it reads far above the count. One unit holds the v4.4.0 safe
+# CDATA row (cap 10000) under the budget and the lowest mirror caps (3.10 cap 13000,
+# 3.11 and later cap 12000) over it on every Python from 3.10 to 3.14.
+POLL_UNIT_SECONDS = 3.4e-5
+
+POLL_COUNTER_SOURCE = """\
+def build_poll_counter():
+    try:
+        import ctypes, os, signal, sys
+        if sys.platform == 'win32' or not hasattr(signal, 'set_wakeup_fd'):
+            return None
+        reader, writer = os.pipe()
+        os.set_blocking(reader, False)
+        os.set_blocking(writer, False)
+        try:
+            import fcntl
+            fcntl.fcntl(writer, getattr(fcntl, 'F_SETPIPE_SZ', 1031), 1 << 20)
+        except Exception:
+            pass
+        rearm = ctypes.PYFUNCTYPE(None, ctypes.py_object, ctypes.py_object)(
+            ('PyErr_SetInterrupt', ctypes.pythonapi))
+        start = ctypes.pythonapi.PyErr_SetInterrupt
+        signal.set_wakeup_fd(writer, warn_on_full_buffer=False)
+    except Exception:
+        return None
+
+    def idle(signum, frame):
+        return None
+
+    def drain():
+        total = 0
+        while True:
+            try:
+                chunk = os.read(reader, 1 << 20)
+            except BlockingIOError:
+                return total
+            total += chunk.count(bytes([signal.SIGINT]))
+
+    def polls(compiled, probe):
+        drain()
+        signal.signal(signal.SIGINT, rearm)
+        start()
+        compiled.search(probe)
+        signal.signal(signal.SIGINT, idle)
+        return drain()
+
+    empty = re.compile('a')
+    baseline = min(polls(empty, 'b') for _ in range(3))
+    return lambda compiled, probe: max(polls(compiled, probe) - baseline, 0)
+"""
+
+NO_POLL_COUNTER_SOURCE = """\
+def build_poll_counter():
+    return None
+"""

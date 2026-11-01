@@ -41,6 +41,9 @@ from guard_core.sync.detection_engine._redos_structural_prefilters import (
     _first_structural_safety_violation,
 )
 from guard_core.sync.detection_engine._redos_work_counter import (
+    NO_POLL_COUNTER_SOURCE,
+    POLL_COUNTER_SOURCE,
+    POLL_UNIT_SECONDS,
     WORK_COUNTER_SOURCE,
     WORK_UNIT_SECONDS,
 )
@@ -149,6 +152,13 @@ _LOAD_FACTOR_CEILING = 8.0
 _REACH_PROBE_NOISE_FLOOR_SECONDS = 0.001
 _REACH_PROBE_SAMPLE_COUNT = 5
 _REACH_PROBE_LARGE_SAMPLE_SECONDS = 0.2
+# Where the host counts signal polls instead of instructions, the count decides while
+# the load-normalized CPU time stays within this multiple of it and within this
+# multiple of the budget: the count does not move with the load, and dispatch-bound
+# work reads about one to two times its count on a loaded host. Work the count cannot
+# see (a scan inside one opcode) reads far above it, and then the CPU time decides.
+_POLL_DECIDES_WITHIN_CPU_RATIO = 3.0
+_POLL_DECIDES_WITHIN_BUDGET_RATIO = 2.0
 # The verdict forces the growth ratio to 1.0 while the 16000-char minimum
 # sample stays under the noise floor, so one sample decides such probes and
 # they cannot read over budget; at or above the trigger the full sample
@@ -188,7 +198,9 @@ _REFERENCE_LOAD_CHILD_SCRIPT = (
 )
 
 
-def _reach_probe_timing_child_script(counter_source: str) -> str:
+def _reach_probe_timing_child_script(
+    counter_source: str, poll_source: str = NO_POLL_COUNTER_SOURCE
+) -> str:
     return (
         "import json, re, sys, time\n"
         "pattern, probes, samples, cpu_limit, flags, trigger, heartbeat = json.loads(\n"
@@ -196,6 +208,7 @@ def _reach_probe_timing_child_script(counter_source: str) -> str:
         + CPU_LIMIT_PRELUDE
         + ENGINE_NORMALIZER_SOURCE
         + counter_source
+        + poll_source
         + "arm()\n"
         "try:\n"
         "    compiled = re.compile(pattern, flags)\n"
@@ -219,8 +232,25 @@ def _reach_probe_timing_child_script(counter_source: str) -> str:
         "    start = time.process_time()\n"
         "    reference_compiled.search(reference_probe)\n"
         "    reference_times.append(time.process_time() - start)\n"
+        "poller = build_poll_counter()\n"
+        "load_factor = 1.0\n"
+        "if poller is not None:\n"
+        "    load_factor = min(max(min(reference_times) / "
+        f"{_REFERENCE_SCAN_SECONDS!r}, {_LOAD_FACTOR_FLOOR!r}), "
+        f"{_LOAD_FACTOR_CEILING!r})\n"
+        "def pick(measured, work):\n"
+        f"    if measured <= {_POLL_DECIDES_WITHIN_CPU_RATIO!r} * work and "
+        f"measured <= {_POLL_DECIDES_WITHIN_BUDGET_RATIO!r} * "
+        f"{_REACH_PROBE_BUDGET_SECONDS!r}:\n"
+        "        return work\n"
+        "    return max(measured, work)\n"
         "results = []\n"
         "for probe in probes:\n"
+        "    work = 0.0 if poller is None else "
+        f"poller(compiled, probe) * {POLL_UNIT_SECONDS!r}\n"
+        f"    if work > {_REACH_PROBE_BUDGET_SECONDS!r}:\n"
+        "        results.append([work])\n"
+        "        continue\n"
         "    start = time.process_time()\n"
         "    compiled.search(probe)\n"
         "    probe_times = [time.process_time() - start]\n"
@@ -231,15 +261,19 @@ def _reach_probe_timing_child_script(counter_source: str) -> str:
         "            probe_times.append(time.process_time() - start)\n"
         f"            if probe_times[-1] > {_REACH_PROBE_LARGE_SAMPLE_SECONDS}:\n"
         "                break\n"
+        "    probe_times = [pick(t / load_factor, work) for t in probe_times]\n"
         "    probe_times.sort()\n"
         "    results.append(probe_times)\n"
         "disarm()\n"
-        "print(json.dumps({'results': results, 'reference': min(reference_times), "
+        "print(json.dumps({'results': results, 'reference': "
+        f"{_REFERENCE_SCAN_SECONDS!r} if poller is not None else min(reference_times), "
         "'cpu': time.process_time()}))\n"
     )
 
 
-_REACH_PROBE_TIMING_CHILD_SCRIPT = _reach_probe_timing_child_script(WORK_COUNTER_SOURCE)
+_REACH_PROBE_TIMING_CHILD_SCRIPT = _reach_probe_timing_child_script(
+    WORK_COUNTER_SOURCE, POLL_COUNTER_SOURCE
+)
 
 
 @dataclass(frozen=True, slots=True)
