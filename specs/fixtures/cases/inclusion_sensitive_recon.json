@@ -280,7 +280,7 @@
         "threats": [
           {
             "type": "regex",
-            "pattern": "\\A[/\\\\]?(?:(?![\\w.\\-~%]*\\.(?:bak|backup|old|orig|s(?:ave|w[po])|t(?:mp|emp))(?:[/\\\\]|\\Z))[\\w.\\-~%]+[/\\\\])*[\\w.\\-~%]*\\.(?:bak|backup|old|orig|s(?:ave|w[po])|t(?:mp|emp))(?:[/\\\\][/\\\\\\w.\\-~%]*)?(?:\\?\\S*)?\\s*\\Z",
+            "pattern": "\\A[/\\\\]?(?:(?![\\w.\\-~%]*\\.(?:b(?:ak|ackup)|old|orig|s(?:ave|w[po])|t(?:mp|emp))(?:[/\\\\]|\\Z))[\\w.\\-~%]+[/\\\\])*[\\w.\\-~%]*\\.(?:b(?:ak|ackup)|old|orig|s(?:ave|w[po])|t(?:mp|emp))(?:[/\\\\][/\\\\\\w.\\-~%]*)?(?:\\?\\S*)?\\s*\\Z",
             "match": "/config.php.bak",
             "position": 0,
             "category": "cms_probing",
