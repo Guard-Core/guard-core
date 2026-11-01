@@ -288,6 +288,9 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
             },
         )
 
+    # The after validators below read fields from __dict__: the first read of a
+    # name through the instance walks the class MRO, which costs more than the
+    # check itself on the first construction of a process (LEDGER 6.494).
     @model_validator(mode="after")
     def reject_redos_unsafe_blocked_user_agents(self) -> Self:
         if self.__dict__["blocked_user_agents"]:
@@ -305,8 +308,9 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
 
     @model_validator(mode="after")
     def validate_geo_ip_handler_exists(self) -> Self:
-        if self.geo_ip_handler is not None or not (
-            self.blocked_countries or self.whitelist_countries
+        values = self.__dict__
+        if values["geo_ip_handler"] is not None or not (
+            values["blocked_countries"] or values["whitelist_countries"]
         ):
             return self
         self.geo_ip_handler = _resolve_geo_ip_handler(
@@ -322,21 +326,24 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
 
     @model_validator(mode="after")
     def warn_country_allowlist_shadows_blocklist(self) -> Self:
-        if self.whitelist_countries and self.blocked_countries:
+        values = self.__dict__
+        if values["whitelist_countries"] and values["blocked_countries"]:
             _warn_country_allowlist_shadows_blocklist(stacklevel=4)
         return self
 
     @model_validator(mode="after")
     def validate_agent_config(self) -> Self:
-        if self.enable_agent and not self.agent_api_key:
+        values = self.__dict__
+        enable_agent = values["enable_agent"]
+        if enable_agent and not values["agent_api_key"]:
             raise ValueError("agent_api_key is required when enable_agent is True")
 
-        if self.enable_dynamic_rules and not self.enable_agent:
+        if values["enable_dynamic_rules"] and not enable_agent:
             raise ValueError(
                 "enable_agent must be True when enable_dynamic_rules is True"
             )
 
-        if self.enable_enrichment and not self.enable_agent:
+        if values["enable_enrichment"] and not enable_agent:
             raise ValueError(
                 "enable_enrichment requires enable_agent=True; enrichment is "
                 "the guard-agent-gated tier. Either enable guard-agent or set "
@@ -353,7 +360,7 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
 
     @model_validator(mode="after")
     def validate_global_return_pattern_body_scan(self) -> Self:
-        for rule in self.global_behavior_rules:
+        for rule in self.__dict__["global_behavior_rules"]:
             if rule.rule_type != "return_pattern" or not rule.pattern:
                 continue
             _validate_return_pattern_body_scan(rule.pattern, self)
@@ -361,24 +368,27 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
 
     @model_validator(mode="after")
     def warn_trusted_proxies_prefix_zero(self) -> Self:
-        if self.trusted_proxies and any(
-            _is_prefix_zero_network_entry(entry) for entry in self.trusted_proxies
+        trusted_proxies = self.__dict__["trusted_proxies"]
+        if trusted_proxies and any(
+            _is_prefix_zero_network_entry(entry) for entry in trusted_proxies
         ):
             _warn_trusted_proxies_prefix_zero()
         return self
 
     @model_validator(mode="after")
     def warn_whitelist_prefix_zero(self) -> Self:
-        if self.whitelist and any(
-            _is_prefix_zero_network_entry(entry) for entry in self.whitelist
+        whitelist = self.__dict__["whitelist"]
+        if whitelist and any(
+            _is_prefix_zero_network_entry(entry) for entry in whitelist
         ):
             _warn_whitelist_prefix_zero()
         return self
 
     @model_validator(mode="after")
     def warn_exempt_ips_prefix_zero(self) -> Self:
-        if self.exempt_ips:
-            _warn_exempt_ips_prefix_zero(self.exempt_ips)
+        exempt_ips = self.__dict__["exempt_ips"]
+        if exempt_ips:
+            _warn_exempt_ips_prefix_zero(exempt_ips)
         return self
 
     @model_validator(mode="after")
@@ -414,7 +424,11 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
 
     @model_validator(mode="after")
     def warn_empty_enabled_detection_categories(self) -> Self:
-        if self.enable_penetration_detection and not self.enabled_detection_categories:
+        values = self.__dict__
+        if (
+            values["enable_penetration_detection"]
+            and not values["enabled_detection_categories"]
+        ):
             _warn_empty_enabled_detection_categories()
         return self
 

@@ -306,12 +306,15 @@ def _assign_checking_optional_extras(
 
 
 def _require_optional_extras(config: "SecurityConfig[RequestT]") -> None:
-    if config.enable_redis and config.redis_url:
+    values = config.__dict__
+    if values["enable_redis"] and values["redis_url"]:
         require_redis_extra()
 
-    if config.block_cloud_providers or config.enable_dynamic_rules:
+    if values["block_cloud_providers"] or values["enable_dynamic_rules"]:
         require_cloud_extra()
 
-    has_country_rules = bool(config.blocked_countries or config.whitelist_countries)
-    if config.geo_ip_handler is None and has_country_rules:
+    has_country_rules = bool(
+        values["blocked_countries"] or values["whitelist_countries"]
+    )
+    if values["geo_ip_handler"] is None and has_country_rules:
         require_geo_extra()
