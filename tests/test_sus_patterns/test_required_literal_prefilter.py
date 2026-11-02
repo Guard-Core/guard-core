@@ -188,3 +188,22 @@ async def test_a_benign_value_reaches_far_fewer_rows() -> None:
     without = await _rows_reached(False)
 
     assert 0 < with_prefilter < without * 0.6
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        pytest.param("hello", id="by-substring"),
+        pytest.param("hello" * 1000, id="by-presence"),
+    ],
+)
+def test_a_custom_row_is_never_skipped_by_a_required_literal(content: str) -> None:
+    custom = (re.compile("[xyz]7", re.IGNORECASE), frozenset({"all"}), "custom")
+    builtin = (re.compile("[xyz]7", re.IGNORECASE), frozenset({"all"}), "xss")
+    assert required_literals("[xyz]7") == ("x", "y", "z")
+    kept = list(
+        rows_with_required_literal(
+            [custom, builtin], fold_for_literals(content), frozenset()
+        )
+    )
+    assert kept == [custom]

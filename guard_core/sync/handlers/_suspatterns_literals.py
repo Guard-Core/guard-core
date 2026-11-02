@@ -206,14 +206,24 @@ def _presence_of(folded_content: str) -> _Presence:
     return entry
 
 
+def _gating_literals(
+    row: PatternRow, excluded_sources: frozenset[str]
+) -> tuple[str, ...]:
+    """A custom row is always scanned: its scan is the one that answers a regex
+    worker queue wait (503), so no literal may skip it."""
+    source = row[0].pattern
+    if row[2] == "custom" or source in excluded_sources:
+        return ()
+    return required_literals(source)
+
+
 def _rows_by_substring(
     rows: Sequence[PatternRow],
     folded_content: str,
     excluded_sources: frozenset[str],
 ) -> Iterator[PatternRow]:
     for row in rows:
-        source = row[0].pattern
-        literals = () if source in excluded_sources else required_literals(source)
+        literals = _gating_literals(row, excluded_sources)
         if not literals or any(map(folded_content.__contains__, literals)):
             yield row
 
@@ -225,8 +235,7 @@ def _rows_by_presence(
 ) -> Iterator[PatternRow]:
     chars, present = _presence_of(folded_content)
     for row in rows:
-        source = row[0].pattern
-        literals = () if source in excluded_sources else required_literals(source)
+        literals = _gating_literals(row, excluded_sources)
         if not literals:
             yield row
             continue
