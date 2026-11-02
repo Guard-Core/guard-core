@@ -7,9 +7,13 @@ import sys
 import time
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
+from typing import TypeVar
 
 from guard_core.sync._utils.pattern_source_redaction import _SensitiveNameSets
 from guard_core.sync.detection_engine._redos_cpu_budget import ReachProbeCpuBudget
+from guard_core.sync.detection_engine._redos_engine_normalizer import (
+    ENGINE_NORMALIZER_SOURCE,
+)
 from guard_core.sync.detection_engine._redos_limited_child import (
     CPU_LIMIT_PRELUDE,
     HEARTBEAT_CPU_SECONDS,
@@ -36,36 +40,61 @@ from guard_core.sync.detection_engine._redos_repeat_alphabet import (
 from guard_core.sync.detection_engine._redos_structural_prefilters import (
     _first_structural_safety_violation,
 )
+from guard_core.sync.detection_engine._redos_work_counter import (
+    NO_POLL_COUNTER_SOURCE,
+    POLL_COUNTER_SOURCE,
+    POLL_UNIT_SECONDS,
+    WORK_COUNTER_SOURCE,
+    WORK_UNIT_SECONDS,
+)
 
 logger = logging.getLogger("guard_core.sync.detection_engine.compiler")
+
+_T = TypeVar("_T")
 
 _DEFAULT_PATTERN_FLAGS = re.IGNORECASE | re.MULTILINE
 
 _PATTERN_SAFETY_PROBE_TIMEOUT_SECONDS = 2.0
 _PATTERN_SAFETY_PROBE_PER_STRING_THRESHOLD_SECONDS = 0.05
 
-_PATTERN_SAFETY_PROBE_CHILD_SCRIPT = (
-    "import json, re, sys, time\n"
-    "pattern, test_strings, threshold, flags, cpu_limit, heartbeat = json.loads(\n"
-    "    sys.stdin.read())\n" + CPU_LIMIT_PRELUDE + "arm()\n"
-    "try:\n"
-    "    compiled = re.compile(pattern, flags)\n"
-    "except Exception as exc:\n"
-    "    disarm()\n"
-    "    print(json.dumps({'safe': False, "
-    "'reason': f'Pattern validation failed: {exc}'}))\n"
-    "    raise SystemExit(0)\n"
-    "for test_str in test_strings:\n"
-    "    start = time.process_time()\n"
-    "    compiled.search(test_str)\n"
-    "    elapsed = time.process_time() - start\n"
-    "    if elapsed > threshold:\n"
-    "        reason = f'Pattern timed out on test string of length {len(test_str)}'\n"
-    "        disarm()\n"
-    "        print(json.dumps({'safe': False, 'reason': reason}))\n"
-    "        raise SystemExit(0)\n"
-    "disarm()\n"
-    "print(json.dumps({'safe': True, 'reason': 'Pattern appears safe'}))\n"
+
+def _pattern_safety_probe_child_script(counter_source: str) -> str:
+    return (
+        "import json, re, sys, time\n"
+        "pattern, test_strings, threshold, flags, cpu_limit, heartbeat = json.loads(\n"
+        "    sys.stdin.read())\n"
+        + CPU_LIMIT_PRELUDE
+        + ENGINE_NORMALIZER_SOURCE
+        + counter_source
+        + "arm()\n"
+        "try:\n"
+        "    compiled = re.compile(pattern, flags)\n"
+        "except Exception as exc:\n"
+        "    disarm()\n"
+        "    print(json.dumps({'safe': False, "
+        "'reason': f'Pattern validation failed: {exc}'}))\n"
+        "    raise SystemExit(0)\n"
+        "counter = build_work_counter()\n"
+        "for test_str in test_strings:\n"
+        "    if counter is not None:\n"
+        f"        elapsed = counter(compiled, test_str) * {WORK_UNIT_SECONDS!r}\n"
+        "    else:\n"
+        "        start = time.process_time()\n"
+        "        compiled.search(test_str)\n"
+        "        elapsed = time.process_time() - start\n"
+        "    if elapsed > threshold:\n"
+        "        reason = "
+        "f'Pattern timed out on test string of length {len(test_str)}'\n"
+        "        disarm()\n"
+        "        print(json.dumps({'safe': False, 'reason': reason}))\n"
+        "        raise SystemExit(0)\n"
+        "disarm()\n"
+        "print(json.dumps({'safe': True, 'reason': 'Pattern appears safe'}))\n"
+    )
+
+
+_PATTERN_SAFETY_PROBE_CHILD_SCRIPT = _pattern_safety_probe_child_script(
+    WORK_COUNTER_SOURCE
 )
 
 
@@ -123,6 +152,19 @@ _LOAD_FACTOR_CEILING = 8.0
 _REACH_PROBE_NOISE_FLOOR_SECONDS = 0.001
 _REACH_PROBE_SAMPLE_COUNT = 5
 _REACH_PROBE_LARGE_SAMPLE_SECONDS = 0.2
+# Where the host counts signal polls instead of instructions, the count decides while
+# the load-normalized CPU time stays within this multiple of it and within this
+# multiple of the budget: the count does not move with the load, and dispatch-bound
+# work reads about one to two times its count on a loaded host. Work the count cannot
+# see (a scan inside one opcode) reads far above it, and then the CPU time decides.
+# The budget multiple is 1.0: a row whose load-normalized CPU time is over the budget
+# is refused whatever its count reads, as at v4.4.0, and the count only adds refusals.
+# The worst load-normalized best sample of any safe row (the v440 CDATA row at cap
+# 10000) reads 0.98 of the budget on Python 3.10 in a 24-loop cell and 0.97 on 3.14
+# idle (WP361, WP362, python:3.x-slim), so 1.0 keeps 2 percent of margin, the margin
+# v4.4.0's CPU-time verdict had. Any larger multiple accepts a row v4.4.0 refused.
+_POLL_DECIDES_WITHIN_CPU_RATIO = 3.0
+_POLL_DECIDES_WITHIN_BUDGET_RATIO = 1.0
 # The verdict forces the growth ratio to 1.0 while the 16000-char minimum
 # sample stays under the noise floor, so one sample decides such probes and
 # they cannot read over budget; at or above the trigger the full sample
@@ -134,6 +176,9 @@ _PATTERN_SAFETY_DEFAULT_CAP = 262144
 # stride sample keeps every family and site represented while bounding the
 # timed work; the cap only engages when the enumeration explodes.
 _MAX_TIMED_PROBE_SETS = 512
+# Probe sets built while looking for the unique ones stay in memory up to this many
+# characters; later ones are built again when they are timed.
+_KEPT_PROBE_SET_CHARACTERS = 1_000_000
 # Sample times are normalized by a host load factor, and so is the budget:
 # measuring a genuinely quadratic pattern costs seconds of CPU per probe set, and
 # a slower core needs proportionally more CPU seconds for the same work. The
@@ -158,39 +203,82 @@ _REFERENCE_LOAD_CHILD_SCRIPT = (
     "print(json.dumps({'reference': min(reference_times)}))\n"
 )
 
-_REACH_PROBE_TIMING_CHILD_SCRIPT = (
-    "import json, re, sys, time\n"
-    "pattern, probes, samples, cpu_limit, flags, trigger, heartbeat = json.loads(\n"
-    "    sys.stdin.read())\n" + CPU_LIMIT_PRELUDE + "arm()\n" + "try:\n"
-    "    compiled = re.compile(pattern, flags)\n"
-    "except Exception as exc:\n"
-    "    disarm()\n"
-    "    print(json.dumps({'error': str(exc)}))\n"
-    "    raise SystemExit(0)\n"
-    f"reference_compiled = re.compile({_REFERENCE_SCAN_PATTERN!r})\n"
-    f"reference_probe = '/' + '0' * {_REFERENCE_SCAN_PROBE_LENGTH}\n"
-    "reference_times = []\n"
-    "for _ in range(samples):\n"
-    "    start = time.process_time()\n"
-    "    reference_compiled.search(reference_probe)\n"
-    "    reference_times.append(time.process_time() - start)\n"
-    "results = []\n"
-    "for probe in probes:\n"
-    "    start = time.process_time()\n"
-    "    compiled.search(probe)\n"
-    "    probe_times = [time.process_time() - start]\n"
-    "    if probe_times[0] >= trigger:\n"
-    "        for _ in range(samples - 1):\n"
-    "            start = time.process_time()\n"
-    "            compiled.search(probe)\n"
-    "            probe_times.append(time.process_time() - start)\n"
-    f"            if probe_times[-1] > {_REACH_PROBE_LARGE_SAMPLE_SECONDS}:\n"
-    "                break\n"
-    "    probe_times.sort()\n"
-    "    results.append(probe_times)\n"
-    "disarm()\n"
-    "print(json.dumps({'results': results, 'reference': min(reference_times), "
-    "'cpu': time.process_time()}))\n"
+
+def _reach_probe_timing_child_script(
+    counter_source: str, poll_source: str = NO_POLL_COUNTER_SOURCE
+) -> str:
+    return (
+        "import json, re, sys, time\n"
+        "pattern, probes, samples, cpu_limit, flags, trigger, heartbeat = json.loads(\n"
+        "    sys.stdin.read())\n"
+        + CPU_LIMIT_PRELUDE
+        + ENGINE_NORMALIZER_SOURCE
+        + counter_source
+        + poll_source
+        + "arm()\n"
+        "try:\n"
+        "    compiled = re.compile(pattern, flags)\n"
+        "except Exception as exc:\n"
+        "    disarm()\n"
+        "    print(json.dumps({'error': str(exc)}))\n"
+        "    raise SystemExit(0)\n"
+        "counter = build_work_counter()\n"
+        "if counter is not None:\n"
+        f"    results = [[counter(compiled, probe) * {WORK_UNIT_SECONDS!r}] "
+        "for probe in probes]\n"
+        "    disarm()\n"
+        "    print(json.dumps({'results': results, "
+        f"'reference': {_REFERENCE_SCAN_SECONDS!r}, "
+        "'cpu': time.process_time()}))\n"
+        "    raise SystemExit(0)\n"
+        f"reference_compiled = re.compile({_REFERENCE_SCAN_PATTERN!r})\n"
+        f"reference_probe = '/' + '0' * {_REFERENCE_SCAN_PROBE_LENGTH}\n"
+        "reference_times = []\n"
+        "for _ in range(samples):\n"
+        "    start = time.process_time()\n"
+        "    reference_compiled.search(reference_probe)\n"
+        "    reference_times.append(time.process_time() - start)\n"
+        "poller = build_poll_counter()\n"
+        "load_factor = 1.0\n"
+        "if poller is not None:\n"
+        "    load_factor = min(max(min(reference_times) / "
+        f"{_REFERENCE_SCAN_SECONDS!r}, {_LOAD_FACTOR_FLOOR!r}), "
+        f"{_LOAD_FACTOR_CEILING!r})\n"
+        "def pick(measured, work):\n"
+        f"    if measured <= {_POLL_DECIDES_WITHIN_CPU_RATIO!r} * work and "
+        f"measured <= {_POLL_DECIDES_WITHIN_BUDGET_RATIO!r} * "
+        f"{_REACH_PROBE_BUDGET_SECONDS!r}:\n"
+        "        return work\n"
+        "    return max(measured, work)\n"
+        "results = []\n"
+        "for probe in probes:\n"
+        "    work = 0.0 if poller is None else "
+        f"poller(compiled, probe) * {POLL_UNIT_SECONDS!r}\n"
+        f"    if work > {_REACH_PROBE_BUDGET_SECONDS!r}:\n"
+        "        results.append([work])\n"
+        "        continue\n"
+        "    start = time.process_time()\n"
+        "    compiled.search(probe)\n"
+        "    probe_times = [time.process_time() - start]\n"
+        "    if probe_times[0] >= trigger:\n"
+        "        for _ in range(samples - 1):\n"
+        "            start = time.process_time()\n"
+        "            compiled.search(probe)\n"
+        "            probe_times.append(time.process_time() - start)\n"
+        f"            if probe_times[-1] > {_REACH_PROBE_LARGE_SAMPLE_SECONDS}:\n"
+        "                break\n"
+        "    probe_times = [pick(t / load_factor, work) for t in probe_times]\n"
+        "    probe_times.sort()\n"
+        "    results.append(probe_times)\n"
+        "disarm()\n"
+        "print(json.dumps({'results': results, 'reference': "
+        f"{_REFERENCE_SCAN_SECONDS!r} if poller is not None else min(reference_times), "
+        "'cpu': time.process_time()}))\n"
+    )
+
+
+_REACH_PROBE_TIMING_CHILD_SCRIPT = _reach_probe_timing_child_script(
+    WORK_COUNTER_SOURCE, POLL_COUNTER_SOURCE
 )
 
 
@@ -257,6 +345,14 @@ def _remaining_budget(deadline: float) -> float:
     return deadline - time.thread_time()
 
 
+def _scaled_child_limit(default_limit: float, budget: ReachProbeCpuBudget) -> float:
+    # The budget is scaled by the host load factor because a slower core (an
+    # efficiency core takes about 2.4 times longer for the same work) needs
+    # proportionally more CPU seconds; one child's CPU limit is the same kind of CPU
+    # seconds, so it follows the factor and never goes below the idle-host default.
+    return default_limit * max(budget.load_factor, 1.0)
+
+
 def _clipped_timeout(default_timeout: float, remaining_seconds: float) -> float:
     return min(default_timeout, remaining_seconds)
 
@@ -298,7 +394,8 @@ def _time_reach_probes_subprocess(
     flags: int = _DEFAULT_PATTERN_FLAGS,
 ) -> ReachProbeTiming | None:
     cpu_limit = _clipped_timeout(
-        _REACH_PROBE_COMBINED_TIMEOUT_SECONDS, budget.remaining_seconds
+        _scaled_child_limit(_REACH_PROBE_COMBINED_TIMEOUT_SECONDS, budget),
+        budget.remaining_seconds,
     )
     if cpu_limit <= 0:
         return None
@@ -312,7 +409,8 @@ def _time_single_reach_probe_subprocess(
     flags: int = _DEFAULT_PATTERN_FLAGS,
 ) -> ReachProbeTiming | None:
     cpu_limit = _clipped_timeout(
-        _REACH_PROBE_CHILD_TIMEOUT_SECONDS, budget.remaining_seconds
+        _scaled_child_limit(_REACH_PROBE_CHILD_TIMEOUT_SECONDS, budget),
+        budget.remaining_seconds,
     )
     if cpu_limit <= 0:
         return None
@@ -439,22 +537,28 @@ def _reach_probe_sizes_for_strategy(
     return _REACH_VERDICT_PROBE_SIZES
 
 
-def _unique_probe_sets(
+def _unique_probe_set_positions(
     builders: list[Callable[[int], str]], probe_sizes: tuple[int, ...]
-) -> Iterator[tuple[str, ...]]:
+) -> tuple[list[int], dict[int, tuple[str, ...]]]:
     seen: set[bytes] = set()
-    for builder in builders:
+    positions: list[int] = []
+    kept: dict[int, tuple[str, ...]] = {}
+    kept_characters = 0
+    for position, builder in enumerate(builders):
         probes = tuple(builder(size) for size in probe_sizes)
         digest = _probe_set_digest(probes)
         if digest in seen:
             continue
         seen.add(digest)
-        yield probes
+        positions.append(position)
+        characters = sum(map(len, probes))
+        if kept_characters + characters <= _KEPT_PROBE_SET_CHARACTERS:
+            kept[position] = probes
+            kept_characters += characters
+    return positions, kept
 
 
-def _stride_sampled_probe_sets(
-    probe_sets: list[tuple[str, ...]], cap: int
-) -> list[tuple[str, ...]]:
+def _stride_sampled_probe_sets(probe_sets: list[_T], cap: int) -> list[_T]:
     total = len(probe_sets)
     if total <= cap:
         return probe_sets
@@ -503,8 +607,16 @@ def _timed_probe_results(
     probe_sizes = _reach_probe_sizes_for_strategy(
         structural_violation, bounded_repeat_risk, cap
     )
-    probe_sets = _stride_sampled_probe_sets(
-        list(_unique_probe_sets(builders, probe_sizes)), _MAX_TIMED_PROBE_SETS
+    unique_positions, kept_probe_sets = _unique_probe_set_positions(
+        builders, probe_sizes
+    )
+    sampled_positions = _stride_sampled_probe_sets(
+        unique_positions, _MAX_TIMED_PROBE_SETS
+    )
+    probe_sets = (
+        kept_probe_sets.get(position)
+        or tuple(builders[position](size) for size in probe_sizes)
+        for position in sampled_positions
     )
     if (
         structural_violation is None
@@ -513,14 +625,14 @@ def _timed_probe_results(
     ):
         return _batched_reach_probe_timings(
             pattern,
-            iter(probe_sets),
+            probe_sets,
             budget,
             flags,
             time_probes,
         )
     return _direct_reach_probe_timings(
         pattern,
-        iter(probe_sets),
+        probe_sets,
         budget,
         flags,
         time_probes,
@@ -616,10 +728,11 @@ def _reach_probe_cost_verdict(
     flags: int = _DEFAULT_PATTERN_FLAGS,
     redaction_names: _SensitiveNameSets | None = None,
 ) -> tuple[bool, str]:
-    scaled_seconds = _scaled_probe_deadline_seconds(_measure_host_load_factor())
+    host_load_factor = _measure_host_load_factor()
+    scaled_seconds = _scaled_probe_deadline_seconds(host_load_factor)
     deadline = time.thread_time() + scaled_seconds
     wall_backstop = time.monotonic() + _REACH_PROBE_DEADLINE_SCALE_CEILING_SECONDS
-    budget = ReachProbeCpuBudget(scaled_seconds)
+    budget = ReachProbeCpuBudget(scaled_seconds, host_load_factor)
     cap = max_content_length if max_content_length else _PATTERN_SAFETY_DEFAULT_CAP
     structural_violation = _first_structural_safety_violation(pattern)
     bounded_repeat_risk = _has_large_bounded_repeat(pattern, flags)

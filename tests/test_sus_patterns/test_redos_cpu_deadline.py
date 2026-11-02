@@ -132,6 +132,19 @@ def test_run_limited_child_returns_the_exit_code_stdout_and_stderr_without_beats
     assert result == limited_child.ChildResult(3, "out\n", "boom")
 
 
+def test_a_child_that_reads_its_input_late_still_receives_all_of_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(limited_child, "STALL_WALL_SECONDS", 6.0)
+    payload = "x" * 2_000_000
+    result = limited_child.run_limited_child(
+        "import sys, time; time.sleep(1.0); print(len(sys.stdin.read()))",
+        payload,
+        30.0,
+    )
+    assert result == limited_child.ChildResult(0, f"{len(payload)}\n", "")
+
+
 def test_killed_by_cpu_limit_needs_the_cpu_signal_on_this_platform(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

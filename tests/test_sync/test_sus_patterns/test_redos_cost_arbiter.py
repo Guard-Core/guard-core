@@ -3,6 +3,7 @@ import json
 import logging
 import re
 import signal
+import sys
 import time
 from collections.abc import Callable
 from typing import Any
@@ -42,6 +43,7 @@ from guard_core.sync.detection_engine._redos_cost_arbiter import (
     _parse_reach_probe_child_output,
     _reach_probe_cost_reason,
     _reach_probe_cost_verdict,
+    _reach_probe_timing_child_script,
     _reach_probe_timing_strategy,
     _reach_probe_unreachable_reason,
     _reach_probe_verdict_from_samples,
@@ -81,6 +83,7 @@ from guard_core.sync.detection_engine._redos_stray_chooser import (
     _build_stray_context,
     _stray_for_pair,
 )
+from guard_core.sync.detection_engine._redos_work_counter import WORK_UNIT_SECONDS
 from guard_core.sync.detection_engine.compiler import PatternCompiler
 from guard_core.sync.handlers._suspatterns_sources import _SQLI_COMMENT_TERMINATOR_RE
 
@@ -1666,14 +1669,8 @@ def test_time_reach_probes_subprocess_clips_cpu_limit_to_remaining_budget() -> N
     captured: dict[str, float] = {}
 
     def _fake_popen(*args: object, **kwargs: Any) -> MagicMock:
-        process = MagicMock()
-
-        def _communicate(payload: str, timeout: float) -> None:
-            captured["cpu_limit"] = json.loads(payload)[3]
-            raise OSError("stop before actually spawning")
-
-        process.communicate = _communicate
-        return process
+        captured["cpu_limit"] = json.loads(kwargs["stdin"].read())[3]
+        raise OSError("stop before actually spawning")
 
     with patch(
         "guard_core.sync.detection_engine._redos_cost_arbiter.subprocess.Popen",
@@ -2261,12 +2258,68 @@ def test_cost_reason_echoes_a_structural_violation_over_the_measurement() -> Non
     assert reason == "nested quantifier"
 
 
+_NO_WORK_COUNTER_SOURCE = "def build_work_counter():\n    return None\n"
+
+
+@pytest.fixture
+def measured_time_child(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "guard_core.sync.detection_engine._redos_cost_arbiter."
+        "_REACH_PROBE_TIMING_CHILD_SCRIPT",
+        _reach_probe_timing_child_script(_NO_WORK_COUNTER_SOURCE),
+    )
+
+
+_FIXED_WORK_COUNTER_SOURCE = (
+    "def build_work_counter():\n    return lambda compiled, probe: len(probe)\n"
+)
+
+
+def test_probe_child_reports_the_counted_work_as_one_sample_per_probe(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "guard_core.sync.detection_engine._redos_cost_arbiter."
+        "_REACH_PROBE_TIMING_CHILD_SCRIPT",
+        _reach_probe_timing_child_script(_FIXED_WORK_COUNTER_SOURCE),
+    )
+    probes = ["abcabc", "abcabcabcabc"]
+    timing = _time_reach_probes_subprocess("abc", probes, _ample_budget())
+    assert timing is not None
+    assert timing.samples_by_size == [
+        [len(probe) * WORK_UNIT_SECONDS] for probe in probes
+    ]
+    assert timing.load_factor == 1.0
+
+
+def test_probe_child_answers_with_its_own_counter_or_with_cpu_time() -> None:
+    probes = [_repeat_probe_to_length("foo", size) for size in _REACH_PROBE_SIZES[-2:]]
+    first = _time_reach_probes_subprocess(r"(?:foo|bar)+$", probes, _ample_budget())
+    second = _time_reach_probes_subprocess(r"(?:foo|bar)+$", probes, _ample_budget())
+    assert first is not None and second is not None
+    if sys.platform == "darwin":
+        assert first.load_factor == second.load_factor == 1.0
+        for one, other in zip(
+            first.samples_by_size, second.samples_by_size, strict=True
+        ):
+            assert one[0] == pytest.approx(other[0], rel=0.02)
+
+
+@pytest.mark.usefixtures("measured_time_child")
+def test_probe_child_without_a_work_counter_measures_cpu_time() -> None:
+    timing = _time_reach_probes_subprocess("abc", ["abcabc"], _ample_budget())
+    assert timing is not None
+    assert timing.load_factor != 1.0
+
+
+@pytest.mark.usefixtures("measured_time_child")
 def test_probe_child_takes_a_single_sample_below_the_full_sample_trigger() -> None:
     timing = _time_reach_probes_subprocess("abc", ["abcabc"], _ample_budget())
     assert timing is not None
     assert [len(row) for row in timing.samples_by_size] == [1]
 
 
+@pytest.mark.usefixtures("measured_time_child")
 def test_probe_child_takes_five_samples_when_every_probe_meets_the_trigger(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2281,6 +2334,7 @@ def test_probe_child_takes_five_samples_when_every_probe_meets_the_trigger(
 
 
 @pytest.mark.redos_timing
+@pytest.mark.usefixtures("measured_time_child")
 def test_probe_child_stops_sampling_once_a_sample_is_large() -> None:
     probes = [_repeat_probe_to_length("foo", size) for size in _REACH_PROBE_SIZES[-2:]]
     timing = _time_reach_probes_subprocess(r"(?:foo|bar)+$", probes, _ample_budget())
@@ -2291,6 +2345,7 @@ def test_probe_child_stops_sampling_once_a_sample_is_large() -> None:
 
 
 @pytest.mark.redos_timing
+@pytest.mark.usefixtures("measured_time_child")
 def test_reference_scan_costs_the_same_as_a_near_budget_builtin_probe() -> None:
     timing = _time_reach_probes_subprocess(
         _NEAR_BUDGET_SQLI_BUILTIN_PATTERN,

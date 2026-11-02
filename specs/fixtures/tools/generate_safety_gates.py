@@ -25,6 +25,10 @@ from pathlib import Path
 
 from fixture_types import SafetyCase
 from guard_core import __version__ as engine_version
+from guard_core.detection_engine._redos_work_counter import (
+    WORK_COUNTER_SOURCE,
+    WORK_UNIT_SECONDS,
+)
 from guard_core.detection_engine.compiler import PatternCompiler
 
 REPO = Path(__file__).resolve().parents[3]
@@ -121,11 +125,21 @@ TEST_STRINGS = ["abcdefghij", "attack-test-string-123", "x"]
 # speed (LEDGER 6.75). The over_budget margin is the extrapolated cost over the
 # safety budget (cap 262144 is detection_max_body_inspect_bytes); the string
 # timeout margin is the observed CPU over the per-string threshold and under the
-# probe's CPU kill, which bounds both sides at about 6.3x (2.0 / 0.05 = 40).
+# probe's CPU kill. The two Pythons cost the case below 0.12 to 0.14 s (3.14) and 0.30 s
+# (3.10) of CPU whatever the load, a 2.4x spread that no single string can fit between a
+# 5x margin over the threshold and a 5x margin under the kill, so a host that reads CPU
+# time (no instruction counter) needs 2x over the threshold and 5x under the kill; the
+# load only ever adds CPU time, which moves the reading away from the threshold.
 SAFETY_BUDGET_SECONDS = 0.05
 PROBE_THRESHOLD_SECONDS = 0.05
 PROBE_KILL_SECONDS = 2.0
-STRING_TIMEOUT_MARGIN = 5.0
+STRING_TIMEOUT_MARGIN = 2.0
+# Where the host counts retired instructions (macOS) the probe's verdict and this check
+# both read the count, which moves by about 1 percent between runs and does not depend on
+# load, so the check needs no clock margin; the margin only has to cover the unit's
+# calibration against CPU time, which Python 3.14 shows as 0.158 s counted against about
+# 0.13 s measured for the case below (3.10: 0.298 against 0.295).
+STRING_TIMEOUT_COUNTED_MARGIN = 2.0
 OVER_BUDGET_MARGIN = 100.0
 STRING_TIMEOUT_PATTERN = r"\d+/"
 STRING_TIMEOUT_TEST_STRING = "1" * 12000
@@ -319,11 +333,19 @@ _EXTRAPOLATED = re.compile(
 )
 
 
-def _string_timeout_cpu_seconds(case: dict) -> float:
+def _string_timeout_cost_seconds(case: dict) -> tuple[float, float]:
     compiled = re.compile(case["pattern"], re.IGNORECASE | re.MULTILINE)
+    probe = case["test_strings"][0]
+    namespace: dict = {"re": re}
+    exec(WORK_COUNTER_SOURCE, namespace)
+    counter = namespace["build_work_counter"]()
+    if counter is not None:
+        return counter(
+            compiled, probe
+        ) * WORK_UNIT_SECONDS, STRING_TIMEOUT_COUNTED_MARGIN
     start = time.process_time()
-    compiled.search(case["test_strings"][0])
-    return time.process_time() - start
+    compiled.search(probe)
+    return time.process_time() - start, STRING_TIMEOUT_MARGIN
 
 
 def _fixed_reference(case: dict, reason: str) -> dict:
@@ -347,14 +369,14 @@ def _fixed_reference(case: dict, reason: str) -> dict:
             "load_average_at_generation": round(os.getloadavg()[0], 1),
         }
     if cls == "probe_string_timeout":
-        cpu = _string_timeout_cpu_seconds(case)
+        cpu, required_margin = _string_timeout_cost_seconds(case)
         over = cpu / PROBE_THRESHOLD_SECONDS
         under = PROBE_KILL_SECONDS / cpu
-        if min(over, under) < STRING_TIMEOUT_MARGIN:
+        if min(over, under) < required_margin:
             raise SystemExit(
                 f"{case['id']}: observed {cpu:.3f}s CPU is {over:.1f}x over the "
                 f"{PROBE_THRESHOLD_SECONDS}s threshold and {under:.1f}x under the "
-                f"{PROBE_KILL_SECONDS}s kill, under the {STRING_TIMEOUT_MARGIN}x margin"
+                f"{PROBE_KILL_SECONDS}s kill, under the {required_margin}x margin"
             )
         return {
             "observed_cpu_seconds": round(cpu, 3),

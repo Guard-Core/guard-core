@@ -1,8 +1,9 @@
 import json
 import re
-import time
+from functools import partial
 
 from guard_core.handlers import _suspatterns_matchers as matchers
+from tests.host_load_factor import timed_normalized
 
 _SIZES = (16384, 32768, 65536, 131072)
 
@@ -27,9 +28,9 @@ def measure() -> dict[str, list[list[float]]]:
                     "newline_prefix": "\n" * size + 'nope"',
                 }
                 for label, text in texts.items():
-                    start = time.process_time()
-                    matches = matchers._file_upload_scan_matches(text, compiled)
-                    elapsed = time.process_time() - start
+                    matches, elapsed = timed_normalized(
+                        partial(matchers._file_upload_scan_matches, text, compiled)
+                    )
                     assert not matches
                     round_samples.setdefault(label, {})[size] = elapsed
             for label, samples_by_size in round_samples.items():

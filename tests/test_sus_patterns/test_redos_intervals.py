@@ -391,3 +391,44 @@ def test_interval_set_contains_matches_re_fullmatch_over_random_small_classes() 
             )
         checked_classes += 1
     assert checked_classes > 0
+
+
+_SCANNED_CATEGORIES = [
+    ("CATEGORY_DIGIT", r"\d"),
+    ("CATEGORY_NOT_DIGIT", r"\D"),
+    ("CATEGORY_SPACE", r"\s"),
+    ("CATEGORY_NOT_SPACE", r"\S"),
+    ("CATEGORY_WORD", r"\w"),
+    ("CATEGORY_NOT_WORD", r"\W"),
+]
+_SCANNED_FLAGS = [0, re.ASCII, re.IGNORECASE, re.IGNORECASE | re.ASCII, re.DOTALL]
+
+
+@pytest.mark.parametrize("flags", _SCANNED_FLAGS)
+@pytest.mark.parametrize(("name", "escape"), _SCANNED_CATEGORIES)
+def test_category_intervals_equal_the_code_point_by_code_point_scan(
+    name: str, escape: str, flags: int
+) -> None:
+    compiled = re.compile(escape, flags)
+    oracle = cached_category_intervals(
+        ("oracle", name, flags),
+        lambda code_point: compiled.fullmatch(chr(code_point)) is not None,
+    )
+    category = getattr(_regex_parser, name)
+    assert _category_intervals(category, flags) == oracle
+
+
+def test_category_intervals_never_test_one_code_point_at_a_time(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def forbidden(category: object, flags: int) -> object:
+        raise AssertionError("a category scan walked the code points one by one")
+
+    monkeypatch.setattr(
+        "guard_core.detection_engine._redos_parse_slots._category_predicate", forbidden
+    )
+    for name, _escape in _SCANNED_CATEGORIES:
+        category = getattr(_regex_parser, name)
+        assert _category_intervals(category, re.ASCII | re.MULTILINE) is (
+            _category_intervals(category, re.ASCII | re.MULTILINE)
+        )

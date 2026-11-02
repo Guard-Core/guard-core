@@ -797,7 +797,7 @@ _PATTERN_DEFINITIONS: list[tuple[str, frozenset[str], str]] = [
     ),
     (
         _path_only_pattern(
-            rf"{_PATH_ONLY_CHAR_RE}*\.(?:bak|backup|old|orig|s(?:ave|w[po])|t(?:mp|emp))"
+            rf"{_PATH_ONLY_CHAR_RE}*\.(?:b(?:ak|ackup)|old|orig|s(?:ave|w[po])|t(?:mp|emp))"
         ),
         _CTX_CMS_PROBING,
         "cms_probing",

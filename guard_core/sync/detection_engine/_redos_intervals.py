@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Callable, Hashable, Iterable
 
 MIN_CODE_POINT = 0
@@ -145,5 +146,29 @@ def cached_category_intervals(
     if start is not None:
         intervals.append((start, MAX_CODE_POINT))
     result = _IntervalSet(intervals)
+    _CATEGORY_INTERVALS_CACHE[cache_key] = result
+    return result
+
+
+def _scan_escape_intervals(escape: str, flags: int) -> _IntervalSet:
+    alphabet = "".join(map(chr, range(MAX_CODE_POINT + 1)))
+    runs = re.compile("(?:" + escape + ")+", flags)
+    return _IntervalSet._from_normalized(
+        tuple((run.start(), run.end() - 1) for run in runs.finditer(alphabet))
+    )
+
+
+def cached_escape_intervals(escape: str, flags: int, negated: bool) -> _IntervalSet:
+    ascii_flag = flags & re.ASCII
+    cache_key = ("escape", escape, ascii_flag, negated)
+    cached = _CATEGORY_INTERVALS_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+    positive_key = ("escape", escape, ascii_flag, False)
+    positive = _CATEGORY_INTERVALS_CACHE.get(positive_key)
+    if positive is None:
+        positive = _scan_escape_intervals(escape, ascii_flag)
+        _CATEGORY_INTERVALS_CACHE[positive_key] = positive
+    result = positive.complement() if negated else positive
     _CATEGORY_INTERVALS_CACHE[cache_key] = result
     return result
