@@ -1,4 +1,5 @@
 import contextvars
+import re as re
 from collections.abc import Iterator, Mapping
 from typing import NamedTuple
 

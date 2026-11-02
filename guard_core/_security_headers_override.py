@@ -9,6 +9,7 @@ mirror share one copy.
 
 import hashlib
 import json
+import re as re
 import time
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field

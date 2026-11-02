@@ -8,6 +8,8 @@ import time
 from collections.abc import Callable
 from typing import TypeVar
 
+from guard_core._lazy_patterns import module_reexport_lookup
+from guard_core.exceptions import BodyReadFailedError as BodyReadFailedError
 from guard_core.exceptions import RegexQueueWaitError
 from guard_core.sync._utils._scan_outcomes import (
     SCAN_OUTCOME_QUEUE_WAIT,
@@ -517,3 +519,16 @@ class PatternCompiler:
                 self._compiled_cache.clear()
                 self._cache_order.clear()
                 self._compiled_sets.clear()
+
+
+__getattr__ = module_reexport_lookup(
+    reexports={
+        "TransientReason": "guard_core.sync.detection_engine._redos_cost_arbiter"
+    }
+)
+
+_LAZY_STAR_NAMES = ("TransientReason",)
+__all__ = [
+    *(name for name in globals() if not name.startswith("_")),
+    *_LAZY_STAR_NAMES,
+]

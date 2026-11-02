@@ -272,6 +272,7 @@ _LOST_BYTE = "[\ufffd\udc80-\udcff]"
 _AT_SEGMENT_START = r"(?<![^/\\])"
 _PATTERNS = LazyPatterns(
     {
+        "PERCENT_BYTE_RUN_RE": (r"(?:%[0-9a-fA-F]{2})+", 0),
         "HTML_HEX_ENTITY_WITHOUT_SEMICOLON_RE": (
             r"&#[xX]([0-9a-fA-F]{2})(?![0-9a-fA-F]*;)",
             0,
@@ -319,3 +320,14 @@ def repair_lost_overlong_bytes(content: str) -> str:
             break
         content = repaired
     return content
+
+
+_LAZY_STAR_NAMES = (
+    "HTML_HEX_ENTITY_WITHOUT_SEMICOLON_RE",
+    "OCTAL_ESCAPE_RE",
+    "PERCENT_BYTE_RUN_RE",
+)
+__all__ = [
+    *(name for name in globals() if not name.startswith("_")),
+    *_LAZY_STAR_NAMES,
+]

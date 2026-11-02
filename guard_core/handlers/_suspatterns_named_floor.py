@@ -207,3 +207,10 @@ def named_probe_row_is_not_the_apps_own_route(token: str, context: str) -> bool:
     return is_the_request_url_path(context) and named_probe_is_not_the_apps_own_route(
         token
     )
+
+
+_LAZY_STAR_NAMES = ("CMS_TOKEN_PATTERN",)
+__all__ = [
+    *(name for name in globals() if not name.startswith("_")),
+    *_LAZY_STAR_NAMES,
+]

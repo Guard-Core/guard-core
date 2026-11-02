@@ -1,3 +1,4 @@
+import re as re
 from functools import lru_cache
 
 from guard_core._lazy_patterns import LazyPatterns, module_attribute_lookup

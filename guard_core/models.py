@@ -342,7 +342,7 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
     # name through the instance walks the class MRO, which costs more than the
     # check itself on the first construction of a process (LEDGER 6.494).
     @model_validator(mode="after")
-    def reject_redos_unsafe_blocked_user_agents(self) -> Self:
+    def reject_redos_unsafe_blocked_user_agents_after_validation(self) -> Self:
         if self.__dict__["blocked_user_agents"]:
             _reject_redos_unsafe_blocked_user_agents_at_field(
                 type(self).__name__,
@@ -350,6 +350,28 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
                 _ConfigSensitiveNames(self),
             )
         return self
+
+    @classmethod
+    def reject_redos_unsafe_blocked_user_agents(
+        cls, data: object, handler: ModelWrapValidatorHandler[Self]
+    ) -> Self:
+        """The wrap validator of landing-6e-stack10, kept callable by name and
+        signature (LEDGER 6.533): the registered validators are the before
+        validator above and the after validator it pairs with, which give the
+        same verdict on construction without a wrap frame."""
+        config = handler(
+            _redact_blocked_user_agents_in_input(
+                data,
+                lambda: {
+                    f: cls.model_fields[f].get_default(call_default_factory=True)
+                    for f in _SENSITIVE_NAME_FIELDS
+                },
+            )
+        )
+        _reject_redos_unsafe_blocked_user_agents_at_field(
+            cls.__name__, config.blocked_user_agents, _ConfigSensitiveNames(config)
+        )
+        return config
 
     @model_validator(mode="after")
     def validate_optional_extras_installed(self) -> Self:

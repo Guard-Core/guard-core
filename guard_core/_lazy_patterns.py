@@ -1,4 +1,5 @@
 import functools
+import importlib
 import re
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from typing import Protocol
@@ -89,3 +90,25 @@ def module_attribute_lookup(*tables: _Table) -> Callable[[str], "re.Pattern[str]
         for name in table._definitions:
             names.setdefault(name, _LazyName(table, name))
     return functools.partial(getattr, type("LazyPatternNames", (), names)())
+
+
+class _LazyReexport:
+    """The class-level attribute of a name that another module owns now: it
+    imports that module on its first read."""
+
+    __slots__ = ("_module", "_name")
+
+    def __init__(self, module: str, name: str) -> None:
+        self._module = module
+        self._name = name
+
+    def __get__(self, instance: object, owner: type | None = None) -> object:
+        return getattr(importlib.import_module(self._module), self._name)
+
+
+def module_reexport_lookup(reexports: Mapping[str, str]) -> Callable[[str], object]:
+    """The ``__getattr__`` of a module that used to import the names of
+    ``reexports`` (name to the module that owns it now) and reads them on first
+    use, so ``from module import NAME`` keeps working without the import cost."""
+    names = {name: _LazyReexport(module, name) for name, module in reexports.items()}
+    return functools.partial(getattr, type("LazyReexportNames", (), names)())

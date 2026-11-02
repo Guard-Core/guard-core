@@ -29,6 +29,9 @@ from guard_core._security_config_field_validators import (
     GlobalBehaviorRules,
     PurgeTarget,
 )
+from guard_core._security_config_field_validators import (
+    ThreatBanConfig as ThreatBanConfig,
+)
 from guard_core._security_config_geo_validators import _validate_geo_ip_handler_value
 from guard_core._security_config_json import MappingProxyInJson, NamedInJson
 from guard_core._security_config_validators import (
@@ -40,6 +43,7 @@ from guard_core._staged_defaults import (
     SIGNAL_TRIGGER_FIELDS,
     signal_changed_defaults,
 )
+from guard_core._tracking_caps import DEFAULT_MAX_LOCAL_BANS as DEFAULT_MAX_LOCAL_BANS
 from guard_core.protocols.cloud_ip_store_protocol import (
     CloudIpStoreFactory,
     CloudIpStoreProtocol,

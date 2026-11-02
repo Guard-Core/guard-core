@@ -353,3 +353,14 @@ async def decode_base64_candidates_yielding(
     if last < len(content):
         pieces.append(content[last:])
     return "".join(pieces)
+
+
+_LAZY_STAR_NAMES = (
+    "NON_DATA_RE",
+    "NON_RUN_CHAR_RE",
+    "WHITESPACE_RE",
+)
+__all__ = [
+    *(name for name in globals() if not name.startswith("_")),
+    *_LAZY_STAR_NAMES,
+]

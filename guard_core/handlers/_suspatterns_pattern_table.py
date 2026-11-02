@@ -1,3 +1,6 @@
+import re as re
+
+from guard_core._lazy_patterns import module_reexport_lookup
 from guard_core.handlers._suspatterns_credential_files import (
     CREDENTIAL_FILE_ROWS,
     CREDENTIAL_FILES_WITH_DIRECTORY_ROW,
@@ -1130,3 +1133,20 @@ DETECTION_NUL_TAIL_RAW_VIEW_PATTERN_SOURCES: frozenset[str] = (
     )
     - DETECTION_RECON_RAW_VIEW_PATTERN_SOURCES
 )
+
+_NAMED_FLOOR = "guard_core.handlers._suspatterns_named_floor"
+__getattr__ = module_reexport_lookup(
+    {
+        "CMS_TOKEN_PATTERN": _NAMED_FLOOR,
+        "NAMED_FLOOR_TOKEN_PATTERNS": _NAMED_FLOOR,
+    }
+)
+
+_LAZY_STAR_NAMES = (
+    "CMS_TOKEN_PATTERN",
+    "NAMED_FLOOR_TOKEN_PATTERNS",
+)
+__all__ = [
+    *(name for name in globals() if not name.startswith("_")),
+    *_LAZY_STAR_NAMES,
+]

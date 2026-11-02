@@ -2,6 +2,7 @@ import re
 from collections.abc import Callable
 from functools import partial
 
+from guard_core._lazy_patterns import module_reexport_lookup
 from guard_core.sync.handlers._suspatterns_ldap_ipv4 import (
     _LEGACY_IPV4_HOST_RE,
     _ldap_paren_conjunction_is_injection,
@@ -149,3 +150,13 @@ def _candidate_passes_the_route_gates(
         if pattern.pattern == candidate and not is_valid_threat(match, context):
             return False
     return not path_row_match_is_cleared(pattern, match, context)
+
+
+_NAMED_FLOOR = "guard_core.sync.handlers._suspatterns_named_floor"
+__getattr__ = module_reexport_lookup({"NAMED_FLOOR_TOKEN_PATTERNS": _NAMED_FLOOR})
+
+_LAZY_STAR_NAMES = ("NAMED_FLOOR_TOKEN_PATTERNS",)
+__all__ = [
+    *(name for name in globals() if not name.startswith("_")),
+    *_LAZY_STAR_NAMES,
+]

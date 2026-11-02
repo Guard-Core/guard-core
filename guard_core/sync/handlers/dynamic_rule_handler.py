@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from ipaddress import ip_address
 
 from guard_core.models import SyncSecurityConfig
+from guard_core.sync._utils.app_managers import AppManagers as AppManagers
 from guard_core.sync._utils.app_scope import app_scope_of, in_app_scope
 from guard_core.sync._utils.nat64 import nat64_table_of
 from guard_core.sync._utils.rule_attribution_shared import _APP_RULE_MANAGERS

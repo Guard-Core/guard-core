@@ -1,6 +1,7 @@
 import time
 from typing import TYPE_CHECKING
 
+from guard_core._lazy_patterns import module_reexport_lookup
 from guard_core.sync._utils.detection_scan import _first_blocked_user_agent_pattern
 from guard_core.sync._utils.rule_attribution_shared import _APP_RULE_MANAGERS, Stamp
 
@@ -98,3 +99,20 @@ def emergency_attribution(config: object) -> Stamp:
 def pattern_attribution(config: object, source: str | None) -> Stamp:
     view = _view_of(config)
     return view.for_pattern(source) if view else {}
+
+
+__getattr__ = module_reexport_lookup(
+    {
+        "DynamicRuleManager": "guard_core.sync.handlers.dynamic_rule_handler",
+        "RuleAttribution": "guard_core.sync.handlers._dynamic_rule_attribution",
+    }
+)
+
+_LAZY_STAR_NAMES = (
+    "DynamicRuleManager",
+    "RuleAttribution",
+)
+__all__ = [
+    *(name for name in globals() if not name.startswith("_")),
+    *_LAZY_STAR_NAMES,
+]

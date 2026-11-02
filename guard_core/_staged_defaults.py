@@ -6,6 +6,9 @@ from guard_core._redis_enablement import (
     RedisFieldsConfig,
     redis_connection_field_set_explicitly,
 )
+from guard_core._redis_enablement import (
+    redis_is_configured as redis_is_configured,
+)
 from guard_core._utils.sampling import PerApp, WarnedKeys
 
 logger = logging.getLogger("guard_core.models")

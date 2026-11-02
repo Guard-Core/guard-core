@@ -1,6 +1,7 @@
 import contextvars
 import json
 import logging
+import re as re
 
 from guard_core._lazy_patterns import LazyPatterns, module_attribute_lookup
 from guard_core._utils.pair_value_scan import _bounded_percent_decode

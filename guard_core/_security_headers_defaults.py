@@ -1,3 +1,4 @@
+import copy as copy
 from collections.abc import Mapping
 
 SECURITY_HEADER_NAMES: dict[str, str] = {
