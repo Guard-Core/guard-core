@@ -217,7 +217,7 @@ def is_cloud_ip(self, ip: str, providers: set[str] = _ALL_PROVIDERS) -> bool:
 ```python
 def get_cloud_provider_details(
     self, ip: str, providers: set[str] = _ALL_PROVIDERS
-) -> tuple[str, str] | None
+) -> tuple[str, str] | None: ...
 ```
 
 Same logic as `is_cloud_ip()` but returns a `(provider, network)` tuple on match, or `None`. This is used by the event system to include the matched provider and CIDR block in detection events.

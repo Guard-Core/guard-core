@@ -246,27 +246,28 @@ ___
 Security Pipeline
 -----------------
 
-Guard Core ships a catalogue of 17 security checks, run in this fixed order:
+Guard Core ships a catalogue of 18 security checks, run in this fixed order:
 
 1. Route configuration extraction
 2. Emergency mode
 3. HTTPS enforcement
 4. Request logging
 5. Size/content validation
-6. Required headers
-7. Authentication
-8. Referrer validation
-9. Custom validators
-10. Time windows
-11. Cloud IP refresh
-12. IP security (whitelist/blacklist)
-13. Cloud provider blocking
-14. User agent filtering
-15. Rate limiting
-16. Suspicious activity detection
-17. Custom request checks
+6. Cloud IP refresh
+7. IP security (whitelist/blacklist)
+8. Cloud provider blocking
+9. User agent filtering
+10. CORS preflight
+11. Rate limiting
+12. Required headers
+13. Authentication
+14. Referrer validation
+15. Custom validators
+16. Time windows
+17. Suspicious activity detection
+18. Custom request checks
 
-A deployment's actual pipeline is usually a subset: each check declares an `applies_to(config, route_configs)` classmethod, and only checks whose effective configuration can trigger them are built. `IpSecurityCheck` is never eliminated. A default `SecurityConfig()` with no route decorators registered builds just `route_config`, `ip_security`, `rate_limit`, and `suspicious_activity`. See the [Pipeline Architecture](https://guard-core.github.io/guard-core/latest/architecture/pipeline/) for the elimination rules.
+A deployment's actual pipeline is usually a subset: each check declares an `applies_to(config, route_configs)` classmethod, and only checks whose effective configuration can trigger them are built. `IpSecurityCheck` is never eliminated. A default `SecurityConfig()` with no route decorators registered builds just `route_config`, `ip_security`, `cors_preflight`, `rate_limit`, and `suspicious_activity`. See the [Pipeline Architecture](https://guard-core.github.io/guard-core/latest/architecture/pipeline/) for the elimination rules.
 
 Each check returns `None` (pass) or a `GuardResponse` (block). The pipeline short-circuits on the first blocking response.
 

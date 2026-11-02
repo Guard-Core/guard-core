@@ -109,7 +109,7 @@ def redact_blob_for_display(
     sensitive_params: frozenset[str] | None,
     sensitive_body_fields: frozenset[str] | None,
     sensitive_headers: frozenset[str] | None = None,
-) -> str:
+) -> str: ...
 ```
 
 Parameters:
@@ -137,7 +137,7 @@ def redact_url_for_display(
     sensitive_params: frozenset[str] | None,
     sensitive_body_fields: frozenset[str] | None = None,
     sensitive_headers: frozenset[str] | None = None,
-) -> str:
+) -> str: ...
 ```
 
 Parameters:
@@ -228,7 +228,7 @@ async def detect_penetration_attempt(
     request: GuardRequest,
     config: SecurityConfig | None = None,
     route_config: RouteConfig | None = None,
-) -> DetectionResult
+) -> DetectionResult: ...
 ```
 
 Detect potential penetration attempts in the request using the enhanced Detection Engine.

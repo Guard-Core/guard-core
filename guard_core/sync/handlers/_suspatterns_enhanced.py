@@ -11,11 +11,13 @@ from guard_core.sync.detection_engine import (
     PerformanceMonitor,
     looks_like_binary_content,
 )
+from guard_core.sync.detection_engine.cache_stats import CacheStats
 from guard_core.sync.detection_engine.monitor_reporting import (
     PatternReport,
     PerformanceSummary,
 )
 from guard_core.sync.handlers._suspatterns_lazy_rows import disabled_row_sources_of
+from guard_core.sync.handlers._suspatterns_linear_path import linear_path_cache_stats
 from guard_core.sync.handlers._suspatterns_sources import (
     _DEFAULT_MAX_SCAN_LENGTH,
     _regex_anomaly,
@@ -35,6 +37,7 @@ class PerformanceStats(TypedDict):
     summary: PerformanceSummary
     slow_patterns: list[PatternReport]
     problematic_patterns: list[PatternReport]
+    caches: dict[str, CacheStats]
 
 
 class _SusPatternsEnhancedMixin:
@@ -201,8 +204,22 @@ class _SusPatternsEnhancedMixin:
                 "problematic_patterns": (
                     performance_monitor.get_problematic_patterns()
                 ),
+                "caches": cls.get_cache_stats(),
             }
         return None
+
+    @classmethod
+    def get_cache_stats(cls) -> dict[str, CacheStats]:
+        """Hits, misses, evictions, size and hit rate of every detection cache."""
+        compiler = cls()._detection_state.compiler
+        caches: dict[str, CacheStats] = {}
+        if compiler is not None:
+            caches["compiled_patterns"] = compiler.get_cache_stats()
+            validation = compiler.get_validation_cache_stats()
+            if validation is not None:
+                caches["pattern_validation"] = validation
+        caches["linear_path_patterns"] = linear_path_cache_stats()
+        return caches
 
     @classmethod
     def get_component_status(cls) -> dict[str, bool]:

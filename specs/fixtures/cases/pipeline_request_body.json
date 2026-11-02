@@ -1008,6 +1008,161 @@
           "is_whitelisted": false
         }
       ]
+    },
+    {
+      "id": "regex_queue_wait_answers_503_with_retry_after_and_no_strike",
+      "config": {
+        "fail_secure": true,
+        "detection_compiler_timeout": 2.0
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api",
+          "query_params": {
+            "q": "hello"
+          },
+          "saturate_regex_pool": true
+        },
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api",
+          "query_params": {
+            "q": "hello"
+          }
+        }
+      ],
+      "expected": [
+        {
+          "status": 503,
+          "body": "Service temporarily unavailable",
+          "headers": {
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "SAMEORIGIN",
+            "X-XSS-Protection": "0",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+            "X-Permitted-Cross-Domain-Policies": "none",
+            "X-Download-Options": "noopen",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Resource-Policy": "same-site",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+            "Retry-After": "2"
+          },
+          "is_exempt": false,
+          "is_whitelisted": false,
+          "events": [
+            [
+              "suspicious_request",
+              "request_blocked"
+            ]
+          ],
+          "on_block": [
+            {
+              "check_name": "suspicious_activity",
+              "reason": "Request scan waited for a regex worker for IP: 192.0.2.10 (surface: query)",
+              "trigger_info": "no regex worker took the scan within 2.0 s, so the request was not fully scanned",
+              "passive_mode": false,
+              "client_ip": "192.0.2.10",
+              "path": "/api",
+              "method": "GET",
+              "status_code": 503
+            }
+          ]
+        },
+        {
+          "status": null,
+          "is_exempt": false,
+          "is_whitelisted": false
+        }
+      ],
+      "custom_patterns": [
+        "[xyz]7"
+      ]
+    },
+    {
+      "id": "regex_queue_wait_passes_with_an_event_when_fail_secure_is_off",
+      "config": {
+        "fail_secure": false,
+        "detection_compiler_timeout": 2.0
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api",
+          "query_params": {
+            "q": "hello"
+          },
+          "saturate_regex_pool": true
+        }
+      ],
+      "expected": [
+        {
+          "status": null,
+          "is_exempt": false,
+          "is_whitelisted": false,
+          "events": [
+            [
+              "suspicious_request",
+              "logged_only"
+            ]
+          ]
+        }
+      ],
+      "custom_patterns": [
+        "[xyz]7"
+      ]
+    },
+    {
+      "id": "regex_queue_wait_passes_with_an_event_in_passive_mode",
+      "config": {
+        "passive_mode": true,
+        "detection_compiler_timeout": 2.0
+      },
+      "geo_countries": {},
+      "routes": {},
+      "drives": [
+        {
+          "client_ip": "192.0.2.10",
+          "url_path": "/api",
+          "query_params": {
+            "q": "hello"
+          },
+          "saturate_regex_pool": true
+        }
+      ],
+      "expected": [
+        {
+          "status": null,
+          "is_exempt": false,
+          "is_whitelisted": false,
+          "events": [
+            [
+              "suspicious_request",
+              "logged_only"
+            ]
+          ],
+          "on_block": [
+            {
+              "check_name": "suspicious_activity",
+              "reason": "Request scan waited for a regex worker for IP: 192.0.2.10 (surface: query)",
+              "trigger_info": "no regex worker took the scan within 2.0 s, so the request was not fully scanned",
+              "passive_mode": true,
+              "client_ip": "192.0.2.10",
+              "path": "/api",
+              "method": "GET",
+              "status_code": null
+            }
+          ]
+        }
+      ],
+      "custom_patterns": [
+        "[xyz]7"
+      ]
     }
   ]
 }

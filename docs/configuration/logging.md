@@ -103,7 +103,7 @@ The `setup_custom_logging()` function initializes the guard-core logger:
 def setup_custom_logging(
     log_file: str | None = None,
     log_format: str = "text",
-) -> logging.Logger
+) -> logging.Logger: ...
 ```
 
 This is called internally by the middleware during initialization. It:
@@ -146,7 +146,7 @@ async def log_activity(
     on_block: Callable[[GuardRequest, dict[str, Any]], Any] | None = None,
     sensitive_headers: frozenset[str] | None = None,
     sensitive_params: frozenset[str] | None = None,
-) -> None
+) -> None: ...
 ```
 
 **Log types and their message formats**:

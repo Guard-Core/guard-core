@@ -8,11 +8,13 @@ import time
 from collections.abc import Callable
 from typing import TypeVar
 
-from guard_core.exceptions import BodyReadFailedError
+from guard_core.exceptions import RegexQueueWaitError
 from guard_core.sync._utils._scan_outcomes import (
     SCAN_OUTCOME_QUEUE_WAIT,
     SCAN_OUTCOME_RUN_TIMEOUT,
 )
+from guard_core.sync._utils.detection_config import _DEFAULT_MAX_SCAN_SECONDS
+from guard_core.sync._utils.detection_scan import _scan_time_cap
 from guard_core.sync._utils.pattern_source_redaction import _SensitiveNameSets
 from guard_core.sync.detection_engine import _validation_cache
 from guard_core.sync.detection_engine._redos_cost_arbiter import (
@@ -25,6 +27,7 @@ from guard_core.sync.detection_engine._redos_structural_prefilters import (
     _dangerous_construct_violation,
     _first_structural_safety_violation,
 )
+from guard_core.sync.detection_engine.cache_stats import CacheStats, build_cache_stats
 
 logger = logging.getLogger("guard_core.sync.detection_engine.compiler")
 
@@ -69,10 +72,11 @@ class RegexQueueWaitExpired(Exception):
     """No worker took the scan within its bound: the pattern never ran."""
 
 
-def no_regex_worker_time(waited: float) -> BodyReadFailedError:
-    return BodyReadFailedError(
+def no_regex_worker_time(waited: float) -> RegexQueueWaitError:
+    return RegexQueueWaitError(
         f"no regex worker took the scan within {waited} s, so the request was not "
-        "fully scanned"
+        "fully scanned",
+        waited,
     )
 
 
@@ -105,39 +109,57 @@ def submit_to_regex_executor(
     return (executor or shared_regex_executor()).submit(run), started
 
 
+def wall_backstop(timeout: float) -> float:
+    """The wall time a started scan may take before it is cut: the request's scan
+    cap (``detection_max_scan_seconds``), never less than the CPU bound. A started
+    scan is judged by the CPU it used (a worker starved of the GIL by busy request
+    threads is slow, not expensive); the wall time only stops a scan that never
+    ends."""
+    cap = _scan_time_cap.get()
+    return max(timeout, _DEFAULT_MAX_SCAN_SECONDS if cap is None else cap)
+
+
 def _run_budget_left(
     future: concurrent.futures.Future[_Result],
     started: list[float],
     timeout: float,
     expired: BaseException,
+    backstop: float | None = None,
 ) -> float:
     """The run budget a scan has left once its first wait of ``timeout`` ended.
 
     A future that finished with an error of its own, or a worker that started, is
-    judged by its own run; a worker that never started gets
-    RegexQueueWaitExpired.
+    judged by its own run (up to ``backstop`` of wall time when one is given); a
+    worker that never started gets RegexQueueWaitExpired.
     """
     if not started and (future.cancelled() or future.cancel()):
         raise RegexQueueWaitExpired() from expired
     if future.done():
         raise expired
-    return max(timeout - (time.monotonic() - (started or [time.monotonic()])[0]), 0.0)
+    allowed = timeout if backstop is None else backstop
+    return max(allowed - (time.monotonic() - (started or [time.monotonic()])[0]), 0.0)
 
 
 def wait_for_regex_run(
-    future: concurrent.futures.Future[_Result], started: list[float], timeout: float
+    future: concurrent.futures.Future[_Result],
+    started: list[float],
+    timeout: float,
+    backstop: float | None = None,
 ) -> _Result:
     try:
         return future.result(timeout=timeout)
     except concurrent.futures.TimeoutError as exc:
-        left = _run_budget_left(future, started, timeout, exc)
+        left = _run_budget_left(future, started, timeout, exc, backstop)
     return future.result(timeout=left)
 
 
 def _await_regex_future(
-    future: concurrent.futures.Future[_Result], started: list[float], timeout: float
+    future: concurrent.futures.Future[_Result],
+    started: list[float],
+    timeout: float,
+    backstop: float | None = None,
 ) -> _Result:
-    return wait_for_regex_run(future, started, timeout)
+    return wait_for_regex_run(future, started, timeout, backstop)
 
 
 def _yield_to_event_loop() -> None:
@@ -189,36 +211,79 @@ class PatternCompiler:
         self.max_cache_size = min(max_cache_size, 5000)
         self._compiled_cache: dict[str, re.Pattern] = {}
         self._cache_order: list[str] = []
+        self._compiled_sets: dict[
+            tuple[str, ...], tuple[tuple[str, re.Pattern], ...]
+        ] = {}
+        self._cache_hits = 0
+        self._cache_misses = 0
+        self._cache_evictions = 0
         self._lock = threading.Lock()
+        self._cache_guard = threading.Lock()
         self._validation_cache = validation_cache
+
+    def _recall_compiled(self, cache_key: str, *, promote: bool) -> re.Pattern | None:
+        with self._cache_guard:
+            compiled = self._compiled_cache.get(cache_key)
+            if compiled is not None:
+                self._cache_hits += 1
+                if promote:
+                    self._cache_order.remove(cache_key)
+                    self._cache_order.append(cache_key)
+            return compiled
+
+    def _remember_compiled(self, cache_key: str, compiled: re.Pattern) -> re.Pattern:
+        with self._cache_guard:
+            known = self._compiled_cache.get(cache_key)
+            if known is not None:
+                self._cache_hits += 1
+                return known
+            self._cache_misses += 1
+            if len(self._compiled_cache) >= self.max_cache_size:
+                oldest_key = self._cache_order.pop(0)
+                del self._compiled_cache[oldest_key]
+                self._cache_evictions += 1
+            self._compiled_cache[cache_key] = compiled
+            self._cache_order.append(cache_key)
+            return compiled
 
     def compile_pattern(
         self, pattern: str, flags: int = re.IGNORECASE | re.MULTILINE
     ) -> re.Pattern:
         cache_key = f"{pattern}:{flags}"
-
-        if cache_key in self._compiled_cache:
-            with self._lock:
-                if cache_key in self._compiled_cache:
-                    self._cache_order.remove(cache_key)
-                    self._cache_order.append(cache_key)
-                    return self._compiled_cache[cache_key]
-
+        cached = self._recall_compiled(cache_key, promote=True)
+        if cached is not None:
+            return cached
         with self._lock:
-            if cache_key not in self._compiled_cache:
-                if len(self._compiled_cache) >= self.max_cache_size:
-                    oldest_key = self._cache_order.pop(0)
-                    del self._compiled_cache[oldest_key]
-
-                self._compiled_cache[cache_key] = re.compile(pattern, flags)
-                self._cache_order.append(cache_key)
-
-            return self._compiled_cache[cache_key]
+            return self._remember_compiled(cache_key, re.compile(pattern, flags))
 
     def compile_pattern_sync(
         self, pattern: str, flags: int = re.IGNORECASE | re.MULTILINE
     ) -> re.Pattern:
-        return re.compile(pattern, flags)
+        cache_key = f"{pattern}:{flags}"
+        cached = self._recall_compiled(cache_key, promote=False)
+        if cached is not None:
+            return cached
+        return self._remember_compiled(cache_key, re.compile(pattern, flags))
+
+    def compile_pattern_set_sync(
+        self, patterns: list[str]
+    ) -> tuple[tuple[str, re.Pattern], ...]:
+        """Compile a list of patterns that is looked up on every request (the
+        blocked user agents) with one lookup. A repeat counts one hit per pattern."""
+        key = tuple(patterns)
+        with self._cache_guard:
+            known = self._compiled_sets.get(key)
+            if known is not None:
+                self._cache_hits += len(known)
+                return known
+        compiled = tuple(
+            (pattern, self.compile_pattern_sync(pattern)) for pattern in key
+        )
+        with self._cache_guard:
+            if len(self._compiled_sets) >= self.max_cache_size:
+                del self._compiled_sets[next(iter(self._compiled_sets))]
+            self._compiled_sets[key] = compiled
+        return compiled
 
     def validate_pattern_safety(
         self,
@@ -326,7 +391,7 @@ class PatternCompiler:
             )
             try:
                 result: list[re.Match] = wait_for_regex_run(
-                    future, started, match_timeout
+                    future, started, match_timeout, wall_backstop(match_timeout)
                 )
                 report_scan_success()
                 ran_past_budget = sum(worker_cpu) >= 0.9 * match_timeout
@@ -401,7 +466,23 @@ class PatternCompiler:
                 continue
         return compiled_patterns
 
+    def get_cache_stats(self) -> CacheStats:
+        return build_cache_stats(
+            self._cache_hits,
+            self._cache_misses,
+            self._cache_evictions,
+            len(self._compiled_cache),
+            self.max_cache_size,
+        )
+
+    def get_validation_cache_stats(self) -> CacheStats | None:
+        if self._validation_cache is None:
+            return None
+        return self._validation_cache.get_cache_stats()
+
     def clear_cache(self) -> None:
         with self._lock:
-            self._compiled_cache.clear()
-            self._cache_order.clear()
+            with self._cache_guard:
+                self._compiled_cache.clear()
+                self._cache_order.clear()
+                self._compiled_sets.clear()

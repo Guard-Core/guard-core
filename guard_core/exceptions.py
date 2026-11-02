@@ -75,6 +75,22 @@ class BodyReadFailedError(GuardCoreError):
         super().__init__(detail)
 
 
+class RegexQueueWaitError(BodyReadFailedError):
+    """No regex worker took a scan within ``detection_compiler_timeout``.
+
+    The request was not fully scanned because the shared pool was busy, not
+    because its body could not be read. Every handler of ``BodyReadFailedError``
+    still catches it; guard-core answers 503 with ``Retry-After``, no strike.
+    ``surface`` names what was being scanned when the wait ended: ``"url path"``,
+    ``"query"``, ``"header"`` or ``"body field"`` (``None`` until known).
+    """
+
+    def __init__(self, detail: str, waited: float) -> None:
+        self.waited = waited
+        self.surface: str | None = None
+        super().__init__(detail)
+
+
 class ResponseBodyUnavailableError(AttributeError):
     """``.body`` of the response a ``custom_response_modifier`` received is unavailable.
 

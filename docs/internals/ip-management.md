@@ -183,7 +183,7 @@ async def extract_client_ip(
     request: GuardRequest,
     config: SecurityConfig,
     agent_handler: AgentHandlerProtocol | None = None,
-) -> str
+) -> str: ...
 ```
 
 When no client address can be resolved, `extract_client_ip` returns the sentinel `UNKNOWN_CLIENT_IDENTITY` (value `"unknown"`), exported from `guard_core.utils` and mirrored at `guard_core.sync.utils`. Every `"unknown"` reference below is that same sentinel; compare against the constant rather than the literal string.
@@ -265,7 +265,8 @@ The `check_route_ip_access()` helper in `guard_core.core.checks.helpers` evaluat
 
 ```python
 async def check_route_ip_access(client_ip, route_config, middleware) -> bool | None:
-```
+
+    ...```
 
 **Returns**:
 

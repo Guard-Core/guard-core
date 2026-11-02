@@ -737,7 +737,7 @@ def _scan_blob_body(
 
 
 def _scan_request_body(
-    raw_body: str,
+    raw_body: str | bytes,
     content_type: str,
     excluded_body_fields: set[str],
     enabled_categories: set[str] | None,
@@ -750,19 +750,8 @@ def _scan_request_body(
     patterns: "SusPatternsManager | None" = None,
 ) -> tuple[bool, str, list[dict]]:
     lowered = content_type.lower()
-    if "application/x-www-form-urlencoded" in lowered:
-        return _scan_form_body(
-            raw_body,
-            excluded_body_fields,
-            enabled_categories,
-            client_ip,
-            correlation_id,
-            log_level,
-            sensitive_body_fields,
-            sensitive_params,
-            patterns=patterns,
-        )
-    if "multipart/form-data" in lowered:
+    is_form = "application/x-www-form-urlencoded" in lowered
+    if not is_form and "multipart/form-data" in lowered:
         return _scan_multipart_body(
             raw_body,
             content_type,
@@ -775,7 +764,20 @@ def _scan_request_body(
             sensitive_params,
             patterns=patterns,
         )
-
+    if isinstance(raw_body, bytes):
+        raw_body = raw_body.decode("utf-8", errors="surrogateescape")
+    if is_form:
+        return _scan_form_body(
+            raw_body,
+            excluded_body_fields,
+            enabled_categories,
+            client_ip,
+            correlation_id,
+            log_level,
+            sensitive_body_fields,
+            sensitive_params,
+            patterns=patterns,
+        )
     if "json" in lowered:
         json_hit = _scan_json_content(
             raw_body,

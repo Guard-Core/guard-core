@@ -62,13 +62,22 @@ Manages regex pattern compilation with LRU caching and ReDoS safety validation.
 ### Constructor
 
 ```python
-PatternCompiler(default_timeout: float = 5.0, max_cache_size: int = 1000)
+class PatternCompiler:
+    def __init__(
+        self,
+        default_timeout: float = 5.0,
+        max_cache_size: int = 1000,
+        validation_cache: PatternValidationCache | None = None,
+        redaction_names: _SensitiveNameSets | None = None,
+    ) -> None: ...
 ```
 
 | Parameter         | Description                                        | Bounds          |
 |-------------------|----------------------------------------------------|-----------------|
 | `default_timeout` | Timeout for safe matchers in seconds               | N/A             |
 | `max_cache_size`  | Maximum compiled patterns to cache                 | Capped at 5000  |
+| `validation_cache` | Optional on-disk cache of pattern validation results (`detection_pattern_validation_cache_path`) | N/A |
+| `redaction_names` | Sensitive names the compiler redacts from pattern sources in logs and reports | N/A |
 
 ### Key Methods
 
@@ -80,16 +89,17 @@ Thread-safe compilation with LRU eviction. Cache key is `f"{pattern}:{flags}"`.
 
 Synchronous compilation without caching. Used internally by validators and safe matchers.
 
-**`validate_pattern_safety(pattern, test_strings) -> tuple[bool, str]`**
+**`validate_pattern_safety(pattern, test_strings=None, max_content_length=None, flags=...) -> tuple[bool, str]`**
 
 Validates a pattern against ReDoS vulnerability:
 
-1. Checks for known dangerous constructs: `(.*)+`, `(.+)+`, nested quantifiers.
-2. Runs the pattern against test strings (default: varying lengths of `'a'`, `'x'+'y'`, `'<'+'>'`) on a dedicated single-worker `validation_regex_executor()`, isolated from the shared `shared_regex_executor()` scan pool used for live request matching, so a busy scan pool can no longer starve or falsely fail a validation probe.
-3. Elapsed time is measured *inside* the submitted callable, i.e. execution time only, not time spent queued behind other probes. The outer `future.result(timeout=1.0)` call bounds total wait to 1.0s, but the pattern is flagged unsafe as soon as a probe's own execution exceeds the stricter 50ms threshold.
-4. Any timeout (queue-bound or per-probe), exception, or a probe over 50ms rejects the pattern, validation is fail-closed.
+1. Rejects known dangerous constructs: `(.*)+`, `(.+)+`, nested quantifiers.
+2. Compiles the pattern with `compile_pattern_sync()`; a pattern that does not compile is rejected.
+3. With `test_strings`, applies the structural check (a broad scan such as `.*` whose terminator cannot be reached by repeating its own prefix is rejected) and times the pattern against those strings in a child Python process; a probe over 50ms rejects it.
+4. Without `test_strings`, builds adversarial inputs that reach the pattern, times them and extrapolates the CPU time at `max_content_length` (default cap 262144 characters). A pattern whose extrapolated cost exceeds the 0.05s budget is rejected. The verdict is cached on disk when `detection_pattern_validation_cache_path` is set.
+5. A timeout, an exception or an over-budget probe rejects the pattern, validation is fail-closed.
 
-`SusPatternsManager.add_pattern` (the async API used by Redis custom-pattern restore and dynamic-rule pattern pushes) runs this validation via `asyncio.to_thread`, so up to ~1s of ReDoS probing never blocks the event loop. The sync API's `add_pattern` calls `validate_pattern_safety` directly on the calling thread.
+`SusPatternsManager.add_pattern` (the async API used by Redis custom-pattern restore and dynamic-rule pattern pushes) runs this validation via `asyncio.to_thread` with `max_content_length` set to the configured scan window, so the probing never blocks the event loop. The sync API's `add_pattern` calls `validate_pattern_safety` directly on the calling thread.
 
 **`create_safe_matcher(pattern, timeout) -> Callable[[str], Match | None]`**
 
@@ -116,12 +126,15 @@ Normalizes and sanitizes input before pattern matching.
 ### Constructor
 
 ```python
-ContentPreprocessor(
-    max_content_length: int = 10000,
-    preserve_attack_patterns: bool = True,
-    agent_handler: Any = None,
-    correlation_id: str | None = None,
-)
+class ContentPreprocessor:
+    def __init__(
+        self,
+        max_content_length: int = 10000,
+        preserve_attack_patterns: bool = True,
+        agent_handler: AgentHandlerProtocol | None = None,
+        correlation_id: str | None = None,
+        max_full_scan_bytes: int | None = None,
+    ) -> None: ...
 ```
 
 ### Preprocessing Pipeline
@@ -131,7 +144,7 @@ The `preprocess()` method runs five stages in order:
 | Stage                       | Method                      | Purpose                                          |
 |-----------------------------|-----------------------------|--------------------------------------------------|
 | Unicode normalization       | `normalize_unicode()`       | NFKC normalization + lookalike character replacement |
-| Encoding detection          | `decode_common_encodings()` | URL decode + HTML entity decode (up to 3 iterations) |
+| Encoding detection          | `decode_common_encodings()` | Decodes overlong UTF-8, percent, HTML entity, `%u`, hex, octal, UTF-7, LDAP hex, Unicode escape and base64 (including gzip) layers, repeated up to 16 passes |
 | Null byte removal           | `remove_null_bytes()`       | Strips `\x00` and control characters except tab/newline/CR |
 | Whitespace normalization    | `remove_excessive_whitespace()` | Collapses multiple spaces, strips leading/trailing |
 | Safe truncation             | `truncate_safely()`         | Truncates to `max_content_length` preserving attack regions |
@@ -170,7 +183,7 @@ Performs structural and statistical analysis of content to detect attacks that e
 ### Attack Probability Analysis
 
 ```python
-def analyze_attack_probability(self, content: str) -> dict[str, float]
+def analyze_attack_probability(self, content: str) -> dict[str, float]: ...
 ```
 
 Returns a dictionary mapping attack types to probability scores (0.0 - 1.0):
@@ -188,7 +201,7 @@ The score is computed as: `min(keyword_match_ratio + structural_boost, 1.0)`.
 ### Entropy Calculation
 
 ```python
-def calculate_entropy(self, content: str) -> float
+def calculate_entropy(self, content: str) -> float: ...
 ```
 
 Shannon entropy of the character distribution. High entropy (> 4.5) indicates potential obfuscation or encoded payloads.
@@ -213,7 +226,7 @@ Shannon entropy of the character distribution. High entropy (> 4.5) indicates po
 ### Threat Score
 
 ```python
-def get_threat_score(self, analysis_results: dict) -> float
+def get_threat_score(self, analysis_results: dict) -> float: ...
 ```
 
 Aggregates all analysis results into a single 0.0 - 1.0 score:
@@ -236,22 +249,28 @@ Tracks pattern execution performance and detects anomalies.
 ### Constructor
 
 ```python
-PerformanceMonitor(
-    anomaly_threshold: float = 3.0,
-    slow_pattern_threshold: float = 0.1,
-    history_size: int = 1000,
-    max_tracked_patterns: int = 1000,
-    anomaly_emission_cooldown: float = 60.0,
-)
+class PerformanceMonitor:
+    def __init__(
+        self,
+        anomaly_threshold: float = 3.0,
+        slow_pattern_threshold: float = 0.1,
+        history_size: int = 1000,
+        max_tracked_patterns: int = 1000,
+        anomaly_emission_cooldown: float = 60.0,
+        min_samples_for_anomaly: int = 30,
+        redaction_names: _SensitiveNameSets | None = None,
+    ) -> None: ...
 ```
 
 | Parameter                    | Description                                     | Bounds       |
 |-------------------------------|-------------------------------------------------|--------------|
 | `anomaly_threshold`           | Z-score threshold for statistical anomalies     | 1.0 - 10.0  |
-| `slow_pattern_threshold`      | Seconds to consider a pattern slow              | 0.01 - 10.0 |
+| `slow_pattern_threshold`      | Seconds to consider a pattern slow              | 0.01 - 1.0  |
 | `history_size`                | Recent metrics to retain                        | 100 - 10,000 |
 | `max_tracked_patterns`        | Maximum unique patterns to track                | 100 - 5,000  |
 | `anomaly_emission_cooldown`   | Seconds a pattern must wait before it can emit another anomaly event | 1.0 - 3,600.0 |
+| `min_samples_for_anomaly`     | Samples recorded for a pattern before statistical-anomaly detection engages | 10 - 1,000 |
+| `redaction_names`             | Sensitive names redacted from pattern sources in anomaly events | N/A |
 
 ### Metric Recording
 

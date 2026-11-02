@@ -49,7 +49,7 @@ async def send_middleware_event(
     action_taken: str,
     reason: str,
     **kwargs: Any,
-) -> None
+) -> None: ...
 ```
 
 This is the primary method called by security checks and internal components. It:
@@ -90,7 +90,7 @@ These are the `event_type` strings used throughout guard-core:
 ```python
 async def send_https_violation_event(
     self, request: GuardRequest, route_config: RouteConfig | None
-) -> None
+) -> None: ...
 ```
 
 Dispatches either a `decorator_violation` event (when the route specifically requires HTTPS via decorator) or an `https_enforced` event (when global HTTPS enforcement is active). Includes the original scheme and redirect URL in the event metadata.
@@ -106,7 +106,7 @@ async def send_cloud_detection_events(
     route_config: RouteConfig | None,
     cloud_handler: Any,
     passive_mode: bool,
-) -> None
+) -> None: ...
 ```
 
 Dispatches cloud provider detection events. Resolves which specific cloud provider and network the IP belongs to, then emits events both from the cloud handler (with provider details) and from the event bus (with decorator violation metadata if applicable).
@@ -158,7 +158,7 @@ metrics = MetricsCollector(
 ```python
 async def send_metric(
     self, metric_type: str, value: float, tags: dict[str, str] | None = None
-) -> None
+) -> None: ...
 ```
 
 Constructs a `SecurityMetric` object and sends it to the agent. No-ops when agent is disabled or `config.agent_enable_metrics` is `False`.
@@ -168,7 +168,7 @@ Constructs a `SecurityMetric` object and sends it to the agent. No-ops when agen
 ```python
 async def collect_request_metrics(
     self, request: GuardRequest, response_time: float, status_code: int
-) -> None
+) -> None: ...
 ```
 
 Called by `ErrorResponseFactory.process_response()` after the request handler completes. Emits three metrics:

@@ -220,7 +220,7 @@ These fields tune cold-start and horizontal-scale behaviour for the geo-IP and c
 | `block_empty_user_agent` | `bool` | `False` | Block a request whose `User-Agent` header is absent, empty or blank as a global user-agent denial: 403 `User-Agent not allowed`, a `user_agent_blocked` event (`filter_type="global"`) and, under `ban_on_hostile_signals`, a `user_agent` strike. Without it an empty header passes unless a `blocked_user_agents` pattern such as `^$` matches it. Off by default because some legitimate clients and health probes send no `User-Agent`. |
 | `flag_bare_union_select` | `bool` | `True` | Flag a scanned value that is only `UNION SELECT` or `UNION ALL SELECT` (nothing else; spaces, a leading slash, and a trailing `;`, `#`, NUL or `/* */` comment are allowed around it) as `sqli`. On by default since 5.0.0, as v4.4.0 flagged it. `False` turns off only this row, for every parameter of the app, and gives the 5.0.0 head from before this row (351 of the 354 UNION lines of the public SQLi corpus; v4.4.0 flags all 354); it does not restore any 4.x behaviour. The row is anchored on the whole value, so prose that contains the words (`how to union select two tables`) is never flagged. A free-text field that must accept the bare words as a benign value (a search box with `q=union select`) is better opted out per parameter: `excluded_detection_params={"q": ["sqli"]}` drops every sqli row on that parameter, so `1' UNION SELECT password FROM users--` on `q` is clean too, while `flag_bare_union_select=False` drops only this row but for every parameter. Neither restores the 4.x behaviour. |
 | `whitelist_access_only` | `bool` | `True` | Make the global `whitelist` access-only. On since 5.0.0: the whitelist only admits the IP, which is then rate limited, user-agent and cloud checked and scanned for attacks like any other client (`request.state.is_whitelisted` is `False`, `request.state.whitelist_entry` names the matching entry), collects hostile-signal strikes and identity escalation, and a whitelisted address or CIDR can be banned, the ban being enforced. Hosts that need the skips belong in `exempt_ips`, which keeps skipping rate limiting, the user-agent check and the cloud-provider check. Emergency mode keeps its own whitelist. Pass `whitelist_access_only=False` to restore the old behavior: a whitelisted IP also skips rate limiting, the user-agent check, the cloud-provider check and attack detection (`request.state.is_whitelisted` is `True` for it). |
-| `banned_ips_max_entries` | `int` | `100000` | Cap on the bans one process keeps in memory (addresses and grouped identities), `>= 1`, about 25 MiB when full. At the cap the ban closest to expiry is evicted first; the first and every hundredth unexpired eviction is logged as a WARNING, and every eviction of a ban with no Redis copy (held in memory only) is sent as an `ip_ban_evicted` event (identity, remaining seconds, eviction count, capacity). With Redis the bans themselves are not capped, only each worker's in-memory copy. |
+| `banned_ips_max_entries` | `int` | `100000` | Cap on the bans one process keeps in memory (addresses and grouped identities), `>= 1`, about 23 MiB of Python heap when full (measured on 5.0.0 with `python -m perf_gate.ban_store_memory`). At the cap the ban closest to expiry is evicted first; the first and every hundredth unexpired eviction is logged as a WARNING, and every eviction of a ban with no Redis copy (held in memory only) is sent as an `ip_ban_evicted` event (identity, remaining seconds, eviction count, capacity). With Redis the bans themselves are not capped, only each worker's in-memory copy. |
 | `enable_recidive` | `bool` | `False` | Lengthen the automatic ban of a client that is banned again inside `recidive_window`. The k-th earlier ban in the window multiplies the duration by `recidive_factor ** k`, capped at `recidive_max_duration` and never below the duration the ban asked for. Counts the bans the automatic engine applies (threshold bans and behavioral rule bans) to an address or a grouped IPv6 identity; operator CIDR bans, dynamic-rule bans and manual `ban_ip` calls neither escalate nor count. The `ip_banned` event and the ban log carry the applied duration and the count. |
 | `recidive_factor` | `float` | `2.0` | Multiplier per earlier ban, `> 1`. |
 | `recidive_window` | `int` | `86400` | Seconds a ban counts toward the next one, measured from the end of the last ban. Any unban of the client clears the history; a natural expiry keeps it for the window. Redis key `{redis_prefix}recidive:<identity>`. |
@@ -276,8 +276,12 @@ geo_status = ip_info_manager.get_status()
 Combined cloud + geo-IP payload, for a warmup probe or health endpoint, read it through your adapter rather than reconstructing `HandlerInitializer` yourself (fastapi-guard):
 
 ```python
+from fastapi import FastAPI
+from guard import SecurityMiddleware
 from guard.status import add_status_route
 
+app = FastAPI()
+app.add_middleware(SecurityMiddleware, config=config)
 add_status_route(app, path="/_guard/status")  # GET /_guard/status -> combined payload
 # or, in-process: security_middleware.get_initialization_status()
 # {
@@ -562,3 +566,22 @@ Validators
 
 !!! warning "Unknown provider names raise"
     `validate_cloud_providers` rejects a `block_cloud_providers` entry whose provider name (the part before an optional `:!region` suffix) is not `"AWS"`, `"GCP"`, or `"Azure"`. `{"AWS", "InvalidProvider"}` raises `ValueError` naming `InvalidProvider` instead of silently blocking only `"AWS"`.
+
+___
+
+JSON Serialization and Schema
+-----------------------------
+
+`SecurityConfig` dumps to JSON and describes itself with a JSON schema, for a default config and for one with every field set:
+
+```python
+import json
+
+from guard_core.models import SecurityConfig
+
+config = SecurityConfig()
+dumped = json.loads(config.model_dump_json(indent=2))
+schema = SecurityConfig.model_json_schema()
+```
+
+`threat_ban_config` is dumped as a mapping of category to its `threshold` and `duration`. The fields that hold an object (`geo_ip_handler`, `cloud_ip_store`, `custom_request_check`, `custom_response_modifier`, `auth_verifier`, `on_error` and `on_block`) are dumped as the dotted module and qualified name of that object, or `null` when unset, so a secret held by a handler never reaches the JSON, and their schema is a string or `null`. `model_dump()` still returns the live objects, and a dump with one of those seven set cannot be validated back with `model_validate_json`, because a name is not a callable or a handler.

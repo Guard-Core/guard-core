@@ -492,7 +492,12 @@ def test_custom_category_timeout_uses_configured_compiler_timeout(
 
     waited: list[float] = []
 
-    def _run_past_the_budget(future: object, started: object, timeout: float) -> None:
+    def _run_past_the_budget(
+        future: object,
+        started: object,
+        timeout: float,
+        backstop: float | None = None,
+    ) -> None:
         waited.append(timeout)
         raise concurrent.futures.TimeoutError()
 

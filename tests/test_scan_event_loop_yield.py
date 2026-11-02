@@ -61,7 +61,15 @@ async def test_await_regex_future_timeout_is_concurrent_timeout() -> None:
         release.set()
 
 
-async def test_other_tasks_run_between_patterns_during_a_scan() -> None:
+async def test_a_windowed_row_runs_inline_and_never_submits_to_the_pool(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from guard_core.handlers import _suspatterns_regex
+
+    def no_pool(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("a windowed row must not use the regex pool")
+
+    monkeypatch.setattr(_suspatterns_regex, "submit_to_regex_executor", no_pool)
     manager = SusPatternsManager()
     manager.configure(SecurityConfig())
     patterns = await manager.get_all_compiled_patterns()
@@ -76,14 +84,13 @@ async def test_other_tasks_run_between_patterns_during_a_scan() -> None:
         ran.append("other")
 
     other = asyncio.create_task(other_request())
-    start_count = len(ran)
 
-    await manager._check_regex_pattern(
-        windowed[0], "hello world", "127.0.0.1", 0.0, "sqli"
+    result = await manager._check_regex_pattern(
+        windowed[0], "hello world", "127.0.0.1", time.monotonic(), "sqli"
     )
 
-    assert start_count == 0
-    assert ran == ["other"]
+    assert result == (None, False)
+    assert ran == []
     await other
 
 

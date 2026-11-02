@@ -140,7 +140,7 @@ Iterates over rules where `rule_type` is `"return_pattern"`. Checks if the respo
 ### Endpoint ID Resolution
 
 ```python
-def get_endpoint_id(self, request: GuardRequest) -> str
+def get_endpoint_id(self, request: GuardRequest) -> str: ...
 ```
 
 Resolves the endpoint identifier from the request:

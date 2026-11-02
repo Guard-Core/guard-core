@@ -27,6 +27,8 @@ from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _version
 from pathlib import Path
 
+from guard_core.detection_engine.cache_stats import CacheStats, build_cache_stats
+
 logger = logging.getLogger("guard_core.detection_engine._validation_cache")
 
 
@@ -110,6 +112,8 @@ class PatternValidationCache:
         self._path = Path(path)
         self._lock = threading.Lock()
         self._entries: dict[str, dict[str, object]] = {}
+        self._hits = 0
+        self._misses = 0
         self._validator_tag = _validator_tag()
         self._engine_version = _cached_engine_version()
         self._trusted = _is_trusted_location(self._path)
@@ -156,9 +160,19 @@ class PatternValidationCache:
             return None
         with self._lock:
             entry = self._entries.get(self._key(pattern, flags, cap))
+            if entry is None:
+                self._misses += 1
+            else:
+                self._hits += 1
         if entry is None:
             return None
         return bool(entry["safe"]), str(entry["reason"])
+
+    def get_cache_stats(self) -> CacheStats:
+        with self._lock:
+            return build_cache_stats(
+                self._hits, self._misses, 0, len(self._entries), None
+            )
 
     def put(self, pattern: str, flags: int, cap: int, safe: bool, reason: str) -> None:
         if not self._trusted:

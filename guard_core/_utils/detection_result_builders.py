@@ -1,9 +1,11 @@
 from guard_core._utils.logging_utils import _sanitize_for_reporting
 from guard_core.detection_result import (
     BODY_READ_FAILED,
+    BODY_READ_QUEUE_WAIT,
     BODY_READ_STALLED,
     DetectionResult,
 )
+from guard_core.exceptions import BodyReadFailedError, RegexQueueWaitError
 
 
 def _threat_category(threat: dict) -> str | None:
@@ -59,3 +61,20 @@ def _build_body_read_error(stalled: bool, detail: str) -> DetectionResult:
         body_read_error=BODY_READ_STALLED if stalled else BODY_READ_FAILED,
         body_read_detail=_sanitize_for_reporting(detail),
     )
+
+
+def _build_queue_wait_error(error: RegexQueueWaitError) -> DetectionResult:
+    return DetectionResult(
+        is_threat=False,
+        trigger_info="",
+        body_read_error=BODY_READ_QUEUE_WAIT,
+        body_read_detail=_sanitize_for_reporting(error.detail),
+        queue_wait_seconds=error.waited,
+        queue_wait_surface=error.surface,
+    )
+
+
+def _build_read_error_of(error: BodyReadFailedError) -> DetectionResult:
+    if isinstance(error, RegexQueueWaitError):
+        return _build_queue_wait_error(error)
+    return _build_body_read_error(False, error.detail)

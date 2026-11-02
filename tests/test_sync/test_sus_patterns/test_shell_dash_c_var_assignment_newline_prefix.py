@@ -1,4 +1,3 @@
-import concurrent.futures
 import multiprocessing as mp
 import re
 import time
@@ -132,22 +131,21 @@ def test_check_windowed_pattern_timeout_returns_none_and_logs() -> None:
     def _finder(_content: str) -> Iterator[re.Match[str]]:
         yield from ()
 
-    with patch(
-        "guard_core.sync.handlers._suspatterns_regex.shared_regex_executor"
-    ) as mock_shared_executor:
-        mock_future: concurrent.futures.Future[None] = concurrent.futures.Future()
-        mock_future.set_exception(concurrent.futures.TimeoutError())
-        mock_shared_executor.return_value.submit.return_value = mock_future
-
-        with patch("guard_core.sync.handlers._suspatterns_regex.logger") as mock_logger:
-            threat, timed_out = sus_patterns_handler._check_windowed_pattern(
-                _CMD_INJECTION_NEWLINE_SHELL_DASH_C_COMPILED_RE,
-                _finder,
-                "\nA=B sh -c id",
-                time.monotonic(),
-                "cmd_injection",
-                "unknown",
-            )
+    with (
+        patch(
+            "guard_core.sync.handlers._suspatterns_regex._inline_run_was_late",
+            return_value=True,
+        ),
+        patch("guard_core.sync.handlers._suspatterns_regex.logger") as mock_logger,
+    ):
+        threat, timed_out = sus_patterns_handler._check_windowed_pattern(
+            _CMD_INJECTION_NEWLINE_SHELL_DASH_C_COMPILED_RE,
+            _finder,
+            "\nA=B sh -c id",
+            time.monotonic(),
+            "cmd_injection",
+            "unknown",
+        )
 
     assert threat is None
     assert timed_out is True
@@ -156,27 +154,21 @@ def test_check_windowed_pattern_timeout_returns_none_and_logs() -> None:
 
 def test_check_windowed_pattern_exception_returns_none_and_logs() -> None:
     def _finder(_content: str) -> Iterator[re.Match[str]]:
-        yield from ()
+        raise RuntimeError("boom")
 
-    with patch(
-        "guard_core.sync.handlers._suspatterns_regex.shared_regex_executor"
-    ) as mock_shared_executor:
-        mock_future: concurrent.futures.Future[None] = concurrent.futures.Future()
-        mock_future.set_exception(RuntimeError("boom"))
-        mock_shared_executor.return_value.submit.return_value = mock_future
-
-        with patch("guard_core.sync.handlers._suspatterns_regex.logger") as mock_logger:
-            threat, timed_out = sus_patterns_handler._check_windowed_pattern(
-                _CMD_INJECTION_NEWLINE_SHELL_DASH_C_COMPILED_RE,
-                _finder,
-                "\nA=B sh -c id",
-                time.monotonic(),
-                "cmd_injection",
-                "unknown",
-            )
+    with patch("guard_core.sync.handlers._suspatterns_regex.logger") as mock_logger:
+        threat, timed_out = sus_patterns_handler._check_windowed_pattern(
+            _CMD_INJECTION_NEWLINE_SHELL_DASH_C_COMPILED_RE,
+            _finder,
+            "\nA=B sh -c id",
+            time.monotonic(),
+            "cmd_injection",
+            "unknown",
+        )
 
     assert threat is None
     assert timed_out is False
+    mock_logger.error.assert_called()
     mock_logger.error.assert_called()
 
 

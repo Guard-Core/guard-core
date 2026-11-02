@@ -19,7 +19,7 @@ The `"unknown"` identity is not automatically blocked once inside the pipeline: 
 
 ## The check catalogue, in order
 
-`DEFAULT_CHECK_CLASSES` (`guard_core/core/checks/factory.py`) names 17 checks. This is the full catalogue and its order is fixed; what a given deployment actually builds is a subset, decided at pipeline-build time (see "Which checks get built" below).
+`DEFAULT_CHECK_CLASSES` (`guard_core/core/checks/factory.py`) names 18 checks. This is the full catalogue and its order is fixed; what a given deployment actually builds is a subset, decided at pipeline-build time (see "Which checks get built" below).
 
 1. `route_config` - extract per-route config.
 2. `emergency_mode` - block-all toggle.
@@ -28,16 +28,17 @@ The `"unknown"` identity is not automatically blocked once inside the pipeline: 
 5. `request_size_content` - size and content-type gates.
 6. `cloud_ip_refresh` - refresh cloud IP ranges.
 7. `ip_security` - whitelist/blacklist + country.
-8. `cloud_provider` - block AWS/GCP/Azure source IPs.
+8. `cloud_provider` - block cloud provider source IPs.
 9. `user_agent` - UA allow/block.
-10. `rate_limit` - sliding window (memory or Redis).
-11. `required_headers` - presence and exact-value checks.
-12. `authentication` - auth gate.
-13. `referrer` - referrer policy.
-14. `custom_validators` - user-supplied sync/async validators.
-15. `time_window` - time-of-day access windows.
-16. `suspicious_activity` - detection engine integration.
-17. `custom_request` - user-supplied request-level check.
+10. `cors_preflight` - answer CORS preflights an override turned on.
+11. `rate_limit` - sliding window (memory or Redis).
+12. `required_headers` - presence and exact-value checks.
+13. `authentication` - auth gate.
+14. `referrer` - referrer policy.
+15. `custom_validators` - user-supplied sync/async validators.
+16. `time_window` - time-of-day access windows.
+17. `suspicious_activity` - detection engine integration.
+18. `custom_request` - user-supplied request-level check.
 
 `rate_limit`'s in-memory stores (`RateLimitManager.request_timestamps`, and the module-level `_by_ip_request_timestamps`/`_by_ip_autoban_counts` in `guard_core/handlers/ratelimit_handler.py`) are LRU-bounded at 10,000 tracked IPs (`_lru_pop_or_create`, `guard_core/_utils/lru_store.py`): once the bound is hit, adding a new IP evicts the least-recently-touched one. Every 429 response the check returns carries a `Retry-After` header set to the effective rate-limit window, whether the store is in-memory or Redis-backed.
 
@@ -47,7 +48,7 @@ The `"unknown"` identity is not automatically blocked once inside the pipeline: 
 
 `SecurityCheck.applies_to(cls, config, route_configs) -> bool` (`guard_core/core/checks/base.py`) is a classmethod extension point: given the effective `SecurityConfig` and the collection of registered `RouteConfig`s (or `None` when they cannot be enumerated), it declares whether the check can ever fire. The base implementation always returns `True`, so a check that does not override it runs unconditionally; a check opts into elimination by overriding `applies_to` to return `False` under some condition. `build_default_pipeline(middleware)` (`guard_core/core/checks/factory.py`) filters `DEFAULT_CHECK_CLASSES` through `applies_to` before instantiating anything, so an eliminated check is never constructed, and for the checks that moved their handler import into `__init__` (`ip_security`, `suspicious_activity`, `cloud_provider`, `cloud_ip_refresh`), never imports its handler either.
 
-Elimination is strictly an optimization, never a security decision: every `applies_to` implementation is written to return `True` on any uncertainty, and the one check that reads mutable ban state is pinned to always-keep (below). A default `SecurityConfig()` with no route decorators registered builds exactly four checks: `route_config`, `ip_security`, `rate_limit`, `suspicious_activity`. A configuration that enables every feature builds all 17, in the order above.
+Elimination is strictly an optimization, never a security decision: every `applies_to` implementation is written to return `True` on any uncertainty, and the one check that reads mutable ban state is pinned to always-keep (below). A default `SecurityConfig()` with no route decorators registered builds exactly five checks: `route_config`, `ip_security`, `cors_preflight`, `rate_limit`, `suspicious_activity`. A configuration that enables every feature builds all 18, in the order above.
 
 Three rules govern the subsetting:
 

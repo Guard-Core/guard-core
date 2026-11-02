@@ -1017,4 +1017,44 @@ PIPELINE_SUITES["pipeline_request_body"] = [
             },
         ],
     },
+    {
+        "id": "regex_queue_wait_answers_503_with_retry_after_and_no_strike",
+        "config": {"fail_secure": True, "detection_compiler_timeout": 2.0},
+        "custom_patterns": ["[xyz]7"],
+        "drives": [
+            {
+                "client_ip": IP,
+                "url_path": "/api",
+                "query_params": {"q": "hello"},
+                "saturate_regex_pool": True,
+            },
+            {"client_ip": IP, "url_path": "/api", "query_params": {"q": "hello"}},
+        ],
+    },
+    {
+        "id": "regex_queue_wait_passes_with_an_event_when_fail_secure_is_off",
+        "config": {"fail_secure": False, "detection_compiler_timeout": 2.0},
+        "custom_patterns": ["[xyz]7"],
+        "drives": [
+            {
+                "client_ip": IP,
+                "url_path": "/api",
+                "query_params": {"q": "hello"},
+                "saturate_regex_pool": True,
+            }
+        ],
+    },
+    {
+        "id": "regex_queue_wait_passes_with_an_event_in_passive_mode",
+        "config": {"passive_mode": True, "detection_compiler_timeout": 2.0},
+        "custom_patterns": ["[xyz]7"],
+        "drives": [
+            {
+                "client_ip": IP,
+                "url_path": "/api",
+                "query_params": {"q": "hello"},
+                "saturate_regex_pool": True,
+            }
+        ],
+    },
 ]

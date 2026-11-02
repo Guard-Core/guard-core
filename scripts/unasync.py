@@ -33,6 +33,7 @@ SKIP_SRC = {
     "_config_capabilities.py",
     "_config_field_revalidators.py",
     "_security_config_fields.py",
+    "_security_config_json.py",
     "_dynamic_rules.py",
     "_staged_defaults.py",
     "_tracking_caps.py",
@@ -83,6 +84,7 @@ SKIP_TESTS = {
     "test_suspatterns_handler_module_surface.py",
     "test_gc_per_test_opt_in.py",
     "test_maintainability_rank.py",
+    "test_markdown_python_blocks.py",
     "test_any_ratchet.py",
     "test_config_docs_parity.py",
     "test_release_notes_parity.py",
@@ -109,6 +111,8 @@ SKIP_TESTS = {
     "test_conformance_safety_before_timing_replay.py",
     "test_fixture_generator_determinism.py",
     "test_perf_gate_rules.py",
+    "test_perf_detection_components.py",
+    "test_compiler_cache_loop_and_threads.py",
 }
 
 SKIP_DIRS = {"__pycache__", "sync"}
@@ -273,8 +277,10 @@ _SYNC_SAFE_READ_REPLACEMENT = (
 
 _ASYNC_AWAIT_REGEX_FUTURE_SRC = (
     "async def _await_regex_future(\n"
-    "    future: concurrent.futures.Future[_Result], "
-    "started: list[float], timeout: float\n"
+    "    future: concurrent.futures.Future[_Result],\n"
+    "    started: list[float],\n"
+    "    timeout: float,\n"
+    "    backstop: float | None = None,\n"
     ") -> _Result:\n"
     "    try:\n"
     "        return await asyncio.wait_for("
@@ -284,7 +290,7 @@ _ASYNC_AWAIT_REGEX_FUTURE_SRC = (
     "        # asyncio.TimeoutError, so read a finished future for its own outcome.\n"
     "        if future.done() and not future.cancelled():\n"
     "            return future.result()\n"
-    "        left = _run_budget_left(future, started, timeout, exc)\n"
+    "        left = _run_budget_left(future, started, timeout, exc, backstop)\n"
     "    try:\n"
     "        return await asyncio.wait_for("
     "asyncio.wrap_future(future), timeout=left)\n"
@@ -294,10 +300,12 @@ _ASYNC_AWAIT_REGEX_FUTURE_SRC = (
 
 _SYNC_AWAIT_REGEX_FUTURE_REPLACEMENT = (
     "def _await_regex_future(\n"
-    "    future: concurrent.futures.Future[_Result], "
-    "started: list[float], timeout: float\n"
+    "    future: concurrent.futures.Future[_Result],\n"
+    "    started: list[float],\n"
+    "    timeout: float,\n"
+    "    backstop: float | None = None,\n"
     ") -> _Result:\n"
-    "    return wait_for_regex_run(future, started, timeout)\n"
+    "    return wait_for_regex_run(future, started, timeout, backstop)\n"
 )
 
 _ASYNC_CURRENT_SCOPE_SRC = (

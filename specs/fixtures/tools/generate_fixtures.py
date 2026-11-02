@@ -604,16 +604,17 @@ async def run_corpus(
             pipeline_observed: list[PipelineCase] = []
             for pipeline_case in pipeline_cases:
                 records = await run_case(pipeline_case)
-                pipeline_observed.append(
-                    {
-                        "id": pipeline_case["id"],
-                        "config": pipeline_case.get("config", {}),
-                        "geo_countries": pipeline_case.get("geo_countries", {}),
-                        "routes": pipeline_case.get("routes", {}),
-                        "drives": pipeline_case["drives"],
-                        "expected": records,
-                    }
-                )
+                observed_case: PipelineCase = {
+                    "id": pipeline_case["id"],
+                    "config": pipeline_case.get("config", {}),
+                    "geo_countries": pipeline_case.get("geo_countries", {}),
+                    "routes": pipeline_case.get("routes", {}),
+                    "drives": pipeline_case["drives"],
+                    "expected": records,
+                }
+                if "custom_patterns" in pipeline_case:
+                    observed_case["custom_patterns"] = pipeline_case["custom_patterns"]
+                pipeline_observed.append(observed_case)
             results[suite_name] = {
                 "suite": suite_name,
                 "kind": "pipeline",

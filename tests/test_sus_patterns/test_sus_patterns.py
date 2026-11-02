@@ -527,7 +527,12 @@ async def test_custom_category_timeout_uses_configured_compiler_timeout(
 
     waited: list[float] = []
 
-    def _run_past_the_budget(future: object, started: object, timeout: float) -> None:
+    def _run_past_the_budget(
+        future: object,
+        started: object,
+        timeout: float,
+        backstop: float | None = None,
+    ) -> None:
         waited.append(timeout)
         raise concurrent.futures.TimeoutError()
 
@@ -558,7 +563,12 @@ async def test_legacy_pattern_timeout_uses_configured_compiler_timeout(
 
     captured_timeouts: list[float] = []
 
-    async def fake_await(future: object, started: object, timeout: float) -> None:
+    async def fake_await(
+        future: object,
+        started: object,
+        timeout: float,
+        backstop: float | None = None,
+    ) -> None:
         captured_timeouts.append(timeout)
         raise concurrent.futures.TimeoutError()
 

@@ -24,6 +24,8 @@ class DetectionResult:
     body_read_detail: str = ""
     correlation_id: str | None = None
     matched_pattern_source: str | None = None
+    queue_wait_seconds: float | None = None
+    queue_wait_surface: str | None = None
 ```
 
 ___
@@ -37,9 +39,11 @@ Fields
 | `trigger_info`      | `str`              | Human-readable description of the first hit (e.g. `"Query param 'q': Value matched pattern '...'"`). Empty when `is_threat=False`. |
 | `threat_categories` | `list[str]`        | Ordered list of categories that contributed at least one match (`"sqli"`, `"xss"`, `"custom"`, ...). Deduplicated; preserves first-seen order. |
 | `threat_scores`     | `dict[str, float]` | Maximum score per category. Regex matches contribute `1.0`; semantic matches contribute their probability or threat score. |
-| `body_read_error`   | `str \| None`      | `"stalled"` or `"failed"` when the request body could not be read; `None` otherwise. |
+| `body_read_error`   | `str \| None`      | `"stalled"` or `"failed"` when the request body could not be read, `"queue_wait"` when a scan got no regex worker in time (see `queue_wait_seconds` and `queue_wait_surface`); `None` otherwise. |
 | `body_read_detail`  | `str`              | Sanitized detail for `body_read_error`. |
 | `correlation_id`    | `str \| None`      | The random per-request id of the scan that produced the result (`uuid4`, no address or user data). The `penetration_attempt` event and the `pattern_detected` events of that request carry it as `correlation_id`. |
+| `queue_wait_seconds` | `float \| None` | The wait that ended a scan with `body_read_error == "queue_wait"`, `None` otherwise. |
+| `queue_wait_surface` | `str \| None` | What was being scanned when that wait ended: `"url path"`, `"query"`, `"header"` or `"body field"`; `None` otherwise. |
 | `matched_pattern_source` | `str \| None` | Source text of the first regex pattern that matched, `None` when no regex matched. Used to attribute the event to a dynamic rule; it is never put in an event. |
 
 ___

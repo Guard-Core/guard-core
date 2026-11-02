@@ -62,7 +62,7 @@ async def check_rate_limit_tiers(
     create_error_response: Callable[[int, str], Awaitable[GuardResponse]],
     tiers: Sequence[RateLimitTier],
     config: SecurityConfig | None = None,
-) -> RateLimitBlock | None
+) -> RateLimitBlock | None: ...
 ```
 
 `RateLimitCheck` builds one `RateLimitTier(kind, limit, window, bucket)` per limit that applies to the request and checks them all in one step. It returns `None` when the request is allowed, or a `RateLimitBlock` (the blocking tier's index, the request count and the 429 response) when a tier blocks.

@@ -1,14 +1,14 @@
 ---
 
 title: Check Implementations
-description: All 17 built-in security checks in guard-core, their execution order, blocking conditions, configuration, and the applies_to build-time elimination rules
+description: All 18 built-in security checks in guard-core, their execution order, blocking conditions, configuration, and the applies_to build-time elimination rules
 keywords: security checks, implementations, execution order, guard-core, pipeline
 ---
 
 Check Implementations
 =====================
 
-Guard-core ships with 17 security checks that execute in this fixed order inside the `SecurityCheckPipeline` when all 17 are built. Each check is a subclass of `SecurityCheck` located in `guard_core.core.checks.implementations`. A given deployment's pipeline is usually a subset of the 17: `build_default_pipeline` filters the catalogue through each check class's `applies_to(config, route_configs)` classmethod before instantiating anything, and only the checks that return `True` for the effective configuration and registered routes are built. The base implementation returns `True`, so a check that does not override it always runs; a predicate that is uncertain what the configuration can trigger must also return `True` -- elimination is strictly an optimization, never a security decision. See [Build-Time Elimination](../architecture/pipeline.md#build-time-elimination) for the full mechanism, including why `ip_security` can never be eliminated.
+Guard-core ships with 18 security checks that execute in this fixed order inside the `SecurityCheckPipeline` when all 18 are built. Each check is a subclass of `SecurityCheck` located in `guard_core.core.checks.implementations`. A given deployment's pipeline is usually a subset of the 17: `build_default_pipeline` filters the catalogue through each check class's `applies_to(config, route_configs)` classmethod before instantiating anything, and only the checks that return `True` for the effective configuration and registered routes are built. The base implementation returns `True`, so a check that does not override it always runs; a predicate that is uncertain what the configuration can trigger must also return `True` -- elimination is strictly an optimization, never a security decision. See [Build-Time Elimination](../architecture/pipeline.md#build-time-elimination) for the full mechanism, including why `ip_security` can never be eliminated.
 
 Execution Order
 ---------------
@@ -24,14 +24,15 @@ Execution Order
 | 7  | `ip_security`           | `IpSecurityCheck`         | Yes     | Yes            | Never |
 | 8  | `cloud_provider`        | `CloudProviderCheck`      | Yes     | Yes            | `block_cloud_providers` unset globally and per-route, and `enable_dynamic_rules` is `False` |
 | 9  | `user_agent`            | `UserAgentCheck`          | Yes     | Yes            | `blocked_user_agents` empty globally and per-route, and `enable_dynamic_rules` is `False` |
-| 10 | `rate_limit`            | `RateLimitCheck`          | Yes     | Yes            | `enable_rate_limiting` is `False`, `endpoint_rate_limits` unset, no route sets `rate_limit`/`geo_rate_limits`, and `enable_dynamic_rules` is `False` |
-| 11 | `required_headers`      | `RequiredHeadersCheck`    | Yes     | Yes            | No route sets `required_headers` |
-| 12 | `authentication`        | `AuthenticationCheck`     | Yes     | Yes            | No route sets `auth_required` |
-| 13 | `referrer`              | `ReferrerCheck`           | Yes     | Yes            | No route sets `require_referrer` |
-| 14 | `custom_validators`     | `CustomValidatorsCheck`   | Yes     | Yes            | No route sets `custom_validators` |
-| 15 | `time_window`           | `TimeWindowCheck`         | Yes     | Yes            | No route sets `time_restrictions` |
-| 16 | `suspicious_activity`   | `SuspiciousActivityCheck` | Yes     | Yes            | `enable_penetration_detection` is `False`, no route sets `enable_suspicious_detection`, and `enable_dynamic_rules` is `False` |
-| 17 | `custom_request`        | `CustomRequestCheck`      | Yes     | Yes            | `custom_request_check` is `None` |
+| 10 | `cors_preflight`        | `CorsPreflightCheck`      | Answers preflights | Yes | Never |
+| 11 | `rate_limit`            | `RateLimitCheck`          | Yes     | Yes            | `enable_rate_limiting` is `False`, `endpoint_rate_limits` unset, no route sets `rate_limit`/`geo_rate_limits`, and `enable_dynamic_rules` is `False` |
+| 12 | `required_headers`      | `RequiredHeadersCheck`    | Yes     | Yes            | No route sets `required_headers` |
+| 13 | `authentication`        | `AuthenticationCheck`     | Yes     | Yes            | No route sets `auth_required` |
+| 14 | `referrer`              | `ReferrerCheck`           | Yes     | Yes            | No route sets `require_referrer` |
+| 15 | `custom_validators`     | `CustomValidatorsCheck`   | Yes     | Yes            | No route sets `custom_validators` |
+| 16 | `time_window`           | `TimeWindowCheck`         | Yes     | Yes            | No route sets `time_restrictions` |
+| 17 | `suspicious_activity`   | `SuspiciousActivityCheck` | Yes     | Yes            | `enable_penetration_detection` is `False`, no route sets `enable_suspicious_detection`, and `enable_dynamic_rules` is `False` |
+| 18 | `custom_request`        | `CustomRequestCheck`      | Yes     | Yes            | `custom_request_check` is `None` |
 
 **Passive-Aware** means the check respects `SecurityConfig.passive_mode` -- it logs and emits events but does not return a blocking response.
 
@@ -186,7 +187,20 @@ ___
 
 ___
 
-10. RateLimitCheck
+10. CorsPreflightCheck
+---------------------
+
+**Purpose**: Answers a CORS preflight (`OPTIONS`) for an app built without CORS that `security_headers_manager.configure(..., enable_cors=True, override_apps=True)` turned CORS on for, and sends the refusal event of a refused CORS override on every preflight.
+
+**Blocks when**: The client behind the preflight is banned (it returns the ban response). Otherwise it answers the preflight with the CORS headers, or returns `None` for any request that is not a preflight and for an app built with CORS on, which answers its preflights in its adapter.
+
+**Skips**: Never eliminated, `applies_to` always returns `True`.
+
+It runs after the ban, IP, cloud and user agent checks and before rate limiting, so no later check (authentication, API key, required headers) refuses the preflight.
+
+___
+
+11. RateLimitCheck
 ------------------
 
 **Purpose**: Enforces request rate limits using a sliding window algorithm.
@@ -206,7 +220,7 @@ Each tier has its own bucket, and a request that any tier blocks is recorded in 
 
 ___
 
-11. RequiredHeadersCheck
+12. RequiredHeadersCheck
 ------------------------
 
 **Purpose**: Validates that required headers are present, and where a specific value is configured, that they match it.
@@ -220,7 +234,7 @@ ___
 
 ___
 
-12. AuthenticationCheck
+13. AuthenticationCheck
 -----------------------
 
 **Purpose**: Validates every credential the route configures: the `Authorization` header for `require_auth` and the API key header for `api_key_auth`, each by its own verifier.
@@ -234,7 +248,7 @@ ___
 
 ___
 
-13. ReferrerCheck
+14. ReferrerCheck
 -----------------
 
 **Purpose**: Validates the `Referer` header against allowed domains.
@@ -245,7 +259,7 @@ ___
 
 ___
 
-14. CustomValidatorsCheck
+15. CustomValidatorsCheck
 -------------------------
 
 **Purpose**: Runs user-defined async validator functions.
@@ -256,7 +270,7 @@ ___
 
 ___
 
-15. TimeWindowCheck
+16. TimeWindowCheck
 -------------------
 
 **Purpose**: Restricts access to specific time windows.
@@ -279,7 +293,7 @@ Supports overnight ranges (e.g., `start: "22:00"`, `end: "06:00"`).
 
 ___
 
-16. SuspiciousActivityCheck
+17. SuspiciousActivityCheck
 ---------------------------
 
 **Purpose**: Detects penetration attempts (SQLi, XSS, command injection, path traversal, etc.).
@@ -296,7 +310,7 @@ ___
 
 ___
 
-17. CustomRequestCheck
+18. CustomRequestCheck
 ----------------------
 
 **Purpose**: Runs a global user-defined request check function.

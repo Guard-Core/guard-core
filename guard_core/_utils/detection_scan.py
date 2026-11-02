@@ -26,6 +26,8 @@ from guard_core._utils.scan_config_scope import (
     _request_scan_window,
     _scan_config_scope,
 )
+from guard_core._utils.scan_surface import note_scan_surface
+from guard_core._utils.user_agent_compiler import user_agent_compiler
 from guard_core.exceptions import BodyReadFailedError
 
 if TYPE_CHECKING:
@@ -529,11 +531,7 @@ async def _user_agent_matches_blocked_pattern(
 async def _first_blocked_user_agent_pattern(
     user_agent: str, patterns: list[str]
 ) -> str | None:
-    from guard_core.detection_engine.compiler import PatternCompiler
-
-    compiler = PatternCompiler()
-    for pattern in patterns:
-        compiled = compiler.compile_pattern_sync(pattern)
+    for pattern, compiled in user_agent_compiler().compile_pattern_set_sync(patterns):
         if _search_user_agent_windows(compiled, user_agent) is not None:
             return pattern
     return None
@@ -729,7 +727,8 @@ async def _check_value_enhanced(
 
         return True, "Threat detected", threats, None
 
-    except (RecursionError, BodyReadFailedError):
+    except (RecursionError, BodyReadFailedError) as error:
+        note_scan_surface(error, context)
         raise
     except Exception as e:
         logger.error(f"Enhanced detection failed: {e}, falling back to basic check")

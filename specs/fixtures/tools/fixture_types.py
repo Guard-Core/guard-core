@@ -74,6 +74,7 @@ class RequestStep(TypedDict, total=False):
 
 class PipelineStep(RequestStep, total=False):
     stage: str
+    saturate_regex_pool: bool
     modifier: str
     response_body: str
     response_status: int
@@ -134,6 +135,7 @@ class PipelineCaseInput(TypedDict):
     config: NotRequired[JsonObject]
     geo_countries: NotRequired[dict[str, str]]
     routes: NotRequired[dict[str, JsonObject]]
+    custom_patterns: NotRequired[list[str]]
     drives: list[PipelineStep]
 
 

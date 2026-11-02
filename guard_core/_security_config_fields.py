@@ -25,8 +25,8 @@ from guard_core._security_config_field_validators import (
     PurgeTarget,
 )
 from guard_core._security_config_geo_validators import _validate_geo_ip_handler_value
+from guard_core._security_config_json import MappingProxyInJson, NamedInJson
 from guard_core._security_config_validators import (
-    ThreatBanConfig,
     _validate_excluded_detection_params_value,
 )
 from guard_core._security_headers_defaults import default_security_headers_config
@@ -101,13 +101,13 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
         description="Enable Log-Only mode. Won't block requests, only log.",
     )
 
-    geo_ip_handler: (
+    geo_ip_handler: NamedInJson[
         Annotated[
             GeoIPHandler | SyncGeoIPHandler,
             PlainValidator(_validate_geo_ip_handler_value),
         ]
         | None
-    ) = Field(
+    ] = Field(
         default=None,
         description="Geographical IP handler to use for IP geolocation",
     )
@@ -263,7 +263,7 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
         description="Duration of auto-ban in seconds (default: 1 hour)",
     )
 
-    threat_ban_config: MappingProxyType[str, ThreatBanConfig] = Field(
+    threat_ban_config: MappingProxyInJson = Field(
         default_factory=lambda: MappingProxyType({}),
         description=(
             "Per-category ban thresholds and durations. Categories are the "
@@ -592,7 +592,7 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
         description="Security headers configuration",
     )
 
-    custom_request_check: CustomRequestCheck[RequestT] | None = Field(
+    custom_request_check: NamedInJson[CustomRequestCheck[RequestT] | None] = Field(
         default=None,
         description=(
             "Perform additional checks on the request. An async or a sync callable "
@@ -601,11 +601,11 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
         ),
     )
 
-    auth_verifier: (
+    auth_verifier: NamedInJson[
         Callable[[RequestT, str], Awaitable[object]]
         | Callable[[RequestT, str], object]
         | None
-    ) = Field(
+    ] = Field(
         default=None,
         description=(
             "Default verifier callable for require_auth and api_key_auth: "
@@ -615,7 +615,7 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
         ),
     )
 
-    custom_response_modifier: CustomResponseModifier | None = Field(
+    custom_response_modifier: NamedInJson[CustomResponseModifier | None] = Field(
         default=None,
         description=(
             "A custom function to modify the response before it's sent. An async "
@@ -846,11 +846,11 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
         ),
     )
 
-    cloud_ip_store: (
+    cloud_ip_store: NamedInJson[
         Annotated[CloudIpStoreProtocol, PlainValidator(_validate_cloud_ip_store_value)]
         | CloudIpStoreFactory
         | None
-    ) = Field(
+    ] = Field(
         default=None,
         description=(
             "Override the default cloud IP store. Accepts either an instance "
@@ -972,7 +972,9 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
         ),
     )
 
-    on_error: Callable[[str, BaseException, dict[str, object]], None] | None = Field(
+    on_error: NamedInJson[
+        Callable[[str, BaseException, dict[str, object]], None] | None
+    ] = Field(
         default=None,
         description=(
             "Optional best-effort callback invoked when a middleware/agent step "
@@ -982,23 +984,25 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
         ),
     )
 
-    on_block: Callable[[GuardRequest, dict[str, object]], None] | None = Field(
-        default=None,
-        description=(
-            "Optional best-effort callback invoked exactly once per blocked or "
-            "passive-mode-flagged request, receiving (request, payload). payload "
-            "keys: check_name, reason, trigger_info, passive_mode, client_ip, "
-            "path, method, status_code (None on the passive-mode path, where no "
-            "response is ever sent). Not fired for custom_request_check or "
-            "route_config.custom_validators (application-authored, the app "
-            "already knows), except a honeypot_detection hit, which fires with "
-            "check_name 'honeypot'. Also not fired for the HTTPS-enforcement "
-            "redirect (a redirect is not a block), or an adapter's "
-            "Redis-unavailable response (see on_error). Sync or async in async "
-            "deployments; sync-only in WSGI deployments, where an async callback "
-            "raises TypeError. A callback that raises is caught and logged, never "
-            "propagated."
-        ),
+    on_block: NamedInJson[Callable[[GuardRequest, dict[str, object]], None] | None] = (
+        Field(
+            default=None,
+            description=(
+                "Optional best-effort callback invoked exactly once per blocked or "
+                "passive-mode-flagged request, receiving (request, payload). payload "
+                "keys: check_name, reason, trigger_info, passive_mode, client_ip, "
+                "path, method, status_code (None on the passive-mode path, where no "
+                "response is ever sent). Not fired for custom_request_check or "
+                "route_config.custom_validators (application-authored, the app "
+                "already knows), except a honeypot_detection hit, which fires with "
+                "check_name 'honeypot'. Also not fired for the HTTPS-enforcement "
+                "redirect (a redirect is not a block), or an adapter's "
+                "Redis-unavailable response (see on_error). Sync or async in async "
+                "deployments; sync-only in WSGI deployments, where an async callback "
+                "raises TypeError. A callback that raises is caught and logged, never "
+                "propagated."
+            ),
+        )
     )
 
     agent_endpoint: str = Field(
@@ -1226,12 +1230,15 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
         default=2.0,
         description=(
             "Time (seconds) one pattern may use, judged by the CPU the pattern itself "
-            "used (a custom pattern by its worker's CPU, a built-in pattern by the "
-            "scan's own CPU), so waiting for the GIL or a free worker is not counted. "
-            "The hard wait for a started worker stays wall time. Waiting for a free "
-            "worker is bounded by the same value and ends the scan as incomplete "
-            "(400 with an event and no strike under fail_secure, a pass with the "
-            "event otherwise); a pool held by stuck workers is still replaced."
+            "used (a custom pattern by its worker's CPU when the worker finishes, a "
+            "built-in pattern by the scan's own CPU), so waiting for the GIL or a free "
+            "worker is not counted. The six windowed built-in rows run on the request "
+            "thread, and a started custom scan is cut only at "
+            "detection_max_scan_seconds of wall time. Waiting for a free worker is "
+            "bounded by the same value and ends the scan as incomplete (503 with a "
+            "Retry-After of this many seconds, an event and no strike under "
+            "fail_secure, a pass with the event otherwise); a pool held by stuck "
+            "workers is still replaced."
         ),
         ge=0.1,
         le=10.0,

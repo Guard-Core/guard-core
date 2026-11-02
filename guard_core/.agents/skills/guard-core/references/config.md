@@ -2,7 +2,7 @@
 
 `SecurityConfig` is the single Pydantic model controlling all behavior. The installed model is the source of truth; introspect it for the exact field list, types, defaults, and descriptions.
 
-```python
+```bash
 python -c "from guard_core.models import SecurityConfig; \
 import json; print(json.dumps({f: {'default': SecurityConfig.model_fields[f].default, 'description': SecurityConfig.model_fields[f].description} for f in SecurityConfig.model_fields}, indent=2, default=str))"
 ```

@@ -424,6 +424,17 @@ _PATH_TRAVERSAL_ENCODED_DOT_RE = (
 )
 _PATH_TRAVERSAL_SEMICOLON_SEP_RE = r"\.\.;[^/\\]*[/\\]"
 _PATH_TRAVERSAL_DECODED_SHAPE_RE = re.compile(r"\.\.[\\/]")
+
+
+def _count_path_traversal_shapes(text: str) -> int:
+    """How many matches ``_PATH_TRAVERSAL_DECODED_SHAPE_RE`` finds in ``text``.
+
+    A match is ``..`` and a separator, so two matches never overlap and the count
+    is the occurrences of ``../`` and of ``..\\``, with no list of matches.
+    """
+    return text.count("../") + text.count("..\\")
+
+
 _CMD_INJECTION_NEWLINE_SHELL_DASH_C_RE = (
     r"\n[^\S\r\n]*(?:[^=\s;|&]+=[^\s;|&]+\s+)*(?:/?(?:[\w.-]+/)*env\s+)?/?(?:[\w.-]+/)*"
     r"(?:bash|sh|ksh|csh|tsch|zsh|ash)\s+-c\b"

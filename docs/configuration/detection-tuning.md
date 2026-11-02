@@ -17,7 +17,7 @@ Configuration Fields
 
 **Type**: `float` | **Default**: `2.0` | **Range**: 0.1 - 10.0
 
-Maximum time in seconds for a single regex pattern match, judged by the CPU the pattern itself used (a custom pattern by its worker's CPU, a built-in pattern by the scan's own CPU), so time spent waiting for the GIL or a free worker is not counted. The hard wait for a worker that already started stays wall time, so a started worker starved past the budget is still cancelled. Patterns that exceed this timeout are cancelled, preventing ReDoS attacks from consuming server resources. Waiting for a free worker is not part of the budget but is bounded by the same value: a scan that gets no worker in that time is incomplete, so the request answers 400 with a `suspicious_request` event and no strike under `fail_secure=True` and passes with the event under `fail_secure=False`. Such an expiry still counts toward replacing a pool held by stuck workers.
+Maximum time in seconds for a single regex pattern match, judged by the CPU the pattern itself used (a custom pattern by its worker's CPU when the worker finishes, a built-in pattern by the scan's own CPU), so time spent waiting for the GIL or a free worker is not counted. The six windowed built-in rows run on the request thread like every other built-in row, and a started custom scan that has not finished is cut only at `detection_max_scan_seconds` of wall time, so a worker starved of the GIL by busy request threads is slow, not expensive. Patterns that use their budget are cancelled, preventing ReDoS attacks from consuming server resources. Waiting for a free worker is not part of the budget but is bounded by the same value: a scan that gets no worker in that time never ran, so the request answers `503` with `Retry-After` set to this value in whole seconds (rounded up), a `suspicious_request` event and a log line that names the wait and the surface (url path, query, header or body field), and no strike, under `fail_secure=True`; under `fail_secure=False` or passive mode it passes with the event. Such an expiry still counts toward replacing a pool held by stuck workers.
 
 | Value    | Tradeoff                                                     |
 |----------|--------------------------------------------------------------|
@@ -77,12 +77,23 @@ Raise it to accept larger uploads, at the cost of holding more memory per inspec
 
 A multipart upload past the default (1 MiB) on a route without a larger `max_request_size` is answered `400` under `fail_secure`, with a `suspicious_request` event and no strike. The warning in the log and the event detail name the field to raise (`detection_max_file_inspect_bytes` for multipart, `detection_max_body_inspect_bytes` for other bodies) and the per-route `max_request_size`.
 
-What the default costs, measured with 64 read slots busy on every request at once:
+What the default costs on guard-core 5.0.0 (Python 3.11, arm64), with 1 MiB uploads and 64 read slots busy on every request at once, per adapter and per body. The CPU and the RSS come from 64 requests in flight and the heap from one request alone (`tracemalloc`). The adapters are fastapi-guard, flaskapi-guard and djapi-guard. The figures in brackets are v4.4.0 with the adapters of its release and the same bytes scanned (v4.4.0 has no file limit, so its body limit is raised to 1 MiB), measured by `perf_gate/multipart_cells.py` on the same host:
 
-- CPU: 0.66 to 0.85 CPU seconds per MB of text multipart and 0.10 to 0.18 per MB of binary multipart. v4.4.0's 0.0114 is not equal work: it scanned a smaller window.
-- Memory per request: about 7.5 to 13.8 MB per in-flight 1 MiB upload.
-- Memory at the peak: 386.6 to 908.5 MB at 1 MiB with 64 slots busy.
-- The async tree has no read-slot cap by default (`async_body_read_max_concurrent` is `None`), so its memory is the per-request figure times the uploads in flight.
+| Reader | Body (1 MiB) | CPU seconds per MB | Heap of one request (v4.4.0) | Peak RSS, 64 in flight, two runs (v4.4.0) | Answered 200 of 64 |
+|--------|--------------|--------------------|------------------------------|-------------------------------------------|--------------------|
+| fastapi | text | 0.72 | 7.5 MB (131.3 MB) | 494 to 721 MB (5,905 MB) | 64 |
+| flask | text | 0.75 | 8.4 MB (2.4 MB) | 484 to 508 MB (80 MB) | 64 |
+| django | text | 0.80 | 9.5 MB (132.3 MB) | 619 to 864 MB (5,346 MB) | 64 |
+| fastapi | percent-encoded text | 0.67 | 8.5 MB (149.0 MB) | 518 to 717 MB (6,763 MB) | 64 |
+| flask | percent-encoded text | 0.69 | 9.4 MB (2.4 MB) | 482 to 524 MB (81 MB) | 64 |
+| django | percent-encoded text | 0.76 | 10.5 MB (150.1 MB) | 728 to 872 MB (6,956 MB) | 64 |
+| fastapi | binary | 0.11 | 11.9 MB (20.6 MB) | 396 to 396 MB (466 MB) | 64 |
+| flask | binary | 0.11 | 12.8 MB (2.4 MB) | 406 to 466 MB (76 MB) | 64 |
+| django | binary | 0.11 | 10.0 MB (21.7 MB) | 282 to 284 MB (529 to 573 MB) | 64 |
+
+Every upload of every cell was answered `200`, in two runs of each cell. The peak RSS of 64 requests in flight moves between runs (the two runs of one cell are given), and the heap of one request is the same in both. v4.4.0 held 131 to 150 MB of heap per request and 5.3 to 7.0 GB of RSS for a text body on the async reader and on Django, which is where the engine now stays at 7.5 to 10.5 MB and below 1 GB. The Flask figures of v4.4.0 are not a floor: its Flask path scanned much less of a multipart body, so they measure much less work. Reproduce one cell from a checkout of the adapter with `PYTHONPATH=<adapter checkout>:<guard-core checkout> python -m perf_gate.multipart_cells cell <reader> <mp-flat|mp-escaped|mp-binary> 1048576 64`, and the heap of one request with `cell <reader> <shape> 1048576 1 --tm`, from a checkout of guard-core 5.0.0.
+
+The async tree has no read-slot cap by default (`async_body_read_max_concurrent` is `None`), so its memory is the per-request figure times the uploads in flight.
 
 The full-body scan window and the pattern validation cap follow the larger of this limit and `detection_max_body_inspect_bytes`, so lowering only the body limit does not lower multipart. I make no claim that typical uploads fit within 1 MiB.
 
@@ -204,11 +215,13 @@ A body field that carries another benign shape is the route's to declare, with `
 
 ```python
 @security.detection_exclusion(body_fields={"changed_file"})
-async def every_category_skipped(): ...
+async def every_category_skipped():
+    return {"status": "ok"}
 
 
 @security.detection_exclusion(body_fields={"changed_file": {"sensitive_file"}})
-async def only_sensitive_file_skipped(): ...
+async def only_sensitive_file_skipped():
+    return {"status": "ok"}
 ```
 
 `SecurityConfig.excluded_detection_body_fields` takes the same two forms for every route, and a route's own value replaces the global one (it is not merged with it):
@@ -305,7 +318,16 @@ stats = await sus_patterns_handler.get_performance_stats()
 # {
 #     "summary": {"total_executions": 15432, "avg_execution_time": 0.003, ...},
 #     "slow_patterns": [...],
-#     "problematic_patterns": [...]
+#     "problematic_patterns": [...],
+#     "caches": {"compiled_patterns": {...}, "linear_path_patterns": {...}}
+# }
+
+caches = await sus_patterns_handler.get_cache_stats()
+# {
+#     "compiled_patterns": {"hits": 0, "misses": 0, "evictions": 0, "size": 0,
+#                           "max_size": 1000, "hit_rate": None},
+#     "linear_path_patterns": {...},
+#     "pattern_validation": {...},   # only with detection_pattern_validation_cache_path
 # }
 
 status = await sus_patterns_handler.get_component_status()
@@ -313,6 +335,12 @@ status = await sus_patterns_handler.get_component_status()
 ```
 
 Use these diagnostics to identify patterns that need optimization or replacement.
+
+`get_cache_stats()` reports the hits, misses, evictions, size, maximum size and hit rate (`hits / (hits + misses)`, `None` before the first lookup) of every cache the detection engine keeps, with counters that start at the first use and survive `clear_cache()`:
+
+- `compiled_patterns` is the `PatternCompiler` cache of compiled regular expressions, bounded by `detection_max_tracked_patterns`. The blocked user-agent patterns (`blocked_user_agents`) and `add_pattern` compile through this cache, so a blocked user-agent pattern is compiled once per pattern set and its hit rate rises with traffic; the built-in rows are compiled when the pattern set is built and are not looked up again. Adding or removing a pattern clears the cache, and the counters survive the clear.
+- `linear_path_patterns` is the cache of the linear-time path programs (the rows that walk a path prefix), filled when a path row is first used.
+- `pattern_validation` is the disk-backed verdict cache of `detection_pattern_validation_cache_path`, present only when that path is set. Measured with 20 custom patterns added at two boots on one cache file (`PYTHONPATH=. python -m perf_gate.cache_hit_rate` from a guard-core checkout): the hit rate is 0.0 at the first boot (20 misses) and 1.0 at the second (20 hits), so a hit rate near 1.0 on a restart shows the cache is doing its job. The same run reports 20 misses and 20 hits for `compiled_patterns` (hit rate 0.5): each add compiles once for the safety check and reuses that compile for storage.
 
 Binary uploads and the artifact density gate
 --------------------------------------------

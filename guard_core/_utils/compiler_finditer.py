@@ -45,6 +45,14 @@ async def _compiler_finditer(
         return await _worker_finditer(compiler, pattern, content)
     finder = compiler.create_async_safe_finditer_matcher(pattern, inline_safe=True)
     found: list[re.Match] = await finder(content)
-    budget = 0.9 * compiler.default_timeout
-    late = time.monotonic() - pattern_start >= budget and _scan_cpu_reached(budget)
+    late = _inline_run_was_late(compiler.default_timeout, pattern_start)
     return found, SCAN_OUTCOME_RUN_TIMEOUT if late and not found else None
+
+
+def _inline_run_was_late(timeout: float, pattern_start: float) -> bool:
+    """D-175's judge for a row that ran on the request thread: the wall time since
+    the row started reached the budget (a trip that costs nothing to check) and
+    the thread's own CPU did too, so a thread that only waited for the GIL is not
+    late."""
+    budget = 0.9 * timeout
+    return time.monotonic() - pattern_start >= budget and _scan_cpu_reached(budget)

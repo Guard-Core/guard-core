@@ -56,7 +56,7 @@ The engine internals, organized into 8 sub-modules:
 
 | Sub-module | Components | Responsibility |
 |---|---|---|
-| `checks/` | `SecurityCheck`, `SecurityCheckPipeline`, 17 check implementations | Chain-of-responsibility security pipeline |
+| `checks/` | `SecurityCheck`, `SecurityCheckPipeline`, 18 check implementations | Chain-of-responsibility security pipeline |
 | `events/` | `SecurityEventBus`, `MetricsCollector` | Event dispatching and metrics collection |
 | `initialization/` | `HandlerInitializer` | Redis, agent, and handler wiring |
 | `responses/` | `ErrorResponseFactory`, `ResponseContext` | Error responses, HTTPS redirects, security headers, CORS |
