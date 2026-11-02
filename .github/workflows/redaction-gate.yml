@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: read # check out the repository
 
 concurrency:
   group: redaction-gate-${{ github.ref }}
@@ -20,6 +20,7 @@ concurrency:
 
 jobs:
   redaction-gate:
+    name: redaction-gate
     runs-on: ubuntu-latest
     env:
       UV_PYTHON: '3.10'
@@ -61,13 +62,16 @@ jobs:
       - name: Pick the seeds and the sample size
         id: plan
         run: |
-          if [ "${{ github.event_name }}" = "schedule" ]; then
-            echo "seeds=${{ github.run_number }},$(( ${{ github.run_number }} + 100000 ))" >> "$GITHUB_OUTPUT"
+          if [ "${EVENT_NAME}" = "schedule" ]; then
+            echo "seeds=${RUN_NUMBER},$(( RUN_NUMBER + 100000 ))" >> "$GITHUB_OUTPUT"
             echo "limit=8000" >> "$GITHUB_OUTPUT"
           else
             echo "seeds=0,1" >> "$GITHUB_OUTPUT"
             echo "limit=5000" >> "$GITHUB_OUTPUT"
           fi
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RUN_NUMBER: ${{ github.run_number }}
 
       - name: Run the generative redaction gate
         id: genprobe

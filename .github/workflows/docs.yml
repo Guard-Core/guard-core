@@ -22,7 +22,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: read # check out the repository (the docs build only reads it)
 
 concurrency:
   group: ${{ github.event_name == 'pull_request' && format('docs-pr-{0}', github.ref) || 'docs-deploy' }}
@@ -35,7 +35,7 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: read # check out the repository (the docs build only reads it)
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -61,10 +61,12 @@ jobs:
           uv run --no-sync mkdocs build --strict
 
   docs-deploy:
+    name: docs-deploy
+    environment: docs
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write # mike pushes the versioned docs to the gh-pages branch
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -104,8 +106,8 @@ jobs:
           fi
           echo "CURRENT_VERSION=$CURRENT_VERSION" >> "$GITHUB_ENV"
 
-          if [[ -n "${{ secrets.DOCS_VERSION }}" ]]; then
-            STORED_VERSION=${{ secrets.DOCS_VERSION }}
+          if [[ -n "${DOCS_VERSION}" ]]; then
+            STORED_VERSION=${DOCS_VERSION}
             echo "STORED_VERSION=$STORED_VERSION" >> "$GITHUB_ENV"
           else
             echo "::error::DOCS_VERSION secret not found"
@@ -121,6 +123,8 @@ jobs:
             echo "VERSION=$STORED_VERSION" >> "$GITHUB_ENV"
             echo "UPDATE_SECRET=false" >> "$GITHUB_ENV"
           fi
+        env:
+          DOCS_VERSION: ${{ secrets.DOCS_VERSION }}
 
       - name: Update Docs Version Secret
         if: ${{ env.UPDATE_SECRET == 'true' }}

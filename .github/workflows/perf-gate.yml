@@ -10,7 +10,11 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: read # check out the repository
+
+concurrency:
+  group: perf-gate-${{ github.event_name }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   changes:
@@ -51,6 +55,7 @@ jobs:
           echo "code=$code" >> "$GITHUB_OUTPUT"
 
   perf-gate-per-request:
+    name: perf-gate-per-request
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest

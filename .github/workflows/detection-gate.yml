@@ -10,7 +10,11 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: read # check out the repository
+
+concurrency:
+  group: detection-gate-${{ github.event_name }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   changes:
@@ -55,6 +59,7 @@ jobs:
           echo "code=$code" >> "$GITHUB_OUTPUT"
 
   detection-gate-shards:
+    name: detection-gate-shards
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
@@ -136,9 +141,14 @@ jobs:
       - name: Run the detection gate suite (shard)
         shell: bash
         run: |
+          read -r -a pytest_args <<< "${MATRIX_SHARD_PYTEST_ARGS}"
           REDIS_URL='redis://localhost:6379' \
           GUARD_TESTS_MAX_TEST_SECONDS=300 \
-          uv run pytest -m 'redos_timing' -s -v --no-cov ${{ matrix.shard.pytest_args }} 2>&1 | tee "detection-report-py${{ matrix.python-version }}-${{ matrix.shard.name }}.txt"
+          uv run pytest -m 'redos_timing' -s -v --no-cov "${pytest_args[@]}" 2>&1 | tee "detection-report-py${MATRIX_PYTHON_VERSION}-${MATRIX_SHARD_NAME}.txt"
+        env:
+          MATRIX_SHARD_PYTEST_ARGS: ${{ matrix.shard.pytest_args }}
+          MATRIX_PYTHON_VERSION: ${{ matrix.python-version }}
+          MATRIX_SHARD_NAME: ${{ matrix.shard.name }}
 
       - name: Upload the shard report
         if: always()
@@ -155,7 +165,7 @@ jobs:
     runs-on: ubuntu-latest
 
     permissions:
-      pull-requests: write
+      pull-requests: write # post and minimize the detection-gate comment on the pull request
 
     steps:
       - name: Checkout code
@@ -317,9 +327,14 @@ jobs:
           # canaries legitimately take ~380s per test on a 4-core runner,
           # so this job's per-test ceiling sits above the plain gate's.
           # The ceiling guards hung tests, not load-scaled verdicts.
+          read -r -a pytest_args <<< "${MATRIX_SHARD_PYTEST_ARGS}"
           REDIS_URL='redis://localhost:6379' \
           GUARD_TESTS_MAX_TEST_SECONDS=600 \
-          uv run pytest -m 'redos_timing' -s -v --no-cov ${{ matrix.shard.pytest_args }} 2>&1 | tee "cpu-load-report-py${{ matrix.python-version }}-${{ matrix.shard.name }}.txt"
+          uv run pytest -m 'redos_timing' -s -v --no-cov "${pytest_args[@]}" 2>&1 | tee "cpu-load-report-py${MATRIX_PYTHON_VERSION}-${MATRIX_SHARD_NAME}.txt"
+        env:
+          MATRIX_SHARD_PYTEST_ARGS: ${{ matrix.shard.pytest_args }}
+          MATRIX_PYTHON_VERSION: ${{ matrix.python-version }}
+          MATRIX_SHARD_NAME: ${{ matrix.shard.name }}
 
       - name: Stop the CPU burner
         if: always()
@@ -368,6 +383,7 @@ jobs:
           echo "every gating job is green (code=$CODE)"
 
   detection-corpus:
+    name: detection-corpus
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest

@@ -15,7 +15,11 @@ on:
         required: false
 
 permissions:
-  contents: read
+  contents: read # check out the repository
+
+concurrency:
+  group: ci-${{ github.event_name }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   changes:
@@ -60,6 +64,7 @@ jobs:
           echo "code=$code" >> "$GITHUB_OUTPUT"
 
   pre-commit:
+    name: pre-commit
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -83,6 +88,7 @@ jobs:
       - run: uv run pre-commit run --all-files
 
   quality:
+    name: quality
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
@@ -102,6 +108,7 @@ jobs:
       - run: make quality
 
   sdist:
+    name: sdist
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
@@ -143,7 +150,7 @@ jobs:
           --health-retries 5
 
     permissions:
-      pull-requests: write
+      contents: read # check out the repository (the job calls no pull request API)
 
     strategy:
       matrix:
@@ -178,7 +185,10 @@ jobs:
 
       - name: Run tests
         run: |
-          COVERAGE_FILE=coverage-py${{ matrix.python-version }}.data IPINFO_TOKEN='${{ secrets.IPINFO_TOKEN || 'test_token' }}' REDIS_URL='redis://localhost:6379' GUARD_TESTS_MAX_TEST_SECONDS=180 uv run pytest -v --cov=guard_core -W error
+          COVERAGE_FILE=coverage-py${MATRIX_PYTHON_VERSION}.data IPINFO_TOKEN="${IPINFO_TOKEN}" REDIS_URL='redis://localhost:6379' GUARD_TESTS_MAX_TEST_SECONDS=180 uv run pytest -v --cov=guard_core -W error
+        env:
+          MATRIX_PYTHON_VERSION: ${{ matrix.python-version }}
+          IPINFO_TOKEN: ${{ secrets.IPINFO_TOKEN || 'test_token' }}
 
       - name: Upload coverage data
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -250,7 +260,7 @@ jobs:
         python-version: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
 
     permissions:
-      pull-requests: write
+      contents: read # check out the repository (the job calls no pull request API)
 
     # The docker suite runs ~29-30 minutes of pytest after a cold bake,
     # so a 30 minute job cap kills the job right after the tests pass.
@@ -264,14 +274,18 @@ jobs:
 
       - name: Assert the image environment runs the matrix interpreter
         run: |
-          COMPOSE_BAKE=true PYTHON_VERSION=${{ matrix.python-version }} docker compose run --rm --build -e EXPECTED_PYTHON=${{ matrix.python-version }} guard-core python -c "import os, sys; assert '%d.%d' % sys.version_info[:2] == os.environ['EXPECTED_PYTHON'], sys.version; print(sys.version)"
+          COMPOSE_BAKE=true PYTHON_VERSION=${MATRIX_PYTHON_VERSION} docker compose run --rm --build -e EXPECTED_PYTHON="${MATRIX_PYTHON_VERSION}" guard-core python -c "import os, sys; assert '%d.%d' % sys.version_info[:2] == os.environ['EXPECTED_PYTHON'], sys.version; print(sys.version)"
+        env:
+          MATRIX_PYTHON_VERSION: ${{ matrix.python-version }}
 
       # The 100 percent gate lives in the docker-coverage job: a version branch (for example
       # _redos_parse_slots.py) is covered by only some interpreters, so no single version reaches 100.
       - name: Run tests in Docker
         run: |
           mkdir -p coverage-docker
-          PYTHON_VERSION=${{ matrix.python-version }} docker compose run --rm -v "$PWD/coverage-docker:/cov" -e COVERAGE_FILE=/cov/coverage-docker-py${{ matrix.python-version }}.data -e GUARD_TESTS_MAX_TEST_SECONDS=180 guard-core pytest -q -p no:cacheprovider -W error --ignore=tests/live_smoke --cov=guard_core --cov-branch
+          PYTHON_VERSION=${MATRIX_PYTHON_VERSION} docker compose run --rm -v "$PWD/coverage-docker:/cov" -e "COVERAGE_FILE=/cov/coverage-docker-py${MATRIX_PYTHON_VERSION}.data" -e GUARD_TESTS_MAX_TEST_SECONDS=180 guard-core pytest -q -p no:cacheprovider -W error --ignore=tests/live_smoke --cov=guard_core --cov-branch
+        env:
+          MATRIX_PYTHON_VERSION: ${{ matrix.python-version }}
 
       # The udp-stub cases bind 127.0.0.1:53 and need the libc resolver pointed there, which a compose
       # network never does (it always resolves through 127.0.0.11), so they run on their own on the
@@ -280,8 +294,10 @@ jobs:
       - name: Run the silent-resolver geo download cases in Docker
         shell: bash
         run: |
-          docker run --rm --dns 127.0.0.1 --add-host host.docker.internal:host-gateway -e REDIS_URL=redis://host.docker.internal:6379 -e GIT_OPTIONAL_LOCKS=0 -e IPINFO_TOKEN=test_token guard-core-py${{ matrix.python-version }} pytest -q -p no:cacheprovider -W error --no-cov -rs tests/test_sync/test_geo_download_setup.py | tee geo-download.out
+          docker run --rm --dns 127.0.0.1 --add-host host.docker.internal:host-gateway -e REDIS_URL=redis://host.docker.internal:6379 -e GIT_OPTIONAL_LOCKS=0 -e IPINFO_TOKEN=test_token "guard-core-py${MATRIX_PYTHON_VERSION}" pytest -q -p no:cacheprovider -W error --no-cov -rs tests/test_sync/test_geo_download_setup.py | tee geo-download.out
           ! grep -q '^SKIPPED' geo-download.out
+        env:
+          MATRIX_PYTHON_VERSION: ${{ matrix.python-version }}
 
       - name: Upload the container coverage data
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

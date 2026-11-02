@@ -15,7 +15,7 @@ on:
         default: ''
 
 permissions:
-  contents: read
+  contents: read # check out the repository
 
 concurrency:
   group: ecosystem-gate-${{ github.ref }}
@@ -23,6 +23,7 @@ concurrency:
 
 jobs:
   build-wheel:
+    name: build-wheel
     runs-on: ubuntu-latest
     env:
       UV_PYTHON: '3.10'
@@ -65,6 +66,7 @@ jobs:
           path: dist/*.whl
 
   consumer-test:
+    name: consumer-test
     needs: build-wheel
     runs-on: ubuntu-latest
 
@@ -157,15 +159,16 @@ jobs:
         id: pin
         env:
           DISPATCH_REF: ${{ github.event.inputs.consumer_ref }}
+          MATRIX_NAME: ${{ matrix.name }}
         run: |
           ref="$DISPATCH_REF"
           if [ -z "$ref" ]; then
-            case "${{ matrix.name }}" in
+            case "${MATRIX_NAME}" in
               fastapi-guard|flaskapi-guard|djapi-guard|tornadoapi-guard) ref=landing-5.0.0-adapters ;;
               # guard-agent's 5.0.0 branch is landing-6b (maintainer-confirmed; the consumer suites ran on it).
               guard-agent) ref=landing-6b ;;
               guard-core-mcp) ref=landing-6 ;;
-              *) echo "::error::no 5.0.0 pin for ${{ matrix.name }}"; exit 1 ;;
+              *) echo "::error::no 5.0.0 pin for ${MATRIX_NAME}"; exit 1 ;;
             esac
           fi
           echo "ref=$ref" >> "$GITHUB_OUTPUT"
@@ -174,16 +177,20 @@ jobs:
       - name: Test ${{ matrix.name }} against the PR wheel
         run: |
           .github/scripts/ecosystem_gate.sh \
-            "${{ matrix.repo }}" \
-            "${{ matrix.sync_extra }}" \
-            "${{ matrix.pytest_args }}" \
+            "${MATRIX_REPO}" \
+            "${MATRIX_SYNC_EXTRA}" \
+            "${MATRIX_PYTEST_ARGS}" \
             "$PWD/dist" \
             "${NEEDS_BUILD_WHEEL_OUTPUTS_VERSION}" \
-            "${{ matrix.redis_prefix }}" \
+            "${MATRIX_REDIS_PREFIX}" \
             "${STEPS_PIN_OUTPUTS_REF}"
         env:
           NEEDS_BUILD_WHEEL_OUTPUTS_VERSION: ${{ needs.build-wheel.outputs.version }}
           STEPS_PIN_OUTPUTS_REF: ${{ steps.pin.outputs.ref }}
+          MATRIX_REPO: ${{ matrix.repo }}
+          MATRIX_SYNC_EXTRA: ${{ matrix.sync_extra }}
+          MATRIX_PYTEST_ARGS: ${{ matrix.pytest_args }}
+          MATRIX_REDIS_PREFIX: ${{ matrix.redis_prefix }}
 
       - name: Upload pytest output
         if: always()
@@ -287,15 +294,19 @@ jobs:
       - name: Test ${{ matrix.name }} against the PR wheel (latest-release)
         run: |
           .github/scripts/ecosystem_gate.sh \
-            "${{ matrix.repo }}" \
-            "${{ matrix.sync_extra }}" \
-            "${{ matrix.pytest_args }}" \
+            "${MATRIX_REPO}" \
+            "${MATRIX_SYNC_EXTRA}" \
+            "${MATRIX_PYTEST_ARGS}" \
             "$PWD/dist" \
             "${NEEDS_BUILD_WHEEL_OUTPUTS_VERSION}" \
-            "${{ matrix.redis_prefix }}" \
+            "${MATRIX_REDIS_PREFIX}" \
             "latest-release"
         env:
           NEEDS_BUILD_WHEEL_OUTPUTS_VERSION: ${{ needs.build-wheel.outputs.version }}
+          MATRIX_REPO: ${{ matrix.repo }}
+          MATRIX_SYNC_EXTRA: ${{ matrix.sync_extra }}
+          MATRIX_PYTEST_ARGS: ${{ matrix.pytest_args }}
+          MATRIX_REDIS_PREFIX: ${{ matrix.redis_prefix }}
 
       - name: Upload pytest output
         if: always()
@@ -315,12 +326,16 @@ jobs:
     steps:
       - name: Fail when any consumer job failed
         run: |
-          if [ "${{ needs.consumer-test.result }}" != "success" ]; then
-            echo "::error::consumer-test result: ${{ needs.consumer-test.result }}"
+          if [ "${NEEDS_CONSUMER_TEST_RESULT}" != "success" ]; then
+            echo "::error::consumer-test result: ${NEEDS_CONSUMER_TEST_RESULT}"
             exit 1
           fi
-          if [ "${{ github.event_name }}" = "pull_request" ] && [ "${{ needs.consumer-test-latest-release.result }}" != "success" ]; then
-            echo "::error::consumer-test-latest-release result: ${{ needs.consumer-test-latest-release.result }}"
+          if [ "${EVENT_NAME}" = "pull_request" ] && [ "${NEEDS_CONSUMER_TEST_LATEST_RELEASE_RESULT}" != "success" ]; then
+            echo "::error::consumer-test-latest-release result: ${NEEDS_CONSUMER_TEST_LATEST_RELEASE_RESULT}"
             exit 1
           fi
           echo "all consumer jobs passed"
+        env:
+          NEEDS_CONSUMER_TEST_RESULT: ${{ needs.consumer-test.result }}
+          EVENT_NAME: ${{ github.event_name }}
+          NEEDS_CONSUMER_TEST_LATEST_RELEASE_RESULT: ${{ needs.consumer-test-latest-release.result }}

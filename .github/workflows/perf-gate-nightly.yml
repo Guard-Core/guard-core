@@ -6,10 +6,15 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: read # check out the repository
+
+concurrency:
+  group: perf-gate-nightly
+  cancel-in-progress: false
 
 jobs:
   perf-gate-nightly-instructions:
+    name: perf-gate-nightly-instructions
     runs-on: ubuntu-latest
     timeout-minutes: 240
     env:
@@ -87,8 +92,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
-      contents: read
-      issues: write
+      contents: read # check out the repository
+      issues: write # open or refresh the nightly failure issue
     steps:
       - name: Open the issue, or refresh the one that is open
         env:

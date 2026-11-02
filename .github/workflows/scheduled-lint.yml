@@ -6,10 +6,15 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: read # check out the repository
+
+concurrency:
+  group: scheduled-lint
+  cancel-in-progress: false
 
 jobs:
   scheduled-pre-commit:
+    name: scheduled-pre-commit
     runs-on: ubuntu-latest
 
     steps:
@@ -35,6 +40,7 @@ jobs:
         run: uv run pre-commit run --all-files
 
   scheduled-docs-lint:
+    name: scheduled-docs-lint
     runs-on: ubuntu-latest
     env:
       UV_PYTHON: '3.10'
