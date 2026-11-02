@@ -4,7 +4,7 @@ from collections.abc import AsyncGenerator
 import pytest
 from redis.asyncio import Redis
 
-from guard_core.handlers.redis_handler import RedisManager
+from guard_core.handlers.redis_handler import RedisManager, close_redis_client
 from guard_core.models import SecurityConfig
 from tests.conftest import REDIS_URL
 from tests.engine_redis_commands import (
@@ -43,7 +43,7 @@ async def _another_client_sends_commands() -> None:
             await other.mget([f"test:wp43:other:{index}"])
             await other.smembers(f"test:wp43:other:set:{index}")
     finally:
-        await other.aclose()
+        await close_redis_client(other)
 
 
 async def test_another_client_changes_no_count_of_the_engine(
@@ -98,7 +98,7 @@ async def test_a_command_sent_through_a_second_pool_of_the_engine_is_counted(
     try:
         await second_pool.get(f"{engine.config.redis_prefix}probe")
     finally:
-        await second_pool.aclose()
+        await close_redis_client(second_pool)
 
     assert await engine_commands_sent(url) > before_all
 

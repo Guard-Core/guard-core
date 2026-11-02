@@ -1,14 +1,19 @@
 import asyncio
+import importlib
+import importlib.util
 import time
+import warnings
 from collections.abc import AsyncGenerator
+from types import ModuleType
 from typing import Any
 
 import pytest
+import redis.asyncio.connection as redis_connection_module
 from redis.asyncio import ConnectionPool, Redis
 from redis.exceptions import ConnectionError as RedisConnectionError
 
 from guard_core.handlers import _redis_fast_pool
-from guard_core.handlers.redis_handler import _build_redis_client
+from guard_core.handlers.redis_handler import _build_redis_client, close_redis_client
 from tests.conftest import REDIS_URL
 
 POOL_SIZE = 3
@@ -20,7 +25,7 @@ MARGIN = 0.5
 async def client() -> AsyncGenerator[Redis, None]:
     built = _build_redis_client(REDIS_URL, POOL_SIZE, TIMEOUT)
     yield built
-    await built.aclose()
+    await close_redis_client(built)
 
 
 async def _hold_all(pool: Any) -> list[Any]:
@@ -172,7 +177,7 @@ async def test_a_connection_failure_is_raised_at_once_not_waited_out() -> None:
         with pytest.raises(RedisConnectionError):
             await dead.connection_pool.get_connection()
     finally:
-        await dead.aclose()
+        await close_redis_client(dead)
 
     assert time.monotonic() - started < 2.0
 
@@ -239,3 +244,80 @@ def test_the_wait_recorder_is_absent_when_redis_py_has_none(
     monkeypatch.setattr(_redis_fast_pool.importlib, "import_module", refuse)
 
     assert _redis_fast_pool._load_wait_recorder() is None
+
+
+def _fresh_copy_of_the_fast_pool_module() -> ModuleType:
+    path = _redis_fast_pool.__file__
+    assert path is not None
+    spec = importlib.util.spec_from_file_location("fast_pool_fresh_copy", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_the_module_loads_afresh_on_this_redis_py() -> None:
+    module = _fresh_copy_of_the_fast_pool_module()
+
+    assert issubclass(module.FastPathConnectionPool, ConnectionPool)
+
+
+def test_the_module_needs_no_abstract_connection_class_to_load(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delattr(redis_connection_module, "AbstractConnection", raising=False)
+
+    module = _fresh_copy_of_the_fast_pool_module()
+
+    assert issubclass(module.FastPathConnectionPool, ConnectionPool)
+
+
+def test_a_redis_py_whose_recorder_lacks_the_count_function_has_no_count_recorder(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def an_observability_module_with_nothing_in_it(name: str) -> ModuleType:
+        return ModuleType(name)
+
+    monkeypatch.setattr(
+        _redis_fast_pool.importlib,
+        "import_module",
+        an_observability_module_with_nothing_in_it,
+    )
+
+    assert _redis_fast_pool._load_count_recorder() is None
+
+
+async def _checkout_needing_the_name(
+    self: ConnectionPool, command_name: str, *keys: Any, **options: Any
+) -> str | None:
+    return command_name
+
+
+async def _checkout_with_an_optional_name(
+    self: ConnectionPool, command_name: str | None = None, *keys: Any, **options: Any
+) -> str | None:
+    return command_name
+
+
+def test_the_command_name_is_required_where_the_plain_pool_requires_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(ConnectionPool, "get_connection", _checkout_needing_the_name)
+    assert _redis_fast_pool._command_name_is_required() is True
+
+    monkeypatch.setattr(
+        ConnectionPool, "get_connection", _checkout_with_an_optional_name
+    )
+    assert _redis_fast_pool._command_name_is_required() is False
+
+
+async def test_a_plain_checkout_takes_the_name_only_where_the_signature_needs_it(
+    client: Redis,
+) -> None:
+    pool = client.connection_pool
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        connection = await pool.get_connection()
+        await pool.release(connection)
+        assert await client.ping() is True

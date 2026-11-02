@@ -72,6 +72,7 @@ SKIP_TESTS = {
     "test_ecosystem_gate_cap_proof.py",
     "test_ecosystem_gate_judge.py",
     "test_redis_fast_pool.py",
+    "test_close_sync_client_pool.py",
     "test_redis_lean.py",
     "test_redis_fast_path_shape.py",
     "test_per_app_sharing_by_event_loop.py",

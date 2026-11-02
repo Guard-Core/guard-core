@@ -11,7 +11,7 @@ from redis import Redis
 
 from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers import redis_handler as redis_handler_module
-from guard_core.sync.handlers.redis_handler import RedisManager
+from guard_core.sync.handlers.redis_handler import RedisManager, close_redis_client
 from tests.test_sync.protocol_only_redis import REDIS_URL
 
 IP_A = "198.51.100.10"
@@ -34,7 +34,7 @@ def probe() -> Generator[Redis, None]:
     try:
         yield client
     finally:
-        client.close()
+        close_redis_client(client)
 
 
 def _keys(probe: Redis, prefix: str) -> set[str]:

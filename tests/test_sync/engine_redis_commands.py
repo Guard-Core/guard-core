@@ -10,6 +10,8 @@ import pytest
 from redis import Redis
 from redis.connection import Connection
 
+from guard_core.sync.handlers.redis_handler import close_redis_client
+
 _PROCESS_CLIENT_NAME = f"guardtest-{uuid.uuid4().hex}"
 _OBSERVER_CLIENT_NAME = f"guardtest-observer-{uuid.uuid4().hex}"
 _MONITOR_LINE = re.compile(r"^\+?[\d.]+ \[(\d+) (.+?)\] (.*)$")
@@ -158,7 +160,7 @@ def _engine_connections(url: str) -> dict[str, int]:
     try:
         listing = observer.client_list()
     finally:
-        observer.close()
+        close_redis_client(observer)
     return {
         entry["addr"]: int(entry["tot-cmds"])
         for entry in listing
@@ -172,7 +174,7 @@ def _wait_for_the_stream_to_catch_up(url: str, monitor: _Monitor) -> None:
     try:
         observer.echo(token)
     finally:
-        observer.close()
+        close_redis_client(observer)
     deadline = time.monotonic() + 5
     while time.monotonic() < deadline:
         if any(token in arguments for _, _, arguments in monitor.snapshot()):

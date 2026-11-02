@@ -53,7 +53,7 @@ from guard_core.scripts.sliding_window_lua import (
 )
 
 if TYPE_CHECKING:
-    from redis.asyncio import Redis
+    from redis.asyncio import ConnectionPool, Redis
 
 
 _REDIS_HANDLER_NAME = "redis"
@@ -61,10 +61,40 @@ _DEFAULT_POOL_SIZE = _redis_shared_clients.DEFAULT_POOL_SIZE
 _SCAN_BATCH = 500
 
 
+def _redis_over_owned_pool(pool: ConnectionPool) -> Redis:
+    """What ``Redis.from_pool`` does, for the redis-py releases before 5.0.0 that
+    lack it: a client over the pool that closes the pool with itself."""
+    from redis.asyncio import Redis
+
+    client = Redis(connection_pool=pool)
+    client.auto_close_connection_pool = True
+    return client
+
+
+def _client_owning_pool(pool: ConnectionPool) -> Redis:
+    from redis.asyncio import Redis
+
+    build = getattr(Redis, "from_pool", None) or _redis_over_owned_pool
+    owning: Redis = build(pool)
+    return owning
+
+
+async def close_redis_client(client: Redis) -> None:
+    """``aclose`` where the client has it (redis-py 5.0.1 on, where ``close`` is
+    deprecated), else ``close``, which is the coroutine that closes it before then.
+    The sync client's ``close`` drops the pool it owns only from redis-py 5.0.0 on,
+    and that release has no ``auto_close_connection_pool`` before it: a client owns
+    its pool unless it says otherwise, and drops it here too (a second drop is a
+    no-op)."""
+    closer = client.aclose if hasattr(client, "aclose") else client.close
+    await closer()
+    if getattr(client, "auto_close_connection_pool", True):
+        await client.connection_pool.disconnect()
+
+
 def _build_redis_client(
     url: str, max_connections: int, pool_timeout: float, **connection_kwargs: object
 ) -> Redis:
-    from redis.asyncio import Redis
 
     from guard_core.handlers._redis_fast_pool import FastPathConnectionPool
 
@@ -75,7 +105,7 @@ def _build_redis_client(
         decode_responses=True,
         **connection_kwargs,
     )
-    return Redis.from_pool(pool)
+    return _client_owning_pool(pool)
 
 
 _SLIDING_WINDOW_SHA = hashlib.sha1(
@@ -173,7 +203,7 @@ class RedisManager(RedisBanStrikeMixin):
 
     async def _safe_aclose(self, client: Redis) -> None:
         try:
-            await client.aclose()
+            await close_redis_client(client)
         except Exception as e:
             self.logger.warning(f"Failed to close a Redis client: {e}")
 
@@ -876,7 +906,7 @@ async def scan_unlink_through_new_client(url: str, full_pattern: str) -> int:
     try:
         return await scan_unlink(client, full_pattern)
     finally:
-        await client.aclose()
+        await close_redis_client(client)
 
 
 def is_connected_redis_manager(handler: object) -> TypeGuard[RedisManager]:

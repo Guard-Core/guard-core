@@ -6,7 +6,7 @@ from typing import Any
 import pytest
 from redis.asyncio import Redis
 
-from guard_core.handlers.redis_handler import RedisHandlerBase
+from guard_core.handlers.redis_handler import RedisHandlerBase, close_redis_client
 from guard_core.handlers.security_headers_handler import SecurityHeadersManager
 from guard_core.models import SecurityConfig
 
@@ -46,7 +46,7 @@ async def conn() -> AsyncGenerator[Redis, None]:
     await _clear(client)
     yield client
     await _clear(client)
-    await client.aclose()
+    await close_redis_client(client)
 
 
 async def test_reset_clears_the_headers_keys_with_scan_and_never_keys(

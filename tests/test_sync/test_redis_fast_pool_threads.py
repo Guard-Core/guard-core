@@ -1,5 +1,6 @@
 import threading
 import time
+import warnings
 from collections.abc import Generator
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
@@ -251,3 +252,39 @@ def test_the_wait_recorder_is_absent_when_redis_py_has_none(
     monkeypatch.setattr(_redis_fast_pool.importlib, "import_module", refuse)
 
     assert _redis_fast_pool._load_wait_recorder() is None
+
+
+def _checkout_needing_the_name(
+    self: ConnectionPool, command_name: str, *keys: Any, **options: Any
+) -> str | None:
+    return command_name
+
+
+def _checkout_with_an_optional_name(
+    self: ConnectionPool, command_name: str | None = None, *keys: Any, **options: Any
+) -> str | None:
+    return command_name
+
+
+def test_the_command_name_is_required_where_the_plain_pool_requires_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(ConnectionPool, "get_connection", _checkout_needing_the_name)
+    assert _redis_fast_pool._command_name_is_required() is True
+
+    monkeypatch.setattr(
+        ConnectionPool, "get_connection", _checkout_with_an_optional_name
+    )
+    assert _redis_fast_pool._command_name_is_required() is False
+
+
+def test_a_plain_checkout_takes_the_name_only_where_the_signature_needs_it(
+    client: Redis,
+) -> None:
+    pool = client.connection_pool
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        connection = pool.get_connection()
+        pool.release(connection)
+        assert client.ping() is True

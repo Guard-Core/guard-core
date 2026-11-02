@@ -15,7 +15,7 @@ from guard_core.core.initialization.handler_initializer import HandlerInitialize
 from guard_core.handlers import ipban_handler
 from guard_core.handlers.ipban_handler import IPBanManager
 from guard_core.handlers.ratelimit_handler import RateLimitManager
-from guard_core.handlers.redis_handler import RedisManager
+from guard_core.handlers.redis_handler import RedisManager, close_redis_client
 from guard_core.models import SecurityConfig
 from tests.conftest import MockGuardRequest
 from tests.protocol_only_redis import REDIS_URL
@@ -106,7 +106,7 @@ async def _keys(prefix: str) -> set[str]:
     try:
         return {key async for key in client.scan_iter(match=f"{prefix}*", count=500)}
     finally:
-        await client.aclose()
+        await close_redis_client(client)
 
 
 async def test_each_app_resolves_a_ban_manager_of_its_own_prefix(

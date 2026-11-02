@@ -21,7 +21,7 @@ from guard_core.sync.handlers.cloud_handler import cloud_handler_for
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.sync.handlers.ipban_handler import ip_ban_manager_for
 from guard_core.sync.handlers.ipinfo_handler import IPInfoManager
-from guard_core.sync.handlers.redis_handler import RedisManager
+from guard_core.sync.handlers.redis_handler import RedisManager, close_redis_client
 from guard_core.sync.handlers.security_headers_handler import security_headers_manager
 from guard_core.sync.handlers.suspatterns_handler import sus_patterns_manager_for
 from guard_core.sync.utils import detect_penetration_attempt
@@ -265,4 +265,4 @@ def _override_keys(prefix: str) -> list[str]:
     try:
         return [key for key in client.scan_iter(match=f"{prefix}*override*", count=500)]
     finally:
-        client.close()
+        close_redis_client(client)

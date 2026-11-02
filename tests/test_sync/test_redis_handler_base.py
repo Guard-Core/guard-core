@@ -13,7 +13,11 @@ from guard_core.sync.core.initialization._redis_handler_members import (
     missing_redis_handler_members,
 )
 from guard_core.sync.core.initialization.handler_initializer import HandlerInitializer
-from guard_core.sync.handlers.redis_handler import RedisHandlerBase, RedisManager
+from guard_core.sync.handlers.redis_handler import (
+    RedisHandlerBase,
+    RedisManager,
+    close_redis_client,
+)
 from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
 from tests.test_sync.protocol_only_redis import REDIS_URL, protocol_only_handler
 
@@ -78,7 +82,7 @@ class _OwnPoolHandler(RedisHandlerBase):
 
     def close(self) -> None:
         assert self._client is not None
-        self._client.close()
+        close_redis_client(self._client)
 
 
 def test_a_subclass_of_the_base_gets_every_default() -> None:

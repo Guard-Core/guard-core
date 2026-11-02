@@ -15,7 +15,11 @@ from redis.exceptions import ConnectionError as RedisConnectionError
 from guard_core.exceptions import GuardRedisError
 from guard_core.handlers._redis_fast_pool import FastPathConnectionPool
 from guard_core.handlers._redis_lean import lean_command, lean_evalsha
-from guard_core.handlers.redis_handler import RedisManager, _build_redis_client
+from guard_core.handlers.redis_handler import (
+    RedisManager,
+    _build_redis_client,
+    close_redis_client,
+)
 from guard_core.models import SecurityConfig
 from tests.conftest import REDIS_URL
 from tests.engine_redis_commands import server_loses_the_script_of_the_next_evalsha
@@ -31,7 +35,7 @@ async def _client(max_connections: int = 20, **kwargs: Any) -> Redis:
 async def client() -> AsyncGenerator[Redis, None]:
     redis = await _client()
     yield redis
-    await redis.aclose()
+    await close_redis_client(redis)
 
 
 def _name(packed: Any) -> str:
@@ -97,8 +101,8 @@ async def test_a_connection_the_server_dropped_while_idle_reconnects() -> None:
 
         assert await lean_command(client, "GET", "lean:idle:none") is None
     finally:
-        await client.aclose()
-        await other.aclose()
+        await close_redis_client(client)
+        await close_redis_client(other)
 
 
 class _ReaderAtEndOfStream:
@@ -126,7 +130,7 @@ async def test_a_checked_out_connection_whose_reader_ended_is_disconnected(
         assert disconnected == [idle]
     finally:
         monkeypatch.undo()
-        await client.aclose()
+        await close_redis_client(client)
 
 
 async def test_two_hundred_concurrent_calls_are_not_serialized() -> None:
@@ -143,7 +147,7 @@ async def test_two_hundred_concurrent_calls_are_not_serialized() -> None:
         assert replies == [None] * 200
         assert time.monotonic() - started < 2.0
     finally:
-        await client.aclose()
+        await close_redis_client(client)
 
 
 async def test_the_pool_limit_holds_and_a_high_level_call_never_hits_the_timeout() -> (
@@ -180,7 +184,7 @@ async def test_the_pool_limit_holds_and_a_high_level_call_never_hits_the_timeout
         assert len(pool._available_connections) <= 20
     finally:
         watcher.cancel()
-        await client.aclose()
+        await close_redis_client(client)
 
 
 async def test_the_manager_builds_the_connection_with_its_kwargs() -> None:
@@ -191,7 +195,7 @@ async def test_the_manager_builds_the_connection_with_its_kwargs() -> None:
     assert kwargs["password"] == "secret"
     assert kwargs["username"] == "user"
     assert redis.connection_pool.connection_class.__name__ == "SSLConnection"
-    await redis.aclose()
+    await close_redis_client(redis)
 
 
 async def test_a_drop_between_send_and_read_counts_one_request_not_two(
@@ -269,7 +273,7 @@ async def test_a_send_that_fails_is_resent_with_the_same_bytes(
         assert await lean_command(client, "GET", "lean:resend") is None
         assert len(sent) == 2 and sent[0] == sent[1]
     finally:
-        await client.aclose()
+        await close_redis_client(client)
 
 
 def test_the_unique_member_of_a_strike_is_chosen_before_the_call() -> None:
@@ -288,7 +292,7 @@ async def test_an_idle_connection_closed_by_the_pool_is_not_handed_out() -> None
         assert await pool.take_connection_with_nothing_unread() is None
         assert await lean_command(client, "GET", "lean:disconnected") is None
     finally:
-        await client.aclose()
+        await close_redis_client(client)
 
 
 async def test_a_connection_that_must_reconnect_goes_back_through_release(
@@ -304,7 +308,7 @@ async def test_a_connection_that_must_reconnect_goes_back_through_release(
         assert not pool._connections_with_nothing_unread
     finally:
         monkeypatch.undo()
-        await client.aclose()
+        await close_redis_client(client)
 
 
 class _Observability:
@@ -368,7 +372,7 @@ async def test_connection_counts_after_lean_calls_equal_those_after_plain_calls(
         assert lean_samples == sorted(map(str, samples))
         assert len(lean_samples) == 20
     finally:
-        await client.aclose()
+        await close_redis_client(client)
 
 
 async def test_no_connection_count_is_recorded_while_observability_is_off(
@@ -384,7 +388,7 @@ async def test_no_connection_count_is_recorded_while_observability_is_off(
             await lean_command(client, "GET", "lean:count")
         assert samples == []
     finally:
-        await client.aclose()
+        await close_redis_client(client)
 
 
 def test_a_redis_py_without_the_connection_count_recorder_loads_no_recorder(
@@ -417,7 +421,7 @@ async def test_observability_switched_on_later_is_seen_by_the_next_fast_call(
         await lean_command(client, "GET", "lean:count")
         assert len(samples) == 4
     finally:
-        await client.aclose()
+        await close_redis_client(client)
 
 
 class _Listener:
@@ -452,7 +456,7 @@ async def test_a_release_listener_hears_each_lean_call_like_each_plain_one() -> 
             await client.execute_command("GET", "lean:event")
         assert len(listener.events) == 5
     finally:
-        await client.aclose()
+        await close_redis_client(client)
 
 
 async def test_no_release_event_is_dispatched_with_only_the_default_listener(
@@ -472,7 +476,7 @@ async def test_no_release_event_is_dispatched_with_only_the_default_listener(
             await lean_command(client, "GET", "lean:event")
         assert dispatched == []
     finally:
-        await client.aclose()
+        await close_redis_client(client)
 
 
 async def test_the_fast_return_resumes_when_the_last_extra_listener_is_removed() -> (
@@ -494,7 +498,7 @@ async def test_the_fast_return_resumes_when_the_last_extra_listener_is_removed()
         assert len(listener.events) == seen
         assert pool._connections_with_nothing_unread
     finally:
-        await client.aclose()
+        await close_redis_client(client)
 
 
 async def test_a_connection_holding_a_re_authentication_token_goes_back_through_release(
@@ -517,7 +521,7 @@ async def test_a_connection_holding_a_re_authentication_token_goes_back_through_
         assert len(re_authenticated) == 1
         assert not pool._connections_with_nothing_unread
     finally:
-        await client.aclose()
+        await close_redis_client(client)
 
 
 async def test_a_redis_py_without_the_release_event_never_takes_the_fast_return(
@@ -532,7 +536,7 @@ async def test_a_redis_py_without_the_release_event_never_takes_the_fast_return(
         await lean_command(client, "GET", "lean:old")
         assert not client.connection_pool._connections_with_nothing_unread
     finally:
-        await client.aclose()
+        await close_redis_client(client)
 
 
 def test_a_redis_py_without_the_release_event_loads_none(
@@ -560,7 +564,7 @@ async def test_a_redis_py_without_the_count_recorder_takes_the_fast_path_unrecor
         await lean_command(client, "GET", "lean:old")
         assert client.connection_pool._connections_with_nothing_unread
     finally:
-        await client.aclose()
+        await close_redis_client(client)
 
 
 class _DispatcherWithoutMapping:
@@ -599,7 +603,7 @@ async def test_a_dispatcher_without_the_listener_mapping_takes_the_plain_path() 
     try:
         await _calls_take_the_plain_path(client, dispatcher.events)
     finally:
-        await client.aclose()
+        await close_redis_client(client)
 
 
 async def test_a_listener_mapping_of_another_type_takes_the_plain_path() -> None:
@@ -609,7 +613,7 @@ async def test_a_listener_mapping_of_another_type_takes_the_plain_path() -> None
     try:
         await _calls_take_the_plain_path(client, dispatcher.events)
     finally:
-        await client.aclose()
+        await close_redis_client(client)
 
 
 async def test_a_connection_without_a_re_authentication_token_takes_the_plain_path(
@@ -639,7 +643,7 @@ async def test_a_connection_without_a_re_authentication_token_takes_the_plain_pa
         monkeypatch.setattr(dispatcher, "dispatch_async", spy)
         await _calls_take_the_plain_path(client, events)
     finally:
-        await client.aclose()
+        await close_redis_client(client)
 
 
 class _ConnectionWithoutShouldReconnect(Connection):
@@ -661,7 +665,7 @@ async def test_a_connection_without_should_reconnect_gets_no_fast_return() -> No
             pool._only_the_default_listener(_ConnectionWithoutShouldReconnect()) is None
         )
     finally:
-        await client.aclose()
+        await close_redis_client(client)
 
 
 async def test_an_observability_module_without_its_singleton_takes_the_plain_path(
@@ -683,7 +687,7 @@ async def test_an_observability_module_without_its_singleton_takes_the_plain_pat
         monkeypatch.setattr(dispatcher, "dispatch_async", spy)
         await _calls_take_the_plain_path(client, events)
     finally:
-        await client.aclose()
+        await close_redis_client(client)
 
 
 async def test_an_instance_without_a_provider_manager_takes_the_plain_path(
@@ -705,7 +709,7 @@ async def test_an_instance_without_a_provider_manager_takes_the_plain_path(
         monkeypatch.setattr(dispatcher, "dispatch_async", spy)
         await _calls_take_the_plain_path(client, events)
     finally:
-        await client.aclose()
+        await close_redis_client(client)
 
 
 async def test_a_stock_client_answers_every_lean_routed_method_like_the_fast_pool(
@@ -729,4 +733,4 @@ async def test_a_stock_client_answers_every_lean_routed_method_like_the_fast_poo
         )
         assert len(turned) == 1
     finally:
-        await stock.aclose()
+        await close_redis_client(stock)

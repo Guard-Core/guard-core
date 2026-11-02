@@ -20,7 +20,7 @@ from guard_core.handlers.cloud_handler import cloud_handler_for
 from guard_core.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.handlers.ipban_handler import ip_ban_manager_for
 from guard_core.handlers.ipinfo_handler import IPInfoManager
-from guard_core.handlers.redis_handler import RedisManager
+from guard_core.handlers.redis_handler import RedisManager, close_redis_client
 from guard_core.handlers.security_headers_handler import security_headers_manager
 from guard_core.handlers.suspatterns_handler import sus_patterns_manager_for
 from guard_core.models import SecurityConfig
@@ -272,4 +272,4 @@ async def _override_keys(prefix: str) -> list[str]:
             async for key in client.scan_iter(match=f"{prefix}*override*", count=500)
         ]
     finally:
-        await client.aclose()
+        await close_redis_client(client)
