@@ -1,0 +1,125 @@
+import logging
+import warnings
+from typing import Any
+
+import pytest
+from redis.asyncio import Redis
+
+from guard_core.handlers import redis_handler
+from guard_core.handlers.redis_handler import (
+    _build_redis_client,
+    _redis_over_owned_pool,
+    close_redis_client,
+    scan_unlink_through_new_client,
+)
+from guard_core.models import SecurityConfig
+from tests.conftest import REDIS_URL
+
+POOL_SIZE = 2
+TIMEOUT = 0.4
+
+
+class _OnlyClose(Redis):
+    """A client of a redis-py before 5.0.1: ``close`` closes it, there is no
+    ``aclose``, and ``close`` drops the pool the client owns."""
+
+    def __getattribute__(self, name: str) -> Any:
+        if name == "aclose":
+            raise AttributeError(name)
+        return super().__getattribute__(name)
+
+    async def close(self) -> None:
+        await self.connection_pool.disconnect()
+
+
+def _is_open(connection: Any) -> bool:
+    return any(getattr(connection, a, None) is not None for a in ("_sock", "_reader"))
+
+
+async def _connected(client: Redis) -> Any:
+    pool = client.connection_pool
+    connection = await pool.get_connection()
+    await pool.release(connection)
+    assert _is_open(connection)
+    return connection
+
+
+def _close_only_client() -> Redis:
+    pool = _build_redis_client(REDIS_URL, POOL_SIZE, TIMEOUT).connection_pool
+    return _OnlyClose(connection_pool=pool)
+
+
+async def test_a_client_with_only_close_gets_its_connection_pool_disconnected() -> None:
+    client = _close_only_client()
+    connection = await _connected(client)
+
+    await close_redis_client(client)
+
+    assert not _is_open(connection)
+
+
+async def test_a_client_with_aclose_closes_without_a_deprecation_warning() -> None:
+    client = _build_redis_client(REDIS_URL, POOL_SIZE, TIMEOUT)
+    connection = await _connected(client)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        await close_redis_client(client)
+
+    assert not _is_open(connection)
+
+
+async def test_the_safe_close_of_a_client_with_aclose_logs_nothing(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    client = _build_redis_client(REDIS_URL, POOL_SIZE, TIMEOUT)
+    connection = await _connected(client)
+    manager = redis_handler.RedisManager(SecurityConfig(enable_agent=False))
+
+    with caplog.at_level(logging.WARNING), warnings.catch_warnings():
+        warnings.simplefilter("error")
+        await manager._safe_aclose(client)
+
+    assert not _is_open(connection)
+    assert "Failed to close a Redis client" not in caplog.text
+
+
+async def test_the_scan_clear_through_a_new_client_closes_it_when_the_scan_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _close_only_client()
+    connection = await _connected(client)
+
+    async def failing_scan(*_args: Any, **_kwargs: Any) -> int:
+        raise RuntimeError("the scan failed")
+
+    monkeypatch.setattr(Redis, "from_url", classmethod(lambda cls, *a, **k: client))
+    monkeypatch.setattr(redis_handler, "scan_unlink", failing_scan)
+
+    with pytest.raises(RuntimeError, match="the scan failed"):
+        await scan_unlink_through_new_client(REDIS_URL, "wp381:*")
+
+    assert not _is_open(connection)
+
+
+async def test_a_client_built_without_from_pool_still_owns_and_closes_its_pool(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delattr(Redis, "from_pool", raising=False)
+
+    client = _build_redis_client(REDIS_URL, POOL_SIZE, TIMEOUT)
+    connection = await _connected(client)
+
+    assert client.auto_close_connection_pool is True
+    await close_redis_client(client)
+    assert not _is_open(connection)
+
+
+async def test_the_pool_owning_client_of_the_fallback_closes_its_pool() -> None:
+    pool = _build_redis_client(REDIS_URL, POOL_SIZE, TIMEOUT).connection_pool
+    client = _redis_over_owned_pool(pool)
+    connection = await _connected(client)
+
+    assert client.auto_close_connection_pool is True
+    await close_redis_client(client)
+    assert not _is_open(connection)

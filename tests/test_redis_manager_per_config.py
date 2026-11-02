@@ -10,7 +10,7 @@ import pytest
 from redis.asyncio import Redis
 
 from guard_core.handlers import redis_handler as redis_handler_module
-from guard_core.handlers.redis_handler import RedisManager
+from guard_core.handlers.redis_handler import RedisManager, close_redis_client
 from guard_core.models import SecurityConfig
 from tests.protocol_only_redis import REDIS_URL
 
@@ -34,7 +34,7 @@ async def probe() -> AsyncGenerator[Redis, None]:
     try:
         yield client
     finally:
-        await client.aclose()
+        await close_redis_client(client)
 
 
 async def _keys(probe: Redis, prefix: str) -> set[str]:

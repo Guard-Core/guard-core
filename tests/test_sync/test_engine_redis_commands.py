@@ -5,7 +5,7 @@ import pytest
 from redis import Redis
 
 from guard_core.models import SyncSecurityConfig
-from guard_core.sync.handlers.redis_handler import RedisManager
+from guard_core.sync.handlers.redis_handler import RedisManager, close_redis_client
 from tests.test_sync.conftest import REDIS_URL
 from tests.test_sync.engine_redis_commands import (
     _MONITORS,
@@ -43,7 +43,7 @@ def _another_client_sends_commands() -> None:
             other.mget([f"test:wp43:other:{index}"])
             other.smembers(f"test:wp43:other:set:{index}")
     finally:
-        other.close()
+        close_redis_client(other)
 
 
 def test_another_client_changes_no_count_of_the_engine(
@@ -98,7 +98,7 @@ def test_a_command_sent_through_a_second_pool_of_the_engine_is_counted(
     try:
         second_pool.get(f"{engine.config.redis_prefix}probe")
     finally:
-        second_pool.close()
+        close_redis_client(second_pool)
 
     assert engine_commands_sent(url) > before_all
 

@@ -8,6 +8,7 @@ from guard_core.handlers._redis_fast_pool import (
     _load_release_events,
 )
 from guard_core.handlers.redis_handler import _build_redis_client
+from tests import redis_py_internals as internals
 from tests.conftest import REDIS_URL
 
 WHAT = (
@@ -18,6 +19,10 @@ WHAT = (
 
 
 def test_the_release_event_and_its_default_listener_exist() -> None:
+    if not internals.RELEASE_EVENTS_EXIST:
+        assert _load_release_events() is None
+        assert _RELEASE_EVENTS is None
+        return
     assert _load_release_events() is not None, (
         f"redis-py {REDIS_PY_VERSION} lost AsyncAfterConnectionReleasedEvent or "
         f"AsyncReAuthConnectionListener in redis.event: {WHAT}"
@@ -25,8 +30,13 @@ def test_the_release_event_and_its_default_listener_exist() -> None:
 
 
 def test_the_dispatcher_keeps_its_listener_mapping_with_the_default_listener() -> None:
-    assert _RELEASE_EVENTS is not None
     client = _build_redis_client(REDIS_URL, 2, 1.0)
+    if not internals.RELEASE_EVENTS_EXIST:
+        pool = client.connection_pool
+        assert not hasattr(pool, "_event_dispatcher")
+        assert pool._only_the_default_listener(pool.make_connection()) is None
+        return
+    assert _RELEASE_EVENTS is not None
     dispatcher = client.connection_pool._event_dispatcher
     mapping = getattr(dispatcher, "_event_listeners_mapping", None)
     assert isinstance(mapping, dict), (
@@ -44,6 +54,9 @@ def test_the_dispatcher_keeps_its_listener_mapping_with_the_default_listener() -
 
 def test_a_connection_keeps_its_re_authentication_token() -> None:
     connection = Connection()
+    if not internals.RELEASE_EVENTS_EXIST:
+        assert not hasattr(connection, "_re_auth_token")
+        return
     assert hasattr(connection, "_re_auth_token"), (
         f"redis-py {REDIS_PY_VERSION}: Connection._re_auth_token is gone: {WHAT}"
     )
@@ -51,6 +64,10 @@ def test_a_connection_keeps_its_re_authentication_token() -> None:
 
 
 def test_the_observability_singleton_and_its_provider_manager_exist() -> None:
+    if not internals.COUNT_RECORDER_EXISTS:
+        assert _load_count_recorder() is None
+        assert _COUNT_RECORDER is None
+        return
     assert _load_count_recorder() is not None, (
         f"redis-py {REDIS_PY_VERSION} lost record_connection_count, "
         f"ConnectionState, get_pool_name or redis.observability.providers: {WHAT}"

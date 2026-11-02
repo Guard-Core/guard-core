@@ -76,9 +76,34 @@ def _freeze(value: object) -> Hashable:
         return tuple(_freeze(v) for v in value)
     if value is None or isinstance(value, (str, int, float, bool, type)):
         return value
-    if hasattr(value, "__dict__"):
-        return (type(value).__qualname__, _freeze(vars(value)))
+    attributes = _attributes_of(value)
+    if attributes is not None:
+        return (type(value).__qualname__, _freeze(attributes))
     return (type(value).__qualname__, repr(value))
+
+
+def _slot_attribute_names(cls: type) -> list[str]:
+    """The names ``__slots__`` declares along the MRO, private names mangled."""
+    names: list[str] = []
+    for klass in cls.__mro__:
+        declared = klass.__dict__.get("__slots__", ())
+        for name in (declared,) if isinstance(declared, str) else declared:
+            private = name.startswith("__") and not name.endswith("__")
+            names.append(f"_{klass.__name__.lstrip('_')}{name}" if private else name)
+    return names
+
+
+def _attributes_of(value: object) -> dict[str, object] | None:
+    """The instance attributes of ``value`` by name, ``__dict__`` and slots alike
+    (redis-py's ``Retry`` before 6.3.0 has slots and neither ``__dict__`` nor
+    ``__eq__``, so its repr carries an address); ``None`` for an object with
+    neither."""
+    attributes: dict[str, object] = dict(getattr(value, "__dict__", {}))
+    slot_names = _slot_attribute_names(type(value))
+    for name in slot_names:
+        if name not in ("__dict__", "__weakref__") and hasattr(value, name):
+            attributes[name] = getattr(value, name)
+    return attributes if hasattr(value, "__dict__") or slot_names else None
 
 
 def pool_key(

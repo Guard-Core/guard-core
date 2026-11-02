@@ -10,9 +10,16 @@ on:
   workflow_dispatch:
   # release.yml calls this file so the release gate is the PR gate, never a copy of it.
   workflow_call:
+    secrets:
+      IPINFO_TOKEN:
+        required: false
 
 permissions:
-  contents: read
+  contents: read # check out the repository
+
+concurrency:
+  group: ci-${{ github.event_name }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   changes:
@@ -22,8 +29,9 @@ jobs:
       code: ${{ steps.diff.outputs.code }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           # pull_request checks out the merge commit; the second commit is the base (its first parent).
           fetch-depth: 2
 
@@ -56,14 +64,17 @@ jobs:
           echo "code=$code" >> "$GITHUB_OUTPUT"
 
   pre-commit:
+    name: pre-commit
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           # Tooling job with no test run: pre-commit and the lock tools need Python 3.11 (filelock 4.2.1, D-164), and mypy keeps python_version 3.10 in pyproject.toml; the test matrix owns the other versions.
           python-version: '3.11'
-      - run: pip install uv
+      - run: pip install uv==0.13.4
       - run: uv sync --locked --extra dev --extra otel --extra logfire
       - name: Check uv.lock is tracked and in sync
         run: |
@@ -77,6 +88,7 @@ jobs:
       - run: uv run pre-commit run --all-files
 
   quality:
+    name: quality
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
@@ -84,16 +96,19 @@ jobs:
       UV_PYTHON: '3.10'
       UV_PYTHON_DOWNLOADS: never
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           # Tooling job with no test run: 3.10 is the floor the lint and type config targets (mypy python_version 3.10); the test matrix owns the other versions.
           python-version: '3.10'
-      - run: pip install uv
+      - run: pip install uv==0.13.4
       - run: uv sync --locked --extra dev --extra otel --extra logfire
       - run: make quality
 
   sdist:
+    name: sdist
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
@@ -101,12 +116,14 @@ jobs:
       UV_PYTHON: '3.10'
       UV_PYTHON_DOWNLOADS: never
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           # Packaging check only (the sdist is pure Python); the test matrix owns the other versions.
           python-version: '3.10'
-      - run: pip install uv
+      - run: pip install uv==0.13.4
       - run: uv build --sdist --out-dir dist
       - run: python scripts/check_sdist_contents.py dist/*.tar.gz
 
@@ -123,7 +140,7 @@ jobs:
 
     services:
       redis:
-        image: redis
+        image: redis:8.10.3@sha256:de1068af6f552240dfab67bcc9bfef99bfc60f776bb4580ef077ea4c8c97e848
         ports:
           - 6379:6379
         options: >-
@@ -133,7 +150,7 @@ jobs:
           --health-retries 5
 
     permissions:
-      pull-requests: write
+      contents: read # check out the repository (the job calls no pull request API)
 
     strategy:
       matrix:
@@ -141,16 +158,18 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: ${{ matrix.python-version }}
 
       - name: Install uv
         run: |
-          pip install uv
+          pip install uv==0.13.4
 
       - name: Assert uv resolves the matrix interpreter (before sync)
         run: |
@@ -166,14 +185,114 @@ jobs:
 
       - name: Run tests
         run: |
-          COVERAGE_FILE=coverage-py${{ matrix.python-version }}.data IPINFO_TOKEN='${{ secrets.IPINFO_TOKEN || 'test_token' }}' REDIS_URL='redis://localhost:6379' GUARD_TESTS_MAX_TEST_SECONDS=180 uv run pytest -v --cov=guard_core -W error
+          COVERAGE_FILE=coverage-py${MATRIX_PYTHON_VERSION}.data IPINFO_TOKEN="${IPINFO_TOKEN}" REDIS_URL='redis://localhost:6379' GUARD_TESTS_MAX_TEST_SECONDS=180 uv run pytest -v --cov=guard_core -W error
+        env:
+          MATRIX_PYTHON_VERSION: ${{ matrix.python-version }}
+          IPINFO_TOKEN: ${{ secrets.IPINFO_TOKEN || 'test_token' }}
 
       - name: Upload coverage data
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage-data-py${{ matrix.python-version }}
           path: coverage-py${{ matrix.python-version }}.data
           if-no-files-found: error
+
+  test-redis-floor:
+    name: test (redis-py ${{ matrix.redis-py }}, ${{ matrix.python-version }})
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    env:
+      UV_PYTHON: ${{ matrix.python-version }}
+      UV_PYTHON_DOWNLOADS: never
+      EXPECTED_PYTHON: ${{ matrix.python-version }}
+      REDIS_PY: ${{ matrix.redis-py }}
+    runs-on: ubuntu-latest
+
+    services:
+      redis:
+        image: redis:8.10.3@sha256:de1068af6f552240dfab67bcc9bfef99bfc60f776bb4580ef077ea4c8c97e848
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    permissions:
+      contents: read # check out the repository (the job calls no pull request API)
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # D-244: the redis extra admits 4.4.4 on, so the suite runs at the floor on the oldest and the newest Python, and at the releases the fast path treats differently (5.0.1: no Connection._close before 5.0.2; 5.3.1: the first with the release event; 6.2.0; 6.4.0: kombu and celery users; 7.3.0: the wait recorder without the count recorder).
+        include:
+          - {redis-py: '4.4.4', python-version: '3.10'}
+          - {redis-py: '4.4.4', python-version: '3.15'}
+          - {redis-py: '5.0.1', python-version: '3.10'}
+          - {redis-py: '5.3.1', python-version: '3.10'}
+          - {redis-py: '6.2.0', python-version: '3.10'}
+          - {redis-py: '6.4.0', python-version: '3.10'}
+          - {redis-py: '7.3.0', python-version: '3.10'}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install uv
+        run: |
+          pip install uv==0.13.4
+
+      - name: Install dependencies
+        run: |
+          uv sync --locked --extra dev --extra otel --extra logfire
+
+      - name: Install redis-py 4.4.4
+        if: matrix.redis-py == '4.4.4'
+        run: |
+          uv pip install redis==4.4.4
+
+      - name: Install redis-py 5.0.1
+        if: matrix.redis-py == '5.0.1'
+        run: |
+          uv pip install redis==5.0.1
+
+      - name: Install redis-py 5.3.1 (PyJWT 2.15.0, the first with no advisory: redis-py 5.3.0 alone pins 2.9.0)
+        if: matrix.redis-py == '5.3.1'
+        run: |
+          uv pip install redis==5.3.1 PyJWT==2.15.0
+
+      - name: Install redis-py 6.2.0
+        if: matrix.redis-py == '6.2.0'
+        run: |
+          uv pip install redis==6.2.0 PyJWT==2.15.0
+
+      - name: Install redis-py 6.4.0
+        if: matrix.redis-py == '6.4.0'
+        run: |
+          uv pip install redis==6.4.0 PyJWT==2.15.0
+
+      - name: Install redis-py 7.3.0
+        if: matrix.redis-py == '7.3.0'
+        run: |
+          uv pip install redis==7.3.0 PyJWT==2.15.0
+
+      - name: Assert the redis-py under test is the one installed
+        run: |
+          uv run --no-sync python -c "import os, redis; assert redis.__version__ == os.environ['REDIS_PY'], redis.__version__; print(redis.__version__)"
+
+      - name: Run tests at this redis-py (-W error, 100% branch coverage)
+        run: |
+          COVERAGE_FILE=coverage-redis-py${REDIS_PY}.data IPINFO_TOKEN="${IPINFO_TOKEN}" REDIS_URL='redis://localhost:6379' GUARD_TESTS_MAX_TEST_SECONDS=180 uv run --no-sync pytest -v --cov=guard_core --cov-branch --cov-fail-under=100 -W error
+        env:
+          IPINFO_TOKEN: ${{ secrets.IPINFO_TOKEN || 'test_token' }}
 
   coverage:
     name: coverage (combined across the matrix)
@@ -182,17 +301,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           # The reporter only reads the data files and the checked-out sources; it does not run the tests.
           python-version: '3.10'
 
       - name: Install uv
         run: |
-          pip install uv
+          pip install uv==0.13.4
 
       # The test jobs' own environment: its coverage version and the project's coverage configuration
       # (plain coverage on 3.10 reads no pyproject.toml without the toml extra).
@@ -208,7 +329,7 @@ jobs:
           uv run --no-sync coverage debug config
 
       - name: Download every version's coverage data
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: coverage-data-py*
           path: coverage-data
@@ -236,7 +357,7 @@ jobs:
         python-version: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
 
     permissions:
-      pull-requests: write
+      contents: read # check out the repository (the job calls no pull request API)
 
     # The docker suite runs ~29-30 minutes of pytest after a cold bake,
     # so a 30 minute job cap kills the job right after the tests pass.
@@ -244,18 +365,24 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Assert the image environment runs the matrix interpreter
         run: |
-          COMPOSE_BAKE=true PYTHON_VERSION=${{ matrix.python-version }} docker compose run --rm --build -e EXPECTED_PYTHON=${{ matrix.python-version }} guard-core python -c "import os, sys; assert '%d.%d' % sys.version_info[:2] == os.environ['EXPECTED_PYTHON'], sys.version; print(sys.version)"
+          COMPOSE_BAKE=true PYTHON_VERSION=${MATRIX_PYTHON_VERSION} docker compose run --rm --build -e EXPECTED_PYTHON="${MATRIX_PYTHON_VERSION}" guard-core python -c "import os, sys; assert '%d.%d' % sys.version_info[:2] == os.environ['EXPECTED_PYTHON'], sys.version; print(sys.version)"
+        env:
+          MATRIX_PYTHON_VERSION: ${{ matrix.python-version }}
 
       # The 100 percent gate lives in the docker-coverage job: a version branch (for example
       # _redos_parse_slots.py) is covered by only some interpreters, so no single version reaches 100.
       - name: Run tests in Docker
         run: |
           mkdir -p coverage-docker
-          PYTHON_VERSION=${{ matrix.python-version }} docker compose run --rm -v "$PWD/coverage-docker:/cov" -e COVERAGE_FILE=/cov/coverage-docker-py${{ matrix.python-version }}.data -e GUARD_TESTS_MAX_TEST_SECONDS=180 guard-core pytest -q -p no:cacheprovider -W error --ignore=tests/live_smoke --cov=guard_core --cov-branch
+          PYTHON_VERSION=${MATRIX_PYTHON_VERSION} docker compose run --rm -v "$PWD/coverage-docker:/cov" -e "COVERAGE_FILE=/cov/coverage-docker-py${MATRIX_PYTHON_VERSION}.data" -e GUARD_TESTS_MAX_TEST_SECONDS=180 guard-core pytest -q -p no:cacheprovider -W error --ignore=tests/live_smoke --cov=guard_core --cov-branch
+        env:
+          MATRIX_PYTHON_VERSION: ${{ matrix.python-version }}
 
       # The udp-stub cases bind 127.0.0.1:53 and need the libc resolver pointed there, which a compose
       # network never does (it always resolves through 127.0.0.11), so they run on their own on the
@@ -264,11 +391,13 @@ jobs:
       - name: Run the silent-resolver geo download cases in Docker
         shell: bash
         run: |
-          docker run --rm --dns 127.0.0.1 --add-host host.docker.internal:host-gateway -e REDIS_URL=redis://host.docker.internal:6379 -e GIT_OPTIONAL_LOCKS=0 -e IPINFO_TOKEN=test_token guard-core-py${{ matrix.python-version }} pytest -q -p no:cacheprovider -W error --no-cov -rs tests/test_sync/test_geo_download_setup.py | tee geo-download.out
+          docker run --rm --dns 127.0.0.1 --add-host host.docker.internal:host-gateway -e REDIS_URL=redis://host.docker.internal:6379 -e GIT_OPTIONAL_LOCKS=0 -e IPINFO_TOKEN=test_token "guard-core-py${MATRIX_PYTHON_VERSION}" pytest -q -p no:cacheprovider -W error --no-cov -rs tests/test_sync/test_geo_download_setup.py | tee geo-download.out
           ! grep -q '^SKIPPED' geo-download.out
+        env:
+          MATRIX_PYTHON_VERSION: ${{ matrix.python-version }}
 
       - name: Upload the container coverage data
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage-data-docker-py${{ matrix.python-version }}
           path: coverage-docker/coverage-docker-py${{ matrix.python-version }}.data
@@ -286,17 +415,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           # The reporter only reads the data files and the checked-out sources; it does not run the tests.
           python-version: '3.10'
 
       - name: Install uv
         run: |
-          pip install uv
+          pip install uv==0.13.4
 
       - name: Install dependencies
         env:
@@ -306,7 +437,7 @@ jobs:
           uv sync --locked --extra dev --extra otel --extra logfire
 
       - name: Download every version's container coverage data
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: coverage-data-docker-py*
           path: coverage-data
@@ -359,7 +490,7 @@ jobs:
 
   ci:
     name: ci
-    needs: [changes, pre-commit, quality, sdist, test, coverage, docker-test-py, docker-coverage]
+    needs: [changes, pre-commit, quality, sdist, test, test-redis-floor, coverage, docker-test-py, docker-coverage]
     if: always()
     runs-on: ubuntu-latest
     steps:

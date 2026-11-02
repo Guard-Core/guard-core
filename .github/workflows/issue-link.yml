@@ -5,15 +5,19 @@ on:
     types: [opened, edited, reopened, synchronize, labeled, unlabeled]
 
 permissions:
-  issues: read
-  pull-requests: read
+  issues: read # read the issue the pull request says it closes
+  pull-requests: read # read the pull request body and labels
+
+concurrency:
+  group: issue-link-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   issue-link:
     name: issue-link
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@v9
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             const pr = context.payload.pull_request;

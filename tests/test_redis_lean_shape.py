@@ -4,6 +4,7 @@ from redis import __version__ as REDIS_PY_VERSION
 from redis.asyncio.connection import Connection
 
 from guard_core.handlers.redis_handler import _build_redis_client
+from tests import redis_py_internals as internals
 from tests.conftest import REDIS_URL
 
 WHAT = (
@@ -37,7 +38,6 @@ def test_the_connection_and_pool_keep_the_shape_the_lean_executor_reads() -> Non
         "_buffer_cutoff",
         "encoder",
         "retry",
-        "should_reconnect",
         "pack_command",
         "send_packed_command",
         "read_response",
@@ -47,6 +47,13 @@ def test_the_connection_and_pool_keep_the_shape_the_lean_executor_reads() -> Non
     assert isinstance(connection._buffer_cutoff, int), (
         f"redis-py {REDIS_PY_VERSION}: connection._buffer_cutoff is no longer "
         f"an int: {WHAT}"
+    )
+    assert (
+        hasattr(connection, "should_reconnect") is internals.SHOULD_RECONNECT_EXISTS
+    ), (
+        f"redis-py {REDIS_PY_VERSION}: Connection.should_reconnect is not where "
+        f"tests/redis_py_internals.py says it is (from redis-py 7.0.0); without it "
+        f"the fast return is refused: {WHAT}"
     )
     for name in ("encoding", "encoding_errors"):
         _has(connection.encoder, name, "encoder field")

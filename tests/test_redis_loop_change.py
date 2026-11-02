@@ -4,7 +4,7 @@ from collections.abc import Iterator
 import pytest
 from redis.asyncio import Redis
 
-from guard_core.handlers.redis_handler import RedisManager
+from guard_core.handlers.redis_handler import RedisManager, close_redis_client
 from guard_core.models import SecurityConfig
 from tests.conftest import REDIS_URL
 
@@ -32,7 +32,7 @@ async def _set_and_get(manager: RedisManager, value: str) -> str | None:
 async def _shut_the_loops_connections() -> None:
     # What an app does as its loop ends; the manager keeps the dead client.
     for task_client in list(_CLIENTS):
-        await task_client.aclose()
+        await close_redis_client(task_client)
     _CLIENTS.clear()
 
 
@@ -83,7 +83,7 @@ def test_a_client_is_still_closed_when_it_is_replaced_in_its_own_loop(
 
         async def record(client: Redis) -> None:
             closed.append(client)
-            await client.aclose()
+            await close_redis_client(client)
 
         monkeypatch.setattr(manager, "_safe_aclose", record)
         await manager.initialize()

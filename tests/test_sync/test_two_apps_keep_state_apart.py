@@ -16,7 +16,7 @@ from guard_core.sync.core.initialization.handler_initializer import HandlerIniti
 from guard_core.sync.handlers import ipban_handler
 from guard_core.sync.handlers.ipban_handler import IPBanManager
 from guard_core.sync.handlers.ratelimit_handler import RateLimitManager
-from guard_core.sync.handlers.redis_handler import RedisManager
+from guard_core.sync.handlers.redis_handler import RedisManager, close_redis_client
 from tests.test_sync.conftest import SyncMockGuardRequest
 from tests.test_sync.protocol_only_redis import REDIS_URL
 
@@ -106,7 +106,7 @@ def _keys(prefix: str) -> set[str]:
     try:
         return {key for key in client.scan_iter(match=f"{prefix}*", count=500)}
     finally:
-        client.close()
+        close_redis_client(client)
 
 
 def test_each_app_resolves_a_ban_manager_of_its_own_prefix(

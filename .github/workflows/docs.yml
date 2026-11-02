@@ -22,7 +22,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: read # check out the repository (the docs build only reads it)
 
 concurrency:
   group: ${{ github.event_name == 'pull_request' && format('docs-pr-{0}', github.ref) || 'docs-deploy' }}
@@ -35,51 +35,52 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: read # check out the repository (the docs build only reads it)
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           fetch-depth: 0
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           # Pinned on purpose (LEDGER 6.69): the docs build does not depend on the interpreter and 3.14 is the version the mkdocstrings setup was verified on; the test matrix in ci.yml owns every supported version.
           python-version: '3.14'
 
       - name: Install dependencies
         run: |
-          pip install mkdocs-material
-          pip install "mkdocstrings[python]"
-          pip install mike
-          pip install pymarkdownlnt
-          pip install -e .
+          pip install uv==0.13.4
+          uv sync --locked --python 3.14 --extra dev --group docs
 
       - name: Lint documentation
         run: |
-          pymarkdownlnt scan -r ./docs
+          uv run --no-sync pymarkdownlnt scan -r ./docs
 
       - name: Build the documentation strictly
         run: |
-          mkdocs build --strict
+          uv run --no-sync mkdocs build --strict
 
   docs-deploy:
+    name: docs-deploy
+    environment: docs
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write # mike pushes the versioned docs to the gh-pages branch
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           fetch-depth: 0
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           # Pinned on purpose (LEDGER 6.69): the docs build does not depend on the interpreter and 3.14 is the version the mkdocstrings setup was verified on; the test matrix in ci.yml owns every supported version.
           python-version: '3.14'
 
       - name: Install dependencies
         run: |
-          pip install uv
+          pip install uv==0.13.4
           uv sync --locked --python 3.14 --extra dev --group docs
 
       - name: Build documentation
@@ -105,8 +106,8 @@ jobs:
           fi
           echo "CURRENT_VERSION=$CURRENT_VERSION" >> "$GITHUB_ENV"
 
-          if [[ -n "${{ secrets.DOCS_VERSION }}" ]]; then
-            STORED_VERSION=${{ secrets.DOCS_VERSION }}
+          if [[ -n "${DOCS_VERSION}" ]]; then
+            STORED_VERSION=${DOCS_VERSION}
             echo "STORED_VERSION=$STORED_VERSION" >> "$GITHUB_ENV"
           else
             echo "::error::DOCS_VERSION secret not found"
@@ -122,10 +123,12 @@ jobs:
             echo "VERSION=$STORED_VERSION" >> "$GITHUB_ENV"
             echo "UPDATE_SECRET=false" >> "$GITHUB_ENV"
           fi
+        env:
+          DOCS_VERSION: ${{ secrets.DOCS_VERSION }}
 
       - name: Update Docs Version Secret
         if: ${{ env.UPDATE_SECRET == 'true' }}
-        uses: rennf93/github-actions-secrets-mgmt@v1.5
+        uses: rennf93/github-actions-secrets-mgmt@6dc05c707be6f28e69a4570fa705687881933b8b # v1.5
         with:
           OWNER: ${{ github.repository_owner }}
           REPOSITORY: ${{ github.event.repository.name }}
@@ -133,26 +136,37 @@ jobs:
           SECRET_NAME: DOCS_VERSION
           SECRET_VALUE: ${{ env.VERSION }}
 
+      - name: Let git push use the job token (the checkout keeps no credentials)
+        run: git config --local credential.helper "!f() { echo username=x-access-token; echo \"password=\$GH_TOKEN\"; }; f"
+
       - name: Deploy documentation
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          uv run --no-sync mike deploy --push ${{ env.VERSION }}
-          uv run --no-sync mike alias --update-aliases --push ${{ env.VERSION }} latest
+          uv run --no-sync mike deploy --push "${VERSION}"
+          uv run --no-sync mike alias --update-aliases --push "${VERSION}" latest
           uv run --no-sync mike set-default --push latest
 
       - name: Deploy to GitHub Pages
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           uv run --no-sync mike list
           git push origin gh-pages --force
 
       - name: Update Context7 Documentation
         id: context7
-        uses: rennf93/upsert-context7@1.1
+        uses: rennf93/upsert-context7@c29ca04a37ecbab62635c0e94c3d8908049b9ed5 # 1.1
         with:
           operation: refresh
 
       - name: Show result
         run: |
-          echo "Success: ${{ steps.context7.outputs.success }}"
-          echo "Status: ${{ steps.context7.outputs.status-code }}"
-          echo "Message: ${{ steps.context7.outputs.message }}"
+          echo "Success: ${STEPS_CONTEXT7_OUTPUTS_SUCCESS}"
+          echo "Status: ${STEPS_CONTEXT7_OUTPUTS_STATUS_CODE}"
+          echo "Message: ${STEPS_CONTEXT7_OUTPUTS_MESSAGE}"
+        env:
+          STEPS_CONTEXT7_OUTPUTS_SUCCESS: ${{ steps.context7.outputs.success }}
+          STEPS_CONTEXT7_OUTPUTS_STATUS_CODE: ${{ steps.context7.outputs.status-code }}
+          STEPS_CONTEXT7_OUTPUTS_MESSAGE: ${{ steps.context7.outputs.message }}
 

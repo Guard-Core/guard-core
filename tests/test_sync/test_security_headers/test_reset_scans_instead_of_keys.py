@@ -7,7 +7,7 @@ import pytest
 from redis import Redis
 
 from guard_core.models import SyncSecurityConfig
-from guard_core.sync.handlers.redis_handler import RedisHandlerBase
+from guard_core.sync.handlers.redis_handler import RedisHandlerBase, close_redis_client
 from guard_core.sync.handlers.security_headers_handler import SecurityHeadersManager
 
 REDIS_URL = os.getenv("REDIS_URL") or "redis://localhost:6379"
@@ -46,7 +46,7 @@ def conn() -> Generator[Redis, None]:
     _clear(client)
     yield client
     _clear(client)
-    client.close()
+    close_redis_client(client)
 
 
 def test_reset_clears_the_headers_keys_with_scan_and_never_keys(

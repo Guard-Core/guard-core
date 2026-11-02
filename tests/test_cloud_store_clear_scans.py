@@ -6,7 +6,7 @@ import pytest
 from redis.asyncio import Redis
 
 from guard_core.handlers.cloud_ip_stores import RedisCloudIpStore
-from guard_core.handlers.redis_handler import RedisManager
+from guard_core.handlers.redis_handler import RedisManager, close_redis_client
 from guard_core.models import SecurityConfig
 from tests.conftest import REDIS_URL
 
@@ -35,7 +35,7 @@ async def conn() -> AsyncGenerator[Redis, None]:
     await _clear(client)
     yield client
     await _clear(client)
-    await client.aclose()
+    await close_redis_client(client)
 
 
 async def test_the_redis_cloud_store_clear_lists_its_keys_with_scan(

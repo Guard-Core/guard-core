@@ -5,33 +5,54 @@ on:
     types: [published]
   workflow_dispatch:
 
+permissions: {}
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   ci-gate:
+    name: ci-gate
     # Same workflow file as the PR CI (python matrix, coverage gate): the release never runs a weaker gate.
     # A called workflow's jobs report as "ci-gate / <job>", so none of them can be mistaken for the required `ci` check.
     permissions:
-      contents: read
-      pull-requests: write
-    uses: ./.github/workflows/ci.yml
-    secrets: inherit
+      contents: read # check out the repository
+    uses: $/.github/workflows/ci.yml
+    secrets:
+      IPINFO_TOKEN: ${{ secrets.IPINFO_TOKEN }}
+
+  cve-scan:
+    name: cve-scan
+    # The release never runs a weaker gate than a pull request (spec 14.3b); on a release event the SBOM is attached to the release.
+    permissions:
+      contents: write # attach the SBOM to the release
+      security-events: write # SARIF
+    uses: Guard-Core/.github/.github/workflows/cve-scan.yml@b77067336bbd96d7b8244ca425de197bdcf0001c # cve-scan (merged commit)
+    with:
+      tools_ref: b77067336bbd96d7b8244ca425de197bdcf0001c
+      release_tag: ${{ github.event.release.tag_name }}
 
   publish:
-    needs: ci-gate
+    name: publish
+    needs: [ci-gate, cve-scan]
     runs-on: ubuntu-latest
     env:
       UV_PYTHON: '3.10'
       UV_PYTHON_DOWNLOADS: never
     environment: pypi
     permissions:
-      id-token: write
-      contents: read
+      id-token: write # trusted publishing: the registry login uses the GitHub OIDC token
+      contents: read # check out the repository
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           # Packaging only (the wheel is pure Python); the matrix gate is the ci-gate job above.
           python-version: '3.10'
@@ -54,7 +75,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install uv
+          pip install uv==0.13.4
           uv sync --locked --only-group release --no-install-project
 
       - name: Build package
@@ -62,7 +83,7 @@ jobs:
           uv run --no-sync python -m build
 
       - name: Publish package
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
       - name: Get and Update Version
         id: get_version
         run: |
@@ -74,8 +95,8 @@ jobs:
           fi
           echo "CURRENT_VERSION=$CURRENT_VERSION" >> "$GITHUB_ENV"
 
-          if [[ -n "${{ secrets.DOCS_VERSION }}" ]]; then
-            STORED_VERSION=${{ secrets.DOCS_VERSION }}
+          if [[ -n "${DOCS_VERSION}" ]]; then
+            STORED_VERSION=${DOCS_VERSION}
             echo "STORED_VERSION=$STORED_VERSION" >> "$GITHUB_ENV"
           else
             echo "::error::DOCS_VERSION secret not found"
@@ -91,10 +112,12 @@ jobs:
             echo "VERSION=$STORED_VERSION" >> "$GITHUB_ENV"
             echo "UPDATE_SECRET=false" >> "$GITHUB_ENV"
           fi
+        env:
+          DOCS_VERSION: ${{ secrets.DOCS_VERSION }}
 
       - name: Update Docs Version Secret
         if: ${{ env.UPDATE_SECRET == 'true' }}
-        uses: rennf93/github-actions-secrets-mgmt@v1.5
+        uses: rennf93/github-actions-secrets-mgmt@6dc05c707be6f28e69a4570fa705687881933b8b # v1.5
         with:
           OWNER: ${{ github.repository_owner }}
           REPOSITORY: ${{ github.event.repository.name }}

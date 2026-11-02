@@ -1,4 +1,5 @@
 import importlib
+import inspect
 import threading
 import time
 from collections.abc import Callable
@@ -31,6 +32,20 @@ def _load_wait_recorder() -> _WaitRecorder | None:
 
 
 _WAIT_RECORDER = _load_wait_recorder()
+
+
+def _command_name_is_required() -> bool:
+    """redis-py before 5.3.0 declares ``get_connection(self, command_name, ...)``
+    with the name required, and from 5.3.0 on optional."""
+    parameter = inspect.signature(ConnectionPool.get_connection).parameters[
+        "command_name"
+    ]
+    return parameter.default is inspect.Parameter.empty
+
+
+_PLAIN_GET_CONNECTION_ARGS: tuple[str, ...] = (
+    ("",) if _command_name_is_required() else ()
+)
 
 
 def _is_exhaustion(error: RedisConnectionError) -> bool:
@@ -75,9 +90,14 @@ class FastPathConnectionPool(ConnectionPool):
             or self._created_connections < self.max_connections
         )
 
+    def _plain_get_connection(self) -> Connection:
+        """The plain pool's checkout, with the command name only the redis-py
+        releases that require it get (the plain pool never reads it)."""
+        return super().get_connection(*_PLAIN_GET_CONNECTION_ARGS)
+
     def get_connection(self, *_args: object, **_kwargs: object) -> Connection:
         try:
-            return super().get_connection()
+            return self._plain_get_connection()
         except RedisConnectionError as error:
             if not _is_exhaustion(error):
                 raise
@@ -92,7 +112,7 @@ class FastPathConnectionPool(ConnectionPool):
                 if not free:
                     raise RedisConnectionError(_TIMEOUT_MESSAGE)
                 try:
-                    connection = super().get_connection()
+                    connection = self._plain_get_connection()
                 except RedisConnectionError as error:
                     if not _is_exhaustion(error):
                         raise

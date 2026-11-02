@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: read # check out the repository
 
 concurrency:
   group: redaction-gate-${{ github.ref }}
@@ -20,6 +20,7 @@ concurrency:
 
 jobs:
   redaction-gate:
+    name: redaction-gate
     runs-on: ubuntu-latest
     env:
       UV_PYTHON: '3.10'
@@ -29,7 +30,7 @@ jobs:
 
     services:
       redis:
-        image: redis
+        image: redis:8.10.3@sha256:de1068af6f552240dfab67bcc9bfef99bfc60f776bb4580ef077ea4c8c97e848
         ports:
           - 6379:6379
         options: >-
@@ -40,17 +41,19 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           # Stays on 3.10 on purpose: the probe compares a redacted event against a fixed expectation, not interpreter behavior; the matrix in ci.yml runs the suite on every version.
           python-version: '3.10'
 
       - name: Install uv
         run: |
-          pip install uv
+          pip install uv==0.13.4
 
       - name: Install dependencies
         run: |
@@ -59,22 +62,27 @@ jobs:
       - name: Pick the seeds and the sample size
         id: plan
         run: |
-          if [ "${{ github.event_name }}" = "schedule" ]; then
-            echo "seeds=${{ github.run_number }},$(( ${{ github.run_number }} + 100000 ))" >> "$GITHUB_OUTPUT"
+          if [ "${EVENT_NAME}" = "schedule" ]; then
+            echo "seeds=${RUN_NUMBER},$(( RUN_NUMBER + 100000 ))" >> "$GITHUB_OUTPUT"
             echo "limit=8000" >> "$GITHUB_OUTPUT"
           else
             echo "seeds=0,1" >> "$GITHUB_OUTPUT"
             echo "limit=5000" >> "$GITHUB_OUTPUT"
           fi
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RUN_NUMBER: ${{ github.run_number }}
 
       - name: Run the generative redaction gate
         id: genprobe
         env:
           REDIS_URL: redis://localhost:6379
+          STEPS_PLAN_OUTPUTS_LIMIT: ${{ steps.plan.outputs.limit }}
+          STEPS_PLAN_OUTPUTS_SEEDS: ${{ steps.plan.outputs.seeds }}
         run: |
           set -o pipefail
           uv run python tests/redaction_gate/genprobe.py \
-            --limit ${{ steps.plan.outputs.limit }} --seeds ${{ steps.plan.outputs.seeds }} \
+            --limit "${STEPS_PLAN_OUTPUTS_LIMIT}" --seeds "${STEPS_PLAN_OUTPUTS_SEEDS}" \
             --json-out redaction-gate.json \
             2>&1 | tee redaction-gate.log
 
@@ -82,7 +90,7 @@ jobs:
         if: always()
         run: |
           {
-            echo '## Redaction gate (seeds ${{ steps.plan.outputs.seeds }}, limit ${{ steps.plan.outputs.limit }})'
+            echo "## Redaction gate (seeds ${STEPS_PLAN_OUTPUTS_SEEDS}, limit ${STEPS_PLAN_OUTPUTS_LIMIT})"
             echo
             echo '```text'
             awk '/^=== RESULT ===$/,/^$/' redaction-gate.log
@@ -96,10 +104,13 @@ jobs:
             echo
             echo '</details>'
           } >> "$GITHUB_STEP_SUMMARY"
+        env:
+          STEPS_PLAN_OUTPUTS_SEEDS: ${{ steps.plan.outputs.seeds }}
+          STEPS_PLAN_OUTPUTS_LIMIT: ${{ steps.plan.outputs.limit }}
 
       - name: Upload the case ledger
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: redaction-gate-ledger
           path: |

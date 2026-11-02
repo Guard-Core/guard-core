@@ -1,7 +1,7 @@
 from unittest.mock import MagicMock, patch
 
 from guard_core.models import SyncSecurityConfig
-from guard_core.sync.handlers.redis_handler import redis_handler
+from guard_core.sync.handlers.redis_handler import close_redis_client, redis_handler
 
 
 def test_connection_kwargs_from_config() -> None:
@@ -95,4 +95,4 @@ def test_the_client_is_built_on_the_fast_path_pool() -> None:
         assert pool.connection_kwargs["socket_timeout"] == 0.5
         assert client.auto_close_connection_pool is True
     finally:
-        client.close()
+        close_redis_client(client)

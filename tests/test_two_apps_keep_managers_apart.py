@@ -23,7 +23,7 @@ from guard_core.handlers.cloud_handler import CloudManager, cloud_handler_for
 from guard_core.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.handlers.ipban_handler import ip_ban_manager_for
 from guard_core.handlers.ipinfo_handler import IPInfoManager
-from guard_core.handlers.redis_handler import RedisManager
+from guard_core.handlers.redis_handler import RedisManager, close_redis_client
 from guard_core.handlers.security_headers_handler import security_headers_manager
 from guard_core.handlers.suspatterns_handler import (
     SusPatternsManager,
@@ -117,7 +117,7 @@ async def _keys(prefix: str) -> set[str]:
     try:
         return {key async for key in client.scan_iter(match=f"{prefix}*", count=500)}
     finally:
-        await client.aclose()
+        await close_redis_client(client)
 
 
 def _prefix_of(manager: Any) -> str:

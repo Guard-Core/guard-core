@@ -7,7 +7,7 @@ from redis import Redis
 
 from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.cloud_ip_stores import RedisCloudIpStore
-from guard_core.sync.handlers.redis_handler import RedisManager
+from guard_core.sync.handlers.redis_handler import RedisManager, close_redis_client
 from tests.test_sync.conftest import REDIS_URL
 
 PREFIX = "wp16cloud:"
@@ -35,7 +35,7 @@ def conn() -> Generator[Redis, None]:
     _clear(client)
     yield client
     _clear(client)
-    client.close()
+    close_redis_client(client)
 
 
 def test_the_redis_cloud_store_clear_lists_its_keys_with_scan(

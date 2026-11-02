@@ -1,5 +1,6 @@
 import threading
 import time
+import warnings
 from collections.abc import Generator
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
@@ -10,6 +11,7 @@ from redis.exceptions import ConnectionError as RedisConnectionError
 
 from guard_core.sync.handlers import _redis_fast_pool
 from guard_core.sync.handlers.redis_handler import _build_redis_client
+from tests import redis_py_internals as internals
 from tests.test_sync.conftest import REDIS_URL
 
 POOL_SIZE = 3
@@ -247,7 +249,64 @@ def test_the_wait_recorder_is_absent_when_redis_py_has_none(
     def refuse(name: str) -> Any:
         raise ImportError(name)
 
-    assert _redis_fast_pool._load_wait_recorder() is not None
+    assert (
+        _redis_fast_pool._load_wait_recorder() is not None
+    ) is internals.WAIT_RECORDER_EXISTS
     monkeypatch.setattr(_redis_fast_pool.importlib, "import_module", refuse)
 
     assert _redis_fast_pool._load_wait_recorder() is None
+
+
+def _checkout_needing_the_name(
+    self: ConnectionPool, command_name: str, *keys: Any, **options: Any
+) -> str | None:
+    return command_name
+
+
+def _checkout_with_an_optional_name(
+    self: ConnectionPool, command_name: str | None = None, *keys: Any, **options: Any
+) -> str | None:
+    return command_name
+
+
+def test_the_command_name_is_required_where_the_plain_pool_requires_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(ConnectionPool, "get_connection", _checkout_needing_the_name)
+    assert _redis_fast_pool._command_name_is_required() is True
+
+    monkeypatch.setattr(
+        ConnectionPool, "get_connection", _checkout_with_an_optional_name
+    )
+    assert _redis_fast_pool._command_name_is_required() is False
+
+
+def test_a_plain_checkout_takes_the_name_only_where_the_signature_needs_it(
+    client: Redis,
+) -> None:
+    pool = client.connection_pool
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        connection = pool.get_connection()
+        pool.release(connection)
+        assert client.ping() is True
+
+
+def test_the_wait_recorder_is_loaded_from_the_modules_that_hold_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from types import SimpleNamespace
+
+    def record(**_kwargs: object) -> None:
+        return None
+
+    modules = {
+        "redis.observability.recorder": SimpleNamespace(
+            record_connection_wait_time=record
+        ),
+        "redis.observability.attributes": SimpleNamespace(get_pool_name=len),
+    }
+    monkeypatch.setattr(_redis_fast_pool.importlib, "import_module", modules.get)
+
+    assert _redis_fast_pool._load_wait_recorder() == (record, len)

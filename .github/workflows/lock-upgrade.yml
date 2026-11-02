@@ -6,23 +6,30 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: read # check out the repository
+
+concurrency:
+  group: lock-upgrade
+  cancel-in-progress: false
 
 jobs:
   upgrade:
+    name: upgrade
     runs-on: ubuntu-latest
     timeout-minutes: 30
     outputs:
       changed: ${{ steps.diff.outputs.changed }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.14'
 
       - name: Install uv
-        run: pip install uv
+        run: pip install uv==0.13.4
 
       - name: Run make upgrade
         run: make upgrade
@@ -36,13 +43,14 @@ jobs:
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: steps.diff.outputs.changed == 'true'
         with:
           name: upgraded-lock
           path: uv.lock
 
   refresh-pr:
+    name: refresh-pr
     needs: upgrade
     if: needs.upgrade.outputs.changed == 'true'
     runs-on: ubuntu-latest
@@ -52,13 +60,15 @@ jobs:
       group: lock-refresh-pr
       cancel-in-progress: true
     permissions:
-      contents: write
-      pull-requests: write
-      actions: write
+      contents: write # push the chore/lock-refresh branch
+      pull-requests: write # open or refresh the lock pull request
+      actions: write # dispatch CI on the pushed lock branch (events caused by GITHUB_TOKEN start no workflow run)
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: upgraded-lock
 

@@ -9,6 +9,7 @@ from redis.exceptions import NoScriptError
 
 from guard_core.sync.handlers._redis_lean import lean_command, lean_evalsha
 from guard_core.sync.handlers.redis_handler import _build_redis_client
+from tests import redis_py_internals as internals
 from tests.conftest import REDIS_URL
 from tests.test_sync.engine_redis_commands import (
     server_loses_the_script_of_the_next_evalsha,
@@ -111,10 +112,19 @@ class _Listener:
 
 
 def test_a_release_listener_hears_each_lean_call_like_each_plain_one() -> None:
-    from redis.event import AfterConnectionReleasedEvent
-
     client = _build_redis_client(REDIS_URL, 10, 1.0)
     try:
+        if not internals.REGISTER_LISTENERS_EXISTS:
+            assert not hasattr(
+                getattr(client.connection_pool, "_event_dispatcher", None),
+                "register_listeners",
+            )
+            for _ in range(3):
+                assert lean_command(client, "GET", "lean:event") is None
+                assert client.execute_command("GET", "lean:event") is None
+            return
+        from redis.event import AfterConnectionReleasedEvent
+
         listener = _Listener()
         client.connection_pool._event_dispatcher.register_listeners(
             {AfterConnectionReleasedEvent: [listener]}

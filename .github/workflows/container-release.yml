@@ -10,17 +10,25 @@ on:
       - '.github/workflows/container-release.yml'
   workflow_dispatch:
 
+permissions: {}
+
+concurrency:
+  group: container-release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   publish-container:
     name: Build and push the containerized demo
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      packages: write
+      contents: read # check out the repository
+      packages: write # push the image to GHCR
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       # Guard Core ships no example apps of its own (the repo boundary rule):
       # the family's example app lives in the reference adapter. Build THAT
@@ -29,8 +37,9 @@ jobs:
       # through fastapi-guard exactly like the python family's other
       # containers do.
       - name: Checkout fastapi-guard (the family's reference example app)
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           repository: Guard-Core/fastapi-guard
           ref: master
           path: fastapi-guard
@@ -38,16 +47,19 @@ jobs:
       - name: Set version tag
         id: set_version
         run: |
-          if [[ "${{ github.event_name }}" == "release" ]]; then
-            echo "VERSION=${{ github.event.release.tag_name }}" >> "$GITHUB_ENV"
+          if [[ "${EVENT_NAME}" == "release" ]]; then
+            echo "VERSION=${GITHUB_EVENT_RELEASE_TAG_NAME}" >> "$GITHUB_ENV"
             echo "IS_RELEASE=true" >> "$GITHUB_ENV"
           else
             echo "VERSION=latest" >> "$GITHUB_ENV"
             echo "IS_RELEASE=false" >> "$GITHUB_ENV"
           fi
+        env:
+          GITHUB_EVENT_RELEASE_TAG_NAME: ${{ github.event.release.tag_name }}
+          EVENT_NAME: ${{ github.event_name }}
 
       - name: Log in to GHCR
-        uses: docker/login-action@v4
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -58,6 +70,20 @@ jobs:
         run: |
           docker compose -f examples/advanced_app/docker-compose.yml build fastapi-guard-example
 
+      - name: Check out the CVE scan tools (pinned)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: Guard-Core/.github
+          ref: b77067336bbd96d7b8244ca425de197bdcf0001c
+          path: .cve-scan-tools
+          persist-credentials: false
+
+      - name: Scan the image before the push (any advisory with a fixed version fails)
+        run: |
+          IMAGE=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep "fastapi-guard-example" | head -n 1)
+          .cve-scan-tools/cve-scan/install_scanners.sh "$RUNNER_TEMP/scanner-bin"
+          python3 -I .cve-scan-tools/cve-scan/cve_scan.py --images-only --image-ref "demo=$IMAGE" --root . --osv "$RUNNER_TEMP/scanner-bin/osv-scanner" --trivy "$RUNNER_TEMP/scanner-bin/trivy" --out "$RUNNER_TEMP/image-scan-out"
+
       - name: Tag and push to GHCR
         run: |
           IMAGE=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep "fastapi-guard-example" | head -n 1)
@@ -65,7 +91,7 @@ jobs:
           docker tag "$IMAGE" ghcr.io/guard-core/guard-core-example:latest
           docker push ghcr.io/guard-core/guard-core-example:latest
 
-          if [[ "${{ env.IS_RELEASE }}" == "true" ]]; then
-            docker tag "$IMAGE" ghcr.io/guard-core/guard-core-example:${{ env.VERSION }}
-            docker push ghcr.io/guard-core/guard-core-example:${{ env.VERSION }}
+          if [[ "${IS_RELEASE}" == "true" ]]; then
+            docker tag "$IMAGE" "ghcr.io/guard-core/guard-core-example:${VERSION}"
+            docker push "ghcr.io/guard-core/guard-core-example:${VERSION}"
           fi

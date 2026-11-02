@@ -14,17 +14,26 @@ on:
         default: 'false'
         type: boolean
 
-permissions:
-  issues: write
+permissions: {}
+
+concurrency:
+  group: sync-labels
+  cancel-in-progress: false
 
 jobs:
   labeler:
+    name: labeler
+    permissions:
+      contents: read # check out the repository
+      issues: write # create, update and delete the repository labels
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Sync labels from .github/labels.yml
-        uses: crazy-max/ghaction-github-labeler@v6
+        uses: crazy-max/ghaction-github-labeler@548a7c3603594ec17c819e1239f281a3b801ab4d # v6.0.0
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           yaml-file: .github/labels.yml

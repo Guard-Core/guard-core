@@ -18,10 +18,15 @@ on:
         default: ''
 
 permissions:
-  contents: read
+  contents: read # check out the repository
+
+concurrency:
+  group: live-smoke-${{ github.event_name }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   live-smoke:
+    name: live-smoke
     runs-on: ubuntu-latest
     env:
       UV_PYTHON: '3.10'
@@ -29,7 +34,7 @@ jobs:
 
     services:
       redis:
-        image: redis
+        image: redis:8.10.3@sha256:de1068af6f552240dfab67bcc9bfef99bfc60f776bb4580ef077ea4c8c97e848
         ports:
           - 6379:6379
         options: >-
@@ -40,17 +45,19 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           # Stays on 3.10 on purpose: one live-stack smoke on the floor version; the matrix in ci.yml runs the suite on every version.
           python-version: '3.10'
 
       - name: Install uv
         run: |
-          pip install uv
+          pip install uv==0.13.4
 
       - name: Install dependencies
         run: |
@@ -93,7 +100,7 @@ jobs:
 
       - name: Upload live-smoke report and container logs
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: live-smoke-report
           path: tests/live_smoke/live-smoke-report/

@@ -1,13 +1,19 @@
+from __future__ import annotations
+
 import asyncio
 import importlib
+import inspect
 import time
 from collections.abc import Callable
 from types import ModuleType
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from redis.asyncio import ConnectionPool
-from redis.asyncio.connection import AbstractConnection, Connection
+from redis.asyncio.connection import Connection
 from redis.exceptions import ConnectionError as RedisConnectionError
+
+if TYPE_CHECKING:
+    from redis.asyncio.connection import AbstractConnection
 
 _EXHAUSTED_MESSAGE = "Too many connections"
 _TIMEOUT_MESSAGE = "No connection available."
@@ -57,14 +63,14 @@ def _load_count_recorder() -> _CountRecorder | None:
         recorder = importlib.import_module("redis.asyncio.observability.recorder")
         attributes = importlib.import_module("redis.observability.attributes")
         providers = importlib.import_module("redis.observability.providers")
-    except ImportError:
+        return (
+            recorder.record_connection_count,
+            attributes.ConnectionState,
+            attributes.get_pool_name,
+            providers,
+        )
+    except (ImportError, AttributeError):
         return None
-    return (
-        recorder.record_connection_count,
-        attributes.ConnectionState,
-        attributes.get_pool_name,
-        providers,
-    )
 
 
 _COUNT_RECORDER = _load_count_recorder()
@@ -85,6 +91,20 @@ def _load_release_events() -> _ReleaseEvents | None:
 
 
 _RELEASE_EVENTS = _load_release_events()
+
+
+def _command_name_is_required() -> bool:
+    """redis-py before 5.3.0 declares ``get_connection(self, command_name, ...)``
+    with the name required, and from 5.3.0 on optional."""
+    parameter = inspect.signature(ConnectionPool.get_connection).parameters[
+        "command_name"
+    ]
+    return parameter.default is inspect.Parameter.empty
+
+
+_PLAIN_GET_CONNECTION_ARGS: tuple[str, ...] = (
+    ("",) if _command_name_is_required() else ()
+)
 
 
 def _observability_is_readable() -> bool:
@@ -136,11 +156,16 @@ class FastPathConnectionPool(ConnectionPool):
             or len(self._in_use_connections) < self.max_connections
         )
 
+    async def _plain_get_connection(self) -> AbstractConnection:
+        """The plain pool's checkout, with the command name only the redis-py
+        releases that require it get (the plain pool never reads it)."""
+        return await super().get_connection(*_PLAIN_GET_CONNECTION_ARGS)
+
     async def get_connection(
         self, *_args: object, **_kwargs: object
     ) -> AbstractConnection:
         try:
-            connection = await super().get_connection()
+            connection = await self._plain_get_connection()
         except RedisConnectionError as error:
             if not _is_exhaustion(error):
                 raise
@@ -193,10 +218,11 @@ class FastPathConnectionPool(ConnectionPool):
         unregistering a listener replaces the list in the dispatcher's mapping,
         so an identity test against this list tells the fast return that nobody
         else listens. Every redis-py internal the fast return reads (the
-        dispatcher's mapping, the connection's re-authentication token, the
-        observability singleton and its provider manager) is looked up here, on
-        the slow path; one that is missing or of another type gives ``None``,
-        and the plain ``release`` does the work."""
+        dispatcher's mapping, the connection's re-authentication token and its
+        ``should_reconnect`` method, the observability singleton and its
+        provider manager) is looked up here, on the slow path; one that is
+        missing or of another type gives ``None``, and the plain ``release``
+        does the work."""
         mapping = getattr(
             getattr(self, "_event_dispatcher", None), "_event_listeners_mapping", None
         )
@@ -204,6 +230,7 @@ class FastPathConnectionPool(ConnectionPool):
             _RELEASE_EVENTS is None
             or not isinstance(mapping, dict)
             or not hasattr(connection, "_re_auth_token")
+            or not hasattr(connection, "should_reconnect")
             or not _observability_is_readable()
         ):
             self._release_listeners = {}
@@ -256,7 +283,7 @@ class FastPathConnectionPool(ConnectionPool):
             while True:
                 await self._wait_until_a_connection_is_free(deadline)
                 try:
-                    connection = await super().get_connection()
+                    connection = await self._plain_get_connection()
                 except RedisConnectionError as error:
                     if not _is_exhaustion(error):
                         raise

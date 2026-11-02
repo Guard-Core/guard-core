@@ -142,8 +142,8 @@ Optional dependencies are now extras
 | Extra | Installs | Needed for |
 |---|---|---|
 | `guard-core[redis]` | `redis` | Redis on |
-| `guard-core[cloud]` | `aiohttp>=3.13.3`, `requests`, `urllib3>=2.7.0` | `block_cloud_providers`, `enable_dynamic_rules` |
-| `guard-core[geo]` | `aiohttp>=3.13.3`, `maxminddb`, `requests` | country rules and the built-in geo database download |
+| `guard-core[cloud]` | `aiohttp>=3.14.4`, `requests`, `urllib3>=2.8.0` | `block_cloud_providers`, `enable_dynamic_rules` |
+| `guard-core[geo]` | `aiohttp>=3.14.4`, `maxminddb`, `requests` | country rules and the built-in geo database download |
 
 Each adapter forwards the same extras (`fastapi-guard[redis]`, `flaskapi-guard[geo]`, `djapi-guard[cloud]`, `tornadoapi-guard[redis]`). Every import of the four packages is lazy, so `import guard_core` and an adapter's top-level import work without them, and an app that sets no Redis field, no country rule and no cloud blocking runs on the base install.
 
