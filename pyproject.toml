@@ -27,7 +27,7 @@ dependencies = [
     "pydantic-core",
     "tzdata",
     "typing-extensions",
-    "urllib3>=2.7.0",
+    "urllib3>=2.8.0",
 ]
 
 [project.urls]
@@ -75,12 +75,12 @@ redis = [
     "redis",
 ]
 cloud = [
-    "aiohttp>=3.13.3",
+    "aiohttp>=3.14.4",
     "requests",
-    "urllib3>=2.7.0",
+    "urllib3>=2.8.0",
 ]
 geo = [
-    "aiohttp>=3.13.3",
+    "aiohttp>=3.14.4",
     "maxminddb",
     "requests",
 ]
