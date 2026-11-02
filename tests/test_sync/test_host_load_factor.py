@@ -30,6 +30,7 @@ def test_the_reference_scan_reports_the_fastest_of_its_samples(
 def test_a_sample_is_divided_by_the_load_factor_measured_just_before_it(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr(module, "_fastest_factor", float("inf"))
     order: list[str] = []
 
     def factor() -> float:
@@ -45,3 +46,15 @@ def test_a_sample_is_divided_by_the_load_factor_measured_just_before_it(
     monkeypatch.setattr(module.time, "process_time", lambda: next(readings))
     assert module.timed_normalized(run) == ("done", 0.25)
     assert order == ["factor", "run"]
+
+
+def test_a_slower_reading_never_raises_the_factor_of_a_later_sample(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(module, "_fastest_factor", float("inf"))
+    factors = iter([2.0, 4.0, 1.5])
+    monkeypatch.setattr(module, "local_load_factor", lambda: next(factors))
+    readings = iter([0.0, 1.0, 0.0, 1.0, 0.0, 1.0])
+    monkeypatch.setattr(module.time, "process_time", lambda: next(readings))
+    seconds = [module.timed_normalized(lambda: None)[1] for _ in range(3)]
+    assert seconds == [pytest.approx(0.5), pytest.approx(0.5), pytest.approx(1 / 1.5)]

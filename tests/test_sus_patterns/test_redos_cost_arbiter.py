@@ -1842,6 +1842,39 @@ def test_first_over_budget_reason_recovers_when_over_budget_does_not_repeat(
     assert reason is None
 
 
+@pytest.mark.parametrize(
+    ("retry_samples", "accepted"),
+    [
+        (_timing([[0.0004] * 5, [0.0008] * 5]), True),
+        (_timing([[0.02] * 5, [0.08] * 5]), False),
+    ],
+)
+def test_first_over_budget_reason_decides_on_the_retry_read_not_the_first(
+    monkeypatch: pytest.MonkeyPatch,
+    retry_samples: ReachProbeTiming,
+    accepted: bool,
+) -> None:
+    first_read_over_budget = _timing([[0.016] * 5, [0.064] * 5])
+    calls = iter([first_read_over_budget, retry_samples])
+    monkeypatch.setattr(
+        "guard_core.detection_engine._redos_cost_arbiter._time_reach_probes_subprocess",
+        lambda _pattern, _probes, _deadline, _flags: next(calls),
+    )
+
+    def _builder(size: int) -> str:
+        return "a" * size
+
+    reason = _first_over_budget_reason(
+        r"(\w+)*$",
+        [_builder],
+        _PATTERN_SAFETY_DEFAULT_CAP,
+        None,
+        _ample_budget(),
+    )
+    assert (reason is None) is accepted
+    assert accepted or reason is not None and "0.0800" in reason
+
+
 def test_first_over_budget_reason_rejects_when_over_budget_confirmation_times_out(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -10,6 +10,7 @@ import sys
 import pytest
 
 from guard_core.sync.handlers import _suspatterns_matchers as matchers
+from tests.test_detection._upload_matcher_security_probe import _ROUNDS
 
 _SOURCES = [
     matchers._FILE_UPLOAD_DANGEROUS_EXTENSION_RE,
@@ -26,8 +27,8 @@ _UPLOAD_SHAPES = {
 
 
 def _upload_timing_violations(rounds: list[list[float]]) -> list[str]:
-    if len(rounds) != 5:
-        return [f"expected 5 rounds, got {len(rounds)}: {rounds!r}"]
+    if len(rounds) != _ROUNDS:
+        return [f"expected {_ROUNDS} rounds, got {len(rounds)}: {rounds!r}"]
     if any(
         len(round_samples) != len(_UPLOAD_SIZES)
         or not all(
@@ -72,7 +73,7 @@ def test_upload_repeated_fields_and_extensions_remain_bounded() -> None:
         [sys.executable, "-m", module],
         capture_output=True,
         text=True,
-        timeout=30,
+        timeout=120,
         check=True,
     )
     measured = json.loads(result.stdout)
@@ -84,7 +85,7 @@ def test_upload_repeated_fields_and_extensions_remain_bounded() -> None:
 def test_upload_timing_assessment_uses_fixed_sample_lower_bound() -> None:
     correlated = [
         [scale * value for value in (0.004, 0.008, 0.016, 0.032)]
-        for scale in (1.0, 2.0, 0.5, 1.5, 0.75)
+        for scale in (1.0, 2.0, 0.5, 1.5, 0.75) * 3
     ]
     assert _upload_timing_violations(correlated) == []
 
@@ -94,13 +95,13 @@ def test_upload_timing_assessment_uses_fixed_sample_lower_bound() -> None:
         [0.00275, 0.0055, 0.011, 0.022],
         [0.00275, 0.0055, 0.011, 0.022],
         [0.0015, 0.003, 0.006, 0.012],
-    ]
+    ] * 3
     assert _upload_timing_violations(noisy_observations) == []
     assert statistics.median(row[-1] for row in noisy_observations) >= max(
         0.01, statistics.median(row[-2] for row in noisy_observations) * 3
     )
 
-    fourfold_growth = [[0.002, 0.004, 0.008, 0.032]] * 5
+    fourfold_growth = [[0.002, 0.004, 0.008, 0.032]] * _ROUNDS
     assert any(
         "growth" in violation
         for violation in _upload_timing_violations(fourfold_growth)
@@ -112,7 +113,7 @@ def test_upload_timing_assessment_uses_fixed_sample_lower_bound() -> None:
         [0.002, 0.004, 0.08, 0.032],
         [0.002, 0.004, 0.08, 0.032],
         [0.002, 0.004, 0.08, 0.032],
-    ]
+    ] * 3
     assert any(
         "growth" in violation
         for violation in _upload_timing_violations(inflated_penultimate)
@@ -122,11 +123,14 @@ def test_upload_timing_assessment_uses_fixed_sample_lower_bound() -> None:
 @pytest.mark.parametrize(
     ("rounds", "violation"),
     (
-        ([[0.001, 0.002, 0.008, 0.024]] * 5, "growth"),
-        ([[0.001, 0.002, 0.003, 0.01]] * 5, "growth"),
-        ([[0.01, 0.02, 0.03, 0.05]] * 5, "absolute"),
+        ([[0.001, 0.002, 0.008, 0.024]] * _ROUNDS, "growth"),
+        ([[0.001, 0.002, 0.003, 0.01]] * _ROUNDS, "growth"),
+        ([[0.01, 0.02, 0.03, 0.05]] * _ROUNDS, "absolute"),
         (
-            [[0.01, 0.02, 0.03, final] for final in (0.06, 0.06, 0.001, 0.06, 0.06)],
+            [
+                [0.01, 0.02, 0.03, final]
+                for final in (0.06, 0.06, 0.001, 0.06, 0.06) * 3
+            ],
             "absolute",
         ),
     ),
@@ -141,9 +145,9 @@ def test_upload_timing_assessment_rejects_exact_budget_boundaries(
     "rounds",
     (
         [],
-        [[0.001, 0.002, 0.003]] * 5,
-        [[0.001, 0.002, 0.003, float("nan")]] * 5,
-        [[0.001, 0.002, 0.003, -0.001]] * 5,
+        [[0.001, 0.002, 0.003]] * _ROUNDS,
+        [[0.001, 0.002, 0.003, float("nan")]] * _ROUNDS,
+        [[0.001, 0.002, 0.003, -0.001]] * _ROUNDS,
     ),
 )
 def test_upload_timing_assessment_rejects_malformed_rounds(
