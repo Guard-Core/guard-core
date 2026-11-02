@@ -2,8 +2,7 @@ import logging
 import warnings
 
 import pytest
-from redis import ConnectionPool, Redis
-from redis.connection import AbstractConnection
+from redis import Connection, ConnectionPool, Redis
 
 from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers import redis_handler
@@ -38,7 +37,7 @@ def _is_open(connection: object) -> bool:
     return any(getattr(connection, a, None) is not None for a in ("_sock", "_reader"))
 
 
-def _connected(client: Redis) -> AbstractConnection:
+def _connected(client: Redis) -> Connection:
     pool = client.connection_pool
     connection = pool.get_connection()
     pool.release(connection)

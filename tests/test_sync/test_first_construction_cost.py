@@ -39,7 +39,7 @@ def test_the_one_private_attribute_is_started_without_pydantics_initializer() ->
 
 def test_the_private_state_equals_what_pydantics_initializer_builds() -> None:
     expected = {
-        name: attribute.get_default(call_default_factory=True)
+        name: attribute.get_default()
         for name, attribute in SecurityConfig.__private_attributes__.items()
     }
 

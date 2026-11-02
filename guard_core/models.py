@@ -592,7 +592,8 @@ def _start_private_state(self: SecurityConfig[RequestT], context: object, /) -> 
     cost more on the first construction of a process than the validators do. A
     subclass with private attributes of its own gets pydantic's initializer first
     (its metaclass wraps this one), so the state is already there and is kept."""
-    if self.__pydantic_private__ is None:
+    # pydantic 2.12.0 calls this from model_construct before it sets the slot at all
+    if getattr(self, "__pydantic_private__", None) is None:
         object.__setattr__(self, "__pydantic_private__", {"_revision": 0})
 
 
