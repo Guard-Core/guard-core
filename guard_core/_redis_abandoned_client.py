@@ -43,7 +43,7 @@ def abandon_client(client: Redis, client_loop: EventLoop) -> None:
 
 
 def close_sync_client(client: SyncRedis, _client_loop: EventLoop) -> None:
-    """The sync tree's ``abandon_client``: its sockets belong to no loop."""
+    """The sync tree's ``abandon_client``: its sockets belong to no loop. The sync
+    ``close`` drops the pool the client owns only from redis-py 5.0.0 on."""
     client.close()
-    if getattr(client, "auto_close_connection_pool", True):
-        client.connection_pool.disconnect()
+    client.connection_pool.disconnect()

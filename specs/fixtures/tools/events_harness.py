@@ -90,7 +90,7 @@ from guard_core.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.handlers.ipban_handler import ip_ban_manager, reset_global_state
 from guard_core.handlers.ipinfo_handler import IPInfoManager
 from guard_core.handlers.ratelimit_handler import RateLimitManager
-from guard_core.handlers.redis_handler import RedisManager
+from guard_core.handlers.redis_handler import RedisManager, close_redis_client
 from guard_core.handlers.security_headers_handler import security_headers_manager
 from guard_core.handlers.suspatterns_handler import (
     sus_patterns_handler,
@@ -755,7 +755,7 @@ async def _flush_events_prefix() -> None:
         if keys:
             await client.delete(*keys)
     finally:
-        await client.aclose()
+        await close_redis_client(client)
 
 
 async def _reset_redis_manager() -> None:

@@ -85,17 +85,16 @@ def _client_owning_pool(pool: ConnectionPool) -> Redis:
 
 def close_redis_client(client: Redis) -> None:
     """``aclose`` where the client has it (redis-py 5.0.1 on, where ``close`` is
-    deprecated), else ``close``, which is the coroutine that closes it before then.
-    The sync client's ``close`` drops the pool it owns only from redis-py 5.0.0 on,
-    and that release has no ``auto_close_connection_pool`` before it: a client owns
-    its pool unless it says otherwise, and drops it here too (a second drop is a
-    no-op)."""
+    deprecated and drops the pool the client owns), else ``close`` and then the
+    pool: before 5.0.1 ``close`` releases only the client's own connection, the
+    sync client drops the pool it owns from 5.0.0 on and ``from_url`` marks no
+    ownership before it. Every client closed here owns its pool, and dropping it
+    twice is a no-op."""
     if hasattr(client, "aclose"):
         client.close()
         return
     client.close()
-    if getattr(client, "auto_close_connection_pool", True):
-        client.connection_pool.disconnect()
+    client.connection_pool.disconnect()
 
 
 def _build_redis_client(

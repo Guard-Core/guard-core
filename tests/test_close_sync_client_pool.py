@@ -1,6 +1,6 @@
 import asyncio
 
-from redis import ConnectionPool, Redis
+from redis import Redis
 
 from guard_core._redis_abandoned_client import close_sync_client
 from tests.conftest import REDIS_URL
@@ -32,15 +32,3 @@ def test_a_sync_client_that_owns_its_pool_drops_the_pool_with_itself() -> None:
     _close_through_the_sync_tree(client)
 
     assert not _is_open(connection)
-
-
-def test_a_sync_client_over_a_pool_it_does_not_own_leaves_the_pool_open() -> None:
-    pool = ConnectionPool.from_url(REDIS_URL)
-    client = Redis(connection_pool=pool)
-    client.auto_close_connection_pool = False
-    connection = _connected(client)
-
-    _close_through_the_sync_tree(client)
-
-    assert _is_open(connection)
-    pool.disconnect()
