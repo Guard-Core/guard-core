@@ -193,10 +193,11 @@ class FastPathConnectionPool(ConnectionPool):
         unregistering a listener replaces the list in the dispatcher's mapping,
         so an identity test against this list tells the fast return that nobody
         else listens. Every redis-py internal the fast return reads (the
-        dispatcher's mapping, the connection's re-authentication token, the
-        observability singleton and its provider manager) is looked up here, on
-        the slow path; one that is missing or of another type gives ``None``,
-        and the plain ``release`` does the work."""
+        dispatcher's mapping, the connection's re-authentication token and its
+        ``should_reconnect`` method, the observability singleton and its
+        provider manager) is looked up here, on the slow path; one that is
+        missing or of another type gives ``None``, and the plain ``release``
+        does the work."""
         mapping = getattr(
             getattr(self, "_event_dispatcher", None), "_event_listeners_mapping", None
         )
@@ -204,6 +205,7 @@ class FastPathConnectionPool(ConnectionPool):
             _RELEASE_EVENTS is None
             or not isinstance(mapping, dict)
             or not hasattr(connection, "_re_auth_token")
+            or not hasattr(connection, "should_reconnect")
             or not _observability_is_readable()
         ):
             self._release_listeners = {}

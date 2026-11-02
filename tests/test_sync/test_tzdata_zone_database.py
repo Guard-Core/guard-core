@@ -32,7 +32,7 @@ def test_tzdata_is_a_runtime_dependency() -> None:
     )
 
     assert runtime is not None
-    assert '"tzdata"' in runtime.group(1)
+    assert re.search(r'"tzdata(?:>=[^"]*)?"', runtime.group(1))
 
 
 @pytest.mark.usefixtures("no_system_zone_database")

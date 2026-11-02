@@ -13,6 +13,7 @@ from redis.backoff import NoBackoff
 from redis.exceptions import ConnectionError as RedisConnectionError
 
 from guard_core.exceptions import GuardRedisError
+from guard_core.handlers._redis_fast_pool import FastPathConnectionPool
 from guard_core.handlers._redis_lean import lean_command, lean_evalsha
 from guard_core.handlers.redis_handler import RedisManager, _build_redis_client
 from guard_core.models import SecurityConfig
@@ -98,6 +99,34 @@ async def test_a_connection_the_server_dropped_while_idle_reconnects() -> None:
     finally:
         await client.aclose()
         await other.aclose()
+
+
+class _ReaderAtEndOfStream:
+    def at_eof(self) -> bool:
+        return True
+
+
+async def test_a_checked_out_connection_whose_reader_ended_is_disconnected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = await _client()
+    try:
+        await lean_command(client, "PING")
+        pool = client.connection_pool
+        idle = pool._available_connections[-1]
+        disconnected: list[object] = []
+
+        async def record_disconnect(*_args: object, **_kwargs: object) -> None:
+            disconnected.append(idle)
+
+        monkeypatch.setattr(idle, "_reader", _ReaderAtEndOfStream())
+        monkeypatch.setattr(idle, "disconnect", record_disconnect)
+
+        assert await pool.get_connection() is idle
+        assert disconnected == [idle]
+    finally:
+        monkeypatch.undo()
+        await client.aclose()
 
 
 async def test_two_hundred_concurrent_calls_are_not_serialized() -> None:
@@ -609,6 +638,28 @@ async def test_a_connection_without_a_re_authentication_token_takes_the_plain_pa
 
         monkeypatch.setattr(dispatcher, "dispatch_async", spy)
         await _calls_take_the_plain_path(client, events)
+    finally:
+        await client.aclose()
+
+
+class _ConnectionWithoutShouldReconnect(Connection):
+    def __getattribute__(self, name: str) -> object:
+        if name == "should_reconnect":
+            raise AttributeError(name)
+        return super().__getattribute__(name)
+
+
+async def test_a_connection_without_should_reconnect_gets_no_fast_return() -> None:
+    client = await _client()
+    try:
+        pool = client.connection_pool
+        assert isinstance(pool, FastPathConnectionPool)
+        connection = pool.make_connection()
+        assert pool._only_the_default_listener(connection) is not None
+        assert hasattr(connection, "should_reconnect")
+        assert (
+            pool._only_the_default_listener(_ConnectionWithoutShouldReconnect()) is None
+        )
     finally:
         await client.aclose()
 
