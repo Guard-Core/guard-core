@@ -26,6 +26,7 @@ from guard_core.detection_engine._redos_repeat_prefix_state import (
     _consume_atom,
     _consume_piece,
     _merge_pending,
+    _negative_assertion,
     _RepeatPrefixState,
 )
 
@@ -115,6 +116,12 @@ def test_empty_negative_lookbehind_walk_follows_how_the_interpreter_parses_it() 
 
     assert re.search(pattern, "X") is None
     assert [state.text for state in _walk(pattern)] == expected
+
+
+def test_a_negative_assertion_over_an_empty_body_can_never_match() -> None:
+    # The parser yields an empty ASSERT_NOT body up to 3.13 only (3.14 parses
+    # `(?!)` as FAILURE), so the interpreter cannot reach this branch on 3.14.
+    assert _negative_assertion([], 0, [], _RepeatPrefixState("")) == []
 
 
 def test_prefix_construction_limits_fail_closed() -> None:
