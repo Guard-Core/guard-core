@@ -35,7 +35,6 @@ from pathlib import Path
 
 from fixture_types import (
     JsonObject,
-    JsonValue,
     KeyProbe,
     PinnedKey,
     RedisArgs,
@@ -47,7 +46,6 @@ from pipeline_harness import _PipelineRequest, _StubResponse, replace_member
 from redis.asyncio import Redis
 from run_fixtures import STAGED_FIELDS
 
-from guard_core.protocols.agent_protocol import JsonValue
 from guard_core.handlers._cloud_provider_registry import (
     _decode_cached,
     _encode_cached,
@@ -63,6 +61,7 @@ from guard_core.handlers.redis_handler import RedisManager, close_redis_client
 from guard_core.handlers.security_headers_handler import security_headers_manager
 from guard_core.handlers.suspatterns_handler import sus_patterns_handler
 from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.protocols.agent_protocol import JsonValue
 from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 
 IPNetwork = ipaddress.IPv4Network | ipaddress.IPv6Network

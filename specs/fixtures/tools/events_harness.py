@@ -51,7 +51,6 @@ from fixture_types import (
     EventsCaseInput,
     EventsStep,
     JsonObject,
-    JsonValue,
     RulePayload,
 )
 from pipeline_harness import (
@@ -72,7 +71,6 @@ from pipeline_harness import (
     reset_check_samplers,
 )
 
-from guard_core.protocols.agent_protocol import JsonValue
 from guard_core._utils.rule_attribution import set_attribution_view
 from guard_core.core.bypass.context import BypassContext
 from guard_core.core.bypass.handler import BypassHandler
@@ -97,6 +95,7 @@ from guard_core.handlers.suspatterns_handler import (
     sus_patterns_manager_for,
 )
 from guard_core.models import DynamicRules, SecurityConfig
+from guard_core.protocols.agent_protocol import JsonValue
 from guard_core.protocols.redis_protocol import RedisHandlerProtocol
 from guard_core.protocols.request_protocol import GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse

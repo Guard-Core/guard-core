@@ -353,8 +353,14 @@ per_rule_ignores = { "DEP002" = [
     "pipeline_cases",
     "pipeline_harness",
     "redis_interop_cases",
+    "fastapi",
+    "guard",
+    "flask",
+    "flaskapi_guard",
+    "django",
 ], "DEP003" = [
     "guard-agent",
+    "httpx",
 ] }
 
 [tool.deptry.package_module_name_map]

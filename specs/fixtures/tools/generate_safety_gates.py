@@ -24,6 +24,7 @@ from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 from fixture_types import SafetyCase
+
 from guard_core import __version__ as engine_version
 from guard_core.detection_engine._redos_work_counter import (
     WORK_COUNTER_SOURCE,
@@ -135,8 +136,8 @@ PROBE_THRESHOLD_SECONDS = 0.05
 PROBE_KILL_SECONDS = 2.0
 STRING_TIMEOUT_MARGIN = 2.0
 # Where the host counts retired instructions (macOS) the probe's verdict and this check
-# both read the count, which moves by about 1 percent between runs and does not depend on
-# load, so the check needs no clock margin; the margin only has to cover the unit's
+# both read the count, which moves by about 1 percent between runs and does not depend
+# on load, so the check needs no clock margin; the margin only has to cover the unit's
 # calibration against CPU time, which Python 3.14 shows as 0.158 s counted against about
 # 0.13 s measured for the case below (3.10: 0.298 against 0.295).
 STRING_TIMEOUT_COUNTED_MARGIN = 2.0

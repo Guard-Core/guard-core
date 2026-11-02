@@ -1,5 +1,6 @@
 import contextlib
 import os
+import shutil
 import signal
 import subprocess
 import sys
@@ -73,9 +74,12 @@ def _process_state(pid: int) -> str | None:
             return handle.read().rsplit(b") ", 1)[1][:1].decode()
     except (OSError, IndexError):
         pass
+    ps_path = shutil.which("ps")
+    if ps_path is None:
+        return None
     try:
         listing = subprocess.run(
-            ["ps", "-o", "stat=", "-p", str(pid)],
+            [ps_path, "-o", "stat=", "-p", str(pid)],
             capture_output=True,
             text=True,
             timeout=STALL_POLL_SECONDS,

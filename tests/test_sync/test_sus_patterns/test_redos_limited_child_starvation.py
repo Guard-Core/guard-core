@@ -151,12 +151,49 @@ def test_a_proc_entry_without_a_state_falls_back_to_ps(
         lambda *a, **k: _FakeProcStat(b"garbage"),
         raising=False,
     )
+    monkeypatch.setattr(limited_child.shutil, "which", lambda name: "/bin/ps")
     monkeypatch.setattr(
         limited_child.subprocess,
         "run",
         lambda *a, **k: subprocess.CompletedProcess(a, 0, stdout="S+\n", stderr=""),
     )
     assert limited_child._process_state(123) == "S"
+
+
+def test_ps_is_run_by_the_path_the_host_resolves_for_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        limited_child,
+        "open",
+        lambda *a, **k: _FakeProcStat(b"garbage"),
+        raising=False,
+    )
+    monkeypatch.setattr(limited_child.shutil, "which", lambda name: "/opt/bin/ps")
+    commands: list[list[str]] = []
+
+    def record(
+        command: list[str], **kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        commands.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout="R\n", stderr="")
+
+    monkeypatch.setattr(limited_child.subprocess, "run", record)
+    assert limited_child._process_state(123) == "R"
+    assert commands[0][0] == "/opt/bin/ps"
+
+
+def test_a_host_without_ps_leaves_the_state_unknown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        limited_child,
+        "open",
+        lambda *a, **k: _FakeProcStat(b"garbage"),
+        raising=False,
+    )
+    monkeypatch.setattr(limited_child.shutil, "which", lambda name: None)
+    assert limited_child._process_state(123) is None
 
 
 _READ_PAYLOAD_LENGTH = "import sys; print(len(sys.stdin.read()))"

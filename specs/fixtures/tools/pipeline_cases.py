@@ -830,7 +830,9 @@ PIPELINE_SUITES["pipeline_request_body"] = [
         ],
     },
     {
-        "id": "multipart_past_file_limit_on_a_route_with_a_larger_max_request_size_passes",
+        "id": (
+            "multipart_past_file_limit_on_a_route_with_a_larger_max_request_size_passes"
+        ),
         "config": {"detection_max_file_inspect_bytes": 1024},
         "routes": {"/upload": {"max_request_size": 8192}},
         "drives": [_upload_drive(MULTIPART_HEADERS, _multipart_upload(4000))],
