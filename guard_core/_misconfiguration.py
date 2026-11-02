@@ -2,7 +2,11 @@ import logging
 from typing import TYPE_CHECKING
 
 from guard_core._emergency_exemptions import warn_unexempted_probe_paths
+from guard_core._security_config_fields import DEFAULT_EXCLUDE_PATHS
 from guard_core._security_headers_defaults import unknown_security_headers_keys
+from guard_core.core.validation.path_matching import (
+    _has_routing_anomaly_in_any_decoding,
+)
 
 if TYPE_CHECKING:
     from guard_core._security_config_fields import RequestT
@@ -68,10 +72,6 @@ def _glob_exclude_path_problems(config: "SecurityConfig[RequestT]") -> list[str]
 
 
 def _anomalous_path_problems(config: "SecurityConfig[RequestT]") -> list[str]:
-    from guard_core.core.validation.path_matching import (
-        _has_routing_anomaly_in_any_decoding,
-    )
-
     spelling = (
         "has a dot segment, an empty segment, a backslash or an encoded dot or "
         "separator (in any decoding round), a spelling the router does not "
@@ -81,7 +81,8 @@ def _anomalous_path_problems(config: "SecurityConfig[RequestT]") -> list[str]:
         *(
             f"exclude_paths entry {entry!r} {spelling}"
             for entry in config.exclude_paths
-            if _has_routing_anomaly_in_any_decoding(entry)
+            if entry not in DEFAULT_EXCLUDE_PATHS
+            and _has_routing_anomaly_in_any_decoding(entry)
         ),
         *(
             f"endpoint_rate_limits key {key!r} {spelling}"
@@ -101,14 +102,50 @@ def _unknown_security_headers_key_problems(
     ]
 
 
+# Every field a check below reads. A config that states none of them holds only
+# defaults, which are valid by construction, so it is not checked at all.
+CHECKED_FIELDS = frozenset(
+    {
+        "security_headers",
+        "exclude_paths",
+        "endpoint_rate_limits",
+        "rate_limit",
+        "rate_limit_window",
+        "detection_threat_score_threshold",
+        "detection_semantic_threshold",
+    }
+)
+
+# What can need a report once rate_limit alone is stated: a valid rate_limit is
+# the one stated field that is checked without a report.
+CHECKED_FIELDS_BESIDES_RATE_LIMIT = CHECKED_FIELDS - {"rate_limit"}
+
+# The same fields by check: a check whose fields are all unset sees only
+# defaults, so it does not run.
+_HEADER_FIELDS = frozenset({"security_headers"})
+_PATH_FIELDS = frozenset({"exclude_paths", "endpoint_rate_limits"})
+_RATE_LIMIT_FIELDS = frozenset(
+    {"rate_limit", "rate_limit_window", "endpoint_rate_limits"}
+)
+_THRESHOLD_FIELDS = frozenset(
+    {"detection_threat_score_threshold", "detection_semantic_threshold"}
+)
+
+
 def config_misconfigurations(config: "SecurityConfig[RequestT]") -> list[str]:
-    return [
-        *_unknown_security_headers_key_problems(config),
-        *_glob_exclude_path_problems(config),
-        *_anomalous_path_problems(config),
-        *_non_positive_rate_limit_problems(config),
-        *_zero_detection_threshold_problems(config),
-    ]
+    stated = config.__pydantic_fields_set__
+    problems: list[str] = []
+    if not stated.isdisjoint(_HEADER_FIELDS):
+        problems += _unknown_security_headers_key_problems(config)
+    if "exclude_paths" in stated:
+        problems += _glob_exclude_path_problems(config)
+    if not stated.isdisjoint(_PATH_FIELDS):
+        problems += _anomalous_path_problems(config)
+    if not stated.isdisjoint(_RATE_LIMIT_FIELDS):
+        problems += _non_positive_rate_limit_problems(config)
+    if not stated.isdisjoint(_THRESHOLD_FIELDS):
+        problems += _zero_detection_threshold_problems(config)
+    return problems
 
 
 def report_config_misconfigurations(
@@ -118,4 +155,5 @@ def report_config_misconfigurations(
         report_misconfiguration(
             config, problem, logger=config_logger, stacklevel=stacklevel + 1
         )
-    warn_unexempted_probe_paths(config, config_logger)
+    if config.emergency_mode:
+        warn_unexempted_probe_paths(config, config_logger)

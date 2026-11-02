@@ -1,10 +1,19 @@
+import inspect
+import logging
+import re
 import warnings
 from collections.abc import Callable
 from typing import Any
 
 import pytest
 
+from guard_core import _misconfiguration, models
+from guard_core._emergency_exemptions import warn_unexempted_probe_paths
+from guard_core._security_config_fields import DEFAULT_EXCLUDE_PATHS
 from guard_core.core.initialization.handler_initializer import HandlerInitializer
+from guard_core.core.validation.path_matching import (
+    _has_routing_anomaly_in_any_decoding,
+)
 from guard_core.decorators import SecurityDecorator
 from guard_core.models import SecurityConfig
 
@@ -244,3 +253,149 @@ async def test_startup_report_text_and_location_for_an_unreachable_ban_threshold
     assert [
         (r.name, r.getMessage()) for r in caplog.records if problem in r.getMessage()
     ] == [("guard_core.core.initialization", f"{problem} {FALSE_NOTE}")]
+
+
+def test_no_default_exclude_path_has_a_routing_anomaly() -> None:
+    """The misconfiguration check skips the defaults, so none may be flagged."""
+    assert [
+        entry
+        for entry in DEFAULT_EXCLUDE_PATHS
+        if _has_routing_anomaly_in_any_decoding(entry)
+    ] == []
+
+
+def test_the_checked_fields_name_every_field_a_check_reads() -> None:
+    source = inspect.getsource(_misconfiguration)
+    read = set(re.findall(r"config\.([a-z_]+)", source))
+    read |= set(re.findall(r'"(detection_[a-z_]+_threshold)"', source))
+    read -= {"fail_on_misconfiguration", "emergency_mode"}
+    read -= {"model_fields_set", "__pydantic_fields_set__"}
+    read -= {"emergency_exempt_paths"}
+
+    assert read <= _misconfiguration.CHECKED_FIELDS
+    assert _misconfiguration.CHECKED_FIELDS <= set(SecurityConfig.model_fields)
+
+
+def test_a_config_that_states_no_checked_field_has_no_problem_to_report() -> None:
+    assert _misconfiguration.config_misconfigurations(SecurityConfig()) == []
+    assert _misconfiguration.config_misconfigurations(
+        SecurityConfig(rate_limit=0, fail_on_misconfiguration=False)
+    ) == ["rate_limit is 0: a limit below 1 blocks every request."]
+
+
+def test_a_check_whose_fields_are_all_unset_does_not_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for name in (
+        "_unknown_security_headers_key_problems",
+        "_glob_exclude_path_problems",
+        "_anomalous_path_problems",
+        "_zero_detection_threshold_problems",
+    ):
+
+        def refuse(_config: object) -> list[str]:
+            raise AssertionError("a check ran on defaults only")
+
+        monkeypatch.setattr(_misconfiguration, name, refuse)
+
+    config = SecurityConfig(rate_limit=0, fail_on_misconfiguration=False)
+
+    assert _misconfiguration.config_misconfigurations(config) == [
+        "rate_limit is 0: a limit below 1 blocks every request."
+    ]
+
+
+def test_every_stated_surface_still_reports_its_problem() -> None:
+    config = SecurityConfig(
+        security_headers={"enabled": True, "no_such_key": 1},
+        exclude_paths=["/a/*"],
+        endpoint_rate_limits={"/x": (0, 0)},
+        detection_threat_score_threshold=0.0,
+        fail_on_misconfiguration=False,
+    )
+
+    problems = _misconfiguration.config_misconfigurations(config)
+
+    assert [re.split(r"[ \[]", problem)[0] for problem in problems] == [
+        "security_headers",
+        "exclude_paths",
+        "endpoint_rate_limits",
+        "detection_threat_score_threshold",
+    ]
+
+
+def test_the_fields_of_each_check_make_up_the_checked_fields() -> None:
+    assert _misconfiguration.CHECKED_FIELDS == (
+        _misconfiguration._HEADER_FIELDS
+        | _misconfiguration._PATH_FIELDS
+        | _misconfiguration._RATE_LIMIT_FIELDS
+        | _misconfiguration._THRESHOLD_FIELDS
+    )
+
+
+def test_the_probe_path_warning_is_given_in_emergency_mode_only(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    quiet = SecurityConfig(exclude_paths=["/health"])
+    loud = SecurityConfig(exclude_paths=["/health"], emergency_mode=True)
+    logger = logging.getLogger("probe_paths")
+    caplog.clear()
+
+    with caplog.at_level("WARNING", logger="probe_paths"):
+        warn_unexempted_probe_paths(quiet, logger)
+        assert caplog.records == []
+        warn_unexempted_probe_paths(loud, logger)
+
+    assert [r.name for r in caplog.records] == ["probe_paths"]
+    assert "[EMERGENCY MODE]" in caplog.records[0].getMessage()
+
+
+def _count_reports(monkeypatch: pytest.MonkeyPatch) -> list[SecurityConfig[Any]]:
+    reported: list[SecurityConfig[Any]] = []
+    real = models.report_config_misconfigurations
+
+    def spy(config: SecurityConfig[Any], *, stacklevel: int) -> None:
+        reported.append(config)
+        real(config, stacklevel=stacklevel)
+
+    monkeypatch.setattr(models, "report_config_misconfigurations", spy)
+    return reported
+
+
+def test_a_valid_rate_limit_alone_does_not_start_the_report(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    reported = _count_reports(monkeypatch)
+
+    SecurityConfig(rate_limit=120, enable_redis=False)
+
+    assert reported == []
+
+
+@pytest.mark.parametrize(
+    "stated",
+    [
+        {"rate_limit": 0, "fail_on_misconfiguration": False},
+        {"emergency_mode": True},
+        {"security_headers": {"enabled": True}},
+        {"exclude_paths": ["/health"]},
+        {"endpoint_rate_limits": {"/x": (5, 60)}},
+        {"rate_limit_window": 60},
+        {"detection_threat_score_threshold": 0.5},
+        {"detection_semantic_threshold": 0.5},
+    ],
+)
+def test_every_other_stated_checked_field_still_starts_the_report(
+    monkeypatch: pytest.MonkeyPatch, stated: dict[str, Any]
+) -> None:
+    reported = _count_reports(monkeypatch)
+
+    SecurityConfig(enable_redis=False, **stated)
+
+    assert len(reported) == 1
+
+
+def test_the_fields_checked_beside_rate_limit_are_the_checked_fields_but_it() -> None:
+    assert _misconfiguration.CHECKED_FIELDS_BESIDES_RATE_LIMIT == (
+        _misconfiguration.CHECKED_FIELDS - {"rate_limit"}
+    )

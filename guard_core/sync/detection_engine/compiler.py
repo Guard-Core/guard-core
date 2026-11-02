@@ -17,19 +17,45 @@ from guard_core.sync._utils.detection_config import _DEFAULT_MAX_SCAN_SECONDS
 from guard_core.sync._utils.detection_scan import _scan_time_cap
 from guard_core.sync._utils.pattern_source_redaction import _SensitiveNameSets
 from guard_core.sync.detection_engine import _validation_cache
-from guard_core.sync.detection_engine._redos_cost_arbiter import (
-    _PATTERN_SAFETY_DEFAULT_CAP,
-    TransientReason,
-    _reach_probe_cost_verdict,
-    _run_pattern_safety_probe_subprocess,
-)
-from guard_core.sync.detection_engine._redos_structural_prefilters import (
-    _dangerous_construct_violation,
-    _first_structural_safety_violation,
-)
 from guard_core.sync.detection_engine.cache_stats import CacheStats, build_cache_stats
 
 logger = logging.getLogger("guard_core.sync.detection_engine.compiler")
+
+
+def _reach_probe_cost_verdict(
+    pattern: str,
+    max_content_length: int | None,
+    flags: int,
+    redaction_names: _SensitiveNameSets | None,
+) -> tuple[bool, str]:
+    from guard_core.sync.detection_engine import _redos_cost_arbiter
+
+    return _redos_cost_arbiter._reach_probe_cost_verdict(
+        pattern, max_content_length, flags, redaction_names
+    )
+
+
+def _run_pattern_safety_probe_subprocess(
+    pattern: str, test_strings: list[str], flags: int
+) -> tuple[bool, str]:
+    from guard_core.sync.detection_engine import _redos_cost_arbiter
+
+    return _redos_cost_arbiter._run_pattern_safety_probe_subprocess(
+        pattern, test_strings, flags
+    )
+
+
+def _dangerous_construct_violation(pattern: str) -> str | None:
+    from guard_core.sync.detection_engine import _redos_structural_prefilters
+
+    return _redos_structural_prefilters._dangerous_construct_violation(pattern)
+
+
+def _first_structural_safety_violation(pattern: str) -> str | None:
+    from guard_core.sync.detection_engine import _redos_structural_prefilters
+
+    return _redos_structural_prefilters._first_structural_safety_violation(pattern)
+
 
 _SHARED_EXECUTOR_MAX_WORKERS = 4
 
@@ -311,6 +337,11 @@ class PatternCompiler:
             return _reach_probe_cost_verdict(
                 pattern, max_content_length, flags, self.redaction_names
             )
+        from guard_core.sync.detection_engine._redos_cost_arbiter import (
+            _PATTERN_SAFETY_DEFAULT_CAP,
+            TransientReason,
+        )
+
         cap = max_content_length or _PATTERN_SAFETY_DEFAULT_CAP
         cached = self._validation_cache.get(pattern, flags, cap)
         if cached is not None:

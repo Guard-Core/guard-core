@@ -26,6 +26,7 @@ from guard_core._config_field_revalidators import (
     _validate_positive_int_field_value,
     _validate_str_list_field_value,
 )
+from guard_core._detection_constants import ALL_DETECTION_CATEGORIES
 from guard_core._security_config_blocked_user_agents import (
     _validate_blocked_user_agents_value,
 )
@@ -54,7 +55,6 @@ from guard_core._security_headers_override import (
     checked_security_headers_config,
 )
 from guard_core._utils.whitelist_match import unwrap_ipv4_mapped_network
-from guard_core.handlers.suspatterns_handler import ALL_DETECTION_CATEGORIES
 
 if TYPE_CHECKING:
     from guard_core._security_config_fields import RequestT
@@ -697,13 +697,15 @@ _FIELD_REVALIDATORS: dict[str, Callable[[object], object]] = {
 
 
 def require_agent_config(config: "SecurityConfig[RequestT]") -> None:
-    if config.enable_agent and not config.agent_api_key:
+    values = config.__dict__
+    enable_agent = values["enable_agent"]
+    if enable_agent and not values["agent_api_key"]:
         raise ValueError("agent_api_key is required when enable_agent is True")
 
-    if config.enable_dynamic_rules and not config.enable_agent:
+    if values["enable_dynamic_rules"] and not enable_agent:
         raise ValueError("enable_agent must be True when enable_dynamic_rules is True")
 
-    if config.enable_enrichment and not config.enable_agent:
+    if values["enable_enrichment"] and not enable_agent:
         raise ValueError(
             "enable_enrichment requires enable_agent=True; enrichment is "
             "the guard-agent-gated tier. Either enable guard-agent or set "
@@ -719,10 +721,10 @@ def warn_agent_endpoint_in_clear(config: "SecurityConfig[RequestT]") -> None:
     plain ``http://`` to a host that is not this machine, they travel in clear."""
     from urllib.parse import urlsplit
 
-    if not config.enable_agent:
+    if not config.__dict__["enable_agent"]:
         return
     try:
-        parts = urlsplit(config.agent_endpoint)
+        parts = urlsplit(config.__dict__["agent_endpoint"])
         host = parts.hostname or ""
     except ValueError:
         return

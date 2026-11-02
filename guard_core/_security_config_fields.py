@@ -15,6 +15,11 @@ from pydantic import (
 from typing_extensions import Self, TypeVar
 
 from guard_core import _tracking_caps
+from guard_core._detection_constants import (
+    _DEFAULT_MAX_BODY_INSPECT_BYTES,
+    _DEFAULT_MAX_FILE_INSPECT_BYTES,
+    ALL_DETECTION_CATEGORIES,
+)
 from guard_core._redis_enablement import REDIS_CONNECTION_FIELDS, resolve_enable_redis
 from guard_core._security_config_cloud_store_validators import (
     _validate_cloud_ip_store_value,
@@ -34,12 +39,6 @@ from guard_core._staged_defaults import (
     DEFAULT_REDIS_PREFIX,
     SIGNAL_TRIGGER_FIELDS,
     signal_changed_defaults,
-)
-from guard_core.handlers._ipban_cache import DEFAULT_MAX_LOCAL_BANS
-from guard_core.handlers.suspatterns_handler import (
-    _DEFAULT_MAX_BODY_INSPECT_BYTES,
-    _DEFAULT_MAX_FILE_INSPECT_BYTES,
-    ALL_DETECTION_CATEGORIES,
 )
 from guard_core.protocols.cloud_ip_store_protocol import (
     CloudIpStoreFactory,
@@ -75,14 +74,14 @@ def _module_cap(name: str) -> Callable[[], int]:
     """Default read from the cap constant of the light module when the config is
     built (the handlers import the config and pull in redis, so they cannot be
     imported here)."""
-    return lambda: int(getattr(_tracking_caps, name))
+    return partial(getattr, _tracking_caps, name)
 
 
 class _SecurityConfigFields(BaseModel, Generic[RequestT]):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     trusted_proxies: tuple[str, ...] = Field(
-        default_factory=tuple,
+        default=(),
         description="Trusted proxy IPs or CIDR ranges for X-Forwarded-For",
     )
 
@@ -209,7 +208,7 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
     )
 
     blacklist: tuple[str, ...] = Field(
-        default_factory=tuple,
+        default=(),
         description=(
             "Blocked IP addresses or CIDR ranges. Enforced ahead of country and "
             "cloud-provider checks. An explicit whitelist match does not lift it: a "
@@ -218,7 +217,7 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
     )
 
     exempt_ips: tuple[str, ...] = Field(
-        default_factory=tuple,
+        default=(),
         description=(
             "IP addresses or CIDR ranges that skip rate limiting and the "
             "user-agent and cloud-provider checks. Not restrictive: every other "
@@ -228,7 +227,7 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
     )
 
     whitelist_countries: frozenset[str] = Field(
-        default_factory=frozenset,
+        default=frozenset(),
         description=(
             "Allowed country codes (ISO 3166-1 alpha-2). A non-empty set is "
             "restrictive: only listed countries pass the global country check, "
@@ -238,7 +237,7 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
     )
 
     blocked_countries: frozenset[str] = Field(
-        default_factory=frozenset,
+        default=frozenset(),
         description="Country codes that are always blocked",
     )
 
@@ -264,7 +263,7 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
     )
 
     threat_ban_config: MappingProxyInJson = Field(
-        default_factory=lambda: MappingProxyType({}),
+        default_factory=partial(MappingProxyType, {}),
         description=(
             "Per-category ban thresholds and durations. Categories are the "
             "penetration-detection categories plus the pseudo-category "
@@ -425,7 +424,7 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
     )
 
     global_behavior_rules: GlobalBehaviorRules = Field(
-        default_factory=tuple,
+        default=(),
         description=(
             "Behaviour rules applied to every route, in addition to any "
             "decorator-specified rules. Useful for global 404 tracking."
@@ -648,16 +647,20 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
     enable_cors: bool = Field(default=False, description="Enable/disable CORS")
 
     cors_allow_origins: list[str] = Field(
-        default_factory=lambda: ["*"], description="Origins allowed in CORS requests"
+        default_factory=partial(list, ("*",)),
+        description="Origins allowed in CORS requests",
     )
 
     cors_allow_methods: list[str] = Field(
-        default_factory=lambda: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        default_factory=partial(
+            list, ("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
+        ),
         description="Methods allowed in CORS requests",
     )
 
     cors_allow_headers: list[str] = Field(
-        default_factory=lambda: ["*"], description="Headers allowed in CORS requests"
+        default_factory=partial(list, ("*",)),
+        description="Headers allowed in CORS requests",
     )
 
     cors_allow_credentials: bool = Field(
@@ -738,7 +741,7 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
     )
 
     banned_ips_max_entries: int = Field(
-        default=DEFAULT_MAX_LOCAL_BANS,
+        default=_tracking_caps.DEFAULT_MAX_LOCAL_BANS,
         ge=1,
         description=(
             "Cap on the bans one process keeps in memory (addresses and grouped "
@@ -862,7 +865,7 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
     )
 
     exclude_paths: list[str] = Field(
-        default_factory=lambda: list(DEFAULT_EXCLUDE_PATHS),
+        default_factory=partial(list, DEFAULT_EXCLUDE_PATHS),
         description=(
             "Paths to exclude from security checks. An entry covers that path "
             "and everything under it; the literal '/' entry covers only the "
@@ -1529,22 +1532,22 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
     )
 
     muted_event_types: frozenset[str] = Field(
-        default_factory=frozenset,
+        default=frozenset(),
         description="Event types to mute from telemetry dispatch",
     )
 
     muted_metric_types: frozenset[str] = Field(
-        default_factory=frozenset,
+        default=frozenset(),
         description="Metric types to mute from telemetry dispatch",
     )
 
     muted_check_logs: frozenset[str] = Field(
-        default_factory=frozenset,
+        default=frozenset(),
         description="Security check names to mute from pipeline logging",
     )
 
     log_sensitive_headers: frozenset[str] = Field(
-        default_factory=frozenset,
+        default=frozenset(),
         description=(
             "Header names redacted from guard log lines, matched case-insensitively. "
             "Merged with the hardcoded default set."
@@ -1552,7 +1555,7 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
     )
 
     log_sensitive_params: frozenset[str] = Field(
-        default_factory=frozenset,
+        default=frozenset(),
         description=(
             "Query parameter names whose values are redacted from guard log lines "
             "(the URL segment and the detection engine's per-parameter line), "
@@ -1561,7 +1564,7 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
     )
 
     log_sensitive_body_fields: frozenset[str] = Field(
-        default_factory=frozenset,
+        default=frozenset(),
         description=(
             "Body field names whose values are redacted from the detection engine's "
             "per-field line: JSON keys at any depth, x-www-form-urlencoded and "
@@ -1674,7 +1677,7 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
         ),
     )
     enabled_detection_categories: frozenset[str] = Field(
-        default_factory=lambda: frozenset(ALL_DETECTION_CATEGORIES),
+        default_factory=partial(frozenset, ALL_DETECTION_CATEGORIES),
         description=(
             "Detection categories to scan for. Defaults to all. "
             f"Valid values: {sorted(ALL_DETECTION_CATEGORIES)}"
@@ -1683,7 +1686,8 @@ class _SecurityConfigFields(BaseModel, Generic[RequestT]):
 
     @model_validator(mode="after")
     def resolve_enable_redis_default(self) -> Self:
-        resolve_enable_redis(self)
+        if "enable_redis" not in self.__pydantic_fields_set__:
+            resolve_enable_redis(self)
         return self
 
     def __setattr__(self, name: str, value: object) -> None:

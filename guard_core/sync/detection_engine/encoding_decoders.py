@@ -1,25 +1,16 @@
 import re
 from collections.abc import Iterator
 
+from guard_core._lazy_patterns import LazyPatterns, module_attribute_lookup
 from guard_core.sync.detection_engine import truncation
 
 HEX_ESCAPE_RE = re.compile(r"\\x([0-9a-fA-F]{2})")
 UNICODE_ESCAPE_RE = re.compile(r"\\u([0-9a-fA-F]{4})")
 PERCENT_U_ESCAPE_RE = re.compile(r"%u([0-9a-fA-F]{4})", re.IGNORECASE)
-HTML_HEX_ENTITY_WITHOUT_SEMICOLON_RE = re.compile(
-    r"&#[xX]([0-9a-fA-F]{2})(?![0-9a-fA-F]*;)"
-)
-OCTAL_ESCAPE_RE = re.compile(r"\\([0-3][0-7]{2})")
 HEX_TEXT_RUN_RE = re.compile(r"(?<![0-9A-Za-z])([0-9a-fA-F]{12,})(?![0-9A-Za-z])")
-_UTF7_BASE64_RUN_RE = re.compile(r"[A-Za-z0-9+/]+")
 _PRINTABLE_ASCII_BYTES = bytes([9, 10, 13, *range(0x20, 0x7F)])
 PERCENT_RUN_CHUNK_TOKENS = 1024
-PERCENT_BYTE_RUN_CHUNK_RE = re.compile(
-    rf"(?:%[0-9a-fA-F]{{2}}){{1,{PERCENT_RUN_CHUNK_TOKENS}}}"
-)
-_NON_PERCENT_RUN_CHAR_RE = re.compile(r"[^%0-9A-Fa-f]")
 PERCENT_RUN_WINDOW_CHARS = 32768
-_ASCII_RUN_SPLIT_RE = re.compile("([\x00-\x7f]+)")
 _PERCENT_BYTE_TABLE = {
     (high + low).encode(): bytes.fromhex(high + low)
     for high in "0123456789ABCDEFabcdef"
@@ -53,7 +44,7 @@ def _percent_decode_ascii_run(run: str) -> bytes:
 def percent_decode(content: str, errors: str = "replace") -> str:
     if "%" not in content:
         return content
-    bits = _ASCII_RUN_SPLIT_RE.split(content)
+    bits = _PATTERNS["_ASCII_RUN_SPLIT_RE"].split(content)
     decoded = [bits[0]]
     for index in range(1, len(bits), 2):
         run = bits[index]
@@ -112,7 +103,7 @@ def decode_html_hex_entities_without_semicolon(content: str) -> str:
         decoded = _printable_ascii_chr(int(match.group(1), 16))
         return match.group(0) if decoded is None or ord(decoded) > 0x7F else decoded
 
-    return HTML_HEX_ENTITY_WITHOUT_SEMICOLON_RE.sub(_replace, content)
+    return _PATTERNS["HTML_HEX_ENTITY_WITHOUT_SEMICOLON_RE"].sub(_replace, content)
 
 
 def decode_octal_escapes(content: str) -> str:
@@ -123,7 +114,7 @@ def decode_octal_escapes(content: str) -> str:
         decoded = _printable_ascii_chr(int(match.group(1), 8))
         return match.group(0) if decoded is None or ord(decoded) > 0x7F else decoded
 
-    return OCTAL_ESCAPE_RE.sub(_replace, content)
+    return _PATTERNS["OCTAL_ESCAPE_RE"].sub(_replace, content)
 
 
 def decode_hex_text_runs(content: str) -> str:
@@ -161,7 +152,7 @@ def decode_utf7_shifted_runs(content: str) -> str:
         return content
     pieces: list[str] = []
     position = 0
-    for base64_run in _UTF7_BASE64_RUN_RE.finditer(content):
+    for base64_run in _PATTERNS["_UTF7_BASE64_RUN_RE"].finditer(content):
         start, end = base64_run.span()
         shift = content.find("+", start, end)
         if shift == -1 or end - shift <= 3 or content[end : end + 1] != "-":
@@ -220,7 +211,9 @@ def lenient_overlong_utf8_decode(raw: bytes) -> str:
 def percent_run_windows(content: str) -> Iterator[tuple[int, int]]:
     start = 0
     while start < len(content):
-        cut = _NON_PERCENT_RUN_CHAR_RE.search(content, start + PERCENT_RUN_WINDOW_CHARS)
+        cut = _PATTERNS["_NON_PERCENT_RUN_CHAR_RE"].search(
+            content, start + PERCENT_RUN_WINDOW_CHARS
+        )
         end = cut.start() if cut else len(content)
         yield start, end
         start = end
@@ -241,7 +234,7 @@ def _percent_byte_runs(content: str) -> Iterator[tuple[int, int]]:
     frame per repeated group, so one unbounded match over a megabyte run holds
     about 50 MB) and adjacent matches are joined here."""
     run_start = run_end = -1
-    for match in PERCENT_BYTE_RUN_CHUNK_RE.finditer(content):
+    for match in _PATTERNS["PERCENT_BYTE_RUN_CHUNK_RE"].finditer(content):
         start, end = match.span()
         if start != run_end:
             if run_end != -1:
@@ -277,8 +270,26 @@ def decode_overlong_utf8_percent_runs_yielding(content: str) -> str:
 
 _LOST_BYTE = "[\ufffd\udc80-\udcff]"
 _AT_SEGMENT_START = r"(?<![^/\\])"
-_LOST_BYTE_RE = re.compile(_LOST_BYTE)
-_LOST_BYTE_PAIR_RE = re.compile(f"{_LOST_BYTE}{{2}}")
+_PATTERNS = LazyPatterns(
+    {
+        "HTML_HEX_ENTITY_WITHOUT_SEMICOLON_RE": (
+            r"&#[xX]([0-9a-fA-F]{2})(?![0-9a-fA-F]*;)",
+            0,
+        ),
+        "OCTAL_ESCAPE_RE": (r"\\([0-3][0-7]{2})", 0),
+        "_UTF7_BASE64_RUN_RE": (r"[A-Za-z0-9+/]+", 0),
+        "PERCENT_BYTE_RUN_CHUNK_RE": (
+            rf"(?:%[0-9a-fA-F]{{2}}){{1,{PERCENT_RUN_CHUNK_TOKENS}}}",
+            0,
+        ),
+        "_NON_PERCENT_RUN_CHAR_RE": (r"[^%0-9A-Fa-f]", 0),
+        "_ASCII_RUN_SPLIT_RE": ("([\x00-\x7f]+)", 0),
+        "_LOST_BYTE_RE": (_LOST_BYTE, 0),
+    }
+)
+__getattr__ = module_attribute_lookup(_PATTERNS)
+
+
 _LOST_DOT_RUN_RE = re.compile(
     rf"{_AT_SEGMENT_START}"
     rf"(?:\.{_LOST_BYTE}{{2}}|{_LOST_BYTE}{{2}}\.|{_LOST_BYTE}{{4}})(?=[\\/])"
@@ -298,7 +309,7 @@ def repair_lost_overlong_bytes(content: str) -> str:
     bytes: the two dots of a ``..`` segment may each be a lost pair, a lost byte
     after a segment's ``..`` is its separator. Only a ``..`` that opens a
     segment is repaired, so a lost byte elsewhere in a text is left alone."""
-    if not _LOST_BYTE_RE.search(content):
+    if not _PATTERNS["_LOST_BYTE_RE"].search(content):
         return content
     for _ in range(_LOST_BYTE_REPAIR_PASSES):
         repaired = _LOST_DOT_RUN_RE.sub("..", content)

@@ -1,6 +1,7 @@
 import contextvars
 import difflib
 import logging
+import threading as _threading
 from collections.abc import Mapping
 from copy import deepcopy
 from pathlib import Path
@@ -22,8 +23,16 @@ from guard_core._config_capabilities import _extra_installed as _extra_installed
 from guard_core._config_capabilities import (
     cloud_blocking_enabled as cloud_blocking_enabled,
 )
+from guard_core._detection_constants import (
+    ALL_DETECTION_CATEGORIES as ALL_DETECTION_CATEGORIES,
+)
 from guard_core._dynamic_rules import DynamicRules as DynamicRules
-from guard_core._misconfiguration import report_config_misconfigurations
+from guard_core._misconfiguration import (
+    CHECKED_FIELDS_BESIDES_RATE_LIMIT as _CHECKED_FIELDS_BESIDES_RATE_LIMIT,
+)
+from guard_core._misconfiguration import (
+    report_config_misconfigurations,
+)
 from guard_core._security_config_assignment_checks import (
     changed_copy_fields,
     misconfigurations_now,
@@ -89,14 +98,12 @@ from guard_core._security_config_validators import (
     return_pattern_requires_response_body as return_pattern_requires_response_body,
 )
 from guard_core._staged_defaults import (
+    _ALWAYS_LISTED_FIELDS,
     signal_changed_defaults,
     warn_redis_prefix_left_default,
 )
 from guard_core._utils.pattern_source_redaction import _ConfigSensitiveNames
 from guard_core.exceptions import AgentPackageNotInstalledError
-from guard_core.handlers.suspatterns_handler import (
-    ALL_DETECTION_CATEGORIES as ALL_DETECTION_CATEGORIES,
-)
 from guard_core.protocols.cloud_ip_store_protocol import (
     CloudIpStoreFactory as CloudIpStoreFactory,
 )
@@ -106,12 +113,12 @@ from guard_core.protocols.cloud_ip_store_protocol import (
 from guard_core.protocols.geo_ip_protocol import GeoIPHandler as GeoIPHandler
 from guard_core.protocols.request_protocol import GuardRequest as GuardRequest
 from guard_core.protocols.response_protocol import GuardResponse as GuardResponse
-from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
 if TYPE_CHECKING:
     from guard_agent import AgentConfig
 
     from guard_core.handlers.suspatterns_handler import SusPatternsManager
+    from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
 
 VALID_BYPASS_CHECKS: frozenset[str] = frozenset(
@@ -248,13 +255,17 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
     @model_validator(mode="before")
     @classmethod
     def warn_unknown_fields(cls, data: object) -> object:
-        if not isinstance(data, dict):
+        if not isinstance(data, dict) or not data:
             return data
 
-        known = set(cls.model_fields)
-        known.update(field.alias for field in cls.model_fields.values() if field.alias)
+        fields = cls.model_fields
+        if data.keys() <= fields.keys():
+            return data
+        not_a_field_name = {key for key in data if key not in fields}
+        known = set(fields)
+        known.update(field.alias for field in fields.values() if field.alias)
 
-        unknown = set(data) - known
+        unknown = not_a_field_name - known
         for key in sorted(unknown):
             match = difflib.get_close_matches(str(key), known, n=1)
             hint = f" Did you mean '{match[0]}'?" if match else ""
@@ -314,24 +325,31 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
     def validate_blocked_user_agents(cls, v: object) -> list[str]:
         return _validate_blocked_user_agents_structure(v)
 
-    @model_validator(mode="wrap")
+    @model_validator(mode="before")
     @classmethod
-    def reject_redos_unsafe_blocked_user_agents(
-        cls, data: object, handler: ModelWrapValidatorHandler[Self]
-    ) -> Self:
-        config = handler(
-            _redact_blocked_user_agents_in_input(
-                data,
-                {
-                    f: cls.model_fields[f].get_default(call_default_factory=True)
-                    for f in _SENSITIVE_NAME_FIELDS
-                },
+    def redact_blocked_user_agents_in_input(cls, data: object) -> object:
+        if type(data) is dict and "blocked_user_agents" not in data:
+            return data
+        return _redact_blocked_user_agents_in_input(
+            data,
+            lambda: {
+                f: cls.model_fields[f].get_default(call_default_factory=True)
+                for f in _SENSITIVE_NAME_FIELDS
+            },
+        )
+
+    # The after validators below read fields from __dict__: the first read of a
+    # name through the instance walks the class MRO, which costs more than the
+    # check itself on the first construction of a process (LEDGER 6.494).
+    @model_validator(mode="after")
+    def reject_redos_unsafe_blocked_user_agents(self) -> Self:
+        if self.__dict__["blocked_user_agents"]:
+            _reject_redos_unsafe_blocked_user_agents_at_field(
+                type(self).__name__,
+                self.blocked_user_agents,
+                _ConfigSensitiveNames(self),
             )
-        )
-        _reject_redos_unsafe_blocked_user_agents_at_field(
-            cls.__name__, config.blocked_user_agents, _ConfigSensitiveNames(config)
-        )
-        return config
+        return self
 
     @model_validator(mode="after")
     def validate_optional_extras_installed(self) -> Self:
@@ -340,7 +358,12 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
 
     @model_validator(mode="after")
     def validate_geo_ip_handler_exists(self) -> Self:
-        resolved = _resolve_geo_ip_handler(
+        values = self.__dict__
+        if values["geo_ip_handler"] is not None or not (
+            values["blocked_countries"] or values["whitelist_countries"]
+        ):
+            return self
+        self.geo_ip_handler = _resolve_geo_ip_handler(
             blocked_countries=self.blocked_countries,
             whitelist_countries=self.whitelist_countries,
             geo_ip_handler=self.geo_ip_handler,
@@ -349,14 +372,12 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
             ipinfo_download_url=self.ipinfo_download_url,
             geo_ip_db_max_age=self.geo_ip_db_max_age,
         )
-        if resolved is not self.geo_ip_handler:
-            self.geo_ip_handler = resolved
-
         return self
 
     @model_validator(mode="after")
     def warn_country_allowlist_shadows_blocklist(self) -> Self:
-        if self.whitelist_countries and self.blocked_countries:
+        values = self.__dict__
+        if values["whitelist_countries"] and values["blocked_countries"]:
             _warn_country_allowlist_shadows_blocklist(stacklevel=4)
         return self
 
@@ -372,12 +393,13 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
 
     @model_validator(mode="after")
     def validate_recidive_cap(self) -> Self:
-        _require_recidive_cap_covers_auto_ban(self)
+        if self.__dict__["enable_recidive"]:
+            _require_recidive_cap_covers_auto_ban(self)
         return self
 
     @model_validator(mode="after")
     def validate_global_return_pattern_body_scan(self) -> Self:
-        for rule in self.global_behavior_rules:
+        for rule in self.__dict__["global_behavior_rules"]:
             if rule.rule_type != "return_pattern" or not rule.pattern:
                 continue
             _validate_return_pattern_body_scan(rule.pattern, self)
@@ -385,41 +407,67 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
 
     @model_validator(mode="after")
     def warn_trusted_proxies_prefix_zero(self) -> Self:
-        if any(_is_prefix_zero_network_entry(entry) for entry in self.trusted_proxies):
+        trusted_proxies = self.__dict__["trusted_proxies"]
+        if trusted_proxies and any(
+            _is_prefix_zero_network_entry(entry) for entry in trusted_proxies
+        ):
             _warn_trusted_proxies_prefix_zero()
         return self
 
     @model_validator(mode="after")
     def warn_whitelist_prefix_zero(self) -> Self:
-        if any(_is_prefix_zero_network_entry(entry) for entry in self.whitelist or ()):
+        whitelist = self.__dict__["whitelist"]
+        if whitelist and any(
+            _is_prefix_zero_network_entry(entry) for entry in whitelist
+        ):
             _warn_whitelist_prefix_zero()
         return self
 
     @model_validator(mode="after")
     def warn_exempt_ips_prefix_zero(self) -> Self:
-        _warn_exempt_ips_prefix_zero(self.exempt_ips)
+        exempt_ips = self.__dict__["exempt_ips"]
+        if exempt_ips:
+            _warn_exempt_ips_prefix_zero(exempt_ips)
         return self
 
     @model_validator(mode="after")
     def warn_exclude_all_paths(self) -> Self:
-        if self.exclude_all_paths:
+        if self.__dict__["exclude_all_paths"]:
             _warn_exclude_all_paths(stacklevel=4)
         return self
 
     @model_validator(mode="after")
     def report_misconfigurations(self) -> Self:
-        report_config_misconfigurations(self, stacklevel=4)
+        stated = self.__pydantic_fields_set__
+        values = self.__dict__
+        if (
+            values["emergency_mode"]
+            or not stated.isdisjoint(_CHECKED_FIELDS_BESIDES_RATE_LIMIT)
+            or ("rate_limit" in stated and values["rate_limit"] < 1)
+        ):
+            report_config_misconfigurations(self, stacklevel=4)
         return self
 
     @model_validator(mode="after")
     def warn_changed_defaults(self) -> Self:
-        signal_changed_defaults(self)
-        warn_redis_prefix_left_default(self)
+        values = self.__dict__
+        if not (
+            self.__pydantic_fields_set__ >= _ALWAYS_LISTED_FIELDS
+            and not values["whitelist"]
+            and "/" not in values["exclude_paths"]
+        ):
+            signal_changed_defaults(self)
+        if values["enable_redis"] and values["redis_url"]:
+            warn_redis_prefix_left_default(self)
         return self
 
     @model_validator(mode="after")
     def warn_empty_enabled_detection_categories(self) -> Self:
-        if self.enable_penetration_detection and not self.enabled_detection_categories:
+        values = self.__dict__
+        if (
+            values["enable_penetration_detection"]
+            and not values["enabled_detection_categories"]
+        ):
             _warn_empty_enabled_detection_categories()
         return self
 
@@ -516,7 +564,98 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
             ) from e
 
 
-# Parametrized here, at import time, so pydantic registers the class in this module:
-# a pickled SecurityConfig[SyncGuardRequest] then loads in an interpreter that has only
-# imported guard_core (a spawn-started process unpickles its arguments).
-SyncSecurityConfig = SecurityConfig[SyncGuardRequest]
+def _start_private_state(self: SecurityConfig[RequestT], context: object, /) -> None:
+    """pydantic's initializer of the private attributes, for the one this class
+    declares: it reads the attribute's default through five Python calls, which
+    cost more on the first construction of a process than the validators do. A
+    subclass with private attributes of its own gets pydantic's initializer first
+    (its metaclass wraps this one), so the state is already there and is kept."""
+    if self.__pydantic_private__ is None:
+        object.__setattr__(self, "__pydantic_private__", {"_revision": 0})
+
+
+type.__setattr__(SecurityConfig, "model_post_init", _start_private_state)
+
+if TYPE_CHECKING:
+    SyncSecurityConfig = SecurityConfig[SyncGuardRequest]
+
+_LAZY_NAMES = (
+    "SyncSecurityConfig",
+    "SecurityConfig[SyncGuardRequest]",
+    "SyncGuardRequest",
+)
+_build_lock = _threading.Lock()
+
+
+def __getattr__(name: str) -> object:
+    # Resolved on first use and registered in this module, as pydantic does for a
+    # module-level parametrization: a pickled SecurityConfig[SyncGuardRequest] still
+    # loads in an interpreter that has only imported guard_core (a spawn-started
+    # process unpickles its arguments). The import runs outside the lock and the
+    # build inside it, only while the name is still missing: pydantic's generic
+    # cache is not thread-safe, so two threads would build two classes.
+    if name not in _LAZY_NAMES:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    from guard_core.sync.protocols.request_protocol import SyncGuardRequest
+
+    with _build_lock:
+        if name not in globals():
+            parametrized = SecurityConfig[SyncGuardRequest]
+            globals().update(
+                {
+                    "SyncSecurityConfig": parametrized,
+                    "SecurityConfig[SyncGuardRequest]": parametrized,
+                    "SyncGuardRequest": SyncGuardRequest,
+                }
+            )
+    return globals()[name]
+
+
+def __dir__() -> list[str]:
+    return sorted({*globals(), *_LAZY_NAMES})
+
+
+# What a star import exported at 7025a112 (every public global, imported ones
+# included) except the unusable name 'SecurityConfig[SyncGuardRequest]', which ruff
+# F822 refuses in __all__; getattr still resolves it.
+__all__ = [
+    "ALL_DETECTION_CATEGORIES",
+    "AgentPackageNotInstalledError",
+    "BehaviorRuleConfig",
+    "ClassVar",
+    "CloudIpStoreFactory",
+    "CloudIpStoreProtocol",
+    "CloudProvider",
+    "ConfigDict",
+    "DynamicRules",
+    "GeoIPHandler",
+    "GuardRequest",
+    "GuardResponse",
+    "Mapping",
+    "MappingProxyType",
+    "ModelWrapValidatorHandler",
+    "Path",
+    "PrivateAttr",
+    "RequestT",
+    "SecurityConfig",
+    "Self",
+    "SyncGuardRequest",
+    "SyncSecurityConfig",
+    "TYPE_CHECKING",
+    "ThreatBanConfig",
+    "VALID_BYPASS_CHECKS",
+    "VALID_CLOUD_PROVIDERS",
+    "ValidationInfo",
+    "cloud_blocking_enabled",
+    "contextvars",
+    "deepcopy",
+    "difflib",
+    "field_validator",
+    "logger",
+    "logging",
+    "model_validator",
+    "report_config_misconfigurations",
+    "return_pattern_requires_response_body",
+    "signal_changed_defaults",
+    "warn_redis_prefix_left_default",
+]

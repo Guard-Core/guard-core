@@ -14,6 +14,7 @@ from guard_core.sync._utils.rule_attribution import (
     cached_ban_stamp,
     country_attribution,
 )
+from guard_core.sync._utils.rule_attribution_shared import Stamp
 from guard_core.sync._utils.whitelist_match import most_specific_whitelist_entry
 from guard_core.sync.core.checks._ban_flow import BanFlow
 from guard_core.sync.core.checks._ip_ban_read import (
@@ -38,7 +39,6 @@ from guard_core.sync.core.events.event_types import (
     EVENT_IP_BLOCKED,
 )
 from guard_core.sync.decorators.base import RouteConfig
-from guard_core.sync.handlers._dynamic_rule_attribution import Stamp
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 from guard_core.sync.utils import (
     IpAccessResult,

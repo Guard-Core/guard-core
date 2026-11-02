@@ -4,7 +4,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from guard_core._utils.app_managers import _Held, hold_for_app
+from guard_core._utils.app_managers import _Held, held_for_app, hold_for_app
 from guard_core._utils.config_registry import ConfigHandlerRegistry
 from guard_core.handlers import _ipinfo_redis_copy as ipinfo_copy_module
 from guard_core.handlers import _suspatterns_enhanced as enhanced_module
@@ -118,3 +118,7 @@ def test_cloud_manager_reuses_downloaded_ranges_only_while_fresh() -> None:
     found = manager._ranges_downloaded_within("AWS", 3600)
     assert found is not None
     assert found[0] == {ipaddress.ip_network("10.0.0.0/8")}
+
+
+def test_a_config_with_no_instance_dict_holds_no_manager() -> None:
+    assert held_for_app(_NoWeakref(), "patterns") is None

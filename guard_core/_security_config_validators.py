@@ -13,7 +13,6 @@ from guard_core._config_capabilities import (
 )
 from guard_core._redis_enablement import (
     REDIS_CONNECTION_FIELDS,
-    redis_is_configured,
     resolve_enable_redis,
 )
 from guard_core._security_config_blocked_user_agents import (
@@ -152,7 +151,7 @@ class _InputSensitiveNames:
 
 
 def _redact_blocked_user_agents_in_input(
-    data: object, field_defaults: Mapping[str, object]
+    data: object, field_defaults: Callable[[], Mapping[str, object]]
 ) -> object:
     if not isinstance(data, Mapping) or "blocked_user_agents" not in data:
         return data
@@ -162,10 +161,11 @@ def _redact_blocked_user_agents_in_input(
         return "[REDACTED]"
 
     redact = redact_everything
+    defaults = field_defaults()
     try:
         names = {
             field: _validate_sensitive_name_set_value(
-                data.get(field, field_defaults[field]), field
+                data.get(field, defaults[field]), field
             )
             for field in _SENSITIVE_NAME_FIELDS
         }
@@ -306,12 +306,15 @@ def _assign_checking_optional_extras(
 
 
 def _require_optional_extras(config: "SecurityConfig[RequestT]") -> None:
-    if redis_is_configured(config):
+    values = config.__dict__
+    if values["enable_redis"] and values["redis_url"]:
         require_redis_extra()
 
-    if cloud_blocking_enabled(config):
+    if values["block_cloud_providers"] or values["enable_dynamic_rules"]:
         require_cloud_extra()
 
-    has_country_rules = bool(config.blocked_countries or config.whitelist_countries)
-    if config.geo_ip_handler is None and has_country_rules:
+    has_country_rules = bool(
+        values["blocked_countries"] or values["whitelist_countries"]
+    )
+    if values["geo_ip_handler"] is None and has_country_rules:
         require_geo_extra()

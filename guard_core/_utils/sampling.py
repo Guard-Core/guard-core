@@ -13,6 +13,8 @@ class _Clearable(Protocol):
 
 _T = TypeVar("_T", bound=_Clearable)
 
+_PRUNE_FLOOR = 64
+
 
 class SampledKeys:
     """The keys one app last sampled, for ``observe_sampled_key``."""
@@ -66,9 +68,8 @@ class PerApp(Generic[_T]):
         self._table_type = table_type
         self._lock = threading.Lock()
         self._unheld = table_type()
-        self._tables: weakref.WeakValueDictionary[int, _T] = (
-            weakref.WeakValueDictionary()
-        )
+        self._tables: list[weakref.ReferenceType[_T]] = []
+        self._prune_at = _PRUNE_FLOOR
 
     def clear(self) -> None:
         """Forget the process-wide table. The table of an app goes with its config."""
@@ -77,14 +78,20 @@ class PerApp(Generic[_T]):
     def tables(self) -> list[_T]:
         """Every table alive now: the process-wide one and each app's."""
         with self._lock:
-            return [self._unheld, *self._tables.values()]
+            alive = [table for ref in self._tables if (table := ref()) is not None]
+            return [self._unheld, *alive]
+
+    def _drop_dead_tables(self) -> None:
+        self._tables = [ref for ref in self._tables if ref() is not None]
+        self._prune_at = max(_PRUNE_FLOOR, 2 * len(self._tables))
 
     def for_app(self, config: object) -> _T:
         try:
-            held = config.__dict__[_HELD_ATTRIBUTE][self._kind]
-        except (AttributeError, KeyError):
-            held = None
-        if isinstance(held, self._table_type):
+            tables = config.__dict__.get(_HELD_ATTRIBUTE)
+        except AttributeError:
+            tables = None
+        held = tables.get(self._kind) if tables else None
+        if held is not None and isinstance(held, self._table_type):
             return held
         with self._lock:
             held = held_for_app(config, self._kind)
@@ -93,7 +100,9 @@ class PerApp(Generic[_T]):
             fresh = self._table_type()
             if not hold_for_app(config, self._kind, fresh):
                 return self._unheld
-            self._tables[id(fresh)] = fresh
+            self._tables.append(weakref.ref(fresh))
+            if len(self._tables) >= self._prune_at:
+                self._drop_dead_tables()
             return fresh
 
 

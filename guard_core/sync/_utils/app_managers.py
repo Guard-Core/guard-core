@@ -3,7 +3,11 @@ import weakref
 from collections.abc import Callable, Hashable
 from typing import TYPE_CHECKING, Generic, Protocol, TypeVar
 
-from guard_core._redis_enablement import RedisFieldsConfig, redis_is_configured
+from guard_core._redis_enablement import (
+    RedisFieldsConfig,
+    configured_redis_url,
+    redis_is_configured,
+)
 from guard_core.sync._utils.app_scope import SHARED_BY_APPS
 from guard_core.sync._utils.config_registry import ConfigHandlerRegistry
 
@@ -54,6 +58,8 @@ def share_redis_prefix(
 
 
 def _connection_key_of(config: "SecurityConfig[RequestT]") -> Hashable | None:
+    if configured_redis_url(config) is None:
+        return None
     from guard_core.sync.handlers._redis_shared_clients import connection_key_of
 
     return connection_key_of(config)

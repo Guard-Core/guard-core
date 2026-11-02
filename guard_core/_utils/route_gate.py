@@ -5,6 +5,8 @@ from contextlib import contextmanager
 from functools import lru_cache
 from types import MappingProxyType
 
+from guard_core._lazy_patterns import LazyPatterns, module_attribute_lookup
+
 ROUTE_TEMPLATE_STATE_ATTR = "guard_route_template"
 STATIC_FILE_STATE_ATTR = "guard_static_file_served"
 STATIC_FILE_EXTENSIONS = frozenset({"ts", "map"})
@@ -30,8 +32,6 @@ _declared_path_param_value_scan: contextvars.ContextVar[bool] = contextvars.Cont
     "guard_core_declared_path_param_value_scan", default=False
 )
 PATH_PARAM_DEFAULT_CATEGORIES = frozenset({"recon", "cms_probing"})
-_UNESCAPED_DOT_RE = re.compile(r"\\\.|\[\.\]")
-_PARAMETER_RE = re.compile(r"\{[^}]*\}|<[^>]*>")
 
 
 def normalized_last_segment(path: str) -> str:
@@ -100,8 +100,10 @@ def route_declares(probe_token: str) -> bool:
     template = _matched_route_template.get()
     if template is None:
         return False
-    literal = _PARAMETER_RE.sub("/", template)
-    return probe_token.lower() in _UNESCAPED_DOT_RE.sub(".", literal).lower()
+    literal = _PATTERNS["_PARAMETER_RE"].sub("/", template)
+    return (
+        probe_token.lower() in _PATTERNS["_UNESCAPED_DOT_RE"].sub(".", literal).lower()
+    )
 
 
 def path_probe_is_not_the_apps_own_route(path: str) -> bool:
@@ -117,9 +119,6 @@ def named_probe_is_not_the_apps_own_route(token: str) -> bool:
     return not route_declares(token)
 
 
-_STARLETTE_OR_ANGLE_PARAMETER_RE = re.compile(
-    r"\{(\w+)(?::(\w+))?\}|<(?:(\w+)(?:\([^)]*\))?:)?(\w+)>"
-)
 _CATCH_ALL_CONVERTER = "path"
 
 
@@ -130,7 +129,7 @@ def _template_matcher(template: str) -> re.Pattern[str] | None:
     else:
         pieces: list[str] = []
         position = 0
-        for found in _STARLETTE_OR_ANGLE_PARAMETER_RE.finditer(template):
+        for found in _PATTERNS["_STARLETTE_OR_ANGLE_PARAMETER_RE"].finditer(template):
             pieces.append(re.escape(template[position : found.start()]))
             converter = found.group(2) or found.group(3)
             inner = ".*" if converter == _CATCH_ALL_CONVERTER else "[^/]+"
@@ -213,7 +212,18 @@ def declared_path_param_values(view: str) -> list[tuple[str, str]]:
     ]
 
 
-_REGEX_GROUP_RE = re.compile(r"\(\?P<\w+>[^)]*\)")
+_PATTERNS = LazyPatterns(
+    {
+        "_UNESCAPED_DOT_RE": (r"\\\.|\[\.\]", 0),
+        "_PARAMETER_RE": (r"\{[^}]*\}|<[^>]*>", 0),
+        "_STARLETTE_OR_ANGLE_PARAMETER_RE": (
+            r"\{(\w+)(?::(\w+))?\}|<(?:(\w+)(?:\([^)]*\))?:)?(\w+)>",
+            0,
+        ),
+        "_REGEX_GROUP_RE": (r"\(\?P<\w+>[^)]*\)", 0),
+    }
+)
+__getattr__ = module_attribute_lookup(_PATTERNS)
 
 
 def path_params_without_a_literal_segment_before(
@@ -226,7 +236,9 @@ def path_params_without_a_literal_segment_before(
             found = next(
                 (
                     candidate
-                    for candidate in _STARLETTE_OR_ANGLE_PARAMETER_RE.finditer(template)
+                    for candidate in _PATTERNS[
+                        "_STARLETTE_OR_ANGLE_PARAMETER_RE"
+                    ].finditer(template)
                     if name in (candidate.group(1), candidate.group(4))
                 ),
                 None,
@@ -234,8 +246,8 @@ def path_params_without_a_literal_segment_before(
             if found is None:
                 continue
             start = found.start()
-        prefix = _STARLETTE_OR_ANGLE_PARAMETER_RE.sub(
-            "", _REGEX_GROUP_RE.sub("", template[:start])
+        prefix = _PATTERNS["_STARLETTE_OR_ANGLE_PARAMETER_RE"].sub(
+            "", _PATTERNS["_REGEX_GROUP_RE"].sub("", template[:start])
         )
         if not re.search(r"[^/^]", prefix):
             rootless.append(name)

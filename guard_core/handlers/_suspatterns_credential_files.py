@@ -1,5 +1,6 @@
 import re
 
+from guard_core._lazy_patterns import LazyPatterns, module_attribute_lookup
 from guard_core.handlers._suspatterns_sources import (
     _CTX_SENSITIVE_FILE,
     _NAMED_PATH_SUFFIX_RE,
@@ -30,17 +31,24 @@ _CREDENTIAL_FILES_BY_NAME = (
 # A bare private key name counts only behind a separator (a URL path segment); the
 # match clearing below drops it outside the request URL path.
 _BARE_PRIVATE_KEY_LAST_URL_SEGMENT = rf"(?<={_PATH_ONLY_SEP_RE}){_PRIVATE_KEY_NAMES}"
-_BARE_PRIVATE_KEY_SEGMENT_RE = re.compile(
-    rf"(?<!\.ssh){_PATH_ONLY_SEP_RE}{_PRIVATE_KEY_NAMES}", re.IGNORECASE
-)
 
 # A value that is exactly a home-relative reference to a listed credential file
 # (a setting naming where the file lives) is benign; v4.4.0 never flagged it.
-_HOME_TILDE_CREDENTIAL_FILE_RE = re.compile(
-    rf"\A~{_PATH_ONLY_SEP_RE}"
-    rf"(?:{_CREDENTIAL_FILES_WITH_DIRECTORY}|{_CREDENTIAL_FILES_BY_NAME})\s*\Z",
-    re.IGNORECASE,
+_PATTERNS = LazyPatterns(
+    {
+        "_BARE_PRIVATE_KEY_SEGMENT_RE": (
+            rf"(?<!\.ssh){_PATH_ONLY_SEP_RE}{_PRIVATE_KEY_NAMES}",
+            re.IGNORECASE,
+        ),
+        "_HOME_TILDE_CREDENTIAL_FILE_RE": (
+            rf"\A~{_PATH_ONLY_SEP_RE}"
+            rf"(?:{_CREDENTIAL_FILES_WITH_DIRECTORY}|{_CREDENTIAL_FILES_BY_NAME})\s*\Z",
+            re.IGNORECASE,
+        ),
+    }
 )
+__getattr__ = module_attribute_lookup(_PATTERNS)
+
 
 CREDENTIAL_FILES_REQUIRED = (
     rf"(?:{_CREDENTIAL_FILES_WITH_DIRECTORY}|{_CREDENTIAL_FILES_BY_NAME}"
@@ -61,8 +69,8 @@ CREDENTIAL_FILE_ROWS: tuple[tuple[str, frozenset[str], str], ...] = (
 
 
 def private_key_name_is_bare(path: str) -> bool:
-    return _BARE_PRIVATE_KEY_SEGMENT_RE.search(path) is not None
+    return _PATTERNS["_BARE_PRIVATE_KEY_SEGMENT_RE"].search(path) is not None
 
 
 def credential_file_is_a_home_tilde_reference(value: str) -> bool:
-    return _HOME_TILDE_CREDENTIAL_FILE_RE.match(value) is not None
+    return _PATTERNS["_HOME_TILDE_CREDENTIAL_FILE_RE"].match(value) is not None

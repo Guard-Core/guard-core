@@ -1,6 +1,7 @@
 import re
 from collections.abc import Callable
 
+from guard_core._lazy_patterns import LazyPatterns, module_attribute_lookup
 from guard_core.handlers._suspatterns_matchers import (
     _CMD_INJECTION_DOLLAR_SUBSTITUTION_RE,
     _FILE_UPLOAD_DANGEROUS_EXTENSION_RE,
@@ -119,41 +120,10 @@ _GLUED_BACKTICK_CANDIDATE_RE = r"(?<!`)`(?:[A-Za-z0-9_./~]|\$[({])(?:[^`\\\n]|\\
 _GLUED_DOLLAR_SUBSTITUTION_CANDIDATE_RE = (
     r"\$\((?:[^()\\\n]|\\.)*\)|\$\{(?:[^{}\\\n]|\\.)*\}"
 )
-_GLUED_BACKTICK_ASCII_WORD_RE = re.compile(r"[A-Za-z0-9_]")
 
-_STRONG_SQL_KEYWORD_GLUED_PREFIX_RE = re.compile(
-    r"(?i)\b(?:SELECT|FROM|WHERE|INSERT|UPDATE|DELETE|JOIN|VALUES|ORDER[^\S\r\n]+BY|"
-    r"GROUP[^\S\r\n]+BY)\Z"
-)
-_STRONG_SQL_KEYWORD_GLUED_SUFFIX_RE = re.compile(
-    r"(?i)(?:SELECT|FROM|WHERE|INSERT|UPDATE|DELETE|JOIN|VALUES|ORDER[^\S\r\n]+BY|"
-    r"GROUP[^\S\r\n]+BY)\b"
-)
 _BACKTICK_WINDOW_DELIMITER_CHARS = "`'\"\n\r"
-_BACKTICK_WINDOW_DELIMITER_RE = re.compile(r"[`'\"\n\r]")
 
-_IMPLAUSIBLE_SQL_IDENTIFIER_CHARS_RE = re.compile(r"[\s/.;|&$()]")
-_IMPLAUSIBLE_DOLLAR_PAREN_TOKEN_CHARS_RE = re.compile(r"[/.;|&$()]")
-_BARE_SHELL_PARAMETER_NAME_RE = re.compile(
-    r"\A[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*\Z"
-)
 _SHELL_SPECIAL_PARAMETER_NAMES = frozenset({"ifs"})
-_SHELL_PLAIN_IDENTIFIER_RE = re.compile(r"\A[A-Za-z_][\w-]*\Z")
-_SHELL_SELECTOR_STRING_RE = re.compile(r"\A(['\"])[#.\[][^'\"]*\1\Z")
-_SHELL_BRACE_SLICE_RE = re.compile(
-    r"\A(?:[A-Za-z_]\w*|@|\*|#)?\s*:\s*-?\d+(?:\s*:\s*-?\d+)?\Z"
-)
-_SHELL_KNOWN_COMMAND_RE = re.compile(
-    r"(?:(?i:ls|cat|id|whoami|uname|wget|curl|nc|ncat|netcat|socat|bash|sh|zsh|dash"
-    r"|python|python3|perl|ruby|php|node|env|printenv|ifconfig|ip|ping|nslookup|dig"
-    r"|sleep|echo|date|ps|who|w|last|groups|head|tail|base64|chmod|chown|kill|uptime"
-    r"|nmap|telnet|ssh|scp|ftp|tftp|xxd|od|tr|sed|awk|find|grep|dir|type|reboot"
-    r"|shutdown|halt|poweroff|systemctl|service|mount|umount|useradd|userdel|usermod"
-    r"|passwd|su|sudo|crontab|nohup|chroot|dd|mkfifo|mknod|touch|mkdir|mv|cp|ln|tar"
-    r"|gzip|gunzip|unzip|zip|openssl|powershell|pwsh|cmd|eval|exec|source|set|history"
-    r"|msfconsole|msfvenom|certutil|bitsadmin|aria2c)"
-    r"|(?-i:rm|pwd|hostname))\Z"
-)
 _AMBIGUOUS_BACKTICK_INJECTION_CONTEXTS = frozenset({"query_param", "url_path"})
 _CTX_CMD_INJECTION_WITH_URL_PATH = frozenset(
     {"query_param", "header", "url_path", "request_body", "unknown"}
@@ -172,9 +142,6 @@ _BRACE_EXPANSION_COMMAND_RE = (
     + r")?)+\}"
 )
 _QUOTE_SPLICE_CANDIDATE_RE = r"\w+(?:['\"]+\w+){1,10}"
-_QUOTE_SPLICE_CANDIDATE_COMPILED_RE = re.compile(
-    _QUOTE_SPLICE_CANDIDATE_RE, re.IGNORECASE
-)
 
 _GLOB_WILDCARD_ATOM_RE = (
     r"(?<![A-Za-z0-9_./*?-])[A-Za-z0-9_./*?-]*[?*][A-Za-z0-9_./*?-]*"
@@ -215,4 +182,49 @@ _PY_VARS_INDIRECTION_RE = (
     r"['\"](?:" + _PY_DANGEROUS_METHOD_RE + r")['\"]\s*\]\s*\()"
 )
 
-_SHELL_CHAIN_OPERATOR_RE = re.compile(r";|\|\||\||&&")
+_PATTERNS = LazyPatterns(
+    {
+        "_GLUED_BACKTICK_ASCII_WORD_RE": (r"[A-Za-z0-9_]", 0),
+        "_STRONG_SQL_KEYWORD_GLUED_PREFIX_RE": (
+            r"(?i)\b(?:SELECT|FROM|WHERE|INSERT|UPDATE|DELETE|JOIN|VALUES|ORDER[^\S\r\n]+BY|"
+            r"GROUP[^\S\r\n]+BY)\Z",
+            0,
+        ),
+        "_STRONG_SQL_KEYWORD_GLUED_SUFFIX_RE": (
+            r"(?i)(?:SELECT|FROM|WHERE|INSERT|UPDATE|DELETE|JOIN|VALUES|ORDER[^\S\r\n]+BY|"
+            r"GROUP[^\S\r\n]+BY)\b",
+            0,
+        ),
+        "_BACKTICK_WINDOW_DELIMITER_RE": (r"[`'\"\n\r]", 0),
+        "_IMPLAUSIBLE_SQL_IDENTIFIER_CHARS_RE": (r"[\s/.;|&$()]", 0),
+        "_IMPLAUSIBLE_DOLLAR_PAREN_TOKEN_CHARS_RE": (r"[/.;|&$()]", 0),
+        "_BARE_SHELL_PARAMETER_NAME_RE": (
+            r"\A[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*\Z",
+            0,
+        ),
+        "_SHELL_PLAIN_IDENTIFIER_RE": (r"\A[A-Za-z_][\w-]*\Z", 0),
+        "_SHELL_SELECTOR_STRING_RE": (r"\A(['\"])[#.\[][^'\"]*\1\Z", 0),
+        "_SHELL_BRACE_SLICE_RE": (
+            r"\A(?:[A-Za-z_]\w*|@|\*|#)?\s*:\s*-?\d+(?:\s*:\s*-?\d+)?\Z",
+            0,
+        ),
+        "_SHELL_KNOWN_COMMAND_RE": (
+            r"(?:(?i:ls|cat|id|whoami|uname|wget|curl|nc|ncat|netcat|socat|bash|sh|zsh|dash"
+            r"|python|python3|perl|ruby|php|node|env|printenv|ifconfig|ip|ping|nslookup|dig"
+            r"|sleep|echo|date|ps|who|w|last|groups|head|tail|base64|chmod|chown|kill|uptime"
+            r"|nmap|telnet|ssh|scp|ftp|tftp|xxd|od|tr|sed|awk|find|grep|dir|type|reboot"
+            r"|shutdown|halt|poweroff|systemctl|service|mount|umount|useradd|userdel|usermod"
+            r"|passwd|su|sudo|crontab|nohup|chroot|dd|mkfifo|mknod|touch|mkdir|mv|cp|ln|tar"
+            r"|gzip|gunzip|unzip|zip|openssl|powershell|pwsh|cmd|eval|exec|source|set|history"
+            r"|msfconsole|msfvenom|certutil|bitsadmin|aria2c)"
+            r"|(?-i:rm|pwd|hostname))\Z",
+            0,
+        ),
+        "_QUOTE_SPLICE_CANDIDATE_COMPILED_RE": (
+            _QUOTE_SPLICE_CANDIDATE_RE,
+            re.IGNORECASE,
+        ),
+        "_SHELL_CHAIN_OPERATOR_RE": (r";|\|\||\||&&", 0),
+    }
+)
+__getattr__ = module_attribute_lookup(_PATTERNS)

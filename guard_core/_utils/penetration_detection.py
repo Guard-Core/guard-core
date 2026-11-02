@@ -77,11 +77,15 @@ from guard_core.handlers._suspatterns_sources import (
     _DEFAULT_MAX_BODY_INSPECT_BYTES,
     _scan_window_bytes,
 )
+from guard_core.handlers.suspatterns_handler import (
+    SusPatternsManager,
+    sus_patterns_handler,
+    sus_patterns_manager_for,
+)
 from guard_core.protocols.request_protocol import GuardRequest
 
 if TYPE_CHECKING:
     from guard_core.decorators.base import RouteConfig
-    from guard_core.handlers.suspatterns_handler import SusPatternsManager
     from guard_core.models import SecurityConfig
 
 
@@ -392,12 +396,7 @@ async def _scan_body_surface(
 
 def _ensure_detection_singleton_configured(
     config: "SecurityConfig | None",
-) -> "SusPatternsManager":
-    from guard_core.handlers.suspatterns_handler import (
-        sus_patterns_handler,
-        sus_patterns_manager_for,
-    )
-
+) -> SusPatternsManager:
     if config is None:
         return sus_patterns_handler
     manager = config._guard_pattern_manager

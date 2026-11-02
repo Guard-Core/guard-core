@@ -1,18 +1,23 @@
-import re
 from functools import lru_cache
 
+from guard_core._lazy_patterns import LazyPatterns, module_attribute_lookup
 from guard_core.sync._utils.detection_scan import (
     _whole_value_path_rows_skipped,
     _whole_value_rows_only,
 )
 from guard_core.sync.handlers._suspatterns_lazy_rows import PatternRow
 
-_ANCHOR_RE = re.compile(r"\\A|\\Z|(?<![\[\\])\^|(?<!\\)\$(?![{)\]])")
+_PATTERNS = LazyPatterns(
+    {
+        "_ANCHOR_RE": (r"\\A|\\Z|(?<![\[\\])\^|(?<!\\)\$(?![{)\]])", 0),
+    }
+)
+__getattr__ = module_attribute_lookup(_PATTERNS)
 
 
 @lru_cache(maxsize=4096)
 def _row_is_anchored(source: str) -> bool:
-    return _ANCHOR_RE.search(source) is not None
+    return _PATTERNS["_ANCHOR_RE"].search(source) is not None
 
 
 _WHOLE_VALUE_PATH_ROW_PREFIXES = ("\\A[/\\\\]", "\\A\\s*(?:/")

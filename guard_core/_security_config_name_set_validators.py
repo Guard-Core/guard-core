@@ -1,7 +1,7 @@
 from collections.abc import Iterable
 from typing import Protocol, runtime_checkable
 
-from guard_core.handlers.suspatterns_handler import ALL_DETECTION_CATEGORIES
+from guard_core._detection_constants import ALL_DETECTION_CATEGORIES
 
 
 @runtime_checkable

@@ -1,4 +1,5 @@
 import copy
+import gc
 
 import pytest
 
@@ -100,4 +101,29 @@ def test_a_table_installed_while_waiting_for_the_lock_is_the_one_served(
 
     assert per_app.for_app(config) is winner
     assert held_reads == [(config, "sampling:wp303")]
-    assert winner not in per_app._tables.values()
+    assert winner not in per_app.tables()
+
+
+def test_tables_lists_the_process_table_and_each_live_app_table_only() -> None:
+    per_app = PerApp("wp344_tables", SampledKeys)
+    first = SecurityConfig(enable_redis=False)
+    second = SecurityConfig(enable_redis=False)
+    first_table = per_app.for_app(first)
+    second_table = per_app.for_app(second)
+
+    assert per_app.tables() == [per_app.for_app(None), first_table, second_table]
+    del second, second_table
+    gc.collect()
+    assert per_app.tables() == [per_app.for_app(None), first_table]
+
+
+def test_dead_app_tables_are_pruned_while_apps_come_and_go() -> None:
+    per_app = PerApp("wp344_prune", SampledKeys)
+    for _ in range(500):
+        per_app.for_app(SecurityConfig(enable_redis=False))
+    gc.collect()
+    kept = SecurityConfig(enable_redis=False)
+    per_app.for_app(kept)
+
+    assert len(per_app._tables) < 130
+    assert len(per_app.tables()) == 2

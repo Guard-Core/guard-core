@@ -364,8 +364,10 @@ async def test_regex_timeout_fallback() -> None:
             )
 
             mock_logger.warning.assert_called()
-            warning_msg = mock_logger.warning.call_args[0][0]
-            assert "Regex timeout exceeded" in warning_msg
+            assert any(
+                "Regex timeout exceeded" in call.args[0]
+                for call in mock_logger.warning.call_args_list
+            )
 
     manager._compiler = original_compiler
     await manager.remove_pattern(evil_pattern, custom=True)
@@ -614,8 +616,10 @@ async def test_regex_search_exception_fallback() -> None:
             assert not result["is_threat"]
 
             mock_logger.error.assert_called()
-            error_msg = mock_logger.error.call_args[0][0]
-            assert "Error in regex search" in error_msg
+            assert any(
+                "Error in regex search" in call.args[0]
+                for call in mock_logger.error.call_args_list
+            )
 
     manager._compiler = original_compiler
     await manager.remove_pattern(test_pattern, custom=True)

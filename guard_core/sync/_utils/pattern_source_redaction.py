@@ -2,6 +2,8 @@ import re
 from contextvars import ContextVar
 from typing import TYPE_CHECKING, Protocol
 
+from guard_core._lazy_patterns import LazyPatterns, module_attribute_lookup
+
 if TYPE_CHECKING:
     from guard_core._security_config_fields import RequestT
     from guard_core.models import SecurityConfig
@@ -14,10 +16,17 @@ class _SensitiveNameSets(Protocol):
     _sensitive_body_fields_union: frozenset[str]
 
 
-_PATTERN_SOURCE_NON_TOKEN_RE = re.compile(r"[^a-z0-9_-]+")
-_PATTERN_SOURCE_ESCAPE_RE = re.compile(
-    r"\\(?:[xX]([0-9A-Fa-f]{2})|u([0-9A-Fa-f]{4})|U([0-9A-Fa-f]{8})|([0-7]{1,3}))"
+_PATTERNS = LazyPatterns(
+    {
+        "_PATTERN_SOURCE_NON_TOKEN_RE": (r"[^a-z0-9_-]+", 0),
+        "_PATTERN_SOURCE_ESCAPE_RE": (
+            r"\\(?:[xX]([0-9A-Fa-f]{2})|u([0-9A-Fa-f]{4})|U([0-9A-Fa-f]{8})|([0-7]{1,3}))",
+            0,
+        ),
+    }
 )
+__getattr__ = module_attribute_lookup(_PATTERNS)
+
 
 # The manager of the app whose request is being scanned: its own sensitive names
 # redact the pattern text, never another app's.
@@ -35,10 +44,10 @@ def _decode_pattern_source_escape(match: re.Match[str]) -> str:
 def _pattern_source_names_a_sensitive_field(
     pattern_source: str, sensitive_names: frozenset[str]
 ) -> bool:
-    decoded = _PATTERN_SOURCE_ESCAPE_RE.sub(
+    decoded = _PATTERNS["_PATTERN_SOURCE_ESCAPE_RE"].sub(
         _decode_pattern_source_escape, pattern_source
     )
-    normalized = _PATTERN_SOURCE_NON_TOKEN_RE.sub("", decoded.lower())
+    normalized = _PATTERNS["_PATTERN_SOURCE_NON_TOKEN_RE"].sub("", decoded.lower())
     return any(name in normalized for name in sensitive_names)
 
 

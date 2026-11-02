@@ -130,6 +130,10 @@ jobs:
         run: |
           uv run --no-sync python scripts/unasync.py --check
 
+      - name: Fail on a stale import row table
+        run: |
+          uv run --no-sync python scripts/generate_import_rows.py --check
+
       - name: Run the detection gate suite (shard)
         shell: bash
         run: |

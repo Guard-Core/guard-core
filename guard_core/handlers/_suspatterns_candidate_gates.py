@@ -12,7 +12,7 @@ from guard_core.handlers._suspatterns_matchers import (
     _brace_expansion_is_dangerous_command,
 )
 from guard_core.handlers._suspatterns_named_floor import (
-    NAMED_FLOOR_TOKEN_PATTERNS,
+    NAMED_FLOOR_TOKEN_SOURCES,
     absolute_path_is_a_probe,
     named_floor_row_is_not_the_apps_own_route,
     named_probe_row_is_not_the_apps_own_route,
@@ -73,7 +73,7 @@ _CANDIDATE_REJECTION_VALIDATORS: tuple[
 ] = (
     *(
         (source, partial(named_floor_row_is_not_the_apps_own_route, source))
-        for source in NAMED_FLOOR_TOKEN_PATTERNS
+        for source in NAMED_FLOOR_TOKEN_SOURCES
     ),
     (_LEGACY_IPV4_HOST_RE, lambda m, _c: _legacy_ipv4_match_is_blocked(m)),
     (_LDAP_WILDCARD_CHAIN_RE, lambda m, _c: _ldap_wildcard_chain_is_injection(m)),

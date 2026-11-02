@@ -46,12 +46,20 @@ SKIP_SRC = {
     "_emergency_exemptions.py",
     "_callable_shape.py",
     "_security_headers_record_validation.py",
+    "_builtin_import_rows.py",
+    "_lazy_patterns.py",
+    "_detection_constants.py",
+    "_builtin_import_table.py",
 }
 
 SKIP_TESTS = {
     "test_redis_abandoned_client.py",
     "test_redis_loop_change.py",
     "test_fork_safety.py",
+    "test_import_rows.py",
+    "test_lazy_patterns.py",
+    "test_models_lazy_sync_config.py",
+    "test_import_surface_preserved.py",
     "mock_download.py",
     "test_field_validator_user_agent_cap.py",
     "test_geo_awaited_load_concurrency.py",

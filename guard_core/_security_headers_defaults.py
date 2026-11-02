@@ -1,4 +1,3 @@
-import copy
 from collections.abc import Mapping
 
 SECURITY_HEADER_NAMES: dict[str, str] = {
@@ -47,7 +46,7 @@ _DEFAULT_SECURITY_HEADERS_CONFIG: dict[str, object] = {
 
 
 def default_security_headers_config() -> dict[str, object]:
-    return copy.deepcopy(_DEFAULT_SECURITY_HEADERS_CONFIG)
+    return {**_DEFAULT_SECURITY_HEADERS_CONFIG, "hsts": dict(_DEFAULT_HSTS)}
 
 
 def security_headers_are_off(raw: Mapping[str, object] | None) -> bool:

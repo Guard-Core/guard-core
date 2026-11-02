@@ -1,39 +1,29 @@
 import re
 
+from guard_core._lazy_patterns import LazyPatterns, module_attribute_lookup
 from guard_core.handlers._suspatterns_shell_sources import (
     _AMBIGUOUS_BACKTICK_INJECTION_CONTEXTS,
     _BACKTICK_WINDOW_DELIMITER_CHARS,
-    _BACKTICK_WINDOW_DELIMITER_RE,
     _GLOB_WILDCARD_CHAR_RE,
-    _GLUED_BACKTICK_ASCII_WORD_RE,
-    _IMPLAUSIBLE_DOLLAR_PAREN_TOKEN_CHARS_RE,
-    _IMPLAUSIBLE_SQL_IDENTIFIER_CHARS_RE,
-    _SHELL_BRACE_SLICE_RE,
-    _SHELL_CHAIN_OPERATOR_RE,
-    _SHELL_KNOWN_COMMAND_RE,
-    _SHELL_PLAIN_IDENTIFIER_RE,
-    _SHELL_SELECTOR_STRING_RE,
     _SHELL_SPECIAL_PARAMETER_NAMES,
-    _STRONG_SQL_KEYWORD_GLUED_PREFIX_RE,
-    _STRONG_SQL_KEYWORD_GLUED_SUFFIX_RE,
+)
+from guard_core.handlers._suspatterns_shell_sources import (
+    _PATTERNS as _SHELL_SOURCES_PATTERNS,
 )
 
 
 def _backtick_token_has_chained_shell_operators(token: str) -> bool:
-    return len(_SHELL_CHAIN_OPERATOR_RE.findall(token)) >= 2
-
-
-_SHELL_METACHARACTER_WINDOW_RE = re.compile(
-    r"(?:;|\|\||\||&&)\s*(?:`|[A-Za-z_][\w-]*|[~./][\w./-]*|-[\w-]*)|\$\(|\$\{"
-)
+    return len(_SHELL_SOURCES_PATTERNS["_SHELL_CHAIN_OPERATOR_RE"].findall(token)) >= 2
 
 
 def _backtick_pair_glued(content: str, start: int, end: int) -> bool:
     prefix_glued = start > 0 and bool(
-        _GLUED_BACKTICK_ASCII_WORD_RE.match(content[start - 1])
+        _SHELL_SOURCES_PATTERNS["_GLUED_BACKTICK_ASCII_WORD_RE"].match(
+            content[start - 1]
+        )
     )
     suffix_glued = end < len(content) and bool(
-        _GLUED_BACKTICK_ASCII_WORD_RE.match(content[end])
+        _SHELL_SOURCES_PATTERNS["_GLUED_BACKTICK_ASCII_WORD_RE"].match(content[end])
     )
     return prefix_glued or suffix_glued
 
@@ -70,7 +60,9 @@ def _backtick_window_start(content: str, position: int) -> int:
 
 
 def _backtick_window_end(content: str, position: int) -> int:
-    delimiter = _BACKTICK_WINDOW_DELIMITER_RE.search(content, position)
+    delimiter = _SHELL_SOURCES_PATTERNS["_BACKTICK_WINDOW_DELIMITER_RE"].search(
+        content, position
+    )
     return delimiter.start() if delimiter else len(content)
 
 
@@ -80,22 +72,22 @@ def _backtick_pair_context_window(content: str, start: int, end: int) -> str:
     return content[window_start:window_end]
 
 
-_SHELL_TEXT_PRINTABLE_ASCII_RE = re.compile(r"\A[\t\x20-\x7e]*\Z")
-
-
 def _backtick_token_is_implausible_sql_identifier(token: str) -> bool:
-    return bool(_IMPLAUSIBLE_SQL_IDENTIFIER_CHARS_RE.search(token))
+    return bool(
+        _SHELL_SOURCES_PATTERNS["_IMPLAUSIBLE_SQL_IDENTIFIER_CHARS_RE"].search(token)
+    )
 
 
 _STRONG_SQL_KEYWORD_LONGEST_SINGLE_WORD = 6
 _STRONG_SQL_KEYWORD_TWO_WORD_FIRST_LENGTH = 5
-_STRONG_SQL_KEYWORD_SECOND_WORD_RE = re.compile(r"(?i)BY\Z")
 _LINE_BREAK_CHARS = "\r\n"
 
 
 def _strong_sql_keyword_search_floor(content: str, start: int) -> int:
     floor = start - _STRONG_SQL_KEYWORD_LONGEST_SINGLE_WORD
-    if _STRONG_SQL_KEYWORD_SECOND_WORD_RE.search(content, start - 2, start):
+    if _PATTERNS["_STRONG_SQL_KEYWORD_SECOND_WORD_RE"].search(
+        content, start - 2, start
+    ):
         gap_start = start - 2
         while (
             gap_start > 0
@@ -109,16 +101,22 @@ def _strong_sql_keyword_search_floor(content: str, start: int) -> int:
 
 def _strong_sql_keyword_glued_to_pair(content: str, start: int, end: int) -> bool:
     floor = _strong_sql_keyword_search_floor(content, start)
-    if _STRONG_SQL_KEYWORD_GLUED_PREFIX_RE.search(content, floor, start):
+    if _SHELL_SOURCES_PATTERNS["_STRONG_SQL_KEYWORD_GLUED_PREFIX_RE"].search(
+        content, floor, start
+    ):
         return True
-    return bool(_STRONG_SQL_KEYWORD_GLUED_SUFFIX_RE.match(content, end))
+    return bool(
+        _SHELL_SOURCES_PATTERNS["_STRONG_SQL_KEYWORD_GLUED_SUFFIX_RE"].match(
+            content, end
+        )
+    )
 
 
 def _glued_backtick_pair_is_injection(match: re.Match, context: str) -> bool:
     content = match.string
     start, end = match.start(), match.end()
     token = content[start + 1 : end - 1]
-    if not _SHELL_TEXT_PRINTABLE_ASCII_RE.match(token):
+    if not _PATTERNS["_SHELL_TEXT_PRINTABLE_ASCII_RE"].match(token):
         return False
     if _backtick_token_has_chained_shell_operators(token):
         return True
@@ -128,7 +126,7 @@ def _glued_backtick_pair_is_injection(match: re.Match, context: str) -> bool:
     if _backtick_token_is_implausible_sql_identifier(token):
         return True
     window = _backtick_pair_context_window(content, start, end)
-    if _SHELL_METACHARACTER_WINDOW_RE.search(window):
+    if _PATTERNS["_SHELL_METACHARACTER_WINDOW_RE"].search(window):
         return True
     if _strong_sql_keyword_glued_to_pair(content, start, end):
         return False
@@ -146,13 +144,6 @@ def _whole_value_backtick_pairs_are_injection(match: re.Match, _context: str) ->
     )
 
 
-_SHELL_DASH_C_DANGEROUS_COMMAND_RE = re.compile(
-    r"(?:ls|cat|rm|id|whoami|uname|wget|curl|nc|netcat|socat|bash|sh|python|perl)\b"
-)
-_SHELL_DASH_C_COMPOUND_RE = re.compile(r"[;|&`]|\$\(")
-_SHELL_DASH_C_ENV_ASSIGNMENT_RE = re.compile(r"\A(?:\w+=\S*\s+)+")
-
-
 def shell_dash_c_argument_is_dangerous(content: str, end: int) -> bool:
     rest = content[end:].lstrip()
     quote = rest[:1] if rest[:1] in ("'", '"') else ""
@@ -161,23 +152,25 @@ def shell_dash_c_argument_is_dangerous(content: str, end: int) -> bool:
         argument = rest[1:] if closing < 0 else rest[1:closing]
     else:
         argument = rest.partition(" ")[0]
-    argument = _SHELL_DASH_C_ENV_ASSIGNMENT_RE.sub("", argument.strip())
-    if _SHELL_DASH_C_COMPOUND_RE.search(argument):
+    argument = _PATTERNS["_SHELL_DASH_C_ENV_ASSIGNMENT_RE"].sub("", argument.strip())
+    if _PATTERNS["_SHELL_DASH_C_COMPOUND_RE"].search(argument):
         return True
-    return bool(_SHELL_DASH_C_DANGEROUS_COMMAND_RE.match(argument))
+    return bool(_PATTERNS["_SHELL_DASH_C_DANGEROUS_COMMAND_RE"].match(argument))
 
 
 def _shell_token_is_command_with_arguments_or_known(token: str) -> bool:
-    if _SHELL_SELECTOR_STRING_RE.match(token.strip()):
+    if _SHELL_SOURCES_PATTERNS["_SHELL_SELECTOR_STRING_RE"].match(token.strip()):
         return False
     words = token.split()
     if len(words) > 1:
         return True
     if not words:
         return False
-    if _SHELL_PLAIN_IDENTIFIER_RE.match(words[0]) is None:
+    if _SHELL_SOURCES_PATTERNS["_SHELL_PLAIN_IDENTIFIER_RE"].match(words[0]) is None:
         return True
-    return _SHELL_KNOWN_COMMAND_RE.match(words[0]) is not None
+    return (
+        _SHELL_SOURCES_PATTERNS["_SHELL_KNOWN_COMMAND_RE"].match(words[0]) is not None
+    )
 
 
 def _dollar_substitution_token_is_implausible(token: str, delimiter: str) -> bool:
@@ -186,10 +179,14 @@ def _dollar_substitution_token_is_implausible(token: str, delimiter: str) -> boo
         leading = re.match(r"[A-Za-z_]\w*", stripped)
         return bool(
             (leading and leading.group().lower() in _SHELL_SPECIAL_PARAMETER_NAMES)
-            or _SHELL_BRACE_SLICE_RE.match(stripped)
+            or _SHELL_SOURCES_PATTERNS["_SHELL_BRACE_SLICE_RE"].match(stripped)
             or stripped == "@"
         )
-    return bool(_IMPLAUSIBLE_DOLLAR_PAREN_TOKEN_CHARS_RE.search(token))
+    return bool(
+        _SHELL_SOURCES_PATTERNS["_IMPLAUSIBLE_DOLLAR_PAREN_TOKEN_CHARS_RE"].search(
+            token
+        )
+    )
 
 
 def _dollar_substitution_pair_backtick_quoted(
@@ -234,7 +231,29 @@ def _quote_splice_token_is_dangerous_command(match: re.Match) -> bool:
     return False
 
 
-_GLOB_WILDCARD_COMMAND_BOUNDARY_PREFIX_RE = re.compile(r"(?:;|\|\||\||&&|\$\(|`)\s*\Z")
+_PATTERNS = LazyPatterns(
+    {
+        "_SHELL_METACHARACTER_WINDOW_RE": (
+            r"(?:;|\|\||\||&&)\s*(?:`|[A-Za-z_][\w-]*|[~./][\w./-]*|-[\w-]*)|\$\(|\$\{",
+            0,
+        ),
+        "_SHELL_TEXT_PRINTABLE_ASCII_RE": (r"\A[\t\x20-\x7e]*\Z", 0),
+        "_STRONG_SQL_KEYWORD_SECOND_WORD_RE": (r"(?i)BY\Z", 0),
+        "_SHELL_DASH_C_DANGEROUS_COMMAND_RE": (
+            r"(?:ls|cat|rm|id|whoami|uname|wget|curl|nc|netcat|socat|bash|sh|python|perl)\b",
+            0,
+        ),
+        "_SHELL_DASH_C_COMPOUND_RE": (r"[;|&`]|\$\(", 0),
+        "_SHELL_DASH_C_ENV_ASSIGNMENT_RE": (r"\A(?:\w+=\S*\s+)+", 0),
+        "_GLOB_WILDCARD_COMMAND_BOUNDARY_PREFIX_RE": (
+            r"(?:;|\|\||\||&&|\$\(|`)\s*\Z",
+            0,
+        ),
+    }
+)
+__getattr__ = module_attribute_lookup(_PATTERNS, _SHELL_SOURCES_PATTERNS)
+
+
 _GLOB_WILDCARD_COMMAND_BOUNDARY_ENDINGS = (";", "|", "`", "&&", "$(")
 _GLOB_WILDCARD_VALUE_START_CONTEXTS = frozenset({"request_body"})
 _GLOB_WILDCARD_LETTER_RE = re.compile(r"[A-Za-z]")

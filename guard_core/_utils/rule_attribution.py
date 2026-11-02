@@ -2,24 +2,28 @@ import time
 from typing import TYPE_CHECKING
 
 from guard_core._utils.detection_scan import _first_blocked_user_agent_pattern
-from guard_core.handlers._dynamic_rule_attribution import RuleAttribution, Stamp
-from guard_core.handlers.dynamic_rule_handler import (
-    _APP_RULE_MANAGERS,
-    DynamicRuleManager,
-)
+from guard_core._utils.rule_attribution_shared import _APP_RULE_MANAGERS, Stamp
 
 if TYPE_CHECKING:
+    from guard_core.handlers._dynamic_rule_attribution import RuleAttribution
+    from guard_core.handlers.dynamic_rule_handler import DynamicRuleManager
     from guard_core.handlers.ipban_handler import IPBanManager
 
 
-def _view_of(config: object) -> RuleAttribution | None:
+def _view_of(config: object) -> "RuleAttribution | None":
     """The view of the dynamic rule manager serving the app of ``config``."""
     manager = _APP_RULE_MANAGERS.resolve(config)
     return manager._attribution_view if manager is not None else None
 
 
+def _process_default_manager() -> "DynamicRuleManager | None":
+    from guard_core.handlers.dynamic_rule_handler import DynamicRuleManager
+
+    return DynamicRuleManager._instance
+
+
 def set_attribution_view(
-    view: RuleAttribution | None, config: object | None = None
+    view: "RuleAttribution | None", config: object | None = None
 ) -> None:
     """Hand over the view of the applied set (or None) of the app of ``config``,
     of the process default manager without one. The dynamic rule manager keeps it
@@ -28,7 +32,7 @@ def set_attribution_view(
     manager = (
         _APP_RULE_MANAGERS.resolve(config)
         if config is not None
-        else DynamicRuleManager._instance
+        else _process_default_manager()
     )
     if manager is not None:
         manager._attribution_view = view

@@ -2,9 +2,9 @@ import logging
 from typing import Protocol
 
 from guard_core._redis_enablement import (
+    REDIS_CONNECTION_FIELDS,
     RedisFieldsConfig,
     redis_connection_field_set_explicitly,
-    redis_is_configured,
 )
 from guard_core._utils.sampling import PerApp, WarnedKeys
 
@@ -12,6 +12,8 @@ logger = logging.getLogger("guard_core.models")
 
 
 class StagedDefaultsConfig(RedisFieldsConfig, Protocol):
+    __pydantic_fields_set__: set[str]
+
     @property
     def enable_rate_limiting(self) -> bool: ...
 
@@ -87,51 +89,103 @@ def _redis_kept_on_entry(field: str) -> str:
     )
 
 
-def _redis_entry(config: StagedDefaultsConfig) -> str | None:
-    if "enable_redis" in config.model_fields_set:
+def _redis_entry(config: StagedDefaultsConfig, stated: set[str]) -> str | None:
+    if "enable_redis" in stated:
         return None
     field = redis_connection_field_set_explicitly(config)
     return _REDIS_OFF_ENTRY if field is None else _redis_kept_on_entry(field)
 
 
 def _changed_default_entries(config: StagedDefaultsConfig) -> list[tuple[str, str]]:
-    stated = config.model_fields_set
-    redis_entry = _redis_entry(config)
-    candidates = (
-        ("ban_on_hostile_signals" not in stated, _BAN_ON_HOSTILE_SIGNALS_ENTRY),
-        ("fail_on_misconfiguration" not in stated, _FAIL_ON_MISCONFIGURATION_ENTRY),
-        (config.enable_rate_limiting and "rate_limit" not in stated, _RATE_LIMIT_ENTRY),
-        (
-            bool(config.whitelist) and "whitelist_access_only" not in stated,
-            _WHITELIST_ACCESS_ONLY_ENTRY,
-        ),
-        (
-            "/" in config.exclude_paths and "exclude_all_paths" not in stated,
-            _SLASH_EXCLUSION_ENTRY,
-        ),
-        (redis_entry is not None, redis_entry),
+    stated = config.__pydantic_fields_set__
+    entries: list[tuple[str, str]] = []
+    if "ban_on_hostile_signals" not in stated:
+        entries.append(("ban_on_hostile_signals", _BAN_ON_HOSTILE_SIGNALS_ENTRY))
+    if "fail_on_misconfiguration" not in stated:
+        entries.append(("fail_on_misconfiguration", _FAIL_ON_MISCONFIGURATION_ENTRY))
+    if config.enable_rate_limiting and "rate_limit" not in stated:
+        entries.append(("rate_limit", _RATE_LIMIT_ENTRY))
+    if config.whitelist and "whitelist_access_only" not in stated:
+        entries.append(("whitelist_access_only", _WHITELIST_ACCESS_ONLY_ENTRY))
+    if "/" in config.exclude_paths and "exclude_all_paths" not in stated:
+        entries.append(("slash_exclusion", _SLASH_EXCLUSION_ENTRY))
+    redis_entry = _redis_entry(config, stated)
+    if redis_entry is not None:
+        entries.append(("enable_redis", redis_entry))
+    return entries
+
+
+# The entries of a configuration that states none of these fields and keeps rate
+# limiting on, no whitelist and no "/" in exclude_paths: the four flips below, in
+# the order _changed_default_entries lists them. Built once so the first
+# SecurityConfig() of a process does not rebuild what every default config says.
+_UNSTATED_ENTRY_FIELDS = frozenset(
+    {
+        "ban_on_hostile_signals",
+        "fail_on_misconfiguration",
+        "rate_limit",
+        "enable_redis",
+        *REDIS_CONNECTION_FIELDS,
+    }
+)
+_DEFAULT_ENTRIES = (
+    ("ban_on_hostile_signals", _BAN_ON_HOSTILE_SIGNALS_ENTRY),
+    ("fail_on_misconfiguration", _FAIL_ON_MISCONFIGURATION_ENTRY),
+    ("rate_limit", _RATE_LIMIT_ENTRY),
+    ("enable_redis", _REDIS_OFF_ENTRY),
+)
+# A configuration that states all of these lists nothing for them, and lists
+# nothing for the whitelist or the "/" entry when it has neither.
+_ALWAYS_LISTED_FIELDS = frozenset(
+    {"ban_on_hostile_signals", "fail_on_misconfiguration", "rate_limit", "enable_redis"}
+)
+_DEFAULT_ENTRY_IDS = tuple(flip_id for flip_id, _ in _DEFAULT_ENTRIES)
+_DEFAULT_ENTRY_TEXT = "; ".join(entry for _, entry in _DEFAULT_ENTRIES)
+
+
+def _states_only_defaults(config: StagedDefaultsConfig) -> bool:
+    return (
+        config.__pydantic_fields_set__.isdisjoint(_UNSTATED_ENTRY_FIELDS)
+        and config.enable_rate_limiting
+        and not config.whitelist
+        and "/" not in config.exclude_paths
     )
-    return [
-        (flip_id, entry)
-        for flip_id, (applies, entry) in zip(FLIP_IDS, candidates, strict=True)
-        if applies and entry is not None
-    ]
+
+
+def _states_every_changed_default(config: StagedDefaultsConfig) -> bool:
+    return (
+        config.__pydantic_fields_set__ >= _ALWAYS_LISTED_FIELDS
+        and not config.whitelist
+        and "/" not in config.exclude_paths
+    )
 
 
 def signal_changed_defaults(config: StagedDefaultsConfig) -> None:
-    logged = _changed_defaults_logged.for_app(config)
-    fresh = [
-        (flip_id, entry)
-        for flip_id, entry in _changed_default_entries(config)
-        if flip_id not in logged
-    ]
-    if not fresh:
+    if _states_every_changed_default(config):
         return
-    logged.update(flip_id for flip_id, _ in fresh)
+    entries = (
+        _DEFAULT_ENTRIES
+        if _states_only_defaults(config)
+        else _changed_default_entries(config)
+    )
+    if not entries:
+        return
+    logged = _changed_defaults_logged.for_app(config)
+    if logged:
+        entries = [pair for pair in entries if pair[0] not in logged]
+        if not entries:
+            return
+    if entries is _DEFAULT_ENTRIES:
+        logged.update(_DEFAULT_ENTRY_IDS)
+        text = _DEFAULT_ENTRY_TEXT
+    else:
+        texts = dict(entries)
+        logged.update(texts)
+        text = "; ".join(texts.values())
     logger.warning(
         "guard-core 5.0.0 changed defaults that this configuration leaves unset: "
         "%s. Each default is logged once per configuration.",
-        "; ".join(entry for _, entry in fresh),
+        text,
     )
 
 
@@ -149,5 +203,9 @@ def _warn_default_redis_prefix() -> None:
 
 
 def warn_redis_prefix_left_default(config: StagedDefaultsConfig) -> None:
-    if redis_is_configured(config) and config.redis_prefix == DEFAULT_REDIS_PREFIX:
+    if (
+        config.enable_redis
+        and config.redis_url
+        and config.redis_prefix == DEFAULT_REDIS_PREFIX
+    ):
         _warn_default_redis_prefix()

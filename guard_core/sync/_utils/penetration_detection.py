@@ -77,12 +77,16 @@ from guard_core.sync.handlers._suspatterns_sources import (
     _DEFAULT_MAX_BODY_INSPECT_BYTES,
     _scan_window_bytes,
 )
+from guard_core.sync.handlers.suspatterns_handler import (
+    SusPatternsManager,
+    sus_patterns_handler,
+    sus_patterns_manager_for,
+)
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
 if TYPE_CHECKING:
     from guard_core.models import SyncSecurityConfig
     from guard_core.sync.decorators.base import RouteConfig
-    from guard_core.sync.handlers.suspatterns_handler import SusPatternsManager
 
 
 def _scan_url_path_variants(
@@ -390,12 +394,7 @@ def _scan_body_surface(
 
 def _ensure_detection_singleton_configured(
     config: "SyncSecurityConfig | None",
-) -> "SusPatternsManager":
-    from guard_core.sync.handlers.suspatterns_handler import (
-        sus_patterns_handler,
-        sus_patterns_manager_for,
-    )
-
+) -> SusPatternsManager:
     if config is None:
         return sus_patterns_handler
     manager = config._guard_pattern_manager
