@@ -291,3 +291,22 @@ def test_a_plain_checkout_takes_the_name_only_where_the_signature_needs_it(
         connection = pool.get_connection()
         pool.release(connection)
         assert client.ping() is True
+
+
+def test_the_wait_recorder_is_loaded_from_the_modules_that_hold_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from types import SimpleNamespace
+
+    def record(**_kwargs: object) -> None:
+        return None
+
+    modules = {
+        "redis.observability.recorder": SimpleNamespace(
+            record_connection_wait_time=record
+        ),
+        "redis.observability.attributes": SimpleNamespace(get_pool_name=len),
+    }
+    monkeypatch.setattr(_redis_fast_pool.importlib, "import_module", modules.get)
+
+    assert _redis_fast_pool._load_wait_recorder() == (record, len)

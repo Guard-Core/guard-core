@@ -74,6 +74,7 @@ SKIP_TESTS = {
     "test_redis_fast_pool.py",
     "test_close_sync_client_pool.py",
     "redis_py_internals.py",
+    "test_redis_fast_pool_stand_in_internals.py",
     "test_redis_lean.py",
     "test_redis_fast_path_shape.py",
     "test_per_app_sharing_by_event_loop.py",
