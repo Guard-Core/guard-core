@@ -111,6 +111,7 @@ CHECKED_FIELDS = frozenset(
         "endpoint_rate_limits",
         "rate_limit",
         "rate_limit_window",
+        "enable_rate_limiting",
         "detection_threat_score_threshold",
         "detection_semantic_threshold",
     }
@@ -125,7 +126,7 @@ CHECKED_FIELDS_BESIDES_RATE_LIMIT = CHECKED_FIELDS - {"rate_limit"}
 _HEADER_FIELDS = frozenset({"security_headers"})
 _PATH_FIELDS = frozenset({"exclude_paths", "endpoint_rate_limits"})
 _RATE_LIMIT_FIELDS = frozenset(
-    {"rate_limit", "rate_limit_window", "endpoint_rate_limits"}
+    {"rate_limit", "rate_limit_window", "endpoint_rate_limits", "enable_rate_limiting"}
 )
 _THRESHOLD_FIELDS = frozenset(
     {"detection_threat_score_threshold", "detection_semantic_threshold"}

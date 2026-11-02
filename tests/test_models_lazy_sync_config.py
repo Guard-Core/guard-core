@@ -14,7 +14,8 @@ from guard_core.models import SecurityConfig
 from guard_core.sync.protocols.request_protocol import SyncGuardRequest
 
 REPO_ROOT = Path(guard_core.__file__).resolve().parent.parent
-# What `from guard_core.models import *` exported at 7025a112.
+# What `from guard_core.models import *` exported at 7025a112, plus the six names
+# the landing-6e-stack10 refactor imports into the module (LEDGER 6.523).
 _STAR_NAMES_AT_7025A112 = [
     "ALL_DETECTION_CATEGORIES",
     "AgentPackageNotInstalledError",
@@ -44,6 +45,7 @@ _STAR_NAMES_AT_7025A112 = [
     "VALID_BYPASS_CHECKS",
     "VALID_CLOUD_PROVIDERS",
     "ValidationInfo",
+    "changed_copy_fields",
     "cloud_blocking_enabled",
     "contextvars",
     "deepcopy",
@@ -51,10 +53,15 @@ _STAR_NAMES_AT_7025A112 = [
     "field_validator",
     "logger",
     "logging",
+    "misconfigurations_now",
     "model_validator",
     "report_config_misconfigurations",
+    "require_agent_config",
+    "require_cross_field_rules",
+    "require_field_constraints",
     "return_pattern_requires_response_body",
     "signal_changed_defaults",
+    "warn_agent_endpoint_in_clear",
     "warn_redis_prefix_left_default",
 ]
 
