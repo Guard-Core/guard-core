@@ -24,6 +24,7 @@ from guard_core._utils import detection_scan as _detection_scan_module
 from guard_core._utils import ip_extraction as _ip_extraction_module
 from guard_core._utils import rule_attribution as _rule_attribution_module
 from guard_core._utils.sampling import PerApp, WarnedKeys
+from guard_core.core.checks import _strike_forget as _strike_forget_module
 from guard_core.core.checks.implementations import (
     emergency_mode as _emergency_mode_module,
 )
@@ -56,6 +57,7 @@ from guard_core.handlers.suspatterns_handler import (
     sus_patterns_handler,
 )
 from guard_core.models import SecurityConfig
+from guard_core.sync.core.checks import _strike_forget as _sync_strike_forget_module
 from guard_core.sync.handlers import ipban_handler as _sync_ipban_module
 from guard_core.sync.handlers import suspatterns_handler as _sync_suspatterns_module
 from tests import network_guard
@@ -200,6 +202,16 @@ def _restore_default_app_state() -> Iterator[None]:
     for owner, names in _DEFAULT_APP_STATE:
         for name in names:
             setattr(owner, name, next(values))
+
+
+@pytest.fixture(autouse=True)
+def _isolate_strike_registry() -> Iterator[None]:
+    # A test that records a strike against a Mock middleware leaves it in the
+    # weak registry until the cyclic collector runs, and on Python 3.14 that is
+    # after a later test asks every registered middleware to forget a category.
+    yield
+    _strike_forget_module._registered.clear()
+    _sync_strike_forget_module._registered.clear()
 
 
 def _restore_submodule_identity(module: Any) -> None:
