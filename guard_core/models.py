@@ -356,7 +356,7 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
         cls, data: object, handler: ModelWrapValidatorHandler[Self]
     ) -> Self:
         """The wrap validator of landing-6e-stack10, kept callable by name and
-        signature (LEDGER 6.533): the registered validators are the before
+        signature (LEDGER 6.540): the registered validators are the before
         validator above and the after validator it pairs with, which give the
         same verdict on construction without a wrap frame."""
         config = handler(

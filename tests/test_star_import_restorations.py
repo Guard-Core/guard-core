@@ -9,7 +9,7 @@ from guard_core.models import SecurityConfig
 from guard_core.protocols.request_protocol import GuardRequest
 
 # Every name a star import of these modules exported at landing-6e-stack10 and
-# lost in the merge with the lazy-pattern work (LEDGER 6.533).
+# lost in the merge with the lazy-pattern work (LEDGER 6.540).
 _LOST_STAR_NAMES = [
     ("guard_core._security_config_fields", "DEFAULT_MAX_LOCAL_BANS"),
     ("guard_core._security_config_fields", "ThreatBanConfig"),
