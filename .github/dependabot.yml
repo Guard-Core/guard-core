@@ -4,13 +4,23 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "02:00"
+      timezone: "UTC"
     cooldown:
       default-days: 7
+    groups:
+      actions:
+        patterns:
+          - "*"
 
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "02:00"
+      timezone: "UTC"
     cooldown:
       default-days: 7
     groups:
