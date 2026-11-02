@@ -1,7 +1,6 @@
 import json
 import random
 import re
-import subprocess
 import sys
 import time
 from collections.abc import Callable
@@ -13,6 +12,7 @@ from guard_core.sync.handlers import _suspatterns_matchers as matchers
 from guard_core.sync.handlers._suspatterns_sources import _SSTI_HASH_BRACE_SHAPE_RE
 from guard_core.sync.handlers._suspatterns_state import _LEGACY_DETECTION_STATE
 from guard_core.sync.handlers.suspatterns_handler import SusPatternsManager
+from tests.probe_child import run_probe_child
 
 _Scanner = Callable[[str, re.Pattern], list[re.Match]]
 _CASES = [
@@ -272,12 +272,7 @@ def test_template_registry_precedes_regex_fallback_without_a_scan_cap(
 @pytest.mark.parametrize("label", [row[0] for row in _CASES])
 def test_template_closed_and_open_frames_have_bounded_cpu_growth(label: str) -> None:
     module = __name__.rsplit(".", 1)[0] + "._template_matcher_security_probe"
-    result = subprocess.run(
-        [sys.executable, "-m", module, label],
-        capture_output=True,
-        text=True,
-        timeout=45,
-    )
+    result = run_probe_child([sys.executable, "-m", module, label], 45)
     assert result.returncode == 0, (result.stdout, result.stderr)
     timings: dict[str, list[float]] = json.loads(result.stdout)
     assert set(timings) == {

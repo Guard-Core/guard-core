@@ -4,12 +4,12 @@ import math
 import random
 import re
 import statistics
-import subprocess
 import sys
 
 import pytest
 
 from guard_core.sync.handlers import _suspatterns_matchers as matchers
+from tests.probe_child import run_probe_child
 from tests.test_detection._upload_matcher_security_probe import _ROUNDS
 
 _SOURCES = [
@@ -69,13 +69,7 @@ def test_upload_scanner_rejects_an_unrecognized_pattern() -> None:
 @pytest.mark.redos_timing
 def test_upload_repeated_fields_and_extensions_remain_bounded() -> None:
     module = __name__.rsplit(".", 1)[0] + "._upload_matcher_security_probe"
-    result = subprocess.run(
-        [sys.executable, "-m", module],
-        capture_output=True,
-        text=True,
-        timeout=120,
-        check=True,
-    )
+    result = run_probe_child([sys.executable, "-m", module], 120, check=True)
     measured = json.loads(result.stdout)
     assert set(measured) == _UPLOAD_SHAPES, measured
     for shape, rounds in measured.items():

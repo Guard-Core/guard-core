@@ -2,7 +2,6 @@ import itertools
 import json
 import random
 import re
-import subprocess
 import sys
 
 import pytest
@@ -15,6 +14,7 @@ from guard_core.sync.handlers._suspatterns_xml_xxe import (
     _XML_XXE_PUBLIC_EXTERNAL_DTD_COMPILED_RE,
     _xml_xxe_public_external_dtd_finditer,
 )
+from tests.probe_child import run_probe_child
 
 
 @pytest.mark.parametrize(
@@ -114,13 +114,7 @@ def test_xxe_reports_the_earliest_viable_doctype() -> None:
 @pytest.mark.redos_timing
 def test_xxe_closed_url_keyword_flood_is_bounded() -> None:
     module = __name__.rsplit(".", 1)[0] + "._xxe_matcher_security_probe"
-    completed = subprocess.run(
-        [sys.executable, "-m", module],
-        capture_output=True,
-        text=True,
-        timeout=30,
-        check=True,
-    )
+    completed = run_probe_child([sys.executable, "-m", module], 30, check=True)
     timings = json.loads(completed.stdout)
     for shape, samples in timings.items():
         assert max(samples) < 0.1, (shape, samples)
