@@ -90,8 +90,10 @@ def close_redis_client(client: Redis) -> None:
     and that release has no ``auto_close_connection_pool`` before it: a client owns
     its pool unless it says otherwise, and drops it here too (a second drop is a
     no-op)."""
-    closer = client.close if hasattr(client, "aclose") else client.close
-    closer()
+    if hasattr(client, "aclose"):
+        client.close()
+        return
+    client.close()
     if getattr(client, "auto_close_connection_pool", True):
         client.connection_pool.disconnect()
 
