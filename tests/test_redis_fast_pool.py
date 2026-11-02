@@ -291,13 +291,16 @@ def test_a_redis_py_whose_recorder_lacks_the_count_function_has_no_count_recorde
 
 
 async def _checkout_needing_the_name(
-    self: ConnectionPool, command_name: str, *keys: Any, **options: Any
+    self: ConnectionPool, command_name: str, *keys: object, **options: object
 ) -> str | None:
     return command_name
 
 
 async def _checkout_with_an_optional_name(
-    self: ConnectionPool, command_name: str | None = None, *keys: Any, **options: Any
+    self: ConnectionPool,
+    command_name: str | None = None,
+    *keys: object,
+    **options: object,
 ) -> str | None:
     return command_name
 

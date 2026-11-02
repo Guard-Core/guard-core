@@ -3,7 +3,6 @@ import gc
 import threading
 import warnings
 from collections.abc import Callable
-from typing import Any
 from unittest.mock import Mock
 
 import pytest
@@ -145,7 +144,7 @@ class _CountsItsOwnClose(Connection):
 class _WithoutItsOwnClose(Connection):
     """A connection of a redis-py before 5.0.2: it has no ``_close``."""
 
-    def __getattribute__(self, name: str) -> Any:
+    def __getattribute__(self, name: str) -> object:
         if name == "_close":
             raise AttributeError(name)
         return super().__getattribute__(name)

@@ -2,8 +2,8 @@ import asyncio
 import os
 import time
 import uuid
-from collections.abc import AsyncGenerator
-from typing import Any
+from collections.abc import AsyncGenerator, Awaitable, Callable
+from typing import Any, Protocol
 
 import pytest
 from redis.asyncio import Redis
@@ -490,13 +490,19 @@ def _release_event_type() -> Any:
     return AsyncAfterConnectionReleasedEvent
 
 
-async def _plain_and_lean_calls_dispatch_alike(client: Redis, dispatcher: Any) -> None:
+class _Dispatcher(Protocol):
+    dispatch_async: Callable[[object], Awaitable[None]]
+
+
+async def _plain_and_lean_calls_dispatch_alike(
+    client: Redis, dispatcher: _Dispatcher
+) -> None:
     """Without ``register_listeners`` no listener can be added, but the plain
     release still dispatches the event for each lean call as for each plain one."""
-    dispatched: list[Any] = []
+    dispatched: list[object] = []
     original = dispatcher.dispatch_async
 
-    async def spy(event: Any) -> None:
+    async def spy(event: object) -> None:
         dispatched.append(event)
         await original(event)
 

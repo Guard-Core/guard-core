@@ -9,7 +9,6 @@ reads, so every line of it runs, and is covered, on every supported redis-py.
 import asyncio
 from collections.abc import AsyncGenerator
 from types import SimpleNamespace
-from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -56,7 +55,9 @@ class _Connection(Connection):
         return False
 
 
-def _providers(manager: object | None, instance_present: bool = True) -> Any:
+def _providers(
+    manager: object | None, instance_present: bool = True
+) -> SimpleNamespace:
     instance = SimpleNamespace(_provider_manager=manager)
     namespace = SimpleNamespace(get_observability_instance=lambda: instance)
     if instance_present:
@@ -65,7 +66,7 @@ def _providers(manager: object | None, instance_present: bool = True) -> Any:
 
 
 def _counting(
-    monkeypatch: pytest.MonkeyPatch, providers: Any
+    monkeypatch: pytest.MonkeyPatch, providers: SimpleNamespace
 ) -> list[tuple[str, str, int]]:
     samples: list[tuple[str, str, int]] = []
 

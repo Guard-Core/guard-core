@@ -1,9 +1,9 @@
 import logging
 import warnings
-from typing import Any
 
 import pytest
-from redis import Redis
+from redis import ConnectionPool, Redis
+from redis.connection import AbstractConnection
 
 from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers import redis_handler
@@ -23,20 +23,22 @@ class _OnlyClose(Redis):
     """A client of a redis-py before 5.0.1: ``close`` closes it, there is no
     ``aclose``, and ``close`` drops the pool the client owns."""
 
-    def __getattribute__(self, name: str) -> Any:
+    def __getattribute__(self, name: str) -> object:
         if name == "aclose":
             raise AttributeError(name)
         return super().__getattribute__(name)
 
     def close(self) -> None:
-        self.connection_pool.disconnect()
+        # __getattribute__ is typed object, which hides the attribute types from mypy
+        pool: ConnectionPool = object.__getattribute__(self, "connection_pool")
+        pool.disconnect()
 
 
-def _is_open(connection: Any) -> bool:
+def _is_open(connection: object) -> bool:
     return any(getattr(connection, a, None) is not None for a in ("_sock", "_reader"))
 
 
-def _connected(client: Redis) -> Any:
+def _connected(client: Redis) -> AbstractConnection:
     pool = client.connection_pool
     connection = pool.get_connection()
     pool.release(connection)
@@ -90,7 +92,7 @@ def test_the_scan_clear_through_a_new_client_closes_it_when_the_scan_raises(
     client = _close_only_client()
     connection = _connected(client)
 
-    def failing_scan(*_args: Any, **_kwargs: Any) -> int:
+    def failing_scan(*_args: object, **_kwargs: object) -> int:
         raise RuntimeError("the scan failed")
 
     monkeypatch.setattr(Redis, "from_url", classmethod(lambda cls, *a, **k: client))

@@ -258,13 +258,16 @@ def test_the_wait_recorder_is_absent_when_redis_py_has_none(
 
 
 def _checkout_needing_the_name(
-    self: ConnectionPool, command_name: str, *keys: Any, **options: Any
+    self: ConnectionPool, command_name: str, *keys: object, **options: object
 ) -> str | None:
     return command_name
 
 
 def _checkout_with_an_optional_name(
-    self: ConnectionPool, command_name: str | None = None, *keys: Any, **options: Any
+    self: ConnectionPool,
+    command_name: str | None = None,
+    *keys: object,
+    **options: object,
 ) -> str | None:
     return command_name
 
