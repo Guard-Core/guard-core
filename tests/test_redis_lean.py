@@ -21,6 +21,7 @@ from guard_core.handlers.redis_handler import (
     close_redis_client,
 )
 from guard_core.models import SecurityConfig
+from tests import redis_py_internals as internals
 from tests.conftest import REDIS_URL
 from tests.engine_redis_commands import server_loses_the_script_of_the_next_evalsha
 
@@ -41,6 +42,21 @@ async def client() -> AsyncGenerator[Redis, None]:
 def _name(packed: Any) -> str:
     chunk = packed[0] if isinstance(packed, list) else packed
     return str(chunk.split(b"\r\n")[2].decode())
+
+
+async def _calls_stay_on_the_plain_release(client: Redis) -> None:
+    """What a redis-py without the internals the fast return reads does: the fast
+    return is refused, every connection goes back through the plain release, and
+    the replies are the plain path's."""
+    pool = client.connection_pool
+    assert isinstance(pool, FastPathConnectionPool)
+    for _ in range(6):
+        assert await lean_command(client, "GET", "lean:fallback") is None
+        assert await client.execute_command("GET", "lean:fallback") is None
+    assert pool._silent_release_listeners is None
+    assert not pool._connections_with_nothing_unread
+    assert not pool._in_use_connections
+    assert await pool.take_connection_with_nothing_unread() is None
 
 
 async def test_replies_equal_the_high_level_path_for_every_key_shape(
@@ -283,6 +299,9 @@ def test_the_unique_member_of_a_strike_is_chosen_before_the_call() -> None:
 async def test_an_idle_connection_closed_by_the_pool_is_not_handed_out() -> None:
     client = await _client()
     try:
+        if not internals.SHOULD_RECONNECT_EXISTS:
+            await _calls_stay_on_the_plain_release(client)
+            return
         await lean_command(client, "PING")
         await lean_command(client, "PING")
         pool = client.connection_pool
@@ -300,6 +319,10 @@ async def test_a_connection_that_must_reconnect_goes_back_through_release(
 ) -> None:
     client = await _client()
     try:
+        if not internals.SHOULD_RECONNECT_EXISTS:
+            assert not hasattr(Connection, "should_reconnect")
+            await _calls_stay_on_the_plain_release(client)
+            return
         await lean_command(client, "PING")
         monkeypatch.setattr(Connection, "should_reconnect", lambda self: True)
         pool = client.connection_pool
@@ -331,6 +354,26 @@ class _Observability:
         self._observability_instance = self._instance(enabled)
 
 
+async def _no_recorder_means_no_sample() -> None:
+    """A redis-py before 7.4.0 has no connection-count recorder: the pool loads
+    none, so nothing is recorded, and the calls still reply as the plain path."""
+    from guard_core.handlers import _redis_fast_pool
+
+    assert _redis_fast_pool._load_count_recorder() is None
+    assert _redis_fast_pool._COUNT_RECORDER is None
+    assert _redis_fast_pool._observability_is_readable() is True
+    assert not hasattr(
+        __import__("redis.asyncio.connection", fromlist=["x"]),
+        "record_connection_count",
+    )
+    client = await _client()
+    try:
+        assert await lean_command(client, "GET", "lean:count") is None
+        assert await client.execute_command("GET", "lean:count") is None
+    finally:
+        await close_redis_client(client)
+
+
 def _observed_recorder(
     monkeypatch: pytest.MonkeyPatch, enabled: bool
 ) -> tuple[list[Any], _Observability]:
@@ -357,6 +400,9 @@ def _observed_recorder(
 async def test_connection_counts_after_lean_calls_equal_those_after_plain_calls(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    if not internals.COUNT_RECORDER_EXISTS:
+        await _no_recorder_means_no_sample()
+        return
     samples, _ = _observed_recorder(monkeypatch, True)
     client = await _client()
     try:
@@ -378,6 +424,9 @@ async def test_connection_counts_after_lean_calls_equal_those_after_plain_calls(
 async def test_no_connection_count_is_recorded_while_observability_is_off(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    if not internals.COUNT_RECORDER_EXISTS:
+        await _no_recorder_means_no_sample()
+        return
     samples, _ = _observed_recorder(monkeypatch, False)
     client = await _client()
     try:
@@ -406,6 +455,9 @@ def test_a_redis_py_without_the_connection_count_recorder_loads_no_recorder(
 async def test_observability_switched_on_later_is_seen_by_the_next_fast_call(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    if not internals.COUNT_RECORDER_EXISTS:
+        await _no_recorder_means_no_sample()
+        return
     samples, observability = _observed_recorder(monkeypatch, False)
     client = await _client()
     try:
@@ -438,9 +490,41 @@ def _release_event_type() -> Any:
     return AsyncAfterConnectionReleasedEvent
 
 
+async def _plain_and_lean_calls_dispatch_alike(client: Redis, dispatcher: Any) -> None:
+    """Without ``register_listeners`` no listener can be added, but the plain
+    release still dispatches the event for each lean call as for each plain one."""
+    dispatched: list[Any] = []
+    original = dispatcher.dispatch_async
+
+    async def spy(event: Any) -> None:
+        dispatched.append(event)
+        await original(event)
+
+    dispatcher.dispatch_async = spy
+    await lean_command(client, "PING")
+    await client.execute_command("PING")
+    dispatched.clear()
+    for _ in range(5):
+        await lean_command(client, "GET", "lean:event")
+    assert len(dispatched) == 5
+    dispatched.clear()
+    for _ in range(5):
+        await client.execute_command("GET", "lean:event")
+    assert len(dispatched) == 5
+
+
 async def test_a_release_listener_hears_each_lean_call_like_each_plain_one() -> None:
     client = await _client()
     try:
+        if not internals.RELEASE_EVENTS_EXIST:
+            assert not hasattr(client.connection_pool, "_event_dispatcher")
+            await _calls_stay_on_the_plain_release(client)
+            return
+        if not internals.REGISTER_LISTENERS_EXISTS:
+            dispatcher = client.connection_pool._event_dispatcher
+            assert not hasattr(dispatcher, "register_listeners")
+            await _plain_and_lean_calls_dispatch_alike(client, dispatcher)
+            return
         listener = _Listener()
         pool = client.connection_pool
         pool._event_dispatcher.register_listeners({_release_event_type(): [listener]})
@@ -464,6 +548,10 @@ async def test_no_release_event_is_dispatched_with_only_the_default_listener(
 ) -> None:
     client = await _client()
     try:
+        if not internals.RELEASE_EVENTS_EXIST:
+            assert not hasattr(client.connection_pool, "_event_dispatcher")
+            await _calls_stay_on_the_plain_release(client)
+            return
         await lean_command(client, "PING")
         dispatcher = client.connection_pool._event_dispatcher
         dispatched: list[Any] = []
@@ -474,7 +562,7 @@ async def test_no_release_event_is_dispatched_with_only_the_default_listener(
         monkeypatch.setattr(dispatcher, "dispatch_async", spy)
         for _ in range(5):
             await lean_command(client, "GET", "lean:event")
-        assert dispatched == []
+        assert len(dispatched) == (0 if internals.SHOULD_RECONNECT_EXISTS else 5)
     finally:
         await close_redis_client(client)
 
@@ -484,12 +572,28 @@ async def test_the_fast_return_resumes_when_the_last_extra_listener_is_removed()
 ):
     client = await _client()
     try:
+        if not internals.RELEASE_EVENTS_EXIST:
+            assert not hasattr(client.connection_pool, "_event_dispatcher")
+            await _calls_stay_on_the_plain_release(client)
+            return
+        if not internals.REGISTER_LISTENERS_EXISTS:
+            assert not hasattr(
+                client.connection_pool._event_dispatcher, "register_listeners"
+            )
+            await _calls_stay_on_the_plain_release(client)
+            return
         listener = _Listener()
         pool = client.connection_pool
         mapping = {_release_event_type(): [listener]}
         pool._event_dispatcher.register_listeners(mapping)
         await lean_command(client, "PING")
         await lean_command(client, "PING")
+        if not internals.UNREGISTER_LISTENERS_EXISTS:
+            assert not hasattr(pool._event_dispatcher, "unregister_listeners")
+            await lean_command(client, "PING")
+            assert not pool._connections_with_nothing_unread
+            assert len(listener.events) == 3
+            return
         pool._event_dispatcher.unregister_listeners(mapping)
         await lean_command(client, "PING")
         await lean_command(client, "PING")
@@ -506,6 +610,10 @@ async def test_a_connection_holding_a_re_authentication_token_goes_back_through_
 ) -> None:
     client = await _client()
     try:
+        if not internals.RELEASE_EVENTS_EXIST:
+            assert not hasattr(Connection, "re_auth")
+            await _calls_stay_on_the_plain_release(client)
+            return
         await lean_command(client, "PING")
         re_authenticated: list[Any] = []
 
@@ -559,6 +667,9 @@ async def test_a_redis_py_without_the_count_recorder_takes_the_fast_path_unrecor
     monkeypatch.setattr(_redis_fast_pool, "_COUNT_RECORDER", None)
     client = await _client()
     try:
+        if not internals.SHOULD_RECONNECT_EXISTS:
+            await _calls_stay_on_the_plain_release(client)
+            return
         await lean_command(client, "PING")
         await lean_command(client, "GET", "lean:old")
         await lean_command(client, "GET", "lean:old")
@@ -597,8 +708,24 @@ async def _calls_take_the_plain_path(client: Redis, events: list[Any]) -> None:
     assert len(events) == 6
 
 
+async def _a_client_without_a_dispatcher_takes_the_plain_path() -> None:
+    """A redis-py before 5.3.0 takes no ``event_dispatcher`` and has no listener
+    mapping to read: the connection refuses the keyword and the pool's calls stay
+    on the plain release."""
+    with pytest.raises(TypeError):
+        Connection(event_dispatcher=_DispatcherWithoutMapping())
+    client = await _client()
+    try:
+        await _calls_stay_on_the_plain_release(client)
+    finally:
+        await close_redis_client(client)
+
+
 async def test_a_dispatcher_without_the_listener_mapping_takes_the_plain_path() -> None:
     dispatcher = _DispatcherWithoutMapping()
+    if not internals.RELEASE_EVENTS_EXIST:
+        await _a_client_without_a_dispatcher_takes_the_plain_path()
+        return
     client = await _client(event_dispatcher=dispatcher)
     try:
         await _calls_take_the_plain_path(client, dispatcher.events)
@@ -609,6 +736,9 @@ async def test_a_dispatcher_without_the_listener_mapping_takes_the_plain_path() 
 async def test_a_listener_mapping_of_another_type_takes_the_plain_path() -> None:
     dispatcher = _DispatcherWithoutMapping()
     dispatcher._event_listeners_mapping = [("not", "a dict")]
+    if not internals.RELEASE_EVENTS_EXIST:
+        await _a_client_without_a_dispatcher_takes_the_plain_path()
+        return
     client = await _client(event_dispatcher=dispatcher)
     try:
         await _calls_take_the_plain_path(client, dispatcher.events)
@@ -619,6 +749,14 @@ async def test_a_listener_mapping_of_another_type_takes_the_plain_path() -> None
 async def test_a_connection_without_a_re_authentication_token_takes_the_plain_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    if not internals.RELEASE_EVENTS_EXIST:
+        assert not hasattr(Connection, "re_auth")
+        client = await _client()
+        try:
+            await _calls_stay_on_the_plain_release(client)
+        finally:
+            await close_redis_client(client)
+        return
     original_init = Connection.__init__
 
     def init_without_token(self: Connection, *args: Any, **kwargs: Any) -> None:
@@ -659,6 +797,11 @@ async def test_a_connection_without_should_reconnect_gets_no_fast_return() -> No
         pool = client.connection_pool
         assert isinstance(pool, FastPathConnectionPool)
         connection = pool.make_connection()
+        if not internals.SHOULD_RECONNECT_EXISTS:
+            assert pool._only_the_default_listener(connection) is None
+            assert not hasattr(connection, "should_reconnect")
+            await _calls_stay_on_the_plain_release(client)
+            return
         assert pool._only_the_default_listener(connection) is not None
         assert hasattr(connection, "should_reconnect")
         assert (
@@ -671,6 +814,9 @@ async def test_a_connection_without_should_reconnect_gets_no_fast_return() -> No
 async def test_an_observability_module_without_its_singleton_takes_the_plain_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    if not internals.COUNT_RECORDER_EXISTS:
+        await _no_recorder_means_no_sample()
+        return
     from redis.observability import providers
 
     monkeypatch.delattr(providers, "_observability_instance")
@@ -693,6 +839,9 @@ async def test_an_observability_module_without_its_singleton_takes_the_plain_pat
 async def test_an_instance_without_a_provider_manager_takes_the_plain_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    if not internals.COUNT_RECORDER_EXISTS:
+        await _no_recorder_means_no_sample()
+        return
     from redis.observability import providers
 
     monkeypatch.delattr(providers.get_observability_instance(), "_provider_manager")

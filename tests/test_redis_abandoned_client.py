@@ -3,11 +3,14 @@ import gc
 import threading
 import warnings
 from collections.abc import Callable
+from typing import Any
+from unittest.mock import Mock
 
 import pytest
 from redis.asyncio import Redis
 from redis.asyncio.connection import Connection
 
+from guard_core import _redis_abandoned_client as abandoned
 from guard_core._redis_abandoned_client import abandon_client
 from guard_core._redis_client_loop import EventLoop
 from guard_core.handlers.redis_handler import RedisManager
@@ -102,15 +105,14 @@ def test_a_running_loops_client_is_dropped_on_its_own_thread_not_this_one(
     assert client is not None
     dropped_on = threading.Event()
     seen: list[int] = []
-    connection = client.connection_pool._available_connections[0]
-    original = connection._close
+    original = abandoned._close_connection
 
-    def record_thread() -> None:
+    def record_thread(connection: Connection) -> None:
         seen.append(threading.get_ident())
-        original()
+        original(connection)
         dropped_on.set()
 
-    monkeypatch.setattr(connection, "_close", record_thread)
+    monkeypatch.setattr(abandoned, "_close_connection", record_thread)
     abandon_client(client, owner["loop"])
     assert dropped_on.wait(10)
     owner["loop"].call_soon_threadsafe(stop.set)
@@ -131,3 +133,57 @@ def test_a_connection_that_never_connected_is_left_alone() -> None:
     abandon_client(client, loop)
 
     assert all(c._writer is None for c in _connections_of(client))
+
+
+class _CountsItsOwnClose(Connection):
+    closed_by_redis_py = 0
+
+    def _close(self) -> None:
+        self.closed_by_redis_py += 1
+
+
+class _WithoutItsOwnClose(Connection):
+    """A connection of a redis-py before 5.0.2: it has no ``_close``."""
+
+    def __getattribute__(self, name: str) -> Any:
+        if name == "_close":
+            raise AttributeError(name)
+        return super().__getattribute__(name)
+
+
+def test_redis_pys_own_close_is_the_one_called_where_the_connection_has_it() -> None:
+    connection = _CountsItsOwnClose()
+    writer = Mock(spec=asyncio.StreamWriter)
+    connection._writer = writer
+
+    abandoned._close_connection(connection)
+
+    assert connection.closed_by_redis_py == 1
+    writer.close.assert_not_called()
+    assert connection._writer is writer
+    connection._writer = None
+
+
+def test_a_connection_lacking_its_own_close_has_its_writer_closed_and_forgotten() -> (
+    None
+):
+    connection = _WithoutItsOwnClose()
+    writer = Mock(spec=asyncio.StreamWriter)
+    connection._writer = writer
+    connection._reader = Mock(spec=asyncio.StreamReader)
+
+    abandoned._close_connection(connection)
+
+    writer.close.assert_called_once_with()
+    assert connection._writer is None
+    assert connection._reader is None
+
+
+def test_a_connection_without_its_own_close_or_a_writer_is_left_forgotten() -> None:
+    connection = _WithoutItsOwnClose()
+    connection._reader = Mock(spec=asyncio.StreamReader)
+
+    abandoned._close_connection(connection)
+
+    assert connection._writer is None
+    assert connection._reader is None

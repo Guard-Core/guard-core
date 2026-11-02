@@ -7,8 +7,21 @@ from guard_core._redis_client_loop import EventLoop
 if TYPE_CHECKING:
     from redis import Redis as SyncRedis
     from redis.asyncio import Redis
+    from redis.asyncio.connection import Connection
 
 __all__ = ["abandon_client", "close_sync_client"]
+
+
+def _close_connection(connection: Connection) -> None:
+    """redis-py's own ``Connection._close`` (5.0.2 on), else its three steps: close
+    the writer when there is one, then forget the writer and the reader."""
+    own_close = getattr(connection, "_close", None)
+    if own_close is not None:
+        own_close()
+        return
+    if connection._writer is not None:
+        connection._writer.close()
+    connection._writer = connection._reader = None
 
 
 def _drop_connection_sockets(client: Redis) -> None:
@@ -22,7 +35,7 @@ def _drop_connection_sockets(client: Redis) -> None:
                 # The loop is closed and cannot schedule the close abort() asks for:
                 # finish it here, the way the loop would have.
                 transport._call_connection_lost(None)
-        connection._close()
+        _close_connection(connection)
 
 
 def abandon_client(client: Redis, client_loop: EventLoop) -> None:
