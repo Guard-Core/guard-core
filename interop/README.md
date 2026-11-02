@@ -63,8 +63,8 @@ this exact arithmetic inside the observing participant.
 
 ## Exempt-IPs phase group
 
-Phases 5-8 prove the `exempt_ips` feature (spec 07 / guard-core #118, go
-#18, php #21) behaves identically across all three families. Unlike phases
+Phases 5-8 prove the `exempt_ips` feature (spec 07 / guard-core #118,
+go #18, php #21) behaves identically across all three families. Unlike phases
 1-4 (which drive the rate-limit primitives), these phases drive each
 family's REAL full pipeline with one shared config: `exempt_ips =
 [192.0.2.30, 192.0.2.32]`, `blacklist = [192.0.2.32]`,
@@ -177,8 +177,8 @@ across `query_param`, `request_body`, `url_path` and the `:embedded_json`
 leaf contexts; each vector carries its detect context, and probes default to
 `request_body:multipart_field` when an input vector has none. A third group
 pins the raw-view recon scan (upstream PR #121 and the port companions:
-guard-core-go #16, guard-core-php #16, guard-core-ts #71, guard-core-rs
-#21): backslash-prefixed probe values now detect in every configured
+guard-core-go #16, guard-core-php #16, guard-core-ts #71,
+guard-core-rs #21): backslash-prefixed probe values now detect in every configured
 pipeline across `query_param`, `request_body`, `url_path`,
 `request_body:form_field` and `request_body:multipart_field`, with the
 LDAP-decoded and double-escaped controls unchanged. No Redis: the detect

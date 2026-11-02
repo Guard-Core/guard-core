@@ -6,7 +6,7 @@ never hand-written. `conformance.md` defines the authorship and drift rules.
 
 ## Layout
 
-```
+```text
 fixtures/
   cases/
     index.json            suite registry, engine version/commit, config knobs, comparison rules
