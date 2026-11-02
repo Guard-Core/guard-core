@@ -56,12 +56,12 @@ class _ExaminedCounter:
 
 def _examined_by_dollar_validator(units: int) -> int:
     table = shell_sources._PATTERNS
-    prefix = _ExaminedCounter(table["_STRONG_SQL_KEYWORD_GLUED_PREFIX_RE"])
-    suffix = _ExaminedCounter(table["_STRONG_SQL_KEYWORD_GLUED_SUFFIX_RE"])
+    prefix = _ExaminedCounter(table["_STRONG_SQL_KEYWORD_GLUED_WINDOW_PREFIX_RE"])
+    suffix = _ExaminedCounter(table["_STRONG_SQL_KEYWORD_GLUED_WINDOW_SUFFIX_RE"])
     delimiter = _ExaminedCounter(table["_BACKTICK_WINDOW_DELIMITER_RE"])
     counters = {
-        "_STRONG_SQL_KEYWORD_GLUED_PREFIX_RE": prefix,
-        "_STRONG_SQL_KEYWORD_GLUED_SUFFIX_RE": suffix,
+        "_STRONG_SQL_KEYWORD_GLUED_WINDOW_PREFIX_RE": prefix,
+        "_STRONG_SQL_KEYWORD_GLUED_WINDOW_SUFFIX_RE": suffix,
         "_BACKTICK_WINDOW_DELIMITER_RE": delimiter,
     }
     with patch.dict(table, counters):

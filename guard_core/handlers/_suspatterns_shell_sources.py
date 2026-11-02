@@ -186,11 +186,21 @@ _PATTERNS = LazyPatterns(
     {
         "_GLUED_BACKTICK_ASCII_WORD_RE": (r"[A-Za-z0-9_]", 0),
         "_STRONG_SQL_KEYWORD_GLUED_PREFIX_RE": (
+            r"(?i)\b(?:SELECT|FROM|WHERE|INSERT|UPDATE|DELETE|JOIN|VALUES|ORDER\s+BY|"
+            r"GROUP\s+BY)\Z",
+            0,
+        ),
+        "_STRONG_SQL_KEYWORD_GLUED_SUFFIX_RE": (
+            r"(?i)\A(?:SELECT|FROM|WHERE|INSERT|UPDATE|DELETE|JOIN|VALUES|ORDER\s+BY|"
+            r"GROUP\s+BY)\b",
+            0,
+        ),
+        "_STRONG_SQL_KEYWORD_GLUED_WINDOW_PREFIX_RE": (
             r"(?i)\b(?:SELECT|FROM|WHERE|INSERT|UPDATE|DELETE|JOIN|VALUES|ORDER[^\S\r\n]+BY|"
             r"GROUP[^\S\r\n]+BY)\Z",
             0,
         ),
-        "_STRONG_SQL_KEYWORD_GLUED_SUFFIX_RE": (
+        "_STRONG_SQL_KEYWORD_GLUED_WINDOW_SUFFIX_RE": (
             r"(?i)(?:SELECT|FROM|WHERE|INSERT|UPDATE|DELETE|JOIN|VALUES|ORDER[^\S\r\n]+BY|"
             r"GROUP[^\S\r\n]+BY)\b",
             0,

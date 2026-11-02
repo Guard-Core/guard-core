@@ -101,12 +101,12 @@ def _strong_sql_keyword_search_floor(content: str, start: int) -> int:
 
 def _strong_sql_keyword_glued_to_pair(content: str, start: int, end: int) -> bool:
     floor = _strong_sql_keyword_search_floor(content, start)
-    if _SHELL_SOURCES_PATTERNS["_STRONG_SQL_KEYWORD_GLUED_PREFIX_RE"].search(
+    if _SHELL_SOURCES_PATTERNS["_STRONG_SQL_KEYWORD_GLUED_WINDOW_PREFIX_RE"].search(
         content, floor, start
     ):
         return True
     return bool(
-        _SHELL_SOURCES_PATTERNS["_STRONG_SQL_KEYWORD_GLUED_SUFFIX_RE"].match(
+        _SHELL_SOURCES_PATTERNS["_STRONG_SQL_KEYWORD_GLUED_WINDOW_SUFFIX_RE"].match(
             content, end
         )
     )

@@ -105,6 +105,10 @@ class IPBanManager(IpBanSharedAppsMixin):
             self.evictions_count % self._EVICTION_LOG_EVERY == 0
         ):
             self.logger.warning(
+                "IP ban cache full; %d entries evicted (silent overflow)",
+                self.evictions_count,
+            )
+            self.logger.info(
                 "IP ban cache full; %d entries evicted (silent overflow); use "
                 "Redis to keep a large number of bans",
                 self.evictions_count,
