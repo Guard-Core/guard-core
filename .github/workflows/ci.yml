@@ -197,6 +197,103 @@ jobs:
           path: coverage-py${{ matrix.python-version }}.data
           if-no-files-found: error
 
+  test-redis-floor:
+    name: test (redis-py ${{ matrix.redis-py }}, ${{ matrix.python-version }})
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    env:
+      UV_PYTHON: ${{ matrix.python-version }}
+      UV_PYTHON_DOWNLOADS: never
+      EXPECTED_PYTHON: ${{ matrix.python-version }}
+      REDIS_PY: ${{ matrix.redis-py }}
+    runs-on: ubuntu-latest
+
+    services:
+      redis:
+        image: redis:8.10.3@sha256:de1068af6f552240dfab67bcc9bfef99bfc60f776bb4580ef077ea4c8c97e848
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    permissions:
+      contents: read # check out the repository (the job calls no pull request API)
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # D-244: the redis extra admits 4.4.4 on, so the suite runs at the floor on the oldest and the newest Python, and at the releases the fast path treats differently (5.0.1: no Connection._close before 5.0.2; 5.3.1: the first with the release event; 6.2.0; 6.4.0: kombu and celery users; 7.3.0: the wait recorder without the count recorder).
+        include:
+          - {redis-py: '4.4.4', python-version: '3.10'}
+          - {redis-py: '4.4.4', python-version: '3.15'}
+          - {redis-py: '5.0.1', python-version: '3.10'}
+          - {redis-py: '5.3.1', python-version: '3.10'}
+          - {redis-py: '6.2.0', python-version: '3.10'}
+          - {redis-py: '6.4.0', python-version: '3.10'}
+          - {redis-py: '7.3.0', python-version: '3.10'}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install uv
+        run: |
+          pip install uv==0.13.4
+
+      - name: Install dependencies
+        run: |
+          uv sync --locked --extra dev --extra otel --extra logfire
+
+      - name: Install redis-py 4.4.4
+        if: matrix.redis-py == '4.4.4'
+        run: |
+          uv pip install redis==4.4.4
+
+      - name: Install redis-py 5.0.1
+        if: matrix.redis-py == '5.0.1'
+        run: |
+          uv pip install redis==5.0.1
+
+      - name: Install redis-py 5.3.1 (PyJWT 2.15.0, the first with no advisory: redis-py 5.3.0 alone pins 2.9.0)
+        if: matrix.redis-py == '5.3.1'
+        run: |
+          uv pip install redis==5.3.1 PyJWT==2.15.0
+
+      - name: Install redis-py 6.2.0
+        if: matrix.redis-py == '6.2.0'
+        run: |
+          uv pip install redis==6.2.0 PyJWT==2.15.0
+
+      - name: Install redis-py 6.4.0
+        if: matrix.redis-py == '6.4.0'
+        run: |
+          uv pip install redis==6.4.0 PyJWT==2.15.0
+
+      - name: Install redis-py 7.3.0
+        if: matrix.redis-py == '7.3.0'
+        run: |
+          uv pip install redis==7.3.0 PyJWT==2.15.0
+
+      - name: Assert the redis-py under test is the one installed
+        run: |
+          uv run --no-sync python -c "import os, redis; assert redis.__version__ == os.environ['REDIS_PY'], redis.__version__; print(redis.__version__)"
+
+      - name: Run tests at this redis-py (-W error, 100% branch coverage)
+        run: |
+          COVERAGE_FILE=coverage-redis-py${REDIS_PY}.data IPINFO_TOKEN="${IPINFO_TOKEN}" REDIS_URL='redis://localhost:6379' GUARD_TESTS_MAX_TEST_SECONDS=180 uv run --no-sync pytest -v --cov=guard_core --cov-branch --cov-fail-under=100 -W error
+        env:
+          IPINFO_TOKEN: ${{ secrets.IPINFO_TOKEN || 'test_token' }}
+
   coverage:
     name: coverage (combined across the matrix)
     needs: [changes, test]
@@ -393,7 +490,7 @@ jobs:
 
   ci:
     name: ci
-    needs: [changes, pre-commit, quality, sdist, test, coverage, docker-test-py, docker-coverage]
+    needs: [changes, pre-commit, quality, sdist, test, test-redis-floor, coverage, docker-test-py, docker-coverage]
     if: always()
     runs-on: ubuntu-latest
     steps:
