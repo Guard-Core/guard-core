@@ -25,7 +25,8 @@ import uuid
 import warnings
 from collections.abc import Awaitable, Callable
 from functools import partial
-from typing import Any
+from types import CodeType, FrameType, ModuleType
+from typing import Any, Protocol
 
 warnings.simplefilter("ignore")
 logging.disable(logging.CRITICAL)
@@ -40,11 +41,13 @@ BODY = json.dumps({"name": "Mary", "city": "Rome", "note": "hello world"}).encod
 PATTERN_PATH = "/api/items/7?q=%3Cscript%3Ealert(1)%3C%2Fscript%3E"
 
 
-def load(name: str) -> Any:
+def load(name: str) -> ModuleType:
     return importlib.import_module(name)
 
 
 guard_core = load("guard_core")
+assert guard_core.__file__ is not None
+GUARD_CORE_DIR = os.path.dirname(guard_core.__file__)
 # PERF_GATE_RAW=1 turns every determinism measure off (parity runs only).
 RAW = os.environ.get("PERF_GATE_RAW") == "1"
 
@@ -57,7 +60,7 @@ for _module in (
     else ("guard_core._utils.detection_scan", "guard_core.handlers._suspatterns_regex")
 ):
     assert hasattr(load(_module), "_EVENT_LOOP_SLICE_SECONDS"), _module
-    load(_module)._EVENT_LOOP_SLICE_SECONDS = float("inf")
+    vars(load(_module))["_EVENT_LOOP_SLICE_SECONDS"] = float("inf")
 
 
 class StepClock:
@@ -80,7 +83,7 @@ class StepClock:
 
     perf_counter = thread_time = process_time = monotonic
 
-    def __getattr__(self, name: str) -> Any:
+    def __getattr__(self, name: str) -> object:
         return getattr(time, name)
 
 
@@ -92,17 +95,25 @@ def settle_redis_replies() -> None:
     (traced: `_wait_for_data` and `_wakeup_waiter` in 1 request of 200 on 3.10).
     A short sleep first makes the reply always buffered. Both arms get it.
     """
-    reader: Any = asyncio.StreamReader
+    reader = asyncio.StreamReader
     for name in ("readuntil", "readexactly", "read"):
         original = getattr(reader, name)
 
-        def settled(self: Any, *args: Any, _original: Any = original) -> Any:
+        def settled(
+            self: asyncio.StreamReader,
+            *args: int | bytes,
+            _original: Callable[..., Awaitable[bytes]] = original,
+        ) -> Awaitable[bytes]:
             return _settled_read(_original, self, *args)
 
         setattr(reader, name, settled)
 
 
-async def _settled_read(original: Any, reader: Any, *args: Any) -> Any:
+async def _settled_read(
+    original: Callable[..., Awaitable[bytes]],
+    reader: asyncio.StreamReader,
+    *args: int | bytes,
+) -> bytes:
     await asyncio.sleep(0.02)
     return await original(reader, *args)
 
@@ -119,11 +130,33 @@ load("guard")
 if not RAW:
     install_step_clock()
     settle_redis_replies()
+
+
+class _Response(Protocol):
+    status_code: int
+
+
+class _Client(Protocol):
+    async def get(self, url: str) -> _Response: ...
+
+    async def post(
+        self, url: str, *, content: bytes, headers: dict[str, str]
+    ) -> _Response: ...
+
+    async def __aenter__(self) -> "_Client": ...
+
+    async def __aexit__(self, *exc_info: object) -> None: ...
+
+
+class _BodyReader(Protocol):
+    async def body(self) -> bytes: ...
+
+
 Step = Callable[[], Awaitable[Any]]
-Verify = Callable[[Any], None]
+Verify = Callable[[_Response], None]
 
 
-def build_app(echo: bool, fields: dict[str, Any]) -> Any:
+def build_app(echo: bool, fields: dict[str, Any]) -> object:
     fastapi, guard = load("fastapi"), load("guard")
     app = fastapi.FastAPI()
 
@@ -133,7 +166,7 @@ def build_app(echo: bool, fields: dict[str, Any]) -> Any:
     app.get("/api/items/{item_id}")(item)
     if echo:
 
-        async def echo_body(request: Any) -> dict[str, int]:
+        async def echo_body(request: _BodyReader) -> dict[str, int]:
             return {"n": len(await request.body())}
 
         echo_body.__annotations__["request"] = fastapi.Request
@@ -156,13 +189,16 @@ def build_app(echo: bool, fields: dict[str, Any]) -> Any:
     return app
 
 
-def client_for(app: Any, ip: str) -> Any:
+def client_for(app: object, ip: str) -> _Client:
     httpx = load("httpx")
     transport = httpx.ASGITransport(app=app, client=(ip, 51000))
-    return httpx.AsyncClient(transport=transport, base_url="http://api.example.com")
+    client: _Client = httpx.AsyncClient(
+        transport=transport, base_url="http://api.example.com"
+    )
+    return client
 
 
-async def open_client(app: Any, ip: str) -> Any:
+async def open_client(app: object, ip: str) -> _Client:
     c = client_for(app, ip)
     await c.__aenter__()
     return c
@@ -205,7 +241,7 @@ async def blocked_step(scenario: str, pen: bool) -> tuple[Step, Any, Verify]:
         assert await ban.ban_ip(ip, 3600) is not False
     c = await open_client(app, ip)
 
-    def verify(response: Any) -> None:
+    def verify(response: _Response) -> None:
         assert response.status_code == status, response.status_code
 
     for _ in range(WARMUP_BLOCKED):
@@ -261,7 +297,7 @@ async def setup() -> tuple[Step, Any, Verify]:
     return await blocked_step(parts[1], "pen0" not in parts)
 
 
-def loop_iteration_codes() -> tuple[Any, set[Any]]:
+def loop_iteration_codes() -> tuple[CodeType, set[CodeType]]:
     """Code objects of one event-loop iteration (poll, process events, clock).
 
     How many iterations a Redis reply takes depends on when the server answers, so
@@ -307,9 +343,7 @@ async def calls(one: Step, verify: Verify) -> dict[str, Any]:
         gc.collect()
         gc.disable()
     run_once, skipped = (None, set()) if RAW else loop_iteration_codes()
-    counter = load("callcount").CallCounter(
-        skipped, run_once, os.path.dirname(guard_core.__file__)
-    )
+    counter = load("callcount").CallCounter(skipped, run_once, GUARD_CORE_DIR)
     if os.environ.get("PERF_GATE_TRACE") == "1":
         counter.by_function = collections.Counter()
     before = redis_commands() if ROW == "ban_check" else {}
@@ -342,7 +376,7 @@ async def workers(one: Step, verify: Verify) -> dict[str, Any]:
     main = threading.get_ident()
     count = 0
 
-    def prof_fn(frame: Any, event: str, arg: Any) -> None:
+    def prof_fn(frame: FrameType, event: str, arg: object) -> None:
         nonlocal count
         if event in ("call", "c_call") and threading.get_ident() != main:
             count += 1
@@ -388,7 +422,7 @@ async def main() -> None:
         await closer.close()
     else:
         await closer.aclose()
-    print(json.dumps({"engine": os.path.dirname(guard_core.__file__), **result}))
+    print(json.dumps({"engine": GUARD_CORE_DIR, **result}))
 
 
 def window_main() -> None:

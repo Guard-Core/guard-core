@@ -3,10 +3,12 @@ import json
 import logging
 import os
 import time
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
 from guard_core.core.checks.factory import build_default_pipeline
+from guard_core.core.checks.pipeline import SecurityCheckPipeline
 from guard_core.decorators.route_config import RouteConfig
 from guard_core.handlers.cloud_handler import CloudManager
 from guard_core.handlers.cloud_ip_stores import RedisCloudIpStore
@@ -251,13 +253,13 @@ class _StubResponse(GuardResponse):
 
 
 class _StubRouteResolver:
-    def get_route_config(self, request: Any) -> None:
+    def get_route_config(self, request: object) -> None:
         return None
 
-    def should_bypass_check(self, *args: Any) -> bool:
+    def should_bypass_check(self, *args: object) -> bool:
         return False
 
-    def get_cloud_providers_to_check(self, route_config: Any) -> None:
+    def get_cloud_providers_to_check(self, route_config: object) -> None:
         return None
 
 
@@ -374,6 +376,13 @@ class _PipelineRequest:
     async def body(self) -> bytes:
         return b""
 
+    @property
+    def scope(self) -> dict[str, object]:
+        return {}
+
+    def url_replace_scheme(self, scheme: str) -> str:
+        return self.url_full.replace(self.url_scheme, scheme, 1)
+
 
 def make_exempt_config(redis_host: str, rate_limit: int) -> SecurityConfig:
     return SecurityConfig(
@@ -393,7 +402,7 @@ def make_exempt_config(redis_host: str, rate_limit: int) -> SecurityConfig:
 
 async def build_exempt_pipeline(
     redis: RedisManager, redis_host: str, rate_limit: int
-) -> Any:
+) -> SecurityCheckPipeline:
     config = make_exempt_config(redis_host, rate_limit)
     rate_limit_handler = RateLimitManager(config)
     await rate_limit_handler.initialize_redis(redis)
@@ -736,7 +745,7 @@ CUSTOM_READER_SCOPES = ("mf_v440", "mf_go", "mf_php", "mf_py")
 
 
 async def custom_patterns_engine(
-    redis_host: str, scope: str, act: Any = None
+    redis_host: str, scope: str, act: Callable[[], Awaitable[None]] | None = None
 ) -> set[str]:
     config = SecurityConfig(
         redis_url=f"redis://{redis_host}:{REDIS_PORT}",

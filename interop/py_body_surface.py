@@ -95,7 +95,9 @@ def _embedded_entries(value: str, context: str) -> list[Entry]:
     return _walk_entries(data, suffixed)
 
 
-def _signature_of(kind: str, current: Any, label: Any) -> tuple[Any, ...] | None:
+def _signature_of(
+    kind: str, current: object, label: object
+) -> tuple[object, ...] | None:
     """The frame's dedupe signature (_signature_of_frame, no exclusions)."""
     if kind == "entry":
         return ("key", str(current))
@@ -104,7 +106,7 @@ def _signature_of(kind: str, current: Any, label: Any) -> tuple[Any, ...] | None
     return ("leaf", str(current), label)
 
 
-def _walk_entries(data: Any, context: str) -> list[Entry]:
+def _walk_entries(data: object, context: str) -> list[Entry]:
     """Mirror of _scan_json_value's traversal, collecting static entries.
 
     An embedded walk (context ends with the embedded suffix) has no depth cap
@@ -114,8 +116,8 @@ def _walk_entries(data: Any, context: str) -> list[Entry]:
     entries: list[Entry] = []
     embedded = context.endswith(_EMBEDDED_JSON_LEAF_CONTEXT_SUFFIX)
     max_depth = sys.maxsize if embedded else _json_depth_cap_value()
-    clean: set[tuple[Any, ...]] | None = set() if embedded else None
-    stack: list[tuple[str, Any, Any, int]] = [("value", data, "", 1)]
+    clean: set[tuple[object, ...]] | None = set() if embedded else None
+    stack: list[tuple[str, object, object, int]] = [("value", data, "", 1)]
     while stack:
         kind, current, label, depth = stack.pop()
         signature = _signature_of(kind, current, label) if clean is not None else None

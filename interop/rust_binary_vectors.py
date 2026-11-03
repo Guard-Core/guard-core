@@ -45,6 +45,7 @@ import sys
 import time
 import zipfile
 from pathlib import Path
+from types import ModuleType
 from typing import Any
 
 from guard_core.handlers.suspatterns_handler import DetectionResult
@@ -150,7 +151,7 @@ def _rust_payload(payload: str) -> tuple[str, bool]:
         ), False
 
 
-def _load_rust_binding() -> Any:
+def _load_rust_binding() -> ModuleType | None:
     if not GUARD_CORE_RS_SO:
         print(
             "GUARD_CORE_RS_SO not set; build the guard-core-rs detect binding",

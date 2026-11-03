@@ -8,11 +8,13 @@ call; `run_once` is not counted and neither are the C calls it makes itself.
 """
 
 import collections
-from typing import Any
+from types import CodeType, FrameType
 
 
 class CallCounter:
-    def __init__(self, skipped: set[Any], run_once: Any, root: str) -> None:
+    def __init__(
+        self, skipped: set[CodeType], run_once: CodeType | None, root: str
+    ) -> None:
         self.skipped = skipped
         self.run_once = run_once
         self.root = root
@@ -22,7 +24,7 @@ class CallCounter:
         self.depth = 0
         self.by_function: collections.Counter[str] | None = None
 
-    def __call__(self, frame: Any, event: str, arg: Any) -> None:
+    def __call__(self, frame: FrameType, event: str, arg: object) -> None:
         code = frame.f_code
         if event == "call":
             if code in self.skipped:

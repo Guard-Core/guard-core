@@ -212,7 +212,9 @@ async def engine_scan(
 ) -> tuple[list[tuple[str, str]], bool]:
     recorded: list[tuple[str, str]] = []
 
-    async def record(*, content: str, context: str, **_ignored: Any) -> dict[str, Any]:
+    async def record(
+        *, content: str, context: str, **_ignored: object
+    ) -> dict[str, Any]:
         recorded.append((content, context))
         return {"is_threat": False, "threats": []}
 
@@ -235,7 +237,11 @@ def model_scan(raw_body: str, content_type: str) -> tuple[list[tuple[str, str]],
 
 
 def compare(
-    label: str, raw_body: str, content_type: str, engine: Any, model: Any
+    label: str,
+    raw_body: str,
+    content_type: str,
+    engine: tuple[list[tuple[str, str]], bool],
+    model: tuple[list[tuple[str, str]], bool],
 ) -> dict[str, Any] | None:
     engine_list, engine_hit = engine
     model_list, model_forced = model

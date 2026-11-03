@@ -10,6 +10,7 @@ import importlib.util
 import json
 import subprocess
 import sys
+from collections.abc import Iterator
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import ModuleType
@@ -175,7 +176,7 @@ def last_affected_only(
 
 
 @pytest.fixture
-def no_fix_version() -> Any:
+def no_fix_version() -> Iterator[None]:
     yield
     ADVISORIES.pop(("nltk", "3.9.1"), None)
 

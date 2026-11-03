@@ -126,16 +126,9 @@ select = [
     "ANN401",
 ]
 
-# D-177 ANN401 ratchet: begin
 [tool.ruff.lint.per-file-ignores]
-".unasync_check_tmp_*/**" = ["ANN401"]  # tests and tools keep Any inside fakes (D-177)
-".github/**" = ["ANN401"]  # tests and tools keep Any inside fakes (D-177)
-"tests/**" = ["ANN401"]  # tests and tools keep Any inside fakes (D-177)
-"interop/**" = ["ANN401"]  # tests and tools keep Any inside fakes (D-177)
-"perf_gate/**" = ["ANN401"]  # tests and tools keep Any inside fakes (D-177)
-"scripts/**" = ["ANN401"]  # tests and tools keep Any inside fakes (D-177)
-"specs/**" = ["ANN401"]  # tests and tools keep Any inside fakes (D-177)
-# D-177 ANN401 ratchet: end
+".unasync_check_tmp_*/**" = ["ANN401"]  # the generated test_sync copy that unasync.py --check lints stands for tests/**; goes with it, LEDGER 6.563
+"tests/**" = ["ANN401"]  # tests keep Any inside fakes (D-177); not yet removed, LEDGER 6.563
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

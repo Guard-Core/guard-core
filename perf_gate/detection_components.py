@@ -29,9 +29,36 @@ import subprocess
 import sys
 import time
 import tracemalloc
-from collections.abc import Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from functools import partial
-from typing import Any
+from typing import Any, Protocol, TypeVar
+
+_T = TypeVar("_T")
+
+
+class _DetectionConfig(Protocol):
+    detection_max_content_length: int
+    detection_preserve_attack_patterns: bool
+    detection_monitor_history_size: int
+
+
+class _Preprocessor(Protocol):
+    def preprocess(self, text: str) -> Awaitable[object] | object: ...
+
+
+class _Analyzer(Protocol):
+    def analyze(self, text: str) -> Awaitable[object] | object: ...
+
+
+class _Monitor(Protocol):
+    def record_metric(
+        self, pattern: str, duration: float, content_length: int, timeout: bool
+    ) -> Awaitable[None] | None: ...
+
+    def get_summary_stats(
+        self,
+    ) -> Awaitable[Mapping[str, object]] | Mapping[str, object]: ...
+
 
 TYPICAL_CHARS = 200
 BENIGN = (
@@ -141,20 +168,23 @@ class Engine:
         self.manager_for = patterns.sus_patterns_manager_for
         self.config_class = importlib.import_module("guard_core.models").SecurityConfig
 
-    def resolve(self, value: object) -> Any:
+    def resolve(self, value: Awaitable[_T] | _T) -> _T:
         if inspect.isawaitable(value):
-            return self.loop.run_until_complete(value)
+            resolved: _T = self.loop.run_until_complete(value)
+            return resolved
         return value
 
-    def detect_once(self, config: Any, text: str) -> object:
+    def detect_once(self, config: _DetectionConfig, text: str) -> object:
         return self.resolve(self.detect(self.request_class(text), config))
 
     def default_rows(self) -> list[re.Pattern[str]]:
         compiled = self.resolve(self.handler.get_default_compiled_patterns())
         return [row[0] for row in compiled]
 
-    def monitor(self, config: Any) -> Any:
-        monitor = self.manager_for(config)._detection_state.performance_monitor
+    def monitor(self, config: _DetectionConfig) -> _Monitor:
+        monitor: _Monitor | None = self.manager_for(
+            config
+        )._detection_state.performance_monitor
         assert monitor is not None
         return monitor
 
@@ -177,7 +207,11 @@ def pattern_summary(
 
 
 def component_steps(
-    engine: Engine, text: str, preprocessor: Any, analyzer: Any, config: Any
+    engine: Engine,
+    text: str,
+    preprocessor: _Preprocessor,
+    analyzer: _Analyzer,
+    config: _DetectionConfig,
 ) -> dict[str, Callable[[], object]]:
     return {
         "preprocess": lambda: engine.resolve(preprocessor.preprocess(text)),
