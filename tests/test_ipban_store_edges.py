@@ -1,7 +1,6 @@
 import logging
 import os
 import time
-import uuid
 from collections.abc import AsyncGenerator, Generator
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -12,6 +11,7 @@ from guard_core.handlers._ipban_cache import _BanStore
 from guard_core.handlers.ipban_handler import IPBanManager
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import SecurityConfig
+from tests.conftest import suite_redis_prefix
 from tests.ipban_redis_fake import (
     fake_ban_redis,
     pipeline_of,
@@ -232,7 +232,7 @@ async def test_a_grouped_ban_of_text_that_is_not_a_network_is_refused() -> None:
 async def live_redis() -> AsyncGenerator[RedisManager, None]:
     config = SecurityConfig(
         redis_url=os.environ.get("REDIS_URL", "redis://localhost:6379"),
-        redis_prefix=f"wp6-edges:{uuid.uuid4().hex}:",
+        redis_prefix=suite_redis_prefix("wp6-edges"),
     )
     manager = RedisManager(config)
     await manager.initialize()

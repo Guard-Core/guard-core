@@ -1,7 +1,6 @@
 import logging
 import os
 import time
-import uuid
 from collections.abc import Generator
 from typing import Any
 from unittest.mock import MagicMock
@@ -13,6 +12,7 @@ from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers._ipban_recidive import escalated_duration
 from guard_core.sync.handlers.ipban_handler import IPBanManager
 from guard_core.sync.handlers.redis_handler import RedisManager
+from tests.test_sync.conftest import suite_redis_prefix
 
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379")
 HOST = "8.8.8.8"
@@ -31,7 +31,7 @@ def reset_singleton() -> Generator[None, None, None]:
 @pytest.fixture
 def live_redis() -> Generator[RedisManager, None]:
     config = SyncSecurityConfig(
-        redis_url=REDIS_URL, redis_prefix=f"wp6-recidive:{uuid.uuid4().hex}:"
+        redis_url=REDIS_URL, redis_prefix=suite_redis_prefix("wp6-recidive")
     )
     manager = RedisManager(config)
     manager.initialize()

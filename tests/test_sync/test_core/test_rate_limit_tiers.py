@@ -1,6 +1,5 @@
 import hashlib
 import logging
-import uuid
 from collections.abc import Generator
 from typing import Any
 from unittest.mock import MagicMock, Mock
@@ -13,7 +12,12 @@ from guard_core.sync.core.checks.implementations.rate_limit import RateLimitChec
 from guard_core.sync.decorators.base import RouteConfig
 from guard_core.sync.handlers.ratelimit_handler import RateLimitManager
 from guard_core.sync.handlers.redis_handler import RedisManager
-from tests.test_sync.conftest import REDIS_URL, MockGuardResponse, SyncMockGuardRequest
+from tests.test_sync.conftest import (
+    REDIS_URL,
+    MockGuardResponse,
+    SyncMockGuardRequest,
+    suite_redis_prefix,
+)
 from tests.test_sync.engine_redis_commands import (
     server_loses_the_script_of_the_next_evalsha,
 )
@@ -115,7 +119,7 @@ def redis_stack() -> Generator[
     config = _config(
         enable_redis=True,
         redis_url=REDIS_URL,
-        redis_prefix=f"test:wp3:{uuid.uuid4().hex}:",
+        redis_prefix=suite_redis_prefix("wp3"),
         endpoint_rate_limits={"/x": (100, 60)},
     )
     redis = RedisManager(config)

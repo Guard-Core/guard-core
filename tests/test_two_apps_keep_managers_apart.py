@@ -31,7 +31,7 @@ from guard_core.handlers.suspatterns_handler import (
 )
 from guard_core.models import DynamicRules, SecurityConfig
 from guard_core.utils import detect_penetration_attempt
-from tests.conftest import MockGuardRequest
+from tests.conftest import MockGuardRequest, suite_redis_prefix
 from tests.geo_fixture import country_database_bytes
 from tests.protocol_only_redis import REDIS_URL
 
@@ -340,7 +340,7 @@ async def test_three_apps_each_keep_their_own_managers_after_a_collection(
 
 
 async def test_apps_on_one_prefix_share_the_default_managers() -> None:
-    prefix = f"same{uuid.uuid4().hex[:8]}:"
+    prefix = suite_redis_prefix("same")
     configs = [
         SecurityConfig(
             enable_redis=True,

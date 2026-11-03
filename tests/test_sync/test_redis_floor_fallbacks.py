@@ -12,7 +12,7 @@ from guard_core.sync.handlers.redis_handler import (
     close_redis_client,
     scan_unlink_through_new_client,
 )
-from tests.test_sync.conftest import REDIS_URL
+from tests.test_sync.conftest import REDIS_PREFIX, REDIS_URL
 
 POOL_SIZE = 2
 TIMEOUT = 0.4
@@ -98,7 +98,7 @@ def test_the_scan_clear_through_a_new_client_closes_it_when_the_scan_raises(
     monkeypatch.setattr(redis_handler, "scan_unlink", failing_scan)
 
     with pytest.raises(RuntimeError, match="the scan failed"):
-        scan_unlink_through_new_client(REDIS_URL, "wp381:*")
+        scan_unlink_through_new_client(REDIS_URL, f"{REDIS_PREFIX}wp381:*")
 
     assert not _is_open(connection)
 

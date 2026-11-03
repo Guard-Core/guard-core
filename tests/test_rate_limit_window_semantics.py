@@ -1,7 +1,6 @@
 import asyncio
 import math
 import time
-import uuid
 from collections import deque
 from collections.abc import AsyncGenerator
 from typing import Any
@@ -11,7 +10,12 @@ import pytest
 from guard_core.handlers.ratelimit_handler import RateLimitManager
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import SecurityConfig
-from tests.conftest import REDIS_URL, MockGuardRequest, MockGuardResponse
+from tests.conftest import (
+    REDIS_URL,
+    MockGuardRequest,
+    MockGuardResponse,
+    suite_redis_prefix,
+)
 
 IP = "198.51.100.10"
 
@@ -34,7 +38,7 @@ def _redis_config(limit: int, window: int) -> SecurityConfig:
     return SecurityConfig(
         enable_redis=True,
         redis_url=REDIS_URL,
-        redis_prefix=f"test:wp3:{uuid.uuid4().hex}:",
+        redis_prefix=suite_redis_prefix("wp3"),
         rate_limit=limit,
         rate_limit_window=window,
     )

@@ -1,6 +1,5 @@
 import json
 import logging
-import uuid
 from collections.abc import AsyncGenerator, Iterator
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -20,7 +19,7 @@ from guard_core.handlers.suspatterns_handler import sus_patterns_handler
 from guard_core.models import DynamicRules, SecurityConfig
 from guard_core.protocols.agent_protocol import JsonValue
 from guard_core.protocols.redis_protocol import RedisHandlerProtocol
-from tests.conftest import REDIS_URL
+from tests.conftest import REDIS_URL, suite_redis_prefix
 
 PATTERN = r"wp17purgepattern\d{2,4}"
 CONFIG_PATTERN = r"wp17configpattern\d{2,4}"
@@ -90,7 +89,7 @@ def reset_singleton() -> Iterator[None]:
 async def live_redis() -> AsyncGenerator[RedisManager, None]:
     config = SecurityConfig(
         redis_url=REDIS_URL,
-        redis_prefix=f"wp17-purge:{uuid.uuid4().hex}:",
+        redis_prefix=suite_redis_prefix("wp17-purge"),
         enable_redis=True,
     )
     manager = RedisManager(config)

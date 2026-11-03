@@ -1,5 +1,4 @@
 import time
-import uuid
 from collections.abc import Generator
 from typing import Any
 
@@ -9,7 +8,7 @@ from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers._ipban_cache import _BanStore
 from guard_core.sync.handlers.ipban_handler import IPBanManager
 from guard_core.sync.handlers.redis_handler import RedisManager
-from tests.test_sync.conftest import REDIS_URL
+from tests.test_sync.conftest import REDIS_URL, suite_redis_prefix
 
 MEMORY_ONLY_IP = "198.51.100.20"
 SHARED_IP = "198.51.100.21"
@@ -17,7 +16,7 @@ SHARED_IP = "198.51.100.21"
 
 @pytest.fixture
 def stack() -> Generator[tuple[IPBanManager, RedisManager], None]:
-    prefix = f"wp320:{uuid.uuid4().hex[:8]}:"
+    prefix = suite_redis_prefix("wp320")
     config = SyncSecurityConfig(
         enable_redis=True, redis_url=REDIS_URL, redis_prefix=prefix
     )

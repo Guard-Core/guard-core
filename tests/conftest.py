@@ -96,6 +96,12 @@ IPINFO_TOKEN = os.getenv("IPINFO_TOKEN") or "test_token"
 REDIS_URL = os.getenv("REDIS_URL") or "redis://localhost:6379"
 _REDIS_PREFIX_BASE = os.getenv("REDIS_PREFIX") or "test:guard_core:"
 REDIS_PREFIX = f"{_REDIS_PREFIX_BASE}{os.getpid()}:{secrets.token_hex(4)}:"
+
+
+def suite_redis_prefix(tag: str) -> str:
+    return f"{REDIS_PREFIX}{tag}:{uuid.uuid4().hex}:"
+
+
 GUARD_TESTS_GC_PER_TEST = os.getenv("GUARD_TESTS_GC_PER_TEST") == "1"
 _MAX_TEST_SECONDS_ENV = "GUARD_TESTS_MAX_TEST_SECONDS"
 _TEST_NODE_DURATIONS: dict[str, float] = {}
@@ -105,7 +111,7 @@ _TEST_AGENT_DIR = _TESTS_DIR / "test_agent"
 _TEST_SUS_PATTERNS_DIR = _TESTS_DIR / "test_sus_patterns"
 _TEST_CLOUD_IPS_DIR = _TESTS_DIR / "test_cloud_ips"
 _TEST_UTILS_DIR = _TESTS_DIR / "test_utils"
-_CLOUD_IP_REDIS_PREFIX = f"test:guard_core_cloud_ip_isolation:{uuid.uuid4().hex}:"
+_CLOUD_IP_REDIS_PREFIX = f"{REDIS_PREFIX}cloud_ip_isolation:{uuid.uuid4().hex}:"
 
 
 def _guard_core_logger_names() -> list[str]:

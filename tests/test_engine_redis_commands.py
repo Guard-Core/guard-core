@@ -6,7 +6,7 @@ from redis.asyncio import Redis
 
 from guard_core.handlers.redis_handler import RedisManager, close_redis_client
 from guard_core.models import SecurityConfig
-from tests.conftest import REDIS_URL
+from tests.conftest import REDIS_PREFIX, REDIS_URL, suite_redis_prefix
 from tests.engine_redis_commands import (
     _MONITORS,
     engine_commands_sent,
@@ -22,7 +22,7 @@ async def engine() -> AsyncGenerator[RedisManager, None]:
     config = SecurityConfig(
         enable_redis=True,
         redis_url=engine_redis_url(REDIS_URL),
-        redis_prefix=f"test:wp43:{uuid.uuid4().hex}:",
+        redis_prefix=suite_redis_prefix("wp43"),
     )
     manager = RedisManager(config)
     await manager.initialize()
@@ -38,10 +38,10 @@ async def _another_client_sends_commands() -> None:
     other = Redis.from_url(REDIS_URL, decode_responses=True)
     try:
         for index in range(25):
-            await other.set(f"test:wp43:other:{index}", "1", ex=5)
-            await other.get(f"test:wp43:other:{index}")
-            await other.mget([f"test:wp43:other:{index}"])
-            await other.smembers(f"test:wp43:other:set:{index}")
+            await other.set(f"{REDIS_PREFIX}wp43:other:{index}", "1", ex=5)
+            await other.get(f"{REDIS_PREFIX}wp43:other:{index}")
+            await other.mget([f"{REDIS_PREFIX}wp43:other:{index}"])
+            await other.smembers(f"{REDIS_PREFIX}wp43:other:set:{index}")
     finally:
         await close_redis_client(other)
 
@@ -82,7 +82,9 @@ async def test_a_command_a_lua_script_runs_is_counted_under_its_own_name(
     before_smembers = await engine_commands_sent(url, "smembers")
 
     async with engine.get_connection() as conn:
-        await conn.eval("return redis.call('SMEMBERS', KEYS[1])", 1, "test:wp43:set")
+        await conn.eval(
+            "return redis.call('SMEMBERS', KEYS[1])", 1, f"{REDIS_PREFIX}wp43:set"
+        )
 
     assert await engine_commands_sent(url, "smembers") == before_smembers + 1
     assert await engine_commands_sent(url, "eval") >= 1

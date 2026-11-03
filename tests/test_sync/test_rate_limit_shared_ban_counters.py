@@ -1,5 +1,4 @@
 import logging
-import uuid
 from collections.abc import Generator
 from typing import Any
 from unittest.mock import MagicMock, Mock
@@ -10,7 +9,12 @@ from guard_core.models import SyncSecurityConfig
 from guard_core.sync.core.checks.implementations.rate_limit import RateLimitCheck
 from guard_core.sync.handlers.ratelimit_handler import RateLimitManager
 from guard_core.sync.handlers.redis_handler import RedisManager
-from tests.test_sync.conftest import REDIS_URL, MockGuardResponse, SyncMockGuardRequest
+from tests.test_sync.conftest import (
+    REDIS_URL,
+    MockGuardResponse,
+    SyncMockGuardRequest,
+    suite_redis_prefix,
+)
 
 IP = "198.51.100.50"
 THRESHOLD = 6
@@ -21,7 +25,7 @@ def _config(redis: bool, prefix: str = "") -> SyncSecurityConfig:
     return SyncSecurityConfig(
         enable_redis=redis,
         redis_url=REDIS_URL,
-        redis_prefix=prefix or f"test:wp3:{uuid.uuid4().hex}:",
+        redis_prefix=prefix or suite_redis_prefix("wp3"),
         enable_penetration_detection=False,
         enable_rate_limiting=True,
         rate_limit=1,

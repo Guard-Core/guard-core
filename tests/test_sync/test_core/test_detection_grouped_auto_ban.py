@@ -1,4 +1,3 @@
-import uuid
 from collections.abc import Generator
 from typing import Any
 from unittest.mock import MagicMock
@@ -12,7 +11,7 @@ from guard_core.sync.core.checks.implementations.suspicious_activity import (
 from guard_core.sync.detection_result import DetectionResult
 from guard_core.sync.handlers.ipban_handler import IPBanManager
 from guard_core.sync.handlers.redis_handler import RedisManager
-from tests.test_sync.conftest import REDIS_URL
+from tests.test_sync.conftest import REDIS_URL, suite_redis_prefix
 
 IDENTITY = "2001:db8:0:1::/64"
 ADDRESSES = ["2001:db8:0:1::5", "2001:db8:0:1::6"]
@@ -30,7 +29,7 @@ def redis() -> Generator[RedisManager, None]:
     config = SyncSecurityConfig(
         enable_redis=True,
         redis_url=REDIS_URL,
-        redis_prefix=f"test:wp9:grouped:{uuid.uuid4().hex}:",
+        redis_prefix=suite_redis_prefix("wp9:grouped"),
     )
     manager = RedisManager(config)
     manager.initialize()

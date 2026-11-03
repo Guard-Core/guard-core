@@ -1,6 +1,5 @@
 import logging
 import time
-import uuid
 from collections.abc import Generator, Iterator
 from contextlib import contextmanager
 from typing import Any
@@ -19,6 +18,7 @@ from guard_core.sync.handlers.redis_handler import (
     close_redis_client,
 )
 from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
+from tests.test_sync.conftest import suite_redis_prefix
 from tests.test_sync.protocol_only_redis import REDIS_URL, protocol_only_handler
 
 IP = "198.51.100.77"
@@ -89,7 +89,7 @@ def test_a_subclass_of_the_base_gets_every_default() -> None:
     config = SyncSecurityConfig(
         enable_redis=True,
         redis_url=REDIS_URL,
-        redis_prefix=f"wp69base:{uuid.uuid4().hex}:",
+        redis_prefix=suite_redis_prefix("wp69base"),
     )
     own = _OwnPoolHandler(config)
     assert missing_redis_handler_members(own) == []
@@ -137,7 +137,7 @@ def test_a_base_subclass_leaves_the_manager_singleton_alone() -> None:
     config = SyncSecurityConfig(
         enable_redis=True,
         redis_url=REDIS_URL,
-        redis_prefix=f"wp69inst:{uuid.uuid4().hex}:",
+        redis_prefix=suite_redis_prefix("wp69inst"),
     )
     reset_singleton()
     own = _OwnPoolHandler(config)

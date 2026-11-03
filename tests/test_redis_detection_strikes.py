@@ -1,12 +1,11 @@
 import time
-import uuid
 from collections.abc import AsyncGenerator
 
 import pytest
 
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import SecurityConfig
-from tests.conftest import REDIS_URL
+from tests.conftest import REDIS_URL, suite_redis_prefix
 from tests.engine_redis_commands import server_loses_the_script_of_the_next_evalsha
 
 IP = "203.0.113.200"
@@ -18,7 +17,7 @@ async def redis() -> AsyncGenerator[RedisManager, None]:
     config = SecurityConfig(
         enable_redis=True,
         redis_url=REDIS_URL,
-        redis_prefix=f"test:wp3fu:strikes:{uuid.uuid4().hex}:",
+        redis_prefix=suite_redis_prefix("wp3fu:strikes"),
     )
     manager = RedisManager(config)
     await manager.initialize()

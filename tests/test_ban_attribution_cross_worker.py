@@ -4,13 +4,12 @@ import subprocess
 import sys
 import tempfile
 import time
-import uuid
 from pathlib import Path
 from typing import IO
 
 import pytest
 
-from tests.conftest import REDIS_URL
+from tests.conftest import REDIS_URL, suite_redis_prefix
 
 WORKERS = Path(__file__).resolve().parent.parent / "scripts" / "ban_attribution_workers"
 ROOT = Path(__file__).resolve().parent.parent
@@ -76,7 +75,7 @@ class _Worker:
 def test_two_workers_that_apply_the_set_at_different_times_stamp_alike(
     script: str, duration: int
 ) -> None:
-    prefix = f"wp23-xw:{uuid.uuid4().hex}:"
+    prefix = suite_redis_prefix("wp23-xw")
     first = _Worker(script, prefix, duration)
     try:
         second = _Worker(script, prefix, duration)

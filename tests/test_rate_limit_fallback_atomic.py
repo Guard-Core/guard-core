@@ -1,5 +1,4 @@
 import asyncio
-import uuid
 from collections.abc import AsyncGenerator
 from unittest.mock import AsyncMock
 
@@ -11,7 +10,7 @@ from guard_core.handlers.ratelimit_handler import (
 )
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import SecurityConfig
-from tests.conftest import REDIS_URL, MockGuardRequest
+from tests.conftest import REDIS_URL, MockGuardRequest, suite_redis_prefix
 
 LIMIT = 5
 IN_FLIGHT = 8
@@ -22,7 +21,7 @@ IP = "198.51.100.9"
 async def redis_and_config() -> AsyncGenerator[
     tuple[RedisManager, SecurityConfig], None
 ]:
-    prefix = f"wp320:{uuid.uuid4().hex[:8]}:"
+    prefix = suite_redis_prefix("wp320")
     config = SecurityConfig(
         enable_redis=True,
         redis_url=REDIS_URL,
@@ -77,7 +76,7 @@ async def test_manager_pipeline_fallback_burst_never_exceeds_the_limit(
 
 
 async def test_by_ip_auto_ban_reaches_the_callers_redis_without_a_guarded_app() -> None:
-    prefix = f"wp320:{uuid.uuid4().hex[:8]}:"
+    prefix = suite_redis_prefix("wp320")
     config = SecurityConfig(
         enable_redis=True,
         redis_url=REDIS_URL,

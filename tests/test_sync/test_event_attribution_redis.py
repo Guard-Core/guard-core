@@ -1,5 +1,4 @@
 import time
-import uuid
 from collections.abc import Generator
 from typing import Any
 from unittest.mock import MagicMock
@@ -10,7 +9,7 @@ from guard_core.models import DynamicRules, SyncSecurityConfig
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.sync.handlers.ipban_handler import ip_ban_manager
 from guard_core.sync.handlers.redis_handler import RedisManager
-from tests.test_sync.conftest import REDIS_URL
+from tests.test_sync.conftest import REDIS_URL, suite_redis_prefix
 from tests.test_sync.test_event_attribution import (
     DYNAMIC,
     DYNAMIC_OVERLAP,
@@ -28,7 +27,7 @@ from tests.test_sync.test_event_attribution import (
 @pytest.fixture
 def redis() -> Generator[RedisManager, None]:
     config = SyncSecurityConfig(
-        redis_url=REDIS_URL, redis_prefix=f"wp23-attr:{uuid.uuid4().hex}:"
+        redis_url=REDIS_URL, redis_prefix=suite_redis_prefix("wp23-attr")
     )
     manager = RedisManager(config)
     manager.initialize()

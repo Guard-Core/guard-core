@@ -1,6 +1,5 @@
 import os
 import time
-import uuid
 from collections.abc import AsyncGenerator, Generator
 from unittest.mock import AsyncMock
 
@@ -10,6 +9,7 @@ from guard_core.handlers.ipban_handler import IPBanManager
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import SecurityConfig
 from guard_core.protocols.redis_protocol import RedisHandlerProtocol
+from tests.conftest import suite_redis_prefix
 from tests.fake_agent import mock_agent
 from tests.ipban_redis_fake import fake_ban_redis
 
@@ -27,7 +27,7 @@ def reset_singleton() -> Generator[None, None, None]:
 @pytest.fixture
 async def live_redis() -> AsyncGenerator[RedisManager, None]:
     config = SecurityConfig(
-        redis_url=REDIS_URL, redis_prefix=f"wp6-evict:{uuid.uuid4().hex}:"
+        redis_url=REDIS_URL, redis_prefix=suite_redis_prefix("wp6-evict")
     )
     manager = RedisManager(config)
     await manager.initialize()

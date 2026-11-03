@@ -65,6 +65,11 @@ REDIS_URL = os.getenv("REDIS_URL") or "redis://localhost:6379"
 _REDIS_PREFIX_BASE = os.getenv("REDIS_PREFIX") or "test:guard_core:"
 REDIS_PREFIX = f"{_REDIS_PREFIX_BASE}{os.getpid()}:{secrets.token_hex(4)}:"
 
+
+def suite_redis_prefix(tag: str) -> str:
+    return f"{REDIS_PREFIX}{tag}:{uuid.uuid4().hex}:"
+
+
 _TEST_AGENT_DIR = Path(__file__).parent / "test_agent"
 _TEST_SUS_PATTERNS_DIR = Path(__file__).parent / "test_sus_patterns"
 _TEST_CLOUD_IPS_DIR = Path(__file__).parent / "test_cloud_ips"

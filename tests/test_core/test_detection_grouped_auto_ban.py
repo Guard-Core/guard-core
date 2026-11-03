@@ -1,4 +1,3 @@
-import uuid
 from collections.abc import AsyncGenerator, Generator
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -12,7 +11,7 @@ from guard_core.detection_result import DetectionResult
 from guard_core.handlers.ipban_handler import IPBanManager
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import SecurityConfig
-from tests.conftest import REDIS_URL
+from tests.conftest import REDIS_URL, suite_redis_prefix
 
 IDENTITY = "2001:db8:0:1::/64"
 ADDRESSES = ["2001:db8:0:1::5", "2001:db8:0:1::6"]
@@ -30,7 +29,7 @@ async def redis() -> AsyncGenerator[RedisManager, None]:
     config = SecurityConfig(
         enable_redis=True,
         redis_url=REDIS_URL,
-        redis_prefix=f"test:wp9:grouped:{uuid.uuid4().hex}:",
+        redis_prefix=suite_redis_prefix("wp9:grouped"),
     )
     manager = RedisManager(config)
     await manager.initialize()

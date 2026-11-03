@@ -1,7 +1,6 @@
 import logging
 import os
 import time
-import uuid
 from collections.abc import AsyncGenerator, Generator
 from typing import Any
 from unittest.mock import AsyncMock
@@ -13,6 +12,7 @@ from guard_core.handlers._ipban_recidive import escalated_duration
 from guard_core.handlers.ipban_handler import IPBanManager
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import SecurityConfig
+from tests.conftest import suite_redis_prefix
 
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379")
 HOST = "8.8.8.8"
@@ -31,7 +31,7 @@ def reset_singleton() -> Generator[None, None, None]:
 @pytest.fixture
 async def live_redis() -> AsyncGenerator[RedisManager, None]:
     config = SecurityConfig(
-        redis_url=REDIS_URL, redis_prefix=f"wp6-recidive:{uuid.uuid4().hex}:"
+        redis_url=REDIS_URL, redis_prefix=suite_redis_prefix("wp6-recidive")
     )
     manager = RedisManager(config)
     await manager.initialize()

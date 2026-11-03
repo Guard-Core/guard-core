@@ -1,5 +1,4 @@
 import os
-import uuid
 from collections.abc import AsyncGenerator
 from unittest.mock import patch
 
@@ -10,6 +9,7 @@ from guard_core.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.handlers.ipban_handler import ip_ban_manager
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import SecurityConfig
+from tests.conftest import suite_redis_prefix
 
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379")
 RULE_IP = "198.51.100.40"
@@ -21,7 +21,7 @@ OWNED = ("dynamic_rules", "owned_bans")
 @pytest.fixture
 async def live_redis() -> AsyncGenerator[RedisManager, None]:
     config = SecurityConfig(
-        redis_url=REDIS_URL, redis_prefix=f"wp17-owned:{uuid.uuid4().hex}:"
+        redis_url=REDIS_URL, redis_prefix=suite_redis_prefix("wp17-owned")
     )
     manager = RedisManager(config)
     await manager.initialize()

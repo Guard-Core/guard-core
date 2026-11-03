@@ -1,4 +1,3 @@
-import uuid
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock
@@ -19,7 +18,7 @@ from guard_core.handlers.ratelimit_handler import (
 )
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import SecurityConfig, ThreatBanConfig
-from tests.conftest import REDIS_URL
+from tests.conftest import REDIS_URL, suite_redis_prefix
 
 CLIENT_IP = "203.0.113.9"
 
@@ -162,7 +161,7 @@ async def test_shared_redis_strikes_above_the_floor_count_every_strike() -> None
     config = SecurityConfig(
         enable_redis=True,
         redis_url=REDIS_URL,
-        redis_prefix=f"test:wp9:cap:{uuid.uuid4().hex}:",
+        redis_prefix=suite_redis_prefix("wp9:cap"),
         enable_ip_banning=True,
         auto_ban_threshold=10_005,
     )

@@ -14,13 +14,15 @@ from guard_core._redis_abandoned_client import abandon_client
 from guard_core._redis_client_loop import EventLoop
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import SecurityConfig
-from tests.conftest import REDIS_URL
+from tests.conftest import REDIS_URL, suite_redis_prefix
 
 
 def _manager() -> RedisManager:
     return RedisManager(
         SecurityConfig(
-            enable_redis=True, redis_url=REDIS_URL, redis_prefix="wp336abandon:"
+            enable_redis=True,
+            redis_url=REDIS_URL,
+            redis_prefix=suite_redis_prefix("wp336abandon"),
         )
     )
 

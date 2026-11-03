@@ -1,9 +1,10 @@
 import os
 import subprocess
 import sys
-import uuid
 
 import redis
+
+from tests.conftest import suite_redis_prefix
 
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379")
 SCRIPT = """
@@ -39,7 +40,7 @@ def _apply_in_a_new_process(prefix: str, duration: int, ips: list[str]) -> None:
 
 
 def test_two_processes_applying_overlapping_sets_both_record_their_bans() -> None:
-    prefix = f"wp17-two-proc:{uuid.uuid4().hex}:"
+    prefix = suite_redis_prefix("wp17-two-proc")
     shared, first_only, second_only = "198.51.100.70", "198.51.100.71", "198.51.100.72"
 
     _apply_in_a_new_process(prefix, 3600, [shared, first_only])

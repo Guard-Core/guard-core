@@ -1,6 +1,5 @@
 import logging
 import time
-import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
@@ -16,7 +15,7 @@ from guard_core.exceptions import GuardRedisError
 from guard_core.handlers.ipban_handler import IPBanManager
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import SecurityConfig
-from tests.conftest import REDIS_URL
+from tests.conftest import REDIS_URL, suite_redis_prefix
 from tests.engine_redis_commands import server_loses_the_script_of_the_next_evalsha
 
 BLACKLISTED = "198.51.100.21"
@@ -32,7 +31,7 @@ class _Rig:
         fields: dict[str, Any] = dict(
             enable_redis=True,
             redis_url=REDIS_URL,
-            redis_prefix=f"test:wp56:{uuid.uuid4().hex}:",
+            redis_prefix=suite_redis_prefix("wp56"),
             blacklist=[BLACKLISTED, BLACKLISTED_TWIN],
             auto_ban_threshold=threshold,
             auto_ban_duration=300,

@@ -1,6 +1,5 @@
 import logging
 import time
-import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any
@@ -16,7 +15,7 @@ from guard_core.sync.core.checks.implementations.ip_security import IpSecurityCh
 from guard_core.sync.decorators.base import RouteConfig
 from guard_core.sync.handlers.ipban_handler import IPBanManager
 from guard_core.sync.handlers.redis_handler import RedisManager
-from tests.test_sync.conftest import REDIS_URL
+from tests.test_sync.conftest import REDIS_URL, suite_redis_prefix
 from tests.test_sync.engine_redis_commands import (
     server_loses_the_script_of_the_next_evalsha,
 )
@@ -34,7 +33,7 @@ class _Rig:
         fields: dict[str, Any] = dict(
             enable_redis=True,
             redis_url=REDIS_URL,
-            redis_prefix=f"test:wp56:{uuid.uuid4().hex}:",
+            redis_prefix=suite_redis_prefix("wp56"),
             blacklist=[BLACKLISTED, BLACKLISTED_TWIN],
             auto_ban_threshold=threshold,
             auto_ban_duration=300,

@@ -1,6 +1,5 @@
 import logging
 import time
-import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
 from types import SimpleNamespace
@@ -26,7 +25,7 @@ from guard_core.sync.handlers import ratelimit_handler
 from guard_core.sync.handlers.ipban_handler import IPBanManager
 from guard_core.sync.handlers.ratelimit_handler import RateLimitBlock, RateLimitManager
 from guard_core.sync.handlers.redis_handler import RedisManager
-from tests.test_sync.conftest import REDIS_URL
+from tests.test_sync.conftest import REDIS_URL, suite_redis_prefix
 
 CLIENT = "198.51.100.77"
 
@@ -38,7 +37,7 @@ class _Rig:
         fields: dict[str, Any] = dict(
             enable_redis=True,
             redis_url=REDIS_URL,
-            redis_prefix=f"test:wp303:{uuid.uuid4().hex}:",
+            redis_prefix=suite_redis_prefix("wp303"),
             auto_ban_threshold=10**6,
             enable_penetration_detection=False,
             enable_rate_limiting=True,

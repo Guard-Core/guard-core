@@ -1,5 +1,4 @@
 import logging
-import uuid
 from collections.abc import AsyncGenerator
 from unittest.mock import MagicMock
 
@@ -14,7 +13,12 @@ from guard_core.handlers.ratelimit_handler import (
 )
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import SecurityConfig
-from tests.conftest import REDIS_URL, MockGuardRequest, MockGuardResponse
+from tests.conftest import (
+    REDIS_URL,
+    MockGuardRequest,
+    MockGuardResponse,
+    suite_redis_prefix,
+)
 
 LOGGER = "guard_core.handlers.ratelimit"
 PREFIX = "this config object is not the one any guarded app was built with; "
@@ -139,7 +143,7 @@ async def redis() -> AsyncGenerator[RedisManager, None]:
         _config(
             enable_redis=True,
             redis_url=REDIS_URL,
-            redis_prefix=f"test:wp3fu:report:{uuid.uuid4().hex}:",
+            redis_prefix=suite_redis_prefix("wp3fu:report"),
         )
     )
     await manager.initialize()
@@ -168,7 +172,7 @@ async def test_an_unbound_reset_with_redis_lists_the_redis_clear(
     config = _config(
         enable_redis=True,
         redis_url=REDIS_URL,
-        redis_prefix=f"test:wp3fu:report:{uuid.uuid4().hex}:",
+        redis_prefix=suite_redis_prefix("wp3fu:report"),
     )
 
     with caplog.at_level(logging.INFO, logger=LOGGER):

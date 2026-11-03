@@ -1,5 +1,4 @@
 import os
-import uuid
 from collections.abc import Generator
 from typing import Any
 from unittest.mock import MagicMock, Mock
@@ -10,6 +9,7 @@ from guard_core.models import SyncSecurityConfig
 from guard_core.sync.handlers.ipban_handler import IPBanManager
 from guard_core.sync.handlers.redis_handler import RedisManager
 from tests.fake_agent import mock_agent
+from tests.test_sync.conftest import suite_redis_prefix
 
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379")
 
@@ -24,7 +24,7 @@ def reset_singleton() -> Generator[None, None, None]:
 @pytest.fixture
 def live_redis() -> Generator[RedisManager, None]:
     config = SyncSecurityConfig(
-        redis_url=REDIS_URL, redis_prefix=f"wp6-cidr:{uuid.uuid4().hex}:"
+        redis_url=REDIS_URL, redis_prefix=suite_redis_prefix("wp6-cidr")
     )
     manager = RedisManager(config)
     manager.initialize()

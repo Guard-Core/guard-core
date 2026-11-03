@@ -4,7 +4,6 @@ import subprocess
 import sys
 import textwrap
 import time
-import uuid
 from collections.abc import Iterator
 from functools import partial
 from unittest.mock import MagicMock, Mock
@@ -47,6 +46,7 @@ from guard_core.sync.handlers.redis_handler import (
     scan_unlink_through_new_client,
 )
 from guard_core.sync.handlers.redis_handler import redis_handler as redis_handler_alias
+from tests.test_sync.conftest import suite_redis_prefix
 
 _SHA1_CALLS_PROBE = textwrap.dedent(
     """
@@ -687,7 +687,7 @@ def live_handler() -> Iterator[RedisHandlerBase]:
     handler = RedisHandlerBase(
         SyncSecurityConfig(
             redis_url=os.environ.get("REDIS_URL", "redis://localhost:6379"),
-            redis_prefix=f"wp100:{uuid.uuid4().hex}:",
+            redis_prefix=suite_redis_prefix("wp100"),
         )
     )
     handler.initialize()

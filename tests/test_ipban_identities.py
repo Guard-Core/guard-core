@@ -1,7 +1,6 @@
 import ipaddress
 import os
 import time
-import uuid
 from collections.abc import AsyncGenerator, Generator
 from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
@@ -14,6 +13,7 @@ from guard_core.handlers._ipban_queries import _strike_key_inside
 from guard_core.handlers.ipban_handler import IPBanManager
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import SecurityConfig
+from tests.conftest import suite_redis_prefix
 from tests.engine_redis_commands import (
     engine_commands_sent,
     engine_redis_url,
@@ -37,7 +37,7 @@ def reset_singleton() -> Generator[None, None, None]:
 async def live_redis() -> AsyncGenerator[RedisManager, None]:
     config = SecurityConfig(
         redis_url=engine_redis_url(REDIS_URL),
-        redis_prefix=f"wp6-id:{uuid.uuid4().hex}:",
+        redis_prefix=suite_redis_prefix("wp6-id"),
     )
     manager = RedisManager(config)
     await manager.initialize()

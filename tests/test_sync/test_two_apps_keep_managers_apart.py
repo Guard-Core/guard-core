@@ -36,7 +36,7 @@ from guard_core.sync.handlers.suspatterns_handler import (
 )
 from guard_core.sync.utils import detect_penetration_attempt
 from tests.geo_fixture import country_database_bytes
-from tests.test_sync.conftest import SyncMockGuardRequest
+from tests.test_sync.conftest import SyncMockGuardRequest, suite_redis_prefix
 from tests.test_sync.protocol_only_redis import REDIS_URL
 
 CLOUD_RANGE = "198.51.100.0/24"
@@ -344,7 +344,7 @@ def test_three_apps_each_keep_their_own_managers_after_a_collection(
 
 
 def test_apps_on_one_prefix_share_the_default_managers() -> None:
-    prefix = f"same{uuid.uuid4().hex[:8]}:"
+    prefix = suite_redis_prefix("same")
     configs = [
         SyncSecurityConfig(
             enable_redis=True,

@@ -34,6 +34,7 @@ from tests.test_sync.conftest import (
     MockGuardResponse,
     MockGuardResponseFactory,
     SyncMockGuardRequest,
+    suite_redis_prefix,
 )
 
 LOGGER = "guard_core.sync.handlers.security_headers"
@@ -2206,7 +2207,7 @@ def test_the_handler_initializer_attaches_the_headers_manager_to_redis(
     config = SyncSecurityConfig(
         enable_redis=True,
         redis_url=REDIS_URL,
-        redis_prefix="test:wp10fu:",
+        redis_prefix=suite_redis_prefix("wp10fu"),
         enable_agent=False,
         security_headers={"enabled": True},
     )
@@ -2232,7 +2233,7 @@ def test_a_redis_handler_that_never_connected_is_not_attached() -> None:
     config = SyncSecurityConfig(
         enable_redis=True,
         redis_url=REDIS_URL,
-        redis_prefix="test:wp10fu:",
+        redis_prefix=suite_redis_prefix("wp10fu"),
         enable_agent=False,
     )
     redis = RedisManager(config)

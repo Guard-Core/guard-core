@@ -17,7 +17,7 @@ from guard_core.handlers.ipban_handler import IPBanManager
 from guard_core.handlers.ratelimit_handler import RateLimitManager
 from guard_core.handlers.redis_handler import RedisManager, close_redis_client
 from guard_core.models import SecurityConfig
-from tests.conftest import MockGuardRequest
+from tests.conftest import MockGuardRequest, suite_redis_prefix
 from tests.protocol_only_redis import REDIS_URL
 
 IP_A = "198.51.100.10"
@@ -133,7 +133,7 @@ async def test_a_second_apps_manager_never_becomes_the_class_singleton(
     unbound = SecurityConfig(
         enable_redis=True,
         redis_url=REDIS_URL,
-        redis_prefix="unbound-wp189:",
+        redis_prefix=suite_redis_prefix("unbound-wp189"),
         enable_ip_banning=True,
     )
     resolved = ipban_handler.ip_ban_manager_for(unbound, unbound=IPBanManager())

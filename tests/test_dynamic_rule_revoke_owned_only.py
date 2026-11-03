@@ -1,7 +1,6 @@
 import logging
 import os
 import time
-import uuid
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -18,6 +17,7 @@ from guard_core.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.handlers.ipban_handler import ip_ban_manager
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import DynamicRules, SecurityConfig
+from tests.conftest import suite_redis_prefix
 
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379")
 IP = "198.51.100.90"
@@ -70,7 +70,7 @@ class Fleet:
 async def _open_fleet(on_redis: bool) -> Fleet:
     config = SecurityConfig(
         redis_url=REDIS_URL,
-        redis_prefix=f"wp20-revoke:{uuid.uuid4().hex}:",
+        redis_prefix=suite_redis_prefix("wp20-revoke"),
         enable_redis=on_redis,
         enable_agent=True,
         agent_api_key="k",

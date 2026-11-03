@@ -1,7 +1,6 @@
 import gc
 import logging
 import time
-import uuid
 from collections.abc import Generator
 from typing import Any
 from unittest.mock import MagicMock, Mock
@@ -20,7 +19,12 @@ from guard_core.sync.handlers.ratelimit_handler import (
 )
 from guard_core.sync.handlers.redis_handler import RedisManager
 from guard_core.sync.protocols.redis_protocol import SyncRedisHandlerProtocol
-from tests.test_sync.conftest import REDIS_URL, MockGuardResponse, SyncMockGuardRequest
+from tests.test_sync.conftest import (
+    REDIS_URL,
+    MockGuardResponse,
+    SyncMockGuardRequest,
+    suite_redis_prefix,
+)
 from tests.test_sync.engine_redis_commands import (
     engine_commands_sent,
     engine_redis_url,
@@ -311,7 +315,7 @@ def redis_app() -> Generator[tuple[SyncSecurityConfig, RateLimitManager], None]:
     config = SyncSecurityConfig(
         enable_redis=True,
         redis_url=engine_redis_url(REDIS_URL),
-        redis_prefix=f"test:wp3fu:{uuid.uuid4().hex}:",
+        redis_prefix=suite_redis_prefix("wp3fu"),
         enable_penetration_detection=False,
         enable_rate_limiting=True,
         rate_limit=2,

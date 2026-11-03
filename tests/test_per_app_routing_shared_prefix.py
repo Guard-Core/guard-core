@@ -24,7 +24,7 @@ from guard_core.handlers.ipban_handler import ip_ban_manager_for
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.handlers.suspatterns_handler import sus_patterns_manager_for
 from guard_core.models import DynamicRules, SecurityConfig
-from tests.conftest import MockGuardRequest
+from tests.conftest import MockGuardRequest, suite_redis_prefix
 from tests.protocol_only_redis import REDIS_URL
 
 ONE = "redis://user:hunter2@one.invalid:6379/0"
@@ -278,7 +278,9 @@ async def test_the_split_warning_fires_with_a_redis_url_and_enable_redis_left_de
 ) -> None:
     def build(url: str) -> HandlerInitializer:
         config = SecurityConfig(
-            redis_url=url, redis_prefix="wp136-default:", enable_agent=False
+            redis_url=url,
+            redis_prefix=suite_redis_prefix("wp136-default"),
+            enable_agent=False,
         )
         assert "enable_redis" not in config.model_fields_set
         return HandlerInitializer(
@@ -585,7 +587,7 @@ async def test_a_redis_ban_on_a_trusted_proxy_is_not_enforced_for_its_app(
     monkeypatch.setattr(
         _ipban_sharing, "_warned_unenforced_bans", PerApp("unenforced_bans", WarnedKeys)
     )
-    prefix = f"wp136-d178-{id(caplog)}:"
+    prefix = suite_redis_prefix("wp136-d178")
     first, second, ban = await _live_pair(prefix)
     try:
         assert await ban.ban_ip(PROXY, 3600, config=second.config) is True
@@ -611,7 +613,7 @@ async def test_a_redis_ban_on_a_trusted_proxy_is_not_enforced_for_its_app(
 
 
 async def test_a_network_ban_covering_the_proxy_answers_like_an_address_ban() -> None:
-    first, second, ban = await _live_pair(f"wp136-d178n-{id(PROXY)}:")
+    first, second, ban = await _live_pair(suite_redis_prefix("wp136-d178n"))
     try:
         assert await ban.ban_ip("10.0.0.0/24", 3600, config=second.config) is True
         _forget_local_bans(ban)
@@ -626,7 +628,7 @@ async def test_a_network_ban_covering_the_proxy_answers_like_an_address_ban() ->
 
 
 async def test_the_rate_limit_feed_uses_the_callers_config_for_a_stored_ban() -> None:
-    first, second, ban = await _live_pair(f"wp136-d178r-{id(PROXY)}:")
+    first, second, ban = await _live_pair(suite_redis_prefix("wp136-d178r"))
     first_counts = ratelimit_handler._by_ip_autoban_counts.for_app(first.config)
     second_counts = ratelimit_handler._by_ip_autoban_counts.for_app(second.config)
     try:

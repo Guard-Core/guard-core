@@ -22,7 +22,7 @@ from guard_core.handlers.redis_handler import (
 )
 from guard_core.models import SecurityConfig
 from tests import redis_py_internals as internals
-from tests.conftest import REDIS_URL
+from tests.conftest import REDIS_URL, suite_redis_prefix
 from tests.engine_redis_commands import server_loses_the_script_of_the_next_evalsha
 
 SCRIPT = "return {KEYS[1], ARGV[1], false, 7, {KEYS[2], 'x'}}"
@@ -63,7 +63,7 @@ async def test_replies_equal_the_high_level_path_for_every_key_shape(
     client: Redis,
 ) -> None:
     sha = await client.script_load(SCRIPT)
-    prefix = f"lean:{uuid.uuid4().hex}:"
+    prefix = suite_redis_prefix("lean")
     await client.set(f"{prefix}a", "1")
 
     for count in (1, 2, 6):
@@ -220,7 +220,7 @@ async def test_a_drop_between_send_and_read_counts_one_request_not_two(
     config = SecurityConfig(
         enable_redis=True,
         redis_url=REDIS_URL,
-        redis_prefix=f"test:lean:{uuid.uuid4().hex}:",
+        redis_prefix=suite_redis_prefix("lean"),
     )
     manager = RedisManager(config)
     await manager.initialize()
@@ -873,7 +873,7 @@ async def test_a_stock_client_answers_every_lean_routed_method_like_the_fast_poo
     stock = Redis.from_url(REDIS_URL, decode_responses=True)
     try:
         sha = await stock.script_load(SCRIPT)
-        prefix = f"lean:{uuid.uuid4().hex}:"
+        prefix = suite_redis_prefix("lean")
         await stock.set(f"{prefix}a", "1")
         names = [f"{prefix}a", f"{prefix}missing"]
         for lean_client in (stock, client):

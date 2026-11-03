@@ -4,7 +4,6 @@ import subprocess
 import sys
 import textwrap
 import time
-import uuid
 from collections.abc import AsyncIterator
 from functools import partial
 from unittest.mock import AsyncMock, MagicMock, Mock
@@ -47,6 +46,7 @@ from guard_core.scripts.detection_strikes_lua import (
 )
 from guard_core.scripts.rule_hit_index_lua import SUM_INDEXED_WINDOW_HITS_SCRIPT
 from guard_core.scripts.sliding_window_lua import SLIDING_WINDOW_HIT_SCRIPT
+from tests.conftest import suite_redis_prefix
 
 _SHA1_CALLS_PROBE = textwrap.dedent(
     """
@@ -675,7 +675,7 @@ async def live_handler() -> AsyncIterator[RedisHandlerBase]:
     handler = RedisHandlerBase(
         SecurityConfig(
             redis_url=os.environ.get("REDIS_URL", "redis://localhost:6379"),
-            redis_prefix=f"wp100:{uuid.uuid4().hex}:",
+            redis_prefix=suite_redis_prefix("wp100"),
         )
     )
     await handler.initialize()

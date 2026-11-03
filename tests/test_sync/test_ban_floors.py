@@ -1,7 +1,6 @@
 import ipaddress
 import os
 import time
-import uuid
 from collections.abc import Generator
 
 import pytest
@@ -11,6 +10,7 @@ from guard_core.sync.handlers._dynamic_rule_application import RuleSideEffects
 from guard_core.sync.handlers.dynamic_rule_handler import DynamicRuleManager
 from guard_core.sync.handlers.ipban_handler import ip_ban_manager
 from guard_core.sync.handlers.redis_handler import RedisManager
+from tests.test_sync.conftest import suite_redis_prefix
 
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379")
 IP = "198.51.100.50"
@@ -22,7 +22,7 @@ VERSION = ("ban_version", "counter")
 @pytest.fixture
 def live_redis() -> Generator[RedisManager, None]:
     config = SyncSecurityConfig(
-        redis_url=REDIS_URL, redis_prefix=f"wp17-floors:{uuid.uuid4().hex}:"
+        redis_url=REDIS_URL, redis_prefix=suite_redis_prefix("wp17-floors")
     )
     manager = RedisManager(config)
     manager.initialize()

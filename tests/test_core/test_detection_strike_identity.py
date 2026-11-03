@@ -1,4 +1,3 @@
-import uuid
 from collections.abc import AsyncGenerator
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -11,7 +10,7 @@ from guard_core.core.checks.implementations.suspicious_activity import (
 from guard_core.detection_result import DetectionResult
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import SecurityConfig
-from tests.conftest import REDIS_URL
+from tests.conftest import REDIS_URL, suite_redis_prefix
 
 SAME_PREFIX = [f"2001:db8:0:1::{index:x}" for index in range(1, 6)]
 OTHER_PREFIXES = [f"2001:db8:0:{index}::1" for index in range(1, 6)]
@@ -123,7 +122,7 @@ async def redis() -> AsyncGenerator[RedisManager, None]:
     config = _config(
         enable_redis=True,
         redis_url=REDIS_URL,
-        redis_prefix=f"test:wp9:strikeid:{uuid.uuid4().hex}:",
+        redis_prefix=suite_redis_prefix("wp9:strikeid"),
     )
     manager = RedisManager(config)
     await manager.initialize()

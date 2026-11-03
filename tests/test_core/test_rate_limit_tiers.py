@@ -1,6 +1,5 @@
 import hashlib
 import logging
-import uuid
 from collections.abc import AsyncGenerator
 from typing import Any
 from unittest.mock import AsyncMock, Mock
@@ -13,7 +12,12 @@ from guard_core.decorators.base import RouteConfig
 from guard_core.handlers.ratelimit_handler import RateLimitManager
 from guard_core.handlers.redis_handler import RedisManager
 from guard_core.models import SecurityConfig
-from tests.conftest import REDIS_URL, MockGuardRequest, MockGuardResponse
+from tests.conftest import (
+    REDIS_URL,
+    MockGuardRequest,
+    MockGuardResponse,
+    suite_redis_prefix,
+)
 from tests.engine_redis_commands import server_loses_the_script_of_the_next_evalsha
 
 IP = "198.51.100.20"
@@ -115,7 +119,7 @@ async def redis_stack() -> AsyncGenerator[
     config = _config(
         enable_redis=True,
         redis_url=REDIS_URL,
-        redis_prefix=f"test:wp3:{uuid.uuid4().hex}:",
+        redis_prefix=suite_redis_prefix("wp3"),
         endpoint_rate_limits={"/x": (100, 60)},
     )
     redis = RedisManager(config)

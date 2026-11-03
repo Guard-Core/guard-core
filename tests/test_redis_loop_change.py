@@ -6,7 +6,7 @@ from redis.asyncio import Redis
 
 from guard_core.handlers.redis_handler import RedisManager, close_redis_client
 from guard_core.models import SecurityConfig
-from tests.conftest import REDIS_URL
+from tests.conftest import REDIS_URL, suite_redis_prefix
 
 _CLIENTS: list[Redis] = []
 
@@ -14,7 +14,9 @@ _CLIENTS: list[Redis] = []
 @pytest.fixture
 def manager() -> Iterator[RedisManager]:
     config = SecurityConfig(
-        enable_redis=True, redis_url=REDIS_URL, redis_prefix="wp313loop:"
+        enable_redis=True,
+        redis_url=REDIS_URL,
+        redis_prefix=suite_redis_prefix("wp313loop"),
     )
     yield RedisManager(config)
 
