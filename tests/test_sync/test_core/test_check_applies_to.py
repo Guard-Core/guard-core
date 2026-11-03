@@ -213,7 +213,7 @@ def test_dynamic_rules_flag_forces_keep_regardless_of_other_flags(
     config = SyncSecurityConfig(
         enable_dynamic_rules=True,
         enable_agent=True,
-        agent_api_key="test-key",
+        agent_api_key="test-key-0001",
         enable_ip_banning=False,
         enable_rate_limiting=False,
         enable_penetration_detection=False,

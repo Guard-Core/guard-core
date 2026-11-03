@@ -25,7 +25,7 @@ def test_agent_config_validation_dynamic_rules_without_agent() -> None:
         SyncSecurityConfig(
             enable_agent=False,
             enable_dynamic_rules=True,
-            agent_api_key="test-key",
+            agent_api_key="test-key-0001",
         )
 
     assert "enable_agent must be True when enable_dynamic_rules is True" in str(
@@ -36,7 +36,7 @@ def test_agent_config_validation_dynamic_rules_without_agent() -> None:
 def test_to_agent_config_returns_none_when_disabled() -> None:
     config = SyncSecurityConfig(
         enable_agent=False,
-        agent_api_key="test-key",
+        agent_api_key="test-key-0001",
     )
 
     result = config.to_agent_config()
@@ -170,7 +170,7 @@ def test_to_agent_config_import_error() -> None:
 def test_agent_config_with_all_defaults() -> None:
     config = SyncSecurityConfig(
         enable_agent=True,
-        agent_api_key="test-key",
+        agent_api_key="test-key-0001",
     )
 
     assert config.agent_endpoint == "https://api.guard-core.com"
@@ -198,7 +198,7 @@ def test_emergency_mode_defaults() -> None:
 def test_valid_agent_and_dynamic_rules_config() -> None:
     config = SyncSecurityConfig(
         enable_agent=True,
-        agent_api_key="test-key",
+        agent_api_key="test-key-0001",
         enable_dynamic_rules=True,
         dynamic_rule_interval=600,
     )
@@ -212,7 +212,7 @@ def test_dynamic_rule_interval_below_agent_config_floor_is_rejected() -> None:
     with pytest.raises(ValueError):
         SyncSecurityConfig(
             enable_agent=True,
-            agent_api_key="test-key",
+            agent_api_key="test-key-0001",
             enable_dynamic_rules=True,
             dynamic_rule_interval=59,
         )
@@ -221,7 +221,7 @@ def test_dynamic_rule_interval_below_agent_config_floor_is_rejected() -> None:
 def test_dynamic_rule_interval_at_agent_config_floor_is_accepted() -> None:
     config = SyncSecurityConfig(
         enable_agent=True,
-        agent_api_key="test-key",
+        agent_api_key="test-key-0001",
         enable_dynamic_rules=True,
         dynamic_rule_interval=60,
     )
@@ -234,7 +234,7 @@ def test_to_agent_config_forwards_dynamic_rule_interval() -> None:
 
     config = SyncSecurityConfig(
         enable_agent=True,
-        agent_api_key="test-key",
+        agent_api_key="test-key-0001",
         dynamic_rule_interval=600,
     )
 
@@ -256,7 +256,7 @@ def test_to_agent_config_forwards_agent_status_interval() -> None:
 
     config = SyncSecurityConfig(
         enable_agent=True,
-        agent_api_key="test-key",
+        agent_api_key="test-key-0001",
         agent_status_interval=900,
     )
 
@@ -316,7 +316,7 @@ def test_to_agent_config_forwards_optional_field_when_set(
 ) -> None:
     config = SyncSecurityConfig(
         enable_agent=True,
-        agent_api_key="test-key",
+        agent_api_key="test-key-0001",
         **{security_field: value},
     )
 
@@ -329,7 +329,7 @@ def test_to_agent_config_forwards_optional_field_when_set(
 def test_to_agent_config_forwards_on_error_by_identity() -> None:
     config = SyncSecurityConfig(
         enable_agent=True,
-        agent_api_key="test-key",
+        agent_api_key="test-key-0001",
         on_error=_sample_on_error_hook,
     )
 
@@ -344,7 +344,7 @@ def test_to_agent_config_omits_none_optional_fields_leaving_agent_defaults() -> 
 
     config = SyncSecurityConfig(
         enable_agent=True,
-        agent_api_key="test-key",
+        agent_api_key="test-key-0001",
     )
 
     result = config.to_agent_config()

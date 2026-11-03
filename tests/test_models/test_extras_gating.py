@@ -157,7 +157,7 @@ def test_enable_dynamic_rules_without_cloud_packages_raises_named_extra(
         SecurityConfig(
             enable_dynamic_rules=True,
             enable_agent=True,
-            agent_api_key="test-key",
+            agent_api_key="test-key-0001",
         )
 
     assert "pip install guard-core[cloud]" in str(exc_info.value)

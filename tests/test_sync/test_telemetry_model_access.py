@@ -286,7 +286,7 @@ def _isolated_import_finder() -> Generator[_GuardAgentImportFinder, None, None]:
 
 def test_finder_allows_to_agent_config_through_real_import_machinery() -> None:
     with _isolated_import_finder() as finder:
-        config = SyncSecurityConfig(enable_agent=True, agent_api_key="test-key")
+        config = SyncSecurityConfig(enable_agent=True, agent_api_key="test-key-0001")
         config.to_agent_config()
 
     assert finder.violations == []

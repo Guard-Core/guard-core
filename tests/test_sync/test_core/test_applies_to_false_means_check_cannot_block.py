@@ -50,7 +50,7 @@ def _neutral_config(**overrides: object) -> SyncSecurityConfig:
     fields.update(overrides)
     if fields.get("enable_dynamic_rules"):
         fields.setdefault("enable_agent", True)
-        fields.setdefault("agent_api_key", "test-key")
+        fields.setdefault("agent_api_key", "test-key-0001")
     return SyncSecurityConfig(**fields)
 
 

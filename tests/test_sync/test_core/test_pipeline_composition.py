@@ -66,7 +66,7 @@ def test_enable_dynamic_rules_keeps_mutable_checks_with_every_flag_off() -> None
     config = SyncSecurityConfig(
         enable_dynamic_rules=True,
         enable_agent=True,
-        agent_api_key="test-key",
+        agent_api_key="test-key-0001",
         enable_ip_banning=False,
         enable_rate_limiting=False,
         enable_penetration_detection=False,
