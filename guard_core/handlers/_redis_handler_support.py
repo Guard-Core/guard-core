@@ -56,7 +56,11 @@ def _redact_redis_url(url: str | None) -> str | None:
     except ValueError:
         return _unparseable_redis_url(url)
     if not parts.netloc:
-        return url
+        # a socket URL (unix:///path) has no netloc; its query can carry the password
+        if not parts.query:
+            return url
+        kept = _without_credential_params(parts.query)
+        return url.replace(f"?{parts.query}", f"?{kept}" if kept else "", 1)
     try:
         host = parts.hostname or ""
         port = parts.port

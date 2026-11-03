@@ -49,6 +49,16 @@ def test_redact_redis_url_unix_socket_left_unchanged() -> None:
     assert _redact_redis_url("unix:///tmp/redis.sock") == "unix:///tmp/redis.sock"
 
 
+def test_redact_redis_url_unix_socket_drops_credential_params() -> None:
+    assert (
+        _redact_redis_url("unix:///tmp/redis.sock?password=pw&db=0&username=u")
+        == "unix:///tmp/redis.sock?db=0"
+    )
+    assert _redact_redis_url("unix:///tmp/redis.sock?password=pw") == (
+        "unix:///tmp/redis.sock"
+    )
+
+
 def test_redact_redis_url_keeps_scheme_host_port_db_query_drops_userinfo() -> None:
     assert (
         _redact_redis_url("rediss://user:pw@host:6380/1?ssl=true")
