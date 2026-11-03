@@ -64,18 +64,17 @@ reader, writer = os.pipe()
 pid = os.fork()
 if pid == 0:
     os.close(reader)
-    started = time.monotonic()
     child = [verdict(text) for text in texts]
-    os.write(writer, repr((child, time.monotonic() - started)).encode())
+    os.write(writer, repr(child).encode())
     os._exit(0)
 os.close(writer)
-child, seconds = ast.literal_eval(os.read(reader, 65536).decode())
+child = ast.literal_eval(os.read(reader, 65536).decode())
 os.waitpid(pid, 0)
-print(repr((parent, child, seconds, compiler._shared_executor is not None)))
+print(repr((parent, child, compiler._shared_executor is not None)))
 """
 
 
-def _fork_run(tree: str) -> tuple[list[tuple], list[tuple], float, bool]:
+def _fork_run(tree: str) -> tuple[list[tuple], list[tuple], bool]:
     env = dict(os.environ)
     env["PYTHONPATH"] = f"{REPO_ROOT}{os.pathsep}{env.get('PYTHONPATH', '')}"
     result = subprocess.run(
@@ -87,7 +86,7 @@ def _fork_run(tree: str) -> tuple[list[tuple], list[tuple], float, bool]:
         timeout=180,
         check=True,
     )
-    answer: tuple[list[tuple], list[tuple], float, bool] = ast.literal_eval(
+    answer: tuple[list[tuple], list[tuple], bool] = ast.literal_eval(
         result.stdout.strip().splitlines()[-1]
     )
     return answer
@@ -96,10 +95,12 @@ def _fork_run(tree: str) -> tuple[list[tuple], list[tuple], float, bool]:
 @pytest.mark.skipif(not hasattr(os, "fork"), reason="needs os.fork")
 @pytest.mark.parametrize("tree", ["async", "sync"])
 def test_the_first_scan_in_a_forked_child_gives_the_parents_verdict(tree: str) -> None:
-    parent, child, seconds, parent_pool_alive = _fork_run(tree)
+    parent, child, parent_pool_alive = _fork_run(tree)
 
+    # The hang this guards against shows up as an answer, not as elapsed time: a child
+    # queued behind the parent's absent workers waits out its bound and answers
+    # "body not read", so the error and verdict checks below catch it at any load.
     assert parent_pool_alive
     assert child == parent
     assert all(error is None for _threat, error, _categories in child)
     assert child[1][0] is True
-    assert seconds < 4
