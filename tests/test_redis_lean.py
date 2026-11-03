@@ -94,7 +94,7 @@ async def test_a_script_the_server_lost_is_loaded_and_the_call_answered(
 async def test_a_cancelled_call_never_hands_its_connection_on_with_a_reply_unread(
     client: Redis,
 ) -> None:
-    key = f"lean:{uuid.uuid4().hex}:list"
+    key = f"{suite_redis_prefix('lean')}list"
     blocked = asyncio.ensure_future(lean_command(client, "BLPOP", key, 5))
     await asyncio.sleep(0.2)
     blocked.cancel()

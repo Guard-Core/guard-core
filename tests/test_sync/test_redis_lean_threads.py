@@ -1,4 +1,3 @@
-import uuid
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 from unittest.mock import patch
@@ -11,6 +10,7 @@ from guard_core.sync.handlers._redis_lean import lean_command, lean_evalsha
 from guard_core.sync.handlers.redis_handler import _build_redis_client
 from tests import redis_py_internals as internals
 from tests.conftest import REDIS_URL
+from tests.test_sync.conftest import suite_redis_prefix
 from tests.test_sync.engine_redis_commands import (
     server_loses_the_script_of_the_next_evalsha,
 )
@@ -32,7 +32,7 @@ def test_replies_equal_the_high_level_path_and_a_lost_script_is_reloaded(
             sha, 2, "a", "b", "x"
         )
         assert len(turned) == 1
-        key = f"lean:{uuid.uuid4().hex}"
+        key = f"{suite_redis_prefix('lean')}key"
         client.set(key, "1")
         assert lean_command(client, "GET", key) == "1"
         assert lean_command(client, "MGET", key, f"{key}:none") == client.mget(
@@ -150,7 +150,7 @@ def test_a_stock_client_answers_every_lean_routed_method_like_the_fast_pool(
     stock = Redis.from_url(REDIS_URL, decode_responses=True)
     try:
         sha = stock.script_load(SCRIPT)
-        key = f"lean:{uuid.uuid4().hex}"
+        key = f"{suite_redis_prefix('lean')}key"
         stock.set(key, "1")
         for client in (stock, fast):
             assert lean_command(client, "GET", key) == "1"
