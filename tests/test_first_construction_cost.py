@@ -174,3 +174,31 @@ def test_a_trigger_assignment_on_a_fully_stated_config_signals_nothing(
     config.rate_limit = 5
 
     assert config.rate_limit == 5
+
+
+def test_a_config_with_the_agent_off_skips_both_agent_helpers() -> None:
+    called = _called_function_names(
+        lambda: SecurityConfig(**STATED_EVERY_CHANGED_DEFAULT)
+    )
+
+    assert "require_agent_config" not in called
+    assert "warn_agent_endpoint_in_clear" not in called
+
+
+def test_a_config_with_the_agent_on_still_runs_both_agent_helpers() -> None:
+    called = _called_function_names(
+        lambda: SecurityConfig(
+            **STATED_EVERY_CHANGED_DEFAULT,
+            enable_agent=True,
+            agent_api_key="key",
+            agent_endpoint="https://agent.example",
+        )
+    )
+
+    assert {"require_agent_config", "warn_agent_endpoint_in_clear"} <= called
+
+
+@pytest.mark.parametrize("field", ["enable_dynamic_rules", "enable_enrichment"])
+def test_a_dependent_agent_field_without_the_agent_still_refuses(field: str) -> None:
+    with pytest.raises(ValueError, match="enable_agent"):
+        SecurityConfig(**STATED_EVERY_CHANGED_DEFAULT, **{field: True})

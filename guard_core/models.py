@@ -405,12 +405,19 @@ class SecurityConfig(_SecurityConfigFields[RequestT]):
 
     @model_validator(mode="after")
     def validate_agent_config(self) -> Self:
-        require_agent_config(self)
+        values = self.__dict__
+        if (
+            values["enable_agent"]
+            or values["enable_dynamic_rules"]
+            or values["enable_enrichment"]
+        ):
+            require_agent_config(self)
         return self
 
     @model_validator(mode="after")
     def warn_agent_endpoint_in_clear_text(self) -> Self:
-        warn_agent_endpoint_in_clear(self)
+        if self.__dict__["enable_agent"]:
+            warn_agent_endpoint_in_clear(self)
         return self
 
     @model_validator(mode="after")
